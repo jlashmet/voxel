@@ -9,15 +9,17 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public readonly double LastMs;
         public readonly double P50Ms;
         public readonly double P95Ms;
+        public readonly double P99Ms;
         public readonly double MaxMs;
 
         internal VoxelTimingSummary(ulong sampleCount, double lastMs, double p50Ms,
-                                    double p95Ms, double maxMs)
+                                    double p95Ms, double p99Ms, double maxMs)
         {
             SampleCount = sampleCount;
             LastMs = lastMs;
             P50Ms = p50Ms;
             P95Ms = p95Ms;
+            P99Ms = p99Ms;
             MaxMs = maxMs;
         }
 
@@ -29,7 +31,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                                                     in VoxelTimingSummary b) =>
             new(a.SampleCount + b.SampleCount,
                 Math.Max(a.LastMs, b.LastMs), Math.Max(a.P50Ms, b.P50Ms),
-                Math.Max(a.P95Ms, b.P95Ms), Math.Max(a.MaxMs, b.MaxMs));
+                Math.Max(a.P95Ms, b.P95Ms), Math.Max(a.P99Ms, b.P99Ms),
+                Math.Max(a.MaxMs, b.MaxMs));
     }
 
     /// <summary>
@@ -65,8 +68,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             double last = _samples[(_next + Capacity - 1) % Capacity];
             double p50 = Percentile(0.50);
             double p95 = Percentile(0.95);
+            double p99 = Percentile(0.99);
             double max = _count > 0 ? _scratch[_count - 1] : 0.0;
-            _cached = new VoxelTimingSummary(_totalSamples, last, p50, p95, max);
+            _cached = new VoxelTimingSummary(_totalSamples, last, p50, p95, p99, max);
             _dirty = false;
             return _cached;
         }

@@ -44,6 +44,7 @@ namespace VoxelEngine.Storage.Runtime
                 if (current.IsMixed)
                     _pool.Free(current.PoolIndex);
                 region.BrickRefs[blockIndex] = BrickRef.Uniform(material);
+                RefreshBlockSummary(ref region, blockIndex);
                 changed = true;
             }
 
@@ -82,7 +83,9 @@ namespace VoxelEngine.Storage.Runtime
                 int poolIndex;
                 if (current.IsMixed)
                 {
-                    poolIndex = current.PoolIndex;
+                    poolIndex = _pool.EnsureWritable(current.PoolIndex);
+                    if (poolIndex != current.PoolIndex)
+                        region.BrickRefs[blockIndex] = BrickRef.FromPoolIndex(poolIndex);
                 }
                 else
                 {
@@ -97,6 +100,7 @@ namespace VoxelEngine.Storage.Runtime
             if (!changed)
                 return false;
 
+            RefreshBlockSummary(ref region, blockIndex);
             region.Dirty = true;
             _table.CommitRegion(in region);
             return true;
@@ -155,6 +159,9 @@ namespace VoxelEngine.Storage.Runtime
 
         public bool CompletePartialBlock(ref VoxelBlockMutation mutation, bool payloadChanged)
         {
+            if (mutation.IsCreated)
+                _pool.EndWrite(mutation.PoolIndex);
+
             if (!_table.TryGetRegion(mutation.RegionCoord, out Region region) || !region.BrickRefs.IsCreated)
             {
                 mutation = default;
@@ -179,6 +186,9 @@ namespace VoxelEngine.Storage.Runtime
                 region.BrickRefs[mutation.BlockIndex] = BrickRef.Uniform(uniform);
             }
 
+            if (payloadChanged)
+                RefreshBlockSummary(ref region, mutation.BlockIndex);
+
             if (changed)
             {
                 region.Dirty = true;
@@ -198,19 +208,33 @@ namespace VoxelEngine.Storage.Runtime
         {
             int poolIndex;
             bool materializedUniform = false;
+            bool publishedPhysicalRef = false;
+            Region writable = region;
             if (original.IsUniform)
             {
                 poolIndex = _pool.Allocate();
                 _pool.FillBrick(poolIndex, original.UniformMaterial);
-                Region writable = region;
                 writable.BrickRefs[blockIndex] = BrickRef.FromPoolIndex(poolIndex);
+                publishedPhysicalRef = true;
                 materializedUniform = true;
             }
             else
             {
-                poolIndex = original.PoolIndex;
+                poolIndex = _pool.EnsureWritable(original.PoolIndex);
+                if (poolIndex != original.PoolIndex)
+                {
+                    // The NativeArray backing BrickRefs is shared by Region copies. Publish the
+                    // COW version immediately and advance RegionTable's content revision before a
+                    // long-lived borrowed writer can overlap an optimistic renderer metadata job.
+                    writable.BrickRefs[blockIndex] = BrickRef.FromPoolIndex(poolIndex);
+                    publishedPhysicalRef = true;
+                }
             }
 
+            if (publishedPhysicalRef)
+                _table.CommitRegion(in writable);
+
+            _pool.BeginWrite(poolIndex);
             return new VoxelBlockMutation(
                 _pool.Voxels,
                 _pool.SurfaceSemantics,
@@ -224,6 +248,28 @@ namespace VoxelEngine.Storage.Runtime
                 poolIndex,
                 materializedUniform,
                 metadataChanged);
+        }
+
+        private void RefreshBlockSummary(ref Region region, int blockIndex)
+        {
+            BrickRef block = region.BrickRefs[blockIndex];
+            if (block.IsUniform)
+            {
+                bool solid = block.UniformMaterial != VoxelGrid.MaterialEmpty;
+                region.SetBlockOccupancySummary(blockIndex, solid, solid);
+                return;
+            }
+
+            int occupancyOffset = _pool.OccupancyOffset(block.PoolIndex);
+            bool occupied = false;
+            bool fullySolid = true;
+            for (int i = 0; i < VoxelReadGrid.OccupancyWordsPerBlock; i++)
+            {
+                ulong word = _pool.Occupancy[occupancyOffset + i];
+                occupied |= word != 0UL;
+                fullySolid &= word == ulong.MaxValue;
+            }
+            region.SetBlockOccupancySummary(blockIndex, occupied, fullySolid);
         }
 
         private static byte DecodeUniformMaterial(int encoded)

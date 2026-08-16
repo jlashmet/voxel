@@ -51,6 +51,13 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         /// see <see cref="VoxelReadGrid.LevelForStride"/>.
         /// </summary>
         public readonly bool SamplesFromMips;
+        /// <summary>
+        /// Step 8 keeps the exact versioned/COW snapshot boundary but compresses each 8^3 block
+        /// into eight spatial 4^3 HLOD subcells before meshing. This replaces the expensive exact
+        /// Transvoxel fallback without ever treating Storage's any-solid block projection as
+        /// render density.
+        /// </summary>
+        public bool UsesBlockHlod => SourceStep == VoxelReadGrid.BlockEdge;
 
         /// <summary>Chunk geometry of the base ring (SourceStep 1). Authoring and capture tools
         /// address the world in full-resolution chunks, so they want these rather than the
@@ -64,6 +71,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private const int GridSampleCount = GridSize * GridSize * GridSize;
         private const int CellsPerSlice = 512;
         private const int BrickCachePadding = 1;
+        private const int MaxExactSnapshotRegions = 27;
+        private const int ExactMixedPinChecksPerDeadline = 16;
         private readonly int BrickCacheEdge;
         private readonly int BrickCacheCount;
         private const uint FullyLitOcclusion = 0x0000FF00u;
@@ -71,18 +80,22 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private static readonly int s_SurfaceVertices = Shader.PropertyToID("_SurfaceVertices");
         private static readonly int s_SurfaceIndices = Shader.PropertyToID("_SurfaceIndices");
         private static readonly int s_SurfaceIndexBase = Shader.PropertyToID("_SurfaceIndexBase");
+        private static readonly int s_SurfaceVertexBase = Shader.PropertyToID("_SurfaceVertexBase");
 
         public sealed class Entry : IDisposable
         {
-            public readonly int3 Coordinate;
+            public int3 Coordinate { get; private set; }
             /// <summary>Voxels this chunk spans per axis — ring-dependent, so bounds and
             /// any consumer's world-space reasoning must use it rather than a constant.</summary>
             public readonly int VoxelsPerAxis;
             /// <summary>Voxels between adjacent samples in the ring that produced this entry.</summary>
             public readonly int SourceStep;
-            public ComputeBuffer Vertices;
-            public ComputeBuffer Indices;
-            public ComputeBuffer Args;
+            private readonly SurfaceGeometryArena _arena;
+            private SurfaceGeometryLease _liveLease;
+            private SurfaceGeometryLease _stagingLease;
+            public ComputeBuffer Vertices => _arena.Vertices;
+            public ComputeBuffer Indices => _arena.Indices;
+            public ComputeBuffer Args => _arena.Args;
             public bool Ready;
             public int IndexCount;
             public int LastUsedFrame;
@@ -96,66 +109,130 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             public uint CoatingCatalogueVersion { get; internal set; }
             public ulong CoatingCatalogueHash { get; internal set; }
 
-            internal Entry(int3 coordinate, int voxelsPerAxis, int sourceStep)
+            internal Entry(int3 coordinate, int voxelsPerAxis, int sourceStep,
+                           SurfaceGeometryArena arena)
             {
                 Coordinate = coordinate;
                 VoxelsPerAxis = voxelsPerAxis;
                 SourceStep = sourceStep;
+                _arena = arena ?? throw new ArgumentNullException(nameof(arena));
             }
 
-            internal void Upload(List<SmoothSurfaceVertex> vertices, List<uint> indices)
+            internal void Reinitialize(int3 coordinate)
             {
-                int requiredVertices = math.max(1, vertices.Count);
-                int requiredIndices = math.max(1, indices.Count);
-                if (Vertices != null && Indices != null && Args != null
-                    && VertexCapacity >= requiredVertices && IndexCapacity >= requiredIndices)
-                {
-                    if (vertices.Count > 0) Vertices.SetData(vertices, 0, 0, vertices.Count);
-                    if (indices.Count > 0) Indices.SetData(indices, 0, 0, indices.Count);
-                    Args.SetData(new uint[] { (uint)indices.Count, 1u, 0u, 0u });
-                    IndexCount = indices.Count;
-                    Ready = true;
-                    return;
-                }
-                ComputeBuffer nextVertices = null;
-                ComputeBuffer nextIndices = null;
-                ComputeBuffer nextArgs = null;
+                if (Ready || _liveLease.IsValid || _stagingLease.IsValid)
+                    throw new InvalidOperationException(
+                        "A surface entry must release its arena leases before reuse.");
+                Coordinate = coordinate;
+                IndexCount = 0;
+                LastUsedFrame = 0;
+                GpuBytes = 0;
+                VertexCapacity = 0;
+                IndexCapacity = 0;
+                SourceVersion = 0;
+                MaterialPaletteVersion = 0;
+                SurfaceCatalogueVersion = 0;
+                SurfaceCatalogueHash = 0;
+                CoatingCatalogueVersion = 0;
+                CoatingCatalogueHash = 0;
+                WaitingForArena = false;
+                _stagingVertexCursor = 0;
+                _stagingIndexCursor = 0;
+            }
 
-                try
+            private int _stagingVertexCursor;
+            private int _stagingIndexCursor;
+            internal bool WaitingForArena { get; private set; }
+
+            internal int RemainingUploadBytes(int vertexCount, int indexCount)
+            {
+                int verticesRemaining = math.max(0, vertexCount - _stagingVertexCursor);
+                int indicesRemaining = math.max(0, indexCount - _stagingIndexCursor);
+                return verticesRemaining * SmoothSurfaceVertex.Stride
+                     + indicesRemaining * sizeof(uint)
+                     + SurfaceGeometryArena.ArgsWordsPerDraw * sizeof(uint);
+            }
+
+            internal bool AdvanceUpload(NativeList<SmoothSurfaceVertex> vertices,
+                                        NativeList<uint> indices,
+                                        int byteBudget,
+                                        out int uploadedBytes)
+            {
+                uploadedBytes = 0;
+                if (byteBudget <= 0 || !EnsureUploadStaging(vertices.Length, indices.Length))
+                    return false;
+
+                int remainingBudget = byteBudget;
+                int vertexRemaining = vertices.Length - _stagingVertexCursor;
+                if (vertexRemaining > 0 && remainingBudget >= SmoothSurfaceVertex.Stride)
                 {
-                    int nextVertexCapacity = math.ceilpow2(requiredVertices);
-                    int nextIndexCapacity = math.ceilpow2(requiredIndices);
-                    nextVertices = new ComputeBuffer(nextVertexCapacity,
-                                                     SmoothSurfaceVertex.Stride,
-                                                     ComputeBufferType.Structured);
-                    nextIndices = new ComputeBuffer(nextIndexCapacity, sizeof(uint),
-                                                    ComputeBufferType.Structured);
-                    nextArgs = new ComputeBuffer(4, sizeof(uint),
-                                                 ComputeBufferType.IndirectArguments);
-                    if (vertices.Count > 0) nextVertices.SetData(vertices);
-                    if (indices.Count > 0) nextIndices.SetData(indices);
-                    nextArgs.SetData(new uint[] { (uint)indices.Count, 1u, 0u, 0u });
-                }
-                catch
-                {
-                    nextVertices?.Release();
-                    nextIndices?.Release();
-                    nextArgs?.Release();
-                    throw;
+                    int count = math.min(vertexRemaining,
+                        remainingBudget / SmoothSurfaceVertex.Stride);
+                    _arena.UploadVertices(vertices.AsArray(), _stagingVertexCursor,
+                                          in _stagingLease, count);
+                    int bytes = count * SmoothSurfaceVertex.Stride;
+                    _stagingVertexCursor += count;
+                    remainingBudget -= bytes;
+                    uploadedBytes += bytes;
                 }
 
-                Vertices?.Release();
-                Indices?.Release();
-                Args?.Release();
-                Vertices = nextVertices;
-                Indices = nextIndices;
-                Args = nextArgs;
-                IndexCount = indices.Count;
-                VertexCapacity = nextVertices.count;
-                IndexCapacity = nextIndices.count;
-                GpuBytes = (long)VertexCapacity * SmoothSurfaceVertex.Stride
-                         + (long)IndexCapacity * sizeof(uint) + 4L * sizeof(uint);
+                int indexRemaining = indices.Length - _stagingIndexCursor;
+                if (_stagingVertexCursor == vertices.Length && indexRemaining > 0
+                    && remainingBudget >= sizeof(uint))
+                {
+                    int count = math.min(indexRemaining, remainingBudget / sizeof(uint));
+                    _arena.UploadIndices(indices.AsArray(), _stagingIndexCursor,
+                                         in _stagingLease, count);
+                    int bytes = count * sizeof(uint);
+                    _stagingIndexCursor += count;
+                    remainingBudget -= bytes;
+                    uploadedBytes += bytes;
+                }
+
+                const int argsBytes = SurfaceGeometryArena.ArgsWordsPerDraw * sizeof(uint);
+                if (_stagingVertexCursor != vertices.Length
+                    || _stagingIndexCursor != indices.Length
+                    || remainingBudget < argsBytes)
+                    return false;
+
+                _arena.UploadArgs((uint)indices.Length, in _stagingLease);
+                uploadedBytes += argsBytes;
+
+                SurfaceGeometryLease previous = _liveLease;
+                _liveLease = _stagingLease;
+                _stagingLease = default;
+                _stagingVertexCursor = 0;
+                _stagingIndexCursor = 0;
+                IndexCount = indices.Length;
+                VertexCapacity = _liveLease.VertexCapacity;
+                IndexCapacity = _liveLease.IndexCapacity;
+                GpuBytes = _arena.ReservedBytes(in _liveLease);
                 Ready = true;
+                _arena.Release(in previous);
+                return true;
+            }
+
+            private bool EnsureUploadStaging(int vertexCount, int indexCount)
+            {
+                if (_stagingLease.IsValid) return true;
+                if (!_arena.TryAcquire(vertexCount, indexCount, out _stagingLease))
+                {
+                    WaitingForArena = true;
+                    return false;
+                }
+                WaitingForArena = false;
+                _stagingVertexCursor = 0;
+                _stagingIndexCursor = 0;
+                return true;
+            }
+
+            internal void CancelUpload()
+            {
+                _arena.Release(in _stagingLease);
+                _stagingLease = default;
+                WaitingForArena = false;
+                _stagingVertexCursor = 0;
+                _stagingIndexCursor = 0;
             }
 
             public Bounds WorldBounds(float voxelSize)
@@ -172,21 +249,20 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 if (!Ready || IndexCount == 0 || Vertices == null || Indices == null || Args == null)
                     return;
 
-                properties.SetBuffer(s_SurfaceVertices, Vertices);
-                properties.SetBuffer(s_SurfaceIndices, Indices);
-                properties.SetInt(s_SurfaceIndexBase, 0);
+                properties.SetBuffer(s_SurfaceVertices, _arena.Vertices);
+                properties.SetBuffer(s_SurfaceIndices, _arena.Indices);
+                properties.SetInt(s_SurfaceVertexBase, _liveLease.VertexStart);
+                properties.SetInt(s_SurfaceIndexBase, _liveLease.IndexStart);
                 commandBuffer.DrawProceduralIndirect(Matrix4x4.identity, material, 0,
-                    MeshTopology.Triangles, Args, 0, properties);
+                    MeshTopology.Triangles, _arena.Args,
+                    _liveLease.ArgsWordStart * sizeof(uint), properties);
             }
 
             public void Dispose()
             {
-                Vertices?.Release();
-                Indices?.Release();
-                Args?.Release();
-                Vertices = null;
-                Indices = null;
-                Args = null;
+                CancelUpload();
+                _arena.Release(in _liveLease);
+                _liveLease = default;
                 Ready = false;
                 IndexCount = 0;
                 GpuBytes = 0;
@@ -199,15 +275,19 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         {
             public bool Active;
             public int3 Coordinate;
-            public int Phase;   // 0 density, 1 continuous cells/decorations, 2 faceted planes
+            public int Phase;   // 0 snapshot, 1 jobs, 2 faceted, 3 profiles, 4 seams, 5 append, 6 pin release
             public int Cursor;
             public ulong SourceVersion;
+            public uint SlotGeneration;
             public uint MaterialPaletteVersion;
             public uint SurfaceCatalogueVersion;
             public ulong SurfaceCatalogueHash;
             public uint CoatingCatalogueVersion;
             public ulong CoatingCatalogueHash;
             public bool SnapshotTaken;
+            public bool SnapshotInitialised;
+            public int SnapshotCursor;
+            public double SnapshotCpuMs;
             public bool HasOwnedSolid;
             public bool RequiresContinuousTopology;
             public double BuildStartSeconds;
@@ -217,8 +297,49 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         }
 
         private readonly Dictionary<int3, Entry> _entries = new();
+        private readonly Stack<Entry> _entryPool = new();
+        private readonly SurfaceChunkSlotGrid _slotGrid;
         private readonly HashSet<int3> _known = new();
+        private bool _clipmapWindowValid;
+        private int3 _clipmapCenter;
+        private int _clipmapRadius;
+        // Camera motion retires only the slabs that left the previous clipmap window. The
+        // traversal is resumable, so even a teleport never turns residency cleanup into a scan
+        // of every known chunk or a full old-window walk in one frame.
+        private const int ClipmapEdgeCandidatesPerPrepare = 32;
+        private bool _clipmapEdgeRetirementPending;
+        private int3 _clipmapRetirementFromCenter;
+        private int3 _clipmapRetirementToCenter;
+        private int _clipmapRetirementRadius;
+        private int _clipmapRetirementAxis;
+        private int _clipmapRetirementDepth;
+        private int _clipmapRetirementPlaneCursor;
+        // Known-chunk liveness is maintained incrementally. A full HashSet scan in every worker
+        // turns residency pressure into O(world-residency) frame work, so each known chunk owns
+        // one round-robin queue record instead.
+        private readonly Queue<int3> _residencyQueue = new();
+        private readonly HashSet<int3> _queuedResidency = new();
+        private const int ResidencyChecksPerPrepare = 32;
+
+        // Full-region invalidations (journal overflow, residency publication, atomic world swap)
+        // are also incremental. Fine-grained edits continue to use the brick path immediately.
+        private readonly Queue<int3> _regionInvalidationQueue = new();
+        private readonly HashSet<int3> _queuedRegionInvalidations = new();
+        private readonly HashSet<int3> _rescanRegionInvalidations = new();
+        private const int RegionInvalidationCandidatesPerPrepare = 64;
+        private bool _hasActiveRegionInvalidation;
+        private int3 _activeRegionInvalidation;
+        private int3 _activeRegionMinChunk;
+        private int3 _activeRegionChunkCounts;
+        private int _activeRegionCandidateCursor;
+
         private readonly HashSet<int3> _dirty = new();
+        // Dirty work is also kept in a persistent FIFO. The HashSet remains the authoritative
+        // membership/coalescing structure; the queue gives build admission bounded incremental
+        // traversal instead of rescanning every dirty chunk whenever one workspace becomes free.
+        private readonly Queue<int3> _dirtyQueue = new();
+        private readonly HashSet<int3> _queuedDirty = new();
+        private const int BuildSelectionCandidatesPerSlice = 64;
         private readonly Dictionary<int3, ulong> _desiredVersions = new();
         // Chunks whose last completed build produced no geometry, and the source version that
         // proved it. They hold no Entry and no GPU memory, so they cost a dictionary slot
@@ -229,6 +350,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private readonly List<Entry> _visible = new();
         private readonly Plane[] _frustumPlanes = new Plane[6];
 
+        // Heavy persistent native memory is lifecycle-owned by the reusable build workspace.
+        // These handles are borrowed aliases kept only to avoid obscuring the job setup below.
+        private readonly TransvoxelBuildWorkspace _workspace;
         private readonly NativeArray<float> _density;
         private readonly NativeArray<byte> _materials;
         private readonly NativeArray<uint> _surfaceSemantics;
@@ -241,6 +365,31 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private NativeList<byte> _densityMixedVoxels;
         private NativeList<ushort> _densityMixedSurfaceSemantics;
         private NativeList<byte> _densityMixedBoundarySamples;
+        private NativeList<VoxelReadPinToken> _pinnedReadBlocks;
+        private IRegionReadSource _pinnedReadSource;
+        private NativeArray<byte> _pinnedMixedVoxels;
+        private NativeArray<ushort> _pinnedMixedSurfaceSemantics;
+        private NativeArray<byte> _pinnedMixedBoundarySamples;
+        private int _pinnedReleaseCursor;
+        private bool _discardBuildAfterPinRelease;
+        private readonly PinnedRegionBlockRefs[] _pinnedRegionBlockRefs =
+            new PinnedRegionBlockRefs[MaxExactSnapshotRegions];
+        private IRegionReadSource _pinnedRegionSource;
+        private int _pinnedRegionCount;
+        private NativeArray<byte> _exactMixedFlags;
+        private NativeList<int> _exactMixedBrickIndices;
+        private NativeArray<byte> _snapshotClassificationFlags;
+        private NativeArray<SurfaceBlockHlodSummary> _hlodSummaries;
+        private NativeArray<byte> _hlodMaskScratch;
+        private NativeArray<int> _hlodOverflow;
+        private JobHandle _hlodJobHandle;
+        private bool _hlodJobScheduled;
+        private JobHandle _exactMetadataJobHandle;
+        private bool _exactMetadataJobScheduled;
+        private bool _exactMetadataReady;
+        private JobHandle _exactClassificationJobHandle;
+        private bool _exactClassificationJobScheduled;
+        private int _exactMixedPinCursor;
         private JobHandle _densityJobHandle;
         private bool _densityJobScheduled;
         private JobHandle _topologyJobHandle;
@@ -251,6 +400,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private bool _facetedMaskJobScheduled;
         private JobHandle _facetedMergeJobHandle;
         private bool _facetedMergeJobScheduled;
+        private JobHandle _transitionJobHandle;
+        private bool _transitionJobScheduled;
         private NativeArray<byte> _topologyCellClass;
         private NativeArray<byte> _topologyGeometryCounts;
         private NativeArray<byte> _topologyCellVertexIndices;
@@ -275,9 +426,23 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private int _transitionIndexStride;
         private NativeList<SmoothSurfaceVertex> _transitionVertices;
         private NativeList<uint> _transitionIndices;
+        private int _transitionFace = -1;
+        private int _transitionSampleCursor;
         private NativeArray<uint> _facetedMasks;
         private NativeList<SmoothSurfaceVertex> _facetedVertices;
         private NativeList<uint> _facetedIndices;
+        private const int AppendElementsPerDeadlineCheck = 512;
+        private int _resultAppendStage;
+        private int _topologyAppendVertexCursor;
+        private int _topologyAppendIndexCursor;
+        private uint _topologyAppendVertexBase;
+        private int _facetedAppendVertexCursor;
+        private int _facetedAppendIndexCursor;
+        private uint _facetedAppendVertexBase;
+        private bool _transitionResultPending;
+        private int _transitionAppendVertexCursor;
+        private int _transitionAppendIndexCursor;
+        private uint _transitionAppendVertexBase;
 
         private readonly float[] _cellDensity = new float[8];
         private readonly byte[] _cellMaterial = new byte[8];
@@ -285,9 +450,16 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private readonly byte[] _cellBoundary = new byte[8];
         private readonly SmoothSurfaceVertex[] _cellVertices = new SmoothSurfaceVertex[16];
         private readonly uint[] _faceMask = new uint[CellsPerAxis * CellsPerAxis];
-        private readonly List<SmoothSurfaceVertex> _vertices = new(16_384);
-        private readonly List<uint> _indices = new(24_576);
+        // Final build output stays in persistent native memory from Burst completion through
+        // bounded arena upload. Streaming must not grow managed geometry Lists on the frame path.
+        private NativeList<SmoothSurfaceVertex> _vertices;
+        private NativeList<uint> _indices;
         private BuildState _build;
+        private bool _pendingUpload;
+        private SurfaceGeometryArena _geometryArena;
+        private readonly bool _ownsGeometryArena;
+        private TransvoxelLookupTables _lookupTables;
+        private readonly bool _ownsLookupTables;
         private SurfaceCatalogueView _surfaceCatalogue;
         private SurfaceCatalogueView _buildSurfaceCatalogue;
         private CoatingCatalogueView _coatingCatalogue;
@@ -315,7 +487,34 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private readonly VoxelTimingWindow _buildSelectionTiming = new();
 
         public CpuTransvoxelChunkCache(int sourceStep = 1)
+            : this(sourceStep, null, true, null, true, null)
         {
+        }
+
+        internal CpuTransvoxelChunkCache(int sourceStep, SurfaceGeometryArena geometryArena,
+                                         TransvoxelLookupTables lookupTables)
+            : this(sourceStep, geometryArena, false, lookupTables, false, null)
+        {
+        }
+
+        internal CpuTransvoxelChunkCache(int sourceStep, SurfaceGeometryArena geometryArena,
+                                         TransvoxelLookupTables lookupTables,
+                                         SurfaceChunkSlotGrid slotGrid)
+            : this(sourceStep, geometryArena, false, lookupTables, false, slotGrid)
+        {
+        }
+
+        private CpuTransvoxelChunkCache(int sourceStep, SurfaceGeometryArena geometryArena,
+                                         bool ownsGeometryArena,
+                                         TransvoxelLookupTables lookupTables,
+                                         bool ownsLookupTables,
+                                         SurfaceChunkSlotGrid slotGrid)
+        {
+            _geometryArena = geometryArena;
+            _ownsGeometryArena = ownsGeometryArena;
+            _lookupTables = lookupTables ?? new TransvoxelLookupTables();
+            _slotGrid = slotGrid ?? new SurfaceChunkSlotGrid();
+            _ownsLookupTables = ownsLookupTables || lookupTables == null;
             if (sourceStep < 1 || (sourceStep & (sourceStep - 1)) != 0)
                 throw new ArgumentOutOfRangeException(
                     nameof(sourceStep), sourceStep,
@@ -332,126 +531,120 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             BrickCacheCount = BrickCacheEdge * BrickCacheEdge * BrickCacheEdge;
             _surfaceCatalogue = SurfaceCatalogueView.CreateBuiltIns();
             _coatingCatalogue = CoatingCatalogueView.CreateBuiltIns();
-            _density = new NativeArray<float>(GridSampleCount, Allocator.Persistent,
-                                              NativeArrayOptions.UninitializedMemory);
-            _materials = new NativeArray<byte>(GridSampleCount, Allocator.Persistent,
-                                               NativeArrayOptions.UninitializedMemory);
-            _surfaceSemantics = new NativeArray<uint>(GridSampleCount, Allocator.Persistent,
-                                                      NativeArrayOptions.UninitializedMemory);
-            _boundarySamples = new NativeArray<byte>(GridSampleCount, Allocator.Persistent,
-                                                     NativeArrayOptions.UninitializedMemory);
-            if (SamplesFromMips)
-            {
-                _mipSampleOccupancy = new NativeArray<byte>(
-                    GridSampleCount, Allocator.Persistent,
-                    NativeArrayOptions.UninitializedMemory);
-                _mipSampleMaterials = new NativeArray<byte>(
-                    GridSampleCount, Allocator.Persistent,
-                    NativeArrayOptions.UninitializedMemory);
-            }
-            else
-            {
-                _densityBricks = new NativeArray<TransvoxelDensityBrick>(
-                    BrickCacheCount, Allocator.Persistent,
-                    NativeArrayOptions.UninitializedMemory);
-            }
-            _densityMixedVoxels = new NativeList<byte>(64 * 1024, Allocator.Persistent);
-            _densityMixedSurfaceSemantics = new NativeList<ushort>(64 * 1024, Allocator.Persistent);
-            _densityMixedBoundarySamples = new NativeList<byte>(64 * 1024, Allocator.Persistent);
-            _compactedTopologyVertices = new NativeList<SmoothSurfaceVertex>(16_384,
-                                                                              Allocator.Persistent);
-            _compactedTopologyIndices = new NativeList<uint>(24_576, Allocator.Persistent);
-            _topologyOverflowCell = new NativeArray<int>(1, Allocator.Persistent);
-            int cellCount = CellsPerAxis * CellsPerAxis * CellsPerAxis;
-            _topologyCellClass = new NativeArray<byte>(256, Allocator.Persistent);
-            _topologyGeometryCounts = new NativeArray<byte>(
-                TransvoxelRegularTables.CellData.Length, Allocator.Persistent);
-            _topologyCellVertexIndices = new NativeArray<byte>(
-                TransvoxelRegularTables.CellData.Length *
-                TransvoxelTopologyJob.MaxIndicesPerCell, Allocator.Persistent);
-            _topologyEdgeCodes = new NativeArray<ushort>(256 * 12, Allocator.Persistent);
-            _facetedMasks = new NativeArray<uint>(
-                6 * CellsPerAxis * CellsPerAxis * CellsPerAxis, Allocator.Persistent);
-            _facetedVertices = new NativeList<SmoothSurfaceVertex>(16_384, Allocator.Persistent);
-            _facetedIndices = new NativeList<uint>(24_576, Allocator.Persistent);
-            InitialiseTopologyTables();
-            InitialiseTransitionTables();
+            _workspace = new TransvoxelBuildWorkspace(
+                GridSampleCount, BrickCacheCount, SamplesFromMips, UsesBlockHlod,
+                BricksPerAxis, CellsPerAxis, FaceSamplesPerAxis);
+            _density = _workspace.Density;
+            _materials = _workspace.Materials;
+            _surfaceSemantics = _workspace.SurfaceSemantics;
+            _boundarySamples = _workspace.BoundarySamples;
+            _densityBricks = _workspace.DensityBricks;
+            _mipSampleOccupancy = _workspace.MipSampleOccupancy;
+            _mipSampleMaterials = _workspace.MipSampleMaterials;
+            _densityMixedVoxels = _workspace.DensityMixedVoxels;
+            _densityMixedSurfaceSemantics = _workspace.DensityMixedSurfaceSemantics;
+            _densityMixedBoundarySamples = _workspace.DensityMixedBoundarySamples;
+            _pinnedReadBlocks = _workspace.PinnedReadBlocks;
+            _exactMixedFlags = _workspace.ExactMixedFlags;
+            _exactMixedBrickIndices = _workspace.ExactMixedBrickIndices;
+            _snapshotClassificationFlags = _workspace.SnapshotClassificationFlags;
+            _hlodSummaries = _workspace.HlodSummaries;
+            _hlodMaskScratch = _workspace.HlodMaskScratch;
+            _hlodOverflow = _workspace.HlodOverflow;
+            _compactedTopologyVertices = _workspace.CompactedTopologyVertices;
+            _compactedTopologyIndices = _workspace.CompactedTopologyIndices;
+            _topologyOverflowCell = _workspace.TopologyOverflowCell;
+            _topologyCellClass = _lookupTables.RegularCellClass;
+            _topologyGeometryCounts = _lookupTables.RegularGeometryCounts;
+            _topologyCellVertexIndices = _lookupTables.RegularCellVertexIndices;
+            _topologyEdgeCodes = _lookupTables.RegularEdgeCodes;
+            _facetedMasks = _workspace.FacetedMasks;
+            _facetedVertices = _workspace.FacetedVertices;
+            _facetedIndices = _workspace.FacetedIndices;
+            _vertices = _workspace.Vertices;
+            _indices = _workspace.Indices;
+            _faceDensity = _workspace.FaceDensity;
+            _faceMaterials = _workspace.FaceMaterials;
+            _faceSurfaces = _workspace.FaceSurfaces;
+            _transitionVertices = _workspace.TransitionVertices;
+            _transitionIndices = _workspace.TransitionIndices;
+            _transitionCellClass = _lookupTables.TransitionCellClass;
+            _transitionGeometryCounts = _lookupTables.TransitionGeometryCounts;
+            _transitionCellIndices = _lookupTables.TransitionCellIndices;
+            _transitionVertexData = _lookupTables.TransitionVertexData;
+            _transitionVertexStride = _lookupTables.TransitionVertexStride;
+            _transitionIndexStride = _lookupTables.TransitionIndexStride;
         }
 
         /// <summary>
-        /// Flattens the jagged transition tables into Burst-friendly arrays. The jagged form is
-        /// how the data is published; jobs need fixed strides.
+        /// Advances transition-face generation without ever waiting for an unfinished job.
+        /// Face snapshots are sliced by the worker deadline, then the Burst transition mesh
+        /// runs asynchronously. The previous ready chunk remains published until every seam
+        /// face for the replacement has completed.
         /// </summary>
-        private void InitialiseTransitionTables()
+        private bool StepTransitionFaces(IRegionReadSource source,
+                                         in MaterialPaletteView palette,
+                                         Camera camera, float voxelSize,
+                                         double deadlineSeconds)
         {
-            byte[] cellClass = TransvoxelTransitionTables.CellClass;
-            RegularCellData[] cellData = TransvoxelTransitionTables.CellData;
-            ushort[][] vertexData = TransvoxelTransitionTables.VertexData;
+            if (MinViewDistanceMetres <= 0f || camera == null) return true;
 
-            _transitionVertexStride = 0;
-            for (int i = 0; i < vertexData.Length; i++)
-                _transitionVertexStride = math.max(_transitionVertexStride, vertexData[i].Length);
-            _transitionIndexStride = 0;
-            for (int i = 0; i < cellData.Length; i++)
-                _transitionIndexStride = math.max(_transitionIndexStride,
-                                                  cellData[i].VertexIndices.Length);
-
-            _transitionCellClass = new NativeArray<byte>(cellClass.Length, Allocator.Persistent);
-            for (int i = 0; i < cellClass.Length; i++) _transitionCellClass[i] = cellClass[i];
-
-            _transitionGeometryCounts = new NativeArray<byte>(cellData.Length,
-                                                              Allocator.Persistent);
-            _transitionCellIndices = new NativeArray<byte>(
-                cellData.Length * math.max(1, _transitionIndexStride), Allocator.Persistent);
-            for (int i = 0; i < cellData.Length; i++)
+            if (_transitionJobScheduled)
             {
-                _transitionGeometryCounts[i] = cellData[i].GeometryCounts;
-                byte[] indices = cellData[i].VertexIndices;
-                for (int j = 0; j < indices.Length; j++)
-                    _transitionCellIndices[i * _transitionIndexStride + j] = indices[j];
+                if (!_transitionJobHandle.IsCompleted) return false;
+
+                // Completion is non-blocking because IsCompleted was observed above. The result
+                // is now CPU-owned, but merging it into final output is itself budgeted.
+                if (!GeometryFrameJobCompletionGuard.TryCompleteReady(
+                        _transitionJobHandle, ref _framePathBlockingCompletionViolations))
+                    return false;
+                _transitionJobScheduled = false;
+                _transitionResultPending = true;
+                _transitionAppendVertexCursor = 0;
+                _transitionAppendIndexCursor = 0;
+                _transitionAppendVertexBase = 0;
             }
 
-            _transitionVertexData = new NativeArray<ushort>(
-                vertexData.Length * math.max(1, _transitionVertexStride), Allocator.Persistent);
-            for (int i = 0; i < vertexData.Length; i++)
+            if (_transitionResultPending)
             {
-                ushort[] row = vertexData[i];
-                for (int j = 0; j < row.Length; j++)
-                    _transitionVertexData[i * _transitionVertexStride + j] = row[j];
+                if (!StepAppendNativeGeometry(_transitionVertices.AsArray(),
+                                              _transitionIndices.AsArray(),
+                                              ref _transitionAppendVertexCursor,
+                                              ref _transitionAppendIndexCursor,
+                                              ref _transitionAppendVertexBase,
+                                              deadlineSeconds))
+                    return false;
+
+                _transitionResultPending = false;
+                _build.Cursor = _transitionFace + 1;
+                _transitionFace = -1;
+                _transitionSampleCursor = 0;
             }
-
-            int faceSamples = FaceSamplesPerAxis * FaceSamplesPerAxis;
-            _faceDensity = new NativeArray<float>(faceSamples, Allocator.Persistent);
-            _faceMaterials = new NativeArray<byte>(faceSamples, Allocator.Persistent);
-            _faceSurfaces = new NativeArray<uint>(faceSamples, Allocator.Persistent);
-            _transitionVertices = new NativeList<SmoothSurfaceVertex>(2048, Allocator.Persistent);
-            _transitionIndices = new NativeList<uint>(3072, Allocator.Persistent);
-        }
-
-        /// <summary>
-        /// Stitches every face of the in-flight chunk that borders a finer ring.
-        ///
-        /// Runs after the regular cells are appended, so transition geometry is added to the
-        /// same vertex and index lists and ships in one mesh. A chunk with no finer neighbour —
-        /// the common case, and every chunk in the innermost ring — does no work here.
-        /// </summary>
-        private void AppendTransitionFaces(IRegionReadSource source,
-                                           in MaterialPaletteView palette,
-                                           Camera camera, float voxelSize)
-        {
-            if (MinViewDistanceMetres <= 0f || camera == null) return;
 
             Vector3 cameraPosition = camera.transform.position;
-            for (int face = 0; face < 6; face++)
+            while (_build.Cursor < 6)
             {
-                if (!FaceNeedsTransition(_build.Coordinate, face, voxelSize, cameraPosition))
+                int face = _build.Cursor;
+                if (!FaceNeedsTransition(_build.Coordinate, face, voxelSize,
+                                         cameraPosition))
+                {
+                    _build.Cursor++;
                     continue;
+                }
 
-                SnapshotTransitionFace(source, in palette, face);
+                if (_transitionFace != face)
+                {
+                    _transitionFace = face;
+                    _transitionSampleCursor = 0;
+                }
+
+                if (!StepTransitionFaceSnapshot(source, in palette, face,
+                                                deadlineSeconds))
+                    return false;
 
                 _transitionVertices.Clear();
                 _transitionIndices.Clear();
-                new TransitionMeshJob
+                var job = new TransitionMeshJob
                 {
                     FaceDensity = _faceDensity,
                     FaceMaterials = _faceMaterials,
@@ -470,27 +663,26 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     SourceStep = SourceStep,
                     VoxelSize = voxelSize,
                     Face = face,
-                }.Run();
-
-                uint vertexBase = (uint)_vertices.Count;
-                NativeArray<SmoothSurfaceVertex> vertices = _transitionVertices.AsArray();
-                for (int i = 0; i < vertices.Length; i++) _vertices.Add(vertices[i]);
-                NativeArray<uint> indices = _transitionIndices.AsArray();
-                for (int i = 0; i < indices.Length; i++) _indices.Add(vertexBase + indices[i]);
+                };
+                _transitionJobHandle = job.Schedule();
+                _transitionJobScheduled = true;
+                return false;
             }
+
+            return true;
         }
 
         /// <summary>
-        /// Samples one chunk face at half this ring's stride — the finer neighbour's spacing.
-        ///
-        /// The chunk lattice cannot supply these: it is sampled at the ring's own stride and
-        /// simply does not contain the intermediate positions. Reading them from the same
-        /// authoritative source the finer ring reads is what makes the two sides agree on where
-        /// the surface crosses, which is the whole mechanism by which the seam closes.
+        /// Snapshots a transition face at the finer neighbour's sample spacing without
+        /// monopolising the frame. Region read views are borrowed only inside this call;
+        /// no borrowed Storage state survives across frames while the snapshot is sliced.
         /// </summary>
-        private void SnapshotTransitionFace(IRegionReadSource source,
-                                            in MaterialPaletteView palette, int face)
+        private bool StepTransitionFaceSnapshot(IRegionReadSource source,
+                                                in MaterialPaletteView palette, int face,
+                                                double deadlineSeconds)
         {
+            if (Time.realtimeSinceStartupAsDouble >= deadlineSeconds) return false;
+
             int axis = face >> 1;
             bool positive = (face & 1) != 0;
             int3 uAxis, vAxis;
@@ -506,54 +698,46 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             if (positive) faceOrigin[axis] += VoxelsPerAxis;
 
             int halfStep = math.max(1, SourceStep / 2);
-            // Half a ring stride is one level finer than the ring itself; for the finest ring
-            // that reaches actual voxels, which LevelForStride reports as a negative level.
             int mipLevel = VoxelReadGrid.LevelForStride(halfStep);
+            int sampleCount = FaceSamplesPerAxis * FaceSamplesPerAxis;
             RegionSampleCursor cursor = default;
+            const int SamplesPerDeadlineCheck = 64;
 
-            for (int v = 0; v < FaceSamplesPerAxis; v++)
-            for (int u = 0; u < FaceSamplesPerAxis; u++)
+            while (_transitionSampleCursor < sampleCount)
             {
-                int3 voxel = faceOrigin + uAxis * (u * halfStep) + vAxis * (v * halfStep);
-                bool occupied = false;
-                byte material = VoxelGrid.MaterialEmpty;
-                if (TrySampleWorld(source, ref cursor, voxel, mipLevel,
-                                   out bool sampled, out byte sampledMaterial))
+                int end = math.min(sampleCount,
+                                   _transitionSampleCursor + SamplesPerDeadlineCheck);
+                for (; _transitionSampleCursor < end; _transitionSampleCursor++)
                 {
-                    occupied = sampled;
-                    material = sampledMaterial;
+                    int index = _transitionSampleCursor;
+                    int u = index % FaceSamplesPerAxis;
+                    int v = index / FaceSamplesPerAxis;
+                    int3 voxel = faceOrigin
+                               + uAxis * (u * halfStep)
+                               + vAxis * (v * halfStep);
+
+                    bool occupied = false;
+                    byte material = VoxelGrid.MaterialEmpty;
+                    if (TrySampleWorld(source, ref cursor, voxel, mipLevel,
+                                       out bool sampled,
+                                       out byte sampledMaterial))
+                    {
+                        occupied = sampled;
+                        material = sampledMaterial;
+                    }
+
+                    _faceDensity[index] = occupied ? 0.5f : -0.5f;
+                    _faceMaterials[index] = material;
+                    _faceSurfaces[index] = occupied
+                        ? palette.GetDefaultSurfaceStyle(material) : 0u;
                 }
 
-                int index = u + FaceSamplesPerAxis * v;
-                _faceDensity[index] = occupied ? 0.5f : -0.5f;
-                _faceMaterials[index] = material;
-                _faceSurfaces[index] = occupied
-                    ? palette.GetDefaultSurfaceStyle(material) : 0u;
+                if (_transitionSampleCursor < sampleCount
+                    && Time.realtimeSinceStartupAsDouble >= deadlineSeconds)
+                    return false;
             }
-        }
 
-        private void InitialiseTopologyTables()
-        {
-            _topologyCellClass.CopyFrom(TransvoxelRegularTables.CellClass);
-            for (int cellClass = 0; cellClass < TransvoxelRegularTables.CellData.Length;
-                 cellClass++)
-            {
-                RegularCellData data = TransvoxelRegularTables.CellData[cellClass];
-                _topologyGeometryCounts[cellClass] = data.GeometryCounts;
-                int length = math.min(data.VertexIndices.Length,
-                                      TransvoxelTopologyJob.MaxIndicesPerCell);
-                for (int i = 0; i < length; i++)
-                    _topologyCellVertexIndices[
-                        cellClass * TransvoxelTopologyJob.MaxIndicesPerCell + i] =
-                        data.VertexIndices[i];
-            }
-            for (int cell = 0; cell < TransvoxelRegularTables.VertexData.Length; cell++)
-            {
-                ushort[] edges = TransvoxelRegularTables.VertexData[cell];
-                int length = math.min(edges.Length, 12);
-                for (int i = 0; i < length; i++)
-                    _topologyEdgeCodes[cell * 12 + i] = edges[i];
-            }
+            return true;
         }
 
         public int MaxResidentChunks { get; set; } = 4096;
@@ -576,17 +760,55 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public int ShardCount { get; set; } = 1;
         public int ResidentCount => _entries.Count;
         public int KnownCount => _known.Count;
+        public int SlotCount => _known.Count;
+        /// <summary>Number of exact-snapshot brick records reserved by this build workspace.</summary>
+        public int SnapshotBrickCapacity => BrickCacheCount;
         public int DirtyCount => _dirty.Count + (_build.Active ? 1 : 0);
         public ulong ActiveSurfaceCatalogueHash => _surfaceCatalogue.CatalogueHash;
         public ulong CompletedBuildCount { get; private set; }
         public ulong StaleBuildCount { get; private set; }
+        public ulong ExactMetadataScheduleCount { get; private set; }
+        public ulong ExactMetadataCompleteCount { get; private set; }
+        public ulong ExactMetadataRevisionRejectCount { get; private set; }
+        public ulong ExactMetadataPinRejectCount { get; private set; }
+        public ulong MaterialPaletteInvalidationCount { get; private set; }
+        public ulong SurfaceCatalogueInvalidationCount { get; private set; }
+        public ulong CoatingCatalogueInvalidationCount { get; private set; }
+        public ulong ProfileBlockInvalidationCount { get; private set; }
         public ulong UploadedGeometryBytes { get; private set; }
         public ulong CompletedDecorationClumps { get; private set; }
         public int MissingVisibleCount { get; private set; }
         public ulong CapacityPressureCount { get; private set; }
-        public int RunningJobCount => _densityJobScheduled || _topologyJobScheduled
-                                   || _facetedMaskJobScheduled ? 1 : 0;
-        public int PendingUploadCount => _build.Active && _build.Phase >= 2 ? 1 : 0;
+        private ulong _framePathBlockingCompletionViolations;
+        public ulong FramePathBlockingCompletionViolations => _framePathBlockingCompletionViolations;
+        public int RunningJobCount => _exactMetadataJobScheduled || _exactClassificationJobScheduled
+                                   || _hlodJobScheduled || _densityJobScheduled
+                                   || _topologyJobScheduled || _facetedMaskJobScheduled
+                                   || _transitionJobScheduled
+                                    ? 1 : 0;
+        // Allocation-free diagnostics used by renderer telemetry/tests to distinguish a genuinely
+        // active coarse build from a known chunk that fell out of the work lifecycle. Bits are
+        // deliberately stable and local to this cache; they do not influence scheduling.
+        public int ActiveBuildPhase => _build.Active ? _build.Phase : -1;
+        public uint ActiveJobMask =>
+            (_exactMetadataJobScheduled ? 1u << 0 : 0u)
+          | (_exactClassificationJobScheduled ? 1u << 1 : 0u)
+          | (_hlodJobScheduled ? 1u << 2 : 0u)
+          | (_densityJobScheduled ? 1u << 3 : 0u)
+          | (_topologyJobScheduled || _topologyCompactJobScheduled ? 1u << 4 : 0u)
+          | (_facetedMaskJobScheduled || _facetedMergeJobScheduled ? 1u << 5 : 0u)
+          | (_transitionJobScheduled ? 1u << 6 : 0u);
+        public int PendingUploadCount => _pendingUpload ? 1 : 0;
+        public int PendingUploadBytes
+        {
+            get
+            {
+                if (!_pendingUpload
+                    || !_entries.TryGetValue(_build.Coordinate, out Entry entry))
+                    return 0;
+                return entry.RemainingUploadBytes(_vertices.Length, _indices.Length);
+            }
+        }
         public double LastSnapshotMs { get; private set; }
         public double LastTopologyCompactMs { get; private set; }
         public double LastUploadMs { get; private set; }
@@ -639,7 +861,53 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         }
 
         /// <summary>
-        /// Discovers/invalidates chunks from the scheduler's authoritative surface-brick stream.
+        /// Admits chunks discovered from immutable Storage surface summaries. Discovery is not a
+        /// mutation signal: once a chunk is known, its build snapshots the entire authoritative
+        /// chunk, so later 512-brick publication slices from the same unchanged region must not
+        /// advance its source generation and kill in-flight geometry. Real voxel edits continue
+        /// through <see cref="InvalidateSurfaceBricks"/> and region invalidation below.
+        /// Returns the number of newly admitted chunks.
+        /// </summary>
+        internal int DiscoverSurfaceBricks(IReadOnlyList<int3> worldBricks)
+        {
+            if (worldBricks == null) return 0;
+            int admitted = 0;
+
+            for (int i = 0; i < worldBricks.Count; i++)
+            {
+                int3 brick = worldBricks[i];
+                int3 baseChunk = new(FloorDiv(brick.x, BricksPerAxis),
+                                     FloorDiv(brick.y, BricksPerAxis),
+                                     FloorDiv(brick.z, BricksPerAxis));
+                int rx = FloorMod(brick.x, BricksPerAxis);
+                int ry = FloorMod(brick.y, BricksPerAxis);
+                int rz = FloorMod(brick.z, BricksPerAxis);
+
+                int minX = rx == 0 ? -1 : 0;
+                int maxX = rx == BricksPerAxis - 1 ? 1 : 0;
+                int minY = ry == 0 ? -1 : 0;
+                int maxY = ry == BricksPerAxis - 1 ? 1 : 0;
+                int minZ = rz == 0 ? -1 : 0;
+                int maxZ = rz == BricksPerAxis - 1 ? 1 : 0;
+
+                for (int z = minZ; z <= maxZ; z++)
+                for (int y = minY; y <= maxY; y++)
+                for (int x = minX; x <= maxX; x++)
+                {
+                    int3 chunk = baseChunk + new int3(x, y, z);
+                    if (!OwnsShard(chunk) || _known.Contains(chunk)) continue;
+                    if (!TrackKnown(chunk)) continue;
+                    Invalidate(chunk);
+                    admitted++;
+                }
+            }
+            return admitted;
+        }
+
+        /// <summary>
+        /// Invalidates chunks touched by an authoritative voxel change. Unlike surface discovery,
+        /// this path intentionally advances already-known chunk generations so active/ready
+        /// geometry cannot publish stale voxel content.
         /// The one-sample Transvoxel padding can consume a neighbouring chunk's edge,
         /// so face/edge/corner neighbours are dirtied only when the brick lies on a chunk border.
         /// </summary>
@@ -669,8 +937,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 for (int x = minX; x <= maxX; x++)
                 {
                     int3 chunk = baseChunk + new int3(x, y, z);
-                    if (!OwnsShard(chunk)) continue;
-                    _known.Add(chunk);
+                    if (!OwnsShard(chunk) || !TrackKnown(chunk)) continue;
                     Invalidate(chunk);
                 }
             }
@@ -683,22 +950,76 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         /// </summary>
         public void InvalidateDirtyRegions(HashSet<int3> dirtyRegions)
         {
-            if (dirtyRegions == null || dirtyRegions.Count == 0 || _known.Count == 0) return;
-
-            List<int3> affected = null;
-            foreach (int3 chunk in _known)
+            if (dirtyRegions != null)
             {
-                foreach (int3 dirtyRegion in dirtyRegions)
+                foreach (int3 region in dirtyRegions)
                 {
-                    if (!ChunkOverlapsRegion(chunk, dirtyRegion, VoxelsPerAxis, SourceStep))
+                    if (_hasActiveRegionInvalidation && region.Equals(_activeRegionInvalidation))
+                    {
+                        _rescanRegionInvalidations.Add(region);
                         continue;
-                    (affected ??= new List<int3>()).Add(chunk);
-                    break;
+                    }
+                    if (_queuedRegionInvalidations.Add(region))
+                        _regionInvalidationQueue.Enqueue(region);
                 }
             }
 
-            if (affected == null) return;
-            for (int i = 0; i < affected.Count; i++) Invalidate(affected[i]);
+            StepRegionInvalidation();
+        }
+
+        private void StepRegionInvalidation()
+        {
+            int remaining = RegionInvalidationCandidatesPerPrepare;
+            while (remaining > 0)
+            {
+                if (!_hasActiveRegionInvalidation)
+                {
+                    if (_regionInvalidationQueue.Count == 0) return;
+                    _activeRegionInvalidation = _regionInvalidationQueue.Dequeue();
+                    _hasActiveRegionInvalidation = true;
+                    _activeRegionCandidateCursor = 0;
+
+                    int halo = Padding * SourceStep;
+                    int3 regionMin = _activeRegionInvalidation * VoxelGrid.RegionVoxelEdge;
+                    int3 regionMax = regionMin + VoxelGrid.RegionVoxelEdge;
+                    _activeRegionMinChunk = new int3(
+                        FloorDiv(regionMin.x - halo, VoxelsPerAxis),
+                        FloorDiv(regionMin.y - halo, VoxelsPerAxis),
+                        FloorDiv(regionMin.z - halo, VoxelsPerAxis));
+                    int3 maxChunk = new int3(
+                        FloorDiv(regionMax.x + halo - 1, VoxelsPerAxis),
+                        FloorDiv(regionMax.y + halo - 1, VoxelsPerAxis),
+                        FloorDiv(regionMax.z + halo - 1, VoxelsPerAxis));
+                    _activeRegionChunkCounts = maxChunk - _activeRegionMinChunk + 1;
+                }
+
+                int total = _activeRegionChunkCounts.x
+                          * _activeRegionChunkCounts.y
+                          * _activeRegionChunkCounts.z;
+                while (remaining > 0 && _activeRegionCandidateCursor < total)
+                {
+                    int linear = _activeRegionCandidateCursor++;
+                    int x = linear % _activeRegionChunkCounts.x;
+                    int y = (linear / _activeRegionChunkCounts.x) % _activeRegionChunkCounts.y;
+                    int z = linear / (_activeRegionChunkCounts.x * _activeRegionChunkCounts.y);
+                    int3 chunk = _activeRegionMinChunk + new int3(x, y, z);
+                    remaining--;
+                    if (!OwnsShard(chunk) || !_known.Contains(chunk)) continue;
+                    if (ChunkOverlapsRegion(chunk, _activeRegionInvalidation,
+                                            VoxelsPerAxis, SourceStep))
+                        Invalidate(chunk);
+                }
+
+                if (_activeRegionCandidateCursor < total) return;
+
+                int3 completed = _activeRegionInvalidation;
+                bool rescan = _rescanRegionInvalidations.Remove(completed);
+                _queuedRegionInvalidations.Remove(completed);
+                _hasActiveRegionInvalidation = false;
+                _activeRegionCandidateCursor = 0;
+                if (rescan && _queuedRegionInvalidations.Add(completed))
+                    _regionInvalidationQueue.Enqueue(completed);
+            }
         }
 
         public void Prepare(IRegionReadSource source, in MaterialPaletteView palette,
@@ -716,8 +1037,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             SetProfileBlocks(profileBlocks);
             _ruleSyncTiming.Add(ElapsedMs(sectionStart));
             sectionStart = Time.realtimeSinceStartupAsDouble;
-            DropNoLongerResident(source);
+            StepClipmapEdgeRetirement();
+            StepResidencyPrune(source);
             _residencyPruneTiming.Add(ElapsedMs(sectionStart));
+            if (_pendingUpload) return;
             sectionStart = Time.realtimeSinceStartupAsDouble;
             EnforceCapacity(camera, voxelSize);
             _capacityTiming.Add(ElapsedMs(sectionStart));
@@ -730,22 +1053,54 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     || desired <= _build.SourceVersion))
                 Invalidate(_build.Coordinate);
 
+            // Snapshot work may now include Burst metadata/classification jobs. A newer source
+            // generation marks the build for discard, but the frame path never completes an
+            // unfinished job: it waits for IsCompleted, then drains leases under the deadline.
+            if (_build.Active && !_build.SnapshotTaken
+                && _desiredVersions.TryGetValue(_build.Coordinate, out ulong slicedDesired)
+                && slicedDesired > _build.SourceVersion)
+                _discardBuildAfterPinRelease = true;
+
             double deadline = Time.realtimeSinceStartupAsDouble
                             + math.max(0.0, budgetMs) * 0.001;
+            if (_discardBuildAfterPinRelease)
+            {
+                if (!ScheduledJobsComplete()) return;
+                CompleteJobs();
+                ReleasePinnedRegionMetadataImmediate();
+                if (!StepReleasePinnedSnapshotBlocks(deadline)) return;
+                int3 retry = _build.Coordinate;
+                StaleBuildCount++;
+                _discardBuildAfterPinRelease = false;
+                ResetCompletedBuild();
+                MarkDirty(retry);
+            }
+
             do
             {
                 if (!_build.Active)
                 {
                     double selectionStart = Time.realtimeSinceStartupAsDouble;
-                    bool selected = BeginNearestBuild(camera, voxelSize);
+                    bool selected = BeginNearestBuild(camera, voxelSize, deadline);
                     _buildSelectionTiming.Add(ElapsedMs(selectionStart));
                     if (!selected) break;
                 }
 
                 if (_build.Phase == 0)
                 {
-                    if (!_densityJobScheduled)
-                        ScheduleDensityJob(source, in palette, voxelSize);
+                    if (!_build.SnapshotTaken
+                        && !StepDensitySnapshot(source, in palette, voxelSize, deadline))
+                        break;
+
+                    // Step 8 already scheduled its summary -> greedy HLOD dependency chain as
+                    // part of the immutable exact snapshot. It bypasses Transvoxel density,
+                    // faceted and transition phases and rejoins the normal profile/publication path
+                    // only after the HLOD job is ready and its Storage pins are released.
+                    if (UsesBlockHlod)
+                    {
+                        _build.Phase = 7;
+                        continue;
+                    }
 
                     // Border invalidation intentionally discovers halo chunks. If the immutable
                     // snapshot proves this chunk owns no solid cells, publish a complete empty
@@ -753,6 +1108,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     // because their authored geometry may overlap an otherwise empty core.
                     if (!_build.HasOwnedSolid && _buildProfileBlocks.Length == 0)
                     {
+                        if (!StepReleasePinnedSnapshotBlocks(deadline)) break;
                         _build.Phase = 3;
                         _build.Cursor = 0;
                         continue;
@@ -773,8 +1129,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 {
                     if (!_topologyCompactJobHandle.IsCompleted
                         || !_facetedMergeJobHandle.IsCompleted) break;
-                    _topologyCompactJobHandle.Complete();
-                    _facetedMergeJobHandle.Complete();
+                    if (!GeometryFrameJobCompletionGuard.TryCompleteReady(
+                            _topologyCompactJobHandle, ref _framePathBlockingCompletionViolations)
+                        || !GeometryFrameJobCompletionGuard.TryCompleteReady(
+                            _facetedMergeJobHandle, ref _framePathBlockingCompletionViolations))
+                        break;
                     _densityTurnaroundTiming.Add(ElapsedMs(_build.DensityScheduledSeconds));
                     _topologyTurnaroundTiming.Add(ElapsedMs(_build.TopologyScheduledSeconds));
                     _facetedTurnaroundTiming.Add(ElapsedMs(_build.FacetedScheduledSeconds));
@@ -783,10 +1142,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     _topologyCompactJobScheduled = false;
                     _facetedMaskJobScheduled = false;
                     _facetedMergeJobScheduled = false;
-                    CompactTopology(voxelSize);
-                    AppendFacetedTopology();
-                    _build.Phase = 3;
-                    _build.Cursor = 0;
+                    BeginCompletedResultAppend(includeTopology: true);
+                    _build.Phase = 6;
                     continue;
                 }
 
@@ -795,24 +1152,100 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     if (!_facetedMaskJobScheduled) ScheduleFacetedMaskJob();
                     if (!_facetedMergeJobScheduled) ScheduleFacetedMergeJob(voxelSize);
                     if (!_facetedMergeJobHandle.IsCompleted) break;
-                    _facetedMergeJobHandle.Complete();
+                    if (!GeometryFrameJobCompletionGuard.TryCompleteReady(
+                            _facetedMergeJobHandle, ref _framePathBlockingCompletionViolations))
+                        break;
                     _facetedTurnaroundTiming.Add(ElapsedMs(_build.FacetedScheduledSeconds));
                     _facetedMaskJobScheduled = false;
                     _facetedMergeJobScheduled = false;
-                    AppendFacetedTopology();
+                    BeginCompletedResultAppend(includeTopology: false);
+                    _build.Phase = 6;
+                    continue;
+                }
+
+                if (_build.Phase == 7)
+                {
+                    if (_hlodJobScheduled)
+                    {
+                        if (!_hlodJobHandle.IsCompleted) break;
+                        if (!GeometryFrameJobCompletionGuard.TryCompleteReady(
+                                _hlodJobHandle, ref _framePathBlockingCompletionViolations))
+                            break;
+                        _hlodJobScheduled = false;
+                        _build.HasOwnedSolid = _indices.Length > 0;
+                    }
+                    if (_hlodOverflow[0] != 0)
+                        throw new InvalidOperationException(
+                            $"Feature-preserving HLOD output overflow in chunk {_build.Coordinate}; "
+                          + "refusing to allocate or publish partial coarse geometry.");
+                    // Profile blocks validate their backing against the same immutable mixed-brick
+                    // payloads. Keep COW pins alive through profile emission; phase 3 releases
+                    // them under the normal deadline once the last profile has consumed them.
+                    if (_buildProfileBlocks.Length == 0
+                        && !StepReleasePinnedSnapshotBlocks(deadline))
+                        break;
                     _build.Phase = 3;
                     _build.Cursor = 0;
                     continue;
                 }
 
-                double profileStart = Time.realtimeSinceStartupAsDouble;
-                bool profilesDone;
-                using (s_ProfileMarker.Auto()) profilesDone = StepProfileBlocks(voxelSize);
-                _profileEmitTiming.Add(ElapsedMs(profileStart));
-                if (profilesDone)
+                if (_build.Phase == 6)
                 {
-                    AppendTransitionFaces(source, in palette, camera, voxelSize);
+                    // Profile geometry may still need mixed-brick backing from the immutable COW
+                    // snapshot. Do not release those pins until profile emission has finished.
+                    if (_buildProfileBlocks.Length == 0
+                        && !StepReleasePinnedSnapshotBlocks(deadline))
+                        break;
+                    _build.Phase = 5;
+                    continue;
+                }
+
+                if (_build.Phase == 5)
+                {
+                    if (!StepCompletedResultAppend(deadline)) break;
+                    _build.Phase = 3;
+                    _build.Cursor = 0;
+                    continue;
+                }
+
+                if (_build.Phase == 3)
+                {
+                    double profileStart = Time.realtimeSinceStartupAsDouble;
+                    bool profilesDone;
+                    using (s_ProfileMarker.Auto())
+                        profilesDone = StepProfileBlocks(voxelSize);
+                    _profileEmitTiming.Add(ElapsedMs(profileStart));
+                    if (!profilesDone) continue;
+
+                    // Profile backing reads are complete. Drain the exact mixed-brick pins now,
+                    // still under the worker deadline, before transition/publication can proceed.
+                    if (!StepReleasePinnedSnapshotBlocks(deadline)) break;
+
+                    // The step-8 HLOD grid and the step-4 inner ring both resolve geometry on a
+                    // four-voxel lattice. Do not feed faceted HLOD through Transvoxel transition
+                    // cells; finish directly and let the visual LOD regression police the aligned
+                    // boundary. If that test exposes a seam, add a dedicated HLOD boundary pass.
+                    if (UsesBlockHlod)
+                    {
+                        FinishBuild(frame);
+                        if (_pendingUpload) break;
+                        continue;
+                    }
+
+                    _build.Phase = 4;
+                    _build.Cursor = 0;
+                    _transitionFace = -1;
+                    _transitionSampleCursor = 0;
+                    continue;
+                }
+
+                if (_build.Phase == 4)
+                {
+                    if (!StepTransitionFaces(source, in palette, camera, voxelSize,
+                                             deadline))
+                        break;
                     FinishBuild(frame);
+                    if (_pendingUpload) break;
                 }
             }
             while (Time.realtimeSinceStartupAsDouble < deadline);
@@ -862,28 +1295,100 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _topologyCompactJobScheduled = true;
         }
 
-        private void CompactTopology(float voxelSize)
+        private void BeginCompletedResultAppend(bool includeTopology)
         {
-            double compactStart = Time.realtimeSinceStartupAsDouble;
-            using var compactScope = s_CompactMarker.Auto();
-            int overflowCell = _topologyOverflowCell[0];
-            if (overflowCell >= 0)
-                throw new InvalidOperationException(
-                    $"Continuous topology output overflow in chunk {_build.Coordinate}, " +
-                    $"cell {overflowCell}; refusing to publish partial geometry.");
-            NativeArray<SmoothSurfaceVertex> vertices = _compactedTopologyVertices.AsArray();
-            for (int i = 0; i < vertices.Length; i++) _vertices.Add(vertices[i]);
-            NativeArray<uint> indices = _compactedTopologyIndices.AsArray();
-            for (int i = 0; i < indices.Length; i++) _indices.Add(indices[i]);
-            _topologyOutput.Dispose();
-            _topologyOutput = default;
-            // Decorative coating clumps are intentionally not part of base-surface admission.
-            // Blocking complete castle/terrain geometry on optional moss relief produced visible
-            // holes and multi-millisecond compaction stalls. Coating colour remains present in
-            // every base vertex; relief is a separately schedulable decoration domain.
-            LastTopologyCompactMs =
-                (Time.realtimeSinceStartupAsDouble - compactStart) * 1000.0;
-            _topologyCompactTiming.Add(LastTopologyCompactMs);
+            _resultAppendStage = includeTopology ? 0 : 1;
+            _topologyAppendVertexCursor = 0;
+            _topologyAppendIndexCursor = 0;
+            _topologyAppendVertexBase = 0;
+            _facetedAppendVertexCursor = 0;
+            _facetedAppendIndexCursor = 0;
+            _facetedAppendVertexBase = 0;
+        }
+
+        private bool StepCompletedResultAppend(double deadlineSeconds)
+        {
+            if (_resultAppendStage == 0)
+            {
+                double start = Time.realtimeSinceStartupAsDouble;
+                using var scope = s_CompactMarker.Auto();
+                int overflowCell = _topologyOverflowCell[0];
+                if (overflowCell >= 0)
+                    throw new InvalidOperationException(
+                        $"Continuous topology output overflow in chunk {_build.Coordinate}, "
+                      + $"cell {overflowCell}; refusing to publish partial geometry.");
+
+                if (!StepAppendNativeGeometry(_compactedTopologyVertices.AsArray(),
+                                              _compactedTopologyIndices.AsArray(),
+                                              ref _topologyAppendVertexCursor,
+                                              ref _topologyAppendIndexCursor,
+                                              ref _topologyAppendVertexBase,
+                                              deadlineSeconds))
+                {
+                    LastTopologyCompactMs = ElapsedMs(start);
+                    _topologyCompactTiming.Add(LastTopologyCompactMs);
+                    return false;
+                }
+
+                if (_topologyOutput.IsCreated) _topologyOutput.Dispose();
+                _topologyOutput = default;
+                LastTopologyCompactMs = ElapsedMs(start);
+                _topologyCompactTiming.Add(LastTopologyCompactMs);
+                _resultAppendStage = 1;
+            }
+
+            if (_resultAppendStage == 1)
+            {
+                double start = Time.realtimeSinceStartupAsDouble;
+                using var scope = s_FacetedMergeMarker.Auto();
+                if (!StepAppendNativeGeometry(_facetedVertices.AsArray(),
+                                              _facetedIndices.AsArray(),
+                                              ref _facetedAppendVertexCursor,
+                                              ref _facetedAppendIndexCursor,
+                                              ref _facetedAppendVertexBase,
+                                              deadlineSeconds))
+                {
+                    _facetedMergeTiming.Add(ElapsedMs(start));
+                    return false;
+                }
+                _facetedMergeTiming.Add(ElapsedMs(start));
+                _resultAppendStage = 2;
+            }
+            return true;
+        }
+
+        private bool StepAppendNativeGeometry(NativeArray<SmoothSurfaceVertex> sourceVertices,
+                                              NativeArray<uint> sourceIndices,
+                                              ref int vertexCursor, ref int indexCursor,
+                                              ref uint vertexBase,
+                                              double deadlineSeconds)
+        {
+            if (Time.realtimeSinceStartupAsDouble >= deadlineSeconds) return false;
+            if (vertexCursor == 0 && indexCursor == 0)
+                vertexBase = (uint)_vertices.Length;
+
+            while (vertexCursor < sourceVertices.Length)
+            {
+                int end = math.min(sourceVertices.Length,
+                                   vertexCursor + AppendElementsPerDeadlineCheck);
+                for (; vertexCursor < end; vertexCursor++)
+                    _vertices.Add(sourceVertices[vertexCursor]);
+                if (vertexCursor < sourceVertices.Length
+                    && Time.realtimeSinceStartupAsDouble >= deadlineSeconds)
+                    return false;
+            }
+
+            while (indexCursor < sourceIndices.Length)
+            {
+                int end = math.min(sourceIndices.Length,
+                                   indexCursor + AppendElementsPerDeadlineCheck);
+                for (; indexCursor < end; indexCursor++)
+                    _indices.Add(vertexBase + sourceIndices[indexCursor]);
+                if (indexCursor < sourceIndices.Length
+                    && Time.realtimeSinceStartupAsDouble >= deadlineSeconds)
+                    return false;
+            }
+            return true;
         }
 
         private void ScheduleFacetedMaskJob(JobHandle dependency = default)
@@ -913,9 +1418,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             var job = new SnapshotFacetedMaskJob
             {
                 Bricks = _densityBricks,
-                MixedVoxels = _densityMixedVoxels.AsArray(),
-                MixedSurfaceSemantics = _densityMixedSurfaceSemantics.AsArray(),
-                MixedBoundarySamples = _densityMixedBoundarySamples.AsArray(),
+                MixedVoxels = PinnedMixedVoxelsOrFallback(),
+                MixedSurfaceSemantics = PinnedMixedSurfaceSemanticsOrFallback(),
+                MixedBoundarySamples = PinnedMixedBoundarySamplesOrFallback(),
                 Palette = _buildPalette,
                 Catalogue = _buildSurfaceCatalogue,
                 Coatings = _buildCoatingCatalogue,
@@ -923,6 +1428,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 BrickCacheOrigin = chunkBrickOrigin - BrickCachePadding,
                 BrickCacheEdge = BrickCacheEdge,
                 CellsPerAxis = CellsPerAxis,
+                SourceStep = SourceStep,
                 FaceMasks = _facetedMasks,
             };
             _build.FacetedScheduledSeconds = Time.realtimeSinceStartupAsDouble;
@@ -940,22 +1446,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 Indices = _facetedIndices,
                 ChunkOrigin = _build.Coordinate * VoxelsPerAxis,
                 CellsPerAxis = CellsPerAxis,
+                SourceStep = SourceStep,
                 VoxelSize = voxelSize,
             };
             _facetedMergeJobHandle = job.Schedule(_facetedMaskJobHandle);
             _facetedMergeJobScheduled = true;
-        }
-
-        private void AppendFacetedTopology()
-        {
-            double start = Time.realtimeSinceStartupAsDouble;
-            using var scope = s_FacetedMergeMarker.Auto();
-            uint vertexBase = (uint)_vertices.Count;
-            NativeArray<SmoothSurfaceVertex> vertices = _facetedVertices.AsArray();
-            for (int i = 0; i < vertices.Length; i++) _vertices.Add(vertices[i]);
-            NativeArray<uint> indices = _facetedIndices.AsArray();
-            for (int i = 0; i < indices.Length; i++) _indices.Add(vertexBase + indices[i]);
-            _facetedMergeTiming.Add(ElapsedMs(start));
         }
 
         private void MergeAllFacetedMasks(float voxelSize)
@@ -975,69 +1470,143 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             }
         }
 
-        public IReadOnlyList<Entry> CollectVisible(Camera camera, float voxelSize, int frame)
+        public void BeginVisibilityCollection()
         {
             _visible.Clear();
             MissingVisibleCount = 0;
+        }
+
+        /// <summary>
+        /// Evaluates one clipmap coordinate already routed to this shard. Visibility traversal is
+        /// driven by the bounded camera-centred ring grid, never by the lifetime size of _known.
+        /// </summary>
+        public void CollectVisibleCoordinate(int3 coordinate, Plane[] frustumPlanes,
+                                             Vector3 cameraPosition, float voxelSize, int frame)
+        {
+            if (!_known.Contains(coordinate)) return;
+
+            Bounds bounds = ChunkWorldBounds(coordinate, voxelSize);
+            if (!WithinRingBand(bounds, cameraPosition)) return;
+            if (!GeometryUtility.TestPlanesAABB(frustumPlanes, bounds)) return;
+
+            if (!_entries.TryGetValue(coordinate, out Entry entry) || !entry.Ready)
+            {
+                // A known-empty chunk is a completed build with nothing to draw, not a hole.
+                if (!_emptyVersions.ContainsKey(coordinate)) MissingVisibleCount++;
+                return;
+            }
+            if (entry.IndexCount == 0) return;
+            entry.LastUsedFrame = frame;
+            _visible.Add(entry);
+        }
+
+        /// <summary>
+        /// Compatibility entry point for focused tests/tools. Production scheduling performs one
+        /// ring traversal in VoxelSurfaceScheduler and routes coordinates directly to shards.
+        /// This fallback is still bounded by the ring's configured view distance.
+        /// </summary>
+        public IReadOnlyList<Entry> CollectVisible(Camera camera, float voxelSize, int frame)
+        {
+            BeginVisibilityCollection();
             if (camera == null) return _visible;
 
             GeometryUtility.CalculateFrustumPlanes(camera, _frustumPlanes);
             Vector3 cameraPosition = camera.transform.position;
-            foreach (int3 coordinate in _known)
+            float chunkMetres = VoxelsPerAxis * voxelSize;
+            int radius = Mathf.CeilToInt(MaxViewDistanceMetres / chunkMetres) + 1;
+            int3 centre = new(
+                Mathf.FloorToInt(cameraPosition.x / chunkMetres),
+                Mathf.FloorToInt(cameraPosition.y / chunkMetres),
+                Mathf.FloorToInt(cameraPosition.z / chunkMetres));
+
+            for (int z = -radius; z <= radius; z++)
+            for (int y = -radius; y <= radius; y++)
+            for (int x = -radius; x <= radius; x++)
             {
-                Bounds bounds = ChunkWorldBounds(coordinate, voxelSize);
-                if (!WithinRingBand(bounds, cameraPosition)) continue;
-                if (!GeometryUtility.TestPlanesAABB(_frustumPlanes, bounds))
-                    continue;
-                if (!_entries.TryGetValue(coordinate, out Entry entry) || !entry.Ready)
-                {
-                    // A known-empty chunk is a completed build with nothing to draw, not a
-                    // hole waiting on work. Counting it as missing would keep the metric
-                    // permanently alarmed across the mostly-air volume of any view sphere.
-                    if (!_emptyVersions.ContainsKey(coordinate)) MissingVisibleCount++;
-                    continue;
-                }
-                // A ready zero-index entry is a complete, intentionally empty result.
-                if (entry.IndexCount == 0) continue;
-                entry.LastUsedFrame = frame;
-                _visible.Add(entry);
+                int3 coordinate = centre + new int3(x, y, z);
+                if (!OwnsShard(coordinate)) continue;
+                CollectVisibleCoordinate(coordinate, _frustumPlanes, cameraPosition,
+                                         voxelSize, frame);
             }
             return _visible;
         }
 
-        private bool BeginNearestBuild(Camera camera, float voxelSize)
+        private bool BeginNearestBuild(Camera camera, float voxelSize,
+                                       double deadlineSeconds)
         {
-            if (_dirty.Count == 0) return false;
+            if (_dirty.Count == 0 || _dirtyQueue.Count == 0
+                || Time.realtimeSinceStartupAsDouble >= deadlineSeconds)
+                return false;
 
             int3 best = default;
+            bool hasBest = false;
             float bestScore = float.PositiveInfinity;
             float chunkMetres = VoxelsPerAxis * voxelSize;
             Vector3 cameraWorldPosition = camera.transform.position;
             GeometryUtility.CalculateFrustumPlanes(camera, _frustumPlanes);
-            foreach (int3 candidate in _dirty)
+
+            int candidates = math.min(BuildSelectionCandidatesPerSlice, _dirtyQueue.Count);
+            for (int i = 0; i < candidates; i++)
             {
+                int3 candidate = _dirtyQueue.Dequeue();
+                _queuedDirty.Remove(candidate);
+                if (!_dirty.Contains(candidate)) continue; // stale queue record
+
                 Bounds bounds = ChunkWorldBounds(candidate, voxelSize);
-                if (!WithinRingBand(bounds, cameraWorldPosition)) continue;
+                if (!WithinRingBand(bounds, cameraWorldPosition))
+                {
+                    RequeueDirty(candidate);
+                    continue;
+                }
+
                 Vector3 centre = (new Vector3(candidate.x, candidate.y, candidate.z)
                                 + Vector3.one * 0.5f) * chunkMetres;
                 float distance = (centre - cameraWorldPosition).sqrMagnitude;
-                // Every visible candidate ranks ahead of every off-screen candidate. Distance
-                // then fills the centre of the view before its edges.
                 float score = GeometryUtility.TestPlanesAABB(_frustumPlanes, bounds)
                     ? distance : distance + 1_000_000_000f;
-                if (score >= bestScore) continue;
-                bestScore = score;
-                best = candidate;
+                if (!hasBest || score < bestScore)
+                {
+                    if (hasBest) RequeueDirty(best);
+                    bestScore = score;
+                    best = candidate;
+                    hasBest = true;
+                }
+                else
+                {
+                    RequeueDirty(candidate);
+                }
+
+                // Score checks are cheap, but a destruction burst can enqueue thousands. The
+                // frame contract wins over exact global nearest ordering; later slices continue
+                // from the queue tail and converge without a scan spike.
+                if (Time.realtimeSinceStartupAsDouble >= deadlineSeconds) break;
             }
 
-            if (float.IsPositiveInfinity(bestScore)) return false;
+            if (!hasBest) return false;
+            if (!_slotGrid.TryGet(best, out SurfaceChunkSlot buildSlot)
+                && !_slotGrid.TryAcquire(best, out buildSlot))
+            {
+                _dirty.Remove(best);
+                return false;
+            }
             _dirty.Remove(best);
             _vertices.Clear();
             _indices.Clear();
+            _transitionFace = -1;
+            _transitionSampleCursor = 0;
+            _transitionResultPending = false;
+            _resultAppendStage = 0;
+            _topologyAppendVertexCursor = 0;
+            _topologyAppendIndexCursor = 0;
+            _facetedAppendVertexCursor = 0;
+            _facetedAppendIndexCursor = 0;
+            _transitionAppendVertexCursor = 0;
+            _transitionAppendIndexCursor = 0;
             _build = new BuildState
             {
                 Active = true, Coordinate = best, Phase = 0, Cursor = 0,
                 SourceVersion = _desiredVersions.TryGetValue(best, out ulong version) ? version : 0,
+                SlotGeneration = buildSlot.Generation,
                 SurfaceCatalogueVersion = _surfaceCatalogue.Version,
                 SurfaceCatalogueHash = _surfaceCatalogue.CatalogueHash,
                 CoatingCatalogueVersion = _coatingCatalogue.Version,
@@ -1053,17 +1622,30 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         {
             _emptyVersions.Remove(chunk);
             _desiredVersions[chunk] = ++_versionCounter;
-            if (!_dirty.Contains(chunk) && (!_build.Active || !_build.Coordinate.Equals(chunk)))
-                _queuedAtSeconds[chunk] = Time.realtimeSinceStartupAsDouble;
-            _dirty.Add(chunk);
+            MarkDirty(chunk);
         }
 
-        private bool OwnsShard(int3 chunk)
+        private void MarkDirty(int3 chunk)
         {
-            int count = math.max(1, ShardCount);
-            uint hash = math.hash(chunk);
-            return (int)(hash % (uint)count) == math.clamp(ShardIndex, 0, count - 1);
+            if (_dirty.Add(chunk))
+                _queuedAtSeconds[chunk] = Time.realtimeSinceStartupAsDouble;
+            RequeueDirty(chunk);
         }
+
+        private void RequeueDirty(int3 chunk)
+        {
+            if (!_dirty.Contains(chunk) || !_queuedDirty.Add(chunk)) return;
+            _dirtyQueue.Enqueue(chunk);
+        }
+
+        public static int ShardForChunk(int3 chunk, int shardCount)
+        {
+            int count = math.max(1, shardCount);
+            return (int)(math.hash(chunk) % (uint)count);
+        }
+
+        private bool OwnsShard(int3 chunk) =>
+            ShardForChunk(chunk, ShardCount) == math.clamp(ShardIndex, 0, math.max(1, ShardCount) - 1);
 
         private void SetSurfaceCatalogue(in SurfaceCatalogueView catalogue)
         {
@@ -1078,6 +1660,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
             // Catalogue data participates in geometry. Existing meshes may remain visible while
             // every known chunk queues a replacement built from the new immutable snapshot.
+            SurfaceCatalogueInvalidationCount++;
             foreach (int3 chunk in _known) Invalidate(chunk);
         }
 
@@ -1085,6 +1668,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         {
             if (_materialPaletteVersion == version) return;
             _materialPaletteVersion = version;
+            MaterialPaletteInvalidationCount++;
             foreach (int3 chunk in _known) Invalidate(chunk);
         }
 
@@ -1098,6 +1682,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _coatingCatalogue = catalogue;
             if (_coatingCatalogue.CatalogueHash == 0)
                 _coatingCatalogue.Seal(_coatingCatalogue.Version, hash);
+            CoatingCatalogueInvalidationCount++;
             foreach (int3 chunk in _known) Invalidate(chunk);
         }
 
@@ -1110,6 +1695,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _profileBlockVersion = version;
             _profileBlocks = store?.Snapshot() ?? Array.Empty<ProfileBlock>();
             RebuildProfileBlockIndex();
+            ProfileBlockInvalidationCount++;
             foreach (int3 chunk in _known) Invalidate(chunk);
         }
 
@@ -1140,69 +1726,460 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             foreach (var pair in staging) _profileBlocksByChunk.Add(pair.Key, pair.Value.ToArray());
         }
 
+        private const int SnapshotMipSamplesPerDeadlineCheck = 64;
+
         /// <summary>
-        /// Snapshots one mip cell per lattice sample and schedules the coarse-ring density job.
-        ///
-        /// A coarse chunk spans far too much world to cache its bricks, but it only ever reads
-        /// GridSize³ samples, so the snapshot is sized by the lattice rather than by the world
-        /// extent. That is what keeps the outermost rings affordable no matter how much terrain
-        /// they cover. Samples whose region is absent read as empty, which leaves a hole rather
-        /// than inventing geometry the server never sent.
+        /// Advances the authoritative-to-immutable snapshot boundary without ever walking a full
+        /// chunk in one frame. The snapshot lives entirely in this workspace's persistent native
+        /// buffers; borrowed Storage views are reacquired inside each slice and never survive the
+        /// call. A later journal invalidation rejects the partial generation before publication.
         /// </summary>
-        private void ScheduleMipDensityJob(IRegionReadSource source,
-                                           in MaterialPaletteView palette, float voxelSize)
+        private bool StepDensitySnapshot(IRegionReadSource source,
+                                         in MaterialPaletteView palette,
+                                         float voxelSize, double deadlineSeconds)
         {
-            double snapshotStart = Time.realtimeSinceStartupAsDouble;
+            if (Time.realtimeSinceStartupAsDouble >= deadlineSeconds) return false;
+            return SamplesFromMips
+                ? StepMipDensitySnapshot(source, in palette, voxelSize, deadlineSeconds)
+                : StepExactDensitySnapshot(source, in palette, voxelSize, deadlineSeconds);
+        }
+
+        private bool StepExactDensitySnapshot(IRegionReadSource source,
+                                              in MaterialPaletteView palette,
+                                              float voxelSize, double deadlineSeconds)
+        {
+            double sliceStart = Time.realtimeSinceStartupAsDouble;
             using var snapshotScope = s_SnapshotMarker.Auto();
+            if (!_build.SnapshotInitialised)
+            {
+                if (_pinnedReadBlocks.Length != 0 || _pinnedRegionCount != 0)
+                    throw new InvalidOperationException(
+                        "Cannot begin a new exact snapshot while previous Storage leases remain.");
+                _densityMixedVoxels.Clear();
+                _densityMixedSurfaceSemantics.Clear();
+                _densityMixedBoundarySamples.Clear();
+                _pinnedReadSource = source;
+                _pinnedReleaseCursor = 0;
+                _pinnedMixedVoxels = default;
+                _pinnedMixedSurfaceSemantics = default;
+                _pinnedMixedBoundarySamples = default;
+                _exactMixedPinCursor = 0;
+                _exactMetadataReady = false;
+                _buildSurfaceCatalogue = _surfaceCatalogue;
+                _buildCoatingCatalogue = _coatingCatalogue;
+                _buildPalette = palette;
+                _build.MaterialPaletteVersion = palette.Version;
+                _buildProfileBlocks = _profileBlocksByChunk.TryGetValue(
+                    _build.Coordinate, out ProfileBlock[] blocks)
+                    ? blocks : Array.Empty<ProfileBlock>();
+                _build.SnapshotCursor = 0;
+                _build.SnapshotCpuMs = 0.0;
+                _build.HasOwnedSolid = false;
+                _build.RequiresContinuousTopology = _buildProfileBlocks.Length > 0;
+                _build.SnapshotInitialised = true;
+            }
+
+            int3 chunkOriginVoxel = _build.Coordinate * VoxelsPerAxis;
+            int3 chunkBrickOrigin = new(chunkOriginVoxel.x >> VoxelReadGrid.BlockEdgeLog2,
+                                        chunkOriginVoxel.y >> VoxelReadGrid.BlockEdgeLog2,
+                                        chunkOriginVoxel.z >> VoxelReadGrid.BlockEdgeLog2);
+            int3 cacheOrigin = chunkBrickOrigin - BrickCachePadding;
+
+            if (!_exactMetadataReady)
+            {
+                if (!_exactMetadataJobScheduled)
+                {
+                    ScheduleExactMetadataSnapshot(source, cacheOrigin);
+                    AccumulateSnapshotSlice(sliceStart, completed: false);
+                    return false;
+                }
+
+                if (!_exactMetadataJobHandle.IsCompleted)
+                {
+                    AccumulateSnapshotSlice(sliceStart, completed: false);
+                    return false;
+                }
+
+                if (!GeometryFrameJobCompletionGuard.TryCompleteReady(
+                        _exactMetadataJobHandle, ref _framePathBlockingCompletionViolations))
+                {
+                    AccumulateSnapshotSlice(sliceStart, completed: false);
+                    return false;
+                }
+                _exactMetadataJobScheduled = false;
+                ExactMetadataCompleteCount++;
+                if (!PinnedRegionMetadataCurrent())
+                {
+                    ExactMetadataRevisionRejectCount++;
+                    ReleasePinnedRegionMetadataImmediate();
+                    _discardBuildAfterPinRelease = true;
+                    AccumulateSnapshotSlice(sliceStart, completed: false);
+                    return false;
+                }
+                _exactMetadataReady = true;
+            }
+
+            // The worker identified only the mixed refs. Pin those payload versions in bounded
+            // slices; uniform/empty blocks need no physical lease at all.
+            while (_exactMixedPinCursor < _exactMixedBrickIndices.Length)
+            {
+                int end = math.min(_exactMixedBrickIndices.Length,
+                                   _exactMixedPinCursor + ExactMixedPinChecksPerDeadline);
+                for (; _exactMixedPinCursor < end; _exactMixedPinCursor++)
+                {
+                    int cacheIndex = _exactMixedBrickIndices[_exactMixedPinCursor];
+                    int3 worldBlock = WorldBlockForCacheIndex(cacheIndex, cacheOrigin);
+                    if (!source.TryPinWorldBlock(worldBlock, out PinnedVoxelReadBlock pinned))
+                    {
+                        ExactMetadataPinRejectCount++;
+                        // Metadata said this block was mixed, but the coordinate can no longer
+                        // supply that immutable COW payload. The optimistic snapshot is no longer
+                        // coherent (for example, residency or a writer raced the metadata copy).
+                        // Do not spin forever on the same cursor: reject this generation and let
+                        // the existing bounded pin-release path retry from fresh metadata.
+                        ReleasePinnedRegionMetadataImmediate();
+                        _discardBuildAfterPinRelease = true;
+                        AccumulateSnapshotSlice(sliceStart, completed: false);
+                        return false;
+                    }
+
+                    TransvoxelDensityBrick expected = _densityBricks[cacheIndex];
+                    if (pinned.Kind != VoxelReadBlockKind.Mixed || !pinned.HasPinnedPayload
+                        || pinned.MixedOffset != expected.MixedOffset)
+                    {
+                        ExactMetadataPinRejectCount++;
+                        if (pinned.HasPinnedPayload)
+                            source.ReleasePinnedWorldBlock(in pinned.Pin);
+                        ReleasePinnedRegionMetadataImmediate();
+                        _discardBuildAfterPinRelease = true;
+                        AccumulateSnapshotSlice(sliceStart, completed: false);
+                        return false;
+                    }
+
+                    if (!_pinnedMixedVoxels.IsCreated)
+                    {
+                        _pinnedMixedVoxels = pinned.MixedVoxels;
+                        _pinnedMixedSurfaceSemantics = pinned.MixedSurfaceSemantics;
+                        _pinnedMixedBoundarySamples = pinned.MixedBoundarySamples;
+                    }
+                    else if (_pinnedMixedVoxels.Length != pinned.MixedVoxels.Length
+                             || _pinnedMixedSurfaceSemantics.Length
+                                != pinned.MixedSurfaceSemantics.Length
+                             || _pinnedMixedBoundarySamples.Length
+                                != pinned.MixedBoundarySamples.Length)
+                    {
+                        ExactMetadataPinRejectCount++;
+                        source.ReleasePinnedWorldBlock(in pinned.Pin);
+                        ReleasePinnedRegionMetadataImmediate();
+                        _discardBuildAfterPinRelease = true;
+                        AccumulateSnapshotSlice(sliceStart, completed: false);
+                        return false;
+                    }
+                    _pinnedReadBlocks.Add(pinned.Pin);
+                }
+
+                if (_exactMixedPinCursor < _exactMixedBrickIndices.Length
+                    && Time.realtimeSinceStartupAsDouble >= deadlineSeconds)
+                {
+                    AccumulateSnapshotSlice(sliceStart, completed: false);
+                    return false;
+                }
+            }
+
+            // Region refs may have changed while mixed payloads were pinned across frames. Never
+            // splice metadata generations: reject the whole optimistic snapshot and try again.
+            if (!PinnedRegionMetadataCurrent())
+            {
+                ExactMetadataRevisionRejectCount++;
+                ReleasePinnedRegionMetadataImmediate();
+                _discardBuildAfterPinRelease = true;
+                AccumulateSnapshotSlice(sliceStart, completed: false);
+                return false;
+            }
+            ReleasePinnedRegionMetadataImmediate();
+
+            if (UsesBlockHlod)
+            {
+                _hlodOverflow[0] = 0;
+                JobHandle summaryHandle = new SurfaceBlockHlodSummaryJob
+                {
+                    Bricks = _densityBricks,
+                    MixedVoxels = PinnedMixedVoxelsOrFallback(),
+                    Summaries = _hlodSummaries,
+                }.Schedule(BrickCacheCount, 256);
+                _hlodJobHandle = new SurfaceBlockHlodMeshJob
+                {
+                    Summaries = _hlodSummaries,
+                    SummaryGridEdge = BrickCacheEdge,
+                    PaddingBricks = BrickCachePadding,
+                    CoreBrickEdge = BricksPerAxis,
+                    CoreOriginVoxel = chunkOriginVoxel,
+                    VoxelSize = voxelSize,
+                    MaskScratch = _hlodMaskScratch,
+                    Vertices = _vertices,
+                    Indices = _indices,
+                    Overflow = _hlodOverflow,
+                }.Schedule(summaryHandle);
+                _hlodJobScheduled = true;
+                _build.HasOwnedSolid = true; // resolved from final HLOD output on completion
+                _build.RequiresContinuousTopology = false;
+                _build.SnapshotTaken = true;
+                _exactMetadataReady = false;
+                _exactMixedPinCursor = 0;
+                AccumulateSnapshotSlice(sliceStart, completed: true);
+                return true;
+            }
+
+            if (!_exactClassificationJobScheduled)
+            {
+                _snapshotClassificationFlags[0] = 0;
+                _snapshotClassificationFlags[1] = 0;
+                _exactClassificationJobHandle = new ExactSnapshotClassificationJob
+                {
+                    Bricks = _densityBricks,
+                    MixedVoxels = PinnedMixedVoxelsOrFallback(),
+                    MixedSurfaceSemantics = PinnedMixedSurfaceSemanticsOrFallback(),
+                    MixedBoundarySamples = PinnedMixedBoundarySamplesOrFallback(),
+                    Palette = _buildPalette,
+                    Catalogue = _buildSurfaceCatalogue,
+                    Coatings = _buildCoatingCatalogue,
+                    BrickCacheEdge = BrickCacheEdge,
+                    BricksPerAxis = BricksPerAxis,
+                    BrickCachePadding = BrickCachePadding,
+                    HasProfiles = _buildProfileBlocks.Length > 0,
+                    Flags = _snapshotClassificationFlags,
+                }.Schedule();
+                _exactClassificationJobScheduled = true;
+                AccumulateSnapshotSlice(sliceStart, completed: false);
+                return false;
+            }
+
+            if (!_exactClassificationJobHandle.IsCompleted)
+            {
+                AccumulateSnapshotSlice(sliceStart, completed: false);
+                return false;
+            }
+            if (!GeometryFrameJobCompletionGuard.TryCompleteReady(
+                    _exactClassificationJobHandle, ref _framePathBlockingCompletionViolations))
+            {
+                AccumulateSnapshotSlice(sliceStart, completed: false);
+                return false;
+            }
+            _exactClassificationJobScheduled = false;
+            _build.HasOwnedSolid = _snapshotClassificationFlags[0] != 0;
+            _build.RequiresContinuousTopology = _snapshotClassificationFlags[1] != 0;
+            _build.SnapshotTaken = true;
+            _exactMetadataReady = false;
+            _exactMixedPinCursor = 0;
+            AccumulateSnapshotSlice(sliceStart, completed: true);
+
+            if (!_build.HasOwnedSolid && _buildProfileBlocks.Length == 0)
+                return true;
+
+            if (_build.RequiresContinuousTopology)
+            {
+                var job = new TransvoxelDensityJob
+                {
+                    Bricks = _densityBricks,
+                    MixedVoxels = PinnedMixedVoxelsOrFallback(),
+                    MixedSurfaceSemantics = PinnedMixedSurfaceSemanticsOrFallback(),
+                    MixedBoundarySamples = PinnedMixedBoundarySamplesOrFallback(),
+                    Palette = _buildPalette,
+                    Catalogue = _buildSurfaceCatalogue,
+                    Coatings = _buildCoatingCatalogue,
+                    Density = _density,
+                    Materials = _materials,
+                    SurfaceSemantics = _surfaceSemantics,
+                    BoundarySamples = _boundarySamples,
+                    ChunkOriginVoxel = chunkOriginVoxel,
+                    BrickCacheOrigin = cacheOrigin,
+                    BrickCacheEdge = BrickCacheEdge,
+                    GridSize = GridSize,
+                    Padding = Padding,
+                    SourceStep = SourceStep
+                };
+                _build.DensityScheduledSeconds = Time.realtimeSinceStartupAsDouble;
+                _densityJobHandle = job.Schedule(GridSampleCount, 64);
+                _densityJobScheduled = true;
+                ScheduleTopologyJob(voxelSize, _densityJobHandle);
+                ScheduleFacetedMaskJob(_densityJobHandle);
+                ScheduleFacetedMergeJob(voxelSize);
+            }
+            return true;
+        }
+
+        private void ScheduleExactMetadataSnapshot(IRegionReadSource source, int3 cacheOrigin)
+        {
+            if (_pinnedRegionCount != 0)
+                throw new InvalidOperationException("Exact metadata regions were already pinned.");
+            _pinnedRegionSource = source;
+            _exactMixedBrickIndices.Clear();
+
+            JobHandle clearHandle = new ExactBrickMetadataClearJob
+            {
+                Bricks = _densityBricks,
+                MixedFlags = _exactMixedFlags,
+            }.Schedule(BrickCacheCount, 256);
+            // Region intersections are disjoint cache ranges. Schedule every copy behind the
+            // shared clear only, then combine their handles once before compaction. Chaining each
+            // copy behind the previous region serializes phase-0 snapshot work and can starve
+            // coarse LOD workers on Metal even though the copies are independent.
+            JobHandle dependency = clearHandle;
+
+            int edge = VoxelReadGrid.BlocksPerRegionEdge;
+            int3 cacheMaxExclusive = cacheOrigin + BrickCacheEdge;
+            int3 minRegion = cacheOrigin >> VoxelReadGrid.BlocksPerRegionEdgeLog2;
+            int3 maxRegion = (cacheMaxExclusive - 1) >> VoxelReadGrid.BlocksPerRegionEdgeLog2;
+
+            for (int rz = minRegion.z; rz <= maxRegion.z; rz++)
+            for (int ry = minRegion.y; ry <= maxRegion.y; ry++)
+            for (int rx = minRegion.x; rx <= maxRegion.x; rx++)
+            {
+                int3 regionCoord = new(rx, ry, rz);
+                if (!source.TryPinRegionBlockRefs(regionCoord, out PinnedRegionBlockRefs pinned))
+                    continue;
+                if (_pinnedRegionCount >= MaxExactSnapshotRegions)
+                {
+                    source.ReleasePinnedRegion(in pinned.Pin);
+                    ReleasePinnedRegionMetadataImmediate();
+                    throw new InvalidOperationException(
+                        "Exact snapshot exceeded the 3x3x3 pinned-region bound.");
+                }
+                _pinnedRegionBlockRefs[_pinnedRegionCount++] = pinned;
+
+                int3 regionMin = regionCoord * edge;
+                int3 regionMaxExclusive = regionMin + edge;
+                int3 intersectionMin = math.max(cacheOrigin, regionMin);
+                int3 intersectionMax = math.min(cacheMaxExclusive, regionMaxExclusive);
+                int3 size = intersectionMax - intersectionMin;
+                int volume = size.x * size.y * size.z;
+                if (volume <= 0) continue;
+
+                JobHandle regionHandle = new ExactBrickMetadataRegionJob
+                {
+                    EncodedBlockRefs = pinned.EncodedBlockRefs,
+                    RegionCoord = regionCoord,
+                    IntersectionMinWorldBlock = intersectionMin,
+                    IntersectionSize = size,
+                    CacheOrigin = cacheOrigin,
+                    BrickCacheEdge = BrickCacheEdge,
+                    Bricks = _densityBricks,
+                    MixedFlags = _exactMixedFlags,
+                }.Schedule(volume, 128, clearHandle);
+                dependency = JobHandle.CombineDependencies(dependency, regionHandle);
+            }
+
+            _exactMetadataJobHandle = new ExactMixedBrickCompactJob
+            {
+                MixedFlags = _exactMixedFlags,
+                MixedIndices = _exactMixedBrickIndices,
+            }.Schedule(dependency);
+            ExactMetadataScheduleCount++;
+            _exactMetadataJobScheduled = true;
+        }
+
+        private int3 WorldBlockForCacheIndex(int index, int3 cacheOrigin)
+        {
+            int x = index % BrickCacheEdge;
+            int y = (index / BrickCacheEdge) % BrickCacheEdge;
+            int z = index / (BrickCacheEdge * BrickCacheEdge);
+            return cacheOrigin + new int3(x, y, z);
+        }
+
+        private bool PinnedRegionMetadataCurrent()
+        {
+            if (_pinnedRegionCount == 0) return true;
+            if (_pinnedRegionSource == null) return false;
+            for (int i = 0; i < _pinnedRegionCount; i++)
+            {
+                VoxelRegionPinToken token = _pinnedRegionBlockRefs[i].Pin;
+                if (!_pinnedRegionSource.IsPinnedRegionCurrent(in token)) return false;
+            }
+            return true;
+        }
+
+        private void ReleasePinnedRegionMetadataImmediate()
+        {
+            if (_pinnedRegionSource != null)
+            {
+                for (int i = 0; i < _pinnedRegionCount; i++)
+                {
+                    VoxelRegionPinToken token = _pinnedRegionBlockRefs[i].Pin;
+                    _pinnedRegionSource.ReleasePinnedRegion(in token);
+                    _pinnedRegionBlockRefs[i] = default;
+                }
+            }
+            _pinnedRegionCount = 0;
+            _pinnedRegionSource = null;
+        }
+
+        private bool StepMipDensitySnapshot(IRegionReadSource source,
+                                            in MaterialPaletteView palette,
+                                            float voxelSize, double deadlineSeconds)
+        {
+            double sliceStart = Time.realtimeSinceStartupAsDouble;
+            using var snapshotScope = s_SnapshotMarker.Auto();
+            if (!_build.SnapshotInitialised)
+            {
+                _buildSurfaceCatalogue = _surfaceCatalogue;
+                _buildCoatingCatalogue = _coatingCatalogue;
+                _buildPalette = palette;
+                _build.MaterialPaletteVersion = palette.Version;
+                _buildProfileBlocks = Array.Empty<ProfileBlock>();
+                _build.SnapshotCursor = 0;
+                _build.SnapshotCpuMs = 0.0;
+                _build.HasOwnedSolid = false;
+                _build.RequiresContinuousTopology = false;
+                _build.SnapshotInitialised = true;
+            }
 
             int3 chunkOriginVoxel = _build.Coordinate * VoxelsPerAxis;
             int mipLevel = VoxelReadGrid.LevelForStride(SourceStep);
             RegionSampleCursor cursor = default;
-            bool anySolid = false;
-
-            for (int gz = 0; gz < GridSize; gz++)
-            for (int gy = 0; gy < GridSize; gy++)
-            for (int gx = 0; gx < GridSize; gx++)
+            while (_build.SnapshotCursor < GridSampleCount)
             {
-                int index = GridIndex(gx, gy, gz);
-                int3 voxel = chunkOriginVoxel
-                           + (new int3(gx, gy, gz) - Padding) * SourceStep;
-
-                bool occupied = false;
-                byte material = VoxelGrid.MaterialEmpty;
-                if (TrySampleWorld(source, ref cursor, voxel, mipLevel,
-                                   out bool sampled, out byte sampledMaterial))
+                int batchEnd = math.min(GridSampleCount,
+                    _build.SnapshotCursor + SnapshotMipSamplesPerDeadlineCheck);
+                for (; _build.SnapshotCursor < batchEnd; _build.SnapshotCursor++)
                 {
-                    occupied = sampled;
-                    material = sampledMaterial;
+                    int index = _build.SnapshotCursor;
+                    int gx = index % GridSize;
+                    int gy = (index / GridSize) % GridSize;
+                    int gz = index / (GridSize * GridSize);
+                    int3 voxel = chunkOriginVoxel
+                               + (new int3(gx, gy, gz) - Padding) * SourceStep;
+
+                    bool occupied = false;
+                    byte material = VoxelGrid.MaterialEmpty;
+                    if (TrySampleWorld(source, ref cursor, voxel, mipLevel,
+                                       out bool sampled, out byte sampledMaterial))
+                    {
+                        occupied = sampled;
+                        material = sampledMaterial;
+                    }
+                    _mipSampleOccupancy[index] = occupied ? (byte)1 : (byte)0;
+                    _mipSampleMaterials[index] = material;
+                    _build.HasOwnedSolid |= occupied && IsSolidSurfaceMaterial(material);
                 }
 
-                _mipSampleOccupancy[index] = occupied ? (byte)1 : (byte)0;
-                _mipSampleMaterials[index] = material;
+                if (_build.SnapshotCursor < GridSampleCount
+                    && Time.realtimeSinceStartupAsDouble >= deadlineSeconds)
+                {
+                    AccumulateSnapshotSlice(sliceStart, completed: false);
+                    return false;
+                }
             }
 
-            _buildSurfaceCatalogue = _surfaceCatalogue;
-            _buildCoatingCatalogue = _coatingCatalogue;
-            _buildPalette = palette;
-            _build.MaterialPaletteVersion = palette.Version;
             _build.SnapshotTaken = true;
-            _buildProfileBlocks = Array.Empty<ProfileBlock>();
-            _build.HasOwnedSolid = anySolid;
-
-            LastSnapshotMs = (Time.realtimeSinceStartupAsDouble - snapshotStart) * 1000.0;
-            _snapshotTiming.Add(LastSnapshotMs);
-            if (!anySolid) return;
-
-            // Coarse rings always take the continuous path. Authored planar/cubic styles
-            // describe centimetre detail; at these strides a cell spans metres, and faceting
-            // it would produce a staircase silhouette across the whole far field.
-            _build.RequiresContinuousTopology = true;
+            _build.RequiresContinuousTopology = _build.HasOwnedSolid;
+            AccumulateSnapshotSlice(sliceStart, completed: true);
+            if (!_build.HasOwnedSolid) return true;
 
             var job = new MipDensityJob
             {
                 SampleOccupancy = _mipSampleOccupancy,
                 SampleMaterials = _mipSampleMaterials,
-                Palette = palette,
+                Palette = _buildPalette,
                 Density = _density,
                 Materials = _materials,
                 SurfaceSemantics = _surfaceSemantics,
@@ -1213,186 +2190,86 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _densityJobHandle = job.Schedule(GridSampleCount, 256);
             _densityJobScheduled = true;
             ScheduleTopologyJob(voxelSize, _densityJobHandle);
+            return true;
         }
 
-        /// <summary>
-        /// Resolves the padded brick neighbourhood around the chunk once and copies only mixed
-        /// voxel payloads. This snapshot is immutable until the Burst density job completes, so
-        /// gameplay may continue editing/evicting authoritative storage without racing the job.
-        /// </summary>
-        private void ScheduleDensityJob(IRegionReadSource source,
-                                        in MaterialPaletteView palette, float voxelSize)
+        private void AccumulateSnapshotSlice(double sliceStart, bool completed)
         {
-            if (SamplesFromMips)
-            {
-                ScheduleMipDensityJob(source, in palette, voxelSize);
-                return;
-            }
-
-            double snapshotStart = Time.realtimeSinceStartupAsDouble;
-            using var snapshotScope = s_SnapshotMarker.Auto();
-            _densityMixedVoxels.Clear();
-            _densityMixedSurfaceSemantics.Clear();
-            _densityMixedBoundarySamples.Clear();
-
-            int3 chunkOriginVoxel = _build.Coordinate * VoxelsPerAxis;
-            int3 chunkBrickOrigin = new(chunkOriginVoxel.x >> VoxelReadGrid.BlockEdgeLog2,
-                                        chunkOriginVoxel.y >> VoxelReadGrid.BlockEdgeLog2,
-                                        chunkOriginVoxel.z >> VoxelReadGrid.BlockEdgeLog2);
-            int3 cacheOrigin = chunkBrickOrigin - BrickCachePadding;
-            RegionSampleCursor cursor = default;
-
-            for (int z = 0; z < BrickCacheEdge; z++)
-            for (int y = 0; y < BrickCacheEdge; y++)
-            for (int x = 0; x < BrickCacheEdge; x++)
-            {
-                int cacheIndex = x + BrickCacheEdge * (y + BrickCacheEdge * z);
-                int3 worldBrick = cacheOrigin + new int3(x, y, z);
-                _densityBricks[cacheIndex] = SnapshotBlock(source, ref cursor, worldBrick);
-            }
-
-            _buildSurfaceCatalogue = _surfaceCatalogue;
-            _buildCoatingCatalogue = _coatingCatalogue;
-            var job = new TransvoxelDensityJob
-            {
-                Bricks = _densityBricks,
-                MixedVoxels = _densityMixedVoxels.AsArray(),
-                MixedSurfaceSemantics = _densityMixedSurfaceSemantics.AsArray(),
-                MixedBoundarySamples = _densityMixedBoundarySamples.AsArray(),
-                Palette = palette,
-                Catalogue = _buildSurfaceCatalogue,
-                Coatings = _buildCoatingCatalogue,
-                Density = _density,
-                Materials = _materials,
-                SurfaceSemantics = _surfaceSemantics,
-                BoundarySamples = _boundarySamples,
-                ChunkOriginVoxel = chunkOriginVoxel,
-                BrickCacheOrigin = cacheOrigin,
-                BrickCacheEdge = BrickCacheEdge,
-                GridSize = GridSize,
-                Padding = Padding,
-                SourceStep = SourceStep
-            };
-
-            _build.MaterialPaletteVersion = palette.Version;
-            _build.SnapshotTaken = true;
-            _buildPalette = palette;
-            _buildProfileBlocks = _profileBlocksByChunk.TryGetValue(
-                _build.Coordinate, out ProfileBlock[] blocks)
-                ? blocks : Array.Empty<ProfileBlock>();
-            _build.HasOwnedSolid = SnapshotCoreHasSolid();
-            if (!_build.HasOwnedSolid && _buildProfileBlocks.Length == 0)
-            {
-                LastSnapshotMs = (Time.realtimeSinceStartupAsDouble - snapshotStart) * 1000.0;
-                _snapshotTiming.Add(LastSnapshotMs);
-                return;
-            }
-
-            _build.RequiresContinuousTopology = _buildProfileBlocks.Length > 0;
-            for (int i = 0; i < _densityBricks.Length
-                            && !_build.RequiresContinuousTopology; i++)
-            {
-                TransvoxelDensityBrick brick = _densityBricks[i];
-                if (brick.Kind != 1 || !IsSolidSurfaceMaterial(brick.UniformMaterial)) continue;
-                SurfaceStyleReadDefinition style = _buildSurfaceCatalogue.Get(
-                    palette.GetDefaultSurfaceStyle(brick.UniformMaterial));
-                _build.RequiresContinuousTopology =
-                    style.Reconstruction == SurfaceReconstruction.Smooth
-                    || style.Reconstruction == SurfaceReconstruction.Rounded;
-            }
-            for (int i = 0; i < _densityMixedVoxels.Length
-                            && !_build.RequiresContinuousTopology; i++)
-            {
-                byte material = _densityMixedVoxels[i];
-                if (!IsSolidSurfaceMaterial(material)) continue;
-                uint surface = VoxelSurfaceSemantics.FromStorage(
-                    _densityMixedSurfaceSemantics[i]).Packed;
-                ushort styleId = (ushort)surface;
-                if (styleId == SurfaceStyles.MaterialDefault)
-                    styleId = palette.GetDefaultSurfaceStyle(material);
-                SurfaceStyleReadDefinition style = _buildSurfaceCatalogue.Get(styleId);
-                byte coating = (byte)(surface >> 16);
-                _build.RequiresContinuousTopology = _densityMixedBoundarySamples[i] != 0
-                    || _buildCoatingCatalogue.Get(coating).Displacement != 0
-                    || style.Reconstruction == SurfaceReconstruction.Smooth
-                    || style.Reconstruction == SurfaceReconstruction.Rounded;
-            }
-
-            if (_build.RequiresContinuousTopology)
-            {
-                _build.DensityScheduledSeconds = Time.realtimeSinceStartupAsDouble;
-                _densityJobHandle = job.Schedule(GridSampleCount, 64);
-                _densityJobScheduled = true;
-                ScheduleTopologyJob(voxelSize, _densityJobHandle);
-                ScheduleFacetedMaskJob(_densityJobHandle);
-                ScheduleFacetedMergeJob(voxelSize);
-            }
-            LastSnapshotMs = (Time.realtimeSinceStartupAsDouble - snapshotStart) * 1000.0;
+            _build.SnapshotCpuMs += ElapsedMs(sliceStart);
+            if (!completed) return;
+            LastSnapshotMs = _build.SnapshotCpuMs;
             _snapshotTiming.Add(LastSnapshotMs);
         }
 
-        private bool SnapshotCoreHasSolid()
-        {
-            int first = BrickCachePadding;
-            int end = first + BricksPerAxis;
-            for (int z = first; z < end; z++)
-            for (int y = first; y < end; y++)
-            for (int x = first; x < end; x++)
-            {
-                int index = x + BrickCacheEdge * (y + BrickCacheEdge * z);
-                TransvoxelDensityBrick brick = _densityBricks[index];
-                if (brick.Kind == 0) continue;
-                if (brick.Kind == 1)
-                {
-                    if (IsSolidSurfaceMaterial(brick.UniformMaterial)) return true;
-                    continue;
-                }
+        private NativeArray<byte> PinnedMixedVoxelsOrFallback() =>
+            _pinnedMixedVoxels.IsCreated
+                ? _pinnedMixedVoxels : _densityMixedVoxels.AsArray();
 
-                int endVoxel = brick.MixedOffset + VoxelReadGrid.VoxelsPerBlock;
-                for (int voxel = brick.MixedOffset; voxel < endVoxel; voxel++)
-                    if (IsSolidSurfaceMaterial(_densityMixedVoxels[voxel])) return true;
+        private NativeArray<ushort> PinnedMixedSurfaceSemanticsOrFallback() =>
+            _pinnedMixedSurfaceSemantics.IsCreated
+                ? _pinnedMixedSurfaceSemantics : _densityMixedSurfaceSemantics.AsArray();
+
+        private NativeArray<byte> PinnedMixedBoundarySamplesOrFallback() =>
+            _pinnedMixedBoundarySamples.IsCreated
+                ? _pinnedMixedBoundarySamples : _densityMixedBoundarySamples.AsArray();
+
+        private const int PinnedReleasesPerDeadlineCheck = 64;
+
+        /// <summary>
+        /// Releases immutable Storage payload versions incrementally. Job completion is not
+        /// allowed to turn into a large frame-thread unpin loop; slow release merely delays the
+        /// next build while the previous published geometry remains valid.
+        /// </summary>
+        private bool StepReleasePinnedSnapshotBlocks(double deadlineSeconds)
+        {
+            if (_pinnedReadBlocks.Length == 0)
+            {
+                ClearPinnedSnapshotState();
+                return true;
             }
-            return false;
+            if (_pinnedReadSource == null)
+                throw new InvalidOperationException("Pinned snapshot lost its Storage source.");
+
+            while (_pinnedReleaseCursor < _pinnedReadBlocks.Length)
+            {
+                int end = math.min(_pinnedReadBlocks.Length,
+                                   _pinnedReleaseCursor + PinnedReleasesPerDeadlineCheck);
+                for (; _pinnedReleaseCursor < end; _pinnedReleaseCursor++)
+                {
+                    VoxelReadPinToken token = _pinnedReadBlocks[_pinnedReleaseCursor];
+                    _pinnedReadSource.ReleasePinnedWorldBlock(in token);
+                }
+                if (_pinnedReleaseCursor < _pinnedReadBlocks.Length
+                    && Time.realtimeSinceStartupAsDouble >= deadlineSeconds)
+                    return false;
+            }
+
+            _pinnedReadBlocks.Clear();
+            ClearPinnedSnapshotState();
+            return true;
         }
 
-        private TransvoxelDensityBrick SnapshotBlock(IRegionReadSource source,
-                                                      ref RegionSampleCursor cursor,
-                                                      int3 worldBlock)
+        private void ReleasePinnedSnapshotBlocksImmediate()
         {
-            if (!TryAcquireWorldBlock(source, ref cursor, worldBlock, out RegionReadView region)
-                || !region.TryGetWorldBlock(worldBlock, out VoxelReadBlock block)
-                || block.Kind == VoxelReadBlockKind.Empty)
-                return default;
-
-            if (block.Kind == VoxelReadBlockKind.Uniform)
+            if (_pinnedReadSource != null)
             {
-                return new TransvoxelDensityBrick
+                for (int i = _pinnedReleaseCursor; i < _pinnedReadBlocks.Length; i++)
                 {
-                    Kind = 1,
-                    UniformMaterial = block.UniformMaterial,
-                    MixedOffset = 0
-                };
+                    VoxelReadPinToken token = _pinnedReadBlocks[i];
+                    _pinnedReadSource.ReleasePinnedWorldBlock(in token);
+                }
             }
+            _pinnedReadBlocks.Clear();
+            ClearPinnedSnapshotState();
+        }
 
-            int mixedOffset = _densityMixedVoxels.Length;
-            int nextLength = mixedOffset + VoxelReadGrid.VoxelsPerBlock;
-            _densityMixedVoxels.ResizeUninitialized(nextLength);
-            _densityMixedSurfaceSemantics.ResizeUninitialized(nextLength);
-            _densityMixedBoundarySamples.ResizeUninitialized(nextLength);
-            if (!region.TryCopyWorldBlock(
-                    worldBlock,
-                    _densityMixedVoxels.AsArray(),
-                    _densityMixedSurfaceSemantics.AsArray(),
-                    _densityMixedBoundarySamples.AsArray(),
-                    mixedOffset))
-                throw new InvalidOperationException($"Failed to snapshot Storage read block {worldBlock}.");
-
-            return new TransvoxelDensityBrick
-            {
-                Kind = 2,
-                UniformMaterial = 0,
-                MixedOffset = mixedOffset
-            };
+        private void ClearPinnedSnapshotState()
+        {
+            _pinnedReadSource = null;
+            _pinnedMixedVoxels = default;
+            _pinnedMixedSurfaceSemantics = default;
+            _pinnedMixedBoundarySamples = default;
+            _pinnedReleaseCursor = 0;
         }
 
         private bool StepCells(float voxelSize)
@@ -1545,7 +2422,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     a.Normal = face;
                     b.Normal = face;
                     c.Normal = face;
-                    uint triangleBase = (uint)_vertices.Count;
+                    uint triangleBase = (uint)_vertices.Length;
                     _vertices.Add(a);
                     _vertices.Add(b);
                     _vertices.Add(c);
@@ -1556,7 +2433,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             }
             else
             {
-                uint baseVertex = (uint)_vertices.Count;
+                uint baseVertex = (uint)_vertices.Length;
                 for (int i = 0; i < vertexCount; i++) _vertices.Add(_cellVertices[i]);
                 for (int i = 0; i < indexCount; i++)
                     _indices.Add(baseVertex + localIndices[i]);
@@ -1761,7 +2638,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                              FloorDiv((int)math.floor(centroid.z), VoxelsPerAxis));
             if (!owner.Equals(_build.Coordinate)) return;
             p0 *= voxelSize; p1 *= voxelSize; p2 *= voxelSize; p3 *= voxelSize;
-            uint baseVertex = (uint)_vertices.Count;
+            uint baseVertex = (uint)_vertices.Length;
             var n = (Vector3)math.normalizesafe(normal, new float3(0f, 1f, 0f));
             _vertices.Add(new SmoothSurfaceVertex { Position = (Vector3)p0, Normal = n, Material = attributes, Active = FullyLitOcclusion });
             _vertices.Add(new SmoothSurfaceVertex { Position = (Vector3)p1, Normal = n, Material = attributes, Active = FullyLitOcclusion });
@@ -1852,7 +2729,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             centre[axisA] += jitterA;
             centre[axisB] += jitterB;
             uint attributes = PackSurfaceAttributes(material, surface);
-            uint baseVertex = (uint)_vertices.Count;
+            uint baseVertex = (uint)_vertices.Length;
             const int sides = 6;
             for (int ring = 0; ring < 2; ring++)
             {
@@ -1984,7 +2861,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 local[axis] = layer;
                 local[axisA] = a;
                 local[axisB] = b;
-                int3 voxel = chunkOrigin + local;
+                int3 voxel = chunkOrigin + local * SourceStep;
                 ReadSnapshotCell(voxel, out byte material, out uint surface,
                                  out byte boundary);
                 SurfaceStyleReadDefinition style = _buildSurfaceCatalogue.Get((ushort)surface);
@@ -2005,7 +2882,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 }
 
                 int3 neighbour = voxel;
-                neighbour[axis] += sign;
+                neighbour[axis] += sign * SourceStep;
                 ReadSnapshotCell(neighbour, out byte neighbourMaterial, out _,
                                  out byte neighbourBoundary);
                 var neighbourAuthoredBoundary =
@@ -2054,23 +2931,23 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                                      int width, int height, uint attributes, float voxelSize)
         {
             float3 p0 = chunkOrigin;
-            p0[axis] += layer + (sign > 0 ? 1 : 0);
-            p0[axisA] += a;
-            p0[axisB] += b;
+            p0[axis] += (layer + (sign > 0 ? 1 : 0)) * SourceStep;
+            p0[axisA] += a * SourceStep;
+            p0[axisB] += b * SourceStep;
             float3 p1 = p0;
             float3 p2 = p0;
             float3 p3 = p0;
-            p1[axisA] += width;
-            p2[axisA] += width;
-            p2[axisB] += height;
-            p3[axisB] += height;
+            p1[axisA] += width * SourceStep;
+            p2[axisA] += width * SourceStep;
+            p2[axisB] += height * SourceStep;
+            p3[axisB] += height * SourceStep;
             p0 *= voxelSize;
             p1 *= voxelSize;
             p2 *= voxelSize;
             p3 *= voxelSize;
             float3 normal = float3.zero;
             normal[axis] = sign;
-            uint baseVertex = (uint)_vertices.Count;
+            uint baseVertex = (uint)_vertices.Length;
             _vertices.Add(new SmoothSurfaceVertex { Position = (Vector3)p0, Normal = (Vector3)normal, Material = attributes, Active = FullyLitOcclusion });
             _vertices.Add(new SmoothSurfaceVertex { Position = (Vector3)p1, Normal = (Vector3)normal, Material = attributes, Active = FullyLitOcclusion });
             _vertices.Add(new SmoothSurfaceVertex { Position = (Vector3)p2, Normal = (Vector3)normal, Material = attributes, Active = FullyLitOcclusion });
@@ -2121,10 +2998,13 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             }
             int3 local = voxel & VoxelReadGrid.BlockEdgeMask;
             int voxelIndex = local.x | (local.y << 3) | (local.z << 6);
-            material = _densityMixedVoxels[brick.MixedOffset + voxelIndex];
+            NativeArray<byte> mixedVoxels = PinnedMixedVoxelsOrFallback();
+            NativeArray<ushort> mixedSurfaces = PinnedMixedSurfaceSemanticsOrFallback();
+            NativeArray<byte> mixedBoundaries = PinnedMixedBoundarySamplesOrFallback();
+            material = mixedVoxels[brick.MixedOffset + voxelIndex];
             surface = VoxelSurfaceSemantics.FromStorage(
-                _densityMixedSurfaceSemantics[brick.MixedOffset + voxelIndex]).Packed;
-            boundary = _densityMixedBoundarySamples[brick.MixedOffset + voxelIndex];
+                mixedSurfaces[brick.MixedOffset + voxelIndex]).Packed;
+            boundary = mixedBoundaries[brick.MixedOffset + voxelIndex];
             if ((ushort)surface == SurfaceStyles.MaterialDefault)
                 surface = (surface & 0xFFFF0000u)
                         | _buildPalette.GetDefaultSurfaceStyle(material);
@@ -2158,29 +3038,53 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             | ((surface & 0xFFu) << 16)
             | (((surface >> 24) & 0xFFu) << 24);
 
+        private SurfaceGeometryArena GetGeometryArena()
+        {
+            // Scheduler workers receive an eagerly allocated shared arena. Standalone caches
+            // remain cheap until they actually publish their first piece of geometry.
+            if (_geometryArena == null)
+                _geometryArena = new SurfaceGeometryArena(256 * 1024, 768 * 1024, 512);
+            return _geometryArena;
+        }
+
+        private Entry AcquireEntry(int3 coordinate)
+        {
+            if (_entryPool.Count == 0)
+                return new Entry(coordinate, VoxelsPerAxis, SourceStep, GetGeometryArena());
+
+            Entry entry = _entryPool.Pop();
+            entry.Reinitialize(coordinate);
+            return entry;
+        }
+
+        private void RecycleEntry(Entry entry)
+        {
+            if (entry == null) return;
+            entry.Dispose();
+            _entryPool.Push(entry);
+        }
+
         private void FinishBuild(int frame)
         {
+            if (!BuildOwnsCurrentSlot())
+            {
+                RejectPendingOrCompletedBuild(stale: true);
+                return;
+            }
             if (_desiredVersions.TryGetValue(_build.Coordinate, out ulong desired)
                 && desired > _build.SourceVersion)
             {
-                // Input changed while the immutable snapshot/job was in flight. Never publish
-                // stale geometry; the newer invalidation remains queued.
-                StaleBuildCount++;
-                _build = default;
-                _vertices.Clear();
-                _indices.Clear();
+                RejectPendingOrCompletedBuild(stale: true);
                 return;
             }
 
-            // An empty result is a complete answer, but it owns no geometry, so it must not
-            // hold a resident slot. Air dominates any view sphere; letting it consume capacity
-            // 1:1 with geometry is what drove real surfaces out of the cache and produced the
-            // evict/rebuild churn. Record it as known-empty and reclaim the slot instead.
-            if (_indices.Count == 0)
+            // An empty result is complete immediately because there is no GPU payload to
+            // publish. Removing an old ready entry is the atomic publication of "air".
+            if (_indices.Length == 0)
             {
                 if (_entries.TryGetValue(_build.Coordinate, out Entry stale))
                 {
-                    stale.Dispose();
+                    RecycleEntry(stale);
                     _entries.Remove(_build.Coordinate);
                 }
                 _emptyVersions[_build.Coordinate] = _build.SourceVersion;
@@ -2188,26 +3092,60 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 _buildLatencyTiming.Add(ElapsedMs(_build.BuildStartSeconds));
                 _desiredVersions.Remove(_build.Coordinate);
                 _queuedAtSeconds.Remove(_build.Coordinate);
-                _build = default;
-                _vertices.Clear();
-                _indices.Clear();
+                ResetCompletedBuild();
                 return;
             }
 
             _emptyVersions.Remove(_build.Coordinate);
             if (!_entries.TryGetValue(_build.Coordinate, out Entry entry))
             {
-                entry = new Entry(_build.Coordinate, VoxelsPerAxis, SourceStep);
+                entry = AcquireEntry(_build.Coordinate);
                 _entries.Add(_build.Coordinate, entry);
             }
 
+            // CPU geometry is complete, but GPU publication is a scheduler-owned phase.
+            // Keep the build payload and any previous ready Entry alive until the global
+            // upload budget admits this replacement.
+            _pendingUpload = true;
+        }
+
+        /// <summary>
+        /// Advances one pending GPU publication by at most <paramref name="byteBudget"/>
+        /// payload bytes. Returns true only when the replacement became visible.
+        /// </summary>
+        public bool TryPublishPending(int frame, int byteBudget, out int uploadedBytes)
+        {
+            uploadedBytes = 0;
+            if (!_pendingUpload || byteBudget <= 0) return false;
+            if (!BuildOwnsCurrentSlot())
+            {
+                RejectPendingOrCompletedBuild(stale: true);
+                return false;
+            }
+
+            if (_desiredVersions.TryGetValue(_build.Coordinate, out ulong desired)
+                && desired > _build.SourceVersion)
+            {
+                RejectPendingOrCompletedBuild(stale: true);
+                return false;
+            }
+
+            if (!_entries.TryGetValue(_build.Coordinate, out Entry entry))
+            {
+                RejectPendingOrCompletedBuild(stale: false);
+                return false;
+            }
+
             double uploadStart = Time.realtimeSinceStartupAsDouble;
-            using (s_UploadMarker.Auto()) entry.Upload(_vertices, _indices);
+            bool published;
+            using (s_UploadMarker.Auto())
+                published = entry.AdvanceUpload(_vertices, _indices, byteBudget,
+                                                out uploadedBytes);
             LastUploadMs = (Time.realtimeSinceStartupAsDouble - uploadStart) * 1000.0;
             _uploadTiming.Add(LastUploadMs);
-            _buildLatencyTiming.Add(ElapsedMs(_build.BuildStartSeconds));
-            CompletedBuildCount++;
-            UploadedGeometryBytes += (ulong)entry.GpuBytes;
+            UploadedGeometryBytes += (ulong)math.max(0, uploadedBytes);
+            if (!published) return false;
+
             entry.LastUsedFrame = frame;
             entry.SourceVersion = _build.SourceVersion;
             entry.MaterialPaletteVersion = _build.MaterialPaletteVersion;
@@ -2215,37 +3153,238 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             entry.SurfaceCatalogueHash = _build.SurfaceCatalogueHash;
             entry.CoatingCatalogueVersion = _build.CoatingCatalogueVersion;
             entry.CoatingCatalogueHash = _build.CoatingCatalogueHash;
+            CompletedBuildCount++;
+            _buildLatencyTiming.Add(ElapsedMs(_build.BuildStartSeconds));
             _desiredVersions.Remove(_build.Coordinate);
             _queuedAtSeconds.Remove(_build.Coordinate);
+            ResetCompletedBuild();
+            return true;
+        }
+
+        private void RejectPendingOrCompletedBuild(bool stale)
+        {
+            if (_entries.TryGetValue(_build.Coordinate, out Entry entry))
+            {
+                entry.CancelUpload();
+                if (!entry.Ready)
+                {
+                    RecycleEntry(entry);
+                    _entries.Remove(_build.Coordinate);
+                }
+            }
+            if (stale) StaleBuildCount++;
+            ResetCompletedBuild();
+        }
+
+        private void ResetCompletedBuild()
+        {
+            if (_pinnedReadBlocks.Length != 0 || _pinnedRegionCount != 0
+                || _exactMetadataJobScheduled || _exactClassificationJobScheduled
+                || _hlodJobScheduled)
+                throw new InvalidOperationException(
+                    "Build reset attempted before snapshot jobs/Storage leases were released.");
+            _exactMetadataReady = false;
+            _exactMixedPinCursor = 0;
+            _pendingUpload = false;
+            _discardBuildAfterPinRelease = false;
             _build = default;
             _vertices.Clear();
             _indices.Clear();
+            _transitionFace = -1;
+            _transitionSampleCursor = 0;
+            _transitionResultPending = false;
+            _resultAppendStage = 0;
+            _topologyAppendVertexCursor = 0;
+            _topologyAppendIndexCursor = 0;
+            _facetedAppendVertexCursor = 0;
+            _facetedAppendIndexCursor = 0;
+            _transitionAppendVertexCursor = 0;
+            _transitionAppendIndexCursor = 0;
         }
 
-        private void DropNoLongerResident(IRegionReadSource source)
+        public void SetClipmapWindow(int3 centre, int radius)
         {
-            if (_known.Count == 0) return;
-            List<int3> gone = null;
-            foreach (int3 chunk in _known)
+            int nextRadius = math.max(0, radius);
+            if (_clipmapWindowValid && _clipmapRadius == nextRadius
+                && math.any(_clipmapCenter != centre))
+                ScheduleClipmapEdgeRetirement(_clipmapCenter, centre, nextRadius);
+
+            _clipmapCenter = centre;
+            _clipmapRadius = nextRadius;
+            _clipmapWindowValid = true;
+            _slotGrid.UpdateWindow(centre, nextRadius);
+        }
+
+        private void ScheduleClipmapEdgeRetirement(int3 fromCenter, int3 toCenter, int radius)
+        {
+            if (math.all(fromCenter == toCenter)) return;
+
+            if (_clipmapEdgeRetirementPending && _clipmapRetirementRadius == radius)
             {
-                if (AnyOverlappedRegionResident(source, chunk)) continue;
-                (gone ??= new List<int3>()).Add(chunk);
+                int3 activeDelta = _clipmapRetirementToCenter - _clipmapRetirementFromCenter;
+                int3 extendedDelta = toCenter - _clipmapRetirementFromCenter;
+                bool sameDirection = true;
+                for (int axis = 0; axis < 3; axis++)
+                {
+                    int active = activeDelta[axis];
+                    int extended = extendedDelta[axis];
+                    if (active != 0 && extended != 0
+                        && math.sign(active) != math.sign(extended))
+                    {
+                        sameDirection = false;
+                        break;
+                    }
+                }
+
+                // Continuous movement in the same direction simply extends the outgoing slab.
+                // Keep the existing cursor so already-checked edge coordinates are not revisited.
+                if (sameDirection)
+                {
+                    _clipmapRetirementToCenter = toCenter;
+                    return;
+                }
             }
 
-            if (gone == null) return;
-            for (int i = 0; i < gone.Count; i++) RemoveChunk(gone[i]);
+            _clipmapRetirementFromCenter = fromCenter;
+            _clipmapRetirementToCenter = toCenter;
+            _clipmapRetirementRadius = radius;
+            _clipmapRetirementAxis = 0;
+            _clipmapRetirementDepth = 0;
+            _clipmapRetirementPlaneCursor = 0;
+            _clipmapEdgeRetirementPending = true;
+        }
+
+        private void StepClipmapEdgeRetirement()
+        {
+            if (!_clipmapEdgeRetirementPending) return;
+
+            int remaining = ClipmapEdgeCandidatesPerPrepare;
+            int edge = _clipmapRetirementRadius * 2 + 1;
+            int planeCount = edge * edge;
+            int3 delta = _clipmapRetirementToCenter - _clipmapRetirementFromCenter;
+
+            while (remaining > 0 && _clipmapRetirementAxis < 3)
+            {
+                int axis = _clipmapRetirementAxis;
+                int shift = delta[axis];
+                int depthCount = math.min(math.abs(shift), edge);
+                if (depthCount == 0 || _clipmapRetirementDepth >= depthCount)
+                {
+                    _clipmapRetirementAxis++;
+                    _clipmapRetirementDepth = 0;
+                    _clipmapRetirementPlaneCursor = 0;
+                    continue;
+                }
+
+                int axisA = (axis + 1) % 3;
+                int axisB = (axis + 2) % 3;
+                while (remaining > 0 && _clipmapRetirementPlaneCursor < planeCount)
+                {
+                    int linear = _clipmapRetirementPlaneCursor++;
+                    int a = linear % edge;
+                    int b = linear / edge;
+                    int3 coordinate = _clipmapRetirementFromCenter;
+                    coordinate[axisA] += a - _clipmapRetirementRadius;
+                    coordinate[axisB] += b - _clipmapRetirementRadius;
+                    coordinate[axis] += shift > 0
+                        ? -_clipmapRetirementRadius + _clipmapRetirementDepth
+                        : _clipmapRetirementRadius - _clipmapRetirementDepth;
+                    remaining--;
+
+                    // Diagonal movement makes edge planes overlap. Current-window ownership and
+                    // _known membership make those duplicates free without another hash set.
+                    if (WithinClipmapWindow(coordinate) || !OwnsShard(coordinate)
+                        || !_known.Contains(coordinate))
+                        continue;
+                    if (!TryRemoveChunk(coordinate)) RequeueResidency(coordinate);
+                }
+
+                if (_clipmapRetirementPlaneCursor < planeCount) return;
+                _clipmapRetirementPlaneCursor = 0;
+                _clipmapRetirementDepth++;
+            }
+
+            if (_clipmapRetirementAxis < 3) return;
+            _clipmapEdgeRetirementPending = false;
+            _clipmapRetirementAxis = 0;
+            _clipmapRetirementDepth = 0;
+            _clipmapRetirementPlaneCursor = 0;
+        }
+
+        private bool WithinClipmapWindow(int3 chunk)
+        {
+            if (!_clipmapWindowValid) return true;
+            int3 delta = math.abs(chunk - _clipmapCenter);
+            return math.cmax(delta) <= _clipmapRadius;
+        }
+
+        private bool TrackKnown(int3 chunk)
+        {
+            // Surface discovery/change feeds can cover a much larger resident Storage window than
+            // this LOD ring draws. Render residency is admitted only inside the camera clipmap;
+            // otherwise _known and, critically, the build queue would grow with world streaming
+            // rather than the fixed view footprint.
+            if (!WithinClipmapWindow(chunk)) return false;
+            if (_known.Contains(chunk)) return true;
+            if (!_slotGrid.TryAcquire(chunk, out _)) return false;
+
+            _known.Add(chunk);
+            RequeueResidency(chunk);
+            return true;
+        }
+
+        private bool BuildOwnsCurrentSlot()
+        {
+            return _build.Active && WithinClipmapWindow(_build.Coordinate)
+                && _slotGrid.TryGet(_build.Coordinate, out SurfaceChunkSlot slot)
+                && slot.Generation == _build.SlotGeneration;
+        }
+
+        private void RetireSlot(int3 chunk)
+        {
+            _slotGrid.Retire(chunk);
+        }
+
+        private void RequeueResidency(int3 chunk)
+        {
+            if (!_known.Contains(chunk) || !_queuedResidency.Add(chunk)) return;
+            _residencyQueue.Enqueue(chunk);
+        }
+
+        private void StepResidencyPrune(IRegionReadSource source)
+        {
+            int checks = math.min(ResidencyChecksPerPrepare, _residencyQueue.Count);
+            for (int i = 0; i < checks; i++)
+            {
+                int3 chunk = _residencyQueue.Dequeue();
+                _queuedResidency.Remove(chunk);
+                if (!_known.Contains(chunk)) continue;
+
+                if (WithinClipmapWindow(chunk) && AnyOverlappedRegionResident(source, chunk))
+                {
+                    RequeueResidency(chunk);
+                    continue;
+                }
+
+                // Out-of-window or non-resident chunks both retire incrementally. In-flight
+                // geometry is never waited on, and BuildOwnsCurrentSlot prevents an out-of-window
+                // generation from publishing while it waits for this cleanup pass. If removal is deferred, put the chunk
+                // back in the liveness queue and recheck it on a later frame.
+                if (!TryRemoveChunk(chunk)) RequeueResidency(chunk);
+            }
         }
 
         /// <summary>
-        /// Whether any region the chunk overlaps is still resident. A coarse ring's chunk can be
-        /// larger than a region and straddle several, so testing only the origin region would
-        /// discard a chunk that still has most of its data — and, worse, keep one whose origin
-        /// happens to survive while the rest of it has gone.
+        /// Whether any region sampled by the chunk is still resident. The exact snapshot owns a
+        /// one-sample halo, so discovery-admitted neighbour chunks must remain alive while that
+        /// halo reaches resident Storage even when their core lies just outside it. Otherwise
+        /// prune/remove and discovery/readmission can restart the same metadata job every frame.
         /// </summary>
         private bool AnyOverlappedRegionResident(IRegionReadSource source, int3 chunk)
         {
-            int3 minVoxel = chunk * VoxelsPerAxis;
-            int3 maxVoxel = minVoxel + (VoxelsPerAxis - 1);
+            int halo = Padding * SourceStep;
+            int3 minVoxel = chunk * VoxelsPerAxis - halo;
+            int3 maxVoxel = (chunk + 1) * VoxelsPerAxis + halo - 1;
             int3 minRegion = new(FloorDiv(minVoxel.x, VoxelGrid.RegionVoxelEdge),
                                  FloorDiv(minVoxel.y, VoxelGrid.RegionVoxelEdge),
                                  FloorDiv(minVoxel.z, VoxelGrid.RegionVoxelEdge));
@@ -2260,41 +3399,74 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             return false;
         }
 
+        internal bool TryEvictOneForArenaPressure(Camera camera, float voxelSize)
+        {
+            if (_entries.Count == 0) return false;
+
+            int3 victim = default;
+            float farthest = -1f;
+            Vector3 cameraPosition = camera != null ? camera.transform.position : Vector3.zero;
+            float chunkMetres = VoxelsPerAxis * voxelSize;
+            if (camera != null) GeometryUtility.CalculateFrustumPlanes(camera, _frustumPlanes);
+
+            foreach (var pair in _entries)
+            {
+                // Keep current replacement geometry alive. Arena pressure may only retire a
+                // different, already-published, offscreen lease.
+                if (_build.Active && pair.Key.Equals(_build.Coordinate)) continue;
+                Bounds bounds = ChunkWorldBounds(pair.Key, voxelSize);
+                if (camera != null && GeometryUtility.TestPlanesAABB(_frustumPlanes, bounds))
+                    continue;
+
+                Vector3 centre = (new Vector3(pair.Key.x, pair.Key.y, pair.Key.z)
+                                + Vector3.one * 0.5f) * chunkMetres;
+                float distance = (centre - cameraPosition).sqrMagnitude;
+                if (distance <= farthest) continue;
+                farthest = distance;
+                victim = pair.Key;
+            }
+
+            if (farthest < 0f) return false;
+            if (_entries.TryGetValue(victim, out Entry entry)) RecycleEntry(entry);
+            _entries.Remove(victim);
+            MarkDirty(victim);
+            return true;
+        }
+
         private void EnforceCapacity(Camera camera, float voxelSize)
         {
-            while (_entries.Count >= MaxResidentChunks && _dirty.Count > 0)
+            if (_entries.Count < MaxResidentChunks || _dirty.Count == 0) return;
+
+            int3 victim = default;
+            float farthest = -1f;
+            Vector3 cameraPosition = camera != null ? camera.transform.position : Vector3.zero;
+            float chunkMetres = VoxelsPerAxis * voxelSize;
+            if (camera != null) GeometryUtility.CalculateFrustumPlanes(camera, _frustumPlanes);
+
+            foreach (var pair in _entries)
             {
-                int3 victim = default;
-                float farthest = -1f;
-                Vector3 cameraPosition = camera != null ? camera.transform.position : Vector3.zero;
-                float chunkMetres = VoxelsPerAxis * voxelSize;
-                if (camera != null) GeometryUtility.CalculateFrustumPlanes(camera, _frustumPlanes);
-
-                foreach (var pair in _entries)
-                {
-                    // A capacity limit may delay new work, but may never create a visible hole.
-                    if (camera != null && GeometryUtility.TestPlanesAABB(
-                            _frustumPlanes, ChunkWorldBounds(pair.Key, voxelSize)))
-                        continue;
-                    Vector3 centre = (new Vector3(pair.Key.x, pair.Key.y, pair.Key.z)
-                                    + Vector3.one * 0.5f) * chunkMetres;
-                    float distance = (centre - cameraPosition).sqrMagnitude;
-                    if (distance <= farthest) continue;
-                    farthest = distance;
-                    victim = pair.Key;
-                }
-
-                if (farthest < 0f)
-                {
-                    CapacityPressureCount++;
-                    break;
-                }
-                if (_entries.TryGetValue(victim, out Entry entry)) entry.Dispose();
-                _entries.Remove(victim);
-                // Keep it known and queued. If the camera returns, nearest-first admission can
-                // rebuild it; an evicted chunk must never become a permanent silent hole.
-                _dirty.Add(victim);
+                // Capacity pressure is also bounded: at most one offscreen lease retires from
+                // this workspace per Prepare call. Repeated eviction loops turn a cache miss into
+                // a frame spike exactly when streaming is already under pressure.
+                if (camera != null && GeometryUtility.TestPlanesAABB(
+                        _frustumPlanes, ChunkWorldBounds(pair.Key, voxelSize)))
+                    continue;
+                Vector3 centre = (new Vector3(pair.Key.x, pair.Key.y, pair.Key.z)
+                                + Vector3.one * 0.5f) * chunkMetres;
+                float distance = (centre - cameraPosition).sqrMagnitude;
+                if (distance <= farthest) continue;
+                farthest = distance;
+                victim = pair.Key;
             }
+
+            if (farthest < 0f)
+            {
+                CapacityPressureCount++;
+                return;
+            }
+            if (_entries.TryGetValue(victim, out Entry entry)) RecycleEntry(entry);
+            _entries.Remove(victim);
+            MarkDirty(victim);
         }
 
         /// <summary>
@@ -2367,29 +3539,91 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                               Vector3.one * (size + SourceStep * voxelSize * 2f));
         }
 
-        private void RemoveChunk(int3 chunk)
+        private bool ScheduledJobsComplete()
         {
+            if (_exactMetadataJobScheduled && !_exactMetadataJobHandle.IsCompleted) return false;
+            if (_exactClassificationJobScheduled && !_exactClassificationJobHandle.IsCompleted)
+                return false;
+            if (_hlodJobScheduled && !_hlodJobHandle.IsCompleted) return false;
+            if (_densityJobScheduled && !_densityJobHandle.IsCompleted) return false;
+            if (_topologyJobScheduled
+                && !(_topologyCompactJobScheduled
+                    ? _topologyCompactJobHandle.IsCompleted
+                    : _topologyJobHandle.IsCompleted)) return false;
+            if (_facetedMaskJobScheduled
+                && !(_facetedMergeJobScheduled
+                    ? _facetedMergeJobHandle.IsCompleted
+                    : _facetedMaskJobHandle.IsCompleted)) return false;
+            if (_transitionJobScheduled && !_transitionJobHandle.IsCompleted) return false;
+            return true;
+        }
+
+        /// <summary>
+        /// Removes a no-longer-resident chunk only when doing so cannot wait for worker
+        /// geometry. If its build is still running, residency pruning defers removal to
+        /// a later frame instead of converting eviction pressure into a frame barrier.
+        /// </summary>
+        private bool TryRemoveChunk(int3 chunk)
+        {
+            if (_build.Active && _build.Coordinate.Equals(chunk)
+                && !ScheduledJobsComplete())
+                return false;
+            if (_build.Active && _build.Coordinate.Equals(chunk)
+                && (_pinnedReadBlocks.Length > 0 || _pinnedRegionCount > 0))
+            {
+                // All handles were observed complete above. Metadata leases are a fixed <=27 and
+                // can release immediately; physical mixed-brick pins drain later under deadline.
+                CompleteJobs();
+                ReleasePinnedRegionMetadataImmediate();
+                _discardBuildAfterPinRelease = true;
+                return false;
+            }
+
             _known.Remove(chunk);
+            RetireSlot(chunk);
+            _queuedResidency.Remove(chunk);
             _dirty.Remove(chunk);
+            _queuedDirty.Remove(chunk);
             _desiredVersions.Remove(chunk);
             _emptyVersions.Remove(chunk);
             _queuedAtSeconds.Remove(chunk);
             if (_entries.TryGetValue(chunk, out Entry entry))
             {
-                entry.Dispose();
+                RecycleEntry(entry);
                 _entries.Remove(chunk);
             }
             if (_build.Active && _build.Coordinate.Equals(chunk))
             {
+                // Every handle was observed complete above, so these Complete calls only
+                // release job safety dependencies; none can stall the frame.
                 CompleteJobs();
+                _pendingUpload = false;
                 _build = default;
                 _vertices.Clear();
                 _indices.Clear();
+                _transitionFace = -1;
+                _transitionSampleCursor = 0;
             }
+            return true;
         }
 
         private void CompleteJobs()
         {
+            if (_exactMetadataJobScheduled)
+            {
+                _exactMetadataJobHandle.Complete(); // teardown may synchronize
+                _exactMetadataJobScheduled = false;
+            }
+            if (_exactClassificationJobScheduled)
+            {
+                _exactClassificationJobHandle.Complete(); // teardown may synchronize
+                _exactClassificationJobScheduled = false;
+            }
+            if (_hlodJobScheduled)
+            {
+                _hlodJobHandle.Complete(); // teardown may synchronize
+                _hlodJobScheduled = false;
+            }
             if (_densityJobScheduled)
             {
                 _densityJobHandle.Complete();
@@ -2408,6 +3642,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 else _facetedMaskJobHandle.Complete();
                 _facetedMaskJobScheduled = false;
                 _facetedMergeJobScheduled = false;
+            }
+            if (_transitionJobScheduled)
+            {
+                _transitionJobHandle.Complete();
+                _transitionJobScheduled = false;
             }
         }
 
@@ -2497,8 +3736,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public void Dispose()
         {
             CompleteJobs();
+            ReleasePinnedRegionMetadataImmediate();
+            ReleasePinnedSnapshotBlocksImmediate();
             foreach (Entry entry in _entries.Values) entry.Dispose();
             _entries.Clear();
+            foreach (Entry entry in _entryPool) entry.Dispose();
+            _entryPool.Clear();
             _known.Clear();
             _dirty.Clear();
             _desiredVersions.Clear();
@@ -2506,37 +3749,19 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _visible.Clear();
             _vertices.Clear();
             _indices.Clear();
-            if (_density.IsCreated) _density.Dispose();
-            if (_materials.IsCreated) _materials.Dispose();
-            if (_surfaceSemantics.IsCreated) _surfaceSemantics.Dispose();
-            if (_boundarySamples.IsCreated) _boundarySamples.Dispose();
-            if (_densityBricks.IsCreated) _densityBricks.Dispose();
-            if (_mipSampleOccupancy.IsCreated) _mipSampleOccupancy.Dispose();
-            if (_mipSampleMaterials.IsCreated) _mipSampleMaterials.Dispose();
-            if (_densityMixedVoxels.IsCreated) _densityMixedVoxels.Dispose();
-            if (_densityMixedSurfaceSemantics.IsCreated) _densityMixedSurfaceSemantics.Dispose();
-            if (_densityMixedBoundarySamples.IsCreated) _densityMixedBoundarySamples.Dispose();
-            if (_topologyCellClass.IsCreated) _topologyCellClass.Dispose();
-            if (_topologyGeometryCounts.IsCreated) _topologyGeometryCounts.Dispose();
-            if (_topologyCellVertexIndices.IsCreated) _topologyCellVertexIndices.Dispose();
-            if (_topologyEdgeCodes.IsCreated) _topologyEdgeCodes.Dispose();
             if (_topologyOutput.IsCreated) _topologyOutput.Dispose();
-            if (_compactedTopologyVertices.IsCreated) _compactedTopologyVertices.Dispose();
-            if (_compactedTopologyIndices.IsCreated) _compactedTopologyIndices.Dispose();
-            if (_topologyOverflowCell.IsCreated) _topologyOverflowCell.Dispose();
-            if (_faceDensity.IsCreated) _faceDensity.Dispose();
-            if (_faceMaterials.IsCreated) _faceMaterials.Dispose();
-            if (_faceSurfaces.IsCreated) _faceSurfaces.Dispose();
-            if (_transitionCellClass.IsCreated) _transitionCellClass.Dispose();
-            if (_transitionGeometryCounts.IsCreated) _transitionGeometryCounts.Dispose();
-            if (_transitionCellIndices.IsCreated) _transitionCellIndices.Dispose();
-            if (_transitionVertexData.IsCreated) _transitionVertexData.Dispose();
-            if (_transitionVertices.IsCreated) _transitionVertices.Dispose();
-            if (_transitionIndices.IsCreated) _transitionIndices.Dispose();
-            if (_facetedMasks.IsCreated) _facetedMasks.Dispose();
-            if (_facetedVertices.IsCreated) _facetedVertices.Dispose();
-            if (_facetedIndices.IsCreated) _facetedIndices.Dispose();
+            _workspace.Dispose();
+            if (_ownsLookupTables)
+            {
+                _lookupTables?.Dispose();
+                _lookupTables = null;
+            }
             _build = default;
+            if (_ownsGeometryArena)
+            {
+                _geometryArena?.Dispose();
+                _geometryArena = null;
+            }
         }
 
         private static double ElapsedMs(double startSeconds) => startSeconds <= 0.0

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Unity.Collections;
+using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -19,63 +20,146 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private const int BricksPerAxis = 16;
         private const int ChunkShift = 4;
         private const int VoxelsPerAxis = BricksPerAxis * E;
-        private const int BricksPerSlice = 256;
+        private const int BuildSelectionCandidatesPerPrepare = 32;
+        private const int ResidencyChecksPerPrepare = 16;
+        private const int RegionInvalidationCandidatesPerPrepare = 64;
+        private const int WaterChunksPerRegion = VoxelGrid.RegionVoxelEdge / VoxelsPerAxis;
+        private const int ArenaVertexCapacity = 256 * 1024;
+        private const int ArenaIndexCapacity = 768 * 1024;
+        public const int ArenaDrawCapacity = 2048;
         private const uint FullyLitOcclusion = 0x0000FF00u;
 
         private static readonly int s_SurfaceVertices = Shader.PropertyToID("_SurfaceVertices");
         private static readonly int s_SurfaceIndices = Shader.PropertyToID("_SurfaceIndices");
         private static readonly int s_SurfaceIndexBase = Shader.PropertyToID("_SurfaceIndexBase");
+        private static readonly int s_SurfaceVertexBase = Shader.PropertyToID("_SurfaceVertexBase");
         private static readonly int[] s_Strides = { 1, E, E * E };
 
         public sealed class Entry : IDisposable
         {
-            public readonly int3 Coordinate;
-            public ComputeBuffer Vertices;
-            public ComputeBuffer Indices;
-            public ComputeBuffer Args;
+            public int3 Coordinate { get; private set; }
+            private readonly SurfaceGeometryArena _arena;
+            private SurfaceGeometryLease _liveLease;
+            private SurfaceGeometryLease _stagingLease;
+            private int _stagingVertexCursor;
+            private int _stagingIndexCursor;
+            public ComputeBuffer Vertices => _arena.Vertices;
+            public ComputeBuffer Indices => _arena.Indices;
+            public ComputeBuffer Args => _arena.Args;
             public bool Ready;
             public int IndexCount;
             public long GpuBytes { get; private set; }
             public ulong SourceVersion { get; internal set; }
+            internal bool WaitingForArena { get; private set; }
 
-            internal Entry(int3 coordinate) => Coordinate = coordinate;
-
-            internal void Upload(List<SmoothSurfaceVertex> vertices, List<uint> indices)
+            internal Entry(int3 coordinate, SurfaceGeometryArena arena)
             {
-                ComputeBuffer nextVertices = null;
-                ComputeBuffer nextIndices = null;
-                ComputeBuffer nextArgs = null;
-                try
+                Coordinate = coordinate;
+                _arena = arena ?? throw new ArgumentNullException(nameof(arena));
+            }
+
+            internal void Reinitialize(int3 coordinate)
+            {
+                if (Ready || _liveLease.IsValid || _stagingLease.IsValid)
+                    throw new InvalidOperationException(
+                        "A water entry must release its arena leases before reuse.");
+                Coordinate = coordinate;
+                IndexCount = 0;
+                GpuBytes = 0;
+                SourceVersion = 0;
+                WaitingForArena = false;
+                _stagingVertexCursor = 0;
+                _stagingIndexCursor = 0;
+            }
+
+            internal int RemainingUploadBytes(int vertexCount, int indexCount)
+            {
+                int verticesRemaining = math.max(0, vertexCount - _stagingVertexCursor);
+                int indicesRemaining = math.max(0, indexCount - _stagingIndexCursor);
+                return verticesRemaining * SmoothSurfaceVertex.Stride
+                     + indicesRemaining * sizeof(uint)
+                     + SurfaceGeometryArena.ArgsWordsPerDraw * sizeof(uint);
+            }
+
+            internal bool AdvanceUpload(NativeList<SmoothSurfaceVertex> vertices,
+                                        NativeList<uint> indices,
+                                        int byteBudget,
+                                        out int uploadedBytes)
+            {
+                uploadedBytes = 0;
+                if (byteBudget <= 0 || !EnsureUploadStaging(vertices.Length, indices.Length))
+                    return false;
+
+                int remainingBudget = byteBudget;
+                int vertexRemaining = vertices.Length - _stagingVertexCursor;
+                if (vertexRemaining > 0 && remainingBudget >= SmoothSurfaceVertex.Stride)
                 {
-                    nextVertices = new ComputeBuffer(math.max(1, vertices.Count),
-                                                     SmoothSurfaceVertex.Stride,
-                                                     ComputeBufferType.Structured);
-                    nextIndices = new ComputeBuffer(math.max(1, indices.Count), sizeof(uint),
-                                                    ComputeBufferType.Structured);
-                    nextArgs = new ComputeBuffer(4, sizeof(uint),
-                                                 ComputeBufferType.IndirectArguments);
-                    if (vertices.Count > 0) nextVertices.SetData(vertices);
-                    if (indices.Count > 0) nextIndices.SetData(indices);
-                    nextArgs.SetData(new uint[] { (uint)indices.Count, 1u, 0u, 0u });
-                }
-                catch
-                {
-                    nextVertices?.Release();
-                    nextIndices?.Release();
-                    nextArgs?.Release();
-                    throw;
+                    int count = math.min(vertexRemaining,
+                        remainingBudget / SmoothSurfaceVertex.Stride);
+                    _arena.UploadVertices(vertices.AsArray(), _stagingVertexCursor,
+                                          in _stagingLease, count);
+                    int bytes = count * SmoothSurfaceVertex.Stride;
+                    _stagingVertexCursor += count;
+                    remainingBudget -= bytes;
+                    uploadedBytes += bytes;
                 }
 
-                Vertices?.Release();
-                Indices?.Release();
-                Args?.Release();
-                Vertices = nextVertices;
-                Indices = nextIndices;
-                Args = nextArgs;
-                IndexCount = indices.Count;
-                GpuBytes = (long)vertices.Count * SmoothSurfaceVertex.Stride
-                         + (long)indices.Count * sizeof(uint) + 4L * sizeof(uint);
+                int indexRemaining = indices.Length - _stagingIndexCursor;
+                if (_stagingVertexCursor == vertices.Length && indexRemaining > 0
+                    && remainingBudget >= sizeof(uint))
+                {
+                    int count = math.min(indexRemaining, remainingBudget / sizeof(uint));
+                    _arena.UploadIndices(indices.AsArray(), _stagingIndexCursor,
+                                         in _stagingLease, count);
+                    int bytes = count * sizeof(uint);
+                    _stagingIndexCursor += count;
+                    remainingBudget -= bytes;
+                    uploadedBytes += bytes;
+                }
+
+                const int argsBytes = SurfaceGeometryArena.ArgsWordsPerDraw * sizeof(uint);
+                if (_stagingVertexCursor != vertices.Length
+                    || _stagingIndexCursor != indices.Length
+                    || remainingBudget < argsBytes)
+                    return false;
+
+                _arena.UploadArgs((uint)indices.Length, in _stagingLease);
+                uploadedBytes += argsBytes;
+
+                SurfaceGeometryLease previous = _liveLease;
+                _liveLease = _stagingLease;
+                _stagingLease = default;
+                _stagingVertexCursor = 0;
+                _stagingIndexCursor = 0;
+                IndexCount = indices.Length;
+                GpuBytes = _arena.ReservedBytes(in _liveLease);
                 Ready = true;
+                WaitingForArena = false;
+                _arena.Release(in previous);
+                return true;
+            }
+
+            private bool EnsureUploadStaging(int vertexCount, int indexCount)
+            {
+                if (_stagingLease.IsValid) return true;
+                if (!_arena.TryAcquire(vertexCount, indexCount, out _stagingLease))
+                {
+                    WaitingForArena = true;
+                    return false;
+                }
+                WaitingForArena = false;
+                _stagingVertexCursor = 0;
+                _stagingIndexCursor = 0;
+                return true;
+            }
+
+            internal void CancelUpload()
+            {
+                _arena.Release(in _stagingLease);
+                _stagingLease = default;
+                _stagingVertexCursor = 0;
+                _stagingIndexCursor = 0;
+                WaitingForArena = false;
             }
 
             public Bounds WorldBounds(float voxelSize)
@@ -88,24 +172,22 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             public void Draw(CommandBuffer commandBuffer, Material material,
                              MaterialPropertyBlock properties)
             {
-                if (!Ready || IndexCount == 0 || Vertices == null || Indices == null || Args == null)
-                    return;
+                if (!Ready || IndexCount == 0) return;
 
-                properties.SetBuffer(s_SurfaceVertices, Vertices);
-                properties.SetBuffer(s_SurfaceIndices, Indices);
-                properties.SetInt(s_SurfaceIndexBase, 0);
+                properties.SetBuffer(s_SurfaceVertices, _arena.Vertices);
+                properties.SetBuffer(s_SurfaceIndices, _arena.Indices);
+                properties.SetInt(s_SurfaceVertexBase, _liveLease.VertexStart);
+                properties.SetInt(s_SurfaceIndexBase, _liveLease.IndexStart);
                 commandBuffer.DrawProceduralIndirect(Matrix4x4.identity, material, 0,
-                    MeshTopology.Triangles, Args, 0, properties);
+                    MeshTopology.Triangles, _arena.Args,
+                    _liveLease.ArgsWordStart * sizeof(uint), properties);
             }
 
             public void Dispose()
             {
-                Vertices?.Release();
-                Indices?.Release();
-                Args?.Release();
-                Vertices = null;
-                Indices = null;
-                Args = null;
+                CancelUpload();
+                _arena.Release(in _liveLease);
+                _liveLease = default;
                 Ready = false;
                 IndexCount = 0;
                 GpuBytes = 0;
@@ -118,32 +200,79 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             public int3 Coordinate;
             public int Cursor;
             public ulong SourceVersion;
+            public bool PendingPublication;
         }
 
         private readonly Dictionary<int3, HashSet<int3>> _waterBricks = new();
         private readonly Dictionary<int3, Entry> _entries = new();
+        private readonly Stack<Entry> _entryPool = new();
+
         private readonly HashSet<int3> _dirty = new();
+        private readonly Queue<int3> _dirtyQueue = new();
+        private readonly HashSet<int3> _queuedDirty = new();
         private readonly Dictionary<int3, ulong> _desiredVersions = new();
         private ulong _versionCounter;
-        private readonly List<int3> _buildBricks = new(256);
+
+        private readonly Queue<int3> _residencyQueue = new();
+        private readonly HashSet<int3> _queuedResidency = new();
+
+        private readonly Queue<int3> _regionInvalidationQueue = new();
+        private readonly HashSet<int3> _queuedRegionInvalidations = new();
+        private readonly HashSet<int3> _rescanRegionInvalidations = new();
+        private bool _hasActiveRegionInvalidation;
+        private int3 _activeRegionInvalidation;
+        private int3 _activeRegionMinChunk;
+        private int _activeRegionCandidateCursor;
+
         private readonly List<Entry> _visible = new();
         private readonly Plane[] _frustumPlanes = new Plane[6];
-        private readonly List<SmoothSurfaceVertex> _vertices = new(4096);
-        private readonly List<uint> _indices = new(6144);
+        private readonly SurfaceGeometryArena _geometryArena;
+        private NativeList<SmoothSurfaceVertex> _vertices;
+        private NativeList<uint> _indices;
         private readonly NativeArray<byte> _brickMaterials =
             new(VoxelReadGrid.VoxelsPerBlock, Allocator.Persistent);
         private readonly NativeArray<ushort> _surfaceScratch =
             new(VoxelReadGrid.VoxelsPerBlock, Allocator.Persistent);
         private readonly NativeArray<byte> _boundaryScratch =
             new(VoxelReadGrid.VoxelsPerBlock, Allocator.Persistent);
-        private readonly byte[] _mask = new byte[E * E];
+        private NativeArray<int3> _waterBatchBrickBases;
+        private NativeArray<byte> _waterBatchMaterials;
+        private NativeArray<byte> _waterMeshMask;
+        private NativeArray<int> _waterMeshOverflow;
+        private JobHandle _waterMeshJobHandle;
+        private bool _waterMeshJobScheduled;
+        private bool _discardBuildAfterMeshJob;
+        private int _waterBatchCount;
+        public ulong MeshOverflowCount { get; private set; }
         private BuildState _build;
+
+        public CpuWaterSurfaceChunkCache()
+        {
+            _geometryArena = new SurfaceGeometryArena(
+                ArenaVertexCapacity, ArenaIndexCapacity, ArenaDrawCapacity);
+            _vertices = new NativeList<SmoothSurfaceVertex>(ArenaVertexCapacity, Allocator.Persistent);
+            _indices = new NativeList<uint>(ArenaIndexCapacity, Allocator.Persistent);
+            _waterBatchBrickBases = new NativeArray<int3>(
+                WaterBrickMeshBatchJob.MaxBatch, Allocator.Persistent,
+                NativeArrayOptions.UninitializedMemory);
+            _waterBatchMaterials = new NativeArray<byte>(
+                WaterBrickMeshBatchJob.MaxBatch * WaterBrickMeshBatchJob.SnapshotStride,
+                Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+            _waterMeshMask = new NativeArray<byte>(
+                WaterBrickMeshBatchJob.FaceArea, Allocator.Persistent,
+                NativeArrayOptions.UninitializedMemory);
+            _waterMeshOverflow = new NativeArray<int>(1, Allocator.Persistent,
+                                                      NativeArrayOptions.ClearMemory);
+        }
 
         public int ResidentCount => _entries.Count;
         public int DirtyCount => _dirty.Count + (_build.Active ? 1 : 0);
         public ulong CompletedBuildCount { get; private set; }
         public ulong StaleBuildCount { get; private set; }
         public ulong UploadedGeometryBytes { get; private set; }
+        private ulong _framePathBlockingCompletionViolations;
+        public ulong FramePathBlockingCompletionViolations => _framePathBlockingCompletionViolations;
+        public int RunningJobCount => _waterMeshJobScheduled ? 1 : 0;
         public long ResidentGpuBytes
         {
             get
@@ -154,6 +283,20 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             }
         }
         public IReadOnlyList<Entry> Visible => _visible;
+        public int PendingUploadCount => _build.Active && _build.PendingPublication ? 1 : 0;
+        public int PendingUploadBytes
+        {
+            get
+            {
+                if (!_build.Active || !_build.PendingPublication) return 0;
+                if (!_entries.TryGetValue(_build.Coordinate, out Entry entry))
+                    return _vertices.Length * SmoothSurfaceVertex.Stride
+                         + _indices.Length * sizeof(uint)
+                         + SurfaceGeometryArena.ArgsWordsPerDraw * sizeof(uint);
+                return entry.RemainingUploadBytes(_vertices.Length, _indices.Length);
+            }
+        }
+        public ulong ArenaAllocationFailures => _geometryArena.AllocationFailureCount;
 
         public void InvalidateSurfaceBricks(IRegionReadSource storage,
                                             IReadOnlyList<int3> worldBricks)
@@ -174,6 +317,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     {
                         set = new HashSet<int3>();
                         _waterBricks.Add(chunk, set);
+                        TrackResidentChunk(chunk);
                     }
                     if (set.Add(worldBrick)) Invalidate(chunk);
                 }
@@ -197,18 +341,58 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
         public void InvalidateDirtyRegions(HashSet<int3> dirtyRegions)
         {
-            if (dirtyRegions == null || dirtyRegions.Count == 0 || _waterBricks.Count == 0) return;
-
-            foreach (var pair in _waterBricks)
+            if (dirtyRegions != null)
             {
-                int3 ownerRegion = ChunkRegion(pair.Key);
-                foreach (int3 dirtyRegion in dirtyRegions)
+                foreach (int3 region in dirtyRegions)
                 {
-                    int3 delta = math.abs(ownerRegion - dirtyRegion);
-                    if (math.max(delta.x, math.max(delta.y, delta.z)) > 1) continue;
-                    Invalidate(pair.Key);
-                    break;
+                    if (_hasActiveRegionInvalidation && region.Equals(_activeRegionInvalidation))
+                    {
+                        _rescanRegionInvalidations.Add(region);
+                        continue;
+                    }
+                    if (_queuedRegionInvalidations.Add(region))
+                        _regionInvalidationQueue.Enqueue(region);
                 }
+            }
+            StepRegionInvalidation();
+        }
+
+        private void StepRegionInvalidation()
+        {
+            int remaining = RegionInvalidationCandidatesPerPrepare;
+            int span = WaterChunksPerRegion * 3;
+            int total = span * span * span;
+            while (remaining > 0)
+            {
+                if (!_hasActiveRegionInvalidation)
+                {
+                    if (_regionInvalidationQueue.Count == 0) return;
+                    _activeRegionInvalidation = _regionInvalidationQueue.Dequeue();
+                    _activeRegionMinChunk = (_activeRegionInvalidation - 1)
+                                          * WaterChunksPerRegion;
+                    _activeRegionCandidateCursor = 0;
+                    _hasActiveRegionInvalidation = true;
+                }
+
+                while (remaining > 0 && _activeRegionCandidateCursor < total)
+                {
+                    int linear = _activeRegionCandidateCursor++;
+                    int x = linear % span;
+                    int y = (linear / span) % span;
+                    int z = linear / (span * span);
+                    int3 chunk = _activeRegionMinChunk + new int3(x, y, z);
+                    remaining--;
+                    if (_waterBricks.ContainsKey(chunk)) Invalidate(chunk);
+                }
+
+                if (_activeRegionCandidateCursor < total) return;
+                int3 completed = _activeRegionInvalidation;
+                bool rescan = _rescanRegionInvalidations.Remove(completed);
+                _queuedRegionInvalidations.Remove(completed);
+                _hasActiveRegionInvalidation = false;
+                _activeRegionCandidateCursor = 0;
+                if (rescan && _queuedRegionInvalidations.Add(completed))
+                    _regionInvalidationQueue.Enqueue(completed);
             }
         }
 
@@ -216,17 +400,61 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                             float voxelSize, double budgetMs = 0.15)
         {
             if (storage == null) return;
-            DropNoLongerResident(storage);
-            if (camera == null || (_dirty.Count == 0 && !_build.Active)) return;
+            StepResidencyPrune(storage);
+            if (camera == null || _build.PendingPublication
+                || (_dirty.Count == 0 && !_build.Active)) return;
 
             double deadline = Time.realtimeSinceStartupAsDouble
                             + math.max(0.0, budgetMs) * 0.001;
-            do
+            while (Time.realtimeSinceStartupAsDouble < deadline)
             {
-                if (!_build.Active && !BeginNearestBuild(camera.transform.position, voxelSize)) break;
-                if (StepBuild(storage, voxelSize)) FinishBuild();
+                if (!_build.Active
+                    && !BeginNearestBuild(camera.transform.position, voxelSize, deadline)) break;
+                if (!StepBuild(storage, voxelSize, deadline)) break;
+                FinishCpuBuild();
+                if (_build.PendingPublication) break;
             }
-            while (Time.realtimeSinceStartupAsDouble < deadline);
+        }
+
+        public bool TryPublishPending(int byteBudget, out int uploadedBytes)
+        {
+            uploadedBytes = 0;
+            if (!_build.Active || !_build.PendingPublication || byteBudget <= 0) return false;
+
+            if (_desiredVersions.TryGetValue(_build.Coordinate, out ulong desired)
+                && desired > _build.SourceVersion)
+            {
+                StaleBuildCount++;
+                if (_entries.TryGetValue(_build.Coordinate, out Entry stale)) stale.CancelUpload();
+                ResetBuildOutput();
+                return false;
+            }
+
+            if (_indices.Length == 0)
+            {
+                if (_entries.TryGetValue(_build.Coordinate, out Entry empty)) empty.Dispose();
+                _entries.Remove(_build.Coordinate);
+                _desiredVersions.Remove(_build.Coordinate);
+                CompletedBuildCount++;
+                ResetBuildOutput();
+                return true;
+            }
+
+            if (!_entries.TryGetValue(_build.Coordinate, out Entry entry))
+            {
+                entry = AcquireEntry(_build.Coordinate);
+                _entries.Add(_build.Coordinate, entry);
+            }
+
+            bool complete = entry.AdvanceUpload(_vertices, _indices, byteBudget, out uploadedBytes);
+            UploadedGeometryBytes += (ulong)uploadedBytes;
+            if (!complete) return false;
+
+            entry.SourceVersion = _build.SourceVersion;
+            _desiredVersions.Remove(_build.Coordinate);
+            CompletedBuildCount++;
+            ResetBuildOutput();
+            return true;
         }
 
         public IReadOnlyList<Entry> CollectVisible(Camera camera, float voxelSize)
@@ -245,236 +473,207 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             return _visible;
         }
 
-        private bool BeginNearestBuild(Vector3 cameraWorldPosition, float voxelSize)
+        private bool BeginNearestBuild(Vector3 cameraWorldPosition, float voxelSize,
+                                       double deadline)
         {
-            while (_dirty.Count > 0)
+            if (_dirty.Count == 0 || _dirtyQueue.Count == 0
+                || Time.realtimeSinceStartupAsDouble >= deadline)
+                return false;
+
+            int3 best = default;
+            bool hasBest = false;
+            float bestDistance = float.PositiveInfinity;
+            float chunkMetres = VoxelsPerAxis * voxelSize;
+            int candidates = math.min(BuildSelectionCandidatesPerPrepare, _dirtyQueue.Count);
+            for (int i = 0; i < candidates; i++)
             {
-                int3 best = default;
-                float bestDistance = float.PositiveInfinity;
-                float chunkMetres = VoxelsPerAxis * voxelSize;
-                foreach (int3 candidate in _dirty)
+                int3 candidate = _dirtyQueue.Dequeue();
+                _queuedDirty.Remove(candidate);
+                if (!_dirty.Contains(candidate)) continue;
+
+                if (!_waterBricks.TryGetValue(candidate, out HashSet<int3> set) || set.Count == 0)
                 {
-                    Vector3 centre = (new Vector3(candidate.x, candidate.y, candidate.z)
-                                    + Vector3.one * 0.5f) * chunkMetres;
-                    float distance = (centre - cameraWorldPosition).sqrMagnitude;
-                    if (distance >= bestDistance) continue;
-                    bestDistance = distance;
+                    _dirty.Remove(candidate);
+                    RemoveWaterChunk(candidate);
+                    continue;
+                }
+
+                Vector3 centre = (new Vector3(candidate.x, candidate.y, candidate.z)
+                                + Vector3.one * 0.5f) * chunkMetres;
+                float distance = (centre - cameraWorldPosition).sqrMagnitude;
+                if (!hasBest || distance < bestDistance)
+                {
+                    if (hasBest) RequeueDirty(best);
                     best = candidate;
+                    bestDistance = distance;
+                    hasBest = true;
+                }
+                else
+                {
+                    RequeueDirty(candidate);
                 }
 
-                _dirty.Remove(best);
-                if (!_waterBricks.TryGetValue(best, out HashSet<int3> set) || set.Count == 0)
-                {
-                    _waterBricks.Remove(best);
-                    if (_entries.TryGetValue(best, out Entry stale)) stale.Dispose();
-                    _entries.Remove(best);
-                    _desiredVersions.Remove(best);
-                    continue;
-                }
-
-                _buildBricks.Clear();
-                foreach (int3 brick in set) _buildBricks.Add(brick);
-                _vertices.Clear();
-                _indices.Clear();
-                _build = new BuildState
-                {
-                    Active = true,
-                    Coordinate = best,
-                    Cursor = 0,
-                    SourceVersion = _desiredVersions.TryGetValue(best, out ulong version)
-                        ? version : 0
-                };
-                return true;
+                if (Time.realtimeSinceStartupAsDouble >= deadline) break;
             }
 
-            return false;
-        }
-
-        private bool StepBuild(IRegionReadSource storage, float voxelSize)
-        {
-            int end = math.min(_buildBricks.Count, _build.Cursor + BricksPerSlice);
-            RegionReadView cachedRegion = default;
-            for (int i = _build.Cursor; i < end; i++)
-            {
-                int3 worldBrick = _buildBricks[i];
-                if (!TryLoadBrickMaterials(storage, worldBrick, ref cachedRegion)
-                    || !LoadedBrickContainsWater())
-                    continue;
-
-                EmitBrick(storage, worldBrick * E, voxelSize);
-            }
-
-            _build.Cursor = end;
-            return end >= _buildBricks.Count;
-        }
-
-        private void FinishBuild()
-        {
-            if (_desiredVersions.TryGetValue(_build.Coordinate, out ulong desired)
-                && desired > _build.SourceVersion)
-            {
-                StaleBuildCount++;
-                _build = default;
-                _buildBricks.Clear();
-                _vertices.Clear();
-                _indices.Clear();
-                return;
-            }
-
-            if (!_entries.TryGetValue(_build.Coordinate, out Entry entry))
-            {
-                entry = new Entry(_build.Coordinate);
-                _entries.Add(_build.Coordinate, entry);
-            }
-
-            entry.Upload(_vertices, _indices);
-            CompletedBuildCount++;
-            UploadedGeometryBytes += (ulong)entry.GpuBytes;
-            entry.SourceVersion = _build.SourceVersion;
-            _desiredVersions.Remove(_build.Coordinate);
-            _build = default;
-            _buildBricks.Clear();
+            if (!hasBest) return false;
+            _dirty.Remove(best);
             _vertices.Clear();
             _indices.Clear();
+            _build = new BuildState
+            {
+                Active = true,
+                Coordinate = best,
+                Cursor = 0,
+                SourceVersion = _desiredVersions.TryGetValue(best, out ulong version)
+                    ? version : 0
+            };
+            return true;
         }
 
-        private void EmitBrick(IRegionReadSource storage, int3 brickBaseVoxel, float voxelSize)
+        private bool StepBuild(IRegionReadSource storage, float voxelSize, double deadline)
         {
+            if (_waterMeshJobScheduled)
+            {
+                if (!_waterMeshJobHandle.IsCompleted) return false;
+                if (!GeometryFrameJobCompletionGuard.TryCompleteReady(
+                        _waterMeshJobHandle, ref _framePathBlockingCompletionViolations))
+                    return false;
+                _waterMeshJobScheduled = false;
+                _waterBatchCount = 0;
+
+                if (_discardBuildAfterMeshJob)
+                {
+                    _discardBuildAfterMeshJob = false;
+                    ResetBuildOutput();
+                    return false;
+                }
+                if (_waterMeshOverflow[0] != 0)
+                {
+                    int3 retry = _build.Coordinate;
+                    MeshOverflowCount++;
+                    ResetBuildOutput();
+                    MarkDirty(retry);
+                    return false;
+                }
+                if (_desiredVersions.TryGetValue(_build.Coordinate, out ulong desired)
+                    && desired > _build.SourceVersion)
+                {
+                    StaleBuildCount++;
+                    ResetBuildOutput();
+                    return false;
+                }
+            }
+
+            if (!_waterBricks.TryGetValue(_build.Coordinate, out HashSet<int3> set)
+                || set.Count == 0)
+                return true;
+
+            const int totalBrickSlots = BricksPerAxis * BricksPerAxis * BricksPerAxis;
             RegionReadView cachedRegion = default;
+            _waterBatchCount = 0;
+            while (_build.Cursor < totalBrickSlots
+                   && _waterBatchCount < WaterBrickMeshBatchJob.MaxBatch)
+            {
+                int linear = _build.Cursor++;
+                int x = linear % BricksPerAxis;
+                int y = (linear / BricksPerAxis) % BricksPerAxis;
+                int z = linear / (BricksPerAxis * BricksPerAxis);
+                int3 worldBrick = _build.Coordinate * BricksPerAxis + new int3(x, y, z);
+                if (set.Contains(worldBrick)
+                    && SnapshotWaterBrick(storage, ref cachedRegion, worldBrick,
+                                          _waterBatchCount))
+                    _waterBatchCount++;
+
+                if (_build.Cursor < totalBrickSlots
+                    && Time.realtimeSinceStartupAsDouble >= deadline)
+                    break;
+            }
+
+            if (_waterBatchCount > 0)
+            {
+                _waterMeshOverflow[0] = 0;
+                _waterMeshJobHandle = new WaterBrickMeshBatchJob
+                {
+                    BrickBaseVoxels = _waterBatchBrickBases,
+                    SnapshotMaterials = _waterBatchMaterials,
+                    BatchCount = _waterBatchCount,
+                    VoxelSize = voxelSize,
+                    MaskScratch = _waterMeshMask,
+                    Vertices = _vertices,
+                    Indices = _indices,
+                    Overflow = _waterMeshOverflow,
+                }.Schedule();
+                _waterMeshJobScheduled = true;
+                // Never spin on freshly scheduled mesh work.
+                return false;
+            }
+
+            return _build.Cursor >= totalBrickSlots;
+        }
+
+        private bool SnapshotWaterBrick(IRegionReadSource storage,
+                                        ref RegionReadView cachedRegion,
+                                        int3 worldBrick, int batchIndex)
+        {
+            if (!TryLoadBrickMaterials(storage, worldBrick, ref cachedRegion)
+                || !LoadedBrickContainsWater())
+                return false;
+
+            int snapshotBase = batchIndex * WaterBrickMeshBatchJob.SnapshotStride;
+            NativeArray<byte>.Copy(_brickMaterials, 0, _waterBatchMaterials,
+                                   snapshotBase, VoxelReadGrid.VoxelsPerBlock);
+            int3 brickBaseVoxel = worldBrick * E;
+            _waterBatchBrickBases[batchIndex] = brickBaseVoxel;
+
             for (int axis = 0; axis < 3; axis++)
             {
                 int axisA = (axis + 1) % 3;
                 int axisB = (axis + 2) % 3;
                 for (int sign = -1; sign <= 1; sign += 2)
-                for (int layer = 0; layer < E; layer++)
                 {
-                    BuildMask(storage, ref cachedRegion, brickBaseVoxel,
-                              axis, axisA, axisB, sign, layer);
-                    MergeMask(brickBaseVoxel, axis, axisA, axisB, sign, layer, voxelSize);
-                }
-            }
-        }
-
-        private void BuildMask(IRegionReadSource storage, ref RegionReadView cachedRegion,
-                               int3 brickBaseVoxel, int axis, int axisA, int axisB,
-                               int sign, int layer)
-        {
-            int strideAxis = s_Strides[axis];
-            int strideA = s_Strides[axisA];
-            int strideB = s_Strides[axisB];
-            int neighbourLayer = layer + sign;
-            bool crossesBrick = (uint)neighbourLayer >= E;
-            int layerBase = layer * strideAxis;
-
-            for (int b = 0; b < E; b++)
-            for (int a = 0; a < E; a++)
-            {
-                int index = layerBase + b * strideB + a * strideA;
-                byte material = _brickMaterials[index];
-                if (!IsWater(material))
-                {
-                    _mask[a + b * E] = 0;
-                    continue;
-                }
-
-                byte neighbourMaterial;
-                if (!crossesBrick)
-                {
-                    neighbourMaterial = _brickMaterials[index + sign * strideAxis];
-                }
-                else
-                {
-                    int3 local = int3.zero;
-                    local[axis] = neighbourLayer;
-                    local[axisA] = a;
-                    local[axisB] = b;
-                    neighbourMaterial = TryReadWorldMaterial(
-                        storage, ref cachedRegion, brickBaseVoxel + local, out byte sampled)
-                        ? sampled : VoxelGrid.MaterialEmpty;
-                }
-
-                _mask[a + b * E] = neighbourMaterial == VoxelGrid.MaterialEmpty
-                                 ? material : (byte)0;
-            }
-        }
-
-        private void MergeMask(int3 brickBaseVoxel, int axis, int axisA, int axisB,
-                               int sign, int layer, float voxelSize)
-        {
-            for (int b = 0; b < E; b++)
-            for (int a = 0; a < E; a++)
-            {
-                byte material = _mask[a + b * E];
-                if (material == 0) continue;
-
-                int width = 1;
-                while (a + width < E && _mask[a + width + b * E] == material) width++;
-
-                int height = 1;
-                bool extend = true;
-                while (b + height < E && extend)
-                {
-                    for (int k = 0; k < width; k++)
+                    int face = axis * 2 + (sign > 0 ? 1 : 0);
+                    int faceBase = snapshotBase + WaterBrickMeshBatchJob.VoxelsPerBrick
+                                 + face * WaterBrickMeshBatchJob.FaceArea;
+                    for (int b = 0; b < E; b++)
+                    for (int a = 0; a < E; a++)
                     {
-                        if (_mask[a + k + (b + height) * E] == material) continue;
-                        extend = false;
-                        break;
+                        int3 local = int3.zero;
+                        local[axis] = sign < 0 ? -1 : E;
+                        local[axisA] = a;
+                        local[axisB] = b;
+                        byte material = TryReadWorldMaterial(
+                            storage, ref cachedRegion, brickBaseVoxel + local, out byte sampled)
+                            ? sampled : VoxelGrid.MaterialEmpty;
+                        _waterBatchMaterials[faceBase + a + b * E] = material;
                     }
-                    if (extend) height++;
                 }
-
-                for (int hb = 0; hb < height; hb++)
-                for (int ha = 0; ha < width; ha++)
-                    _mask[a + ha + (b + hb) * E] = 0;
-
-                EmitQuad(material, brickBaseVoxel, axis, axisA, axisB, sign, layer,
-                         a, b, width, height, voxelSize);
             }
+            return true;
         }
 
-        private void EmitQuad(byte material, int3 brickBaseVoxel,
-                              int axis, int axisA, int axisB, int sign, int layer,
-                              int a, int b, int width, int height, float voxelSize)
+        private void FinishCpuBuild()
         {
-            int planeVoxel = brickBaseVoxel[axis] + layer + (sign > 0 ? 1 : 0);
-            int a0 = brickBaseVoxel[axisA] + a;
-            int b0 = brickBaseVoxel[axisB] + b;
-
-            Vector3 p0 = Corner(axis, axisA, axisB, planeVoxel, a0, b0, voxelSize);
-            Vector3 p1 = Corner(axis, axisA, axisB, planeVoxel, a0 + width, b0, voxelSize);
-            Vector3 p2 = Corner(axis, axisA, axisB, planeVoxel, a0 + width, b0 + height, voxelSize);
-            Vector3 p3 = Corner(axis, axisA, axisB, planeVoxel, a0, b0 + height, voxelSize);
-            Vector3 normal = Vector3.zero;
-            normal[axis] = sign;
-
-            uint baseIndex = (uint)_vertices.Count;
-            uint m = material;
-            _vertices.Add(new SmoothSurfaceVertex { Position = p0, Normal = normal, Material = m, Active = FullyLitOcclusion });
-            _vertices.Add(new SmoothSurfaceVertex { Position = p1, Normal = normal, Material = m, Active = FullyLitOcclusion });
-            _vertices.Add(new SmoothSurfaceVertex { Position = p2, Normal = normal, Material = m, Active = FullyLitOcclusion });
-            _vertices.Add(new SmoothSurfaceVertex { Position = p3, Normal = normal, Material = m, Active = FullyLitOcclusion });
-
-            bool flip = Vector3.Dot(Vector3.Cross(p1 - p0, p2 - p0), normal) < 0f;
-            if (flip)
+            if (_desiredVersions.TryGetValue(_build.Coordinate, out ulong desired)
+                && desired > _build.SourceVersion)
             {
-                _indices.Add(baseIndex); _indices.Add(baseIndex + 2); _indices.Add(baseIndex + 1);
-                _indices.Add(baseIndex); _indices.Add(baseIndex + 3); _indices.Add(baseIndex + 2);
+                StaleBuildCount++;
+                ResetBuildOutput();
+                return;
             }
-            else
-            {
-                _indices.Add(baseIndex); _indices.Add(baseIndex + 1); _indices.Add(baseIndex + 2);
-                _indices.Add(baseIndex); _indices.Add(baseIndex + 2); _indices.Add(baseIndex + 3);
-            }
+            _build.PendingPublication = true;
         }
 
-        private static Vector3 Corner(int axis, int axisA, int axisB,
-                                      int plane, int a, int b, float voxelSize)
+        private void ResetBuildOutput()
         {
-            Vector3 v = Vector3.zero;
-            v[axis] = plane * voxelSize;
-            v[axisA] = a * voxelSize;
-            v[axisB] = b * voxelSize;
-            return v;
+            if (_waterMeshJobScheduled)
+                throw new InvalidOperationException(
+                    "Water build output reset while Burst mesh job is still running.");
+            _build = default;
+            _discardBuildAfterMeshJob = false;
+            _waterBatchCount = 0;
+            _vertices.Clear();
+            _indices.Clear();
         }
 
         private bool TryLoadBrickMaterials(IRegionReadSource storage, int3 worldBrick,
@@ -536,7 +735,19 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private void Invalidate(int3 chunk)
         {
             _desiredVersions[chunk] = ++_versionCounter;
+            MarkDirty(chunk);
+        }
+
+        private void MarkDirty(int3 chunk)
+        {
             _dirty.Add(chunk);
+            RequeueDirty(chunk);
+        }
+
+        private void RequeueDirty(int3 chunk)
+        {
+            if (!_dirty.Contains(chunk) || !_queuedDirty.Add(chunk)) return;
+            _dirtyQueue.Enqueue(chunk);
         }
 
         private static int3 WorldBrickChunk(int3 worldBrick) =>
@@ -545,46 +756,139 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private static int3 ChunkRegion(int3 chunk) =>
             chunk >> (VoxelReadGrid.BlocksPerRegionEdgeLog2 - ChunkShift);
 
-        private void DropNoLongerResident(IRegionReadSource storage)
+        private void TrackResidentChunk(int3 chunk)
         {
-            if (_waterBricks.Count == 0) return;
-            List<int3> gone = null;
-            foreach (var pair in _waterBricks)
-            {
-                if (storage.IsRegionResident(ChunkRegion(pair.Key))) continue;
-                (gone ??= new List<int3>()).Add(pair.Key);
-            }
+            if (!_queuedResidency.Add(chunk)) return;
+            _residencyQueue.Enqueue(chunk);
+        }
 
-            if (gone == null) return;
-            for (int i = 0; i < gone.Count; i++)
+        private void StepResidencyPrune(IRegionReadSource storage)
+        {
+            int checks = math.min(ResidencyChecksPerPrepare, _residencyQueue.Count);
+            for (int i = 0; i < checks; i++)
             {
-                int3 chunk = gone[i];
-                _waterBricks.Remove(chunk);
-                _dirty.Remove(chunk);
-                _desiredVersions.Remove(chunk);
-                if (_entries.TryGetValue(chunk, out Entry entry)) entry.Dispose();
-                _entries.Remove(chunk);
-                if (_build.Active && _build.Coordinate.Equals(chunk))
+                int3 chunk = _residencyQueue.Dequeue();
+                _queuedResidency.Remove(chunk);
+                if (!_waterBricks.ContainsKey(chunk)) continue;
+                if (storage.IsRegionResident(ChunkRegion(chunk)))
                 {
-                    _build = default;
-                    _buildBricks.Clear();
-                    _vertices.Clear();
-                    _indices.Clear();
+                    TrackResidentChunk(chunk);
+                    continue;
                 }
+                RemoveWaterChunk(chunk);
             }
+        }
+
+        private void RemoveWaterChunk(int3 chunk)
+        {
+            _waterBricks.Remove(chunk);
+            _dirty.Remove(chunk);
+            _queuedDirty.Remove(chunk);
+            _queuedResidency.Remove(chunk);
+            _desiredVersions.Remove(chunk);
+            if (_entries.TryGetValue(chunk, out Entry entry))
+            {
+                _entries.Remove(chunk);
+                ReleaseEntry(entry);
+            }
+            if (_build.Active && _build.Coordinate.Equals(chunk))
+            {
+                if (_entries.TryGetValue(chunk, out Entry pending)) pending.CancelUpload();
+                if (_waterMeshJobScheduled && !_waterMeshJobHandle.IsCompleted)
+                {
+                    _discardBuildAfterMeshJob = true;
+                    return;
+                }
+                if (_waterMeshJobScheduled)
+                {
+                    if (!GeometryFrameJobCompletionGuard.TryCompleteReady(
+                            _waterMeshJobHandle, ref _framePathBlockingCompletionViolations))
+                    {
+                        _discardBuildAfterMeshJob = true;
+                        return;
+                    }
+                    _waterMeshJobScheduled = false;
+                }
+                ResetBuildOutput();
+            }
+        }
+
+        private Entry AcquireEntry(int3 coordinate)
+        {
+            if (_entryPool.Count == 0) return new Entry(coordinate, _geometryArena);
+            Entry entry = _entryPool.Pop();
+            entry.Reinitialize(coordinate);
+            return entry;
+        }
+
+        private void ReleaseEntry(Entry entry)
+        {
+            if (entry == null) return;
+            entry.Dispose();
+            _entryPool.Push(entry);
+        }
+
+        internal bool TryEvictOneForArenaPressure(Camera camera, float voxelSize)
+        {
+            if (_entries.Count == 0) return false;
+            if (camera != null) GeometryUtility.CalculateFrustumPlanes(camera, _frustumPlanes);
+            Vector3 cameraPosition = camera != null ? camera.transform.position : Vector3.zero;
+            int3 victim = default;
+            float farthest = -1f;
+            float chunkMetres = VoxelsPerAxis * voxelSize;
+            foreach (var pair in _entries)
+            {
+                if (_build.Active && pair.Key.Equals(_build.Coordinate)) continue;
+                if (camera != null
+                    && GeometryUtility.TestPlanesAABB(_frustumPlanes, pair.Value.WorldBounds(voxelSize)))
+                    continue;
+                Vector3 centre = (new Vector3(pair.Key.x, pair.Key.y, pair.Key.z)
+                                + Vector3.one * 0.5f) * chunkMetres;
+                float distance = (centre - cameraPosition).sqrMagnitude;
+                if (distance <= farthest) continue;
+                farthest = distance;
+                victim = pair.Key;
+            }
+            if (farthest < 0f) return false;
+            if (!_entries.TryGetValue(victim, out Entry entry)) return false;
+
+            // Arena pressure is publication backpressure, not authoritative water eviction.
+            // Keep the discovered brick set + residency record so the chunk is rebuilt later.
+            _entries.Remove(victim);
+            ReleaseEntry(entry);
+            MarkDirty(victim);
+            return true;
         }
 
         public void Dispose()
         {
+            if (_waterMeshJobScheduled)
+            {
+                _waterMeshJobHandle.Complete();
+                _waterMeshJobScheduled = false;
+            }
             foreach (Entry entry in _entries.Values) entry.Dispose();
+            foreach (Entry entry in _entryPool) entry.Dispose();
             _entries.Clear();
+            _entryPool.Clear();
             _waterBricks.Clear();
             _dirty.Clear();
+            _dirtyQueue.Clear();
+            _queuedDirty.Clear();
+            _residencyQueue.Clear();
+            _queuedResidency.Clear();
+            _regionInvalidationQueue.Clear();
+            _queuedRegionInvalidations.Clear();
+            _rescanRegionInvalidations.Clear();
             _desiredVersions.Clear();
-            _buildBricks.Clear();
             _visible.Clear();
-            _vertices.Clear();
-            _indices.Clear();
+            if (_vertices.IsCreated) _vertices.Dispose();
+            if (_indices.IsCreated) _indices.Dispose();
+            if (_waterBatchBrickBases.IsCreated) _waterBatchBrickBases.Dispose();
+            if (_waterBatchMaterials.IsCreated) _waterBatchMaterials.Dispose();
+            if (_waterMeshMask.IsCreated) _waterMeshMask.Dispose();
+            if (_waterMeshOverflow.IsCreated) _waterMeshOverflow.Dispose();
+            _geometryArena.Dispose();
             if (_brickMaterials.IsCreated) _brickMaterials.Dispose();
             if (_surfaceScratch.IsCreated) _surfaceScratch.Dispose();
             if (_boundaryScratch.IsCreated) _boundaryScratch.Dispose();

@@ -20,6 +20,10 @@ namespace VoxelEngine.Storage.Runtime
         private NativeHashMap<int3, int> _coordToSlot;
         private NativeList<Region> _regions;
         private NativeList<int> _freeSlots;
+        private NativeList<int> _pinCounts;
+        private NativeList<uint> _slotGenerations;
+        private NativeList<uint> _contentRevisions;
+        private NativeList<byte> _retiredSlots;
         private readonly Allocator _allocator;
 
         // Meshing probes are extremely spatially coherent: a Transvoxel density sample performs
@@ -40,6 +44,10 @@ namespace VoxelEngine.Storage.Runtime
             _coordToSlot = new NativeHashMap<int3, int>(expectedResident, allocator);
             _regions = new NativeList<Region>(expectedResident, allocator);
             _freeSlots = new NativeList<int>(expectedResident >> 2, allocator);
+            _pinCounts = new NativeList<int>(expectedResident, allocator);
+            _slotGenerations = new NativeList<uint>(expectedResident, allocator);
+            _contentRevisions = new NativeList<uint>(expectedResident, allocator);
+            _retiredSlots = new NativeList<byte>(expectedResident, allocator);
             _lastCoord = default;
             _lastSlot = -1;
             _hasLast = false;
@@ -51,7 +59,8 @@ namespace VoxelEngine.Storage.Runtime
                 && (uint)_lastSlot < (uint)_regions.Length)
             {
                 Region cached = _regions[_lastSlot];
-                if (cached.IsCreated && cached.Coord.Equals(coord))
+                if (cached.IsCreated && cached.Coord.Equals(coord)
+                    && _retiredSlots[_lastSlot] == 0)
                 {
                     region = cached;
                     return true;
@@ -86,7 +95,8 @@ namespace VoxelEngine.Storage.Runtime
                 && (uint)_lastSlot < (uint)_regions.Length)
             {
                 Region cached = _regions[_lastSlot];
-                if (cached.IsCreated && cached.Coord.Equals(coord))
+                if (cached.IsCreated && cached.Coord.Equals(coord)
+                    && _retiredSlots[_lastSlot] == 0)
                     return cached;
             }
 
@@ -106,11 +116,20 @@ namespace VoxelEngine.Storage.Runtime
                 slot = _freeSlots[_freeSlots.Length - 1];
                 _freeSlots.RemoveAt(_freeSlots.Length - 1);
                 _regions[slot] = region;
+                _pinCounts[slot] = 0;
+                _retiredSlots[slot] = 0;
+                uint generation = _slotGenerations[slot] + 1u;
+                _slotGenerations[slot] = generation == 0u ? 1u : generation;
+                _contentRevisions[slot] = 1u;
             }
             else
             {
                 slot = _regions.Length;
                 _regions.Add(region);
+                _pinCounts.Add(0);
+                _slotGenerations.Add(1u);
+                _contentRevisions.Add(1u);
+                _retiredSlots.Add(0);
             }
 
             _coordToSlot.Add(coord, slot);
@@ -130,6 +149,8 @@ namespace VoxelEngine.Storage.Runtime
             if (_coordToSlot.TryGetValue(region.Coord, out var slot))
             {
                 _regions[slot] = region;
+                uint revision = _contentRevisions[slot] + 1u;
+                _contentRevisions[slot] = revision == 0u ? 1u : revision;
                 _lastCoord = region.Coord;
                 _lastSlot = slot;
                 _hasLast = true;
@@ -148,13 +169,12 @@ namespace VoxelEngine.Storage.Runtime
         {
             if (!_coordToSlot.TryGetValue(coord, out var slot)) return;
 
-            var region = _regions[slot];
-            region.ReleaseBricks(ref pool);
-            region.Dispose();
-
-            _regions[slot] = default;
-            _freeSlots.Add(slot);
+            // Logical eviction is immediate. A pinned metadata job keeps only the physical Region
+            // arrays alive; no normal lookup may observe this slot after removal from the map.
             _coordToSlot.Remove(coord);
+            _retiredSlots[slot] = 1;
+            if (_pinCounts[slot] == 0)
+                ReleaseRetiredSlot(slot, ref pool);
 
             if (_hasLast && (_lastSlot == slot || _lastCoord.Equals(coord)))
             {
@@ -163,8 +183,83 @@ namespace VoxelEngine.Storage.Runtime
             }
         }
 
+        internal bool TryPinRegion(int3 coord, out Region region,
+                                   out int slot, out uint generation, out uint revision)
+        {
+            if (!_coordToSlot.TryGetValue(coord, out slot) || _retiredSlots[slot] != 0)
+            {
+                region = default;
+                generation = 0;
+                revision = 0;
+                return false;
+            }
+
+            int pins = _pinCounts[slot];
+            if (pins == int.MaxValue)
+                throw new InvalidOperationException($"Region slot {slot} pin count overflow.");
+            _pinCounts[slot] = pins + 1;
+            generation = _slotGenerations[slot];
+            revision = _contentRevisions[slot];
+            region = _regions[slot];
+            return true;
+        }
+
+        internal bool IsRegionPinCurrent(int slot, uint generation, uint revision)
+        {
+            return (uint)slot < (uint)_regions.Length
+                && _slotGenerations[slot] == generation
+                && _retiredSlots[slot] == 0
+                && _contentRevisions[slot] == revision;
+        }
+
+        internal void UnpinRegion(int slot, uint generation, ref BrickPool pool)
+        {
+            if ((uint)slot >= (uint)_regions.Length || _slotGenerations[slot] != generation)
+                throw new InvalidOperationException("Stale region pin generation.");
+            int pins = _pinCounts[slot];
+            if (pins <= 0)
+                throw new InvalidOperationException($"Region slot {slot} is not pinned.");
+            pins--;
+            _pinCounts[slot] = pins;
+            if (pins == 0 && _retiredSlots[slot] != 0)
+                ReleaseRetiredSlot(slot, ref pool);
+        }
+
+        private void ReleaseRetiredSlot(int slot, ref BrickPool pool)
+        {
+            Region region = _regions[slot];
+            if (region.IsCreated)
+            {
+                region.ReleaseBricks(ref pool);
+                region.Dispose();
+            }
+            _regions[slot] = default;
+            _retiredSlots[slot] = 0;
+            _freeSlots.Add(slot);
+        }
+
         public NativeArray<int3> GetResidentCoords(Allocator allocator) =>
             _coordToSlot.GetKeyArray(allocator);
+
+        public bool CopyResidentCoords(ref int cursor, NativeArray<int3> destination,
+                                       out int count)
+        {
+            if (!destination.IsCreated || destination.Length == 0)
+                throw new ArgumentException("Destination must contain at least one slot.",
+                                            nameof(destination));
+            cursor = math.clamp(cursor, 0, _regions.Length);
+            count = 0;
+            int slotsExamined = 0;
+            while (cursor < _regions.Length && slotsExamined < destination.Length)
+            {
+                int slot = cursor++;
+                Region region = _regions[slot];
+                slotsExamined++;
+                if (!region.IsCreated || _retiredSlots[slot] != 0) continue;
+                destination[count++] = region.Coord;
+            }
+            return cursor >= _regions.Length;
+        }
 
         public void Dispose()
         {
@@ -181,6 +276,10 @@ namespace VoxelEngine.Storage.Runtime
 
             if (_coordToSlot.IsCreated) _coordToSlot.Dispose();
             if (_freeSlots.IsCreated) _freeSlots.Dispose();
+            if (_pinCounts.IsCreated) _pinCounts.Dispose();
+            if (_slotGenerations.IsCreated) _slotGenerations.Dispose();
+            if (_contentRevisions.IsCreated) _contentRevisions.Dispose();
+            if (_retiredSlots.IsCreated) _retiredSlots.Dispose();
             _hasLast = false;
             _lastSlot = -1;
         }

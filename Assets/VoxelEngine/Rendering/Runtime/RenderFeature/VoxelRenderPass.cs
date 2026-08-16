@@ -56,11 +56,13 @@ namespace VoxelEngine.Rendering.Runtime
         private static readonly int s_CameraPosition = Shader.PropertyToID("_CameraPosition");
         private static readonly int s_WaterTime = Shader.PropertyToID("_WaterTime");
 
-        private readonly VoxelSurfaceScheduler _scheduler = new();
-        private CpuTransvoxelChunkCache.Entry[] _transvoxelDrawEntries =
-            Array.Empty<CpuTransvoxelChunkCache.Entry>();
-        private CpuWaterSurfaceChunkCache.Entry[] _waterDrawEntries =
-            Array.Empty<CpuWaterSurfaceChunkCache.Entry>();
+        private VoxelSurfaceScheduler _scheduler = new();
+        // Draw staging is bounded by the fixed arena args capacities. Allocate once with the
+        // render pass; camera motion may change counts but can never resize managed arrays.
+        private readonly CpuTransvoxelChunkCache.Entry[] _transvoxelDrawEntries =
+            new CpuTransvoxelChunkCache.Entry[VoxelSurfaceScheduler.SurfaceArenaDrawCapacity];
+        private readonly CpuWaterSurfaceChunkCache.Entry[] _waterDrawEntries =
+            new CpuWaterSurfaceChunkCache.Entry[CpuWaterSurfaceChunkCache.ArenaDrawCapacity];
 
         private Material _surfaceMaterial;
         private Material _waterMaterial;
@@ -73,7 +75,12 @@ namespace VoxelEngine.Rendering.Runtime
         public float RenderScale { get; set; } = 1f;
         public float VoxelSize { get; set; } = 0.1f;
         public bool Enabled { get; set; } = true;
-        public VoxelSurfaceMetrics Metrics => _scheduler.Metrics;
+        public VoxelSurfaceMetrics Metrics => _scheduler != null ? _scheduler.Metrics : default;
+
+        public VoxelRenderPass()
+        {
+            VoxelRenderBridge.RegisterWorldReleaseHandler(ReleaseWorldResources);
+        }
 
         public void Setup(Shader surfaceShader = null,
                           Shader waterShader = null,
@@ -185,12 +192,19 @@ namespace VoxelEngine.Rendering.Runtime
                 VoxelRenderBridge.LastSurfacePassState = "waiting-for-atomic-world";
                 return;
             }
-            VoxelRenderBridge.LastSurfacePassState = $"preparing-{camera.cameraType}";
+            VoxelRenderBridge.LastSurfacePassState = VoxelRenderBridge.VerboseSurfaceDiagnostics
+                ? $"preparing-{camera.cameraType}" : "preparing";
             IReadOnlyList<CpuTransvoxelChunkCache.Entry> transvoxelVisible =
                 Array.Empty<CpuTransvoxelChunkCache.Entry>();
             IReadOnlyList<CpuWaterSurfaceChunkCache.Entry> waterVisible =
                 Array.Empty<CpuWaterSurfaceChunkCache.Entry>();
             _scheduler.SolidBuildBudgetMs = Math.Max(0.0, VoxelRenderBridge.SolidBuildBudgetMs);
+            _scheduler.SolidUploadBudgetBytes = Math.Max(0, VoxelRenderBridge.SolidUploadBudgetBytes);
+            _scheduler.SolidUploadSliceBytes = Math.Max(0, VoxelRenderBridge.SolidUploadSliceBytes);
+            _scheduler.SolidUploadWorkerBudget = Math.Max(0, VoxelRenderBridge.SolidUploadWorkerBudget);
+            _scheduler.SolidUploadBudgetMs = Math.Max(0.0, VoxelRenderBridge.SolidUploadBudgetMs);
+            _scheduler.SolidArenaMaxActiveLeases = Math.Max(
+                1, VoxelRenderBridge.SolidArenaMaxActiveLeases);
             _scheduler.WaterBuildBudgetMs = Math.Max(0.0, VoxelRenderBridge.WaterBuildBudgetMs);
             _scheduler.Prepare(world.Storage, in world.Palette,
                                in world.SurfaceCatalogueView, in world.CoatingCatalogueView,
@@ -199,29 +213,40 @@ namespace VoxelEngine.Rendering.Runtime
             VoxelRenderBridge.SurfaceMetrics = _scheduler.Metrics;
             transvoxelVisible = _scheduler.VisibleSolids;
             waterVisible = _scheduler.VisibleWater;
-            VoxelRenderBridge.LastSurfacePassState =
-                $"feature-aware resident={VoxelRenderBridge.SurfaceMetrics.SolidResidentChunks}/"
-              + $"{VoxelRenderBridge.SurfaceMetrics.SolidKnownChunks} "
-              + $"dirty={VoxelRenderBridge.SurfaceMetrics.SolidDirtyChunks} "
-              + $"visible={VoxelRenderBridge.SurfaceMetrics.VisibleSolidChunks} "
-              + $"missingVisible={VoxelRenderBridge.SurfaceMetrics.MissingVisibleSolidChunks} "
-              + $"jobs={VoxelRenderBridge.SurfaceMetrics.RunningSolidJobs} "
-              + $"prepare.p95={VoxelRenderBridge.SurfaceMetrics.SchedulerPrepareTiming.P95Ms:0.00}ms "
-              + $"discover.p95={VoxelRenderBridge.SurfaceMetrics.SurfaceDiscoveryTiming.P95Ms:0.00}ms "
-              + $"select.p95={VoxelRenderBridge.SurfaceMetrics.BuildSelectionTiming.P95Ms:0.00}ms "
-              + $"visibility.p95={VoxelRenderBridge.SurfaceMetrics.VisibilityTiming.P95Ms:0.00}ms "
-              + $"queue.p95={VoxelRenderBridge.SurfaceMetrics.QueueLatencyTiming.P95Ms:0.0}ms "
-              + $"build.p95={VoxelRenderBridge.SurfaceMetrics.BuildLatencyTiming.P95Ms:0.0}ms "
-              + $"snapshot.p95={VoxelRenderBridge.SurfaceMetrics.SnapshotTiming.P95Ms:0.00}ms "
-              + $"compact.p95={VoxelRenderBridge.SurfaceMetrics.TopologyCompactTiming.P95Ms:0.00}ms "
-              + $"merge.p95={VoxelRenderBridge.SurfaceMetrics.FacetedMergeTiming.P95Ms:0.00}ms "
-              + $"upload.p95={VoxelRenderBridge.SurfaceMetrics.UploadTiming.P95Ms:0.00}ms";
+            if (VoxelRenderBridge.VerboseSurfaceDiagnostics)
+            {
+                VoxelRenderBridge.LastSurfacePassState =
+                    $"feature-aware resident={VoxelRenderBridge.SurfaceMetrics.SolidResidentChunks}/"
+                  + $"{VoxelRenderBridge.SurfaceMetrics.SolidKnownChunks} "
+                  + $"dirty={VoxelRenderBridge.SurfaceMetrics.SolidDirtyChunks} "
+                  + $"visible={VoxelRenderBridge.SurfaceMetrics.VisibleSolidChunks} "
+                  + $"missingVisible={VoxelRenderBridge.SurfaceMetrics.MissingVisibleSolidChunks} "
+                  + $"jobs={VoxelRenderBridge.SurfaceMetrics.RunningSolidJobs} "
+                  + $"prepare.p95={VoxelRenderBridge.SurfaceMetrics.SchedulerPrepareTiming.P95Ms:0.00}ms "
+                  + $"discover.p95={VoxelRenderBridge.SurfaceMetrics.SurfaceDiscoveryTiming.P95Ms:0.00}ms "
+                  + $"select.p95={VoxelRenderBridge.SurfaceMetrics.BuildSelectionTiming.P95Ms:0.00}ms "
+                  + $"visibility.p95={VoxelRenderBridge.SurfaceMetrics.VisibilityTiming.P95Ms:0.00}ms "
+                  + $"queue.p95={VoxelRenderBridge.SurfaceMetrics.QueueLatencyTiming.P95Ms:0.0}ms "
+                  + $"build.p95={VoxelRenderBridge.SurfaceMetrics.BuildLatencyTiming.P95Ms:0.0}ms "
+                  + $"snapshot.p95={VoxelRenderBridge.SurfaceMetrics.SnapshotTiming.P95Ms:0.00}ms "
+                  + $"compact.p95={VoxelRenderBridge.SurfaceMetrics.TopologyCompactTiming.P95Ms:0.00}ms "
+                  + $"merge.p95={VoxelRenderBridge.SurfaceMetrics.FacetedMergeTiming.P95Ms:0.00}ms "
+                  + $"upload.p95={VoxelRenderBridge.SurfaceMetrics.UploadTiming.P95Ms:0.00}ms";
+            }
+            else
+            {
+                VoxelRenderBridge.LastSurfacePassState = "feature-aware";
+            }
 
-            EnsureCapacity(ref _transvoxelDrawEntries, transvoxelVisible.Count);
+            if (transvoxelVisible.Count > _transvoxelDrawEntries.Length)
+                throw new InvalidOperationException(
+                    "Visible solid draw count exceeded the fixed arena draw capacity.");
             for (int i = 0; i < transvoxelVisible.Count; i++)
                 _transvoxelDrawEntries[i] = transvoxelVisible[i];
 
-            EnsureCapacity(ref _waterDrawEntries, waterVisible.Count);
+            if (waterVisible.Count > _waterDrawEntries.Length)
+                throw new InvalidOperationException(
+                    "Visible water draw count exceeded the fixed arena draw capacity.");
             for (int i = 0; i < waterVisible.Count; i++)
                 _waterDrawEntries[i] = waterVisible[i];
 
@@ -344,9 +369,26 @@ namespace VoxelEngine.Rendering.Runtime
             });
         }
 
+        private void ReleaseWorldResources()
+        {
+            if (_scheduler == null) return;
+
+            // Dispose is deliberately synchronous here: world teardown is a lifecycle boundary,
+            // not the frame path. Completing ready/running jobs and releasing every Storage pin
+            // before the application disposes its Storage backing is the ownership contract. Recreate
+            // fixed renderer state immediately so the next world does not allocate on its first
+            // RenderGraph frame.
+            _scheduler.Dispose();
+            _scheduler = new VoxelSurfaceScheduler();
+            Array.Clear(_transvoxelDrawEntries, 0, _transvoxelDrawEntries.Length);
+            Array.Clear(_waterDrawEntries, 0, _waterDrawEntries.Length);
+        }
+
         public void Dispose()
         {
-            _scheduler.Dispose();
+            VoxelRenderBridge.UnregisterWorldReleaseHandler(ReleaseWorldResources);
+            _scheduler?.Dispose();
+            _scheduler = null;
             CoreUtils.Destroy(_surfaceMaterial);
             CoreUtils.Destroy(_waterMaterial);
             CoreUtils.Destroy(_albedoTextures);
@@ -357,10 +399,5 @@ namespace VoxelEngine.Rendering.Runtime
             _normalTextures = null;
         }
 
-        private static void EnsureCapacity<T>(ref T[] array, int required)
-        {
-            if (array.Length >= required) return;
-            Array.Resize(ref array, math.max(16, math.ceilpow2(required)));
-        }
     }
 }
