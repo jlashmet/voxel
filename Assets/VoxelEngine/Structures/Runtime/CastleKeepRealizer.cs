@@ -1,40 +1,16 @@
-using System;
 using Unity.Mathematics;
 using VoxelEngine.Structures.Api;
 
 namespace VoxelEngine.Structures.Runtime
 {
     /// <summary>
-    /// Thin six-substage keep coordinator. Compatibility builds preserve the historical stage order;
-    /// spatial builds bypass substages that already have explicit planner-owned realization data.
-    /// Geometry is delegated to focused keep components rather than authored here.
+    /// Thin compatibility-only six-substage keep coordinator. Spatial castles dispatch their
+    /// planner-owned keep stages directly from CastleBuildPipeline. Geometry is delegated to
+    /// focused keep components rather than authored here.
     /// </summary>
     internal static class CastleKeepRealizer
     {
-        /// <summary>Compatibility path for castles without explicit keep-floor semantics.</summary>
-        internal static bool TryStep(ref VoxelBrush brush, in CastlePlan plan, ref int stage) =>
-            TryStepCore(ref brush, in plan, null, ref stage);
-
-        /// <summary>
-        /// Spatial path: realizes supplied semantic floor purposes without choosing them from the
-        /// physical floor index. Existing furnishing recipes remain behavior-compatible.
-        /// </summary>
-        internal static bool TryStep(
-            ref VoxelBrush brush,
-            in CastlePlan plan,
-            CastleKeepFloorPlan[] roomPlans,
-            ref int stage)
-        {
-            if (roomPlans == null || roomPlans.Length != plan.Floors)
-                throw new InvalidOperationException("Castle keep realization requires one planned room per floor.");
-            return TryStepCore(ref brush, in plan, roomPlans, ref stage);
-        }
-
-        private static bool TryStepCore(
-            ref VoxelBrush brush,
-            in CastlePlan plan,
-            CastleKeepFloorPlan[] roomPlans,
-            ref int stage)
+        internal static bool TryStep(ref VoxelBrush brush, in CastlePlan plan, ref int stage)
         {
             if (stage < 0 || stage >= 6) return false;
 
@@ -60,7 +36,7 @@ namespace VoxelEngine.Structures.Runtime
 
                 case 2:
                     CastleKeepFloorRealizer.Build(
-                        ref brush, in plan, min, size, baseY, floors, roomPlans);
+                        ref brush, in plan, min, size, baseY, floors, null);
                     break;
 
                 case 3:
@@ -76,8 +52,7 @@ namespace VoxelEngine.Structures.Runtime
                 case 5:
                     CastleKeepFacadeRealizer.Build(
                         ref brush, in plan, min, size, baseY, floors);
-                    if (roomPlans == null)
-                        CastleRearOrielRealizer.Build(ref brush, in plan);
+                    CastleRearOrielRealizer.Build(ref brush, in plan);
                     break;
             }
 
