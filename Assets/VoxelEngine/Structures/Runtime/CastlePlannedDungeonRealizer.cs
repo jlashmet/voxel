@@ -6,8 +6,8 @@ namespace VoxelEngine.Structures.Runtime
 {
     /// <summary>
     /// Castle composition for a preplanned designed dungeon plus its natural cave continuation.
-    /// The generic DungeonRealizer owns rooms/connections; this adapter only joins the planned
-    /// CaveThreshold to the castle's existing natural-cave realizer.
+    /// Generic realization owns room shells/circulation, semantic furnishing remains reusable by
+    /// room purpose, and this adapter only joins the planned CaveThreshold to the castle cave.
     /// </summary>
     internal static class CastlePlannedDungeonRealizer
     {
@@ -24,6 +24,7 @@ namespace VoxelEngine.Structures.Runtime
             }
 
             DungeonRealizer.Build(ref brush, dungeonPlan);
+            DungeonRoomFurnisher.FurnishAll(ref brush, dungeonPlan);
             if (!dungeonPlan.HasCaveExit)
                 return;
 
