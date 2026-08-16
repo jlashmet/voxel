@@ -41,6 +41,7 @@ namespace VoxelEngine.Structures.Runtime
         private DungeonPlan _spatialDungeonPlan;
         private CavePlan _spatialCavePlan;
         private CastleCaveDecorationPlan _spatialCaveDecorationPlan;
+        private CastleLandscapePlan _spatialLandscapePlan;
 
         public CastleBuildPipeline(
             IRegionReadSource reads,
@@ -117,6 +118,7 @@ namespace VoxelEngine.Structures.Runtime
             _spatialDungeonPlan = null;
             _spatialCavePlan = null;
             _spatialCaveDecorationPlan = null;
+            _spatialLandscapePlan = null;
 
             if (spatialPlan != null)
                 SnapshotSpatialPlan(in plan, spatialPlan);
@@ -287,8 +289,14 @@ namespace VoxelEngine.Structures.Runtime
                 case 8:
                     if (_hasSpatialFortifications)
                     {
-                        CastleSpatialLandscapeRealizer.Build(
-                            ref _brush, in _plan, _outerWardVertices, in _approach);
+                        if (_spatialLandscapePlan == null)
+                        {
+                            throw new InvalidOperationException(
+                                "Spatial castle reached landscape realization without a planned landscape.");
+                        }
+
+                        CastlePlannedLandscapeRealizer.Build(
+                            ref _brush, in _plan, _spatialLandscapePlan);
                     }
                     else
                     {
@@ -337,6 +345,9 @@ namespace VoxelEngine.Structures.Runtime
                 : null;
             _spatialCaveDecorationPlan = spatialPlan.CaveDecoration != null
                 ? spatialPlan.CaveDecoration.Snapshot()
+                : null;
+            _spatialLandscapePlan = spatialPlan.Landscape != null
+                ? CastleLandscapePlanSnapshot.CloneValidated(spatialPlan.Landscape)
                 : null;
             _outerTowerSpecs = (CastleTowerPlacementSpec[])spatialPlan.Towers.Clone();
             _innerTowerSpecs = (CastleTowerPlacementSpec[])spatialPlan.InnerTowers.Clone();
