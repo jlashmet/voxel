@@ -14,6 +14,7 @@ namespace VoxelEngine.Tests.EditMode
             topology.KeepPlacement = CastleKeepPlacement.Central;
             CastleSpatialPlan spatial = CastleSpatialPlanner.Create(in plan, in topology);
 
+            Assert.IsEmpty(spatial.KeepFloors);
             Assert.IsNull(spatial.Dungeon);
             Assert.IsTrue(
                 CastleBuildPreflight.Evaluate(in plan, spatial, long.MaxValue).IsValid,
@@ -24,7 +25,7 @@ namespace VoxelEngine.Tests.EditMode
 
             Assert.AreEqual(CastleBuildPreflightIssue.IncompleteSpatialPlan, runtime.Issue);
             Assert.AreEqual(
-                CastleSpatialBuildReadinessIssue.MissingDungeonPlan,
+                CastleSpatialBuildReadinessIssue.MissingKeepFloorPlan,
                 runtime.ReadinessIssue);
             Assert.IsFalse(runtime.IsValid);
         }
