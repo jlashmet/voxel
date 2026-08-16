@@ -18,26 +18,15 @@ namespace VoxelEngine.Terrain.Runtime
     public static class TerrainGenerator
     {
         private const int BedrockDepth = 40;
-
-        // Legacy compatibility values. New callers should supply a TerrainMaterialSet so the
-        // engine never needs to know which game material occupies each terrain role.
-        public const byte MaterialStone = 1;
-        public const byte MaterialSand = 3;
-        public const byte MaterialBedrock = 5;
-
-        private static readonly TerrainMaterialSet LegacyMaterials = new TerrainMaterialSet(
-            MaterialBedrock,
-            MaterialStone,
-            MaterialSand);
-
         private const int SandBelowHeight = TerrainQuery.BaseHeight;
 
         /// <summary>
-        /// Compatibility overload preserving the existing world material assignments.
-        /// Game composition should use the overload that supplies a TerrainMaterialSet.
+        /// Transitional overload for legacy callers. It resolves the application's configured
+        /// opaque terrain roles and deliberately contains no game material identities.
         /// </summary>
+        [System.Obsolete("Pass TerrainMaterialSet explicitly; this overload exists only during migration.")]
         public static void Generate(IRegionGenerationStore storage, int3 regionCoord, uint seed) =>
-            Generate(storage, regionCoord, seed, LegacyMaterials);
+            Generate(storage, regionCoord, seed, TerrainMaterialCompatibility.RequireConfigured());
 
         /// <summary>
         /// Fills every logical 8^3 block in a region through Storage.Api using opaque material
