@@ -6,8 +6,9 @@ namespace VoxelEngine.Structures.Runtime
 {
     /// <summary>
     /// Realizes a primary gatehouse from frozen planning data. Gate position/orientation comes from
-    /// CastleGatePlacementSpec; all gatehouse, bridge, tower variation, and parapet style come from
-    /// completed plan data. This component makes no seed/RNG or semantic placement decisions.
+    /// CastleGatePlacementSpec; all gatehouse, bridge, tower variation, gate-leaf styling, and
+    /// parapet style come from completed plan data. This component makes no seed/RNG or semantic
+    /// placement decisions.
     /// </summary>
     public static class CastlePlannedGatehouseRealizer
     {
@@ -73,7 +74,7 @@ namespace VoxelEngine.Structures.Runtime
                     Mat.Stone);
             }
 
-            BuildGateLeaf(ref brush, in gateGeometry);
+            BuildGateLeaf(ref brush, in gateGeometry, in gatehouse);
             Crenellate(
                 ref brush,
                 left,
@@ -92,7 +93,8 @@ namespace VoxelEngine.Structures.Runtime
 
         private static void BuildGateLeaf(
             ref VoxelBrush brush,
-            in CastleGateGeometry geometry)
+            in CastleGateGeometry geometry,
+            in CastleGatehousePlan gatehouse)
         {
             for (int d = 0; d < geometry.Depth; d++)
             for (int w = 0; w < geometry.Width; w++)
@@ -102,9 +104,9 @@ namespace VoxelEngine.Structures.Runtime
                     continue;
 
                 int3 voxel = geometry.WorldVoxel(w, h, d);
-                bool ironBand = (h >= 10 && h < 13)
-                             || (h >= 23 && h < 26)
-                             || (h >= 36 && h < 39);
+                bool ironBand = h >= gatehouse.GateLeafStrapFirstY &&
+                    ((h - gatehouse.GateLeafStrapFirstY) % gatehouse.GateLeafStrapSpacing)
+                        < gatehouse.GateLeafStrapThickness;
                 if (ironBand)
                 {
                     brush.Set(voxel.x, voxel.y, voxel.z, Mat.DarkStone);
