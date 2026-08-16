@@ -28,6 +28,7 @@ namespace VoxelEngine.Structures.Runtime
             }
         }
 
+        /// <summary>Realizes planner-owned semantic floor purposes. Null is never a mode switch.</summary>
         internal static void Build(
             ref VoxelBrush brush,
             in CastlePlan plan,
@@ -37,17 +38,16 @@ namespace VoxelEngine.Structures.Runtime
             int floors,
             CastleKeepFloorPlan[] roomPlans)
         {
+            if (roomPlans == null || roomPlans.Length != floors)
+            {
+                throw new InvalidOperationException(
+                    "Planned keep floor realization requires one semantic room plan per floor.");
+            }
+
             for (int floor = 0; floor < floors; floor++)
             {
                 int y = baseY + floor * plan.FloorHeight;
                 BuildFloorSlab(ref brush, min, size, y, floor);
-
-                if (roomPlans == null)
-                {
-                    CastleRoomFurnisher.Furnish(
-                        ref brush, in plan, min, size, y, floor);
-                    continue;
-                }
 
                 CastleKeepFloorPlan roomPlan = roomPlans[floor];
                 int furnishingRecipe = FurnishingRecipe(in roomPlan, floor);
