@@ -354,6 +354,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private NativeArray<byte> _pinnedMixedBoundarySamples;
         private int _pinnedReleaseCursor;
         private bool _discardBuildAfterPinRelease;
+        private bool _snapshotPinUnavailable;
         private JobHandle _densityJobHandle;
         private bool _densityJobScheduled;
         private JobHandle _topologyJobHandle;
@@ -1601,7 +1602,13 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     int y = (index / BrickCacheEdge) % BrickCacheEdge;
                     int z = index / (BrickCacheEdge * BrickCacheEdge);
                     int3 worldBrick = cacheOrigin + new int3(x, y, z);
+                    _snapshotPinUnavailable = false;
                     TransvoxelDensityBrick brick = SnapshotBlock(source, ref cursor, worldBrick);
+                    if (_snapshotPinUnavailable)
+                    {
+                        AccumulateSnapshotSlice(sliceStart, completed: false);
+                        return false;
+                    }
                     _densityBricks[index] = brick;
 
                     bool ownsCore = x >= BrickCachePadding
@@ -1806,10 +1813,14 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 };
             }
 
-            if (!source.TryPinWorldBlock(worldBlock, out PinnedVoxelReadBlock pinned)
-                || pinned.Kind != VoxelReadBlockKind.Mixed || !pinned.HasPinnedPayload)
+            if (!source.TryPinWorldBlock(worldBlock, out PinnedVoxelReadBlock pinned))
+            {
+                _snapshotPinUnavailable = true;
+                return default;
+            }
+            if (pinned.Kind != VoxelReadBlockKind.Mixed || !pinned.HasPinnedPayload)
                 throw new InvalidOperationException(
-                    $"Failed to pin mixed Storage read block {worldBlock}.");
+                    $"Storage changed mixed block kind without invalidating {worldBlock}.");
 
             if (!_pinnedMixedVoxels.IsCreated)
             {
@@ -1901,6 +1912,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private void ClearPinnedSnapshotState()
         {
             _pinnedReadSource = null;
+            _snapshotPinUnavailable = false;
             _pinnedMixedVoxels = default;
             _pinnedMixedSurfaceSemantics = default;
             _pinnedMixedBoundarySamples = default;

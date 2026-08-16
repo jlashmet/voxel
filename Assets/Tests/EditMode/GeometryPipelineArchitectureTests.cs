@@ -443,5 +443,22 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("NativeDisableContainerSafetyRestriction", faceted);
         }
 
+
+        [Test]
+        public void PinnedGeometryNeverReadsBorrowedWriterPayloads()
+        {
+            string pool = File.ReadAllText(Path.Combine(
+                Application.dataPath, "VoxelEngine", "Storage", "Runtime", "BrickPool.cs"));
+            string store = File.ReadAllText(Path.Combine(
+                Application.dataPath, "VoxelEngine", "Storage", "Runtime", "RegionMutationStore.cs"));
+            string cache = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"));
+            StringAssert.Contains("_writeBorrowedSlots", pool);
+            StringAssert.Contains("public bool TryPin", pool);
+            StringAssert.Contains("_pool.BeginWrite(poolIndex)", store);
+            StringAssert.Contains("_pool.EndWrite(mutation.PoolIndex)", store);
+            StringAssert.Contains("_snapshotPinUnavailable", cache);
+        }
+
     }
 }

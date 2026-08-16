@@ -76,6 +76,7 @@ source-level regression guard are committed. Runtime/PlayMode acceptance remains
   - [x] Route every production mixed-brick mutation through `EnsureWritable` before rendering may pin payloads.
   - [x] Expose bounded Storage snapshot leases to rendering and retire them after jobs complete.
   - [x] Read mixed exact-snapshot payloads directly from pinned COW Storage arrays instead of copying 8^3 payloads into renderer lists.
+  - [x] Exclude scoped borrowed writers from read pins and defer retired-slot reuse until both readers and writers exit.
   - [ ] Move compact block-kind/ref snapshot traversal itself off the frame thread with versioned job-safe region metadata.
 - [ ] Replace global-world version dependence with region/brick dependency revisions where appropriate.
 

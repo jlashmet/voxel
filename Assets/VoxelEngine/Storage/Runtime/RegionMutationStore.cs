@@ -159,6 +159,9 @@ namespace VoxelEngine.Storage.Runtime
 
         public bool CompletePartialBlock(ref VoxelBlockMutation mutation, bool payloadChanged)
         {
+            if (mutation.IsCreated)
+                _pool.EndWrite(mutation.PoolIndex);
+
             if (!_table.TryGetRegion(mutation.RegionCoord, out Region region) || !region.BrickRefs.IsCreated)
             {
                 mutation = default;
@@ -225,6 +228,7 @@ namespace VoxelEngine.Storage.Runtime
                 }
             }
 
+            _pool.BeginWrite(poolIndex);
             return new VoxelBlockMutation(
                 _pool.Voxels,
                 _pool.SurfaceSemantics,

@@ -246,6 +246,22 @@ namespace VoxelEngine.Tests.EditMode
             _pool.Unpin(in pin);
         }
 
+
+        [Test]
+        public void BorrowedWriterBlocksPinsAndDefersRetiredSlotReuse()
+        {
+            int slot = _pool.Allocate();
+            _pool.FillBrick(slot, 4);
+            _pool.BeginWrite(slot);
+            Assert.False(_pool.TryPin(slot, out _));
+
+            _pool.Free(slot);
+            Assert.AreEqual(1, _pool.AllocatedCount,
+                "A retired slot with an active writer must not be recycled.");
+            _pool.EndWrite(slot);
+            Assert.AreEqual(0, _pool.AllocatedCount);
+        }
+
         [Test]
         public void BrickRefEncodingRoundTrips()
         {

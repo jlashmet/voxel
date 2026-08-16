@@ -75,7 +75,11 @@ namespace VoxelEngine.Storage.Runtime
                 return true;
             }
 
-            BrickPool.PinToken physicalPin = _pool.Pin(brick.PoolIndex);
+            if (!_pool.TryPin(brick.PoolIndex, out BrickPool.PinToken physicalPin))
+            {
+                block = default;
+                return false;
+            }
             var apiPin = new VoxelReadPinToken(physicalPin.BrickIndex,
                                                physicalPin.Generation);
             block = new PinnedVoxelReadBlock(

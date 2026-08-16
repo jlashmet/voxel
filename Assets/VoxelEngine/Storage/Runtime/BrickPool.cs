@@ -68,6 +68,7 @@ namespace VoxelEngine.Storage.Runtime
         private NativeArray<int> _pinCounts;
         private NativeArray<uint> _slotGenerations;
         private NativeArray<byte> _retiredSlots;
+        private NativeArray<byte> _writeBorrowedSlots;
         // Handle-like allocator state. BrickPool is copied into Storage capability objects, so
         // scalar allocator bookkeeping must live in shared native memory just like the payloads.
         private NativeArray<int> _highWaterState;
@@ -113,6 +114,8 @@ namespace VoxelEngine.Storage.Runtime
                                                      NativeArrayOptions.ClearMemory);
             _retiredSlots = new NativeArray<byte>(capacity, allocator,
                                                   NativeArrayOptions.ClearMemory);
+            _writeBorrowedSlots = new NativeArray<byte>(capacity, allocator,
+                                                        NativeArrayOptions.ClearMemory);
             _highWaterState = new NativeArray<int>(1, allocator, NativeArrayOptions.ClearMemory);
         }
 
@@ -156,6 +159,7 @@ namespace VoxelEngine.Storage.Runtime
 
             _pinCounts[index] = 0;
             _retiredSlots[index] = 0;
+            _writeBorrowedSlots[index] = 0;
             uint generation = _slotGenerations[index] + 1u;
             _slotGenerations[index] = generation == 0u ? 1u : generation;
             ClearBrick(index);
@@ -178,7 +182,7 @@ namespace VoxelEngine.Storage.Runtime
             // A pinned slot is an immutable version still visible to a reader. Retire it now but
             // do not recycle its memory until the final reader releases the generation-stamped pin.
             _retiredSlots[brickIndex] = 1;
-            if (_pinCounts[brickIndex] == 0)
+            if (_pinCounts[brickIndex] == 0 && _writeBorrowedSlots[brickIndex] == 0)
                 _freeList.Add(brickIndex);
         }
 
@@ -190,18 +194,58 @@ namespace VoxelEngine.Storage.Runtime
             return _pinCounts[brickIndex] > 0;
         }
 
-        /// <summary>Acquires an immutable read lease for one currently live mixed-brick slot.</summary>
-        public PinToken Pin(int brickIndex)
+        /// <summary>
+        /// Attempts to acquire an immutable read lease. A borrowed writer temporarily makes the
+        /// slot unavailable rather than allowing a renderer/job to observe an in-progress edit.
+        /// </summary>
+        public bool TryPin(int brickIndex, out PinToken token)
         {
             ValidateAllocatedSlot(brickIndex);
-            if (_retiredSlots[brickIndex] != 0)
-                throw new InvalidOperationException($"Cannot pin retired brick slot {brickIndex}.");
+            if (_retiredSlots[brickIndex] != 0 || _writeBorrowedSlots[brickIndex] != 0)
+            {
+                token = default;
+                return false;
+            }
 
             int count = _pinCounts[brickIndex];
             if (count == int.MaxValue)
                 throw new InvalidOperationException($"Brick slot {brickIndex} pin count overflow.");
             _pinCounts[brickIndex] = count + 1;
-            return new PinToken(brickIndex, _slotGenerations[brickIndex]);
+            token = new PinToken(brickIndex, _slotGenerations[brickIndex]);
+            return true;
+        }
+
+        /// <summary>Acquires an immutable read lease or throws when a writer owns the slot.</summary>
+        public PinToken Pin(int brickIndex)
+        {
+            if (TryPin(brickIndex, out PinToken token)) return token;
+            throw new InvalidOperationException(
+                $"Cannot pin brick slot {brickIndex} while it is retired or write-borrowed.");
+        }
+
+        /// <summary>
+        /// Marks a live unpinned slot as exclusively borrowed for direct mutation. The caller must
+        /// pair this with <see cref="EndWrite"/> even if its owning region is evicted meanwhile.
+        /// </summary>
+        public void BeginWrite(int brickIndex)
+        {
+            ValidateAllocatedSlot(brickIndex);
+            if (_retiredSlots[brickIndex] != 0 || _pinCounts[brickIndex] != 0
+                || _writeBorrowedSlots[brickIndex] != 0)
+                throw new InvalidOperationException(
+                    $"Brick slot {brickIndex} is not available for exclusive mutation.");
+            _writeBorrowedSlots[brickIndex] = 1;
+        }
+
+        public void EndWrite(int brickIndex)
+        {
+            ValidateAllocatedSlot(brickIndex);
+            if (_writeBorrowedSlots[brickIndex] == 0)
+                throw new InvalidOperationException(
+                    $"Brick slot {brickIndex} has no active borrowed writer.");
+            _writeBorrowedSlots[brickIndex] = 0;
+            if (_retiredSlots[brickIndex] != 0 && _pinCounts[brickIndex] == 0)
+                _freeList.Add(brickIndex);
         }
 
         /// <summary>
@@ -221,7 +265,8 @@ namespace VoxelEngine.Storage.Runtime
                 throw new InvalidOperationException($"Brick slot {token.Slot} is not pinned.");
             count--;
             _pinCounts[token.Slot] = count;
-            if (count == 0 && _retiredSlots[token.Slot] != 0)
+            if (count == 0 && _retiredSlots[token.Slot] != 0
+                && _writeBorrowedSlots[token.Slot] == 0)
                 _freeList.Add(token.Slot);
         }
 
@@ -236,6 +281,9 @@ namespace VoxelEngine.Storage.Runtime
             if (_retiredSlots[brickIndex] != 0)
                 throw new InvalidOperationException(
                     $"Cannot mutate retired brick slot {brickIndex}.");
+            if (_writeBorrowedSlots[brickIndex] != 0)
+                throw new InvalidOperationException(
+                    $"Brick slot {brickIndex} already has a borrowed writer.");
             if (_pinCounts[brickIndex] == 0) return brickIndex;
 
             int clone = Allocate();
@@ -413,6 +461,7 @@ namespace VoxelEngine.Storage.Runtime
             if (_pinCounts.IsCreated) _pinCounts.Dispose();
             if (_slotGenerations.IsCreated) _slotGenerations.Dispose();
             if (_retiredSlots.IsCreated) _retiredSlots.Dispose();
+            if (_writeBorrowedSlots.IsCreated) _writeBorrowedSlots.Dispose();
             if (_highWaterState.IsCreated) _highWaterState.Dispose();
             Capacity = 0;
         }
