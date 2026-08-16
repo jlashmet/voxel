@@ -7,8 +7,8 @@ namespace VoxelEngine.Structures.Api
     /// Final pure-data completion for castle details that depend on already-resolved core geometry.
     /// Composition calls this after terrain-dependent keep placement is finished; Runtime receives
     /// tower variation, keep-floor semantics, keep circulation, courtyard buildings, the designed
-    /// dungeon graph, natural cave topology, and landscape dressing without choosing authored
-    /// details itself.
+    /// dungeon graph, natural cave topology and decoration, and landscape dressing without choosing
+    /// authored details itself.
     /// </summary>
     public static class CastleSpatialPlanCompletion
     {
@@ -26,16 +26,12 @@ namespace VoxelEngine.Structures.Api
             CastleSpatialPlan withBuildings = AttachCourtyardBuildings(in plan, withCirculation);
             CastleSpatialPlan withDungeon = AttachDungeon(in plan, withBuildings);
             CastleSpatialPlan withCave = AttachCave(in plan, withDungeon);
-            CastleSpatialPlan completed = AttachLandscape(in plan, withCave);
+            CastleSpatialPlan withCaveDecoration = AttachCaveDecoration(in plan, withCave);
+            CastleSpatialPlan completed = AttachLandscape(in plan, withCaveDecoration);
             RequireCompleted(in plan, completed);
             return completed;
         }
 
-        /// <summary>
-        /// Freezes the historical tower height/roof variation into the plan. These use the exact
-        /// seed streams previously consumed by the outer and inner tower realizers so moving the
-        /// decisions into planning does not perturb existing castle appearance.
-        /// </summary>
         public static CastleSpatialPlan AttachTowerVariation(
             in CastlePlan plan,
             CastleSpatialPlan spatial)
@@ -78,11 +74,6 @@ namespace VoxelEngine.Structures.Api
             return varied;
         }
 
-        /// <summary>
-        /// Freezes semantic keep-floor purposes before Runtime sees the castle. The current planner
-        /// preserves the historical room recipe, but realization no longer infers purpose from a
-        /// floor-number switch and future room variation can remain entirely planning-side.
-        /// </summary>
         public static CastleSpatialPlan AttachKeepFloors(
             in CastlePlan plan,
             CastleSpatialPlan spatial)
@@ -102,10 +93,6 @@ namespace VoxelEngine.Structures.Api
                 spatial.Cave);
         }
 
-        /// <summary>
-        /// Freezes the keep entrance and vertical-circulation anchors in semantic keep-local
-        /// coordinates. Runtime consumes this data instead of choosing stair locations itself.
-        /// </summary>
         public static CastleSpatialPlan AttachKeepCirculation(
             in CastlePlan plan,
             CastleSpatialPlan spatial)
@@ -174,15 +161,15 @@ namespace VoxelEngine.Structures.Api
                     $"Castle dungeon completion produced an invalid plan: {issue}.");
             }
 
-            // A cave is anchored to a particular dungeon threshold. Replacing the designed
-            // dungeon necessarily invalidates any previously attached natural cave.
+            // Replacing the designed dungeon invalidates every downstream cave attachment.
             return Copy(
                 spatial,
                 spatial.Towers,
                 spatial.KeepFloors,
                 spatial.CourtyardBuildings,
                 dungeon,
-                null);
+                null,
+                clearCaveDecoration: true);
         }
 
         public static CastleSpatialPlan AttachCave(
@@ -204,20 +191,59 @@ namespace VoxelEngine.Structures.Api
                     $"Castle cave completion produced an invalid plan: {issue}.");
             }
 
+            // A replacement cave invalidates decoration anchored to the previous chambers.
             return Copy(
                 spatial,
                 spatial.Towers,
                 spatial.KeepFloors,
                 spatial.CourtyardBuildings,
                 spatial.Dungeon,
-                cave);
+                cave,
+                clearCaveDecoration: true);
         }
 
         /// <summary>
-        /// Freezes stage-8 decoration coordinates and dimensions after the primary gate and keep
-        /// placement are final. Runtime may still query occupied surface height, but it makes no
-        /// decoration placement or variation choices.
+        /// Freezes all castle-specific natural-cave material/formations after CavePlan topology is
+        /// final. Runtime receives a validated list of decoration instructions and performs no RNG.
         /// </summary>
+        public static CastleSpatialPlan AttachCaveDecoration(
+            in CastlePlan plan,
+            CastleSpatialPlan spatial)
+        {
+            if (spatial == null) throw new ArgumentNullException(nameof(spatial));
+            if (spatial.KeepRequiresTerrainResolution)
+                return spatial;
+
+            if (spatial.Cave == null)
+            {
+                return Copy(
+                    spatial,
+                    spatial.Towers,
+                    spatial.KeepFloors,
+                    spatial.CourtyardBuildings,
+                    spatial.Dungeon,
+                    null,
+                    clearCaveDecoration: true);
+            }
+
+            CastleCaveDecorationPlan decoration = CastleCaveDecorationPlanner.Create(spatial.Cave);
+            if (!CastleCaveDecorationPlanValidator.TryValidate(
+                    spatial.Cave, decoration, out CastleCaveDecorationPlanIssue issue))
+            {
+                throw new InvalidOperationException(
+                    $"Castle cave decoration completion produced an invalid plan: {issue}.");
+            }
+
+            return Copy(
+                spatial,
+                spatial.Towers,
+                spatial.KeepFloors,
+                spatial.CourtyardBuildings,
+                spatial.Dungeon,
+                spatial.Cave,
+                caveDecoration: decoration);
+        }
+
         public static CastleSpatialPlan AttachLandscape(
             in CastlePlan plan,
             CastleSpatialPlan spatial)
@@ -308,6 +334,9 @@ namespace VoxelEngine.Structures.Api
                 if (completed.Cave != null)
                     throw new InvalidOperationException(
                         "Completed castle has a natural cave but its dungeon has no cave threshold.");
+                if (completed.CaveDecoration != null)
+                    throw new InvalidOperationException(
+                        "Completed castle has cave decoration without a natural cave.");
                 return;
             }
 
@@ -329,6 +358,15 @@ namespace VoxelEngine.Structures.Api
                 throw new InvalidOperationException(
                     "Completed natural cave entrance does not align with the dungeon cave threshold.");
             }
+
+            if (!CastleCaveDecorationPlanValidator.TryValidate(
+                    completed.Cave,
+                    completed.CaveDecoration,
+                    out CastleCaveDecorationPlanIssue decorationIssue))
+            {
+                throw new InvalidOperationException(
+                    $"Completed castle cave decoration is invalid: {decorationIssue}.");
+            }
         }
 
         private static CastleSpatialPlan Copy(
@@ -339,12 +377,17 @@ namespace VoxelEngine.Structures.Api
             DungeonPlan dungeon,
             CavePlan cave,
             CastleKeepCirculationPlan? keepCirculation = null,
-            CastleLandscapePlan landscape = null)
+            CastleLandscapePlan landscape = null,
+            CastleCaveDecorationPlan caveDecoration = null,
+            bool clearCaveDecoration = false)
         {
             CastleTopologyPlan topology = spatial.Topology;
             CastleGatePlacementSpec primaryGate = spatial.PrimaryGate;
             CastleGatePlacementSpec posternGate = spatial.PosternGate;
             CastleGatePlacementSpec innerGate = spatial.InnerGate;
+            CastleCaveDecorationPlan copiedDecoration = clearCaveDecoration
+                ? caveDecoration
+                : (caveDecoration ?? spatial.CaveDecoration);
 
             var copy = new CastleSpatialPlan(
                 in topology,
@@ -371,7 +414,8 @@ namespace VoxelEngine.Structures.Api
                 cave,
                 landscape ?? spatial.Landscape,
                 spatial.KeepCentre,
-                false);
+                false,
+                copiedDecoration != null ? copiedDecoration.Snapshot() : null);
 
             CastleTowerPlacementSpec[] sourceInnerTowers = spatial.InnerTowers;
             CastleTowerPlacementSpec[] targetInnerTowers = copy.InnerTowers;
