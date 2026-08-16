@@ -177,6 +177,23 @@ namespace VoxelEngine.Structures.Api
                 CastlePolygonGeometry.PolygonsOverlapOrTouch(footprint, inner))
                 return false;
 
+            // Optional outer wall towers occupy edge midpoints, exactly where a wall-supported
+            // building may otherwise score best. Clear the complete oriented footprint from every
+            // planned outer tower rather than treating the curtain line itself as the only obstacle.
+            CastleTowerPlacementSpec[] outerTowers = spatial.Towers;
+            if (outerTowers != null && outerTowers.Length != 0)
+            {
+                int outerTowerClearance = plan.TowerRadius + BuildingClearance;
+                long outerTowerClearanceSquared =
+                    (long)outerTowerClearance * outerTowerClearance;
+                for (int i = 0; i < outerTowers.Length; i++)
+                {
+                    if (PointDistanceSquared(in candidate, outerTowers[i].Centre)
+                        < outerTowerClearanceSquared)
+                        return false;
+                }
+            }
+
             // Inner towers occupy the corners of the secondary ring. A building that stays just
             // outside the inner polygon can still intersect a tower's circular footprint, so keep
             // the full planned footprint plus ordinary building clearance away from every corner.
