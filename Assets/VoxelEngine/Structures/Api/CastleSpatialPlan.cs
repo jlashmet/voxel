@@ -16,6 +16,7 @@ namespace VoxelEngine.Structures.Api
         public CastleTowerPlacementRole Role;
         public int HeightVariation;
         public bool HasRoof;
+        public CastleTowerSlitPlan Slits;
     }
 
     public struct CastleGatePlacementSpec
