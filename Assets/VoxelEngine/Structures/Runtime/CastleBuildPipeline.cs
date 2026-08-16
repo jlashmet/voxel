@@ -38,6 +38,7 @@ namespace VoxelEngine.Structures.Runtime
         private int2 _spatialWellCentre;
         private CastleCourtyardBuildingSpec[] _courtyardBuildings;
         private CastleKeepFloorPlan[] _keepFloorPlans;
+        private CastleKeepTurretSpec[] _keepTurrets;
         private CastleKeepCirculationPlan _keepCirculation;
         private CastleKeepWindowSpec[] _keepWindows;
         private CastleKeepAnnexPlan _keepAnnexes;
@@ -108,6 +109,13 @@ namespace VoxelEngine.Structures.Runtime
                     throw new InvalidOperationException(
                         $"Castle keep annex plan is not runtime-ready: {annexReadiness}.");
                 }
+
+                if (!CastleKeepTurretPlanValidator.TryValidate(
+                        topology.KeepTurrets, out CastleKeepTurretPlanIssue turretIssue))
+                {
+                    throw new InvalidOperationException(
+                        $"Castle keep turret plan is not runtime-ready: {turretIssue}.");
+                }
             }
 
             _plan = plan;
@@ -117,6 +125,7 @@ namespace VoxelEngine.Structures.Runtime
             _innerTowerSpecs = Array.Empty<CastleTowerPlacementSpec>();
             _courtyardBuildings = Array.Empty<CastleCourtyardBuildingSpec>();
             _keepFloorPlans = Array.Empty<CastleKeepFloorPlan>();
+            _keepTurrets = Array.Empty<CastleKeepTurretSpec>();
             _keepCirculation = default;
             _keepWindows = Array.Empty<CastleKeepWindowSpec>();
             _keepAnnexes = default;
@@ -250,6 +259,15 @@ namespace VoxelEngine.Structures.Runtime
                 case 6:
                 {
                     CastlePlan keepPlan = _hasSpatialKeep ? _spatialKeepPlan : _plan;
+
+                    if (_hasSpatialKeep && _keepStage == 1)
+                    {
+                        CastlePlannedKeepTurretRealizer.BuildAll(
+                            ref _brush, in keepPlan, _keepTurrets);
+                        _keepStage++;
+                        RequireBudget("keep 2");
+                        return false;
+                    }
 
                     if (_hasSpatialKeep && _keepStage == 3)
                     {
@@ -392,6 +410,7 @@ namespace VoxelEngine.Structures.Runtime
 
             CastleTopologyPlan topology = spatialPlan.Topology;
             _keepAnnexes = topology.KeepAnnexes;
+            _keepTurrets = topology.KeepTurrets.Snapshot();
             _hasPlannedGatehouse = topology.HasGatehousePlan;
             if (_hasPlannedGatehouse)
             {
