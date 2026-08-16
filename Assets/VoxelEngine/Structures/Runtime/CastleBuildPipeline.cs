@@ -37,6 +37,7 @@ namespace VoxelEngine.Structures.Runtime
         private CastleCourtyardBuildingSpec[] _courtyardBuildings;
         private CastleKeepFloorPlan[] _keepFloorPlans;
         private CastleKeepCirculationPlan _keepCirculation;
+        private CastleKeepWindowSpec[] _keepWindows;
         private CastleKeepAnnexPlan _keepAnnexes;
         private int2 _worldKeepCentre;
         private DungeonPlan _spatialDungeonPlan;
@@ -115,6 +116,7 @@ namespace VoxelEngine.Structures.Runtime
             _courtyardBuildings = Array.Empty<CastleCourtyardBuildingSpec>();
             _keepFloorPlans = Array.Empty<CastleKeepFloorPlan>();
             _keepCirculation = default;
+            _keepWindows = Array.Empty<CastleKeepWindowSpec>();
             _keepAnnexes = default;
             _worldKeepCentre = default;
             _spatialDungeonPlan = null;
@@ -238,6 +240,15 @@ namespace VoxelEngine.Structures.Runtime
                         return false;
                     }
 
+                    if (_hasSpatialKeep && _keepStage == 4)
+                    {
+                        CastleKeepWindowRealizer.Build(
+                            ref _brush, in _plan, _worldKeepCentre, _keepWindows);
+                        _keepStage++;
+                        RequireBudget("keep 5");
+                        return false;
+                    }
+
                     if (_keepStage < 6)
                     {
                         string keepStage = $"keep {_keepStage + 1}";
@@ -341,6 +352,14 @@ namespace VoxelEngine.Structures.Runtime
                     $"Spatial castle reached Runtime with invalid keep circulation: {circulationIssue}.");
             }
             _keepCirculation = circulation;
+
+            CastleKeepWindowSpec[] windows = spatialPlan.KeepWindows;
+            if (!CastleKeepWindowPlanner.TryValidate(in plan, windows, out string windowError))
+            {
+                throw new InvalidOperationException(
+                    $"Spatial castle reached Runtime with invalid keep windows: {windowError}.");
+            }
+            _keepWindows = (CastleKeepWindowSpec[])windows.Clone();
 
             CastleTopologyPlan topology = spatialPlan.Topology;
             _keepAnnexes = topology.KeepAnnexes;
