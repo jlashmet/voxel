@@ -80,6 +80,7 @@ namespace VoxelEngine.Tests.EditMode
                 int roundedCarve = 0;
                 int roundedSurface = 0;
                 int beveledSurface = 0;
+                int smoothRoofPrism = 0;
                 int roundedStructureDefinitions = 0;
 
                 for (int definitionIndex = 0;
@@ -115,6 +116,11 @@ namespace VoxelEngine.Tests.EditMode
                             else if (mode == PrimitiveMode.Fill || mode == PrimitiveMode.FillIfEmpty)
                                 roundedFill++;
                         }
+                        else if (op == ShapeOp.EmitPrism)
+                        {
+                            ushort surface = (ushort)catalogue.Program[pc + 10];
+                            if (surface == SurfaceStyles.Smooth) smoothRoofPrism++;
+                        }
 
                         pc += length;
                         if (op == ShapeOp.End) break;
@@ -133,6 +139,8 @@ namespace VoxelEngine.Tests.EditMode
                     "Shell/opening geometry should explicitly request rounded reconstruction.");
                 Assert.Greater(beveledSurface, 0,
                     "Foundation/detail geometry should explicitly request beveled reconstruction.");
+                Assert.Greater(smoothRoofPrism, 0,
+                    "Active Kentridge roof prisms should consume the style's roof reconstruction policy.");
             }
             finally
             {
