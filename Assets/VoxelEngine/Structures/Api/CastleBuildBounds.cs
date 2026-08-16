@@ -85,9 +85,9 @@ namespace VoxelEngine.Structures.Api
             minZ = math.min(minZ, keep.y - keepRearReach);
             maxZ = math.max(maxZ, keep.y + keepForwardReach);
 
-            IncludePlannedDungeon(
-                in plan,
+            IncludePlannedUnderground(
                 spatial.Dungeon,
+                spatial.Cave,
                 ref minX,
                 ref maxX,
                 ref minY,
@@ -115,9 +115,9 @@ namespace VoxelEngine.Structures.Api
                 new int3(maxX + 1, maxY + 1, maxZ + 1));
         }
 
-        private static void IncludePlannedDungeon(
-            in CastlePlan plan,
+        private static void IncludePlannedUnderground(
             DungeonPlan dungeon,
+            CavePlan cave,
             ref int minX,
             ref int maxX,
             ref int minY,
@@ -139,8 +139,10 @@ namespace VoxelEngine.Structures.Api
 
             if (!dungeon.HasCaveExit)
                 return;
+            if (cave == null)
+                throw new InvalidOperationException(
+                    "Castle dungeon has a cave exit but the spatial plan has no attached cave plan.");
 
-            CavePlan cave = CastleCavePlanning.Create(in plan, dungeon);
             CaveBuildBounds caveBounds = CaveBuildBoundsResolver.Resolve(cave);
             const int caveDecorationPadding = 48;
             minX = math.min(minX, caveBounds.Min.x - caveDecorationPadding);
