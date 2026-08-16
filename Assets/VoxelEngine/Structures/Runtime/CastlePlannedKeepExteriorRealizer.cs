@@ -17,15 +17,12 @@ namespace VoxelEngine.Structures.Runtime
         {
             CastleKeepAnnexPlanValidator.RequireValid(in annexes);
 
-            int baseY = plan.Centre.y + plan.PlateauHeight;
-            int hx = plan.KeepHalfX;
-            int hz = plan.KeepHalfZ;
-            int2 keepCentre = CastleSpatialProjection.ActualKeepCentre(in plan);
-            var min = new int3(
-                keepCentre.x - hx,
-                baseY,
-                keepCentre.y - hz);
-            var size = new int3(hx * 2, plan.KeepHeight, hz * 2);
+            int3 min = CastleSpatialProjection.KeepMinimum(in plan);
+            int baseY = min.y;
+            var size = new int3(
+                plan.KeepHalfX * 2,
+                plan.KeepHeight,
+                plan.KeepHalfZ * 2);
 
             CastleKeepFacadeRealizer.Build(
                 ref brush, in plan, min, size, baseY, plan.Floors);
