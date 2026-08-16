@@ -36,10 +36,10 @@ namespace Game.Composition.Campaign.Content
     }
 
     /// <summary>
-    /// Production authoring for the opening story facts that are currently known. The first
-    /// destination deliberately remains a constraint-matched region site, and the destination cutscene
-    /// definition is supplied by the caller because its choreography/dialogue has not been recovered.
-    /// No placeholder dialogue, destination archetype, NPC name, or world coordinate is invented here.
+    /// Production authoring for the opening story facts that are currently known. The recovered
+    /// Mounting Force hierarchy is registered first so the opening participates in the same normalized
+    /// town/overworld model as the rest of the game. The first destination deliberately remains a
+    /// constraint-matched Kentridge-overworld site until its recovered semantic role is resolved.
     /// </summary>
     public sealed class KnownOpeningCampaignContent
     {
@@ -85,8 +85,10 @@ namespace Game.Composition.Campaign.Content
 
             var game = Game.WorldBuilder.Api.Campaign.Create("main-campaign");
 
-            RegionHandle kentridgeRegion = game.World.Region("kentridge-region");
-            SettlementHandle kentridge = kentridgeRegion.Town("kentridge");
+            RecoveredMountingForceWorldHandles recoveredWorld =
+                RecoveredMountingForceWorldCatalog.RegisterHierarchy(game.World);
+            RegionHandle kentridgeOverworld = recoveredWorld.KentridgeOverworld;
+            SettlementHandle kentridge = recoveredWorld.Kentridge;
 
             SiteHandle startingPub = kentridge.Pub(
                 "starting-pub",
@@ -95,7 +97,7 @@ namespace Game.Composition.Campaign.Content
             // The known story says only that the party goes somewhere else in the surrounding region.
             // The generator remains free to choose the concrete site as long as the hard
             // traversal/content needs are met; it is not forced into the starting settlement.
-            SiteHandle firstDestination = kentridgeRegion.Site(
+            SiteHandle firstDestination = kentridgeOverworld.Site(
                 "first-destination",
                 site => site
                     .DifferentSiteFrom(startingPub)
