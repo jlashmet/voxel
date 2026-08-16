@@ -51,6 +51,7 @@ namespace VoxelEngine.Structures.Runtime
             int top = plan.Centre.y + plan.PlateauHeight;
             int radius = plan.PlateauRadius;
             int skirt = radius + plan.CliffDrop;
+            CastleSiteGeometryPlan geometry = sitePlan.Geometry;
 
             if (state.Phase == 0)
             {
@@ -71,11 +72,16 @@ namespace VoxelEngine.Structures.Runtime
 
                         float d = math.sqrt(x * x + z * z);
 
-                        // Irregular edge: a perfectly circular plateau reads as a cake stand.
+                        // Spatial builds realize the frozen site recipe. Compatibility builds retain
+                        // their historical literals so this migration cannot perturb legacy output.
                         float angle = math.atan2(z, x);
-                        float wobble = math.sin(angle * 3.7f) * 18f
-                                     + math.sin(angle * 8.3f) * 9f
-                                     + math.sin(angle * 17.1f) * 4f;
+                        float wobble = hasPlannedApproach
+                            ? math.sin(angle * geometry.EdgeFrequencyA) * geometry.EdgeAmplitudeA
+                              + math.sin(angle * geometry.EdgeFrequencyB) * geometry.EdgeAmplitudeB
+                              + math.sin(angle * geometry.EdgeFrequencyC) * geometry.EdgeAmplitudeC
+                            : math.sin(angle * 3.7f) * 18f
+                              + math.sin(angle * 8.3f) * 9f
+                              + math.sin(angle * 17.1f) * 4f;
 
                         float edge = radius + wobble;
                         if (d > edge + plan.CliffDrop) continue;
@@ -86,23 +92,27 @@ namespace VoxelEngine.Structures.Runtime
                         if (d <= edge) target = top;
                         else
                         {
-                            // Cliff face: steep, and broken up per column. The first version eased
-                            // out of the plateau with pow(t, 0.55), which gives a long shallow
-                            // shoulder — and a shallow slope in voxels is a staircase of contour
-                            // terraces. Falling fast and unevenly is both more castle-like and cheaper.
                             float t = (d - edge) / plan.CliffDrop;
-                            float broken = math.pow(t, 1.7f)
-                                         + math.sin(angle * 11f + t * 6f) * 0.10f;
+                            float broken = hasPlannedApproach
+                                ? math.pow(t, geometry.CliffFalloffExponent)
+                                  + math.sin(
+                                      angle * geometry.CliffNoiseAngularFrequency
+                                      + t * geometry.CliffNoiseProgressFrequency)
+                                    * geometry.CliffNoiseAmplitude
+                                : math.pow(t, 1.7f)
+                                  + math.sin(angle * 11f + t * 6f) * 0.10f;
+                            int cliffGroundInset = hasPlannedApproach
+                                ? geometry.CliffGroundInset
+                                : 14;
 
                             target = (int)math.round(math.lerp(
-                                top, ground - 14, math.saturate(broken)));
+                                top, ground - cliffGroundInset, math.saturate(broken)));
                         }
 
                         if (target <= ground)
                             brush.FillColumnBulk(wx, target + 1, ground + 1, wz, Mat.Empty);
                         else
                         {
-                            // Build the outcrop in bulk, leaving the visible cap as authored bands.
                             int stoneBottom = math.max(ground, target - 2);
                             brush.FillColumnBulk(wx, ground, stoneBottom, wz, Mat.DarkStone);
                             brush.FillColumnBulk(wx, stoneBottom, target + 1, wz, Mat.Stone);
@@ -111,7 +121,8 @@ namespace VoxelEngine.Structures.Runtime
                         bool grassCap = hasPlannedApproach
                             ? sitePlan.ShouldGrassCap(x, z)
                             : state.Random.NextInt(0, 100) < 92;
-                        if (d < edge - 12 && grassCap)
+                        int grassEdgeInset = hasPlannedApproach ? geometry.GrassEdgeInset : 12;
+                        if (d < edge - grassEdgeInset && grassCap)
                             brush.FillColumnBulk(wx, target, target + 1, wz, Mat.Grass);
                     }
                 }
@@ -121,12 +132,20 @@ namespace VoxelEngine.Structures.Runtime
                 state.Cursor = 0;
             }
 
-            int reach = plan.PlateauRadius + plan.CliffDrop - 8;
+            int approachReachInset = hasPlannedApproach ? geometry.ApproachReachInset : 8;
+            int reach = plan.PlateauRadius + plan.CliffDrop - approachReachInset;
             int columnEnd = math.min(reach * 2 + 1, state.Cursor + 2);
             if (hasPlannedApproach)
             {
                 LowerRiverGorgePlanned(
-                    ref brush, in plan, in approach, top, state.Cursor, columnEnd, reach);
+                    ref brush,
+                    in plan,
+                    in approach,
+                    in geometry,
+                    top,
+                    state.Cursor,
+                    columnEnd,
+                    reach);
             }
             else
             {
@@ -173,36 +192,35 @@ namespace VoxelEngine.Structures.Runtime
         }
 
         /// <summary>
-        /// Same authored gorge profile as the legacy path, expressed in the primary gate's local
-        /// tangent/outward frame. The river runs parallel to the gate and its lower terrace lies on
-        /// the outside of the castle regardless of perimeter orientation.
+        /// Realizes the planned gorge profile in the primary gate's tangent/outward frame.
         /// </summary>
         private static void LowerRiverGorgePlanned(
             ref VoxelBrush brush,
             in CastlePlan plan,
             in CastleApproachFrame approach,
+            in CastleSiteGeometryPlan geometry,
             int top,
             int firstColumn,
             int endColumn,
             int reach)
         {
-            const int halfWidth = 90;
-            const int waterHalfWidth = 42;
-            int riverY = top - CastleLayout.LowerRiverDepth;
-            float riverDistance = plan.WallThickness + 92f;
+            int halfWidth = geometry.RiverHalfWidth;
+            int waterHalfWidth = geometry.WaterHalfWidth;
+            int riverY = top - geometry.RiverDepth;
+            float riverDistance = plan.WallThickness + geometry.RiverOffset;
 
             for (int column = firstColumn; column < endColumn; column++)
             {
                 float along = -reach + column;
-                int meander = (int)math.round(math.sin(along * 0.028f) * 8f
-                                            + math.sin(along * 0.071f) * 3f);
+                int meander = (int)math.round(
+                    math.sin(along * geometry.MeanderFrequencyA) * geometry.MeanderAmplitudeA
+                    + math.sin(along * geometry.MeanderFrequencyB) * geometry.MeanderAmplitudeB);
 
                 for (int across = -halfWidth; across <= halfWidth; across++)
                 {
                     // Positive across is farther outside because CastleApproachFrame.Outward points
-                    // away from the castle. In the legacy -Z frame it equals -dz. Meander is
-                    // subtracted in outward-distance space so the legacy reduction remains
-                    // channelZ = riverZ + meander.
+                    // away from the castle. Meander is subtracted in outward-distance space so the
+                    // historical -Z reduction remains channelZ = riverZ + meander.
                     int2 local = approach.LocalPoint(
                         along,
                         riverDistance - meander + across);
