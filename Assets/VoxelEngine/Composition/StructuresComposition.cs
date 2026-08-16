@@ -65,6 +65,34 @@ namespace VoxelEngine.Composition
         bool Step();
     }
 
+    /// <summary>
+    /// Runtime-ready castle planning bundle. Composition keeps the dimensions, terrain-resolved
+    /// spatial plan, and terrain seed together so application code cannot accidentally build one
+    /// layout while presenting/interacting with coordinates from another. Projection is computed
+    /// from the current validated spatial data rather than cached, so caller mutation cannot make
+    /// a stale compatibility view silently survive.
+    /// </summary>
+    public readonly struct PlannedCastleBuild
+    {
+        private readonly CastlePlan _dimensions;
+
+        public CastlePlan Dimensions => _dimensions;
+        public CastleSpatialPlan Spatial { get; }
+        public uint TerrainSeed { get; }
+        public CastleSpatialProjection Projection =>
+            CastleSpatialProjection.Create(in _dimensions, Spatial);
+
+        internal PlannedCastleBuild(
+            in CastlePlan dimensions,
+            CastleSpatialPlan spatial,
+            uint terrainSeed)
+        {
+            _dimensions = dimensions;
+            Spatial = spatial ?? throw new ArgumentNullException(nameof(spatial));
+            TerrainSeed = terrainSeed;
+        }
+    }
+
     /// <summary>Stable retained-profile handle; mutable Runtime storage stays private.</summary>
     public interface IStructureProfileStore : IProfileBlockReadSource
     {
@@ -120,6 +148,20 @@ namespace VoxelEngine.Composition
         {
             CastleSpatialPlan spatial = PlanCastleSpatial(in plan);
             return CastleTerrainPlanning.Resolve(in plan, spatial, terrainSeed);
+        }
+
+        /// <summary>
+        /// Produces the complete castle planning input an application needs for realization,
+        /// interaction, and presentation without making the scene repeat planner/projection wiring.
+        /// </summary>
+        public static PlannedCastleBuild PlanCastleBuild(
+            int3 centre,
+            uint seed,
+            uint terrainSeed)
+        {
+            CastlePlan dimensions = PlanCastle(centre, seed);
+            CastleSpatialPlan spatial = PlanCastleSpatial(in dimensions, terrainSeed);
+            return new PlannedCastleBuild(in dimensions, spatial, terrainSeed);
         }
 
         /// <summary>
@@ -201,6 +243,31 @@ namespace VoxelEngine.Composition
                 in plan, spatialPlan, terrainSeed);
             return new CastleBuildSession(
                 reads, mutations, in plan, resolvedSpatialPlan, terrainSeed, materials);
+        }
+
+        /// <summary>
+        /// Starts a build from the runtime-ready bundle returned by <see cref="PlanCastleBuild"/>.
+        /// The bundle owns the terrain seed that resolved its spatial plan, preventing seed drift
+        /// between planning and realization.
+        /// </summary>
+        public static ICastleBuildSession BeginCastleBuild(
+            IRegionReadSource reads,
+            IRegionMutationStore mutations,
+            in PlannedCastleBuild planned,
+            IMaterialAuthoringCatalogue materials)
+        {
+            CastlePlan dimensions = planned.Dimensions;
+            CastleSpatialPlan spatial = planned.Spatial;
+            if (spatial == null)
+                throw new ArgumentException("Planned castle build has no spatial plan.", nameof(planned));
+
+            return BeginCastleBuild(
+                reads,
+                mutations,
+                in dimensions,
+                spatial,
+                planned.TerrainSeed,
+                materials);
         }
 
         public static ReferenceArchBuildResult BuildReferenceArch(
