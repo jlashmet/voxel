@@ -206,19 +206,20 @@ namespace VoxelEngine.Composition
 
         private sealed class CastleBuildSession : ICastleBuildSession
         {
-            private CastleBuilder.IncrementalBuild _build;
+            private readonly CastleBuildPipeline _build;
 
             public CastleBuildSession(
                 IRegionReadSource reads, IRegionMutationStore mutations,
                 in CastlePlan plan, uint terrainSeed, IMaterialAuthoringCatalogue materials)
             {
-                _build = CastleBuilder.BeginBuild(reads, mutations, in plan, terrainSeed, materials);
+                _build = new CastleBuildPipeline(
+                    reads, mutations, in plan, terrainSeed, materials);
             }
 
             public bool IsComplete => _build.IsComplete;
             public int StageNumber => _build.StageNumber;
             public long TotalVoxelsWritten => _build.TotalVoxelsWritten;
-            public bool Step() => CastleBuilder.StepBuild(ref _build);
+            public bool Step() => _build.Step();
         }
 
         private sealed class StructureProfileStore : IStructureProfileStore
