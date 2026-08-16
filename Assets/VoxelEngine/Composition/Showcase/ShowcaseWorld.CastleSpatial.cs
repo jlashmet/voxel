@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Unity.Mathematics;
 using UnityEngine;
+using VoxelEngine.Composition;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Structures.Api;
 
