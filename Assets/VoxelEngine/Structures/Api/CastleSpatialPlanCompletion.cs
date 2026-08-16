@@ -6,9 +6,9 @@ namespace VoxelEngine.Structures.Api
     /// <summary>
     /// Final pure-data completion for castle details that depend on already-resolved core geometry.
     /// Composition calls this after terrain-dependent keep placement is finished; Runtime receives
-    /// tower variation, keep-floor semantics, keep circulation, courtyard buildings, the designed
-    /// dungeon graph, natural cave topology and decoration, and landscape dressing without choosing
-    /// authored details itself.
+    /// tower variation, keep-floor semantics, keep circulation/windows, courtyard buildings, the
+    /// designed dungeon graph, natural cave topology and decoration, and landscape dressing without
+    /// choosing authored details itself.
     /// </summary>
     public static class CastleSpatialPlanCompletion
     {
@@ -23,7 +23,8 @@ namespace VoxelEngine.Structures.Api
             CastleSpatialPlan withTowerVariation = AttachTowerVariation(in plan, spatial);
             CastleSpatialPlan withKeepFloors = AttachKeepFloors(in plan, withTowerVariation);
             CastleSpatialPlan withCirculation = AttachKeepCirculation(in plan, withKeepFloors);
-            CastleSpatialPlan withBuildings = AttachCourtyardBuildings(in plan, withCirculation);
+            CastleSpatialPlan withWindows = AttachKeepWindows(in plan, withCirculation);
+            CastleSpatialPlan withBuildings = AttachCourtyardBuildings(in plan, withWindows);
             CastleSpatialPlan withDungeon = AttachDungeon(in plan, withBuildings);
             CastleSpatialPlan withCave = AttachCave(in plan, withDungeon);
             CastleSpatialPlan withCaveDecoration = AttachCaveDecoration(in plan, withCave);
@@ -110,6 +111,26 @@ namespace VoxelEngine.Structures.Api
                 spatial.Dungeon,
                 spatial.Cave,
                 circulation);
+        }
+
+        public static CastleSpatialPlan AttachKeepWindows(
+            in CastlePlan plan,
+            CastleSpatialPlan spatial)
+        {
+            if (spatial == null) throw new ArgumentNullException(nameof(spatial));
+            if (spatial.KeepRequiresTerrainResolution)
+                return spatial;
+
+            CastleKeepWindowSpec[] windows =
+                CastleKeepWindowPlanner.Create(in plan).SnapshotWindows();
+            return Copy(
+                spatial,
+                spatial.Towers,
+                spatial.KeepFloors,
+                spatial.CourtyardBuildings,
+                spatial.Dungeon,
+                spatial.Cave,
+                keepWindows: windows);
         }
 
         public static CastleSpatialPlan AttachCourtyardBuildings(
@@ -305,6 +326,14 @@ namespace VoxelEngine.Structures.Api
                     $"Completed castle keep circulation is invalid: {circulationIssue}.");
             }
 
+            CastleKeepWindowPlan windows = new CastleKeepWindowPlan(completed.KeepWindows);
+            if (completed.KeepWindows == null || completed.KeepWindows.Length != plan.Floors * 6 - 1 ||
+                !CastleKeepWindowPlanner.TryValidate(in plan, windows, out string windowError))
+            {
+                throw new InvalidOperationException(
+                    $"Completed castle keep window plan is invalid: {windowError ?? "wrong aperture count"}.");
+            }
+
             if (!CastleLandscapePlanValidator.TryValidate(
                     completed.Landscape, out CastleLandscapePlanIssue landscapeIssue))
             {
@@ -379,7 +408,8 @@ namespace VoxelEngine.Structures.Api
             CastleKeepCirculationPlan? keepCirculation = null,
             CastleLandscapePlan landscape = null,
             CastleCaveDecorationPlan caveDecoration = null,
-            bool clearCaveDecoration = false)
+            bool clearCaveDecoration = false,
+            CastleKeepWindowSpec[] keepWindows = null)
         {
             CastleTopologyPlan topology = spatial.Topology;
             CastleGatePlacementSpec primaryGate = spatial.PrimaryGate;
@@ -388,6 +418,7 @@ namespace VoxelEngine.Structures.Api
             CastleCaveDecorationPlan copiedDecoration = clearCaveDecoration
                 ? caveDecoration
                 : (caveDecoration ?? spatial.CaveDecoration);
+            CastleKeepWindowSpec[] copiedWindows = keepWindows ?? spatial.KeepWindows;
 
             var copy = new CastleSpatialPlan(
                 in topology,
@@ -415,7 +446,10 @@ namespace VoxelEngine.Structures.Api
                 landscape ?? spatial.Landscape,
                 spatial.KeepCentre,
                 false,
-                copiedDecoration != null ? copiedDecoration.Snapshot() : null);
+                copiedDecoration != null ? copiedDecoration.Snapshot() : null,
+                copiedWindows != null
+                    ? (CastleKeepWindowSpec[])copiedWindows.Clone()
+                    : Array.Empty<CastleKeepWindowSpec>());
 
             CastleTowerPlacementSpec[] sourceInnerTowers = spatial.InnerTowers;
             CastleTowerPlacementSpec[] targetInnerTowers = copy.InnerTowers;
