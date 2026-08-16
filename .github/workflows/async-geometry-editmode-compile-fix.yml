@@ -1,0 +1,34 @@
+name: Async geometry EditMode compile repair
+
+on:
+  push:
+    branches: [refactor/async-geometry-pipeline]
+    paths: [.github/workflows/async-geometry-editmode-compile-fix.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/async-geometry-pipeline
+          fetch-depth: 0
+      - name: Apply guarded repair
+        run: python3 .github/scripts/async_geometry_editmode_compile_fix.py
+      - name: Static guards
+        run: |
+          grep -q 'using UnityEngine;' Assets/Tests/EditMode/GeometryPipelineArchitectureTests.cs
+          ! grep -q 'Region = view' Assets/Tests/EditMode/SurfaceBrickDiscoveryTests.cs
+          grep -q 'OccupiedWords = occupied' Assets/Tests/EditMode/SurfaceBrickDiscoveryTests.cs
+          grep -q 'FullySolidWords = fullySolid' Assets/Tests/EditMode/SurfaceBrickDiscoveryTests.cs
+      - name: Commit test repair
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add Assets/Tests/EditMode/GeometryPipelineArchitectureTests.cs \
+                  Assets/Tests/EditMode/SurfaceBrickDiscoveryTests.cs
+          git commit -m 'Repair EditMode tests for async discovery API'
+          git push origin HEAD:refactor/async-geometry-pipeline
