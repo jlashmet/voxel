@@ -40,12 +40,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Renderer-world lifetime ownership passed all 83 focused EditMode tests and Metal proved
-          # the stale Storage-pin/RenderGraph exception is gone. The LOD fidelity fixture is now
-          # image-scoped: it uses subject-sized castle framing and waits for the central architecture
-          # crop to remain structurally stable across three spaced captures before comparing steps
-          # 1/2/4/8. Global clipmap residency is intentionally left to the production budget/stress
-          # tests; the stress phase below remains 2 workers with production budgets.
+          # Renderer-world lifetime ownership is green in 83 focused EditMode tests and Metal no
+          # longer reproduces the stale Storage-pin/RenderGraph failure. The visual LOD gate uses a
+          # subject-sized, stable castle capture; a capture is now eligible only when the production
+          # surface pass reports at least one ready voxel draw, preventing sky/horizon edges from
+          # masking a coarse-ring publication failure. Stress remains 2 workers with production budgets.
           deadline=$((SECONDS + 6000))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
@@ -62,10 +61,6 @@ jobs:
           rm -rf "$ROOT"
           mkdir -p "$ROOT"
           chmod +x tools/unity-run.sh
-          # Offline visual-fidelity gate: subject-sized framing plus stable central-castle capture.
-          # It gets 8 workers/8 ms extraction so the comparison measures LOD structure rather than
-          # CI throughput. Runtime publication budgets and hole/backpressure behavior are tested by
-          # the second LOD case and the separate two-worker stress phase.
           UNITY_MAX_RSS_MB=12288 UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
             -batchmode -force-metal -job-worker-count 8 \
             -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform PlayMode \
