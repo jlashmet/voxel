@@ -33,6 +33,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public readonly int RunningSolidJobs;
         public readonly int RunningGeometryJobs;
         public readonly ulong FramePathBlockingCompletionViolations;
+        public readonly long LastFrameManagedAllocationBytes;
         public readonly int SolidMeshesAwaitingUpload;
         public readonly long SolidPendingUploadBytes;
         public readonly int SolidUploadBudgetBytes;
@@ -94,6 +95,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             FramePathBlockingCompletionViolations =
                 solids.FramePathBlockingCompletionViolations
                 + water.FramePathBlockingCompletionViolations;
+            LastFrameManagedAllocationBytes = 0;
             SolidMeshesAwaitingUpload = solids.PendingUploadCount;
             SolidPendingUploadBytes = solids.PendingUploadBytes;
             SolidUploadBudgetBytes = int.MaxValue;
@@ -146,7 +148,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                                      in VoxelTimingSummary workerPrepare,
                                      in VoxelTimingSummary visibility,
                                      int schedulerRunningJobs,
-                                     ulong schedulerCompletionViolations)
+                                     ulong schedulerCompletionViolations,
+                                     long lastFrameManagedAllocationBytes)
         {
             ChangeRecords = changeRecords;
             DiscoveredSurfaceBricks = discoveredSurfaceBricks;
@@ -193,6 +196,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             RunningGeometryJobs = running + water.RunningJobCount + schedulerRunningJobs;
             FramePathBlockingCompletionViolations =
                 completionViolations + schedulerCompletionViolations;
+            LastFrameManagedAllocationBytes = lastFrameManagedAllocationBytes;
             SolidMeshesAwaitingUpload = uploads;
             SolidPendingUploadBytes = pendingUploadBytes;
             SolidUploadBudgetBytes = solidUploadBudgetBytes;
@@ -477,6 +481,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private readonly VoxelTimingWindow _workerPrepareTiming = new();
         private readonly VoxelTimingWindow _visibilityTiming = new();
         private ulong _framePathBlockingCompletionViolations;
+        private long _lastFrameManagedAllocationBytes;
 
         /// <summary>
         /// Renderer-wide main-thread budget for admitting solid surface work. This is shared by
@@ -502,6 +507,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public int LastAdvancedFrame => _lastAdvancedFrame;
         public int SolidBuildWorkspaceCount => _allWorkers.Length;
         public int LastVisibilityCandidateChecks => _lastVisibilityCandidateChecks;
+        public long LastFrameManagedAllocationBytes => _lastFrameManagedAllocationBytes;
         internal int KnownChunkCountForSourceStep(int sourceStep)
         {
             int count = 0;
@@ -545,7 +551,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _invalidationTiming.Snapshot(), _discoveryTiming.Snapshot(),
             _workerPrepareTiming.Snapshot(), _visibilityTiming.Snapshot(),
             _surfaceDiscoveryJobScheduled ? 1 : 0,
-            _framePathBlockingCompletionViolations);
+            _framePathBlockingCompletionViolations,
+            _lastFrameManagedAllocationBytes);
 
         public VoxelSurfaceScheduler()
         {
@@ -601,6 +608,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 CollectVisibility(camera, voxelSize, frame);
                 return;
             }
+
+            // Measure only the once-per-world-frame geometry orchestration path. Secondary
+            // camera visibility collection is intentionally excluded: this counter answers the
+            // merge-gate question "did streaming/geometry allocate after warmup?" without being
+            // polluted by unrelated camera/test-runner allocations.
+            long managedAllocationStart = GC.GetAllocatedBytesForCurrentThread();
             _lastAdvancedFrame = frame;
 
             double prepareStart = Time.realtimeSinceStartupAsDouble;
@@ -779,6 +792,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _workerPrepareTiming.Add(workerPrepareMs);
             CollectVisibility(camera, voxelSize, frame);
             _prepareTiming.Add(ElapsedMs(prepareStart));
+            _lastFrameManagedAllocationBytes = Math.Max(
+                0L, GC.GetAllocatedBytesForCurrentThread() - managedAllocationStart);
         }
 
         /// <summary>

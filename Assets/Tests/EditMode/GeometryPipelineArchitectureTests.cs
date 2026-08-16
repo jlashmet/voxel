@@ -240,6 +240,27 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void GeometrySchedulerExposesFrameScopedManagedAllocationCounter()
+        {
+            string scheduler = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "VoxelSurfaceScheduler.cs"));
+            StringAssert.Contains("LastFrameManagedAllocationBytes", scheduler);
+            StringAssert.Contains("GC.GetAllocatedBytesForCurrentThread()", scheduler);
+            StringAssert.Contains("long managedAllocationStart", scheduler);
+            StringAssert.DoesNotContain("GC.GetTotalMemory", scheduler);
+
+            int start = scheduler.IndexOf("long managedAllocationStart", StringComparison.Ordinal);
+            int end = scheduler.IndexOf("private void CollectVisibility", start,
+                                        StringComparison.Ordinal);
+            Assert.GreaterOrEqual(start, 0);
+            Assert.Greater(end, start);
+            string framePath = scheduler.Substring(start, end - start);
+            Assert.GreaterOrEqual(CountOccurrences(
+                framePath, "GC.GetAllocatedBytesForCurrentThread()"), 2);
+        }
+
+
+        [Test]
         public void SolidVisibilityTraversesOnlyActiveToroidalSlotsOncePerRing()
         {
             string cache = ReadRenderingSource(

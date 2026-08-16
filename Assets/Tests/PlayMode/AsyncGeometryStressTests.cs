@@ -294,6 +294,75 @@ namespace VoxelEngine.Tests.PlayMode
             }
         }
 
+
+        [UnityTest, Timeout(900000)]
+        public IEnumerator WarmRepeatedClipmapTraversalAllocatesNoManagedGeometryMemory()
+        {
+            yield return LoadShowcaseScene();
+            GetShowcaseContext(out _, out _, out Camera camera,
+                               out _, out Vector3 centre);
+
+            var target = new RenderTexture(64, 36, 24, RenderTextureFormat.ARGB32);
+            const int pathFrames = 160;
+            try
+            {
+                camera.targetTexture = target;
+                Vector3 lookAt = centre + Vector3.up * 8f;
+
+                // Repeat exactly the same clipmap path twice before measuring. The first pass may
+                // grow bounded dictionaries/queues and fill entry pools; the second makes every
+                // coordinate/slot transition that the measured pass will make. Any allocation on
+                // the third pass is therefore steady-state geometry growth, not warmup.
+                for (int cycle = 0; cycle < 2; cycle++)
+                for (int frame = 0; frame < pathFrames; frame++)
+                {
+                    PositionAllocationPathCamera(camera, centre, lookAt, frame, pathFrames);
+                    camera.Render();
+                    yield return null;
+                }
+
+                long maxAllocated = 0;
+                int observedFrames = 0;
+                for (int frame = 0; frame < pathFrames; frame++)
+                {
+                    PositionAllocationPathCamera(camera, centre, lookAt, frame, pathFrames);
+                    camera.Render();
+                    yield return null;
+
+                    VoxelSurfaceMetrics metrics = VoxelRenderBridge.SurfaceMetrics;
+                    Assert.AreEqual(0UL, metrics.FramePathBlockingCompletionViolations,
+                        "Allocation traversal encountered a blocking geometry completion attempt.");
+                    maxAllocated = System.Math.Max(maxAllocated,
+                                                  metrics.LastFrameManagedAllocationBytes);
+                    observedFrames++;
+                    Assert.AreEqual(0L, metrics.LastFrameManagedAllocationBytes,
+                        $"Steady-state geometry allocated managed memory on traversal frame {frame}.");
+                }
+
+                Assert.AreEqual(pathFrames, observedFrames);
+                Assert.AreEqual(0L, maxAllocated,
+                    "Warm repeated clipmap traversal must not allocate managed geometry memory.");
+            }
+            finally
+            {
+                camera.targetTexture = null;
+                target.Release();
+                Object.DestroyImmediate(target);
+            }
+        }
+
+        private static void PositionAllocationPathCamera(Camera camera, Vector3 centre,
+                                                         Vector3 lookAt, int frame,
+                                                         int pathFrames)
+        {
+            float angle = frame * (Mathf.PI * 2f / pathFrames);
+            camera.transform.position = centre + new Vector3(
+                Mathf.Sin(angle) * 14f,
+                18f + Mathf.Sin(angle * 2f) * 2f,
+                -96f + Mathf.Cos(angle) * 8f);
+            camera.transform.LookAt(lookAt);
+        }
+
         private static int ExplodeAtOffset(ShowcaseWorld world, CastlePlan plan,
                                            int xOffset, int zOffset)
         {
