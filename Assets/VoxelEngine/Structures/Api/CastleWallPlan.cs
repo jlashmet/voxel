@@ -1,4 +1,5 @@
 using Unity.Mathematics;
+using Random = Unity.Mathematics.Random;
 
 namespace VoxelEngine.Structures.Api
 {
@@ -46,12 +47,43 @@ namespace VoxelEngine.Structures.Api
     }
 
     /// <summary>
-    /// Pure planner for the historical curtain-wall style. Keeping these values together makes
-    /// future wall-style variation a planner concern while preserving the current voxel recipe.
+    /// Pure curtain-wall style planner. The parameterless overload preserves the historical
+    /// authored recipe for compatibility callers; the seeded overload freezes visual/defensive
+    /// variation on an independent Walls substream for production topology planning.
     /// </summary>
     public static class CastleWallPlanner
     {
         public static CastleWallPlan Create() => CastleWallRecipe.Historical();
+
+        public static CastleWallPlan Create(uint seed)
+        {
+            CastleWallPlan plan = CastleWallRecipe.Historical();
+            var rng = new Random(CastleSeedPartition.Derive(
+                seed, CastleSeedDomain.Walls, 0xA771u));
+
+            // Structural wall height/thickness remain CastlePlan concerns. Vary only the authored
+            // defensive profile so a seed changes how the same perimeter is expressed rather than
+            // changing its footprint or invalidating gate/tower placement.
+            plan.MaxPlinthHeight = rng.NextInt(16, 29);
+            plan.CourseHeightFraction = rng.NextFloat(0.58f, 0.74f);
+            plan.CourseThickness = rng.NextInt(2, 5);
+            plan.WallWalkThickness = rng.NextInt(1, 4);
+
+            plan.ArrowSlitFirstDistance = rng.NextInt(32, 51);
+            plan.ArrowSlitEndInset = rng.NextInt(16, 31);
+            plan.ArrowSlitSpacing = rng.NextInt(72, 113);
+            plan.ArrowSlitYOffset = rng.NextInt(34, 49);
+            plan.ArrowSlitMaxHeight = rng.NextInt(20, 33);
+            plan.ArrowSlitDepthScale = rng.NextFloat(0.55f, 0.76f);
+
+            plan.CrenellationMerlonLength = rng.NextInt(22, 33);
+            plan.CrenellationGapLength = rng.NextInt(14, 25);
+            plan.CrenellationHeight = rng.NextInt(16, 25);
+            plan.CrenellationMaximumThickness = rng.NextInt(6, 11);
+
+            CastleWallPlanValidator.RequireValid(in plan);
+            return plan;
+        }
     }
 
     /// <summary>Compatibility recipe with the exact pre-planning curtain-wall authored values.</summary>
