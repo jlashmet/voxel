@@ -35,8 +35,8 @@ namespace VoxelEngine.Structures.Runtime
                     break;
 
                 case 2:
-                    CastleKeepFloorRealizer.Build(
-                        ref brush, in plan, min, size, baseY, floors, null);
+                    CastleKeepFloorRealizer.BuildCompatibility(
+                        ref brush, in plan, min, size, baseY, floors);
                     break;
 
                 case 3:
