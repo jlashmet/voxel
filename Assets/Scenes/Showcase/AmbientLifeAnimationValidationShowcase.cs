@@ -135,7 +135,7 @@ namespace VoxelEngine.Showcase
                 labelObject.transform.position = new Vector3(
                     cluster.PositionMetres.x,
                     0.10f,
-                    cluster.PositionMetres.z - 1.65f);
+                    cluster.PositionMetres.z - 2.35f);
 
                 TextMesh label = labelObject.AddComponent<TextMesh>();
                 label.text = cluster.Kind + " / " + profile.Movement;
