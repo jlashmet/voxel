@@ -37,6 +37,7 @@ namespace VoxelEngine.Structures.Runtime
         private bool _hasSpatialWell;
         private int2 _spatialWellCentre;
         private CastleCourtyardBuildingSpec[] _courtyardBuildings;
+        private DungeonPlan _spatialDungeonPlan;
 
         public CastleBuildPipeline(
             IRegionReadSource reads,
@@ -92,6 +93,7 @@ namespace VoxelEngine.Structures.Runtime
             _spatialKeepPlan = plan;
             _innerTowerCentres = Array.Empty<int2>();
             _courtyardBuildings = Array.Empty<CastleCourtyardBuildingSpec>();
+            _spatialDungeonPlan = null;
 
             if (spatialPlan != null)
             {
@@ -228,7 +230,15 @@ namespace VoxelEngine.Structures.Runtime
                 case 7:
                 {
                     CastlePlan dungeonPlan = _hasSpatialKeep ? _spatialKeepPlan : _plan;
-                    CastleDungeonRealizer.Build(ref _brush, in dungeonPlan);
+                    if (_hasSpatialKeep && _spatialDungeonPlan != null)
+                    {
+                        CastlePlannedDungeonRealizer.Build(
+                            ref _brush, in dungeonPlan, _spatialDungeonPlan);
+                    }
+                    else
+                    {
+                        CastleDungeonRealizer.Build(ref _brush, in dungeonPlan);
+                    }
                     return CompleteStage("dungeon");
                 }
 
@@ -263,6 +273,7 @@ namespace VoxelEngine.Structures.Runtime
             _hasSpatialWell = spatialPlan.HasWell;
             _spatialWellCentre = spatialPlan.WellCentre;
             _courtyardBuildings = (CastleCourtyardBuildingSpec[])spatialPlan.CourtyardBuildings.Clone();
+            _spatialDungeonPlan = spatialPlan.Dungeon;
 
             CastleTowerPlacementSpec[] towers = spatialPlan.Towers;
             _towerCentres = new int2[towers.Length];
