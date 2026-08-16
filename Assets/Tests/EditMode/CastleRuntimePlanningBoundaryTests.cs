@@ -43,16 +43,22 @@ namespace VoxelEngine.Tests.EditMode
             {
                 "CastleLayoutPlanner.Create(",
                 "CastleSpatialPlanner.Create(",
+                "CastleSpatialPlanCompletion.",
+                "CastleSitePlanner.Create(",
                 "CastleInnerWardTowerPlanner.Create(",
                 "CastleKeepInteriorPlanner.Create(",
+                "CastleKeepCirculationPlanner.Create(",
+                "CastleKeepAnnexPlanner.Create(",
                 "CastleCourtyardPlanner.Create(",
+                "CastleCourtyardBuildingPlanner.Create(",
+                "CastleCourtyardBuildingPlacementGeometry.Plan(",
                 "CastleAccessRoutePlanner.Create(",
-                "CastleLandscapePlanner.Create(",
+                "CastleDungeonPlanning.Create(",
                 "CastleCavePlanning.Create(",
                 "CastleCaveDecorationPlanner.Create(",
+                "CastleLandscapePlanner.Create(",
                 "DungeonPlanner.Create(",
                 "CavePlanner.Create(",
-                "CastleSpatialPlanCompletion.Complete(",
             };
 
             foreach (string file in Directory.GetFiles(runtimeDirectory, "*.cs"))
