@@ -61,35 +61,56 @@ namespace VoxelEngine.Structures.Runtime
         {
             if (IsComplete) return true;
 
-            if (_legacy.Stage == 1)
+            switch (_legacy.Stage)
             {
-                if (!CastleSiteRealizer.Step(
-                        ref _legacy.Brush,
-                        in _legacy.Plan,
-                        _legacy.TerrainSeed,
-                        ref _site))
-                {
-                    RequireSiteBudget();
-                    return false;
-                }
+                case 1:
+                    if (!CastleSiteRealizer.Step(
+                            ref _legacy.Brush,
+                            in _legacy.Plan,
+                            _legacy.TerrainSeed,
+                            ref _site))
+                    {
+                        RequireBudget("site");
+                        return false;
+                    }
+                    return CompleteStage("site");
 
-                RequireSiteBudget();
-                _legacy.Stage = 2;
-                return false;
+                case 2:
+                    CastleFortificationRealizer.CurtainWalls(
+                        ref _legacy.Brush, in _legacy.Plan);
+                    return CompleteStage("curtain walls");
+
+                case 3:
+                    CastleFortificationRealizer.CornerTowers(
+                        ref _legacy.Brush, in _legacy.Plan);
+                    return CompleteStage("corner towers");
+
+                case 4:
+                    CastleFortificationRealizer.Gatehouse(
+                        ref _legacy.Brush, in _legacy.Plan);
+                    return CompleteStage("gatehouse");
+
+                default:
+                    // Courtyard, keep/interiors, dungeon, and landscape dressing still use the
+                    // legacy implementation. Each extraction removes another case from here.
+                    return CastleBuilder.StepBuild(ref _legacy);
             }
-
-            // Stages 2-8 still use the legacy implementation. Each extraction removes one more
-            // responsibility from this delegation until CastleBuilder can be deleted.
-            return CastleBuilder.StepBuild(ref _legacy);
         }
 
-        private void RequireSiteBudget()
+        private bool CompleteStage(string stage)
+        {
+            RequireBudget(stage);
+            _legacy.Stage++;
+            return IsComplete;
+        }
+
+        private void RequireBudget(string stage)
         {
             if (!_legacy.Brush.BudgetExceeded) return;
 
             throw new InvalidOperationException(
                 $"Castle build exceeded its {_legacy.Brush.WriteBudget:N0}-write budget while " +
-                $"building the site, after {_legacy.Brush.TotalVoxelsWritten:N0} changed voxels. " +
+                $"building the {stage}, after {_legacy.Brush.TotalVoxelsWritten:N0} changed voxels. " +
                 "A partial castle is invalid.");
         }
     }
