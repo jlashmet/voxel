@@ -37,7 +37,7 @@ namespace VoxelEngine.Structures.Api
                 source.HasWell,
                 source.WellCentre,
                 Clone(source.CourtyardBuildings),
-                Clone(source.KeepFloors),
+                CloneKeepFloors(source.KeepFloors),
                 source.KeepCirculation,
                 dungeon,
                 cave,
@@ -68,6 +68,27 @@ namespace VoxelEngine.Structures.Api
                     $"Cannot snapshot castle spatial plan that is not runtime-ready: {readinessIssue}.");
             }
 
+            return clone;
+        }
+
+        private static CastleKeepFloorPlan[] CloneKeepFloors(CastleKeepFloorPlan[] source)
+        {
+            if (source == null) return null;
+
+            var clone = new CastleKeepFloorPlan[source.Length];
+            for (int i = 0; i < source.Length; i++)
+            {
+                CastleKeepFloorPlan floor = source[i];
+                CastleRoomAccentPlan accents = floor.Accents != null
+                    ? new CastleRoomAccentPlan(floor.Accents.Snapshot())
+                    : null;
+                clone[i] = new CastleKeepFloorPlan(
+                    floor.FloorIndex,
+                    floor.Purpose,
+                    floor.HasPartition,
+                    floor.SemanticSeed,
+                    accents);
+            }
             return clone;
         }
 
