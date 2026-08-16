@@ -97,7 +97,8 @@ namespace VoxelEngine.Structures.Api
                 null,
                 null,
                 spatial.KeepCentre,
-                spatial.KeepRequiresTerrainResolution);
+                spatial.KeepRequiresTerrainResolution,
+                spatial.InnerTowers);
         }
 
         /// <summary>Actual world-space X/Z centre of the projected keep.</summary>
