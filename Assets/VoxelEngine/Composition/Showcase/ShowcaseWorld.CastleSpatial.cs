@@ -15,6 +15,7 @@ namespace VoxelEngine.Showcase
     public sealed partial class ShowcaseWorld
     {
         private bool _castlePosternOpen;
+        private bool _castleInnerWardGateOpen;
 
         private void PreparePendingCastleSpatialPlan()
         {
@@ -123,6 +124,7 @@ namespace VoxelEngine.Showcase
             _castleTrapdoorOpen = false;
             _castleFrontGateOpen = false;
             _castlePosternOpen = false;
+            _castleInnerWardGateOpen = false;
 
             ShowcaseCastleSpatialLayout.BuildPresentationLights(
                 in _castleSpatialProjection,
@@ -155,27 +157,15 @@ namespace VoxelEngine.Showcase
 
         public bool CastlePosternOpen => _castlePosternOpen;
 
-        public Vector3 CastlePosternPosition
-        {
-            get
-            {
-                if (!TryGetActivePosternGeometry(out CastleWallDoorGeometry geometry))
-                    return Vector3.positiveInfinity;
-                return (Vector3)geometry.InteractionPointVoxels * VoxelSize;
-            }
-        }
+        public Vector3 CastlePosternPosition =>
+            TryGetActivePosternGeometry(out CastleWallDoorGeometry geometry)
+                ? (Vector3)geometry.InteractionPointVoxels * VoxelSize
+                : Vector3.positiveInfinity;
 
-        public bool CanOpenCastlePostern(Vector3 playerFeetMetres)
-        {
-            if (_castlePosternOpen ||
-                !TryGetActivePosternGeometry(out CastleWallDoorGeometry geometry))
-                return false;
-
-            Vector3 position = (Vector3)geometry.InteractionPointVoxels * VoxelSize;
-            Vector3 delta = playerFeetMetres - position;
-            return new Vector2(delta.x, delta.z).sqrMagnitude <= 3.6f * 3.6f
-                && math.abs(delta.y) <= 2.8f;
-        }
+        public bool CanOpenCastlePostern(Vector3 playerFeetMetres) =>
+            !_castlePosternOpen
+            && TryGetActivePosternGeometry(out CastleWallDoorGeometry geometry)
+            && IsNearWallDoor(playerFeetMetres, in geometry, 3.6f, 2.8f);
 
         public bool TryOpenCastlePostern(Vector3 playerFeetMetres)
         {
@@ -183,18 +173,31 @@ namespace VoxelEngine.Showcase
                 !TryGetActivePosternGeometry(out CastleWallDoorGeometry geometry))
                 return false;
 
-            int3[] voxels = geometry.LeafVoxels();
-            var doorVoxels = new List<FallingVoxel>(voxels.Length);
-            for (int i = 0; i < voxels.Length; i++)
-            {
-                doorVoxels.Add(new FallingVoxel
-                {
-                    Position = voxels[i],
-                    Material = MatWood,
-                });
-            }
-            ClearVoxelsBulk(doorVoxels);
+            OpenWallDoor(in geometry);
             _castlePosternOpen = true;
+            return true;
+        }
+
+        public bool CastleInnerWardGateOpen => _castleInnerWardGateOpen;
+
+        public Vector3 CastleInnerWardGatePosition =>
+            TryGetActiveInnerWardGateGeometry(out CastleWallDoorGeometry geometry)
+                ? (Vector3)geometry.InteractionPointVoxels * VoxelSize
+                : Vector3.positiveInfinity;
+
+        public bool CanOpenCastleInnerWardGate(Vector3 playerFeetMetres) =>
+            !_castleInnerWardGateOpen
+            && TryGetActiveInnerWardGateGeometry(out CastleWallDoorGeometry geometry)
+            && IsNearWallDoor(playerFeetMetres, in geometry, 4.0f, 3.0f);
+
+        public bool TryOpenCastleInnerWardGate(Vector3 playerFeetMetres)
+        {
+            if (!CanOpenCastleInnerWardGate(playerFeetMetres) ||
+                !TryGetActiveInnerWardGateGeometry(out CastleWallDoorGeometry geometry))
+                return false;
+
+            OpenWallDoor(in geometry);
+            _castleInnerWardGateOpen = true;
             return true;
         }
 
@@ -217,6 +220,55 @@ namespace VoxelEngine.Showcase
             geometry = CastleWallDoorGeometryResolver.Resolve(
                 in dimensions, in postern, in door);
             return true;
+        }
+
+        private bool TryGetActiveInnerWardGateGeometry(out CastleWallDoorGeometry geometry)
+        {
+            geometry = default;
+            if (!_hasCastlePlan) return false;
+
+            CastlePlan dimensions = _plannedCastle.Dimensions;
+            CastleSpatialPlan spatial = _plannedCastle.Spatial;
+            if (spatial == null || !spatial.HasInnerGate)
+                return false;
+
+            CastleTopologyPlan topology = spatial.Topology;
+            CastleWallDoorPlan door = topology.InnerWardDoor;
+            if (!CastleWallDoorPlanValidator.TryValidate(in door, out _))
+                return false;
+
+            CastleGatePlacementSpec innerGate = spatial.InnerGate;
+            geometry = CastleWallDoorGeometryResolver.Resolve(
+                in dimensions, in innerGate, in door);
+            return true;
+        }
+
+        private static bool IsNearWallDoor(
+            Vector3 playerFeetMetres,
+            in CastleWallDoorGeometry geometry,
+            float horizontalRadius,
+            float verticalTolerance)
+        {
+            Vector3 position = (Vector3)geometry.InteractionPointVoxels * VoxelSize;
+            Vector3 delta = playerFeetMetres - position;
+            return new Vector2(delta.x, delta.z).sqrMagnitude
+                    <= horizontalRadius * horizontalRadius
+                && math.abs(delta.y) <= verticalTolerance;
+        }
+
+        private void OpenWallDoor(in CastleWallDoorGeometry geometry)
+        {
+            int3[] voxels = geometry.LeafVoxels();
+            var doorVoxels = new List<FallingVoxel>(voxels.Length);
+            for (int i = 0; i < voxels.Length; i++)
+            {
+                doorVoxels.Add(new FallingVoxel
+                {
+                    Position = voxels[i],
+                    Material = MatWood,
+                });
+            }
+            ClearVoxelsBulk(doorVoxels);
         }
 
         private int3 ActiveCastleTrapdoorCentre() =>
