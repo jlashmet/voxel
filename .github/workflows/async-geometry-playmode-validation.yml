@@ -39,11 +39,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Acceptance checkpoint includes the feature-preserving step-8 HLOD path, 409.6 m
-          # render/streaming agreement, async exact metadata, water Burst extraction,
-          # stale-build rejection, toroidal clipmap slots + bounded edge retirement/readmission,
-          # dense active-slot visibility, non-blocking completion metrics, P99 timing,
-          # zero-allocation repeated traversal, fixed-arena backpressure, and camera/destruction stress.
+          # Frozen merge checkpoint: feature-preserving step-8 HLOD with trimmed workspace,
+          # fixed draw staging, toroidal/active-slot clipmaps, stale-build rejection,
+          # zero-allocation + P99 + non-blocking-completion gates, fixed-arena backpressure,
+          # and continuous camera/destruction validation on the real Metal graphics device.
           deadline=$((SECONDS + 6000))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
