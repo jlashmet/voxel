@@ -25,8 +25,10 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.NotNull(completed.Dungeon, $"seed {seed}: dungeon was not completed");
                 Assert.IsTrue(completed.Dungeon.HasCaveExit,
                     $"seed {seed}: castle dungeon unexpectedly has no cave threshold");
+                Assert.NotNull(completed.Cave,
+                    $"seed {seed}: completed castle did not attach its natural cave plan");
 
-                CavePlan first = CastleCavePlanning.Create(in castle, completed.Dungeon);
+                CavePlan first = completed.Cave;
                 CavePlan second = CastleCavePlanning.Create(in castle, completed.Dungeon);
                 DungeonRoomPlan threshold = completed.Dungeon.Rooms[
                     completed.Dungeon.CaveThresholdRoomId];
@@ -35,10 +37,15 @@ namespace VoxelEngine.Tests.EditMode
                     threshold.Centre.y - threshold.Size.y / 2,
                     threshold.Centre.z);
 
+                Assert.AreEqual(
+                    CastleSeedPartition.Derive(castle.Seed, CastleSeedDomain.Cave),
+                    first.Seed,
+                    $"seed {seed}: castle cave did not use the dedicated Cave seed domain");
                 Assert.AreEqual(expectedEntrance, first.Entrance,
                     $"seed {seed}: cave entrance drifted from dungeon threshold");
                 Assert.IsTrue(CavePlanValidator.TryValidate(first, out CavePlanIssue issue),
                     $"seed {seed}: {issue}");
+                Assert.AreEqual(first.Seed, second.Seed);
                 Assert.AreEqual(first.Chambers.Length, second.Chambers.Length);
                 Assert.AreEqual(first.Passages.Length, second.Passages.Length);
                 for (int i = 0; i < first.Chambers.Length; i++)
