@@ -44,10 +44,11 @@ namespace VoxelEngine.Structures.Api
             int minZ = plan.Centre.z - siteReach;
             int maxZ = plan.Centre.z + siteReach;
 
-            // The site mutates down through the authored river/cliff band. Upper headroom covers
-            // the keep roofline and four-storey chapel bell tower, both of which can enter Y=1 in
-            // the showcase even though the terrain surface itself lives in Y=0.
-            int minY = math.max(0, baseY - 256);
+            // The site mutates down through the authored river/cliff band. Do not clamp to world
+            // Y=0: voxel coordinates are signed and dependency bounds must remain conservative for
+            // castles sited in low or negative-Y worlds. Upper headroom covers the keep roofline
+            // and four-storey chapel bell tower.
+            int minY = baseY - 256;
             int authoredHeight = math.max(
                 plan.KeepHeight + 128,
                 math.max(plan.TowerHeight, plan.GateTowerHeight) + 128);
