@@ -343,7 +343,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             (8, 288f, MaxVoxelRingRadiusMetres),
         };
 
-        public const float MaxVoxelRingRadiusMetres = 420f;
+        public const float MaxVoxelRingRadiusMetres = 409.6f;
         // Allocated once with the scheduler. Runtime streaming may wait for a free range but
         // cannot grow these buffers and create a render-thread GPU allocation spike.
         private const int SurfaceArenaVertexCapacity = 2 * 1024 * 1024;

@@ -50,6 +50,8 @@ namespace VoxelEngine.Tests.EditMode
             {
                 int3 b = solidBlocks[i];
                 region.SetBrick(b.x, b.y, b.z, BrickRef.Uniform(7));
+                region.SetBlockOccupancySummary(
+                    Region.BrickIndex(b.x, b.y, b.z), occupied: true, fullySolid: true);
             }
             _table.CommitRegion(in region);
             _journal.PublishRegion(regionCoord);
@@ -98,7 +100,11 @@ namespace VoxelEngine.Tests.EditMode
         public void DiscoveryJobSchedulesForRegionWithMipPyramid()
         {
             Region region = _table.LoadRegion(int3.zero);
-            region.SetBrick(10, 10, 10, BrickRef.Uniform(7));
+            int3 solidBlock = new(10, 10, 10);
+            region.SetBrick(solidBlock.x, solidBlock.y, solidBlock.z, BrickRef.Uniform(7));
+            region.SetBlockOccupancySummary(
+                Region.BrickIndex(solidBlock.x, solidBlock.y, solidBlock.z),
+                occupied: true, fullySolid: true);
             region.AllocateMips(MipBuilder.MaxLevels, Allocator.Persistent);
             MipBuilder.RebuildRegion(in _pool, ref region);
             _table.CommitRegion(in region);

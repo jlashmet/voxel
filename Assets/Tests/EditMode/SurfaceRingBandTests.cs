@@ -49,7 +49,7 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void FineRingsReadVoxelsAndCoarseRingsReadMips()
+        public void RenderRingsUseExactStepEightAndMipsBeyondIt()
         {
             // The dividing line is one brick: a stride finer than a brick has no mip level.
             using (var fine = new CpuTransvoxelChunkCache(1))
@@ -57,8 +57,8 @@ namespace VoxelEngine.Tests.EditMode
             using (var fine2 = new CpuTransvoxelChunkCache(4))
                 Assert.IsFalse(fine2.SamplesFromMips, "Step 4 is still sub-brick.");
             using (var coarse = new CpuTransvoxelChunkCache(8))
-                Assert.IsTrue(coarse.SamplesFromMips,
-                    "Step 8 matches a brick and must read the pyramid.");
+                Assert.IsFalse(coarse.SamplesFromMips,
+                    "Step 8 must stay exact: conservative any-solid block summaries are not render density.");
             using (var coarser = new CpuTransvoxelChunkCache(16))
                 Assert.IsTrue(coarser.SamplesFromMips);
         }

@@ -29,7 +29,7 @@ namespace VoxelEngine.Tests.EditMode
             string source = ReadRenderingSource(
                 Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"));
             int start = source.IndexOf("private bool StepTransitionFaces", StringComparison.Ordinal);
-            int end = source.IndexOf("private void InitialiseTopologyTables", start,
+            int end = source.IndexOf("private bool StepTransitionFaceSnapshot", start,
                                      StringComparison.Ordinal);
             Assert.GreaterOrEqual(start, 0);
             Assert.Greater(end, start);
@@ -85,7 +85,7 @@ namespace VoxelEngine.Tests.EditMode
 
             int visibilityStart = scheduler.IndexOf("private void CollectVisibility",
                                                     StringComparison.Ordinal);
-            int visibilityEnd = scheduler.IndexOf("private void EnqueueSurfaceDiscovery",
+            int visibilityEnd = scheduler.IndexOf("private void ProcessChangeFeed",
                                                   visibilityStart, StringComparison.Ordinal);
             Assert.GreaterOrEqual(visibilityStart, 0);
             Assert.Greater(visibilityEnd, visibilityStart);
@@ -212,7 +212,7 @@ namespace VoxelEngine.Tests.EditMode
             string scheduler = ReadRenderingSource(
                 Path.Combine("SurfaceExtraction", "VoxelSurfaceScheduler.cs"));
             int collect = scheduler.IndexOf("private void CollectVisibility", StringComparison.Ordinal);
-            int collectEnd = scheduler.IndexOf("private void EnqueueSurfaceDiscovery", collect,
+            int collectEnd = scheduler.IndexOf("private void ProcessChangeFeed", collect,
                                                StringComparison.Ordinal);
             Assert.GreaterOrEqual(collect, 0);
             Assert.Greater(collectEnd, collect);
@@ -392,7 +392,9 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("private NativeArray<uint> _slotGenerations", pool);
             StringAssert.Contains("public int EnsureWritable", pool);
             StringAssert.Contains("CopyBrick(brickIndex, clone)", pool);
-            StringAssert.Contains("if (count == 0 && _retiredSlots[token.Slot] != 0)", pool);
+            StringAssert.Contains("_retiredSlots[token.Slot] != 0", pool);
+            StringAssert.Contains("_writerCounts[token.Slot] == 0", pool);
+            StringAssert.Contains("RecycleRetiredSlot(token.Slot)", pool);
         }
 
 

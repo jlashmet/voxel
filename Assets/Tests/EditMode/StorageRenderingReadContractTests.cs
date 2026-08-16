@@ -233,7 +233,8 @@ namespace VoxelEngine.Tests.EditMode
                     "Publishing a materialized/COW BrickRef must advance the region revision "
                   + "before the borrowed mutation is completed.");
 
-                Assert.True(mutations.CompletePartialBlock(ref mutation, payloadChanged: false));
+                Assert.False(mutations.CompletePartialBlock(ref mutation, payloadChanged: false),
+                    "Unused materialisation should roll back without reporting an authoritative change.");
                 VoxelRegionPinToken token = metadata.Pin;
                 reads.ReleasePinnedRegion(in token);
             }

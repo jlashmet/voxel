@@ -7,7 +7,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 {
     /// <summary>
     /// Classifies logical Storage read blocks from a caller-owned occupancy snapshot. The job
-    /// never touches RegionReadView or BrickPool memory, so it can safely remain in flight while
+    /// never touches RegionReadView or physical Storage payload memory, so it can safely remain in flight while
     /// authoritative Storage edits, publishes, or evicts regions.
     /// </summary>
     [BurstCompile]
