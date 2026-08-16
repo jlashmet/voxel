@@ -17,6 +17,7 @@ namespace VoxelEngine.Tests.EditMode
             spatial = CastleSpatialPlanCompletion.AttachTowerVariation(in plan, spatial);
             spatial = CastleSpatialPlanCompletion.AttachKeepFloors(in plan, spatial);
             // Deliberately skip AttachKeepCirculation.
+            spatial = CastleSpatialPlanCompletion.AttachKeepWindows(in plan, spatial);
             spatial = CastleSpatialPlanCompletion.AttachCourtyardBuildings(in plan, spatial);
             spatial = CastleSpatialPlanCompletion.AttachDungeon(in plan, spatial);
             spatial = CastleSpatialPlanCompletion.AttachCave(in plan, spatial);
@@ -29,6 +30,33 @@ namespace VoxelEngine.Tests.EditMode
             Assert.AreEqual(CastleBuildPreflightIssue.IncompleteSpatialPlan, readiness.Issue);
             Assert.AreEqual(
                 CastleSpatialBuildReadinessIssue.InvalidKeepCirculationPlan,
+                readiness.ReadinessIssue);
+        }
+
+        [Test]
+        public void RuntimeReadinessRejectsMissingKeepWindowPlanBeforeVoxelMutation()
+        {
+            CastlePlan plan = CastlePlanner.Create(int3.zero, 305u);
+            CastleTopologyPlan topology = CastleLayoutPlanner.Create(plan.Seed);
+            topology.KeepPlacement = CastleKeepPlacement.Central;
+            CastleSpatialPlan spatial = CastleSpatialPlanner.Create(in plan, in topology);
+
+            spatial = CastleSpatialPlanCompletion.AttachTowerVariation(in plan, spatial);
+            spatial = CastleSpatialPlanCompletion.AttachKeepFloors(in plan, spatial);
+            spatial = CastleSpatialPlanCompletion.AttachKeepCirculation(in plan, spatial);
+            // Deliberately skip AttachKeepWindows.
+            spatial = CastleSpatialPlanCompletion.AttachCourtyardBuildings(in plan, spatial);
+            spatial = CastleSpatialPlanCompletion.AttachDungeon(in plan, spatial);
+            spatial = CastleSpatialPlanCompletion.AttachCave(in plan, spatial);
+            spatial = CastleSpatialPlanCompletion.AttachCaveDecoration(in plan, spatial);
+            spatial = CastleSpatialPlanCompletion.AttachLandscape(in plan, spatial);
+
+            CastleBuildPreflightResult readiness = CastleBuildPreflight.EvaluateRuntimeReady(
+                in plan, spatial, long.MaxValue);
+
+            Assert.AreEqual(CastleBuildPreflightIssue.IncompleteSpatialPlan, readiness.Issue);
+            Assert.AreEqual(
+                CastleSpatialBuildReadinessIssue.MissingKeepWindowPlan,
                 readiness.ReadinessIssue);
         }
 
@@ -64,6 +92,7 @@ namespace VoxelEngine.Tests.EditMode
             spatial = CastleSpatialPlanCompletion.AttachTowerVariation(in plan, spatial);
             spatial = CastleSpatialPlanCompletion.AttachKeepFloors(in plan, spatial);
             spatial = CastleSpatialPlanCompletion.AttachKeepCirculation(in plan, spatial);
+            spatial = CastleSpatialPlanCompletion.AttachKeepWindows(in plan, spatial);
             spatial = CastleSpatialPlanCompletion.AttachCourtyardBuildings(in plan, spatial);
             spatial = CastleSpatialPlanCompletion.AttachDungeon(in plan, spatial);
             spatial = CastleSpatialPlanCompletion.AttachCave(in plan, spatial);
