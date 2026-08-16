@@ -2,7 +2,8 @@ using System.Collections.Generic;
 using Unity.Mathematics;
 using UnityEngine;
 using VoxelEngine.AmbientLife.Api;
-using VoxelEngine.Rendering.Runtime.AmbientLife;
+using VoxelEngine.Composition;
+using VoxelEngine.Rendering.Api;
 
 namespace VoxelEngine.Showcase
 {
@@ -14,9 +15,9 @@ namespace VoxelEngine.Showcase
         [SerializeField] private bool m_CreateEnvironment = true;
 
         private readonly List<AmbientLifeCluster> _clusters = new();
-        private ProceduralAmbientLifeBatchRenderer _renderer;
+        private IAmbientLifeBatchRenderer _renderer;
 
-        public ProceduralAmbientLifeBatchRenderer Renderer => _renderer;
+        public IAmbientLifeBatchRenderer Renderer => _renderer;
         public IReadOnlyList<AmbientLifeCluster> Clusters => _clusters;
         public int ClusterCount => _clusters.Count;
         public int AgentCount => _renderer != null ? _renderer.AgentCount : 0;
@@ -30,8 +31,7 @@ namespace VoxelEngine.Showcase
         public void Rebuild()
         {
             if (_renderer == null)
-                _renderer = GetComponent<ProceduralAmbientLifeBatchRenderer>()
-                            ?? gameObject.AddComponent<ProceduralAmbientLifeBatchRenderer>();
+                _renderer = VegetationLifeRenderingComposition.EnsureAmbientLifeBatchRenderer(gameObject);
 
             if (m_CreateEnvironment)
                 SubsystemRenderingShowcaseEnvironment.Ensure(transform);
