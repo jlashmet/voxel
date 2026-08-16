@@ -18,9 +18,9 @@ This checklist tracks translation from recovered Mounting Force evidence into vo
 ## Map/site translation
 
 - [ ] Translate recovered town interiors and authored map locations into typed WorldBuilder sites rather than leaving them only as catalog metadata.
-- [ ] Link the semantic `starting-pub` opening role explicitly to legacy map `kentridge-pub`.
+- [x] Link the semantic `starting-pub` opening role explicitly to legacy map `kentridge-pub`.
 - [ ] Model nested interiors/sublevels (for example Kentridge warehouse lower, Medrare upper/lower, Hightown under-church levels, and Timmy's back room).
-- [ ] Decide how persistent legacy map identity is exposed to generated-world/debug tooling so a generated site can report its source evidence.
+- [x] Expose persistent legacy map identity through `CampaignBlueprint.SiteSourceEvidence`, keyed by semantic `SiteRef`, so generated-world/debug tooling can join a resolved site back to its recovered source evidence without making that evidence a generation constraint.
 
 ## Topology
 
@@ -55,5 +55,6 @@ This checklist tracks translation from recovered Mounting Force evidence into vo
 
 - [x] Add EditMode tests for the normalized recovered-world catalog and six settlement/region pairs.
 - [x] Add PlayMode coverage that builds/generates the Kentridge vertical slice from the production campaign blueprint, evaluates all 17 stable Kentridge building roles through the voxel shape program, starts a new game, and plays the opening cutscene through to the travel objective.
+- [x] Add EditMode coverage proving semantic sites retain recovered source-map evidence without turning provenance into a generation constraint.
 - [ ] Add a recovered-world showcase that can visualize semantic region/site ids alongside legacy map-source ids.
 - [ ] Expand the vertical slice town-by-town as missing WorldBuilder capabilities are exposed.
