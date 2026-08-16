@@ -40,13 +40,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Renderer-world lifetime ownership passed all 83 focused EditMode tests, and Metal
-          # proved the stale Storage-pin/RenderGraph exception is gone. The offline LOD fidelity
-          # capture uses an 8 ms build slice and 8 Unity workers. Its 45 m orthographic half-height
-          # covers the castle/plateau, and each band now clips depth to roughly +/-50 m around the
-          # landmark so the unchanged MissingVisible==0 condition applies to the subject under test
-          # rather than unrelated clipmap rings. Stress below remains 2 workers with production
-          # budgets and is the constrained runtime/performance authority.
+          # Renderer-world lifetime ownership passed all 83 focused EditMode tests and Metal proved
+          # the stale Storage-pin/RenderGraph exception is gone. The offline LOD fidelity capture
+          # retains strict MissingVisible==0 but now frames the actual architecture: a 4:3 target,
+          # 24 m orthographic half-height (~64 m horizontal), and roughly +/-32 m castle depth.
+          # It keeps the 8 ms/8-worker offline extraction allowance. Stress below remains 2 workers
+          # with production budgets and is the constrained runtime/performance authority.
           deadline=$((SECONDS + 6000))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
@@ -63,7 +62,7 @@ jobs:
           rm -rf "$ROOT"
           mkdir -p "$ROOT"
           chmod +x tools/unity-run.sh
-          # Offline visual-fidelity gate: castle-focused orthographic framing, strict hole-free
+          # Offline visual-fidelity gate: subject-sized orthographic framing, strict hole-free
           # convergence, and extra extraction capacity so it measures LOD structure rather than CI
           # throughput. Runtime budget semantics are independently covered by the second LOD test
           # and the separate two-worker stress phase.
