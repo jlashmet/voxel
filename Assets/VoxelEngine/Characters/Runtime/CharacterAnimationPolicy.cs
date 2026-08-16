@@ -63,6 +63,15 @@ namespace VoxelEngine.Characters.Runtime
 
         private void Update()
         {
+            Tick();
+        }
+
+        /// <summary>
+        /// Advances policy state once. Unity calls this from Update during normal runtime;
+        /// explicit callers can also use it for deterministic simulation or tests.
+        /// </summary>
+        public void Tick()
+        {
             ResolvePlayerIfNeeded();
             if (player == null)
             {
