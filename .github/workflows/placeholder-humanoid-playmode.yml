@@ -1,4 +1,4 @@
-name: Placeholder Humanoid PlayMode
+name: Placeholder Humanoid Runtime
 
 on:
   push:
@@ -6,6 +6,8 @@ on:
     paths:
       - 'Assets/VoxelEngine/Characters/**'
       - 'Assets/ThirdParty/PlaceholderHumanoids/**'
+      - 'Assets/Tests/EditMode/PlaceholderCharacterFactoryFreshImportTests.cs'
+      - 'Assets/Tests/EditMode/VoxelEngine.Tests.EditMode.asmdef'
       - 'Assets/Tests/PlayMode/CharacterVisualResolverPlayModeTests.cs'
       - 'Assets/Tests/PlayMode/CharacterAnimationPlayerPlayModeTests.cs'
       - 'Assets/Tests/PlayMode/VoxelEngine.Tests.PlayMode.asmdef'
@@ -14,6 +16,8 @@ on:
     paths:
       - 'Assets/VoxelEngine/Characters/**'
       - 'Assets/ThirdParty/PlaceholderHumanoids/**'
+      - 'Assets/Tests/EditMode/PlaceholderCharacterFactoryFreshImportTests.cs'
+      - 'Assets/Tests/EditMode/VoxelEngine.Tests.EditMode.asmdef'
       - 'Assets/Tests/PlayMode/CharacterVisualResolverPlayModeTests.cs'
       - 'Assets/Tests/PlayMode/CharacterAnimationPlayerPlayModeTests.cs'
       - 'Assets/Tests/PlayMode/VoxelEngine.Tests.PlayMode.asmdef'
@@ -24,11 +28,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: placeholder-humanoid-playmode-${{ github.head_ref || github.ref_name }}
+  group: placeholder-humanoid-runtime-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
-  character-playmode:
+  character-runtime:
     name: Character placeholder runtime
     runs-on: [self-hosted, macOS]
     timeout-minutes: 15
@@ -70,18 +74,19 @@ jobs:
             sleep 5
           done
 
-      - name: Run focused character PlayMode tests
+      - name: Run focused character tests
         shell: bash
         run: |
           set -euo pipefail
-          ROOT="$GITHUB_WORKSPACE/Artifacts/PlaceholderHumanoidPlayMode"
+          ROOT="$GITHUB_WORKSPACE/Artifacts/PlaceholderHumanoidRuntime"
           rm -rf "$ROOT"
           mkdir -p "$ROOT"
           chmod +x tools/unity-run.sh
 
           run_test_class() {
-            local class_name="$1"
-            local artifact_name="$2"
+            local platform="$1"
+            local class_name="$2"
+            local artifact_name="$3"
             UNITY_MAX_RSS_MB=8192 \
             UNITY_BIN="${{ steps.unity.outputs.path }}" \
             tools/unity-run.sh \
@@ -90,7 +95,7 @@ jobs:
               -job-worker-count 1 \
               -projectPath "$GITHUB_WORKSPACE" \
               -runTests \
-              -testPlatform PlayMode \
+              -testPlatform "$platform" \
               -testFilter "$class_name" \
               -testResults "$ROOT/${artifact_name}.xml" \
               -logFile "$ROOT/${artifact_name}.log"
@@ -98,9 +103,15 @@ jobs:
           }
 
           run_test_class \
+            EditMode \
+            VoxelEngine.Tests.EditMode.PlaceholderCharacterFactoryFreshImportTests \
+            fresh-import
+          run_test_class \
+            PlayMode \
             VoxelEngine.Tests.PlayMode.CharacterVisualResolverPlayModeTests \
             resolver
           run_test_class \
+            PlayMode \
             VoxelEngine.Tests.PlayMode.CharacterAnimationPlayerPlayModeTests \
             animation-player
 
@@ -108,7 +119,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: placeholder-humanoid-playmode-${{ github.sha }}
-          path: Artifacts/PlaceholderHumanoidPlayMode/
+          name: placeholder-humanoid-runtime-${{ github.sha }}
+          path: Artifacts/PlaceholderHumanoidRuntime/
           if-no-files-found: warn
           retention-days: 7
