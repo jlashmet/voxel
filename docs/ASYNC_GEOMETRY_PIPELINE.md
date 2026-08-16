@@ -62,6 +62,7 @@ source-level regression guard are committed. Runtime/PlayMode acceptance remains
 ### Visibility and clipmap residency
 
 - [x] Replace `CollectVisible` scans of all known chunks with bounded ring/clipmap coordinate traversal.
+- [x] Make the camera-centred clipmap window the render-residency admission boundary; retire out-of-window chunks incrementally.
 - [ ] Introduce fixed/toroidal `SurfaceChunkSlot` residency per LOD ring with slot generation IDs.
 - [ ] Recycle only newly exposed clipmap edges when the camera crosses a chunk boundary.
 - [ ] Move visibility/culling to batched/GPU-driven draw compaction after slot ownership is stable.

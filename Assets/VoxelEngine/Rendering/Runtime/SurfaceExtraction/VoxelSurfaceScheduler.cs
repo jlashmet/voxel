@@ -288,6 +288,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             public readonly float InnerRadiusMetres;
             public readonly float OuterRadiusMetres;
             public readonly CpuTransvoxelChunkCache[] Workers;
+            public int3 ClipmapCentre { get; private set; }
+            public int ClipmapRadius { get; private set; }
+            public bool HasClipmapWindow { get; private set; }
 
             public SurfaceRing(int sourceStep, float innerRadiusMetres, float outerRadiusMetres,
                                int maxResidentChunks, SurfaceGeometryArena geometryArena)
@@ -307,6 +310,21 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                         MaxViewDistanceMetres = outerRadiusMetres,
                     };
                 }
+            }
+
+            public void UpdateClipmapWindow(Vector3 cameraPosition, float voxelSize)
+            {
+                float chunkMetres = CpuTransvoxelChunkCache.CellsPerAxis * SourceStep * voxelSize;
+                int radius = Mathf.CeilToInt(OuterRadiusMetres / chunkMetres) + 1;
+                int3 centre = new(
+                    Mathf.FloorToInt(cameraPosition.x / chunkMetres),
+                    Mathf.FloorToInt(cameraPosition.y / chunkMetres),
+                    Mathf.FloorToInt(cameraPosition.z / chunkMetres));
+                ClipmapCentre = centre;
+                ClipmapRadius = radius;
+                HasClipmapWindow = true;
+                for (int i = 0; i < Workers.Length; i++)
+                    Workers[i].SetClipmapWindow(centre, radius);
             }
 
             public void Dispose()
@@ -505,6 +523,13 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _surfaceDiscoveryRegions.Clear();
             _discoveredSurfaceBricks.Clear();
 
+            if (camera != null)
+            {
+                Vector3 cameraPosition = camera.transform.position;
+                for (int r = 0; r < _rings.Length; r++)
+                    _rings[r].UpdateClipmapWindow(cameraPosition, voxelSize);
+            }
+
             double journalStart = Time.realtimeSinceStartupAsDouble;
             using (s_JournalMarker.Auto())
                 ProcessChangeFeed(storage, journal);
@@ -651,13 +676,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                         for (int w = 0; w < ring.Workers.Length; w++)
                             ring.Workers[w].BeginVisibilityCollection();
 
-                        float chunkMetres = CpuTransvoxelChunkCache.CellsPerAxis
-                                          * ring.SourceStep * voxelSize;
-                        int radius = Mathf.CeilToInt(ring.OuterRadiusMetres / chunkMetres) + 1;
-                        int3 centre = new(
-                            Mathf.FloorToInt(cameraPosition.x / chunkMetres),
-                            Mathf.FloorToInt(cameraPosition.y / chunkMetres),
-                            Mathf.FloorToInt(cameraPosition.z / chunkMetres));
+                        if (!ring.HasClipmapWindow)
+                            ring.UpdateClipmapWindow(cameraPosition, voxelSize);
+                        int radius = ring.ClipmapRadius;
+                        int3 centre = ring.ClipmapCentre;
 
                         // One bounded clipmap-coordinate walk per ring. Sharding chooses the
                         // workspace in O(1); it no longer causes each workspace to rescan the

@@ -293,6 +293,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private readonly Stack<SurfaceChunkSlot> _slotPool = new();
         private uint _slotGenerationCounter;
         private readonly HashSet<int3> _known = new();
+        private bool _clipmapWindowValid;
+        private int3 _clipmapCenter;
+        private int _clipmapRadius;
         // Known-chunk liveness is maintained incrementally. A full HashSet scan in every worker
         // turns residency pressure into O(world-residency) frame work, so each known chunk owns
         // one round-robin queue record instead.
@@ -2785,8 +2788,26 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _transitionAppendIndexCursor = 0;
         }
 
+        public void SetClipmapWindow(int3 centre, int radius)
+        {
+            _clipmapCenter = centre;
+            _clipmapRadius = math.max(0, radius);
+            _clipmapWindowValid = true;
+        }
+
+        private bool WithinClipmapWindow(int3 chunk)
+        {
+            if (!_clipmapWindowValid) return true;
+            int3 delta = math.abs(chunk - _clipmapCenter);
+            return math.cmax(delta) <= _clipmapRadius;
+        }
+
         private void TrackKnown(int3 chunk)
         {
+            // Surface discovery/change feeds can cover a much larger resident Storage window than
+            // this LOD ring draws. Render residency is admitted only inside the camera clipmap;
+            // otherwise _known grows with world streaming rather than a fixed view footprint.
+            if (!WithinClipmapWindow(chunk)) return;
             if (!_known.Add(chunk)) return;
             SurfaceChunkSlot slot = _slotPool.Count > 0
                 ? _slotPool.Pop() : new SurfaceChunkSlot();
@@ -2799,7 +2820,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
         private bool BuildOwnsCurrentSlot()
         {
-            return _build.Active
+            return _build.Active && WithinClipmapWindow(_build.Coordinate)
                 && _slots.TryGetValue(_build.Coordinate, out SurfaceChunkSlot slot)
                 && slot.Generation == _build.SlotGeneration;
         }
@@ -2827,13 +2848,15 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 _queuedResidency.Remove(chunk);
                 if (!_known.Contains(chunk)) continue;
 
-                if (AnyOverlappedRegionResident(source, chunk))
+                if (WithinClipmapWindow(chunk) && AnyOverlappedRegionResident(source, chunk))
                 {
                     RequeueResidency(chunk);
                     continue;
                 }
 
-                // In-flight geometry is never waited on. If removal is deferred, put the chunk
+                // Out-of-window or non-resident chunks both retire incrementally. In-flight
+                // geometry is never waited on, and BuildOwnsCurrentSlot prevents an out-of-window
+                // generation from publishing while it waits for this cleanup pass. If removal is deferred, put the chunk
                 // back in the liveness queue and recheck it on a later frame.
                 if (!TryRemoveChunk(chunk)) RequeueResidency(chunk);
             }

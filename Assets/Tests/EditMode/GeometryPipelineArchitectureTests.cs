@@ -273,5 +273,21 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("RetireSlot(chunk)", cache);
         }
 
+
+        [Test]
+        public void ClipmapWindowOwnsRenderResidencyAdmission()
+        {
+            string cache = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"));
+            string scheduler = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "VoxelSurfaceScheduler.cs"));
+            StringAssert.Contains("public void SetClipmapWindow", cache);
+            StringAssert.Contains("if (!WithinClipmapWindow(chunk)) return;", cache);
+            StringAssert.Contains("WithinClipmapWindow(_build.Coordinate)", cache);
+            StringAssert.Contains("UpdateClipmapWindow(cameraPosition, voxelSize)", scheduler);
+            StringAssert.Contains("ClipmapCentre", scheduler);
+            StringAssert.Contains("ClipmapRadius", scheduler);
+        }
+
     }
 }
