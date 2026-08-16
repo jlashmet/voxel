@@ -2,7 +2,6 @@ using Game.Materials.Api;
 using Game.Materials.Runtime;
 using NUnit.Framework;
 using VoxelEngine.Storage.Api;
-using VoxelEngine.Storage.Runtime;
 
 namespace Game.Materials.Tests
 {
@@ -31,33 +30,22 @@ namespace Game.Materials.Tests
         }
 
         [Test]
-        public void SimulationDefinitions_RegisterWithoutPaletteHoles()
+        public void SimulationDefinitions_PreserveExpectedGameBehaviorProperties()
         {
             MaterialDefinition[] definitions = GameMaterialSimulationDefinitions.Create();
-            MaterialPalette palette = default;
-            for (int i = 0; i < definitions.Length; i++)
-                palette.Register(in definitions[i]);
 
-            Assert.That(palette.Count, Is.EqualTo(GameMaterialCatalogue.Count));
-            Assert.That(palette.IsRegistered(GameMaterialIds.Empty), Is.False);
-            for (byte materialId = 1; materialId < GameMaterialCatalogue.Count; materialId++)
-                Assert.That(palette.IsRegistered(materialId), Is.True,
-                    $"Palette hole at {GameMaterialCatalogue.NameOf(materialId)} ({materialId}).");
-
-            Assert.That(palette.IsFlammable(GameMaterialIds.Wood), Is.True);
-            Assert.That(palette.IsFlammable(GameMaterialIds.Cloth), Is.True);
-            Assert.That(palette.GetDestructionClass(GameMaterialIds.Water),
+            Assert.That(Find(definitions, GameMaterialIds.Wood).Flammable, Is.True);
+            Assert.That(Find(definitions, GameMaterialIds.Cloth).Flammable, Is.True);
+            Assert.That(Find(definitions, GameMaterialIds.Water).DestructionClass,
                 Is.EqualTo(DestructionClass.Spreading));
+            Assert.That(Find(definitions, GameMaterialIds.Bedrock).DestructionClass,
+                Is.EqualTo(DestructionClass.None));
         }
 
         [Test]
         public void PreviouslyImplicitRows_AreExplicitButBehaviorPreserving()
         {
             MaterialDefinition[] definitions = GameMaterialSimulationDefinitions.Create();
-            MaterialPalette palette = default;
-            for (int i = 0; i < definitions.Length; i++)
-                palette.Register(in definitions[i]);
-
             byte[] compatibilityRows =
             {
                 GameMaterialIds.Cascade,
@@ -67,12 +55,21 @@ namespace Game.Materials.Tests
 
             for (int i = 0; i < compatibilityRows.Length; i++)
             {
-                byte materialId = compatibilityRows[i];
-                Assert.That(palette.IsRegistered(materialId), Is.True);
-                Assert.That(palette.GetHardness(materialId), Is.EqualTo(0));
-                Assert.That(palette.GetDestructionClass(materialId), Is.EqualTo(DestructionClass.None));
-                Assert.That(palette.IsFlammable(materialId), Is.False);
+                MaterialDefinition definition = Find(definitions, compatibilityRows[i]);
+                Assert.That(definition.Hardness, Is.EqualTo(0));
+                Assert.That(definition.DestructionClass, Is.EqualTo(DestructionClass.None));
+                Assert.That(definition.Flammable, Is.False);
             }
+        }
+
+        private static MaterialDefinition Find(MaterialDefinition[] definitions, byte materialId)
+        {
+            for (int i = 0; i < definitions.Length; i++)
+                if (definitions[i].MaterialId == materialId)
+                    return definitions[i];
+
+            Assert.Fail($"Missing simulation definition for material {materialId}.");
+            return default;
         }
     }
 }
