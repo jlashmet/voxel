@@ -121,5 +121,37 @@ namespace VoxelEngine.Tests.PlayMode
             Object.Destroy(clip);
             yield return null;
         }
+
+        [UnityTest]
+        public IEnumerator DisabledPlayer_RebindsLatestVisualWhenReenabled()
+        {
+            var host = new GameObject("character");
+            var fallback = new GameObject("fallback");
+            var preferred = new GameObject("preferred");
+            fallback.AddComponent<Animator>();
+            preferred.AddComponent<Animator>();
+
+            var resolver = host.AddComponent<CharacterVisualResolver>();
+            var player = host.AddComponent<CharacterAnimationPlayer>();
+
+            resolver.SetFallbackVisual(fallback);
+            Animator fallbackAnimator = resolver.CurrentVisual.GetComponent<Animator>();
+            Assert.That(player.Animator, Is.SameAs(fallbackAnimator));
+
+            player.enabled = false;
+            resolver.SetPreferredVisual(preferred);
+            Animator preferredAnimator = resolver.CurrentVisual.GetComponent<Animator>();
+
+            Assert.That(player.Animator, Is.SameAs(fallbackAnimator));
+
+            player.enabled = true;
+
+            Assert.That(player.Animator, Is.SameAs(preferredAnimator));
+
+            Object.Destroy(host);
+            Object.Destroy(fallback);
+            Object.Destroy(preferred);
+            yield return null;
+        }
     }
 }
