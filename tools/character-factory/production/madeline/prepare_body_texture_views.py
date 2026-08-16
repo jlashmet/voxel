@@ -8,10 +8,8 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageFilter, ImageFile
 
-# The approved Madeline turnaround JPEGs currently stored on the branch were written
-# without a complete trailing JPEG stream. Pillow rejects them by default even though
-# the usable scan data is present. Decode permissively once, then immediately write
-# fresh, valid body-only JPEGs before any geometry/texture backend sees the images.
+# Be permissive when reading old source refs, but every output is re-encoded as a
+# fresh JPEG before it is passed to Hunyuan.
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 VIEW_NAMES = ("front", "back", "left", "right")
@@ -20,9 +18,8 @@ VIEW_NAMES = ("front", "back", "left", "right")
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Convert Madeline's tight base-layer turnaround into body-only texture references. "
-            "The original images remain the geometry inputs; this only neutralizes the base layer "
-            "for final source-color projection so clothing is not baked into the character texture."
+            "Convert Madeline's tight neutral turnaround layer into seamless body-only "
+            "conditioning views while preserving the approved silhouette, face, and hair."
         )
     )
     parser.add_argument("--input-dir", required=True)
@@ -34,17 +31,20 @@ def parse_args() -> argparse.Namespace:
 def _garment_seed(arr: np.ndarray) -> np.ndarray:
     r, g, b = (arr[..., index] for index in range(3))
     chroma = np.max(arr, axis=2) - np.min(arr, axis=2)
+    # The temporary modeling layer is low-chroma warm beige. This is deliberately
+    # conservative: the expanded body region below removes seams and trim around
+    # the detected layer instead of trying to classify every antialiased edge.
     return (
         (r > 145)
         & (g > 135)
         & (b > 110)
-        & ((r - b) >= 7)
-        & ((r - b) <= 58)
-        & ((r - g) >= 1)
-        & ((r - g) <= 38)
+        & ((r - b) >= 12)
+        & ((r - b) <= 55)
+        & ((r - g) >= 4)
+        & ((r - g) <= 32)
         & ((g - b) >= 3)
-        & ((g - b) <= 32)
-        & (chroma > 7)
+        & ((g - b) <= 27)
+        & (chroma > 10)
     )
 
 
@@ -63,10 +63,16 @@ def _skin_sample(arr: np.ndarray, yy: np.ndarray) -> np.ndarray:
 
 
 def _body_region(seed: np.ndarray) -> np.ndarray:
+    """Build one smooth central torso/hip region from sparse beige detections.
+
+    Filling and interpolating the row extents is important: the original artwork has
+    dark neckline and shorts-hem strokes that are not beige themselves. A raw color
+    mask therefore leaves exactly the clothing cues that we need to remove.
+    """
     height, width = seed.shape
-    region = np.zeros((height, width), dtype=bool)
     center_lo = int(width * 0.20)
     center_hi = int(width * 0.80)
+    rows: list[tuple[int, int, int]] = []
 
     for y in range(height):
         xs = np.where(seed[y, center_lo:center_hi])[0] + center_lo
@@ -74,55 +80,77 @@ def _body_region(seed: np.ndarray) -> np.ndarray:
             continue
         lo = int(xs.min())
         hi = int(xs.max())
+        if (y / float(height)) < 0.36:
+            lo = max(lo, int(width * 0.30))
+            hi = min(hi, int(width * 0.70))
         span = hi - lo
         if span < 4 or span > int(width * 0.52):
             continue
-        region[y, max(0, lo - 2) : min(width, hi + 3)] = True
+        rows.append((y, lo, hi))
 
-    return np.asarray(
-        Image.fromarray((region * 255).astype(np.uint8)).filter(ImageFilter.MaxFilter(3))
+    region = np.zeros((height, width), dtype=bool)
+    if not rows:
+        return region
+
+    ys = np.asarray([row[0] for row in rows], dtype=np.float32)
+    los = np.asarray([row[1] for row in rows], dtype=np.float32)
+    his = np.asarray([row[2] for row in rows], dtype=np.float32)
+    start = max(0, int(ys.min()) - 8)
+    end = min(height - 1, int(ys.max()) + 10)
+
+    for y in range(start, end + 1):
+        lo = int(round(float(np.interp(y, ys, los)))) - 4
+        hi = int(round(float(np.interp(y, ys, his)))) + 4
+        if (y / float(height)) < 0.36:
+            lo = max(lo, int(width * 0.29))
+            hi = min(hi, int(width * 0.71))
+        region[y, max(0, lo) : min(width, hi + 1)] = True
+
+    # Seven pixels of expansion at 512-wide source resolution erases antialiased
+    # neckline/strap/shorts seams without changing the outer silhouette. Keep that
+    # expansion out of the T-pose arms; otherwise JPEG antialiasing can make skin
+    # look enough like beige that the arms get flattened into the torso mask.
+    region = np.asarray(
+        Image.fromarray((region * 255).astype(np.uint8)).filter(ImageFilter.MaxFilter(15))
     ) > 0
-
-
-def _load_rgb(source: Path) -> Image.Image:
-    image = Image.open(source)
-    image.load()
-    rgb = image.convert("RGB")
-    if rgb.width < 256 or rgb.height < 384:
-        raise RuntimeError(
-            f"{source.name}: decoded reference is unexpectedly small: {rgb.width}x{rgb.height}"
-        )
-    return rgb
+    yy = np.arange(height, dtype=np.float32)[:, None] / float(height)
+    xx = np.arange(width, dtype=np.float32)[None, :] / float(width)
+    region[(yy < 0.36) & ((xx < 0.285) | (xx > 0.715))] = False
+    return region
 
 
 def prepare_view(source: Path, destination: Path) -> dict[str, object]:
-    image = _load_rgb(source)
+    image = Image.open(source).convert("RGB")
     arr = np.asarray(image).astype(np.float32)
     height, width = arr.shape[:2]
     r, g, b = (arr[..., index] for index in range(3))
     chroma = np.max(arr, axis=2) - np.min(arr, axis=2)
     yy = np.arange(height, dtype=np.float32)[:, None] / float(height)
 
-    seed = _garment_seed(arr) & (yy > 0.235) & (yy < 0.625)
+    seed = _garment_seed(arr) & (yy > 0.225) & (yy < 0.64)
     region = _body_region(seed)
 
     foreground = (chroma > 6) | (((r + g + b) / 3.0) < 205)
-    hair = ((r - b) > 70) | ((r - g) > 60)
+    # Blonde hair has a much larger green-blue separation than Madeline's skin.
+    # Protect it explicitly, especially where the back hair overlaps the torso.
+    hair = ((g - b) > 40) & ((r - b) > 78) & (r > 130)
     mask = region & foreground & (~hair)
 
     soft_mask = np.asarray(
-        Image.fromarray((mask * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(1.2))
+        Image.fromarray((mask * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(1.5))
     ).astype(np.float32) / 255.0
     soft_mask *= (foreground & (~hair)).astype(np.float32)
 
-    skin_mask = _skin_sample(arr, yy)
-    skin_values = arr[skin_mask]
+    skin_values = arr[_skin_sample(arr, yy)]
     skin = (
         np.median(skin_values, axis=0)
         if len(skin_values)
         else np.array([252.0, 211.0, 182.0], dtype=np.float32)
     )
 
+    # Preserve broad lighting/shading from the source while replacing the hue and
+    # fine clothing lines. This gives Hunyuan useful volume cues without feeding it
+    # a neckline, straps, or shorts hem.
     luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
     smooth_luminance = np.asarray(
         Image.fromarray(luminance.astype(np.uint8)).filter(ImageFilter.GaussianBlur(8.0))
@@ -135,13 +163,11 @@ def prepare_view(source: Path, destination: Path) -> dict[str, object]:
     destination.parent.mkdir(parents=True, exist_ok=True)
     Image.fromarray(output.astype(np.uint8)).save(destination, quality=95, subsampling=0)
 
-    output_image = Image.open(destination)
-    output_image.load()
-    output_arr = np.asarray(output_image.convert("RGB")).astype(np.float32)
+    output_arr = np.asarray(Image.open(destination).convert("RGB")).astype(np.float32)
     before = int(seed.sum())
-    after = int((_garment_seed(output_arr) & (yy > 0.235) & (yy < 0.625)).sum())
+    after = int((_garment_seed(output_arr) & (yy > 0.225) & (yy < 0.64)).sum())
     reduction = 1.0 - (after / max(before, 1))
-    if reduction < 0.70:
+    if reduction < 0.80:
         raise RuntimeError(
             f"{source.name}: body-only preparation removed only {reduction:.1%} of base-layer pixels"
         )
@@ -154,6 +180,7 @@ def prepare_view(source: Path, destination: Path) -> dict[str, object]:
         "base_layer_pixels_before": before,
         "base_layer_pixels_after": after,
         "base_layer_reduction": reduction,
+        "masked_pixels": int(mask.sum()),
         "sampled_skin_rgb": [round(float(value), 2) for value in skin],
     }
 
@@ -169,8 +196,7 @@ def main() -> int:
         source = input_dir / f"{name}.jpg"
         if not source.is_file():
             raise RuntimeError(f"missing Madeline reference view: {source}")
-        result = prepare_view(source, output_dir / f"{name}.jpg")
-        report["views"][name] = result
+        report["views"][name] = prepare_view(source, output_dir / f"{name}.jpg")
 
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
