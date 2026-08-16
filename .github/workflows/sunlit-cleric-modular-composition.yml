@@ -4,8 +4,7 @@ on:
   push:
     branches: [feature/character-weapon-asset-pipeline]
     paths:
-      - '.github/workflows/sunlit-cleric-modular-composition.yml'
-      - 'tools/character-factory/runtime/blender_export_animated_canonical.py'
+      - 'docs/lookdev/characters/madeline/base-body/**'
   workflow_dispatch:
 
 permissions:
@@ -17,18 +16,21 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  verify-real-robe-composition:
+  verify-real-madeline-cleric-loadout:
     runs-on: [self-hosted, macOS]
-    timeout-minutes: 20
+    timeout-minutes: 45
     env:
       OUT: Artifacts/SunlitClericModularComposition
+      BASE_SOURCE: Artifacts/MadelineBaseSource
       ROBE_SOURCE: Artifacts/SunlitClericRobeSource
+      STAFF_OUT: Artifacts/SunlitClericStaffForComposition
       REVIEW_DIR: docs/lookdev/characters/sunlit-cleric/modular
 
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 1
+          clean: false
 
       - name: Resolve Blender
         shell: bash
@@ -38,14 +40,14 @@ jobs:
           test -x "$BLENDER_BIN"
           echo "BLENDER_BIN=$BLENDER_BIN" >> "$GITHUB_ENV"
 
-      - name: Download latest generated robe artifact
+      - name: Download latest verified Madeline base and generated robe artifacts
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
-          rm -rf "$OUT" "$ROBE_SOURCE"
-          mkdir -p "$OUT" "$ROBE_SOURCE"
+          rm -rf "$OUT" "$BASE_SOURCE" "$ROBE_SOURCE" "$STAFF_OUT"
+          mkdir -p "$OUT" "$BASE_SOURCE" "$ROBE_SOURCE"
           python3 - <<'PY'
           import io
           import json
@@ -68,90 +70,170 @@ jobs:
               with urlopen(request, timeout=60) as response:
                   return json.load(response)
 
-          params = urlencode({
-              'branch': 'feature/character-weapon-asset-pipeline',
-              'status': 'success',
-              'per_page': 10,
-          })
-          runs = get_json(
-              f'https://api.github.com/repos/{repo}/actions/workflows/'
-              f'sunlit-cleric-robe-multiview-build.yml/runs?{params}'
-          ).get('workflow_runs', [])
-          if not runs:
-              raise RuntimeError('no successful generated robe run found')
-          run = runs[0]
-          artifacts = get_json(
-              f'https://api.github.com/repos/{repo}/actions/runs/{run["id"]}/artifacts?per_page=100'
-          ).get('artifacts', [])
-          artifact = next(
-              (item for item in artifacts if item.get('name') == 'sunlit-cleric-modular-robe'),
-              None,
-          )
-          if artifact is None:
-              raise RuntimeError(f'robe artifact missing from run {run["id"]}')
+          def latest_artifact(
+              workflow: str,
+              artifact_name: str,
+              destination: Path,
+              *,
+              require_success: bool,
+          ):
+              params_data = {
+                  'branch': 'feature/character-weapon-asset-pipeline',
+                  'per_page': 20,
+              }
+              if require_success:
+                  params_data['status'] = 'success'
+              params = urlencode(params_data)
+              runs = get_json(
+                  f'https://api.github.com/repos/{repo}/actions/workflows/{workflow}/runs?{params}'
+              ).get('workflow_runs', [])
+              if not runs:
+                  qualifier = 'successful ' if require_success else ''
+                  raise RuntimeError(f'no {qualifier}workflow run found for {workflow}')
 
-          request = Request(
-              f'https://api.github.com/repos/{repo}/actions/artifacts/{artifact["id"]}/zip',
-              headers=headers,
-          )
-          with urlopen(request, timeout=120) as response:
-              archive = response.read()
-          root = Path(os.environ['ROBE_SOURCE'])
-          with zipfile.ZipFile(io.BytesIO(archive)) as zipped:
-              zipped.extractall(root)
+              for run in runs:
+                  artifacts = get_json(
+                      f'https://api.github.com/repos/{repo}/actions/runs/{run["id"]}/artifacts?per_page=100'
+                  ).get('artifacts', [])
+                  artifact = next(
+                      (item for item in artifacts if item.get('name') == artifact_name and not item.get('expired')),
+                      None,
+                  )
+                  if artifact is None:
+                      continue
 
-          matches = list(root.rglob('sunlit_cleric_robe_01.fbx'))
-          if len(matches) != 1:
-              raise RuntimeError(f'expected one modular robe FBX, found {matches}')
+                  request = Request(
+                      f'https://api.github.com/repos/{repo}/actions/artifacts/{artifact["id"]}/zip',
+                      headers=headers,
+                  )
+                  with urlopen(request, timeout=180) as response:
+                      archive = response.read()
+                  destination.mkdir(parents=True, exist_ok=True)
+                  with zipfile.ZipFile(io.BytesIO(archive)) as zipped:
+                      zipped.extractall(destination)
+                  return {
+                      'workflow': workflow,
+                      'workflow_run_id': int(run['id']),
+                      'workflow_head_sha': run['head_sha'],
+                      'workflow_conclusion': run.get('conclusion'),
+                      'artifact_name': artifact_name,
+                      'artifact_id': int(artifact['id']),
+                  }
+
+              qualifier = 'successful ' if require_success else ''
+              raise RuntimeError(
+                  f'no unexpired {artifact_name!r} artifact found in {qualifier}runs of {workflow}'
+              )
+
+          # The Madeline artifact is uploaded only after build.sh has completed its
+          # rig, animation, render, and staging verification. A later docs-publish
+          # push can fail independently if the feature branch advanced while the
+          # expensive reconstruction was running, so artifact existence is the
+          # stronger signal here than whole-workflow conclusion.
+          base = latest_artifact(
+              'madeline-base-body-build.yml',
+              'madeline-base-body',
+              Path(os.environ['BASE_SOURCE']),
+              require_success=False,
+          )
+          robe = latest_artifact(
+              'sunlit-cleric-robe-multiview-build.yml',
+              'sunlit-cleric-modular-robe',
+              Path(os.environ['ROBE_SOURCE']),
+              require_success=True,
+          )
+
+          base_matches = list(Path(os.environ['BASE_SOURCE']).rglob('madeline_body_01.fbx'))
+          if len(base_matches) != 1:
+              raise RuntimeError(f'expected one Madeline base FBX, found {base_matches}')
+          robe_matches = list(Path(os.environ['ROBE_SOURCE']).rglob('sunlit_cleric_robe_01.fbx'))
+          if len(robe_matches) != 1:
+              raise RuntimeError(f'expected one modular robe FBX, found {robe_matches}')
+
           Path(os.environ['OUT'], 'composition-source.json').write_text(
-              json.dumps({
-                  'robe_workflow_run_id': int(run['id']),
-                  'robe_artifact_id': int(artifact['id']),
-                  'robe_workflow_head_sha': run['head_sha'],
-              }, indent=2) + '\n',
+              json.dumps({'madeline': base, 'robe': robe}, indent=2) + '\n',
               encoding='utf-8',
           )
           PY
 
-      - name: Build independent animated base body
+      - name: Verify independent Madeline base before dressing
         shell: bash
         run: |
           set -euo pipefail
-          CANONICAL="$GITHUB_WORKSPACE/$OUT/canonical_female.glb"
-          INPUT_RENDER="$GITHUB_WORKSPACE/$OUT/canonical_female.input.png"
-          BASE_FBX="$GITHUB_WORKSPACE/$OUT/sunlit_cleric_base_01.fbx"
-
-          "$BLENDER_BIN" --background --python-exit-code 1 \
-            --python tools/character-factory/ci/create_canonical_character_fixture.py -- \
-            --canonical "$CANONICAL" \
-            --input "$INPUT_RENDER"
-
-          "$BLENDER_BIN" --background --python-exit-code 1 \
-            --python tools/character-factory/runtime/blender_export_animated_canonical.py -- \
-            --input "$CANONICAL" \
-            --output "$BASE_FBX"
-
+          BASE_FBX="$(find "$GITHUB_WORKSPACE/$BASE_SOURCE" -name 'madeline_body_01.fbx' -type f -print -quit)"
           test -s "$BASE_FBX"
+
           "$BLENDER_BIN" --background --python-exit-code 1 \
             --python tools/character-factory/ci/verify_skinned_character.py -- \
             --input "$BASE_FBX"
           "$BLENDER_BIN" --background --python-exit-code 1 \
             --python tools/character-factory/ci/verify_character_animations.py -- \
             --input "$BASE_FBX"
+          "$BLENDER_BIN" --background --python-exit-code 1 \
+            --python tools/character-factory/ci/verify_madeline_base_contract.py -- \
+            --input "$BASE_FBX"
 
-      - name: Rebind generated robe to one shared skeleton and pose both meshes
+      - name: Verify robe rebinding against Madeline skeleton
         shell: bash
         run: |
           set -euo pipefail
-          BASE_FBX="$GITHUB_WORKSPACE/$OUT/sunlit_cleric_base_01.fbx"
+          BASE_FBX="$(find "$GITHUB_WORKSPACE/$BASE_SOURCE" -name 'madeline_body_01.fbx' -type f -print -quit)"
           ROBE_FBX="$(find "$GITHUB_WORKSPACE/$ROBE_SOURCE" -name 'sunlit_cleric_robe_01.fbx' -type f -print -quit)"
-          COMPOSITE="$GITHUB_WORKSPACE/$OUT/sunlit_cleric_modular_composite.png"
+          ROBE_COMPOSITE="$GITHUB_WORKSPACE/$OUT/sunlit_cleric_madeline_robe.png"
+          test -s "$BASE_FBX"
           test -s "$ROBE_FBX"
 
           "$BLENDER_BIN" --background --python-exit-code 1 \
             --python tools/character-factory/ci/verify_modular_character_clothing.py -- \
             --character "$BASE_FBX" \
             --clothing "$ROBE_FBX" \
+            --output "$ROBE_COMPOSITE"
+          test -s "$ROBE_COMPOSITE"
+
+      - name: Build the separate Sun Staff weapon product
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash tools/character-factory/production/sunlit-cleric/build_staff_macos.sh \
+            "$GITHUB_WORKSPACE/$STAFF_OUT" \
+            "$GITHUB_WORKSPACE/Assets/Generated/CharacterFactory"
+          test -s "$STAFF_OUT/sunlit_cleric_staff_01.fbx"
+          test -s "$STAFF_OUT/manifest.json"
+
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path(os.environ['OUT'], 'composition-source.json')
+          data = json.loads(path.read_text(encoding='utf-8'))
+          data['staff'] = {
+              'build_head_sha': os.environ['GITHUB_SHA'],
+              'asset_id': 'sunlit_cleric_staff_01',
+              'slot': 'MainHand',
+              'socket': 'RightHand',
+          }
+          path.write_text(json.dumps(data, indent=2) + '\n', encoding='utf-8')
+          PY
+
+      - name: Verify complete Madeline Cleric loadout
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_FBX="$(find "$GITHUB_WORKSPACE/$BASE_SOURCE" -name 'madeline_body_01.fbx' -type f -print -quit)"
+          ROBE_FBX="$(find "$GITHUB_WORKSPACE/$ROBE_SOURCE" -name 'sunlit_cleric_robe_01.fbx' -type f -print -quit)"
+          STAFF_FBX="$GITHUB_WORKSPACE/$STAFF_OUT/sunlit_cleric_staff_01.fbx"
+          COMPOSITE="$GITHUB_WORKSPACE/$OUT/sunlit_cleric_modular_composite.png"
+          test -s "$BASE_FBX"
+          test -s "$ROBE_FBX"
+          test -s "$STAFF_FBX"
+
+          "$BLENDER_BIN" --background --python-exit-code 1 \
+            --python tools/character-factory/ci/verify_modular_character_loadout.py -- \
+            --character "$BASE_FBX" \
+            --clothing "$ROBE_FBX" \
+            --weapon "$STAFF_FBX" \
+            --socket RightHand \
             --output "$COMPOSITE"
           test -s "$COMPOSITE"
 
@@ -168,6 +250,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$REVIEW_DIR"
+          cp "$OUT/sunlit_cleric_madeline_robe.png" "$REVIEW_DIR/"
           cp "$OUT/sunlit_cleric_modular_composite.png" "$REVIEW_DIR/"
           cp "$OUT/composition-source.json" "$REVIEW_DIR/"
           git config user.name 'github-actions[bot]'
@@ -177,5 +260,5 @@ jobs:
             echo 'Latest modular composition review is already published.'
             exit 0
           fi
-          git commit -m 'docs(characters): publish cleric modular composition proof [modular-review]'
+          git commit -m 'docs(characters): publish Madeline Cleric modular proof [modular-review]'
           git push origin HEAD:feature/character-weapon-asset-pipeline

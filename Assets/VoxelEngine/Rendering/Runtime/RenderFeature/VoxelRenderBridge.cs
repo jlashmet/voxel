@@ -40,6 +40,24 @@ namespace VoxelEngine.Rendering.Runtime
         /// <summary>Versioned changes consumed independently by every derived render domain.</summary>
         public static IVoxelChangeSource Changes;
 
+        // The URP renderer feature outlives individual application worlds. A world owner must be
+        // able to synchronously retire renderer-side jobs/pins before disposing the Storage that
+        // backs them. Keep the callback private to Rendering.Runtime; Composition gets only the
+        // release operation, not scheduler ownership.
+        private static event System.Action s_WorldReleasing;
+
+        internal static void RegisterWorldReleaseHandler(System.Action handler) =>
+            s_WorldReleasing += handler;
+
+        internal static void UnregisterWorldReleaseHandler(System.Action handler) =>
+            s_WorldReleasing -= handler;
+
+        public static void ReleaseWorldResources()
+        {
+            s_WorldReleasing?.Invoke();
+            SurfaceMetrics = default;
+        }
+
         /// <summary>
         /// Read-only diagnostics from the most recent production surface pass. Offline captures,
         /// telemetry and tests may observe convergence; they never drive extraction through this
@@ -50,6 +68,11 @@ namespace VoxelEngine.Rendering.Runtime
         public static int RenderFeatureEnqueueCount { get; internal set; }
         public static int SurfacePassRecordCount { get; internal set; }
         public static string LastSurfacePassState { get; internal set; } = "not-recorded";
+        /// <summary>
+        /// Full human-readable per-frame diagnostic strings allocate. Keep them disabled in
+        /// gameplay; structured SurfaceMetrics carries the same data without formatting garbage.
+        /// </summary>
+        public static bool VerboseSurfaceDiagnostics;
 
         public static void ResetSurfacePassDiagnostics(string state = "not-recorded")
         {
@@ -63,10 +86,19 @@ namespace VoxelEngine.Rendering.Runtime
         /// loading screens, offline captures and photo modes may temporarily spend more to reach
         /// convergence without changing geometry semantics or introducing another extractor.
         /// </summary>
-        // Four asynchronous worker shards each receive this bounded admission/publication slice.
-        // 0.50 ms keeps worst-case render-thread orchestration near 2 ms while Burst topology
-        // proceeds off-thread; 0.20 ms fell below useful post-job granularity on Apple silicon.
+        // Renderer-wide admission/publication controls. These are shared across every
+        // LOD ring and worker; adding workers must never multiply the frame budget.
         public static double SolidBuildBudgetMs = 0.50;
+        public static int SolidUploadBudgetBytes = 1024 * 1024;
+        public static int SolidUploadSliceBytes = 256 * 1024;
+        public static int SolidUploadWorkerBudget = 4;
+        public static double SolidUploadBudgetMs = 0.20;
+        /// <summary>
+        /// Soft cap for active solid arena leases. The default does not constrain the fixed
+        /// arena; tests/debugging may lower it to exercise real backpressure without reallocating
+        /// GPU buffers or changing the arena's committed byte size.
+        /// </summary>
+        public static int SolidArenaMaxActiveLeases = int.MaxValue;
         public static double WaterBuildBudgetMs = 0.15;
         public static bool SurfaceBuildEnabled = true;
 

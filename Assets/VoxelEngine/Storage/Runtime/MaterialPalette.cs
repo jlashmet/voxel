@@ -15,10 +15,11 @@ namespace VoxelEngine.Storage.Runtime
     /// remains a separate property so a material can, for example, splinter and also catch fire.
     /// </summary>
     public unsafe struct MaterialPalette : IMaterialAuthoringCatalogue,
+                                           IMaterialPlacementCatalogue,
                                            IMaterialPresentationCatalogue,
                                            IMaterialSimulationCatalogue
     {
-        /// <summary>Number of registered materials in the palette.</summary>
+        /// <summary>Number of occupied palette slots, including any gaps below the highest registered ID.</summary>
         public int Count => _count;
         public uint Version { get; private set; }
 
@@ -31,9 +32,14 @@ namespace VoxelEngine.Storage.Runtime
         private fixed byte _flammable[MaxMaterials];
         private fixed ushort _defaultSurfaceStyle[MaxMaterials];
         private fixed uint _allowedCoatings[MaxMaterials];
+        private fixed ushort _placementSurfaceStyle[MaxMaterials];
+        private fixed byte _placementCoating[MaxMaterials];
         private fixed byte _registered[MaxMaterials];
 
         public bool IsCreated => _count > 0;
+
+        /// <summary>Clears every authored slot. Intended for composition-time catalogue replacement.</summary>
+        public void Clear() => this = default;
 
         /// <summary>Register a material with its destruction class and properties.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -43,7 +49,9 @@ namespace VoxelEngine.Storage.Runtime
         }
 
         public void Register(byte index, byte hardness, DestructionClass destructionClass,
-                             ushort defaultSurfaceStyle, uint allowedCoatings)
+                             ushort defaultSurfaceStyle, uint allowedCoatings,
+                             ushort placementSurfaceStyle = SurfaceStyles.MaterialDefault,
+                             byte placementCoating = Coatings.None)
         {
             if ((uint)index >= (uint)MaxMaterials)
                 return; // Silently ignore — palette entries beyond capacity are undefined.
@@ -56,9 +64,20 @@ namespace VoxelEngine.Storage.Runtime
                              || destructionClass == DestructionClass.Splinter ? (byte)1 : (byte)0;
             _defaultSurfaceStyle[index] = defaultSurfaceStyle;
             _allowedCoatings[index] = allowedCoatings;
+            _placementSurfaceStyle[index] = placementSurfaceStyle;
+            _placementCoating[index] = placementCoating;
             _registered[index] = 1;
             Version++;
             if (index + 1 > _count) _count = (byte)(index + 1);
+        }
+
+        /// <summary>Registers the generic definition supplied by a game/content composition root.</summary>
+        public void Register(in MaterialDefinition definition)
+        {
+            Register(definition.MaterialId, definition.Hardness, definition.DestructionClass,
+                     definition.DefaultSurfaceStyle, definition.AllowedCoatings,
+                     definition.PlacementSurfaceStyle, definition.PlacementCoating);
+            SetFlammable(definition.MaterialId, definition.Flammable);
         }
 
         /// <summary>Overrides whether an already registered material participates in fire.</summary>
@@ -80,6 +99,13 @@ namespace VoxelEngine.Storage.Runtime
             IsRegistered(materialIndex)
                 ? _defaultSurfaceStyle[materialIndex] : SurfaceStyles.Smooth;
 
+        public ushort GetPlacementSurfaceStyle(byte materialIndex) =>
+            IsRegistered(materialIndex)
+                ? _placementSurfaceStyle[materialIndex] : SurfaceStyles.MaterialDefault;
+
+        public byte GetPlacementCoating(byte materialIndex) =>
+            IsRegistered(materialIndex) ? _placementCoating[materialIndex] : Coatings.None;
+
         public bool IsRegistered(byte materialIndex) =>
             materialIndex < _count && _registered[materialIndex] != 0;
 
@@ -93,22 +119,22 @@ namespace VoxelEngine.Storage.Runtime
         public static implicit operator MaterialPaletteView(MaterialPalette source) =>
             MaterialPaletteView.Capture(in source);
 
-        /// <summary>Look up the destruction class for a given material index.</summary>
+        /// <summary>Look up the destruction class for a registered material index.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public DestructionClass GetDestructionClass(byte materialIndex)
         {
-            if ((uint)materialIndex >= (uint)_count)
-                return DestructionClass.None; // Out-of-palette materials are treated as inert.
+            if (!IsRegistered(materialIndex))
+                return DestructionClass.None; // Unknown or gap slots are inert.
 
             return (DestructionClass)_destructionClass[materialIndex];
         }
 
-        /// <summary>Look up the hardness for a given material index.</summary>
+        /// <summary>Look up the hardness for a registered material index.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public byte GetHardness(byte materialIndex)
         {
-            if ((uint)materialIndex >= (uint)_count)
-                return 0; // Unknown materials resist no destruction.
+            if (!IsRegistered(materialIndex))
+                return 0; // Unknown or gap slots have no authored hardness.
 
             return _hardness[materialIndex];
         }

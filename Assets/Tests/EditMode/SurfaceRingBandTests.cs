@@ -17,6 +17,40 @@ namespace VoxelEngine.Tests.EditMode
     /// </summary>
     public sealed class SurfaceRingBandTests
     {
+        [Test]
+        public void ToroidalSlotGridMaintainsDenseActiveCoordinatesAcrossReuse()
+        {
+            var grid = new SurfaceChunkSlotGrid();
+            grid.UpdateWindow(int3.zero, 1); // edge = 3
+
+            Assert.True(grid.TryAcquire(int3.zero, out SurfaceChunkSlot first));
+            Assert.True(grid.TryAcquire(new int3(1, 0, 0), out _));
+            Assert.AreEqual(2, grid.ActiveCount);
+
+            // Moving three cells makes x=3 reuse x=0's toroidal slot. It must advance the slot
+            // generation without growing the dense active set.
+            grid.UpdateWindow(new int3(3, 0, 0), 1);
+            Assert.True(grid.TryAcquire(new int3(3, 0, 0), out SurfaceChunkSlot replacement));
+            Assert.AreNotEqual(first.Generation, replacement.Generation);
+            Assert.AreEqual(2, grid.ActiveCount);
+
+            bool sawReplacement = false;
+            bool sawOutgoing = false;
+            for (int i = 0; i < grid.ActiveCount; i++)
+            {
+                int3 coordinate = grid.ActiveCoordinateAt(i);
+                sawReplacement |= coordinate.Equals(new int3(3, 0, 0));
+                sawOutgoing |= coordinate.Equals(new int3(1, 0, 0));
+            }
+            Assert.True(sawReplacement);
+            Assert.True(sawOutgoing,
+                "Outgoing slots remain indexed until the cache's bounded edge-retirement slice runs.");
+
+            grid.Retire(new int3(1, 0, 0));
+            Assert.AreEqual(1, grid.ActiveCount);
+            Assert.AreEqual(new int3(3, 0, 0), grid.ActiveCoordinateAt(0));
+        }
+
         // -------------------------------------------------------------------------
         // Ring geometry
         // -------------------------------------------------------------------------
@@ -49,23 +83,24 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void FineRingsReadVoxelsAndCoarseRingsReadMips()
+        public void RenderRingsUseFeaturePreservingStepEightAndMipsBeyondIt()
         {
-            // The dividing line sits one step *above* a brick, not on it. Mip level 0 is a
-            // conservative any-solid 8^3 summary, so reading it at an 8-voxel stride inflates
-            // thin structures to whole cells and closes architectural openings — the coarse-LOD
-            // castle regression. VoxelReadGrid.LevelForStride therefore returns -1 for a stride
-            // of 8, and only strides coarser than a brick sample the pyramid.
+            // Step 8 keeps exact COW Storage inputs but no longer runs exact Transvoxel. It
+            // compresses those inputs into spatial 4^3 HLOD subcells; coarser experimental rings
+            // beyond step 8 may still consume the conventional mip pyramid.
             using (var fine = new CpuTransvoxelChunkCache(1))
                 Assert.IsFalse(fine.SamplesFromMips, "Step 1 must read voxels.");
             using (var fine2 = new CpuTransvoxelChunkCache(4))
                 Assert.IsFalse(fine2.SamplesFromMips, "Step 4 is still sub-brick.");
-            using (var atBrick = new CpuTransvoxelChunkCache(8))
-                Assert.IsFalse(atBrick.SamplesFromMips,
-                    "Step 8 matches a brick exactly and must stay on exact voxel samples.");
+            using (var coarse = new CpuTransvoxelChunkCache(8))
+            {
+                Assert.IsFalse(coarse.SamplesFromMips,
+                    "Step 8 must not use conservative any-solid block summaries as render density.");
+                Assert.IsTrue(coarse.UsesBlockHlod,
+                    "Step 8 must derive its coarse mesh from feature-preserving exact block inputs.");
+            }
             using (var coarser = new CpuTransvoxelChunkCache(16))
-                Assert.IsTrue(coarser.SamplesFromMips,
-                    "Step 16 is coarser than a brick and must read the pyramid.");
+                Assert.IsTrue(coarser.SamplesFromMips);
         }
 
         [Test]
@@ -104,26 +139,11 @@ namespace VoxelEngine.Tests.EditMode
             // no data, builds nothing, and still allocates eight shard caches of persistent
             // scratch. Distance past this point belongs to the analytic far terrain, which
             // needs no regions.
-            //
-            // Residency is bounded by the *unload* radius, not the load radius: regions inside
-            // the load radius are fetched, and they stay resident until they fall outside the
-            // unload radius. Comparing against the load radius understates what is resident by
-            // three regions and fails a ring layout that is in fact within budget.
-            const float regionMetres = 51.2f;
-            const int showcaseUnloadRadiusRegions = 11;  // VoxelShowcase.m_UnloadRadiusRegions
-            const float residentRadiusMetres = showcaseUnloadRadiusRegions * regionMetres;
-
+            const float showcaseStreamingRadiusMetres = 8 * 51.2f;   // LoadRadiusRegions = 8
             Assert.LessOrEqual(VoxelSurfaceScheduler.MaxVoxelRingRadiusMetres,
-                               residentRadiusMetres + 1f,
+                               showcaseStreamingRadiusMetres + 1f,
                 $"Voxel rings reach {VoxelSurfaceScheduler.MaxVoxelRingRadiusMetres} m but only "
-              + $"{residentRadiusMetres} m of regions are ever resident.");
-
-            // device-matrix.md is authoritative: the tightest tier (Mobile-HE) unloads regions
-            // at 420 m, so no ring may reach past that on any device.
-            const float tightestUnloadRadiusMetres = 420f;
-            Assert.LessOrEqual(VoxelSurfaceScheduler.MaxVoxelRingRadiusMetres,
-                               tightestUnloadRadiusMetres,
-                "Voxel rings must stay inside the Mobile-HE region unload radius.");
+              + $"{showcaseStreamingRadiusMetres} m of regions are ever resident.");
         }
 
         [Test]

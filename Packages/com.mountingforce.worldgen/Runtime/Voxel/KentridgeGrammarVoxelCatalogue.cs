@@ -240,7 +240,6 @@ namespace MountingForce.WorldGen.Voxel
 
             var b = new ProgramBuilder();
 
-            // Ground floor remains tied to the plot frontage while upper floors may project over it.
             b.Box(x0, 0, z0, w, f, d, foundation);
             EmitShell(b, x0, f, z0, w, floor, d, t, wall);
 
@@ -253,8 +252,6 @@ namespace MountingForce.WorldGen.Voxel
                 EmitShell(b, upperX, f + floor, upperZ,
                     upperW, upperH, upperD, t, wall);
 
-            // Wings are one-storey service/workshop volumes. They intentionally overlap the main
-            // shell slightly; their interior carve opens the connection instead of leaving two boxes.
             bool hasWing = form.Footprint == KentridgeFootprintForm.RearWing
                         || form.Footprint == KentridgeFootprintForm.SideWing;
             int wingX = 0, wingZ = 0, wingW = 0, wingD = 0;
@@ -280,8 +277,6 @@ namespace MountingForce.WorldGen.Voxel
                 AddFrontageWindows(b, form, x0, z0, w, f, t, floor, 0,
                     glass, s, doorX, doorW);
 
-            // Upper facade uses the potentially projecting storey width, producing visible changes
-            // in silhouette rather than changing only window decoration.
             for (int storey = 1; storey < form.Storeys; storey++)
             {
                 int y = f + storey * floor + theme.WindowBaseDm * s;
@@ -306,6 +301,21 @@ namespace MountingForce.WorldGen.Voxel
             if (upperH > 0)
                 AddTimberFrame(b, upperX, upperZ, upperW, upperD,
                     f + floor, upperH, beam, timber);
+
+            // A public entrance owns the whole gameplay approach corridor, not just the wall
+            // aperture. Keep this tied to the access resolver contract: if gameplay is asked to reach
+            // ExteriorApproach, generation must guarantee body-height air all the way to that point.
+            // The carve begins at threshold height so walkable ground below remains intact.
+            int doorExteriorClearance =
+                KentridgeGameplaySiteAccessResolver.ApproachDistanceDecimetres * s;
+            int doorFacadeDepth = math.max(t + s, 2 * beam);
+            b.Carve(
+                doorX,
+                f,
+                z0 - doorExteriorClearance,
+                doorW,
+                doorH,
+                doorExteriorClearance + doorFacadeDepth);
 
             if (hasWing)
             {

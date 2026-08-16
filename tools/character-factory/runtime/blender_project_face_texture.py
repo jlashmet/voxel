@@ -22,7 +22,7 @@ def parse_args() -> argparse.Namespace:
         description=(
             "Project an approved frontal face crop onto the Head-weighted, front-facing "
             "polygons of a Character Factory FBX. The canonical Character Factory rig "
-            "faces Blender -Y, so X/Z are used for planar face UVs."
+            "faces Blender world -Y, so world X/Z are used for planar face UVs."
         )
     )
     parser.add_argument("--input", required=True)
@@ -30,7 +30,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output", required=True)
     parser.add_argument("--head-group", default="Head")
     parser.add_argument("--head-weight", type=float, default=0.32)
-    parser.add_argument("--front-normal", type=float, default=0.08)
+    # Reconstructed Hunyuan surfaces can be relatively shallow around the face after
+    # canonical alignment. Keep the sign test meaningful while allowing those facets.
+    parser.add_argument("--front-normal", type=float, default=0.02)
     parser.add_argument("--u-margin", type=float, default=0.06)
     parser.add_argument("--v-margin", type=float, default=0.04)
     return parser.parse_args(argv)
@@ -93,19 +95,122 @@ def head_vertex_indices(
     return result
 
 
+def world_point(body: bpy.types.Object, vertex_index: int):
+    return body.matrix_world @ body.data.vertices[vertex_index].co
+
+
+def _head_bone_world(body: bpy.types.Object, bone_name: str):
+    armature = None
+    for modifier in body.modifiers:
+        if modifier.type == "ARMATURE" and modifier.object is not None:
+            armature = modifier.object
+            break
+    if armature is None:
+        armature = next(
+            (obj for obj in bpy.context.scene.objects if obj.type == "ARMATURE"),
+            None,
+        )
+    if armature is None:
+        raise RuntimeError("Face projection requires the canonical armature")
+
+    bone = armature.data.bones.get(bone_name)
+    if bone is None:
+        raise RuntimeError(f"Canonical armature has no '{bone_name}' bone")
+    head = armature.matrix_world @ bone.head_local
+    tail = armature.matrix_world @ bone.tail_local
+    return head, tail
+
+
+def facial_vertex_indices(
+    body: bpy.types.Object,
+    head_indices: set[int],
+    bone_name: str,
+) -> set[int]:
+    """Restrict Head weights to the anatomical front of the skull.
+
+    Nearest-surface skin transfer assigns long reconstructed hair to the Head bone as
+    well. Projecting the face photograph over every Head-weighted vertex therefore
+    paints eyes and mouth across the hair and makes the actual face almost blank.
+    The canonical Head bone gives us a stable, character-scale anatomical frame: keep
+    only the central front half of that frame and a small chin/forehead extension.
+    """
+
+    bone_head, bone_tail = _head_bone_world(body, bone_name)
+    bone_length = max((bone_tail - bone_head).length, 1e-4)
+    center_x = (bone_head.x + bone_tail.x) * 0.5
+    center_y = (bone_head.y + bone_tail.y) * 0.5
+    low_z = min(bone_head.z, bone_tail.z)
+    high_z = max(bone_head.z, bone_tail.z)
+
+    half_width = bone_length * 0.86
+    min_z = low_z - bone_length * 0.68
+    max_z = high_z + bone_length * 0.08
+    # Canonical character front is -Y. Keep the face and front bangs while excluding
+    # the back half of the skull and the long rear hair mass.
+    max_y = center_y + bone_length * 0.04
+
+    result = {
+        index
+        for index in head_indices
+        if (
+            abs(world_point(body, index).x - center_x) <= half_width
+            and min_z <= world_point(body, index).z <= max_z
+            and world_point(body, index).y <= max_y
+        )
+    }
+    if len(result) < 100:
+        raise RuntimeError(
+            "Anatomical face selection is unexpectedly small: "
+            f"faceVertices={len(result)} headVertices={len(head_indices)} "
+            f"boneLength={bone_length:.4f}"
+        )
+
+    print(
+        "face anatomical gate: "
+        f"headVertices={len(head_indices)} faceVertices={len(result)} "
+        f"center=({center_x:.4f},{center_y:.4f}) "
+        f"xHalf={half_width:.4f} z={min_z:.4f}..{max_z:.4f} yMax={max_y:.4f}",
+        flush=True,
+    )
+    return result
+
+
 def bounds_xz(body: bpy.types.Object, indices: set[int]) -> tuple[float, float, float, float]:
-    points = [body.data.vertices[index].co for index in indices]
+    points = [world_point(body, index) for index in indices]
     min_x = min(point.x for point in points)
     max_x = max(point.x for point in points)
     min_z = min(point.z for point in points)
     max_z = max(point.z for point in points)
     if max_x - min_x <= 1e-6 or max_z - min_z <= 1e-6:
-        raise RuntimeError("Head bounds collapsed while creating face projection UVs")
+        raise RuntimeError("Face bounds collapsed while creating projection UVs")
     return min_x, max_x, min_z, max_z
 
 
 def create_face_material(face_path: Path) -> bpy.types.Material:
     image = bpy.data.images.load(str(face_path), check_existing=False)
+
+    # Blender can keep externally loaded images lazy in background mode. In that
+    # state Image.has_data may still be False even though the file header decoded
+    # successfully and the image is usable by a texture node. The build has already
+    # round-tripped and validated the source with Pillow, so treat valid dimensions
+    # as the loader contract here instead of rejecting a lazy image data-block.
+    width, height = int(image.size[0]), int(image.size[1])
+    if width <= 0 or height <= 0:
+        try:
+            image.reload()
+        except Exception as exc:
+            raise RuntimeError(f"Unable to reload face source image: {face_path}") from exc
+        width, height = int(image.size[0]), int(image.size[1])
+    if width <= 0 or height <= 0:
+        raise RuntimeError(
+            f"Unable to decode face source image dimensions: {face_path} "
+            f"size={tuple(image.size)} hasData={image.has_data}"
+        )
+
+    print(
+        f"face image loader: {face_path.name} {width}x{height} hasData={image.has_data}",
+        flush=True,
+    )
     image.name = "MadelineFaceSource"
 
     material = bpy.data.materials.get(FACE_MATERIAL_NAME)
@@ -159,7 +264,7 @@ def material_slot(body: bpy.types.Object, material: bpy.types.Material) -> int:
 
 def project_face(
     body: bpy.types.Object,
-    head_indices: set[int],
+    face_indices: set[int],
     face_material: bpy.types.Material,
     front_normal_threshold: float,
     u_margin: float,
@@ -168,23 +273,35 @@ def project_face(
     if not 0.0 <= u_margin < 0.45 or not 0.0 <= v_margin < 0.45:
         raise RuntimeError("UV margins must be in [0, 0.45)")
 
-    min_x, max_x, min_z, max_z = bounds_xz(body, head_indices)
+    min_x, max_x, min_z, max_z = bounds_xz(body, face_indices)
     span_x = max_x - min_x
     span_z = max_z - min_z
 
     uv_layer = ensure_face_uv(body)
     slot = material_slot(body, face_material)
     projected = 0
+    candidate_world_normal_y: list[float] = []
+
+    # FBX import can preserve the canonical -Y facing direction through an object
+    # transform instead of baking it into mesh-local coordinates. Transform normals
+    # with the inverse-transpose and evaluate the face gate in canonical world space.
+    normal_matrix = body.matrix_world.to_3x3().inverted().transposed()
 
     for polygon in body.data.polygons:
-        head_count = sum(1 for vertex_index in polygon.vertices if vertex_index in head_indices)
-        if head_count < max(1, (len(polygon.vertices) + 1) // 2):
+        face_count = sum(1 for vertex_index in polygon.vertices if vertex_index in face_indices)
+        if face_count < max(1, (len(polygon.vertices) + 1) // 2):
             continue
 
-        # The Character Factory canonical mannequin faces -Y. Requiring a negative
-        # Y normal keeps this source photograph on the face instead of wrapping it
-        # over the rear of the skull. Cheek polygons remain eligible at low angles.
-        if polygon.normal.y >= -abs(front_normal_threshold):
+        world_normal = normal_matrix @ polygon.normal
+        if world_normal.length_squared > 0.0:
+            world_normal.normalize()
+        candidate_world_normal_y.append(float(world_normal.y))
+
+        # The Character Factory canonical mannequin faces world -Y. Requiring a
+        # negative world-space Y normal keeps this source photograph on the face
+        # instead of wrapping it over the rear of the skull. Cheeks remain eligible
+        # at low angles through the intentionally small threshold.
+        if world_normal.y >= -abs(front_normal_threshold):
             continue
 
         polygon.material_index = slot
@@ -192,7 +309,7 @@ def project_face(
 
         for loop_index in polygon.loop_indices:
             vertex_index = body.data.loops[loop_index].vertex_index
-            point = body.data.vertices[vertex_index].co
+            point = world_point(body, vertex_index)
             u = (point.x - min_x) / span_x
             v = (point.z - min_z) / span_z
 
@@ -203,11 +320,23 @@ def project_face(
             uv_layer.data[loop_index].uv = (u, v)
 
     if projected == 0:
+        normal_range = "unavailable"
+        if candidate_world_normal_y:
+            normal_range = (
+                f"{min(candidate_world_normal_y):.4f}.."
+                f"{max(candidate_world_normal_y):.4f}"
+            )
         raise RuntimeError(
-            "No front-facing Head polygons were selected. Check canonical orientation "
-            "or --front-normal before accepting this build."
+            "No front-facing facial polygons were selected in canonical world space. "
+            f"faceCandidateNormalY={normal_range} threshold={front_normal_threshold:.4f} "
+            f"bodyMatrix={tuple(round(value, 5) for row in body.matrix_world for value in row)}"
         )
 
+    print(
+        f"face projection bounds: x={min_x:.4f}..{max_x:.4f} "
+        f"z={min_z:.4f}..{max_z:.4f} polygons={projected}",
+        flush=True,
+    )
     return projected
 
 
@@ -241,10 +370,11 @@ def main() -> int:
     import_fbx(input_path)
     body, head_group = find_body(args.head_group)
     head_indices = head_vertex_indices(body, head_group, args.head_weight)
+    face_indices = facial_vertex_indices(body, head_indices, args.head_group)
     face_material = create_face_material(face_path)
     projected = project_face(
         body,
-        head_indices,
+        face_indices,
         face_material,
         args.front_normal,
         args.u_margin,
@@ -254,7 +384,8 @@ def main() -> int:
 
     print(
         f"Madeline face projection: body={body.name} "
-        f"headVertices={len(head_indices)} polygons={projected} output={output_path}",
+        f"headVertices={len(head_indices)} faceVertices={len(face_indices)} "
+        f"polygons={projected} output={output_path}",
         flush=True,
     )
     return 0

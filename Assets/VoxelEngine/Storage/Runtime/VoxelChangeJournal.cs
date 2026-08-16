@@ -65,5 +65,36 @@ namespace VoxelEngine.Storage.Runtime
             cursor = CurrentVersion;
             return !overflowed;
         }
+
+        public bool ReadSince(ref ulong cursor, List<VoxelChangeRecord> destination,
+                              int maxRecords, out bool hasMore)
+        {
+            if (destination == null) throw new ArgumentNullException(nameof(destination));
+            if (maxRecords <= 0) throw new ArgumentOutOfRangeException(nameof(maxRecords));
+            destination.Clear();
+
+            bool overflowed = _count > 0 && cursor + 1 < OldestRetainedVersion;
+            if (overflowed)
+            {
+                // Exact replay is already impossible. Do not spend frame time copying a retained
+                // suffix the consumer must ignore; move it to the recovery boundary immediately.
+                cursor = CurrentVersion;
+                hasMore = false;
+                return false;
+            }
+
+            ulong targetVersion = CurrentVersion;
+            int emitted = 0;
+            for (int i = 0; i < _count && emitted < maxRecords; i++)
+            {
+                VoxelChangeRecord record = _records[(_start + i) % _records.Length];
+                if (record.Version <= cursor) continue;
+                destination.Add(record);
+                cursor = record.Version;
+                emitted++;
+            }
+            hasMore = cursor < targetVersion;
+            return true;
+        }
     }
 }

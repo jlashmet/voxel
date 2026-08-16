@@ -2,6 +2,7 @@
   "name": "VoxelEngine.Composition",
   "rootNamespace": "VoxelEngine.Composition",
   "references": [
+    "VoxelEngine.Composition.Api",
     "VoxelEngine.Storage.Api",
     "VoxelEngine.Storage.Runtime",
     "VoxelEngine.Simulation.Api",

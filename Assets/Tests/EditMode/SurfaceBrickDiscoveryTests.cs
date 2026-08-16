@@ -11,11 +11,9 @@ using VoxelEngine.Storage.Runtime.Occupancy;
 namespace VoxelEngine.Tests.EditMode
 {
     /// <summary>
-    /// Surface discovery reads regions from inside a Burst job, which means every container a
-    /// <see cref="RegionReadView"/> carries must be constructed even when the underlying storage
-    /// is optional. The mip pyramid is optional — nothing in the runtime allocates it — so a
-    /// mipless region used to abort the whole render pass at schedule time. These tests pin both
-    /// the schedulability contract and the classification the job is actually there to produce.
+    /// Surface discovery runs on an immutable caller-owned occupancy summary. The Burst job never
+    /// borrows RegionReadView/BrickPool memory, so later Storage mutation or eviction cannot race
+    /// it. These tests cover both mipless/mipped Storage sources and the async scheduler boundary.
     /// </summary>
     public sealed class SurfaceBrickDiscoveryTests
     {
@@ -52,19 +50,30 @@ namespace VoxelEngine.Tests.EditMode
             {
                 int3 b = solidBlocks[i];
                 region.SetBrick(b.x, b.y, b.z, BrickRef.Uniform(7));
+                region.SetBlockOccupancySummary(
+                    Region.BrickIndex(b.x, b.y, b.z), occupied: true, fullySolid: true);
             }
             _table.CommitRegion(in region);
             _journal.PublishRegion(regionCoord);
             return region;
         }
 
-        private static NativeArray<byte> RunDiscovery(in RegionReadView view)
+        private static NativeArray<byte> RunDiscovery(IRegionReadSource source, int3 regionCoord)
         {
+            using var occupied = new NativeArray<ulong>(
+                VoxelReadGrid.BlockSummaryWordCount, Allocator.TempJob,
+                NativeArrayOptions.UninitializedMemory);
+            using var fullySolid = new NativeArray<ulong>(
+                VoxelReadGrid.BlockSummaryWordCount, Allocator.TempJob,
+                NativeArrayOptions.UninitializedMemory);
+            Assert.True(source.TryCopyBlockSummary(regionCoord, occupied, fullySolid, out _));
+
             var flags = new NativeArray<byte>(BlockCount, Allocator.TempJob,
                                               NativeArrayOptions.UninitializedMemory);
             new SurfaceBrickDiscoveryJob
             {
-                Region = view,
+                OccupiedWords = occupied,
+                FullySolidWords = fullySolid,
                 IsSurface = flags,
                 Edge = Edge,
             }.Schedule(BlockCount, 256).Complete();
@@ -81,9 +90,9 @@ namespace VoxelEngine.Tests.EditMode
             Assert.IsFalse(view.HasMips,
                 "This test only means anything while the region genuinely lacks a pyramid.");
 
-            // Regression: an unconstructed OccupancyMips container made this throw
-            // InvalidOperationException at schedule time and aborted VoxelRenderPass.
-            using NativeArray<byte> flags = RunDiscovery(in view);
+            // Regression: discovery must be schedulable without depending on optional mip
+            // containers because the job receives only the copied block summary.
+            using NativeArray<byte> flags = RunDiscovery(source, int3.zero);
             Assert.AreEqual(1, flags[FlagIndex(new int3(10, 10, 10))]);
         }
 
@@ -91,7 +100,11 @@ namespace VoxelEngine.Tests.EditMode
         public void DiscoveryJobSchedulesForRegionWithMipPyramid()
         {
             Region region = _table.LoadRegion(int3.zero);
-            region.SetBrick(10, 10, 10, BrickRef.Uniform(7));
+            int3 solidBlock = new(10, 10, 10);
+            region.SetBrick(solidBlock.x, solidBlock.y, solidBlock.z, BrickRef.Uniform(7));
+            region.SetBlockOccupancySummary(
+                Region.BrickIndex(solidBlock.x, solidBlock.y, solidBlock.z),
+                occupied: true, fullySolid: true);
             region.AllocateMips(MipBuilder.MaxLevels, Allocator.Persistent);
             MipBuilder.RebuildRegion(in _pool, ref region);
             _table.CommitRegion(in region);
@@ -100,7 +113,7 @@ namespace VoxelEngine.Tests.EditMode
             Assert.IsTrue(source.TryAcquireRegion(int3.zero, out RegionReadView view));
             Assert.IsTrue(view.HasMips);
 
-            using NativeArray<byte> flags = RunDiscovery(in view);
+            using NativeArray<byte> flags = RunDiscovery(source, int3.zero);
             Assert.AreEqual(1, flags[FlagIndex(new int3(10, 10, 10))]);
         }
 
@@ -155,7 +168,7 @@ namespace VoxelEngine.Tests.EditMode
             var source = new RegionReadSource(in _table, in _pool, _journal);
             Assert.IsTrue(source.TryAcquireRegion(int3.zero, out RegionReadView view));
 
-            using NativeArray<byte> flags = RunDiscovery(in view);
+            using NativeArray<byte> flags = RunDiscovery(source, int3.zero);
             Assert.AreEqual(1, flags[FlagIndex(new int3(10, 10, 10))],
                             "A solid block with empty neighbours is a surface block.");
             Assert.AreEqual(0, flags[FlagIndex(new int3(11, 10, 10))],
@@ -177,7 +190,7 @@ namespace VoxelEngine.Tests.EditMode
             var source = new RegionReadSource(in _table, in _pool, _journal);
             Assert.IsTrue(source.TryAcquireRegion(int3.zero, out RegionReadView view));
 
-            using NativeArray<byte> flags = RunDiscovery(in view);
+            using NativeArray<byte> flags = RunDiscovery(source, int3.zero);
             Assert.AreEqual(0, flags[FlagIndex(centre)],
                             "A block whose six neighbours are fully solid is interior.");
             Assert.AreEqual(1, flags[FlagIndex(centre + new int3(1, 0, 0))],
@@ -193,9 +206,111 @@ namespace VoxelEngine.Tests.EditMode
             var source = new RegionReadSource(in _table, in _pool, _journal);
             Assert.IsTrue(source.TryAcquireRegion(int3.zero, out RegionReadView view));
 
-            using NativeArray<byte> flags = RunDiscovery(in view);
+            using NativeArray<byte> flags = RunDiscovery(source, int3.zero);
             Assert.AreEqual(1, flags[FlagIndex(new int3(0, 5, 5))]);
             Assert.AreEqual(1, flags[FlagIndex(new int3(Edge - 1, 5, 5))]);
+        }
+
+        [Test]
+        public void ClipmapMotionReadmitsAlreadyResidentSurfaceIntoFinerLod()
+        {
+            // Region 5 starts at 256 m. It is initially in the step-4 band but outside step-1.
+            // After moving the camera to x=200 m the same unchanged surface is ~57 m away and
+            // belongs to step-1. No second journal publication is allowed: clipmap admission must
+            // request compact discovery for the newly exposed region itself.
+            int3 regionCoord = new(5, 0, 0);
+            MakeRegion(regionCoord, new int3(1, 10, 10));
+            var source = new RegionReadSource(in _table, in _pool, _journal);
+
+            var cameraObject = new GameObject("ClipmapReadmissionCamera");
+            var camera = cameraObject.AddComponent<Camera>();
+            var scheduler = new VoxelSurfaceScheduler();
+            try
+            {
+                MaterialPaletteView palette = default;
+                SurfaceCatalogueView surfaceCatalogue = default;
+                CoatingCatalogueView coatingCatalogue = default;
+                camera.transform.position = Vector3.zero;
+
+                bool discoveredByOuterLod = false;
+                for (int frame = 1; frame <= 256 && !discoveredByOuterLod; frame++)
+                {
+                    scheduler.Prepare(source, in palette, in surfaceCatalogue,
+                                      in coatingCatalogue, null, _journal,
+                                      camera, 0.1f, frame);
+                    discoveredByOuterLod = scheduler.KnownChunkCountForSourceStep(4) > 0;
+                    if (!discoveredByOuterLod) System.Threading.Thread.Yield();
+                }
+
+                Assert.True(discoveredByOuterLod,
+                    "Initial discovery never reached the step-4 ring, so the re-admission setup is invalid.");
+                Assert.AreEqual(0, scheduler.KnownChunkCountForSourceStep(1),
+                    "The target surface must begin outside the fine-ring clipmap.");
+
+                camera.transform.position = new Vector3(200f, 0f, 0f);
+                bool admittedToFineLod = false;
+                for (int frame = 257; frame <= 640 && !admittedToFineLod; frame++)
+                {
+                    scheduler.Prepare(source, in palette, in surfaceCatalogue,
+                                      in coatingCatalogue, null, _journal,
+                                      camera, 0.1f, frame);
+                    admittedToFineLod = scheduler.KnownChunkCountForSourceStep(1) > 0;
+                    if (!admittedToFineLod) System.Threading.Thread.Yield();
+                }
+
+                Assert.True(admittedToFineLod,
+                    "Camera motion entered an already-resident surface region but the fine LOD "
+                  + "never re-ran surface discovery. This would create an LOD handoff hole.");
+            }
+            finally
+            {
+                scheduler.Dispose();
+                Object.DestroyImmediate(cameraObject);
+            }
+        }
+
+        [Test]
+        public void RepeatedSurfaceDiscoveryDoesNotReinvalidateKnownChunk()
+        {
+            using var cache = new CpuTransvoxelChunkCache(sourceStep: 4);
+            cache.SetClipmapWindow(int3.zero, radius: 1);
+
+            // Interior block: maps to exactly one chunk and does not exercise halo neighbours.
+            int3 brick = new(1, 1, 1);
+            Assert.AreEqual(1, cache.DiscoverSurfaceBricks(new[] { brick }),
+                "The first immutable summary publication must admit the chunk.");
+            Assert.AreEqual(1, cache.KnownCount);
+            Assert.AreEqual(1, cache.DirtyCount);
+
+            Assert.AreEqual(0, cache.DiscoverSurfaceBricks(new[] { brick }),
+                "Later publication slices for the same unchanged region must not create a new "
+              + "source generation for an already-known chunk.");
+            Assert.AreEqual(1, cache.KnownCount);
+            Assert.AreEqual(1, cache.DirtyCount);
+
+            // Real edits keep the old semantics: known chunks are explicitly invalidated. The
+            // dirty set coalesces membership, but the call is still routed through the mutation
+            // path rather than discovery admission.
+            cache.InvalidateSurfaceBricks(new[] { brick });
+            Assert.AreEqual(1, cache.KnownCount);
+            Assert.AreEqual(1, cache.DirtyCount);
+        }
+
+        [Test]
+        public void SurfaceDiscoveryOutsideClipmapDoesNotCreateDirtyBuildWork()
+        {
+            using var cache = new CpuTransvoxelChunkCache(sourceStep: 4);
+            cache.SetClipmapWindow(int3.zero, radius: 1);
+
+            // A step-4 chunk spans 32 Storage blocks per axis. This block maps to chunk +10,
+            // well outside the [-1,+1] clipmap window. Discovery may observe it in the broader
+            // resident Storage stream, but rejected render residency must not leak into _dirty.
+            cache.InvalidateSurfaceBricks(new[] { new int3(10 * cache.BricksPerAxis, 0, 0) });
+
+            Assert.AreEqual(0, cache.KnownCount,
+                "Out-of-window discovery must not acquire render residency.");
+            Assert.AreEqual(0, cache.DirtyCount,
+                "Out-of-window discovery must not enqueue build work for an unowned chunk.");
         }
 
         [Test]
@@ -215,11 +330,18 @@ namespace VoxelEngine.Tests.EditMode
                 MaterialPaletteView palette = default;
                 SurfaceCatalogueView surfaceCatalogue = default;
                 CoatingCatalogueView coatingCatalogue = default;
-                scheduler.Prepare(source, in palette, in surfaceCatalogue, in coatingCatalogue,
-                                  null, _journal, camera, 0.1f, 1);
+                bool discovered = false;
+                for (int frame = 1; frame <= 256 && !discovered; frame++)
+                {
+                    scheduler.Prepare(source, in palette, in surfaceCatalogue, in coatingCatalogue,
+                                      null, _journal, camera, 0.1f, frame);
+                    discovered = scheduler.Metrics.DiscoveredSurfaceBricks > 0;
+                    if (!discovered) System.Threading.Thread.Yield();
+                }
 
-                Assert.Greater(scheduler.Metrics.DiscoveredSurfaceBricks, 0,
-                               "A published region with solid content must yield surface bricks.");
+                Assert.True(discovered,
+                    "Async discovery must eventually publish surface bricks without waiting "
+                  + "on an unfinished Burst job in Prepare.");
             }
             finally
             {

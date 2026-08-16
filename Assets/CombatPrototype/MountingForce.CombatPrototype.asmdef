@@ -1,14 +1,16 @@
 {
-    "name": "MountingForce.CombatPrototype",
-    "rootNamespace": "MountingForce.CombatPrototype",
-    "references": [],
-    "includePlatforms": [],
-    "excludePlatforms": [],
-    "allowUnsafeCode": false,
-    "overrideReferences": false,
-    "precompiledReferences": [],
-    "autoReferenced": false,
-    "defineConstraints": [],
-    "versionDefines": [],
-    "noEngineReferences": false
+  "name": "MountingForce.CombatPrototype",
+  "rootNamespace": "MountingForce.CombatPrototype",
+  "references": [
+    "VoxelEngine.Vegetation.Api"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
 }

@@ -748,6 +748,42 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void BoundedJournalReadsAdvanceIncrementallyAndPreserveOverflowSignal()
+        {
+            var journal = new VoxelChangeJournal(8);
+            for (int i = 0; i < 5; i++)
+                journal.PublishRegion(new int3(i, 0, 0), VoxelChangeKind.Occupancy);
+
+            ulong cursor = 0;
+            var records = new System.Collections.Generic.List<VoxelChangeRecord>();
+            Assert.True(journal.ReadSince(ref cursor, records, 2, out bool hasMore));
+            Assert.AreEqual(2, records.Count);
+            Assert.AreEqual(2ul, cursor);
+            Assert.True(hasMore);
+
+            Assert.True(journal.ReadSince(ref cursor, records, 2, out hasMore));
+            Assert.AreEqual(2, records.Count);
+            Assert.AreEqual(4ul, cursor);
+            Assert.True(hasMore);
+
+            Assert.True(journal.ReadSince(ref cursor, records, 2, out hasMore));
+            Assert.AreEqual(1, records.Count);
+            Assert.AreEqual(5ul, cursor);
+            Assert.False(hasMore);
+
+            var tiny = new VoxelChangeJournal(2);
+            tiny.PublishRegion(int3.zero);
+            tiny.PublishRegion(new int3(1, 0, 0));
+            tiny.PublishRegion(new int3(2, 0, 0));
+            ulong stale = 0;
+            Assert.False(tiny.ReadSince(ref stale, records, 1, out hasMore));
+            Assert.AreEqual(0, records.Count,
+                "A consumer that lost exact history should recover state, not copy unusable replay data.");
+            Assert.AreEqual(tiny.CurrentVersion, stale);
+            Assert.False(hasMore);
+        }
+
+        [Test]
         public void SolidInvalidationIsBoundedToChangedChunkAndRequiredHalo()
         {
             using var cache = new CpuTransvoxelChunkCache();
@@ -914,6 +950,28 @@ namespace VoxelEngine.Tests.EditMode
                 table.Dispose();
                 pool.Dispose();
             }
+        }
+
+        [Test]
+        public void WorldTeardownReleasesRendererBorrowsBeforeStorageBindingIsCleared()
+        {
+            string composition = File.ReadAllText(
+                "Assets/VoxelEngine/Composition/RenderingComposition.cs");
+            int release = composition.IndexOf("VoxelRenderBridge.ReleaseWorldResources();",
+                                              System.StringComparison.Ordinal);
+            int clear = composition.IndexOf("s_hasWorld = false;",
+                                            System.StringComparison.Ordinal);
+            Assert.GreaterOrEqual(release, 0,
+                "world teardown must synchronously release renderer Storage borrows");
+            Assert.Greater(clear, release,
+                "renderer Storage borrows must be released before the world binding is cleared");
+
+            string pass = File.ReadAllText(
+                "Assets/VoxelEngine/Rendering/Runtime/RenderFeature/VoxelRenderPass.cs");
+            StringAssert.Contains("RegisterWorldReleaseHandler(ReleaseWorldResources)", pass);
+            StringAssert.Contains("UnregisterWorldReleaseHandler(ReleaseWorldResources)", pass);
+            StringAssert.Contains("_scheduler.Dispose();", pass,
+                "world release must synchronously drain jobs/pins, not abandon the scheduler");
         }
 
         private static void AssertCellsEqual(ref RegionTable aTable, in BrickPool aPool,
