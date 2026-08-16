@@ -142,9 +142,6 @@ def main() -> int:
     if empty_groups:
         raise RuntimeError(f"Madeline meshes contain no skin-weight groups: {empty_groups}")
 
-    # A reusable body can include separate body/head/hair mesh objects, but it must
-    # not carry extra armatures or rigid equipment objects. Restrict non-mesh scene
-    # content to the one canonical skeleton plus importer-generated empties.
     rigid_meshes = [
         mesh.name
         for mesh in meshes
@@ -156,11 +153,11 @@ def main() -> int:
     lo, hi = scene_bounds(meshes)
     extent = hi - lo
     dimensions = sorted((abs(extent.x), abs(extent.y), abs(extent.z)), reverse=True)
-    if dimensions[0] <= 0.0 or dimensions[1] <= 0.0:
+    if dimensions[0] <= 0.0 or dimensions[2] <= 0.0:
         raise RuntimeError(f"degenerate Madeline bounds: lo={tuple(lo)} hi={tuple(hi)}")
-    # This is deliberately broad: it catches flattened/needle-like generation
-    # failures without forcing Madeline back toward generic mannequin proportions.
-    if dimensions[0] / dimensions[1] > 8.0:
+    # Broad enough for stylized T-pose proportions, but rejects the flattened
+    # card/sheet failure mode seen in earlier single-view reconstruction attempts.
+    if dimensions[0] / dimensions[2] > 12.0:
         raise RuntimeError(
             f"Madeline bounds are implausibly thin/flat: extent={tuple(round(v, 4) for v in extent)}"
         )
