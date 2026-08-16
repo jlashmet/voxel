@@ -143,6 +143,35 @@ namespace VoxelEngine.Tests.EditMode
 
 
         [Test]
+        public void StepEightHlodRunsAsReadinessGatedBurstJobs()
+        {
+            string cache = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"));
+            string workspace = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "TransvoxelBuildWorkspace.cs"));
+            string summary = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "Transvoxel", "SurfaceBlockHlodSummaryJob.cs"));
+            string mesh = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "SurfaceBlockHlodMeshJob.cs"));
+
+            StringAssert.Contains("public bool UsesBlockHlod", cache);
+            StringAssert.Contains("new SurfaceBlockHlodSummaryJob", cache);
+            StringAssert.Contains("new SurfaceBlockHlodMeshJob", cache);
+            StringAssert.Contains(".Schedule(summaryHandle)", cache);
+            StringAssert.Contains("if (!_hlodJobHandle.IsCompleted) break;", cache);
+            StringAssert.Contains("GeometryFrameJobCompletionGuard.TryCompleteReady", cache);
+            StringAssert.Contains("_hlodOverflow[0]", cache);
+            StringAssert.Contains("HlodSummaries", workspace);
+            StringAssert.Contains("HlodMaskScratch", workspace);
+            StringAssert.Contains("usesBlockHlod ? 262_144 : 32_768", workspace);
+            StringAssert.Contains("[BurstCompile]", summary);
+            StringAssert.Contains("[BurstCompile]", mesh);
+            StringAssert.Contains("AddNoResize", mesh);
+            StringAssert.DoesNotContain(".Run();", cache);
+        }
+
+
+        [Test]
         public void CoarseExactSamplingUsesFewerBuildWorkspaces()
         {
             Assert.AreEqual(8, VoxelSurfaceScheduler.WorkerCountForSourceStep(1));

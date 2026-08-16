@@ -51,6 +51,13 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         /// see <see cref="VoxelReadGrid.LevelForStride"/>.
         /// </summary>
         public readonly bool SamplesFromMips;
+        /// <summary>
+        /// Step 8 keeps the exact versioned/COW snapshot boundary but compresses each 8^3 block
+        /// into eight spatial 4^3 HLOD subcells before meshing. This replaces the expensive exact
+        /// Transvoxel fallback without ever treating Storage's any-solid block projection as
+        /// render density.
+        /// </summary>
+        public bool UsesBlockHlod => SourceStep == VoxelReadGrid.BlockEdge;
 
         /// <summary>Chunk geometry of the base ring (SourceStep 1). Authoring and capture tools
         /// address the world in full-resolution chunks, so they want these rather than the
@@ -373,6 +380,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private NativeArray<byte> _exactMixedFlags;
         private NativeList<int> _exactMixedBrickIndices;
         private NativeArray<byte> _snapshotClassificationFlags;
+        private NativeArray<SurfaceBlockHlodSummary> _hlodSummaries;
+        private NativeArray<byte> _hlodMaskScratch;
+        private NativeArray<int> _hlodOverflow;
+        private JobHandle _hlodJobHandle;
+        private bool _hlodJobScheduled;
         private JobHandle _exactMetadataJobHandle;
         private bool _exactMetadataJobScheduled;
         private bool _exactMetadataReady;
@@ -521,8 +533,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _surfaceCatalogue = SurfaceCatalogueView.CreateBuiltIns();
             _coatingCatalogue = CoatingCatalogueView.CreateBuiltIns();
             _workspace = new TransvoxelBuildWorkspace(
-                GridSampleCount, BrickCacheCount, SamplesFromMips,
-                CellsPerAxis, FaceSamplesPerAxis);
+                GridSampleCount, BrickCacheCount, SamplesFromMips, UsesBlockHlod,
+                BricksPerAxis, CellsPerAxis, FaceSamplesPerAxis);
             _density = _workspace.Density;
             _materials = _workspace.Materials;
             _surfaceSemantics = _workspace.SurfaceSemantics;
@@ -537,6 +549,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _exactMixedFlags = _workspace.ExactMixedFlags;
             _exactMixedBrickIndices = _workspace.ExactMixedBrickIndices;
             _snapshotClassificationFlags = _workspace.SnapshotClassificationFlags;
+            _hlodSummaries = _workspace.HlodSummaries;
+            _hlodMaskScratch = _workspace.HlodMaskScratch;
+            _hlodOverflow = _workspace.HlodOverflow;
             _compactedTopologyVertices = _workspace.CompactedTopologyVertices;
             _compactedTopologyIndices = _workspace.CompactedTopologyIndices;
             _topologyOverflowCell = _workspace.TopologyOverflowCell;
@@ -760,8 +775,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private ulong _framePathBlockingCompletionViolations;
         public ulong FramePathBlockingCompletionViolations => _framePathBlockingCompletionViolations;
         public int RunningJobCount => _exactMetadataJobScheduled || _exactClassificationJobScheduled
-                                   || _densityJobScheduled || _topologyJobScheduled
-                                   || _facetedMaskJobScheduled || _transitionJobScheduled
+                                   || _hlodJobScheduled || _densityJobScheduled
+                                   || _topologyJobScheduled || _facetedMaskJobScheduled
+                                   || _transitionJobScheduled
                                     ? 1 : 0;
         public int PendingUploadCount => _pendingUpload ? 1 : 0;
         public int PendingUploadBytes
@@ -1012,6 +1028,16 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                         && !StepDensitySnapshot(source, in palette, voxelSize, deadline))
                         break;
 
+                    // Step 8 already scheduled its summary -> greedy HLOD dependency chain as
+                    // part of the immutable exact snapshot. It bypasses Transvoxel density,
+                    // faceted and transition phases and rejoins the normal profile/publication path
+                    // only after the HLOD job is ready and its Storage pins are released.
+                    if (UsesBlockHlod)
+                    {
+                        _build.Phase = 7;
+                        continue;
+                    }
+
                     // Border invalidation intentionally discovers halo chunks. If the immutable
                     // snapshot proves this chunk owns no solid cells, publish a complete empty
                     // result without scanning/merging all 64^3 cells. Profile blocks still run
@@ -1073,6 +1099,27 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     continue;
                 }
 
+                if (_build.Phase == 7)
+                {
+                    if (_hlodJobScheduled)
+                    {
+                        if (!_hlodJobHandle.IsCompleted) break;
+                        if (!GeometryFrameJobCompletionGuard.TryCompleteReady(
+                                _hlodJobHandle, ref _framePathBlockingCompletionViolations))
+                            break;
+                        _hlodJobScheduled = false;
+                        _build.HasOwnedSolid = _indices.Length > 0;
+                    }
+                    if (!StepReleasePinnedSnapshotBlocks(deadline)) break;
+                    if (_hlodOverflow[0] != 0)
+                        throw new InvalidOperationException(
+                            $"Feature-preserving HLOD output overflow in chunk {_build.Coordinate}; "
+                          + "refusing to allocate or publish partial coarse geometry.");
+                    _build.Phase = 3;
+                    _build.Cursor = 0;
+                    continue;
+                }
+
                 if (_build.Phase == 6)
                 {
                     if (!StepReleasePinnedSnapshotBlocks(deadline)) break;
@@ -1096,6 +1143,17 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                         profilesDone = StepProfileBlocks(voxelSize);
                     _profileEmitTiming.Add(ElapsedMs(profileStart));
                     if (!profilesDone) continue;
+
+                    // The step-8 HLOD grid and the step-4 inner ring both resolve geometry on a
+                    // four-voxel lattice. Do not feed faceted HLOD through Transvoxel transition
+                    // cells; finish directly and let the visual LOD regression police the aligned
+                    // boundary. If that test exposes a seam, add a dedicated HLOD boundary pass.
+                    if (UsesBlockHlod)
+                    {
+                        FinishBuild(frame);
+                        if (_pendingUpload) break;
+                        continue;
+                    }
 
                     _build.Phase = 4;
                     _build.Cursor = 0;
@@ -1745,6 +1803,38 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 return false;
             }
             ReleasePinnedRegionMetadataImmediate();
+
+            if (UsesBlockHlod)
+            {
+                _hlodOverflow[0] = 0;
+                JobHandle summaryHandle = new SurfaceBlockHlodSummaryJob
+                {
+                    Bricks = _densityBricks,
+                    MixedVoxels = PinnedMixedVoxelsOrFallback(),
+                    Summaries = _hlodSummaries,
+                }.Schedule(BrickCacheCount, 256);
+                _hlodJobHandle = new SurfaceBlockHlodMeshJob
+                {
+                    Summaries = _hlodSummaries,
+                    SummaryGridEdge = BrickCacheEdge,
+                    PaddingBricks = BrickCachePadding,
+                    CoreBrickEdge = BricksPerAxis,
+                    CoreOriginVoxel = chunkOriginVoxel,
+                    VoxelSize = voxelSize,
+                    MaskScratch = _hlodMaskScratch,
+                    Vertices = _vertices,
+                    Indices = _indices,
+                    Overflow = _hlodOverflow,
+                }.Schedule(summaryHandle);
+                _hlodJobScheduled = true;
+                _build.HasOwnedSolid = true; // resolved from final HLOD output on completion
+                _build.RequiresContinuousTopology = false;
+                _build.SnapshotTaken = true;
+                _exactMetadataReady = false;
+                _exactMixedPinCursor = 0;
+                AccumulateSnapshotSlice(sliceStart, completed: true);
+                return true;
+            }
 
             if (!_exactClassificationJobScheduled)
             {
@@ -2986,7 +3076,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private void ResetCompletedBuild()
         {
             if (_pinnedReadBlocks.Length != 0 || _pinnedRegionCount != 0
-                || _exactMetadataJobScheduled || _exactClassificationJobScheduled)
+                || _exactMetadataJobScheduled || _exactClassificationJobScheduled
+                || _hlodJobScheduled)
                 throw new InvalidOperationException(
                     "Build reset attempted before snapshot jobs/Storage leases were released.");
             _exactMetadataReady = false;
@@ -3349,6 +3440,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             if (_exactMetadataJobScheduled && !_exactMetadataJobHandle.IsCompleted) return false;
             if (_exactClassificationJobScheduled && !_exactClassificationJobHandle.IsCompleted)
                 return false;
+            if (_hlodJobScheduled && !_hlodJobHandle.IsCompleted) return false;
             if (_densityJobScheduled && !_densityJobHandle.IsCompleted) return false;
             if (_topologyJobScheduled
                 && !(_topologyCompactJobScheduled
@@ -3422,6 +3514,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             {
                 _exactClassificationJobHandle.Complete(); // teardown may synchronize
                 _exactClassificationJobScheduled = false;
+            }
+            if (_hlodJobScheduled)
+            {
+                _hlodJobHandle.Complete(); // teardown may synchronize
+                _hlodJobScheduled = false;
             }
             if (_densityJobScheduled)
             {

@@ -19,13 +19,15 @@ namespace VoxelEngine.Tests.PlayMode
         private const string ScenePath = "Assets/Scenes/VoxelShowcase.unity";
 
         [Test]
-        public void StepEightUsesFeaturePreservingVoxelSamples()
+        public void StepEightUsesFeaturePreservingBlockHlod()
         {
             Assert.AreEqual(-1, VoxelReadGrid.LevelForStride(8),
                 "Step 8 must not turn an any-solid 8^3 storage block into a render sample.");
             using var cache = new CpuTransvoxelChunkCache(8);
             Assert.False(cache.SamplesFromMips,
-                "The castle's 288-420m LOD must preserve voxel features rather than OR-collapsing them.");
+                "The castle's outer LOD must never use OR-collapsed Storage occupancy as density.");
+            Assert.True(cache.UsesBlockHlod,
+                "Step 8 must mesh spatial 4^3 HLOD subcells derived from exact COW inputs.");
         }
 
         [UnityTest, Timeout(900000)]

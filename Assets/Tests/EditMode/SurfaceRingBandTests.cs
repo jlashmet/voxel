@@ -83,16 +83,22 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void RenderRingsUseExactStepEightAndMipsBeyondIt()
+        public void RenderRingsUseFeaturePreservingStepEightAndMipsBeyondIt()
         {
-            // The dividing line is one brick: a stride finer than a brick has no mip level.
+            // Step 8 keeps exact COW Storage inputs but no longer runs exact Transvoxel. It
+            // compresses those inputs into spatial 4^3 HLOD subcells; coarser experimental rings
+            // beyond step 8 may still consume the conventional mip pyramid.
             using (var fine = new CpuTransvoxelChunkCache(1))
                 Assert.IsFalse(fine.SamplesFromMips, "Step 1 must read voxels.");
             using (var fine2 = new CpuTransvoxelChunkCache(4))
                 Assert.IsFalse(fine2.SamplesFromMips, "Step 4 is still sub-brick.");
             using (var coarse = new CpuTransvoxelChunkCache(8))
+            {
                 Assert.IsFalse(coarse.SamplesFromMips,
-                    "Step 8 must stay exact: conservative any-solid block summaries are not render density.");
+                    "Step 8 must not use conservative any-solid block summaries as render density.");
+                Assert.IsTrue(coarse.UsesBlockHlod,
+                    "Step 8 must derive its coarse mesh from feature-preserving exact block inputs.");
+            }
             using (var coarser = new CpuTransvoxelChunkCache(16))
                 Assert.IsTrue(coarser.SamplesFromMips);
         }

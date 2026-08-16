@@ -31,6 +31,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         internal readonly NativeList<int> ExactMixedBrickIndices;
         internal readonly NativeArray<byte> SnapshotClassificationFlags;
 
+        // Step-8 feature-preserving HLOD scratch. These arrays exist only on the outer exact
+        // ring; finer Transvoxel workers pay no memory cost for the coarse representation.
+        internal readonly NativeArray<SurfaceBlockHlodSummary> HlodSummaries;
+        internal readonly NativeArray<byte> HlodMaskScratch;
+        internal readonly NativeArray<int> HlodOverflow;
+
         internal readonly NativeList<SmoothSurfaceVertex> CompactedTopologyVertices;
         internal readonly NativeList<uint> CompactedTopologyIndices;
         internal readonly NativeArray<int> TopologyOverflowCell;
@@ -49,7 +55,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         internal readonly NativeList<uint> Indices;
 
         internal TransvoxelBuildWorkspace(int gridSampleCount, int brickCacheCount,
-                                          bool samplesFromMips, int cellsPerAxis,
+                                          bool samplesFromMips, bool usesBlockHlod,
+                                          int hlodCoreBrickEdge, int cellsPerAxis,
                                           int faceSamplesPerAxis)
         {
             Density = new NativeArray<float>(gridSampleCount, Allocator.Persistent,
@@ -102,6 +109,26 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 SnapshotClassificationFlags = default;
             }
 
+            if (usesBlockHlod)
+            {
+                HlodSummaries = new NativeArray<SurfaceBlockHlodSummary>(
+                    brickCacheCount, Allocator.Persistent,
+                    NativeArrayOptions.UninitializedMemory);
+                int subcellEdge = hlodCoreBrickEdge
+                                * SurfaceBlockHlodMeshJob.SubcellsPerBrickAxis;
+                HlodMaskScratch = new NativeArray<byte>(
+                    subcellEdge * subcellEdge, Allocator.Persistent,
+                    NativeArrayOptions.UninitializedMemory);
+                HlodOverflow = new NativeArray<int>(1, Allocator.Persistent,
+                                                    NativeArrayOptions.ClearMemory);
+            }
+            else
+            {
+                HlodSummaries = default;
+                HlodMaskScratch = default;
+                HlodOverflow = default;
+            }
+
             CompactedTopologyVertices = new NativeList<SmoothSurfaceVertex>(
                 16_384, Allocator.Persistent);
             CompactedTopologyIndices = new NativeList<uint>(24_576, Allocator.Persistent);
@@ -119,8 +146,14 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             TransitionVertices = new NativeList<SmoothSurfaceVertex>(2048, Allocator.Persistent);
             TransitionIndices = new NativeList<uint>(3072, Allocator.Persistent);
 
-            Vertices = new NativeList<SmoothSurfaceVertex>(32_768, Allocator.Persistent);
-            Indices = new NativeList<uint>(49_152, Allocator.Persistent);
+            // The HLOD worker meshes a 128^3 subcell volume. Keep its output fixed-capacity and
+            // comfortably below the shared GPU arena ceiling so Burst can use AddNoResize and
+            // report overflow instead of growing native memory on the frame path.
+            int finalVertexCapacity = usesBlockHlod ? 262_144 : 32_768;
+            int finalIndexCapacity = usesBlockHlod ? 393_216 : 49_152;
+            Vertices = new NativeList<SmoothSurfaceVertex>(finalVertexCapacity,
+                                                           Allocator.Persistent);
+            Indices = new NativeList<uint>(finalIndexCapacity, Allocator.Persistent);
         }
 
         public void Dispose()
@@ -139,6 +172,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             if (ExactMixedFlags.IsCreated) ExactMixedFlags.Dispose();
             if (ExactMixedBrickIndices.IsCreated) ExactMixedBrickIndices.Dispose();
             if (SnapshotClassificationFlags.IsCreated) SnapshotClassificationFlags.Dispose();
+            if (HlodSummaries.IsCreated) HlodSummaries.Dispose();
+            if (HlodMaskScratch.IsCreated) HlodMaskScratch.Dispose();
+            if (HlodOverflow.IsCreated) HlodOverflow.Dispose();
             if (CompactedTopologyVertices.IsCreated) CompactedTopologyVertices.Dispose();
             if (CompactedTopologyIndices.IsCreated) CompactedTopologyIndices.Dispose();
             if (TopologyOverflowCell.IsCreated) TopologyOverflowCell.Dispose();
