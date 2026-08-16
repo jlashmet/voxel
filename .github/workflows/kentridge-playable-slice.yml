@@ -4,7 +4,7 @@ name: Kentridge Playable Slice
 # request) and tests-master.yml (the full suite on merge to master). Nothing else
 # should trigger tests off a branch name or a path glob: which tests a change
 # affects is a property of the .asmdef reference graph, not of where the work
-# happens to live. Retained as manually dispatchable.
+# happens to live.
 on:
   workflow_dispatch:
 concurrency:
@@ -69,7 +69,7 @@ jobs:
             -projectPath "$GITHUB_WORKSPACE" \
             -runTests \
             -testPlatform PlayMode \
-            -testFilter 'VoxelEngine.Tests.PlayMode.KentridgePubExitPlayTests;VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests' \
+            -testFilter 'VoxelEngine.Tests.PlayMode.KentridgePubExitPlayTests;VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests;VoxelEngine.Tests.PlayMode.KentridgePlayableRenderingPlayTests' \
             -testResults "$ROOT/results.xml" \
             -logFile "$ROOT/unity.log"
           status=$?
