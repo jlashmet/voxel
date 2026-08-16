@@ -117,10 +117,27 @@ namespace VoxelEngine.Structures.Runtime
                               new int3(size.x - 16, 3, size.z - 16), Mat.Wood);
                 }
 
-                int furnishingRecipe = roomPlans == null ? f : FurnishingRecipe(in roomPlans[f], f);
-                CastleRoomFurnisher.Furnish(ref brush, in plan, min, size, y, furnishingRecipe);
+                if (roomPlans == null)
+                {
+                    CastleRoomFurnisher.Furnish(ref brush, in plan, min, size, y, f);
+                    continue;
+                }
+
+                CastleKeepFloorPlan roomPlan = roomPlans[f];
+                int furnishingRecipe = FurnishingRecipe(in roomPlan, f);
+                CastlePlan furnishingPlan = plan;
+                // CastleRoomFurnisher still owns the legacy recipe implementation and derives its
+                // RNG as plan.Seed ^ (recipe * 7919 + 13). Adapt only the temporary furnishing
+                // plan so that expression resolves to the semantic seed already chosen by planning.
+                // The compatibility path above remains byte-for-byte on its historical seed flow.
+                furnishingPlan.Seed = RoomFurnishingPlanSeed(roomPlan.SemanticSeed, furnishingRecipe);
+                CastleRoomFurnisher.Furnish(
+                    ref brush, in furnishingPlan, min, size, y, furnishingRecipe);
             }
         }
+
+        internal static uint RoomFurnishingPlanSeed(uint semanticSeed, int furnishingRecipe) =>
+            semanticSeed ^ (uint)(furnishingRecipe * 7919 + 13);
 
         private static int FurnishingRecipe(in CastleKeepFloorPlan roomPlan, int expectedFloor)
         {
