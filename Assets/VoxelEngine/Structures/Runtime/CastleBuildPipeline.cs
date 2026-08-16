@@ -275,7 +275,7 @@ namespace VoxelEngine.Structures.Runtime
                         var min = new int3(
                             keepPlan.Centre.x - halfX,
                             baseY,
-                            keepPlan.Centre.z - halfZ + 60);
+                            keepPlan.Centre.z - halfZ + CastleLayout.LegacyKeepCentreZOffset);
                         var size = new int3(
                             halfX * 2,
                             keepPlan.KeepHeight,
