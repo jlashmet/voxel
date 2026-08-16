@@ -7,20 +7,12 @@ namespace VoxelEngine.Structures.Api
     /// Frozen authored style for curtain-wall realization. CastlePlan still owns structural wall
     /// height/thickness; this value owns the visual/defensive recipe that used to be hard-coded in
     /// Runtime so realization can apply a completed plan without inventing authored dimensions.
+    /// Secondary arched doors use CastleWallDoorPlan rather than duplicating door policy here.
     /// </summary>
     public struct CastleWallPlan
     {
         public int PrimaryGateExtraClearWidth;
         public int PrimaryGateMinimumThicknessMultiple;
-
-        // Secondary wall-door dimensions are part of the frozen wall recipe. Placement still comes
-        // from CastleSpatialPlan; Runtime only realizes these already-authored dimensions.
-        public int PosternDoorWidth;
-        public int PosternDoorHeight;
-        public int PosternDoorDepth;
-        public int InnerGateDoorWidth;
-        public int InnerGateDoorHeight;
-        public int InnerGateDoorDepth;
 
         public int MaxPlinthHeight;
         public float CourseHeightFraction;
@@ -48,7 +40,6 @@ namespace VoxelEngine.Structures.Api
     {
         None,
         InvalidGateClearance,
-        InvalidSecondaryDoor,
         InvalidPlinth,
         InvalidCourse,
         InvalidWallWalk,
@@ -71,9 +62,9 @@ namespace VoxelEngine.Structures.Api
             var rng = new Random(CastleSeedPartition.Derive(
                 seed, CastleSeedDomain.Walls, 0xA771u));
 
-            // Structural wall height/thickness and door clearances remain stable compatibility
-            // dimensions. Vary only the authored defensive profile so a seed changes how the same
-            // perimeter is expressed rather than changing its access topology.
+            // Structural wall height/thickness remain CastlePlan concerns. Vary only the authored
+            // defensive profile so a seed changes how the same perimeter is expressed rather than
+            // changing its footprint or invalidating gate/tower placement.
             plan.MaxPlinthHeight = rng.NextInt(16, 29);
             plan.CourseHeightFraction = rng.NextFloat(0.58f, 0.74f);
             plan.CourseThickness = rng.NextInt(2, 5);
@@ -105,13 +96,6 @@ namespace VoxelEngine.Structures.Api
             {
                 PrimaryGateExtraClearWidth = 12,
                 PrimaryGateMinimumThicknessMultiple = 2,
-
-                PosternDoorWidth = CastleLayout.PosternGateWidth,
-                PosternDoorHeight = CastleLayout.PosternGateHeight,
-                PosternDoorDepth = CastleLayout.PosternGateDepth,
-                InnerGateDoorWidth = CastleLayout.FrontGateWidth,
-                InnerGateDoorHeight = CastleLayout.FrontGateHeight,
-                InnerGateDoorDepth = CastleLayout.FrontGateDepth,
 
                 MaxPlinthHeight = 22,
                 CourseHeightFraction = 0.66f,
@@ -150,13 +134,6 @@ namespace VoxelEngine.Structures.Api
                 plan.PrimaryGateMinimumThicknessMultiple <= 0)
             {
                 issue = CastleWallPlanIssue.InvalidGateClearance;
-                return false;
-            }
-
-            if (!ValidDoor(plan.PosternDoorWidth, plan.PosternDoorHeight, plan.PosternDoorDepth) ||
-                !ValidDoor(plan.InnerGateDoorWidth, plan.InnerGateDoorHeight, plan.InnerGateDoorDepth))
-            {
-                issue = CastleWallPlanIssue.InvalidSecondaryDoor;
                 return false;
             }
 
@@ -209,8 +186,5 @@ namespace VoxelEngine.Structures.Api
 
             throw new System.InvalidOperationException($"Castle wall plan is invalid: {issue}.");
         }
-
-        private static bool ValidDoor(int width, int height, int depth) =>
-            width > 4 && height > 4 && depth > 0;
     }
 }
