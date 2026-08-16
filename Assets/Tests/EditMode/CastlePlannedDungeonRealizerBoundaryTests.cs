@@ -18,7 +18,7 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void PlannedDungeonCarvesThenFurnishesThenRestoresTrapdoorBeforeCave()
+        public void PlannedDungeonCarvesThenFurnishesThenRestoresTrapdoorBeforePlannedCave()
         {
             string source = File.ReadAllText(Path.Combine(
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
@@ -27,7 +27,7 @@ namespace VoxelEngine.Tests.EditMode
             int carve = source.IndexOf("DungeonRealizer.Build(ref brush, dungeonPlan)");
             int furnish = source.IndexOf("DungeonRoomFurnisher.FurnishAll(ref brush, dungeonPlan)");
             int hatch = source.IndexOf("BuildTrapdoor(ref brush, dungeonPlan.Entrance)");
-            int cave = source.IndexOf("CastleCaveRealizer.Build(ref brush, in keepPlan, caveOrigin)");
+            int cave = source.IndexOf("CaveRealizer.Build(ref brush, cavePlan)");
 
             Assert.GreaterOrEqual(carve, 0, "Planned dungeon must realize its room graph.");
             Assert.Greater(furnish, carve,
@@ -35,12 +35,16 @@ namespace VoxelEngine.Tests.EditMode
             Assert.Greater(hatch, furnish,
                 "Entrance carving clears the hatch plane, so the authored trapdoor must be restored last.");
             Assert.Greater(cave, hatch,
-                "Natural cave continuation stays downstream of designed dungeon realization.");
+                "Planned natural cave continuation stays downstream of designed dungeon realization.");
 
             StringAssert.Contains("new int3(half * 2, 2, half * 2)", source,
                 "The planned path must restore the same closed wood hatch footprint used by interaction.");
             StringAssert.Contains("Mat.Wood", source);
             StringAssert.Contains("Mat.Gold", source);
+            StringAssert.DoesNotContain("CastleCaveRealizer", source,
+                "Spatial dungeon realization must consume CavePlan instead of falling back to fixed castle cave geometry.");
+            StringAssert.DoesNotContain("CastlePlan keepPlan", source,
+                "Planned dungeon/cave realization must not require castle-scale geometry once planning is complete.");
         }
 
         [Test]
