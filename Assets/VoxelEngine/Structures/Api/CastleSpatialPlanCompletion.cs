@@ -7,7 +7,8 @@ namespace VoxelEngine.Structures.Api
     /// Final pure-data completion for castle details that depend on already-resolved core geometry.
     /// Composition calls this after terrain-dependent keep placement is finished; Runtime receives
     /// tower variation, keep-floor semantics, keep circulation, courtyard buildings, the designed
-    /// dungeon graph, and natural cave topology without choosing authored details itself.
+    /// dungeon graph, natural cave topology, and landscape dressing without choosing authored
+    /// details itself.
     /// </summary>
     public static class CastleSpatialPlanCompletion
     {
@@ -24,7 +25,8 @@ namespace VoxelEngine.Structures.Api
             CastleSpatialPlan withCirculation = AttachKeepCirculation(in plan, withKeepFloors);
             CastleSpatialPlan withBuildings = AttachCourtyardBuildings(in plan, withCirculation);
             CastleSpatialPlan withDungeon = AttachDungeon(in plan, withBuildings);
-            CastleSpatialPlan completed = AttachCave(in plan, withDungeon);
+            CastleSpatialPlan withCave = AttachCave(in plan, withDungeon);
+            CastleSpatialPlan completed = AttachLandscape(in plan, withCave);
             RequireCompleted(in plan, completed);
             return completed;
         }
@@ -211,6 +213,41 @@ namespace VoxelEngine.Structures.Api
                 cave);
         }
 
+        /// <summary>
+        /// Freezes stage-8 decoration coordinates and dimensions after the primary gate and keep
+        /// placement are final. Runtime may still query occupied surface height, but it makes no
+        /// decoration placement or variation choices.
+        /// </summary>
+        public static CastleSpatialPlan AttachLandscape(
+            in CastlePlan plan,
+            CastleSpatialPlan spatial)
+        {
+            if (spatial == null) throw new ArgumentNullException(nameof(spatial));
+            if (spatial.KeepRequiresTerrainResolution)
+                return spatial;
+
+            CastleSpatialProjection projection = CastleSpatialProjection.Create(in plan, spatial);
+            CastleLandscapePlan landscape = CastleLandscapePlanner.Create(
+                in plan,
+                spatial.OuterWardVertices,
+                in projection.Approach);
+            if (!CastleLandscapePlanValidator.TryValidate(
+                    landscape, out CastleLandscapePlanIssue issue))
+            {
+                throw new InvalidOperationException(
+                    $"Castle landscape completion produced an invalid plan: {issue}.");
+            }
+
+            return Copy(
+                spatial,
+                spatial.Towers,
+                spatial.KeepFloors,
+                spatial.CourtyardBuildings,
+                spatial.Dungeon,
+                spatial.Cave,
+                landscape: landscape);
+        }
+
         private static void RequireCompleted(
             in CastlePlan plan,
             CastleSpatialPlan completed)
@@ -240,6 +277,13 @@ namespace VoxelEngine.Structures.Api
             {
                 throw new InvalidOperationException(
                     $"Completed castle keep circulation is invalid: {circulationIssue}.");
+            }
+
+            if (!CastleLandscapePlanValidator.TryValidate(
+                    completed.Landscape, out CastleLandscapePlanIssue landscapeIssue))
+            {
+                throw new InvalidOperationException(
+                    $"Completed castle landscape plan is invalid: {landscapeIssue}.");
             }
 
             if (completed.Dungeon == null)
@@ -294,7 +338,8 @@ namespace VoxelEngine.Structures.Api
             CastleCourtyardBuildingSpec[] buildings,
             DungeonPlan dungeon,
             CavePlan cave,
-            CastleKeepCirculationPlan? keepCirculation = null)
+            CastleKeepCirculationPlan? keepCirculation = null,
+            CastleLandscapePlan landscape = null)
         {
             CastleTopologyPlan topology = spatial.Topology;
             CastleGatePlacementSpec primaryGate = spatial.PrimaryGate;
@@ -324,6 +369,7 @@ namespace VoxelEngine.Structures.Api
                 keepCirculation ?? spatial.KeepCirculation,
                 dungeon,
                 cave,
+                landscape ?? spatial.Landscape,
                 spatial.KeepCentre,
                 false);
 
