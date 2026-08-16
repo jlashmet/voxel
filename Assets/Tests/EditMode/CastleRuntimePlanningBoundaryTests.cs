@@ -49,6 +49,7 @@ namespace VoxelEngine.Tests.EditMode
                 "CastleAccessRoutePlanner.Create(",
                 "CastleLandscapePlanner.Create(",
                 "CastleCavePlanning.Create(",
+                "CastleCaveDecorationPlanner.Create(",
                 "DungeonPlanner.Create(",
                 "CavePlanner.Create(",
                 "CastleSpatialPlanCompletion.Complete(",
