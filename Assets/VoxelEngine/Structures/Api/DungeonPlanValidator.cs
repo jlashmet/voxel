@@ -16,6 +16,8 @@ namespace VoxelEngine.Structures.Api
         InvalidConnectionEndpoint,
         SelfConnection,
         DuplicateConnection,
+        InvalidConnectionKind,
+        InvalidConnectionGeometry,
         DisconnectedGraph,
         CaveThresholdMismatch,
     }
@@ -108,6 +110,23 @@ namespace VoxelEngine.Structures.Api
                 if (connection.FromRoomId == connection.ToRoomId)
                 {
                     issue = DungeonPlanIssue.SelfConnection;
+                    return false;
+                }
+
+                if (connection.Kind != DungeonConnectionKind.Stair &&
+                    connection.Kind != DungeonConnectionKind.Corridor &&
+                    connection.Kind != DungeonConnectionKind.SecretPassage)
+                {
+                    issue = DungeonPlanIssue.InvalidConnectionKind;
+                    return false;
+                }
+
+                DungeonRoomPlan fromRoom = rooms[connection.FromRoomId];
+                DungeonRoomPlan toRoom = rooms[connection.ToRoomId];
+                if (!DungeonConnectionGeometry.IsValid(
+                        in fromRoom, in toRoom, connection.Kind))
+                {
+                    issue = DungeonPlanIssue.InvalidConnectionGeometry;
                     return false;
                 }
 
