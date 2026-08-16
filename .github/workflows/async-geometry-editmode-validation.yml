@@ -43,10 +43,9 @@ jobs:
           # editors previously froze this runner. Match that policy instead of bypassing it.
           # This workflow checks out the triggering SHA, so queued validation remains a real
           # checkpoint even while later async-geometry commits continue landing.
-          # Current checkpoint includes toroidal slot ownership, outgoing-edge retirement,
-          # newly exposed region readmission, dense active-slot visibility, stale-build rejection,
-          # non-blocking completion instrumentation, frame-scoped managed-allocation metrics,
-          # fixed-arena backpressure, and the integrated feature-preserving step-8 HLOD path.
+          # Frozen merge checkpoint: toroidal/active-slot clipmaps, stale-build + non-blocking
+          # completion gates, zero-allocation + arena backpressure gates, fixed draw staging,
+          # integrated step-8 feature-preserving HLOD, and trimmed outer-ring workspace scratch.
           deadline=$((SECONDS + 2400))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
