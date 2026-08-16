@@ -88,6 +88,7 @@ namespace VoxelEngine.Structures.Api
     public static class CastleBuildPreflight
     {
         private const double LegacyUndergroundEstimate = 1_500_000.0;
+        private const double PlannedCaveEstimate = 400_000.0;
 
         /// <summary>
         /// Historical rectangular estimate retained byte-for-byte for compatibility callers.
@@ -108,9 +109,9 @@ namespace VoxelEngine.Structures.Api
             double towers = 6.0 * math.PI_DBL * plan.TowerRadius * plan.TowerRadius * 30.0;
             double keep = plan.KeepHalfX * (double)plan.KeepHalfZ * plan.Floors * 4.0;
             double courtyard = plateauArea * 0.2;
-            double underground = LegacyUndergroundEstimate;
 
-            return (long)(siteCap + cliffCap + walls + towers + keep + courtyard + underground);
+            return (long)(siteCap + cliffCap + walls + towers + keep + courtyard
+                        + LegacyUndergroundEstimate);
         }
 
         /// <summary>
@@ -172,8 +173,7 @@ namespace VoxelEngine.Structures.Api
                     writeBudget);
             }
 
-            long estimate = EstimateWrites(in plan);
-            return BudgetResult(estimate, writeBudget);
+            return BudgetResult(EstimateWrites(in plan), writeBudget);
         }
 
         public static CastleBuildPreflightResult Evaluate(
@@ -212,14 +212,12 @@ namespace VoxelEngine.Structures.Api
                     writeBudget);
             }
 
-            long estimate = EstimateWrites(in plan, spatialPlan);
-            return BudgetResult(estimate, writeBudget);
+            return BudgetResult(EstimateWrites(in plan, spatialPlan), writeBudget);
         }
 
         /// <summary>
-        /// Admission check used by Runtime. Unlike the general spatial evaluation above, this
-        /// requires site-aware planning completion: the keep must be resolved and the designed
-        /// dungeon graph must be attached, valid, and anchored to the projected trapdoor.
+        /// Admission check used by Runtime. Unlike general spatial evaluation, this requires
+        /// site-aware planning completion and a valid dungeon anchored to the projected trapdoor.
         /// </summary>
         public static CastleBuildPreflightResult EvaluateRuntimeReady(
             in CastlePlan plan,
@@ -297,57 +295,12 @@ namespace VoxelEngine.Structures.Api
 
         private static double DungeonCost(DungeonPlan dungeon)
         {
-            if (dungeon == null)
-                return LegacyUndergroundEstimate;
-            if (!DungeonPlanValidator.TryValidate(dungeon, out _))
+            if (dungeon == null || !DungeonPlanValidator.TryValidate(dungeon, out _))
                 return LegacyUndergroundEstimate;
 
-            DungeonRoomPlan[] rooms = dungeon.Rooms;
-            double roomCost = 0.0;
-            for (int i = 0; i < rooms.Length; i++)
-            {
-                int sx = math.max(0, rooms[i].Size.x);
-                int sy = math.max(0, rooms[i].Size.y);
-                int sz = math.max(0, rooms[i].Size.z);
-                double volume = sx * (double)sy * sz;
-                double floorArea = sx * (double)sz;
-
-                // Room excavation is emitted through bulk primitives, while floor skins and later
-                // semantic furnishing still carry per-voxel work. Price a conservative fraction
-                // of the excavated volume plus several floor-area equivalents so larger planned
-                // chambers increase admission cost without pretending every bulk-cleared voxel is
-                // a slow-path write.
-                roomCost += volume * 0.20 + floorArea * 4.0;
-            }
-
-            double connectionCost = 0.0;
-            DungeonConnectionPlan[] connections = dungeon.Connections;
-            for (int i = 0; i < connections.Length; i++)
-            {
-                DungeonConnectionPlan connection = connections[i];
-                DungeonRoomPlan from = rooms[connection.FromRoomId];
-                DungeonRoomPlan to = rooms[connection.ToRoomId];
-                int3 delta = math.abs(to.Centre - from.Centre);
-
-                if (connection.Kind == DungeonConnectionKind.Stair)
-                {
-                    // Spiral stairs include authored solid steps inside a cleared shaft, so the
-                    // vertical run is intentionally priced more heavily than a bulk corridor.
-                    connectionCost += delta.y * 1_000.0;
-                    connectionCost += (delta.x + delta.z) * 20.0 * 30.0 * 0.18;
-                    continue;
-                }
-
-                int width = connection.Kind == DungeonConnectionKind.SecretPassage ? 28 : 20;
-                int height = connection.Kind == DungeonConnectionKind.SecretPassage ? 32 : 30;
-                int horizontalLength = delta.x + delta.z;
-                connectionCost += horizontalLength * (double)width * height * 0.18;
-            }
-
-            // Natural cave topology deliberately remains outside DungeonPlan, but a planned cave
-            // threshold means CastleCaveRealizer will still author that continuation in stage 7.
-            double caveCost = dungeon.HasCaveExit ? 400_000.0 : 0.0;
-            return roomCost + connectionCost + caveCost;
+            double designed = DungeonBuildEstimate.Estimate(dungeon);
+            double cave = dungeon.HasCaveExit ? PlannedCaveEstimate : 0.0;
+            return designed + cave;
         }
 
         private static double CourtyardBuildingCost(CastleCourtyardBuildingSpec[] buildings)
@@ -361,9 +314,6 @@ namespace VoxelEngine.Structures.Api
                 int depth = math.max(0, buildings[i].Depth);
                 int height = math.max(0, buildings[i].Height);
 
-                // Five-voxel masonry shell plus a six-layer-equivalent roof skin. This is
-                // intentionally conservative; admission should grow whenever the planner adds
-                // courtyard structures even though most shell work is later executed in bulk.
                 cost += 2.0 * (width + depth) * height * 5.0;
                 cost += width * (double)depth * 6.0;
             }
