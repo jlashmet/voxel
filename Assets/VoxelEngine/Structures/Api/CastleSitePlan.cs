@@ -1,8 +1,108 @@
 namespace VoxelEngine.Structures.Api
 {
     /// <summary>
-    /// Planned surface styling for the castle site and courtyard. Runtime consumes this as immutable
-    /// realization input; spatial builds do not own mutable random streams for surface materials.
+    /// Frozen geometry recipe for the authored castle outcrop and primary approach. These are
+    /// planning values rather than voxel-mutation details: changing them changes the site's shape,
+    /// so spatial Runtime must consume them rather than choose its own castle terrain recipe.
+    /// </summary>
+    public readonly struct CastleSiteGeometryPlan
+    {
+        public readonly float EdgeFrequencyA;
+        public readonly float EdgeAmplitudeA;
+        public readonly float EdgeFrequencyB;
+        public readonly float EdgeAmplitudeB;
+        public readonly float EdgeFrequencyC;
+        public readonly float EdgeAmplitudeC;
+        public readonly float CliffFalloffExponent;
+        public readonly float CliffNoiseAngularFrequency;
+        public readonly float CliffNoiseProgressFrequency;
+        public readonly float CliffNoiseAmplitude;
+        public readonly int CliffGroundInset;
+        public readonly int GrassEdgeInset;
+        public readonly int ApproachReachInset;
+        public readonly int RiverOffset;
+        public readonly int RiverHalfWidth;
+        public readonly int WaterHalfWidth;
+        public readonly int RiverDepth;
+        public readonly float MeanderFrequencyA;
+        public readonly float MeanderAmplitudeA;
+        public readonly float MeanderFrequencyB;
+        public readonly float MeanderAmplitudeB;
+
+        public CastleSiteGeometryPlan(
+            float edgeFrequencyA,
+            float edgeAmplitudeA,
+            float edgeFrequencyB,
+            float edgeAmplitudeB,
+            float edgeFrequencyC,
+            float edgeAmplitudeC,
+            float cliffFalloffExponent,
+            float cliffNoiseAngularFrequency,
+            float cliffNoiseProgressFrequency,
+            float cliffNoiseAmplitude,
+            int cliffGroundInset,
+            int grassEdgeInset,
+            int approachReachInset,
+            int riverOffset,
+            int riverHalfWidth,
+            int waterHalfWidth,
+            int riverDepth,
+            float meanderFrequencyA,
+            float meanderAmplitudeA,
+            float meanderFrequencyB,
+            float meanderAmplitudeB)
+        {
+            EdgeFrequencyA = edgeFrequencyA;
+            EdgeAmplitudeA = edgeAmplitudeA;
+            EdgeFrequencyB = edgeFrequencyB;
+            EdgeAmplitudeB = edgeAmplitudeB;
+            EdgeFrequencyC = edgeFrequencyC;
+            EdgeAmplitudeC = edgeAmplitudeC;
+            CliffFalloffExponent = cliffFalloffExponent;
+            CliffNoiseAngularFrequency = cliffNoiseAngularFrequency;
+            CliffNoiseProgressFrequency = cliffNoiseProgressFrequency;
+            CliffNoiseAmplitude = cliffNoiseAmplitude;
+            CliffGroundInset = cliffGroundInset;
+            GrassEdgeInset = grassEdgeInset;
+            ApproachReachInset = approachReachInset;
+            RiverOffset = riverOffset;
+            RiverHalfWidth = riverHalfWidth;
+            WaterHalfWidth = waterHalfWidth;
+            RiverDepth = riverDepth;
+            MeanderFrequencyA = meanderFrequencyA;
+            MeanderAmplitudeA = meanderAmplitudeA;
+            MeanderFrequencyB = meanderFrequencyB;
+            MeanderAmplitudeB = meanderAmplitudeB;
+        }
+
+        /// <summary>Behavior-preserving recipe extracted from the historical castle site realizer.</summary>
+        public static CastleSiteGeometryPlan Historical => new CastleSiteGeometryPlan(
+            edgeFrequencyA: 3.7f,
+            edgeAmplitudeA: 18f,
+            edgeFrequencyB: 8.3f,
+            edgeAmplitudeB: 9f,
+            edgeFrequencyC: 17.1f,
+            edgeAmplitudeC: 4f,
+            cliffFalloffExponent: 1.7f,
+            cliffNoiseAngularFrequency: 11f,
+            cliffNoiseProgressFrequency: 6f,
+            cliffNoiseAmplitude: 0.10f,
+            cliffGroundInset: 14,
+            grassEdgeInset: 12,
+            approachReachInset: 8,
+            riverOffset: 92,
+            riverHalfWidth: 90,
+            waterHalfWidth: 42,
+            riverDepth: CastleLayout.LowerRiverDepth,
+            meanderFrequencyA: 0.028f,
+            meanderAmplitudeA: 8f,
+            meanderFrequencyB: 0.071f,
+            meanderAmplitudeB: 3f);
+    }
+
+    /// <summary>
+    /// Planned site geometry and surface styling. Runtime consumes this as immutable realization
+    /// input; spatial builds do not own castle-site shape policy or mutable random streams.
     /// </summary>
     public readonly struct CastleSitePlan
     {
@@ -10,9 +110,10 @@ namespace VoxelEngine.Structures.Api
         public readonly byte GrassCoveragePercent;
         public readonly uint CourtyardPatternSeed;
         public readonly byte CourtyardStonePercent;
+        public readonly CastleSiteGeometryPlan Geometry;
 
         public CastleSitePlan(uint grassPatternSeed, byte grassCoveragePercent)
-            : this(grassPatternSeed, grassCoveragePercent, 0u, 0)
+            : this(grassPatternSeed, grassCoveragePercent, 0u, 0, CastleSiteGeometryPlan.Historical)
         {
         }
 
@@ -21,11 +122,27 @@ namespace VoxelEngine.Structures.Api
             byte grassCoveragePercent,
             uint courtyardPatternSeed,
             byte courtyardStonePercent)
+            : this(
+                grassPatternSeed,
+                grassCoveragePercent,
+                courtyardPatternSeed,
+                courtyardStonePercent,
+                CastleSiteGeometryPlan.Historical)
+        {
+        }
+
+        public CastleSitePlan(
+            uint grassPatternSeed,
+            byte grassCoveragePercent,
+            uint courtyardPatternSeed,
+            byte courtyardStonePercent,
+            in CastleSiteGeometryPlan geometry)
         {
             GrassPatternSeed = grassPatternSeed;
             GrassCoveragePercent = ClampPercent(grassCoveragePercent);
             CourtyardPatternSeed = courtyardPatternSeed;
             CourtyardStonePercent = ClampPercent(courtyardStonePercent);
+            Geometry = geometry;
         }
 
         /// <summary>
@@ -61,19 +178,23 @@ namespace VoxelEngine.Structures.Api
         private static byte ClampPercent(byte value) => value > 100 ? (byte)100 : value;
     }
 
-    /// <summary>Creates the site-style choices attached to generated castle topology.</summary>
+    /// <summary>Creates the site choices attached to generated castle topology.</summary>
     public static class CastleSitePlanner
     {
         private const uint GrassPatternElementId = 0x53495445u; // "SITE"
         private const uint CourtyardPatternElementId = 0x43545944u; // "CTYD"
 
-        public static CastleSitePlan Create(uint rootSeed) =>
-            new CastleSitePlan(
+        public static CastleSitePlan Create(uint rootSeed)
+        {
+            CastleSiteGeometryPlan geometry = CastleSiteGeometryPlan.Historical;
+            return new CastleSitePlan(
                 CastleSeedPartition.Derive(
                     rootSeed, CastleSeedDomain.Decor, GrassPatternElementId),
                 92,
                 CastleSeedPartition.Derive(
                     rootSeed, CastleSeedDomain.Decor, CourtyardPatternElementId),
-                82);
+                82,
+                in geometry);
+        }
     }
 }

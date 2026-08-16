@@ -52,6 +52,12 @@ namespace VoxelEngine.Tests.EditMode
             string planned = File.ReadAllText(Path.Combine(
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
                 "CastlePlannedKeepAnnexRealizer.cs"));
+            string coreKeep = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
+                "CastleKeepRealizer.cs"));
+            string oriel = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
+                "CastleRearOrielRealizer.cs"));
 
             StringAssert.Contains("CastleKeepAnnexBuildReadiness.TryValidate(", pipeline);
             StringAssert.Contains("_keepAnnexes = topology.KeepAnnexes", pipeline);
@@ -59,6 +65,13 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("CastleKeepAnnexRealizer.Build(ref _brush, in keepPlan)", pipeline,
                 "Compatibility builds must retain the historical annex recipe.");
             StringAssert.Contains("CastleKeepAnnexPlanValidator.RequireValid(", planned);
+            StringAssert.Contains("annexes.HasRearOriel", planned);
+            StringAssert.Contains("CastleRearOrielRealizer.Build(", planned);
+            StringAssert.Contains("if (roomPlans == null)", coreKeep,
+                "Only the compatibility keep path may realize the historical unconditional oriel.");
+            StringAssert.DoesNotContain("private static void BuildRearOriel", coreKeep,
+                "Rear-oriel voxel geometry must have a single realizer implementation.");
+            StringAssert.Contains("internal static class CastleRearOrielRealizer", oriel);
             StringAssert.DoesNotContain("CastleKeepAnnexPlanner.Create(", planned,
                 "Runtime must consume the frozen annex plan rather than plan annexes itself.");
         }

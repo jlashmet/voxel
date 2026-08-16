@@ -44,6 +44,15 @@ namespace VoxelEngine.Structures.Api
                 return false;
             }
 
+            CastleGatePlacementSpec primaryGate = spatial.PrimaryGate;
+            CastleKeepFace expectedEntranceFace = CastleKeepFacadePlanner.FacingPrimaryGate(
+                spatial.KeepCentre, in primaryGate);
+            if (circulation.EntranceFace != expectedEntranceFace)
+            {
+                issue = CastleSpatialBuildReadinessIssue.InvalidKeepCirculationPlan;
+                return false;
+            }
+
             CastleKeepWindowSpec[] windows = spatial.KeepWindows;
             if (windows == null || windows.Length == 0)
             {

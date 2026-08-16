@@ -15,6 +15,8 @@ namespace VoxelEngine.Structures.Runtime
         {
             CastleKeepAnnexPlanValidator.RequireValid(in annexes);
             CastleKeepAnnexRealizer.BuildPlanned(ref brush, in plan, in annexes);
+            if (annexes.HasRearOriel)
+                CastleRearOrielRealizer.Build(ref brush, in plan);
         }
     }
 }

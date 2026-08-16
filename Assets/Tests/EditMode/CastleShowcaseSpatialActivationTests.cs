@@ -19,25 +19,28 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void SpatialActivationSeamOwnsPlanningBuildCommitAndInteractionGeometry()
+        public void SpatialActivationSeamOwnsRuntimeReadyBundleBuildCommitAndInteractionGeometry()
         {
             string seam = File.ReadAllText(Path.Combine(
                 RepoRoot, "Assets", "VoxelEngine", "Composition", "Showcase",
                 "ShowcaseWorld.CastleSpatial.cs"));
 
             StringAssert.Contains("PreparePendingCastleSpatialPlan()", seam);
-            StringAssert.Contains("PlanCastleSpatial(", seam);
+            StringAssert.Contains("StructuresComposition.PlanCastleBuild(", seam);
             StringAssert.Contains("BeginPendingSpatialCastleBuild(", seam);
             StringAssert.Contains("StructuresComposition.BeginCastleBuild(", seam);
             StringAssert.Contains("CommitPendingCastleSpatialPlan()", seam);
-            StringAssert.Contains("CastleSpatialProjection.Create(", seam);
+            StringAssert.Contains("_castleSpatialProjection = _plannedCastle.Projection;", seam);
             StringAssert.Contains("ShowcaseCastleSpatialLayout.BuildPresentationLights(", seam);
             StringAssert.Contains("ShowcaseCastleSpatialLayout.PrimaryGateInteractionPosition(", seam);
             StringAssert.Contains("ShowcaseCastleSpatialLayout.PrimaryGateLeafVoxels(", seam);
             StringAssert.Contains("ShowcaseCastleSpatialLayout.TrapdoorCentre(", seam);
             StringAssert.Contains("ShowcaseCastleSpatialLayout.TrapdoorInteractionPosition(", seam);
 
-            StringAssert.DoesNotContain("CastleSpatialLayoutProjection", seam);
+            StringAssert.DoesNotContain("PlanCastleSpatial(", seam,
+                "The showcase should consume the runtime-ready CastleBuildPlan bundle instead of reassembling planning passes.");
+            StringAssert.DoesNotContain("CastleSpatialProjection.Create(", seam,
+                "The runtime-ready bundle owns its validated projection; the showcase should not recreate it.");
             StringAssert.DoesNotContain("CastleGateGeometryResolver.LegacyFront", seam,
                 "Activated interaction must not fall back to the historical fixed -Z gate.");
             StringAssert.DoesNotContain("CastleLayout.TrapdoorCentre", seam,
@@ -52,17 +55,26 @@ namespace VoxelEngine.Tests.EditMode
             string seam = File.ReadAllText(Path.Combine(
                 RepoRoot, "Assets", "VoxelEngine", "Composition", "Showcase",
                 "ShowcaseWorld.CastleSpatial.cs"));
+            string regionRange = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Composition", "Showcase",
+                "ShowcaseCastleDependencyRegionRange.cs"));
 
             StringAssert.Contains("CastleBuildBoundsResolver.Resolve(", seam);
-            StringAssert.Contains("bounds.Min >> shift", seam);
-            StringAssert.Contains("(bounds.MaxExclusive - 1) >> shift", seam);
-            StringAssert.Contains("for (int ry = minRegion.y; ry <= maxRegion.y; ry++)", seam,
-                "Upper castle layers must be generated before voxel mutation begins.");
+            StringAssert.Contains("ShowcaseCastleDependencyRegionRange.FromCastleBounds", seam);
+            StringAssert.Contains(
+                "for (int ry = regionRange.Min.y; ry <= regionRange.MaxInclusive.y; ry++)",
+                seam,
+                "Upper and underground castle layers must be generated before voxel mutation begins.");
             StringAssert.Contains("QueuePendingCastleDependencyRegions();", seam);
             StringAssert.Contains("DependencyGatedCastleBuildSession", seam);
             StringAssert.Contains("PendingCastleDependenciesReady()", seam);
             StringAssert.Contains("public bool IsComplete => _inner == null || _inner.IsComplete", seam,
                 "The pre-build gate must stay quiescent so terrain streaming can satisfy dependencies.");
+
+            StringAssert.Contains("int shift = VoxelDimensions.RegionVoxelEdgeLog2;", regionRange);
+            StringAssert.Contains("min >> shift", regionRange);
+            StringAssert.Contains("(maxExclusive - 1) >> shift", regionRange,
+                "Half-open bounds ending exactly on a region boundary must not queue the next region.");
         }
 
         [Test]

@@ -10,12 +10,14 @@ namespace VoxelEngine.Structures.Api
         FloorIndexMismatch,
         PurposeMismatch,
         PartitionMismatch,
+        MissingAccentPlan,
+        InvalidAccentPlan,
     }
 
     /// <summary>
-    /// Structural contract for the currently supported keep-floor recipe. The planner owns the
-    /// semantic purpose of each floor; runtime may rely on this validator instead of inferring
-    /// meaning from a floor-number switch.
+    /// Structural contract for the currently supported keep-floor recipe. The planner owns each
+    /// floor's semantic purpose and variable room accents; Runtime may rely on this validator
+    /// instead of inferring or rerolling those decisions during voxel realization.
     /// </summary>
     public static class CastleKeepFloorPlanValidator
     {
@@ -60,6 +62,19 @@ namespace VoxelEngine.Structures.Api
                 if (planned.HasPartition != expectedPartition)
                 {
                     issue = CastleKeepFloorPlanIssue.PartitionMismatch;
+                    return false;
+                }
+
+                if (planned.Accents == null)
+                {
+                    issue = CastleKeepFloorPlanIssue.MissingAccentPlan;
+                    return false;
+                }
+
+                if (!CastleRoomAccentPlanValidator.TryValidate(
+                        in plan, planned.Accents, out _))
+                {
+                    issue = CastleKeepFloorPlanIssue.InvalidAccentPlan;
                     return false;
                 }
             }

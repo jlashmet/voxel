@@ -32,6 +32,9 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.AreEqual(first.KeepAnnexes.HasBellTower,
                                 second.KeepAnnexes.HasBellTower,
                     $"seed {seed}: bell tower");
+                Assert.AreEqual(first.KeepAnnexes.HasRearOriel,
+                                second.KeepAnnexes.HasRearOriel,
+                    $"seed {seed}: rear oriel");
             }
         }
 
@@ -60,6 +63,8 @@ namespace VoxelEngine.Tests.EditMode
                     $"seed {seed}: compatibility recipe lost chapel wing");
                 Assert.IsTrue(annexes.HasBellTower,
                     $"seed {seed}: compatibility recipe lost bell tower");
+                Assert.IsTrue(annexes.HasRearOriel,
+                    $"seed {seed}: compatibility recipe lost rear oriel");
 
                 if (plan.Perimeter == CastlePerimeterKind.Concentric)
                 {
@@ -118,6 +123,23 @@ namespace VoxelEngine.Tests.EditMode
         {
             CastleTopologyPlan plan = CastleLayoutPlanner.Create(19u);
             plan.HasKeepAnnexPlan = false;
+
+            Assert.IsFalse(
+                CastleTopologyPlanValidator.TryValidate(
+                    in plan, out CastleTopologyPlanIssue issue));
+            Assert.AreEqual(CastleTopologyPlanIssue.UnexpectedKeepAnnexPlan, issue);
+        }
+
+        [Test]
+        public void TopologyValidatorRejectsRearOrielWithoutAnnexPlan()
+        {
+            CastleTopologyPlan plan = CastleLayoutPlanner.Create(23u);
+            plan.HasKeepAnnexPlan = false;
+            plan.KeepAnnexes = new CastleKeepAnnexPlan(
+                hasGreatHallWing: false,
+                hasChapelWing: false,
+                hasBellTower: false,
+                hasRearOriel: true);
 
             Assert.IsFalse(
                 CastleTopologyPlanValidator.TryValidate(

@@ -28,6 +28,8 @@ namespace VoxelEngine.Structures.Runtime
         private CastleTowerPlacementSpec[] _innerTowerSpecs;
         private CastleGatePlacementSpec _primaryGate;
         private CastleApproachFrame _approach;
+        private bool _hasPlannedGatehouse;
+        private CastleGatehousePlan _gatehousePlan;
         private bool _hasPosternGate;
         private CastleGatePlacementSpec _posternGate;
         private bool _hasInnerGate;
@@ -123,6 +125,8 @@ namespace VoxelEngine.Structures.Runtime
             _spatialCavePlan = null;
             _spatialCaveDecorationPlan = null;
             _spatialLandscapePlan = null;
+            _hasPlannedGatehouse = false;
+            _gatehousePlan = default;
 
             if (spatialPlan != null)
                 SnapshotSpatialPlan(in plan, spatialPlan);
@@ -131,6 +135,26 @@ namespace VoxelEngine.Structures.Runtime
             _stage = 1;
             _keepStage = 0;
             _site = default;
+        }
+
+        /// <summary>
+        /// Runtime-ready spatial constructor whose primary gatehouse dimensions have already been
+        /// frozen by planning. The compatibility spatial constructor above remains available to
+        /// older callers, but production Composition should use this overload.
+        /// </summary>
+        public CastleBuildPipeline(
+            IRegionReadSource reads,
+            IRegionMutationStore mutations,
+            in CastlePlan plan,
+            CastleSpatialPlan spatialPlan,
+            in CastleGatehousePlan gatehousePlan,
+            uint terrainSeed,
+            IMaterialAuthoringCatalogue materials)
+            : this(reads, mutations, in plan, spatialPlan, terrainSeed, materials)
+        {
+            CastleGatehousePlanValidator.RequireValid(in gatehousePlan);
+            _gatehousePlan = gatehousePlan;
+            _hasPlannedGatehouse = true;
         }
 
         public bool IsComplete => _stage > 8;
@@ -189,8 +213,23 @@ namespace VoxelEngine.Structures.Runtime
                 case 4:
                     if (_hasSpatialFortifications)
                     {
-                        CastlePerimeterRealizer.Gatehouse(
-                            ref _brush, in _plan, _primaryGate.Centre, _primaryGate.Outward);
+                        if (_hasPlannedGatehouse)
+                        {
+                            CastlePlannedGatehouseRealizer.Build(
+                                ref _brush,
+                                in _plan,
+                                in _primaryGate,
+                                in _gatehousePlan);
+                        }
+                        else
+                        {
+                            CastlePerimeterRealizer.Gatehouse(
+                                ref _brush,
+                                in _plan,
+                                _primaryGate.Centre,
+                                _primaryGate.Outward);
+                        }
+
                         if (_hasPosternGate)
                             CastlePosternRealizer.BuildDoor(ref _brush, in _plan, in _posternGate);
                         if (_hasInnerGate)

@@ -70,7 +70,9 @@ namespace VoxelEngine.Structures.Runtime
                     break;
 
                 case 5:
-                    BuildFacadeAndOriel(ref brush, in plan, min, size, baseY, floors);
+                    BuildFacade(ref brush, in plan, min, size, baseY, floors);
+                    if (roomPlans == null)
+                        CastleRearOrielRealizer.Build(ref brush, in plan);
                     break;
             }
 
@@ -125,19 +127,16 @@ namespace VoxelEngine.Structures.Runtime
 
                 CastleKeepFloorPlan roomPlan = roomPlans[f];
                 int furnishingRecipe = FurnishingRecipe(in roomPlan, f);
-                CastlePlan furnishingPlan = plan;
-                // CastleRoomFurnisher still owns the legacy recipe implementation and derives its
-                // RNG as plan.Seed ^ (recipe * 7919 + 13). Adapt only the temporary furnishing
-                // plan so that expression resolves to the semantic seed already chosen by planning.
-                // The compatibility path above remains byte-for-byte on its historical seed flow.
-                furnishingPlan.Seed = RoomFurnishingPlanSeed(roomPlan.SemanticSeed, furnishingRecipe);
-                CastleRoomFurnisher.Furnish(
-                    ref brush, in furnishingPlan, min, size, y, furnishingRecipe);
+                CastleRoomFurnisher.FurnishPlanned(
+                    ref brush,
+                    in plan,
+                    min,
+                    size,
+                    y,
+                    furnishingRecipe,
+                    roomPlan.Accents);
             }
         }
-
-        internal static uint RoomFurnishingPlanSeed(uint semanticSeed, int furnishingRecipe) =>
-            semanticSeed ^ (uint)(furnishingRecipe * 7919 + 13);
 
         private static int FurnishingRecipe(in CastleKeepFloorPlan roomPlan, int expectedFloor)
         {
@@ -223,8 +222,8 @@ namespace VoxelEngine.Structures.Runtime
             }
         }
 
-        private static void BuildFacadeAndOriel(ref VoxelBrush brush, in CastlePlan plan,
-                                                int3 min, int3 size, int baseY, int floors)
+        private static void BuildFacade(ref VoxelBrush brush, in CastlePlan plan,
+                                        int3 min, int3 size, int baseY, int floors)
         {
             for (int f = 1; f < floors; f++)
             {
@@ -254,50 +253,6 @@ namespace VoxelEngine.Structures.Runtime
                 brush.Box(new int3(stainX + 3, baseY + 2, min.z - 2),
                           new int3(3, keepStains[i].y + 5, 2), Mat.Moss);
             }
-            BuildRearOriel(ref brush, in plan, min, size, baseY);
-        }
-
-        private static void BuildRearOriel(ref VoxelBrush brush, in CastlePlan plan,
-                                           int3 keepMin, int3 keepSize, int baseY)
-        {
-            const int width = 44;
-            const int depth = 22;
-            int minX = plan.Centre.x + 18;
-            int wallZ = keepMin.z + keepSize.z;
-            int firstFloorY = baseY + plan.FloorHeight * 2;
-            for (int x = 3; x < width - 2; x += 12)
-            {
-                brush.Box(new int3(minX + x, firstFloorY - 13, wallZ + 2),
-                          new int3(5, 13, 14), Mat.DarkStone);
-            }
-
-            for (int storey = 0; storey < 2; storey++)
-            {
-                int y = firstFloorY + storey * plan.FloorHeight;
-                brush.Box(new int3(minX, y, wallZ - 2), new int3(width, 4, depth), Mat.Wood);
-                brush.Box(new int3(minX, y + 4, wallZ + depth - 5),
-                          new int3(width, plan.FloorHeight - 7, 4), Mat.Wood);
-                brush.Box(new int3(minX, y + 4, wallZ),
-                          new int3(4, plan.FloorHeight - 7, depth - 3), Mat.Wood);
-                brush.Box(new int3(minX + width - 4, y + 4, wallZ),
-                          new int3(4, plan.FloorHeight - 7, depth - 3), Mat.Wood);
-                for (int bay = 0; bay < 3; bay++)
-                {
-                    int bayX = minX + 5 + bay * 13;
-                    brush.Box(new int3(bayX, y + 9, wallZ + depth - 4),
-                              new int3(9, plan.FloorHeight - 18, 3), Mat.LitWindow);
-                }
-                brush.Box(new int3(minX + 8, y + 4, wallZ - 8),
-                          new int3(width - 16, 25, 12), Mat.Empty);
-                brush.Box(new int3(minX + 4, y + 4, wallZ + 4),
-                          new int3(width - 8, plan.FloorHeight - 8, depth - 9), Mat.Empty);
-            }
-
-            int roofY = firstFloorY + plan.FloorHeight * 2;
-            brush.Gable(new int3(minX - 4, roofY, wallZ - 4),
-                        new int3(width + 8, 24, depth + 8), true, Mat.Tile);
-            brush.Box(new int3(minX - 3, firstFloorY + plan.FloorHeight - 1, wallZ - 1),
-                      new int3(width + 6, 3, depth + 1), Mat.DarkStone);
         }
     }
 }
