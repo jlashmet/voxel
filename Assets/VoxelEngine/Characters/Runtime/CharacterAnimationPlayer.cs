@@ -152,7 +152,7 @@ namespace VoxelEngine.Characters.Runtime
 
         private void SubscribeToResolver()
         {
-            if (resolverSubscribed || visualResolver == null)
+            if (resolverSubscribed || visualResolver == null || !isActiveAndEnabled)
             {
                 return;
             }
