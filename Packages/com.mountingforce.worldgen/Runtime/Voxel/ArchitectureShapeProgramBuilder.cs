@@ -186,6 +186,8 @@ namespace MountingForce.WorldGen.Voxel
                 case StructureSurfaceTreatment.Sharp: return SurfaceStyles.Sharp;
                 case StructureSurfaceTreatment.Beveled: return SurfaceStyles.Beveled;
                 case StructureSurfaceTreatment.MasonryJoint: return SurfaceStyles.MasonryJoint;
+                case StructureSurfaceTreatment.ArchitecturalRounded:
+                    return SurfaceStyles.ArchitecturalRounded;
                 default: return fallback;
             }
         }
