@@ -258,6 +258,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             public uint CoatingCatalogueVersion;
             public ulong CoatingCatalogueHash;
             public bool SnapshotTaken;
+            public bool SnapshotInitialised;
+            public int SnapshotCursor;
+            public double SnapshotCpuMs;
             public bool HasOwnedSolid;
             public bool RequiresContinuousTopology;
             public double BuildStartSeconds;
@@ -867,6 +870,17 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     || desired <= _build.SourceVersion))
                 Invalidate(_build.Coordinate);
 
+            // A sliced snapshot can become stale between frames. Unlike a scheduled Burst job it
+            // owns no worker dependency yet, so abandon it immediately and let the newer dirty
+            // generation restart rather than spending more budget on data we will reject anyway.
+            if (_build.Active && !_build.SnapshotTaken
+                && _desiredVersions.TryGetValue(_build.Coordinate, out ulong slicedDesired)
+                && slicedDesired > _build.SourceVersion)
+            {
+                StaleBuildCount++;
+                ResetCompletedBuild();
+            }
+
             double deadline = Time.realtimeSinceStartupAsDouble
                             + math.max(0.0, budgetMs) * 0.001;
             do
@@ -881,8 +895,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
                 if (_build.Phase == 0)
                 {
-                    if (!_densityJobScheduled)
-                        ScheduleDensityJob(source, in palette, voxelSize);
+                    if (!_build.SnapshotTaken
+                        && !StepDensitySnapshot(source, in palette, voxelSize, deadline))
+                        break;
 
                     // Border invalidation intentionally discovers halo chunks. If the immutable
                     // snapshot proves this chunk owns no solid cells, publish a complete empty
@@ -1294,70 +1309,230 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             foreach (var pair in staging) _profileBlocksByChunk.Add(pair.Key, pair.Value.ToArray());
         }
 
+        private const int SnapshotBlocksPerDeadlineCheck = 8;
+        private const int SnapshotMipSamplesPerDeadlineCheck = 64;
+
         /// <summary>
-        /// Snapshots one mip cell per lattice sample and schedules the coarse-ring density job.
-        ///
-        /// A coarse chunk spans far too much world to cache its bricks, but it only ever reads
-        /// GridSize³ samples, so the snapshot is sized by the lattice rather than by the world
-        /// extent. That is what keeps the outermost rings affordable no matter how much terrain
-        /// they cover. Samples whose region is absent read as empty, which leaves a hole rather
-        /// than inventing geometry the server never sent.
+        /// Advances the authoritative-to-immutable snapshot boundary without ever walking a full
+        /// chunk in one frame. The snapshot lives entirely in this workspace's persistent native
+        /// buffers; borrowed Storage views are reacquired inside each slice and never survive the
+        /// call. A later journal invalidation rejects the partial generation before publication.
         /// </summary>
-        private void ScheduleMipDensityJob(IRegionReadSource source,
-                                           in MaterialPaletteView palette, float voxelSize)
+        private bool StepDensitySnapshot(IRegionReadSource source,
+                                         in MaterialPaletteView palette,
+                                         float voxelSize, double deadlineSeconds)
         {
-            double snapshotStart = Time.realtimeSinceStartupAsDouble;
+            if (Time.realtimeSinceStartupAsDouble >= deadlineSeconds) return false;
+            return SamplesFromMips
+                ? StepMipDensitySnapshot(source, in palette, voxelSize, deadlineSeconds)
+                : StepExactDensitySnapshot(source, in palette, voxelSize, deadlineSeconds);
+        }
+
+        private bool StepExactDensitySnapshot(IRegionReadSource source,
+                                              in MaterialPaletteView palette,
+                                              float voxelSize, double deadlineSeconds)
+        {
+            double sliceStart = Time.realtimeSinceStartupAsDouble;
             using var snapshotScope = s_SnapshotMarker.Auto();
+            if (!_build.SnapshotInitialised)
+            {
+                _densityMixedVoxels.Clear();
+                _densityMixedSurfaceSemantics.Clear();
+                _densityMixedBoundarySamples.Clear();
+                _buildSurfaceCatalogue = _surfaceCatalogue;
+                _buildCoatingCatalogue = _coatingCatalogue;
+                _buildPalette = palette;
+                _build.MaterialPaletteVersion = palette.Version;
+                _buildProfileBlocks = _profileBlocksByChunk.TryGetValue(
+                    _build.Coordinate, out ProfileBlock[] blocks)
+                    ? blocks : Array.Empty<ProfileBlock>();
+                _build.SnapshotCursor = 0;
+                _build.SnapshotCpuMs = 0.0;
+                _build.HasOwnedSolid = false;
+                _build.RequiresContinuousTopology = _buildProfileBlocks.Length > 0;
+                _build.SnapshotInitialised = true;
+            }
+
+            int3 chunkOriginVoxel = _build.Coordinate * VoxelsPerAxis;
+            int3 chunkBrickOrigin = new(chunkOriginVoxel.x >> VoxelReadGrid.BlockEdgeLog2,
+                                        chunkOriginVoxel.y >> VoxelReadGrid.BlockEdgeLog2,
+                                        chunkOriginVoxel.z >> VoxelReadGrid.BlockEdgeLog2);
+            int3 cacheOrigin = chunkBrickOrigin - BrickCachePadding;
+            RegionSampleCursor cursor = default;
+
+            while (_build.SnapshotCursor < BrickCacheCount)
+            {
+                int batchEnd = math.min(BrickCacheCount,
+                    _build.SnapshotCursor + SnapshotBlocksPerDeadlineCheck);
+                for (; _build.SnapshotCursor < batchEnd; _build.SnapshotCursor++)
+                {
+                    int index = _build.SnapshotCursor;
+                    int x = index % BrickCacheEdge;
+                    int y = (index / BrickCacheEdge) % BrickCacheEdge;
+                    int z = index / (BrickCacheEdge * BrickCacheEdge);
+                    int3 worldBrick = cacheOrigin + new int3(x, y, z);
+                    TransvoxelDensityBrick brick = SnapshotBlock(source, ref cursor, worldBrick);
+                    _densityBricks[index] = brick;
+
+                    bool ownsCore = x >= BrickCachePadding
+                                  && y >= BrickCachePadding
+                                  && z >= BrickCachePadding
+                                  && x < BrickCachePadding + BricksPerAxis
+                                  && y < BrickCachePadding + BricksPerAxis
+                                  && z < BrickCachePadding + BricksPerAxis;
+                    ClassifySnapshotBrick(in brick, ownsCore);
+                }
+
+                if (_build.SnapshotCursor < BrickCacheCount
+                    && Time.realtimeSinceStartupAsDouble >= deadlineSeconds)
+                {
+                    AccumulateSnapshotSlice(sliceStart, completed: false);
+                    return false;
+                }
+            }
+
+            _build.SnapshotTaken = true;
+            AccumulateSnapshotSlice(sliceStart, completed: true);
+            if (!_build.HasOwnedSolid && _buildProfileBlocks.Length == 0)
+                return true;
+
+            if (_build.RequiresContinuousTopology)
+            {
+                var job = new TransvoxelDensityJob
+                {
+                    Bricks = _densityBricks,
+                    MixedVoxels = _densityMixedVoxels.AsArray(),
+                    MixedSurfaceSemantics = _densityMixedSurfaceSemantics.AsArray(),
+                    MixedBoundarySamples = _densityMixedBoundarySamples.AsArray(),
+                    Palette = _buildPalette,
+                    Catalogue = _buildSurfaceCatalogue,
+                    Coatings = _buildCoatingCatalogue,
+                    Density = _density,
+                    Materials = _materials,
+                    SurfaceSemantics = _surfaceSemantics,
+                    BoundarySamples = _boundarySamples,
+                    ChunkOriginVoxel = chunkOriginVoxel,
+                    BrickCacheOrigin = cacheOrigin,
+                    BrickCacheEdge = BrickCacheEdge,
+                    GridSize = GridSize,
+                    Padding = Padding,
+                    SourceStep = SourceStep
+                };
+                _build.DensityScheduledSeconds = Time.realtimeSinceStartupAsDouble;
+                _densityJobHandle = job.Schedule(GridSampleCount, 64);
+                _densityJobScheduled = true;
+                ScheduleTopologyJob(voxelSize, _densityJobHandle);
+                ScheduleFacetedMaskJob(_densityJobHandle);
+                ScheduleFacetedMergeJob(voxelSize);
+            }
+            return true;
+        }
+
+        private void ClassifySnapshotBrick(in TransvoxelDensityBrick brick, bool ownsCore)
+        {
+            if (brick.Kind == 0) return;
+            if (brick.Kind == 1)
+            {
+                if (!IsSolidSurfaceMaterial(brick.UniformMaterial)) return;
+                if (ownsCore) _build.HasOwnedSolid = true;
+                if (_build.RequiresContinuousTopology) return;
+                SurfaceStyleReadDefinition style = _buildSurfaceCatalogue.Get(
+                    _buildPalette.GetDefaultSurfaceStyle(brick.UniformMaterial));
+                _build.RequiresContinuousTopology =
+                    style.Reconstruction == SurfaceReconstruction.Smooth
+                    || style.Reconstruction == SurfaceReconstruction.Rounded;
+                return;
+            }
+
+            int endVoxel = brick.MixedOffset + VoxelReadGrid.VoxelsPerBlock;
+            for (int voxel = brick.MixedOffset; voxel < endVoxel; voxel++)
+            {
+                byte material = _densityMixedVoxels[voxel];
+                if (!IsSolidSurfaceMaterial(material)) continue;
+                if (ownsCore) _build.HasOwnedSolid = true;
+                if (_build.RequiresContinuousTopology) continue;
+
+                uint surface = VoxelSurfaceSemantics.FromStorage(
+                    _densityMixedSurfaceSemantics[voxel]).Packed;
+                ushort styleId = (ushort)surface;
+                if (styleId == SurfaceStyles.MaterialDefault)
+                    styleId = _buildPalette.GetDefaultSurfaceStyle(material);
+                SurfaceStyleReadDefinition style = _buildSurfaceCatalogue.Get(styleId);
+                byte coating = (byte)(surface >> 16);
+                _build.RequiresContinuousTopology = _densityMixedBoundarySamples[voxel] != 0
+                    || _buildCoatingCatalogue.Get(coating).Displacement != 0
+                    || style.Reconstruction == SurfaceReconstruction.Smooth
+                    || style.Reconstruction == SurfaceReconstruction.Rounded;
+            }
+        }
+
+        private bool StepMipDensitySnapshot(IRegionReadSource source,
+                                            in MaterialPaletteView palette,
+                                            float voxelSize, double deadlineSeconds)
+        {
+            double sliceStart = Time.realtimeSinceStartupAsDouble;
+            using var snapshotScope = s_SnapshotMarker.Auto();
+            if (!_build.SnapshotInitialised)
+            {
+                _buildSurfaceCatalogue = _surfaceCatalogue;
+                _buildCoatingCatalogue = _coatingCatalogue;
+                _buildPalette = palette;
+                _build.MaterialPaletteVersion = palette.Version;
+                _buildProfileBlocks = Array.Empty<ProfileBlock>();
+                _build.SnapshotCursor = 0;
+                _build.SnapshotCpuMs = 0.0;
+                _build.HasOwnedSolid = false;
+                _build.RequiresContinuousTopology = false;
+                _build.SnapshotInitialised = true;
+            }
 
             int3 chunkOriginVoxel = _build.Coordinate * VoxelsPerAxis;
             int mipLevel = VoxelReadGrid.LevelForStride(SourceStep);
             RegionSampleCursor cursor = default;
-            bool anySolid = false;
-
-            for (int gz = 0; gz < GridSize; gz++)
-            for (int gy = 0; gy < GridSize; gy++)
-            for (int gx = 0; gx < GridSize; gx++)
+            while (_build.SnapshotCursor < GridSampleCount)
             {
-                int index = GridIndex(gx, gy, gz);
-                int3 voxel = chunkOriginVoxel
-                           + (new int3(gx, gy, gz) - Padding) * SourceStep;
-
-                bool occupied = false;
-                byte material = VoxelGrid.MaterialEmpty;
-                if (TrySampleWorld(source, ref cursor, voxel, mipLevel,
-                                   out bool sampled, out byte sampledMaterial))
+                int batchEnd = math.min(GridSampleCount,
+                    _build.SnapshotCursor + SnapshotMipSamplesPerDeadlineCheck);
+                for (; _build.SnapshotCursor < batchEnd; _build.SnapshotCursor++)
                 {
-                    occupied = sampled;
-                    material = sampledMaterial;
+                    int index = _build.SnapshotCursor;
+                    int gx = index % GridSize;
+                    int gy = (index / GridSize) % GridSize;
+                    int gz = index / (GridSize * GridSize);
+                    int3 voxel = chunkOriginVoxel
+                               + (new int3(gx, gy, gz) - Padding) * SourceStep;
+
+                    bool occupied = false;
+                    byte material = VoxelGrid.MaterialEmpty;
+                    if (TrySampleWorld(source, ref cursor, voxel, mipLevel,
+                                       out bool sampled, out byte sampledMaterial))
+                    {
+                        occupied = sampled;
+                        material = sampledMaterial;
+                    }
+                    _mipSampleOccupancy[index] = occupied ? (byte)1 : (byte)0;
+                    _mipSampleMaterials[index] = material;
+                    _build.HasOwnedSolid |= occupied && IsSolidSurfaceMaterial(material);
                 }
 
-                _mipSampleOccupancy[index] = occupied ? (byte)1 : (byte)0;
-                _mipSampleMaterials[index] = material;
-                anySolid |= occupied && IsSolidSurfaceMaterial(material);
+                if (_build.SnapshotCursor < GridSampleCount
+                    && Time.realtimeSinceStartupAsDouble >= deadlineSeconds)
+                {
+                    AccumulateSnapshotSlice(sliceStart, completed: false);
+                    return false;
+                }
             }
 
-            _buildSurfaceCatalogue = _surfaceCatalogue;
-            _buildCoatingCatalogue = _coatingCatalogue;
-            _buildPalette = palette;
-            _build.MaterialPaletteVersion = palette.Version;
             _build.SnapshotTaken = true;
-            _buildProfileBlocks = Array.Empty<ProfileBlock>();
-            _build.HasOwnedSolid = anySolid;
-
-            LastSnapshotMs = (Time.realtimeSinceStartupAsDouble - snapshotStart) * 1000.0;
-            _snapshotTiming.Add(LastSnapshotMs);
-            if (!anySolid) return;
-
-            // Coarse rings always take the continuous path. Authored planar/cubic styles
-            // describe centimetre detail; at these strides a cell spans metres, and faceting
-            // it would produce a staircase silhouette across the whole far field.
-            _build.RequiresContinuousTopology = true;
+            _build.RequiresContinuousTopology = _build.HasOwnedSolid;
+            AccumulateSnapshotSlice(sliceStart, completed: true);
+            if (!_build.HasOwnedSolid) return true;
 
             var job = new MipDensityJob
             {
                 SampleOccupancy = _mipSampleOccupancy,
                 SampleMaterials = _mipSampleMaterials,
-                Palette = palette,
+                Palette = _buildPalette,
                 Density = _density,
                 Materials = _materials,
                 SurfaceSemantics = _surfaceSemantics,
@@ -1368,146 +1543,15 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _densityJobHandle = job.Schedule(GridSampleCount, 256);
             _densityJobScheduled = true;
             ScheduleTopologyJob(voxelSize, _densityJobHandle);
+            return true;
         }
 
-        /// <summary>
-        /// Resolves the padded brick neighbourhood around the chunk once and copies only mixed
-        /// voxel payloads. This snapshot is immutable until the Burst density job completes, so
-        /// gameplay may continue editing/evicting authoritative storage without racing the job.
-        /// </summary>
-        private void ScheduleDensityJob(IRegionReadSource source,
-                                        in MaterialPaletteView palette, float voxelSize)
+        private void AccumulateSnapshotSlice(double sliceStart, bool completed)
         {
-            if (SamplesFromMips)
-            {
-                ScheduleMipDensityJob(source, in palette, voxelSize);
-                return;
-            }
-
-            double snapshotStart = Time.realtimeSinceStartupAsDouble;
-            using var snapshotScope = s_SnapshotMarker.Auto();
-            _densityMixedVoxels.Clear();
-            _densityMixedSurfaceSemantics.Clear();
-            _densityMixedBoundarySamples.Clear();
-
-            int3 chunkOriginVoxel = _build.Coordinate * VoxelsPerAxis;
-            int3 chunkBrickOrigin = new(chunkOriginVoxel.x >> VoxelReadGrid.BlockEdgeLog2,
-                                        chunkOriginVoxel.y >> VoxelReadGrid.BlockEdgeLog2,
-                                        chunkOriginVoxel.z >> VoxelReadGrid.BlockEdgeLog2);
-            int3 cacheOrigin = chunkBrickOrigin - BrickCachePadding;
-            RegionSampleCursor cursor = default;
-
-            for (int z = 0; z < BrickCacheEdge; z++)
-            for (int y = 0; y < BrickCacheEdge; y++)
-            for (int x = 0; x < BrickCacheEdge; x++)
-            {
-                int cacheIndex = x + BrickCacheEdge * (y + BrickCacheEdge * z);
-                int3 worldBrick = cacheOrigin + new int3(x, y, z);
-                _densityBricks[cacheIndex] = SnapshotBlock(source, ref cursor, worldBrick);
-            }
-
-            _buildSurfaceCatalogue = _surfaceCatalogue;
-            _buildCoatingCatalogue = _coatingCatalogue;
-            var job = new TransvoxelDensityJob
-            {
-                Bricks = _densityBricks,
-                MixedVoxels = _densityMixedVoxels.AsArray(),
-                MixedSurfaceSemantics = _densityMixedSurfaceSemantics.AsArray(),
-                MixedBoundarySamples = _densityMixedBoundarySamples.AsArray(),
-                Palette = palette,
-                Catalogue = _buildSurfaceCatalogue,
-                Coatings = _buildCoatingCatalogue,
-                Density = _density,
-                Materials = _materials,
-                SurfaceSemantics = _surfaceSemantics,
-                BoundarySamples = _boundarySamples,
-                ChunkOriginVoxel = chunkOriginVoxel,
-                BrickCacheOrigin = cacheOrigin,
-                BrickCacheEdge = BrickCacheEdge,
-                GridSize = GridSize,
-                Padding = Padding,
-                SourceStep = SourceStep
-            };
-
-            _build.MaterialPaletteVersion = palette.Version;
-            _build.SnapshotTaken = true;
-            _buildPalette = palette;
-            _buildProfileBlocks = _profileBlocksByChunk.TryGetValue(
-                _build.Coordinate, out ProfileBlock[] blocks)
-                ? blocks : Array.Empty<ProfileBlock>();
-            _build.HasOwnedSolid = SnapshotCoreHasSolid();
-            if (!_build.HasOwnedSolid && _buildProfileBlocks.Length == 0)
-            {
-                LastSnapshotMs = (Time.realtimeSinceStartupAsDouble - snapshotStart) * 1000.0;
-                _snapshotTiming.Add(LastSnapshotMs);
-                return;
-            }
-
-            _build.RequiresContinuousTopology = _buildProfileBlocks.Length > 0;
-            for (int i = 0; i < _densityBricks.Length
-                            && !_build.RequiresContinuousTopology; i++)
-            {
-                TransvoxelDensityBrick brick = _densityBricks[i];
-                if (brick.Kind != 1 || !IsSolidSurfaceMaterial(brick.UniformMaterial)) continue;
-                SurfaceStyleReadDefinition style = _buildSurfaceCatalogue.Get(
-                    palette.GetDefaultSurfaceStyle(brick.UniformMaterial));
-                _build.RequiresContinuousTopology =
-                    style.Reconstruction == SurfaceReconstruction.Smooth
-                    || style.Reconstruction == SurfaceReconstruction.Rounded;
-            }
-            for (int i = 0; i < _densityMixedVoxels.Length
-                            && !_build.RequiresContinuousTopology; i++)
-            {
-                byte material = _densityMixedVoxels[i];
-                if (!IsSolidSurfaceMaterial(material)) continue;
-                uint surface = VoxelSurfaceSemantics.FromStorage(
-                    _densityMixedSurfaceSemantics[i]).Packed;
-                ushort styleId = (ushort)surface;
-                if (styleId == SurfaceStyles.MaterialDefault)
-                    styleId = palette.GetDefaultSurfaceStyle(material);
-                SurfaceStyleReadDefinition style = _buildSurfaceCatalogue.Get(styleId);
-                byte coating = (byte)(surface >> 16);
-                _build.RequiresContinuousTopology = _densityMixedBoundarySamples[i] != 0
-                    || _buildCoatingCatalogue.Get(coating).Displacement != 0
-                    || style.Reconstruction == SurfaceReconstruction.Smooth
-                    || style.Reconstruction == SurfaceReconstruction.Rounded;
-            }
-
-            if (_build.RequiresContinuousTopology)
-            {
-                _build.DensityScheduledSeconds = Time.realtimeSinceStartupAsDouble;
-                _densityJobHandle = job.Schedule(GridSampleCount, 64);
-                _densityJobScheduled = true;
-                ScheduleTopologyJob(voxelSize, _densityJobHandle);
-                ScheduleFacetedMaskJob(_densityJobHandle);
-                ScheduleFacetedMergeJob(voxelSize);
-            }
-            LastSnapshotMs = (Time.realtimeSinceStartupAsDouble - snapshotStart) * 1000.0;
+            _build.SnapshotCpuMs += ElapsedMs(sliceStart);
+            if (!completed) return;
+            LastSnapshotMs = _build.SnapshotCpuMs;
             _snapshotTiming.Add(LastSnapshotMs);
-        }
-
-        private bool SnapshotCoreHasSolid()
-        {
-            int first = BrickCachePadding;
-            int end = first + BricksPerAxis;
-            for (int z = first; z < end; z++)
-            for (int y = first; y < end; y++)
-            for (int x = first; x < end; x++)
-            {
-                int index = x + BrickCacheEdge * (y + BrickCacheEdge * z);
-                TransvoxelDensityBrick brick = _densityBricks[index];
-                if (brick.Kind == 0) continue;
-                if (brick.Kind == 1)
-                {
-                    if (IsSolidSurfaceMaterial(brick.UniformMaterial)) return true;
-                    continue;
-                }
-
-                int endVoxel = brick.MixedOffset + VoxelReadGrid.VoxelsPerBlock;
-                for (int voxel = brick.MixedOffset; voxel < endVoxel; voxel++)
-                    if (IsSolidSurfaceMaterial(_densityMixedVoxels[voxel])) return true;
-            }
-            return false;
         }
 
         private TransvoxelDensityBrick SnapshotBlock(IRegionReadSource source,

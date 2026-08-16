@@ -124,5 +124,20 @@ namespace VoxelEngine.Tests.EditMode
                 "The exact step-8 ring must not duplicate its 66^3 snapshot cache eight times.");
         }
 
+
+        [Test]
+        public void AuthoritativeSnapshotAssemblyIsResumable()
+        {
+            string cache = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"));
+            StringAssert.Contains("private bool StepDensitySnapshot", cache);
+            StringAssert.Contains("SnapshotCursor", cache);
+            StringAssert.Contains("SnapshotBlocksPerDeadlineCheck", cache);
+            StringAssert.Contains("Time.realtimeSinceStartupAsDouble >= deadlineSeconds", cache);
+            StringAssert.DoesNotContain("private void ScheduleDensityJob", cache);
+            StringAssert.DoesNotContain("private void ScheduleMipDensityJob", cache);
+            StringAssert.DoesNotContain("private bool SnapshotCoreHasSolid", cache);
+        }
+
     }
 }
