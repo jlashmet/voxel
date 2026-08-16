@@ -64,6 +64,7 @@ namespace VoxelEngine.Showcase
             }
 
             CastlePlan plan = projection.KeepPlan;
+            CastleKeepAnnexPlan annexes = projection.KeepAnnexes;
             int baseY = plan.Centre.y + plan.PlateauHeight;
             int keepMinZ = projection.KeepCentreWorld.y - plan.KeepHalfZ;
             int keepCentreZ = projection.KeepCentreWorld.y;
@@ -107,10 +108,18 @@ namespace VoxelEngine.Showcase
             AddLight(keepCentreX + 42, baseY + 26, keepCentreZ + 30, 8.0f, hallWarm);
             AddLight(keepCentreX, baseY + plan.FloorHeight + 17, keepCentreZ, 8.0f, upperWarm);
             AddLight(keepCentreX, baseY + plan.FloorHeight * 3 + 17, keepCentreZ, 7.0f, upperWarm);
-            AddLight(wingCentreX, baseY + 17, wingCentreZ, 7.5f, hallWarm);
-            AddLight(wingCentreX, baseY + plan.FloorHeight + 17, wingCentreZ, 7.0f, upperWarm);
-            AddLight(chapelCentreX - 18, baseY + 24, chapelCentreZ, 7.5f, chapelWarm);
-            AddLight(chapelCentreX + 22, baseY + 27, chapelCentreZ, 7.5f, chapelWarm);
+
+            if (annexes.HasGreatHallWing)
+            {
+                AddLight(wingCentreX, baseY + 17, wingCentreZ, 7.5f, hallWarm);
+                AddLight(wingCentreX, baseY + plan.FloorHeight + 17, wingCentreZ, 7.0f, upperWarm);
+            }
+
+            if (annexes.HasChapelWing)
+            {
+                AddLight(chapelCentreX - 18, baseY + 24, chapelCentreZ, 7.5f, chapelWarm);
+                AddLight(chapelCentreX + 22, baseY + 27, chapelCentreZ, 7.5f, chapelWarm);
+            }
 
             if (TryFindRoom(dungeon, DungeonRoomPurpose.Archive, out DungeonRoomPlan archive))
             {
@@ -168,19 +177,23 @@ namespace VoxelEngine.Showcase
                 keepCentreZ + 42,
                 6.0f,
                 upperWarm);
-            AddLight(bellTower.x, baseY + 17, bellTower.z, 5.5f, chapelWarm);
-            AddLight(
-                bellTower.x,
-                baseY + plan.FloorHeight * 2 + 17,
-                bellTower.z,
-                5.5f,
-                upperWarm);
-            AddLight(
-                bellTower.x,
-                baseY + plan.FloorHeight * 3 + 17,
-                bellTower.z,
-                5.0f,
-                upperWarm);
+
+            if (annexes.HasBellTower)
+            {
+                AddLight(bellTower.x, baseY + 17, bellTower.z, 5.5f, chapelWarm);
+                AddLight(
+                    bellTower.x,
+                    baseY + plan.FloorHeight * 2 + 17,
+                    bellTower.z,
+                    5.5f,
+                    upperWarm);
+                AddLight(
+                    bellTower.x,
+                    baseY + plan.FloorHeight * 3 + 17,
+                    bellTower.z,
+                    5.0f,
+                    upperWarm);
+            }
 
             lights = lightList.ToArray();
             colours = colourList.ToArray();
