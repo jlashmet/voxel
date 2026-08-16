@@ -55,6 +55,8 @@ namespace VoxelEngine.Structures.Runtime
         public int StageNumber => _stage;
         public long TotalVoxelsWritten => _brush.TotalVoxelsWritten;
 
+        internal VoxelBrush Brush => _brush;
+
         /// <summary>Executes one bounded unit of the current semantic stage.</summary>
         public bool Step()
         {
