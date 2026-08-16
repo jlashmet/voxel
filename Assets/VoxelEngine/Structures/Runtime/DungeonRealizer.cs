@@ -36,14 +36,17 @@ namespace VoxelEngine.Structures.Runtime
                 switch (connection.Kind)
                 {
                     case DungeonConnectionKind.Stair:
-                        CarveStair(ref brush, in from, in to, floorMaterial, stairMaterial);
+                        CarveStair(ref brush, in from, in to, stairMaterial);
                         break;
                     case DungeonConnectionKind.SecretPassage:
                         CarvePassage(ref brush, in from, in to, 28, 32, floorMaterial);
                         break;
-                    default:
+                    case DungeonConnectionKind.Corridor:
                         CarvePassage(ref brush, in from, in to, 20, 30, floorMaterial);
                         break;
+                    default:
+                        throw new InvalidOperationException(
+                            $"Unsupported dungeon connection kind {connection.Kind}.");
                 }
             }
         }
@@ -65,25 +68,35 @@ namespace VoxelEngine.Structures.Runtime
             ref VoxelBrush brush,
             in DungeonRoomPlan from,
             in DungeonRoomPlan to,
-            byte floorMaterial,
             byte stairMaterial)
         {
-            int fromFloor = RoomMin(in from).y;
-            int toFloor = RoomMin(in to).y;
+            if (!DungeonConnectionGeometry.TryStairShaftCentre(
+                    in from, in to, out int2 shaftCentre))
+            {
+                throw new InvalidOperationException(
+                    "Validated dungeon Stair connection has no buildable shared shaft footprint.");
+            }
+
+            int fromFloor = DungeonConnectionGeometry.RoomFloor(in from);
+            int toFloor = DungeonConnectionGeometry.RoomFloor(in to);
             int lowY = math.min(fromFloor, toFloor);
             int highY = math.max(fromFloor, toFloor);
             int height = highY - lowY;
-            if (height <= 0)
-            {
-                CarvePassage(ref brush, in from, in to, 20, 30, floorMaterial);
-                return;
-            }
 
-            int3 lower = fromFloor <= toFloor ? from.Centre : to.Centre;
-            int x = lower.x;
-            int z = lower.z;
-            brush.Cylinder(x, lowY, z, 14, height + 2, Mat.Empty);
-            brush.SpiralStair(x, lowY, z, 11, height, stairMaterial);
+            brush.Cylinder(
+                shaftCentre.x,
+                lowY,
+                shaftCentre.y,
+                DungeonConnectionGeometry.StairShaftRadius,
+                height + 2,
+                Mat.Empty);
+            brush.SpiralStair(
+                shaftCentre.x,
+                lowY,
+                shaftCentre.y,
+                11,
+                height,
+                stairMaterial);
         }
 
         private static void CarvePassage(
@@ -94,9 +107,7 @@ namespace VoxelEngine.Structures.Runtime
             int height,
             byte floorMaterial)
         {
-            int fromFloor = RoomMin(in from).y;
-            int toFloor = RoomMin(in to).y;
-            int floorY = math.min(fromFloor, toFloor);
+            int floorY = DungeonConnectionGeometry.RoomFloor(in from);
             int2 a = new int2(from.Centre.x, from.Centre.z);
             int2 b = new int2(to.Centre.x, to.Centre.z);
             int2 corner = new int2(b.x, a.y);
