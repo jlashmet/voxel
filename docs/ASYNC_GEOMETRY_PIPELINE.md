@@ -92,9 +92,9 @@ source-level regression guard are committed. Runtime/PlayMode acceptance remains
 
 ### Water parity
 
-- [ ] Apply the same async snapshot/result/publication contract to water geometry.
+- [x] Apply the same async snapshot/result/publication contract to water geometry.
   - [x] Bound water dirty selection, brick traversal, region invalidation, residency pruning, arena pressure, and GPU publication.
-  - [ ] Move water extraction itself to owned immutable snapshot + Burst jobs.
+  - [x] Move water greedy mesh emission to owned immutable material snapshots + Burst jobs.
 - [x] Give water bounded GPU publication and shared/pool-backed geometry ownership.
 
 ## Runtime acceptance gates

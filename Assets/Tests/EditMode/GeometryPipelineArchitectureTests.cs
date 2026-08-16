@@ -517,5 +517,24 @@ namespace VoxelEngine.Tests.EditMode
                         method.IndexOf("_pool.BeginWrite(poolIndex)", StringComparison.Ordinal));
         }
 
+
+        [Test]
+        public void WaterGreedyMeshEmissionRunsInBurst()
+        {
+            string water = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "CpuWaterSurfaceChunkCache.cs"));
+            string job = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "WaterBrickMeshBatchJob.cs"));
+            StringAssert.Contains("new WaterBrickMeshBatchJob", water);
+            StringAssert.Contains("_waterMeshJobHandle.IsCompleted", water);
+            StringAssert.Contains("SnapshotWaterBrick", water);
+            StringAssert.DoesNotContain("private void EmitBrick", water);
+            StringAssert.DoesNotContain("private void MergeMask", water);
+            StringAssert.DoesNotContain("private void EmitQuad", water);
+            StringAssert.Contains("[BurstCompile]", job);
+            StringAssert.Contains("AddNoResize", job);
+            StringAssert.Contains("SnapshotStride", job);
+        }
+
     }
 }
