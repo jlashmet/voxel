@@ -75,20 +75,33 @@ Walk/Run use Rocketbox's XY motion-extraction source files, but the placeholder 
 
 `VoxelEngine.Characters.Runtime.CharacterAnimationPlayer` is the generic runtime playback seam. It plays any `AnimationClip` directly through a Unity `PlayableGraph`; it has no Rocketbox paths, clip-name table, or AnimatorController dependency.
 
-Add it to the same character root as `CharacterVisualResolver`. It automatically binds to the current visual's child `Animator`. When the resolver swaps from a fallback visual to a preferred/generated visual, the player stops the graph bound to the old Animator and retargets itself to the new visual's Animator.
+Add it to the same character root as `CharacterVisualResolver`. It automatically binds to the current visual's child `Animator`. When the resolver swaps from a fallback visual to a preferred/generated visual, the graph bound to the old Animator is rebuilt against the replacement Animator and the current clip keeps playing. If a resolver temporarily has no visual, the player keeps the current clip as animation intent and resumes it when a visual returns.
 
-Gameplay remains responsible for deciding **which** semantic clip should play:
+Call `Play` directly when gameplay already owns animation policy:
 
 ```csharp
-animationPlayer.Play(idleClip);
 animationPlayer.Play(walkClip);
 animationPlayer.Play(waveClip);
 animationPlayer.Stop();
 ```
 
-That keeps locomotion/emote policy outside the temporary asset package. A later gameplay animation policy can choose Idle/Walk/Run from movement state and use the same player after the Rocketbox placeholders are removed.
+### Locomotion and one-shots
 
-No temporary Animator state machine is defined here.
+`VoxelEngine.Characters.Runtime.CharacterAnimationPolicy` is the optional gameplay-facing layer above `CharacterAnimationPlayer`. It owns only the common locomotion states (`Idle`, `Walk`, `Run`, `CrouchIdle`) and one-shot/return behavior. It does not know about Rocketbox paths or placeholder clip names.
+
+Configure the locomotion clips once, then drive semantic movement state and arbitrary one-shots:
+
+```csharp
+animationPolicy.ConfigureLocomotion(idleClip, walkClip, runClip, crouchIdleClip);
+animationPolicy.SetLocomotion(CharacterLocomotionState.Walk);
+
+// Placeholder emote today; Cast/Attack can use the same API later.
+animationPolicy.PlayOneShot(waveClip);
+```
+
+Changing locomotion while a one-shot is active updates the queued return state without interrupting the action. When the one-shot finishes, the policy returns to the latest locomotion clip. Because visual retargeting lives below the policy, a fallback-to-generated visual swap does not lose the active locomotion or one-shot animation.
+
+No temporary Animator state machine is defined here. Gameplay translation remains motor/controller driven; the animation policy changes pose only.
 
 ## Intended use
 
