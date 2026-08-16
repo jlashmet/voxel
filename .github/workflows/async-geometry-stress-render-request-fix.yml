@@ -1,0 +1,58 @@
+name: Patch async geometry stress URP render requests
+
+on:
+  push:
+    branches: [refactor/async-geometry-pipeline]
+    paths:
+      - .github/workflows/async-geometry-stress-render-request-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/async-geometry-pipeline
+          fetch-depth: 0
+      - name: Replace unsupported Camera.Render in stress fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('Assets/Tests/PlayMode/AsyncGeometryStressTests.cs')
+          s = p.read_text()
+          marker = 'using UnityEngine.TestTools;\n'
+          imports = marker + 'using UnityEngine.Rendering;\nusing UnityEngine.Rendering.Universal;\n'
+          if 'using UnityEngine.Rendering.Universal;' not in s:
+              if marker not in s:
+                  raise SystemExit('using marker not found')
+              s = s.replace(marker, imports, 1)
+          count = s.count('camera.Render();')
+          if count == 0:
+              raise SystemExit('no Camera.Render calls found')
+          s = s.replace('camera.Render();', 'RenderUrpCamera(camera);')
+          anchor = '        private static void PositionAllocationPathCamera(Camera camera, Vector3 centre,\n'
+          helper = '''        private static void RenderUrpCamera(Camera camera)\n        {\n            Assert.NotNull(camera);\n            Assert.NotNull(camera.targetTexture,\n                "Async geometry stress tests require an explicit RenderTexture destination.");\n            Assert.True(VoxelRenderBridge.TryGetWorld(out _),\n                "VoxelShowcase did not register a valid render world before the URP request.");\n\n            var request = new UniversalRenderPipeline.SingleCameraRequest\n            {\n                destination = camera.targetTexture,\n            };\n            Assert.True(RenderPipeline.SupportsRenderRequest(camera, request),\n                "Active URP renderer does not support SingleCameraRequest for the showcase camera.");\n\n            VoxelRenderBridge.ResetSurfacePassDiagnostics("before-render-request");\n            RenderPipeline.SubmitRenderRequest(camera, request);\n\n            Assert.Greater(VoxelRenderBridge.RenderFeatureEnqueueCount, 0,\n                "URP stress render request did not enqueue VoxelRenderFeature.");\n            Assert.Greater(VoxelRenderBridge.SurfacePassRecordCount, 0,\n                "URP stress render request did not record VoxelRenderPass.");\n            Assert.AreEqual("feature-aware", VoxelRenderBridge.LastSurfacePassState,\n                $"VoxelRenderPass returned early during stress render: {VoxelRenderBridge.LastSurfacePassState}.");\n        }\n\n'''
+          if 'private static void RenderUrpCamera(Camera camera)' not in s:
+              if anchor not in s:
+                  raise SystemExit('helper insertion anchor not found')
+              s = s.replace(anchor, helper + anchor, 1)
+          p.write_text(s)
+          print(f'replaced {count} Camera.Render calls')
+          PY
+          grep -n 'SubmitRenderRequest\|RenderUrpCamera\|Camera.Render' Assets/Tests/PlayMode/AsyncGeometryStressTests.cs
+      - name: Commit test fix and self-clean
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/async-geometry-stress-render-request-fix.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --check
+          git commit -m 'Test stress geometry through supported URP requests'
+          git push origin HEAD:refactor/async-geometry-pipeline
