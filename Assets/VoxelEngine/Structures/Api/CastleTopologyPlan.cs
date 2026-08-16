@@ -55,6 +55,7 @@ namespace VoxelEngine.Structures.Api
         InvalidKeepAnnexPlan,
         UnexpectedKeepAnnexPlan,
         InvalidGatehousePlan,
+        InvalidSitePlan,
     }
 
     /// <summary>
@@ -117,6 +118,12 @@ namespace VoxelEngine.Structures.Api
                 plan.Wards != CastleWardPattern.InnerAndOuterWards)
             {
                 issue = CastleTopologyPlanIssue.ConcentricRequiresNestedWards;
+                return false;
+            }
+
+            if (!CastleSitePlanValidator.TryValidate(in plan.Site, out _))
+            {
+                issue = CastleTopologyPlanIssue.InvalidSitePlan;
                 return false;
             }
 
