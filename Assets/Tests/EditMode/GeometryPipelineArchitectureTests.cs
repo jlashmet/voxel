@@ -615,11 +615,12 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("public readonly struct PinToken", pool);
             StringAssert.Contains("private NativeArray<int> _pinCounts", pool);
             StringAssert.Contains("private NativeArray<uint> _slotGenerations", pool);
+            StringAssert.Contains("private NativeArray<byte> _writeBorrowedSlots", pool);
             StringAssert.Contains("public int EnsureWritable", pool);
             StringAssert.Contains("CopyBrick(brickIndex, clone)", pool);
             StringAssert.Contains("_retiredSlots[token.Slot] != 0", pool);
-            StringAssert.Contains("_writerCounts[token.Slot] == 0", pool);
-            StringAssert.Contains("RecycleRetiredSlot(token.Slot)", pool);
+            StringAssert.Contains("_writeBorrowedSlots[token.Slot] == 0", pool);
+            StringAssert.Contains("_freeList.Add(token.Slot)", pool);
         }
 
 
