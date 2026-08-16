@@ -20,6 +20,40 @@ namespace VoxelEngine.Structures.Api
             int2[] polygon) =>
             KeepFootprintFits(in dimensions, centre, polygon);
 
+        /// <summary>
+        /// Returns true only for a non-self-intersecting polygon ring. Adjacent edges may meet at
+        /// their shared vertex; any crossing, overlap, or repeated non-adjacent vertex is invalid.
+        /// </summary>
+        public static bool IsSimplePolygon(int2[] polygon)
+        {
+            if (polygon == null || polygon.Length < 3)
+                return false;
+
+            for (int i = 0; i < polygon.Length; i++)
+            {
+                int iNext = (i + 1) % polygon.Length;
+                int2 a = polygon[i];
+                int2 b = polygon[iNext];
+                if (a.Equals(b))
+                    return false;
+
+                for (int j = i + 1; j < polygon.Length; j++)
+                {
+                    int jNext = (j + 1) % polygon.Length;
+
+                    // Neighbouring edges intentionally share one endpoint. The first and last
+                    // edges are neighbours too because the ring is closed.
+                    if (i == j || iNext == j || jNext == i)
+                        continue;
+
+                    if (SegmentsIntersectOrTouch(a, b, polygon[j], polygon[jNext]))
+                        return false;
+                }
+            }
+
+            return true;
+        }
+
         internal static bool PointOnPerimeter(int2 point, int2[] polygon)
         {
             if (polygon == null || polygon.Length < 2) return false;
@@ -127,6 +161,22 @@ namespace VoxelEngine.Structures.Api
             }
 
             return true;
+        }
+
+        private static bool SegmentsIntersectOrTouch(int2 a, int2 b, int2 c, int2 d)
+        {
+            long abC = Orient(a, b, c);
+            long abD = Orient(a, b, d);
+            long cdA = Orient(c, d, a);
+            long cdB = Orient(c, d, b);
+
+            if (OppositeSigns(abC, abD) && OppositeSigns(cdA, cdB))
+                return true;
+            if (abC == 0 && PointOnSegment(c, a, b)) return true;
+            if (abD == 0 && PointOnSegment(d, a, b)) return true;
+            if (cdA == 0 && PointOnSegment(a, c, d)) return true;
+            if (cdB == 0 && PointOnSegment(b, c, d)) return true;
+            return false;
         }
 
         private static bool ProperlyIntersects(int2 a, int2 b, int2 c, int2 d)
