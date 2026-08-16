@@ -308,5 +308,23 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("_water.TryPublishPending", scheduler);
         }
 
+
+        [Test]
+        public void WaterMaintenanceAndBuildAdmissionAreIncremental()
+        {
+            string water = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "CpuWaterSurfaceChunkCache.cs"));
+            StringAssert.Contains("BuildSelectionCandidatesPerPrepare", water);
+            StringAssert.Contains("RegionInvalidationCandidatesPerPrepare", water);
+            StringAssert.Contains("ResidencyChecksPerPrepare", water);
+            StringAssert.Contains("private readonly Queue<int3> _dirtyQueue", water);
+            StringAssert.Contains("private readonly Queue<int3> _residencyQueue", water);
+            StringAssert.Contains("private readonly Queue<int3> _regionInvalidationQueue", water);
+            StringAssert.DoesNotContain("private readonly List<int3> _buildBricks", water);
+            StringAssert.DoesNotContain("foreach (int3 candidate in _dirty)", water);
+            StringAssert.DoesNotContain("private void DropNoLongerResident", water);
+            StringAssert.DoesNotContain("List<int3> gone", water);
+        }
+
     }
 }

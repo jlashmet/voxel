@@ -451,6 +451,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         /// <summary>Wall-clock gate for the single water publication slice.</summary>
         public double WaterUploadBudgetMs { get; set; } = 0.10;
         public int LastFrameWaterUploadedBytes { get; private set; }
+        private ulong _observedWaterArenaAllocationFailures;
 
         public IReadOnlyList<CpuTransvoxelChunkCache.Entry> VisibleSolids => _visibleSolids;
         public IReadOnlyList<CpuWaterSurfaceChunkCache.Entry> VisibleWater => _water.Visible;
@@ -664,6 +665,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 _water.TryPublishPending(WaterUploadBudgetBytes,
                                          out int waterUploadedBytes);
                 LastFrameWaterUploadedBytes = waterUploadedBytes;
+            }
+            ulong waterArenaFailures = _water.ArenaAllocationFailures;
+            if (waterArenaFailures > _observedWaterArenaAllocationFailures)
+            {
+                _observedWaterArenaAllocationFailures = waterArenaFailures;
+                _water.TryEvictOneForArenaPressure(camera, voxelSize);
             }
             _workerPrepareTiming.Add(workerPrepareMs);
             CollectVisibility(camera, voxelSize, frame);
