@@ -5,8 +5,8 @@ using VoxelEngine.Structures.Api;
 namespace VoxelEngine.Structures.Runtime
 {
     /// <summary>
-    /// Realizes the four keep corner turrets from frozen authored variation. Coordinates remain a
-    /// deterministic consequence of the projected keep plan; roof choice comes only from planning.
+    /// Realizes the four keep corner turrets from frozen authored variation. Coordinates and
+    /// dimensions preserve the current compatibility recipe; Runtime only consumes roof choices.
     /// </summary>
     internal static class CastlePlannedKeepTurretRealizer
     {
@@ -18,12 +18,11 @@ namespace VoxelEngine.Structures.Runtime
             if (turrets == null || turrets.Length != 4)
                 throw new InvalidOperationException("Spatial keep requires four planned corner turrets.");
 
+            int baseY = keepPlan.Centre.y + keepPlan.PlateauHeight;
             int minX = keepPlan.Centre.x - keepPlan.KeepHalfX;
             int minZ = keepPlan.Centre.z - keepPlan.KeepHalfZ + 60;
             int width = keepPlan.KeepHalfX * 2;
             int depth = keepPlan.KeepHalfZ * 2;
-            int radius = keepPlan.TowerRadius - 10;
-            int y = keepPlan.Centre.y + keepPlan.PlateauHeight;
 
             for (int i = 0; i < turrets.Length; i++)
             {
@@ -41,9 +40,9 @@ namespace VoxelEngine.Structures.Runtime
                 CastleTowerRealizer.Build(
                     ref brush,
                     in keepPlan,
-                    new int3(position.x, y - 2, position.y),
-                    radius,
-                    keepPlan.KeepHeight + 46,
+                    new int3(position.x, baseY, position.y),
+                    26,
+                    keepPlan.KeepHeight + 30,
                     turret.HasRoof);
             }
         }
