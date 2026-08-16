@@ -143,6 +143,7 @@ namespace VoxelEngine.Storage.Runtime
                 pool.SetCell(newIndex, voxelIdx, in normalized);
 
                 region.BrickRefs[brickIdx] = BrickRef.FromPoolIndex(newIndex);
+                RefreshBlockSummary(ref region, in pool, brickIdx);
                 region.Dirty = true;
                 table.CommitRegion(region);
                 return true;
@@ -167,9 +168,33 @@ namespace VoxelEngine.Storage.Runtime
                 region.BrickRefs[brickIdx] = BrickRef.Uniform(uniform);
             }
 
+            RefreshBlockSummary(ref region, in pool, brickIdx);
             region.Dirty = true;
             table.CommitRegion(region);
             return true;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void RefreshBlockSummary(ref Region region, in BrickPool pool, int blockIndex)
+        {
+            BrickRef block = region.BrickRefs[blockIndex];
+            if (block.IsUniform)
+            {
+                bool solid = block.UniformMaterial != VoxelDimensions.MaterialEmpty;
+                region.SetBlockOccupancySummary(blockIndex, solid, solid);
+                return;
+            }
+
+            int occupancyOffset = pool.OccupancyOffset(block.PoolIndex);
+            bool occupied = false;
+            bool fullySolid = true;
+            for (int i = 0; i < VoxelDimensions.OccupancyWordsPerBrick; i++)
+            {
+                ulong word = pool.Occupancy[occupancyOffset + i];
+                occupied |= word != 0UL;
+                fullySolid &= word == ulong.MaxValue;
+            }
+            region.SetBlockOccupancySummary(blockIndex, occupied, fullySolid);
         }
 
         /// <summary>
