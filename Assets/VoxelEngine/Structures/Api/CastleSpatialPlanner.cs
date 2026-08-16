@@ -42,7 +42,7 @@ namespace VoxelEngine.Structures.Api
             int2 wellCentre = default;
             bool hasWell = !requiresTerrainResolution &&
                 CastleCourtyardPlacementGeometry.TryChooseWell(
-                    in dimensions, outer, in gate, keepCentre, out wellCentre);
+                    in dimensions, keepWard, in gate, keepCentre, out wellCentre);
             CastleCourtyardBuildingSpec[] courtyardBuildings = requiresTerrainResolution
                 ? Array.Empty<CastleCourtyardBuildingSpec>()
                 : CastleCourtyardBuildingPlacementGeometry.Plan(
@@ -112,7 +112,7 @@ namespace VoxelEngine.Structures.Api
             CastleGatePlacementSpec innerGate = spatial.InnerGate;
             bool hasWell = CastleCourtyardPlacementGeometry.TryChooseWell(
                 in dimensions,
-                spatial.OuterWardVertices,
+                keepWard,
                 in primaryGate,
                 localKeepCentre,
                 out int2 wellCentre);
