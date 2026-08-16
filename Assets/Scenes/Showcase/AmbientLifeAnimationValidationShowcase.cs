@@ -137,14 +137,6 @@ namespace VoxelEngine.Showcase
                     0.10f,
                     cluster.PositionMetres.z - 1.65f);
 
-                // The labelled gallery is an orthographic review plate. Pin captions to a common
-                // camera-depth plane in front of all animated agents; moving along camera-forward
-                // preserves their screen position while preventing a neighbouring swarm from
-                // depth-occluding review text (for example SeedLight / Drift).
-                Camera reviewCamera = _reviewCamera != null ? _reviewCamera : Camera.main;
-                if (reviewCamera != null)
-                    PinLabelToReviewOverlay(labelObject.transform, reviewCamera);
-
                 TextMesh label = labelObject.AddComponent<TextMesh>();
                 label.text = cluster.Kind + " / " + profile.Movement;
                 label.anchor = TextAnchor.MiddleCenter;
@@ -195,14 +187,6 @@ namespace VoxelEngine.Showcase
             camera.orthographicSize = 8.4f;
             camera.transform.position = new Vector3(0f, 13.35f, -4.3f);
             camera.transform.LookAt(new Vector3(0f, 1.35f, 8.9f));
-        }
-
-        private static void PinLabelToReviewOverlay(Transform label, Camera camera)
-        {
-            const float overlayDepthMetres = 5f;
-            Vector3 fromCamera = label.position - camera.transform.position;
-            float currentDepthMetres = Vector3.Dot(fromCamera, camera.transform.forward);
-            label.position += camera.transform.forward * (overlayDepthMetres - currentDepthMetres);
         }
 
         private void FaceLabelsToCamera()
