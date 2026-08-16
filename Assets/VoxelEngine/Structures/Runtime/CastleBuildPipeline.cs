@@ -376,10 +376,9 @@ namespace VoxelEngine.Structures.Runtime
             _outerTowerSpecs = (CastleTowerPlacementSpec[])spatialPlan.Towers.Clone();
             _innerTowerSpecs = (CastleTowerPlacementSpec[])spatialPlan.InnerTowers.Clone();
 
-            CastleSpatialProjection projection = CastleSpatialProjection.Create(
-                in plan, spatialPlan);
-            _spatialKeepPlan = projection.KeepPlan;
-            _worldKeepCentre = projection.KeepCentreWorld;
+            _spatialKeepPlan = CastleSpatialProjection.ProjectKeepPlan(
+                in plan, spatialPlan.KeepCentre);
+            _worldKeepCentre = CastleSpatialProjection.ActualKeepCentre(in _spatialKeepPlan);
             _hasSpatialKeep = true;
         }
 
