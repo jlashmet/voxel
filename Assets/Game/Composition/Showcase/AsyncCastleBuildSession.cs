@@ -31,6 +31,8 @@ namespace VoxelEngine.Showcase
         private const int BlocksPerPublishSlice = 32;
         private const int MinimumPrivateMixedBrickCapacity = 8 * 1024;
         private const int PrivateMixedBrickSafetyReserve = 4 * 1024;
+        private const int PrivateCapacityGrowthFloor = 8 * 1024;
+        private const int MaxPrivateBuildAttempts = 5;
 
         private readonly IRegionSnapshotSource _liveSnapshots;
         private readonly IRegionMutationStore _liveMutations;
@@ -39,7 +41,6 @@ namespace VoxelEngine.Showcase
         private readonly uint _terrainSeed;
         private readonly int3[] _regions;
         private readonly RegionSemanticSnapshot[] _sourceSnapshots;
-        private IVoxelStorageRuntime _privateStorage;
 
         private int _captureCursor;
         private Task<BuildResult> _worker;
@@ -69,10 +70,9 @@ namespace VoxelEngine.Showcase
             _regions = CastleRegions(in plan);
             _sourceSnapshots = new RegionSemanticSnapshot[_regions.Length];
 
-            // The private BrickPool is deliberately not allocated here. Construction happens on
-            // the worker after the compact terrain snapshots are captured, so creating the castle
-            // session cannot synchronously reserve hundreds of MB on the player-loop thread.
-            RenderingComposition.WorldClearing += Dispose;
+            // No private BrickPool is allocated here. Construction happens on the worker only
+            // after the compact terrain snapshots are captured, so creating/admitting the castle
+            // session cannot synchronously reserve native storage on the player-loop thread.
         }
 
         /// <summary>
@@ -149,7 +149,6 @@ namespace VoxelEngine.Showcase
             // terminal Step returns true.
             _result.DisposePayloads();
             _terminalComplete = true;
-            RenderingComposition.WorldClearing -= Dispose;
             return true;
         }
 
@@ -157,12 +156,43 @@ namespace VoxelEngine.Showcase
         {
             if (_cancelRequested) return null;
 
-            int privateMixedCapacity = EstimatePrivateMixedBrickCapacity(in _plan, _regions.Length);
+            int sourceMixedBricks = CountSourceMixedBricks();
+            int capacity = EstimatePrivateMixedBrickCapacity(in _plan, sourceMixedBricks);
+            InvalidOperationException lastCapacityFailure = null;
+
+            // BrickPool is deliberately fixed-capacity, but this isolated build can recover from
+            // an underestimate without penalising the player-loop or permanently reserving the old
+            // 131k-slot pool. A failed private attempt is disposed before a 25% (minimum 8k) retry,
+            // so only one pool exists at a time and successful peak memory stays close to observed
+            // castle demand rather than a global worst-case constant.
+            for (int attempt = 0; attempt < MaxPrivateBuildAttempts; attempt++)
+            {
+                if (_cancelRequested) return null;
+                try
+                {
+                    return BuildOnPrivateStoreAttempt(capacity);
+                }
+                catch (InvalidOperationException ex) when (IsBrickPoolExhaustion(ex))
+                {
+                    lastCapacityFailure = ex;
+                    if (attempt + 1 >= MaxPrivateBuildAttempts) break;
+                    int growth = math.max(PrivateCapacityGrowthFloor, capacity >> 2);
+                    capacity = checked(capacity + growth);
+                }
+            }
+
+            throw new InvalidOperationException(
+                $"Castle private storage still exhausted after {MaxPrivateBuildAttempts} "
+              + $"plan-sized attempts; final capacity={capacity}, sourceMixed={sourceMixedBricks}.",
+                lastCapacityFailure);
+        }
+
+        private BuildResult BuildOnPrivateStoreAttempt(int privateMixedCapacity)
+        {
             IVoxelStorageRuntime storage = VoxelEngineBootstrap.CreateStorage(
                 math.max(16, _regions.Length * 2),
                 privateMixedCapacity,
                 1024);
-            _privateStorage = storage;
 
             try
             {
@@ -176,7 +206,8 @@ namespace VoxelEngine.Showcase
                             snapshot.SemanticHash,
                             true))
                         throw new InvalidOperationException(
-                            $"Private castle store rejected source snapshot {snapshot.RegionCoord}.");
+                            $"Private castle store rejected source snapshot {snapshot.RegionCoord}; "
+                          + $"capacity={privateMixedCapacity}.");
                 }
 
                 if (_cancelRequested) return null;
@@ -320,8 +351,6 @@ namespace VoxelEngine.Showcase
             finally
             {
                 storage.Dispose();
-                if (ReferenceEquals(_privateStorage, storage))
-                    _privateStorage = null;
             }
         }
 
@@ -330,14 +359,13 @@ namespace VoxelEngine.Showcase
             if (_disposed) return;
             _disposed = true;
             _cancelRequested = true;
-            RenderingComposition.WorldClearing -= Dispose;
 
             Task<BuildResult> worker = _worker;
             if (worker != null)
             {
                 // World teardown is a lifecycle boundary rather than the player-loop frame path.
                 // Join so the worker cannot outlive the live material catalogue it borrowed. The
-                // worker's finally block owns the private native storage on every exit path.
+                // worker's finally block owns private native storage on every exit path.
                 try
                 {
                     BuildResult pending = worker.GetAwaiter().GetResult();
@@ -350,12 +378,6 @@ namespace VoxelEngine.Showcase
                     // live world even if the background task happened to fault concurrently.
                 }
                 _worker = null;
-                _privateStorage = null;
-            }
-            else
-            {
-                _privateStorage?.Dispose();
-                _privateStorage = null;
             }
 
             _result?.DisposePayloads();
@@ -398,21 +420,39 @@ namespace VoxelEngine.Showcase
             _liveMutations.CompletePartialBlock(ref mutation, true);
         }
 
-        internal static int EstimatePrivateMixedBrickCapacity(
-            in GameCastlePlan plan, int sourceRegionCount)
+        private int CountSourceMixedBricks()
         {
-            // A height-field terrain needs at most one mixed surface block per x/z block column in
-            // each captured source region. CastlePlanner.EstimateWrites is intentionally a generous
-            // content-policy estimate; two mixed blocks per 512 write-equivalents covers partial
-            // authoring edges while whole interior fills remain uniform. Keep a fixed reserve for
-            // presentation details and future plan variance without returning to a 131k-brick pool.
-            long regionColumns = (long)sourceRegionCount
-                               * VoxelReadGrid.BlocksPerRegionEdge
-                               * VoxelReadGrid.BlocksPerRegionEdge;
+            long total = 0;
+            for (int i = 0; i < _sourceSnapshots.Length; i++)
+            {
+                RegionSemanticSnapshot snapshot = _sourceSnapshots[i];
+                if (snapshot.Bytes == null
+                    || !SemanticRegionSnapshotCodec.TryGetMixedBrickCount(
+                        snapshot.Bytes, out int mixed))
+                    throw new InvalidOperationException(
+                        $"Castle source snapshot {snapshot.RegionCoord} is not a valid semantic region.");
+                total += mixed;
+            }
+
+            if (total > int.MaxValue)
+                throw new InvalidOperationException(
+                    $"Castle source snapshots require too many mixed bricks: {total}.");
+            return (int)total;
+        }
+
+        internal static int EstimatePrivateMixedBrickCapacity(
+            in GameCastlePlan plan, int sourceMixedBrickCount)
+        {
+            // Source cost is exact: semantic snapshots already encode every mixed payload the
+            // private worker must import. CastlePlanner.EstimateWrites is content-policy work, not
+            // a strict mixed-brick bound, so reserve two block-equivalents per 512 estimated writes
+            // and recover by bounded worker-only growth if a particularly fragmented plan exceeds
+            // that estimate. This keeps the common allocation close to actual demand without a
+            // permanent 131k-slot tax.
             long authoredBlocks =
                 (CastlePlanner.EstimateWrites(in plan) + VoxelReadGrid.VoxelsPerBlock - 1)
                 / VoxelReadGrid.VoxelsPerBlock;
-            long estimate = regionColumns
+            long estimate = (long)sourceMixedBrickCount
                           + authoredBlocks * 2L
                           + PrivateMixedBrickSafetyReserve;
             if (estimate < MinimumPrivateMixedBrickCapacity)
@@ -422,6 +462,11 @@ namespace VoxelEngine.Showcase
                     $"Castle plan requires an unsupported private mixed-brick capacity: {estimate}.");
             return (int)estimate;
         }
+
+        private static bool IsBrickPoolExhaustion(InvalidOperationException exception) =>
+            exception.Message != null
+            && exception.Message.StartsWith("BrickPool exhausted at capacity ",
+                                            StringComparison.Ordinal);
 
         private static void DisposeStaging(
             ref NativeArray<byte> materials,
