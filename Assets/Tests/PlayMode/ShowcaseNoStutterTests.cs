@@ -12,10 +12,11 @@ using VoxelEngine.Showcase;
 namespace VoxelEngine.Tests.PlayMode
 {
     /// <summary>
-    /// Player-visible frame-time regression for the exact VoxelShowcase startup path. This samples
-    /// the entire castle lifecycle: terrain snapshot, worker authoring, bounded live publication,
-    /// and terminal landmark/far-field finalisation. Measuring only after worker completion misses
-    /// the publication/finalisation hitches that can still freeze the player loop.
+    /// Player-visible frame-time regression for the exact VoxelShowcase startup path. Once the
+    /// renderer has a live world, every player-loop frame is sampled continuously through terrain
+    /// streaming, castle terrain snapshot, worker authoring, bounded live publication, and terminal
+    /// landmark/far-field finalisation. Starting before CastleBuildStage becomes non-zero prevents
+    /// the first (allocation/snapshot) castle frame from escaping the hard hitch gate.
     /// </summary>
     public sealed class ShowcaseNoStutterTests
     {
@@ -39,41 +40,48 @@ namespace VoxelEngine.Tests.PlayMode
                 .GetValue(showcase);
             Assert.NotNull(world);
 
-            // Do not include scene load/domain warmup in the castle-specific frame gate.
-            int startGuard = 0;
-            while (world.CastleBuildStage == 0 && world.CastleVoxels == 0
-                   && startGuard++ < 3600)
+            // Scene/domain load itself is outside a PlayMode coroutine's observable frame window.
+            // Begin as soon as the production surface pass has a real world, before castle work is
+            // admitted, so every live showcase frame through finalisation is included.
+            int readyGuard = 0;
+            while ((!VoxelRenderBridge.SurfaceBuildEnabled
+                    || !VoxelRenderBridge.TryGetWorld(out _))
+                   && readyGuard++ < 3600)
                 yield return null;
-
-            Assert.Greater(world.CastleBuildStage, 0,
-                "The real showcase never entered castle construction.");
+            Assert.True(VoxelRenderBridge.SurfaceBuildEnabled);
+            Assert.True(VoxelRenderBridge.TryGetWorld(out _),
+                "VoxelShowcase never bound a live world to the production renderer.");
 
             var frameTimesMs = new List<double>(4096);
             var frameClock = Stopwatch.StartNew();
             int frames = 0;
             int firstFrame = Time.frameCount;
-            double deadline = Time.realtimeSinceStartupAsDouble + 60.0;
+            bool sawCastleBuild = world.CastleBuildStage > 0;
+            double deadline = Time.realtimeSinceStartupAsDouble + 90.0;
 
             // Stage 9 is terminal AsyncCastleBuildSession completion. CastleVoxels is assigned only
             // after StepLandmarks has also built the reference arch, published all castle regions,
             // captured far-field silhouettes, and recorded that final main-thread stage. Waiting
             // for both therefore covers the complete player-visible construction window.
             while (!CastleFullyFinalised(world)
-                   && frames++ < 7200
+                   && frames++ < 9000
                    && Time.realtimeSinceStartupAsDouble < deadline)
             {
                 frameClock.Restart();
                 yield return null;
                 frameClock.Stop();
                 frameTimesMs.Add(frameClock.Elapsed.TotalMilliseconds);
+                sawCastleBuild |= world.CastleBuildStage > 0;
 
                 var metrics = VoxelRenderBridge.SurfaceMetrics;
                 Assert.AreEqual(0ul, metrics.FramePathBlockingCompletionViolations,
                     "Geometry work synchronously completed a worker job from the frame path.");
                 Assert.True(VoxelRenderBridge.SurfaceBuildEnabled,
-                    "Voxel surface rendering was disabled during castle construction.");
+                    "Voxel surface rendering was disabled during live showcase streaming.");
             }
 
+            Assert.True(sawCastleBuild,
+                "The real showcase never entered castle construction during the measured window.");
             Assert.True(CastleFullyFinalised(world),
                 $"Castle did not fully finalise while frames continued to advance; "
               + $"stage={world.CastleBuildStage}, voxels={world.CastleVoxels}, frames={frames}, "
@@ -81,7 +89,7 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.Greater(world.CastleVoxels, 100_000,
                 "The terminal castle was too small for this to exercise the production build.");
             Assert.Greater(frameTimesMs.Count, 8,
-                "Castle completed too quickly to provide a meaningful player-loop sample.");
+                "Showcase completed too quickly to provide a meaningful player-loop sample.");
             Assert.GreaterOrEqual(Time.frameCount - firstFrame, frameTimesMs.Count,
                 "The coroutine advanced without corresponding player-loop frames.");
 
@@ -96,15 +104,16 @@ namespace VoxelEngine.Tests.PlayMode
                 $"Castle main-thread slice reached {world.MaxCastleStageMs:F2} ms "
               + $"(stage {world.MaxCastleStage}); snapshot/publication/finalisation is too coarse.");
 
-            // These are hard player-loop gates on the Metal validation machine, not averages that
-            // can hide a freeze. Any observed castle-build frame slower than 30 fps fails.
+            // Hard player-loop gates on the Metal validation machine. Percentiles prevent a stream
+            // of merely-slow frames, while the absolute ceiling means no individual measured live
+            // showcase frame may collapse below 30 fps while the castle is being produced.
             Assert.Less(p95, MaxP95FrameMs,
-                $"Castle-build player-loop p95 was {p95:F2} ms (p99={p99:F2}, max={maximum:F2}).");
+                $"Live-showcase p95 was {p95:F2} ms (p99={p99:F2}, max={maximum:F2}).");
             Assert.Less(p99, MaxP99FrameMs,
-                $"Castle-build player-loop p99 was {p99:F2} ms (max={maximum:F2}).");
+                $"Live-showcase p99 was {p99:F2} ms (max={maximum:F2}).");
             Assert.Less(maximum, MaxSingleFrameMs,
-                $"Castle construction produced a {maximum:F2} ms player-loop hitch; "
-              + "no castle-build frame may fall below 30 fps on the validation machine.");
+                $"VoxelShowcase produced a {maximum:F2} ms player-loop hitch before castle "
+              + "finalisation; no measured live frame may fall below 30 fps on the validation machine.");
         }
 
         private static bool CastleFullyFinalised(ShowcaseWorld world) =>
