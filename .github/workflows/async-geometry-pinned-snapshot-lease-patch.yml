@@ -16,6 +16,18 @@ jobs:
         with:
           ref: refactor/async-geometry-pipeline
           fetch-depth: 0
+      - name: Rebase patch anchor on current cache layout
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('.github/scripts/async_geometry_pinned_snapshot_lease_patch.py')
+          s = p.read_text()
+          old = "'''        private NativeList<byte> _densityMixedBoundarySamples;\n        private NativeArray<byte> _mipSampleOccupancy;''',\n'''        private NativeList<byte> _densityMixedBoundarySamples;\n        private NativeList<VoxelReadPinToken> _pinnedReadBlocks;\n        private IRegionReadSource _pinnedReadSource;\n        private NativeArray<byte> _pinnedMixedVoxels;\n        private NativeArray<ushort> _pinnedMixedSurfaceSemantics;\n        private NativeArray<byte> _pinnedMixedBoundarySamples;\n        private int _pinnedReleaseCursor;\n        private bool _discardBuildAfterPinRelease;\n        private NativeArray<byte> _mipSampleOccupancy;''', 'cache pinned snapshot fields')"
+          new = "'''        private NativeList<byte> _densityMixedBoundarySamples;\n        private JobHandle _densityJobHandle;''',\n'''        private NativeList<byte> _densityMixedBoundarySamples;\n        private NativeList<VoxelReadPinToken> _pinnedReadBlocks;\n        private IRegionReadSource _pinnedReadSource;\n        private NativeArray<byte> _pinnedMixedVoxels;\n        private NativeArray<ushort> _pinnedMixedSurfaceSemantics;\n        private NativeArray<byte> _pinnedMixedBoundarySamples;\n        private int _pinnedReleaseCursor;\n        private bool _discardBuildAfterPinRelease;\n        private JobHandle _densityJobHandle;''', 'cache pinned snapshot fields')"
+          if old not in s:
+              raise SystemExit('temporary stale cache-field anchor not found in patch script')
+          p.write_text(s.replace(old, new, 1))
+          PY
       - name: Apply guarded patch
         run: python3 .github/scripts/async_geometry_pinned_snapshot_lease_patch.py
       - name: Static guards
