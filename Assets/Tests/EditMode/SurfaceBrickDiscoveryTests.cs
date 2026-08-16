@@ -11,11 +11,9 @@ using VoxelEngine.Storage.Runtime.Occupancy;
 namespace VoxelEngine.Tests.EditMode
 {
     /// <summary>
-    /// Surface discovery reads regions from inside a Burst job, which means every container a
-    /// <see cref="RegionReadView"/> carries must be constructed even when the underlying storage
-    /// is optional. The mip pyramid is optional — nothing in the runtime allocates it — so a
-    /// mipless region used to abort the whole render pass at schedule time. These tests pin both
-    /// the schedulability contract and the classification the job is actually there to produce.
+    /// Surface discovery runs on an immutable caller-owned occupancy summary. The Burst job never
+    /// borrows RegionReadView/BrickPool memory, so later Storage mutation or eviction cannot race
+    /// it. These tests cover both mipless/mipped Storage sources and the async scheduler boundary.
     /// </summary>
     public sealed class SurfaceBrickDiscoveryTests
     {
@@ -58,13 +56,22 @@ namespace VoxelEngine.Tests.EditMode
             return region;
         }
 
-        private static NativeArray<byte> RunDiscovery(in RegionReadView view)
+        private static NativeArray<byte> RunDiscovery(IRegionReadSource source, int3 regionCoord)
         {
+            using var occupied = new NativeArray<ulong>(
+                VoxelReadGrid.BlockSummaryWordCount, Allocator.TempJob,
+                NativeArrayOptions.UninitializedMemory);
+            using var fullySolid = new NativeArray<ulong>(
+                VoxelReadGrid.BlockSummaryWordCount, Allocator.TempJob,
+                NativeArrayOptions.UninitializedMemory);
+            Assert.True(source.TryCopyBlockSummary(regionCoord, occupied, fullySolid, out _));
+
             var flags = new NativeArray<byte>(BlockCount, Allocator.TempJob,
                                               NativeArrayOptions.UninitializedMemory);
             new SurfaceBrickDiscoveryJob
             {
-                Region = view,
+                OccupiedWords = occupied,
+                FullySolidWords = fullySolid,
                 IsSurface = flags,
                 Edge = Edge,
             }.Schedule(BlockCount, 256).Complete();
@@ -81,9 +88,9 @@ namespace VoxelEngine.Tests.EditMode
             Assert.IsFalse(view.HasMips,
                 "This test only means anything while the region genuinely lacks a pyramid.");
 
-            // Regression: an unconstructed OccupancyMips container made this throw
-            // InvalidOperationException at schedule time and aborted VoxelRenderPass.
-            using NativeArray<byte> flags = RunDiscovery(in view);
+            // Regression: discovery must be schedulable without depending on optional mip
+            // containers because the job receives only the copied block summary.
+            using NativeArray<byte> flags = RunDiscovery(source, int3.zero);
             Assert.AreEqual(1, flags[FlagIndex(new int3(10, 10, 10))]);
         }
 
@@ -100,7 +107,7 @@ namespace VoxelEngine.Tests.EditMode
             Assert.IsTrue(source.TryAcquireRegion(int3.zero, out RegionReadView view));
             Assert.IsTrue(view.HasMips);
 
-            using NativeArray<byte> flags = RunDiscovery(in view);
+            using NativeArray<byte> flags = RunDiscovery(source, int3.zero);
             Assert.AreEqual(1, flags[FlagIndex(new int3(10, 10, 10))]);
         }
 
@@ -155,7 +162,7 @@ namespace VoxelEngine.Tests.EditMode
             var source = new RegionReadSource(in _table, in _pool, _journal);
             Assert.IsTrue(source.TryAcquireRegion(int3.zero, out RegionReadView view));
 
-            using NativeArray<byte> flags = RunDiscovery(in view);
+            using NativeArray<byte> flags = RunDiscovery(source, int3.zero);
             Assert.AreEqual(1, flags[FlagIndex(new int3(10, 10, 10))],
                             "A solid block with empty neighbours is a surface block.");
             Assert.AreEqual(0, flags[FlagIndex(new int3(11, 10, 10))],
@@ -177,7 +184,7 @@ namespace VoxelEngine.Tests.EditMode
             var source = new RegionReadSource(in _table, in _pool, _journal);
             Assert.IsTrue(source.TryAcquireRegion(int3.zero, out RegionReadView view));
 
-            using NativeArray<byte> flags = RunDiscovery(in view);
+            using NativeArray<byte> flags = RunDiscovery(source, int3.zero);
             Assert.AreEqual(0, flags[FlagIndex(centre)],
                             "A block whose six neighbours are fully solid is interior.");
             Assert.AreEqual(1, flags[FlagIndex(centre + new int3(1, 0, 0))],
@@ -193,7 +200,7 @@ namespace VoxelEngine.Tests.EditMode
             var source = new RegionReadSource(in _table, in _pool, _journal);
             Assert.IsTrue(source.TryAcquireRegion(int3.zero, out RegionReadView view));
 
-            using NativeArray<byte> flags = RunDiscovery(in view);
+            using NativeArray<byte> flags = RunDiscovery(source, int3.zero);
             Assert.AreEqual(1, flags[FlagIndex(new int3(0, 5, 5))]);
             Assert.AreEqual(1, flags[FlagIndex(new int3(Edge - 1, 5, 5))]);
         }
@@ -215,11 +222,18 @@ namespace VoxelEngine.Tests.EditMode
                 MaterialPaletteView palette = default;
                 SurfaceCatalogueView surfaceCatalogue = default;
                 CoatingCatalogueView coatingCatalogue = default;
-                scheduler.Prepare(source, in palette, in surfaceCatalogue, in coatingCatalogue,
-                                  null, _journal, camera, 0.1f, 1);
+                bool discovered = false;
+                for (int frame = 1; frame <= 256 && !discovered; frame++)
+                {
+                    scheduler.Prepare(source, in palette, in surfaceCatalogue, in coatingCatalogue,
+                                      null, _journal, camera, 0.1f, frame);
+                    discovered = scheduler.Metrics.DiscoveredSurfaceBricks > 0;
+                    if (!discovered) System.Threading.Thread.Yield();
+                }
 
-                Assert.Greater(scheduler.Metrics.DiscoveredSurfaceBricks, 0,
-                               "A published region with solid content must yield surface bricks.");
+                Assert.True(discovered,
+                    "Async discovery must eventually publish surface bricks without waiting "
+                  + "on an unfinished Burst job in Prepare.");
             }
             finally
             {
