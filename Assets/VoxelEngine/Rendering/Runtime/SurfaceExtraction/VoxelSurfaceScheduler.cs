@@ -32,6 +32,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public readonly ulong SolidCapacityPressureEvents;
         public readonly int RunningSolidJobs;
         public readonly int SolidMeshesAwaitingUpload;
+        public readonly long SolidPendingUploadBytes;
+        public readonly int SolidUploadBudgetBytes;
+        public readonly int LastFrameSolidUploadedBytes;
+        public readonly int LastFrameSolidUploadCompletions;
         public readonly double LastSolidSnapshotMs;
         public readonly double LastSolidTopologyCompactMs;
         public readonly double LastSolidUploadMs;
@@ -81,6 +85,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             SolidCapacityPressureEvents = solids.CapacityPressureCount;
             RunningSolidJobs = solids.RunningJobCount;
             SolidMeshesAwaitingUpload = solids.PendingUploadCount;
+            SolidPendingUploadBytes = solids.PendingUploadBytes;
+            SolidUploadBudgetBytes = int.MaxValue;
+            LastFrameSolidUploadedBytes = 0;
+            LastFrameSolidUploadCompletions = 0;
             LastSolidSnapshotMs = solids.LastSnapshotMs;
             LastSolidTopologyCompactMs = solids.LastTopologyCompactMs;
             LastSolidUploadMs = solids.LastUploadMs;
@@ -110,6 +118,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                                      CpuWaterSurfaceChunkCache water,
                                      int changeRecords, int discoveredSurfaceBricks,
                                      int visibleSolidChunks,
+                                     int solidUploadBudgetBytes,
+                                     int lastFrameSolidUploadedBytes,
+                                     int lastFrameSolidUploadCompletions,
                                      in VoxelTimingSummary schedulerPrepare,
                                      in VoxelTimingSummary journal,
                                      in VoxelTimingSummary invalidation,
@@ -127,6 +138,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             VisibleSolidChunks = visibleSolidChunks;
             VisibleDetailSolidChunks = 0;
             int known = 0, resident = 0, dirty = 0, missing = 0, running = 0, uploads = 0;
+            long pendingUploadBytes = 0;
             ulong completed = 0, stale = 0, uploadedBytes = water.UploadedGeometryBytes;
             ulong decorations = 0, pressure = 0;
             long geometryBytes = water.ResidentGpuBytes;
@@ -140,6 +152,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 missing += worker.MissingVisibleCount;
                 running += worker.RunningJobCount;
                 uploads += worker.PendingUploadCount;
+                pendingUploadBytes += worker.PendingUploadBytes;
                 completed += worker.CompletedBuildCount;
                 stale += worker.StaleBuildCount;
                 uploadedBytes += worker.UploadedGeometryBytes;
@@ -156,6 +169,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             MissingVisibleSolidChunks = missing;
             RunningSolidJobs = running;
             SolidMeshesAwaitingUpload = uploads;
+            SolidPendingUploadBytes = pendingUploadBytes;
+            SolidUploadBudgetBytes = solidUploadBudgetBytes;
+            LastFrameSolidUploadedBytes = lastFrameSolidUploadedBytes;
+            LastFrameSolidUploadCompletions = lastFrameSolidUploadCompletions;
             CompletedSolidBuilds = completed;
             RejectedStaleSolidBuilds = stale;
             UploadedGeometryBytes = uploadedBytes;
@@ -352,7 +369,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public IReadOnlyList<CpuWaterSurfaceChunkCache.Entry> VisibleWater => _water.Visible;
         public VoxelSurfaceMetrics Metrics => new(
             _allWorkers, _water, _lastChangeRecords, _discoveredSurfaceBricks.Count,
-            _visibleSolids.Count, _prepareTiming.Snapshot(), _journalTiming.Snapshot(),
+            _visibleSolids.Count, SolidUploadBudgetBytes, _lastFrameSolidUploadedBytes,
+            _lastFrameSolidUploadCompletions, _prepareTiming.Snapshot(), _journalTiming.Snapshot(),
             _invalidationTiming.Snapshot(), _discoveryTiming.Snapshot(),
             _workerPrepareTiming.Snapshot(), _visibilityTiming.Snapshot());
 

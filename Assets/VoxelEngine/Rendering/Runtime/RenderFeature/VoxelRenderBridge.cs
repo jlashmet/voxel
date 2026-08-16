@@ -63,10 +63,13 @@ namespace VoxelEngine.Rendering.Runtime
         /// loading screens, offline captures and photo modes may temporarily spend more to reach
         /// convergence without changing geometry semantics or introducing another extractor.
         /// </summary>
-        // Four asynchronous worker shards each receive this bounded admission/publication slice.
-        // 0.50 ms keeps worst-case render-thread orchestration near 2 ms while Burst topology
-        // proceeds off-thread; 0.20 ms fell below useful post-job granularity on Apple silicon.
+        // Renderer-wide admission/publication controls. These are shared across every
+        // LOD ring and worker; adding workers must never multiply the frame budget.
         public static double SolidBuildBudgetMs = 0.50;
+        public static int SolidUploadBudgetBytes = 1024 * 1024;
+        public static int SolidUploadSliceBytes = 256 * 1024;
+        public static int SolidUploadWorkerBudget = 4;
+        public static double SolidUploadBudgetMs = 0.20;
         public static double WaterBuildBudgetMs = 0.15;
         public static bool SurfaceBuildEnabled = true;
 
