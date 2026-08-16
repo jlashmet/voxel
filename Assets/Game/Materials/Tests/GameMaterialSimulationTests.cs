@@ -43,6 +43,32 @@ namespace Game.Materials.Tests
         }
 
         [Test]
+        public void StructurePlacementBehavior_IsAuthoredByGameMaterialRows()
+        {
+            MaterialDefinition[] definitions = GameMaterialSimulationDefinitions.Create();
+
+            Assert.That(Find(definitions, GameMaterialIds.Stone).PlacementSurfaceStyle,
+                Is.EqualTo(SurfaceStyles.Planar));
+            Assert.That(Find(definitions, GameMaterialIds.Glass).PlacementSurfaceStyle,
+                Is.EqualTo(SurfaceStyles.Planar));
+            Assert.That(Find(definitions, GameMaterialIds.Sand).PlacementSurfaceStyle,
+                Is.EqualTo(SurfaceStyles.MaterialDefault));
+            Assert.That(Find(definitions, GameMaterialIds.Grass).PlacementSurfaceStyle,
+                Is.EqualTo(SurfaceStyles.MaterialDefault));
+            Assert.That(Find(definitions, GameMaterialIds.Dirt).PlacementSurfaceStyle,
+                Is.EqualTo(SurfaceStyles.MaterialDefault));
+            Assert.That(Find(definitions, GameMaterialIds.Water).PlacementSurfaceStyle,
+                Is.EqualTo(SurfaceStyles.MaterialDefault));
+
+            Assert.That(Find(definitions, GameMaterialIds.Moss).PlacementSurfaceStyle,
+                Is.EqualTo(SurfaceStyles.MaterialDefault));
+            Assert.That(Find(definitions, GameMaterialIds.Moss).PlacementCoating,
+                Is.EqualTo(Coatings.Moss));
+            Assert.That(Find(definitions, GameMaterialIds.Stone).PlacementCoating,
+                Is.EqualTo(Coatings.None));
+        }
+
+        [Test]
         public void PreviouslyImplicitRows_AreExplicitButBehaviorPreserving()
         {
             MaterialDefinition[] definitions = GameMaterialSimulationDefinitions.Create();
