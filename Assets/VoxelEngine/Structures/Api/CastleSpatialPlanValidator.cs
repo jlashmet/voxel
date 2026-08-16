@@ -299,9 +299,10 @@ namespace VoxelEngine.Structures.Api
             }
             else
             {
+                int2[] wellWard = expectsInner ? inner : outer;
                 bool canPlaceWell = CastleCourtyardPlacementGeometry.TryChooseWell(
                     in dimensions,
-                    outer,
+                    wellWard,
                     in primaryGate,
                     spatial.KeepCentre,
                     out int2 expectedWell);
