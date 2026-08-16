@@ -1,3 +1,4 @@
+using System;
 using Random = Unity.Mathematics.Random;
 
 namespace VoxelEngine.Structures.Api
@@ -23,7 +24,7 @@ namespace VoxelEngine.Structures.Api
                     : CastleWardPattern.SingleWard);
             CastleKeepAnnexPlan annexes = CastleKeepAnnexPlanner.Create();
 
-            return new CastleTopologyPlan
+            var plan = new CastleTopologyPlan
             {
                 Perimeter = perimeter,
                 KeepPlacement = ChooseKeepPlacement(ref keepRng),
@@ -33,6 +34,15 @@ namespace VoxelEngine.Structures.Api
                 HasKeepAnnexPlan = true,
                 KeepAnnexes = annexes,
             };
+
+            if (!CastleTopologyPlanValidator.TryValidate(
+                    in plan, out CastleTopologyPlanIssue issue))
+            {
+                throw new InvalidOperationException(
+                    $"Castle topology planning produced an invalid plan: {issue}.");
+            }
+
+            return plan;
         }
 
         private static CastlePerimeterKind ChoosePerimeter(ref Random rng)
