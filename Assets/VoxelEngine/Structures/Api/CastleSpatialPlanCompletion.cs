@@ -40,23 +40,13 @@ namespace VoxelEngine.Structures.Api
         {
             if (spatial == null) throw new ArgumentNullException(nameof(spatial));
 
+            // Outer-tower appearance is already materialized by CastleSpatialPlanner. Completion
+            // snapshots that authored data just like the inner-tower path; it must not redraw roof
+            // or height choices from a second seed pass.
             CastleTowerPlacementSpec[] towers = spatial.Towers != null
                 ? (CastleTowerPlacementSpec[])spatial.Towers.Clone()
                 : Array.Empty<CastleTowerPlacementSpec>();
-            for (int i = 0; i < towers.Length; i++)
-            {
-                uint variationSeed = CastleSeedPartition.Derive(
-                    plan.Seed,
-                    CastleSeedDomain.Walls,
-                    (uint)(0x2000 + towers[i].Id));
-                towers[i].HeightVariation = 8 + (int)(variationSeed % 51u);
-                towers[i].HasRoof = towers[i].Role == CastleTowerPlacementRole.Corner
-                                 && ((variationSeed >> 8) & 1u) != 0u;
-            }
 
-            // Inner-tower appearance is already materialized by CastleInnerWardTowerPlanner when
-            // the core spatial plan is assembled. Completion must copy that data, not draw a
-            // second roof choice from a different seed stream.
             return Copy(
                 spatial,
                 towers,
