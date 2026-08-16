@@ -43,16 +43,20 @@ namespace VoxelEngine.Rendering.AmbientLife
                 AmbientLifeRenderStyle style = ProceduralAmbientLifeMaterials.StyleFor(cluster.Kind);
                 AmbientLifeProfile profile = AmbientLifeCatalogue.Get(cluster.Kind);
                 bool flying = (profile.Traits & AmbientLifeTraits.Flying) != 0;
+                GetShapeScale(style.Shape, out float shapeWidth, out float shapeHeight);
 
                 for (int i = 0; i < cluster.Count; i++)
                 {
                     uint seed = Hash(cluster.Seed, (uint)i + 1u, (uint)clusterIndex + 17u);
                     float angle = Random01(seed) * Mathf.PI * 2f;
-                    float radial = Mathf.Sqrt(Random01(seed ^ 0xA511E9B3u)) * Mathf.Max(0.05f, cluster.RadiusMetres);
+                    float radial = Mathf.Sqrt(Random01(seed ^ 0xA511E9B3u))
+                                   * Mathf.Max(0.05f, cluster.RadiusMetres);
                     float height = 0.035f;
                     if (flying)
                     {
-                        float verticalRange = Mathf.Min(1.8f, Mathf.Max(0.25f, cluster.RadiusMetres * 0.28f));
+                        float verticalRange = Mathf.Min(
+                            1.8f,
+                            Mathf.Max(0.25f, cluster.RadiusMetres * 0.28f));
                         height = 0.30f + Random01(seed ^ 0x63D83595u) * verticalRange;
                     }
 
@@ -60,9 +64,26 @@ namespace VoxelEngine.Rendering.AmbientLife
                         cluster.PositionMetres.x + Mathf.Cos(angle) * radial,
                         cluster.PositionMetres.y + height,
                         cluster.PositionMetres.z + Mathf.Sin(angle) * radial);
-                    float sizeVariation = Mathf.Lerp(0.82f, 1.18f, Random01(seed ^ 0xB5297A4Du));
+
+                    float sizeVariation = Mathf.Lerp(
+                        0.82f,
+                        1.18f,
+                        Random01(seed ^ 0xB5297A4Du));
+                    float widthVariation = Mathf.Lerp(
+                        0.92f,
+                        1.08f,
+                        Random01(seed ^ 0x6C8E9CF5u));
+                    float heightVariation = Mathf.Lerp(
+                        0.92f,
+                        1.08f,
+                        Random01(seed ^ 0xD1B54A35u));
                     float size = style.SizeMetres * sizeVariation;
-                    matrices.Add(Matrix4x4.TRS(position, Quaternion.identity, new Vector3(size, size, 1f)));
+                    Vector3 scale = new Vector3(
+                        size * shapeWidth * widthVariation,
+                        size * shapeHeight * heightVariation,
+                        1f);
+
+                    matrices.Add(Matrix4x4.TRS(position, Quaternion.identity, scale));
                     _agentCount++;
                 }
             }
@@ -105,6 +126,57 @@ namespace VoxelEngine.Rendering.AmbientLife
 
                     Graphics.DrawMeshInstanced(mesh, 0, material, _scratch, count, _properties);
                 }
+            }
+        }
+
+        private static void GetShapeScale(
+            AmbientVisualShape shape,
+            out float width,
+            out float height)
+        {
+            switch (shape)
+            {
+                case AmbientVisualShape.Butterfly:
+                    width = 1.45f;
+                    height = 0.92f;
+                    return;
+                case AmbientVisualShape.CompactInsect:
+                    width = 1.28f;
+                    height = 0.76f;
+                    return;
+                case AmbientVisualShape.Dragonfly:
+                    width = 1.55f;
+                    height = 1.02f;
+                    return;
+                case AmbientVisualShape.GroundInsect:
+                    width = 0.82f;
+                    height = 1.08f;
+                    return;
+                case AmbientVisualShape.Frog:
+                    width = 1.30f;
+                    height = 0.82f;
+                    return;
+                case AmbientVisualShape.BirdOrBat:
+                    width = 1.55f;
+                    height = 0.78f;
+                    return;
+                case AmbientVisualShape.Spore:
+                    width = 0.72f;
+                    height = 0.72f;
+                    return;
+                case AmbientVisualShape.Wisp:
+                    width = 0.72f;
+                    height = 1.30f;
+                    return;
+                case AmbientVisualShape.Emberfly:
+                    width = 1.18f;
+                    height = 0.88f;
+                    return;
+                case AmbientVisualShape.Mote:
+                default:
+                    width = 0.72f;
+                    height = 0.72f;
+                    return;
             }
         }
 

@@ -91,8 +91,11 @@ Shader "VoxelEngine/ProceduralAmbientLife"
                 if (_Shape > 0.5 && _Shape < 4.5)
                     local.x *= 0.82 + abs(flutter) * 0.32;
 
-                centreWS += cameraUp * sin(phase * 0.53) * 0.025 + cameraRight * cos(phase * 0.37) * 0.018;
-                float3 positionWS = centreWS + cameraRight * local.x * sx + cameraUp * local.y * sy;
+                centreWS += cameraUp * sin(phase * 0.53) * 0.025
+                          + cameraRight * cos(phase * 0.37) * 0.018;
+                float3 positionWS = centreWS
+                                  + cameraRight * local.x * sx
+                                  + cameraUp * local.y * sy;
                 output.positionCS = TransformWorldToHClip(positionWS);
                 output.positionWS = positionWS;
                 output.uv = input.uv;
@@ -104,93 +107,175 @@ Shader "VoxelEngine/ProceduralAmbientLife"
             {
                 float2 p = uv * 2.0 - 1.0;
 
-                // 0: luminous mote / firefly point.
                 if (shape < 0.5)
-                    return Ellipse(p, float2(0.50, 0.50));
+                    return Ellipse(p, float2(0.48, 0.48));
 
-                // 1: butterfly / moth: paired wings and a narrow body.
                 if (shape < 1.5)
                 {
-                    float leftWing = Ellipse(p - float2(-0.38, 0.05), float2(0.48, 0.60));
-                    float rightWing = Ellipse(p - float2(0.38, 0.05), float2(0.48, 0.60));
-                    float body = Ellipse(p, float2(0.10, 0.62));
+                    float leftWing = Ellipse(p - float2(-0.39, 0.05), float2(0.46, 0.58));
+                    float rightWing = Ellipse(p - float2(0.39, 0.05), float2(0.46, 0.58));
+                    float body = Ellipse(p, float2(0.09, 0.64));
                     return max(max(leftWing, rightWing), body);
                 }
 
-                // 2: bee / compact flying insect.
                 if (shape < 2.5)
                 {
-                    float body = Ellipse(p, float2(0.55, 0.28));
-                    float wings = max(Ellipse(p - float2(-0.22, 0.28), float2(0.32, 0.27)),
-                                      Ellipse(p - float2(0.22, 0.28), float2(0.32, 0.27)));
+                    float body = Ellipse(p, float2(0.58, 0.27));
+                    float wings = max(
+                        Ellipse(p - float2(-0.23, 0.27), float2(0.31, 0.25)),
+                        Ellipse(p - float2(0.23, 0.27), float2(0.31, 0.25)));
                     return max(body, wings * 0.88);
                 }
 
-                // 3: dragonfly / darting insect.
                 if (shape < 3.5)
                 {
-                    float body = Ellipse(p, float2(0.11, 0.82));
-                    float wings = max(Ellipse(p - float2(-0.42, 0.05), float2(0.52, 0.16)),
-                                      Ellipse(p - float2(0.42, 0.05), float2(0.52, 0.16)));
+                    float body = Ellipse(p, float2(0.10, 0.84));
+                    float wings = max(
+                        Ellipse(p - float2(-0.43, 0.04), float2(0.53, 0.15)),
+                        Ellipse(p - float2(0.43, 0.04), float2(0.53, 0.15)));
                     return max(body, wings);
                 }
 
-                // 4: beetle/cricket body.
                 if (shape < 4.5)
-                    return max(Ellipse(p, float2(0.52, 0.67)), Ellipse(p - float2(0, 0.55), float2(0.30, 0.25)));
+                {
+                    float abdomen = Ellipse(p - float2(0, -0.08), float2(0.48, 0.60));
+                    float head = Ellipse(p - float2(0, 0.55), float2(0.28, 0.24));
+                    return max(abdomen, head);
+                }
 
-                // 5: frog / hopping ground life.
                 if (shape < 5.5)
                 {
-                    float body = Ellipse(p - float2(0, -0.08), float2(0.68, 0.48));
-                    float eyeA = Ellipse(p - float2(-0.34, 0.38), float2(0.20, 0.22));
-                    float eyeB = Ellipse(p - float2(0.34, 0.38), float2(0.20, 0.22));
+                    float body = Ellipse(p - float2(0, -0.09), float2(0.68, 0.46));
+                    float eyeA = Ellipse(p - float2(-0.34, 0.37), float2(0.19, 0.21));
+                    float eyeB = Ellipse(p - float2(0.34, 0.37), float2(0.19, 0.21));
                     return max(body, max(eyeA, eyeB));
                 }
 
-                // 6: bird / bat wing silhouette.
                 if (shape < 6.5)
                 {
-                    float left = Ellipse(p - float2(-0.38, 0.02), float2(0.62, 0.26));
-                    float right = Ellipse(p - float2(0.38, 0.02), float2(0.62, 0.26));
-                    float body = Ellipse(p, float2(0.18, 0.43));
+                    float left = Ellipse(p - float2(-0.40, 0.02), float2(0.60, 0.24));
+                    float right = Ellipse(p - float2(0.40, 0.02), float2(0.60, 0.24));
+                    float body = Ellipse(p, float2(0.16, 0.42));
                     return max(max(left, right), body);
                 }
 
-                // 7: spore mote.
                 if (shape < 7.5)
-                    return Ellipse(p, float2(0.32, 0.32));
+                    return Ellipse(p, float2(0.30, 0.30));
 
-                // 8: wisp / seed-light: tapered magical droplet.
                 if (shape < 8.5)
                 {
-                    float bulb = Ellipse(p - float2(0, 0.10), float2(0.46, 0.55));
-                    float tail = max(0.0, 0.18 - abs(p.x + p.y * 0.12)) * saturate(-p.y + 0.15) * 3.0;
+                    float bulb = Ellipse(p - float2(0, 0.11), float2(0.43, 0.52));
+                    float tail = max(0.0, 0.16 - abs(p.x + p.y * 0.12))
+                               * saturate(-p.y + 0.18) * 3.2;
                     return max(bulb, tail);
                 }
 
-                // 9: emberfly / energetic magic insect.
-                float core = Ellipse(p, float2(0.24, 0.48));
-                float wings = max(Ellipse(p - float2(-0.30, 0.08), float2(0.38, 0.22)),
-                                  Ellipse(p - float2(0.30, 0.08), float2(0.38, 0.22)));
+                float core = Ellipse(p, float2(0.22, 0.48));
+                float wings = max(
+                    Ellipse(p - float2(-0.31, 0.08), float2(0.37, 0.21)),
+                    Ellipse(p - float2(0.31, 0.08), float2(0.37, 0.21)));
                 return max(core, wings);
+            }
+
+            float AmbientDetail(float2 uv, float shape, float flutter)
+            {
+                float2 p = uv * 2.0 - 1.0;
+
+                if (shape < 0.5)
+                    return Ellipse(p, float2(0.16, 0.16)) * 0.65;
+
+                if (shape < 1.5)
+                {
+                    float body = Ellipse(p, float2(0.095, 0.62));
+                    float leftSpot = Ellipse(p - float2(-0.43, 0.06), float2(0.14, 0.20));
+                    float rightSpot = Ellipse(p - float2(0.43, 0.06), float2(0.14, 0.20));
+                    float lowerSpot = max(
+                        Ellipse(p - float2(-0.28, -0.31), float2(0.10, 0.12)),
+                        Ellipse(p - float2(0.28, -0.31), float2(0.10, 0.12)));
+                    return saturate(body + max(leftSpot, rightSpot) * 0.75 + lowerSpot * 0.55);
+                }
+
+                if (shape < 2.5)
+                {
+                    float body = Ellipse(p, float2(0.57, 0.26));
+                    float stripeWave = 0.5 + 0.5 * sin(p.x * 20.0 + flutter * 0.8);
+                    float stripes = body * smoothstep(0.56, 0.88, stripeWave);
+                    float head = Ellipse(p - float2(0.52, 0), float2(0.15, 0.19));
+                    return saturate(stripes * 0.85 + head * 0.75);
+                }
+
+                if (shape < 3.5)
+                {
+                    float spine = Ellipse(p, float2(0.075, 0.80));
+                    float wingBand = max(
+                        Ellipse(p - float2(-0.44, 0.04), float2(0.30, 0.055)),
+                        Ellipse(p - float2(0.44, 0.04), float2(0.30, 0.055)));
+                    return saturate(spine + wingBand * 0.65);
+                }
+
+                if (shape < 4.5)
+                {
+                    float seam = saturate(1.0 - abs(p.x) / 0.075)
+                               * Ellipse(p - float2(0, -0.08), float2(0.48, 0.60));
+                    float head = Ellipse(p - float2(0, 0.55), float2(0.19, 0.16));
+                    return saturate(seam * 0.75 + head * 0.75);
+                }
+
+                if (shape < 5.5)
+                {
+                    float eyeA = Ellipse(p - float2(-0.34, 0.38), float2(0.11, 0.11));
+                    float eyeB = Ellipse(p - float2(0.34, 0.38), float2(0.11, 0.11));
+                    float back = Ellipse(p - float2(0, -0.04), float2(0.36, 0.27));
+                    return saturate(max(eyeA, eyeB) + back * 0.35);
+                }
+
+                if (shape < 6.5)
+                {
+                    float body = Ellipse(p, float2(0.15, 0.40));
+                    float wingFold = saturate(abs(p.y + 0.02) * 6.0 - 0.35)
+                                   * saturate(1.0 - abs(p.x) * 0.70);
+                    return saturate(body * 0.90 + wingFold * 0.40);
+                }
+
+                if (shape < 7.5)
+                    return Ellipse(p, float2(0.11, 0.11)) * 0.45;
+
+                if (shape < 8.5)
+                {
+                    float core = Ellipse(p - float2(0, 0.14), float2(0.19, 0.24));
+                    float tailCore = max(0.0, 0.07 - abs(p.x + p.y * 0.12))
+                                   * saturate(-p.y + 0.10) * 6.0;
+                    return saturate(core * 0.65 + tailCore);
+                }
+
+                float core = Ellipse(p, float2(0.15, 0.39));
+                float wingMarks = max(
+                    Ellipse(p - float2(-0.30, 0.08), float2(0.11, 0.08)),
+                    Ellipse(p - float2(0.30, 0.08), float2(0.11, 0.08)));
+                return saturate(core * 0.80 + wingMarks * 0.65);
             }
 
             half4 Frag(Varyings input) : SV_Target
             {
                 UNITY_SETUP_INSTANCE_ID(input);
                 float mask = saturate(AmbientMask(input.uv, _Shape));
-                clip(mask - 0.035);
+                clip(mask - 0.075);
 
-                float2 p = input.uv * 2.0 - 1.0;
-                float centre = saturate(1.0 - length(p));
-                float3 ambient = lerp(_SkyHorizon.rgb, _SkyZenith.rgb, 0.48);
+                float detail = AmbientDetail(input.uv, _Shape, input.flutter);
                 float pattern = 0.5 + 0.5 * sin((input.uv.x + input.uv.y) * 18.0 + _Shape * 2.7);
-                float3 albedo = lerp(_BaseColor.rgb, _SecondaryColor.rgb, pattern * 0.22);
+                float detailMix = saturate(detail * 0.82 + pattern * 0.08);
+                float3 albedo = lerp(_BaseColor.rgb, _SecondaryColor.rgb, detailMix);
+                float3 ambient = lerp(_SkyHorizon.rgb, _SkyZenith.rgb, 0.48);
                 float3 lit = albedo * (ambient * 0.42 + 0.58);
-                float pulse = 0.72 + 0.28 * sin(_Time.y * max(0.5, _FlutterSpeed * 0.42) + dot(input.positionWS, float3(0.27, 0.19, 0.31)));
-                lit += _EmissionColor.rgb * _EmissionStrength * (0.45 + centre * 0.85) * pulse;
-                float alpha = saturate(mask * 2.4) * _Opacity;
+
+                float pulse = 0.74 + 0.26 * sin(
+                    _Time.y * max(0.5, _FlutterSpeed * 0.42)
+                    + dot(input.positionWS, float3(0.27, 0.19, 0.31)));
+                float emissionCore = smoothstep(0.08, 0.58, mask);
+                lit += _EmissionColor.rgb * _EmissionStrength
+                     * (0.20 + emissionCore * 0.58) * pulse;
+
+                float alpha = smoothstep(0.075, 0.22, mask) * _Opacity;
                 return half4(lit, alpha);
             }
             ENDHLSL

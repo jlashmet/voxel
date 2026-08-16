@@ -50,7 +50,7 @@ namespace VoxelEngine.Showcase
             output.Clear();
 
             const int columns = 4;
-            const float spacing = 4.0f;
+            const float spacing = 4.2f;
             for (int i = 0; i < AmbientLifeCatalogue.Count; i++)
             {
                 AmbientLifeKind kind = AmbientLifeCatalogue.KindAt(i);
@@ -66,8 +66,8 @@ namespace VoxelEngine.Showcase
                         1.5f + row * spacing),
                     Kind = kind,
                     Seed = clusterSeed == 0u ? 1u : clusterSeed,
-                    Count = (ushort)(8 + i % 5),
-                    RadiusMetres = 1.35f,
+                    Count = (ushort)(6 + i % 3),
+                    RadiusMetres = 1.65f,
                 });
             }
         }
