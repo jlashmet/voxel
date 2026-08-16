@@ -49,11 +49,20 @@
       ]
     },
     "right": {
-      "source": "/Users/jlashmet/tmp/_work/voxel/voxel/tools/character-factory/production/madeline/views-bodyonly/right.jpg",
+      "source": "/Users/jlashmet/tmp/_work/voxel/voxel/Artifacts/MadelineProduction/reference/raw/right.jpg",
       "output": "/Users/jlashmet/tmp/_work/voxel/voxel/Artifacts/MadelineProduction/reference/body-only/right.jpg",
-      "width": 384,
-      "height": 576,
-      "precleaned_override": true
+      "width": 1024,
+      "height": 1536,
+      "base_layer_pixels_before": 46273,
+      "base_layer_pixels_after": 2796,
+      "base_layer_reduction_diagnostic": 0.9395759946405031,
+      "masked_pixels": 90807,
+      "region_pixels": 126735,
+      "sampled_skin_rgb": [
+        253.0,
+        213.0,
+        183.0
+      ]
     }
   }
 }
