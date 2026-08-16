@@ -65,6 +65,89 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void DeepPlannedRiverRecipeExpandsVerticalBounds()
+        {
+            const int plannedRiverDepth = 900;
+            const int plannedBedDepth = 120;
+
+            CastlePlan plan = CastlePlanner.Create(new int3(256, 220, 376), 211u);
+            CastleTopologyPlan topology = CastleLayoutPlanner.Create(211u);
+            topology.KeepPlacement = CastleKeepPlacement.Central;
+
+            CastleSitePlan originalSite = topology.Site;
+            CastleSiteGeometryPlan originalGeometry = originalSite.Geometry;
+            CastleRiverCrossSectionPlan originalCrossSection = originalGeometry.RiverCrossSection;
+            var deepCrossSection = new CastleRiverCrossSectionPlan(
+                originalCrossSection.BankBlendStart,
+                originalCrossSection.BankBlendEnd,
+                originalCrossSection.OutsideTerraceDrop,
+                originalCrossSection.InsideTerraceDrop,
+                originalCrossSection.LooseBankThreshold,
+                originalCrossSection.DeepSoilThreshold,
+                originalCrossSection.GrassThreshold,
+                shallowSoilDepth: 6,
+                deepSoilDepth: 18,
+                bedDepth: plannedBedDepth,
+                originalCrossSection.BedRise,
+                originalCrossSection.ExistingSurfaceRejectDepth,
+                surfaceClearance: 14);
+            var deepGeometry = new CastleSiteGeometryPlan(
+                originalGeometry.EdgeFrequencyA,
+                originalGeometry.EdgeAmplitudeA,
+                originalGeometry.EdgeFrequencyB,
+                originalGeometry.EdgeAmplitudeB,
+                originalGeometry.EdgeFrequencyC,
+                originalGeometry.EdgeAmplitudeC,
+                originalGeometry.CliffFalloffExponent,
+                originalGeometry.CliffNoiseAngularFrequency,
+                originalGeometry.CliffNoiseProgressFrequency,
+                originalGeometry.CliffNoiseAmplitude,
+                originalGeometry.CliffGroundInset,
+                originalGeometry.GrassEdgeInset,
+                originalGeometry.ApproachReachInset,
+                originalGeometry.RiverOffset,
+                originalGeometry.RiverHalfWidth,
+                originalGeometry.WaterHalfWidth,
+                plannedRiverDepth,
+                originalGeometry.MeanderFrequencyA,
+                originalGeometry.MeanderAmplitudeA,
+                originalGeometry.MeanderFrequencyB,
+                originalGeometry.MeanderAmplitudeB,
+                in deepCrossSection);
+            topology.Site = new CastleSitePlan(
+                originalSite.GrassPatternSeed,
+                originalSite.GrassCoveragePercent,
+                originalSite.CourtyardPatternSeed,
+                originalSite.CourtyardStonePercent,
+                in deepGeometry);
+
+            Assert.IsTrue(
+                CastleTopologyPlanValidator.TryValidate(
+                    in topology, out CastleTopologyPlanIssue topologyIssue),
+                topologyIssue.ToString());
+
+            CastleSpatialPlan spatial = CastleSpatialPlanner.Create(in plan, in topology);
+            spatial = CastleSpatialPlanCompletion.CompleteResolved(in plan, spatial);
+            CastleSpatialProjection projection = CastleSpatialProjection.Create(in plan, spatial);
+            CastleBuildBounds bounds = CastleBuildBoundsResolver.Resolve(in plan, spatial);
+
+            int baseY = plan.Centre.y + plan.PlateauHeight;
+            int deepestBedY = baseY - plannedRiverDepth - plannedBedDepth;
+            int2 channelLocal = projection.Approach.LocalPoint(
+                0f,
+                plan.WallThickness + deepGeometry.RiverOffset);
+            var deepestWater = new int3(
+                plan.Centre.x + channelLocal.x,
+                deepestBedY,
+                plan.Centre.z + channelLocal.y);
+
+            Assert.Less(bounds.Min.y, baseY - 256,
+                "A valid deep site recipe must expand beyond the historical fixed Y reserve.");
+            Assert.IsTrue(bounds.Contains(deepestWater),
+                "Castle dependency bounds must include the planned river bed write floor.");
+        }
+
+        [Test]
         public void PlannedForwardCaveExitIncludesCaveAndDecorationEnvelopes()
         {
             bool foundForwardExit = false;
