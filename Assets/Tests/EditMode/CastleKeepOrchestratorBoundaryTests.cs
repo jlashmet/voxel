@@ -27,7 +27,7 @@ namespace VoxelEngine.Tests.EditMode
 
             StringAssert.Contains("CastleKeepShellRealizer.Build(", keep);
             StringAssert.Contains("CastleKeepTurretRealizer.Build(", keep);
-            StringAssert.Contains("CastleKeepFloorRealizer.Build(", keep);
+            StringAssert.Contains("CastleKeepFloorRealizer.BuildCompatibility(", keep);
             StringAssert.Contains("CastleKeepCompatibilityCirculationRealizer.Build(", keep);
             StringAssert.Contains("CastleKeepFenestrationRealizer.Build(", keep);
             StringAssert.Contains("CastleKeepFacadeRealizer.Build(", keep);
@@ -48,6 +48,8 @@ namespace VoxelEngine.Tests.EditMode
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
                 "CastlePlannedKeepRealizer.cs"));
 
+            StringAssert.Contains("CastleSpatialProjection.ActualKeepCentre(", keep,
+                "Spatial keep coordinates must come from the shared projection rather than a local compatibility offset.");
             StringAssert.Contains("CastleKeepShellRealizer.Build(", keep);
             StringAssert.Contains("CastlePlannedKeepTurretRealizer.BuildAll(", keep);
             StringAssert.Contains("CastleKeepFloorRealizer.Build(", keep);
@@ -56,6 +58,8 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("CastlePlannedKeepExteriorRealizer.Build(", keep);
             StringAssert.Contains("CastlePlannedKeepAnnexRealizer.Build(", keep);
 
+            StringAssert.DoesNotContain("CastleLayout.LegacyKeepCentreZOffset", keep,
+                "The temporary compatibility anchor belongs in CastleSpatialProjection, not planned Runtime code.");
             StringAssert.DoesNotContain("CastleKeepWindowRealizer.Build(", keep,
                 "Spatial keep realization must not route through the compatibility window adapter.");
             StringAssert.DoesNotContain("brush.", keep,
