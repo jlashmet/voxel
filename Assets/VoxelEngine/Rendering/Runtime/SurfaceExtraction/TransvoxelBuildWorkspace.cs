@@ -26,10 +26,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         internal readonly NativeList<ushort> DensityMixedSurfaceSemantics;
         internal readonly NativeList<byte> DensityMixedBoundarySamples;
 
-        internal readonly NativeArray<byte> TopologyCellClass;
-        internal readonly NativeArray<byte> TopologyGeometryCounts;
-        internal readonly NativeArray<byte> TopologyCellVertexIndices;
-        internal readonly NativeArray<ushort> TopologyEdgeCodes;
         internal readonly NativeList<SmoothSurfaceVertex> CompactedTopologyVertices;
         internal readonly NativeList<uint> CompactedTopologyIndices;
         internal readonly NativeArray<int> TopologyOverflowCell;
@@ -38,11 +34,18 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         internal readonly NativeList<SmoothSurfaceVertex> FacetedVertices;
         internal readonly NativeList<uint> FacetedIndices;
 
+        internal readonly NativeArray<float> FaceDensity;
+        internal readonly NativeArray<byte> FaceMaterials;
+        internal readonly NativeArray<uint> FaceSurfaces;
+        internal readonly NativeList<SmoothSurfaceVertex> TransitionVertices;
+        internal readonly NativeList<uint> TransitionIndices;
+
         internal readonly NativeList<SmoothSurfaceVertex> Vertices;
         internal readonly NativeList<uint> Indices;
 
         internal TransvoxelBuildWorkspace(int gridSampleCount, int brickCacheCount,
-                                          bool samplesFromMips, int cellsPerAxis)
+                                          bool samplesFromMips, int cellsPerAxis,
+                                          int faceSamplesPerAxis)
         {
             Density = new NativeArray<float>(gridSampleCount, Allocator.Persistent,
                                              NativeArrayOptions.UninitializedMemory);
@@ -82,21 +85,18 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 16_384, Allocator.Persistent);
             CompactedTopologyIndices = new NativeList<uint>(24_576, Allocator.Persistent);
             TopologyOverflowCell = new NativeArray<int>(1, Allocator.Persistent);
-            TopologyCellClass = new NativeArray<byte>(
-                TransvoxelRegularTables.CellClass.Length, Allocator.Persistent);
-            TopologyGeometryCounts = new NativeArray<byte>(
-                TransvoxelRegularTables.CellData.Length, Allocator.Persistent);
-            TopologyCellVertexIndices = new NativeArray<byte>(
-                TransvoxelRegularTables.CellData.Length * TransvoxelTopologyJob.MaxIndicesPerCell,
-                Allocator.Persistent);
-            TopologyEdgeCodes = new NativeArray<ushort>(
-                TransvoxelRegularTables.VertexData.Length * 12, Allocator.Persistent);
-
             FacetedMasks = new NativeArray<uint>(
                 6 * cellsPerAxis * cellsPerAxis * cellsPerAxis,
                 Allocator.Persistent);
             FacetedVertices = new NativeList<SmoothSurfaceVertex>(16_384, Allocator.Persistent);
             FacetedIndices = new NativeList<uint>(24_576, Allocator.Persistent);
+
+            int faceSamples = faceSamplesPerAxis * faceSamplesPerAxis;
+            FaceDensity = new NativeArray<float>(faceSamples, Allocator.Persistent);
+            FaceMaterials = new NativeArray<byte>(faceSamples, Allocator.Persistent);
+            FaceSurfaces = new NativeArray<uint>(faceSamples, Allocator.Persistent);
+            TransitionVertices = new NativeList<SmoothSurfaceVertex>(2048, Allocator.Persistent);
+            TransitionIndices = new NativeList<uint>(3072, Allocator.Persistent);
 
             Vertices = new NativeList<SmoothSurfaceVertex>(32_768, Allocator.Persistent);
             Indices = new NativeList<uint>(49_152, Allocator.Persistent);
@@ -114,16 +114,17 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             if (DensityMixedVoxels.IsCreated) DensityMixedVoxels.Dispose();
             if (DensityMixedSurfaceSemantics.IsCreated) DensityMixedSurfaceSemantics.Dispose();
             if (DensityMixedBoundarySamples.IsCreated) DensityMixedBoundarySamples.Dispose();
-            if (TopologyCellClass.IsCreated) TopologyCellClass.Dispose();
-            if (TopologyGeometryCounts.IsCreated) TopologyGeometryCounts.Dispose();
-            if (TopologyCellVertexIndices.IsCreated) TopologyCellVertexIndices.Dispose();
-            if (TopologyEdgeCodes.IsCreated) TopologyEdgeCodes.Dispose();
             if (CompactedTopologyVertices.IsCreated) CompactedTopologyVertices.Dispose();
             if (CompactedTopologyIndices.IsCreated) CompactedTopologyIndices.Dispose();
             if (TopologyOverflowCell.IsCreated) TopologyOverflowCell.Dispose();
             if (FacetedMasks.IsCreated) FacetedMasks.Dispose();
             if (FacetedVertices.IsCreated) FacetedVertices.Dispose();
             if (FacetedIndices.IsCreated) FacetedIndices.Dispose();
+            if (FaceDensity.IsCreated) FaceDensity.Dispose();
+            if (FaceMaterials.IsCreated) FaceMaterials.Dispose();
+            if (FaceSurfaces.IsCreated) FaceSurfaces.Dispose();
+            if (TransitionVertices.IsCreated) TransitionVertices.Dispose();
+            if (TransitionIndices.IsCreated) TransitionIndices.Dispose();
             if (Vertices.IsCreated) Vertices.Dispose();
             if (Indices.IsCreated) Indices.Dispose();
         }

@@ -293,7 +293,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             public bool HasClipmapWindow { get; private set; }
 
             public SurfaceRing(int sourceStep, float innerRadiusMetres, float outerRadiusMetres,
-                               int maxResidentChunks, SurfaceGeometryArena geometryArena)
+                               int maxResidentChunks, SurfaceGeometryArena geometryArena,
+                               TransvoxelLookupTables lookupTables)
             {
                 SourceStep = sourceStep;
                 InnerRadiusMetres = innerRadiusMetres;
@@ -301,7 +302,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 Workers = new CpuTransvoxelChunkCache[WorkerCountForSourceStep(sourceStep)];
                 for (int i = 0; i < Workers.Length; i++)
                 {
-                    Workers[i] = new CpuTransvoxelChunkCache(sourceStep, geometryArena)
+                    Workers[i] = new CpuTransvoxelChunkCache(
+                        sourceStep, geometryArena, lookupTables)
                     {
                         ShardIndex = i,
                         ShardCount = Workers.Length,
@@ -349,6 +351,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private const int SurfaceArenaDrawCapacity = 16 * 1024;
 
         private readonly SurfaceGeometryArena _geometryArena;
+        private readonly TransvoxelLookupTables _lookupTables;
         private readonly SurfaceRing[] _rings;
         private readonly CpuTransvoxelChunkCache[] _allWorkers;
         private readonly List<CpuTransvoxelChunkCache.Entry> _visibleSolids = new(256);
@@ -469,6 +472,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _geometryArena = new SurfaceGeometryArena(SurfaceArenaVertexCapacity,
                                                        SurfaceArenaIndexCapacity,
                                                        SurfaceArenaDrawCapacity);
+            _lookupTables = new TransvoxelLookupTables();
             _rings = new SurfaceRing[s_RingLayout.Length];
             int totalWorkers = 0;
             for (int i = 0; i < s_RingLayout.Length; i++)
@@ -478,7 +482,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             for (int i = 0; i < s_RingLayout.Length; i++)
             {
                 var layout = s_RingLayout[i];
-                SurfaceRing ring = new(layout.SourceStep, layout.Inner, layout.Outer, 4096, _geometryArena);
+                SurfaceRing ring = new(layout.SourceStep, layout.Inner, layout.Outer,
+                                           4096, _geometryArena, _lookupTables);
                 _rings[i] = ring;
                 for (int worker = 0; worker < ring.Workers.Length; worker++)
                     _allWorkers[workerIndex++] = ring.Workers[worker];
@@ -1019,6 +1024,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
             _water.Dispose();
             for (int r = 0; r < _rings.Length; r++) _rings[r].Dispose();
+            _lookupTables.Dispose();
             _geometryArena.Dispose();
         }
 

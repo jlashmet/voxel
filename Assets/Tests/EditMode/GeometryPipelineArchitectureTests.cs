@@ -354,5 +354,30 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("FacetedMasks.Dispose()", workspace);
         }
 
+
+        [Test]
+        public void ImmutableTransvoxelTablesAreSharedAcrossSolidWorkers()
+        {
+            string cache = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"));
+            string scheduler = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "VoxelSurfaceScheduler.cs"));
+            string workspace = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "TransvoxelBuildWorkspace.cs"));
+            string tables = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "TransvoxelLookupTables.cs"));
+            StringAssert.Contains("private readonly TransvoxelLookupTables _lookupTables", scheduler);
+            StringAssert.Contains("geometryArena, lookupTables", scheduler);
+            StringAssert.Contains("_lookupTables.RegularCellClass", cache);
+            StringAssert.Contains("_lookupTables.TransitionCellClass", cache);
+            StringAssert.DoesNotContain("InitialiseTopologyTables", cache);
+            StringAssert.DoesNotContain("InitialiseTransitionTables", cache);
+            StringAssert.DoesNotContain("TopologyCellClass", workspace);
+            StringAssert.Contains("FaceDensity", workspace);
+            StringAssert.Contains("[ReadOnly] public NativeArray<byte> TransitionCellClass", ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "Transvoxel", "TransitionMeshJob.cs")));
+            StringAssert.Contains("internal sealed class TransvoxelLookupTables", tables);
+        }
+
     }
 }

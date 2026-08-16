@@ -415,6 +415,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private bool _pendingUpload;
         private SurfaceGeometryArena _geometryArena;
         private readonly bool _ownsGeometryArena;
+        private TransvoxelLookupTables _lookupTables;
+        private readonly bool _ownsLookupTables;
         private SurfaceCatalogueView _surfaceCatalogue;
         private SurfaceCatalogueView _buildSurfaceCatalogue;
         private CoatingCatalogueView _coatingCatalogue;
@@ -442,20 +444,25 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private readonly VoxelTimingWindow _buildSelectionTiming = new();
 
         public CpuTransvoxelChunkCache(int sourceStep = 1)
-            : this(sourceStep, null, true)
+            : this(sourceStep, null, true, null, true)
         {
         }
 
-        internal CpuTransvoxelChunkCache(int sourceStep, SurfaceGeometryArena geometryArena)
-            : this(sourceStep, geometryArena, false)
+        internal CpuTransvoxelChunkCache(int sourceStep, SurfaceGeometryArena geometryArena,
+                                         TransvoxelLookupTables lookupTables)
+            : this(sourceStep, geometryArena, false, lookupTables, false)
         {
         }
 
         private CpuTransvoxelChunkCache(int sourceStep, SurfaceGeometryArena geometryArena,
-                                         bool ownsGeometryArena)
+                                         bool ownsGeometryArena,
+                                         TransvoxelLookupTables lookupTables,
+                                         bool ownsLookupTables)
         {
             _geometryArena = geometryArena;
             _ownsGeometryArena = ownsGeometryArena;
+            _lookupTables = lookupTables ?? new TransvoxelLookupTables();
+            _ownsLookupTables = ownsLookupTables || lookupTables == null;
             if (sourceStep < 1 || (sourceStep & (sourceStep - 1)) != 0)
                 throw new ArgumentOutOfRangeException(
                     nameof(sourceStep), sourceStep,
@@ -473,7 +480,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _surfaceCatalogue = SurfaceCatalogueView.CreateBuiltIns();
             _coatingCatalogue = CoatingCatalogueView.CreateBuiltIns();
             _workspace = new TransvoxelBuildWorkspace(
-                GridSampleCount, BrickCacheCount, SamplesFromMips, CellsPerAxis);
+                GridSampleCount, BrickCacheCount, SamplesFromMips,
+                CellsPerAxis, FaceSamplesPerAxis);
             _density = _workspace.Density;
             _materials = _workspace.Materials;
             _surfaceSemantics = _workspace.SurfaceSemantics;
@@ -487,67 +495,26 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _compactedTopologyVertices = _workspace.CompactedTopologyVertices;
             _compactedTopologyIndices = _workspace.CompactedTopologyIndices;
             _topologyOverflowCell = _workspace.TopologyOverflowCell;
-            _topologyCellClass = _workspace.TopologyCellClass;
-            _topologyGeometryCounts = _workspace.TopologyGeometryCounts;
-            _topologyCellVertexIndices = _workspace.TopologyCellVertexIndices;
-            _topologyEdgeCodes = _workspace.TopologyEdgeCodes;
+            _topologyCellClass = _lookupTables.RegularCellClass;
+            _topologyGeometryCounts = _lookupTables.RegularGeometryCounts;
+            _topologyCellVertexIndices = _lookupTables.RegularCellVertexIndices;
+            _topologyEdgeCodes = _lookupTables.RegularEdgeCodes;
             _facetedMasks = _workspace.FacetedMasks;
             _facetedVertices = _workspace.FacetedVertices;
             _facetedIndices = _workspace.FacetedIndices;
             _vertices = _workspace.Vertices;
             _indices = _workspace.Indices;
-            InitialiseTopologyTables();
-            InitialiseTransitionTables();
-        }
-
-        /// <summary>
-        /// Flattens the jagged transition tables into Burst-friendly arrays. The jagged form is
-        /// how the data is published; jobs need fixed strides.
-        /// </summary>
-        private void InitialiseTransitionTables()
-        {
-            byte[] cellClass = TransvoxelTransitionTables.CellClass;
-            RegularCellData[] cellData = TransvoxelTransitionTables.CellData;
-            ushort[][] vertexData = TransvoxelTransitionTables.VertexData;
-
-            _transitionVertexStride = 0;
-            for (int i = 0; i < vertexData.Length; i++)
-                _transitionVertexStride = math.max(_transitionVertexStride, vertexData[i].Length);
-            _transitionIndexStride = 0;
-            for (int i = 0; i < cellData.Length; i++)
-                _transitionIndexStride = math.max(_transitionIndexStride,
-                                                  cellData[i].VertexIndices.Length);
-
-            _transitionCellClass = new NativeArray<byte>(cellClass.Length, Allocator.Persistent);
-            for (int i = 0; i < cellClass.Length; i++) _transitionCellClass[i] = cellClass[i];
-
-            _transitionGeometryCounts = new NativeArray<byte>(cellData.Length,
-                                                              Allocator.Persistent);
-            _transitionCellIndices = new NativeArray<byte>(
-                cellData.Length * math.max(1, _transitionIndexStride), Allocator.Persistent);
-            for (int i = 0; i < cellData.Length; i++)
-            {
-                _transitionGeometryCounts[i] = cellData[i].GeometryCounts;
-                byte[] indices = cellData[i].VertexIndices;
-                for (int j = 0; j < indices.Length; j++)
-                    _transitionCellIndices[i * _transitionIndexStride + j] = indices[j];
-            }
-
-            _transitionVertexData = new NativeArray<ushort>(
-                vertexData.Length * math.max(1, _transitionVertexStride), Allocator.Persistent);
-            for (int i = 0; i < vertexData.Length; i++)
-            {
-                ushort[] row = vertexData[i];
-                for (int j = 0; j < row.Length; j++)
-                    _transitionVertexData[i * _transitionVertexStride + j] = row[j];
-            }
-
-            int faceSamples = FaceSamplesPerAxis * FaceSamplesPerAxis;
-            _faceDensity = new NativeArray<float>(faceSamples, Allocator.Persistent);
-            _faceMaterials = new NativeArray<byte>(faceSamples, Allocator.Persistent);
-            _faceSurfaces = new NativeArray<uint>(faceSamples, Allocator.Persistent);
-            _transitionVertices = new NativeList<SmoothSurfaceVertex>(2048, Allocator.Persistent);
-            _transitionIndices = new NativeList<uint>(3072, Allocator.Persistent);
+            _faceDensity = _workspace.FaceDensity;
+            _faceMaterials = _workspace.FaceMaterials;
+            _faceSurfaces = _workspace.FaceSurfaces;
+            _transitionVertices = _workspace.TransitionVertices;
+            _transitionIndices = _workspace.TransitionIndices;
+            _transitionCellClass = _lookupTables.TransitionCellClass;
+            _transitionGeometryCounts = _lookupTables.TransitionGeometryCounts;
+            _transitionCellIndices = _lookupTables.TransitionCellIndices;
+            _transitionVertexData = _lookupTables.TransitionVertexData;
+            _transitionVertexStride = _lookupTables.TransitionVertexStride;
+            _transitionIndexStride = _lookupTables.TransitionIndexStride;
         }
 
         /// <summary>
@@ -710,30 +677,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             }
 
             return true;
-        }
-
-        private void InitialiseTopologyTables()
-        {
-            _topologyCellClass.CopyFrom(TransvoxelRegularTables.CellClass);
-            for (int cellClass = 0; cellClass < TransvoxelRegularTables.CellData.Length;
-                 cellClass++)
-            {
-                RegularCellData data = TransvoxelRegularTables.CellData[cellClass];
-                _topologyGeometryCounts[cellClass] = data.GeometryCounts;
-                int length = math.min(data.VertexIndices.Length,
-                                      TransvoxelTopologyJob.MaxIndicesPerCell);
-                for (int i = 0; i < length; i++)
-                    _topologyCellVertexIndices[
-                        cellClass * TransvoxelTopologyJob.MaxIndicesPerCell + i] =
-                        data.VertexIndices[i];
-            }
-            for (int cell = 0; cell < TransvoxelRegularTables.VertexData.Length; cell++)
-            {
-                ushort[] edges = TransvoxelRegularTables.VertexData[cell];
-                int length = math.min(edges.Length, 12);
-                for (int i = 0; i < length; i++)
-                    _topologyEdgeCodes[cell * 12 + i] = edges[i];
-            }
         }
 
         public int MaxResidentChunks { get; set; } = 4096;
@@ -3191,16 +3134,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _vertices.Clear();
             _indices.Clear();
             if (_topologyOutput.IsCreated) _topologyOutput.Dispose();
-            if (_faceDensity.IsCreated) _faceDensity.Dispose();
-            if (_faceMaterials.IsCreated) _faceMaterials.Dispose();
-            if (_faceSurfaces.IsCreated) _faceSurfaces.Dispose();
-            if (_transitionCellClass.IsCreated) _transitionCellClass.Dispose();
-            if (_transitionGeometryCounts.IsCreated) _transitionGeometryCounts.Dispose();
-            if (_transitionCellIndices.IsCreated) _transitionCellIndices.Dispose();
-            if (_transitionVertexData.IsCreated) _transitionVertexData.Dispose();
-            if (_transitionVertices.IsCreated) _transitionVertices.Dispose();
-            if (_transitionIndices.IsCreated) _transitionIndices.Dispose();
             _workspace.Dispose();
+            if (_ownsLookupTables)
+            {
+                _lookupTables?.Dispose();
+                _lookupTables = null;
+            }
             _build = default;
             if (_ownsGeometryArena)
             {
