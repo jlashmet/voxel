@@ -29,6 +29,8 @@ namespace VoxelEngine.Structures.Api
             int preferredSide = (CastleSeedPartition.Derive(
                 plan.Seed, CastleSeedDomain.Decor, 0xC048u) & 1u) == 0u ? -1 : 1;
 
+            // Preserve the authored near-keep placement where it fits so existing seeds do not
+            // move just because a more general fallback exists.
             for (int ring = 0; ring < 4; ring++)
             {
                 int distance = baseDistance + ring * 24;
@@ -46,8 +48,16 @@ namespace VoxelEngine.Structures.Api
                 }
             }
 
-            well = default;
-            return false;
+            // Irregular and radial wards can be wide enough for a well while both preferred
+            // tangent rays happen to hit a narrow part of the polygon. Search the whole courtyard
+            // before declaring the semantic invariant impossible. A coarse pass handles the normal
+            // fallback cheaply; the dense pass is only paid when grid alignment hides a small but
+            // valid integer site.
+            if (TryChooseFallbackWell(
+                    in plan, perimeter, in gate, keepCentre, 8, out well))
+                return true;
+            return TryChooseFallbackWell(
+                in plan, perimeter, in gate, keepCentre, 1, out well);
         }
 
         internal static bool WellFits(
@@ -79,6 +89,64 @@ namespace VoxelEngine.Structures.Api
 
             int2 gateDelta = candidate - gate.Centre;
             return math.lengthsq(new float2(gateDelta.x, gateDelta.y)) >= 70f * 70f;
+        }
+
+        private static bool TryChooseFallbackWell(
+            in CastlePlan plan,
+            int2[] perimeter,
+            in CastleGatePlacementSpec gate,
+            int2 keepCentre,
+            int stride,
+            out int2 well)
+        {
+            well = default;
+            if (perimeter == null || perimeter.Length < 3 || stride <= 0)
+                return false;
+
+            int minX = perimeter[0].x + WellClearanceRadius;
+            int maxX = perimeter[0].x - WellClearanceRadius;
+            int minZ = perimeter[0].y + WellClearanceRadius;
+            int maxZ = perimeter[0].y - WellClearanceRadius;
+            for (int i = 1; i < perimeter.Length; i++)
+            {
+                minX = math.min(minX, perimeter[i].x + WellClearanceRadius);
+                maxX = math.max(maxX, perimeter[i].x - WellClearanceRadius);
+                minZ = math.min(minZ, perimeter[i].y + WellClearanceRadius);
+                maxZ = math.max(maxZ, perimeter[i].y - WellClearanceRadius);
+            }
+            if (minX > maxX || minZ > maxZ)
+                return false;
+
+            bool found = false;
+            long bestDistanceSquared = long.MaxValue;
+            uint bestTieBreak = 0u;
+            for (int z = minZ; z <= maxZ; z += stride)
+            for (int x = minX; x <= maxX; x += stride)
+            {
+                int2 candidate = new int2(x, z);
+                if (!WellFits(in plan, perimeter, in gate, keepCentre, candidate))
+                    continue;
+
+                long dx = (long)x - keepCentre.x;
+                long dz = (long)z - keepCentre.y;
+                long distanceSquared = dx * dx + dz * dz;
+                uint elementId = unchecked(
+                    (uint)x * 73856093u ^ (uint)z * 19349663u ^ 0x57454C4Cu);
+                uint tieBreak = CastleSeedPartition.Derive(
+                    plan.Seed, CastleSeedDomain.Decor, elementId);
+
+                if (found && distanceSquared > bestDistanceSquared)
+                    continue;
+                if (found && distanceSquared == bestDistanceSquared && tieBreak <= bestTieBreak)
+                    continue;
+
+                found = true;
+                well = candidate;
+                bestDistanceSquared = distanceSquared;
+                bestTieBreak = tieBreak;
+            }
+
+            return found;
         }
 
         private static int2 Round(float2 value) =>
