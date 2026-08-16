@@ -103,6 +103,8 @@ namespace VoxelEngine.Rendering.Runtime.AmbientLife
 
         public static AmbientLifeRenderStyle StyleFor(AmbientLifeKind kind)
         {
+            // Luminous strengths deliberately preserve LDR/HDR headroom so emission remains
+            // colour-readable and the deterministic pulse is visible instead of clipping white.
             switch (kind)
             {
                 case AmbientLifeKind.Butterfly:
