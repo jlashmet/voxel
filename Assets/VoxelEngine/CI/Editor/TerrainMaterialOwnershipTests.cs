@@ -1,8 +1,6 @@
-using System;
 using System.Collections.Generic;
 using System.Reflection;
 using NUnit.Framework;
-using Unity.Mathematics;
 using VoxelEngine.Terrain.Api;
 using VoxelEngine.Terrain.Runtime;
 
@@ -28,28 +26,27 @@ namespace VoxelEngine.CI
         }
 
         [Test]
-        public void LegacyGenerate_RequiresApplicationConfiguredMaterialRoles()
+        public void TerrainGenerator_RequiresExplicitMaterialRoles()
         {
-            bool hadPrevious = TerrainMaterialCompatibility.IsConfigured;
-            TerrainMaterialSet previous = hadPrevious
-                ? TerrainMaterialCompatibility.RequireConfigured()
-                : default;
+            MethodInfo[] methods = typeof(TerrainGenerator)
+                .GetMethods(BindingFlags.Public | BindingFlags.Static);
+            var generateOverloads = new List<MethodInfo>();
 
-            try
+            for (int i = 0; i < methods.Length; i++)
             {
-                TerrainMaterialCompatibility.Reset();
-#pragma warning disable CS0618
-                Assert.Throws<InvalidOperationException>(() =>
-                    TerrainGenerator.Generate(null, int3.zero, 1u));
-#pragma warning restore CS0618
+                if (methods[i].Name == nameof(TerrainGenerator.Generate))
+                    generateOverloads.Add(methods[i]);
             }
-            finally
-            {
-                if (hadPrevious)
-                    TerrainMaterialCompatibility.Configure(in previous);
-                else
-                    TerrainMaterialCompatibility.Reset();
-            }
+
+            Assert.That(generateOverloads, Has.Count.EqualTo(1),
+                "Terrain generation must have one explicit application-material entry point; " +
+                "do not reintroduce a configured/global compatibility overload.");
+
+            ParameterInfo[] parameters = generateOverloads[0].GetParameters();
+            Assert.That(parameters, Has.Length.EqualTo(4));
+            Assert.That(parameters[3].ParameterType, Is.EqualTo(typeof(TerrainMaterialSet)),
+                "The final TerrainGenerator.Generate parameter must be the caller-supplied " +
+                "TerrainMaterialSet.");
         }
     }
 }
