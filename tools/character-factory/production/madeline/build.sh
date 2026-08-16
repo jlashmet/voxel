@@ -10,18 +10,24 @@ cd "$REPO_ROOT"
 BLENDER_BIN="${BLENDER_BIN:-/Applications/Blender.app/Contents/MacOS/Blender}"
 test -x "$BLENDER_BIN"
 
-FRONT="$SCRIPT_DIR/views/front.jpg"
-BACK="$SCRIPT_DIR/views/back.jpg"
-LEFT="$SCRIPT_DIR/views/left.jpg"
-RIGHT="$SCRIPT_DIR/views/right.jpg"
+# The original binary JPEG entries on this branch were truncated during an earlier
+# transport step. Keep the approved full-resolution turnaround losslessly transportable
+# as base64 text in git, decode it into the build audit directory, and only ever feed
+# those validated bytes to preprocessing/Hunyuan.
+PAYLOAD_DIR="$SCRIPT_DIR/views-valid"
 FACE="$SCRIPT_DIR/refs/madeline_face_front.png"
-for input in "$FRONT" "$BACK" "$LEFT" "$RIGHT" "$FACE"; do
-  if [ ! -s "$input" ]; then
-    echo "Missing Madeline production reference: $input" >&2
+for name in front back left right; do
+  payload="$PAYLOAD_DIR/$name.jpg.b64"
+  if [ ! -s "$payload" ]; then
+    echo "Missing Madeline production reference payload: $payload" >&2
     echo "See $SCRIPT_DIR/README.md." >&2
     exit 2
   fi
 done
+if [ ! -s "$FACE" ]; then
+  echo "Missing Madeline face reference: $FACE" >&2
+  exit 2
+fi
 
 CACHE_ROOT="${CHARACTER_FACTORY_CACHE_ROOT:-$HOME/Library/Caches/voxel-character-factory}"
 HUNYUAN_REV="f8db63096c8282cb27354314d896feba5ba6ff8a"
@@ -44,11 +50,22 @@ export PYTHONUNBUFFERED=1
 # the mesh toward the donor for reliable skin-weight transfer.
 export CHARACTER_FACTORY_ALIGNMENT_BLEND="${CHARACTER_FACTORY_ALIGNMENT_BLEND:-0.15}"
 
-printf '%s\n' '[1/9] Copy approved references into the build audit trail'
-cp "$FRONT" "$OUT/reference/raw/front.jpg"
-cp "$BACK" "$OUT/reference/raw/back.jpg"
-cp "$LEFT" "$OUT/reference/raw/left.jpg"
-cp "$RIGHT" "$OUT/reference/raw/right.jpg"
+printf '%s\n' '[1/9] Decode and validate the approved Madeline turnaround'
+for name in front back left right; do
+  python3 - "$PAYLOAD_DIR/$name.jpg.b64" "$OUT/reference/raw/$name.jpg" <<'PY'
+import base64
+from pathlib import Path
+import sys
+
+source = Path(sys.argv[1])
+destination = Path(sys.argv[2])
+data = base64.b64decode(source.read_text(encoding="ascii"), validate=True)
+if len(data) < 4096 or not data.startswith(b"\xff\xd8") or not data.endswith(b"\xff\xd9"):
+    raise SystemExit(f"invalid JPEG payload: {source}")
+destination.write_bytes(data)
+print(f"decoded {source.name}: {len(data)} bytes -> {destination}")
+PY
+done
 cp "$FACE" "$OUT/reference/madeline_face_front.png"
 
 printf '%s\n' '[2/9] Remove the temporary modeling base layer from geometry inputs'
