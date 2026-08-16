@@ -1094,27 +1094,11 @@ namespace VoxelEngine.Showcase
             int ground = SurfaceHeight(cx, cz);
 
             var plan = StructuresComposition.PlanCastle(new int3(cx, ground, cz), Seed);
-            // Every region the castle reaches into must exist *before* it is built. A castle is
-            // wider than a region, and terrain generation writes a region's brick pointers
-            // wholesale — so a neighbour generated afterwards silently erases the half of the
-            // castle that stood in it. That is what left a scatter of blocks and a terraced
-            // quarry where a castle should be.
-            // Enumerate every coordinate in the touched range. Sampling centre +/- reach and
-            // treating those samples as neighbours skipped intermediate coordinates whenever
-            // reach exceeded one region; the castle then wrote into a default-empty region and
-            // left enormous void wedges where its terrain foundation should have been.
-            int reach = math.max(plan.PlateauRadius + plan.CliffDrop + 8, RegionVoxelEdge);
-            int minRx = (cx - reach) >> VoxelDimensions.RegionVoxelEdgeLog2;
-            int maxRx = (cx + reach) >> VoxelDimensions.RegionVoxelEdgeLog2;
-            int minRz = (cz - reach) >> VoxelDimensions.RegionVoxelEdgeLog2;
-            int maxRz = (cz + reach) >> VoxelDimensions.RegionVoxelEdgeLog2;
-
             _pendingCastlePlan = plan;
+            // Spatial planning owns the conservative 3D dependency envelope. It queues every
+            // intersected region before mutation, including upper keep/tower layers and the
+            // displaced dungeon/cave footprint.
             PreparePendingCastleSpatialPlan();
-            _castleRegions.Clear();
-            for (int rz = minRz; rz <= maxRz; rz++)
-            for (int rx = minRx; rx <= maxRx; rx++)
-                _castleRegions.Add(new int3(rx, 0, rz));
             _castleTerrainQueued = true;
         }
 
