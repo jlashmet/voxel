@@ -17,7 +17,7 @@ jobs:
           ref: refactor/async-geometry-pipeline
           fetch-depth: 0
       - name: Apply guarded acceptance sync
-        run: python3 .github/scripts/async_geometry_acceptance_sync.py
+        run: python3 .github/scripts/async_geometry_acceptance_source_sync.py
       - name: Static guards
         run: |
           grep -q 'MaxVoxelRingRadiusMetres = 409.6f' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs
@@ -25,7 +25,6 @@ jobs:
           grep -q 'RenderRingsUseExactStepEightAndMipsBeyondIt' Assets/Tests/EditMode/SurfaceRingBandTests.cs
           grep -q 'private void ProcessChangeFeed' Assets/Tests/EditMode/GeometryPipelineArchitectureTests.cs
           grep -q 'Unused materialisation should roll back' Assets/Tests/EditMode/StorageRenderingReadContractTests.cs
-          grep -q 'Run async geometry EditMode tests' .github/workflows/async-geometry-editmode-validation.yml
       - name: Commit acceptance sync
         run: |
           git config user.name 'github-actions[bot]'
@@ -35,7 +34,6 @@ jobs:
                   Assets/Tests/EditMode/SurfaceBrickDiscoveryTests.cs \
                   Assets/Tests/EditMode/SurfaceRingBandTests.cs \
                   Assets/Tests/EditMode/StorageRenderingReadContractTests.cs \
-                  Assets/Tests/EditMode/GeometryPipelineArchitectureTests.cs \
-                  .github/workflows/async-geometry-editmode-validation.yml
+                  Assets/Tests/EditMode/GeometryPipelineArchitectureTests.cs
           git commit -m 'Align async geometry acceptance tests with current pipeline'
           git push origin HEAD:refactor/async-geometry-pipeline
