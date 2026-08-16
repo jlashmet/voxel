@@ -20,39 +20,52 @@ namespace VoxelEngine.Tests.EditMode
         [Test]
         public void MixedBlockKeepsIndependentThinFeaturesInSeparateSubcells()
         {
-            using var voxels = new NativeArray<byte>(
+            var voxels = new NativeArray<byte>(
                 SurfaceBlockHlodSummaryBuilder.VoxelsPerBlock,
                 Allocator.Temp, NativeArrayOptions.ClearMemory);
-
-            // Two one-voxel features at opposite corners of the same 8^3 block. An any-solid
-            // block summary collapses these into one filled coarse sample; the HLOD summary must
-            // keep the two 4^3 subcells independent and leave the six intervening subcells empty.
-            voxels[0] = 7;      // (0,0,0) -> subcell 0
-            voxels[511] = 5;    // (7,7,7) -> subcell 7
-
-            SurfaceBlockHlodSummary summary = SurfaceBlockHlodSummaryBuilder.Mixed(voxels, 0);
-            Assert.AreEqual((1 << 0) | (1 << 7), summary.OccupiedSubcells);
-            Assert.AreEqual(7, summary.MaterialAt(0));
-            Assert.AreEqual(5, summary.MaterialAt(7));
-            for (int i = 1; i < 7; i++)
+            try
             {
-                Assert.False(summary.IsOccupied(i), $"Subcell {i} should remain an opening.");
-                Assert.AreEqual(0, summary.MaterialAt(i));
+                // Two one-voxel features at opposite corners of the same 8^3 block. An any-solid
+                // block summary collapses these into one filled coarse sample; the HLOD summary must
+                // keep the two 4^3 subcells independent and leave the six intervening subcells empty.
+                voxels[0] = 7;      // (0,0,0) -> subcell 0
+                voxels[511] = 5;    // (7,7,7) -> subcell 7
+
+                SurfaceBlockHlodSummary summary = SurfaceBlockHlodSummaryBuilder.Mixed(voxels, 0);
+                Assert.AreEqual((1 << 0) | (1 << 7), summary.OccupiedSubcells);
+                Assert.AreEqual(7, summary.MaterialAt(0));
+                Assert.AreEqual(5, summary.MaterialAt(7));
+                for (int i = 1; i < 7; i++)
+                {
+                    Assert.False(summary.IsOccupied(i), $"Subcell {i} should remain an opening.");
+                    Assert.AreEqual(0, summary.MaterialAt(i));
+                }
+            }
+            finally
+            {
+                voxels.Dispose();
             }
         }
 
         [Test]
         public void LiquidOnlySubcellsDoNotBecomeSolidHlodGeometry()
         {
-            using var voxels = new NativeArray<byte>(
+            var voxels = new NativeArray<byte>(
                 SurfaceBlockHlodSummaryBuilder.VoxelsPerBlock,
                 Allocator.Temp, NativeArrayOptions.ClearMemory);
-            voxels[0] = 11;
-            voxels[511] = 16;
+            try
+            {
+                voxels[0] = 11;
+                voxels[511] = 16;
 
-            SurfaceBlockHlodSummary summary = SurfaceBlockHlodSummaryBuilder.Mixed(voxels, 0);
-            Assert.AreEqual(0, summary.OccupiedSubcells);
-            Assert.AreEqual(0UL, summary.PackedMaterials);
+                SurfaceBlockHlodSummary summary = SurfaceBlockHlodSummaryBuilder.Mixed(voxels, 0);
+                Assert.AreEqual(0, summary.OccupiedSubcells);
+                Assert.AreEqual(0UL, summary.PackedMaterials);
+            }
+            finally
+            {
+                voxels.Dispose();
+            }
         }
 
         [Test]
