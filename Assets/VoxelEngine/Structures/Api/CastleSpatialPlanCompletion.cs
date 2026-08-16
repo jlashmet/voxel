@@ -20,7 +20,8 @@ namespace VoxelEngine.Structures.Api
             if (spatial.KeepRequiresTerrainResolution)
                 return spatial;
 
-            CastleSpatialPlan withTowerVariation = AttachTowerVariation(in plan, spatial);
+            CastleSpatialPlan withGatehouse = CastleGatehousePlanCompletion.Attach(in plan, spatial);
+            CastleSpatialPlan withTowerVariation = AttachTowerVariation(in plan, withGatehouse);
             CastleSpatialPlan withKeepFloors = AttachKeepFloors(in plan, withTowerVariation);
             CastleSpatialPlan withCirculation = AttachKeepCirculation(in plan, withKeepFloors);
             CastleSpatialPlan withWindows = AttachKeepWindows(in plan, withCirculation);
