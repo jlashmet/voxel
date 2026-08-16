@@ -51,5 +51,27 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("CastleLayout.LegacyKeepCentreZOffset", projection);
             StringAssert.Contains("LegacyKeepCentreZOffset = 60", layout);
         }
+
+        [Test]
+        public void SpatialValidationUsesPureKeepProjectionWithoutReenteringFullProjection()
+        {
+            string validator = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Api",
+                "CastleSpatialPlanValidator.cs"));
+            string projection = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Api",
+                "CastleSpatialProjection.cs"));
+
+            StringAssert.Contains("CastleSpatialProjection.ProjectKeepPlan(", validator,
+                "Dungeon entrance validation should project only the keep geometry it needs.");
+            StringAssert.Contains("CastleLayout.TrapdoorCentre(", validator);
+            StringAssert.DoesNotContain("CastleSpatialProjection.Create(", validator,
+                "Spatial validation must not call the full validating projection and create a validator/projection cycle.");
+
+            StringAssert.Contains("CastleSpatialPlanValidator.TryValidate(", projection,
+                "General full-plan projection should still reject invalid spatial plans.");
+            StringAssert.DoesNotContain("CreateProjectionValidationView", projection,
+                "Projection should validate the real plan directly instead of manufacturing a recursion-avoidance view.");
+        }
     }
 }
