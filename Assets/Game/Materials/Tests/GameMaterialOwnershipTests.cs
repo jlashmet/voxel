@@ -39,15 +39,12 @@ namespace Game.Materials.Tests
         [Test]
         public void CanonicalCatalogue_CoversEveryStableMaterialId()
         {
-            Assert.That(GameMaterialCatalogue.Count, Is.EqualTo(GameMaterialCatalogue.CanonicalMaterialCount));
             Assert.That(GameMaterialCatalogue.Count, Is.EqualTo(22));
-
             for (byte materialId = 0; materialId < GameMaterialCatalogue.Count; materialId++)
             {
                 Assert.That(GameMaterialCatalogue.IsCanonicalId(materialId), Is.True);
-                ref readonly MaterialDefinition definition = ref GameMaterialCatalogue.Get(materialId);
-                Assert.That(definition.MaterialId, Is.EqualTo(materialId));
                 Assert.That(GameMaterialCatalogue.NameOf(materialId), Is.Not.Empty);
+                Assert.That(GameMaterialCatalogue.NameOf(materialId), Is.Not.EqualTo("unknown"));
             }
 
             byte firstUnknownId = (byte)GameMaterialCatalogue.Count;
@@ -56,18 +53,30 @@ namespace Game.Materials.Tests
         }
 
         [Test]
-        public void CanonicalDefinitions_RegisterWithoutPaletteHoles()
+        public void SimulationProjection_RegistersEveryPhysicalMaterialWithoutChangingLegacyBehavior()
         {
+            MaterialDefinition[] definitions = GameMaterialSimulationDefinitions.Create();
+            Assert.That(definitions.Length, Is.EqualTo(GameMaterialSimulationDefinitions.Count));
+            Assert.That(definitions.Length, Is.EqualTo(GameMaterialCatalogue.Count - 1));
+
             MaterialPalette palette = default;
-            foreach (MaterialDefinition definition in GameMaterialCatalogue.Definitions)
+            for (int i = 0; i < definitions.Length; i++)
+            {
+                MaterialDefinition definition = definitions[i];
+                Assert.That(definition.MaterialId, Is.EqualTo(i + 1),
+                    "Physical definitions must remain ordered by their stable material id.");
                 palette.Register(in definition);
+            }
 
             Assert.That(palette.Count, Is.EqualTo(GameMaterialCatalogue.Count));
-            for (byte materialId = 0; materialId < GameMaterialCatalogue.Count; materialId++)
+            Assert.That(palette.IsRegistered(GameMaterialIds.Empty), Is.False,
+                "Empty is semantic absence, not a physical material registration.");
+
+            for (byte materialId = 1; materialId < GameMaterialCatalogue.Count; materialId++)
             {
+                MaterialDefinition definition = definitions[materialId - 1];
                 Assert.That(palette.IsRegistered(materialId), Is.True,
                     $"Material {materialId} ({GameMaterialCatalogue.NameOf(materialId)}) was not registered.");
-                ref readonly MaterialDefinition definition = ref GameMaterialCatalogue.Get(materialId);
                 Assert.That(palette.GetHardness(materialId), Is.EqualTo(definition.Hardness));
                 Assert.That(palette.GetDestructionClass(materialId), Is.EqualTo(definition.DestructionClass));
                 Assert.That(palette.IsFlammable(materialId), Is.EqualTo(definition.Flammable));
@@ -75,18 +84,22 @@ namespace Game.Materials.Tests
         }
 
         [Test]
-        public void PreviouslyUnregisteredMaterials_NowHaveExplicitPhysicalDefinitions()
+        public void PreviouslyUnregisteredRows_AreExplicitButRemainInertDuringOwnershipMigration()
         {
-            ref readonly MaterialDefinition cascade = ref GameMaterialCatalogue.Get(GameMaterialIds.Cascade);
-            ref readonly MaterialDefinition crystal = ref GameMaterialCatalogue.Get(GameMaterialIds.Crystal);
-            ref readonly MaterialDefinition flower = ref GameMaterialCatalogue.Get(GameMaterialIds.FlowerWhite);
+            MaterialDefinition[] definitions = GameMaterialSimulationDefinitions.Create();
+            MaterialDefinition cascade = definitions[GameMaterialIds.Cascade - 1];
+            MaterialDefinition crystal = definitions[GameMaterialIds.Crystal - 1];
+            MaterialDefinition flower = definitions[GameMaterialIds.FlowerWhite - 1];
 
-            Assert.That(cascade.DestructionClass, Is.EqualTo(DestructionClass.Spreading));
-            Assert.That(cascade.Hardness, Is.GreaterThan(0));
-            Assert.That(crystal.DestructionClass, Is.Not.EqualTo(DestructionClass.None));
-            Assert.That(crystal.Hardness, Is.GreaterThan(0));
-            Assert.That(flower.DestructionClass, Is.Not.EqualTo(DestructionClass.None));
-            Assert.That(flower.Hardness, Is.GreaterThan(0));
+            Assert.That(cascade.MaterialId, Is.EqualTo(GameMaterialIds.Cascade));
+            Assert.That(cascade.Hardness, Is.Zero);
+            Assert.That(cascade.DestructionClass, Is.EqualTo(DestructionClass.None));
+            Assert.That(crystal.MaterialId, Is.EqualTo(GameMaterialIds.Crystal));
+            Assert.That(crystal.Hardness, Is.Zero);
+            Assert.That(crystal.DestructionClass, Is.EqualTo(DestructionClass.None));
+            Assert.That(flower.MaterialId, Is.EqualTo(GameMaterialIds.FlowerWhite));
+            Assert.That(flower.Hardness, Is.Zero);
+            Assert.That(flower.DestructionClass, Is.EqualTo(DestructionClass.None));
         }
 
         [Test]
