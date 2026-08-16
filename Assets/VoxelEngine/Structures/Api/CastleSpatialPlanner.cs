@@ -22,6 +22,7 @@ namespace VoxelEngine.Structures.Api
             int2[] inner = topology.Wards == CastleWardPattern.InnerAndOuterWards
                 ? BuildInnerWard(in dimensions, in topology, outer, in gate)
                 : Array.Empty<int2>();
+            CastleTowerPlacementSpec[] innerTowers = CastleInnerWardTowerPlanner.Create(inner);
 
             bool hasPosternGate = topology.HasPosternGate;
             CastleGatePlacementSpec posternGate = hasPosternGate
@@ -74,7 +75,8 @@ namespace VoxelEngine.Structures.Api
                 wellCentre,
                 courtyardBuildings,
                 keepCentre,
-                requiresTerrainResolution);
+                requiresTerrainResolution,
+                innerTowers);
         }
 
         /// <summary>
@@ -174,7 +176,10 @@ namespace VoxelEngine.Structures.Api
                 wellCentre,
                 courtyardBuildings,
                 localKeepCentre,
-                false);
+                false,
+                spatial.InnerTowers != null
+                    ? (CastleTowerPlacementSpec[])spatial.InnerTowers.Clone()
+                    : Array.Empty<CastleTowerPlacementSpec>());
 
             if (!CastleSpatialPlanValidator.TryValidate(
                     in dimensions, resolved, out CastleSpatialPlanIssue issue))
