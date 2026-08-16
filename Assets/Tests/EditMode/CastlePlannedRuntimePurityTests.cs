@@ -24,6 +24,9 @@ namespace VoxelEngine.Tests.EditMode
                     $"{name} must consume planned choices instead of owning an RNG.");
                 StringAssert.DoesNotContain("CastleSeedPartition", source,
                     $"{name} must not derive new authored choices during realization.");
+                StringAssert.DoesNotContain(".Seed", source,
+                    $"{name} must not reread a castle seed to recreate authored choices. " +
+                    "A separately supplied terrainSeed remains a valid realization input.");
                 StringAssert.DoesNotContain("Planner.Create(", source,
                     $"{name} must not invoke planning during voxel realization.");
             }
