@@ -31,23 +31,103 @@ namespace VoxelEngine.Tests.EditMode
                     DungeonPlanValidator.TryValidate(dungeon, out DungeonPlanIssue issue),
                     $"seed {seed}: {issue}");
 
+                Assert.IsTrue(TryFind(dungeon, DungeonRoomPurpose.Entrance, out _),
+                    $"seed {seed}: dungeon lost mandatory entrance room");
                 DungeonRoomPlan hall = Find(dungeon, DungeonRoomPurpose.GreatHall);
                 Assert.AreEqual(dungeon.Entrance.y - 166 + 20, hall.Centre.y,
                     $"seed {seed}: main dungeon depth changed");
 
-                DungeonRoomPlan puzzle = Find(dungeon, DungeonRoomPurpose.Puzzle);
-                DungeonRoomPlan treasury = Find(dungeon, DungeonRoomPurpose.Treasury);
-                Assert.AreEqual(226, math.abs(puzzle.Centre.x - dungeon.Entrance.x));
-                Assert.AreEqual(226, math.abs(treasury.Centre.x - dungeon.Entrance.x));
-                Assert.AreEqual(
-                    -(puzzle.Centre.x - dungeon.Entrance.x),
-                    treasury.Centre.x - dungeon.Entrance.x,
-                    $"seed {seed}: side branches must stay on opposite sides");
+                bool hasPuzzle = TryFind(dungeon, DungeonRoomPurpose.Puzzle, out DungeonRoomPlan puzzle);
+                bool hasTreasury = TryFind(
+                    dungeon, DungeonRoomPurpose.Treasury, out DungeonRoomPlan treasury);
+                if (hasPuzzle)
+                {
+                    Assert.AreEqual(226, math.abs(puzzle.Centre.x - dungeon.Entrance.x),
+                        $"seed {seed}: puzzle branch left the authored side-room envelope");
+                }
+                if (hasTreasury)
+                {
+                    Assert.AreEqual(226, math.abs(treasury.Centre.x - dungeon.Entrance.x),
+                        $"seed {seed}: treasury branch left the authored side-room envelope");
+                }
+                if (hasPuzzle && hasTreasury)
+                {
+                    Assert.AreEqual(
+                        -(puzzle.Centre.x - dungeon.Entrance.x),
+                        treasury.Centre.x - dungeon.Entrance.x,
+                        $"seed {seed}: simultaneous side branches must stay on opposite sides");
+                }
 
-                DungeonRoomPlan cave = Find(dungeon, DungeonRoomPurpose.CaveThreshold);
-                Assert.AreEqual(411, math.abs(cave.Centre.z - dungeon.Entrance.z),
-                    $"seed {seed}: cave threshold left the authored underground envelope");
+                bool hasCaveRoom = TryFind(
+                    dungeon, DungeonRoomPurpose.CaveThreshold, out DungeonRoomPlan cave);
+                Assert.AreEqual(dungeon.HasCaveExit, hasCaveRoom,
+                    $"seed {seed}: cave-exit metadata disagrees with room graph");
+                if (hasCaveRoom)
+                {
+                    Assert.AreEqual(411, math.abs(cave.Centre.z - dungeon.Entrance.z),
+                        $"seed {seed}: cave threshold left the authored underground envelope");
+                }
             }
+        }
+
+        [Test]
+        public void CastleDungeonOptionalBranchesVaryDeterministicallyAcrossSeeds()
+        {
+            bool sawArchive = false, sawNoArchive = false;
+            bool sawPuzzle = false, sawNoPuzzle = false;
+            bool sawTreasury = false, sawNoTreasury = false;
+            bool sawCave = false, sawNoCave = false;
+            int minimumRoomCount = int.MaxValue;
+            int maximumRoomCount = int.MinValue;
+
+            for (uint seed = 1; seed <= 256; seed++)
+            {
+                CastlePlan dimensions = CastlePlanner.Create(int3.zero, seed);
+                CastleTopologyPlan topology = CastleLayoutPlanner.Create(seed);
+                topology.KeepPlacement = CastleKeepPlacement.Central;
+                CastleSpatialPlan spatial = CastleSpatialPlanner.Create(in dimensions, in topology);
+                CastleSpatialProjection projection = CastleSpatialProjection.Create(
+                    in dimensions, spatial);
+
+                DungeonPlan first = CastleDungeonPlanning.Create(in dimensions, in projection);
+                DungeonPlan second = CastleDungeonPlanning.Create(in dimensions, in projection);
+                AssertEquivalent(first, second, seed);
+
+                bool archive = TryFind(first, DungeonRoomPurpose.Archive, out _);
+                bool puzzle = TryFind(first, DungeonRoomPurpose.Puzzle, out _);
+                bool treasury = TryFind(first, DungeonRoomPurpose.Treasury, out _);
+                bool cave = first.HasCaveExit;
+
+                sawArchive |= archive;
+                sawNoArchive |= !archive;
+                sawPuzzle |= puzzle;
+                sawNoPuzzle |= !puzzle;
+                sawTreasury |= treasury;
+                sawNoTreasury |= !treasury;
+                sawCave |= cave;
+                sawNoCave |= !cave;
+                minimumRoomCount = math.min(minimumRoomCount, first.Rooms.Length);
+                maximumRoomCount = math.max(maximumRoomCount, first.Rooms.Length);
+
+                Assert.IsTrue(TryFind(first, DungeonRoomPurpose.Entrance, out _),
+                    $"seed {seed}: mandatory entrance became optional");
+                Assert.IsTrue(TryFind(first, DungeonRoomPurpose.GreatHall, out _),
+                    $"seed {seed}: mandatory great hall became optional");
+                Assert.IsTrue(
+                    DungeonPlanValidator.TryValidate(first, out DungeonPlanIssue issue),
+                    $"seed {seed}: optional topology produced invalid dungeon: {issue}");
+            }
+
+            Assert.IsTrue(sawArchive && sawNoArchive,
+                "Archive choice did not vary across the sampled dungeon seeds.");
+            Assert.IsTrue(sawPuzzle && sawNoPuzzle,
+                "Puzzle choice did not vary across the sampled dungeon seeds.");
+            Assert.IsTrue(sawTreasury && sawNoTreasury,
+                "Treasury choice did not vary across the sampled dungeon seeds.");
+            Assert.IsTrue(sawCave && sawNoCave,
+                "Cave-exit choice did not vary across the sampled dungeon seeds.");
+            Assert.Less(minimumRoomCount, maximumRoomCount,
+                "Optional dungeon choices did not change the realized room graph size.");
         }
 
         [Test]
@@ -168,10 +248,26 @@ namespace VoxelEngine.Tests.EditMode
 
         private static DungeonRoomPlan Find(DungeonPlan plan, DungeonRoomPurpose purpose)
         {
-            for (int i = 0; i < plan.Rooms.Length; i++)
-                if (plan.Rooms[i].Purpose == purpose) return plan.Rooms[i];
+            if (TryFind(plan, purpose, out DungeonRoomPlan room))
+                return room;
             Assert.Fail($"Missing dungeon room purpose {purpose}.");
             return default;
+        }
+
+        private static bool TryFind(
+            DungeonPlan plan,
+            DungeonRoomPurpose purpose,
+            out DungeonRoomPlan room)
+        {
+            for (int i = 0; i < plan.Rooms.Length; i++)
+            {
+                if (plan.Rooms[i].Purpose != purpose) continue;
+                room = plan.Rooms[i];
+                return true;
+            }
+
+            room = default;
+            return false;
         }
 
         private static string RepoRoot
