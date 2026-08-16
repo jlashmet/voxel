@@ -348,12 +348,14 @@ namespace VoxelEngine.Structures.Api
             for (int i = 0; i < actual.Length; i++)
             {
                 if (actual[i].Id != expected[i].Id ||
-                    actual[i].Role != expected[i].Role ||
+                    actual[i].Purpose != expected[i].Purpose ||
+                    actual[i].WallEdgeIndex != expected[i].WallEdgeIndex ||
                     !actual[i].Centre.Equals(expected[i].Centre) ||
-                    !actual[i].HalfExtents.Equals(expected[i].HalfExtents) ||
-                    actual[i].Height != expected[i].Height ||
-                    !actual[i].EntranceDirection.Equals(expected[i].EntranceDirection) ||
-                    actual[i].RoofRidgeAlongX != expected[i].RoofRidgeAlongX)
+                    math.lengthsq(actual[i].Tangent - expected[i].Tangent) > 0.000001f ||
+                    math.lengthsq(actual[i].Inward - expected[i].Inward) > 0.000001f ||
+                    actual[i].Width != expected[i].Width ||
+                    actual[i].Depth != expected[i].Depth ||
+                    actual[i].Height != expected[i].Height)
                     return false;
             }
 
