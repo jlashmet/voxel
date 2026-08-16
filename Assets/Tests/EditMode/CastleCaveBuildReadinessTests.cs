@@ -7,7 +7,7 @@ namespace VoxelEngine.Tests.EditMode
     public sealed class CastleCaveBuildReadinessTests
     {
         [Test]
-        public void DungeonThresholdRequiresAttachedNaturalCave()
+        public void DungeonThresholdRequiresAttachedNaturalCaveAndDecoration()
         {
             CastlePlan castle = CastlePlanner.Create(new int3(512, 220, 512), 1u);
             CastleSpatialPlan spatial = CentralSpatial(in castle);
@@ -22,31 +22,52 @@ namespace VoxelEngine.Tests.EditMode
                     withDungeon, out CastleCaveBuildReadinessIssue issue));
             Assert.AreEqual(CastleCaveBuildReadinessIssue.MissingCavePlan, issue);
 
-            CastleSpatialPlan completed = CastleSpatialPlanCompletion.AttachCave(
+            CastleSpatialPlan withCave = CastleSpatialPlanCompletion.AttachCave(
                 in castle, withDungeon);
+            Assert.NotNull(withCave.Cave);
+            Assert.IsNull(withCave.CaveDecoration);
+            Assert.IsFalse(
+                CastleCaveBuildReadiness.TryValidate(
+                    withCave, out CastleCaveBuildReadinessIssue decorationIssue));
+            Assert.AreEqual(
+                CastleCaveBuildReadinessIssue.MissingCaveDecorationPlan,
+                decorationIssue);
+
+            CastleSpatialPlan completed = CastleSpatialPlanCompletion.AttachCaveDecoration(
+                in castle, withCave);
             Assert.IsTrue(
                 CastleCaveBuildReadiness.TryValidate(
                     completed, out CastleCaveBuildReadinessIssue completedIssue),
                 completedIssue.ToString());
-            Assert.NotNull(completed.Cave);
+            Assert.NotNull(completed.CaveDecoration);
         }
 
         [Test]
-        public void RuntimePreflightRequiresNaturalCaveAfterOtherPlanningIsComplete()
+        public void RuntimePreflightRequiresNaturalCaveDecorationAfterOtherPlanningIsComplete()
         {
             CastlePlan castle = CastlePlanner.Create(new int3(512, 220, 512), 1u);
             CastleSpatialPlan spatial = CentralSpatial(in castle);
             spatial = CastleSpatialPlanCompletion.AttachTowerVariation(in castle, spatial);
             spatial = CastleSpatialPlanCompletion.AttachKeepFloors(in castle, spatial);
+            spatial = CastleSpatialPlanCompletion.AttachKeepCirculation(in castle, spatial);
             spatial = CastleSpatialPlanCompletion.AttachCourtyardBuildings(in castle, spatial);
             spatial = CastleSpatialPlanCompletion.AttachDungeon(in castle, spatial);
 
-            CastleBuildPreflightResult missing = CastleBuildPreflight.EvaluateRuntimeReady(
+            CastleBuildPreflightResult missingCave = CastleBuildPreflight.EvaluateRuntimeReady(
                 in castle, spatial, long.MaxValue);
-            Assert.AreEqual(CastleBuildPreflightIssue.IncompleteSpatialPlan, missing.Issue);
-            Assert.AreEqual(CastleSpatialBuildReadinessIssue.MissingCavePlan, missing.ReadinessIssue);
+            Assert.AreEqual(CastleBuildPreflightIssue.IncompleteSpatialPlan, missingCave.Issue);
+            Assert.AreEqual(CastleSpatialBuildReadinessIssue.MissingCavePlan, missingCave.ReadinessIssue);
 
-            CastleSpatialPlan completed = CastleSpatialPlanCompletion.AttachCave(in castle, spatial);
+            CastleSpatialPlan withCave = CastleSpatialPlanCompletion.AttachCave(in castle, spatial);
+            CastleBuildPreflightResult missingDecoration = CastleBuildPreflight.EvaluateRuntimeReady(
+                in castle, withCave, long.MaxValue);
+            Assert.AreEqual(CastleBuildPreflightIssue.IncompleteSpatialPlan, missingDecoration.Issue);
+            Assert.AreEqual(
+                CastleSpatialBuildReadinessIssue.MissingCaveDecorationPlan,
+                missingDecoration.ReadinessIssue);
+
+            CastleSpatialPlan completed = CastleSpatialPlanCompletion.AttachCaveDecoration(
+                in castle, withCave);
             CastleBuildPreflightResult ready = CastleBuildPreflight.EvaluateRuntimeReady(
                 in castle, completed, long.MaxValue);
             Assert.IsTrue(ready.IsValid, ready.ReadinessIssue.ToString());
@@ -69,7 +90,7 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void DungeonWithoutThresholdRequiresNoNaturalCave()
+        public void DungeonWithoutThresholdRequiresNoNaturalCaveOrDecoration()
         {
             CastlePlan castle = CastlePlanner.Create(new int3(512, 220, 512), 18u);
             CastleSpatialPlan spatial = CentralSpatial(in castle);
@@ -79,6 +100,7 @@ namespace VoxelEngine.Tests.EditMode
             Assert.IsFalse(withDungeon.Dungeon.HasCaveExit,
                 "Seed 18 is expected to exercise the no-cave readiness path.");
             Assert.IsNull(withDungeon.Cave);
+            Assert.IsNull(withDungeon.CaveDecoration);
             Assert.IsTrue(
                 CastleCaveBuildReadiness.TryValidate(
                     withDungeon, out CastleCaveBuildReadinessIssue issue),
