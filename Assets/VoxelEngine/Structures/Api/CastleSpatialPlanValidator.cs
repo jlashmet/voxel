@@ -31,6 +31,7 @@ namespace VoxelEngine.Structures.Api
         InvalidKeepResolution,
         KeepOutsideOuterWard,
         KeepOutsideInnerWard,
+        WallIntegratedKeepNotAgainstWard,
     }
 
     /// <summary>
@@ -229,6 +230,18 @@ namespace VoxelEngine.Structures.Api
             {
                 issue = CastleSpatialPlanIssue.KeepOutsideInnerWard;
                 return false;
+            }
+
+            if (!spatial.KeepRequiresTerrainResolution &&
+                spatial.Topology.KeepPlacement == CastleKeepPlacement.WallIntegrated)
+            {
+                int2[] keepWard = expectsInner ? inner : outer;
+                if (!CastleKeepPlacementGeometry.IsFarthestKeepCentreAlong(
+                        in dimensions, spatial.KeepCentre, -primaryGate.Outward, keepWard))
+                {
+                    issue = CastleSpatialPlanIssue.WallIntegratedKeepNotAgainstWard;
+                    return false;
+                }
             }
 
             issue = CastleSpatialPlanIssue.None;
