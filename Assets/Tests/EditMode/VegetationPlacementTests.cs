@@ -57,12 +57,14 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(output.Count, Is.EqualTo(1));
             VegetationProfile profile = VegetationCatalogue.Get(output[0].Kind);
             Assert.That(profile.MasonryWeight, Is.GreaterThan(0f));
-            Assert.That(profile.GrowthForm, Is.AnyOf(
-                VegetationGrowthForm.Creeper,
-                VegetationGrowthForm.Climber,
-                VegetationGrowthForm.Hanger,
-                VegetationGrowthForm.Frond,
-                VegetationGrowthForm.Fungus));
+            bool isSurfaceGrowth =
+                profile.GrowthForm == VegetationGrowthForm.Creeper ||
+                profile.GrowthForm == VegetationGrowthForm.Climber ||
+                profile.GrowthForm == VegetationGrowthForm.Hanger ||
+                profile.GrowthForm == VegetationGrowthForm.Frond ||
+                profile.GrowthForm == VegetationGrowthForm.Fungus;
+            Assert.That(isSurfaceGrowth, Is.True,
+                $"Expected a masonry-compatible surface growth form, got {profile.GrowthForm}.");
         }
 
         [Test]
