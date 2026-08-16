@@ -39,8 +39,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Exact metadata region jobs now fan out from the shared clear dependency and join
-          # before compaction; this checkpoint protects the fixed-memory non-blocking contract.
+          # A newly attached change journal now baselines at CurrentVersion without an initial
+          # resident-region invalidation sweep; real ReadSince overflow recovery remains bounded.
           deadline=$((SECONDS + 2400))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
