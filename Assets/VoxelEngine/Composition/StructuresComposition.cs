@@ -77,7 +77,8 @@ namespace VoxelEngine.Composition
         private readonly CastleSpatialPlan _spatial;
 
         public CastlePlan Dimensions => _dimensions;
-        public CastleSpatialPlan Spatial => CastleSpatialPlanSnapshot.CloneDetached(_spatial);
+        public CastleSpatialPlan Spatial =>
+            _spatial != null ? CastleSpatialPlanSnapshot.CloneDetached(_spatial) : null;
         public uint TerrainSeed { get; }
         public CastleSpatialProjection Projection =>
             CastleSpatialProjection.Create(in _dimensions, _spatial);
