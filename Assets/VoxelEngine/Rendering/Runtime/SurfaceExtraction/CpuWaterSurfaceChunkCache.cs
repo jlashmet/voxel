@@ -26,7 +26,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private const int WaterChunksPerRegion = VoxelGrid.RegionVoxelEdge / VoxelsPerAxis;
         private const int ArenaVertexCapacity = 256 * 1024;
         private const int ArenaIndexCapacity = 768 * 1024;
-        private const int ArenaDrawCapacity = 2048;
+        public const int ArenaDrawCapacity = 2048;
         private const uint FullyLitOcclusion = 0x0000FF00u;
 
         private static readonly int s_SurfaceVertices = Shader.PropertyToID("_SurfaceVertices");

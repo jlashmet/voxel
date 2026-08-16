@@ -57,10 +57,12 @@ namespace VoxelEngine.Rendering.Runtime
         private static readonly int s_WaterTime = Shader.PropertyToID("_WaterTime");
 
         private readonly VoxelSurfaceScheduler _scheduler = new();
-        private CpuTransvoxelChunkCache.Entry[] _transvoxelDrawEntries =
-            Array.Empty<CpuTransvoxelChunkCache.Entry>();
-        private CpuWaterSurfaceChunkCache.Entry[] _waterDrawEntries =
-            Array.Empty<CpuWaterSurfaceChunkCache.Entry>();
+        // Draw staging is bounded by the fixed arena args capacities. Allocate once with the
+        // render pass; camera motion may change counts but can never resize managed arrays.
+        private readonly CpuTransvoxelChunkCache.Entry[] _transvoxelDrawEntries =
+            new CpuTransvoxelChunkCache.Entry[VoxelSurfaceScheduler.SurfaceArenaDrawCapacity];
+        private readonly CpuWaterSurfaceChunkCache.Entry[] _waterDrawEntries =
+            new CpuWaterSurfaceChunkCache.Entry[CpuWaterSurfaceChunkCache.ArenaDrawCapacity];
 
         private Material _surfaceMaterial;
         private Material _waterMaterial;
@@ -231,11 +233,15 @@ namespace VoxelEngine.Rendering.Runtime
                 VoxelRenderBridge.LastSurfacePassState = "feature-aware";
             }
 
-            EnsureCapacity(ref _transvoxelDrawEntries, transvoxelVisible.Count);
+            if (transvoxelVisible.Count > _transvoxelDrawEntries.Length)
+                throw new InvalidOperationException(
+                    "Visible solid draw count exceeded the fixed arena draw capacity.");
             for (int i = 0; i < transvoxelVisible.Count; i++)
                 _transvoxelDrawEntries[i] = transvoxelVisible[i];
 
-            EnsureCapacity(ref _waterDrawEntries, waterVisible.Count);
+            if (waterVisible.Count > _waterDrawEntries.Length)
+                throw new InvalidOperationException(
+                    "Visible water draw count exceeded the fixed arena draw capacity.");
             for (int i = 0; i < waterVisible.Count; i++)
                 _waterDrawEntries[i] = waterVisible[i];
 
@@ -371,10 +377,5 @@ namespace VoxelEngine.Rendering.Runtime
             _normalTextures = null;
         }
 
-        private static void EnsureCapacity<T>(ref T[] array, int required)
-        {
-            if (array.Length >= required) return;
-            Array.Resize(ref array, math.max(16, math.ceilpow2(required)));
-        }
     }
 }

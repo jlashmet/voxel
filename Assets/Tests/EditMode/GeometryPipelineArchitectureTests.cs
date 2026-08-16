@@ -247,6 +247,26 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void RenderPassDrawStagingNeverResizesAfterConstruction()
+        {
+            string renderPass = ReadRenderingSource(
+                Path.Combine("RenderFeature", "VoxelRenderPass.cs"));
+            string scheduler = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "VoxelSurfaceScheduler.cs"));
+            string water = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "CpuWaterSurfaceChunkCache.cs"));
+
+            StringAssert.Contains("VoxelSurfaceScheduler.SurfaceArenaDrawCapacity", renderPass);
+            StringAssert.Contains("CpuWaterSurfaceChunkCache.ArenaDrawCapacity", renderPass);
+            StringAssert.Contains("public const int SurfaceArenaDrawCapacity", scheduler);
+            StringAssert.Contains("public const int ArenaDrawCapacity", water);
+            StringAssert.DoesNotContain("Array.Resize", renderPass);
+            StringAssert.DoesNotContain("EnsureCapacity(ref _transvoxelDrawEntries", renderPass);
+            StringAssert.DoesNotContain("EnsureCapacity(ref _waterDrawEntries", renderPass);
+        }
+
+
+        [Test]
         public void GameplaySurfaceDiagnosticsAndIndirectArgsAvoidManagedFrameGarbage()
         {
             string cache = ReadRenderingSource(

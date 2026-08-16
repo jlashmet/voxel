@@ -404,7 +404,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         // cannot grow these buffers and create a render-thread GPU allocation spike.
         private const int SurfaceArenaVertexCapacity = 2 * 1024 * 1024;
         private const int SurfaceArenaIndexCapacity = 6 * 1024 * 1024;
-        private const int SurfaceArenaDrawCapacity = 16 * 1024;
+        public const int SurfaceArenaDrawCapacity = 16 * 1024;
 
         private readonly SurfaceGeometryArena _geometryArena;
         private readonly TransvoxelLookupTables _lookupTables;
