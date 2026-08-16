@@ -39,9 +39,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Compile-corrected merge checkpoint: latest master, PlayMode internals friendship,
-          # mutable HLOD fixtures, qualified Unity Object stress helpers, toroidal/active slots,
-          # zero-allocation + arena backpressure, fixed draw staging, step-8 HLOD and COW pins.
+          # Guard-refreshed merge checkpoint: compile is clean; 81/82 focused tests passed on the
+          # previous run and the sole stale BrickPool writer-exclusion source assertion is updated.
+          # This run is expected to prove the complete focused EditMode set on one source SHA.
           deadline=$((SECONDS + 2400))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
