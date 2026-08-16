@@ -110,76 +110,7 @@ namespace VoxelEngine.Structures.Runtime
                     baseY);
             }
 
-            if (buildings == null)
-                return;
-
-            for (int i = 0; i < buildings.Length; i++)
-                BuildOutbuilding(ref brush, in plan, in buildings[i], baseY);
-        }
-
-        private static void BuildOutbuilding(
-            ref VoxelBrush brush,
-            in CastlePlan plan,
-            in CastleCourtyardBuildingSpec building,
-            int baseY)
-        {
-            int width = building.HalfExtents.x * 2;
-            int depth = building.HalfExtents.y * 2;
-            if (width <= 0 || depth <= 0 || building.Height <= 0)
-                return;
-
-            int minX = plan.Centre.x + building.Centre.x - building.HalfExtents.x;
-            int minZ = plan.Centre.z + building.Centre.y - building.HalfExtents.y;
-            const int wallThickness = 5;
-            const int doorWidth = 18;
-            const int doorHeight = 30;
-            const int doorDepth = 6;
-
-            brush.HollowBox(
-                new int3(minX, baseY, minZ),
-                new int3(width, building.Height, depth),
-                wallThickness,
-                Mat.Stone,
-                false,
-                false);
-
-            int2 entrance = building.EntranceDirection;
-            if (entrance.x < 0)
-            {
-                brush.Box(
-                    new int3(minX, baseY, minZ + depth / 2 - doorWidth / 2),
-                    new int3(doorDepth, doorHeight, doorWidth),
-                    Mat.Empty);
-            }
-            else if (entrance.x > 0)
-            {
-                brush.Box(
-                    new int3(minX + width - doorDepth, baseY,
-                             minZ + depth / 2 - doorWidth / 2),
-                    new int3(doorDepth, doorHeight, doorWidth),
-                    Mat.Empty);
-            }
-            else if (entrance.y > 0)
-            {
-                brush.Box(
-                    new int3(minX + width / 2 - doorWidth / 2, baseY,
-                             minZ + depth - doorDepth),
-                    new int3(doorWidth, doorHeight, doorDepth),
-                    Mat.Empty);
-            }
-            else
-            {
-                brush.Box(
-                    new int3(minX + width / 2 - doorWidth / 2, baseY, minZ),
-                    new int3(doorWidth, doorHeight, doorDepth),
-                    Mat.Empty);
-            }
-
-            brush.Gable(
-                new int3(minX - 4, baseY + building.Height, minZ - 4),
-                new int3(width + 8, 30, depth + 8),
-                building.RoofRidgeAlongX,
-                Mat.Tile);
+            CastleCourtyardBuildingRealizer.BuildAll(ref brush, in plan, buildings);
         }
 
         private static void BuildWell(ref VoxelBrush brush, int wx, int wz, int baseY)
