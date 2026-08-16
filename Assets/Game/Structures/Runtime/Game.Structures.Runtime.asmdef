@@ -1,0 +1,17 @@
+{
+  "name": "Game.Structures.Runtime",
+  "rootNamespace": "Game.Structures.Runtime",
+  "references": [
+    "Game.Structures.Api",
+    "Unity.Mathematics"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}
