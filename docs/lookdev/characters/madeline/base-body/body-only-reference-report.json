@@ -3,49 +3,49 @@
     "front": {
       "source": "/Users/jlashmet/tmp/_work/voxel/voxel/Artifacts/MadelineProduction/reference/raw/front.jpg",
       "output": "/Users/jlashmet/tmp/_work/voxel/voxel/Artifacts/MadelineProduction/reference/body-only/front.jpg",
-      "width": 384,
-      "height": 576,
-      "base_layer_pixels_before": 10176,
-      "base_layer_pixels_after": 2854,
-      "base_layer_reduction_diagnostic": 0.7195361635220126,
-      "masked_pixels": 16160,
-      "region_pixels": 21822,
+      "width": 1024,
+      "height": 1536,
+      "base_layer_pixels_before": 71608,
+      "base_layer_pixels_after": 4251,
+      "base_layer_reduction_diagnostic": 0.9406351245670874,
+      "masked_pixels": 136861,
+      "region_pixels": 172706,
       "sampled_skin_rgb": [
-        243.0,
-        205.0,
-        174.0
+        253.0,
+        211.0,
+        181.0
       ]
     },
     "back": {
       "source": "/Users/jlashmet/tmp/_work/voxel/voxel/Artifacts/MadelineProduction/reference/raw/back.jpg",
       "output": "/Users/jlashmet/tmp/_work/voxel/voxel/Artifacts/MadelineProduction/reference/body-only/back.jpg",
-      "width": 384,
-      "height": 576,
-      "base_layer_pixels_before": 10573,
-      "base_layer_pixels_after": 8107,
-      "base_layer_reduction_diagnostic": 0.23323560011349664,
-      "masked_pixels": 14324,
-      "region_pixels": 23400,
+      "width": 1024,
+      "height": 1536,
+      "base_layer_pixels_before": 61052,
+      "base_layer_pixels_after": 4299,
+      "base_layer_reduction_diagnostic": 0.9295846163925834,
+      "masked_pixels": 114212,
+      "region_pixels": 166588,
       "sampled_skin_rgb": [
-        227.0,
-        196.0,
-        169.0
+        251.0,
+        208.0,
+        179.0
       ]
     },
     "left": {
       "source": "/Users/jlashmet/tmp/_work/voxel/voxel/Artifacts/MadelineProduction/reference/raw/left.jpg",
       "output": "/Users/jlashmet/tmp/_work/voxel/voxel/Artifacts/MadelineProduction/reference/body-only/left.jpg",
-      "width": 384,
-      "height": 576,
-      "base_layer_pixels_before": 6608,
-      "base_layer_pixels_after": 2024,
-      "base_layer_reduction_diagnostic": 0.6937046004842615,
-      "masked_pixels": 11739,
-      "region_pixels": 18642,
+      "width": 1024,
+      "height": 1536,
+      "base_layer_pixels_before": 51569,
+      "base_layer_pixels_after": 3700,
+      "base_layer_reduction_diagnostic": 0.928251468905738,
+      "masked_pixels": 103962,
+      "region_pixels": 139521,
       "sampled_skin_rgb": [
-        234.0,
-        197.0,
-        170.0
+        252.0,
+        212.0,
+        182.0
       ]
     },
     "right": {
