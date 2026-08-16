@@ -22,8 +22,7 @@ namespace VoxelEngine.Structures.Runtime
         private CastleSitePlan _sitePlan;
         private CastleWallPlan _wallPlan;
 
-        private bool _hasSpatialFortifications;
-        private bool _hasSpatialKeep;
+        private bool _hasSpatialPlan;
         private int2[] _outerWardVertices;
         private int2[] _innerWardVertices;
         private CastleTowerPlacementSpec[] _outerTowerSpecs;
@@ -148,7 +147,7 @@ namespace VoxelEngine.Structures.Runtime
             {
                 case 1:
                 {
-                    bool siteComplete = _hasSpatialFortifications
+                    bool siteComplete = _hasSpatialPlan
                         ? CastlePlannedSiteRealizer.Step(
                             ref _brush,
                             in _plan,
@@ -167,14 +166,14 @@ namespace VoxelEngine.Structures.Runtime
                 }
 
                 case 2:
-                    if (_hasSpatialFortifications)
+                    if (_hasSpatialPlan)
                         BuildPlannedWalls();
                     else
                         CastleFortificationRealizer.CurtainWalls(ref _brush, in _plan);
                     return CompleteStage("curtain walls");
 
                 case 3:
-                    if (_hasSpatialFortifications)
+                    if (_hasSpatialPlan)
                     {
                         CastlePlannedTowerRealizer.BuildAll(
                             ref _brush, in _plan, _outerTowerSpecs);
@@ -188,7 +187,7 @@ namespace VoxelEngine.Structures.Runtime
                     return CompleteStage("corner towers");
 
                 case 4:
-                    if (_hasSpatialFortifications)
+                    if (_hasSpatialPlan)
                     {
                         CastlePlannedGatehouseRealizer.Build(
                             ref _brush,
@@ -221,7 +220,7 @@ namespace VoxelEngine.Structures.Runtime
                     return CompleteStage("gatehouse");
 
                 case 5:
-                    if (_hasSpatialFortifications)
+                    if (_hasSpatialPlan)
                     {
                         CastlePlannedCourtyardRealizer.Build(
                             ref _brush,
@@ -240,9 +239,9 @@ namespace VoxelEngine.Structures.Runtime
 
                 case 6:
                 {
-                    CastlePlan keepPlan = _hasSpatialKeep ? _spatialKeepPlan : _plan;
+                    CastlePlan keepPlan = _hasSpatialPlan ? _spatialKeepPlan : _plan;
 
-                    if (_hasSpatialKeep)
+                    if (_hasSpatialPlan)
                     {
                         int keepStage = _keepStage;
                         bool keepComplete = CastlePlannedKeepRealizer.Step(
@@ -287,8 +286,8 @@ namespace VoxelEngine.Structures.Runtime
 
                 case 7:
                 {
-                    CastlePlan dungeonPlan = _hasSpatialKeep ? _spatialKeepPlan : _plan;
-                    if (_hasSpatialKeep)
+                    CastlePlan dungeonPlan = _hasSpatialPlan ? _spatialKeepPlan : _plan;
+                    if (_hasSpatialPlan)
                     {
                         if (_spatialDungeonPlan == null)
                         {
@@ -310,7 +309,7 @@ namespace VoxelEngine.Structures.Runtime
                 }
 
                 case 8:
-                    if (_hasSpatialFortifications)
+                    if (_hasSpatialPlan)
                     {
                         if (_spatialLandscapePlan == null)
                         {
@@ -334,7 +333,6 @@ namespace VoxelEngine.Structures.Runtime
 
         private void SnapshotSpatialPlan(in CastlePlan plan, CastleSpatialPlan spatialPlan)
         {
-            _hasSpatialFortifications = true;
             _outerWardVertices = (int2[])spatialPlan.OuterWardVertices.Clone();
             _innerWardVertices = (int2[])spatialPlan.InnerWardVertices.Clone();
             _primaryGate = spatialPlan.PrimaryGate;
@@ -379,7 +377,7 @@ namespace VoxelEngine.Structures.Runtime
             _spatialKeepPlan = CastleSpatialProjection.ProjectKeepPlan(
                 in plan, spatialPlan.KeepCentre);
             _worldKeepCentre = CastleSpatialProjection.ActualKeepCentre(in _spatialKeepPlan);
-            _hasSpatialKeep = true;
+            _hasSpatialPlan = true;
         }
 
         private void BuildPlannedWalls()
