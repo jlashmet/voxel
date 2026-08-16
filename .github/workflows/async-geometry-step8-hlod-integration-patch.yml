@@ -1,0 +1,42 @@
+name: Step-8 feature-preserving HLOD integration one-shot patch
+
+on:
+  push:
+    branches: [refactor/async-geometry-pipeline]
+    paths: [.github/workflows/async-geometry-step8-hlod-integration-patch.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/async-geometry-pipeline
+          fetch-depth: 0
+      - name: Apply guarded step-8 HLOD integration
+        run: python3 .github/scripts/async_geometry_step8_hlod_integration_patch.py
+      - name: Static guards
+        run: |
+          grep -q 'UsesBlockHlod => SourceStep == VoxelReadGrid.BlockEdge' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
+          grep -q 'new SurfaceBlockHlodSummaryJob' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
+          grep -q 'new SurfaceBlockHlodMeshJob' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
+          grep -q 'if (!_hlodJobHandle.IsCompleted) break;' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
+          grep -q 'StepEightHlodRunsAsReadinessGatedBurstJobs' Assets/Tests/EditMode/GeometryPipelineArchitectureTests.cs
+          grep -q 'StepEightUsesFeaturePreservingBlockHlod' Assets/Tests/PlayMode/LodRenderingTests.cs
+          grep -q 'RenderRingsUseFeaturePreservingStepEightAndMipsBeyondIt' Assets/Tests/EditMode/SurfaceRingBandTests.cs
+      - name: Commit step-8 HLOD integration
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs \
+                  Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/TransvoxelBuildWorkspace.cs \
+                  Assets/Tests/EditMode/GeometryPipelineArchitectureTests.cs \
+                  Assets/Tests/EditMode/SurfaceRingBandTests.cs \
+                  Assets/Tests/PlayMode/LodRenderingTests.cs
+          git commit -m 'Route step-8 solid extraction through feature-preserving HLOD'
+          git fetch origin refactor/async-geometry-pipeline
+          git rebase origin/refactor/async-geometry-pipeline
+          git push origin HEAD:refactor/async-geometry-pipeline
