@@ -5,8 +5,13 @@ on:
     branches: [feature/character-weapon-asset-pipeline]
     paths:
       - 'tools/character-factory/production/madeline/**'
-      - 'tools/character-factory/runtime/**'
-      - 'tools/character-factory/api/**'
+      - 'tools/character-factory/runtime/blender_alignment.py'
+      - 'tools/character-factory/runtime/blender_multiview_texture.py'
+      - 'tools/character-factory/runtime/blender_texture_rigged_character.py'
+      - 'tools/character-factory/runtime/blender_project_face_texture.py'
+      - 'tools/character-factory/runtime/blender_prepare_character.py'
+      - 'tools/character-factory/runtime/blender_gameplay_animation.py'
+      - 'tools/character-factory/runtime/pipelines/character.py'
       - 'tools/character-factory/character_factory.py'
       - '.github/workflows/madeline-base-body-build.yml'
   workflow_dispatch:
@@ -25,7 +30,7 @@ jobs:
     env:
       PYTORCH_ENABLE_MPS_FALLBACK: '1'
       PYTHONUNBUFFERED: '1'
-      OUT: Artifacts/MadelineBaseProduction
+      OUT: Artifacts/MadelineProduction
       REVIEW_DIR: docs/lookdev/characters/madeline/base-body
 
     steps:
@@ -40,17 +45,17 @@ jobs:
           set -euo pipefail
           python3 -m compileall -q tools/character-factory
 
-      - name: Build body-only Madeline character
+      - name: Build clothing-free Madeline base character
         shell: bash
         run: |
           set -euo pipefail
-          bash tools/character-factory/production/madeline/build_macos.sh "$GITHUB_WORKSPACE/$OUT"
+          bash tools/character-factory/production/madeline/build.sh "$GITHUB_WORKSPACE/$OUT"
 
       - name: Upload generated character
         uses: actions/upload-artifact@v4
         with:
           name: madeline-base-body
-          path: Artifacts/MadelineBaseProduction/
+          path: Artifacts/MadelineProduction/
           if-no-files-found: error
           retention-days: 14
 
@@ -59,11 +64,12 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$REVIEW_DIR"
-          cp "$OUT/madeline_base_01.preview.png" "$REVIEW_DIR/"
-          cp "$OUT/madeline_base_01.idle.png" "$REVIEW_DIR/"
+          cp "$OUT/madeline_body_01.render.png" "$REVIEW_DIR/"
+          cp "$OUT/madeline_body_01.idle.png" "$REVIEW_DIR/"
           cp "$OUT/body-only-reference-report.json" "$REVIEW_DIR/"
           cp "$OUT/reference/raw/front.jpg" "$REVIEW_DIR/reference-front.jpg"
           cp "$OUT/reference/body-only/front.jpg" "$REVIEW_DIR/body-only-front.jpg"
+          cp "$OUT/reference/madeline_face_front.png" "$REVIEW_DIR/madeline-face-reference.png"
 
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
