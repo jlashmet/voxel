@@ -18,7 +18,7 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void PlannedDungeonCarvesThenFurnishesThenRestoresTrapdoorBeforePlannedCave()
+        public void PlannedDungeonCarvesThenFurnishesThenRestoresTrapdoorBeforePlannedCaveDecoration()
         {
             string source = File.ReadAllText(Path.Combine(
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
@@ -28,6 +28,7 @@ namespace VoxelEngine.Tests.EditMode
             int furnish = source.IndexOf("DungeonRoomFurnisher.FurnishAll(ref brush, dungeonPlan)");
             int hatch = source.IndexOf("BuildTrapdoor(ref brush, dungeonPlan.Entrance)");
             int cave = source.IndexOf("CaveRealizer.Build(ref brush, cavePlan)");
+            int decorate = source.IndexOf("CastlePlannedCaveDecorator.Build(ref brush, cavePlan)");
 
             Assert.GreaterOrEqual(carve, 0, "Planned dungeon must realize its room graph.");
             Assert.Greater(furnish, carve,
@@ -36,6 +37,8 @@ namespace VoxelEngine.Tests.EditMode
                 "Entrance carving clears the hatch plane, so the authored trapdoor must be restored last.");
             Assert.Greater(cave, hatch,
                 "Planned natural cave continuation stays downstream of designed dungeon realization.");
+            Assert.Greater(decorate, cave,
+                "Castle-specific cave dressing must run only after planned cave geometry is carved.");
 
             StringAssert.Contains("new int3(half * 2, 2, half * 2)", source,
                 "The planned path must restore the same closed wood hatch footprint used by interaction.");
