@@ -4,7 +4,7 @@ using Random = Unity.Mathematics.Random;
 
 namespace VoxelEngine.Structures.Runtime
 {
-    /// <summary>Realizes the occupied bailey space between the defensive shell and the keep.</summary>
+    /// <summary>Compatibility courtyard realization for dimension-only castle builds.</summary>
     internal static class CastleCourtyardRealizer
     {
         internal static void Build(ref VoxelBrush brush, in CastlePlan plan)
@@ -59,8 +59,8 @@ namespace VoxelEngine.Structures.Runtime
                 null);
 
         /// <summary>
-        /// Compatibility planned overload retained for focused geometry tests. Production spatial
-        /// builds pass an explicit CastleSitePlan through the overload below.
+        /// Compatibility planned overload retained for focused geometry tests that predate the
+        /// frozen CastleSitePlan surface mask. Production spatial builds use the overload below.
         /// </summary>
         internal static void BuildPlanned(
             ref VoxelBrush brush,
@@ -70,22 +70,19 @@ namespace VoxelEngine.Structures.Runtime
             int2 localWellCentre,
             CastleCourtyardBuildingSpec[] buildings)
         {
-            CastleSitePlan unusedSitePlan = default;
-            BuildPlannedCore(
+            BuildCompatibilityPlanned(
                 ref brush,
                 in plan,
                 localPerimeter,
                 hasWell,
                 localWellCentre,
-                false,
-                in unusedSitePlan,
                 buildings);
         }
 
         /// <summary>
-        /// Realizes geometry from an already-planned arbitrary perimeter and planned surface style.
-        /// Runtime clips paving to the polygon and consumes planned well/building coordinates without
-        /// making any semantic placement or material-randomness choices of its own.
+        /// Stable compatibility entry point for the production pipeline. The actual spatial
+        /// realization lives in CastlePlannedCourtyardRealizer so planner-owned variation cannot
+        /// accidentally fall back to this file's historical RNG path.
         /// </summary>
         internal static void BuildPlanned(
             ref VoxelBrush brush,
@@ -96,25 +93,22 @@ namespace VoxelEngine.Structures.Runtime
             in CastleSitePlan sitePlan,
             CastleCourtyardBuildingSpec[] buildings)
         {
-            BuildPlannedCore(
+            CastlePlannedCourtyardRealizer.Build(
                 ref brush,
                 in plan,
                 localPerimeter,
                 hasWell,
                 localWellCentre,
-                true,
                 in sitePlan,
                 buildings);
         }
 
-        private static void BuildPlannedCore(
+        private static void BuildCompatibilityPlanned(
             ref VoxelBrush brush,
             in CastlePlan plan,
             int2[] localPerimeter,
             bool hasWell,
             int2 localWellCentre,
-            bool hasPlannedSurface,
-            in CastleSitePlan sitePlan,
             CastleCourtyardBuildingSpec[] buildings)
         {
             if (localPerimeter == null || localPerimeter.Length < 3)
@@ -133,12 +127,8 @@ namespace VoxelEngine.Structures.Runtime
             }
 
             int baseY = plan.Centre.y + plan.PlateauHeight;
-            Random rng = default;
-            if (!hasPlannedSurface)
-            {
-                rng = new Random(CastleSeedPartition.Derive(
-                    plan.Seed, CastleSeedDomain.Decor, 0xC047u));
-            }
+            var rng = new Random(CastleSeedPartition.Derive(
+                plan.Seed, CastleSeedDomain.Decor, 0xC047u));
 
             for (int z = minZ; z <= maxZ; z++)
             for (int x = minX; x <= maxX; x++)
@@ -147,10 +137,7 @@ namespace VoxelEngine.Structures.Runtime
                 if (!CastlePolygonGeometry.ContainsPoint(local, localPerimeter))
                     continue;
 
-                bool useStone = hasPlannedSurface
-                    ? sitePlan.ShouldUseCourtyardStone(x, z)
-                    : rng.NextInt(0, 100) < 82;
-                byte material = useStone ? Mat.Stone : Mat.Dirt;
+                byte material = rng.NextInt(0, 100) < 82 ? Mat.Stone : Mat.Dirt;
                 brush.FillColumnBulk(plan.Centre.x + x, baseY, baseY + 1,
                                      plan.Centre.z + z, material);
             }
