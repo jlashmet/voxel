@@ -6,6 +6,7 @@ namespace VoxelEngine.Structures.Api
     {
         None,
         MissingOuterWard,
+        InvalidTopology,
         DegeneratePerimeter,
         SelfIntersectingOuterWard,
         PerimeterOutsidePlateau,
@@ -63,6 +64,14 @@ namespace VoxelEngine.Structures.Api
                 spatial.OuterWardVertices.Length < 4)
             {
                 issue = CastleSpatialPlanIssue.MissingOuterWard;
+                return false;
+            }
+
+            CastleTopologyPlan topology = spatial.Topology;
+            if (!CastleTopologyPlanValidator.TryValidate(
+                    in topology, out CastleTopologyPlanIssue _))
+            {
+                issue = CastleSpatialPlanIssue.InvalidTopology;
                 return false;
             }
 
