@@ -41,8 +41,8 @@ jobs:
           set -euo pipefail
           # Compile/architecture checkpoint after the renderer-world lifetime cut passed 83/83.
           # Surface discovery now admits dirty work only after TrackKnown confirms current clipmap
-          # ownership; the SurfaceBrickDiscoveryTests class includes a regression proving an
-          # out-of-window discovery cannot inflate the build queue.
+          # ownership. The focused suite includes both the behavioral out-of-window regression and
+          # an architecture guard for the bool-returning TrackKnown/conditional Invalidate contract.
           deadline=$((SECONDS + 2400))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
