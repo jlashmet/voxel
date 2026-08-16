@@ -9,6 +9,7 @@ namespace Game.WorldBuilder.Api
         public string Id { get; }
         public WorldHierarchyBlueprint Hierarchy { get; }
         public IReadOnlyList<SiteSpec> Sites { get; }
+        public IReadOnlyList<SiteSourceEvidenceSpec> SiteSourceEvidence { get; }
         public IReadOnlyList<NpcSpec> Npcs { get; }
         public IReadOnlyList<SpatialConstraintSpec> SpatialConstraints { get; }
         public IReadOnlyList<CutsceneSpec> Cutscenes { get; }
@@ -22,6 +23,7 @@ namespace Game.WorldBuilder.Api
             string id,
             WorldHierarchyBlueprint hierarchy,
             SiteSpec[] sites,
+            SiteSourceEvidenceSpec[] siteSourceEvidence,
             NpcSpec[] npcs,
             SpatialConstraintSpec[] spatialConstraints,
             CutsceneSpec[] cutscenes,
@@ -41,6 +43,7 @@ namespace Game.WorldBuilder.Api
                 Cutscenes,
                 Npcs,
                 RequiredSecrets);
+            SiteSourceEvidence = siteSourceEvidence ?? Array.Empty<SiteSourceEvidenceSpec>();
             SpatialConstraints = spatialConstraints ?? Array.Empty<SpatialConstraintSpec>();
             StoryRules = storyRules ?? Array.Empty<StoryRuleSpec>();
             Objectives = objectives ?? Array.Empty<ObjectiveSpec>();
