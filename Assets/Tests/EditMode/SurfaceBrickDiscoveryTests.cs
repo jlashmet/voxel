@@ -270,6 +270,33 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void RepeatedSurfaceDiscoveryDoesNotReinvalidateKnownChunk()
+        {
+            using var cache = new CpuTransvoxelChunkCache(sourceStep: 4);
+            cache.SetClipmapWindow(int3.zero, radius: 1);
+
+            // Interior block: maps to exactly one chunk and does not exercise halo neighbours.
+            int3 brick = new(1, 1, 1);
+            Assert.AreEqual(1, cache.DiscoverSurfaceBricks(new[] { brick }),
+                "The first immutable summary publication must admit the chunk.");
+            Assert.AreEqual(1, cache.KnownCount);
+            Assert.AreEqual(1, cache.DirtyCount);
+
+            Assert.AreEqual(0, cache.DiscoverSurfaceBricks(new[] { brick }),
+                "Later publication slices for the same unchanged region must not create a new "
+              + "source generation for an already-known chunk.");
+            Assert.AreEqual(1, cache.KnownCount);
+            Assert.AreEqual(1, cache.DirtyCount);
+
+            // Real edits keep the old semantics: known chunks are explicitly invalidated. The
+            // dirty set coalesces membership, but the call is still routed through the mutation
+            // path rather than discovery admission.
+            cache.InvalidateSurfaceBricks(new[] { brick });
+            Assert.AreEqual(1, cache.KnownCount);
+            Assert.AreEqual(1, cache.DirtyCount);
+        }
+
+        [Test]
         public void SurfaceDiscoveryOutsideClipmapDoesNotCreateDirtyBuildWork()
         {
             using var cache = new CpuTransvoxelChunkCache(sourceStep: 4);

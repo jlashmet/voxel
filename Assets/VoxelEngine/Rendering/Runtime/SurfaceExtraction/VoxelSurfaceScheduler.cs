@@ -746,7 +746,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             // Discovery is correctness work rather than build admission: every worker must learn
             // about newly surfaced bricks even if this frame has no time left to rebuild them.
             for (int i = 0; i < _allWorkers.Length; i++)
-                _allWorkers[i].InvalidateSurfaceBricks(_discoveredSurfaceBricks);
+                _allWorkers[i].DiscoverSurfaceBricks(_discoveredSurfaceBricks);
 
             double workersStart = Time.realtimeSinceStartupAsDouble;
             double solidDeadline = workersStart + Math.Max(0.0, SolidBuildBudgetMs) * 0.001;

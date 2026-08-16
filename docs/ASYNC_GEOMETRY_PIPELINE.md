@@ -25,6 +25,7 @@ source-level regression guard are committed. Runtime/PlayMode acceptance remains
 - [x] Use one renderer-wide solid build deadline across every LOD ring and worker.
 - [x] Advance journal/build/upload only once per `Time.frameCount`; extra cameras only recollect visibility.
 - [x] Make surface-brick discovery asynchronous and gate `Complete()` behind `IsCompleted`.
+- [x] Treat surface discovery as admission-only after first sighting; repeated 512-brick publication slices never advance an already-known chunk generation.
 - [x] Schedule transition-cell meshing instead of calling `TransitionMeshJob.Run()` inline.
 - [x] Explicitly dispatch buffered geometry jobs once per world frame with non-blocking `JobHandle.ScheduleBatchedJobs()`; never flush per worker.
 - [x] Defer residency removal when a chunk still owns an unfinished job instead of waiting for it.

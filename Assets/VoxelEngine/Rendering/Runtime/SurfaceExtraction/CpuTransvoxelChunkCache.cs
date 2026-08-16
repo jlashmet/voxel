@@ -857,7 +857,53 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         }
 
         /// <summary>
-        /// Discovers/invalidates chunks from the scheduler's authoritative surface-brick stream.
+        /// Admits chunks discovered from immutable Storage surface summaries. Discovery is not a
+        /// mutation signal: once a chunk is known, its build snapshots the entire authoritative
+        /// chunk, so later 512-brick publication slices from the same unchanged region must not
+        /// advance its source generation and kill in-flight geometry. Real voxel edits continue
+        /// through <see cref="InvalidateSurfaceBricks"/> and region invalidation below.
+        /// Returns the number of newly admitted chunks.
+        /// </summary>
+        internal int DiscoverSurfaceBricks(IReadOnlyList<int3> worldBricks)
+        {
+            if (worldBricks == null) return 0;
+            int admitted = 0;
+
+            for (int i = 0; i < worldBricks.Count; i++)
+            {
+                int3 brick = worldBricks[i];
+                int3 baseChunk = new(FloorDiv(brick.x, BricksPerAxis),
+                                     FloorDiv(brick.y, BricksPerAxis),
+                                     FloorDiv(brick.z, BricksPerAxis));
+                int rx = FloorMod(brick.x, BricksPerAxis);
+                int ry = FloorMod(brick.y, BricksPerAxis);
+                int rz = FloorMod(brick.z, BricksPerAxis);
+
+                int minX = rx == 0 ? -1 : 0;
+                int maxX = rx == BricksPerAxis - 1 ? 1 : 0;
+                int minY = ry == 0 ? -1 : 0;
+                int maxY = ry == BricksPerAxis - 1 ? 1 : 0;
+                int minZ = rz == 0 ? -1 : 0;
+                int maxZ = rz == BricksPerAxis - 1 ? 1 : 0;
+
+                for (int z = minZ; z <= maxZ; z++)
+                for (int y = minY; y <= maxY; y++)
+                for (int x = minX; x <= maxX; x++)
+                {
+                    int3 chunk = baseChunk + new int3(x, y, z);
+                    if (!OwnsShard(chunk) || _known.Contains(chunk)) continue;
+                    if (!TrackKnown(chunk)) continue;
+                    Invalidate(chunk);
+                    admitted++;
+                }
+            }
+            return admitted;
+        }
+
+        /// <summary>
+        /// Invalidates chunks touched by an authoritative voxel change. Unlike surface discovery,
+        /// this path intentionally advances already-known chunk generations so active/ready
+        /// geometry cannot publish stale voxel content.
         /// The one-sample Transvoxel padding can consume a neighbouring chunk's edge,
         /// so face/edge/corner neighbours are dirtied only when the brick lies on a chunk border.
         /// </summary>
