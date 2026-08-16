@@ -4,6 +4,9 @@
   "references": [
     "Game.Structures.Api",
     "Game.Structures.Runtime",
+    "Game.Materials.Api",
+    "VoxelEngine.Structures.Api",
+    "VoxelEngine.Terrain.Api",
     "Unity.Mathematics"
   ],
   "includePlatforms": [
