@@ -77,9 +77,9 @@ source-level regression guard are committed. Runtime/PlayMode acceptance remains
   - [x] Expose bounded Storage snapshot leases to rendering and retire them after jobs complete.
   - [x] Read mixed exact-snapshot payloads directly from pinned COW Storage arrays instead of copying 8^3 payloads into renderer lists.
   - [x] Exclude scoped borrowed writers from read pins and defer retired-slot reuse until both readers and writers exit.
-  - [ ] Move compact block-kind/ref snapshot traversal itself off the frame thread with versioned job-safe region metadata.
+  - [x] Move compact block-kind/ref snapshot traversal itself off the frame thread with versioned job-safe region metadata.
     - [x] Add generation/revision-pinned region block-ref leases and defer physical region eviction while jobs read metadata.
-    - [ ] Schedule exact block-kind/ref classification in Burst and validate every pinned region revision before accepting output.
+    - [x] Schedule exact block-kind/ref classification in Burst and validate every pinned region revision before accepting output.
 - [ ] Replace global-world version dependence with region/brick dependency revisions where appropriate.
   - [x] Add per-region content revisions for optimistic rendering metadata jobs.
 
@@ -113,8 +113,6 @@ source-level regression guard are committed. Runtime/PlayMode acceptance remains
 
 ## Current next slices
 
-1. Move authoritative snapshot publication toward immutable/COW Storage pages so worker-side snapshotting can become truly off-thread.
-2. Move authoritative snapshot publication toward immutable/COW Storage pages so worker-side snapshotting can become truly off-thread.
-3. Move authoritative snapshot publication toward immutable/COW Storage pages so worker-side snapshotting can become truly off-thread.
+1. Replace the remaining global-world build version checks with region/brick dependency revisions.
 4. Bring water onto the same pipeline contract.
 5. Build the full camera-movement + destruction PlayMode stress gate and keep it as the merge criterion.

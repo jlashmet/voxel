@@ -64,6 +64,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private const int GridSampleCount = GridSize * GridSize * GridSize;
         private const int CellsPerSlice = 512;
         private const int BrickCachePadding = 1;
+        private const int MaxExactSnapshotRegions = 27;
+        private const int ExactMixedPinChecksPerDeadline = 16;
         private readonly int BrickCacheEdge;
         private readonly int BrickCacheCount;
         private const uint FullyLitOcclusion = 0x0000FF00u;
@@ -266,7 +268,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         {
             public bool Active;
             public int3 Coordinate;
-            public int Phase;   // 0 snapshot, 1 jobs, 2 faceted job, 3 profiles, 4 seams, 5 result append
+            public int Phase;   // 0 snapshot, 1 jobs, 2 faceted, 3 profiles, 4 seams, 5 append, 6 pin release
             public int Cursor;
             public ulong SourceVersion;
             public uint SlotGeneration;
@@ -355,6 +357,19 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private int _pinnedReleaseCursor;
         private bool _discardBuildAfterPinRelease;
         private bool _snapshotPinUnavailable;
+        private readonly PinnedRegionBlockRefs[] _pinnedRegionBlockRefs =
+            new PinnedRegionBlockRefs[MaxExactSnapshotRegions];
+        private IRegionReadSource _pinnedRegionSource;
+        private int _pinnedRegionCount;
+        private NativeArray<byte> _exactMixedFlags;
+        private NativeList<int> _exactMixedBrickIndices;
+        private NativeArray<byte> _snapshotClassificationFlags;
+        private JobHandle _exactMetadataJobHandle;
+        private bool _exactMetadataJobScheduled;
+        private bool _exactMetadataReady;
+        private JobHandle _exactClassificationJobHandle;
+        private bool _exactClassificationJobScheduled;
+        private int _exactMixedPinCursor;
         private JobHandle _densityJobHandle;
         private bool _densityJobScheduled;
         private JobHandle _topologyJobHandle;
@@ -501,6 +516,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _densityMixedSurfaceSemantics = _workspace.DensityMixedSurfaceSemantics;
             _densityMixedBoundarySamples = _workspace.DensityMixedBoundarySamples;
             _pinnedReadBlocks = _workspace.PinnedReadBlocks;
+            _exactMixedFlags = _workspace.ExactMixedFlags;
+            _exactMixedBrickIndices = _workspace.ExactMixedBrickIndices;
+            _snapshotClassificationFlags = _workspace.SnapshotClassificationFlags;
             _compactedTopologyVertices = _workspace.CompactedTopologyVertices;
             _compactedTopologyIndices = _workspace.CompactedTopologyIndices;
             _topologyOverflowCell = _workspace.TopologyOverflowCell;
@@ -719,7 +737,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public ulong CompletedDecorationClumps { get; private set; }
         public int MissingVisibleCount { get; private set; }
         public ulong CapacityPressureCount { get; private set; }
-        public int RunningJobCount => _densityJobScheduled || _topologyJobScheduled
+        public int RunningJobCount => _exactMetadataJobScheduled || _exactClassificationJobScheduled
+                                   || _densityJobScheduled || _topologyJobScheduled
                                    || _facetedMaskJobScheduled || _transitionJobScheduled
                                     ? 1 : 0;
         public int PendingUploadCount => _pendingUpload ? 1 : 0;
@@ -931,9 +950,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     || desired <= _build.SourceVersion))
                 Invalidate(_build.Coordinate);
 
-            // A sliced snapshot can become stale between frames. Unlike a scheduled Burst job it
-            // owns no worker dependency yet, so abandon it immediately and let the newer dirty
-            // generation restart rather than spending more budget on data we will reject anyway.
+            // Snapshot work may now include Burst metadata/classification jobs. A newer source
+            // generation marks the build for discard, but the frame path never completes an
+            // unfinished job: it waits for IsCompleted, then drains leases under the deadline.
             if (_build.Active && !_build.SnapshotTaken
                 && _desiredVersions.TryGetValue(_build.Coordinate, out ulong slicedDesired)
                 && slicedDesired > _build.SourceVersion)
@@ -943,10 +962,15 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                             + math.max(0.0, budgetMs) * 0.001;
             if (_discardBuildAfterPinRelease)
             {
+                if (!ScheduledJobsComplete()) return;
+                CompleteJobs();
+                ReleasePinnedRegionMetadataImmediate();
                 if (!StepReleasePinnedSnapshotBlocks(deadline)) return;
+                int3 retry = _build.Coordinate;
                 StaleBuildCount++;
                 _discardBuildAfterPinRelease = false;
                 ResetCompletedBuild();
+                MarkDirty(retry);
             }
 
             do
@@ -1532,7 +1556,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             foreach (var pair in staging) _profileBlocksByChunk.Add(pair.Key, pair.Value.ToArray());
         }
 
-        private const int SnapshotBlocksPerDeadlineCheck = 8;
         private const int SnapshotMipSamplesPerDeadlineCheck = 64;
 
         /// <summary>
@@ -1559,9 +1582,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             using var snapshotScope = s_SnapshotMarker.Auto();
             if (!_build.SnapshotInitialised)
             {
-                if (_pinnedReadBlocks.Length != 0)
+                if (_pinnedReadBlocks.Length != 0 || _pinnedRegionCount != 0)
                     throw new InvalidOperationException(
-                        "Cannot begin a new exact snapshot while previous Storage pins remain.");
+                        "Cannot begin a new exact snapshot while previous Storage leases remain.");
                 _densityMixedVoxels.Clear();
                 _densityMixedSurfaceSemantics.Clear();
                 _densityMixedBoundarySamples.Clear();
@@ -1570,6 +1593,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 _pinnedMixedVoxels = default;
                 _pinnedMixedSurfaceSemantics = default;
                 _pinnedMixedBoundarySamples = default;
+                _exactMixedPinCursor = 0;
+                _exactMetadataReady = false;
                 _buildSurfaceCatalogue = _surfaceCatalogue;
                 _buildCoatingCatalogue = _coatingCatalogue;
                 _buildPalette = palette;
@@ -1589,38 +1614,86 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                                         chunkOriginVoxel.y >> VoxelReadGrid.BlockEdgeLog2,
                                         chunkOriginVoxel.z >> VoxelReadGrid.BlockEdgeLog2);
             int3 cacheOrigin = chunkBrickOrigin - BrickCachePadding;
-            RegionSampleCursor cursor = default;
 
-            while (_build.SnapshotCursor < BrickCacheCount)
+            if (!_exactMetadataReady)
             {
-                int batchEnd = math.min(BrickCacheCount,
-                    _build.SnapshotCursor + SnapshotBlocksPerDeadlineCheck);
-                for (; _build.SnapshotCursor < batchEnd; _build.SnapshotCursor++)
+                if (!_exactMetadataJobScheduled)
                 {
-                    int index = _build.SnapshotCursor;
-                    int x = index % BrickCacheEdge;
-                    int y = (index / BrickCacheEdge) % BrickCacheEdge;
-                    int z = index / (BrickCacheEdge * BrickCacheEdge);
-                    int3 worldBrick = cacheOrigin + new int3(x, y, z);
+                    ScheduleExactMetadataSnapshot(source, cacheOrigin);
+                    AccumulateSnapshotSlice(sliceStart, completed: false);
+                    return false;
+                }
+
+                if (!_exactMetadataJobHandle.IsCompleted)
+                {
+                    AccumulateSnapshotSlice(sliceStart, completed: false);
+                    return false;
+                }
+
+                _exactMetadataJobHandle.Complete();
+                _exactMetadataJobScheduled = false;
+                if (!PinnedRegionMetadataCurrent())
+                {
+                    ReleasePinnedRegionMetadataImmediate();
+                    _discardBuildAfterPinRelease = true;
+                    AccumulateSnapshotSlice(sliceStart, completed: false);
+                    return false;
+                }
+                _exactMetadataReady = true;
+            }
+
+            // The worker identified only the mixed refs. Pin those payload versions in bounded
+            // slices; uniform/empty blocks need no physical lease at all.
+            while (_exactMixedPinCursor < _exactMixedBrickIndices.Length)
+            {
+                int end = math.min(_exactMixedBrickIndices.Length,
+                                   _exactMixedPinCursor + ExactMixedPinChecksPerDeadline);
+                for (; _exactMixedPinCursor < end; _exactMixedPinCursor++)
+                {
+                    int cacheIndex = _exactMixedBrickIndices[_exactMixedPinCursor];
+                    int3 worldBlock = WorldBlockForCacheIndex(cacheIndex, cacheOrigin);
                     _snapshotPinUnavailable = false;
-                    TransvoxelDensityBrick brick = SnapshotBlock(source, ref cursor, worldBrick);
-                    if (_snapshotPinUnavailable)
+                    if (!source.TryPinWorldBlock(worldBlock, out PinnedVoxelReadBlock pinned))
                     {
+                        _snapshotPinUnavailable = true;
                         AccumulateSnapshotSlice(sliceStart, completed: false);
                         return false;
                     }
-                    _densityBricks[index] = brick;
 
-                    bool ownsCore = x >= BrickCachePadding
-                                  && y >= BrickCachePadding
-                                  && z >= BrickCachePadding
-                                  && x < BrickCachePadding + BricksPerAxis
-                                  && y < BrickCachePadding + BricksPerAxis
-                                  && z < BrickCachePadding + BricksPerAxis;
-                    ClassifySnapshotBrick(in brick, ownsCore);
+                    TransvoxelDensityBrick expected = _densityBricks[cacheIndex];
+                    if (pinned.Kind != VoxelReadBlockKind.Mixed || !pinned.HasPinnedPayload
+                        || pinned.MixedOffset != expected.MixedOffset)
+                    {
+                        if (pinned.HasPinnedPayload)
+                            source.ReleasePinnedWorldBlock(in pinned.Pin);
+                        ReleasePinnedRegionMetadataImmediate();
+                        _discardBuildAfterPinRelease = true;
+                        AccumulateSnapshotSlice(sliceStart, completed: false);
+                        return false;
+                    }
+
+                    if (!_pinnedMixedVoxels.IsCreated)
+                    {
+                        _pinnedMixedVoxels = pinned.MixedVoxels;
+                        _pinnedMixedSurfaceSemantics = pinned.MixedSurfaceSemantics;
+                        _pinnedMixedBoundarySamples = pinned.MixedBoundarySamples;
+                    }
+                    else if (_pinnedMixedVoxels.Length != pinned.MixedVoxels.Length
+                             || _pinnedMixedSurfaceSemantics.Length
+                                != pinned.MixedSurfaceSemantics.Length
+                             || _pinnedMixedBoundarySamples.Length
+                                != pinned.MixedBoundarySamples.Length)
+                    {
+                        source.ReleasePinnedWorldBlock(in pinned.Pin);
+                        ReleasePinnedRegionMetadataImmediate();
+                        _discardBuildAfterPinRelease = true;
+                        AccumulateSnapshotSlice(sliceStart, completed: false);
+                        return false;
+                    }
+                    _pinnedReadBlocks.Add(pinned.Pin);
                 }
 
-                if (_build.SnapshotCursor < BrickCacheCount
+                if (_exactMixedPinCursor < _exactMixedBrickIndices.Length
                     && Time.realtimeSinceStartupAsDouble >= deadlineSeconds)
                 {
                     AccumulateSnapshotSlice(sliceStart, completed: false);
@@ -1628,8 +1701,55 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 }
             }
 
+            // Region refs may have changed while mixed payloads were pinned across frames. Never
+            // splice metadata generations: reject the whole optimistic snapshot and try again.
+            if (!PinnedRegionMetadataCurrent())
+            {
+                ReleasePinnedRegionMetadataImmediate();
+                _discardBuildAfterPinRelease = true;
+                AccumulateSnapshotSlice(sliceStart, completed: false);
+                return false;
+            }
+            ReleasePinnedRegionMetadataImmediate();
+
+            if (!_exactClassificationJobScheduled)
+            {
+                _snapshotClassificationFlags[0] = 0;
+                _snapshotClassificationFlags[1] = 0;
+                _exactClassificationJobHandle = new ExactSnapshotClassificationJob
+                {
+                    Bricks = _densityBricks,
+                    MixedVoxels = PinnedMixedVoxelsOrFallback(),
+                    MixedSurfaceSemantics = PinnedMixedSurfaceSemanticsOrFallback(),
+                    MixedBoundarySamples = PinnedMixedBoundarySamplesOrFallback(),
+                    Palette = _buildPalette,
+                    Catalogue = _buildSurfaceCatalogue,
+                    Coatings = _buildCoatingCatalogue,
+                    BrickCacheEdge = BrickCacheEdge,
+                    BricksPerAxis = BricksPerAxis,
+                    BrickCachePadding = BrickCachePadding,
+                    HasProfiles = _buildProfileBlocks.Length > 0,
+                    Flags = _snapshotClassificationFlags,
+                }.Schedule();
+                _exactClassificationJobScheduled = true;
+                AccumulateSnapshotSlice(sliceStart, completed: false);
+                return false;
+            }
+
+            if (!_exactClassificationJobHandle.IsCompleted)
+            {
+                AccumulateSnapshotSlice(sliceStart, completed: false);
+                return false;
+            }
+            _exactClassificationJobHandle.Complete();
+            _exactClassificationJobScheduled = false;
+            _build.HasOwnedSolid = _snapshotClassificationFlags[0] != 0;
+            _build.RequiresContinuousTopology = _snapshotClassificationFlags[1] != 0;
             _build.SnapshotTaken = true;
+            _exactMetadataReady = false;
+            _exactMixedPinCursor = 0;
             AccumulateSnapshotSlice(sliceStart, completed: true);
+
             if (!_build.HasOwnedSolid && _buildProfileBlocks.Length == 0)
                 return true;
 
@@ -1665,45 +1785,102 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             return true;
         }
 
-        private void ClassifySnapshotBrick(in TransvoxelDensityBrick brick, bool ownsCore)
+        private void ScheduleExactMetadataSnapshot(IRegionReadSource source, int3 cacheOrigin)
         {
-            if (brick.Kind == 0) return;
-            if (brick.Kind == 1)
+            if (_pinnedRegionCount != 0)
+                throw new InvalidOperationException("Exact metadata regions were already pinned.");
+            _pinnedRegionSource = source;
+            _exactMixedBrickIndices.Clear();
+
+            JobHandle dependency = new ExactBrickMetadataClearJob
             {
-                if (!IsSolidSurfaceMaterial(brick.UniformMaterial)) return;
-                if (ownsCore) _build.HasOwnedSolid = true;
-                if (_build.RequiresContinuousTopology) return;
-                SurfaceStyleReadDefinition style = _buildSurfaceCatalogue.Get(
-                    _buildPalette.GetDefaultSurfaceStyle(brick.UniformMaterial));
-                _build.RequiresContinuousTopology =
-                    style.Reconstruction == SurfaceReconstruction.Smooth
-                    || style.Reconstruction == SurfaceReconstruction.Rounded;
-                return;
+                Bricks = _densityBricks,
+                MixedFlags = _exactMixedFlags,
+            }.Schedule(BrickCacheCount, 256);
+
+            int edge = VoxelReadGrid.BlocksPerRegionEdge;
+            int3 cacheMaxExclusive = cacheOrigin + BrickCacheEdge;
+            int3 minRegion = cacheOrigin >> VoxelReadGrid.BlocksPerRegionEdgeLog2;
+            int3 maxRegion = (cacheMaxExclusive - 1) >> VoxelReadGrid.BlocksPerRegionEdgeLog2;
+
+            for (int rz = minRegion.z; rz <= maxRegion.z; rz++)
+            for (int ry = minRegion.y; ry <= maxRegion.y; ry++)
+            for (int rx = minRegion.x; rx <= maxRegion.x; rx++)
+            {
+                int3 regionCoord = new(rx, ry, rz);
+                if (!source.TryPinRegionBlockRefs(regionCoord, out PinnedRegionBlockRefs pinned))
+                    continue;
+                if (_pinnedRegionCount >= MaxExactSnapshotRegions)
+                {
+                    source.ReleasePinnedRegion(in pinned.Pin);
+                    ReleasePinnedRegionMetadataImmediate();
+                    throw new InvalidOperationException(
+                        "Exact snapshot exceeded the 3x3x3 pinned-region bound.");
+                }
+                _pinnedRegionBlockRefs[_pinnedRegionCount++] = pinned;
+
+                int3 regionMin = regionCoord * edge;
+                int3 regionMaxExclusive = regionMin + edge;
+                int3 intersectionMin = math.max(cacheOrigin, regionMin);
+                int3 intersectionMax = math.min(cacheMaxExclusive, regionMaxExclusive);
+                int3 size = intersectionMax - intersectionMin;
+                int volume = size.x * size.y * size.z;
+                if (volume <= 0) continue;
+
+                dependency = new ExactBrickMetadataRegionJob
+                {
+                    EncodedBlockRefs = pinned.EncodedBlockRefs,
+                    RegionCoord = regionCoord,
+                    IntersectionMinWorldBlock = intersectionMin,
+                    IntersectionSize = size,
+                    CacheOrigin = cacheOrigin,
+                    BrickCacheEdge = BrickCacheEdge,
+                    Bricks = _densityBricks,
+                    MixedFlags = _exactMixedFlags,
+                }.Schedule(volume, 128, dependency);
             }
 
-            NativeArray<byte> mixedVoxels = PinnedMixedVoxelsOrFallback();
-            NativeArray<ushort> mixedSurfaceSemantics = PinnedMixedSurfaceSemanticsOrFallback();
-            NativeArray<byte> mixedBoundarySamples = PinnedMixedBoundarySamplesOrFallback();
-            int endVoxel = brick.MixedOffset + VoxelReadGrid.VoxelsPerBlock;
-            for (int voxel = brick.MixedOffset; voxel < endVoxel; voxel++)
+            _exactMetadataJobHandle = new ExactMixedBrickCompactJob
             {
-                byte material = mixedVoxels[voxel];
-                if (!IsSolidSurfaceMaterial(material)) continue;
-                if (ownsCore) _build.HasOwnedSolid = true;
-                if (_build.RequiresContinuousTopology) continue;
+                MixedFlags = _exactMixedFlags,
+                MixedIndices = _exactMixedBrickIndices,
+            }.Schedule(dependency);
+            _exactMetadataJobScheduled = true;
+        }
 
-                uint surface = VoxelSurfaceSemantics.FromStorage(
-                    mixedSurfaceSemantics[voxel]).Packed;
-                ushort styleId = (ushort)surface;
-                if (styleId == SurfaceStyles.MaterialDefault)
-                    styleId = _buildPalette.GetDefaultSurfaceStyle(material);
-                SurfaceStyleReadDefinition style = _buildSurfaceCatalogue.Get(styleId);
-                byte coating = (byte)(surface >> 16);
-                _build.RequiresContinuousTopology = mixedBoundarySamples[voxel] != 0
-                    || _buildCoatingCatalogue.Get(coating).Displacement != 0
-                    || style.Reconstruction == SurfaceReconstruction.Smooth
-                    || style.Reconstruction == SurfaceReconstruction.Rounded;
+        private int3 WorldBlockForCacheIndex(int index, int3 cacheOrigin)
+        {
+            int x = index % BrickCacheEdge;
+            int y = (index / BrickCacheEdge) % BrickCacheEdge;
+            int z = index / (BrickCacheEdge * BrickCacheEdge);
+            return cacheOrigin + new int3(x, y, z);
+        }
+
+        private bool PinnedRegionMetadataCurrent()
+        {
+            if (_pinnedRegionCount == 0) return true;
+            if (_pinnedRegionSource == null) return false;
+            for (int i = 0; i < _pinnedRegionCount; i++)
+            {
+                VoxelRegionPinToken token = _pinnedRegionBlockRefs[i].Pin;
+                if (!_pinnedRegionSource.IsPinnedRegionCurrent(in token)) return false;
             }
+            return true;
+        }
+
+        private void ReleasePinnedRegionMetadataImmediate()
+        {
+            if (_pinnedRegionSource != null)
+            {
+                for (int i = 0; i < _pinnedRegionCount; i++)
+                {
+                    VoxelRegionPinToken token = _pinnedRegionBlockRefs[i].Pin;
+                    _pinnedRegionSource.ReleasePinnedRegion(in token);
+                    _pinnedRegionBlockRefs[i] = default;
+                }
+            }
+            _pinnedRegionCount = 0;
+            _pinnedRegionSource = null;
         }
 
         private bool StepMipDensitySnapshot(IRegionReadSource source,
@@ -1792,59 +1969,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             if (!completed) return;
             LastSnapshotMs = _build.SnapshotCpuMs;
             _snapshotTiming.Add(LastSnapshotMs);
-        }
-
-        private TransvoxelDensityBrick SnapshotBlock(IRegionReadSource source,
-                                                      ref RegionSampleCursor cursor,
-                                                      int3 worldBlock)
-        {
-            if (!TryAcquireWorldBlock(source, ref cursor, worldBlock, out RegionReadView region)
-                || !region.TryGetWorldBlock(worldBlock, out VoxelReadBlock block)
-                || block.Kind == VoxelReadBlockKind.Empty)
-                return default;
-
-            if (block.Kind == VoxelReadBlockKind.Uniform)
-            {
-                return new TransvoxelDensityBrick
-                {
-                    Kind = 1,
-                    UniformMaterial = block.UniformMaterial,
-                    MixedOffset = 0
-                };
-            }
-
-            if (!source.TryPinWorldBlock(worldBlock, out PinnedVoxelReadBlock pinned))
-            {
-                _snapshotPinUnavailable = true;
-                return default;
-            }
-            if (pinned.Kind != VoxelReadBlockKind.Mixed || !pinned.HasPinnedPayload)
-                throw new InvalidOperationException(
-                    $"Storage changed mixed block kind without invalidating {worldBlock}.");
-
-            if (!_pinnedMixedVoxels.IsCreated)
-            {
-                _pinnedMixedVoxels = pinned.MixedVoxels;
-                _pinnedMixedSurfaceSemantics = pinned.MixedSurfaceSemantics;
-                _pinnedMixedBoundarySamples = pinned.MixedBoundarySamples;
-            }
-            else if (_pinnedMixedVoxels.Length != pinned.MixedVoxels.Length
-                     || _pinnedMixedSurfaceSemantics.Length != pinned.MixedSurfaceSemantics.Length
-                     || _pinnedMixedBoundarySamples.Length != pinned.MixedBoundarySamples.Length)
-            {
-                // A build must never splice payloads from different physical Storage pools.
-                source.ReleasePinnedWorldBlock(in pinned.Pin);
-                throw new InvalidOperationException(
-                    "Pinned read blocks came from incompatible Storage backing arrays.");
-            }
-
-            _pinnedReadBlocks.Add(pinned.Pin);
-            return new TransvoxelDensityBrick
-            {
-                Kind = 2,
-                UniformMaterial = 0,
-                MixedOffset = pinned.MixedOffset
-            };
         }
 
         private NativeArray<byte> PinnedMixedVoxelsOrFallback() =>
@@ -2822,9 +2946,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
         private void ResetCompletedBuild()
         {
-            if (_pinnedReadBlocks.Length != 0)
+            if (_pinnedReadBlocks.Length != 0 || _pinnedRegionCount != 0
+                || _exactMetadataJobScheduled || _exactClassificationJobScheduled)
                 throw new InvalidOperationException(
-                    "Build reset attempted before pinned Storage payloads were released.");
+                    "Build reset attempted before snapshot jobs/Storage leases were released.");
+            _exactMetadataReady = false;
+            _exactMixedPinCursor = 0;
             _pendingUpload = false;
             _discardBuildAfterPinRelease = false;
             _build = default;
@@ -3082,6 +3209,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
         private bool ScheduledJobsComplete()
         {
+            if (_exactMetadataJobScheduled && !_exactMetadataJobHandle.IsCompleted) return false;
+            if (_exactClassificationJobScheduled && !_exactClassificationJobHandle.IsCompleted)
+                return false;
             if (_densityJobScheduled && !_densityJobHandle.IsCompleted) return false;
             if (_topologyJobScheduled
                 && !(_topologyCompactJobScheduled
@@ -3106,11 +3236,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 && !ScheduledJobsComplete())
                 return false;
             if (_build.Active && _build.Coordinate.Equals(chunk)
-                && _pinnedReadBlocks.Length > 0)
+                && (_pinnedReadBlocks.Length > 0 || _pinnedRegionCount > 0))
             {
-                // All handles were observed complete above, so this releases only Unity job
-                // safety state. Physical brick pins are drained later under the build deadline.
+                // All handles were observed complete above. Metadata leases are a fixed <=27 and
+                // can release immediately; physical mixed-brick pins drain later under deadline.
                 CompleteJobs();
+                ReleasePinnedRegionMetadataImmediate();
                 _discardBuildAfterPinRelease = true;
                 return false;
             }
@@ -3145,6 +3276,16 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
         private void CompleteJobs()
         {
+            if (_exactMetadataJobScheduled)
+            {
+                _exactMetadataJobHandle.Complete();
+                _exactMetadataJobScheduled = false;
+            }
+            if (_exactClassificationJobScheduled)
+            {
+                _exactClassificationJobHandle.Complete();
+                _exactClassificationJobScheduled = false;
+            }
             if (_densityJobScheduled)
             {
                 _densityJobHandle.Complete();
@@ -3257,6 +3398,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public void Dispose()
         {
             CompleteJobs();
+            ReleasePinnedRegionMetadataImmediate();
             ReleasePinnedSnapshotBlocksImmediate();
             foreach (Entry entry in _entries.Values) entry.Dispose();
             _entries.Clear();

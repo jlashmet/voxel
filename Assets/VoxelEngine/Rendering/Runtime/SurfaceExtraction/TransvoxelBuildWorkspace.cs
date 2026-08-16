@@ -27,6 +27,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         internal readonly NativeList<ushort> DensityMixedSurfaceSemantics;
         internal readonly NativeList<byte> DensityMixedBoundarySamples;
         internal readonly NativeList<VoxelReadPinToken> PinnedReadBlocks;
+        internal readonly NativeArray<byte> ExactMixedFlags;
+        internal readonly NativeList<int> ExactMixedBrickIndices;
+        internal readonly NativeArray<byte> SnapshotClassificationFlags;
 
         internal readonly NativeList<SmoothSurfaceVertex> CompactedTopologyVertices;
         internal readonly NativeList<uint> CompactedTopologyIndices;
@@ -84,6 +87,20 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                                                                Allocator.Persistent);
             PinnedReadBlocks = new NativeList<VoxelReadPinToken>(
                 brickCacheCount > 0 ? brickCacheCount : 1, Allocator.Persistent);
+            if (!samplesFromMips)
+            {
+                ExactMixedFlags = new NativeArray<byte>(brickCacheCount, Allocator.Persistent,
+                                                        NativeArrayOptions.UninitializedMemory);
+                ExactMixedBrickIndices = new NativeList<int>(brickCacheCount, Allocator.Persistent);
+                SnapshotClassificationFlags = new NativeArray<byte>(2, Allocator.Persistent,
+                                                                     NativeArrayOptions.ClearMemory);
+            }
+            else
+            {
+                ExactMixedFlags = default;
+                ExactMixedBrickIndices = default;
+                SnapshotClassificationFlags = default;
+            }
 
             CompactedTopologyVertices = new NativeList<SmoothSurfaceVertex>(
                 16_384, Allocator.Persistent);
@@ -119,6 +136,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             if (DensityMixedSurfaceSemantics.IsCreated) DensityMixedSurfaceSemantics.Dispose();
             if (DensityMixedBoundarySamples.IsCreated) DensityMixedBoundarySamples.Dispose();
             if (PinnedReadBlocks.IsCreated) PinnedReadBlocks.Dispose();
+            if (ExactMixedFlags.IsCreated) ExactMixedFlags.Dispose();
+            if (ExactMixedBrickIndices.IsCreated) ExactMixedBrickIndices.Dispose();
+            if (SnapshotClassificationFlags.IsCreated) SnapshotClassificationFlags.Dispose();
             if (CompactedTopologyVertices.IsCreated) CompactedTopologyVertices.Dispose();
             if (CompactedTopologyIndices.IsCreated) CompactedTopologyIndices.Dispose();
             if (TopologyOverflowCell.IsCreated) TopologyOverflowCell.Dispose();

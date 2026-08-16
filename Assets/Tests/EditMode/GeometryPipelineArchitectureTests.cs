@@ -131,8 +131,9 @@ namespace VoxelEngine.Tests.EditMode
             string cache = ReadRenderingSource(
                 Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"));
             StringAssert.Contains("private bool StepDensitySnapshot", cache);
-            StringAssert.Contains("SnapshotCursor", cache);
-            StringAssert.Contains("SnapshotBlocksPerDeadlineCheck", cache);
+            StringAssert.Contains("ScheduleExactMetadataSnapshot", cache);
+            StringAssert.Contains("_exactMetadataJobHandle.IsCompleted", cache);
+            StringAssert.Contains("ExactMixedPinChecksPerDeadline", cache);
             StringAssert.Contains("Time.realtimeSinceStartupAsDouble >= deadlineSeconds", cache);
             StringAssert.DoesNotContain("private void ScheduleDensityJob", cache);
             StringAssert.DoesNotContain("private void ScheduleMipDensityJob", cache);
@@ -475,6 +476,24 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("_retiredSlots", table);
             StringAssert.Contains("ReleaseRetiredSlot", table);
             StringAssert.Contains("_contentRevisions[slot] =", table);
+        }
+
+
+        [Test]
+        public void ExactBlockMetadataTraversalRunsInBurst()
+        {
+            string cache = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"));
+            string jobs = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "Transvoxel", "ExactSnapshotMetadataJobs.cs"));
+            StringAssert.Contains("ScheduleExactMetadataSnapshot", cache);
+            StringAssert.Contains("ExactBrickMetadataRegionJob", jobs);
+            StringAssert.Contains("ExactMixedBrickCompactJob", jobs);
+            StringAssert.Contains("ExactSnapshotClassificationJob", jobs);
+            StringAssert.Contains("IsPinnedRegionCurrent", cache);
+            StringAssert.DoesNotContain("private TransvoxelDensityBrick SnapshotBlock", cache);
+            StringAssert.DoesNotContain("private void ClassifySnapshotBrick", cache);
+            StringAssert.DoesNotContain("SnapshotBlocksPerDeadlineCheck", cache);
         }
 
     }
