@@ -1,0 +1,15 @@
+{
+  "name": "MountingForce.Story.Tests",
+  "rootNamespace": "MountingForce.Story.Tests",
+  "references": ["MountingForce.Story"],
+  "includePlatforms": ["Editor"],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false,
+  "optionalUnityReferences": ["TestAssemblies"]
+}

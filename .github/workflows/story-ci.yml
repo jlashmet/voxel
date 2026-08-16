@@ -1,0 +1,79 @@
+name: Story CI
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "Assets/Story/**"
+      - ".github/workflows/story-ci.yml"
+  push:
+    branches:
+      - master
+    paths:
+      - "Assets/Story/**"
+      - ".github/workflows/story-ci.yml"
+
+concurrency:
+  group: story-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  story-editmode:
+    name: Run story EditMode tests
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          clean: true
+
+      - name: Locate Unity editor
+        id: unity
+        shell: bash
+        run: |
+          set -euo pipefail
+          UNITY_VERSION="$(awk '/m_EditorVersion:/ { print $2 }' ProjectSettings/ProjectVersion.txt)"
+          UNITY_PATH="/Applications/Unity/Hub/Editor/${UNITY_VERSION}/Unity.app/Contents/MacOS/Unity"
+          echo "Unity version: ${UNITY_VERSION}"
+          echo "Unity path: ${UNITY_PATH}"
+          if [[ ! -x "${UNITY_PATH}" ]]; then
+            echo "Unity executable was not found at ${UNITY_PATH}" >&2
+            exit 1
+          fi
+          echo "path=${UNITY_PATH}" >> "$GITHUB_OUTPUT"
+
+      - name: Run story EditMode suite
+        shell: bash
+        run: |
+          set -uo pipefail
+          ROOT="$GITHUB_WORKSPACE/Artifacts/StoryCI"
+          mkdir -p "$ROOT"
+
+          "${{ steps.unity.outputs.path }}" \
+            -batchmode \
+            -projectPath "$GITHUB_WORKSPACE" \
+            -runTests \
+            -testPlatform EditMode \
+            -assemblyNames MountingForce.Story.Tests \
+            -testResults "$ROOT/results.xml" \
+            -logFile "$ROOT/unity.log"
+          status=$?
+
+          if [[ -f "$ROOT/unity.log" ]]; then
+            cat "$ROOT/unity.log"
+          fi
+          if [[ $status -ne 0 ]]; then
+            exit $status
+          fi
+          test -s "$ROOT/results.xml"
+
+      - name: Upload story CI artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: story-ci-${{ github.sha }}
+          path: Artifacts/StoryCI/
+          if-no-files-found: warn
+          retention-days: 14
