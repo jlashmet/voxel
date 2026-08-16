@@ -383,6 +383,30 @@ namespace VoxelEngine.Tests.EditMode
 
 
         [Test]
+        public void ClipmapMovementRetiresOnlyOutgoingEdgesIncrementally()
+        {
+            string cache = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"));
+            StringAssert.Contains("ClipmapEdgeCandidatesPerPrepare", cache);
+            StringAssert.Contains("ScheduleClipmapEdgeRetirement", cache);
+            StringAssert.Contains("StepClipmapEdgeRetirement();", cache);
+
+            int step = cache.IndexOf("private void StepClipmapEdgeRetirement",
+                                     StringComparison.Ordinal);
+            int stepEnd = cache.IndexOf("private bool WithinClipmapWindow", step,
+                                        StringComparison.Ordinal);
+            Assert.GreaterOrEqual(step, 0);
+            Assert.Greater(stepEnd, step);
+            string retirement = cache.Substring(step, stepEnd - step);
+            StringAssert.Contains("remaining = ClipmapEdgeCandidatesPerPrepare", retirement);
+            StringAssert.Contains("WithinClipmapWindow(coordinate)", retirement);
+            StringAssert.Contains("TryRemoveChunk(coordinate)", retirement);
+            StringAssert.DoesNotContain("foreach (int3 chunk in _known)", retirement);
+            StringAssert.DoesNotContain("foreach (var pair in _entries)", retirement);
+        }
+
+
+        [Test]
         public void BrickPoolSupportsGenerationStampedCowReaders()
         {
             string pool = File.ReadAllText(Path.Combine(

@@ -298,6 +298,17 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private bool _clipmapWindowValid;
         private int3 _clipmapCenter;
         private int _clipmapRadius;
+        // Camera motion retires only the slabs that left the previous clipmap window. The
+        // traversal is resumable, so even a teleport never turns residency cleanup into a scan
+        // of every known chunk or a full old-window walk in one frame.
+        private const int ClipmapEdgeCandidatesPerPrepare = 32;
+        private bool _clipmapEdgeRetirementPending;
+        private int3 _clipmapRetirementFromCenter;
+        private int3 _clipmapRetirementToCenter;
+        private int _clipmapRetirementRadius;
+        private int _clipmapRetirementAxis;
+        private int _clipmapRetirementDepth;
+        private int _clipmapRetirementPlaneCursor;
         // Known-chunk liveness is maintained incrementally. A full HashSet scan in every worker
         // turns residency pressure into O(world-residency) frame work, so each known chunk owns
         // one round-robin queue record instead.
@@ -935,6 +946,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             SetProfileBlocks(profileBlocks);
             _ruleSyncTiming.Add(ElapsedMs(sectionStart));
             sectionStart = Time.realtimeSinceStartupAsDouble;
+            StepClipmapEdgeRetirement();
             StepResidencyPrune(source);
             _residencyPruneTiming.Add(ElapsedMs(sectionStart));
             if (_pendingUpload) return;
@@ -2971,9 +2983,110 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
         public void SetClipmapWindow(int3 centre, int radius)
         {
+            int nextRadius = math.max(0, radius);
+            if (_clipmapWindowValid && _clipmapRadius == nextRadius
+                && math.any(_clipmapCenter != centre))
+                ScheduleClipmapEdgeRetirement(_clipmapCenter, centre, nextRadius);
+
             _clipmapCenter = centre;
-            _clipmapRadius = math.max(0, radius);
+            _clipmapRadius = nextRadius;
             _clipmapWindowValid = true;
+        }
+
+        private void ScheduleClipmapEdgeRetirement(int3 fromCenter, int3 toCenter, int radius)
+        {
+            if (math.all(fromCenter == toCenter)) return;
+
+            if (_clipmapEdgeRetirementPending && _clipmapRetirementRadius == radius)
+            {
+                int3 activeDelta = _clipmapRetirementToCenter - _clipmapRetirementFromCenter;
+                int3 extendedDelta = toCenter - _clipmapRetirementFromCenter;
+                bool sameDirection = true;
+                for (int axis = 0; axis < 3; axis++)
+                {
+                    int active = activeDelta[axis];
+                    int extended = extendedDelta[axis];
+                    if (active != 0 && extended != 0
+                        && math.sign(active) != math.sign(extended))
+                    {
+                        sameDirection = false;
+                        break;
+                    }
+                }
+
+                // Continuous movement in the same direction simply extends the outgoing slab.
+                // Keep the existing cursor so already-checked edge coordinates are not revisited.
+                if (sameDirection)
+                {
+                    _clipmapRetirementToCenter = toCenter;
+                    return;
+                }
+            }
+
+            _clipmapRetirementFromCenter = fromCenter;
+            _clipmapRetirementToCenter = toCenter;
+            _clipmapRetirementRadius = radius;
+            _clipmapRetirementAxis = 0;
+            _clipmapRetirementDepth = 0;
+            _clipmapRetirementPlaneCursor = 0;
+            _clipmapEdgeRetirementPending = true;
+        }
+
+        private void StepClipmapEdgeRetirement()
+        {
+            if (!_clipmapEdgeRetirementPending) return;
+
+            int remaining = ClipmapEdgeCandidatesPerPrepare;
+            int edge = _clipmapRetirementRadius * 2 + 1;
+            int planeCount = edge * edge;
+            int3 delta = _clipmapRetirementToCenter - _clipmapRetirementFromCenter;
+
+            while (remaining > 0 && _clipmapRetirementAxis < 3)
+            {
+                int axis = _clipmapRetirementAxis;
+                int shift = delta[axis];
+                int depthCount = math.min(math.abs(shift), edge);
+                if (depthCount == 0 || _clipmapRetirementDepth >= depthCount)
+                {
+                    _clipmapRetirementAxis++;
+                    _clipmapRetirementDepth = 0;
+                    _clipmapRetirementPlaneCursor = 0;
+                    continue;
+                }
+
+                int axisA = (axis + 1) % 3;
+                int axisB = (axis + 2) % 3;
+                while (remaining > 0 && _clipmapRetirementPlaneCursor < planeCount)
+                {
+                    int linear = _clipmapRetirementPlaneCursor++;
+                    int a = linear % edge;
+                    int b = linear / edge;
+                    int3 coordinate = _clipmapRetirementFromCenter;
+                    coordinate[axisA] += a - _clipmapRetirementRadius;
+                    coordinate[axisB] += b - _clipmapRetirementRadius;
+                    coordinate[axis] += shift > 0
+                        ? -_clipmapRetirementRadius + _clipmapRetirementDepth
+                        : _clipmapRetirementRadius - _clipmapRetirementDepth;
+                    remaining--;
+
+                    // Diagonal movement makes edge planes overlap. Current-window ownership and
+                    // _known membership make those duplicates free without another hash set.
+                    if (WithinClipmapWindow(coordinate) || !OwnsShard(coordinate)
+                        || !_known.Contains(coordinate))
+                        continue;
+                    if (!TryRemoveChunk(coordinate)) RequeueResidency(coordinate);
+                }
+
+                if (_clipmapRetirementPlaneCursor < planeCount) return;
+                _clipmapRetirementPlaneCursor = 0;
+                _clipmapRetirementDepth++;
+            }
+
+            if (_clipmapRetirementAxis < 3) return;
+            _clipmapEdgeRetirementPending = false;
+            _clipmapRetirementAxis = 0;
+            _clipmapRetirementDepth = 0;
+            _clipmapRetirementPlaneCursor = 0;
         }
 
         private bool WithinClipmapWindow(int3 chunk)
