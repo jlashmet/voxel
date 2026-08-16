@@ -43,6 +43,13 @@ namespace VoxelEngine.Composition
         private static bool s_hasWorld;
 
         /// <summary>
+        /// Raised synchronously before renderer resources for the current application world are
+        /// released. Application-owned background work that borrowed world-scoped catalogues can
+        /// cancel and join here, before those catalogues or their backing Storage are disposed.
+        /// </summary>
+        public static event Action WorldClearing;
+
+        /// <summary>
         /// Registers authoritative read capabilities with the production renderer. The binding is
         /// captured once; render frames do not allocate adapters or dispatch through application
         /// Runtime types.
@@ -86,6 +93,11 @@ namespace VoxelEngine.Composition
         /// <summary>Disconnects the application world from Rendering.Runtime.</summary>
         public static void ClearWorld()
         {
+            // Application workers can borrow world-scoped read-only catalogues even when their
+            // heavy mutation target is private. Retire those workers first so teardown cannot
+            // race catalogue disposal or leave their private native allocations orphaned.
+            WorldClearing?.Invoke();
+
             // Renderer-derived caches may still own immutable Storage pins. Release them while
             // the application world is alive; clearing the binding and disposing Storage first
             // would leave the persistent URP feature holding dead NativeArray safety handles.
