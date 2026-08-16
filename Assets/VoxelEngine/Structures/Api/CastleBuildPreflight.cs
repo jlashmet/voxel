@@ -40,6 +40,8 @@ namespace VoxelEngine.Structures.Api
         MissingSpatialPlan,
         MissingKeepTurretPlan,
         InvalidKeepTurretPlan,
+        MissingTowerSlitPlan,
+        InvalidTowerSlitPlan,
     }
 
     /// <summary>Pure result of checking whether a castle plan is safe to realize.</summary>
