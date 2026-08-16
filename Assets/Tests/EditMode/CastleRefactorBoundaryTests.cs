@@ -92,7 +92,7 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("CastlePerimeterRealizer.Walls(", pipeline);
             StringAssert.Contains("CastlePlannedTowerRealizer.BuildAll(", pipeline);
             StringAssert.Contains("spatialPlan.Towers.Clone()", pipeline);
-            StringAssert.Contains("CastlePerimeterRealizer.Gatehouse(", pipeline);
+            StringAssert.Contains("CastlePlannedGatehouseRealizer.Build(", pipeline);
             StringAssert.Contains("CastleCourtyardRealizer.BuildPlanned(", pipeline);
             StringAssert.Contains("spatialPlan.CourtyardBuildings.Clone()", pipeline);
             StringAssert.Contains("CastleSpatialProjection.Create(", pipeline);
@@ -104,6 +104,10 @@ namespace VoxelEngine.Tests.EditMode
                 "CastlePlannedTowerRealizer.cs"));
             StringAssert.Contains("tower.HeightVariation", plannedTowers);
             StringAssert.Contains("tower.HasRoof", plannedTowers);
+            StringAssert.Contains("tower.Slits", plannedTowers);
+            StringAssert.Contains("CastleTowerRealizer.BuildPlanned(", plannedTowers);
+            StringAssert.DoesNotContain("CastleTowerSlitPlanner", plannedTowers,
+                "Runtime must consume frozen tower slit phases rather than plan them.");
             StringAssert.DoesNotContain("CastleSeedPartition", plannedTowers,
                 "Runtime must consume planned tower variation rather than choose it from a seed.");
 
