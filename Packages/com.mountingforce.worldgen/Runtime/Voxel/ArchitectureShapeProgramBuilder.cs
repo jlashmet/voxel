@@ -10,10 +10,10 @@ namespace MountingForce.WorldGen.Voxel
     /// <summary>
     /// Backend-level shape bytecode builder that understands architectural geometry roles.
     ///
-    /// City grammars call FoundationBox/ShellBox/OpeningCarve/DetailBox instead of manually choosing
-    /// EmitBox versus EmitRoundedBox or engine surface-style ids. That makes low-level shape and
-    /// reconstruction policy explicit and reusable while settlement/architecture assemblies remain
-    /// renderer independent.
+    /// City grammars call semantic foundation/shell/opening/detail operations instead of manually
+    /// choosing engine primitives or surface-style ids. That makes low-level shape and reconstruction
+    /// policy explicit and reusable while settlement/architecture assemblies remain renderer
+    /// independent.
     /// </summary>
     public sealed class ArchitectureShapeProgramBuilder
     {
@@ -69,6 +69,41 @@ namespace MountingForce.WorldGen.Voxel
                 _profile.DetailCornerRadiusDm,
                 _profile.DetailSurface);
 
+        public void FoundationCylinder(
+            int cx, int y, int cz,
+            int radius, int height,
+            byte axis, byte material,
+            PrimitiveMode mode = PrimitiveMode.Fill) =>
+            SemanticCylinder(
+                cx, y, cz, radius, height, axis, material, mode,
+                _profile.FoundationSurface);
+
+        public void ShellCylinder(
+            int cx, int y, int cz,
+            int radius, int height,
+            byte axis, byte material,
+            PrimitiveMode mode = PrimitiveMode.Fill) =>
+            SemanticCylinder(
+                cx, y, cz, radius, height, axis, material, mode,
+                _profile.ShellSurface);
+
+        public void OpeningCylinderCarve(
+            int cx, int y, int cz,
+            int radius, int height,
+            byte axis) =>
+            SemanticCylinder(
+                cx, y, cz, radius, height, axis, 0, PrimitiveMode.Carve,
+                _profile.OpeningSurface);
+
+        public void DetailCylinder(
+            int cx, int y, int cz,
+            int radius, int height,
+            byte axis, byte material,
+            PrimitiveMode mode = PrimitiveMode.Fill) =>
+            SemanticCylinder(
+                cx, y, cz, radius, height, axis, material, mode,
+                _profile.DetailSurface);
+
         /// <summary>
         /// Broad interior clearance is deliberately sharp by default. It is spatial subtraction,
         /// not a visible architectural opening, and rounding it can reduce guaranteed walkable room
@@ -81,6 +116,19 @@ namespace MountingForce.WorldGen.Voxel
             RawBox(x, y, z, sx, sy, sz, 0, PrimitiveMode.Carve);
         }
 
+        /// <summary>
+        /// Cylindrical interior clearance follows the same rule as box interior clearance: the
+        /// primitive itself already owns its curved boundary, while the subtraction must not inherit
+        /// a visible opening treatment that could change guaranteed usable space.
+        /// </summary>
+        public void InteriorCylinderCarve(
+            int cx, int y, int cz,
+            int radius, int height,
+            byte axis)
+        {
+            RawCylinder(cx, y, cz, radius, height, axis, 0, PrimitiveMode.Carve);
+        }
+
         public void RawBox(
             int x, int y, int z,
             int sx, int sy, int sz,
@@ -91,6 +139,21 @@ namespace MountingForce.WorldGen.Voxel
         {
             if (sx <= 0 || sy <= 0 || sz <= 0) return;
             Op(ShapeOp.EmitBox, x, y, z, sx, sy, sz,
+                material, surfaceStyle, coating, (int)mode);
+        }
+
+        public void RawCylinder(
+            int cx, int y, int cz,
+            int radius, int height,
+            byte axis,
+            byte material,
+            PrimitiveMode mode = PrimitiveMode.Fill,
+            ushort surfaceStyle = SurfaceStyles.MaterialDefault,
+            byte coating = Coatings.None)
+        {
+            if (radius <= 0 || height <= 0) return;
+            Op(ShapeOp.EmitCylinder,
+                cx, y, cz, radius, height, axis,
                 material, surfaceStyle, coating, (int)mode);
         }
 
@@ -155,6 +218,19 @@ namespace MountingForce.WorldGen.Voxel
                 style,
                 Coatings.None,
                 (int)mode);
+        }
+
+        private void SemanticCylinder(
+            int cx, int y, int cz,
+            int radius, int height,
+            byte axis,
+            byte material,
+            PrimitiveMode mode,
+            StructureSurfaceTreatment surface)
+        {
+            ushort style = ArchitectureVoxelSurfaceStyle.Map(
+                surface, SurfaceStyles.MaterialDefault);
+            RawCylinder(cx, y, cz, radius, height, axis, material, mode, style);
         }
 
         private static int ClampRadius(int requested, int sx, int sy, int sz)
