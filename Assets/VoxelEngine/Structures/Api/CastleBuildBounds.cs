@@ -212,9 +212,10 @@ namespace VoxelEngine.Structures.Api
 
             CastleGatePlacementSpec primaryGate = spatial.PrimaryGate;
             CastleGatehousePlan gatehouse = topology.Gatehouse;
+            CastleWallPlan walls = topology.Walls;
             CastleGatehouseBuildBounds gatehouseBounds =
                 CastleGatehouseBuildBoundsResolver.Resolve(
-                    in plan, in primaryGate, in gatehouse);
+                    in plan, in primaryGate, in gatehouse, in walls);
             minX = math.min(minX, gatehouseBounds.Min.x);
             maxX = math.max(maxX, gatehouseBounds.MaxExclusive.x - 1);
             minY = math.min(minY, gatehouseBounds.Min.y);
