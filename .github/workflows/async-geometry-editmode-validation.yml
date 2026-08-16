@@ -26,17 +26,19 @@ jobs:
           UNITY_PATH="/Applications/Unity/Hub/Editor/${UNITY_VERSION}/Unity.app/Contents/MacOS/Unity"
           test -x "$UNITY_PATH"
           echo "path=$UNITY_PATH" >> "$GITHUB_OUTPUT"
-      - name: Wait for Unity editor
+      - name: Wait for Unity using runner checkout
         shell: bash
         run: |
           set -euo pipefail
-          deadline=$((SECONDS + 600))
-          while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
+          deadline=$((SECONDS + 120))
+          while pgrep -alf '/Unity.app/Contents/MacOS/Unity' \
+              | grep -F -- "$GITHUB_WORKSPACE" >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
-              pgrep -alf '/Unity.app/Contents/MacOS/Unity' || true
+              pgrep -alf '/Unity.app/Contents/MacOS/Unity' \
+                | grep -F -- "$GITHUB_WORKSPACE" || true
               exit 1
             fi
-            sleep 5
+            sleep 3
           done
       - name: Run all EditMode tests
         shell: bash
