@@ -1,6 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
-using Game.Materials.Runtime;
+using Game.Composition.Materials;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -191,7 +191,7 @@ namespace VoxelEngine.Showcase
                 float jitterX = Signed(hash);
                 float jitterZ = Signed(Hash(hash + 17u));
                 float force = math.lerp(2.5f, 7.5f, Unit(Hash(hash + 31u)));
-                float materialScale = GameMaterialDebrisPresentation.ImpulseScale(
+                float materialScale = GameMaterialComposition.DebrisImpulseScale(
                     chunk.Materials[firstVisibleSource]);
                 float massScale = math.clamp(math.rsqrt(math.max(1f, representedSourceVoxels / 8f)),
                                              0.45f, 1f);
@@ -302,7 +302,7 @@ namespace VoxelEngine.Showcase
 
         private static Vector4 MaterialColour(byte material, byte coating, float scale)
         {
-            float4 baseColour = GameMaterialDebrisPresentation.Colour(material, scale);
+            float4 baseColour = GameMaterialComposition.DebrisColour(material, scale);
             Vector4 colour = new(baseColour.x, baseColour.y, baseColour.z, baseColour.w);
 
             Vector3 overlay = coating switch

@@ -112,7 +112,7 @@ namespace VoxelEngine.Showcase
             if (_renderer != null) _renderer.enabled = false;
             // The global ShowcaseMaterialComposition binding was removed: material
             // identity is application-owned and supplied explicitly now.
-            MaterialRoles = Game.Materials.Runtime.GameShowcaseMaterials.Default;
+            MaterialRoles = Game.Composition.Materials.GameMaterialComposition.ShowcaseMaterials;
             EnsureMaterial();
         }
 

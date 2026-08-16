@@ -788,6 +788,14 @@ namespace VoxelEngine.Tests.EditMode
         public void SolidInvalidationIsBoundedToChangedChunkAndRequiredHalo()
         {
             using var cache = new CpuTransvoxelChunkCache();
+
+            // Render residency is admitted only inside the camera clipmap window: surface
+            // discovery can cover a far larger resident Storage window than a ring draws, and
+            // without this bound _known and the build queue would grow with world streaming
+            // rather than the fixed view footprint. A cache with no window admits nothing, so
+            // the window has to be established before invalidation means anything.
+            cache.SetClipmapWindow(int3.zero, 2);
+
             cache.InvalidateSurfaceBricks(new[] { new int3(1, 1, 1) });
             Assert.AreEqual(1, cache.KnownCount);
             Assert.AreEqual(1, cache.DirtyCount);

@@ -266,7 +266,7 @@ namespace VoxelEngine.Tests.EditMode
             Assert.IsTrue(Directory.Exists(showcaseRoot), "Missing Showcase source root: " + showcaseRoot);
 
             string compositionWorld = Path.Combine(
-                RepoRoot, "Assets", "VoxelEngine", "Composition", "Showcase", "ShowcaseWorld.cs");
+                RepoRoot, "Assets", "Game", "Composition", "Showcase", "ShowcaseWorld.cs");
             Assert.IsTrue(File.Exists(compositionWorld),
                 "Concrete Showcase world ownership must live under VoxelEngine.Composition.");
             Assert.IsFalse(Directory.Exists(Path.Combine(showcaseRoot, "CompositionOwned")),

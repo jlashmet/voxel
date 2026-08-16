@@ -727,7 +727,7 @@ namespace VoxelEngine.Tests.EditMode
             string voxelAccess = File.ReadAllText(Path.Combine(storageRoot, "VoxelAccess.cs"));
             string mutationStore = File.ReadAllText(Path.Combine(storageRoot, "RegionMutationStore.cs"));
             string showcase = File.ReadAllText(Path.Combine(
-                Application.dataPath, "VoxelEngine", "Composition", "Showcase", "ShowcaseWorld.cs"));
+                Application.dataPath, "Game", "Composition", "Showcase", "ShowcaseWorld.cs"));
             StringAssert.Contains("pool.EnsureWritable(poolIndex)", voxelAccess);
             Assert.GreaterOrEqual(CountOccurrences(mutationStore, "_pool.EnsureWritable("), 2);
             Assert.GreaterOrEqual(CountOccurrences(showcase, "_pool.EnsureWritable(brick.PoolIndex)"), 2);

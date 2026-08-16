@@ -1,5 +1,5 @@
 using System.Collections.Generic;
-using Game.Materials.Runtime;
+using Game.Composition.Materials;
 using Unity.Mathematics;
 using UnityEngine;
 using VoxelEngine.Vegetation.Api;
@@ -124,7 +124,7 @@ namespace VoxelEngine.Showcase
 
             _world = new ShowcaseWorld(
                 m_Seed, capacity, m_LoadRadiusRegions, m_UnloadRadiusRegions,
-                GameMaterialSimulationDefinitions.Create());
+                GameMaterialComposition.SimulationDefinitions());
             _gpuDebris = new GpuDebrisSystem();
             _motor = new CharacterMotor { WalkSpeed = m_WalkSpeed };
 

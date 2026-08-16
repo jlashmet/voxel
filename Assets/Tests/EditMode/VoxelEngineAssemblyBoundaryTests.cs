@@ -92,6 +92,11 @@ namespace VoxelEngine.Tests.EditMode
                 string owner = SubsystemPrefix(asmdef.Name);
                 violations.AddRange(asmdef.References
                     .Where(IsRuntimeAssembly)
+                    // A composition assembly is the sanctioned wiring point, so depending on one
+                    // is not a foreign-runtime reference even though its name ends in .Runtime.
+                    // Game.Composition is split per area now (Campaign, Kentridge, ...), and a
+                    // scene shell reaching a composition runtime is exactly the intended edge.
+                    .Where(reference => !IsCompositionAssembly(reference))
                     .Where(reference => SubsystemPrefix(reference) != owner)
                     .Select(reference => $"{asmdef.Name} -> {reference}"));
             }
@@ -182,6 +187,11 @@ namespace VoxelEngine.Tests.EditMode
                 string owner = SubsystemPrefix(asmdef.Name);
                 violations.AddRange(asmdef.References
                     .Where(IsRuntimeAssembly)
+                    // A composition assembly is the sanctioned wiring point, so depending on one
+                    // is not a foreign-runtime reference even though its name ends in .Runtime.
+                    // Game.Composition is split per area now (Campaign, Kentridge, ...), and a
+                    // scene shell reaching a composition runtime is exactly the intended edge.
+                    .Where(reference => !IsCompositionAssembly(reference))
                     .Where(reference => SubsystemPrefix(reference) != owner)
                     .Select(reference => $"{asmdef.Name} -> {reference}"));
             }
