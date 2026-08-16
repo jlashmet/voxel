@@ -6,6 +6,8 @@ This folder contains temporary third-party humanoid assets for character/NPC dev
 
 - `Models/Male_Adult_01.fbx` — Microsoft Rocketbox adult male placeholder.
 - `Models/Female_Adult_01.fbx` — Microsoft Rocketbox adult female placeholder.
+- `Models/placeholder_male.characterfactory.json` — routes the male FBX through the normal Character Factory Unity importer.
+- `Models/placeholder_female.characterfactory.json` — routes the female FBX through the normal Character Factory Unity importer.
 - `Animations/Idle.fbx` — neutral breathing idle.
 - `Animations/Walk.fbx` — neutral walking locomotion with translated root motion from Rocketbox's XY extraction set.
 - `Animations/Run.fbx` — neutral running locomotion with translated root motion from Rocketbox's XY extraction set.
@@ -15,9 +17,21 @@ This folder contains temporary third-party humanoid assets for character/NPC dev
 - `Editor/PlaceholderHumanoidImporter.cs` — forces all placeholder FBXs to Unity Humanoid so clips can retarget between the placeholders and future generated characters.
 - `Licenses/` — upstream license text, exact source paths, and SHA-256 provenance.
 
+## Using the placeholders
+
+Open/import the project normally. The two `*.characterfactory.json` descriptors are consumed by the existing `CharacterFactoryAssetImporter`, which generates:
+
+- `Models/placeholder_male.prefab`
+- `Models/placeholder_female.prefab`
+- `PlaceholderCharacterParts.asset`
+
+Those prefabs use the same Character Factory character-prefab shape planned for generated characters: the imported skinned model is nested under a stable character root, an `Equipment` child is created, and `CharacterEquipmentController` is wired to the imported skeleton plus the shared part catalogue. Prototype gameplay should use those generated prefabs instead of depending directly on Rocketbox bone names or FBX hierarchy details.
+
+The animation FBXs are imported as Unity Humanoid clips. They can therefore be retargeted onto either placeholder prefab and later onto generated Humanoid characters without changing gameplay animation semantics.
+
 ## Intended use
 
-These assets are deliberately isolated under `Assets/ThirdParty/PlaceholderHumanoids` so they can be removed when generated character models are ready. Gameplay code should depend on Unity Humanoid/Animator contracts, not on Rocketbox-specific bone names.
+These assets are deliberately isolated under `Assets/ThirdParty/PlaceholderHumanoids` so they can be removed when generated character models are ready. Gameplay code should depend on Unity Humanoid/Animator and the Character Factory prefab/equipment contracts, not on Rocketbox-specific bone names.
 
 The two Rocketbox models are intentionally imported without their large legacy TGA texture set. They are geometry/rig placeholders, not final art. This keeps the temporary package small and makes the replacement boundary obvious.
 
