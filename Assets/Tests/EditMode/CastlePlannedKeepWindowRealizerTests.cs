@@ -19,7 +19,7 @@ namespace VoxelEngine.Tests.EditMode
                 "VoxelEngine",
                 "Structures",
                 "Runtime",
-                "CastlePlannedKeepWindowRealizer.cs"));
+                "CastleKeepWindowRealizer.cs"));
 
             StringAssert.Contains("CastleKeepWindowSpec[] windows", source);
             StringAssert.Contains("window.HasLitGlazing", source);
@@ -65,20 +65,22 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.IsTrue(foundFront && foundRear);
 
                 int keepCentreZ = plan.Centre.z + CastleLayout.LegacyKeepCentreZOffset;
+                var worldKeepCentre = new int2(plan.Centre.x, keepCentreZ);
                 int baseY = plan.Centre.y + plan.PlateauHeight;
-                int rearX = plan.Centre.x + rear.LocalOrigin.x;
+                int rearX = worldKeepCentre.x + rear.LocalOrigin.x;
                 int rearY = baseY + rear.BaseYOffset;
-                int rearZ = keepCentreZ + rear.LocalOrigin.y;
+                int rearZ = worldKeepCentre.y + rear.LocalOrigin.y;
                 brush.Box(
                     new int3(rearX, rearY, rearZ),
                     new int3(rear.Width, rear.Height, rear.Depth),
                     Mat.Stone);
 
-                CastlePlannedKeepWindowRealizer.BuildAll(ref brush, in plan, windows);
+                CastleKeepWindowRealizer.Build(
+                    ref brush, in plan, worldKeepCentre, windows);
 
-                int frontX = plan.Centre.x + front.LocalOrigin.x;
+                int frontX = worldKeepCentre.x + front.LocalOrigin.x;
                 int frontY = baseY + front.BaseYOffset;
-                int frontZ = keepCentreZ + front.LocalOrigin.y;
+                int frontZ = worldKeepCentre.y + front.LocalOrigin.y;
                 Assert.AreEqual(
                     Mat.LitWindow,
                     brush.Get(frontX + 4, frontY + 6, frontZ + 2),
