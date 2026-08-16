@@ -34,7 +34,7 @@ namespace VoxelEngine.Structures.Api
                 in topology,
                 Clone(source.OuterWardVertices),
                 Clone(source.InnerWardVertices),
-                Clone(source.Towers),
+                CloneTowers(source.Towers),
                 in primaryGate,
                 source.HasPosternGate,
                 in posternGate,
@@ -52,7 +52,7 @@ namespace VoxelEngine.Structures.Api
                 source.KeepRequiresTerrainResolution,
                 caveDecoration,
                 Clone(source.KeepWindows),
-                Clone(source.InnerTowers));
+                CloneTowers(source.InnerTowers));
         }
 
         public static CastleSpatialPlan CloneRuntimeReady(
@@ -74,6 +74,21 @@ namespace VoxelEngine.Structures.Api
                     $"Cannot snapshot castle spatial plan that is not runtime-ready: {readinessIssue}.");
             }
 
+            return clone;
+        }
+
+        private static CastleTowerPlacementSpec[] CloneTowers(CastleTowerPlacementSpec[] source)
+        {
+            if (source == null) return null;
+
+            var clone = new CastleTowerPlacementSpec[source.Length];
+            for (int i = 0; i < source.Length; i++)
+            {
+                CastleTowerPlacementSpec tower = source[i];
+                if (tower.Slits != null)
+                    tower.Slits = new CastleTowerSlitPlan(tower.Slits.Snapshot());
+                clone[i] = tower;
+            }
             return clone;
         }
 
