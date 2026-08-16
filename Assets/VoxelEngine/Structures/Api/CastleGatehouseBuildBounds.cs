@@ -24,14 +24,25 @@ namespace VoxelEngine.Structures.Api
 
     /// <summary>
     /// Pure bounds resolver matching CastlePlannedGatehouseRealizer geometry without depending on
-    /// Runtime. This keeps streaming dependencies tied to the frozen bridge/tower recipe.
+    /// Runtime. This keeps streaming dependencies tied to the frozen bridge/tower/wall recipe.
     /// </summary>
     public static class CastleGatehouseBuildBoundsResolver
     {
+        /// <summary>Compatibility overload using the historical curtain-wall style.</summary>
         public static CastleGatehouseBuildBounds Resolve(
             in CastlePlan castle,
             in CastleGatePlacementSpec placement,
             in CastleGatehousePlan gatehouse)
+        {
+            CastleWallPlan walls = CastleWallRecipe.Historical();
+            return Resolve(in castle, in placement, in gatehouse, in walls);
+        }
+
+        public static CastleGatehouseBuildBounds Resolve(
+            in CastlePlan castle,
+            in CastleGatePlacementSpec placement,
+            in CastleGatehousePlan gatehouse,
+            in CastleWallPlan walls)
         {
             if (!CastleGatehousePlanValidator.TryValidate(
                     in gatehouse, out CastleGatehousePlanIssue issue) ||
@@ -40,6 +51,11 @@ namespace VoxelEngine.Structures.Api
             {
                 throw new InvalidOperationException(
                     $"Castle gatehouse bounds require a valid frozen recipe: {issue}.");
+            }
+            if (!CastleWallPlanValidator.TryValidate(in walls, out CastleWallPlanIssue wallIssue))
+            {
+                throw new InvalidOperationException(
+                    $"Castle gatehouse bounds require a valid wall recipe: {wallIssue}.");
             }
 
             CastleGateGeometry geometry = CastleGateGeometryResolver.Resolve(
@@ -61,12 +77,19 @@ namespace VoxelEngine.Structures.Api
             IncludeDisc(left, towerReach, ref minX, ref minZ, ref maxX, ref maxZ);
             IncludeDisc(right, towerReach, ref minX, ref minZ, ref maxX, ref maxZ);
 
-            // The upper masonry span uses thickness = WallThickness * 2, so its rasterized
-            // capsule radius is exactly WallThickness.
+            // Upper masonry uses WallThickness * 2. The parapet uses the planned crenellation
+            // thickness, which may be forced wider by a valid wall style's minimum thickness.
+            int crenellationThickness = math.clamp(
+                castle.WallThickness * 2,
+                walls.CrenellationMinimumThickness,
+                walls.CrenellationMaximumThickness);
+            float spanRadius = math.max(
+                castle.WallThickness,
+                crenellationThickness * 0.5f);
             IncludeCapsule(
                 new float2(left.x, left.y),
                 new float2(right.x, right.y),
-                castle.WallThickness,
+                spanRadius,
                 ref minX, ref minZ, ref maxX, ref maxZ);
 
             // Gate leaf occupies the resolver's tangent/outward basis from Origin.
@@ -107,7 +130,7 @@ namespace VoxelEngine.Structures.Api
             int maxY = baseY + math.max(
                 math.max(gatehouse.LeftTowerHeight, gatehouse.RightTowerHeight) + 23,
                 math.max(
-                    gatehouse.BlockHeight + 19,
+                    gatehouse.BlockHeight + walls.CrenellationHeight - 1,
                     math.max(
                         gatehouse.BridgeDeckYOffset + gatehouse.BridgeDeckHeight - 1,
                         math.max(
