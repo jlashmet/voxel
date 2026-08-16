@@ -32,8 +32,11 @@ namespace VoxelEngine.Tests.EditMode
                 "CastleKeepCirculationRealizer.cs",
                 "CastleWallDoorRealizer.cs",
                 "CastleInnerWardTowerRealizer.cs",
-                "DungeonRoomFurnisher.cs",
+                "CastleRearOrielRealizer.cs",
                 "CastleKeepAnnexRealizer.cs",
+                "DungeonRealizer.cs",
+                "DungeonRoomFurnisher.cs",
+                "CaveRealizer.cs",
             };
 
             for (int i = 0; i < spatialHelpers.Length; i++)
