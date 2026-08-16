@@ -208,12 +208,14 @@ namespace VoxelEngine.Storage.Runtime
         {
             int poolIndex;
             bool materializedUniform = false;
+            bool publishedPhysicalRef = false;
+            Region writable = region;
             if (original.IsUniform)
             {
                 poolIndex = _pool.Allocate();
                 _pool.FillBrick(poolIndex, original.UniformMaterial);
-                Region writable = region;
                 writable.BrickRefs[blockIndex] = BrickRef.FromPoolIndex(poolIndex);
+                publishedPhysicalRef = true;
                 materializedUniform = true;
             }
             else
@@ -221,12 +223,16 @@ namespace VoxelEngine.Storage.Runtime
                 poolIndex = _pool.EnsureWritable(original.PoolIndex);
                 if (poolIndex != original.PoolIndex)
                 {
-                    // The NativeArray backing BrickRefs is shared by Region copies, so publishing
-                    // this ref is immediately visible even though no semantic metadata changed.
-                    Region writable = region;
+                    // The NativeArray backing BrickRefs is shared by Region copies. Publish the
+                    // COW version immediately and advance RegionTable's content revision before a
+                    // long-lived borrowed writer can overlap an optimistic renderer metadata job.
                     writable.BrickRefs[blockIndex] = BrickRef.FromPoolIndex(poolIndex);
+                    publishedPhysicalRef = true;
                 }
             }
+
+            if (publishedPhysicalRef)
+                _table.CommitRegion(in writable);
 
             _pool.BeginWrite(poolIndex);
             return new VoxelBlockMutation(

@@ -209,6 +209,41 @@ namespace VoxelEngine.Tests.EditMode
             }
         }
 
+
+        [Test]
+        public void BorrowedMutationInvalidatesPinnedRegionRevisionAtMaterialization()
+        {
+            var table = new RegionTable(1, Allocator.Persistent);
+            var pool = new BrickPool(4, Allocator.Persistent);
+            try
+            {
+                Region region = table.LoadRegion(int3.zero);
+                region.BrickRefs[0] = BrickRef.Uniform(4);
+                table.CommitRegion(in region);
+                var reads = new RegionReadSource(in table, in pool);
+                var mutations = new RegionMutationStore(in table, in pool);
+
+                Assert.True(reads.TryPinRegionBlockRefs(int3.zero,
+                    out PinnedRegionBlockRefs metadata));
+                Assert.True(reads.IsPinnedRegionCurrent(in metadata.Pin));
+
+                Assert.True(mutations.TryBeginPartialBlock(
+                    int3.zero, 5, false, out VoxelBlockMutation mutation));
+                Assert.False(reads.IsPinnedRegionCurrent(in metadata.Pin),
+                    "Publishing a materialized/COW BrickRef must advance the region revision "
+                  + "before the borrowed mutation is completed.");
+
+                Assert.True(mutations.CompletePartialBlock(ref mutation, payloadChanged: false));
+                VoxelRegionPinToken token = metadata.Pin;
+                reads.ReleasePinnedRegion(in token);
+            }
+            finally
+            {
+                if (table.IsCreated) table.Dispose();
+                if (pool.IsCreated) pool.Dispose();
+            }
+        }
+
         [Test]
         public void WorldBlockCoordinatesRemainCorrectAcrossNegativeRegions()
         {

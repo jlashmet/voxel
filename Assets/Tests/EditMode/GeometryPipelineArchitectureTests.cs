@@ -496,5 +496,26 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.DoesNotContain("SnapshotBlocksPerDeadlineCheck", cache);
         }
 
+
+        [Test]
+        public void BorrowedBrickRefPublicationAdvancesRegionRevisionImmediately()
+        {
+            string store = File.ReadAllText(Path.Combine(
+                Application.dataPath, "VoxelEngine", "Storage", "Runtime",
+                "RegionMutationStore.cs"));
+            int materialize = store.IndexOf("private VoxelBlockMutation MaterializeBlock",
+                                            StringComparison.Ordinal);
+            int end = store.IndexOf("private static byte DecodeUniformMaterial", materialize,
+                                    StringComparison.Ordinal);
+            Assert.GreaterOrEqual(materialize, 0);
+            Assert.Greater(end, materialize);
+            string method = store.Substring(materialize, end - materialize);
+            StringAssert.Contains("publishedPhysicalRef", method);
+            StringAssert.Contains("_table.CommitRegion(in writable)", method);
+            Assert.Less(method.IndexOf("_table.CommitRegion(in writable)",
+                                       StringComparison.Ordinal),
+                        method.IndexOf("_pool.BeginWrite(poolIndex)", StringComparison.Ordinal));
+        }
+
     }
 }
