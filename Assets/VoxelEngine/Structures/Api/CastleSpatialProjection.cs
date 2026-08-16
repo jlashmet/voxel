@@ -88,13 +88,8 @@ namespace VoxelEngine.Structures.Api
                     "Castle spatial projection requires a terrain-resolved keep placement.");
             }
 
-            // Projection consumes only castle placement geometry. Validate a view without the
-            // attached underground graph because CastleSpatialPlanValidator itself uses this
-            // projection to verify Dungeon.Entrance == TrapdoorCentre. Validating the completed
-            // graph here would recurse validator -> projection -> validator indefinitely.
-            CastleSpatialPlan validationView = CreateProjectionValidationView(spatial);
             if (!CastleSpatialPlanValidator.TryValidate(
-                    in plan, validationView, out CastleSpatialPlanIssue issue))
+                    in plan, spatial, out CastleSpatialPlanIssue issue))
             {
                 throw new InvalidOperationException(
                     $"Cannot project an invalid castle spatial plan: {issue}.");
@@ -112,34 +107,6 @@ namespace VoxelEngine.Structures.Api
                 in gateGeometry,
                 in approach,
                 in keepAnnexes);
-        }
-
-        private static CastleSpatialPlan CreateProjectionValidationView(CastleSpatialPlan spatial)
-        {
-            CastleTopologyPlan topology = spatial.Topology;
-            CastleGatePlacementSpec primaryGate = spatial.PrimaryGate;
-            CastleGatePlacementSpec posternGate = spatial.PosternGate;
-            CastleGatePlacementSpec innerGate = spatial.InnerGate;
-
-            return new CastleSpatialPlan(
-                in topology,
-                spatial.OuterWardVertices,
-                spatial.InnerWardVertices,
-                spatial.Towers,
-                in primaryGate,
-                spatial.HasPosternGate,
-                in posternGate,
-                spatial.HasInnerGate,
-                in innerGate,
-                spatial.HasWell,
-                spatial.WellCentre,
-                spatial.CourtyardBuildings,
-                spatial.KeepFloors,
-                null,
-                null,
-                spatial.KeepCentre,
-                spatial.KeepRequiresTerrainResolution,
-                spatial.InnerTowers);
         }
 
         /// <summary>Actual world-space X/Z centre of the projected keep.</summary>
