@@ -40,5 +40,28 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.DoesNotContain("new Random(", keep);
             StringAssert.DoesNotContain("CastleSeedPartition.Derive", keep);
         }
+
+        [Test]
+        public void PlannedKeepRealizerOnlySequencesFrozenKeepComponents()
+        {
+            string keep = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
+                "CastlePlannedKeepRealizer.cs"));
+
+            StringAssert.Contains("CastleKeepShellRealizer.Build(", keep);
+            StringAssert.Contains("CastlePlannedKeepTurretRealizer.BuildAll(", keep);
+            StringAssert.Contains("CastleKeepFloorRealizer.Build(", keep);
+            StringAssert.Contains("CastleKeepCirculationRealizer.Build(", keep);
+            StringAssert.Contains("CastlePlannedKeepWindowRealizer.BuildAll(", keep);
+            StringAssert.Contains("CastlePlannedKeepExteriorRealizer.Build(", keep);
+            StringAssert.Contains("CastlePlannedKeepAnnexRealizer.Build(", keep);
+
+            StringAssert.DoesNotContain("CastleKeepWindowRealizer.Build(", keep,
+                "Spatial keep realization must not route through the compatibility window adapter.");
+            StringAssert.DoesNotContain("brush.", keep,
+                "The planned keep orchestrator must sequence realization, not own voxel geometry.");
+            StringAssert.DoesNotContain("new Random(", keep);
+            StringAssert.DoesNotContain("CastleSeedPartition.Derive", keep);
+        }
     }
 }
