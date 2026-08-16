@@ -90,6 +90,7 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("CastlePerimeterRealizer.Walls(", pipeline);
             StringAssert.Contains("CastlePerimeterRealizer.Towers(", pipeline);
             StringAssert.Contains("CastlePerimeterRealizer.Gatehouse(", pipeline);
+            StringAssert.Contains("CastleCourtyardRealizer.BuildPlanned(", pipeline);
             StringAssert.Contains("CastleKeepPlacementAdapter.Place(", pipeline);
             StringAssert.DoesNotContain("CastleSpatialPlanner.Create(", pipeline);
             StringAssert.DoesNotContain("CastleLayoutPlanner.Create(", pipeline);

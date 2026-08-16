@@ -19,8 +19,8 @@ namespace VoxelEngine.Structures.Runtime
         private int _keepStage;
         private CastleSiteRealizer.State _site;
 
-        // Spatial planning is consumed incrementally. Fortifications and resolved keep/dungeon
-        // placement are migrated; site, courtyard, and landscape stages still use CastlePlan.
+        // Spatial planning is consumed incrementally. Fortifications, courtyard footprint, and
+        // resolved keep/dungeon placement are migrated; site and landscape still use CastlePlan.
         private bool _hasSpatialFortifications;
         private bool _hasSpatialKeep;
         private int2[] _outerWardVertices;
@@ -30,6 +30,7 @@ namespace VoxelEngine.Structures.Runtime
         private CastleGatePlacementSpec _primaryGate;
         private bool _hasInnerGate;
         private CastleGatePlacementSpec _innerGate;
+        private int2 _spatialKeepCentre;
 
         public CastleBuildPipeline(
             IRegionReadSource reads,
@@ -149,7 +150,19 @@ namespace VoxelEngine.Structures.Runtime
                     return CompleteStage("gatehouse");
 
                 case 5:
-                    CastleCourtyardRealizer.Build(ref _brush, in _plan);
+                    if (_hasSpatialFortifications)
+                    {
+                        CastleCourtyardRealizer.BuildPlanned(
+                            ref _brush,
+                            in _plan,
+                            _outerWardVertices,
+                            in _primaryGate,
+                            _spatialKeepCentre);
+                    }
+                    else
+                    {
+                        CastleCourtyardRealizer.Build(ref _brush, in _plan);
+                    }
                     return CompleteStage("courtyard");
 
                 case 6:
@@ -200,6 +213,7 @@ namespace VoxelEngine.Structures.Runtime
             _primaryGate = spatialPlan.PrimaryGate;
             _hasInnerGate = spatialPlan.HasInnerGate;
             _innerGate = spatialPlan.InnerGate;
+            _spatialKeepCentre = spatialPlan.KeepCentre;
 
             CastleTowerPlacementSpec[] towers = spatialPlan.Towers;
             _towerCentres = new int2[towers.Length];

@@ -3,11 +3,16 @@ using Unity.Mathematics;
 namespace VoxelEngine.Structures.Api
 {
     /// <summary>
-    /// Integer polygon helpers shared by castle spatial planning and validation. These functions
-    /// operate only on semantic X/Z coordinates and have no runtime or voxel-storage dependency.
+    /// Integer polygon helpers shared by castle spatial planning, validation, and realization.
+    /// These functions operate only on semantic X/Z coordinates and have no runtime or
+    /// voxel-storage dependency.
     /// </summary>
-    internal static class CastlePolygonGeometry
+    public static class CastlePolygonGeometry
     {
+        /// <summary>Returns true when the local X/Z point lies inside or on the polygon boundary.</summary>
+        public static bool ContainsPoint(int2 point, int2[] polygon) =>
+            PointInOrOnPolygon(point, polygon);
+
         internal static bool PointOnPerimeter(int2 point, int2[] polygon)
         {
             if (polygon == null || polygon.Length < 2) return false;
