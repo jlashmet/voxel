@@ -36,7 +36,14 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("ShowcaseCastleSpatialLayout.PrimaryGateLeafVoxels(", seam);
             StringAssert.Contains("ShowcaseCastleSpatialLayout.TrapdoorCentre(", seam);
             StringAssert.Contains("ShowcaseCastleSpatialLayout.TrapdoorInteractionPosition(", seam);
+
             StringAssert.DoesNotContain("CastleSpatialLayoutProjection", seam);
+            StringAssert.DoesNotContain("CastleGateGeometryResolver.LegacyFront", seam,
+                "Activated interaction must not fall back to the historical fixed -Z gate.");
+            StringAssert.DoesNotContain("CastleLayout.TrapdoorCentre", seam,
+                "Activated interaction must not fall back to the unprojected keep hatch.");
+            StringAssert.DoesNotContain("_hasCastleSpatialProjection", seam,
+                "The completed showcase castle always has its committed spatial projection.");
         }
 
         [Test]
