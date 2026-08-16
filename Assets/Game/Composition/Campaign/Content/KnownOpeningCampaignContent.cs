@@ -94,8 +94,9 @@ namespace Game.Composition.Campaign.Content
                 recoveredKentridge.SettlementArchetype);
 
             SiteHandle startingPub = kentridge.Pub(
-                "starting-pub",
-                site => site.RequireCapability(SiteCapability.PlayerSpawn(4)));
+                    "starting-pub",
+                    site => site.RequireCapability(SiteCapability.PlayerSpawn(4)))
+                .LegacyMap("mounting-force", "kentridge-pub");
 
             // The known story says only that the party goes somewhere else in the surrounding region.
             // The generator remains free to choose the concrete site as long as the hard
