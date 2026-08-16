@@ -9,6 +9,13 @@ namespace VoxelEngine.Structures.Api
     /// </summary>
     public static class CastleDungeonPlanning
     {
+        // Stable semantic choice ids. Each optional branch owns an independent dungeon sub-seed so
+        // adding another choice later cannot perturb which existing rooms a castle receives.
+        private const uint ArchiveChoice = 0x41524348u;   // ARCH
+        private const uint PuzzleChoice = 0x50555A5Au;    // PUZZ
+        private const uint TreasuryChoice = 0x54524541u;  // TREA
+        private const uint CaveChoice = 0x43415645u;      // CAVE
+
         public static DungeonPlan Create(
             in CastlePlan plan,
             in CastleSpatialProjection projection) =>
@@ -52,15 +59,22 @@ namespace VoxelEngine.Structures.Api
                 SideRoomHalfX = 50,
                 SideRoomHalfZ = 58,
                 CavePassageLength = 321,
-                IncludeArchive = true,
-                IncludePuzzle = true,
-                IncludeTreasury = true,
-                IncludeCaveExit = true,
+                IncludeArchive = ChooseOptional(plan.Seed, ArchiveChoice, 75),
+                IncludePuzzle = ChooseOptional(plan.Seed, PuzzleChoice, 70),
+                IncludeTreasury = ChooseOptional(plan.Seed, TreasuryChoice, 60),
+                IncludeCaveExit = ChooseOptional(plan.Seed, CaveChoice, 80),
             };
 
             uint dungeonSeed = CastleSeedPartition.Derive(
                 plan.Seed, CastleSeedDomain.Dungeon);
             return DungeonPlanner.Create(dungeonSeed, in constraints);
+        }
+
+        private static bool ChooseOptional(uint castleSeed, uint choiceId, uint percent)
+        {
+            uint choiceSeed = CastleSeedPartition.Derive(
+                castleSeed, CastleSeedDomain.Dungeon, choiceId);
+            return choiceSeed % 100u < percent;
         }
     }
 }
