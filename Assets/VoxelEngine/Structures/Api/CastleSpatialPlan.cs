@@ -37,6 +37,8 @@ namespace VoxelEngine.Structures.Api
         public CastleGatePlacementSpec PosternGate { get; }
         public bool HasInnerGate { get; }
         public CastleGatePlacementSpec InnerGate { get; }
+        public bool HasWell { get; }
+        public int2 WellCentre { get; }
         public int2 KeepCentre { get; }
         public bool KeepRequiresTerrainResolution { get; }
 
@@ -52,6 +54,37 @@ namespace VoxelEngine.Structures.Api
             in CastleGatePlacementSpec innerGate,
             int2 keepCentre,
             bool keepRequiresTerrainResolution)
+            : this(
+                in topology,
+                outerWardVertices,
+                innerWardVertices,
+                towers,
+                in primaryGate,
+                hasPosternGate,
+                in posternGate,
+                hasInnerGate,
+                in innerGate,
+                false,
+                default,
+                keepCentre,
+                keepRequiresTerrainResolution)
+        {
+        }
+
+        internal CastleSpatialPlan(
+            in CastleTopologyPlan topology,
+            int2[] outerWardVertices,
+            int2[] innerWardVertices,
+            CastleTowerPlacementSpec[] towers,
+            in CastleGatePlacementSpec primaryGate,
+            bool hasPosternGate,
+            in CastleGatePlacementSpec posternGate,
+            bool hasInnerGate,
+            in CastleGatePlacementSpec innerGate,
+            bool hasWell,
+            int2 wellCentre,
+            int2 keepCentre,
+            bool keepRequiresTerrainResolution)
         {
             Topology = topology;
             OuterWardVertices = outerWardVertices;
@@ -62,6 +95,8 @@ namespace VoxelEngine.Structures.Api
             PosternGate = posternGate;
             HasInnerGate = hasInnerGate;
             InnerGate = innerGate;
+            HasWell = hasWell;
+            WellCentre = wellCentre;
             KeepCentre = keepCentre;
             KeepRequiresTerrainResolution = keepRequiresTerrainResolution;
         }
