@@ -9,6 +9,7 @@
     "VoxelEngine.Terrain.Api",
     "VoxelEngine.Structures.Api",
     "VoxelEngine.Rendering.Api",
+    "VoxelEngine.Rendering.Runtime",
     "Unity.Collections",
     "Unity.Mathematics"
   ],
