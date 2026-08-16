@@ -76,60 +76,12 @@ namespace VoxelEngine.Structures.Api
     }
 
     /// <summary>
-    /// Plans keep circulation without voxel/storage dependencies. The compatibility overload
-    /// preserves the historical south-facing recipe; the facade-aware overload expresses that same
-    /// recipe in a cardinal keep basis so planning can later align the entrance with the approach.
+    /// Pure validation for an already planned keep circulation layout. Keeping this separate from
+    /// CastleKeepCirculationPlanner lets Runtime verify its input without depending on a planner.
     /// </summary>
-    public static class CastleKeepCirculationPlanner
+    public static class CastleKeepCirculationPlanValidator
     {
         private const int InnerShellInset = 8;
-        private const int GrandStairTangent = -68;
-        private const int GrandStairFrontInset = 28;
-        private const int GrandStairWidth = 18;
-        private const int GrandStairRise = 2;
-        private const int GrandStairRun = 3;
-        private const int SpiralStairInset = 34;
-        private const int SpiralStairRadius = 22;
-
-        public static CastleKeepCirculationPlan Create(in CastlePlan plan) =>
-            Create(in plan, CastleKeepFace.South);
-
-        public static CastleKeepCirculationPlan Create(
-            in CastlePlan plan,
-            CastleKeepFace entranceFace)
-        {
-            if (plan.KeepHalfX <= 0 || plan.KeepHalfZ <= 0 ||
-                plan.FloorHeight <= 0 || plan.Floors <= 0)
-            {
-                throw new ArgumentOutOfRangeException(
-                    nameof(plan), "Castle keep dimensions must be positive before circulation planning.");
-            }
-
-            CastleKeepFacadeFrame frame = CastleKeepFacadeFrame.For(entranceFace);
-            int tangentHalf = frame.TangentHalfExtent(in plan);
-            var circulation = new CastleKeepCirculationPlan(
-                entranceFace,
-                frame.PointFromFacade(in plan, 0, 0),
-                frame.PointFromFacade(
-                    in plan, GrandStairTangent, GrandStairFrontInset),
-                GrandStairWidth,
-                GrandStairRise,
-                GrandStairRun,
-                frame.PointFromFacade(
-                    in plan,
-                    -tangentHalf + SpiralStairInset,
-                    SpiralStairInset),
-                SpiralStairRadius,
-                plan.Floors * plan.FloorHeight);
-
-            if (!TryValidate(in plan, in circulation, out CastleKeepCirculationPlanIssue issue))
-            {
-                throw new InvalidOperationException(
-                    $"Planned keep circulation is invalid for the supplied keep dimensions: {issue}.");
-            }
-
-            return circulation;
-        }
 
         public static bool TryValidate(
             in CastlePlan plan,
@@ -204,5 +156,72 @@ namespace VoxelEngine.Structures.Api
             point.x <= plan.KeepHalfX - InnerShellInset &&
             point.y >= -plan.KeepHalfZ + InnerShellInset &&
             point.y <= plan.KeepHalfZ - InnerShellInset;
+    }
+
+    /// <summary>
+    /// Plans keep circulation without voxel/storage dependencies. The compatibility overload
+    /// preserves the historical south-facing recipe; the facade-aware overload expresses that same
+    /// recipe in a cardinal keep basis so planning can later align the entrance with the approach.
+    /// </summary>
+    public static class CastleKeepCirculationPlanner
+    {
+        private const int GrandStairTangent = -68;
+        private const int GrandStairFrontInset = 28;
+        private const int GrandStairWidth = 18;
+        private const int GrandStairRise = 2;
+        private const int GrandStairRun = 3;
+        private const int SpiralStairInset = 34;
+        private const int SpiralStairRadius = 22;
+
+        public static CastleKeepCirculationPlan Create(in CastlePlan plan) =>
+            Create(in plan, CastleKeepFace.South);
+
+        public static CastleKeepCirculationPlan Create(
+            in CastlePlan plan,
+            CastleKeepFace entranceFace)
+        {
+            if (plan.KeepHalfX <= 0 || plan.KeepHalfZ <= 0 ||
+                plan.FloorHeight <= 0 || plan.Floors <= 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(plan), "Castle keep dimensions must be positive before circulation planning.");
+            }
+
+            CastleKeepFacadeFrame frame = CastleKeepFacadeFrame.For(entranceFace);
+            int tangentHalf = frame.TangentHalfExtent(in plan);
+            var circulation = new CastleKeepCirculationPlan(
+                entranceFace,
+                frame.PointFromFacade(in plan, 0, 0),
+                frame.PointFromFacade(
+                    in plan, GrandStairTangent, GrandStairFrontInset),
+                GrandStairWidth,
+                GrandStairRise,
+                GrandStairRun,
+                frame.PointFromFacade(
+                    in plan,
+                    -tangentHalf + SpiralStairInset,
+                    SpiralStairInset),
+                SpiralStairRadius,
+                plan.Floors * plan.FloorHeight);
+
+            if (!CastleKeepCirculationPlanValidator.TryValidate(
+                    in plan, in circulation, out CastleKeepCirculationPlanIssue issue))
+            {
+                throw new InvalidOperationException(
+                    $"Planned keep circulation is invalid for the supplied keep dimensions: {issue}.");
+            }
+
+            return circulation;
+        }
+
+        /// <summary>
+        /// Compatibility validation entry point. New validation-only callers should use
+        /// CastleKeepCirculationPlanValidator directly.
+        /// </summary>
+        public static bool TryValidate(
+            in CastlePlan plan,
+            in CastleKeepCirculationPlan circulation,
+            out CastleKeepCirculationPlanIssue issue) =>
+            CastleKeepCirculationPlanValidator.TryValidate(in plan, in circulation, out issue);
     }
 }
