@@ -151,22 +151,6 @@ namespace VoxelEngine.Structures.Api
             maxY = math.max(maxY, caveBounds.MaxExclusive.y - 1 + caveDecorationPadding);
             minZ = math.min(minZ, caveBounds.Min.z - caveDecorationPadding);
             maxZ = math.max(maxZ, caveBounds.MaxExclusive.z - 1 + caveDecorationPadding);
-
-            // Spatial Runtime still retains the legacy castle-specific cave decoration pass while
-            // its natural carving migrates to CavePlan. Union the historical threshold envelope
-            // until that decorator is driven entirely by planned chamber coordinates.
-            DungeonRoomPlan[] rooms = dungeon.Rooms;
-            DungeonRoomPlan threshold = rooms[dungeon.CaveThresholdRoomId];
-            int caveFloorY = DungeonConnectionGeometry.RoomFloor(in threshold);
-            const int legacyHorizontalPadding = 256;
-            const int legacyDownPadding = 64;
-            const int legacyUpPadding = 128;
-            minX = math.min(minX, threshold.Centre.x - legacyHorizontalPadding);
-            maxX = math.max(maxX, threshold.Centre.x + legacyHorizontalPadding);
-            minY = math.min(minY, caveFloorY - legacyDownPadding);
-            maxY = math.max(maxY, caveFloorY + legacyUpPadding);
-            minZ = math.min(minZ, threshold.Centre.z - legacyHorizontalPadding);
-            maxZ = math.max(maxZ, threshold.Centre.z + legacyHorizontalPadding);
         }
 
         private static void IncludeApproachCorner(
