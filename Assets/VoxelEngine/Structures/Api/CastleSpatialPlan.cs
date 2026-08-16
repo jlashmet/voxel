@@ -67,7 +67,8 @@ namespace VoxelEngine.Structures.Api
             bool hasInnerGate,
             in CastleGatePlacementSpec innerGate,
             int2 keepCentre,
-            bool keepRequiresTerrainResolution)
+            bool keepRequiresTerrainResolution,
+            CastleTowerPlacementSpec[] innerTowers = null)
             : this(
                 in topology,
                 outerWardVertices,
@@ -83,7 +84,8 @@ namespace VoxelEngine.Structures.Api
                 Array.Empty<CastleCourtyardBuildingSpec>(),
                 null,
                 keepCentre,
-                keepRequiresTerrainResolution)
+                keepRequiresTerrainResolution,
+                innerTowers)
         {
         }
 
@@ -100,7 +102,8 @@ namespace VoxelEngine.Structures.Api
             bool hasWell,
             int2 wellCentre,
             int2 keepCentre,
-            bool keepRequiresTerrainResolution)
+            bool keepRequiresTerrainResolution,
+            CastleTowerPlacementSpec[] innerTowers = null)
             : this(
                 in topology,
                 outerWardVertices,
@@ -116,7 +119,8 @@ namespace VoxelEngine.Structures.Api
                 Array.Empty<CastleCourtyardBuildingSpec>(),
                 null,
                 keepCentre,
-                keepRequiresTerrainResolution)
+                keepRequiresTerrainResolution,
+                innerTowers)
         {
         }
 
@@ -134,7 +138,8 @@ namespace VoxelEngine.Structures.Api
             int2 wellCentre,
             CastleCourtyardBuildingSpec[] courtyardBuildings,
             int2 keepCentre,
-            bool keepRequiresTerrainResolution)
+            bool keepRequiresTerrainResolution,
+            CastleTowerPlacementSpec[] innerTowers = null)
             : this(
                 in topology,
                 outerWardVertices,
@@ -150,7 +155,8 @@ namespace VoxelEngine.Structures.Api
                 courtyardBuildings,
                 null,
                 keepCentre,
-                keepRequiresTerrainResolution)
+                keepRequiresTerrainResolution,
+                innerTowers)
         {
         }
 
@@ -169,7 +175,8 @@ namespace VoxelEngine.Structures.Api
             CastleCourtyardBuildingSpec[] courtyardBuildings,
             DungeonPlan dungeon,
             int2 keepCentre,
-            bool keepRequiresTerrainResolution)
+            bool keepRequiresTerrainResolution,
+            CastleTowerPlacementSpec[] innerTowers = null)
             : this(
                 in topology,
                 outerWardVertices,
@@ -186,7 +193,8 @@ namespace VoxelEngine.Structures.Api
                 dungeon,
                 null,
                 keepCentre,
-                keepRequiresTerrainResolution)
+                keepRequiresTerrainResolution,
+                innerTowers)
         {
         }
 
@@ -206,7 +214,8 @@ namespace VoxelEngine.Structures.Api
             DungeonPlan dungeon,
             CavePlan cave,
             int2 keepCentre,
-            bool keepRequiresTerrainResolution)
+            bool keepRequiresTerrainResolution,
+            CastleTowerPlacementSpec[] innerTowers = null)
             : this(
                 in topology,
                 outerWardVertices,
@@ -224,7 +233,8 @@ namespace VoxelEngine.Structures.Api
                 dungeon,
                 cave,
                 keepCentre,
-                keepRequiresTerrainResolution)
+                keepRequiresTerrainResolution,
+                innerTowers)
         {
         }
 
@@ -245,7 +255,8 @@ namespace VoxelEngine.Structures.Api
             DungeonPlan dungeon,
             CavePlan cave,
             int2 keepCentre,
-            bool keepRequiresTerrainResolution)
+            bool keepRequiresTerrainResolution,
+            CastleTowerPlacementSpec[] innerTowers = null)
             : this(
                 in topology,
                 outerWardVertices,
@@ -264,7 +275,8 @@ namespace VoxelEngine.Structures.Api
                 dungeon,
                 cave,
                 keepCentre,
-                keepRequiresTerrainResolution)
+                keepRequiresTerrainResolution,
+                innerTowers)
         {
         }
 
@@ -286,7 +298,8 @@ namespace VoxelEngine.Structures.Api
             DungeonPlan dungeon,
             CavePlan cave,
             int2 keepCentre,
-            bool keepRequiresTerrainResolution)
+            bool keepRequiresTerrainResolution,
+            CastleTowerPlacementSpec[] innerTowers = null)
             : this(
                 in topology,
                 outerWardVertices,
@@ -306,7 +319,10 @@ namespace VoxelEngine.Structures.Api
                 cave,
                 null,
                 keepCentre,
-                keepRequiresTerrainResolution)
+                keepRequiresTerrainResolution,
+                null,
+                null,
+                innerTowers)
         {
         }
 
@@ -331,15 +347,16 @@ namespace VoxelEngine.Structures.Api
             int2 keepCentre,
             bool keepRequiresTerrainResolution,
             CastleCaveDecorationPlan caveDecoration = null,
-            CastleKeepWindowSpec[] keepWindows = null)
+            CastleKeepWindowSpec[] keepWindows = null,
+            CastleTowerPlacementSpec[] innerTowers = null)
         {
             Topology = topology;
             OuterWardVertices = outerWardVertices;
             InnerWardVertices = innerWardVertices;
             Towers = towers;
-            // Compute planned inner tower placements once while the plan is assembled. Runtime
-            // must consume stable plan data rather than trigger planning through a property read.
-            _innerTowers = CastleInnerWardTowerPlanner.Create(innerWardVertices);
+            _innerTowers = innerTowers != null
+                ? (CastleTowerPlacementSpec[])innerTowers.Clone()
+                : CastleInnerWardTowerPlanner.Create(innerWardVertices);
             PrimaryGate = primaryGate;
             HasPosternGate = hasPosternGate;
             PosternGate = posternGate;
