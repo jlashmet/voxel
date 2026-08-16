@@ -1,0 +1,78 @@
+using System;
+using Unity.Mathematics;
+
+namespace VoxelEngine.Structures.Api
+{
+    /// <summary>
+    /// Pure compatibility projection from semantic spatial placement into the historical keep-local
+    /// coordinate system plus authoritative gate geometry. Runtime and presentation consume this
+    /// same projection so the temporary +60 Z keep anchor cannot drift between systems.
+    /// </summary>
+    public readonly struct CastleSpatialProjection
+    {
+        private const int LegacyKeepCentreZOffset = 60;
+
+        public readonly CastlePlan KeepPlan;
+        public readonly CastleGateGeometry PrimaryGateGeometry;
+        public readonly CastleApproachFrame Approach;
+
+        private CastleSpatialProjection(
+            in CastlePlan keepPlan,
+            in CastleGateGeometry primaryGateGeometry,
+            in CastleApproachFrame approach)
+        {
+            KeepPlan = keepPlan;
+            PrimaryGateGeometry = primaryGateGeometry;
+            Approach = approach;
+        }
+
+        /// <summary>
+        /// Projects one fully resolved spatial plan into geometry shared by runtime realization and
+        /// application-side interaction/presentation. No voxel or terrain work occurs here.
+        /// </summary>
+        public static CastleSpatialProjection Create(
+            in CastlePlan plan,
+            CastleSpatialPlan spatial)
+        {
+            if (spatial == null) throw new ArgumentNullException(nameof(spatial));
+            if (spatial.KeepRequiresTerrainResolution)
+            {
+                throw new InvalidOperationException(
+                    "Castle spatial projection requires a terrain-resolved keep placement.");
+            }
+
+            if (!CastleSpatialPlanValidator.TryValidate(
+                    in plan, spatial, out CastleSpatialPlanIssue issue))
+            {
+                throw new InvalidOperationException(
+                    $"Cannot project an invalid castle spatial plan: {issue}.");
+            }
+
+            CastlePlan keepPlan = plan;
+            keepPlan.Centre = new int3(
+                plan.Centre.x + spatial.KeepCentre.x,
+                plan.Centre.y,
+                plan.Centre.z + spatial.KeepCentre.y - LegacyKeepCentreZOffset);
+
+            CastleGatePlacementSpec primaryGate = spatial.PrimaryGate;
+            CastleGateGeometry gateGeometry = CastleGateGeometryResolver.Resolve(
+                in plan, in primaryGate);
+            CastleApproachFrame approach = CastleApproachFrame.FromGate(in primaryGate);
+
+            return new CastleSpatialProjection(
+                in keepPlan,
+                in gateGeometry,
+                in approach);
+        }
+
+        /// <summary>Actual world-space X/Z centre of the projected keep.</summary>
+        public int2 KeepCentreWorld =>
+            new int2(KeepPlan.Centre.x, KeepPlan.Centre.z + LegacyKeepCentreZOffset);
+
+        /// <summary>World-space secret-hatch centre for the projected keep/dungeon recipe.</summary>
+        public int3 TrapdoorCentre => CastleLayout.TrapdoorCentre(in KeepPlan);
+
+        /// <summary>World-space chapel bell-tower centre for the projected keep annex recipe.</summary>
+        public int3 ChapelBellTowerCentre => CastleLayout.ChapelBellTowerCentre(in KeepPlan);
+    }
+}

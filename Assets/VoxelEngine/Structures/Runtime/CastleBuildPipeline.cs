@@ -259,8 +259,9 @@ namespace VoxelEngine.Structures.Runtime
                 _towerCentres[cursor++] = towers[i].Centre;
             }
 
-            _spatialKeepPlan = CastleKeepPlacementAdapter.Place(
-                in plan, spatialPlan.KeepCentre);
+            CastleSpatialProjection projection = CastleSpatialProjection.Create(
+                in plan, spatialPlan);
+            _spatialKeepPlan = projection.KeepPlan;
             _hasSpatialKeep = true;
         }
 

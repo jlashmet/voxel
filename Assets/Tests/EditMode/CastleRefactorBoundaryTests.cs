@@ -91,7 +91,7 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("CastlePerimeterRealizer.Towers(", pipeline);
             StringAssert.Contains("CastlePerimeterRealizer.Gatehouse(", pipeline);
             StringAssert.Contains("CastleCourtyardRealizer.BuildPlanned(", pipeline);
-            StringAssert.Contains("CastleKeepPlacementAdapter.Place(", pipeline);
+            StringAssert.Contains("CastleSpatialProjection.Create(", pipeline);
             StringAssert.DoesNotContain("CastleSpatialPlanner.Create(", pipeline);
             StringAssert.DoesNotContain("CastleLayoutPlanner.Create(", pipeline);
 
@@ -108,21 +108,21 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void SpatialKeepPlacementFeedsBothKeepAndDungeonStages()
+        public void SpatialProjectionFeedsBothKeepAndDungeonStages()
         {
             string pipeline = File.ReadAllText(Path.Combine(
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
                 "CastleBuildPipeline.cs"));
-            string adapter = File.ReadAllText(Path.Combine(
-                RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
-                "CastleKeepPlacementAdapter.cs"));
+            string projection = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Api",
+                "CastleSpatialProjection.cs"));
 
-            StringAssert.Contains("CastleKeepPlacementAdapter.Place(", pipeline);
+            StringAssert.Contains("CastleSpatialProjection.Create(", pipeline);
             StringAssert.Contains("CastleKeepRealizer.TryStep(ref _brush, in keepPlan", pipeline);
             StringAssert.Contains("CastleKeepAnnexRealizer.Build(ref _brush, in keepPlan)", pipeline);
             StringAssert.Contains("CastleDungeonRealizer.Build(ref _brush, in dungeonPlan)", pipeline);
-            StringAssert.Contains("LegacyKeepCentreZOffset = 60", adapter);
-            StringAssert.DoesNotContain("CastleSpatialPlanner", adapter);
+            StringAssert.Contains("LegacyKeepCentreZOffset = 60", projection);
+            StringAssert.DoesNotContain("Structures.Runtime", projection);
         }
 
         [Test]
