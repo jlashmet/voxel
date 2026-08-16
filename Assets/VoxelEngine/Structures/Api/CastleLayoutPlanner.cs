@@ -22,7 +22,7 @@ namespace VoxelEngine.Structures.Api
                 : (layoutRng.NextInt(0, 100) < 30
                     ? CastleWardPattern.InnerAndOuterWards
                     : CastleWardPattern.SingleWard);
-            CastleKeepAnnexPlan annexes = CastleKeepAnnexPlanner.Create();
+            CastleKeepAnnexPlan annexes = CastleKeepAnnexPlanner.Create(seed);
 
             var plan = new CastleTopologyPlan
             {
