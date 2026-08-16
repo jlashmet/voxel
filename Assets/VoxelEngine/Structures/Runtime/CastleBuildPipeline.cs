@@ -19,8 +19,6 @@ namespace VoxelEngine.Structures.Runtime
         private int _keepStage;
         private CastleSiteRealizer.State _site;
 
-        // Spatial planning now drives every stage that depends on castle orientation or placement.
-        // The legacy landscape recipe remains available only to compatibility builds.
         private bool _hasSpatialFortifications;
         private bool _hasSpatialKeep;
         private int2[] _outerWardVertices;
@@ -42,6 +40,7 @@ namespace VoxelEngine.Structures.Runtime
         private int2 _worldKeepCentre;
         private DungeonPlan _spatialDungeonPlan;
         private CavePlan _spatialCavePlan;
+        private CastleCaveDecorationPlan _spatialCaveDecorationPlan;
 
         public CastleBuildPipeline(
             IRegionReadSource reads,
@@ -53,11 +52,6 @@ namespace VoxelEngine.Structures.Runtime
         {
         }
 
-        /// <summary>
-        /// Builds with a precomputed spatial plan for migrated realization stages. The caller owns
-        /// planning; Runtime validates and snapshots supplied geometry before any voxel writes so
-        /// later caller mutation cannot change the in-flight build.
-        /// </summary>
         public CastleBuildPipeline(
             IRegionReadSource reads,
             IRegionMutationStore mutations,
@@ -122,6 +116,7 @@ namespace VoxelEngine.Structures.Runtime
             _worldKeepCentre = default;
             _spatialDungeonPlan = null;
             _spatialCavePlan = null;
+            _spatialCaveDecorationPlan = null;
 
             if (spatialPlan != null)
                 SnapshotSpatialPlan(in plan, spatialPlan);
@@ -138,7 +133,6 @@ namespace VoxelEngine.Structures.Runtime
 
         internal VoxelBrush Brush => _brush;
 
-        /// <summary>Executes one bounded unit of the current semantic stage.</summary>
         public bool Step()
         {
             if (IsComplete) return true;
@@ -226,8 +220,6 @@ namespace VoxelEngine.Structures.Runtime
                 {
                     CastlePlan keepPlan = _hasSpatialKeep ? _spatialKeepPlan : _plan;
 
-                    // Historical keep substage 4 is circulation. Spatial builds realize its
-                    // planner-owned anchors directly; compatibility builds keep the legacy path.
                     if (_hasSpatialKeep && _keepStage == 3)
                     {
                         CastleKeepCirculationRealizer.Build(
@@ -280,7 +272,10 @@ namespace VoxelEngine.Structures.Runtime
                         }
 
                         CastlePlannedDungeonRealizer.Build(
-                            ref _brush, _spatialDungeonPlan, _spatialCavePlan);
+                            ref _brush,
+                            _spatialDungeonPlan,
+                            _spatialCavePlan,
+                            _spatialCaveDecorationPlan);
                     }
                     else
                     {
@@ -339,6 +334,9 @@ namespace VoxelEngine.Structures.Runtime
                 : null;
             _spatialCavePlan = spatialPlan.Cave != null
                 ? CavePlanSnapshot.CloneValidated(spatialPlan.Cave)
+                : null;
+            _spatialCaveDecorationPlan = spatialPlan.CaveDecoration != null
+                ? spatialPlan.CaveDecoration.Snapshot()
                 : null;
             _outerTowerSpecs = (CastleTowerPlacementSpec[])spatialPlan.Towers.Clone();
             _innerTowerSpecs = (CastleTowerPlacementSpec[])spatialPlan.InnerTowers.Clone();
