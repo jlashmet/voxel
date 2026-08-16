@@ -44,6 +44,29 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void CreateAndResolveShareTheSameProjectionContract()
+        {
+            CastlePlan plan = CastlePlanner.Create(new int3(240, 80, -310), 47u);
+            CastleTopologyPlan topology = CastleLayoutPlanner.Create(47u);
+            topology.KeepPlacement = CastleKeepPlacement.Central;
+            CastleSpatialPlan spatial = CastleSpatialPlanner.Create(in plan, in topology);
+
+            CastleSpatialLayoutProjection created =
+                CastleSpatialLayoutProjection.Create(in plan, spatial);
+            CastleSpatialLayoutProjection resolved =
+                CastleSpatialLayoutProjection.Resolve(in plan, spatial);
+
+            Assert.AreEqual(resolved.KeepPlan.Centre, created.KeepPlan.Centre);
+            Assert.AreEqual(resolved.KeepCentreWorld, created.KeepCentreWorld);
+            Assert.AreEqual(resolved.TrapdoorCentre, created.TrapdoorCentre);
+            Assert.AreEqual(resolved.ChapelBellTowerCentre, created.ChapelBellTowerCentre);
+            Assert.AreEqual(resolved.PrimaryGate.Origin, created.PrimaryGate.Origin);
+            Assert.AreEqual(
+                resolved.PrimaryGate.InteractionPointVoxels,
+                created.PrimaryGate.InteractionPointVoxels);
+        }
+
+        [Test]
         public void ProjectionRejectsUnresolvedHighestGroundKeep()
         {
             CastlePlan plan = CastlePlanner.Create(int3.zero, 53u);
