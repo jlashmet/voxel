@@ -38,6 +38,8 @@ namespace VoxelEngine.Structures.Api
         WallIntegratedKeepNotAgainstWard,
         InvalidWellResolution,
         InvalidWellPlacement,
+        InvalidCourtyardBuildingResolution,
+        InvalidCourtyardBuildingPlacement,
     }
 
     /// <summary>
@@ -288,6 +290,12 @@ namespace VoxelEngine.Structures.Api
                     issue = CastleSpatialPlanIssue.InvalidWellResolution;
                     return false;
                 }
+
+                if (spatial.CourtyardBuildings == null || spatial.CourtyardBuildings.Length != 0)
+                {
+                    issue = CastleSpatialPlanIssue.InvalidCourtyardBuildingResolution;
+                    return false;
+                }
             }
             else
             {
@@ -302,9 +310,52 @@ namespace VoxelEngine.Structures.Api
                     issue = CastleSpatialPlanIssue.InvalidWellPlacement;
                     return false;
                 }
+
+                CastleGatePlacementSpec posternGate = spatial.PosternGate;
+                CastleGatePlacementSpec innerGate = spatial.InnerGate;
+                CastleCourtyardBuildingSpec[] expectedBuildings =
+                    CastleCourtyardBuildingPlacementGeometry.Plan(
+                        in dimensions,
+                        outer,
+                        inner,
+                        in primaryGate,
+                        spatial.HasPosternGate,
+                        in posternGate,
+                        spatial.HasInnerGate,
+                        in innerGate,
+                        spatial.KeepCentre,
+                        spatial.HasWell,
+                        spatial.WellCentre);
+                if (!SameBuildings(spatial.CourtyardBuildings, expectedBuildings))
+                {
+                    issue = CastleSpatialPlanIssue.InvalidCourtyardBuildingPlacement;
+                    return false;
+                }
             }
 
             issue = CastleSpatialPlanIssue.None;
+            return true;
+        }
+
+        private static bool SameBuildings(
+            CastleCourtyardBuildingSpec[] actual,
+            CastleCourtyardBuildingSpec[] expected)
+        {
+            if (actual == null || expected == null || actual.Length != expected.Length)
+                return false;
+
+            for (int i = 0; i < actual.Length; i++)
+            {
+                if (actual[i].Id != expected[i].Id ||
+                    actual[i].Role != expected[i].Role ||
+                    !actual[i].Centre.Equals(expected[i].Centre) ||
+                    !actual[i].HalfExtents.Equals(expected[i].HalfExtents) ||
+                    actual[i].Height != expected[i].Height ||
+                    !actual[i].EntranceDirection.Equals(expected[i].EntranceDirection) ||
+                    actual[i].RoofRidgeAlongX != expected[i].RoofRidgeAlongX)
+                    return false;
+            }
+
             return true;
         }
 
