@@ -80,6 +80,53 @@ def scene_bounds(meshes: list[bpy.types.Object]) -> tuple[Vector, Vector]:
     return lo, hi
 
 
+def world_vertices(meshes: list[bpy.types.Object]) -> list[Vector]:
+    points: list[Vector] = []
+    for obj in meshes:
+        matrix = obj.matrix_world
+        for vertex in obj.data.vertices:
+            point = matrix @ vertex.co
+            if not all(math.isfinite(value) for value in point):
+                raise RuntimeError(f"non-finite Madeline vertex in {obj.name}")
+            points.append(point)
+    if not points:
+        raise RuntimeError("Madeline base contains no mesh vertices")
+    return points
+
+
+def boundary_plane_ratios(
+    points: list[Vector],
+    lo: Vector,
+    hi: Vector,
+    tolerance_fraction: float = 0.005,
+) -> tuple[float, float, float]:
+    """Measure how much geometry lies directly on opposite bounding-box planes.
+
+    A normal organic character only touches its global bounds at sparse extrema such
+    as fingertips, hair, and feet. Failed image reconstruction can instead create a
+    rectangular backdrop/box with huge vertex grids on two or more bounding planes.
+    Axis alignment is affine, so that signature survives rigging and is cheap to
+    detect in the final FBX without relying on a rendered screenshot.
+    """
+
+    extent = hi - lo
+    ratios: list[float] = []
+    for axis in range(3):
+        span = abs(extent[axis])
+        if span <= 1e-8:
+            ratios.append(1.0)
+            continue
+        tolerance = span * tolerance_fraction
+        count = sum(
+            1
+            for point in points
+            if abs(point[axis] - lo[axis]) <= tolerance
+            or abs(hi[axis] - point[axis]) <= tolerance
+        )
+        ratios.append(count / len(points))
+    return tuple(ratios)  # type: ignore[return-value]
+
+
 def main() -> int:
     args = parse_args()
     path = Path(args.input).resolve()
@@ -162,10 +209,21 @@ def main() -> int:
             f"Madeline bounds are implausibly thin/flat: extent={tuple(round(v, 4) for v in extent)}"
         )
 
+    points = world_vertices(meshes)
+    boundary_ratios = boundary_plane_ratios(points, lo, hi)
+    box_like_axes = [ratio for ratio in boundary_ratios if ratio >= 0.07]
+    if len(box_like_axes) >= 2:
+        raise RuntimeError(
+            "Madeline geometry is box/slab-like, likely reconstructed from image "
+            "background planes: boundaryPlaneRatios="
+            + str(tuple(round(value, 4) for value in boundary_ratios))
+        )
+
     print(
         "CI_MADELINE_BASE_CONTRACT_OK "
-        f"meshes={len(meshes)} bones={len(bone_names)} "
-        f"extent={tuple(round(v, 4) for v in extent)}",
+        f"meshes={len(meshes)} bones={len(bone_names)} vertices={len(points)} "
+        f"extent={tuple(round(v, 4) for v in extent)} "
+        f"boundaryPlaneRatios={tuple(round(v, 4) for v in boundary_ratios)}",
         flush=True,
     )
     return 0
