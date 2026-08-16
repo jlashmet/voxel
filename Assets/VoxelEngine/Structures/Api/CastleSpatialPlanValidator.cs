@@ -403,9 +403,10 @@ namespace VoxelEngine.Structures.Api
 
                 if (!spatial.KeepRequiresTerrainResolution)
                 {
-                    CastleSpatialProjection projection = CastleSpatialProjection.Create(
-                        in dimensions, spatial);
-                    if (!spatial.Dungeon.Entrance.Equals(projection.TrapdoorCentre))
+                    CastlePlan projectedKeep = CastleSpatialProjection.ProjectKeepPlan(
+                        in dimensions, spatial.KeepCentre);
+                    int3 trapdoorCentre = CastleLayout.TrapdoorCentre(in projectedKeep);
+                    if (!spatial.Dungeon.Entrance.Equals(trapdoorCentre))
                     {
                         issue = CastleSpatialPlanIssue.DungeonEntranceMismatch;
                         return false;
