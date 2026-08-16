@@ -31,6 +31,7 @@ namespace VoxelEngine.Structures.Api
                 Wards = wards,
                 DesiredTowerCount = ChooseTowerCount(perimeter, ref wallRng),
                 HasPosternGate = wallRng.NextInt(0, 100) < 25,
+                Site = CastleSitePlanner.Create(seed),
                 HasKeepAnnexPlan = true,
                 KeepAnnexes = annexes,
             };
