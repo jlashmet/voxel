@@ -32,4 +32,8 @@ jobs:
           git add Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs \
                   Assets/Tests/EditMode/SurfaceBrickDiscoveryTests.cs
           git commit -m 'Rediscover newly exposed clipmap regions incrementally'
+          # Other async-geometry agents may land orthogonal work while this guarded patch runs.
+          # Rebase only; an overlapping conflict must fail rather than overwrite newer work.
+          git fetch origin refactor/async-geometry-pipeline
+          git rebase origin/refactor/async-geometry-pipeline
           git push origin HEAD:refactor/async-geometry-pipeline
