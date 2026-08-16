@@ -66,5 +66,51 @@ namespace VoxelEngine.Structures.Api
             float2 direction,
             int2[] ward) =>
             centre.Equals(FarthestKeepCentreAlong(in dimensions, direction, ward));
+
+        /// <summary>
+        /// Returns the authored Rear keep position: 78% of the deepest valid gate-to-rear placement,
+        /// retracted toward the ward centre only if rounding or a concave edge would make it invalid.
+        /// This mirrors the planner contract so validation can reject semantically drifted plans.
+        /// </summary>
+        internal static int2 RearKeepCentreAlong(
+            in CastlePlan dimensions,
+            float2 direction,
+            int2[] ward)
+        {
+            int2 integrated = FarthestKeepCentreAlong(in dimensions, direction, ward);
+            int2 desired = new int2(
+                (int)math.round(integrated.x * 0.78f),
+                (int)math.round(integrated.y * 0.78f));
+            return RetractKeepCentreToWard(desired, in dimensions, ward);
+        }
+
+        internal static bool IsRearKeepCentreAlong(
+            in CastlePlan dimensions,
+            int2 centre,
+            float2 direction,
+            int2[] ward) =>
+            centre.Equals(RearKeepCentreAlong(in dimensions, direction, ward));
+
+        private static int2 RetractKeepCentreToWard(
+            int2 desired,
+            in CastlePlan dimensions,
+            int2[] ward)
+        {
+            if (CastlePolygonGeometry.KeepFootprintFits(in dimensions, desired, ward))
+                return desired;
+
+            for (int step = 127; step >= 0; step--)
+            {
+                float t = step / 128f;
+                int2 candidate = new int2(
+                    (int)math.round(desired.x * t),
+                    (int)math.round(desired.y * t));
+                if (CastlePolygonGeometry.KeepFootprintFits(
+                        in dimensions, candidate, ward))
+                    return candidate;
+            }
+
+            return int2.zero;
+        }
     }
 }
