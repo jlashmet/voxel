@@ -30,7 +30,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output", required=True)
     parser.add_argument("--head-group", default="Head")
     parser.add_argument("--head-weight", type=float, default=0.32)
-    parser.add_argument("--front-normal", type=float, default=0.08)
+    # Reconstructed Hunyuan surfaces can be relatively shallow around the face after
+    # canonical alignment. Keep the sign test meaningful while allowing those facets.
+    parser.add_argument("--front-normal", type=float, default=0.02)
     parser.add_argument("--u-margin", type=float, default=0.06)
     parser.add_argument("--v-margin", type=float, default=0.04)
     return parser.parse_args(argv)
