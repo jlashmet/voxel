@@ -45,4 +45,29 @@ namespace VoxelEngine.Composition
                 report.BudgetExceeded);
         }
     }
+
+    /// <summary>
+    /// Composition bridge for a region's feature generation spread across frames. See
+    /// <see cref="VoxelEngine.Structures.Runtime.FeatureRegionBuild"/> for why it is sliced.
+    /// </summary>
+    internal sealed class FeatureRegionBuild
+    {
+        private readonly VoxelEngine.Structures.Runtime.FeatureRegionBuild _build;
+
+        public FeatureRegionBuild(int3 regionCoord) =>
+            _build = new VoxelEngine.Structures.Runtime.FeatureRegionBuild(regionCoord);
+
+        public int3 RegionCoord => _build.RegionCoord;
+        public bool IsComplete => _build.IsComplete;
+
+        public FeatureGenerationReport Report => new(
+            _build.Report.InstancesRasterised,
+            _build.Report.VoxelsWritten,
+            _build.Report.BudgetExceeded);
+
+        public bool Step(in FeatureCatalogue catalogue, uint seed,
+                         IRegionReadSource reads, IRegionMutationStore mutations,
+                         int maxInstances) =>
+            _build.Step(in catalogue, seed, reads, mutations, maxInstances);
+    }
 }

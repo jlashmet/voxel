@@ -30,7 +30,15 @@ namespace VoxelEngine.Tests.Features.Fixtures
         public const int ParamWallHeight = 2;
         public const int ParamRoofPitch = 3;
 
-        public static FeatureCatalogue Build(Allocator allocator)
+        /// <summary>Horizontal spacing between the placements of a multi-cottage catalogue.</summary>
+        public const int PlacementStrideVoxels = 128;
+
+        /// <summary>
+        /// Builds the catalogue. <paramref name="placements"/> above one repeats the cottage
+        /// along +x inside the same region, which is what lets a test observe generation being
+        /// resumed part-way through a region rather than only run to completion.
+        /// </summary>
+        public static FeatureCatalogue Build(Allocator allocator, int placements = 1)
         {
             var program = CottageProgram.Build();
 
@@ -42,7 +50,7 @@ namespace VoxelEngine.Tests.Features.Fixtures
                 slots: 0,
                 programLength: program.Length,
                 materials: 3,
-                explicitPlacements: 1,
+                explicitPlacements: placements,
                 overrides: 0,
                 allocator);
 
@@ -105,13 +113,16 @@ namespace VoxelEngine.Tests.Features.Fixtures
                 MaxPrimitives = 64,
             };
 
-            catalogue.ExplicitPlacements[0] = new ExplicitPlacement
+            for (var i = 0; i < placements; i++)
             {
-                Position = new int3(2048, 0, 3072),
-                Orientation = 0,
-                OverrideOffset = 0,
-                OverrideCount = 0,
-            };
+                catalogue.ExplicitPlacements[i] = new ExplicitPlacement
+                {
+                    Position = new int3(2048 + i * PlacementStrideVoxels, 0, 3072),
+                    Orientation = 0,
+                    OverrideOffset = 0,
+                    OverrideCount = 0,
+                };
+            }
 
             catalogue.Rules[0] = new PlacementRule
             {
@@ -127,7 +138,7 @@ namespace VoxelEngine.Tests.Features.Fixtures
                 ClusterMax = 9,
                 ExclusionMask = 0,
                 ExplicitOffset = 0,
-                ExplicitCount = 1,
+                ExplicitCount = placements,
             };
 
             return catalogue;

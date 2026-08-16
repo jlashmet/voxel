@@ -120,6 +120,11 @@ namespace VoxelEngine.Showcase
         private readonly Queue<int3> _deferredFeatureRegions = new();
         private bool _castleTerrainQueued;
 
+        // Regions whose terrain is committed but whose features have not been built yet, nearest
+        // first, plus the one currently being sliced.
+        private readonly List<int3> _pendingFeatureRegions = new();
+        private FeatureRegionBuild _featureBuild;
+
         private readonly HashSet<int3> _generated = new();
         private readonly Queue<DetachedVoxelChunk> _detachedChunks = new();
 
@@ -384,6 +389,13 @@ namespace VoxelEngine.Showcase
                 return;
             }
 
+            // Features belong to regions whose terrain is already committed, so this queue is the
+            // only thing between the player and a settlement that is still bare ground. Give it a
+            // share of the frame ahead of new terrain, and let terrain keep the remainder: the
+            // castle branch above has already returned if a landmark owns the world's writes.
+            StepFeatureQueue(cameraMetres, start + budgetMs * 0.001 * FeatureBudgetShare);
+            if (_featureBuild != null || _pendingFeatureRegions.Count > 0) didWork = true;
+
             while (Time.realtimeSinceStartupAsDouble < deadline)
             {
                 if (!_gen.Active)
@@ -435,6 +447,22 @@ namespace VoxelEngine.Showcase
             BeginRegion(regionCoord);
             while (!StepRegion()) { }
             FinishRegion();
+
+            // Spawn cannot leave this region half-authored: the character is placed on whatever
+            // surface it finds, and a queued feature build would move the ground out from under
+            // it a few frames later. This is the one path that is allowed to ignore the budget.
+            if (_pendingFeatureRegions.Remove(regionCoord))
+            {
+                // A build for some other region may be mid-slice; it keeps its place.
+                FeatureRegionBuild interrupted = _featureBuild;
+                _featureBuild = new FeatureRegionBuild(regionCoord);
+                _readSource.Refresh(in _table, in _pool);
+                _mutationStore.Refresh(in _table, in _pool);
+                while (!_featureBuild.Step(in _catalogue, Seed, _readSource, _mutationStore,
+                                           int.MaxValue)) { }
+                CompleteFeatureBuild();
+                _featureBuild = interrupted;
+            }
         }
 
         public bool IsGenerated(int3 regionCoord) => _generated.Contains(regionCoord);
@@ -691,6 +719,7 @@ namespace VoxelEngine.Showcase
                 // regenerates from the seed on return.
                 _residencyStore.EvictRegion(rc);
                 _generated.Remove(rc);
+                CancelFeatureWork(rc);
                 _changes.PublishRegion(rc, VoxelChangeKind.Residency);
                 RegionsEvicted++;
             }
@@ -856,44 +885,27 @@ namespace VoxelEngine.Showcase
             _generated.Add(coord);
             _changes.PublishRegion(coord, VoxelChangeKind.All);
 
-            // Record any built content in a form that survives eviction, so the castle and
-            // Kentridge stay visible at the distance terrain is drawn rather than popping in at
-            // the streaming radius. Regions that are plain terrain store nothing.
-            FarField.CaptureRegion(coord, ReadStorage, Seed);
-
             // Neighbours must re-mesh too: faces along the shared border were meshed as the edge
             // of the loaded world and are now interior.
 
             // Features are generated after terrain, so they carve and build against finished
             // ground. Everything here is a function of (seed, catalogue, region coordinate) —
-            // no neighbour is consulted, which is why regions may arrive in any order.
+            // no neighbour is consulted, which is why regions may arrive in any order, and why
+            // the work can be queued rather than paid for in the frame the terrain lands.
             bool deferFeatures = _castleTerrainQueued && !_hasCastlePlan
                               && _castleRegions.Contains(coord);
             if (deferFeatures)
             {
                 _deferredFeatureRegions.Enqueue(coord);
+                CaptureFarField(coord);
             }
             else if (_catalogue.IsCreated)
             {
-                var featureStart = Time.realtimeSinceStartupAsDouble;
-
-                _readSource.Refresh(in _table, in _pool);
-                _mutationStore.Refresh(in _table, in _pool);
-                FeatureGenerationReport report;
-                using (s_FeatureMarker.Auto())
-                    report = FeatureGeneration.GenerateRegion(
-                        in _catalogue, Seed, coord, _readSource, _mutationStore);
-
-                FeatureVoxelsBuilt += report.VoxelsWritten;
-                FeatureInstancesBuilt += report.InstancesRasterised;
-
-                // Only record timing for regions that actually built something; otherwise the
-                // number reads as the cost of doing nothing.
-                if (report.InstancesRasterised > 0)
-                    LastFeatureMs = (Time.realtimeSinceStartupAsDouble - featureStart) * 1000.0;
-
-                if (report.BudgetExceeded)
-                    Debug.LogWarning($"Feature budget exceeded in region {coord}; content was refused rather than truncated.");
+                if (!_pendingFeatureRegions.Contains(coord)) _pendingFeatureRegions.Add(coord);
+            }
+            else
+            {
+                CaptureFarField(coord);
             }
 
             RegionsGenerated++;
@@ -905,6 +917,119 @@ namespace VoxelEngine.Showcase
             FinishRegionForced();
 
             if (coord.Equals(int3.zero)) QueueLandmarks();
+        }
+
+        /// <summary>
+        /// Records built content in a form that survives eviction, so the castle and Kentridge
+        /// stay visible at the distance terrain is drawn rather than popping in at the streaming
+        /// radius. Regions that are plain terrain store nothing.
+        ///
+        /// Called once a region's features are built, never before. Capturing at the end of
+        /// terrain generation was strictly too early for any region a settlement stands in: the
+        /// store correctly saw plain ground, recorded nothing, and the buildings that arrived
+        /// afterwards had no silhouette — the same failure the castle path documents.
+        /// </summary>
+        private void CaptureFarField(int3 coord) => FarField.CaptureRegion(coord, ReadStorage, Seed);
+
+        /// <summary>Instances rasterised per slice before the clock is consulted again.</summary>
+        private const int FeatureInstancesPerSlice = 4;
+
+        /// <summary>
+        /// Share of a streaming frame's budget reserved for queued features. Terrain keeps the
+        /// rest: ground under the player outranks what stands on it, but a settlement that never
+        /// drains is worse than terrain arriving a little later.
+        /// </summary>
+        private const double FeatureBudgetShare = 0.5;
+
+        /// <summary>
+        /// Advances queued feature generation until <paramref name="deadlineSeconds"/>.
+        ///
+        /// Regions are taken nearest-first, because the queue is what stands between the player
+        /// and a settlement that is still an empty street grid, and the nearest one is the one
+        /// they are about to walk into.
+        /// </summary>
+        private void StepFeatureQueue(float3 cameraMetres, double deadlineSeconds)
+        {
+            if (!_catalogue.IsCreated) return;
+            if (_featureBuild == null && _pendingFeatureRegions.Count == 0) return;
+
+            var featureStart = Time.realtimeSinceStartupAsDouble;
+            bool didWork = false;
+
+            using var featureScope = s_FeatureMarker.Auto();
+            while (Time.realtimeSinceStartupAsDouble < deadlineSeconds)
+            {
+                if (_featureBuild == null)
+                {
+                    if (_pendingFeatureRegions.Count == 0) break;
+                    _featureBuild = new FeatureRegionBuild(TakeNearestFeatureRegion(cameraMetres));
+                }
+
+                _readSource.Refresh(in _table, in _pool);
+                _mutationStore.Refresh(in _table, in _pool);
+                didWork = true;
+
+                if (!_featureBuild.Step(in _catalogue, Seed, _readSource, _mutationStore,
+                                        FeatureInstancesPerSlice))
+                    continue;
+
+                CompleteFeatureBuild();
+            }
+
+            if (didWork)
+                LastFeatureMs = (Time.realtimeSinceStartupAsDouble - featureStart) * 1000.0;
+        }
+
+        private int3 TakeNearestFeatureRegion(float3 cameraMetres)
+        {
+            int3 centre = PositionToRegion(cameraMetres);
+            int best = 0;
+            long bestDistance = long.MaxValue;
+            for (int i = 0; i < _pendingFeatureRegions.Count; i++)
+            {
+                int3 candidate = _pendingFeatureRegions[i];
+                long dx = candidate.x - centre.x;
+                long dz = candidate.z - centre.z;
+                long distance = dx * dx + dz * dz;
+                if (distance >= bestDistance) continue;
+                bestDistance = distance;
+                best = i;
+            }
+
+            int3 coord = _pendingFeatureRegions[best];
+            _pendingFeatureRegions.RemoveAt(best);
+            return coord;
+        }
+
+        private void CompleteFeatureBuild()
+        {
+            int3 coord = _featureBuild.RegionCoord;
+            FeatureGenerationReport report = _featureBuild.Report;
+            _featureBuild = null;
+
+            FeatureVoxelsBuilt += report.VoxelsWritten;
+            FeatureInstancesBuilt += report.InstancesRasterised;
+
+            if (report.BudgetExceeded)
+                Debug.LogWarning($"Feature budget exceeded in region {coord}; " +
+                                 "content was refused rather than truncated.");
+
+            // The region's pointer grid is only final now. Anything meshed while its features
+            // were still arriving described a half-built region.
+            _changes.PublishRegion(coord, VoxelChangeKind.All);
+            CaptureFarField(coord);
+        }
+
+        /// <summary>
+        /// Drops queued feature work for a region that is no longer resident. The mutation path
+        /// makes a region resident on its first authored voxel, so building into an evicted
+        /// coordinate would silently resurrect it outside the residency radius.
+        /// </summary>
+        private void CancelFeatureWork(int3 coord)
+        {
+            _pendingFeatureRegions.Remove(coord);
+            if (_featureBuild != null && _featureBuild.RegionCoord.Equals(coord))
+                _featureBuild = null;
         }
 
         /// <summary>Releases the in-flight generation state without publishing it.</summary>

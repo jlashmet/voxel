@@ -42,76 +42,63 @@ namespace VoxelEngine.Structures.Runtime
             IRegionReadSource reads,
             IRegionMutationStore mutations)
         {
-            var report = new FeatureGenerationReport();
+            var build = new FeatureRegionBuild(regionCoord);
+            while (!build.Step(in catalogue, seed, reads, mutations, int.MaxValue)) { }
+            return build.Report;
+        }
 
-            if (!catalogue.IsCreated) return report;
+        /// <summary>
+        /// Rasterises one placement into the region. Shared by the whole-region entry point and
+        /// the resumable build so a sliced region cannot diverge from an unsliced one.
+        /// </summary>
+        internal static void RasteriseInstance(
+            in FeatureCatalogue catalogue,
+            uint seed,
+            int definitionId,
+            in FeatureDefinition definition,
+            in ExplicitPlacement placement,
+            int3 regionMin,
+            int3 regionMax,
+            IRegionReadSource reads,
+            IRegionMutationStore mutations,
+            NativeList<Primitive> primitives,
+            NativeList<ResolvedAnchor> anchors,
+            ref FeatureGenerationReport report)
+        {
+            bool markHardSurface = definition.Kind == FeatureKind.Structure
+                                || definition.Kind == FeatureKind.Infrastructure;
 
-            int regionEdge = VoxelGrid.RegionVoxelEdge;
-            int3 regionMin = regionCoord * regionEdge;
-            int3 regionMax = regionMin + regionEdge;
+            primitives.Clear();
+            anchors.Clear();
 
-            var primitives = new NativeList<Primitive>(64, Allocator.Temp);
-            var anchors = new NativeList<ResolvedAnchor>(8, Allocator.Temp);
+            var parameters = ResolveParameters(in catalogue, in definition, in placement,
+                                               definitionId, placement.Position, seed);
 
-            for (var ruleIndex = 0; ruleIndex < catalogue.Rules.Length; ruleIndex++)
+            ulong instanceSeed = InstanceSeed(seed, definitionId, placement.Position);
+
+            var evaluation = ShapeProgram.Evaluate(
+                in catalogue, definitionId, in parameters,
+                placement.Position, placement.Orientation,
+                seed, instanceSeed, primitives, anchors);
+
+            report.LastEvaluationResult = evaluation;
+
+            if (evaluation != EvaluationResult.Ok)
             {
-                var rule = catalogue.Rules[ruleIndex];
-
-                if ((uint)rule.DefinitionId >= (uint)catalogue.DefinitionCount) continue;
-
-                var definition = catalogue.Definitions[rule.DefinitionId];
-                bool markHardSurface = definition.Kind == FeatureKind.Structure
-                                    || definition.Kind == FeatureKind.Infrastructure;
-
-                for (var e = 0; e < rule.ExplicitCount; e++)
-                {
-                    int index = rule.ExplicitOffset + e;
-                    if ((uint)index >= (uint)catalogue.ExplicitPlacements.Length) continue;
-
-                    var placement = catalogue.ExplicitPlacements[index];
-                    report.InstancesConsidered++;
-
-                    if (!FootprintIntersects(placement.Position, definition.Footprint, regionMin, regionMax))
-                        continue;
-
-                    primitives.Clear();
-                    anchors.Clear();
-
-                    var parameters = ResolveParameters(in catalogue, in definition, in placement,
-                                                       rule.DefinitionId, placement.Position, seed);
-
-                    ulong instanceSeed = InstanceSeed(seed, rule.DefinitionId, placement.Position);
-
-                    var evaluation = ShapeProgram.Evaluate(
-                        in catalogue, rule.DefinitionId, in parameters,
-                        placement.Position, placement.Orientation,
-                        seed, instanceSeed, primitives, anchors);
-
-                    report.LastEvaluationResult = evaluation;
-
-                    if (evaluation != EvaluationResult.Ok)
-                    {
-                        report.BudgetExceeded |= evaluation == EvaluationResult.PrimitiveLimitExceeded;
-                        continue;
-                    }
-
-                    report.PrimitivesEmitted += primitives.Length;
-
-                    var raster = PrimitiveRasteriser.Rasterise(
-                        primitives.AsArray(), regionMin, regionMax,
-                        reads, mutations, markHardSurface);
-
-                    report.VoxelsWritten += raster.VoxelsWritten;
-                    report.BudgetExceeded |= raster.BudgetExceeded;
-
-                    if (raster.PrimitivesRasterised > 0) report.InstancesRasterised++;
-                }
+                report.BudgetExceeded |= evaluation == EvaluationResult.PrimitiveLimitExceeded;
+                return;
             }
 
-            primitives.Dispose();
-            anchors.Dispose();
+            report.PrimitivesEmitted += primitives.Length;
 
-            return report;
+            var raster = PrimitiveRasteriser.Rasterise(
+                primitives.AsArray(), regionMin, regionMax,
+                reads, mutations, markHardSurface);
+
+            report.VoxelsWritten += raster.VoxelsWritten;
+            report.BudgetExceeded |= raster.BudgetExceeded;
+
+            if (raster.PrimitivesRasterised > 0) report.InstancesRasterised++;
         }
 
         /// <summary>

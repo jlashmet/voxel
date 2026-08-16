@@ -474,6 +474,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             foreach (int3 regionCoord in regions)
             {
                 if (!storage.TryAcquireRegion(regionCoord, out RegionReadView region)) continue;
+                // A resident-but-uninitialised region would fail job scheduling and abort the
+                // whole render pass; skipping costs one frame of discovery for that region.
+                if (!region.IsCreated) continue;
                 int3 origin = regionCoord * edge;
                 new SurfaceBrickDiscoveryJob
                 {

@@ -47,7 +47,7 @@ namespace VoxelEngine.Storage.Api
         public int3 RegionCoord { get; }
         public ulong Version { get; }
         public bool IsCreated => _encodedBlockRefs.IsCreated;
-        public bool HasMips => _occupancyMips.IsCreated && _mipLevelCount > 0;
+        public bool HasMips => _mipLevelCount > 0;
         public int MipLevelCount => _mipLevelCount;
         public int BlockEdgeCount => VoxelReadGrid.BlocksPerRegionEdge;
 
@@ -68,9 +68,15 @@ namespace VoxelEngine.Storage.Api
             Version = version;
             _encodedBlockRefs = encodedBlockRefs;
             _hardSurfaceWords = hardSurfaceWords;
-            _occupancyMips = occupancyMips;
-            _materialMips = materialMips;
-            _mipLevelCount = mipLevelCount;
+            // The mip pyramid is optional storage, but a view is a job struct: Unity's job safety
+            // system rejects a schedule when any NativeArray field is unconstructed, even one no
+            // code path reads. An absent pyramid therefore aliases containers this view already
+            // holds and always has, and MipLevelCount drops to zero so nothing can read them as
+            // mip data — every pyramid read is gated on HasMips or MipLevelCount below.
+            bool hasMips = occupancyMips.IsCreated && materialMips.IsCreated && mipLevelCount > 0;
+            _occupancyMips = hasMips ? occupancyMips : hardSurfaceWords;
+            _materialMips = hasMips ? materialMips : mixedVoxels;
+            _mipLevelCount = hasMips ? mipLevelCount : 0;
             _mixedVoxels = mixedVoxels;
             _mixedSurfaceSemantics = mixedSurfaceSemantics;
             _mixedBoundarySamples = mixedBoundarySamples;
