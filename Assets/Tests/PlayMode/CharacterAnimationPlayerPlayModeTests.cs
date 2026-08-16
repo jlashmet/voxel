@@ -84,5 +84,42 @@ namespace VoxelEngine.Tests.PlayMode
             Object.Destroy(secondClip);
             yield return null;
         }
+
+        [UnityTest]
+        public IEnumerator VisualResolverSwap_RetargetsAnimatorAndStopsOldGraph()
+        {
+            var host = new GameObject("character");
+            var fallback = new GameObject("fallback");
+            var preferred = new GameObject("preferred");
+            fallback.AddComponent<Animator>();
+            preferred.AddComponent<Animator>();
+            var clip = new AnimationClip { name = "locomotion" };
+
+            var resolver = host.AddComponent<CharacterVisualResolver>();
+            var player = host.AddComponent<CharacterAnimationPlayer>();
+
+            resolver.SetFallbackVisual(fallback);
+            Animator fallbackAnimator = resolver.CurrentVisual.GetComponent<Animator>();
+
+            Assert.That(player.VisualResolver, Is.SameAs(resolver));
+            Assert.That(player.Animator, Is.SameAs(fallbackAnimator));
+            Assert.That(player.Play(clip), Is.True);
+            Assert.That(player.IsPlaying, Is.True);
+
+            resolver.SetPreferredVisual(preferred);
+            Animator preferredAnimator = resolver.CurrentVisual.GetComponent<Animator>();
+
+            Assert.That(preferredAnimator, Is.Not.SameAs(fallbackAnimator));
+            Assert.That(player.Animator, Is.SameAs(preferredAnimator));
+            Assert.That(player.CurrentClip, Is.Null);
+            Assert.That(player.IsPlaying, Is.False);
+            Assert.That(player.Play(clip), Is.True);
+
+            Object.Destroy(host);
+            Object.Destroy(fallback);
+            Object.Destroy(preferred);
+            Object.Destroy(clip);
+            yield return null;
+        }
     }
 }
