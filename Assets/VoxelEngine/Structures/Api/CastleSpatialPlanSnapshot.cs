@@ -67,15 +67,6 @@ namespace VoxelEngine.Structures.Api
                     $"Cannot snapshot invalid castle spatial plan: {spatialIssue}.");
             }
 
-            if (!CastleTowerPlacementBuildReadiness.TryValidate(
-                    in dimensions,
-                    clone,
-                    out CastleTowerPlacementBuildReadinessIssue towerIssue))
-            {
-                throw new InvalidOperationException(
-                    $"Cannot snapshot castle spatial plan with incomplete tower recipes: {towerIssue}.");
-            }
-
             if (!CastleSpatialBuildReadiness.TryValidate(
                     in dimensions, clone, out CastleSpatialBuildReadinessIssue readinessIssue))
             {
