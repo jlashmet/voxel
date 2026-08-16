@@ -1364,6 +1364,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 BrickCacheOrigin = chunkBrickOrigin - BrickCachePadding,
                 BrickCacheEdge = BrickCacheEdge,
                 CellsPerAxis = CellsPerAxis,
+                SourceStep = SourceStep,
                 FaceMasks = _facetedMasks,
             };
             _build.FacetedScheduledSeconds = Time.realtimeSinceStartupAsDouble;
@@ -1381,6 +1382,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 Indices = _facetedIndices,
                 ChunkOrigin = _build.Coordinate * VoxelsPerAxis,
                 CellsPerAxis = CellsPerAxis,
+                SourceStep = SourceStep,
                 VoxelSize = voxelSize,
             };
             _facetedMergeJobHandle = job.Schedule(_facetedMaskJobHandle);
@@ -2774,7 +2776,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 local[axis] = layer;
                 local[axisA] = a;
                 local[axisB] = b;
-                int3 voxel = chunkOrigin + local;
+                int3 voxel = chunkOrigin + local * SourceStep;
                 ReadSnapshotCell(voxel, out byte material, out uint surface,
                                  out byte boundary);
                 SurfaceStyleReadDefinition style = _buildSurfaceCatalogue.Get((ushort)surface);
@@ -2795,7 +2797,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 }
 
                 int3 neighbour = voxel;
-                neighbour[axis] += sign;
+                neighbour[axis] += sign * SourceStep;
                 ReadSnapshotCell(neighbour, out byte neighbourMaterial, out _,
                                  out byte neighbourBoundary);
                 var neighbourAuthoredBoundary =
@@ -2844,16 +2846,16 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                                      int width, int height, uint attributes, float voxelSize)
         {
             float3 p0 = chunkOrigin;
-            p0[axis] += layer + (sign > 0 ? 1 : 0);
-            p0[axisA] += a;
-            p0[axisB] += b;
+            p0[axis] += (layer + (sign > 0 ? 1 : 0)) * SourceStep;
+            p0[axisA] += a * SourceStep;
+            p0[axisB] += b * SourceStep;
             float3 p1 = p0;
             float3 p2 = p0;
             float3 p3 = p0;
-            p1[axisA] += width;
-            p2[axisA] += width;
-            p2[axisB] += height;
-            p3[axisB] += height;
+            p1[axisA] += width * SourceStep;
+            p2[axisA] += width * SourceStep;
+            p2[axisB] += height * SourceStep;
+            p3[axisB] += height * SourceStep;
             p0 *= voxelSize;
             p1 *= voxelSize;
             p2 *= voxelSize;

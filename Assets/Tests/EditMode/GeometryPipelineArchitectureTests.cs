@@ -217,6 +217,28 @@ namespace VoxelEngine.Tests.EditMode
 
 
         [Test]
+        public void CoarseFacetedGeometryUsesRingSourceStep()
+        {
+            string cache = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"));
+            string mask = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "Transvoxel", "SnapshotFacetedMaskJob.cs"));
+            string merge = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "Transvoxel", "FacetedMergeJob.cs"));
+
+            StringAssert.Contains("SourceStep = SourceStep", cache);
+            StringAssert.Contains("local * SourceStep", cache);
+            StringAssert.Contains("sign * SourceStep", cache);
+            StringAssert.Contains("public int SourceStep;", mask);
+            StringAssert.Contains("ChunkOriginVoxel + local * step", mask);
+            StringAssert.Contains("side == 0 ? -step : step", mask);
+            StringAssert.Contains("public int SourceStep;", merge);
+            StringAssert.Contains("width * step", merge);
+            StringAssert.Contains("height * step", merge);
+        }
+
+
+        [Test]
         public void CompletedJobResultsAreMergedUnderDeadline()
         {
             string cache = ReadRenderingSource(
