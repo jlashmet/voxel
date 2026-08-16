@@ -132,6 +132,12 @@ namespace VoxelEngine.Structures.Runtime
         /// <summary>Applies a presentation coating while preserving base material and style.</summary>
         public void Coat(int x, int y, int z, byte coating)
         {
+            if (VoxelsWritten >= WriteBudget)
+            {
+                BudgetExceeded = true;
+                return;
+            }
+
             int3 voxel = new(x, y, z);
             VoxelCell cell = ReadCell(voxel);
             if (!cell.IsSolid || cell.Surface.CoatingId == coating) return;
