@@ -232,6 +232,10 @@ namespace VoxelEngine.Structures.Api
                 < WellClearance * WellClearance)
                 return false;
 
+            CastleAccessRoute access = CastleAccessRoute.Create(in plan, spatial);
+            if (!access.ClearsBuilding(in candidate))
+                return false;
+
             for (int i = 0; i < placed.Count; i++)
             {
                 CastleCourtyardBuildingSpec other = placed[i];
