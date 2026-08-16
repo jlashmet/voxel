@@ -52,7 +52,7 @@ cp "$RIGHT" "$OUT/reference/raw/right.jpg"
 cp "$FACE" "$OUT/reference/madeline_face_front.png"
 
 printf '%s\n' '[2/9] Remove the temporary modeling base layer from geometry inputs'
-python3 "$SCRIPT_DIR/prepare_body_texture_views.py" \
+"$HUNYUAN_PY" "$SCRIPT_DIR/prepare_body_texture_views.py" \
   --input-dir "$OUT/reference/raw" \
   --output-dir "$OUT/reference/body-only" \
   --report "$OUT/body-only-reference-report.json"
