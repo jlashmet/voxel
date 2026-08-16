@@ -5,11 +5,9 @@ using VoxelEngine.Structures.Api;
 namespace VoxelEngine.Structures.Runtime
 {
     /// <summary>
-    /// Incrementally realizes the occupied keep from a precomputed castle plan.
-    ///
-    /// The migrated substages deliberately preserve the legacy order and geometry. The final
-    /// roof/annex substage remains on the migration fallback until its larger helper graph is
-    /// extracted as one unit.
+    /// Thin six-substage keep coordinator. Compatibility builds preserve the historical stage order;
+    /// spatial builds bypass substages that already have explicit planner-owned realization data.
+    /// Geometry is delegated to focused keep components rather than authored here.
     /// </summary>
     internal static class CastleKeepRealizer
     {
@@ -43,7 +41,10 @@ namespace VoxelEngine.Structures.Runtime
             int baseY = plan.Centre.y + plan.PlateauHeight;
             int hx = plan.KeepHalfX;
             int hz = plan.KeepHalfZ;
-            var min = new int3(plan.Centre.x - hx, baseY, plan.Centre.z - hz + 60);
+            var min = new int3(
+                plan.Centre.x - hx,
+                baseY,
+                plan.Centre.z - hz + CastleLayout.LegacyKeepCentreZOffset);
             var size = new int3(hx * 2, plan.KeepHeight, hz * 2);
             int floors = plan.Floors;
 
