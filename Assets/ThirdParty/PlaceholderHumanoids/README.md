@@ -31,6 +31,27 @@ Those generated outputs and their `.meta` files are intentionally ignored by Git
 
 The generated local prefabs use the normal Character Factory shape: the imported skinned model is nested under a stable character root, an `Equipment` child is created, and `CharacterEquipmentController` is wired to the imported skeleton plus the shared generated part catalogue.
 
+## Runtime fallback
+
+`VoxelEngine.Characters.Runtime.CharacterVisualResolver` is the replacement seam for gameplay-facing characters. It has no dependency on Rocketbox or this third-party folder: it only resolves a preferred visual prefab and a fallback visual prefab.
+
+For a temporary character or NPC:
+
+1. Add `CharacterVisualResolver` to the character root.
+2. Assign `Models/Male_Adult_01.fbx` or `Models/Female_Adult_01.fbx` to **Fallback Visual Prefab**. These committed FBXs have stable GUIDs and are safe for scene/prefab references.
+3. Optionally assign a child transform to **Visual Root**; otherwise the component uses its own transform.
+4. Leave **Preferred Visual Prefab** empty until a generated model is available.
+
+At runtime, promote a generated model with:
+
+```csharp
+resolver.SetPreferredVisual(generatedCharacterPrefab);
+```
+
+The generated/preferred prefab immediately replaces the owned fallback instance. Setting the preferred visual back to `null` resolves the fallback again. The resolver only destroys/replaces the visual instance it owns, preserves unrelated character children, and normalizes the spawned visual to local position zero, identity rotation, and unit scale.
+
+Choosing male versus female remains an authoring/spawn-data decision outside the resolver; the runtime component deliberately has no placeholder-specific gender enum or asset path.
+
 ## Animation starter set
 
 | Clip | Intended prototype use | Root motion |
