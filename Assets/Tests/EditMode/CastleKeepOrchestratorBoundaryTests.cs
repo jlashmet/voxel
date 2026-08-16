@@ -50,6 +50,9 @@ namespace VoxelEngine.Tests.EditMode
             string exterior = File.ReadAllText(Path.Combine(
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
                 "CastlePlannedKeepExteriorRealizer.cs"));
+            string annex = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
+                "CastleKeepAnnexRealizer.cs"));
 
             StringAssert.Contains("CastleSpatialProjection.KeepMinimum(", keep,
                 "Planned shell/floor bounds must come from the shared projection.");
@@ -63,6 +66,10 @@ namespace VoxelEngine.Tests.EditMode
 
             StringAssert.Contains("CastleSpatialProjection.KeepMinimum(", exterior,
                 "Planned exterior bounds must use the same projection as shell/floors.");
+            StringAssert.Contains("CastleSpatialProjection.KeepMinimum(", annex,
+                "Shared annex geometry must use the projected keep bounds on both compatibility and spatial paths.");
+            StringAssert.DoesNotContain("plan.Centre.z - hz + 60", annex,
+                "Annex geometry must not reconstruct the legacy keep anchor locally.");
             StringAssert.DoesNotContain("CastleLayout.LegacyKeepCentreZOffset", keep,
                 "The temporary compatibility anchor belongs in CastleSpatialProjection, not planned Runtime code.");
             StringAssert.DoesNotContain("CastleLayout.LegacyKeepCentreZOffset", exterior);
