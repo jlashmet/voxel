@@ -16,6 +16,7 @@ on:
       - 'Assets/Scenes/Showcase/VegetationLifeRenderingShowcases.cs'
       - 'Assets/Scenes/Showcase/VoxelEngine.Showcase.asmdef'
       - 'Assets/VoxelEngine/CI/PlayMode/VegetationLifeRenderingTests.cs'
+      - 'Assets/VoxelEngine/CI/PlayMode/AmbientLifeMotionTests.cs'
       - 'Assets/VoxelEngine/CI/PlayMode/VoxelEngine.CI.PlayMode.asmdef'
       - '.github/workflows/vegetation-life-visual.yml'
   pull_request:
@@ -32,11 +33,12 @@ on:
       - 'Assets/Scenes/Showcase/VegetationLifeRenderingShowcases.cs'
       - 'Assets/Scenes/Showcase/VoxelEngine.Showcase.asmdef'
       - 'Assets/VoxelEngine/CI/PlayMode/VegetationLifeRenderingTests.cs'
+      - 'Assets/VoxelEngine/CI/PlayMode/AmbientLifeMotionTests.cs'
       - 'Assets/VoxelEngine/CI/PlayMode/VoxelEngine.CI.PlayMode.asmdef'
       - '.github/workflows/vegetation-life-visual.yml'
 
 concurrency:
-  group: vegetation-life-visual-${{ github.event.pull_request.number || github.ref }}
+  group: vegetation-life-visual-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
@@ -89,6 +91,26 @@ jobs:
             -logFile "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/ambient-contract.log"
           test -s "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/ambient-contract-results.xml"
 
+      - name: Run ambient movement-form contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          "${{ steps.unity.outputs.path }}" \
+            -batchmode -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform PlayMode \
+            -testFilter "VoxelEngine.CI.AmbientLifeMotionTests.AllMovementForms_AreDeterministicBoundedAndActuallyMove" \
+            -testResults "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/ambient-motion-form-results.xml" \
+            -logFile "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/ambient-motion-form.log"
+
+      - name: Run ambient reconstructed-agent movement contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          "${{ steps.unity.outputs.path }}" \
+            -batchmode -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform PlayMode \
+            -testFilter "VoxelEngine.CI.AmbientLifeMotionTests.Showcase_ReconstructedAgentsMoveOverTime_WithoutChangingAuthority" \
+            -testResults "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/ambient-motion-contract-results.xml" \
+            -logFile "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/ambient-motion-contract.log"
+
       - name: Run vegetation image-space fidelity test
         shell: bash
         run: |
@@ -121,6 +143,18 @@ jobs:
             -testResults "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/ambient-silhouette-results.xml" \
             -logFile "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/ambient-silhouette.log"
           test -s "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/ambient_life_silhouette.png"
+
+      - name: Run ambient-life rendered motion test
+        shell: bash
+        run: |
+          set -euo pipefail
+          "${{ steps.unity.outputs.path }}" \
+            -batchmode -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform PlayMode \
+            -testFilter "VoxelEngine.CI.AmbientLifeMotionTests.Showcase_RenderedFrameChangesSubstantiallyAcrossTime" \
+            -testResults "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/ambient-motion-visual-results.xml" \
+            -logFile "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/ambient-motion-visual.log"
+          test -s "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/ambient_life_motion_t0.png"
+          test -s "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/ambient_life_motion_t175.png"
 
       - name: Upload rendering validation artefacts
         if: always()

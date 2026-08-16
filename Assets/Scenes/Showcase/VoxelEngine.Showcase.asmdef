@@ -6,7 +6,6 @@
     "VoxelEngine.Composition",
     "VoxelEngine.Terrain.Api",
     "VoxelEngine.Rendering.Api",
-    "VoxelEngine.Rendering.Runtime",
     "VoxelEngine.Structures.Api",
     "VoxelEngine.Tiering.Api",
     "MountingForce.WorldGen.Voxel",
