@@ -187,5 +187,114 @@ namespace VoxelEngine.Tests.PlayMode
             Object.Destroy(preferred);
             yield return null;
         }
+
+        [UnityTest]
+        public IEnumerator AnimationPolicy_SelectsConfiguredLocomotionClips()
+        {
+            var host = new GameObject("character");
+            host.AddComponent<Animator>();
+            var idle = new AnimationClip { name = "Idle" };
+            var walk = new AnimationClip { name = "Walk" };
+            var run = new AnimationClip { name = "Run" };
+            var crouch = new AnimationClip { name = "CrouchIdle" };
+
+            var player = host.AddComponent<CharacterAnimationPlayer>();
+            var policy = host.AddComponent<CharacterAnimationPolicy>();
+            policy.ConfigureLocomotion(idle, walk, run, crouch);
+
+            Assert.That(player.CurrentClip, Is.SameAs(idle));
+            Assert.That(policy.SetLocomotion(CharacterLocomotionState.Walk), Is.True);
+            Assert.That(player.CurrentClip, Is.SameAs(walk));
+            Assert.That(policy.SetLocomotion(CharacterLocomotionState.Run), Is.True);
+            Assert.That(player.CurrentClip, Is.SameAs(run));
+            Assert.That(policy.SetLocomotion(CharacterLocomotionState.CrouchIdle), Is.True);
+            Assert.That(player.CurrentClip, Is.SameAs(crouch));
+
+            Object.Destroy(host);
+            Object.Destroy(idle);
+            Object.Destroy(walk);
+            Object.Destroy(run);
+            Object.Destroy(crouch);
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator AnimationPolicy_OneShotReturnsToLatestLocomotion()
+        {
+            var host = new GameObject("character");
+            host.AddComponent<Animator>();
+            var idle = new AnimationClip { name = "Idle" };
+            var walk = new AnimationClip { name = "Walk" };
+            var run = new AnimationClip { name = "Run" };
+            var oneShot = new AnimationClip { name = "Wave" };
+
+            var player = host.AddComponent<CharacterAnimationPlayer>();
+            var policy = host.AddComponent<CharacterAnimationPolicy>();
+            policy.ConfigureLocomotion(idle, walk, run);
+            Assert.That(policy.SetLocomotion(CharacterLocomotionState.Walk), Is.True);
+            Assert.That(policy.PlayOneShot(oneShot), Is.True);
+            Assert.That(player.CurrentClip, Is.SameAs(oneShot));
+
+            Assert.That(policy.SetLocomotion(CharacterLocomotionState.Run), Is.True);
+            Assert.That(player.CurrentClip, Is.SameAs(oneShot),
+                "Changing locomotion interrupted the active one-shot");
+
+            yield return null;
+
+            Assert.That(policy.ActiveOneShot, Is.Null);
+            Assert.That(policy.LocomotionState, Is.EqualTo(CharacterLocomotionState.Run));
+            Assert.That(player.CurrentClip, Is.SameAs(run));
+
+            Object.Destroy(host);
+            Object.Destroy(idle);
+            Object.Destroy(walk);
+            Object.Destroy(run);
+            Object.Destroy(oneShot);
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator AnimationPolicy_OneShotSurvivesVisualSwapThenReturnsToLocomotion()
+        {
+            var host = new GameObject("character");
+            var fallback = new GameObject("fallback");
+            var preferred = new GameObject("preferred");
+            fallback.AddComponent<Animator>();
+            preferred.AddComponent<Animator>();
+            var idle = new AnimationClip { name = "Idle" };
+            var walk = new AnimationClip { name = "Walk" };
+            var run = new AnimationClip { name = "Run" };
+            var oneShot = new AnimationClip { name = "Shrug" };
+
+            var resolver = host.AddComponent<CharacterVisualResolver>();
+            var player = host.AddComponent<CharacterAnimationPlayer>();
+            var policy = host.AddComponent<CharacterAnimationPolicy>();
+            resolver.SetFallbackVisual(fallback);
+            policy.ConfigureLocomotion(idle, walk, run);
+            Assert.That(policy.SetLocomotion(CharacterLocomotionState.Walk), Is.True);
+            Assert.That(policy.PlayOneShot(oneShot), Is.True);
+
+            resolver.SetPreferredVisual(preferred);
+            Animator replacementAnimator = resolver.CurrentVisual.GetComponent<Animator>();
+
+            Assert.That(player.Animator, Is.SameAs(replacementAnimator));
+            Assert.That(policy.ActiveOneShot, Is.SameAs(oneShot));
+            Assert.That(player.CurrentClip, Is.SameAs(oneShot));
+            Assert.That(player.IsPlaying, Is.True);
+
+            yield return null;
+
+            Assert.That(policy.ActiveOneShot, Is.Null);
+            Assert.That(player.CurrentClip, Is.SameAs(walk));
+
+            Object.Destroy(host);
+            Object.Destroy(fallback);
+            Object.Destroy(preferred);
+            Object.Destroy(idle);
+            Object.Destroy(walk);
+            Object.Destroy(run);
+            Object.Destroy(oneShot);
+            yield return null;
+        }
     }
 }
