@@ -18,85 +18,36 @@ jobs:
         with:
           ref: refactor/async-geometry-pipeline
           fetch-depth: 0
-      - name: Stop initial journal attachment from invalidating current state
+      - name: Stop initial journal attachment invalidation sweep
         shell: bash
         run: |
           python3 - <<'PY'
           from pathlib import Path
-
           scheduler = Path('Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs')
           s = scheduler.read_text()
-          old = '''            // A newly attached journal describes changes relative to the current Storage state.
-            // Replaying retained history from version zero would repeatedly invalidate geometry
-            // that has never been rendered. Baseline at the latest committed version and use
-            // the existing bounded resident-region recovery to reconcile current state once.
-            _changeCursor = journal?.CurrentVersion ?? 0;
-            _changeScratch.Clear();
-            _changeRecordIndex = 0;
-            _changeFeedHasMore = false;
-            _recoveringChangeOverflow = journal != null;
-'''
-          new = '''            // A newly attached journal describes changes relative to the current Storage state.
-            // This scheduler owns no pre-attachment geometry, so there is nothing stale to
-            // reconcile by replaying or rescanning current resident regions. Baseline at the
-            // latest committed version. The bounded resident-region recovery remains reserved
-            // for a real ReadSince overflow after attachment.
-            _changeCursor = journal?.CurrentVersion ?? 0;
-            _changeScratch.Clear();
-            _changeRecordIndex = 0;
-            _changeFeedHasMore = false;
-            _recoveringChangeOverflow = false;
-'''
+          old = '            _recoveringChangeOverflow = journal != null;'
+          new = '            _recoveringChangeOverflow = false;'
           if s.count(old) != 1:
-              raise SystemExit(f'scheduler reset anchor count={s.count(old)}')
+              raise SystemExit(f'scheduler recovery anchor count={s.count(old)}')
           scheduler.write_text(s.replace(old, new, 1))
 
           tests = Path('Assets/Tests/EditMode/GeometryPipelineArchitectureTests.cs')
           t = tests.read_text()
-          old = '''        public void ChangeJournalAttachmentBaselinesCurrentVersionAndResyncsCurrentState()
-        {
-            string scheduler = ReadRenderingSource(
-                Path.Combine("SurfaceExtraction", "VoxelSurfaceScheduler.cs"));
-            int reset = scheduler.IndexOf("private void ResetChangeFeedState",
-                                          StringComparison.Ordinal);
-            int recovery = scheduler.IndexOf("private void StepChangeOverflowRecovery", reset,
-                                             StringComparison.Ordinal);
-            Assert.GreaterOrEqual(reset, 0);
-            Assert.Greater(recovery, reset);
-            string attach = scheduler.Substring(reset, recovery - reset);
-            StringAssert.Contains("_changeCursor = journal?.CurrentVersion ?? 0;", attach);
-            StringAssert.Contains("_recoveringChangeOverflow = journal != null;", attach);
-            StringAssert.DoesNotContain("_changeCursor = 0;", attach,
-                "A newly attached journal must not replay retained pre-render history.");
-        }
-'''
-          new = '''        public void ChangeJournalAttachmentBaselinesCurrentVersionWithoutInvalidatingCurrentState()
-        {
-            string scheduler = ReadRenderingSource(
-                Path.Combine("SurfaceExtraction", "VoxelSurfaceScheduler.cs"));
-            int reset = scheduler.IndexOf("private void ResetChangeFeedState",
-                                          StringComparison.Ordinal);
-            int recovery = scheduler.IndexOf("private void StepChangeOverflowRecovery", reset,
-                                             StringComparison.Ordinal);
-            Assert.GreaterOrEqual(reset, 0);
-            Assert.Greater(recovery, reset);
-            string attach = scheduler.Substring(reset, recovery - reset);
-            StringAssert.Contains("_changeCursor = journal?.CurrentVersion ?? 0;", attach);
-            StringAssert.Contains("_recoveringChangeOverflow = false;", attach);
-            StringAssert.DoesNotContain("_recoveringChangeOverflow = journal != null;", attach,
-                "A new scheduler has no pre-attachment geometry that needs a resident-region rescan.");
-            StringAssert.DoesNotContain("_changeCursor = 0;", attach,
-                "A newly attached journal must not replay retained pre-render history.");
-        }
-'''
-          if t.count(old) != 1:
-              raise SystemExit(f'journal architecture test anchor count={t.count(old)}')
-          tests.write_text(t.replace(old, new, 1))
+          old_name = 'public void ChangeJournalAttachmentBaselinesCurrentVersionAndResyncsCurrentState()'
+          new_name = 'public void ChangeJournalAttachmentBaselinesCurrentVersionWithoutInvalidatingCurrentState()'
+          if t.count(old_name) != 1:
+              raise SystemExit(f'test name anchor count={t.count(old_name)}')
+          t = t.replace(old_name, new_name, 1)
+          old_assert = 'StringAssert.Contains("_recoveringChangeOverflow = journal != null;", attach);'
+          new_assert = 'StringAssert.Contains("_recoveringChangeOverflow = false;", attach);'
+          if t.count(old_assert) != 1:
+              raise SystemExit(f'test assertion anchor count={t.count(old_assert)}')
+          tests.write_text(t.replace(old_assert, new_assert, 1))
           PY
       - name: Static guards
         run: |
-          grep -q '_changeCursor = journal?.CurrentVersion ?? 0;' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs
           grep -q '_recoveringChangeOverflow = false;' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs
+          ! grep -q '_recoveringChangeOverflow = journal != null;' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs
           grep -q 'ChangeJournalAttachmentBaselinesCurrentVersionWithoutInvalidatingCurrentState' Assets/Tests/EditMode/GeometryPipelineArchitectureTests.cs
       - name: Commit fix
         run: |
