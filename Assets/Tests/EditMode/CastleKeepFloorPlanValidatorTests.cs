@@ -54,5 +54,23 @@ namespace VoxelEngine.Tests.EditMode
                     in plan, null, out CastleKeepFloorPlanIssue issue));
             Assert.AreEqual(CastleKeepFloorPlanIssue.MissingFloors, issue);
         }
+
+        [Test]
+        public void ValidatorRejectsMissingPlannedRoomAccents()
+        {
+            CastlePlan plan = CastlePlanner.Create(int3.zero, 63u);
+            CastleKeepFloorPlan[] planned = CastleKeepRoomPlanner.Create(in plan);
+            CastleKeepFloorPlan first = planned[0];
+            planned[0] = new CastleKeepFloorPlan(
+                first.FloorIndex,
+                first.Purpose,
+                first.HasPartition,
+                first.SemanticSeed);
+
+            Assert.IsFalse(
+                CastleKeepFloorPlanValidator.TryValidate(
+                    in plan, planned, out CastleKeepFloorPlanIssue issue));
+            Assert.AreEqual(CastleKeepFloorPlanIssue.MissingAccentPlan, issue);
+        }
     }
 }
