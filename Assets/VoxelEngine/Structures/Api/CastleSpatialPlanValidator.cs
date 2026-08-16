@@ -33,9 +33,10 @@ namespace VoxelEngine.Structures.Api
         InvalidKeepResolution,
         KeepOutsideOuterWard,
         KeepOutsideInnerWard,
+        RearKeepPlacementMismatch,
+        WallIntegratedKeepNotAgainstWard,
         InvalidWellResolution,
         InvalidWellPlacement,
-        WallIntegratedKeepNotAgainstWard,
     }
 
     /// <summary>
@@ -248,6 +249,28 @@ namespace VoxelEngine.Structures.Api
                 return false;
             }
 
+            // Validate the semantic keep choice before courtyard dependencies such as the well.
+            // This keeps diagnostics rooted in the earliest planning invariant that drifted.
+            if (!spatial.KeepRequiresTerrainResolution)
+            {
+                int2[] keepWard = expectsInner ? inner : outer;
+                if (spatial.Topology.KeepPlacement == CastleKeepPlacement.Rear &&
+                    !CastleKeepPlacementGeometry.IsRearKeepCentreAlong(
+                        in dimensions, spatial.KeepCentre, -primaryGate.Outward, keepWard))
+                {
+                    issue = CastleSpatialPlanIssue.RearKeepPlacementMismatch;
+                    return false;
+                }
+
+                if (spatial.Topology.KeepPlacement == CastleKeepPlacement.WallIntegrated &&
+                    !CastleKeepPlacementGeometry.IsFarthestKeepCentreAlong(
+                        in dimensions, spatial.KeepCentre, -primaryGate.Outward, keepWard))
+                {
+                    issue = CastleSpatialPlanIssue.WallIntegratedKeepNotAgainstWard;
+                    return false;
+                }
+            }
+
             if (spatial.KeepRequiresTerrainResolution)
             {
                 if (spatial.HasWell || !spatial.WellCentre.Equals(int2.zero))
@@ -267,18 +290,6 @@ namespace VoxelEngine.Structures.Api
                 if (!canPlaceWell || !spatial.HasWell || !spatial.WellCentre.Equals(expectedWell))
                 {
                     issue = CastleSpatialPlanIssue.InvalidWellPlacement;
-                    return false;
-                }
-            }
-
-            if (!spatial.KeepRequiresTerrainResolution &&
-                spatial.Topology.KeepPlacement == CastleKeepPlacement.WallIntegrated)
-            {
-                int2[] keepWard = expectsInner ? inner : outer;
-                if (!CastleKeepPlacementGeometry.IsFarthestKeepCentreAlong(
-                        in dimensions, spatial.KeepCentre, -primaryGate.Outward, keepWard))
-                {
-                    issue = CastleSpatialPlanIssue.WallIntegratedKeepNotAgainstWard;
                     return false;
                 }
             }
