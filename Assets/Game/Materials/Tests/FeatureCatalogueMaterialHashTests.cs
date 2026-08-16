@@ -1,7 +1,6 @@
 using Game.Materials.Api;
 using NUnit.Framework;
 using Unity.Collections;
-using Unity.Mathematics;
 using VoxelEngine.Structures.Api;
 
 namespace Game.Materials.Tests
@@ -25,15 +24,6 @@ namespace Game.Materials.Tests
 
             try
             {
-                catalogue.Definitions[0] = new FeatureDefinition
-                {
-                    Kind = FeatureKind.Structure,
-                    BasePlane = BasePlaneRule.LowestGround,
-                    Footprint = new int3(1, 1, 1),
-                    MaterialOffset = 0,
-                    MaterialCount = 1,
-                };
-
                 catalogue.Materials[0] = GameMaterialIds.Stone;
                 ulong stoneHash = FeatureCatalogueBuilder.ComputeHash(in catalogue);
                 ulong repeatedStoneHash = FeatureCatalogueBuilder.ComputeHash(in catalogue);
