@@ -39,11 +39,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Authoritative Metal checkpoint after the focused EditMode gate passed all 82 tests.
-          # Includes compile/test-assembly fixes, coarse faceted source-step correction,
-          # feature-preserving step-8 HLOD, COW profile-pin lifetime, toroidal/active slots,
-          # fixed draw staging, stale-build rejection, zero-allocation/P99/non-blocking gates,
-          # arena backpressure, and continuous camera/destruction validation on real Metal.
+          # Authoritative Metal checkpoint after EditMode passed all 82 focused tests.
+          # LOD fixtures now use URP's supported SingleCameraRequest/SubmitRenderRequest path
+          # instead of Camera.Render(), which Unity 6.5 explicitly rejects under URP.
+          # Geometry source remains unchanged from the compile-corrected foundation.
           deadline=$((SECONDS + 6000))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
