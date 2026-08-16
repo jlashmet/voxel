@@ -270,6 +270,23 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void SurfaceDiscoveryOutsideClipmapDoesNotCreateDirtyBuildWork()
+        {
+            using var cache = new CpuTransvoxelChunkCache(sourceStep: 4);
+            cache.SetClipmapWindow(int3.zero, radius: 1);
+
+            // A step-4 chunk spans 32 Storage blocks per axis. This block maps to chunk +10,
+            // well outside the [-1,+1] clipmap window. Discovery may observe it in the broader
+            // resident Storage stream, but rejected render residency must not leak into _dirty.
+            cache.InvalidateSurfaceBricks(new[] { new int3(10 * cache.BricksPerAxis, 0, 0) });
+
+            Assert.AreEqual(0, cache.KnownCount,
+                "Out-of-window discovery must not acquire render residency.");
+            Assert.AreEqual(0, cache.DirtyCount,
+                "Out-of-window discovery must not enqueue build work for an unowned chunk.");
+        }
+
+        [Test]
         public void SchedulerPrepareDiscoversSurfaceBricksWithoutMips()
         {
             // The reported failure was raised from VoxelSurfaceScheduler.Prepare inside render

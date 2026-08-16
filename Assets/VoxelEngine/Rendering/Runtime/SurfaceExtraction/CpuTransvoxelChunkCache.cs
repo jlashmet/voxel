@@ -872,8 +872,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 for (int x = minX; x <= maxX; x++)
                 {
                     int3 chunk = baseChunk + new int3(x, y, z);
-                    if (!OwnsShard(chunk)) continue;
-                    TrackKnown(chunk);
+                    if (!OwnsShard(chunk) || !TrackKnown(chunk)) continue;
                     Invalidate(chunk);
                 }
             }
@@ -3233,19 +3232,19 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             return math.cmax(delta) <= _clipmapRadius;
         }
 
-        private void TrackKnown(int3 chunk)
+        private bool TrackKnown(int3 chunk)
         {
             // Surface discovery/change feeds can cover a much larger resident Storage window than
             // this LOD ring draws. Render residency is admitted only inside the camera clipmap;
-            // otherwise _known grows with world streaming rather than a fixed view footprint.
-            if (!WithinClipmapWindow(chunk)) return;
-            if (!_known.Add(chunk)) return;
-            if (!_slotGrid.TryAcquire(chunk, out _))
-            {
-                _known.Remove(chunk);
-                return;
-            }
+            // otherwise _known and, critically, the build queue would grow with world streaming
+            // rather than the fixed view footprint.
+            if (!WithinClipmapWindow(chunk)) return false;
+            if (_known.Contains(chunk)) return true;
+            if (!_slotGrid.TryAcquire(chunk, out _)) return false;
+
+            _known.Add(chunk);
             RequeueResidency(chunk);
+            return true;
         }
 
         private bool BuildOwnsCurrentSlot()
