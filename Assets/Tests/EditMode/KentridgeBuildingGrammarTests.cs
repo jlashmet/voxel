@@ -140,25 +140,36 @@ namespace VoxelEngine.Tests.EditMode
                     anchors);
                 Assert.AreEqual(EvaluationResult.Ok, evaluation);
 
-                var facts = new KentridgeVoxelSiteRealizationFacts(plan, 1);
-                Assert.IsTrue(facts.TryGetPublicEntrance(roleId, out RealizedWorldPoint entrance));
+                Assert.IsTrue(KentridgeGameplaySiteAccessResolver.TryResolve(
+                    plan, roleId, 1, out KentridgeGameplaySiteAccess access));
 
-                // The old ordering carved this aperture and then AddTimberFrame filled horizontal
-                // rails back across it. Probe from ankle through head height on the exact gameplay
-                // entrance centreline: the final occupancy-changing primitive must remain Carve.
+                // CharacterMotor has a 0.3 m radius. Validate a full 0.6 m-wide traversal corridor,
+                // not merely the door centreline, and probe through the decorated facade depth. The
+                // original bug carved the masonry and then wrote 6 dm-deep timber rails across it;
+                // a 5 dm recarve still left the innermost 10 cm collision strip intact.
+                int[] lateralOffsets = { -3, 0, 3 };
+                int[] depthOffsets = { 0, 1, 2, 3, 4, 5, 6 };
                 int[] heightOffsets = { 0, 1, 4, 8, 12, 16, 18, 21 };
-                for (int i = 0; i < heightOffsets.Length; i++)
+                Int2 inward = access.Inward;
+                var lateral = new Int2(-inward.Y, inward.X);
+
+                for (int d = 0; d < depthOffsets.Length; d++)
+                for (int l = 0; l < lateralOffsets.Length; l++)
+                for (int h = 0; h < heightOffsets.Length; h++)
                 {
+                    int depth = depthOffsets[d];
+                    int side = lateralOffsets[l];
+                    int height = heightOffsets[h];
                     var point = new int3(
-                        entrance.Position.X,
-                        entrance.Position.Y + heightOffsets[i],
-                        entrance.Position.Z);
+                        access.Entrance.Position.X + inward.X * depth + lateral.X * side,
+                        access.Entrance.Position.Y + height,
+                        access.Entrance.Position.Z + inward.Y * depth + lateral.Y * side);
                     AssertFinalBoxMode(
                         primitives,
                         point,
                         PrimitiveMode.Carve,
-                        "Pub public doorway was refilled at height offset " +
-                        heightOffsets[i] + "dm.");
+                        "Pub public doorway corridor was refilled at lateral=" + side +
+                        "dm, depth=" + depth + "dm, height=" + height + "dm.");
                 }
             }
             finally
