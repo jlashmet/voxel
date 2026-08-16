@@ -2,7 +2,9 @@
 
 This production path builds Madeline as the **body character only**. Cleric robes, capes, weapons, and other equipment remain separate runtime-swappable assets.
 
-The approved four-view turnaround is stored as compact JPEG references under `views/`. The raw turnaround is used for Hunyuan3D multiview **shape reconstruction** so the body silhouette and proportions come from the approved reference. Before source-color projection, `prepare_body_texture_views.py` neutralizes the tight beige modeling layer into a smooth skin-toned mannequin surface. This prevents the modeling layer from becoming a visible clothing asset on the generated character while keeping the face and hair reference detail.
+The approved four-view turnaround is stored as compact JPEG references under `views/`. `prepare_body_texture_views.py` converts the tight beige modeling layer into a smooth skin-toned mannequin surface while preserving its silhouette, face, and hair. Those body-only references are used for **both Hunyuan3D multiview shape reconstruction and final source-color projection**, so neckline/short hems are not intentionally supplied to the mesh generator as clothing features.
+
+Madeline also uses `CHARACTER_FACTORY_ALIGNMENT_BLEND=0.15` by default. The Character Factory's historical canonical alignment blend is `0.78`; that stronger value pulls generated bodies toward generic mannequin bounds. The lower Madeline-specific value preserves most of the approved shorter/compact body proportions while still aligning enough for canonical weight transfer. Other Character Factory builds retain the historical default unless they explicitly override the environment variable.
 
 On Apple Silicon macOS:
 

@@ -33,13 +33,18 @@ export PYTORCH_ENABLE_MPS_FALLBACK="${PYTORCH_ENABLE_MPS_FALLBACK:-1}"
 export PYTHONUNBUFFERED=1
 export HY3DGEN_MODELS="$MODEL_ROOT"
 export HF_XET_HIGH_PERFORMANCE="${HF_XET_HIGH_PERFORMANCE:-1}"
+# Preserve the approved Madeline proportions during canonical skeleton alignment.
+# The historical global default (0.78) strongly morphs meshes to mannequin bounds;
+# this low blend keeps most generated body shape while still nudging joints/bounds
+# toward the donor for reliable weight transfer.
+export CHARACTER_FACTORY_ALIGNMENT_BLEND="${CHARACTER_FACTORY_ALIGNMENT_BLEND:-0.15}"
 
 echo "[1/8] Copy the approved Madeline turnaround into the build audit trail"
 for view in front back left right; do
   cp "$SOURCE_VIEWS/$view.jpg" "$RAW_VIEWS/$view.jpg"
 done
 
-echo "[2/8] Prepare body-only texture references"
+echo "[2/8] Prepare body-only geometry/texture references"
 python3 "$SCRIPT_DIR/prepare_body_texture_views.py" \
   --input-dir "$RAW_VIEWS" \
   --output-dir "$BODY_VIEWS" \
@@ -87,17 +92,17 @@ DONOR_RENDER="$OUT/canonical_female.input.png"
   --input "$DONOR_RENDER"
 test -s "$CANONICAL"
 
-echo "[6/8] Reconstruct Madeline body shape from the approved four-view turnaround"
+echo "[6/8] Reconstruct clothing-free Madeline body shape from the approved turnaround"
 SPEC="$OUT/madeline-base.json"
 cat > "$SPEC" <<JSON
 {
   "id": "madeline_base_01",
   "assetType": "character",
   "views": {
-    "front": "$RAW_VIEWS/front.jpg",
-    "back": "$RAW_VIEWS/back.jpg",
-    "left": "$RAW_VIEWS/left.jpg",
-    "right": "$RAW_VIEWS/right.jpg"
+    "front": "$BODY_VIEWS/front.jpg",
+    "back": "$BODY_VIEWS/back.jpg",
+    "left": "$BODY_VIEWS/left.jpg",
+    "right": "$BODY_VIEWS/right.jpg"
   },
   "outputDir": "$OUT",
   "generator": {
@@ -127,7 +132,7 @@ python3 tools/character-factory/character_factory.py build "$SPEC"
 BASE_FBX="$OUT/madeline_base_01.fbx"
 test -s "$BASE_FBX"
 
-echo "[7/8] Project face/hair detail while neutralizing the modeling base layer"
+echo "[7/8] Project face/hair/body source color onto the clothing-free mesh"
 TEXTURED_FBX="$OUT/madeline_base_01.textured.fbx"
 ATLAS="$OUT/madeline_base_01.body_basecolor.png"
 "$BLENDER_BIN" --background --python-exit-code 1 \
@@ -174,6 +179,7 @@ Madeline base-body build complete.
   Body-only atlas: $ATLAS
   Preview: $OUT/madeline_base_01.preview.png
   Reference audit: $OUT/body-only-reference-report.json
+  Alignment blend: $CHARACTER_FACTORY_ALIGNMENT_BLEND
   Unity staging root: $UNITY_ASSETS_ROOT
   Embedded clips: Idle, Walk, Run, Cast, StaffAttack
 EOF

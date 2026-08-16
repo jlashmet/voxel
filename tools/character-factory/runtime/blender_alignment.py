@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import os
 
 import bpy
 from mathutils import Vector
@@ -8,7 +9,11 @@ from mathutils import Vector
 from character_alignment import infer_axis_alignment
 
 
-ALIGN_TO_CANONICAL_BLEND = 0.78
+# Exact canonical-bound fitting is useful for generic smoke fixtures but can erase
+# identity-specific proportions from a generated character. Production builds may
+# lower this per process (for example Madeline's approved body turnaround) while
+# retaining the historical default for every existing caller.
+ALIGN_TO_CANONICAL_BLEND = float(os.environ.get("CHARACTER_FACTORY_ALIGNMENT_BLEND", "0.78"))
 
 
 def world_points(meshes: list[bpy.types.Object], label: str) -> list[Vector]:
@@ -143,6 +148,6 @@ def align_generated_to_donor(
         f"{label} auto-align: "
         f"mapping={mapping}({mapping_label}) flips={tuple(int(value) for value in flips)} "
         f"uniformScale={uniform_scale:.4f} boundsError={relative_error:.4f} "
-        f"inferredScore={inferred.score:.4f}",
+        f"blend={blend:.3f} inferredScore={inferred.score:.4f}",
         flush=True,
     )
