@@ -20,6 +20,8 @@ namespace VoxelEngine.Tests.EditMode
                 CastleSeedPartition.Derive(rootSeed, CastleSeedDomain.Rooms));
             Assert.AreEqual(0xBFA22EC6u,
                 CastleSeedPartition.Derive(rootSeed, CastleSeedDomain.Dungeon));
+            Assert.AreEqual(0xCD7427B5u,
+                CastleSeedPartition.Derive(rootSeed, CastleSeedDomain.Cave));
             Assert.AreEqual(0x158C0FD2u,
                 CastleSeedPartition.Derive(rootSeed, CastleSeedDomain.Decor));
         }
@@ -49,6 +51,7 @@ namespace VoxelEngine.Tests.EditMode
                 CastleSeedDomain.Keep,
                 CastleSeedDomain.Rooms,
                 CastleSeedDomain.Dungeon,
+                CastleSeedDomain.Cave,
                 CastleSeedDomain.Decor,
             };
 
