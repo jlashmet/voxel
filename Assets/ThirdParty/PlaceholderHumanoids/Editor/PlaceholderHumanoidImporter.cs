@@ -24,7 +24,7 @@ namespace VoxelGame.Editor
             importer.importCameras = false;
             importer.importLights = false;
             importer.importBlendShapes = false;
-            importer.importMaterials = false;
+            importer.materialImportMode = ModelImporterMaterialImportMode.None;
 
             // Rocketbox files are body/rig placeholders. The KayKit FBX is kept only
             // as a compact source of humanoid animation clips.
