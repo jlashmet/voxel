@@ -46,9 +46,7 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.NotNull(camera);
 
             double castleDeadline = Time.realtimeSinceStartupAsDouble + 90.0;
-            int castleFrames = 0;
             while ((world.CastleBuildStage < 9 || world.CastleVoxels <= 100_000)
-                   && castleFrames++ < 7200
                    && Time.realtimeSinceStartupAsDouble < castleDeadline)
                 yield return null;
             Assert.GreaterOrEqual(world.CastleBuildStage, 9,
@@ -125,8 +123,11 @@ namespace VoxelEngine.Tests.PlayMode
                         bool converged = false;
                         int observedStepMask = 0;
                         double deadline = Time.realtimeSinceStartupAsDouble + 20.0;
-                        for (int frame = 0; frame < 1200
-                             && Time.realtimeSinceStartupAsDouble < deadline; frame++)
+                        // Batchmode can advance thousands of empty frames per second while the
+                        // renderer's worker jobs converge. Bound this by elapsed time, not FPS.
+                        for (int frame = 0;
+                             Time.realtimeSinceStartupAsDouble < deadline;
+                             frame++)
                         {
                             RenderUrpCamera(camera);
                             yield return null;
@@ -206,9 +207,7 @@ namespace VoxelEngine.Tests.PlayMode
         private static IEnumerator WaitForWorldReady()
         {
             double deadline = Time.realtimeSinceStartupAsDouble + 60.0;
-            int frames = 0;
             while (!VoxelRenderBridge.SurfaceBuildEnabled
-                   && frames++ < 3600
                    && Time.realtimeSinceStartupAsDouble < deadline)
                 yield return null;
 
