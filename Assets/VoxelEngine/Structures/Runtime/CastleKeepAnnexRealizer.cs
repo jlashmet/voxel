@@ -14,9 +14,7 @@ namespace VoxelEngine.Structures.Runtime
         {
             int3 min = CastleSpatialProjection.KeepMinimum(in plan);
             int baseY = min.y;
-            int hx = plan.KeepHalfX;
-            int hz = plan.KeepHalfZ;
-            var size = new int3(hx * 2, plan.KeepHeight, hz * 2);
+            int3 size = CastleSpatialProjection.KeepSize(in plan);
             int topY = baseY + plan.Floors * plan.FloorHeight;
 
             brush.Box(new int3(min.x - 5, topY, min.z - 5),
@@ -47,9 +45,7 @@ namespace VoxelEngine.Structures.Runtime
 
             int3 min = CastleSpatialProjection.KeepMinimum(in plan);
             int baseY = min.y;
-            int hx = plan.KeepHalfX;
-            int hz = plan.KeepHalfZ;
-            var size = new int3(hx * 2, plan.KeepHeight, hz * 2);
+            int3 size = CastleSpatialProjection.KeepSize(in plan);
             int topY = baseY + plan.Floors * plan.FloorHeight;
 
             brush.Box(new int3(min.x - 5, topY, min.z - 5),
@@ -339,7 +335,7 @@ namespace VoxelEngine.Structures.Runtime
                               CastleLayout.ChapelBellTowerStairRadius, height - 4, Mat.Stone);
 
             int connectorX = centre.x;
-            int keepDepth = plan.KeepHalfZ * 2;
+            int keepDepth = CastleSpatialProjection.KeepSize(in plan).z;
             int chapelDepth = math.max(96, keepDepth * 3 / 5);
             int chapelCentreZ = min.z + 6 - chapelDepth / 2;
             int aisleStartZ = chapelCentreZ - 6;
