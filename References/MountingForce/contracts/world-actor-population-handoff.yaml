@@ -1,0 +1,80 @@
+schema_version: 1
+status: verified_population_handoff
+purpose: >-
+  Explain how procedural generation should consume the inheritance-selected authored actor
+  population without promoting profile/name co-occurrence into invented factions, quests,
+  biomes, or topology.
+
+sources:
+  generated_population: docs/world-actor-population.yaml
+  exhaustive_objects: docs/world-object-archetypes.yaml
+  runtime_type_cross_reference: docs/world-object-type-runtime.yaml
+  story_state: docs/world-story-graph.yaml
+  event_implementations: docs/world-event-implementations.yaml
+  topology_guardrail: docs/world-topology-population-nonconstraints.yaml
+
+selection_contract:
+  verified_actor_families:
+    - RPGCharacter_family
+    - RPGFriend_family
+    - RPGEnemy_family
+  rule: >-
+    Actor population is selected from authored TMX semantic types only when the source-declared
+    Objective-C inheritance chain reaches one of these families. This supersedes name/type-name
+    heuristics for exhaustive population discovery.
+
+preserved_evidence:
+  - authored semantic type and verified runtime class/family
+  - local level/group/object identity
+  - authored coordinates and dimensions
+  - characterName/profileName/profileNames tokens
+  - explicitly authored combat/stat/spell properties
+  - story/staging properties such as waitForScene, waitForDeath, sceneFinished, party state, and facing/direction when present
+  - enclosing group properties
+
+confidence_rules:
+  - profileName/profileNames are authored identifiers; their mere reuse does not prove faction, biome, political region, or geography
+  - characterName is an authored identity token; name text alone does not prove quest role, occupation, alignment, or uniqueness across the whole game
+  - Objective-C inheritance proves runtime family membership, not narrative role
+  - authored coordinates are local placement evidence; they become hard anchors only when story/event/encounter contracts require the actor or path
+  - explicitly authored TMX combat/spell values are verified; missing values must not be filled from guesses about runtime defaults
+  - actor co-occurrence can guide population/encounter scoring but cannot create/remove traversal or progression edges
+
+procgen_usage:
+  hard_when_cross_referenced:
+    - named actors required by scene/event implementations
+    - actors participating in waitForDeath/characterTalkedTo/party/story prerequisites
+    - bosses/recruits/participants explicitly preserved by encounter or cinematic contracts
+    - movement/facing/camera staging anchors required by reviewed custom events
+  reusable_guidance:
+    - authored enemy/friend family ratios by level
+    - profile-token frequency by level/locality
+    - recurring character/profile combinations
+    - explicitly authored combat/spell-property patterns
+    - population density and group composition, when not contradicted by hard story constraints
+  freely_variable_when_not_hard:
+    - incidental actor coordinates
+    - incidental enemy counts/composition
+    - exact profile distribution within an equivalent generated encounter space
+    - ambient NPC placement
+    - local population density
+
+recommended_generator_model:
+  actor_archetype:
+    identity:
+      - semantic_type
+      - runtime_class
+      - runtime_family
+      - optional characterName
+      - optional profileName/profileNames
+    explicit_overrides:
+      - combat_properties
+      - staging_story_properties
+    confidence:
+      - hard_story_anchor
+      - verified_authored_population
+      - reusable_population_guidance
+  placement_rule: >-
+    Solve hard story/event actor anchors and path/camera clearance first. Populate remaining
+    spaces from verified authored family/profile distributions as a scoring prior rather than
+    reproducing original coordinates mechanically.

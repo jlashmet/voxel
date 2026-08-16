@@ -1,0 +1,77 @@
+schema_version: 1
+status: usable_verified_progression_graph
+purpose: >-
+  Generator-facing interpretation of docs/world-progression-chains.yaml. The exhaustive
+  generated file groups authored scene producers by verified positive story dependencies;
+  this handoff explains which parts are hard progression structure and which parts are only
+  quest-like organizational hints.
+
+sources:
+  normalized_story_graph: docs/world-story-graph.yaml
+  exhaustive_progression_components: docs/world-progression-chains.yaml
+  per_level_contracts: docs/world-generator-level-contracts.yaml
+  runtime_condition_semantics: Code/RPG Engine/Conditions.m
+
+verified_progression_summary:
+  scene_count: 168
+  positive_scene_dependency_edge_count: 63
+  progression_component_count: 105
+  multi_scene_component_count: 25
+  isolated_scene_count: 80
+  cross_level_component_count: 18
+  cross_level_dependency_count: 43
+
+inferred_quest_signals:
+  components_with_signals: 39
+  scenes_with_signals: 61
+  evidence: inferred_only
+  derivation:
+    - quest/reward/rescue/return/find-style scene-name markers
+    - reward, spell, gold, item, or party-mutation scene actions
+  hard_quest_boundary: false
+  policy: >-
+    These signals are useful for labeling or UI organization, but they do not prove that a
+    connected progression component is exactly one player-facing quest. A component may mix
+    main-story progression, recruitment, rewards, and follow-on state consumers.
+
+hard_generator_rules:
+  - id: preserve_positive_scene_dependencies
+    statement: >-
+      Every sceneFinished/waitForScene edge represented in the normalized progression graph
+      must remain satisfiable after regeneration. Geometry may move, but the prerequisite
+      scene must still be able to complete before its dependent scene.
+  - id: preserve_cross_level_progression
+    statement: >-
+      All 43 verified cross-level scene dependencies must remain representable even if the
+      procedural world changes spatial layout or travel routing.
+  - id: isolated_scenes_are_valid
+    statement: >-
+      The 80 isolated scene producers have no positive scene-to-scene dependency edge in the
+      current authored graph. Do not invent a prerequisite merely to force them into a quest
+      chain; their actor, party, death, talk, geometry, or negative-state requirements still
+      live in the story graph and per-level contracts.
+  - id: negative_guards_are_not_chronology
+    statement: >-
+      sceneNotFinished conditions constrain when content is active but do not create a forward
+      progression edge or merge otherwise separate components.
+  - id: actor_prerequisites_are_not_scene_edges
+    statement: >-
+      sceneInParty, sceneNotInParty, characterTalkedTo, and waitForDeath remain typed state
+      prerequisites. They must be honored without being converted into invented scene order.
+  - id: component_is_not_automatically_a_quest
+    statement: >-
+      A connected progression component is a verified dependency component, not a guaranteed
+      player-facing quest boundary. Quest-like names/actions may guide organization only.
+
+recommended_generator_use:
+  global_planning:
+    - load docs/world-progression-chains.yaml after docs/world-story-graph.yaml
+    - solve cross-level progression dependencies together with physical traversal constraints
+    - reserve required levels/actors/rewards before decorative layout generation
+  per_level_generation:
+    - consume docs/world-generator-level-contracts.yaml for local scene/state/actor requirements
+    - use progression components to understand which remote scenes can unlock or depend on the level
+    - keep inferred quest labels separate from hard validation
+  validation:
+    - run tools/validate-world-progression-chains.py after regenerating the progression file
+    - fail generation only on verified dependency violations, not on inferred quest labeling differences

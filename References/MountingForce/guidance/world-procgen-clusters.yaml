@@ -1,0 +1,471 @@
+schema_version: 1
+source_commit: e9a46d9efdcbe27552780c827a078c3f9c1dded0
+evidence: verified_validated_warp_portal_graph
+validation_summary:
+  missing_warp_target_count: 0
+  non_warp_destination_object_count: 0
+  packaged_file_missing_from_scan_count: 0
+  packaged_tmx_count: 99
+  parse_error_count: 0
+  parsed_tmx_count: 99
+  scanned_but_unpacked_tmx_count: 0
+  valid_warp_target_count: 205
+  verified_warp_count: 205
+policy:
+  meaning: Clusters are generator locality abstractions around verified settlement roots; they are not assertions of lore
+    geography, political regions, biome boundaries, or travel distance.
+  overlap_allowed: true
+  direction_collapsed_for_locality: true
+  hard_constraints_remain_in: docs/world-generation-constraints.yaml
+  do_not_promote_to_hard_lore: true
+roots:
+- kentridge
+- hightown
+- moordell
+- rossdam
+- fairy-village
+- orc-village
+max_warp_hops: 2
+graph_node_count: 99
+undirected_edge_count: 98
+clusters:
+- id: kentridge-topology-neighborhood
+  root: kentridge
+  kind: overlapping_topological_neighborhood
+  max_warp_hops: 2
+  levels_by_distance:
+    0:
+    - kentridge
+    1:
+    - kentridge-abandoned-house
+    - kentridge-armor-shop
+    - kentridge-awon-house
+    - kentridge-church
+    - kentridge-inn
+    - kentridge-katie-house
+    - kentridge-logan-house
+    - kentridge-magic-shop
+    - kentridge-mayor-house
+    - kentridge-pub
+    - kentridge-rebecca-house
+    - kentridge-sarah-house
+    - kentridge-warehouse
+    - kentridge-weapon-shop
+    - kentridge-well
+    - medrare-house-upper
+    - mountains
+    - overworld
+    - overworld_big
+    - radcliffeMansion
+    2:
+    - forest
+    - graveyard
+    - kentridge-warehouse-lower
+    - medrare-house-lower
+    - mountains-cave
+    - overworld-cave
+    - overworld-farmer-house
+    - overworld-underground
+    - south-fighting-area-1
+  member_count: 30
+  internal_edges:
+  - - forest
+    - overworld
+  - - graveyard
+    - overworld
+  - - kentridge
+    - kentridge-abandoned-house
+  - - kentridge
+    - kentridge-armor-shop
+  - - kentridge
+    - kentridge-awon-house
+  - - kentridge
+    - kentridge-church
+  - - kentridge
+    - kentridge-inn
+  - - kentridge
+    - kentridge-katie-house
+  - - kentridge
+    - kentridge-logan-house
+  - - kentridge
+    - kentridge-magic-shop
+  - - kentridge
+    - kentridge-mayor-house
+  - - kentridge
+    - kentridge-pub
+  - - kentridge
+    - kentridge-rebecca-house
+  - - kentridge
+    - kentridge-sarah-house
+  - - kentridge
+    - kentridge-warehouse
+  - - kentridge
+    - kentridge-weapon-shop
+  - - kentridge
+    - kentridge-well
+  - - kentridge
+    - medrare-house-upper
+  - - kentridge
+    - mountains
+  - - kentridge
+    - overworld
+  - - kentridge
+    - overworld_big
+  - - kentridge
+    - radcliffeMansion
+  - - kentridge-warehouse
+    - kentridge-warehouse-lower
+  - - medrare-house-lower
+    - medrare-house-upper
+  - - mountains
+    - mountains-cave
+  - - mountains
+    - south-fighting-area-1
+  - - overworld
+    - overworld-cave
+  - - overworld
+    - overworld-farmer-house
+  - - overworld
+    - overworld-underground
+  boundary_edges:
+  - - fairy-village
+    - south-fighting-area-1
+  - - fighting-area-1
+    - forest
+  - - forest
+    - forest-north
+  - - graveyard
+    - graveyard-lower
+  - - graveyard
+    - overworld-moordell
+  - - orc-village
+    - south-fighting-area-1
+  - - overworld-logan-castle
+    - south-fighting-area-1
+  - - south-fighting-area-1
+    - south-fighting-area-1-cave
+- id: hightown-topology-neighborhood
+  root: hightown
+  kind: overlapping_topological_neighborhood
+  max_warp_hops: 2
+  levels_by_distance:
+    0:
+    - hightown
+    1:
+    - fighting-area-2
+    - hightown-armor-shop
+    - hightown-cave
+    - hightown-church
+    - hightown-magic-shop
+    - hightown-mayor-house
+    - hightown-pub
+    - hightown-timmy-house
+    - hightown-weapon-shop
+    2:
+    - fighting-area-1
+    - fighting-area-2-cave-1
+    - forest-maze
+    - hightown-timmy-house-back-room
+    - hightown-under-church
+  member_count: 15
+  internal_edges:
+  - - fighting-area-1
+    - fighting-area-2
+  - - fighting-area-2
+    - fighting-area-2-cave-1
+  - - fighting-area-2
+    - hightown
+  - - forest-maze
+    - hightown-cave
+  - - hightown
+    - hightown-armor-shop
+  - - hightown
+    - hightown-cave
+  - - hightown
+    - hightown-church
+  - - hightown
+    - hightown-magic-shop
+  - - hightown
+    - hightown-mayor-house
+  - - hightown
+    - hightown-pub
+  - - hightown
+    - hightown-timmy-house
+  - - hightown
+    - hightown-weapon-shop
+  - - hightown-church
+    - hightown-under-church
+  - - hightown-timmy-house
+    - hightown-timmy-house-back-room
+  boundary_edges:
+  - - bandit-hideout
+    - fighting-area-1
+  - - fighting-area-1
+    - forest
+  - - hightown-under-church
+    - hightown-under-church2
+- id: moordell-topology-neighborhood
+  root: moordell
+  kind: overlapping_topological_neighborhood
+  max_warp_hops: 2
+  levels_by_distance:
+    0:
+    - moordell
+    1:
+    - moordell-armor-shop
+    - moordell-building1
+    - moordell-grave
+    - moordell-inn
+    - moordell-magic-shop
+    - moordell-pub
+    - moordell-weapon-shop
+    - overworld-moordell
+    2:
+    - graveyard
+    - overworld-moordell-cave
+    - overworld-moordell-excalibur-cave
+    - overworld-moordell-underground
+    - overworld-to-rossdam
+  member_count: 14
+  internal_edges:
+  - - graveyard
+    - overworld-moordell
+  - - moordell
+    - moordell-armor-shop
+  - - moordell
+    - moordell-building1
+  - - moordell
+    - moordell-grave
+  - - moordell
+    - moordell-inn
+  - - moordell
+    - moordell-magic-shop
+  - - moordell
+    - moordell-pub
+  - - moordell
+    - moordell-weapon-shop
+  - - moordell
+    - overworld-moordell
+  - - overworld-moordell
+    - overworld-moordell-cave
+  - - overworld-moordell
+    - overworld-moordell-excalibur-cave
+  - - overworld-moordell
+    - overworld-moordell-underground
+  - - overworld-moordell
+    - overworld-to-rossdam
+  boundary_edges:
+  - - graveyard
+    - graveyard-lower
+  - - graveyard
+    - overworld
+  - - overworld-moordell-cave
+    - overworld-moordell-cave-2
+  - - overworld-moordell-cave
+    - wizard-trials
+  - - overworld-moordell-excalibur-cave
+    - overworld-moordell-excalibur-cave-chamber
+  - - overworld-moordell-underground
+    - overworld-moordell-underground-gertrude-house
+  - - overworld-rossdam
+    - overworld-to-rossdam
+- id: rossdam-topology-neighborhood
+  root: rossdam
+  kind: overlapping_topological_neighborhood
+  max_warp_hops: 2
+  levels_by_distance:
+    0:
+    - rossdam
+    1:
+    - overworld-rossdam
+    - rossdam-armor-shop
+    - rossdam-king-chamber
+    - rossdam-magic-shop
+    - rossdam-rorik-house
+    - rossdam-weapon-shop
+    2:
+    - end-logan
+    - overworld-to-rossdam
+  member_count: 9
+  internal_edges:
+  - - end-logan
+    - rossdam-king-chamber
+  - - overworld-rossdam
+    - overworld-to-rossdam
+  - - overworld-rossdam
+    - rossdam
+  - - rossdam
+    - rossdam-armor-shop
+  - - rossdam
+    - rossdam-king-chamber
+  - - rossdam
+    - rossdam-magic-shop
+  - - rossdam
+    - rossdam-rorik-house
+  - - rossdam
+    - rossdam-weapon-shop
+  boundary_edges:
+  - - end-logan
+    - epilogue
+  - - overworld-moordell
+    - overworld-to-rossdam
+- id: fairy-village-topology-neighborhood
+  root: fairy-village
+  kind: overlapping_topological_neighborhood
+  max_warp_hops: 2
+  levels_by_distance:
+    0:
+    - fairy-village
+    1:
+    - fairy-village-cave
+    - fairy-village-treehouse
+    - south-fighting-area-1
+    2:
+    - fairy-village-accessory-shop
+    - fairy-village-inn
+    - fairy-village-magic-shop
+    - fairy-village-mary-house
+    - fairy-village-pub
+    - fairy-village-rita-house
+    - fairy-village-weapon-shop
+    - mountains
+    - orc-village
+    - overworld-logan-castle
+    - south-fighting-area-1-cave
+  member_count: 15
+  internal_edges:
+  - - fairy-village
+    - fairy-village-cave
+  - - fairy-village
+    - fairy-village-treehouse
+  - - fairy-village
+    - south-fighting-area-1
+  - - fairy-village-accessory-shop
+    - fairy-village-treehouse
+  - - fairy-village-inn
+    - fairy-village-treehouse
+  - - fairy-village-magic-shop
+    - fairy-village-treehouse
+  - - fairy-village-mary-house
+    - fairy-village-treehouse
+  - - fairy-village-pub
+    - fairy-village-treehouse
+  - - fairy-village-rita-house
+    - fairy-village-treehouse
+  - - fairy-village-treehouse
+    - fairy-village-weapon-shop
+  - - mountains
+    - south-fighting-area-1
+  - - orc-village
+    - south-fighting-area-1
+  - - overworld-logan-castle
+    - south-fighting-area-1
+  - - south-fighting-area-1
+    - south-fighting-area-1-cave
+  boundary_edges:
+  - - kentridge
+    - mountains
+  - - logan-castle
+    - overworld-logan-castle
+  - - mountains
+    - mountains-cave
+  - - orc-village
+    - orc-village-armor-shop
+  - - orc-village
+    - orc-village-magic-shop
+  - - orc-village
+    - orc-village-pub
+  - - orc-village
+    - orc-village-weapon-shop
+  - - overworld-logan-castle
+    - overworld-logan-castle-cave
+  - - south-fighting-area-1-cave
+    - south-fighting-area-1-cave-chamber
+- id: orc-village-topology-neighborhood
+  root: orc-village
+  kind: overlapping_topological_neighborhood
+  max_warp_hops: 2
+  levels_by_distance:
+    0:
+    - orc-village
+    1:
+    - orc-village-armor-shop
+    - orc-village-magic-shop
+    - orc-village-pub
+    - orc-village-weapon-shop
+    - south-fighting-area-1
+    2:
+    - fairy-village
+    - mountains
+    - overworld-logan-castle
+    - south-fighting-area-1-cave
+  member_count: 10
+  internal_edges:
+  - - fairy-village
+    - south-fighting-area-1
+  - - mountains
+    - south-fighting-area-1
+  - - orc-village
+    - orc-village-armor-shop
+  - - orc-village
+    - orc-village-magic-shop
+  - - orc-village
+    - orc-village-pub
+  - - orc-village
+    - orc-village-weapon-shop
+  - - orc-village
+    - south-fighting-area-1
+  - - overworld-logan-castle
+    - south-fighting-area-1
+  - - south-fighting-area-1
+    - south-fighting-area-1-cave
+  boundary_edges:
+  - - fairy-village
+    - fairy-village-cave
+  - - fairy-village
+    - fairy-village-treehouse
+  - - kentridge
+    - mountains
+  - - logan-castle
+    - overworld-logan-castle
+  - - mountains
+    - mountains-cave
+  - - overworld-logan-castle
+    - overworld-logan-castle-cave
+  - - south-fighting-area-1-cave
+    - south-fighting-area-1-cave-chamber
+overlapping_memberships:
+- level: fairy-village
+  clusters:
+  - fairy-village-topology-neighborhood
+  - orc-village-topology-neighborhood
+- level: graveyard
+  clusters:
+  - kentridge-topology-neighborhood
+  - moordell-topology-neighborhood
+- level: mountains
+  clusters:
+  - fairy-village-topology-neighborhood
+  - kentridge-topology-neighborhood
+  - orc-village-topology-neighborhood
+- level: orc-village
+  clusters:
+  - fairy-village-topology-neighborhood
+  - orc-village-topology-neighborhood
+- level: overworld-logan-castle
+  clusters:
+  - fairy-village-topology-neighborhood
+  - orc-village-topology-neighborhood
+- level: overworld-to-rossdam
+  clusters:
+  - moordell-topology-neighborhood
+  - rossdam-topology-neighborhood
+- level: south-fighting-area-1
+  clusters:
+  - fairy-village-topology-neighborhood
+  - kentridge-topology-neighborhood
+  - orc-village-topology-neighborhood
+- level: south-fighting-area-1-cave
+  clusters:
+  - fairy-village-topology-neighborhood
+  - orc-village-topology-neighborhood
