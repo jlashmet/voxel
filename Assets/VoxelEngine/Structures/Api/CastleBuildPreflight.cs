@@ -19,6 +19,8 @@ namespace VoxelEngine.Structures.Api
         MissingKeepFloorPlan,
         InvalidKeepFloorPlan,
         InvalidKeepCirculationPlan,
+        MissingKeepWindowPlan,
+        InvalidKeepWindowPlan,
         MissingKeepAnnexPlan,
         InvalidKeepAnnexPlan,
         MissingLandscapePlan,
@@ -276,6 +278,21 @@ namespace VoxelEngine.Structures.Api
             {
                 return ReadinessFailure(
                     CastleSpatialBuildReadinessIssue.InvalidKeepCirculationPlan,
+                    writeBudget);
+            }
+
+            CastleKeepWindowSpec[] keepWindows = spatialPlan.KeepWindows;
+            if (keepWindows == null || keepWindows.Length == 0)
+            {
+                return ReadinessFailure(
+                    CastleSpatialBuildReadinessIssue.MissingKeepWindowPlan,
+                    writeBudget);
+            }
+
+            if (!CastleKeepWindowPlanner.TryValidate(in plan, keepWindows, out _))
+            {
+                return ReadinessFailure(
+                    CastleSpatialBuildReadinessIssue.InvalidKeepWindowPlan,
                     writeBudget);
             }
 
