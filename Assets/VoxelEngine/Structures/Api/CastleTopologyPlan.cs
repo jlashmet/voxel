@@ -37,6 +37,11 @@ namespace VoxelEngine.Structures.Api
         public CastleSitePlan Site;
         public bool HasKeepAnnexPlan;
         public CastleKeepAnnexPlan KeepAnnexes;
+
+        // Gatehouse dimensions depend on CastlePlan, so seed-only topology may leave this absent.
+        // CastleSpatialPlanner attaches the frozen recipe once dimensional planning is available.
+        public bool HasGatehousePlan;
+        public CastleGatehousePlan Gatehouse;
     }
 
     public enum CastleTopologyPlanIssue : byte
@@ -49,6 +54,7 @@ namespace VoxelEngine.Structures.Api
         ConcentricRequiresNestedWards,
         InvalidKeepAnnexPlan,
         UnexpectedKeepAnnexPlan,
+        InvalidGatehousePlan,
     }
 
     /// <summary>
@@ -129,6 +135,16 @@ namespace VoxelEngine.Structures.Api
             {
                 issue = CastleTopologyPlanIssue.UnexpectedKeepAnnexPlan;
                 return false;
+            }
+
+            if (plan.HasGatehousePlan)
+            {
+                CastleGatehousePlan gatehouse = plan.Gatehouse;
+                if (!CastleGatehousePlanValidator.TryValidate(in gatehouse, out _))
+                {
+                    issue = CastleTopologyPlanIssue.InvalidGatehousePlan;
+                    return false;
+                }
             }
 
             issue = CastleTopologyPlanIssue.None;
