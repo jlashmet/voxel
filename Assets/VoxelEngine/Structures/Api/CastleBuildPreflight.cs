@@ -153,6 +153,7 @@ namespace VoxelEngine.Structures.Api
             double gatehouseTowers = 2.0 * math.PI_DBL
                                    * plan.GateTowerRadius * plan.GateTowerRadius * 30.0;
             double keepTurrets = KeepTurretCost(in plan, spatialPlan.Topology.KeepTurrets);
+            double keepAnnexes = KeepAnnexCost(in plan, in spatialPlan.Topology);
 
             double keep = plan.KeepHalfX * (double)plan.KeepHalfZ * plan.Floors * 4.0;
             double courtyard = PolygonArea(spatialPlan.OuterWardVertices) * 0.2;
@@ -172,8 +173,8 @@ namespace VoxelEngine.Structures.Api
                 : 0.0;
 
             return (long)(siteCap + cliffCap + walls + towers + innerTowers + gatehouseTowers
-                        + keepTurrets + keep + courtyard + courtyardBuildings + underground
-                        + landscape + primaryGateLeaf + posternLeaf);
+                        + keepTurrets + keepAnnexes + keep + courtyard + courtyardBuildings
+                        + underground + landscape + primaryGateLeaf + posternLeaf);
         }
 
         public static CastleBuildPreflightResult Evaluate(in CastlePlan plan, long writeBudget)
@@ -337,6 +338,60 @@ namespace VoxelEngine.Structures.Api
             return turrets.Length * math.PI_DBL * radius * radius * 30.0;
         }
 
+        private static double KeepAnnexCost(
+            in CastlePlan plan,
+            in CastleTopologyPlan topology)
+        {
+            if (!topology.HasKeepAnnexPlan)
+                return 0.0;
+
+            CastleKeepAnnexPlan annexes = topology.KeepAnnexes;
+            if (!CastleKeepAnnexPlanValidator.TryValidate(in annexes, out _))
+                return 0.0;
+
+            int keepWidth = math.max(0, plan.KeepHalfX * 2);
+            int keepDepth = math.max(0, plan.KeepHalfZ * 2);
+            int twoStoreys = math.max(0, plan.FloorHeight * 2);
+            double cost = 0.0;
+
+            if (annexes.HasGreatHallWing)
+            {
+                int width = math.max(96, keepWidth * 2 / 5);
+                int depth = math.max(80, keepDepth - 72);
+                cost += BuildingEnvelopeCost(width, depth, twoStoreys);
+            }
+
+            if (annexes.HasChapelWing)
+            {
+                int width = math.max(78, keepWidth / 3);
+                int depth = math.max(96, keepDepth * 3 / 5);
+                cost += BuildingEnvelopeCost(width, depth, twoStoreys);
+            }
+
+            if (annexes.HasBellTower)
+            {
+                int size = CastleLayout.ChapelBellTowerSize;
+                cost += BuildingEnvelopeCost(
+                    size,
+                    size,
+                    math.max(0, plan.FloorHeight * 4));
+            }
+
+            if (annexes.HasRearOriel)
+                cost += BuildingEnvelopeCost(44, 22, twoStoreys);
+
+            return cost;
+        }
+
+        private static double BuildingEnvelopeCost(int width, int depth, int height)
+        {
+            width = math.max(0, width);
+            depth = math.max(0, depth);
+            height = math.max(0, height);
+            return 2.0 * (width + depth) * height * 5.0
+                 + width * (double)depth * 6.0;
+        }
+
         private static double UndergroundCost(
             DungeonPlan dungeon,
             CavePlan cave,
@@ -401,8 +456,7 @@ namespace VoxelEngine.Structures.Api
                 int depth = math.max(0, buildings[i].Depth);
                 int height = math.max(0, buildings[i].Height);
 
-                cost += 2.0 * (width + depth) * height * 5.0;
-                cost += width * (double)depth * 6.0;
+                cost += BuildingEnvelopeCost(width, depth, height);
             }
             return cost;
         }
