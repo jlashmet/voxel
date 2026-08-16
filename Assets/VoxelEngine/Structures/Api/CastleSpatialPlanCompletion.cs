@@ -6,8 +6,8 @@ namespace VoxelEngine.Structures.Api
     /// <summary>
     /// Final pure-data completion for castle details that depend on already-resolved core geometry.
     /// Composition calls this after terrain-dependent keep placement is finished; Runtime receives
-    /// tower variation, courtyard buildings, the designed dungeon graph, and natural cave topology
-    /// without choosing any of those authored details itself.
+    /// tower variation, keep-floor semantics, courtyard buildings, the designed dungeon graph, and
+    /// natural cave topology without choosing any of those authored details itself.
     /// </summary>
     public static class CastleSpatialPlanCompletion
     {
@@ -20,7 +20,8 @@ namespace VoxelEngine.Structures.Api
                 return spatial;
 
             CastleSpatialPlan withTowerVariation = AttachTowerVariation(in plan, spatial);
-            CastleSpatialPlan withBuildings = AttachCourtyardBuildings(in plan, withTowerVariation);
+            CastleSpatialPlan withKeepFloors = AttachKeepFloors(in plan, withTowerVariation);
+            CastleSpatialPlan withBuildings = AttachCourtyardBuildings(in plan, withKeepFloors);
             CastleSpatialPlan withDungeon = AttachDungeon(in plan, withBuildings);
             CastleSpatialPlan completed = AttachCave(in plan, withDungeon);
             RequireCompleted(in plan, completed);
@@ -55,6 +56,30 @@ namespace VoxelEngine.Structures.Api
             return Copy(
                 spatial,
                 towers,
+                spatial.KeepFloors,
+                spatial.CourtyardBuildings,
+                spatial.Dungeon,
+                spatial.Cave);
+        }
+
+        /// <summary>
+        /// Freezes semantic keep-floor purposes before Runtime sees the castle. The current planner
+        /// preserves the historical room recipe, but realization no longer infers purpose from a
+        /// floor-number switch and future room variation can remain entirely planning-side.
+        /// </summary>
+        public static CastleSpatialPlan AttachKeepFloors(
+            in CastlePlan plan,
+            CastleSpatialPlan spatial)
+        {
+            if (spatial == null) throw new ArgumentNullException(nameof(spatial));
+            if (spatial.KeepRequiresTerrainResolution)
+                return spatial;
+
+            CastleKeepFloorPlan[] floors = CastleKeepRoomPlanner.Create(in plan);
+            return Copy(
+                spatial,
+                spatial.Towers,
+                floors,
                 spatial.CourtyardBuildings,
                 spatial.Dungeon,
                 spatial.Cave);
@@ -87,6 +112,7 @@ namespace VoxelEngine.Structures.Api
             return Copy(
                 spatial,
                 spatial.Towers,
+                spatial.KeepFloors,
                 buildings,
                 spatial.Dungeon,
                 spatial.Cave);
@@ -113,6 +139,7 @@ namespace VoxelEngine.Structures.Api
             return Copy(
                 spatial,
                 spatial.Towers,
+                spatial.KeepFloors,
                 spatial.CourtyardBuildings,
                 dungeon,
                 null);
@@ -140,6 +167,7 @@ namespace VoxelEngine.Structures.Api
             return Copy(
                 spatial,
                 spatial.Towers,
+                spatial.KeepFloors,
                 spatial.CourtyardBuildings,
                 spatial.Dungeon,
                 cave);
@@ -154,6 +182,18 @@ namespace VoxelEngine.Structures.Api
             {
                 throw new InvalidOperationException(
                     $"Completed castle spatial plan is structurally invalid: {spatialIssue}.");
+            }
+
+            CastleKeepFloorPlan[] floors = completed.KeepFloors;
+            if (floors == null || floors.Length != plan.Floors)
+                throw new InvalidOperationException("Completed castle has no complete keep-floor plan.");
+            for (int i = 0; i < floors.Length; i++)
+            {
+                if (floors[i].FloorIndex != i)
+                {
+                    throw new InvalidOperationException(
+                        $"Completed castle keep-floor plan is out of order at floor {i}.");
+                }
             }
 
             if (completed.Dungeon == null)
@@ -204,6 +244,7 @@ namespace VoxelEngine.Structures.Api
         private static CastleSpatialPlan Copy(
             CastleSpatialPlan spatial,
             CastleTowerPlacementSpec[] towers,
+            CastleKeepFloorPlan[] keepFloors,
             CastleCourtyardBuildingSpec[] buildings,
             DungeonPlan dungeon,
             CavePlan cave)
@@ -230,6 +271,9 @@ namespace VoxelEngine.Structures.Api
                 buildings != null
                     ? (CastleCourtyardBuildingSpec[])buildings.Clone()
                     : Array.Empty<CastleCourtyardBuildingSpec>(),
+                keepFloors != null
+                    ? (CastleKeepFloorPlan[])keepFloors.Clone()
+                    : Array.Empty<CastleKeepFloorPlan>(),
                 dungeon,
                 cave,
                 spatial.KeepCentre,
