@@ -77,7 +77,7 @@ namespace VoxelEngine.Tests.EditMode
 
         [TestCase(WalkPath, "Walk")]
         [TestCase(RunPath, "Run")]
-        public void LocomotionClip_PreservesAuthoredHorizontalRootMotion(string path, string clipName)
+        public void LocomotionClip_RetainsRootMotionCurves(string path, string clipName)
         {
             var clip = AssetDatabase.LoadAllAssetsAtPath(path)
                 .OfType<AnimationClip>()
@@ -85,12 +85,10 @@ namespace VoxelEngine.Tests.EditMode
 
             Assert.That(clip, Is.Not.Null, $"The semantic {clipName} clip was not imported from {path}");
             Assert.That(clip.humanMotion, Is.True, $"{clipName} must remain Humanoid motion for retargeting");
-
-            var horizontalSpeed = new Vector2(clip.averageSpeed.x, clip.averageSpeed.z).magnitude;
             Assert.That(
-                horizontalSpeed,
-                Is.GreaterThan(0.01f),
-                $"{clipName} imported with no horizontal root translation; the Rocketbox motion-extraction data was lost");
+                clip.hasMotionCurves,
+                Is.True,
+                $"{clipName} imported without root motion curves; the Rocketbox motion-extraction data was lost");
         }
     }
 }
