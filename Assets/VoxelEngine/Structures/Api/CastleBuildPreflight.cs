@@ -99,6 +99,10 @@ namespace VoxelEngine.Structures.Api
 
             int towerCount = spatialPlan.Towers != null ? spatialPlan.Towers.Length : 0;
             double towers = towerCount * math.PI_DBL * plan.TowerRadius * plan.TowerRadius * 30.0;
+            CastleTowerPlacementSpec[] innerTowerSpecs = spatialPlan.InnerTowers;
+            int innerTowerRadius = CastleInnerWardTowerPlanner.Radius(in plan);
+            double innerTowers = innerTowerSpecs.Length * math.PI_DBL
+                               * innerTowerRadius * innerTowerRadius * 30.0;
             double gatehouseTowers = 2.0 * math.PI_DBL
                                    * plan.GateTowerRadius * plan.GateTowerRadius * 30.0;
 
@@ -115,7 +119,7 @@ namespace VoxelEngine.Structures.Api
                   * CastleLayout.PosternGateDepth
                 : 0.0;
 
-            return (long)(siteCap + cliffCap + walls + towers + gatehouseTowers + keep
+            return (long)(siteCap + cliffCap + walls + towers + innerTowers + gatehouseTowers + keep
                         + courtyard + courtyardBuildings + underground
                         + primaryGateLeaf + posternLeaf);
         }
