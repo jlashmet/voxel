@@ -6,9 +6,9 @@ namespace VoxelEngine.Structures.Api
 {
     /// <summary>
     /// Compatibility seam for planner/validator call sites that already pass the resolved pieces
-    /// of a castle rather than a CastleSpatialPlan. The wall-relative public planner owns the
-    /// placement policy; this adapter applies exact polygon containment before geometry becomes
-    /// part of the canonical spatial plan.
+    /// of a castle rather than a CastleSpatialPlan. The wall-relative public planner owns candidate
+    /// placement; this adapter applies exact polygon containment and reserves the primary access
+    /// corridor before geometry becomes part of the canonical spatial plan.
     /// </summary>
     internal static class CastleCourtyardBuildingPlacementGeometry
     {
@@ -53,6 +53,7 @@ namespace VoxelEngine.Structures.Api
             if (candidates.Length == 0)
                 return candidates;
 
+            CastleAccessRoute access = CastleAccessRoute.Create(in plan, spatial);
             var accepted = new List<CastleCourtyardBuildingSpec>(candidates.Length);
             for (int i = 0; i < candidates.Length; i++)
             {
@@ -62,6 +63,8 @@ namespace VoxelEngine.Structures.Api
                     continue;
                 if (innerWard != null && innerWard.Length >= 3 &&
                     CastlePolygonGeometry.PolygonsOverlapOrTouch(innerWard, footprint))
+                    continue;
+                if (!access.ClearsBuilding(in candidate))
                     continue;
 
                 candidate.Id = accepted.Count;
