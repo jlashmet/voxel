@@ -68,7 +68,10 @@ namespace VoxelEngine.Structures.Api
                 spatial.CaveDecoration,
                 spatial.KeepWindows != null
                     ? (CastleKeepWindowSpec[])spatial.KeepWindows.Clone()
-                    : Array.Empty<CastleKeepWindowSpec>());
+                    : Array.Empty<CastleKeepWindowSpec>(),
+                spatial.InnerTowers != null
+                    ? (CastleTowerPlacementSpec[])spatial.InnerTowers.Clone()
+                    : Array.Empty<CastleTowerPlacementSpec>());
         }
     }
 }
