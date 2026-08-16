@@ -45,7 +45,8 @@ jobs:
           # checkpoint even while later async-geometry commits continue landing.
           # Current checkpoint includes toroidal slot ownership, outgoing-edge retirement,
           # newly exposed region readmission, dense active-slot visibility, stale-build rejection,
-          # non-blocking completion instrumentation, and frame-scoped managed-allocation metrics.
+          # non-blocking completion instrumentation, frame-scoped managed-allocation metrics,
+          # and fixed-arena backpressure without GPU buffer growth.
           deadline=$((SECONDS + 2400))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
