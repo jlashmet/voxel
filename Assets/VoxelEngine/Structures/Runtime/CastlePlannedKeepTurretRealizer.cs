@@ -6,7 +6,8 @@ namespace VoxelEngine.Structures.Runtime
 {
     /// <summary>
     /// Realizes the four keep corner turrets from frozen authored variation. Coordinates and
-    /// dimensions preserve the current compatibility recipe; Runtime only consumes roof choices.
+    /// dimensions preserve the current compatibility recipe; Runtime consumes roof and slit choices
+    /// without creating authored randomness while mutating voxels.
     /// </summary>
     internal static class CastlePlannedKeepTurretRealizer
     {
@@ -23,6 +24,7 @@ namespace VoxelEngine.Structures.Runtime
             int minZ = keepPlan.Centre.z - keepPlan.KeepHalfZ + 60;
             int width = keepPlan.KeepHalfX * 2;
             int depth = keepPlan.KeepHalfZ * 2;
+            int height = keepPlan.KeepHeight + 30;
 
             for (int i = 0; i < turrets.Length; i++)
             {
@@ -37,13 +39,14 @@ namespace VoxelEngine.Structures.Runtime
                         $"Spatial keep contains invalid turret corner {turret.Corner}."),
                 };
 
-                CastleTowerRealizer.Build(
+                CastleTowerRealizer.BuildPlanned(
                     ref brush,
                     in keepPlan,
                     new int3(position.x, baseY, position.y),
                     26,
-                    keepPlan.KeepHeight + 30,
-                    turret.HasRoof);
+                    height,
+                    turret.HasRoof,
+                    turret.Slits);
             }
         }
     }
