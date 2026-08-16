@@ -155,7 +155,7 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void SpatialDungeonConsumesPlannedNaturalCave()
+        public void SpatialDungeonConsumesPlannedNaturalCaveAndDecoration()
         {
             string pipeline = File.ReadAllText(Path.Combine(
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
@@ -165,12 +165,18 @@ namespace VoxelEngine.Tests.EditMode
                 "CastlePlannedDungeonRealizer.cs"));
 
             StringAssert.Contains("CavePlan _spatialCavePlan", pipeline);
+            StringAssert.Contains("CastleCaveDecorationPlan _spatialCaveDecorationPlan", pipeline);
             StringAssert.Contains("CavePlanSnapshot.CloneValidated(spatialPlan.Cave)", pipeline);
-            StringAssert.Contains(
-                "CastlePlannedDungeonRealizer.Build(\n                            ref _brush, _spatialDungeonPlan, _spatialCavePlan)",
-                pipeline);
+            StringAssert.Contains("spatialPlan.CaveDecoration.Snapshot()", pipeline);
+            StringAssert.Contains("CastlePlannedDungeonRealizer.Build(", pipeline);
+            StringAssert.Contains("_spatialCaveDecorationPlan);", pipeline);
             StringAssert.Contains("CaveRealizer.Build(ref brush, cavePlan)", plannedDungeon);
+            StringAssert.Contains(
+                "CastlePlannedCaveDecorator.Build(ref brush, cavePlan, caveDecoration)",
+                plannedDungeon);
             StringAssert.DoesNotContain("CastleCavePlanning.Create(", plannedDungeon);
+            StringAssert.DoesNotContain("CastleCaveDecorationPlanner.Create(", plannedDungeon,
+                "Runtime must consume the planned cave decoration instead of choosing it.");
         }
 
         [Test]
