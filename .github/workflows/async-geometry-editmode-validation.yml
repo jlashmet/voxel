@@ -39,9 +39,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Discovery is admission-only after first sighting. Repeated 512-brick publication
-          # slices from the same unchanged region must not advance an already-known chunk source
-          # generation, while real edit invalidation keeps its previous semantics.
+          # Surface-summary discovery is admission-only, and a newly attached voxel-change journal
+          # now baselines at CurrentVersion before one bounded resident-state recovery. Together
+          # these contracts prevent static startup history from continuously staling coarse builds.
           deadline=$((SECONDS + 2400))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
