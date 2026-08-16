@@ -6,9 +6,9 @@ namespace MountingForce.WorldGen.Content.Kentridge
     /// First semantic town-layout pass for Kentridge.
     ///
     /// The topology is authored as relationships (main spine, market crossing, residential street,
-    /// east service lane) while individual plots are derived from street frontage. Ordinary houses
-    /// may slide a few decimetres along their street from a stable per-role hash; they never drift
-    /// away from their district or rotate away from their frontage.
+    /// east service lane) while individual plots are derived from reusable Core frontage placement.
+    /// Ordinary houses may slide a few decimetres along their street from a stable per-role hash;
+    /// they never drift away from their district or rotate away from their frontage.
     /// </summary>
     public static class KentridgeTownPlanner
     {
@@ -155,30 +155,20 @@ namespace MountingForce.WorldGen.Content.Kentridge
             DistrictKind district, string streetId, int frontageXDm, int streetZDm,
             FrontageDirection frontage, int roadWidthDm, int setbackDm, int jitterDm)
         {
-            Int3 footprint = KentridgeDefinition.FootprintDm(archetype);
-            int along = frontageXDm + SignedJitter(seed, salt, jitterDm);
-            int x = along - footprint.X / 2;
-            int z;
-
-            switch (frontage)
-            {
-                case FrontageDirection.South:
-                    z = streetZDm + roadWidthDm / 2 + setbackDm;
-                    break;
-                case FrontageDirection.North:
-                    z = streetZDm - roadWidthDm / 2 - setbackDm - footprint.Z;
-                    break;
-                default:
-                    throw new System.ArgumentException(
-                        "Horizontal street plots must face north or south.", nameof(frontage));
-            }
-
-            var access = new PlannedSiteAccess(
-                SiteAccessKind.Street,
+            return SettlementPlotLayout.AlongHorizontalStreet(
+                seed,
+                salt,
+                (int)role,
+                archetype,
+                district,
                 streetId,
-                new Int2(along, streetZDm));
-            return new BuildingPlot(
-                (int)role, archetype, district, new Int2(x, z), frontage, access);
+                frontageXDm,
+                streetZDm,
+                frontage,
+                roadWidthDm,
+                setbackDm,
+                jitterDm,
+                KentridgeDefinition.FootprintDm(archetype));
         }
 
         private static BuildingPlot AlongVerticalStreet(
@@ -186,63 +176,33 @@ namespace MountingForce.WorldGen.Content.Kentridge
             DistrictKind district, string streetId, int streetXDm, int frontageZDm,
             FrontageDirection frontage, int roadWidthDm, int setbackDm, int jitterDm)
         {
-            Int3 footprint = KentridgeDefinition.FootprintDm(archetype);
-            int along = frontageZDm + SignedJitter(seed, salt, jitterDm);
-            int z = along - footprint.Z / 2;
-            int x;
-
-            switch (frontage)
-            {
-                case FrontageDirection.West:
-                    x = streetXDm + roadWidthDm / 2 + setbackDm;
-                    break;
-                case FrontageDirection.East:
-                    x = streetXDm - roadWidthDm / 2 - setbackDm - footprint.X;
-                    break;
-                default:
-                    throw new System.ArgumentException(
-                        "Vertical street plots must face east or west.", nameof(frontage));
-            }
-
-            var access = new PlannedSiteAccess(
-                SiteAccessKind.Street,
+            return SettlementPlotLayout.AlongVerticalStreet(
+                seed,
+                salt,
+                (int)role,
+                archetype,
+                district,
                 streetId,
-                new Int2(streetXDm, along));
-            return new BuildingPlot(
-                (int)role, archetype, district, new Int2(x, z), frontage, access);
+                streetXDm,
+                frontageZDm,
+                frontage,
+                roadWidthDm,
+                setbackDm,
+                jitterDm,
+                KentridgeDefinition.FootprintDm(archetype));
         }
 
         private static BuildingPlot CentrePlot(
             KentridgeRole role, StructureArchetype archetype, DistrictKind district,
             string plazaId, Int2 centreDm)
         {
-            Int3 footprint = KentridgeDefinition.FootprintDm(archetype);
-            var access = new PlannedSiteAccess(
-                SiteAccessKind.Plaza,
-                plazaId,
-                centreDm);
-            return new BuildingPlot(
+            return SettlementPlotLayout.CentreOnPlaza(
                 (int)role,
                 archetype,
                 district,
-                new Int2(centreDm.X - footprint.X / 2, centreDm.Y - footprint.Z / 2),
-                FrontageDirection.South,
-                access);
-        }
-
-        private static int SignedJitter(uint seed, uint salt, int magnitude)
-        {
-            if (magnitude <= 0) return 0;
-
-            uint x = seed ^ (salt * 0x9E3779B9u);
-            x ^= x >> 16;
-            x *= 0x7FEB352Du;
-            x ^= x >> 15;
-            x *= 0x846CA68Bu;
-            x ^= x >> 16;
-
-            int span = magnitude * 2 + 1;
-            return (int)(x % (uint)span) - magnitude;
+                plazaId,
+                centreDm,
+                KentridgeDefinition.FootprintDm(archetype));
         }
     }
 }
