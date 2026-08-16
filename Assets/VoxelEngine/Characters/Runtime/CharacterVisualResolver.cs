@@ -44,6 +44,11 @@ namespace VoxelEngine.Characters.Runtime
             ResolveVisual();
         }
 
+        private void OnDestroy()
+        {
+            ClearVisual();
+        }
+
         /// <summary>
         /// Re-evaluates the visual source. Reuses the owned instance when the selected
         /// source has not changed, while still enforcing the configured visual root.
