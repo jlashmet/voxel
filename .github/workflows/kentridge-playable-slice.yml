@@ -4,9 +4,13 @@ name: Kentridge Playable Slice
 # request) and tests-master.yml (the full suite on merge to master). Nothing else
 # should trigger tests off a branch name or a path glob: which tests a change
 # affects is a property of the .asmdef reference graph, not of where the work
-# happens to live. Retained as manually dispatchable.
+# happens to live. Retained as manually dispatchable, with a temporary branch
+# trigger while diagnosing the playable-slice runtime regression.
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - fix/kentridge-playable-slice-errors
 concurrency:
   group: kentridge-playable-slice-${{ github.ref }}
   cancel-in-progress: true
