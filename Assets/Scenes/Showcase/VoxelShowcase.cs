@@ -217,7 +217,6 @@ namespace VoxelEngine.Showcase
 
             {
                 if (!_spawned) Spawn();
-
                 HandleKeys();
                 if (_mouseLook) HandleLook();
                 MovePlayer();
@@ -330,6 +329,7 @@ namespace VoxelEngine.Showcase
         public bool InteractionPromptVisible =>
             _world != null && _motor != null
             && (_world.CanOpenCastleFrontGate(_motor.Position)
+                || _world.CanOpenCastlePostern(_motor.Position)
                 || _world.CanOpenCastleTrapdoor(_motor.Position));
 
         /// <summary>
@@ -345,6 +345,11 @@ namespace VoxelEngine.Showcase
             if (_world.TryOpenCastleFrontGate(_motor.Position))
             {
                 _lastEditLabel = "castle front gate opened";
+                return true;
+            }
+            if (_world.TryOpenCastlePostern(_motor.Position))
+            {
+                _lastEditLabel = "castle postern opened";
                 return true;
             }
             if (_world.TryOpenCastleTrapdoor(_motor.Position))
@@ -714,7 +719,10 @@ namespace VoxelEngine.Showcase
                 };
                 GUI.Box(new Rect(Screen.width * 0.5f - 120f, Screen.height - 96f, 240f, 40f),
                         _world.CanOpenCastleFrontGate(_motor.Position)
-                            ? "E  OPEN CASTLE GATE" : "E  OPEN TRAPDOOR", prompt);
+                            ? "E  OPEN CASTLE GATE"
+                            : _world.CanOpenCastlePostern(_motor.Position)
+                                ? "E  OPEN POSTERN"
+                                : "E  OPEN TRAPDOOR", prompt);
             }
         }
 
