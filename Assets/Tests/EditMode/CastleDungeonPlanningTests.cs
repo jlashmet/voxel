@@ -16,7 +16,7 @@ namespace VoxelEngine.Tests.EditMode
                 CastleTopologyPlan topology = CastleLayoutPlanner.Create(seed);
                 topology.KeepPlacement = CastleKeepPlacement.Central;
                 CastleSpatialPlan spatial = CastleSpatialPlanner.Create(in dimensions, in topology);
-                CastleSpatialProjection projection = CastleSpatialProjection.From(
+                CastleSpatialProjection projection = CastleSpatialProjection.Create(
                     in dimensions, spatial);
 
                 DungeonPlan dungeon = CastleDungeonPlanning.Create(in dimensions, in projection);
