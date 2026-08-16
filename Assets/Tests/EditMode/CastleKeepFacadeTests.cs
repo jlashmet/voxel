@@ -82,6 +82,67 @@ namespace VoxelEngine.Tests.EditMode
             Assert.AreEqual(new int2(0, -1), north.Inward);
         }
 
+        [Test]
+        public void CirculationPlannerRotatesHistoricalRecipeIntoFacadeBasis()
+        {
+            var plan = new CastlePlan
+            {
+                KeepHalfX = 100,
+                KeepHalfZ = 80,
+                FloorHeight = 46,
+                Floors = 5,
+            };
+
+            CastleKeepCirculationPlan south =
+                CastleKeepCirculationPlanner.Create(in plan, CastleKeepFace.South);
+            CastleKeepCirculationPlan east =
+                CastleKeepCirculationPlanner.Create(in plan, CastleKeepFace.East);
+            CastleKeepCirculationPlan north =
+                CastleKeepCirculationPlanner.Create(in plan, CastleKeepFace.North);
+            CastleKeepCirculationPlan west =
+                CastleKeepCirculationPlanner.Create(in plan, CastleKeepFace.West);
+
+            Assert.AreEqual(new int2(0, -80), south.EntranceCentre);
+            Assert.AreEqual(new int2(100, 0), east.EntranceCentre);
+            Assert.AreEqual(new int2(0, 80), north.EntranceCentre);
+            Assert.AreEqual(new int2(-100, 0), west.EntranceCentre);
+
+            Assert.AreEqual(new int2(72, -68), east.GrandStairOrigin);
+            Assert.AreEqual(new int2(68, 52), north.GrandStairOrigin);
+            Assert.AreEqual(new int2(66, -46), east.SpiralStairCentre);
+
+            Assert.IsTrue(CastleKeepCirculationPlanner.TryValidate(
+                in plan, in south, out CastleKeepCirculationPlanIssue southIssue),
+                southIssue.ToString());
+            Assert.IsTrue(CastleKeepCirculationPlanner.TryValidate(
+                in plan, in east, out CastleKeepCirculationPlanIssue eastIssue),
+                eastIssue.ToString());
+            Assert.IsTrue(CastleKeepCirculationPlanner.TryValidate(
+                in plan, in north, out CastleKeepCirculationPlanIssue northIssue),
+                northIssue.ToString());
+            Assert.IsTrue(CastleKeepCirculationPlanner.TryValidate(
+                in plan, in west, out CastleKeepCirculationPlanIssue westIssue),
+                westIssue.ToString());
+        }
+
+        [Test]
+        public void CompatibilityCirculationOverloadRemainsSouthFacing()
+        {
+            var plan = new CastlePlan
+            {
+                KeepHalfX = 100,
+                KeepHalfZ = 80,
+                FloorHeight = 46,
+                Floors = 5,
+            };
+
+            CastleKeepCirculationPlan legacy = CastleKeepCirculationPlanner.Create(in plan);
+
+            Assert.AreEqual(CastleKeepFace.South, legacy.EntranceFace);
+            Assert.AreEqual(new int2(0, -80), legacy.EntranceCentre);
+            Assert.AreEqual(new int2(-68, -52), legacy.GrandStairOrigin);
+        }
+
         private static void AssertFace(int2 gateCentre, CastleKeepFace expected)
         {
             var gate = new CastleGatePlacementSpec
