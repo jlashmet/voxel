@@ -137,7 +137,7 @@ namespace VoxelEngine.Structures.Api
             }
 
             var result = new CastleKeepWindowPlan(windows);
-            if (!TryValidate(in plan, result, out string error))
+            if (!TryValidate(in plan, windows, out string error))
                 throw new InvalidOperationException($"Planned castle keep windows are invalid: {error}");
             return result;
         }
@@ -145,6 +145,13 @@ namespace VoxelEngine.Structures.Api
         public static bool TryValidate(
             in CastlePlan plan,
             CastleKeepWindowPlan windows,
+            out string error) =>
+            TryValidate(in plan, windows?.SnapshotWindows(), out error);
+
+        /// <summary>Validates a completed/snapshotted aperture list without requiring wrapper state.</summary>
+        public static bool TryValidate(
+            in CastlePlan plan,
+            CastleKeepWindowSpec[] windows,
             out string error)
         {
             if (windows == null)
@@ -153,9 +160,16 @@ namespace VoxelEngine.Structures.Api
                 return false;
             }
 
-            for (int i = 0; i < windows.Count; i++)
+            int expectedCount = plan.Floors * 6 - 1;
+            if (windows.Length != expectedCount)
             {
-                CastleKeepWindowSpec window = windows.Window(i);
+                error = $"expected {expectedCount} apertures but found {windows.Length}";
+                return false;
+            }
+
+            for (int i = 0; i < windows.Length; i++)
+            {
+                CastleKeepWindowSpec window = windows[i];
                 if (window.Id != i)
                 {
                     error = $"window id {window.Id} is out of order at {i}";
