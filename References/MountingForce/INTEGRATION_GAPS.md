@@ -53,7 +53,7 @@ This checklist tracks translation from recovered Mounting Force evidence into vo
 
 ## Integration verification
 
-- [ ] Add EditMode tests for the normalized recovered-world catalog and six settlement/region pairs.
-- [ ] Add PlayMode coverage that builds/generates at least the Kentridge vertical slice from the production campaign blueprint.
+- [x] Add EditMode tests for the normalized recovered-world catalog and six settlement/region pairs.
+- [x] Add PlayMode coverage that builds/generates the Kentridge vertical slice from the production campaign blueprint, evaluates all 17 stable Kentridge building roles through the voxel shape program, starts a new game, and plays the opening cutscene through to the travel objective.
 - [ ] Add a recovered-world showcase that can visualize semantic region/site ids alongside legacy map-source ids.
 - [ ] Expand the vertical slice town-by-town as missing WorldBuilder capabilities are exposed.

@@ -36,10 +36,11 @@ namespace Game.Composition.Campaign.Content
     }
 
     /// <summary>
-    /// Production authoring for the opening story facts that are currently known. The recovered
-    /// Mounting Force hierarchy is registered first so the opening participates in the same normalized
-    /// town/overworld model as the rest of the game. The first destination deliberately remains a
-    /// constraint-matched Kentridge-overworld site until its recovered semantic role is resolved.
+    /// Production authoring for the opening story facts that are currently known. The recovered world
+    /// catalog remains the source of semantic ids, but this opening blueprint intentionally authors only
+    /// the Kentridge overworld + Kentridge settlement because the current production generator is a
+    /// single-region/single-settlement vertical-slice generator. The first destination deliberately
+    /// remains a constraint-matched Kentridge-overworld site until its recovered semantic role is resolved.
     /// </summary>
     public sealed class KnownOpeningCampaignContent
     {
@@ -85,10 +86,12 @@ namespace Game.Composition.Campaign.Content
 
             var game = Game.WorldBuilder.Api.Campaign.Create("main-campaign");
 
-            RecoveredMountingForceWorldHandles recoveredWorld =
-                RecoveredMountingForceWorldCatalog.RegisterHierarchy(game.World);
-            RegionHandle kentridgeOverworld = recoveredWorld.KentridgeOverworld;
-            SettlementHandle kentridge = recoveredWorld.Kentridge;
+            RecoveredOverworldRegionDefinition recoveredKentridge =
+                RecoveredMountingForceWorldCatalog.Kentridge;
+            RegionHandle kentridgeOverworld = game.World.Region(recoveredKentridge.RegionId);
+            SettlementHandle kentridge = kentridgeOverworld.Settlement(
+                recoveredKentridge.SettlementId,
+                recoveredKentridge.SettlementArchetype);
 
             SiteHandle startingPub = kentridge.Pub(
                 "starting-pub",

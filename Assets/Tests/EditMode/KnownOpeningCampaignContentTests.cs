@@ -39,7 +39,7 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(destination.ActorBindings[0].Target.Npc, Is.EqualTo(content.DestinationNpc));
 
             RegionSpec region = blueprint.Hierarchy.Regions.Single();
-            Assert.That(region.Ref.Id, Is.EqualTo("kentridge-region"));
+            Assert.That(region.Ref.Id, Is.EqualTo("kentridge-overworld"));
 
             SettlementSpec settlement = blueprint.Hierarchy.Settlements.Single();
             Assert.That(settlement.Ref.Id, Is.EqualTo("kentridge"));
@@ -78,6 +78,23 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(destinationSite.Capabilities
                     .Single(value => value.Kind == SiteCapabilityKind.ConversationSpace).Source,
                 Is.EqualTo(SiteCapabilitySource.Derived));
+        }
+
+        [Test]
+        public void RecoveredCatalogRegistersAllSixNormalizedRegionSettlementPairs()
+        {
+            var game = Campaign.Create("recovered-world-catalog-test");
+            RecoveredMountingForceWorldCatalog.RegisterHierarchy(game.World);
+            CampaignBlueprint blueprint = game.Build();
+
+            Assert.That(blueprint.Hierarchy.Regions.Count, Is.EqualTo(6));
+            Assert.That(blueprint.Hierarchy.Settlements.Count, Is.EqualTo(6));
+            CollectionAssert.AreEquivalent(
+                RecoveredMountingForceWorldCatalog.All.Select(value => value.RegionId).ToArray(),
+                blueprint.Hierarchy.Regions.Select(value => value.Ref.Id).ToArray());
+            CollectionAssert.AreEquivalent(
+                RecoveredMountingForceWorldCatalog.All.Select(value => value.SettlementId).ToArray(),
+                blueprint.Hierarchy.Settlements.Select(value => value.Ref.Id).ToArray());
         }
 
         private static CutsceneDefinition ActorfulDestination(CutsceneActorId speaker) =>
