@@ -1,9 +1,8 @@
 using System.Collections.Generic;
 using System.IO;
-using System.Reflection;
+using System.Text.RegularExpressions;
 using NUnit.Framework;
 using UnityEngine;
-using VoxelEngine.Structures.Api;
 
 namespace VoxelEngine.CI
 {
@@ -13,6 +12,10 @@ namespace VoxelEngine.CI
     /// </summary>
     public sealed class EngineGameDependencyBoundaryTests
     {
+        private static readonly Regex LegacyStructureMaterialDeclaration = new(
+            @"\b(?:static\s+)?class\s+Mat\b|\bstruct\s+StructureMaterialSet\b",
+            RegexOptions.Compiled);
+
         [Test]
         public void VoxelEngineAssemblies_DoNotReferenceGameAssemblies()
         {
@@ -38,19 +41,27 @@ namespace VoxelEngine.CI
         }
 
         [Test]
-        public void LegacyStructureMaterialFacade_HasNoCompileTimeMaterialIds()
+        public void StructuresModule_DoesNotReintroduceLegacySemanticMaterialTypes()
         {
-            FieldInfo[] fields = typeof(Mat).GetFields(BindingFlags.Public | BindingFlags.Static);
-            var constants = new List<string>();
-            for (int i = 0; i < fields.Length; i++)
+            string structuresRoot = Path.Combine(Application.dataPath, "VoxelEngine", "Structures");
+            string[] sources = Directory.GetFiles(structuresRoot, "*.cs", SearchOption.AllDirectories);
+            var violations = new List<string>();
+
+            for (int i = 0; i < sources.Length; i++)
             {
-                if (fields[i].IsLiteral && fields[i].FieldType == typeof(byte))
-                    constants.Add(fields[i].Name);
+                string contents = File.ReadAllText(sources[i]);
+                Match match = LegacyStructureMaterialDeclaration.Match(contents);
+                if (!match.Success) continue;
+
+                string relative = sources[i].Substring(Application.dataPath.Length + 1)
+                    .Replace('\\', '/');
+                violations.Add($"Assets/{relative}: {match.Value}");
             }
 
-            Assert.That(constants, Is.Empty,
-                "The transitional Mat facade may resolve application-configured roles, but it must " +
-                "never define numeric material IDs in VoxelEngine: " + string.Join(", ", constants));
+            Assert.That(violations, Is.Empty,
+                "VoxelEngine.Structures must not own semantic material facade/types. Game content " +
+                "owns material identity; engine structure code consumes opaque indices and generic " +
+                "material properties instead.\n" + string.Join("\n", violations));
         }
     }
 }
