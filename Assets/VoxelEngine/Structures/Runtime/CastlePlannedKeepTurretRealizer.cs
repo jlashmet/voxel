@@ -19,12 +19,9 @@ namespace VoxelEngine.Structures.Runtime
             if (turrets == null || turrets.Length != 4)
                 throw new InvalidOperationException("Spatial keep requires four planned corner turrets.");
 
-            int baseY = keepPlan.Centre.y + keepPlan.PlateauHeight;
-            int2 keepCentre = CastleSpatialProjection.ActualKeepCentre(in keepPlan);
-            int minX = keepCentre.x - keepPlan.KeepHalfX;
-            int minZ = keepCentre.y - keepPlan.KeepHalfZ;
-            int width = keepPlan.KeepHalfX * 2;
-            int depth = keepPlan.KeepHalfZ * 2;
+            int3 min = CastleSpatialProjection.KeepMinimum(in keepPlan);
+            int3 size = CastleSpatialProjection.KeepSize(in keepPlan);
+            int baseY = min.y;
             int height = keepPlan.KeepHeight + 30;
 
             for (int i = 0; i < turrets.Length; i++)
@@ -32,10 +29,10 @@ namespace VoxelEngine.Structures.Runtime
                 CastleKeepTurretSpec turret = turrets[i];
                 int2 position = turret.Corner switch
                 {
-                    CastleKeepTurretCorner.MinXMinZ => new int2(minX, minZ),
-                    CastleKeepTurretCorner.MaxXMinZ => new int2(minX + width, minZ),
-                    CastleKeepTurretCorner.MinXMaxZ => new int2(minX, minZ + depth),
-                    CastleKeepTurretCorner.MaxXMaxZ => new int2(minX + width, minZ + depth),
+                    CastleKeepTurretCorner.MinXMinZ => new int2(min.x, min.z),
+                    CastleKeepTurretCorner.MaxXMinZ => new int2(min.x + size.x, min.z),
+                    CastleKeepTurretCorner.MinXMaxZ => new int2(min.x, min.z + size.z),
+                    CastleKeepTurretCorner.MaxXMaxZ => new int2(min.x + size.x, min.z + size.z),
                     _ => throw new InvalidOperationException(
                         $"Spatial keep contains invalid turret corner {turret.Corner}."),
                 };
