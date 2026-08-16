@@ -159,6 +159,56 @@ namespace VoxelEngine.Tests.EditMode
             }
         }
 
+
+        [Test]
+        public void PinnedRegionMetadataSurvivesPhysicalEvictionAndDetectsRevisionChanges()
+        {
+            var table = new RegionTable(2, Allocator.Persistent);
+            var pool = new BrickPool(2, Allocator.Persistent);
+            try
+            {
+                Region region = table.LoadRegion(int3.zero);
+                region.BrickRefs[0] = BrickRef.Uniform(3);
+                table.CommitRegion(in region);
+                var source = new RegionReadSource(in table, in pool);
+
+                Assert.True(source.TryPinRegionBlockRefs(int3.zero, out PinnedRegionBlockRefs pinned));
+                Assert.True(pinned.IsCreated);
+                Assert.AreEqual(VoxelReadBlockKind.Uniform,
+                    VoxelReadBlockRefEncoding.Kind(pinned.EncodedBlockRefs[0]));
+                Assert.AreEqual(3, VoxelReadBlockRefEncoding.UniformMaterial(
+                    pinned.EncodedBlockRefs[0]));
+                Assert.True(source.IsPinnedRegionCurrent(in pinned.Pin));
+
+                Assert.True(table.TryGetRegion(int3.zero, out Region changed));
+                changed.BrickRefs[0] = BrickRef.Uniform(5);
+                table.CommitRegion(in changed);
+                Assert.False(source.IsPinnedRegionCurrent(in pinned.Pin),
+                    "A region commit must invalidate optimistic metadata job output.");
+
+                VoxelRegionPinToken token = pinned.Pin;
+                table.EvictRegion(int3.zero, ref pool);
+                Assert.False(source.IsRegionResident(int3.zero));
+                Assert.True(pinned.EncodedBlockRefs.IsCreated,
+                    "Physical block-ref storage was disposed while a job lease was pinned.");
+                source.ReleasePinnedRegion(in token);
+
+                Region replacement = table.LoadRegion(int3.zero);
+                replacement.BrickRefs[0] = BrickRef.Uniform(7);
+                table.CommitRegion(in replacement);
+                Assert.True(source.TryPinRegionBlockRefs(int3.zero, out PinnedRegionBlockRefs next));
+                Assert.AreNotEqual(token.Generation, next.Pin.Generation,
+                    "Reused region slots must advance generation to prevent ABA.");
+                VoxelRegionPinToken nextToken = next.Pin;
+                source.ReleasePinnedRegion(in nextToken);
+            }
+            finally
+            {
+                if (table.IsCreated) table.Dispose();
+                if (pool.IsCreated) pool.Dispose();
+            }
+        }
+
         [Test]
         public void WorldBlockCoordinatesRemainCorrectAcrossNegativeRegions()
         {

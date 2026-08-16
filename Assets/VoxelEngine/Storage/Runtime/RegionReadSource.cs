@@ -126,6 +126,31 @@ namespace VoxelEngine.Storage.Runtime
             return true;
         }
 
+        public bool TryPinRegionBlockRefs(int3 regionCoord, out PinnedRegionBlockRefs pinned)
+        {
+            if (!_table.TryPinRegion(regionCoord, out Region region,
+                                     out int slot, out uint generation, out uint revision))
+            {
+                pinned = default;
+                return false;
+            }
+
+            var token = new VoxelRegionPinToken(slot, generation, revision);
+            pinned = new PinnedRegionBlockRefs(
+                regionCoord, region.BrickRefs.Reinterpret<int>(), in token);
+            return true;
+        }
+
+        public bool IsPinnedRegionCurrent(in VoxelRegionPinToken token) =>
+            token.IsValid
+            && _table.IsRegionPinCurrent(token.Slot, token.Generation, token.Revision);
+
+        public void ReleasePinnedRegion(in VoxelRegionPinToken token)
+        {
+            if (!token.IsValid) return;
+            _table.UnpinRegion(token.Slot, token.Generation, ref _pool);
+        }
+
         public bool TryCopyBlockSummary(int3 regionCoord,
                                         NativeArray<ulong> occupiedWords,
                                         NativeArray<ulong> fullySolidWords,

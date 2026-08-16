@@ -460,5 +460,22 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("_snapshotPinUnavailable", cache);
         }
 
+
+        [Test]
+        public void RegionMetadataLeasesAreVersionedAndEvictionSafe()
+        {
+            string api = File.ReadAllText(Path.Combine(
+                Application.dataPath, "VoxelEngine", "Storage", "Api", "IRegionReadSource.cs"));
+            string table = File.ReadAllText(Path.Combine(
+                Application.dataPath, "VoxelEngine", "Storage", "Runtime", "RegionTable.cs"));
+            StringAssert.Contains("TryPinRegionBlockRefs", api);
+            StringAssert.Contains("IsPinnedRegionCurrent", api);
+            StringAssert.Contains("ReleasePinnedRegion", api);
+            StringAssert.Contains("_contentRevisions", table);
+            StringAssert.Contains("_retiredSlots", table);
+            StringAssert.Contains("ReleaseRetiredSlot", table);
+            StringAssert.Contains("_contentRevisions[slot] =", table);
+        }
+
     }
 }

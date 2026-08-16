@@ -49,6 +49,19 @@ namespace VoxelEngine.Storage.Api
         void ReleasePinnedWorldBlock(in VoxelReadPinToken token);
 
         /// <summary>
+        /// Pins the physical lifetime of one resident region's compact block-reference array for
+        /// an optimistic job read. The job output is valid only if the token revision still passes
+        /// <see cref="IsPinnedRegionCurrent"/> afterward. The backing array is Storage-owned.
+        /// </summary>
+        bool TryPinRegionBlockRefs(int3 regionCoord, out PinnedRegionBlockRefs region);
+
+        /// <summary>Checks generation, logical residency and content revision for a pinned region.</summary>
+        bool IsPinnedRegionCurrent(in VoxelRegionPinToken token);
+
+        /// <summary>Releases a region metadata pin and completes deferred physical eviction if needed.</summary>
+        void ReleasePinnedRegion(in VoxelRegionPinToken token);
+
+        /// <summary>
         /// Copies compact per-block occupancy state into caller-owned memory. Unlike a borrowed
         /// <see cref="RegionReadView"/>, the copied words are immutable from Storage's point of
         /// view and may safely outlive the frame or be consumed by jobs after later world edits.
