@@ -3,6 +3,9 @@
   "rootNamespace": "Game.Structures.Runtime",
   "references": [
     "Game.Structures.Api",
+    "Game.Materials.Api",
+    "VoxelEngine.Structures.Api",
+    "VoxelEngine.Terrain.Api",
     "Unity.Mathematics"
   ],
   "includePlatforms": [],
