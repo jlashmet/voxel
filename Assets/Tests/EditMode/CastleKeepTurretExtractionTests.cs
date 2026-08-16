@@ -34,5 +34,22 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.DoesNotContain("SpiralStair", turrets);
             StringAssert.DoesNotContain("new Random(", turrets);
         }
+
+        [Test]
+        public void PlannedKeepTurretsConsumeSharedProjectedBounds()
+        {
+            string turrets = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
+                "CastlePlannedKeepTurretRealizer.cs"));
+
+            StringAssert.Contains("CastleSpatialProjection.KeepMinimum(", turrets);
+            StringAssert.Contains("CastleSpatialProjection.KeepSize(", turrets);
+            StringAssert.DoesNotContain("CastleSpatialProjection.ActualKeepCentre(", turrets,
+                "Planned turret placement should consume the projected volume instead of re-deriving its centre.");
+            StringAssert.DoesNotContain("keepPlan.KeepHalfX * 2", turrets,
+                "Planned turret placement must not rebuild keep width locally.");
+            StringAssert.DoesNotContain("keepPlan.KeepHalfZ * 2", turrets,
+                "Planned turret placement must not rebuild keep depth locally.");
+        }
     }
 }
