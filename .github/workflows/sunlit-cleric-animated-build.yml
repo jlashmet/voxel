@@ -91,14 +91,16 @@ jobs:
 
           root = Path('tools/character-factory/production/sunlit-cleric/front.jpg.b64')
           chunks = sorted(root.glob('*.txt'))
-          if len(chunks) != 3:
-              raise SystemExit(f'expected 3 cleric reference chunks, found {len(chunks)}')
+          if len(chunks) != 6:
+              raise SystemExit(f'expected 6 cleric reference chunks, found {len(chunks)}')
           encoded = ''.join(path.read_text(encoding='utf-8').strip() for path in chunks)
           payload = base64.b64decode(encoded, validate=True)
           output = Path('Artifacts/SunlitClericAnimated/cleric_front.jpg')
           output.write_bytes(payload)
           if payload[:2] != b'\xff\xd8' or payload[-2:] != b'\xff\xd9':
               raise SystemExit('decoded cleric reference is not a complete JPEG')
+          if len(payload) != 17225:
+              raise SystemExit(f'unexpected cleric reference size: {len(payload)}')
           print(f'decoded {output}: {len(payload)} bytes')
           PY
           test -s "$OUT/cleric_front.jpg"
