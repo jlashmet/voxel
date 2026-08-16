@@ -1107,7 +1107,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _changeScratch.Clear();
             _changeRecordIndex = 0;
             _changeFeedHasMore = false;
-            _recoveringChangeOverflow = journal != null;
+            _recoveringChangeOverflow = false;
             _changeRecoveryCursor = 0;
             _changeExpansionActive = false;
             _changeExpansionCursor = 0;

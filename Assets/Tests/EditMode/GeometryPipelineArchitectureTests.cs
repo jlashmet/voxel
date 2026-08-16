@@ -427,7 +427,7 @@ namespace VoxelEngine.Tests.EditMode
 
 
         [Test]
-        public void ChangeJournalAttachmentBaselinesCurrentVersionAndResyncsCurrentState()
+        public void ChangeJournalAttachmentBaselinesCurrentVersionWithoutInvalidatingCurrentState()
         {
             string scheduler = ReadRenderingSource(
                 Path.Combine("SurfaceExtraction", "VoxelSurfaceScheduler.cs"));
@@ -439,7 +439,7 @@ namespace VoxelEngine.Tests.EditMode
             Assert.Greater(recovery, reset);
             string attach = scheduler.Substring(reset, recovery - reset);
             StringAssert.Contains("_changeCursor = journal?.CurrentVersion ?? 0;", attach);
-            StringAssert.Contains("_recoveringChangeOverflow = journal != null;", attach);
+            StringAssert.Contains("_recoveringChangeOverflow = false;", attach);
             StringAssert.DoesNotContain("_changeCursor = 0;", attach,
                 "A newly attached journal must not replay retained pre-render history.");
         }
