@@ -27,6 +27,18 @@ namespace Game.Materials.Runtime
             gate: GameMaterialIds.Wood,
             referenceArch: GameMaterialIds.DarkStone,
             farStructure: GameMaterialIds.Stone,
+            worldgenFoundation: GameMaterialIds.Stone,
+            worldgenMasonry: GameMaterialIds.Stone,
+            worldgenDarkMasonry: GameMaterialIds.DarkStone,
+            worldgenTimber: GameMaterialIds.Wood,
+            worldgenGlass: GameMaterialIds.Glass,
+            worldgenWarmWindow: GameMaterialIds.LitWindow,
+            worldgenRoofTile: GameMaterialIds.Tile,
+            worldgenSlate: GameMaterialIds.Slate,
+            worldgenCloth: GameMaterialIds.Cloth,
+            worldgenMoss: GameMaterialIds.Moss,
+            worldgenWater: GameMaterialIds.Water,
+            worldgenRoadSurface: GameMaterialIds.Dirt,
             structuralMask: StructuralMask);
     }
 }
