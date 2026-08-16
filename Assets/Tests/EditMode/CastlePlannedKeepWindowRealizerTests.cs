@@ -19,7 +19,7 @@ namespace VoxelEngine.Tests.EditMode
                 "VoxelEngine",
                 "Structures",
                 "Runtime",
-                "CastleKeepWindowRealizer.cs"));
+                "CastlePlannedKeepWindowRealizer.cs"));
 
             StringAssert.Contains("CastleKeepWindowSpec[] windows", source);
             StringAssert.Contains("window.HasLitGlazing", source);
@@ -75,8 +75,8 @@ namespace VoxelEngine.Tests.EditMode
                     new int3(rear.Width, rear.Height, rear.Depth),
                     Mat.Stone);
 
-                CastleKeepWindowRealizer.Build(
-                    ref brush, in plan, worldKeepCentre, windows);
+                CastlePlannedKeepWindowRealizer.BuildAll(
+                    ref brush, in plan, windows);
 
                 int frontX = worldKeepCentre.x + front.LocalOrigin.x;
                 int frontY = baseY + front.BaseYOffset;
