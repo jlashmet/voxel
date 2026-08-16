@@ -17,7 +17,8 @@ namespace VoxelEngine.Structures.Runtime
         private uint _terrainSeed;
         private int _stage;
         private int _keepStage;
-        private CastleSiteRealizer.State _site;
+        private CastleSiteRealizer.State _legacySite;
+        private CastlePlannedSiteRealizer.State _plannedSite;
         private CastleSitePlan _sitePlan;
         private CastleWallPlan _wallPlan;
 
@@ -150,7 +151,8 @@ namespace VoxelEngine.Structures.Runtime
             _terrainSeed = terrainSeed;
             _stage = 1;
             _keepStage = 0;
-            _site = default;
+            _legacySite = default;
+            _plannedSite = default;
         }
 
         public bool IsComplete => _stage > 8;
@@ -168,15 +170,15 @@ namespace VoxelEngine.Structures.Runtime
                 case 1:
                 {
                     bool siteComplete = _hasSpatialFortifications
-                        ? CastleSiteRealizer.StepPlanned(
+                        ? CastlePlannedSiteRealizer.Step(
                             ref _brush,
                             in _plan,
                             _terrainSeed,
                             in _approach,
                             in _sitePlan,
-                            ref _site)
+                            ref _plannedSite)
                         : CastleSiteRealizer.Step(
-                            ref _brush, in _plan, _terrainSeed, ref _site);
+                            ref _brush, in _plan, _terrainSeed, ref _legacySite);
                     if (!siteComplete)
                     {
                         RequireBudget("site");
