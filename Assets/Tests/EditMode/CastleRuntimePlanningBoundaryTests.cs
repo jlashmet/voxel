@@ -73,7 +73,6 @@ namespace VoxelEngine.Tests.EditMode
                 "CastleKeepWindowRealizer.cs",
                 "CastlePlannedKeepExteriorRealizer.cs",
                 "CastlePlannedKeepAnnexRealizer.cs",
-                "CastleRoomAccentRealizer.cs",
                 "CastlePlannedDungeonRealizer.cs",
                 "CastlePlannedLandscapeRealizer.cs",
             };
