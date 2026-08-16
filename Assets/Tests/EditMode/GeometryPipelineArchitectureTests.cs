@@ -240,7 +240,7 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void SolidVisibilityTraversesBoundedClipmapCoordinatesOncePerRing()
+        public void SolidVisibilityTraversesOnlyActiveToroidalSlotsOncePerRing()
         {
             string cache = ReadRenderingSource(
                 Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"));
@@ -253,8 +253,11 @@ namespace VoxelEngine.Tests.EditMode
             Assert.Greater(collectEnd, collect);
             string productionVisibility = scheduler.Substring(collect, collectEnd - collect);
             StringAssert.Contains("for (int r = 0; r < _rings.Length; r++)", productionVisibility);
+            StringAssert.Contains("ring.ActiveSlotCount", productionVisibility);
+            StringAssert.Contains("ring.ActiveSlotCoordinate(slotIndex)", productionVisibility);
             StringAssert.Contains("ShardForChunk", productionVisibility);
             StringAssert.Contains("CollectVisibleCoordinate", productionVisibility);
+            StringAssert.DoesNotContain("for (int z = -radius; z <= radius; z++)", productionVisibility);
             StringAssert.DoesNotContain("_allWorkers[i].CollectVisible", productionVisibility);
 
             int cacheCollect = cache.IndexOf("public IReadOnlyList<Entry> CollectVisible(",
@@ -435,6 +438,8 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.DoesNotContain("Dictionary<int3, SurfaceChunkSlot>", cache);
             StringAssert.DoesNotContain("Stack<SurfaceChunkSlot>", cache);
             StringAssert.Contains("SurfaceChunkSlot[] _slots", grid);
+            StringAssert.Contains("int[] _activeSlotIndices", grid);
+            StringAssert.Contains("ActiveCoordinateAt(int activeIndex)", grid);
             StringAssert.Contains("SlotIndex(int3 coordinate)", grid);
             StringAssert.Contains("current.Reinitialize(coordinate, NextGeneration())", grid);
             StringAssert.Contains("internal struct SurfaceChunkSlot", slot);

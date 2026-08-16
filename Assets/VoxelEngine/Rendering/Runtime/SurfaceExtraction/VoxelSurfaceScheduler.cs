@@ -307,6 +307,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             public bool HasClipmapWindow { get; private set; }
             public int3 ClipmapRegionMin { get; private set; }
             public int3 ClipmapRegionMaxExclusive { get; private set; }
+            public int ActiveSlotCount => _slotGrid.ActiveCount;
+            public int3 ActiveSlotCoordinate(int index) => _slotGrid.ActiveCoordinateAt(index);
 
             public SurfaceRing(int sourceStep, float innerRadiusMetres, float outerRadiusMetres,
                                int maxResidentChunks, SurfaceGeometryArena geometryArena,
@@ -805,14 +807,18 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                         int radius = ring.ClipmapRadius;
                         int3 centre = ring.ClipmapCentre;
 
-                        // One bounded clipmap-coordinate walk per ring. Sharding chooses the
-                        // workspace in O(1); it no longer causes each workspace to rescan the
-                        // same coordinate volume or the lifetime-sized _known set.
-                        for (int z = -radius; z <= radius; z++)
-                        for (int y = -radius; y <= radius; y++)
-                        for (int x = -radius; x <= radius; x++)
+                        // The ring's toroidal grid already knows exactly which clipmap cells own
+                        // discovered surface chunks. Walk that dense active list rather than the
+                        // entire (2r+1)^3 coordinate volume. Outgoing slots can remain active for
+                        // a few frames while retirement is sliced; skip them against the current
+                        // window so delayed cleanup never draws stale residency.
+                        int activeSlots = ring.ActiveSlotCount;
+                        for (int slotIndex = 0; slotIndex < activeSlots; slotIndex++)
                         {
-                            int3 coordinate = centre + new int3(x, y, z);
+                            int3 coordinate = ring.ActiveSlotCoordinate(slotIndex);
+                            int3 delta = math.abs(coordinate - centre);
+                            if (math.cmax(delta) > radius) continue;
+
                             int shard = CpuTransvoxelChunkCache.ShardForChunk(
                                 coordinate, ring.Workers.Length);
                             ring.Workers[shard].CollectVisibleCoordinate(

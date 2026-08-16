@@ -12,6 +12,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
     internal sealed class SurfaceChunkSlotGrid
     {
         private SurfaceChunkSlot[] _slots = Array.Empty<SurfaceChunkSlot>();
+        // Dense active-index bookkeeping lets visibility walk only slots that actually own a
+        // discovered surface chunk. The reverse map keeps acquire/retire O(1), including
+        // toroidal replacement when a newly exposed coordinate reuses an outgoing cell.
+        private int[] _activeSlotIndices = Array.Empty<int>();
+        private int[] _activeDenseIndexBySlot = Array.Empty<int>();
         private int3 _centre;
         private int _radius = -1;
         private int _edge;
@@ -27,7 +32,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             {
                 _radius = nextRadius;
                 _edge = _radius * 2 + 1;
-                _slots = new SurfaceChunkSlot[_edge * _edge * _edge];
+                int capacity = _edge * _edge * _edge;
+                _slots = new SurfaceChunkSlot[capacity];
+                _activeSlotIndices = new int[capacity];
+                _activeDenseIndexBySlot = new int[capacity];
+                for (int i = 0; i < capacity; i++)
+                    _activeDenseIndexBySlot[i] = -1;
                 ActiveCount = 0;
             }
             _centre = centre;
@@ -46,8 +56,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             if (current.Generation == 0 || !current.Coordinate.Equals(coordinate))
             {
                 bool replacing = current.Generation != 0;
+                if (!replacing)
+                {
+                    _activeDenseIndexBySlot[index] = ActiveCount;
+                    _activeSlotIndices[ActiveCount++] = index;
+                }
                 current.Reinitialize(coordinate, NextGeneration());
-                if (!replacing) ActiveCount++;
             }
 
             slot = current;
@@ -72,8 +86,25 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             int index = SlotIndex(coordinate);
             ref SurfaceChunkSlot slot = ref _slots[index];
             if (slot.Generation == 0 || !slot.Coordinate.Equals(coordinate)) return;
+
+            int denseIndex = _activeDenseIndexBySlot[index];
+            if (denseIndex >= 0)
+            {
+                int lastDenseIndex = ActiveCount - 1;
+                int lastSlotIndex = _activeSlotIndices[lastDenseIndex];
+                _activeSlotIndices[denseIndex] = lastSlotIndex;
+                _activeDenseIndexBySlot[lastSlotIndex] = denseIndex;
+                _activeDenseIndexBySlot[index] = -1;
+                ActiveCount = lastDenseIndex;
+            }
             slot.Retire();
-            ActiveCount = math.max(0, ActiveCount - 1);
+        }
+
+        public int3 ActiveCoordinateAt(int activeIndex)
+        {
+            if ((uint)activeIndex >= (uint)ActiveCount)
+                throw new ArgumentOutOfRangeException(nameof(activeIndex));
+            return _slots[_activeSlotIndices[activeIndex]].Coordinate;
         }
 
         private bool Contains(int3 coordinate)
