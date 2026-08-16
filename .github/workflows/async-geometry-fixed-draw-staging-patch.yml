@@ -1,0 +1,38 @@
+name: Fixed draw staging one-shot patch
+
+on:
+  push:
+    branches: [refactor/async-geometry-pipeline]
+    paths: [.github/workflows/async-geometry-fixed-draw-staging-patch.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/async-geometry-pipeline
+          fetch-depth: 0
+      - name: Apply guarded fixed draw staging patch
+        run: python3 .github/scripts/async_geometry_fixed_draw_staging_patch.py
+      - name: Static guards
+        run: |
+          grep -q 'VoxelSurfaceScheduler.SurfaceArenaDrawCapacity' Assets/VoxelEngine/Rendering/Runtime/RenderFeature/VoxelRenderPass.cs
+          grep -q 'CpuWaterSurfaceChunkCache.ArenaDrawCapacity' Assets/VoxelEngine/Rendering/Runtime/RenderFeature/VoxelRenderPass.cs
+          ! grep -q 'Array.Resize' Assets/VoxelEngine/Rendering/Runtime/RenderFeature/VoxelRenderPass.cs
+          grep -q 'RenderPassDrawStagingNeverResizesAfterConstruction' Assets/Tests/EditMode/GeometryPipelineArchitectureTests.cs
+      - name: Commit fixed draw staging
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add Assets/VoxelEngine/Rendering/Runtime/RenderFeature/VoxelRenderPass.cs \
+                  Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs \
+                  Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuWaterSurfaceChunkCache.cs \
+                  Assets/Tests/EditMode/GeometryPipelineArchitectureTests.cs
+          git commit -m 'Preallocate fixed render draw staging arrays'
+          git fetch origin refactor/async-geometry-pipeline
+          git rebase origin/refactor/async-geometry-pipeline
+          git push origin HEAD:refactor/async-geometry-pipeline
