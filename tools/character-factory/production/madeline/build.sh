@@ -12,7 +12,6 @@ test -x "$BLENDER_BIN"
 
 VIEW_DIR="$SCRIPT_DIR/views"
 PRECLEAN_DIR="$SCRIPT_DIR/views-bodyonly"
-FACE_SOURCE="$SCRIPT_DIR/refs/madeline_face_front.png"
 for name in front back left right; do
   source="$VIEW_DIR/$name.jpg"
   if [ ! -s "$source" ]; then
@@ -21,10 +20,6 @@ for name in front back left right; do
     exit 2
   fi
 done
-if [ ! -s "$FACE_SOURCE" ]; then
-  echo "Missing Madeline face reference: $FACE_SOURCE" >&2
-  exit 2
-fi
 
 CACHE_ROOT="${CHARACTER_FACTORY_CACHE_ROOT:-$HOME/Library/Caches/voxel-character-factory}"
 HUNYUAN_REV="f8db63096c8282cb27354314d896feba5ba6ff8a"
@@ -52,7 +47,7 @@ from PIL import Image, ImageFile
 
 source = Path(sys.argv[1])
 destination = Path(sys.argv[2])
-ImageFile.LOAD_TRUNCATED_IMAGES = True
+ImageFile.LOAD_TRUNCATED_IMAGES = False
 image = Image.open(source)
 image.load()
 rgb = image.convert("RGB")
@@ -67,67 +62,37 @@ print(f"validated {source.name}: {rgb.width}x{rgb.height}, {len(data)} bytes -> 
 PY
 done
 
-# The approved face crop is authoritative identity input. An older copy in Git has
-# valid PNG chunk payloads but a bad palette CRC, which Blender/libpng rejects. Repair
-# chunk CRCs into the build output, then round-trip through Pillow so downstream tools
-# always receive a conventionally encoded RGB PNG without changing the source artwork.
+# Derive face identity from the same approved full-resolution front turnaround used
+# for reconstruction. This avoids stale/corrupt legacy face assets and guarantees
+# that the facial reference matches the current Madeline design. The crop is stored
+# as normalized coordinates so the build remains deterministic if the reference is
+# re-encoded at another resolution with the same approved framing.
 FACE="$OUT/reference/madeline_face_front.png"
-"$HUNYUAN_PY" - "$FACE_SOURCE" "$FACE" <<'PY'
+"$HUNYUAN_PY" - "$OUT/reference/raw/front.jpg" "$FACE" <<'PY'
 from pathlib import Path
-import struct
 import sys
-import zlib
 from PIL import Image
 
 source = Path(sys.argv[1])
 destination = Path(sys.argv[2])
-data = source.read_bytes()
-signature = b"\x89PNG\r\n\x1a\n"
-if not data.startswith(signature):
-    raise SystemExit(f"Madeline face source is not a PNG: {source}")
-
-repaired = bytearray(signature)
-offset = len(signature)
-saw_iend = False
-while offset < len(data):
-    if offset + 12 > len(data):
-        raise SystemExit(f"Madeline face PNG is truncated at byte {offset}: {source}")
-    length = struct.unpack(">I", data[offset : offset + 4])[0]
-    chunk_type = data[offset + 4 : offset + 8]
-    chunk_end = offset + 12 + length
-    if chunk_end > len(data):
-        raise SystemExit(
-            f"Madeline face PNG chunk {chunk_type!r} exceeds file length: {source}"
-        )
-    chunk_data = data[offset + 8 : offset + 8 + length]
-    repaired.extend(struct.pack(">I", length))
-    repaired.extend(chunk_type)
-    repaired.extend(chunk_data)
-    repaired.extend(struct.pack(">I", zlib.crc32(chunk_type + chunk_data) & 0xFFFFFFFF))
-    offset = chunk_end
-    if chunk_type == b"IEND":
-        saw_iend = True
-        break
-
-if not saw_iend:
-    raise SystemExit(f"Madeline face PNG has no IEND chunk: {source}")
-
-repaired_path = destination.with_suffix(".crc-repaired.png")
-repaired_path.parent.mkdir(parents=True, exist_ok=True)
-repaired_path.write_bytes(repaired)
-with Image.open(repaired_path) as image:
+with Image.open(source) as image:
     image.load()
     rgb = image.convert("RGB")
-    if rgb.width < 64 or rgb.height < 64:
-        raise SystemExit(f"Madeline face crop decoded unexpectedly small: {rgb.size}")
-    rgb.save(destination, format="PNG", optimize=False)
-repaired_path.unlink()
-
+    width, height = rgb.size
+    left = int(round(width * 0.410))
+    top = int(round(height * 0.094))
+    right = int(round(width * 0.590))
+    bottom = int(round(height * 0.214))
+    if right - left < 96 or bottom - top < 96:
+        raise SystemExit(f"Madeline derived face crop is unexpectedly small: {(left, top, right, bottom)}")
+    face = rgb.crop((left, top, right, bottom)).resize((256, 256), Image.Resampling.LANCZOS)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    face.save(destination, format="PNG", optimize=False)
 with Image.open(destination) as verify:
     verify.load()
-    if verify.mode != "RGB":
-        raise SystemExit(f"Madeline face output mode is not RGB: {verify.mode}")
-print(f"validated face: {rgb.width}x{rgb.height} -> {destination}")
+    if verify.mode != "RGB" or verify.size != (256, 256):
+        raise SystemExit(f"Madeline face output validation failed: mode={verify.mode} size={verify.size}")
+print(f"derived face: {source.name} crop=({left},{top})-({right},{bottom}) -> {destination}")
 PY
 
 printf '%s\n' '[2/9] Remove the temporary modeling base layer from geometry inputs'
@@ -215,7 +180,7 @@ test -s "$ATLAS"
 mv "$RAW_FBX" "$OUT/madeline_body_01.geometry_only.fbx"
 mv "$TEXTURED_FBX" "$RAW_FBX"
 
-printf '%s\n' '[7/9] Restore Madeline facial identity from the original approved face art'
+printf '%s\n' '[7/9] Restore Madeline facial identity from the approved front turnaround'
 FACE_FBX="$OUT/madeline_body_01.face.fbx"
 "$BLENDER_BIN" --background --python-exit-code 1 \
   --python tools/character-factory/runtime/blender_project_face_texture.py -- \
