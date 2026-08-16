@@ -18,6 +18,14 @@ namespace Game.Materials.Runtime
             (1u << Coatings.Soot) |
             (1u << Coatings.Wet);
 
+        private static readonly byte[] s_BuildableMaterials =
+        {
+            GameMaterialIds.Stone,
+            GameMaterialIds.Wood,
+            GameMaterialIds.Sand,
+            GameMaterialIds.Glass,
+        };
+
         private static readonly GameMaterialDefinition[] s_Definitions =
         {
             new(GameMaterialIds.Empty, "empty", 0, DestructionClass.None, SurfaceStyles.Smooth, 0u),
@@ -45,17 +53,30 @@ namespace Game.Materials.Runtime
         };
 
         public static int Count => s_Definitions.Length;
-
+        public static int BuildableCount => s_BuildableMaterials.Length;
         public static ReadOnlySpan<GameMaterialDefinition> Definitions => s_Definitions;
+
+        public static bool IsCanonicalId(byte materialId) =>
+            materialId < s_Definitions.Length && s_Definitions[materialId].Id == materialId;
 
         public static ref readonly GameMaterialDefinition Get(byte materialId)
         {
-            if (materialId >= s_Definitions.Length || s_Definitions[materialId].Id != materialId)
+            if (!IsCanonicalId(materialId))
                 throw new ArgumentOutOfRangeException(nameof(materialId), materialId, "Unknown game material id.");
 
             return ref s_Definitions[materialId];
         }
 
+        public static string NameOf(byte materialId) =>
+            IsCanonicalId(materialId) ? s_Definitions[materialId].Name : "unknown";
+
         public static string GetName(byte materialId) => Get(materialId).Name;
+
+        public static byte BuildableAt(int index)
+        {
+            if ((uint)index >= (uint)s_BuildableMaterials.Length)
+                throw new ArgumentOutOfRangeException(nameof(index));
+            return s_BuildableMaterials[index];
+        }
     }
 }
