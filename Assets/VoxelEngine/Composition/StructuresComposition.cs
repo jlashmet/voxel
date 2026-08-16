@@ -56,48 +56,6 @@ namespace VoxelEngine.Composition
         }
     }
 
-    /// <summary>Composition-owned incremental castle authoring session.</summary>
-    public interface ICastleBuildSession
-    {
-        bool IsComplete { get; }
-        int StageNumber { get; }
-        long TotalVoxelsWritten { get; }
-        bool Step();
-    }
-
-    /// <summary>
-    /// Runtime-ready castle planning bundle. Composition keeps a detached snapshot of the
-    /// dimensions, terrain-resolved spatial plan, and terrain seed so dependency bounds,
-    /// realization, interaction, and presentation always observe the same castle. Public spatial
-    /// access returns another detached copy; caller mutation cannot change the bundle after creation.
-    /// </summary>
-    public readonly struct PlannedCastleBuild
-    {
-        private readonly CastlePlan _dimensions;
-        private readonly CastleSpatialPlan _spatial;
-
-        public CastlePlan Dimensions => _dimensions;
-        public CastleSpatialPlan Spatial =>
-            _spatial != null ? CastleSpatialPlanSnapshot.CloneDetached(_spatial) : null;
-        public uint TerrainSeed { get; }
-        public CastleSpatialProjection Projection =>
-            CastleSpatialProjection.Create(in _dimensions, _spatial);
-        public CastleGatehousePlan Gatehouse =>
-            _spatial != null ? _spatial.Topology.Gatehouse : default;
-
-        internal PlannedCastleBuild(
-            in CastlePlan dimensions,
-            CastleSpatialPlan spatial,
-            uint terrainSeed)
-        {
-            if (spatial == null) throw new ArgumentNullException(nameof(spatial));
-
-            _dimensions = dimensions;
-            _spatial = CastleSpatialPlanSnapshot.CloneRuntimeReady(in dimensions, spatial);
-            TerrainSeed = terrainSeed;
-        }
-    }
-
     /// <summary>Stable retained-profile handle; mutable Runtime storage stays private.</summary>
     public interface IStructureProfileStore : IProfileBlockReadSource
     {
@@ -117,62 +75,13 @@ namespace VoxelEngine.Composition
         }
     }
 
-    /// <summary>Application wiring for structure planning and authoring.</summary>
-    public static class StructuresComposition
+    /// <summary>Application wiring for generic structure authoring.</summary>
+    public static partial class StructuresComposition
     {
-        /// <summary>
-        /// Draws the deterministic castle plan through the Structures.Api planning boundary.
-        /// The returned plan stays independent of concrete voxel authoring/runtime types.
-        /// </summary>
-        public static CastlePlan PlanCastle(int3 centre, uint seed) =>
-            CastlePlanner.Create(centre, seed);
-
-        /// <summary>
-        /// Resolves semantic topology and spatial placement through pure Structures.Api planners.
-        /// A HighestGround keep intentionally remains unresolved until a terrain seed is supplied.
-        /// Runtime never re-plans an in-flight castle.
-        /// </summary>
-        public static CastleSpatialPlan PlanCastleSpatial(in CastlePlan plan)
-        {
-            CastleTopologyPlan topology = CastleLayoutPlanner.Create(plan.Seed);
-            CastleSpatialPlan spatial = CastleSpatialPlanner.Create(in plan, in topology);
-            if (!CastleSpatialPlanValidator.TryValidate(
-                    in plan, spatial, out CastleSpatialPlanIssue issue))
-            {
-                throw new InvalidOperationException(
-                    $"Castle spatial planning produced an invalid plan: {issue}.");
-            }
-            return spatial;
-        }
-
-        /// <summary>
-        /// Produces a fully runtime-ready spatial plan, including deterministic terrain resolution
-        /// for a HighestGround keep when that topology was selected.
-        /// </summary>
-        public static CastleSpatialPlan PlanCastleSpatial(in CastlePlan plan, uint terrainSeed)
-        {
-            CastleSpatialPlan spatial = PlanCastleSpatial(in plan);
-            return CastleTerrainPlanning.Resolve(in plan, spatial, terrainSeed);
-        }
-
-        /// <summary>
-        /// Produces the complete castle planning input an application needs for realization,
-        /// interaction, and presentation without making the scene repeat planner/projection wiring.
-        /// </summary>
-        public static PlannedCastleBuild PlanCastleBuild(
-            int3 centre,
-            uint seed,
-            uint terrainSeed)
-        {
-            CastlePlan dimensions = PlanCastle(centre, seed);
-            CastleSpatialPlan spatial = PlanCastleSpatial(in dimensions, terrainSeed);
-            return new PlannedCastleBuild(in dimensions, spatial, terrainSeed);
-        }
-
         /// <summary>
         /// Wires the hero-arch lookdev request into Structures.Runtime without exposing concrete
         /// feature definitions, profile storage, rasterizers, brushes, or weathering helpers to
-        /// scene code. The structure algorithm remains owned by Structures.Runtime.
+        /// scene code. Structure semantics remain outside the reusable engine Runtime.
         /// </summary>
         public static ArchLookdevBuildResult BuildArchLookdev(
             IVoxelStorageRuntime storage,
@@ -213,67 +122,23 @@ namespace VoxelEngine.Composition
             storage.PublishAllResidentRegions();
             return new ArchLookdevBuildResult(profiles, width, height);
         }
+
         public static IStructureProfileStore CreateProfileStore() => new StructureProfileStore();
 
-        public static ICastleBuildSession BeginCastleBuild(
-            IRegionReadSource reads,
-            IRegionMutationStore mutations,
-            in CastlePlan plan,
-            uint terrainSeed,
-            IMaterialAuthoringCatalogue materials)
-        {
-            if (reads == null) throw new ArgumentNullException(nameof(reads));
-            if (mutations == null) throw new ArgumentNullException(nameof(mutations));
-            return new CastleBuildSession(reads, mutations, in plan, terrainSeed, materials);
-        }
-
         /// <summary>
-        /// Starts a spatially planned build. Composition completes any outstanding site-aware
-        /// planning before Runtime snapshots the plan; every orientation/placement-sensitive stage
-        /// then consumes that validated spatial result.
+        /// Creates the generic structure-authoring capability backed by the engine's optimized
+        /// runtime brush. Callers own all semantic content and see only Structures.Api; this
+        /// method does not know which kind of structure will be authored.
         /// </summary>
-        public static ICastleBuildSession BeginCastleBuild(
+        public static IStructureAuthoringSession CreateAuthoringSession(
             IRegionReadSource reads,
             IRegionMutationStore mutations,
-            in CastlePlan plan,
-            CastleSpatialPlan spatialPlan,
-            uint terrainSeed,
-            IMaterialAuthoringCatalogue materials)
+            IMaterialAuthoringCatalogue materials,
+            int writeBudget = VoxelBrush.DefaultWriteBudget)
         {
             if (reads == null) throw new ArgumentNullException(nameof(reads));
             if (mutations == null) throw new ArgumentNullException(nameof(mutations));
-            if (spatialPlan == null) throw new ArgumentNullException(nameof(spatialPlan));
-
-            CastleSpatialPlan resolvedSpatialPlan = CastleTerrainPlanning.Resolve(
-                in plan, spatialPlan, terrainSeed);
-            return new CastleBuildSession(
-                reads, mutations, in plan, resolvedSpatialPlan, terrainSeed, materials);
-        }
-
-        /// <summary>
-        /// Starts a build from the runtime-ready bundle returned by <see cref="PlanCastleBuild"/>.
-        /// The bundle owns the terrain seed and the completed spatial plan used by realization.
-        /// </summary>
-        public static ICastleBuildSession BeginCastleBuild(
-            IRegionReadSource reads,
-            IRegionMutationStore mutations,
-            in PlannedCastleBuild planned,
-            IMaterialAuthoringCatalogue materials)
-        {
-            CastlePlan dimensions = planned.Dimensions;
-            CastleSpatialPlan spatial = planned.Spatial;
-            if (spatial == null)
-                throw new ArgumentException("Planned castle build has no spatial plan.", nameof(planned));
-            if (reads == null) throw new ArgumentNullException(nameof(reads));
-            if (mutations == null) throw new ArgumentNullException(nameof(mutations));
-
-            return new CastleBuildSession(
-                reads,
-                mutations,
-                in dimensions,
-                spatial,
-                planned.TerrainSeed,
-                materials);
+            return new StructureAuthoringSession(reads, mutations, materials, writeBudget);
         }
 
         public static ReferenceArchBuildResult BuildReferenceArch(
@@ -328,33 +193,6 @@ namespace VoxelEngine.Composition
             }
         }
 
-        private sealed class CastleBuildSession : ICastleBuildSession
-        {
-            private readonly CastleBuildPipeline _build;
-
-            public CastleBuildSession(
-                IRegionReadSource reads, IRegionMutationStore mutations,
-                in CastlePlan plan, uint terrainSeed, IMaterialAuthoringCatalogue materials)
-            {
-                _build = new CastleBuildPipeline(
-                    reads, mutations, in plan, terrainSeed, materials);
-            }
-
-            public CastleBuildSession(
-                IRegionReadSource reads, IRegionMutationStore mutations,
-                in CastlePlan plan, CastleSpatialPlan spatialPlan,
-                uint terrainSeed, IMaterialAuthoringCatalogue materials)
-            {
-                _build = new CastleBuildPipeline(
-                    reads, mutations, in plan, spatialPlan, terrainSeed, materials);
-            }
-
-            public bool IsComplete => _build.IsComplete;
-            public int StageNumber => _build.StageNumber;
-            public long TotalVoxelsWritten => _build.TotalVoxelsWritten;
-            public bool Step() => _build.Step();
-        }
-
         private sealed class StructureProfileStore : IStructureProfileStore
         {
             internal ProfileBlockStore Runtime { get; } = new ProfileBlockStore();
@@ -362,6 +200,5 @@ namespace VoxelEngine.Composition
             public int Count => Runtime.Count;
             public ProfileBlock[] Snapshot() => Runtime.Snapshot();
         }
-
     }
 }
