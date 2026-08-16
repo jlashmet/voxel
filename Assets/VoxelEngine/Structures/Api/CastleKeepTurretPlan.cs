@@ -14,12 +14,13 @@ namespace VoxelEngine.Structures.Api
     {
         public CastleKeepTurretCorner Corner;
         public bool HasRoof;
+        public CastleTowerSlitPlan Slits;
     }
 
     /// <summary>
     /// Frozen authored variation for the four keep corner turrets. Their exact coordinates,
     /// radius, and height remain geometric consequences of CastlePlan; this plan owns the visual
-    /// choice so Runtime does not invent turret styling while realizing the keep.
+    /// choices so Runtime does not invent turret styling while realizing the keep.
     /// </summary>
     public sealed class CastleKeepTurretPlan
     {
@@ -43,6 +44,8 @@ namespace VoxelEngine.Structures.Api
         WrongTurretCount,
         InvalidCorner,
         DuplicateCorner,
+        MissingSlitPlan,
+        InvalidSlitPlan,
     }
 
     public static class CastleKeepTurretPlanValidator
@@ -86,14 +89,51 @@ namespace VoxelEngine.Structures.Api
             issue = CastleKeepTurretPlanIssue.None;
             return true;
         }
+
+        /// <summary>
+        /// Runtime-ready validation performed only after spatial keep placement is resolved. The
+        /// seed-only topology pass intentionally cannot freeze slit phases because their historical
+        /// recipe depends on the final world-space turret centres.
+        /// </summary>
+        public static bool TryValidateSlits(
+            in CastlePlan keepPlan,
+            CastleKeepTurretPlan plan,
+            out CastleKeepTurretPlanIssue issue)
+        {
+            if (!TryValidate(plan, out issue))
+                return false;
+
+            int height = keepPlan.KeepHeight + 30;
+            CastleKeepTurretSpec[] turrets = plan.Snapshot();
+            for (int i = 0; i < turrets.Length; i++)
+            {
+                if (turrets[i].Slits == null)
+                {
+                    issue = CastleKeepTurretPlanIssue.MissingSlitPlan;
+                    return false;
+                }
+
+                if (!CastleTowerSlitPlanValidator.TryValidate(
+                        turrets[i].Slits,
+                        height,
+                        keepPlan.FloorHeight,
+                        out _))
+                {
+                    issue = CastleKeepTurretPlanIssue.InvalidSlitPlan;
+                    return false;
+                }
+            }
+
+            issue = CastleKeepTurretPlanIssue.None;
+            return true;
+        }
     }
 
     public static class CastleKeepTurretPlanner
     {
         /// <summary>
-        /// Freezes the historical keep-turret recipe. The pre-refactor castle always roofed all
-        /// four corner turrets; the seed is retained in this API so intentional seeded variation
-        /// can be introduced later without moving that decision back into Runtime.
+        /// Freezes topology-level keep-turret identity and roof styling. Slit phases are attached
+        /// later by CastleKeepTurretPlanCompletion after the spatial keep centre is resolved.
         /// </summary>
         public static CastleKeepTurretPlan Create(uint seed)
         {
@@ -105,6 +145,7 @@ namespace VoxelEngine.Structures.Api
                 {
                     Corner = (CastleKeepTurretCorner)i,
                     HasRoof = true,
+                    Slits = null,
                 };
             }
 
