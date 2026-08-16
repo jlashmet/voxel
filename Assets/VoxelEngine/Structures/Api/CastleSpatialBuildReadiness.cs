@@ -39,6 +39,19 @@ namespace VoxelEngine.Structures.Api
                 return false;
             }
 
+            if (topology.KeepTurrets == null)
+            {
+                issue = CastleSpatialBuildReadinessIssue.MissingKeepTurretPlan;
+                return false;
+            }
+
+            if (!CastleKeepTurretPlanValidator.TryValidate(
+                    topology.KeepTurrets, out _))
+            {
+                issue = CastleSpatialBuildReadinessIssue.InvalidKeepTurretPlan;
+                return false;
+            }
+
             CastleKeepFloorPlan[] floors = spatial.KeepFloors;
             if (!CastleKeepFloorPlanValidator.TryValidate(
                     in plan, floors, out CastleKeepFloorPlanIssue floorIssue))
