@@ -1,0 +1,40 @@
+name: COW writer exclusion one-shot patch
+
+on:
+  push:
+    branches: [refactor/async-geometry-pipeline]
+    paths: [.github/workflows/async-geometry-cow-writer-exclusion-patch.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/async-geometry-pipeline
+          fetch-depth: 0
+      - name: Apply guarded patch
+        run: python3 .github/scripts/async_geometry_cow_writer_exclusion_patch.py
+      - name: Static guards
+        run: |
+          grep -q 'public bool TryPin' Assets/VoxelEngine/Storage/Runtime/BrickPool.cs
+          grep -q '_writeBorrowedSlots' Assets/VoxelEngine/Storage/Runtime/BrickPool.cs
+          grep -q '_pool.BeginWrite(poolIndex)' Assets/VoxelEngine/Storage/Runtime/RegionMutationStore.cs
+          grep -q '_pool.EndWrite(mutation.PoolIndex)' Assets/VoxelEngine/Storage/Runtime/RegionMutationStore.cs
+          grep -q '_snapshotPinUnavailable' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
+      - name: Commit writer exclusion
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add Assets/VoxelEngine/Storage/Runtime/BrickPool.cs \
+                  Assets/VoxelEngine/Storage/Runtime/RegionMutationStore.cs \
+                  Assets/VoxelEngine/Storage/Runtime/RegionReadSource.cs \
+                  Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs \
+                  Assets/Tests/EditMode/StorageAllocationTests.cs \
+                  Assets/Tests/EditMode/GeometryPipelineArchitectureTests.cs \
+                  docs/ASYNC_GEOMETRY_PIPELINE.md
+          git commit -m 'Exclude borrowed writers from pinned geometry reads'
+          git push origin HEAD:refactor/async-geometry-pipeline
