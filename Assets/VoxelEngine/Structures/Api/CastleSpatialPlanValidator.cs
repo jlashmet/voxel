@@ -33,6 +33,8 @@ namespace VoxelEngine.Structures.Api
         InvalidKeepResolution,
         KeepOutsideOuterWard,
         KeepOutsideInnerWard,
+        InvalidWellResolution,
+        InvalidWellPlacement,
         WallIntegratedKeepNotAgainstWard,
     }
 
@@ -244,6 +246,29 @@ namespace VoxelEngine.Structures.Api
             {
                 issue = CastleSpatialPlanIssue.KeepOutsideInnerWard;
                 return false;
+            }
+
+            if (spatial.KeepRequiresTerrainResolution)
+            {
+                if (spatial.HasWell || !spatial.WellCentre.Equals(int2.zero))
+                {
+                    issue = CastleSpatialPlanIssue.InvalidWellResolution;
+                    return false;
+                }
+            }
+            else
+            {
+                bool canPlaceWell = CastleCourtyardPlacementGeometry.TryChooseWell(
+                    in dimensions,
+                    outer,
+                    in primaryGate,
+                    spatial.KeepCentre,
+                    out int2 expectedWell);
+                if (!canPlaceWell || !spatial.HasWell || !spatial.WellCentre.Equals(expectedWell))
+                {
+                    issue = CastleSpatialPlanIssue.InvalidWellPlacement;
+                    return false;
+                }
             }
 
             if (!spatial.KeepRequiresTerrainResolution &&
