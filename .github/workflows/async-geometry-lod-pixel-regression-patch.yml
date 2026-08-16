@@ -1,0 +1,32 @@
+name: Pixel-level castle LOD regression one-shot patch
+
+on:
+  push:
+    branches: [refactor/async-geometry-pipeline]
+    paths: [.github/workflows/async-geometry-lod-pixel-regression-patch.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/async-geometry-pipeline
+          fetch-depth: 0
+      - name: Apply guarded patch
+        run: python3 .github/scripts/async_geometry_lod_pixel_regression_patch.py
+      - name: Static guards
+        run: |
+          grep -q 'camera.orthographic = true' Assets/Tests/PlayMode/LodRenderingTests.cs
+          grep -q 'MatchedEdgeRecall(reference, signature, 2)' Assets/Tests/PlayMode/LodRenderingTests.cs
+          grep -q 'A filled grey mass must not pass' Assets/Tests/PlayMode/LodRenderingTests.cs
+      - name: Commit visual LOD regression
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add Assets/Tests/PlayMode/LodRenderingTests.cs
+          git commit -m 'Validate castle structure pixels across LOD bands'
+          git push origin HEAD:refactor/async-geometry-pipeline
