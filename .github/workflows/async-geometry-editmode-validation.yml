@@ -39,10 +39,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Compile/architecture checkpoint for renderer-world lifetime ownership. The focused
-          # suite includes the explicit teardown-order guard so Storage pins are released before
-          # an application world clears/disposes its Storage backing. The previous 82/83 run
-          # compiled and passed that new guard; its sole failure was a comment-token false positive.
+          # Compile/architecture checkpoint after the renderer-world lifetime cut passed 83/83.
+          # Surface discovery now admits dirty work only after TrackKnown confirms current clipmap
+          # ownership; the SurfaceBrickDiscoveryTests class includes a regression proving an
+          # out-of-window discovery cannot inflate the build queue.
           deadline=$((SECONDS + 2400))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
