@@ -39,6 +39,9 @@ namespace VoxelEngine.Structures.Api
             int2 keepCentre = PlaceKeep(
                 in dimensions, topology.KeepPlacement, in gate, keepWard,
                 out bool requiresTerrainResolution);
+            bool hasWell = !requiresTerrainResolution &&
+                CastleCourtyardPlacementGeometry.TryChooseWell(
+                    in dimensions, outer, in gate, keepCentre, out int2 wellCentre);
 
             return new CastleSpatialPlan(
                 in topology,
@@ -50,6 +53,8 @@ namespace VoxelEngine.Structures.Api
                 in posternGate,
                 hasInnerGate,
                 in innerGate,
+                hasWell,
+                wellCentre,
                 keepCentre,
                 requiresTerrainResolution);
         }
@@ -89,6 +94,12 @@ namespace VoxelEngine.Structures.Api
             CastleGatePlacementSpec primaryGate = spatial.PrimaryGate;
             CastleGatePlacementSpec posternGate = spatial.PosternGate;
             CastleGatePlacementSpec innerGate = spatial.InnerGate;
+            bool hasWell = CastleCourtyardPlacementGeometry.TryChooseWell(
+                in dimensions,
+                spatial.OuterWardVertices,
+                in primaryGate,
+                localKeepCentre,
+                out int2 wellCentre);
             var resolved = new CastleSpatialPlan(
                 in topology,
                 (int2[])spatial.OuterWardVertices.Clone(),
@@ -99,6 +110,8 @@ namespace VoxelEngine.Structures.Api
                 in posternGate,
                 spatial.HasInnerGate,
                 in innerGate,
+                hasWell,
+                wellCentre,
                 localKeepCentre,
                 false);
 
