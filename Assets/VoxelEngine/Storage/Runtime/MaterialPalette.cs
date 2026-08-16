@@ -18,7 +18,7 @@ namespace VoxelEngine.Storage.Runtime
                                            IMaterialPresentationCatalogue,
                                            IMaterialSimulationCatalogue
     {
-        /// <summary>Number of registered materials in the palette.</summary>
+        /// <summary>Number of occupied palette slots, including any gaps below the highest registered ID.</summary>
         public int Count => _count;
         public uint Version { get; private set; }
 
@@ -93,22 +93,22 @@ namespace VoxelEngine.Storage.Runtime
         public static implicit operator MaterialPaletteView(MaterialPalette source) =>
             MaterialPaletteView.Capture(in source);
 
-        /// <summary>Look up the destruction class for a given material index.</summary>
+        /// <summary>Look up the destruction class for a registered material index.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public DestructionClass GetDestructionClass(byte materialIndex)
         {
-            if ((uint)materialIndex >= (uint)_count)
-                return DestructionClass.None; // Out-of-palette materials are treated as inert.
+            if (!IsRegistered(materialIndex))
+                return DestructionClass.None; // Unknown or gap slots are inert.
 
             return (DestructionClass)_destructionClass[materialIndex];
         }
 
-        /// <summary>Look up the hardness for a given material index.</summary>
+        /// <summary>Look up the hardness for a registered material index.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public byte GetHardness(byte materialIndex)
         {
-            if ((uint)materialIndex >= (uint)_count)
-                return 0; // Unknown materials resist no destruction.
+            if (!IsRegistered(materialIndex))
+                return 0; // Unknown or gap slots have no authored hardness.
 
             return _hardness[materialIndex];
         }

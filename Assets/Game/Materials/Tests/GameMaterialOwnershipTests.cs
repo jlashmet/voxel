@@ -35,6 +35,43 @@ namespace Game.Materials.Tests
         }
 
         [Test]
+        public void CanonicalCatalogue_CoversEveryStableMaterialId()
+        {
+            Assert.That(GameMaterialCatalogue.Count, Is.EqualTo(22));
+            for (byte materialId = 0; materialId < GameMaterialCatalogue.Count; materialId++)
+            {
+                Assert.That(GameMaterialCatalogue.IsCanonicalId(materialId), Is.True);
+                Assert.That(GameMaterialCatalogue.NameOf(materialId), Is.Not.EqualTo("unknown"));
+                Assert.That(GameMaterialCatalogue.NameOf(materialId), Is.Not.Empty);
+            }
+
+            Assert.That(GameMaterialCatalogue.IsCanonicalId(GameMaterialCatalogue.Count), Is.False);
+            Assert.That(GameMaterialCatalogue.NameOf(GameMaterialCatalogue.Count), Is.EqualTo("unknown"));
+        }
+
+        [Test]
+        public void BuildableMaterials_AreOwnedByGameCatalogueInStableHotkeyOrder()
+        {
+            Assert.That(GameMaterialCatalogue.BuildableCount, Is.EqualTo(4));
+            Assert.That(GameMaterialCatalogue.BuildableAt(0), Is.EqualTo(GameMaterialIds.Stone));
+            Assert.That(GameMaterialCatalogue.BuildableAt(1), Is.EqualTo(GameMaterialIds.Wood));
+            Assert.That(GameMaterialCatalogue.BuildableAt(2), Is.EqualTo(GameMaterialIds.Sand));
+            Assert.That(GameMaterialCatalogue.BuildableAt(3), Is.EqualTo(GameMaterialIds.Glass));
+        }
+
+        [Test]
+        public void TransitionalAliases_RemainExplicitAndNumericallyStable()
+        {
+            Assert.That(GameMaterialIds.TerrainTurf, Is.EqualTo(GameMaterialIds.Grass));
+            Assert.That(GameMaterialIds.TerrainLimestone, Is.EqualTo(GameMaterialIds.MasonryMedium));
+            Assert.That(GameMaterialIds.TerrainEarth, Is.EqualTo(GameMaterialIds.Dirt));
+            Assert.That(GameMaterialIds.TerrainPathStone, Is.EqualTo(GameMaterialIds.MasonrySmall));
+            Assert.That(GameMaterialIds.FlowerYellow, Is.EqualTo(GameMaterialIds.Gold));
+            Assert.That(GameMaterialIds.FlowerPink, Is.EqualTo(GameMaterialIds.Cloth));
+            Assert.That(GameMaterialIds.FlowerBlue, Is.EqualTo(GameMaterialIds.Cascade));
+        }
+
+        [Test]
         public void DefaultTerrainMaterials_MapGameSemanticsToOpaqueEngineSlots()
         {
             Assert.That(GameTerrainMaterials.Default.Deep, Is.EqualTo(GameMaterialIds.Bedrock));
