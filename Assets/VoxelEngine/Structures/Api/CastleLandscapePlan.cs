@@ -31,6 +31,7 @@ namespace VoxelEngine.Structures.Api
 
     /// <summary>
     /// Pure planned stage-8 dressing. No storage/material state or terrain mutation is retained.
+    /// Runtime isolation/validation is owned centrally by CastleLandscapePlanSnapshot.
     /// </summary>
     public sealed class CastleLandscapePlan
     {
@@ -42,15 +43,5 @@ namespace VoxelEngine.Structures.Api
         {
             _decorations = decorations ?? Array.Empty<CastleLandscapeDecorationSpec>();
         }
-
-        /// <summary>
-        /// Defensive copy for long-lived realization. Authoring/tests may mutate the planning array,
-        /// but an in-flight build must not change after Runtime preflight has accepted it.
-        /// </summary>
-        public CastleLandscapePlan Snapshot() =>
-            new CastleLandscapePlan(
-                _decorations != null
-                    ? (CastleLandscapeDecorationSpec[])_decorations.Clone()
-                    : Array.Empty<CastleLandscapeDecorationSpec>());
     }
 }
