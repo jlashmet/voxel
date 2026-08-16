@@ -72,5 +72,34 @@ namespace VoxelEngine.Tests.EditMode
             Assert.IsTrue(route.ClearsBuilding(in distant),
                 "Distant building should not be rejected by access-route clearance.");
         }
+
+        [Test]
+        public void PlannedCourtyardObstaclesLeaveAccessCorridorClear()
+        {
+            for (uint seed = 1; seed <= 128; seed++)
+            {
+                CastlePlan dimensions = CastlePlanner.Create(int3.zero, seed);
+                CastleTopologyPlan topology = CastleLayoutPlanner.Create(seed);
+                if (topology.KeepPlacement == CastleKeepPlacement.HighestGround)
+                    topology.KeepPlacement = CastleKeepPlacement.Central;
+
+                CastleSpatialPlan spatial = CastleSpatialPlanner.Create(
+                    in dimensions, in topology);
+                CastleAccessRoute route = CastleAccessRoute.Create(in dimensions, spatial);
+
+                Assert.IsTrue(spatial.HasWell,
+                    $"seed {seed}: resolved castle unexpectedly omitted its well");
+                Assert.IsTrue(route.ClearsPoint(spatial.WellCentre, 20f),
+                    $"seed {seed}: planned well blocks primary access");
+
+                CastleCourtyardBuildingSpec[] buildings = spatial.CourtyardBuildings;
+                Assert.NotNull(buildings, $"seed {seed}: courtyard building plan is null");
+                for (int i = 0; i < buildings.Length; i++)
+                {
+                    Assert.IsTrue(route.ClearsBuilding(in buildings[i]),
+                        $"seed {seed}: {buildings[i].Purpose} blocks primary access");
+                }
+            }
+        }
     }
 }
