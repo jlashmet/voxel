@@ -38,7 +38,7 @@ namespace VoxelEngine.Structures.Api
                     ? CastleWallDoorPlanner.Postern()
                     : default,
                 InnerWardDoor = wards == CastleWardPattern.InnerAndOuterWards
-                    ? CastleWallDoorPlanner.InnerWard()
+                    ? CastleWallDoorPlanner.InnerWard(seed)
                     : default,
                 HasKeepAnnexPlan = true,
                 KeepAnnexes = annexes,
