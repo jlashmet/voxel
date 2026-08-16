@@ -473,11 +473,16 @@ namespace VoxelEngine.Structures.Api
 
             for (int i = 0; i < perimeter.Length; i++)
             {
+                int towerId = towers.Count;
+                uint variationSeed = CastleSeedPartition.Derive(
+                    seed, CastleSeedDomain.Walls, (uint)(0x2000 + towerId));
                 towers.Add(new CastleTowerPlacementSpec
                 {
-                    Id = towers.Count,
+                    Id = towerId,
                     Centre = perimeter[i],
                     Role = CastleTowerPlacementRole.Corner,
+                    HeightVariation = 8 + (int)(variationSeed % 51u),
+                    HasRoof = ((variationSeed >> 8) & 1u) != 0u,
                 });
             }
 
@@ -505,11 +510,16 @@ namespace VoxelEngine.Structures.Api
                 usedEdges[bestEdge] = true;
                 int2 a = perimeter[bestEdge];
                 int2 b = perimeter[(bestEdge + 1) % perimeter.Length];
+                int towerId = towers.Count;
+                uint variationSeed = CastleSeedPartition.Derive(
+                    seed, CastleSeedDomain.Walls, (uint)(0x2000 + towerId));
                 towers.Add(new CastleTowerPlacementSpec
                 {
-                    Id = towers.Count,
+                    Id = towerId,
                     Centre = new int2((a.x + b.x) / 2, (a.y + b.y) / 2),
                     Role = CastleTowerPlacementRole.Wall,
+                    HeightVariation = 8 + (int)(variationSeed % 51u),
+                    HasRoof = false,
                 });
             }
 
