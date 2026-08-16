@@ -177,16 +177,45 @@ namespace VoxelGame.Editor
                     ImportAssetOptions.ForceUpdate | ImportAssetOptions.ForceSynchronousImport);
             }
 
-            AssetDatabase.SaveAssets();
-            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+            // CharacterFactoryAssetImporter intentionally processes descriptors on
+            // EditorApplication.delayCall so it can safely create/update assets outside the
+            // AssetDatabase import callback. Queue verification after that callback instead
+            // of racing it from this executeMethod.
+            EditorApplication.delayCall += VerifyMaterializedAssetsAndExit;
+        }
 
-            foreach (var outputPath in ExpectedOutputPaths)
+        private static void VerifyMaterializedAssetsAndExit()
+        {
+            try
             {
-                if (AssetDatabase.LoadMainAssetAtPath(outputPath) == null)
+                AssetDatabase.SaveAssets();
+                AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+
+                foreach (var outputPath in ExpectedOutputPaths)
                 {
-                    throw new InvalidOperationException(
-                        $"Character Factory did not materialize expected placeholder asset: {outputPath}");
+                    if (AssetDatabase.LoadMainAssetAtPath(outputPath) == null)
+                    {
+                        throw new InvalidOperationException(
+                            $"Character Factory did not materialize expected placeholder asset: {outputPath}");
+                    }
                 }
+
+                Debug.Log("Character Factory placeholder assets materialized successfully.");
+                if (Application.isBatchMode)
+                {
+                    EditorApplication.Exit(0);
+                }
+            }
+            catch (Exception exception)
+            {
+                Debug.LogException(exception);
+                if (Application.isBatchMode)
+                {
+                    EditorApplication.Exit(1);
+                    return;
+                }
+
+                throw;
             }
         }
     }
