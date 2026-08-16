@@ -43,7 +43,7 @@ jobs:
           # async exact metadata, water Burst extraction, stale-build rejection, toroidal clipmap
           # slots + bounded edge retirement/readmission, dense active-slot visibility,
           # non-blocking completion metrics, P99 timing, zero-allocation repeated traversal,
-          # and the continuous camera/destruction stress gate.
+          # fixed-arena backpressure, and the continuous camera/destruction stress gate.
           deadline=$((SECONDS + 6000))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
