@@ -22,6 +22,9 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.AreEqual(castle.GateTowerHeight + 12, gatehouse.RightTowerHeight);
                 Assert.AreEqual(castle.WallHeight + 22, gatehouse.BlockHeight);
                 Assert.AreEqual(CastleLayout.FrontGateHeight + 14, gatehouse.OpeningHeight);
+                Assert.AreEqual(10, gatehouse.GateLeafStrapFirstY);
+                Assert.AreEqual(13, gatehouse.GateLeafStrapSpacing);
+                Assert.AreEqual(3, gatehouse.GateLeafStrapThickness);
                 Assert.AreEqual(castle.WallThickness + 4, gatehouse.BridgeNearDistance);
                 Assert.AreEqual(150, gatehouse.BridgeLength);
                 Assert.AreEqual(68, gatehouse.BridgeWidth);
@@ -144,6 +147,19 @@ namespace VoxelEngine.Tests.EditMode
             Assert.AreEqual(CastleGatehousePlanIssue.InvalidMasonry, issue);
         }
 
+        [Test]
+        public void ValidatorRejectsInvalidGateLeafStrapPattern()
+        {
+            CastlePlan castle = CastlePlanner.Create(int3.zero, 47u);
+            CastleGatehousePlan gatehouse = CastleGatehousePlanner.Create(in castle);
+            gatehouse.GateLeafStrapSpacing = 0;
+
+            Assert.IsFalse(
+                CastleGatehousePlanValidator.TryValidate(
+                    in gatehouse, out CastleGatehousePlanIssue issue));
+            Assert.AreEqual(CastleGatehousePlanIssue.InvalidGateLeaf, issue);
+        }
+
         private static void AssertGatehouseEquals(
             in CastleGatehousePlan expected,
             in CastleGatehousePlan actual,
@@ -154,6 +170,9 @@ namespace VoxelEngine.Tests.EditMode
             Assert.AreEqual(expected.RightTowerHeight, actual.RightTowerHeight, message);
             Assert.AreEqual(expected.BlockHeight, actual.BlockHeight, message);
             Assert.AreEqual(expected.OpeningHeight, actual.OpeningHeight, message);
+            Assert.AreEqual(expected.GateLeafStrapFirstY, actual.GateLeafStrapFirstY, message);
+            Assert.AreEqual(expected.GateLeafStrapSpacing, actual.GateLeafStrapSpacing, message);
+            Assert.AreEqual(expected.GateLeafStrapThickness, actual.GateLeafStrapThickness, message);
             Assert.AreEqual(expected.BridgeNearDistance, actual.BridgeNearDistance, message);
             Assert.AreEqual(expected.BridgeLength, actual.BridgeLength, message);
             Assert.AreEqual(expected.BridgeWidth, actual.BridgeWidth, message);
