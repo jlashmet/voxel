@@ -1,0 +1,43 @@
+name: Remove async-geometry patch scaffolding
+
+on:
+  push:
+    branches: [refactor/async-geometry-pipeline]
+    paths: [.github/workflows/async-geometry-cleanup-one-shot.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/async-geometry-pipeline
+          fetch-depth: 0
+      - name: Remove one-shot patch and inventory artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          find .github/scripts -maxdepth 1 -type f \
+            \( -name 'async_geometry_*.py' -o -name 'fix_async_geometry_stress_iterator.py' \) \
+            -print0 | xargs -0 -r git rm --
+
+          find .github/workflows -maxdepth 1 -type f \
+            \( -name 'async-geometry-*.yml' -o -name 'fix-async-geometry-stress-iterator.yml' \) \
+            ! -name 'async-geometry-editmode-validation.yml' \
+            ! -name 'async-geometry-playmode-validation.yml' \
+            -print0 | xargs -0 -r git rm --
+
+          # Guard the two durable validation workflows from an over-broad cleanup pattern.
+          test -f .github/workflows/async-geometry-editmode-validation.yml
+          test -f .github/workflows/async-geometry-playmode-validation.yml
+      - name: Commit cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Remove async geometry one-shot patch scaffolding'
+          git push origin HEAD:refactor/async-geometry-pipeline
