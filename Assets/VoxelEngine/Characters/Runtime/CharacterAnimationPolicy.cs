@@ -21,6 +21,8 @@ namespace VoxelEngine.Characters.Runtime
     [RequireComponent(typeof(CharacterAnimationPlayer))]
     public sealed class CharacterAnimationPolicy : MonoBehaviour
     {
+        private const double CompletionEpsilon = 0.0001d;
+
         [SerializeField]
         private CharacterAnimationPlayer player;
 
@@ -69,24 +71,7 @@ namespace VoxelEngine.Characters.Runtime
 
             if (activeOneShot != null)
             {
-                if (player.CurrentClip != activeOneShot)
-                {
-                    TryPlay(activeOneShot);
-                    return;
-                }
-
-                if (!player.IsPlaying)
-                {
-                    return;
-                }
-
-                if (player.CurrentTime + 0.0001d < activeOneShot.length)
-                {
-                    return;
-                }
-
-                activeOneShot = null;
-                PlayLocomotionIfAvailable();
+                UpdateOneShot();
                 return;
             }
 
@@ -161,6 +146,39 @@ namespace VoxelEngine.Characters.Runtime
 
             activeOneShot = null;
             return PlayLocomotionIfAvailable();
+        }
+
+        private void UpdateOneShot()
+        {
+            if (player.CurrentClip != activeOneShot)
+            {
+                TryPlay(activeOneShot);
+                return;
+            }
+
+            // A resolver can intentionally leave the player without an Animator while a
+            // generated/fallback visual is being replaced. Preserve the action intent until
+            // a visual returns instead of treating a missing graph as completed playback.
+            if (player.Animator == null)
+            {
+                return;
+            }
+
+            bool reachedEnd = player.CurrentTime + CompletionEpsilon >= activeOneShot.length;
+            if (!reachedEnd)
+            {
+                // A graph should normally stay active until the clip reaches its duration.
+                // If Unity stops it early, retry the same intent rather than freezing forever.
+                if (!player.IsPlaying)
+                {
+                    TryPlay(activeOneShot);
+                }
+
+                return;
+            }
+
+            activeOneShot = null;
+            PlayLocomotionIfAvailable();
         }
 
         private void RefreshCurrentIntent()
