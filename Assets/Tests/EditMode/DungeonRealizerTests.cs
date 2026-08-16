@@ -63,6 +63,62 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void StairUsesSharedRoomOverlapRatherThanLowerRoomCentre()
+        {
+            var table = new RegionTable(16, Allocator.Persistent);
+            var pool = new BrickPool(8192, Allocator.Persistent);
+
+            try
+            {
+                var reads = new RegionReadSource(in table, in pool);
+                var mutations = new RegionMutationStore(in table, in pool);
+                var brush = new VoxelBrush(reads, mutations, writeBudget: 2_000_000);
+                DungeonPlanningConstraints constraints = Constraints();
+                DungeonPlan plan = DungeonPlanner.Create(47u, in constraints);
+                int archiveIndex = FindIndex(plan, DungeonRoomPurpose.Archive);
+                DungeonRoomPlan archive = plan.Rooms[archiveIndex];
+                archive.Centre += new int3(50, 0, 0);
+                plan.Rooms[archiveIndex] = archive;
+
+                Assert.IsTrue(
+                    DungeonPlanValidator.TryValidate(plan, out DungeonPlanIssue issue),
+                    issue.ToString());
+
+                DungeonConnectionPlan firstStair = plan.Connections[0];
+                DungeonRoomPlan entrance = plan.Rooms[firstStair.FromRoomId];
+                archive = plan.Rooms[firstStair.ToRoomId];
+                Assert.IsTrue(
+                    DungeonConnectionGeometry.TryStairShaftCentre(
+                        in entrance, in archive, out int2 shaftCentre));
+                Assert.AreNotEqual(archive.Centre.x, shaftCentre.x,
+                    "Test setup must move the lower room centre away from the shared shaft overlap.");
+
+                int entranceFloor = DungeonConnectionGeometry.RoomFloor(in entrance);
+                int probeY = entranceFloor - 3;
+                brush.FillBulk(
+                    new int3(220, probeY, 230),
+                    new int3(120, 1, 60),
+                    Mat.Stone);
+
+                DungeonRealizer.Build(ref brush, plan);
+
+                Assert.AreEqual(
+                    Mat.Empty,
+                    brush.Get(shaftCentre.x, probeY, shaftCentre.y),
+                    "Stair shaft was not carved through the shared room footprint.");
+                Assert.AreEqual(
+                    Mat.Stone,
+                    brush.Get(archive.Centre.x, probeY, archive.Centre.z),
+                    "Realizer still carved the stair at the lower room centre instead of the shared overlap.");
+            }
+            finally
+            {
+                table.Dispose();
+                pool.Dispose();
+            }
+        }
+
+        [Test]
         public void InvalidPlanIsRejectedBeforeAnyVoxelWrite()
         {
             var table = new RegionTable(8, Allocator.Persistent);
@@ -108,12 +164,15 @@ namespace VoxelEngine.Tests.EditMode
                 IncludeCaveExit = true,
             };
 
-        private static DungeonRoomPlan Find(DungeonPlan plan, DungeonRoomPurpose purpose)
+        private static DungeonRoomPlan Find(DungeonPlan plan, DungeonRoomPurpose purpose) =>
+            plan.Rooms[FindIndex(plan, purpose)];
+
+        private static int FindIndex(DungeonPlan plan, DungeonRoomPurpose purpose)
         {
             for (int i = 0; i < plan.Rooms.Length; i++)
-                if (plan.Rooms[i].Purpose == purpose) return plan.Rooms[i];
+                if (plan.Rooms[i].Purpose == purpose) return i;
             Assert.Fail($"Missing dungeon room purpose {purpose}.");
-            return default;
+            return -1;
         }
     }
 }
