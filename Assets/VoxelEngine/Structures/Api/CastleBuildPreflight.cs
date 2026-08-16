@@ -16,6 +16,7 @@ namespace VoxelEngine.Structures.Api
     {
         None = 0,
         KeepRequiresTerrainResolution,
+        InvalidAccessRoute,
         MissingGatehousePlan,
         InvalidGatehousePlan,
         MissingKeepFloorPlan,

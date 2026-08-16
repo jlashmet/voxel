@@ -25,6 +25,17 @@ namespace VoxelEngine.Structures.Api
                 return false;
             }
 
+            CastleAccessRoute accessRoute = CastleAccessRoute.Create(in plan, spatial);
+            if (!CastleAccessRouteValidator.TryValidate(
+                    in accessRoute,
+                    spatial.OuterWardVertices,
+                    spatial.InnerWardVertices,
+                    out _))
+            {
+                issue = CastleSpatialBuildReadinessIssue.InvalidAccessRoute;
+                return false;
+            }
+
             CastleTopologyPlan topology = spatial.Topology;
             if (!topology.HasGatehousePlan)
             {
