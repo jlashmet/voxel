@@ -24,6 +24,16 @@ namespace VoxelEngine.Tests.EditMode
             Assert.AreNotSame(spatial.KeepWindows, snapshot.KeepWindows);
             Assert.AreNotSame(spatial.Dungeon.Rooms, snapshot.Dungeon.Rooms);
             Assert.AreNotSame(spatial.Landscape.Decorations, snapshot.Landscape.Decorations);
+            Assert.AreNotSame(spatial.Topology.KeepTurrets, snapshot.Topology.KeepTurrets);
+
+            CastleKeepTurretSpec[] sourceTurrets = spatial.Topology.KeepTurrets.Snapshot();
+            CastleKeepTurretSpec[] snapshotTurrets = snapshot.Topology.KeepTurrets.Snapshot();
+            Assert.AreEqual(sourceTurrets.Length, snapshotTurrets.Length);
+            for (int i = 0; i < sourceTurrets.Length; i++)
+            {
+                Assert.AreEqual(sourceTurrets[i].Corner, snapshotTurrets[i].Corner);
+                Assert.AreEqual(sourceTurrets[i].HasRoof, snapshotTurrets[i].HasRoof);
+            }
 
             int2 snapshotOuter = snapshot.OuterWardVertices[0];
             CastleTowerPlacementSpec snapshotTower = snapshot.Towers[0];
