@@ -145,7 +145,7 @@ MonoBehaviour:
   m_Name:
   m_EditorClassIdentifier:
   m_Seed: 1262833236
-  m_BrickPoolCapacity: 65536
+  m_BrickPoolCapacity: 262144
   m_LoadRadiusRegions: 3
   m_UnloadRadiusRegions: 4
   m_GenerateBudgetMs: 3
