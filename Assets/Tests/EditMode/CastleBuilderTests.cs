@@ -52,19 +52,19 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void PlannerPreservesLegacyBuilderPlansDuringMigration()
+        public void CompatibilityFacadePlanDelegatesToPlanner()
         {
             for (uint seed = 1; seed <= 256; seed++)
             {
                 var centre = new int3((int)seed * 3, 64, -(int)seed * 2);
                 var planned = CastlePlanner.Create(centre, seed);
-                var legacy = CastleBuilder.Plan(centre, seed);
-                AssertPlansEqual(in legacy, in planned, seed);
+                var compatibility = CastleBuilder.Plan(centre, seed);
+                AssertPlansEqual(in compatibility, in planned, seed);
             }
         }
 
         [Test]
-        public void PreflightPreservesLegacyWriteEstimateDuringMigration()
+        public void CompatibilityFacadeEstimateDelegatesToPreflight()
         {
             for (uint seed = 1; seed <= 256; seed++)
             {
@@ -72,8 +72,20 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.AreEqual(
                     CastleBuilder.EstimateWrites(in plan),
                     CastleBuildPreflight.EstimateWrites(in plan),
-                    $"Seed {seed} changed the preflight estimate during extraction.");
+                    $"Seed {seed} changed the compatibility estimate.");
             }
+        }
+
+        [Test]
+        public void CompatibilityFacadeDefaultBuildHandleRemainsNoOp()
+        {
+            var build = default(CastleBuilder.IncrementalBuild);
+
+            Assert.IsFalse(build.IsCreated);
+            Assert.IsFalse(build.IsComplete);
+            Assert.AreEqual(0, build.StageNumber);
+            Assert.AreEqual(0L, build.TotalVoxelsWritten);
+            Assert.IsTrue(CastleBuilder.StepBuild(ref build));
         }
 
         [Test]
