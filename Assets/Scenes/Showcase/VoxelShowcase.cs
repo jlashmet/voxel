@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Game.Materials.Runtime;
 using Unity.Mathematics;
 using UnityEngine;
 using VoxelEngine.Vegetation.Api;
@@ -121,8 +122,9 @@ namespace VoxelEngine.Showcase
             int capacity = VoxelEngineBootstrap.ClampMixedBrickCapacityToBudget(
                 m_BrickPoolCapacity, tierBytes);
 
-            _world = new ShowcaseWorld(m_Seed, capacity,
-                                       m_LoadRadiusRegions, m_UnloadRadiusRegions);
+            _world = new ShowcaseWorld(
+                m_Seed, capacity, m_LoadRadiusRegions, m_UnloadRadiusRegions,
+                GameMaterialSimulationDefinitions.Create());
             _gpuDebris = new GpuDebrisSystem();
             _motor = new CharacterMotor { WalkSpeed = m_WalkSpeed };
 
