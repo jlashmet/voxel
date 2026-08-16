@@ -32,6 +32,12 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("CastleAccessRouteValidator.TryValidate(", validator);
             StringAssert.Contains("CastleSpatialPlanIssue.InvalidAccessRoute", validator);
             StringAssert.Contains("CastleBuildPreflight.EvaluateRuntimeReady(", pipeline);
+            StringAssert.Contains("CastleSpatialProjection.ProjectKeepPlan(", pipeline,
+                "Runtime should project the already-admitted keep placement without resubmitting the full spatial plan.");
+            StringAssert.Contains("CastleSpatialProjection.ActualKeepCentre(", pipeline,
+                "Runtime should derive the projected world keep centre from the same projection owner.");
+            StringAssert.DoesNotContain("CastleSpatialProjection.Create(", pipeline,
+                "Runtime must not call the validating full-spatial-plan projection after EvaluateRuntimeReady.");
             StringAssert.DoesNotContain("CastleAccessRouteValidator.TryValidate(", pipeline,
                 "Runtime must consume the single preflight result rather than grow a second route admission path.");
             StringAssert.DoesNotContain("CastleKeepAnnexBuildReadiness.TryValidate(", pipeline,
