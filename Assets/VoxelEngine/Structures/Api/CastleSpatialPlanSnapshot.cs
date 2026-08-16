@@ -15,6 +15,12 @@ namespace VoxelEngine.Structures.Api
             if (source == null) throw new ArgumentNullException(nameof(source));
 
             CastleTopologyPlan topology = source.Topology;
+            if (topology.KeepTurrets != null)
+            {
+                topology.KeepTurrets = new CastleKeepTurretPlan(
+                    topology.KeepTurrets.Snapshot());
+            }
+
             CastleGatePlacementSpec primaryGate = source.PrimaryGate;
             CastleGatePlacementSpec posternGate = source.PosternGate;
             CastleGatePlacementSpec innerGate = source.InnerGate;
