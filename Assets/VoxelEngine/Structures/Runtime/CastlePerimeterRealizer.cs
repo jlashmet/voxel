@@ -6,13 +6,16 @@ namespace VoxelEngine.Structures.Runtime
 {
     /// <summary>
     /// Realizes a castle perimeter from already-planned local X/Z geometry without making topology
-    /// decisions. Planning owns vertices, tower locations, and gate orientation; this component
-    /// owns only their voxel realization.
+    /// decisions. Planning owns vertices, tower locations, gate orientation, and spatial wall style;
+    /// this component owns only their voxel realization.
     /// </summary>
     public static class CastlePerimeterRealizer
     {
-        public static void Walls(ref VoxelBrush brush, in CastlePlan plan, int2[] localVertices) =>
-            Walls(ref brush, in plan, localVertices, -1, default, 0);
+        public static void Walls(ref VoxelBrush brush, in CastlePlan plan, int2[] localVertices)
+        {
+            CastleWallPlan walls = CastleWallRecipe.Historical();
+            Walls(ref brush, in plan, localVertices, in walls);
+        }
 
         public static void Walls(
             ref VoxelBrush brush,
@@ -21,6 +24,63 @@ namespace VoxelEngine.Structures.Runtime
             int gateEdgeIndex,
             int2 localGateCentre,
             int gateClearWidth)
+        {
+            CastleWallPlan walls = CastleWallRecipe.Historical();
+            WallsCore(
+                ref brush,
+                in plan,
+                localVertices,
+                gateEdgeIndex,
+                localGateCentre,
+                gateClearWidth,
+                in walls);
+        }
+
+        /// <summary>Realizes a closed planned perimeter using a frozen wall-style recipe.</summary>
+        public static void Walls(
+            ref VoxelBrush brush,
+            in CastlePlan plan,
+            int2[] localVertices,
+            in CastleWallPlan walls)
+        {
+            CastleWallPlanValidator.RequireValid(in walls);
+            WallsCore(ref brush, in plan, localVertices, -1, default, 0, in walls);
+        }
+
+        /// <summary>
+        /// Realizes a planned outer perimeter and derives only the exact gate gap from already-
+        /// planned wall thickness plus the frozen wall-style clearance policy.
+        /// </summary>
+        public static void Walls(
+            ref VoxelBrush brush,
+            in CastlePlan plan,
+            int2[] localVertices,
+            int gateEdgeIndex,
+            int2 localGateCentre,
+            in CastleWallPlan walls)
+        {
+            CastleWallPlanValidator.RequireValid(in walls);
+            int gateClearWidth = math.max(
+                CastleLayout.FrontGateWidth + walls.PrimaryGateExtraClearWidth,
+                plan.WallThickness * walls.PrimaryGateMinimumThicknessMultiple);
+            WallsCore(
+                ref brush,
+                in plan,
+                localVertices,
+                gateEdgeIndex,
+                localGateCentre,
+                gateClearWidth,
+                in walls);
+        }
+
+        private static void WallsCore(
+            ref VoxelBrush brush,
+            in CastlePlan plan,
+            int2[] localVertices,
+            int gateEdgeIndex,
+            int2 localGateCentre,
+            int gateClearWidth,
+            in CastleWallPlan walls)
         {
             if (localVertices == null || localVertices.Length < 3)
                 return;
@@ -33,10 +93,21 @@ namespace VoxelEngine.Structures.Runtime
                 int2 end = ToWorld(in plan, localVertices[(i + 1) % localVertices.Length]);
 
                 if (i == gateEdgeIndex && gateClearWidth > 0)
+                {
                     WallWithOpening(
-                        ref brush, in plan, start, end, gateCentre, gateClearWidth, baseY);
+                        ref brush,
+                        in plan,
+                        start,
+                        end,
+                        gateCentre,
+                        gateClearWidth,
+                        baseY,
+                        in walls);
+                }
                 else
-                    WallSegment(ref brush, in plan, start, end, baseY);
+                {
+                    WallSegment(ref brush, in plan, start, end, baseY, in walls);
+                }
             }
         }
 
@@ -100,7 +171,8 @@ namespace VoxelEngine.Structures.Runtime
             int2 end,
             int2 gateCentre,
             int gateClearWidth,
-            int baseY)
+            int baseY,
+            in CastleWallPlan walls)
         {
             float2 a = new float2(start.x, start.y);
             float2 delta = new float2(end.x - start.x, end.y - start.y);
@@ -117,10 +189,20 @@ namespace VoxelEngine.Structures.Runtime
 
             if (beforeEnd > 0.5f)
                 WallSegment(
-                    ref brush, in plan, start, Round(a + tangent * beforeEnd), baseY);
+                    ref brush,
+                    in plan,
+                    start,
+                    Round(a + tangent * beforeEnd),
+                    baseY,
+                    in walls);
             if (afterStart < length - 0.5f)
                 WallSegment(
-                    ref brush, in plan, Round(a + tangent * afterStart), end, baseY);
+                    ref brush,
+                    in plan,
+                    Round(a + tangent * afterStart),
+                    end,
+                    baseY,
+                    in walls);
         }
 
         private static void WallSegment(
@@ -128,7 +210,8 @@ namespace VoxelEngine.Structures.Runtime
             in CastlePlan plan,
             int2 start,
             int2 end,
-            int baseY)
+            int baseY,
+            in CastleWallPlan walls)
         {
             int height = plan.WallHeight;
             int thickness = plan.WallThickness;
@@ -138,22 +221,41 @@ namespace VoxelEngine.Structures.Runtime
             VoxelWallRasterizer.FillSegment(
                 ref brush, start, end, baseY, height, thickness, Mat.Stone);
 
-            int plinthHeight = math.min(22, height);
+            int plinthHeight = math.min(walls.MaxPlinthHeight, height);
             VoxelWallRasterizer.FillSegment(
                 ref brush, start, end, baseY, plinthHeight, thickness, Mat.DarkStone);
 
-            if (height >= 4)
+            if (height >= walls.CourseMinimumWallHeight)
             {
-                int courseY = baseY + (int)(height * 0.66f);
+                int courseY = baseY + (int)(height * walls.CourseHeightFraction);
                 VoxelWallRasterizer.FillSegment(
-                    ref brush, start, end, courseY, 2, thickness, Mat.DarkStone);
+                    ref brush,
+                    start,
+                    end,
+                    courseY,
+                    walls.CourseThickness,
+                    thickness,
+                    Mat.DarkStone);
             }
 
             VoxelWallRasterizer.FillSegment(
-                ref brush, start, end, baseY + height, 1, thickness, Mat.Stone);
+                ref brush,
+                start,
+                end,
+                baseY + height,
+                walls.WallWalkThickness,
+                thickness,
+                Mat.Stone);
 
-            CarveArrowSlits(ref brush, start, end, baseY, height, thickness);
-            Crenellate(ref brush, start, end, baseY + height + 1, thickness);
+            CarveArrowSlits(
+                ref brush, start, end, baseY, height, thickness, in walls);
+            Crenellate(
+                ref brush,
+                start,
+                end,
+                baseY + height + walls.WallWalkThickness,
+                thickness,
+                in walls);
         }
 
         private static void CarveArrowSlits(
@@ -162,9 +264,10 @@ namespace VoxelEngine.Structures.Runtime
             int2 end,
             int baseY,
             int wallHeight,
-            int wallThickness)
+            int wallThickness,
+            in CastleWallPlan walls)
         {
-            if (wallHeight < 70)
+            if (wallHeight < walls.ArrowSlitMinimumWallHeight)
                 return;
 
             float2 a = new float2(start.x, start.y);
@@ -175,18 +278,20 @@ namespace VoxelEngine.Structures.Runtime
 
             float2 tangent = delta / length;
             float2 normal = new float2(-tangent.y, tangent.x);
-            float halfDepth = math.max(1f, wallThickness * 0.65f);
+            float halfDepth = math.max(1f, wallThickness * walls.ArrowSlitDepthScale);
 
-            for (float distance = 40f; distance < length - 20f; distance += 90f)
+            for (float distance = walls.ArrowSlitFirstDistance;
+                 distance < length - walls.ArrowSlitEndInset;
+                 distance += walls.ArrowSlitSpacing)
             {
                 float2 centre = a + tangent * distance;
                 VoxelWallRasterizer.FillSegment(
                     ref brush,
                     Round(centre - normal * halfDepth),
                     Round(centre + normal * halfDepth),
-                    baseY + 40,
-                    math.min(28, wallHeight - 40),
-                    2,
+                    baseY + walls.ArrowSlitYOffset,
+                    math.min(walls.ArrowSlitMaxHeight, wallHeight - walls.ArrowSlitYOffset),
+                    walls.ArrowSlitThickness,
                     Mat.Empty);
             }
         }
@@ -196,7 +301,8 @@ namespace VoxelEngine.Structures.Runtime
             int2 start,
             int2 end,
             int parapetY,
-            int wallThickness)
+            int wallThickness,
+            in CastleWallPlan walls)
         {
             float2 a = new float2(start.x, start.y);
             float2 delta = new float2(end.x - start.x, end.y - start.y);
@@ -205,10 +311,12 @@ namespace VoxelEngine.Structures.Runtime
                 return;
 
             float2 tangent = delta / length;
-            const float merlon = 26f;
-            const float gap = 18f;
-            float period = merlon + gap;
-            int thickness = math.max(2, math.min(8, wallThickness));
+            float merlon = walls.CrenellationMerlonLength;
+            float period = merlon + walls.CrenellationGapLength;
+            int thickness = math.clamp(
+                wallThickness,
+                walls.CrenellationMinimumThickness,
+                walls.CrenellationMaximumThickness);
 
             for (float distance = 0f; distance < length; distance += period)
             {
@@ -218,7 +326,7 @@ namespace VoxelEngine.Structures.Runtime
                     Round(a + tangent * distance),
                     Round(a + tangent * endDistance),
                     parapetY,
-                    20,
+                    walls.CrenellationHeight,
                     thickness,
                     Mat.Stone);
             }
