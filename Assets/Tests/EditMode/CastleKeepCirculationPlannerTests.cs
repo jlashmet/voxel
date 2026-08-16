@@ -32,6 +32,30 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void CompletedSpatialPlanCarriesValidatedKeepCirculation()
+        {
+            for (uint seed = 1; seed <= 64; seed++)
+            {
+                CastlePlan plan = CastlePlanner.Create(int3.zero, seed);
+                CastleTopologyPlan topology = CastleLayoutPlanner.Create(seed);
+                topology.KeepPlacement = CastleKeepPlacement.Central;
+                CastleSpatialPlan spatial = CastleSpatialPlanner.Create(in plan, in topology);
+                CastleSpatialPlan completed = CastleSpatialPlanCompletion.CompleteResolved(
+                    in plan, spatial);
+
+                CastleKeepCirculationPlan circulation = completed.KeepCirculation;
+                Assert.IsTrue(
+                    CastleKeepCirculationPlanner.TryValidate(
+                        in plan, in circulation, out CastleKeepCirculationPlanIssue issue),
+                    $"seed {seed}: {issue}");
+                Assert.AreEqual(
+                    CastleAccessRoute.KeepEntrance(in plan, completed.KeepCentre),
+                    completed.KeepCentre + circulation.EntranceCentre,
+                    $"seed {seed}: internal entrance drifted from the gate-to-keep access route");
+            }
+        }
+
+        [Test]
         public void ValidatorRejectsGrandStairOutsideKeepInterior()
         {
             CastlePlan plan = CastlePlanner.Create(int3.zero, 41u);
