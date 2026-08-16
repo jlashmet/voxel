@@ -227,15 +227,23 @@ namespace VoxelEngine.Structures.Api
             CastleBuildPreflightResult structural = Evaluate(in plan, spatialPlan, writeBudget);
             if (!structural.IsValid)
             {
-                // Once attached, the dungeon belongs to the structural spatial snapshot. General
-                // validation therefore rejects malformed dungeon data. Preserve the more useful
-                // runtime-readiness diagnostic at this admission boundary for existing callers.
-                if (structural.Issue == CastleBuildPreflightIssue.InvalidSpatialPlan &&
-                    structural.SpatialPlanIssue == CastleSpatialPlanIssue.InvalidDungeonPlan)
+                // Once attached, dungeon graph validity and its castle attachment are structural
+                // invariants. Preserve the more useful readiness diagnostics at Runtime admission.
+                if (structural.Issue == CastleBuildPreflightIssue.InvalidSpatialPlan)
                 {
-                    return ReadinessFailure(
-                        CastleSpatialBuildReadinessIssue.InvalidDungeonPlan,
-                        writeBudget);
+                    if (structural.SpatialPlanIssue == CastleSpatialPlanIssue.InvalidDungeonPlan)
+                    {
+                        return ReadinessFailure(
+                            CastleSpatialBuildReadinessIssue.InvalidDungeonPlan,
+                            writeBudget);
+                    }
+
+                    if (structural.SpatialPlanIssue == CastleSpatialPlanIssue.DungeonEntranceMismatch)
+                    {
+                        return ReadinessFailure(
+                            CastleSpatialBuildReadinessIssue.DungeonEntranceMismatch,
+                            writeBudget);
+                    }
                 }
 
                 return structural;
