@@ -1,7 +1,7 @@
 # Async Geometry Pipeline Refactor
 
 **Branch:** `refactor/async-geometry-pipeline`  
-**Status:** In progress — runtime acceptance, allocation proof, and coarse-LOD follow-up  
+**Status:** In progress — runtime acceptance and final draw-path hardening  
 **Primary invariant:** **The main frame never waits for geometry. Geometry waits for the main frame.**
 
 This plan owns the rendering/streaming work that was intentionally out of scope for
@@ -48,6 +48,7 @@ source-level regression guard are committed. Runtime/PlayMode acceptance remains
 - [x] Reclaim at most one old off-screen arena lease per pressure frame.
 - [x] Keep final solid build output native from Burst completion through GPU upload.
 - [x] Remove per-entry managed indirect-args arrays; use persistent arena scratch.
+- [x] Add a soft fixed-arena lease ceiling for deterministic pressure testing without changing committed GPU capacity.
 
 ### Workspace and allocation control
 
@@ -58,17 +59,19 @@ source-level regression guard are committed. Runtime/PlayMode acceptance remains
 - [x] Introduce persistent `SurfaceChunkSlot` identities with generation tokens; stale builds validate the slot before publication.
 - [x] Split persistent surface chunk/slot state from reusable geometry build workspaces.
 - [x] Share immutable regular/transition Transvoxel lookup tables across all solid workers; keep writable face scratch per workspace.
-- [ ] Remove/replace remaining managed collections from steady-state scheduler/cache maintenance where profiling proves they grow after warmup.
+- [x] Instrument frame-scoped geometry managed allocations with `GC.GetAllocatedBytesForCurrentThread()` and add a repeated-path zero-allocation stress gate.
+- [ ] Remove/replace any remaining managed collection growth exposed by the zero-allocation gate.
 
 ### Visibility and clipmap residency
 
-- [x] Replace `CollectVisible` scans of all known chunks with bounded ring/clipmap coordinate traversal.
+- [x] Replace `CollectVisible` scans of all known chunks with bounded ring/clipmap traversal.
 - [x] Make the camera-centred clipmap window the render-residency admission boundary; retire out-of-window chunks incrementally.
 - [x] Introduce fixed/toroidal `SurfaceChunkSlot` residency per LOD ring with slot generation IDs.
 - [x] Recycle only newly exposed clipmap edges when the camera crosses a chunk boundary.
   - [x] Retire outgoing slabs incrementally rather than scanning lifetime residency.
   - [x] Rediscover/readmit newly exposed clipmap regions incrementally rather than rescanning the full window.
-- [ ] Move visibility/culling to batched/GPU-driven draw compaction after slot ownership is stable.
+- [x] Cull solid visibility through the dense active set of toroidal slots rather than the full clipmap cube.
+- [ ] Move final draw submission to batched/GPU-driven draw compaction if CPU indirect-draw iteration remains material after profiling.
 
 ### Storage snapshot boundary
 
@@ -90,7 +93,10 @@ source-level regression guard are committed. Runtime/PlayMode acceptance remains
 
 - [x] Preserve the step-8 correctness fix: conservative any-solid occupancy mips are not render density samples.
 - [x] Keep the LOD regression test that exercises the castle in all four bands.
-- [ ] Replace the temporary exact step-8 fallback with a feature-preserving render LOD representation (surface-aware/SDF/min-max/HLOD).
+- [x] Replace the temporary exact step-8 Transvoxel fallback with a feature-preserving renderer-owned block HLOD representation.
+  - [x] Compress each exact/COW 8^3 source block into eight spatial 4^3 material/occupancy subcells in Burst.
+  - [x] Greedy-mesh the padded HLOD subcell grid in Burst with fixed-capacity native output and explicit overflow.
+  - [x] Route step-8 extraction through `SurfaceBlockHlodSummaryJob -> SurfaceBlockHlodMeshJob` while retaining source-generation, pin/revision and arena-publication contracts.
 - [x] Add a pixel/silhouette architectural regression so a grey blob cannot satisfy metric-only assertions.
 
 ### Water parity
@@ -102,26 +108,27 @@ source-level regression guard are committed. Runtime/PlayMode acceptance remains
 
 ## Runtime acceptance gates
 
-- [ ] Unity C# compile is clean on the branch.
-- [ ] `GeometryPipelineArchitectureTests` pass.
-- [ ] LOD PlayMode regression passes across steps 1 / 2 / 4 / 8.
-- [ ] Add/run continuous-camera streaming stress coverage.
-- [ ] Add/run continuous voxel edit/destruction stress coverage.
-- [ ] Assert `LastFrameSolidUploadedBytes <= SolidUploadBudgetBytes` on every stressed frame.
-- [ ] Assert stale results are discarded and old geometry remains visible until replacement publication.
+- [ ] Unity C# compile is clean on the current branch head.
+- [ ] `GeometryPipelineArchitectureTests` and focused HLOD/Storage fixtures pass.
+- [ ] LOD PlayMode regression passes across steps 1 / 2 / 4 / 8 with the new step-8 HLOD path.
+- [ ] Continuous-camera streaming + voxel destruction stress passes.
+- [ ] `LastFrameSolidUploadedBytes <= SolidUploadBudgetBytes` on every stressed frame.
+- [ ] Stale results are discarded and old geometry remains visible until replacement publication.
   - Coverage: `AsyncGeometryStressTests.VisibleEditDuringRunningBuildRejectsStaleGeneration` injects a second edit while a solid geometry job is running and requires `RejectedStaleSolidBuilds` to advance without a visible hole.
-- [ ] Assert no unfinished geometry job is synchronously completed on the frame path.
+- [ ] No unfinished geometry job is synchronously completed on the frame path.
   - Instrumentation: `GeometryFrameJobCompletionGuard` refuses premature completion and increments `FramePathBlockingCompletionViolations`; the stress gate requires zero violations.
-- [ ] Measure P99 main-thread geometry orchestration against the target budget.
-  - Instrumentation: stressed `SchedulerPrepareTiming.P99Ms` is asserted against the merge-gate threshold.
-- [ ] Verify zero steady-state managed allocation after warmup.
-- [ ] Verify arena pressure causes backlog/convergence delay rather than frame spikes or visible holes.
-  - Coverage: `AsyncGeometryStressTests.GeometryArenaPressureKeepsPublishedLeaseUntilReplacementConverges` fills a tiny fixed arena, proves the old lease stays live while replacement staging is blocked, then proves convergence after one unrelated lease is reclaimed.
+- [ ] P99 main-thread geometry orchestration remains under the merge-gate threshold.
+  - Instrumentation: stressed `SchedulerPrepareTiming.P99Ms` is asserted against the configured threshold.
+- [ ] Zero steady-state managed geometry allocation after warmup.
+  - Coverage: `WarmRepeatedClipmapTraversalAllocatesNoManagedGeometryMemory` repeats the same clipmap path twice, then requires `LastFrameManagedAllocationBytes == 0` on every measured frame.
+- [ ] Arena pressure causes backlog/convergence delay rather than buffer growth, frame waits, or visible holes.
+  - Unit/fixture coverage: `GeometryArenaPressureKeepsPublishedLeaseUntilReplacementConverges` proves a fixed arena keeps the old live lease until space is reclaimed.
+  - Full-world coverage: `ArenaPressureDelaysConvergenceWithoutGrowingBuffersOrOpeningHoles` requires allocation failure, bounded pressure eviction, queued replacement, unchanged committed GPU bytes, zero frame-path waits, and eventual convergence.
 
 ## Current next slices
 
-1. Complete the current self-hosted EditMode + Metal PlayMode checkpoint and repair any compile/runtime failures before marking runtime gates complete.
-2. Add a warm steady-state allocation gate and remove any scheduler/cache managed collection growth it exposes.
-3. Add an arena-pressure runtime gate that proves backlog/convergence delay without visible holes or frame spikes.
-4. Replace the exact step-8 fallback with a feature-preserving coarse render representation.
-5. Move visibility/culling toward batched/GPU-driven draw compaction now that per-ring slot ownership is fixed.
+1. Complete the current self-hosted EditMode + Metal PlayMode checkpoint for the integrated step-8 HLOD path; repair compile, seam, capacity, or anti-blob failures immediately.
+2. Land/validate fixed preallocated draw staging so camera visibility cannot trigger `Array.Resize` in `VoxelRenderPass`.
+3. Use the zero-allocation and P99 results to decide whether any remaining managed scheduler/cache structures need replacement.
+4. Profile CPU indirect draw submission after active-slot visibility/fixed staging; only then move to GPU-driven draw compaction if it is still a meaningful frame cost.
+5. Once the current merge gates pass on the same source SHA, mark runtime acceptance complete and prepare the branch for merge.
