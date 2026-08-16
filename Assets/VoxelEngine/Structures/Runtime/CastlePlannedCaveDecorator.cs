@@ -7,13 +7,16 @@ namespace VoxelEngine.Structures.Runtime
 {
     /// <summary>
     /// Castle-specific dressing for an already planned natural cave. CavePlan owns all chamber and
-    /// passage topology; this component only adds materials and formations inside those chambers.
-    /// It deliberately contains no cave planner, castle dimensions, or fixed world-space layout.
+    /// passage topology; this component only maps supplied decoration semantics to voxel materials.
     /// </summary>
     public static class CastlePlannedCaveDecorator
     {
         private const uint DecorSalt = 0x4445434Fu; // "DECO"
 
+        /// <summary>
+        /// Compatibility entry point retained while callers migrate. New spatial builds must pass
+        /// a precomputed CastleCaveDecorationPlan to the overload below.
+        /// </summary>
         public static void Build(ref VoxelBrush brush, CavePlan plan)
         {
             if (!CavePlanValidator.TryValidate(plan, out CavePlanIssue issue))
@@ -37,6 +40,95 @@ namespace VoxelEngine.Structures.Runtime
             }
         }
 
+        /// <summary>
+        /// Realizes already-planned castle cave dressing. This path contains no random choices or
+        /// chamber-index placement policy; it only interprets stable decoration specs.
+        /// </summary>
+        public static void Build(
+            ref VoxelBrush brush,
+            CavePlan cave,
+            CastleCaveDecorationPlan decoration)
+        {
+            if (!CastleCaveDecorationPlanValidator.TryValidate(
+                    cave, decoration, out CastleCaveDecorationPlanIssue issue))
+            {
+                throw new InvalidOperationException(
+                    $"Cannot realize invalid castle cave decoration plan: {issue}.");
+            }
+
+            CastleCaveDecorationSpec[] elements = decoration.Elements;
+            for (int i = 0; i < elements.Length; i++)
+            {
+                CastleCaveDecorationSpec spec = elements[i];
+                BuildPlannedElement(ref brush, in spec);
+            }
+        }
+
+        private static void BuildPlannedElement(
+            ref VoxelBrush brush,
+            in CastleCaveDecorationSpec spec)
+        {
+            switch (spec.Kind)
+            {
+                case CastleCaveDecorationKind.EntryPool:
+                {
+                    int radiusSq = spec.Radius * spec.Radius;
+                    for (int dz = -spec.Radius; dz <= spec.Radius; dz++)
+                    for (int dx = -spec.Radius; dx <= spec.Radius; dx++)
+                    {
+                        if (dx * dx + dz * dz > radiusSq) continue;
+                        brush.FillColumnBulk(
+                            spec.Position.x + dx,
+                            spec.Position.y,
+                            spec.Position.y + spec.Height,
+                            spec.Position.z + dz,
+                            Mat.Water);
+                    }
+                    break;
+                }
+
+                case CastleCaveDecorationKind.DryCauseway:
+                    brush.Box(spec.Position, spec.Size, Mat.DarkStone);
+                    break;
+
+                case CastleCaveDecorationKind.CrystalSpire:
+                    brush.Cone(
+                        spec.Position.x, spec.Position.y, spec.Position.z,
+                        spec.Radius, spec.Height, Mat.Crystal);
+                    break;
+
+                case CastleCaveDecorationKind.MossSpire:
+                    brush.Cone(
+                        spec.Position.x, spec.Position.y, spec.Position.z,
+                        spec.Radius, spec.Height, Mat.Moss);
+                    break;
+
+                case CastleCaveDecorationKind.Stalagmite:
+                    brush.Cone(
+                        spec.Position.x, spec.Position.y, spec.Position.z,
+                        spec.Radius, spec.Height, Mat.DarkStone);
+                    break;
+
+                case CastleCaveDecorationKind.Stalactite:
+                    brush.HangingCone(
+                        spec.Position.x, spec.Position.y, spec.Position.z,
+                        spec.Radius, spec.Height, Mat.DarkStone);
+                    break;
+
+                case CastleCaveDecorationKind.LightMarker:
+                    brush.Box(spec.Position, new int3(1, 3, 1), Mat.Glass);
+                    brush.Box(
+                        spec.Position - new int3(1, 1, 1),
+                        new int3(3, 1, 3),
+                        Mat.Gold);
+                    break;
+
+                default:
+                    throw new InvalidOperationException(
+                        $"Unsupported castle cave decoration kind: {spec.Kind}.");
+            }
+        }
+
         private static void BuildEntryPool(ref VoxelBrush brush, in CaveChamberPlan chamber)
         {
             int radius = math.max(8, math.min(chamber.Radii.x, chamber.Radii.z) / 2);
@@ -56,8 +148,6 @@ namespace VoxelEngine.Structures.Runtime
                     Mat.Water);
             }
 
-            // Keep a narrow dry causeway through the centre so decoration cannot break the
-            // designed threshold-to-chamber circulation established by CaveRealizer.
             int halfPath = math.max(2, radius / 10);
             brush.Box(
                 new int3(
