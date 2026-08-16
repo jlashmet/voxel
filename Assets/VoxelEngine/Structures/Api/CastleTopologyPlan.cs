@@ -38,6 +38,10 @@ namespace VoxelEngine.Structures.Api
         public bool HasKeepAnnexPlan;
         public CastleKeepAnnexPlan KeepAnnexes;
 
+        // Keep-turret dimensions are geometric consequences of CastlePlan, but their authored roof
+        // variation is frozen here so spatial Runtime never derives keep visual seeds.
+        public CastleKeepTurretPlan KeepTurrets;
+
         // Gatehouse dimensions depend on CastlePlan, so seed-only topology may leave this absent.
         // CastleSpatialPlanner attaches the frozen recipe once dimensional planning is available.
         public bool HasGatehousePlan;
@@ -54,6 +58,7 @@ namespace VoxelEngine.Structures.Api
         ConcentricRequiresNestedWards,
         InvalidKeepAnnexPlan,
         UnexpectedKeepAnnexPlan,
+        InvalidKeepTurretPlan,
         InvalidGatehousePlan,
         InvalidSitePlan,
     }
@@ -142,6 +147,13 @@ namespace VoxelEngine.Structures.Api
                      plan.KeepAnnexes.HasRearOriel)
             {
                 issue = CastleTopologyPlanIssue.UnexpectedKeepAnnexPlan;
+                return false;
+            }
+
+            if (plan.KeepTurrets != null &&
+                !CastleKeepTurretPlanValidator.TryValidate(plan.KeepTurrets, out _))
+            {
+                issue = CastleTopologyPlanIssue.InvalidKeepTurretPlan;
                 return false;
             }
 
