@@ -19,14 +19,14 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void RuntimeKeepCoordinatorAndProjectionShareApiOwnedLegacyOffset()
+        public void RuntimeKeepCoordinatorsAndProjectionShareApiOwnedLegacyOffset()
         {
             string keep = File.ReadAllText(Path.Combine(
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
                 "CastleKeepRealizer.cs"));
-            string pipeline = File.ReadAllText(Path.Combine(
+            string planned = File.ReadAllText(Path.Combine(
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
-                "CastleBuildPipeline.cs"));
+                "CastlePlannedKeepRealizer.cs"));
             string projection = File.ReadAllText(Path.Combine(
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Api",
                 "CastleSpatialProjection.cs"));
@@ -36,11 +36,11 @@ namespace VoxelEngine.Tests.EditMode
 
             StringAssert.Contains("CastleLayout.LegacyKeepCentreZOffset", keep);
             StringAssert.DoesNotContain("plan.Centre.z - hz + 60", keep,
-                "The keep coordinator must not own a second copy of the compatibility anchor.");
+                "The compatibility keep coordinator must not own a second copy of the anchor.");
 
-            StringAssert.Contains("CastleLayout.LegacyKeepCentreZOffset", pipeline);
-            StringAssert.DoesNotContain("keepPlan.Centre.z - halfZ + 60", pipeline,
-                "The spatial keep path must use the same API-owned compatibility anchor.");
+            StringAssert.Contains("CastleLayout.LegacyKeepCentreZOffset", planned);
+            StringAssert.DoesNotContain("keepPlan.Centre.z - halfZ + 60", planned,
+                "The spatial keep coordinator must use the API-owned compatibility anchor.");
 
             StringAssert.Contains("CastleLayout.LegacyKeepCentreZOffset", projection);
             StringAssert.Contains("LegacyKeepCentreZOffset = 60", layout);
