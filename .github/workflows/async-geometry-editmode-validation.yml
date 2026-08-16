@@ -41,6 +41,7 @@ jobs:
           set -euo pipefail
           # tools/unity-run.sh deliberately refuses any second Unity editor because concurrent
           # editors previously froze this runner. Match that policy instead of bypassing it.
+          # Checkpoint: exact metadata Burst + COW/region revision transaction coherence.
           deadline=$((SECONDS + 2400))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
