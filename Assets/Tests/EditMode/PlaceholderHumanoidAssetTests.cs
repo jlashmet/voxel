@@ -9,6 +9,8 @@ namespace VoxelEngine.Tests.EditMode
     {
         private const string MalePath = "Assets/ThirdParty/PlaceholderHumanoids/Models/Male_Adult_01.fbx";
         private const string FemalePath = "Assets/ThirdParty/PlaceholderHumanoids/Models/Female_Adult_01.fbx";
+        private const string MalePrefabPath = "Assets/ThirdParty/PlaceholderHumanoids/Models/placeholder_male.prefab";
+        private const string FemalePrefabPath = "Assets/ThirdParty/PlaceholderHumanoids/Models/placeholder_female.prefab";
 
         [TestCase(MalePath, false)]
         [TestCase(FemalePath, false)]
@@ -76,6 +78,34 @@ namespace VoxelEngine.Tests.EditMode
                 $"{path} left a non-preferred Rocketbox LOD renderer active. {DescribeRenderers(allSkinnedMeshes, model.transform)}");
 
             AssertValidHumanoidAvatar(path);
+        }
+
+        [TestCase(MalePrefabPath)]
+        [TestCase(FemalePrefabPath)]
+        public void PlaceholderDescriptor_GeneratesCharacterFactoryPrefab(string path)
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            Assert.That(prefab, Is.Not.Null,
+                $"CharacterFactoryAssetImporter did not generate {path}");
+
+            Assert.That(prefab.transform.Find("Equipment"), Is.Not.Null,
+                $"{path} is missing the Character Factory Equipment root");
+
+            var equipmentControllers = prefab.GetComponents<MonoBehaviour>()
+                .Where(component => component != null &&
+                    component.GetType().FullName == "VoxelEngine.Characters.Runtime.CharacterEquipmentController")
+                .ToArray();
+            Assert.That(equipmentControllers.Length, Is.EqualTo(1),
+                $"{path} should have exactly one CharacterEquipmentController on its stable root");
+
+            var renderer = prefab.GetComponentInChildren<SkinnedMeshRenderer>(true);
+            Assert.That(renderer, Is.Not.Null, $"{path} contains no skinned character mesh");
+
+            var animator = prefab.GetComponentInChildren<Animator>(true);
+            Assert.That(animator, Is.Not.Null, $"{path} contains no Animator");
+            Assert.That(animator.avatar, Is.Not.Null, $"{path} Animator has no Avatar");
+            Assert.That(animator.avatar.isValid, Is.True, $"{path} Animator Avatar is invalid");
+            Assert.That(animator.avatar.isHuman, Is.True, $"{path} Animator Avatar is not Humanoid");
         }
 
         [TestCase("Assets/ThirdParty/PlaceholderHumanoids/Animations/Idle.fbx")]
