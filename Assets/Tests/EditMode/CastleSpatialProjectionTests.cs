@@ -65,5 +65,25 @@ namespace VoxelEngine.Tests.EditMode
             Assert.Throws<InvalidOperationException>(() =>
                 CastleSpatialProjection.Create(in plan, spatial));
         }
+
+        [Test]
+        public void CompletedDungeonPlanValidatesAndProjectsWithoutRecursiveValidation()
+        {
+            CastlePlan plan = CastlePlanner.Create(new int3(256, 220, 376), 223u);
+            CastleTopologyPlan topology = CastleLayoutPlanner.Create(223u);
+            topology.KeepPlacement = CastleKeepPlacement.Central;
+            CastleSpatialPlan raw = CastleSpatialPlanner.Create(in plan, in topology);
+            CastleSpatialPlan completed = CastleSpatialPlanCompletion.CompleteResolved(
+                in plan, raw);
+
+            Assert.NotNull(completed.Dungeon);
+            Assert.IsTrue(
+                CastleSpatialPlanValidator.TryValidate(
+                    in plan, completed, out CastleSpatialPlanIssue issue),
+                issue.ToString());
+
+            CastleSpatialProjection projection = CastleSpatialProjection.Create(in plan, completed);
+            Assert.AreEqual(completed.Dungeon.Entrance, projection.TrapdoorCentre);
+        }
     }
 }
