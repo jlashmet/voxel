@@ -138,9 +138,9 @@ namespace VoxelEngine.Showcase
 
             // This is a species/movement review plate, not a perspective beauty shot. A steeper
             // orthographic view converts the gallery's Z spacing into real screen-space row
-            // separation; the slightly wider frame keeps the first/last rows and caption bands in view.
+            // separation; the wider frame keeps every caption band safely inside the image.
             camera.orthographic = true;
-            camera.orthographicSize = 7.6f;
+            camera.orthographicSize = 8.4f;
             camera.transform.position = new Vector3(0f, 13.35f, -4.3f);
             camera.transform.LookAt(new Vector3(0f, 1.35f, 8.9f));
         }
