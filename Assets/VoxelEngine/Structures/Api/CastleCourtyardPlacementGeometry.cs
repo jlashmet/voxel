@@ -92,6 +92,20 @@ namespace VoxelEngine.Structures.Api
             if (math.lengthsq(new float2(gateDelta.x, gateDelta.y)) < 70f * 70f)
                 return false;
 
+            // Every perimeter vertex owns a corner tower in both the outer and nested ward plans.
+            // Clear those circular footprints explicitly instead of shrinking the entire usable
+            // courtyard by tower radius; that preserves room for the required well in tight wards.
+            int cornerTowerClearance = plan.TowerRadius + WellClearanceRadius;
+            long cornerTowerClearanceSquared =
+                (long)cornerTowerClearance * cornerTowerClearance;
+            for (int i = 0; i < perimeter.Length; i++)
+            {
+                long dx = (long)candidate.x - perimeter[i].x;
+                long dz = (long)candidate.y - perimeter[i].y;
+                if (dx * dx + dz * dz < cornerTowerClearanceSquared)
+                    return false;
+            }
+
             CastleGatePlacementSpec innerGate = default;
             bool hasInnerGate = TryDeriveInnerGate(perimeter, in gate, out innerGate);
             CastleAccessRoute route = CastleAccessRoute.Create(
@@ -180,7 +194,7 @@ namespace VoxelEngine.Structures.Api
         }
 
         private static int WardBoundaryClearance(in CastlePlan plan) =>
-            math.max(WellClearanceRadius, CastleInnerWardTowerPlanner.Radius(in plan) + 8);
+            WellClearanceRadius;
 
         private static int2 Round(float2 value) =>
             new int2((int)math.round(value.x), (int)math.round(value.y));
