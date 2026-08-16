@@ -45,13 +45,12 @@ namespace VoxelEngine.Structures.Api
             return new int3(plan.Centre.x, baseY, keepMinZ + plan.KeepHalfZ + 40);
         }
 
-        public static int3 FrontGateMinimum(in CastlePlan plan)
-        {
-            int baseY = plan.Centre.y + plan.PlateauHeight;
-            int gateZ = plan.Centre.z - plan.BaileyHalfZ;
-            return new int3(plan.Centre.x - FrontGateWidth / 2, baseY + 1,
-                            gateZ - plan.WallThickness + 2);
-        }
+        /// <summary>
+        /// Compatibility minimum for the historical centred -Z gate. The authoritative gate basis
+        /// now lives in CastleGateGeometryResolver so realization and interaction cannot drift.
+        /// </summary>
+        public static int3 FrontGateMinimum(in CastlePlan plan) =>
+            CastleGateGeometryResolver.LegacyFront(in plan).Origin;
 
         public static int WaterfallStreamX(in CastlePlan plan) =>
             plan.Centre.x + plan.BaileyHalfX + plan.TowerRadius + 36;
