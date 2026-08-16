@@ -15,7 +15,7 @@ namespace VoxelEngine.Tests.PlayMode
     /// Player-visible frame-time regression for the exact VoxelShowcase startup path. Every live
     /// player-loop frame after scene activation is sampled continuously through terrain streaming,
     /// castle-session construction, terrain snapshot, worker authoring, bounded live publication,
-    /// and terminal landmark/far-field finalisation.
+    /// terminal landmark/far-field finalisation, and production solid-mesh convergence/upload.
     ///
     /// VoxelShowcase intentionally keeps solid-surface building disabled until the castle's atomic
     /// landmark publication finishes. Waiting for SurfaceBuildEnabled would therefore start this
@@ -30,6 +30,7 @@ namespace VoxelEngine.Tests.PlayMode
         private const double MaxP95FrameMs = 18.0;
         private const double MaxP99FrameMs = 25.0;
         private const double MaxSingleFrameMs = 33.34;
+        private const int RequiredConvergedFrames = 4;
 
         [UnityTest, Timeout(900000)]
         public IEnumerator CastleConstruction_NeverOwnsAFrameAndNeverStallsRendering()
@@ -51,16 +52,21 @@ namespace VoxelEngine.Tests.PlayMode
             var frameClock = Stopwatch.StartNew();
             int frames = 0;
             int firstFrame = Time.frameCount;
+            int convergedFrames = 0;
             bool sawCastleBuild = world.CastleBuildStage > 0;
-            double deadline = Time.realtimeSinceStartupAsDouble + 90.0;
+            bool sawSurfaceBuildWork = false;
+            bool sawVisibleSolids = false;
+            VoxelSurfaceMetrics lastMetrics = default;
+            double deadline = Time.realtimeSinceStartupAsDouble + 120.0;
 
             // Stage 9 is terminal AsyncCastleBuildSession completion. CastleVoxels is assigned only
             // after StepLandmarks has also built the reference arch, published all castle regions,
-            // captured far-field silhouettes, and recorded that final main-thread stage. Waiting
-            // for both therefore covers the complete player-visible construction window, including
-            // the frame that constructs/adopts the async session itself.
-            while (!CastleFullyFinalised(world)
-                   && frames++ < 9000
+            // captured far-field silhouettes, and recorded that final main-thread stage. Do not
+            // stop there: that same frame enables the production surface scheduler, so continue
+            // sampling until dirty/running/upload/missing-visible solid work has remained empty for
+            // several consecutive frames. This covers the player-visible remesh tail as well.
+            while (convergedFrames < RequiredConvergedFrames
+                   && frames++ < 12000
                    && Time.realtimeSinceStartupAsDouble < deadline)
             {
                 frameClock.Restart();
@@ -71,9 +77,30 @@ namespace VoxelEngine.Tests.PlayMode
 
                 Assert.True(VoxelRenderBridge.TryGetWorld(out _),
                     "VoxelShowcase lost the production renderer world binding during startup.");
-                var metrics = VoxelRenderBridge.SurfaceMetrics;
-                Assert.AreEqual(0ul, metrics.FramePathBlockingCompletionViolations,
+                lastMetrics = VoxelRenderBridge.SurfaceMetrics;
+                Assert.AreEqual(0ul, lastMetrics.FramePathBlockingCompletionViolations,
                     "Geometry work synchronously completed a worker job from the frame path.");
+
+                if (!CastleFullyFinalised(world) || !VoxelRenderBridge.SurfaceBuildEnabled)
+                {
+                    convergedFrames = 0;
+                    continue;
+                }
+
+                sawVisibleSolids |= lastMetrics.VisibleSolidChunks > 0;
+                sawSurfaceBuildWork |= lastMetrics.CompletedSolidBuilds > 0
+                                    || lastMetrics.RunningSolidJobs > 0
+                                    || lastMetrics.SolidDirtyChunks > 0
+                                    || lastMetrics.SolidMeshesAwaitingUpload > 0
+                                    || lastMetrics.SolidPendingUploadBytes > 0;
+
+                bool rendererConverged = lastMetrics.VisibleSolidChunks > 0
+                                      && lastMetrics.SolidDirtyChunks == 0
+                                      && lastMetrics.RunningSolidJobs == 0
+                                      && lastMetrics.SolidMeshesAwaitingUpload == 0
+                                      && lastMetrics.SolidPendingUploadBytes == 0
+                                      && lastMetrics.MissingVisibleSolidChunks == 0;
+                convergedFrames = rendererConverged ? convergedFrames + 1 : 0;
             }
 
             Assert.True(sawCastleBuild,
@@ -84,6 +111,17 @@ namespace VoxelEngine.Tests.PlayMode
               + $"maxCastleMainThread={world.MaxCastleStageMs:F2} ms.");
             Assert.True(VoxelRenderBridge.SurfaceBuildEnabled,
                 "Production solid rendering did not become enabled after atomic castle publication.");
+            Assert.True(sawSurfaceBuildWork,
+                "The measured window never observed production solid build work after castle publication.");
+            Assert.True(sawVisibleSolids,
+                "Production rendering never produced visible solid chunks during startup.");
+            Assert.GreaterOrEqual(convergedFrames, RequiredConvergedFrames,
+                $"Production solid rendering never converged after castle publication; "
+              + $"dirty={lastMetrics.SolidDirtyChunks}, running={lastMetrics.RunningSolidJobs}, "
+              + $"uploadMeshes={lastMetrics.SolidMeshesAwaitingUpload}, "
+              + $"uploadBytes={lastMetrics.SolidPendingUploadBytes}, "
+              + $"missingVisible={lastMetrics.MissingVisibleSolidChunks}, "
+              + $"visible={lastMetrics.VisibleSolidChunks}.");
             Assert.Greater(world.CastleVoxels, 100_000,
                 "The terminal castle was too small for this to exercise the production build.");
             Assert.Greater(frameTimesMs.Count, 8,
@@ -104,14 +142,15 @@ namespace VoxelEngine.Tests.PlayMode
 
             // Hard player-loop gates on the Metal validation machine. Percentiles prevent a stream
             // of merely-slow frames, while the absolute ceiling means no individual measured live
-            // showcase frame may collapse below 30 fps while the castle is being produced.
+            // showcase frame may collapse below 30 fps from startup through castle render convergence.
             Assert.Less(p95, MaxP95FrameMs,
                 $"Live-showcase p95 was {p95:F2} ms (p99={p99:F2}, max={maximum:F2}).");
             Assert.Less(p99, MaxP99FrameMs,
                 $"Live-showcase p99 was {p99:F2} ms (max={maximum:F2}).");
             Assert.Less(maximum, MaxSingleFrameMs,
-                $"VoxelShowcase produced a {maximum:F2} ms player-loop hitch before castle "
-              + "finalisation; no measured live frame may fall below 30 fps on the validation machine.");
+                $"VoxelShowcase produced a {maximum:F2} ms player-loop hitch before solid "
+              + "render convergence; no measured live frame may fall below 30 fps on the "
+              + "validation machine.");
         }
 
         private static bool CastleFullyFinalised(ShowcaseWorld world) =>
