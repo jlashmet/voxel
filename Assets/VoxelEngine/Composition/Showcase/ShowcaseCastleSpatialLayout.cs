@@ -49,7 +49,6 @@ namespace VoxelEngine.Showcase
             projection.TrapdoorCentre;
 
         internal static void BuildPresentationLights(
-            in CastlePlan dimensions,
             in CastleSpatialLayoutProjection projection,
             out Vector4[] lights,
             out Vector4[] colours)
