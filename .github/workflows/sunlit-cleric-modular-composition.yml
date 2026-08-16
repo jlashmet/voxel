@@ -169,6 +169,9 @@ jobs:
           "$BLENDER_BIN" --background --python-exit-code 1 \
             --python tools/character-factory/ci/verify_character_animations.py -- \
             --input "$BASE_FBX"
+          "$BLENDER_BIN" --background --python-exit-code 1 \
+            --python tools/character-factory/ci/verify_madeline_base_contract.py -- \
+            --input "$BASE_FBX"
 
       - name: Verify robe rebinding against Madeline skeleton
         shell: bash
