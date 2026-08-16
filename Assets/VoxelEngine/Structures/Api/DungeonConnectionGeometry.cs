@@ -1,18 +1,57 @@
+using System;
 using Unity.Mathematics;
 
 namespace VoxelEngine.Structures.Api
 {
     /// <summary>
-    /// Pure geometric contract for designed dungeon connections. Validation and Runtime share this
-    /// logic so a graph edge cannot be accepted semantically but realized as disconnected space.
+    /// Pure geometric contract for designed dungeon connections. Validation, bounds, and Runtime
+    /// share this logic so a graph edge cannot be accepted semantically but realized differently.
     /// </summary>
     public static class DungeonConnectionGeometry
     {
         public const int StairShaftRadius = 14;
         public const int StairShaftDiameter = StairShaftRadius * 2;
+        public const int CorridorWidth = 20;
+        public const int CorridorHeight = 30;
+        public const int SecretPassageWidth = 28;
+        public const int SecretPassageHeight = 32;
+        public const int FloorThickness = 2;
 
         public static int RoomFloor(in DungeonRoomPlan room) =>
             room.Centre.y - room.Size.y / 2;
+
+        public static int PassageWidth(DungeonConnectionKind kind)
+        {
+            switch (kind)
+            {
+                case DungeonConnectionKind.Corridor:
+                    return CorridorWidth;
+                case DungeonConnectionKind.SecretPassage:
+                    return SecretPassageWidth;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(kind));
+            }
+        }
+
+        public static int PassageHeight(DungeonConnectionKind kind)
+        {
+            switch (kind)
+            {
+                case DungeonConnectionKind.Corridor:
+                    return CorridorHeight;
+                case DungeonConnectionKind.SecretPassage:
+                    return SecretPassageHeight;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(kind));
+            }
+        }
+
+        /// <summary>
+        /// The deterministic elbow used by designed horizontal passages: first move in X from the
+        /// source room, then in Z toward the destination room.
+        /// </summary>
+        public static int2 PassageCorner(in DungeonRoomPlan from, in DungeonRoomPlan to) =>
+            new int2(to.Centre.x, from.Centre.z);
 
         public static bool IsValid(
             in DungeonRoomPlan from,
