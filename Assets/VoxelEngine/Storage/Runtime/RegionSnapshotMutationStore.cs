@@ -56,7 +56,38 @@ namespace VoxelEngine.Storage.Runtime
                 !_table.TryGetRegion(regionCoord, out Region region))
                 return false;
 
+            // Snapshot decode replaces physical refs in bulk and intentionally bypasses the
+            // per-block mutation API. Rebuild the compact local occupancy summaries once here so
+            // asynchronous consumers never inherit stale metadata from the previous region image.
+            RebuildBlockSummaries(ref region);
+            _table.CommitRegion(in region);
+
             return SemanticRegionHasher.HashRegion(in region, in _pool) == expectedSemanticHash;
+        }
+
+        private void RebuildBlockSummaries(ref Region region)
+        {
+            for (int blockIndex = 0; blockIndex < VoxelReadGrid.BlocksPerRegion; blockIndex++)
+            {
+                BrickRef block = region.BrickRefs[blockIndex];
+                if (block.IsUniform)
+                {
+                    bool solid = block.UniformMaterial != VoxelGrid.MaterialEmpty;
+                    region.SetBlockOccupancySummary(blockIndex, solid, solid);
+                    continue;
+                }
+
+                int occupancyOffset = _pool.OccupancyOffset(block.PoolIndex);
+                bool occupied = false;
+                bool fullySolid = true;
+                for (int i = 0; i < VoxelReadGrid.OccupancyWordsPerBlock; i++)
+                {
+                    ulong word = _pool.Occupancy[occupancyOffset + i];
+                    occupied |= word != 0UL;
+                    fullySolid &= word == ulong.MaxValue;
+                }
+                region.SetBlockOccupancySummary(blockIndex, occupied, fullySolid);
+            }
         }
     }
 }
