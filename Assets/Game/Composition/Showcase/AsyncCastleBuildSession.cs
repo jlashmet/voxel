@@ -7,6 +7,7 @@ using Unity.Mathematics;
 using VoxelEngine.Composition;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Structures.Api;
+using GameCastlePlan = Game.Structures.Api.CastlePlan;
 
 namespace VoxelEngine.Showcase
 {
@@ -23,7 +24,7 @@ namespace VoxelEngine.Showcase
     /// </summary>
     internal sealed class AsyncCastleBuildSession : ICastleBuildSession
     {
-        private const int BlocksPerPublishSlice = 8;
+        private const int BlocksPerPublishSlice = 32;
         private const int PrivateMixedBrickCapacity = 1 << 17;
 
         private readonly IRegionSnapshotSource _liveSnapshots;
