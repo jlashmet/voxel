@@ -53,6 +53,12 @@ namespace VoxelEngine.Tests.EditMode
             string annex = File.ReadAllText(Path.Combine(
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
                 "CastleKeepAnnexRealizer.cs"));
+            string windows = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
+                "CastlePlannedKeepWindowRealizer.cs"));
+            string readiness = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Api",
+                "CastleSpatialBuildReadiness.cs"));
 
             StringAssert.Contains("CastleSpatialProjection.KeepMinimum(", keep,
                 "Planned shell/floor bounds must come from the shared projection.");
@@ -78,6 +84,14 @@ namespace VoxelEngine.Tests.EditMode
                 "Shared annex geometry must use the projected keep bounds on both compatibility and spatial paths.");
             StringAssert.Contains("CastleSpatialProjection.KeepSize(", annex,
                 "Shared annex geometry must use projected keep dimensions on all realization paths.");
+            StringAssert.Contains("CastleKeepWindowPlanValidator.TryValidate(", readiness,
+                "Spatial preflight must own planned keep-window admission.");
+            StringAssert.DoesNotContain("CastleKeepWindowPlanValidator", windows,
+                "Planned keep-window realization should consume an already-admitted plan.");
+            StringAssert.DoesNotContain("throw new ", windows,
+                "Planned keep-window realization should not repeat preflight validation.");
+            StringAssert.Contains("brush.Arch(", windows,
+                "Planned keep-window realization must retain its voxel geometry responsibility.");
             StringAssert.DoesNotContain("keepPlan.KeepHalfX * 2", keep,
                 "Planned keep realization must not rebuild keep dimensions locally.");
             StringAssert.DoesNotContain("plan.KeepHalfX * 2", exterior,
