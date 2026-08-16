@@ -47,19 +47,25 @@ namespace VoxelEngine.Tests.EditMode
             string keep = File.ReadAllText(Path.Combine(
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
                 "CastlePlannedKeepRealizer.cs"));
+            string exterior = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
+                "CastlePlannedKeepExteriorRealizer.cs"));
 
-            StringAssert.Contains("CastleSpatialProjection.ActualKeepCentre(", keep,
-                "Spatial keep coordinates must come from the shared projection rather than a local compatibility offset.");
+            StringAssert.Contains("CastleSpatialProjection.KeepMinimum(", keep,
+                "Planned shell/floor bounds must come from the shared projection.");
             StringAssert.Contains("CastleKeepShellRealizer.Build(", keep);
             StringAssert.Contains("CastlePlannedKeepTurretRealizer.BuildAll(", keep);
-            StringAssert.Contains("CastleKeepFloorRealizer.Build(", keep);
+            StringAssert.Contains("CastleKeepFloorRealizer.BuildPlanned(", keep);
             StringAssert.Contains("CastleKeepCirculationRealizer.Build(", keep);
             StringAssert.Contains("CastlePlannedKeepWindowRealizer.BuildAll(", keep);
             StringAssert.Contains("CastlePlannedKeepExteriorRealizer.Build(", keep);
             StringAssert.Contains("CastlePlannedKeepAnnexRealizer.Build(", keep);
 
+            StringAssert.Contains("CastleSpatialProjection.KeepMinimum(", exterior,
+                "Planned exterior bounds must use the same projection as shell/floors.");
             StringAssert.DoesNotContain("CastleLayout.LegacyKeepCentreZOffset", keep,
                 "The temporary compatibility anchor belongs in CastleSpatialProjection, not planned Runtime code.");
+            StringAssert.DoesNotContain("CastleLayout.LegacyKeepCentreZOffset", exterior);
             StringAssert.DoesNotContain("CastleKeepWindowRealizer.Build(", keep,
                 "Spatial keep realization must not route through the compatibility window adapter.");
             StringAssert.DoesNotContain("brush.", keep,
