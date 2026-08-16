@@ -25,7 +25,8 @@ namespace VoxelEngine.Structures.Api
             CastleKeepTurretSpec[] turrets = topology.KeepTurrets.Snapshot();
 
             int baseX = keepPlan.Centre.x - keepPlan.KeepHalfX;
-            int baseZ = keepPlan.Centre.z - keepPlan.KeepHalfZ + 60;
+            int baseZ = keepPlan.Centre.z - keepPlan.KeepHalfZ
+                      + CastleLayout.LegacyKeepCentreZOffset;
             int width = keepPlan.KeepHalfX * 2;
             int depth = keepPlan.KeepHalfZ * 2;
             int height = keepPlan.KeepHeight + 30;
