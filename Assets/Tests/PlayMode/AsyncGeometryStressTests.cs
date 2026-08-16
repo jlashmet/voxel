@@ -619,10 +619,24 @@ namespace VoxelEngine.Tests.PlayMode
                 yield return null;
             }
 
+            var showcase = Object.FindFirstObjectByType<VoxelShowcase>();
+            var world = showcase != null
+                ? (ShowcaseWorld)typeof(VoxelShowcase)
+                    .GetField("_world", BindingFlags.NonPublic | BindingFlags.Instance)
+                    .GetValue(showcase)
+                : null;
+            string startup = world == null
+                ? "world=null"
+                : $"castleRegions={world.ReadyCastleRegions}/{world.RequiredCastleRegions} "
+                + $"pendingLoads={world.PendingRegionLoads} generated={world.RegionsGenerated} "
+                + $"buildStage={world.CastleBuildStage} lastStage={world.LastCastleStage} "
+                + $"lastStageMs={world.LastCastleStageMs:F2} maxStage={world.MaxCastleStage} "
+                + $"maxStageMs={world.MaxCastleStageMs:F2} castleVoxels={world.CastleVoxels}";
+
             Assert.True(VoxelRenderBridge.SurfaceBuildEnabled,
-                $"Showcase atomic world did not commit within {frames} frames / 20 seconds.");
+                $"Showcase atomic world did not commit within {frames} frames / 20 seconds; {startup}.");
             Assert.True(VoxelRenderBridge.TryGetWorld(out _),
-                "Showcase lost its render-world binding while waiting for atomic publication.");
+                $"Showcase lost its render-world binding while waiting for atomic publication; {startup}.");
         }
 
         private static void GetShowcaseContext(out VoxelShowcase showcase,
