@@ -188,12 +188,12 @@ namespace VoxelEngine.Showcase
         /// </summary>
         private void Spawn()
         {
-            // The landmark is owned by the origin region. Build it first even though the safe
-            // approach spawn is just south of that region; landmark construction also preloads
-            // every neighbouring region its terrain sculpt can touch.
+            // The landmark is owned by the origin region. Build it first so castle planning has
+            // resolved the primary approach before choosing the spawn column; landmark construction
+            // also preloads every neighbouring region its terrain sculpt can touch.
             _world.GenerateRegionBlocking(int3.zero);
 
-            var spawn = _world.SpawnPosition();
+            var spawn = _world.CastleSpawnPosition();
 
             _world.GenerateRegionBlocking(ShowcaseWorld.RegionAt(spawn));
             _motor.SnapToGround(_world, spawn);
@@ -202,9 +202,7 @@ namespace VoxelEngine.Showcase
                 _world.CastlePresentationLights, _world.CastlePresentationLightColours);
 
             transform.position = _motor.EyePosition;
-            var castleTarget = new Vector3(ShowcaseWorld.RegionVoxelEdge * 0.5f * 0.1f,
-                                           transform.position.y + 5.0f,
-                                           (ShowcaseWorld.RegionVoxelEdge * 0.5f + 120f) * 0.1f);
+            Vector3 castleTarget = _world.CastleLookTargetPosition();
             Vector3 toCastle = castleTarget - transform.position;
             _yaw = Mathf.Atan2(toCastle.x, toCastle.z) * Mathf.Rad2Deg;
             _pitch = -Mathf.Atan2(toCastle.y,
