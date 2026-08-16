@@ -192,7 +192,7 @@ namespace MountingForce.WorldGen.Voxel
                             source,
                             cursor,
                             instructionLength,
-                            surfaceOperandIndex: 7,
+                            7,
                             surface);
                         cursor += instructionLength;
                         continue;
@@ -323,6 +323,8 @@ namespace MountingForce.WorldGen.Voxel
                 case StructureSurfaceTreatment.Sharp: return SurfaceStyles.Sharp;
                 case StructureSurfaceTreatment.Beveled: return SurfaceStyles.Beveled;
                 case StructureSurfaceTreatment.MasonryJoint: return SurfaceStyles.MasonryJoint;
+                case StructureSurfaceTreatment.ArchitecturalRounded:
+                    return SurfaceStyles.ArchitecturalRounded;
                 default: return existingSurface;
             }
         }
