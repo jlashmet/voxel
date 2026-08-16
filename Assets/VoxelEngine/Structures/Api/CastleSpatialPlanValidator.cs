@@ -22,6 +22,7 @@ namespace VoxelEngine.Structures.Api
         DuplicateTower,
         MissingCornerTower,
         TowerOffPerimeter,
+        WallTowerOnGateEdge,
         InnerWardMismatch,
         SelfIntersectingInnerWard,
         InnerWardOutsideOuterWard,
@@ -155,6 +156,15 @@ namespace VoxelEngine.Structures.Api
                 if (!CastlePolygonGeometry.PointOnPerimeter(towers[i].Centre, outer))
                 {
                     issue = CastleSpatialPlanIssue.TowerOffPerimeter;
+                    return false;
+                }
+
+                if (towers[i].Role == CastleTowerPlacementRole.Wall &&
+                    (PointOnEdge(towers[i].Centre, outer, primaryGate.EdgeIndex) ||
+                     (spatial.HasPosternGate &&
+                      PointOnEdge(towers[i].Centre, outer, spatial.PosternGate.EdgeIndex))))
+                {
+                    issue = CastleSpatialPlanIssue.WallTowerOnGateEdge;
                     return false;
                 }
             }
@@ -296,6 +306,16 @@ namespace VoxelEngine.Structures.Api
 
             issue = CastleSpatialPlanIssue.None;
             return true;
+        }
+
+        private static bool PointOnEdge(int2 point, int2[] perimeter, int edgeIndex)
+        {
+            if (perimeter == null || edgeIndex < 0 || edgeIndex >= perimeter.Length)
+                return false;
+            return CastlePolygonGeometry.PointOnSegment(
+                point,
+                perimeter[edgeIndex],
+                perimeter[(edgeIndex + 1) % perimeter.Length]);
         }
 
         private static bool TryValidateGate(
