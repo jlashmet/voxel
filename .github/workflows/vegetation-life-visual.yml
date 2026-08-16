@@ -18,6 +18,7 @@ on:
       - 'Assets/Scenes/AmbientLifeRenderingShowcase.unity'
       - 'Assets/VoxelEngine/CI/PlayMode/VegetationLifeRenderingTests.cs'
       - 'Assets/VoxelEngine/CI/PlayMode/VegetationLifeRenderingVisualTests.cs'
+      - 'Assets/VoxelEngine/CI/PlayMode/AmbientLifeSilhouetteQualityTests.cs'
       - '.github/workflows/vegetation-life-visual.yml'
 
 concurrency:
@@ -111,6 +112,22 @@ jobs:
             -logFile "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/ambient-fidelity.log"
           test -s "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/ambient-fidelity-results.xml"
           test -s "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/ambient_life_all_kinds.png"
+
+      - name: Run ambient-life silhouette readability test
+        shell: bash
+        run: |
+          set -euo pipefail
+          "${{ steps.unity.outputs.path }}" \
+            -batchmode \
+            -projectPath "$GITHUB_WORKSPACE" \
+            -runTests \
+            -testPlatform PlayMode \
+            -testFilter "VoxelEngine.CI.AmbientLifeSilhouetteQualityTests.AmbientLifeShowcase_PreservesDistinctReadableAgentSilhouettes" \
+            -testResults "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/ambient-silhouette-results.xml" \
+            -logFile "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/ambient-silhouette.log"
+          test -s "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/ambient-silhouette-results.xml"
+          test -s "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/ambient_life_silhouette.png"
+          test -s "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/ambient_life_silhouette_quality.txt"
 
       - name: Upload rendering validation artefacts
         if: always()
