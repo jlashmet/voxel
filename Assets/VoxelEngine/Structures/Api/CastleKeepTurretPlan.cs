@@ -1,4 +1,5 @@
 using System;
+using Random = Unity.Mathematics.Random;
 
 namespace VoxelEngine.Structures.Api
 {
@@ -8,6 +9,17 @@ namespace VoxelEngine.Structures.Api
         MaxXMinZ = 1,
         MinXMaxZ = 2,
         MaxXMaxZ = 3,
+    }
+
+    /// <summary>Topology-level roof composition for the four fixed keep-corner turrets.</summary>
+    public enum CastleKeepTurretRoofPattern : byte
+    {
+        Historical,
+        AllRoofed,
+        MinZPair,
+        MaxZPair,
+        Diagonal,
+        Bare,
     }
 
     public struct CastleKeepTurretSpec
@@ -132,24 +144,67 @@ namespace VoxelEngine.Structures.Api
     public static class CastleKeepTurretPlanner
     {
         /// <summary>
-        /// Freezes topology-level keep-turret identity and roof styling. Slit phases are attached
-        /// later by CastleKeepTurretPlanCompletion after the spatial keep centre is resolved.
+        /// Freezes topology-level keep-turret identity and a coherent roof composition. Slit phases
+        /// are attached later by CastleKeepTurretPlanCompletion after the spatial keep centre is
+        /// resolved; this planner never derives world-position-dependent slit choices.
         /// </summary>
         public static CastleKeepTurretPlan Create(uint seed)
         {
-            _ = seed;
+            var rng = new Random(CastleSeedPartition.Derive(
+                seed, CastleSeedDomain.Keep, 0x54555252u));
+            int roll = rng.NextInt(0, 100);
+
+            CastleKeepTurretRoofPattern pattern = roll < 35
+                ? CastleKeepTurretRoofPattern.AllRoofed
+                : roll < 55
+                    ? CastleKeepTurretRoofPattern.MinZPair
+                    : roll < 75
+                        ? CastleKeepTurretRoofPattern.MaxZPair
+                        : roll < 90
+                            ? CastleKeepTurretRoofPattern.Diagonal
+                            : CastleKeepTurretRoofPattern.Bare;
+            return CastleKeepTurretRecipe.Create(pattern);
+        }
+    }
+
+    /// <summary>Named topology recipes for keep-turret roof composition.</summary>
+    public static class CastleKeepTurretRecipe
+    {
+        public static CastleKeepTurretPlan Historical() =>
+            Create(CastleKeepTurretRoofPattern.Historical);
+
+        public static CastleKeepTurretPlan Create(CastleKeepTurretRoofPattern pattern)
+        {
+            int roofMask = pattern switch
+            {
+                CastleKeepTurretRoofPattern.Historical => 0b1111,
+                CastleKeepTurretRoofPattern.AllRoofed => 0b1111,
+                CastleKeepTurretRoofPattern.MinZPair => 0b0011,
+                CastleKeepTurretRoofPattern.MaxZPair => 0b1100,
+                CastleKeepTurretRoofPattern.Diagonal => 0b1001,
+                CastleKeepTurretRoofPattern.Bare => 0,
+                _ => throw new ArgumentOutOfRangeException(nameof(pattern)),
+            };
+
             var turrets = new CastleKeepTurretSpec[4];
             for (int i = 0; i < turrets.Length; i++)
             {
                 turrets[i] = new CastleKeepTurretSpec
                 {
                     Corner = (CastleKeepTurretCorner)i,
-                    HasRoof = true,
+                    HasRoof = (roofMask & (1 << i)) != 0,
                     Slits = null,
                 };
             }
 
-            return new CastleKeepTurretPlan(turrets);
+            var plan = new CastleKeepTurretPlan(turrets);
+            if (!CastleKeepTurretPlanValidator.TryValidate(
+                    plan, out CastleKeepTurretPlanIssue issue))
+            {
+                throw new InvalidOperationException(
+                    $"Castle keep turret recipe is invalid: {issue}.");
+            }
+            return plan;
         }
     }
 }
