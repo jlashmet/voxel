@@ -4,14 +4,17 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.Animations;
 using UnityEngine.Playables;
+using VoxelEngine.Characters.Runtime;
 
 namespace VoxelEngine.Tests.EditMode
 {
     public sealed class PlaceholderHumanoidPlaybackTests
     {
-        private const string MalePath = "Assets/ThirdParty/PlaceholderHumanoids/Models/Male_Adult_01.fbx";
-        private const string FemalePath = "Assets/ThirdParty/PlaceholderHumanoids/Models/Female_Adult_01.fbx";
-        private const string WalkPath = "Assets/ThirdParty/PlaceholderHumanoids/Animations/Walk.fbx";
+        private const string Root = "Assets/ThirdParty/PlaceholderHumanoids";
+        private const string MalePath = Root + "/Models/Male_Adult_01.fbx";
+        private const string FemalePath = Root + "/Models/Female_Adult_01.fbx";
+        private const string AnimationRoot = Root + "/Animations/";
+        private const string WalkPath = AnimationRoot + "Walk.fbx";
 
         [TestCase(MalePath)]
         [TestCase(FemalePath)]
@@ -20,10 +23,7 @@ namespace VoxelEngine.Tests.EditMode
             var body = AssetDatabase.LoadAssetAtPath<GameObject>(bodyPath);
             Assert.That(body, Is.Not.Null, $"Unity could not load placeholder body {bodyPath}");
 
-            var walk = AssetDatabase.LoadAllAssetsAtPath(WalkPath)
-                .OfType<AnimationClip>()
-                .FirstOrDefault(clip => clip.name == "Walk");
-            Assert.That(walk, Is.Not.Null, "The semantic Walk clip was not imported from the placeholder animation FBX");
+            var walk = LoadClip("Walk");
             Assert.That(walk.humanMotion, Is.True, "Walk must remain Humanoid motion for retargeting");
             Assert.That(walk.length, Is.GreaterThan(0.05f), "Walk clip is too short to exercise a retargeted pose");
 
@@ -74,6 +74,91 @@ namespace VoxelEngine.Tests.EditMode
 
                 Object.DestroyImmediate(instance);
             }
+        }
+
+        [Test]
+        public void RuntimePolicy_PreservesRealClipIntentAcrossMaleFemaleVisualSwaps()
+        {
+            var male = AssetDatabase.LoadAssetAtPath<GameObject>(MalePath);
+            var female = AssetDatabase.LoadAssetAtPath<GameObject>(FemalePath);
+            Assert.That(male, Is.Not.Null, $"Unity could not load placeholder body {MalePath}");
+            Assert.That(female, Is.Not.Null, $"Unity could not load placeholder body {FemalePath}");
+
+            var idle = LoadClip("Idle");
+            var walk = LoadClip("Walk");
+            var run = LoadClip("Run");
+            var crouchIdle = LoadClip("CrouchIdle");
+            var wave = LoadClip("Wave");
+
+            var host = new GameObject("placeholder-runtime-policy");
+            CharacterAnimationPlayer player = null;
+            try
+            {
+                var resolver = host.AddComponent<CharacterVisualResolver>();
+                player = host.AddComponent<CharacterAnimationPlayer>();
+                var policy = host.AddComponent<CharacterAnimationPolicy>();
+
+                player.SetVisualResolver(resolver);
+                resolver.SetFallbackVisual(male);
+                policy.ConfigureLocomotion(idle, walk, run, crouchIdle);
+
+                Assert.That(policy.SetLocomotion(CharacterLocomotionState.Walk), Is.True);
+                Assert.That(player.CurrentClip, Is.SameAs(walk));
+                AssertHumanoidTarget(player.Animator, male.name);
+
+                resolver.SetPreferredVisual(female);
+
+                Assert.That(player.CurrentClip, Is.SameAs(walk),
+                    "Swapping male to female lost the active Walk intent");
+                AssertHumanoidTarget(player.Animator, female.name);
+
+                Assert.That(policy.PlayOneShot(wave), Is.True);
+                Assert.That(policy.ActiveOneShot, Is.SameAs(wave));
+                Assert.That(player.CurrentClip, Is.SameAs(wave));
+
+                resolver.SetPreferredVisual(null);
+
+                Assert.That(player.CurrentClip, Is.SameAs(wave),
+                    "Swapping back to the fallback body lost the active Wave intent");
+                AssertHumanoidTarget(player.Animator, male.name);
+
+                Assert.That(policy.CancelOneShot(), Is.True);
+                Assert.That(policy.ActiveOneShot, Is.Null);
+                Assert.That(player.CurrentClip, Is.SameAs(walk),
+                    "Canceling the real Wave clip did not return to the queued Walk state");
+            }
+            finally
+            {
+                if (player != null)
+                {
+                    player.Stop();
+                }
+
+                Object.DestroyImmediate(host);
+            }
+        }
+
+        private static AnimationClip LoadClip(string semanticName)
+        {
+            string path = AnimationRoot + semanticName + ".fbx";
+            var clip = AssetDatabase.LoadAllAssetsAtPath(path)
+                .OfType<AnimationClip>()
+                .FirstOrDefault(candidate => candidate.name == semanticName);
+            Assert.That(clip, Is.Not.Null,
+                $"The semantic {semanticName} clip was not imported from {path}");
+            return clip;
+        }
+
+        private static void AssertHumanoidTarget(Animator animator, string expectedSourceName)
+        {
+            Assert.That(animator, Is.Not.Null,
+                $"Animation player has no Animator after resolving {expectedSourceName}");
+            Assert.That(animator.avatar, Is.Not.Null,
+                $"Resolved {expectedSourceName} Animator has no Avatar");
+            Assert.That(animator.avatar.isValid, Is.True,
+                $"Resolved {expectedSourceName} Animator Avatar is invalid");
+            Assert.That(animator.avatar.isHuman, Is.True,
+                $"Resolved {expectedSourceName} Animator Avatar is not Humanoid");
         }
     }
 }
