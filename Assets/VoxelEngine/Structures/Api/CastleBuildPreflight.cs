@@ -202,8 +202,8 @@ namespace VoxelEngine.Structures.Api
             double cost = 0.0;
             for (int i = 0; i < buildings.Length; i++)
             {
-                int width = math.max(0, buildings[i].HalfExtents.x * 2);
-                int depth = math.max(0, buildings[i].HalfExtents.y * 2);
+                int width = math.max(0, buildings[i].Width);
+                int depth = math.max(0, buildings[i].Depth);
                 int height = math.max(0, buildings[i].Height);
 
                 // Five-voxel masonry shell plus a six-layer-equivalent roof skin. This is
