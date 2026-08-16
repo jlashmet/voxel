@@ -64,6 +64,26 @@ namespace VoxelEngine.Tests.EditMode
             }
         }
 
+        [Test]
+        public void ShowcasePresentationConsumesPlannerOwnedKeepAnnexChoices()
+        {
+            string projection = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Api",
+                "CastleSpatialProjection.cs"));
+            string showcase = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Composition", "Showcase",
+                "ShowcaseCastleSpatialLayout.cs"));
+
+            StringAssert.Contains("public readonly CastleKeepAnnexPlan KeepAnnexes;", projection);
+            StringAssert.Contains(
+                "CastleKeepAnnexPlan keepAnnexes = spatial.Topology.KeepAnnexes;",
+                projection);
+            StringAssert.Contains("CastleKeepAnnexPlan annexes = projection.KeepAnnexes;", showcase);
+            StringAssert.Contains("if (annexes.HasGreatHallWing)", showcase);
+            StringAssert.Contains("if (annexes.HasChapelWing)", showcase);
+            StringAssert.Contains("if (annexes.HasBellTower)", showcase);
+        }
+
         private static string ReadRuntime(string file) =>
             File.ReadAllText(Path.Combine(
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime", file));
