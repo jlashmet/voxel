@@ -51,9 +51,17 @@ namespace VoxelEngine.Showcase
 
         internal static void BuildPresentationLights(
             in CastleSpatialProjection projection,
+            DungeonPlan dungeon,
             out Vector4[] lights,
             out Vector4[] colours)
         {
+            if (dungeon == null) throw new ArgumentNullException(nameof(dungeon));
+            if (!DungeonPlanValidator.TryValidate(dungeon, out DungeonPlanIssue dungeonIssue))
+            {
+                throw new InvalidOperationException(
+                    $"Cannot place castle presentation lights for invalid dungeon: {dungeonIssue}.");
+            }
+
             CastlePlan plan = projection.KeepPlan;
             int baseY = plan.Centre.y + plan.PlateauHeight;
             int keepMinZ = projection.KeepCentreWorld.y - plan.KeepHalfZ;
@@ -68,12 +76,17 @@ namespace VoxelEngine.Showcase
             int chapelCentreX = projection.KeepCentreWorld.x - plan.KeepHalfX
                               - chapelWidth / 2 + 4;
             int chapelCentreZ = keepMinZ + plan.KeepHalfZ * 2 - chapelDepth / 2 - 38;
-            int cellarY = baseY - 46;
-            int dungeonY = cellarY - 120;
-            int trapZ = keepMinZ + plan.KeepHalfZ + 40;
-            int caveZ = trapZ - 411;
             int3 bellTower = projection.ChapelBellTowerCentre;
             int keepCentreX = projection.KeepCentreWorld.x;
+
+            DungeonRoomPlan archive = FindRoom(dungeon, DungeonRoomPurpose.Archive);
+            DungeonRoomPlan hall = FindRoom(dungeon, DungeonRoomPurpose.GreatHall);
+            DungeonRoomPlan puzzle = FindRoom(dungeon, DungeonRoomPurpose.Puzzle);
+            DungeonRoomPlan treasury = FindRoom(dungeon, DungeonRoomPurpose.Treasury);
+            DungeonRoomPlan cave = FindRoom(dungeon, DungeonRoomPurpose.CaveThreshold);
+            int archiveFloorY = RoomFloorY(in archive);
+            int hallFloorY = RoomFloorY(in hall);
+            int caveFloorY = RoomFloorY(in cave);
 
             static Vector4 LightAt(int x, int y, int z, float radiusMetres) =>
                 new(x * 0.1f, y * 0.1f, z * 0.1f, radiusMetres);
@@ -88,15 +101,15 @@ namespace VoxelEngine.Showcase
                 LightAt(wingCentreX, baseY + plan.FloorHeight + 17, wingCentreZ, 7.0f),
                 LightAt(chapelCentreX - 18, baseY + 24, chapelCentreZ, 7.5f),
                 LightAt(chapelCentreX + 22, baseY + 27, chapelCentreZ, 7.5f),
-                LightAt(keepCentreX - 55, cellarY + 17, keepCentreZ, 7.0f),
-                LightAt(keepCentreX + 58, cellarY + 17, keepCentreZ, 7.0f),
-                LightAt(keepCentreX - 55, dungeonY + 18, trapZ, 8.5f),
-                LightAt(keepCentreX + 55, dungeonY + 18, trapZ, 8.5f),
-                LightAt(keepCentreX + 226, dungeonY + 16, trapZ, 8.0f),
-                LightAt(keepCentreX - 226, dungeonY + 15, trapZ, 8.0f),
-                LightAt(keepCentreX - 40, dungeonY + 9, caveZ - 15, 11.5f),
-                LightAt(keepCentreX + 45, dungeonY + 11, caveZ + 24, 11.5f),
-                LightAt(keepCentreX + 145, dungeonY + 12, caveZ + 25, 10.5f),
+                LightAt(archive.Centre.x - 55, archiveFloorY + 17, archive.Centre.z, 7.0f),
+                LightAt(archive.Centre.x + 58, archiveFloorY + 17, archive.Centre.z, 7.0f),
+                LightAt(hall.Centre.x - 55, hallFloorY + 18, hall.Centre.z, 8.5f),
+                LightAt(hall.Centre.x + 55, hallFloorY + 18, hall.Centre.z, 8.5f),
+                LightAt(puzzle.Centre.x, RoomFloorY(in puzzle) + 16, puzzle.Centre.z, 8.0f),
+                LightAt(treasury.Centre.x, RoomFloorY(in treasury) + 15, treasury.Centre.z, 8.0f),
+                LightAt(cave.Centre.x - 40, caveFloorY + 9, cave.Centre.z - 15, 11.5f),
+                LightAt(cave.Centre.x + 45, caveFloorY + 11, cave.Centre.z + 24, 11.5f),
+                LightAt(cave.Centre.x + 145, caveFloorY + 12, cave.Centre.z + 25, 10.5f),
                 LightAt(keepCentreX - 52, baseY + plan.FloorHeight + 16,
                         keepCentreZ + 27, 6.5f),
                 LightAt(keepCentreX, baseY + plan.FloorHeight * 3 + 17,
@@ -133,5 +146,17 @@ namespace VoxelEngine.Showcase
                     $"Castle presentation light/colour count mismatch: {lights.Length}/{colours.Length}.");
             }
         }
+
+        private static DungeonRoomPlan FindRoom(DungeonPlan plan, DungeonRoomPurpose purpose)
+        {
+            for (int i = 0; i < plan.Rooms.Length; i++)
+                if (plan.Rooms[i].Purpose == purpose) return plan.Rooms[i];
+
+            throw new InvalidOperationException(
+                $"Castle presentation requires dungeon room purpose {purpose}.");
+        }
+
+        private static int RoomFloorY(in DungeonRoomPlan room) =>
+            room.Centre.y - room.Size.y / 2;
     }
 }
