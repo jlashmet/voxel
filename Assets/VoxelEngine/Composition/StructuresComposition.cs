@@ -82,6 +82,8 @@ namespace VoxelEngine.Composition
         public uint TerrainSeed { get; }
         public CastleSpatialProjection Projection =>
             CastleSpatialProjection.Create(in _dimensions, _spatial);
+        public CastleGatehousePlan Gatehouse =>
+            _spatial != null ? _spatial.Topology.Gatehouse : default;
 
         internal PlannedCastleBuild(
             in CastlePlan dimensions,
