@@ -101,7 +101,13 @@ namespace VoxelEngine.Tests.EditMode
             Assert.AreEqual(-1, VoxelReadGrid.LevelForStride(1));
             Assert.AreEqual(-1, VoxelReadGrid.LevelForStride(2));
             Assert.AreEqual(-1, VoxelReadGrid.LevelForStride(4));
-            Assert.AreEqual(0, VoxelReadGrid.LevelForStride(8));
+
+            // A stride equal to the block edge stays on exact voxel samples rather than
+            // dropping to level 0. Level 0 is a conservative any-solid 8^3 summary, so
+            // sampling it at an 8-voxel stride expands thin structures to whole cells and
+            // closes architectural openings. The legacy mapping this test is named for
+            // returned 0 here; that is the coarse-LOD regression, not the contract.
+            Assert.AreEqual(-1, VoxelReadGrid.LevelForStride(8));
             Assert.AreEqual(1, VoxelReadGrid.LevelForStride(16));
             Assert.AreEqual(2, VoxelReadGrid.LevelForStride(32));
             Assert.AreEqual(3, VoxelReadGrid.LevelForStride(64));

@@ -111,23 +111,48 @@ namespace VoxelEngine.Tests.EditMode
 
             try
             {
-                Assert.AreEqual(9, terraces.Definitions.Length,
-                    "The hillside plan should expose nine authored semantic shelf pieces.");
-                Assert.AreEqual(9, terraces.ExplicitPlacements.Length);
+                Assert.AreEqual(14, terraces.Definitions.Length,
+                    "The hillside plan should expose fourteen authored semantic shelf pieces.");
+                Assert.AreEqual(14, terraces.ExplicitPlacements.Length);
 
+                // The catalogue carries two kinds: the shelves themselves are Landform, and the
+                // densified frontage pieces that sit on them are Infrastructure. Requiring every
+                // definition to be Landform assumed the pre-densification catalogue, where the
+                // five Infrastructure pieces did not exist yet — KentridgeInfrastructureTests
+                // asserts that exact split.
+                int landformShelves = 0;
+                int infrastructurePieces = 0;
                 int broadShelves = 0;
                 int tallestFootprint = 0;
                 for (int i = 0; i < terraces.Definitions.Length; i++)
                 {
                     FeatureDefinition definition = terraces.Definitions[i];
-                    Assert.AreEqual(FeatureKind.Landform, definition.Kind);
-                    Assert.AreEqual(15, definition.Precedence,
-                        "District terrain must run before roads and parcel grading.");
+                    if (definition.Kind == FeatureKind.Landform)
+                    {
+                        landformShelves++;
+                        Assert.AreEqual(15, definition.Precedence,
+                            "District terrain must run before roads and parcel grading.");
+                    }
+                    else if (definition.Kind == FeatureKind.Infrastructure)
+                    {
+                        infrastructurePieces++;
+                        Assert.AreEqual(18, definition.Precedence,
+                            "Frontage pieces grade after the shelves they sit on, "
+                          + "and still before roads and parcel grading.");
+                    }
+                    else
+                    {
+                        Assert.Fail($"Unexpected terrace kind {definition.Kind}.");
+                    }
                     if (definition.Footprint.x >= 300)
                         broadShelves++;
                     if (definition.Footprint.y > tallestFootprint)
                         tallestFootprint = definition.Footprint.y;
                 }
+
+                Assert.AreEqual(9, landformShelves, "The authored semantic shelves are Landform.");
+                Assert.AreEqual(5, infrastructurePieces,
+                    "Densified frontage pieces ride on the shelves as Infrastructure.");
 
                 Assert.GreaterOrEqual(broadShelves, 6,
                     "Most terrace pieces should join multiple structures or public spaces.");

@@ -51,16 +51,21 @@ namespace VoxelEngine.Tests.EditMode
         [Test]
         public void FineRingsReadVoxelsAndCoarseRingsReadMips()
         {
-            // The dividing line is one brick: a stride finer than a brick has no mip level.
+            // The dividing line sits one step *above* a brick, not on it. Mip level 0 is a
+            // conservative any-solid 8^3 summary, so reading it at an 8-voxel stride inflates
+            // thin structures to whole cells and closes architectural openings — the coarse-LOD
+            // castle regression. VoxelReadGrid.LevelForStride therefore returns -1 for a stride
+            // of 8, and only strides coarser than a brick sample the pyramid.
             using (var fine = new CpuTransvoxelChunkCache(1))
                 Assert.IsFalse(fine.SamplesFromMips, "Step 1 must read voxels.");
             using (var fine2 = new CpuTransvoxelChunkCache(4))
                 Assert.IsFalse(fine2.SamplesFromMips, "Step 4 is still sub-brick.");
-            using (var coarse = new CpuTransvoxelChunkCache(8))
-                Assert.IsTrue(coarse.SamplesFromMips,
-                    "Step 8 matches a brick and must read the pyramid.");
+            using (var atBrick = new CpuTransvoxelChunkCache(8))
+                Assert.IsFalse(atBrick.SamplesFromMips,
+                    "Step 8 matches a brick exactly and must stay on exact voxel samples.");
             using (var coarser = new CpuTransvoxelChunkCache(16))
-                Assert.IsTrue(coarser.SamplesFromMips);
+                Assert.IsTrue(coarser.SamplesFromMips,
+                    "Step 16 is coarser than a brick and must read the pyramid.");
         }
 
         [Test]
@@ -99,11 +104,26 @@ namespace VoxelEngine.Tests.EditMode
             // no data, builds nothing, and still allocates eight shard caches of persistent
             // scratch. Distance past this point belongs to the analytic far terrain, which
             // needs no regions.
-            const float showcaseStreamingRadiusMetres = 8 * 51.2f;   // LoadRadiusRegions = 8
+            //
+            // Residency is bounded by the *unload* radius, not the load radius: regions inside
+            // the load radius are fetched, and they stay resident until they fall outside the
+            // unload radius. Comparing against the load radius understates what is resident by
+            // three regions and fails a ring layout that is in fact within budget.
+            const float regionMetres = 51.2f;
+            const int showcaseUnloadRadiusRegions = 11;  // VoxelShowcase.m_UnloadRadiusRegions
+            const float residentRadiusMetres = showcaseUnloadRadiusRegions * regionMetres;
+
             Assert.LessOrEqual(VoxelSurfaceScheduler.MaxVoxelRingRadiusMetres,
-                               showcaseStreamingRadiusMetres + 1f,
+                               residentRadiusMetres + 1f,
                 $"Voxel rings reach {VoxelSurfaceScheduler.MaxVoxelRingRadiusMetres} m but only "
-              + $"{showcaseStreamingRadiusMetres} m of regions are ever resident.");
+              + $"{residentRadiusMetres} m of regions are ever resident.");
+
+            // device-matrix.md is authoritative: the tightest tier (Mobile-HE) unloads regions
+            // at 420 m, so no ring may reach past that on any device.
+            const float tightestUnloadRadiusMetres = 420f;
+            Assert.LessOrEqual(VoxelSurfaceScheduler.MaxVoxelRingRadiusMetres,
+                               tightestUnloadRadiusMetres,
+                "Voxel rings must stay inside the Mobile-HE region unload radius.");
         }
 
         [Test]

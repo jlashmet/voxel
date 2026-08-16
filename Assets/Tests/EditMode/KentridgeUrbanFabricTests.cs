@@ -68,9 +68,9 @@ namespace VoxelEngine.Tests.EditMode
                 Seed, BuildSettings(), Allocator.Temp);
             try
             {
-                Assert.AreEqual(37, catalogue.Definitions.Length);
-                Assert.AreEqual(37, catalogue.Rules.Length);
-                Assert.AreEqual(37, catalogue.ExplicitPlacements.Length);
+                Assert.AreEqual(42, catalogue.Definitions.Length);
+                Assert.AreEqual(42, catalogue.Rules.Length);
+                Assert.AreEqual(42, catalogue.ExplicitPlacements.Length);
                 Assert.AreEqual(0, catalogue.Anchors.Length);
 
                 for (int i = 0; i < catalogue.Definitions.Length; i++)
