@@ -29,19 +29,19 @@ namespace VoxelEngine.Structures.Api
             }
 
             CastleSiteGeometryPlan geometry = plan.Geometry;
-            if (!PositiveFinite(geometry.EdgeFrequencyA) || geometry.EdgeAmplitudeA < 0f ||
-                !PositiveFinite(geometry.EdgeFrequencyB) || geometry.EdgeAmplitudeB < 0f ||
-                !PositiveFinite(geometry.EdgeFrequencyC) || geometry.EdgeAmplitudeC < 0f ||
+            if (!PositiveFinite(geometry.EdgeFrequencyA) || !NonNegativeFinite(geometry.EdgeAmplitudeA) ||
+                !PositiveFinite(geometry.EdgeFrequencyB) || !NonNegativeFinite(geometry.EdgeAmplitudeB) ||
+                !PositiveFinite(geometry.EdgeFrequencyC) || !NonNegativeFinite(geometry.EdgeAmplitudeC) ||
                 !PositiveFinite(geometry.CliffFalloffExponent) ||
                 !PositiveFinite(geometry.CliffNoiseAngularFrequency) ||
                 !PositiveFinite(geometry.CliffNoiseProgressFrequency) ||
-                geometry.CliffNoiseAmplitude < 0f ||
+                !NonNegativeFinite(geometry.CliffNoiseAmplitude) ||
                 geometry.CliffGroundInset < 0 || geometry.GrassEdgeInset < 0 ||
                 geometry.ApproachReachInset < 0 || geometry.RiverOffset < 0 ||
                 geometry.RiverHalfWidth <= 0 || geometry.WaterHalfWidth <= 0 ||
                 geometry.WaterHalfWidth > geometry.RiverHalfWidth || geometry.RiverDepth <= 0 ||
-                !PositiveFinite(geometry.MeanderFrequencyA) || geometry.MeanderAmplitudeA < 0f ||
-                !PositiveFinite(geometry.MeanderFrequencyB) || geometry.MeanderAmplitudeB < 0f)
+                !PositiveFinite(geometry.MeanderFrequencyA) || !NonNegativeFinite(geometry.MeanderAmplitudeA) ||
+                !PositiveFinite(geometry.MeanderFrequencyB) || !NonNegativeFinite(geometry.MeanderAmplitudeB))
             {
                 issue = CastleSitePlanIssue.InvalidGeometry;
                 return false;
@@ -53,5 +53,8 @@ namespace VoxelEngine.Structures.Api
 
         private static bool PositiveFinite(float value) =>
             value > 0f && !float.IsNaN(value) && !float.IsInfinity(value);
+
+        private static bool NonNegativeFinite(float value) =>
+            value >= 0f && !float.IsNaN(value) && !float.IsInfinity(value);
     }
 }
