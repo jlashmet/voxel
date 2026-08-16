@@ -1,0 +1,76 @@
+name: Madeline base-body build
+
+on:
+  push:
+    branches: [feature/character-weapon-asset-pipeline]
+    paths:
+      - 'tools/character-factory/production/madeline/**'
+      - 'tools/character-factory/runtime/**'
+      - 'tools/character-factory/api/**'
+      - 'tools/character-factory/character_factory.py'
+      - '.github/workflows/madeline-base-body-build.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: madeline-base-body-build
+  cancel-in-progress: true
+
+jobs:
+  build-madeline-base:
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 90
+    env:
+      PYTORCH_ENABLE_MPS_FALLBACK: '1'
+      PYTHONUNBUFFERED: '1'
+      OUT: Artifacts/MadelineBaseProduction
+      REVIEW_DIR: docs/lookdev/characters/madeline/base-body
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          clean: false
+
+      - name: Compile character factory Python
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m compileall -q tools/character-factory
+
+      - name: Build body-only Madeline character
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash tools/character-factory/production/madeline/build_macos.sh "$GITHUB_WORKSPACE/$OUT"
+
+      - name: Upload generated character
+        uses: actions/upload-artifact@v4
+        with:
+          name: madeline-base-body
+          path: Artifacts/MadelineBaseProduction/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Publish lookdev proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$REVIEW_DIR"
+          cp "$OUT/madeline_base_01.preview.png" "$REVIEW_DIR/"
+          cp "$OUT/madeline_base_01.idle.png" "$REVIEW_DIR/"
+          cp "$OUT/body-only-reference-report.json" "$REVIEW_DIR/"
+          cp "$OUT/reference/raw/front.jpg" "$REVIEW_DIR/reference-front.jpg"
+          cp "$OUT/reference/body-only/front.jpg" "$REVIEW_DIR/body-only-front.jpg"
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "$REVIEW_DIR"
+          if git diff --cached --quiet; then
+            echo 'Latest Madeline base-body review is already published.'
+            exit 0
+          fi
+          git commit -m 'docs(characters): publish Madeline base-body proof [madeline-base-review]'
+          git push origin HEAD:feature/character-weapon-asset-pipeline
