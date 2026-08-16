@@ -1,0 +1,63 @@
+using System.Collections;
+using MountingForce.CombatPrototype;
+using NUnit.Framework;
+using UnityEngine.TestTools;
+
+namespace VoxelEngine.Tests.PlayMode
+{
+    public sealed class ChainCombatDemoV10Tests
+    {
+        [UnityTest]
+        public IEnumerator GuidedShowcaseProducesFourPlayerEnvironmentalCascade()
+        {
+            var board = new ChainCombatBoard();
+            var reservations = new ChainReactionReservationCoordinator(board);
+            var scenario = new ChainCombatDemoScenario(board, reservations);
+
+            Assert.That(scenario.StepIndex, Is.EqualTo(0));
+            Assert.That(scenario.IsComplete, Is.False);
+
+            Assert.That(scenario.TryAdvance(), Is.True, scenario.LastMessage);
+            Assert.That(board.PendingReaction, Is.Not.Null);
+            Assert.That(board.PendingReaction.Kind, Is.EqualTo(ChainReactionKind.Airborne));
+            Assert.That(board.CurrentCascadeSteps, Is.EqualTo(1));
+            Assert.That(board.CurrentCascadePlayers, Is.EqualTo(1));
+            yield return null;
+
+            Assert.That(scenario.TryAdvance(), Is.True, scenario.LastMessage);
+            Assert.That(board.PendingReaction, Is.Not.Null);
+            Assert.That(board.PendingReaction.Kind, Is.EqualTo(ChainReactionKind.Collision));
+            Assert.That(board.CurrentCascadeSteps, Is.EqualTo(2));
+            Assert.That(board.CurrentCascadePlayers, Is.EqualTo(2));
+            Assert.That(board.CurrentHandoffs, Is.EqualTo(1));
+            yield return null;
+
+            Assert.That(scenario.TryAdvance(), Is.True, scenario.LastMessage);
+            Assert.That(board.PendingReaction, Is.Not.Null);
+            Assert.That(board.PendingReaction.Kind, Is.EqualTo(ChainReactionKind.TreeImpact));
+            Assert.That(board.CurrentCascadeSteps, Is.EqualTo(3));
+            Assert.That(board.CurrentCascadePlayers, Is.EqualTo(3));
+            Assert.That(board.CurrentHandoffs, Is.EqualTo(2));
+            yield return null;
+
+            int treeId = board.PendingReaction.TreeId;
+            ChainTreeState tree = board.GetTree(treeId);
+            Assert.That(tree, Is.Not.Null);
+            Assert.That(tree.Standing, Is.True);
+
+            Assert.That(scenario.TryAdvance(), Is.True, scenario.LastMessage);
+            Assert.That(scenario.IsComplete, Is.True);
+            Assert.That(board.PendingReaction, Is.Null);
+            Assert.That(tree.Standing, Is.False);
+            Assert.That(tree.FallDirection, Is.EqualTo(new GridPos(-1, 0)));
+
+            Assert.That(board.LastCascadeSteps, Is.EqualTo(4), "The demo should prove one deliberate causal step per player.");
+            Assert.That(board.LastCascadePlayers, Is.EqualTo(4), "Every command group should contribute to the showcase cascade.");
+            Assert.That(board.LastHandoffs, Is.EqualTo(3), "Four sequential player contributions should create three handoffs.");
+            Assert.That(board.BestCascadeSteps, Is.GreaterThanOrEqualTo(4));
+            Assert.That(board.BestCascadePlayers, Is.EqualTo(4));
+            Assert.That(board.BestHandoffs, Is.GreaterThanOrEqualTo(3));
+            yield return null;
+        }
+    }
+}
