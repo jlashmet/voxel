@@ -233,6 +233,9 @@ namespace VoxelEngine.Structures.Runtime
 
         private void SnapshotSpatialPlan(in CastlePlan plan, CastleSpatialPlan spatialPlan)
         {
+            CastleSpatialLayoutProjection projection =
+                CastleSpatialLayoutProjection.Create(in plan, spatialPlan);
+
             _hasSpatialFortifications = true;
             _outerWardVertices = (int2[])spatialPlan.OuterWardVertices.Clone();
             _innerWardVertices = (int2[])spatialPlan.InnerWardVertices.Clone();
@@ -259,8 +262,7 @@ namespace VoxelEngine.Structures.Runtime
                 _towerCentres[cursor++] = towers[i].Centre;
             }
 
-            _spatialKeepPlan = CastleKeepPlacementAdapter.Place(
-                in plan, spatialPlan.KeepCentre);
+            _spatialKeepPlan = projection.KeepPlan;
             _hasSpatialKeep = true;
         }
 
