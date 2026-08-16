@@ -52,6 +52,7 @@ namespace VoxelEngine.CI
                     new ArticulationCase(AmbientLifeKind.Firefly, 0f, 1.25f, ArticulationExpectation.Luminance, 0.025f),
                 };
 
+                string reportPath = VegetationLifeRenderingVisualTests.ArtifactPath("ambient_articulation_quality.csv");
                 for (int i = 0; i < cases.Length; i++)
                 {
                     ArticulationCase c = cases[i];
@@ -79,15 +80,13 @@ namespace VoxelEngine.CI
                         $"{c.Kind},{shape},{c.TimeA:0.000},{c.TimeB:0.000},{a.Width},{b.Width},{a.Height},{b.Height}," +
                         $"{a.ForegroundPixels},{b.ForegroundPixels},{a.MeanLuminance:0.0000},{b.MeanLuminance:0.0000}," +
                         $"{widthChange:0.0000},{heightChange:0.0000},{areaChange:0.0000},{lumaChange:0.0000}");
+                    // Persist progress before assertions so a later species failure still leaves useful metrics.
+                    File.WriteAllText(reportPath, report.ToString());
 
                     Assert.That(a.ForegroundPixels, Is.GreaterThan(300), $"{c.Kind} did not render a readable fixed-position silhouette.");
                     Assert.That(b.ForegroundPixels, Is.GreaterThan(300), $"{c.Kind} disappeared at its second articulation timestamp.");
                     AssertExpectation(c, widthChange, heightChange, areaChange, lumaChange);
                 }
-
-                File.WriteAllText(
-                    VegetationLifeRenderingVisualTests.ArtifactPath("ambient_articulation_quality.csv"),
-                    report.ToString());
 
                 Texture2D sheet = BuildContactSheet(captures, 4, 4);
                 try
