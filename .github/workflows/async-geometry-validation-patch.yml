@@ -19,11 +19,12 @@ jobs:
           ref: refactor/async-geometry-pipeline
           fetch-depth: 0
 
-      - name: Add upload observability and regression coverage
+      - name: Patch upload observability
         shell: bash
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
 
           def once(text, old, new, label):
               n = text.count(old)
@@ -31,313 +32,83 @@ jobs:
                   raise SystemExit(f'{label}: expected one match, found {n}')
               return text.replace(old, new, 1)
 
-          scheduler_path = Path('Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs')
-          s = scheduler_path.read_text()
-          s = once(s,
-          '''        public readonly int RunningSolidJobs;
-                  public readonly int SolidMeshesAwaitingUpload;
-                  public readonly double LastSolidSnapshotMs;''',
-          '''        public readonly int RunningSolidJobs;
-                  public readonly int SolidMeshesAwaitingUpload;
-                  public readonly long SolidPendingUploadBytes;
-                  public readonly int SolidUploadBudgetBytes;
-                  public readonly int LastFrameSolidUploadedBytes;
-                  public readonly int LastFrameSolidUploadCompletions;
-                  public readonly double LastSolidSnapshotMs;''',
-          'metric fields')
-          s = once(s,
-          '''            RunningSolidJobs = solids.RunningJobCount;
-                      SolidMeshesAwaitingUpload = solids.PendingUploadCount;
-                      LastSolidSnapshotMs = solids.LastSnapshotMs;''',
-          '''            RunningSolidJobs = solids.RunningJobCount;
-                      SolidMeshesAwaitingUpload = solids.PendingUploadCount;
-                      SolidPendingUploadBytes = solids.PendingUploadBytes;
-                      SolidUploadBudgetBytes = int.MaxValue;
-                      LastFrameSolidUploadedBytes = 0;
-                      LastFrameSolidUploadCompletions = 0;
-                      LastSolidSnapshotMs = solids.LastSnapshotMs;''',
-          'single worker metrics')
-          s = once(s,
-          '''        internal VoxelSurfaceMetrics(CpuTransvoxelChunkCache[] workers,
-                                             CpuWaterSurfaceChunkCache water,
-                                             int changeRecords, int discoveredSurfaceBricks,
-                                             int visibleSolidChunks,
-                                             in VoxelTimingSummary schedulerPrepare,''',
-          '''        internal VoxelSurfaceMetrics(CpuTransvoxelChunkCache[] workers,
-                                             CpuWaterSurfaceChunkCache water,
-                                             int changeRecords, int discoveredSurfaceBricks,
-                                             int visibleSolidChunks,
-                                             int solidUploadBudgetBytes,
-                                             int lastFrameSolidUploadedBytes,
-                                             int lastFrameSolidUploadCompletions,
-                                             in VoxelTimingSummary schedulerPrepare,''',
-          'aggregate metric signature')
-          s = once(s,
-          '''            int known = 0, resident = 0, dirty = 0, missing = 0, running = 0, uploads = 0;
-                      ulong completed = 0, stale = 0, uploadedBytes = water.UploadedGeometryBytes;''',
-          '''            int known = 0, resident = 0, dirty = 0, missing = 0, running = 0, uploads = 0;
-                      long pendingUploadBytes = 0;
-                      ulong completed = 0, stale = 0, uploadedBytes = water.UploadedGeometryBytes;''',
-          'aggregate pending local')
-          s = once(s,
-          '''                running += worker.RunningJobCount;
-                          uploads += worker.PendingUploadCount;
-                          completed += worker.CompletedBuildCount;''',
-          '''                running += worker.RunningJobCount;
-                          uploads += worker.PendingUploadCount;
-                          pendingUploadBytes += worker.PendingUploadBytes;
-                          completed += worker.CompletedBuildCount;''',
-          'aggregate pending sum')
-          s = once(s,
-          '''            RunningSolidJobs = running;
-                      SolidMeshesAwaitingUpload = uploads;
-                      CompletedSolidBuilds = completed;''',
-          '''            RunningSolidJobs = running;
-                      SolidMeshesAwaitingUpload = uploads;
-                      SolidPendingUploadBytes = pendingUploadBytes;
-                      SolidUploadBudgetBytes = solidUploadBudgetBytes;
-                      LastFrameSolidUploadedBytes = lastFrameSolidUploadedBytes;
-                      LastFrameSolidUploadCompletions = lastFrameSolidUploadCompletions;
-                      CompletedSolidBuilds = completed;''',
-          'aggregate metric assignments')
-          s = once(s,
-          '''            _allWorkers, _water, _lastChangeRecords, _discoveredSurfaceBricks.Count,
-                      _visibleSolids.Count, _prepareTiming.Snapshot(), _journalTiming.Snapshot(),''',
-          '''            _allWorkers, _water, _lastChangeRecords, _discoveredSurfaceBricks.Count,
-                      _visibleSolids.Count, SolidUploadBudgetBytes, _lastFrameSolidUploadedBytes,
-                      _lastFrameSolidUploadCompletions,
-                      _prepareTiming.Snapshot(), _journalTiming.Snapshot(),''',
-          'scheduler metric construction')
-          scheduler_path.write_text(s)
+          def sub_once(text, pattern, repl, label):
+              out, n = re.subn(pattern, repl, text, count=1)
+              if n != 1:
+                  raise SystemExit(f'{label}: expected one regex match, found {n}')
+              return out
 
-          bridge_path = Path('Assets/VoxelEngine/Rendering/Runtime/RenderFeature/VoxelRenderBridge.cs')
-          b = bridge_path.read_text()
-          b = once(b,
-          '''        // Four asynchronous worker shards each receive this bounded admission/publication slice.
-                  // 0.50 ms keeps worst-case render-thread orchestration near 2 ms while Burst topology
-                  // proceeds off-thread; 0.20 ms fell below useful post-job granularity on Apple silicon.
-                  public static double SolidBuildBudgetMs = 0.50;
-                  public static double WaterBuildBudgetMs = 0.15;''',
-          '''        // Renderer-wide admission/publication controls. These are shared across every
-                  // LOD ring and worker; adding workers must never multiply the frame budget.
-                  public static double SolidBuildBudgetMs = 0.50;
-                  public static int SolidUploadBudgetBytes = 1024 * 1024;
-                  public static int SolidUploadSliceBytes = 256 * 1024;
-                  public static int SolidUploadWorkerBudget = 4;
-                  public static double SolidUploadBudgetMs = 0.20;
-                  public static double WaterBuildBudgetMs = 0.15;''',
-          'bridge upload controls')
-          bridge_path.write_text(b)
+          path = Path('Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs')
+          s = path.read_text()
+          s = once(s,
+              '        public readonly int RunningSolidJobs;\n        public readonly int SolidMeshesAwaitingUpload;\n        public readonly double LastSolidSnapshotMs;',
+              '        public readonly int RunningSolidJobs;\n        public readonly int SolidMeshesAwaitingUpload;\n        public readonly long SolidPendingUploadBytes;\n        public readonly int SolidUploadBudgetBytes;\n        public readonly int LastFrameSolidUploadedBytes;\n        public readonly int LastFrameSolidUploadCompletions;\n        public readonly double LastSolidSnapshotMs;',
+              'metric fields')
+          s = once(s,
+              '            RunningSolidJobs = solids.RunningJobCount;\n            SolidMeshesAwaitingUpload = solids.PendingUploadCount;\n            LastSolidSnapshotMs = solids.LastSnapshotMs;',
+              '            RunningSolidJobs = solids.RunningJobCount;\n            SolidMeshesAwaitingUpload = solids.PendingUploadCount;\n            SolidPendingUploadBytes = solids.PendingUploadBytes;\n            SolidUploadBudgetBytes = int.MaxValue;\n            LastFrameSolidUploadedBytes = 0;\n            LastFrameSolidUploadCompletions = 0;\n            LastSolidSnapshotMs = solids.LastSnapshotMs;',
+              'single-worker metrics')
+          s = sub_once(s,
+              r'(int visibleSolidChunks,\n\s*)(in VoxelTimingSummary schedulerPrepare,)',
+              r'\1int solidUploadBudgetBytes,\n                                     int lastFrameSolidUploadedBytes,\n                                     int lastFrameSolidUploadCompletions,\n                                     \2',
+              'aggregate signature')
+          s = once(s,
+              '            int known = 0, resident = 0, dirty = 0, missing = 0, running = 0, uploads = 0;\n            ulong completed = 0, stale = 0, uploadedBytes = water.UploadedGeometryBytes;',
+              '            int known = 0, resident = 0, dirty = 0, missing = 0, running = 0, uploads = 0;\n            long pendingUploadBytes = 0;\n            ulong completed = 0, stale = 0, uploadedBytes = water.UploadedGeometryBytes;',
+              'pending bytes local')
+          s = once(s,
+              '                running += worker.RunningJobCount;\n                uploads += worker.PendingUploadCount;\n                completed += worker.CompletedBuildCount;',
+              '                running += worker.RunningJobCount;\n                uploads += worker.PendingUploadCount;\n                pendingUploadBytes += worker.PendingUploadBytes;\n                completed += worker.CompletedBuildCount;',
+              'pending bytes sum')
+          s = once(s,
+              '            RunningSolidJobs = running;\n            SolidMeshesAwaitingUpload = uploads;\n            CompletedSolidBuilds = completed;',
+              '            RunningSolidJobs = running;\n            SolidMeshesAwaitingUpload = uploads;\n            SolidPendingUploadBytes = pendingUploadBytes;\n            SolidUploadBudgetBytes = solidUploadBudgetBytes;\n            LastFrameSolidUploadedBytes = lastFrameSolidUploadedBytes;\n            LastFrameSolidUploadCompletions = lastFrameSolidUploadCompletions;\n            CompletedSolidBuilds = completed;',
+              'aggregate assignments')
+          s = sub_once(s,
+              r'(_allWorkers, _water, _lastChangeRecords, _discoveredSurfaceBricks\.Count,\n\s*_visibleSolids\.Count, )(_prepareTiming\.Snapshot\(\),)',
+              r'\1SolidUploadBudgetBytes, _lastFrameSolidUploadedBytes,\n            _lastFrameSolidUploadCompletions, \2',
+              'metrics construction')
+          path.write_text(s)
 
-          pass_path = Path('Assets/VoxelEngine/Rendering/Runtime/RenderFeature/VoxelRenderPass.cs')
-          p = pass_path.read_text()
+          path = Path('Assets/VoxelEngine/Rendering/Runtime/RenderFeature/VoxelRenderBridge.cs')
+          b = path.read_text()
+          b = sub_once(b,
+              r'\s*// Four asynchronous worker shards each receive this bounded admission/publication slice\.\n\s*// 0\.50 ms keeps worst-case render-thread orchestration near 2 ms while Burst topology\n\s*// proceeds off-thread; 0\.20 ms fell below useful post-job granularity on Apple silicon\.\n\s*public static double SolidBuildBudgetMs = 0\.50;\n\s*public static double WaterBuildBudgetMs = 0\.15;',
+              '\n        // Renderer-wide admission/publication controls. These are shared across every\n        // LOD ring and worker; adding workers must never multiply the frame budget.\n        public static double SolidBuildBudgetMs = 0.50;\n        public static int SolidUploadBudgetBytes = 1024 * 1024;\n        public static int SolidUploadSliceBytes = 256 * 1024;\n        public static int SolidUploadWorkerBudget = 4;\n        public static double SolidUploadBudgetMs = 0.20;\n        public static double WaterBuildBudgetMs = 0.15;',
+              'bridge controls')
+          path.write_text(b)
+
+          path = Path('Assets/VoxelEngine/Rendering/Runtime/RenderFeature/VoxelRenderPass.cs')
+          p = path.read_text()
           p = once(p,
-          '''            _scheduler.SolidBuildBudgetMs = Math.Max(0.0, VoxelRenderBridge.SolidBuildBudgetMs);
-                      _scheduler.WaterBuildBudgetMs = Math.Max(0.0, VoxelRenderBridge.WaterBuildBudgetMs);''',
-          '''            _scheduler.SolidBuildBudgetMs = Math.Max(0.0, VoxelRenderBridge.SolidBuildBudgetMs);
-                      _scheduler.SolidUploadBudgetBytes = Math.Max(0, VoxelRenderBridge.SolidUploadBudgetBytes);
-                      _scheduler.SolidUploadSliceBytes = Math.Max(0, VoxelRenderBridge.SolidUploadSliceBytes);
-                      _scheduler.SolidUploadWorkerBudget = Math.Max(0, VoxelRenderBridge.SolidUploadWorkerBudget);
-                      _scheduler.SolidUploadBudgetMs = Math.Max(0.0, VoxelRenderBridge.SolidUploadBudgetMs);
-                      _scheduler.WaterBuildBudgetMs = Math.Max(0.0, VoxelRenderBridge.WaterBuildBudgetMs);''',
-          'render pass upload controls')
-          pass_path.write_text(p)
-
-          test_path = Path('Assets/Tests/PlayMode/LodRenderingTests.cs')
-          t = test_path.read_text()
-          if 'GeometryUploadStaysWithinGlobalBudgetWhileCrossingLodBands' in t:
-              raise SystemExit('upload budget PlayMode test already exists')
-          insert = r'''
-
-                  [UnityTest, Timeout(900000)]
-                  public IEnumerator GeometryUploadStaysWithinGlobalBudgetWhileCrossingLodBands()
-                  {
-                      UnityEditor.SceneManagement.EditorSceneManager.LoadSceneInPlayMode(
-                          ScenePath, new LoadSceneParameters(LoadSceneMode.Single));
-                      yield return null;
-
-                      var showcase = Object.FindFirstObjectByType<VoxelShowcase>();
-                      Assert.NotNull(showcase);
-                      var world = (ShowcaseWorld)typeof(VoxelShowcase)
-                          .GetField("_world", BindingFlags.NonPublic | BindingFlags.Instance)
-                          .GetValue(showcase);
-                      Camera camera = Camera.main;
-                      Assert.NotNull(camera);
-
-                      typeof(VoxelShowcase).GetField("m_FlyMode", BindingFlags.NonPublic | BindingFlags.Instance)
-                          .SetValue(showcase, true);
-                      typeof(VoxelShowcase).GetField("_mouseLook", BindingFlags.NonPublic | BindingFlags.Instance)
-                          .SetValue(showcase, false);
-
-                      int ground = world.SurfaceHeight(256, 376);
-                      CastlePlan plan = CastleBuilder.Plan(new int3(256, ground, 376), world.Seed);
-                      Vector3 centre = new Vector3(plan.Centre.x, plan.Centre.y + plan.PlateauHeight,
-                                                   plan.Centre.z) * 0.1f;
-                      Vector3 lookAt = centre + Vector3.up * 10f;
-
-                      int oldBudget = VoxelRenderBridge.SolidUploadBudgetBytes;
-                      int oldSlice = VoxelRenderBridge.SolidUploadSliceBytes;
-                      int oldWorkers = VoxelRenderBridge.SolidUploadWorkerBudget;
-                      double oldUploadMs = VoxelRenderBridge.SolidUploadBudgetMs;
-                      var target = new RenderTexture(64, 36, 24, RenderTextureFormat.ARGB32);
-                      bool sawUpload = false;
-                      bool sawQueuedReplacement = false;
-                      try
-                      {
-                          VoxelRenderBridge.SolidUploadBudgetBytes = 16 * 1024;
-                          VoxelRenderBridge.SolidUploadSliceBytes = 4 * 1024;
-                          VoxelRenderBridge.SolidUploadWorkerBudget = 4;
-                          VoxelRenderBridge.SolidUploadBudgetMs = 5.0;
-                          camera.targetTexture = target;
-
-                          for (int frame = 0; frame < 180; frame++)
-                          {
-                              float phase = Mathf.PingPong(frame / 90f, 1f);
-                              float distance = Mathf.Lerp(48f, 380f, phase);
-                              camera.transform.position = centre
-                                  + new Vector3(Mathf.Sin(frame * 0.07f) * 18f, 20f, -distance);
-                              camera.transform.LookAt(lookAt);
-                              camera.Render();
-                              yield return null;
-
-                              VoxelSurfaceMetrics metrics = VoxelRenderBridge.SurfaceMetrics;
-                              Assert.AreEqual(16 * 1024, metrics.SolidUploadBudgetBytes,
-                                  "Render pass did not apply the renderer-wide upload budget.");
-                              Assert.LessOrEqual(metrics.LastFrameSolidUploadedBytes,
-                                  metrics.SolidUploadBudgetBytes,
-                                  "Solid geometry upload exceeded the renderer-wide frame budget.");
-                              sawUpload |= metrics.LastFrameSolidUploadedBytes > 0;
-                              sawQueuedReplacement |= metrics.SolidPendingUploadBytes > 0;
-                          }
-
-                          Assert.IsTrue(sawUpload,
-                              "LOD traversal never exercised solid geometry publication.");
-                          Assert.IsTrue(sawQueuedReplacement,
-                              "A 16 KiB frame cap should force at least one replacement to remain queued.");
-                      }
-                      finally
-                      {
-                          VoxelRenderBridge.SolidUploadBudgetBytes = oldBudget;
-                          VoxelRenderBridge.SolidUploadSliceBytes = oldSlice;
-                          VoxelRenderBridge.SolidUploadWorkerBudget = oldWorkers;
-                          VoxelRenderBridge.SolidUploadBudgetMs = oldUploadMs;
-                          camera.targetTexture = null;
-                          target.Release();
-                          Object.DestroyImmediate(target);
-                      }
-                  }
-          '''
-          marker = '\n    }\n}'
-          pos = t.rfind(marker)
-          if pos < 0:
-              raise SystemExit('LodRenderingTests closing marker not found')
-          test_path.write_text(t[:pos] + insert + t[pos:])
-
-          guard_path = Path('Assets/Tests/EditMode/GeometryPipelineArchitectureTests.cs')
-          if guard_path.exists():
-              raise SystemExit('GeometryPipelineArchitectureTests.cs already exists')
-          guard_path.write_text(r'''using System;
-          using System.IO;
-          using NUnit.Framework;
-
-          namespace VoxelEngine.Tests.EditMode
-          {
-              public sealed class GeometryPipelineArchitectureTests
-              {
-                  private static string RepoRoot
-                  {
-                      get
-                      {
-                          var dir = new DirectoryInfo(Directory.GetCurrentDirectory());
-                          while (dir != null && !Directory.Exists(Path.Combine(dir.FullName, "Assets")))
-                              dir = dir.Parent;
-                          Assert.NotNull(dir, "Could not locate project root containing Assets/.");
-                          return dir.FullName;
-                      }
-                  }
-
-                  private static string ReadRenderingSource(string relativePath) => File.ReadAllText(
-                      Path.Combine(RepoRoot, "Assets", "VoxelEngine", "Rendering", "Runtime", relativePath));
-
-                  [Test]
-                  public void TransitionMeshingIsScheduledAndNeverRunInline()
-                  {
-                      string source = ReadRenderingSource(
-                          Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"));
-                      int start = source.IndexOf("private bool StepTransitionFaces", StringComparison.Ordinal);
-                      int end = source.IndexOf("private void InitialiseTopologyTables", start,
-                                               StringComparison.Ordinal);
-                      Assert.GreaterOrEqual(start, 0);
-                      Assert.Greater(end, start);
-                      string transition = source.Substring(start, end - start);
-                      StringAssert.Contains("_transitionJobHandle = job.Schedule();", transition);
-                      StringAssert.Contains("if (!_transitionJobHandle.IsCompleted) return false;", transition);
-                      StringAssert.DoesNotContain(".Run();", transition);
-                  }
-
-                  [Test]
-                  public void SolidPublicationIsQueuedAndGloballyBudgeted()
-                  {
-                      string cache = ReadRenderingSource(
-                          Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"));
-                      string scheduler = ReadRenderingSource(
-                          Path.Combine("SurfaceExtraction", "VoxelSurfaceScheduler.cs"));
-                      StringAssert.Contains("public bool TryPublishPending", cache);
-                      StringAssert.Contains("entry.AdvanceUpload(_vertices, _indices, byteBudget", cache);
-                      StringAssert.DoesNotContain("entry.Upload(_vertices, _indices)", cache);
-                      StringAssert.Contains("SolidUploadBudgetBytes", scheduler);
-                      StringAssert.Contains("_lastFrameSolidUploadedBytes += uploadedBytes", scheduler);
-                  }
-
-                  [Test]
-                  public void KnownFramePathJobCompletionsAreReadinessGated()
-                  {
-                      string cache = ReadRenderingSource(
-                          Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"));
-                      string scheduler = ReadRenderingSource(
-                          Path.Combine("SurfaceExtraction", "VoxelSurfaceScheduler.cs"));
-                      StringAssert.Contains("if (!_transitionJobHandle.IsCompleted) return false;", cache);
-                      StringAssert.Contains("&& !ScheduledJobsComplete())", cache);
-                      int discovery = scheduler.IndexOf(
-                          "if (!_surfaceDiscoveryJobHandle.IsCompleted)", StringComparison.Ordinal);
-                      Assert.GreaterOrEqual(discovery, 0);
-                      StringAssert.Contains("return;", scheduler.Substring(discovery, 140));
-                  }
-              }
-          }
-          ''')
-          Path('Assets/Tests/EditMode/GeometryPipelineArchitectureTests.cs.meta').write_text(
-              'fileFormatVersion: 2\nguid: 6cd76dcd12b94c98800527e57e4a1a22\n')
+              '            _scheduler.SolidBuildBudgetMs = Math.Max(0.0, VoxelRenderBridge.SolidBuildBudgetMs);\n            _scheduler.WaterBuildBudgetMs = Math.Max(0.0, VoxelRenderBridge.WaterBuildBudgetMs);',
+              '            _scheduler.SolidBuildBudgetMs = Math.Max(0.0, VoxelRenderBridge.SolidBuildBudgetMs);\n            _scheduler.SolidUploadBudgetBytes = Math.Max(0, VoxelRenderBridge.SolidUploadBudgetBytes);\n            _scheduler.SolidUploadSliceBytes = Math.Max(0, VoxelRenderBridge.SolidUploadSliceBytes);\n            _scheduler.SolidUploadWorkerBudget = Math.Max(0, VoxelRenderBridge.SolidUploadWorkerBudget);\n            _scheduler.SolidUploadBudgetMs = Math.Max(0.0, VoxelRenderBridge.SolidUploadBudgetMs);\n            _scheduler.WaterBuildBudgetMs = Math.Max(0.0, VoxelRenderBridge.WaterBuildBudgetMs);',
+              'render-pass controls')
+          path.write_text(p)
           PY
 
-      - name: Static validation guards
+      - name: Static guards
         shell: bash
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          scheduler = Path('Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs').read_text()
-          bridge = Path('Assets/VoxelEngine/Rendering/Runtime/RenderFeature/VoxelRenderBridge.cs').read_text()
-          render_pass = Path('Assets/VoxelEngine/Rendering/Runtime/RenderFeature/VoxelRenderPass.cs').read_text()
-          tests = Path('Assets/Tests/PlayMode/LodRenderingTests.cs').read_text()
-          guard = Path('Assets/Tests/EditMode/GeometryPipelineArchitectureTests.cs').read_text()
-          assert 'SolidPendingUploadBytes' in scheduler
-          assert 'LastFrameSolidUploadedBytes' in scheduler
-          assert 'SolidUploadBudgetBytes = 1024 * 1024' in bridge
-          assert '_scheduler.SolidUploadBudgetBytes' in render_pass
-          assert 'GeometryUploadStaysWithinGlobalBudgetWhileCrossingLodBands' in tests
-          assert 'StringAssert.DoesNotContain(".Run();", transition);' in guard
+          s = Path('Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs').read_text()
+          b = Path('Assets/VoxelEngine/Rendering/Runtime/RenderFeature/VoxelRenderBridge.cs').read_text()
+          p = Path('Assets/VoxelEngine/Rendering/Runtime/RenderFeature/VoxelRenderPass.cs').read_text()
+          assert 'SolidPendingUploadBytes' in s
+          assert 'SolidUploadBudgetBytes = solidUploadBudgetBytes;' in s
+          assert '_lastFrameSolidUploadCompletions' in s
+          assert 'public static int SolidUploadBudgetBytes = 1024 * 1024;' in b
+          assert '_scheduler.SolidUploadBudgetBytes = Math.Max' in p
           PY
 
-      - name: Commit validation and observability
+      - name: Commit source changes
         shell: bash
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs \
                   Assets/VoxelEngine/Rendering/Runtime/RenderFeature/VoxelRenderBridge.cs \
-                  Assets/VoxelEngine/Rendering/Runtime/RenderFeature/VoxelRenderPass.cs \
-                  Assets/Tests/PlayMode/LodRenderingTests.cs \
-                  Assets/Tests/EditMode/GeometryPipelineArchitectureTests.cs \
-                  Assets/Tests/EditMode/GeometryPipelineArchitectureTests.cs.meta
-          git commit -m 'Add geometry upload budget regression coverage'
+                  Assets/VoxelEngine/Rendering/Runtime/RenderFeature/VoxelRenderPass.cs
+          git commit -m 'Expose renderer-wide geometry upload budgets'
           git push origin HEAD:refactor/async-geometry-pipeline
