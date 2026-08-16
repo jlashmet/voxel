@@ -1,3 +1,5 @@
+using System;
+using System.Linq;
 using Game.Structures.Api;
 using Game.Structures.Runtime;
 using NUnit.Framework;
@@ -90,6 +92,28 @@ namespace Game.Structures.Tests
 
             Assert.That(CastlePlanner.EstimateWrites(in large),
                 Is.GreaterThan(CastlePlanner.EstimateWrites(in small)));
+        }
+
+        [Test]
+        public void GameStructuresAssemblies_DoNotReferenceVoxelEngineRuntimeAssemblies()
+        {
+            AssertNoEngineRuntimeDependencies(typeof(CastlePlan).Assembly);
+            AssertNoEngineRuntimeDependencies(typeof(CastlePlanner).Assembly);
+            AssertNoEngineRuntimeDependencies(typeof(CastleSiteAuthoring).Assembly);
+        }
+
+        private static void AssertNoEngineRuntimeDependencies(System.Reflection.Assembly assembly)
+        {
+            string[] violations = assembly.GetReferencedAssemblies()
+                .Select(reference => reference.Name)
+                .Where(name => name != null
+                    && name.StartsWith("VoxelEngine.", StringComparison.Ordinal)
+                    && name.EndsWith(".Runtime", StringComparison.Ordinal))
+                .ToArray();
+
+            Assert.That(violations, Is.Empty,
+                $"{assembly.GetName().Name} must consume VoxelEngine APIs only: "
+                + string.Join(", ", violations));
         }
 
         private static void AssertPlanEqual(in CastlePlan a, in CastlePlan b)
