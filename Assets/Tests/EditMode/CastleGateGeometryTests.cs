@@ -88,5 +88,47 @@ namespace VoxelEngine.Tests.EditMode
             Assert.IsFalse(gate.ContainsArchVoxel(-1, 0));
             Assert.IsFalse(gate.ContainsArchVoxel(0, gate.Height));
         }
+
+        [Test]
+        public void LinearArchEnumerationMatchesMaskAndWorldMapping()
+        {
+            var plan = new CastlePlan
+            {
+                Centre = new int3(130, 18, 260),
+                PlateauHeight = 9,
+                WallThickness = 12,
+            };
+            var placement = new CastleGatePlacementSpec
+            {
+                Centre = new int2(42, 16),
+                Outward = math.normalize(new float2(1f, 1f)),
+            };
+            CastleGateGeometry gate = CastleGateGeometryResolver.Resolve(in plan, in placement);
+
+            int expected = 0;
+            int actual = 0;
+            int index = 0;
+            for (int d = 0; d < gate.Depth; d++)
+            for (int w = 0; w < gate.Width; w++)
+            for (int h = 0; h < gate.Height; h++, index++)
+            {
+                bool contained = gate.ContainsArchVoxel(w, h);
+                if (contained) expected++;
+
+                bool enumerated = gate.TryGetArchVoxel(index, out int3 voxel, out int heightIndex);
+                Assert.AreEqual(contained, enumerated, $"linear index {index}");
+                if (!enumerated) continue;
+
+                actual++;
+                Assert.AreEqual(h, heightIndex, $"linear index {index}: height");
+                Assert.AreEqual(gate.WorldVoxel(w, h, d), voxel,
+                    $"linear index {index}: world mapping");
+            }
+
+            Assert.AreEqual(gate.RectangularVoxelCount, index);
+            Assert.AreEqual(expected, actual);
+            Assert.IsFalse(gate.TryGetArchVoxel(-1, out _, out _));
+            Assert.IsFalse(gate.TryGetArchVoxel(gate.RectangularVoxelCount, out _, out _));
+        }
     }
 }
