@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using MountingForce.WorldGen.Architecture;
-using MountingForce.WorldGen.Content.Kentridge;
 using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Structures.Api;
@@ -11,13 +10,16 @@ namespace MountingForce.WorldGen.Voxel
     /// <summary>
     /// Generic voxel realisation pass for renderer-independent architecture geometry profiles.
     ///
-    /// The input catalogue remains responsible for semantic composition (shell, openings, trim,
-    /// roofs, anchors). This pass changes only the primitive used to realise recognised massing
-    /// materials. That separation lets other cities reuse the same low-level geometry controls
-    /// without copying Kentridge's layout or role catalogue.
+    /// This pass is deliberately city-independent. The input catalogue still owns semantic
+    /// composition (shells, openings, trim, roofs and anchors), while the profile controls how its
+    /// box primitives are realised. It is also a migration bridge for older catalogues whose shape
+    /// programs do not yet tag architectural operations explicitly: once those catalogues emit
+    /// semantic operations directly, they can use the same profile without this material inference.
     /// </summary>
     public static class ArchitectureGeometryCatalogue
     {
+        private const int MaxLikelyOpeningWidthDm = 20;
+
         public static FeatureCatalogue Apply(
             in FeatureCatalogue source,
             ArchitectureTheme theme,
@@ -110,12 +112,7 @@ namespace MountingForce.WorldGen.Voxel
             byte accentMaterial)
         {
             if (!profile.HasRoundedGeometry || definition.ProgramLength == 0)
-            {
-                var unchanged = new int[definition.ProgramLength];
-                for (int i = 0; i < unchanged.Length; i++)
-                    unchanged[i] = source.Program[definition.ProgramOffset + i];
-                return unchanged;
-            }
+                return CopyProgram(in source, in definition);
 
             var code = new List<int>(definition.ProgramLength + 32);
             int cursor = definition.ProgramOffset;
@@ -141,42 +138,121 @@ namespace MountingForce.WorldGen.Voxel
                     byte material = (byte)source.Program[operand + 6];
                     PrimitiveMode mode = (PrimitiveMode)source.Program[operand + 9];
 
-                    int radiusDm = 0;
-                    if (mode == PrimitiveMode.Fill)
-                    {
-                        if (material == foundationMaterial)
-                            radiusDm = profile.FoundationCornerRadiusDm;
-                        else if (material == wallMaterial || material == accentMaterial)
-                            radiusDm = profile.ShellCornerRadiusDm;
-                    }
-
+                    int radiusDm = ResolveRadiusDm(
+                        profile,
+                        scale,
+                        sx,
+                        sz,
+                        material,
+                        mode,
+                        foundationMaterial,
+                        wallMaterial,
+                        accentMaterial);
                     int radius = ClampRadius(radiusDm * scale, sx, sy, sz);
                     if (radius > 0)
                     {
-                        code.Add((int)ShapeOp.EmitRoundedBox);
-                        code.Add(0);
-                        code.Add(source.Program[operand + 0]);
-                        code.Add(source.Program[operand + 1]);
-                        code.Add(source.Program[operand + 2]);
-                        code.Add(sx);
-                        code.Add(sy);
-                        code.Add(sz);
-                        code.Add(radius);
-                        code.Add(material);
-                        code.Add(source.Program[operand + 7]);
-                        code.Add(source.Program[operand + 8]);
-                        code.Add((int)mode);
+                        EmitRoundedBox(
+                            code,
+                            source,
+                            operand,
+                            sx,
+                            sy,
+                            sz,
+                            radius,
+                            material,
+                            mode);
                         cursor += instructionLength;
                         continue;
                     }
                 }
 
-                for (int i = 0; i < instructionLength; i++)
-                    code.Add(source.Program[cursor + i]);
+                CopyInstruction(code, source, cursor, instructionLength);
                 cursor += instructionLength;
             }
 
             return code.ToArray();
+        }
+
+        private static int ResolveRadiusDm(
+            StructureGeometryProfile profile,
+            int scale,
+            int sx,
+            int sz,
+            byte material,
+            PrimitiveMode mode,
+            byte foundationMaterial,
+            byte wallMaterial,
+            byte accentMaterial)
+        {
+            if (mode == PrimitiveMode.Carve)
+            {
+                // Generated door/window cuts are thin in at least one horizontal dimension. The
+                // broad shell-interior carve is intentionally left sharp here so this compatibility
+                // pass cannot accidentally shrink usable room corners. A semantic shape builder can
+                // remove this inference entirely once every catalogue emits explicit Opening ops.
+                int openingLimit = MaxLikelyOpeningWidthDm * scale;
+                return sx <= openingLimit || sz <= openingLimit
+                    ? profile.OpeningCornerRadiusDm
+                    : 0;
+            }
+
+            if (mode != PrimitiveMode.Fill && mode != PrimitiveMode.FillIfEmpty)
+                return 0;
+
+            if (material == foundationMaterial)
+                return profile.FoundationCornerRadiusDm;
+            if (material == wallMaterial || material == accentMaterial)
+                return profile.ShellCornerRadiusDm;
+
+            // Timber frames, glass infill, awnings and other small solids are architectural detail.
+            // Radius clamping below naturally prevents over-rounding thin members.
+            return profile.DetailCornerRadiusDm;
+        }
+
+        private static void EmitRoundedBox(
+            List<int> code,
+            NativeArray<int> source,
+            int operand,
+            int sx,
+            int sy,
+            int sz,
+            int radius,
+            byte material,
+            PrimitiveMode mode)
+        {
+            code.Add((int)ShapeOp.EmitRoundedBox);
+            code.Add(0);
+            code.Add(source[operand + 0]);
+            code.Add(source[operand + 1]);
+            code.Add(source[operand + 2]);
+            code.Add(sx);
+            code.Add(sy);
+            code.Add(sz);
+            code.Add(radius);
+            code.Add(material);
+            code.Add(source[operand + 7]);
+            code.Add(source[operand + 8]);
+            code.Add((int)mode);
+        }
+
+        private static int[] CopyProgram(
+            in FeatureCatalogue source,
+            in FeatureDefinition definition)
+        {
+            var unchanged = new int[definition.ProgramLength];
+            for (int i = 0; i < unchanged.Length; i++)
+                unchanged[i] = source.Program[definition.ProgramOffset + i];
+            return unchanged;
+        }
+
+        private static void CopyInstruction(
+            List<int> target,
+            NativeArray<int> source,
+            int cursor,
+            int instructionLength)
+        {
+            for (int i = 0; i < instructionLength; i++)
+                target.Add(source[cursor + i]);
         }
 
         private static int ClampRadius(int requested, int sx, int sy, int sz)
@@ -191,52 +267,6 @@ namespace MountingForce.WorldGen.Voxel
         {
             for (int i = 0; i < source.Length; i++)
                 target[i] = source[i];
-        }
-    }
-
-    /// <summary>
-    /// Kentridge's thin composition adapter: resolve the same semantic structure forms already used
-    /// by gameplay, choose a generic geometry profile for each role, then feed those profiles through
-    /// the reusable voxel realiser.
-    /// </summary>
-    internal static class KentridgeSmoothedGrammarVoxelCatalogue
-    {
-        public static FeatureCatalogue Build(
-            uint seed,
-            VoxelWorldGenSettings settings,
-            Allocator allocator)
-        {
-            FeatureCatalogue source = KentridgeGrammarVoxelCatalogue.Build(
-                seed, settings, Allocator.Temp);
-            try
-            {
-                SettlementPlan plan = KentridgeDefinition.Build(seed);
-                var profiles = new StructureGeometryProfile[source.Definitions.Length];
-                IStructureGeometryProfileResolver resolver =
-                    HumanSettlementGeometryProfileResolver.Instance;
-
-                for (int i = 0; i < plan.Plots.Count; i++)
-                {
-                    BuildingPlot plot = plan.Plots[i];
-                    if ((uint)plot.RoleId >= (uint)profiles.Length)
-                        throw new InvalidOperationException(
-                            "Kentridge role is outside the grammar catalogue: " + plot.RoleId);
-                    StructureIntent intent = KentridgeDefinition.StructureIntent(plot);
-                    StructureForm form = ArchitectureCompiler.Resolve(intent, plan.Theme, seed);
-                    profiles[plot.RoleId] = resolver.Resolve(intent, form);
-                }
-
-                return ArchitectureGeometryCatalogue.Apply(
-                    in source,
-                    plan.Theme,
-                    settings,
-                    profiles,
-                    allocator);
-            }
-            finally
-            {
-                source.Dispose();
-            }
         }
     }
 }
