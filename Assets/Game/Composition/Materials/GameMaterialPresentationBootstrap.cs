@@ -14,6 +14,7 @@ namespace Game.Composition.Materials
         private static void Install()
         {
             MaterialPresentationComposition.Apply(GameMaterialRenderingDefinitions.Create());
+            TerrainMaterialComposition.Configure(in GameTerrainMaterials.Default);
             ShowcaseMaterialComposition.Configure(in GameShowcaseMaterials.Default);
             StructureMaterialComposition.Configure(in GameStructureMaterials.Default);
         }
