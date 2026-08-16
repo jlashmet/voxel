@@ -53,6 +53,22 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void InvalidDungeonReturnsDiagnosticInsteadOfIndexingThreshold()
+        {
+            CastlePlan castle = CastlePlanner.Create(new int3(512, 220, 512), 1u);
+            CastleSpatialPlan completed = CastleSpatialPlanCompletion.CompleteResolved(
+                in castle, CentralSpatial(in castle));
+            DungeonRoomPlan corrupted = completed.Dungeon.Rooms[0];
+            corrupted.Id = 999;
+            completed.Dungeon.Rooms[0] = corrupted;
+
+            Assert.IsFalse(
+                CastleCaveBuildReadiness.TryValidate(
+                    completed, out CastleCaveBuildReadinessIssue issue));
+            Assert.AreEqual(CastleCaveBuildReadinessIssue.InvalidDungeonPlan, issue);
+        }
+
+        [Test]
         public void DungeonWithoutThresholdRequiresNoNaturalCave()
         {
             CastlePlan castle = CastlePlanner.Create(new int3(512, 220, 512), 18u);
