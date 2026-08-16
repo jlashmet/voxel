@@ -40,9 +40,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # The previous Metal run isolated step-4 failure to phase 0 / active job bit 0: exact
-          # metadata remained scheduled for 20 seconds with no upload backlog. This run validates
-          # the once-per-world-frame non-blocking ScheduleBatchedJobs dispatch boundary.
+          # Step-4 still ends in phase 0 / exact-metadata after explicit batch dispatch. This run
+          # records scheduled/completed metadata chains plus region-revision and mixed-pin rejects
+          # so true job non-execution is distinguishable from optimistic Storage retry livelock.
           deadline=$((SECONDS + 6000))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
