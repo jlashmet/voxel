@@ -6,8 +6,8 @@ namespace VoxelEngine.Structures.Runtime
 {
     /// <summary>
     /// Realizes a primary gatehouse from frozen planning data. Gate position/orientation comes from
-    /// CastleGatePlacementSpec; all gatehouse and bridge dimensions come from CastleGatehousePlan.
-    /// This component makes no seed/RNG or semantic placement decisions during voxel mutation.
+    /// CastleGatePlacementSpec; all gatehouse, bridge, and gate-tower variation comes from
+    /// CastleGatehousePlan. This component makes no seed/RNG or semantic placement decisions.
     /// </summary>
     public static class CastlePlannedGatehouseRealizer
     {
@@ -18,6 +18,8 @@ namespace VoxelEngine.Structures.Runtime
             in CastleGatehousePlan gatehouse)
         {
             CastleGatehousePlanValidator.RequireValid(in gatehouse);
+            CastleGatehousePlanValidator.RequireTowerDetails(
+                in gatehouse, castle.FloorHeight);
 
             CastleGateGeometry gateGeometry = CastleGateGeometryResolver.Resolve(
                 in castle, in placement);
@@ -29,20 +31,22 @@ namespace VoxelEngine.Structures.Runtime
             int2 left = Round(gate - tangent * gatehouse.TowerSpacing);
             int2 right = Round(gate + tangent * gatehouse.TowerSpacing);
 
-            CastleTowerRealizer.Build(
+            CastleTowerRealizer.BuildPlanned(
                 ref brush,
                 in castle,
                 new int3(left.x, baseY, left.y),
                 castle.GateTowerRadius,
                 gatehouse.LeftTowerHeight,
-                false);
-            CastleTowerRealizer.Build(
+                false,
+                gatehouse.LeftTowerSlits);
+            CastleTowerRealizer.BuildPlanned(
                 ref brush,
                 in castle,
                 new int3(right.x, baseY, right.y),
                 castle.GateTowerRadius,
                 gatehouse.RightTowerHeight,
-                false);
+                false,
+                gatehouse.RightTowerSlits);
 
             if (gatehouse.BlockHeight > gatehouse.OpeningHeight)
             {
