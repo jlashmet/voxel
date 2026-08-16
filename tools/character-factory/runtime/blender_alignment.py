@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+
 import bpy
 from mathutils import Vector
 
@@ -33,12 +35,26 @@ def mean_fractions(lo: Vector, hi: Vector, mean: Vector) -> tuple[float, float, 
     return tuple((mean[axis] - lo[axis]) / extent[axis] for axis in range(3))
 
 
+def _uniform_scale_for_mapping(
+    generated_extent: Vector,
+    canonical_extent: Vector,
+    mapping: tuple[int, int, int],
+) -> float:
+    ratios = [
+        canonical_extent[target_axis] / generated_extent[source_axis]
+        for target_axis, source_axis in enumerate(mapping)
+    ]
+    return math.exp(sum(math.log(max(float(value), 1e-8)) for value in ratios) / 3.0)
+
+
 def align_generated_to_donor(
     generated: list[bpy.types.Object],
     donor: bpy.types.Object,
     *,
     label: str,
     blend: float = ALIGN_TO_CANONICAL_BLEND,
+    mapping_override: tuple[int, int, int] | None = None,
+    flips_override: tuple[bool, bool, bool] | None = None,
 ) -> None:
     """Globally orient and size generated meshes to a canonical donor mesh.
 
@@ -46,6 +62,10 @@ def align_generated_to_donor(
     bodies can use the canonical body as donor. Garments should use a garment-shaped
     canonical donor so this step does not stretch a shirt/robe to full body bounds.
     Semantic landmark fitting and collision conforming remain later stages.
+
+    For generators whose image-plane convention is known, callers may supply an
+    explicit target-axis -> source-axis mapping. That avoids the width/height
+    ambiguity of a T-pose, where arm span and body height can be nearly equal.
     """
 
     generated_points = world_points(generated, label)
@@ -57,15 +77,39 @@ def align_generated_to_donor(
     g_center = (g_lo + g_hi) * 0.5
     c_center = (c_lo + c_hi) * 0.5
 
-    alignment = infer_axis_alignment(
+    inferred = infer_axis_alignment(
         tuple(g_extent),
         tuple(c_extent),
         mean_fractions(g_lo, g_hi, g_mean),
         mean_fractions(c_lo, c_hi, c_mean),
     )
-    mapping = alignment.mapping
-    flips = alignment.flips
-    uniform_scale = alignment.uniform_scale
+
+    if mapping_override is None:
+        mapping = inferred.mapping
+        uniform_scale = inferred.uniform_scale
+        mapping_label = "inferred"
+    else:
+        if sorted(mapping_override) != [0, 1, 2]:
+            raise ValueError(f"alignment mapping must be a permutation: {mapping_override}")
+        mapping = mapping_override
+        uniform_scale = _uniform_scale_for_mapping(g_extent, c_extent, mapping)
+        mapping_label = "forced"
+
+    if flips_override is None:
+        if mapping_override is None:
+            flips = inferred.flips
+        else:
+            # Re-evaluate center-of-mass direction for the forced axis pairing.
+            g_fraction = mean_fractions(g_lo, g_hi, g_mean)
+            c_fraction = mean_fractions(c_lo, c_hi, c_mean)
+            flips = tuple(
+                abs((1.0 - g_fraction[source]) - c_fraction[target])
+                + 0.02
+                < abs(g_fraction[source] - c_fraction[target])
+                for target, source in enumerate(mapping)
+            )
+    else:
+        flips = flips_override
 
     blend = max(0.0, min(1.0, float(blend)))
     for mesh in generated:
@@ -97,8 +141,8 @@ def align_generated_to_donor(
     )
     print(
         f"{label} auto-align: "
-        f"mapping={mapping} flips={tuple(int(value) for value in flips)} "
+        f"mapping={mapping}({mapping_label}) flips={tuple(int(value) for value in flips)} "
         f"uniformScale={uniform_scale:.4f} boundsError={relative_error:.4f} "
-        f"score={alignment.score:.4f}",
+        f"inferredScore={inferred.score:.4f}",
         flush=True,
     )
