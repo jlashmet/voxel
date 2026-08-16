@@ -23,6 +23,9 @@ namespace VoxelEngine.Showcase
         private readonly List<AmbientLifeCluster> _clusters = new List<AmbientLifeCluster>();
         private IAmbientLifeBatchRenderer _renderer;
         private Transform _labelsRoot;
+        private Camera _reviewCamera;
+        private CameraState _cameraBeforeReview;
+        private bool _hasCameraBeforeReview;
 
         public IAmbientLifeBatchRenderer Renderer => _renderer;
         public IReadOnlyList<AmbientLifeCluster> Clusters => _clusters;
@@ -33,6 +36,12 @@ namespace VoxelEngine.Showcase
         {
             if (!Application.isPlaying) return;
             Rebuild();
+        }
+
+        private void OnDisable()
+        {
+            if (!Application.isPlaying) return;
+            RestoreCameraBeforeReview();
         }
 
         private void LateUpdate()
@@ -48,7 +57,8 @@ namespace VoxelEngine.Showcase
             if (m_CreateEnvironment)
             {
                 SubsystemRenderingShowcaseEnvironment.Ensure(transform);
-                ConfigureValidationCamera();
+                CaptureCameraBeforeReview(Camera.main);
+                ConfigureReviewCamera(_reviewCamera);
             }
 
             BuildClusters(m_Seed, _clusters);
@@ -62,6 +72,15 @@ namespace VoxelEngine.Showcase
         {
             if (_labelsRoot != null)
                 _labelsRoot.gameObject.SetActive(visible);
+
+            // Temporal CI hides the labels before measuring image-space motion. Restore the camera
+            // that CI explicitly created so human-review framing can never change numeric metrics;
+            // when labels return, put the dedicated review framing back for the labelled artifact.
+            if (!m_CreateEnvironment) return;
+            if (visible)
+                ConfigureReviewCamera(_reviewCamera != null ? _reviewCamera : Camera.main);
+            else
+                RestoreCameraBeforeReview();
         }
 
         public static void BuildClusters(uint seed, List<AmbientLifeCluster> output)
@@ -131,9 +150,34 @@ namespace VoxelEngine.Showcase
             FaceLabelsToCamera();
         }
 
-        private static void ConfigureValidationCamera()
+        private void CaptureCameraBeforeReview(Camera camera)
         {
-            Camera camera = Camera.main;
+            if (camera == null || _hasCameraBeforeReview) return;
+
+            _reviewCamera = camera;
+            _cameraBeforeReview = new CameraState
+            {
+                Orthographic = camera.orthographic,
+                OrthographicSize = camera.orthographicSize,
+                FieldOfView = camera.fieldOfView,
+                Position = camera.transform.position,
+                Rotation = camera.transform.rotation,
+            };
+            _hasCameraBeforeReview = true;
+        }
+
+        private void RestoreCameraBeforeReview()
+        {
+            if (!_hasCameraBeforeReview || _reviewCamera == null) return;
+
+            _reviewCamera.orthographic = _cameraBeforeReview.Orthographic;
+            _reviewCamera.orthographicSize = _cameraBeforeReview.OrthographicSize;
+            _reviewCamera.fieldOfView = _cameraBeforeReview.FieldOfView;
+            _reviewCamera.transform.SetPositionAndRotation(_cameraBeforeReview.Position, _cameraBeforeReview.Rotation);
+        }
+
+        private static void ConfigureReviewCamera(Camera camera)
+        {
             if (camera == null) return;
 
             // This is a species/movement review plate, not a perspective beauty shot. A steeper
@@ -157,6 +201,15 @@ namespace VoxelEngine.Showcase
                 label.LookAt(camera.transform.position, camera.transform.up);
                 label.Rotate(0f, 180f, 0f);
             }
+        }
+
+        private struct CameraState
+        {
+            public bool Orthographic;
+            public float OrthographicSize;
+            public float FieldOfView;
+            public Vector3 Position;
+            public Quaternion Rotation;
         }
     }
 }
