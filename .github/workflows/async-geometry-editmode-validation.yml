@@ -39,10 +39,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Focused validation after owned-dirty admission passed 84/84. Mixed snapshot pin loss now
-          # rejects the optimistic generation through the existing bounded release/requeue path
-          # instead of retrying the same unavailable COW coordinate forever. Both architecture
-          # guards now assert the replacement retry contract rather than the removed latch token.
+          # Focused validation is green 85/85 through mixed-pin retry. This run compile-checks the
+          # new allocation-free step-4 diagnostics (known/resident/dirty/missing/running plus build
+          # phase/job masks) before spending another Metal run; telemetry does not alter scheduling.
           deadline=$((SECONDS + 2400))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
