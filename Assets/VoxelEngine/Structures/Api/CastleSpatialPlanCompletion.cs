@@ -6,8 +6,8 @@ namespace VoxelEngine.Structures.Api
     /// <summary>
     /// Final pure-data completion for castle details that depend on already-resolved core geometry.
     /// Composition calls this after terrain-dependent keep placement is finished; Runtime receives
-    /// tower variation, courtyard buildings, and the designed dungeon graph without choosing any
-    /// of those authored details itself.
+    /// tower variation, courtyard buildings, the designed dungeon graph, and natural cave topology
+    /// without choosing any of those authored details itself.
     /// </summary>
     public static class CastleSpatialPlanCompletion
     {
@@ -21,7 +21,8 @@ namespace VoxelEngine.Structures.Api
 
             CastleSpatialPlan withTowerVariation = AttachTowerVariation(in plan, spatial);
             CastleSpatialPlan withBuildings = AttachCourtyardBuildings(in plan, withTowerVariation);
-            CastleSpatialPlan completed = AttachDungeon(in plan, withBuildings);
+            CastleSpatialPlan withDungeon = AttachDungeon(in plan, withBuildings);
+            CastleSpatialPlan completed = AttachCave(in plan, withDungeon);
             RequireCompleted(in plan, completed);
             return completed;
         }
@@ -55,7 +56,8 @@ namespace VoxelEngine.Structures.Api
                 spatial,
                 towers,
                 spatial.CourtyardBuildings,
-                spatial.Dungeon);
+                spatial.Dungeon,
+                spatial.Cave);
         }
 
         public static CastleSpatialPlan AttachCourtyardBuildings(
@@ -82,7 +84,12 @@ namespace VoxelEngine.Structures.Api
                     spatial.KeepCentre,
                     spatial.HasWell,
                     spatial.WellCentre);
-            return Copy(spatial, spatial.Towers, buildings, spatial.Dungeon);
+            return Copy(
+                spatial,
+                spatial.Towers,
+                buildings,
+                spatial.Dungeon,
+                spatial.Cave);
         }
 
         public static CastleSpatialPlan AttachDungeon(
@@ -101,7 +108,41 @@ namespace VoxelEngine.Structures.Api
                     $"Castle dungeon completion produced an invalid plan: {issue}.");
             }
 
-            return Copy(spatial, spatial.Towers, spatial.CourtyardBuildings, dungeon);
+            // A cave is anchored to a particular dungeon threshold. Replacing the designed
+            // dungeon necessarily invalidates any previously attached natural cave.
+            return Copy(
+                spatial,
+                spatial.Towers,
+                spatial.CourtyardBuildings,
+                dungeon,
+                null);
+        }
+
+        public static CastleSpatialPlan AttachCave(
+            in CastlePlan plan,
+            CastleSpatialPlan spatial)
+        {
+            if (spatial == null) throw new ArgumentNullException(nameof(spatial));
+            if (spatial.KeepRequiresTerrainResolution)
+                return spatial;
+            if (spatial.Dungeon == null)
+                throw new InvalidOperationException("Castle cave completion requires a designed dungeon plan.");
+
+            CavePlan cave = spatial.Dungeon.HasCaveExit
+                ? CastleCavePlanning.Create(in plan, spatial.Dungeon)
+                : null;
+            if (cave != null && !CavePlanValidator.TryValidate(cave, out CavePlanIssue issue))
+            {
+                throw new InvalidOperationException(
+                    $"Castle cave completion produced an invalid plan: {issue}.");
+            }
+
+            return Copy(
+                spatial,
+                spatial.Towers,
+                spatial.CourtyardBuildings,
+                spatial.Dungeon,
+                cave);
         }
 
         private static void RequireCompleted(
@@ -131,13 +172,41 @@ namespace VoxelEngine.Structures.Api
                 throw new InvalidOperationException(
                     "Completed castle dungeon entrance does not align with the projected trapdoor.");
             }
+
+            if (!completed.Dungeon.HasCaveExit)
+            {
+                if (completed.Cave != null)
+                    throw new InvalidOperationException(
+                        "Completed castle has a natural cave but its dungeon has no cave threshold.");
+                return;
+            }
+
+            if (completed.Cave == null)
+                throw new InvalidOperationException("Completed castle dungeon has no natural cave plan.");
+            if (!CavePlanValidator.TryValidate(completed.Cave, out CavePlanIssue caveIssue))
+            {
+                throw new InvalidOperationException(
+                    $"Completed castle cave plan is structurally invalid: {caveIssue}.");
+            }
+
+            DungeonRoomPlan threshold = completed.Dungeon.Rooms[completed.Dungeon.CaveThresholdRoomId];
+            int3 caveEntrance = new int3(
+                threshold.Centre.x,
+                threshold.Centre.y - threshold.Size.y / 2,
+                threshold.Centre.z);
+            if (!completed.Cave.Entrance.Equals(caveEntrance))
+            {
+                throw new InvalidOperationException(
+                    "Completed natural cave entrance does not align with the dungeon cave threshold.");
+            }
         }
 
         private static CastleSpatialPlan Copy(
             CastleSpatialPlan spatial,
             CastleTowerPlacementSpec[] towers,
             CastleCourtyardBuildingSpec[] buildings,
-            DungeonPlan dungeon)
+            DungeonPlan dungeon,
+            CavePlan cave)
         {
             CastleTopologyPlan topology = spatial.Topology;
             CastleGatePlacementSpec primaryGate = spatial.PrimaryGate;
@@ -162,6 +231,7 @@ namespace VoxelEngine.Structures.Api
                     ? (CastleCourtyardBuildingSpec[])buildings.Clone()
                     : Array.Empty<CastleCourtyardBuildingSpec>(),
                 dungeon,
+                cave,
                 spatial.KeepCentre,
                 false);
         }
