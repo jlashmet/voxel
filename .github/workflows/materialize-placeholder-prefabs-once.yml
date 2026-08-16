@@ -1,0 +1,109 @@
+name: Materialize placeholder prefabs once
+
+on:
+  push:
+    branches:
+      - feature/temp-placeholder-humanoids
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout without deleting Unity import cache
+        uses: actions/checkout@v4
+        with:
+          ref: feature/temp-placeholder-humanoids
+          clean: false
+
+      - name: Reset tracked files and generated placeholder outputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard HEAD
+          git clean -ffdx -e Library/
+          rm -f \
+            Assets/ThirdParty/PlaceholderHumanoids/Models/placeholder_male.prefab \
+            Assets/ThirdParty/PlaceholderHumanoids/Models/placeholder_male.prefab.meta \
+            Assets/ThirdParty/PlaceholderHumanoids/Models/placeholder_female.prefab \
+            Assets/ThirdParty/PlaceholderHumanoids/Models/placeholder_female.prefab.meta \
+            Assets/ThirdParty/PlaceholderHumanoids/PlaceholderCharacterParts.asset \
+            Assets/ThirdParty/PlaceholderHumanoids/PlaceholderCharacterParts.asset.meta
+
+      - name: Locate Unity editor
+        id: unity
+        shell: bash
+        run: |
+          set -euo pipefail
+          UNITY_VERSION="$(awk '/m_EditorVersion:/ { print $2 }' ProjectSettings/ProjectVersion.txt)"
+          UNITY_PATH="/Applications/Unity/Hub/Editor/${UNITY_VERSION}/Unity.app/Contents/MacOS/Unity"
+          test -x "$UNITY_PATH"
+          echo "path=${UNITY_PATH}" >> "$GITHUB_OUTPUT"
+
+      - name: Materialize Character Factory placeholder prefabs
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/Artifacts/PlaceholderMaterialize"
+          rm -rf "$ROOT"
+          mkdir -p "$ROOT"
+          chmod +x tools/unity-run.sh
+
+          status=0
+          UNITY_MAX_RSS_MB=8192 \
+          UNITY_BIN="${{ steps.unity.outputs.path }}" \
+          tools/unity-run.sh \
+            -batchmode \
+            -nographics \
+            -job-worker-count 1 \
+            -projectPath "$GITHUB_WORKSPACE" \
+            -runTests \
+            -testPlatform EditMode \
+            -testFilter "VoxelEngine.Tests.EditMode.PlaceholderHumanoidAssetTests" \
+            -testResults "$ROOT/results.xml" \
+            -logFile "$ROOT/unity.log" \
+            || status=$?
+
+          if [[ $status -ne 0 && $status -ne 2 ]]; then
+            tail -n 250 "$ROOT/unity.log" || true
+            exit $status
+          fi
+
+          outputs=(
+            Assets/ThirdParty/PlaceholderHumanoids/Models/placeholder_male.prefab
+            Assets/ThirdParty/PlaceholderHumanoids/Models/placeholder_male.prefab.meta
+            Assets/ThirdParty/PlaceholderHumanoids/Models/placeholder_female.prefab
+            Assets/ThirdParty/PlaceholderHumanoids/Models/placeholder_female.prefab.meta
+            Assets/ThirdParty/PlaceholderHumanoids/PlaceholderCharacterParts.asset
+            Assets/ThirdParty/PlaceholderHumanoids/PlaceholderCharacterParts.asset.meta
+          )
+          for output in "${outputs[@]}"; do
+            if [[ ! -s "$output" ]]; then
+              echo "Expected generated asset missing: $output" >&2
+              tail -n 250 "$ROOT/unity.log" || true
+              exit 1
+            fi
+          done
+
+      - name: Commit stable generated placeholder assets and remove this workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -f \
+            Assets/ThirdParty/PlaceholderHumanoids/Models/placeholder_male.prefab \
+            Assets/ThirdParty/PlaceholderHumanoids/Models/placeholder_male.prefab.meta \
+            Assets/ThirdParty/PlaceholderHumanoids/Models/placeholder_female.prefab \
+            Assets/ThirdParty/PlaceholderHumanoids/Models/placeholder_female.prefab.meta \
+            Assets/ThirdParty/PlaceholderHumanoids/PlaceholderCharacterParts.asset \
+            Assets/ThirdParty/PlaceholderHumanoids/PlaceholderCharacterParts.asset.meta
+          git rm .github/workflows/materialize-placeholder-prefabs-once.yml
+
+          git commit -m "assets: materialize placeholder character prefabs"
+          git push origin HEAD:feature/temp-placeholder-humanoids
