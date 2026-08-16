@@ -1,0 +1,55 @@
+name: Patch async geometry LOD capture build budget
+
+on:
+  push:
+    branches: [refactor/async-geometry-pipeline]
+    paths:
+      - .github/workflows/async-geometry-lod-capture-budget-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/async-geometry-pipeline
+          fetch-depth: 1
+      - name: Give offline LOD capture a non-gameplay build slice
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('Assets/Tests/PlayMode/LodRenderingTests.cs')
+          text = p.read_text()
+
+          old = '''            bool oldOrthographic = camera.orthographic;\n            float oldOrthographicSize = camera.orthographicSize;\n            try\n            {\n                camera.targetTexture = target;'''
+          new = '''            bool oldOrthographic = camera.orthographic;\n            float oldOrthographicSize = camera.orthographicSize;\n            double oldSolidBuildBudgetMs = VoxelRenderBridge.SolidBuildBudgetMs;\n            try\n            {\n                // This fixture is an offline visual-fidelity capture, not the frame-budget gate.\n                // Its 70 m orthographic half-height exposes roughly the whole near clipmap at\n                // once, far more surface chunks than a gameplay perspective view. Give extraction\n                // enough CPU admission to make the existing 8-second hole-free precondition\n                // meaningful; the separate budget/stress fixtures keep production constraints.\n                VoxelRenderBridge.SolidBuildBudgetMs = 8.0;\n                camera.targetTexture = target;'''
+          if text.count(old) != 1:
+              raise SystemExit('LOD budget insertion point mismatch')
+          text = text.replace(old, new, 1)
+
+          old = '''                      + $\"pendingUpload={metrics.SolidPendingUploadBytes} \"\n                      + $\"completed={metrics.CompletedSolidBuilds} uploaded={metrics.UploadedGeometryBytes}.\");'''
+          new = '''                      + $\"pendingUpload={metrics.SolidPendingUploadBytes} \"\n                      + $\"completed={metrics.CompletedSolidBuilds} uploaded={metrics.UploadedGeometryBytes} \"\n                      + $\"prepareP95={metrics.SchedulerPrepareTiming.P95Ms:F2}ms \"\n                      + $\"queueP95={metrics.QueueLatencyTiming.P95Ms:F1}ms \"\n                      + $\"buildP95={metrics.BuildLatencyTiming.P95Ms:F1}ms \"\n                      + $\"snapshotP95={metrics.SnapshotTiming.P95Ms:F2}ms.\");'''
+          if text.count(old) != 1:
+              raise SystemExit('LOD convergence diagnostic insertion point mismatch')
+          text = text.replace(old, new, 1)
+
+          old = '''            finally\n            {\n                camera.targetTexture = null;\n                camera.orthographic = oldOrthographic;'''
+          new = '''            finally\n            {\n                VoxelRenderBridge.SolidBuildBudgetMs = oldSolidBuildBudgetMs;\n                camera.targetTexture = null;\n                camera.orthographic = oldOrthographic;'''
+          if text.count(old) != 1:
+              raise SystemExit('LOD budget restore insertion point mismatch')
+          p.write_text(text.replace(old, new, 1))
+          PY
+      - name: Commit test budget and self-clean
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "jlashmet"
+          git config user.email "jlashmet@gmail.com"
+          git rm .github/workflows/async-geometry-lod-capture-budget-fix.yml
+          git add Assets/Tests/PlayMode/LodRenderingTests.cs
+          git commit -m "test(lod): budget offline visual convergence separately"
+          git push origin HEAD:refactor/async-geometry-pipeline
