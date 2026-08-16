@@ -69,22 +69,52 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void ExperimentalSpatialPlanRemainsPlanningOnlyUntilRealizersSupportIt()
+        public void SpatialPlanningStaysOutsideRuntimeWhilePipelineConsumesValidatedGeometry()
         {
             string planning = File.ReadAllText(Path.Combine(
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Api", "CastleSpatialPlanner.cs"));
             StringAssert.DoesNotContain("VoxelBrush", planning);
             StringAssert.DoesNotContain("Structures.Runtime", planning);
 
+            string composition = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Composition", "StructuresComposition.cs"));
+            StringAssert.Contains("CastleLayoutPlanner.Create(plan.Seed)", composition);
+            StringAssert.Contains("CastleSpatialPlanner.Create(in plan, in topology)", composition);
+            StringAssert.Contains("CastleSpatialPlanValidator.TryValidate(", composition);
+
+            string pipeline = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
+                "CastleBuildPipeline.cs"));
+            StringAssert.Contains("CastleSpatialPlan spatialPlan", pipeline);
+            StringAssert.Contains("CastleSpatialPlanValidator.TryValidate(", pipeline);
+            StringAssert.Contains("CastlePerimeterRealizer.Walls(", pipeline);
+            StringAssert.Contains("CastlePerimeterRealizer.Towers(", pipeline);
+            StringAssert.Contains("CastlePerimeterRealizer.Gatehouse(", pipeline);
+            StringAssert.DoesNotContain("CastleSpatialPlanner.Create(", pipeline);
+            StringAssert.DoesNotContain("CastleLayoutPlanner.Create(", pipeline);
+
             string runtimeDirectory = Path.Combine(
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime");
             foreach (string file in Directory.GetFiles(runtimeDirectory, "*.cs"))
             {
                 string runtimeSource = File.ReadAllText(file);
-                StringAssert.DoesNotContain("CastleSpatialPlan", runtimeSource,
-                    $"{Path.GetFileName(file)} consumed experimental spatial planning before " +
-                    "arbitrary wall/gate/tower realization was migrated.");
+                StringAssert.DoesNotContain("CastleSpatialPlanner.Create(", runtimeSource,
+                    $"{Path.GetFileName(file)} must consume planned geometry rather than re-plan it.");
+                StringAssert.DoesNotContain("CastleLayoutPlanner.Create(", runtimeSource,
+                    $"{Path.GetFileName(file)} must not choose semantic topology during realization.");
             }
+        }
+
+        [Test]
+        public void ShowcaseKeepsLegacyGateContractUntilInteractionMigration()
+        {
+            string showcase = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Composition", "Showcase",
+                "ShowcaseWorld.cs"));
+
+            StringAssert.Contains("CastleLayout.FrontGateMinimum", showcase);
+            StringAssert.DoesNotContain("PlanCastleSpatial(", showcase,
+                "The showcase must not rotate the built gate before its interaction coordinates migrate.");
         }
 
         [Test]

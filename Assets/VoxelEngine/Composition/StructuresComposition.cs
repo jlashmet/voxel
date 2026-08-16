@@ -95,6 +95,24 @@ namespace VoxelEngine.Composition
             CastlePlanner.Create(centre, seed);
 
         /// <summary>
+        /// Resolves semantic topology and spatial placement through pure Structures.Api planners.
+        /// Runtime never re-plans an in-flight castle; callers may pass this validated result to
+        /// the spatial build-session overload as fortification migration progresses.
+        /// </summary>
+        public static CastleSpatialPlan PlanCastleSpatial(in CastlePlan plan)
+        {
+            CastleTopologyPlan topology = CastleLayoutPlanner.Create(plan.Seed);
+            CastleSpatialPlan spatial = CastleSpatialPlanner.Create(in plan, in topology);
+            if (!CastleSpatialPlanValidator.TryValidate(
+                    in plan, spatial, out CastleSpatialPlanIssue issue))
+            {
+                throw new InvalidOperationException(
+                    $"Castle spatial planning produced an invalid plan: {issue}.");
+            }
+            return spatial;
+        }
+
+        /// <summary>
         /// Wires the hero-arch lookdev request into Structures.Runtime without exposing concrete
         /// feature definitions, profile storage, rasterizers, brushes, or weathering helpers to
         /// scene code. The structure algorithm remains owned by Structures.Runtime.
@@ -150,6 +168,25 @@ namespace VoxelEngine.Composition
             if (reads == null) throw new ArgumentNullException(nameof(reads));
             if (mutations == null) throw new ArgumentNullException(nameof(mutations));
             return new CastleBuildSession(reads, mutations, in plan, terrainSeed, materials);
+        }
+
+        /// <summary>
+        /// Starts a build whose migrated fortification stages consume a preplanned spatial layout.
+        /// Later castle stages continue to use CastlePlan until their own spatial migration lands.
+        /// </summary>
+        public static ICastleBuildSession BeginCastleBuild(
+            IRegionReadSource reads,
+            IRegionMutationStore mutations,
+            in CastlePlan plan,
+            CastleSpatialPlan spatialPlan,
+            uint terrainSeed,
+            IMaterialAuthoringCatalogue materials)
+        {
+            if (reads == null) throw new ArgumentNullException(nameof(reads));
+            if (mutations == null) throw new ArgumentNullException(nameof(mutations));
+            if (spatialPlan == null) throw new ArgumentNullException(nameof(spatialPlan));
+            return new CastleBuildSession(
+                reads, mutations, in plan, spatialPlan, terrainSeed, materials);
         }
 
         public static ReferenceArchBuildResult BuildReferenceArch(
@@ -214,6 +251,15 @@ namespace VoxelEngine.Composition
             {
                 _build = new CastleBuildPipeline(
                     reads, mutations, in plan, terrainSeed, materials);
+            }
+
+            public CastleBuildSession(
+                IRegionReadSource reads, IRegionMutationStore mutations,
+                in CastlePlan plan, CastleSpatialPlan spatialPlan,
+                uint terrainSeed, IMaterialAuthoringCatalogue materials)
+            {
+                _build = new CastleBuildPipeline(
+                    reads, mutations, in plan, spatialPlan, terrainSeed, materials);
             }
 
             public bool IsComplete => _build.IsComplete;

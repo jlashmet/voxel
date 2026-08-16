@@ -1,4 +1,5 @@
 using System;
+using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Structures.Api;
 
@@ -17,10 +18,37 @@ namespace VoxelEngine.Structures.Runtime
         private int _keepStage;
         private CastleSiteRealizer.State _site;
 
+        // Spatial planning is consumed incrementally. Only fortification geometry is migrated so
+        // far; courtyard/keep/dungeon stages intentionally continue to use CastlePlan dimensions.
+        private bool _hasSpatialFortifications;
+        private int2[] _outerWardVertices;
+        private int2[] _innerWardVertices;
+        private int2[] _towerCentres;
+        private int _cornerTowerCount;
+        private CastleGatePlacementSpec _primaryGate;
+        private bool _hasInnerGate;
+        private CastleGatePlacementSpec _innerGate;
+
         public CastleBuildPipeline(
             IRegionReadSource reads,
             IRegionMutationStore mutations,
             in CastlePlan plan,
+            uint terrainSeed,
+            IMaterialAuthoringCatalogue materials)
+            : this(reads, mutations, in plan, null, terrainSeed, materials)
+        {
+        }
+
+        /// <summary>
+        /// Builds with a precomputed spatial plan for the migrated fortification stages. The
+        /// caller owns planning; Runtime validates and snapshots the supplied geometry before any
+        /// voxel writes so later caller mutation cannot change the in-flight build.
+        /// </summary>
+        public CastleBuildPipeline(
+            IRegionReadSource reads,
+            IRegionMutationStore mutations,
+            in CastlePlan plan,
+            CastleSpatialPlan spatialPlan,
             uint terrainSeed,
             IMaterialAuthoringCatalogue materials)
         {
@@ -42,6 +70,18 @@ namespace VoxelEngine.Structures.Runtime
                 throw new InvalidOperationException(
                     $"Castle build preflight rejected ~{preflight.EstimatedWrites:N0} expensive-write " +
                     $"equivalents against a {preflight.WriteBudget:N0} write budget.");
+            }
+
+            if (spatialPlan != null)
+            {
+                if (!CastleSpatialPlanValidator.TryValidate(
+                        in plan, spatialPlan, out CastleSpatialPlanIssue spatialIssue))
+                {
+                    throw new InvalidOperationException(
+                        $"Castle spatial plan is structurally invalid: {spatialIssue}.");
+                }
+
+                SnapshotSpatialFortifications(spatialPlan);
             }
 
             _plan = plan;
@@ -74,15 +114,34 @@ namespace VoxelEngine.Structures.Runtime
                     return CompleteStage("site");
 
                 case 2:
-                    CastleFortificationRealizer.CurtainWalls(ref _brush, in _plan);
+                    if (_hasSpatialFortifications)
+                        BuildPlannedWalls();
+                    else
+                        CastleFortificationRealizer.CurtainWalls(ref _brush, in _plan);
                     return CompleteStage("curtain walls");
 
                 case 3:
-                    CastleFortificationRealizer.CornerTowers(ref _brush, in _plan);
+                    if (_hasSpatialFortifications)
+                    {
+                        CastlePerimeterRealizer.Towers(
+                            ref _brush, in _plan, _towerCentres, _cornerTowerCount);
+                    }
+                    else
+                    {
+                        CastleFortificationRealizer.CornerTowers(ref _brush, in _plan);
+                    }
                     return CompleteStage("corner towers");
 
                 case 4:
-                    CastleFortificationRealizer.Gatehouse(ref _brush, in _plan);
+                    if (_hasSpatialFortifications)
+                    {
+                        CastlePerimeterRealizer.Gatehouse(
+                            ref _brush, in _plan, _primaryGate.Centre, _primaryGate.Outward);
+                    }
+                    else
+                    {
+                        CastleFortificationRealizer.Gatehouse(ref _brush, in _plan);
+                    }
                     return CompleteStage("gatehouse");
 
                 case 5:
@@ -120,6 +179,59 @@ namespace VoxelEngine.Structures.Runtime
                 default:
                     return true;
             }
+        }
+
+        private void SnapshotSpatialFortifications(CastleSpatialPlan spatialPlan)
+        {
+            _hasSpatialFortifications = true;
+            _outerWardVertices = (int2[])spatialPlan.OuterWardVertices.Clone();
+            _innerWardVertices = (int2[])spatialPlan.InnerWardVertices.Clone();
+            _primaryGate = spatialPlan.PrimaryGate;
+            _hasInnerGate = spatialPlan.HasInnerGate;
+            _innerGate = spatialPlan.InnerGate;
+
+            CastleTowerPlacementSpec[] towers = spatialPlan.Towers;
+            _towerCentres = new int2[towers.Length];
+            int cursor = 0;
+            for (int i = 0; i < towers.Length; i++)
+            {
+                if (towers[i].Role != CastleTowerPlacementRole.Corner) continue;
+                _towerCentres[cursor++] = towers[i].Centre;
+            }
+            _cornerTowerCount = cursor;
+            for (int i = 0; i < towers.Length; i++)
+            {
+                if (towers[i].Role == CastleTowerPlacementRole.Corner) continue;
+                _towerCentres[cursor++] = towers[i].Centre;
+            }
+        }
+
+        private void BuildPlannedWalls()
+        {
+            int outerGateWidth = math.max(
+                CastleLayout.FrontGateWidth + 12,
+                _plan.WallThickness * 2);
+            CastlePerimeterRealizer.Walls(
+                ref _brush,
+                in _plan,
+                _outerWardVertices,
+                _primaryGate.EdgeIndex,
+                _primaryGate.Centre,
+                outerGateWidth);
+
+            if (!_hasInnerGate || _innerWardVertices.Length == 0)
+                return;
+
+            int innerGateWidth = math.max(
+                CastleLayout.FrontGateWidth,
+                _plan.WallThickness * 2);
+            CastlePerimeterRealizer.Walls(
+                ref _brush,
+                in _plan,
+                _innerWardVertices,
+                _innerGate.EdgeIndex,
+                _innerGate.Centre,
+                innerGateWidth);
         }
 
         private bool CompleteStage(string stage)
