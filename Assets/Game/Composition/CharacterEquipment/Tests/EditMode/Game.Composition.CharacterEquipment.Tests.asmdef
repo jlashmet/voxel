@@ -1,0 +1,21 @@
+{
+  "name": "Game.Composition.CharacterEquipment.Tests",
+  "rootNamespace": "MountingForce.Game.Composition.CharacterEquipment.Tests",
+  "references": [
+    "Game.Composition.CharacterEquipment.Runtime"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ],
+  "noEngineReferences": false
+}
