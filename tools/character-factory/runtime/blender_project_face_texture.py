@@ -110,8 +110,29 @@ def bounds_xz(body: bpy.types.Object, indices: set[int]) -> tuple[float, float, 
 
 def create_face_material(face_path: Path) -> bpy.types.Material:
     image = bpy.data.images.load(str(face_path), check_existing=False)
-    if not image.has_data or image.size[0] <= 0 or image.size[1] <= 0:
-        raise RuntimeError(f"Unable to decode face source image: {face_path}")
+
+    # Blender can keep externally loaded images lazy in background mode. In that
+    # state Image.has_data may still be False even though the file header decoded
+    # successfully and the image is usable by a texture node. The build has already
+    # round-tripped and validated the source with Pillow, so treat valid dimensions
+    # as the loader contract here instead of rejecting a lazy image data-block.
+    width, height = int(image.size[0]), int(image.size[1])
+    if width <= 0 or height <= 0:
+        try:
+            image.reload()
+        except Exception as exc:
+            raise RuntimeError(f"Unable to reload face source image: {face_path}") from exc
+        width, height = int(image.size[0]), int(image.size[1])
+    if width <= 0 or height <= 0:
+        raise RuntimeError(
+            f"Unable to decode face source image dimensions: {face_path} "
+            f"size={tuple(image.size)} hasData={image.has_data}"
+        )
+
+    print(
+        f"face image loader: {face_path.name} {width}x{height} hasData={image.has_data}",
+        flush=True,
+    )
     image.name = "MadelineFaceSource"
 
     material = bpy.data.materials.get(FACE_MATERIAL_NAME)
