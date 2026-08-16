@@ -37,6 +37,7 @@ namespace VoxelEngine.Structures.Runtime
         private int2 _spatialWellCentre;
         private CastleCourtyardBuildingSpec[] _courtyardBuildings;
         private CastleKeepFloorPlan[] _keepFloorPlans;
+        private CastleKeepCirculationPlan _keepCirculation;
         private DungeonPlan _spatialDungeonPlan;
         private CavePlan _spatialCavePlan;
 
@@ -103,6 +104,7 @@ namespace VoxelEngine.Structures.Runtime
             _innerTowerSpecs = Array.Empty<CastleTowerPlacementSpec>();
             _courtyardBuildings = Array.Empty<CastleCourtyardBuildingSpec>();
             _keepFloorPlans = Array.Empty<CastleKeepFloorPlan>();
+            _keepCirculation = default;
             _spatialDungeonPlan = null;
             _spatialCavePlan = null;
 
@@ -208,6 +210,18 @@ namespace VoxelEngine.Structures.Runtime
                 case 6:
                 {
                     CastlePlan keepPlan = _hasSpatialKeep ? _spatialKeepPlan : _plan;
+
+                    // Historical keep substage 4 is circulation. Spatial builds realize its
+                    // planner-owned anchors directly; compatibility builds keep the legacy path.
+                    if (_hasSpatialKeep && _keepStage == 3)
+                    {
+                        CastlePlannedKeepCirculationRealizer.Build(
+                            ref _brush, in keepPlan, in _keepCirculation);
+                        _keepStage++;
+                        RequireBudget("keep 4");
+                        return false;
+                    }
+
                     if (_keepStage < 6)
                     {
                         string keepStage = $"keep {_keepStage + 1}";
@@ -284,6 +298,16 @@ namespace VoxelEngine.Structures.Runtime
             _spatialWellCentre = spatialPlan.WellCentre;
             _courtyardBuildings = (CastleCourtyardBuildingSpec[])spatialPlan.CourtyardBuildings.Clone();
             _keepFloorPlans = (CastleKeepFloorPlan[])spatialPlan.KeepFloors.Clone();
+
+            CastleKeepCirculationPlan circulation = spatialPlan.KeepCirculation;
+            if (!CastleKeepCirculationPlanner.TryValidate(
+                    in plan, in circulation, out CastleKeepCirculationPlanIssue circulationIssue))
+            {
+                throw new InvalidOperationException(
+                    $"Spatial castle reached Runtime with invalid keep circulation: {circulationIssue}.");
+            }
+            _keepCirculation = circulation;
+
             _spatialDungeonPlan = spatialPlan.Dungeon != null
                 ? DungeonPlanSnapshot.CloneValidated(spatialPlan.Dungeon)
                 : null;
