@@ -51,6 +51,35 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void ResolvedCastleCompletionCarriesDungeonGraph()
+        {
+            for (uint seed = 1; seed <= 64; seed++)
+            {
+                CastlePlan dimensions = CastlePlanner.Create(int3.zero, seed);
+                CastleTopologyPlan topology = CastleLayoutPlanner.Create(seed);
+                topology.KeepPlacement = CastleKeepPlacement.Central;
+                CastleSpatialPlan raw = CastleSpatialPlanner.Create(in dimensions, in topology);
+
+                Assert.IsNull(raw.Dungeon,
+                    $"seed {seed}: core spatial planning should not depend on projected dungeon geometry");
+
+                CastleSpatialPlan completed = CastleSpatialPlanCompletion.CompleteResolved(
+                    in dimensions, raw);
+                Assert.NotNull(completed.Dungeon,
+                    $"seed {seed}: resolved completion did not attach a dungeon graph");
+
+                CastleSpatialProjection projection = CastleSpatialProjection.Create(
+                    in dimensions, completed);
+                Assert.AreEqual(projection.TrapdoorCentre, completed.Dungeon.Entrance,
+                    $"seed {seed}: completed dungeon entrance drifted from projected trapdoor");
+                Assert.IsTrue(
+                    DungeonPlanValidator.TryValidate(
+                        completed.Dungeon, out DungeonPlanIssue issue),
+                    $"seed {seed}: completed dungeon invalid: {issue}");
+            }
+        }
+
+        [Test]
         public void CastleDungeonAdaptersShareOneConstraintPolicy()
         {
             string root = RepoRoot;
