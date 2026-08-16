@@ -1,0 +1,58 @@
+name: Patch async geometry atomic-world test readiness
+
+on:
+  push:
+    branches: [refactor/async-geometry-pipeline]
+    paths:
+      - .github/workflows/async-geometry-atomic-world-test-ready-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/async-geometry-pipeline
+          fetch-depth: 1
+      - name: Wait for atomic showcase world in render fixtures
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          lod = Path('Assets/Tests/PlayMode/LodRenderingTests.cs')
+          text = lod.read_text()
+          old = '''            UnityEditor.SceneManagement.EditorSceneManager.LoadSceneInPlayMode(\n                ScenePath, new LoadSceneParameters(LoadSceneMode.Single));\n            yield return null;'''
+          new = '''            UnityEditor.SceneManagement.EditorSceneManager.LoadSceneInPlayMode(\n                ScenePath, new LoadSceneParameters(LoadSceneMode.Single));\n            yield return null;\n            yield return WaitForAtomicWorldReady();'''
+          if text.count(old) != 2:
+              raise SystemExit(f'expected 2 LOD scene-load sites, found {text.count(old)}')
+          text = text.replace(old, new)
+
+          marker = '''        private static void RenderUrpCamera(Camera camera)\n        {'''
+          helper = '''        private static IEnumerator WaitForAtomicWorldReady()\n        {\n            int frames = 0;\n            double deadline = Time.realtimeSinceStartupAsDouble + 20.0;\n            while (!VoxelRenderBridge.SurfaceBuildEnabled\n                   && frames++ < 1200\n                   && Time.realtimeSinceStartupAsDouble < deadline)\n            {\n                yield return null;\n            }\n\n            Assert.True(VoxelRenderBridge.SurfaceBuildEnabled,\n                $\"Showcase atomic world did not commit within {frames} frames / 20 seconds.\");\n            Assert.True(VoxelRenderBridge.TryGetWorld(out _),\n                \"Showcase lost its render-world binding while waiting for atomic publication.\");\n        }\n\n'''
+          if marker not in text:
+              raise SystemExit('LOD RenderUrpCamera marker not found')
+          text = text.replace(marker, helper + marker, 1)
+          lod.write_text(text)
+
+          stress = Path('Assets/Tests/PlayMode/AsyncGeometryStressTests.cs')
+          text = stress.read_text()
+          old = '''        private static IEnumerator LoadShowcaseScene()\n        {\n            UnityEditor.SceneManagement.EditorSceneManager.LoadSceneInPlayMode(\n                ScenePath, new LoadSceneParameters(LoadSceneMode.Single));\n            yield return null;\n        }'''
+          new = '''        private static IEnumerator LoadShowcaseScene()\n        {\n            UnityEditor.SceneManagement.EditorSceneManager.LoadSceneInPlayMode(\n                ScenePath, new LoadSceneParameters(LoadSceneMode.Single));\n            yield return null;\n            yield return WaitForAtomicWorldReady();\n        }\n\n        private static IEnumerator WaitForAtomicWorldReady()\n        {\n            int frames = 0;\n            double deadline = Time.realtimeSinceStartupAsDouble + 20.0;\n            while (!VoxelRenderBridge.SurfaceBuildEnabled\n                   && frames++ < 1200\n                   && Time.realtimeSinceStartupAsDouble < deadline)\n            {\n                yield return null;\n            }\n\n            Assert.True(VoxelRenderBridge.SurfaceBuildEnabled,\n                $\"Showcase atomic world did not commit within {frames} frames / 20 seconds.\");\n            Assert.True(VoxelRenderBridge.TryGetWorld(out _),\n                \"Showcase lost its render-world binding while waiting for atomic publication.\");\n        }'''
+          if text.count(old) != 1:
+              raise SystemExit(f'expected one stress LoadShowcaseScene helper, found {text.count(old)}')
+          stress.write_text(text.replace(old, new, 1))
+          PY
+      - name: Commit test fix and self-clean
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "jlashmet"
+          git config user.email "jlashmet@gmail.com"
+          git rm .github/workflows/async-geometry-atomic-world-test-ready-fix.yml
+          git add Assets/Tests/PlayMode/LodRenderingTests.cs Assets/Tests/PlayMode/AsyncGeometryStressTests.cs
+          git commit -m "test(async-geometry): wait for atomic showcase world"
+          git push origin HEAD:refactor/async-geometry-pipeline
