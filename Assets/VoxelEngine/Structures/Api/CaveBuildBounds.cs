@@ -38,10 +38,21 @@ namespace VoxelEngine.Structures.Api
             for (int i = 0; i < chambers.Length; i++)
             {
                 CaveChamberPlan chamber = chambers[i];
-                int3 radius = chamber.Radii;
+                int rx = chamber.Radii.x;
+                int rz = chamber.Radii.z;
+                float cos = math.cos(chamber.RotationRadians);
+                float sin = math.sin(chamber.RotationRadians);
+
+                // Match CaveRealizer's rotated ellipse projection exactly. Using the unrotated
+                // rx/rz box clips dependency bounds whenever a non-circular chamber is rotated.
+                int extentX = (int)math.ceil(math.sqrt(
+                    rx * (float)rx * cos * cos + rz * (float)rz * sin * sin));
+                int extentZ = (int)math.ceil(math.sqrt(
+                    rx * (float)rx * sin * sin + rz * (float)rz * cos * cos));
+                var extent = new int3(extentX, chamber.Radii.y, extentZ);
                 IncludeBox(
-                    chamber.Centre - radius,
-                    chamber.Centre + radius + 1,
+                    chamber.Centre - extent,
+                    chamber.Centre + extent + 1,
                     ref hasBounds,
                     ref min,
                     ref maxExclusive);
