@@ -123,6 +123,7 @@ namespace VoxelEngine.Showcase
 
             ShowcaseCastleSpatialLayout.BuildPresentationLights(
                 in _castleSpatialProjection,
+                _plannedCastle.Spatial.Dungeon,
                 out Vector4[] lights,
                 out Vector4[] colours);
             CastlePresentationLights = lights;
