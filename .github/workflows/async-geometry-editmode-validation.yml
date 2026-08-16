@@ -39,9 +39,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Focused validation is green 85/85 through mixed-pin retry. This run compile-checks the
-          # new allocation-free step-4 diagnostics (known/resident/dirty/missing/running plus build
-          # phase/job masks) before spending another Metal run; telemetry does not alter scheduling.
+          # Validate the once-per-world-frame non-blocking ScheduleBatchedJobs boundary added after
+          # Metal showed step-4 exact metadata jobs remaining buffered in snapshot phase.
           deadline=$((SECONDS + 2400))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
