@@ -3369,15 +3369,16 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         }
 
         /// <summary>
-        /// Whether any region the chunk overlaps is still resident. A coarse ring's chunk can be
-        /// larger than a region and straddle several, so testing only the origin region would
-        /// discard a chunk that still has most of its data — and, worse, keep one whose origin
-        /// happens to survive while the rest of it has gone.
+        /// Whether any region sampled by the chunk is still resident. The exact snapshot owns a
+        /// one-sample halo, so discovery-admitted neighbour chunks must remain alive while that
+        /// halo reaches resident Storage even when their core lies just outside it. Otherwise
+        /// prune/remove and discovery/readmission can restart the same metadata job every frame.
         /// </summary>
         private bool AnyOverlappedRegionResident(IRegionReadSource source, int3 chunk)
         {
-            int3 minVoxel = chunk * VoxelsPerAxis;
-            int3 maxVoxel = minVoxel + (VoxelsPerAxis - 1);
+            int halo = Padding * SourceStep;
+            int3 minVoxel = chunk * VoxelsPerAxis - halo;
+            int3 maxVoxel = (chunk + 1) * VoxelsPerAxis + halo - 1;
             int3 minRegion = new(FloorDiv(minVoxel.x, VoxelGrid.RegionVoxelEdge),
                                  FloorDiv(minVoxel.y, VoxelGrid.RegionVoxelEdge),
                                  FloorDiv(minVoxel.z, VoxelGrid.RegionVoxelEdge));
