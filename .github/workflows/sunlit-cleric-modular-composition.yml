@@ -16,13 +16,14 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  verify-real-madeline-robe-composition:
+  verify-real-madeline-cleric-loadout:
     runs-on: [self-hosted, macOS]
-    timeout-minutes: 25
+    timeout-minutes: 45
     env:
       OUT: Artifacts/SunlitClericModularComposition
       BASE_SOURCE: Artifacts/MadelineBaseSource
       ROBE_SOURCE: Artifacts/SunlitClericRobeSource
+      STAFF_OUT: Artifacts/SunlitClericStaffForComposition
       REVIEW_DIR: docs/lookdev/characters/sunlit-cleric/modular
 
     steps:
@@ -45,7 +46,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          rm -rf "$OUT" "$BASE_SOURCE" "$ROBE_SOURCE"
+          rm -rf "$OUT" "$BASE_SOURCE" "$ROBE_SOURCE" "$STAFF_OUT"
           mkdir -p "$OUT" "$BASE_SOURCE" "$ROBE_SOURCE"
           python3 - <<'PY'
           import io
@@ -151,13 +152,13 @@ jobs:
             --python tools/character-factory/ci/verify_character_animations.py -- \
             --input "$BASE_FBX"
 
-      - name: Rebind generated robe to Madeline's shared skeleton and pose both meshes
+      - name: Verify robe rebinding against Madeline skeleton
         shell: bash
         run: |
           set -euo pipefail
           BASE_FBX="$(find "$GITHUB_WORKSPACE/$BASE_SOURCE" -name 'madeline_body_01.fbx' -type f -print -quit)"
           ROBE_FBX="$(find "$GITHUB_WORKSPACE/$ROBE_SOURCE" -name 'sunlit_cleric_robe_01.fbx' -type f -print -quit)"
-          COMPOSITE="$GITHUB_WORKSPACE/$OUT/sunlit_cleric_modular_composite.png"
+          ROBE_COMPOSITE="$GITHUB_WORKSPACE/$OUT/sunlit_cleric_madeline_robe.png"
           test -s "$BASE_FBX"
           test -s "$ROBE_FBX"
 
@@ -165,6 +166,53 @@ jobs:
             --python tools/character-factory/ci/verify_modular_character_clothing.py -- \
             --character "$BASE_FBX" \
             --clothing "$ROBE_FBX" \
+            --output "$ROBE_COMPOSITE"
+          test -s "$ROBE_COMPOSITE"
+
+      - name: Build the separate Sun Staff weapon product
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash tools/character-factory/production/sunlit-cleric/build_staff_macos.sh \
+            "$GITHUB_WORKSPACE/$STAFF_OUT" \
+            "$GITHUB_WORKSPACE/Assets/Generated/CharacterFactory"
+          test -s "$STAFF_OUT/sunlit_cleric_staff_01.fbx"
+          test -s "$STAFF_OUT/manifest.json"
+
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path(os.environ['OUT'], 'composition-source.json')
+          data = json.loads(path.read_text(encoding='utf-8'))
+          data['staff'] = {
+              'build_head_sha': os.environ['GITHUB_SHA'],
+              'asset_id': 'sunlit_cleric_staff_01',
+              'slot': 'MainHand',
+              'socket': 'RightHand',
+          }
+          path.write_text(json.dumps(data, indent=2) + '\n', encoding='utf-8')
+          PY
+
+      - name: Verify complete Madeline Cleric loadout
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_FBX="$(find "$GITHUB_WORKSPACE/$BASE_SOURCE" -name 'madeline_body_01.fbx' -type f -print -quit)"
+          ROBE_FBX="$(find "$GITHUB_WORKSPACE/$ROBE_SOURCE" -name 'sunlit_cleric_robe_01.fbx' -type f -print -quit)"
+          STAFF_FBX="$GITHUB_WORKSPACE/$STAFF_OUT/sunlit_cleric_staff_01.fbx"
+          COMPOSITE="$GITHUB_WORKSPACE/$OUT/sunlit_cleric_modular_composite.png"
+          test -s "$BASE_FBX"
+          test -s "$ROBE_FBX"
+          test -s "$STAFF_FBX"
+
+          "$BLENDER_BIN" --background --python-exit-code 1 \
+            --python tools/character-factory/ci/verify_modular_character_loadout.py -- \
+            --character "$BASE_FBX" \
+            --clothing "$ROBE_FBX" \
+            --weapon "$STAFF_FBX" \
+            --socket RightHand \
             --output "$COMPOSITE"
           test -s "$COMPOSITE"
 
@@ -181,6 +229,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$REVIEW_DIR"
+          cp "$OUT/sunlit_cleric_madeline_robe.png" "$REVIEW_DIR/"
           cp "$OUT/sunlit_cleric_modular_composite.png" "$REVIEW_DIR/"
           cp "$OUT/composition-source.json" "$REVIEW_DIR/"
           git config user.name 'github-actions[bot]'
