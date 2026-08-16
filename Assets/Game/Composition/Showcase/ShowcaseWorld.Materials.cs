@@ -1,4 +1,5 @@
 using System;
+using Game.Materials.Api;
 using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Composition;
@@ -10,6 +11,19 @@ namespace VoxelEngine.Showcase
     public sealed partial class ShowcaseWorld
     {
         private ShowcaseMaterialSet _materials;
+
+        // Temporary compatibility for the few residual semantic lookups in the legacy showcase
+        // implementation. This is deliberately private to the game-owned partial class: the
+        // VoxelEngine Structures material facade is gone and must not be reintroduced. Remove
+        // this nested shim when ShowcaseWorld.cs is split into smaller game-composition pieces.
+        private static class Mat
+        {
+            public const byte DarkStone = GameMaterialIds.DarkStone;
+            public const byte Grass = GameMaterialIds.Grass;
+            public const byte MasonrySmall = GameMaterialIds.MasonrySmall;
+            public const byte MasonryMedium = GameMaterialIds.MasonryMedium;
+            public const byte MasonryLarge = GameMaterialIds.MasonryLarge;
+        }
 
         /// <summary>
         /// Composition entry point for application-owned material definitions and role binding.
