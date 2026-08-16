@@ -91,14 +91,16 @@ jobs:
 
           root = Path('tools/character-factory/production/sunlit-cleric/front.jpg.b64')
           chunks = sorted(root.glob('*.txt'))
-          if len(chunks) != 3:
-              raise SystemExit(f'expected 3 cleric reference chunks, found {len(chunks)}')
+          if len(chunks) != 6:
+              raise SystemExit(f'expected 6 cleric reference chunks, found {len(chunks)}')
           encoded = ''.join(path.read_text(encoding='utf-8').strip() for path in chunks)
           payload = base64.b64decode(encoded, validate=True)
           output = Path('Artifacts/SunlitClericAnimated/cleric_front.jpg')
           output.write_bytes(payload)
           if payload[:2] != b'\xff\xd8' or payload[-2:] != b'\xff\xd9':
               raise SystemExit('decoded cleric reference is not a complete JPEG')
+          if len(payload) != 17225:
+              raise SystemExit(f'unexpected cleric reference size: {len(payload)}')
           print(f'decoded {output}: {len(payload)} bytes')
           PY
           test -s "$OUT/cleric_front.jpg"
@@ -110,7 +112,7 @@ jobs:
           OUT="$GITHUB_WORKSPACE/Artifacts/SunlitClericAnimated"
           CANONICAL="$OUT/canonical_female.glb"
           DONOR_RENDER="$OUT/canonical_female.input.png"
-          "$BLENDER_BIN" --background \
+          "$BLENDER_BIN" --background --python-exit-code 1 \
             --python tools/character-factory/ci/create_canonical_character_fixture.py -- \
             --canonical "$CANONICAL" \
             --input "$DONOR_RENDER"
@@ -165,11 +167,11 @@ jobs:
           OUT="$GITHUB_WORKSPACE/Artifacts/SunlitClericAnimated"
           FBX="$OUT/sunlit_cleric_animated_01.fbx"
 
-          "$BLENDER_BIN" --background \
+          "$BLENDER_BIN" --background --python-exit-code 1 \
             --python tools/character-factory/ci/verify_skinned_character.py -- \
             --input "$FBX"
 
-          "$BLENDER_BIN" --background \
+          "$BLENDER_BIN" --background --python-exit-code 1 \
             --python tools/character-factory/ci/verify_character_animations.py -- \
             --input "$FBX"
 
@@ -180,21 +182,21 @@ jobs:
           OUT="$GITHUB_WORKSPACE/Artifacts/SunlitClericAnimated"
           FBX="$OUT/sunlit_cleric_animated_01.fbx"
 
-          "$BLENDER_BIN" --background \
+          "$BLENDER_BIN" --background --python-exit-code 1 \
             --python tools/character-factory/ci/render_pipeline_artifact.py -- \
             --input "$FBX" \
             --output "$OUT/cleric_bind_preview.png" \
             --preserve-materials
 
-          "$BLENDER_BIN" --background --python tools/character-factory/ci/render_character_clip.py -- \
+          "$BLENDER_BIN" --background --python-exit-code 1 --python tools/character-factory/ci/render_character_clip.py -- \
             --input "$FBX" --output "$OUT/cleric_idle.png" --clip Idle --frame 30
-          "$BLENDER_BIN" --background --python tools/character-factory/ci/render_character_clip.py -- \
+          "$BLENDER_BIN" --background --python-exit-code 1 --python tools/character-factory/ci/render_character_clip.py -- \
             --input "$FBX" --output "$OUT/cleric_walk.png" --clip Walk --frame 7
-          "$BLENDER_BIN" --background --python tools/character-factory/ci/render_character_clip.py -- \
+          "$BLENDER_BIN" --background --python-exit-code 1 --python tools/character-factory/ci/render_character_clip.py -- \
             --input "$FBX" --output "$OUT/cleric_run.png" --clip Run --frame 5
-          "$BLENDER_BIN" --background --python tools/character-factory/ci/render_character_clip.py -- \
+          "$BLENDER_BIN" --background --python-exit-code 1 --python tools/character-factory/ci/render_character_clip.py -- \
             --input "$FBX" --output "$OUT/cleric_cast.png" --clip Cast --frame 28
-          "$BLENDER_BIN" --background --python tools/character-factory/ci/render_character_clip.py -- \
+          "$BLENDER_BIN" --background --python-exit-code 1 --python tools/character-factory/ci/render_character_clip.py -- \
             --input "$FBX" --output "$OUT/cleric_staff_attack.png" --clip StaffAttack --frame 22
 
           ls -lh "$OUT"
