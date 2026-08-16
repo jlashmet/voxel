@@ -1,5 +1,3 @@
-using Unity.Mathematics;
-
 namespace VoxelEngine.Structures.Api
 {
     public enum CastleCaveBuildReadinessIssue : byte
@@ -9,6 +7,7 @@ namespace VoxelEngine.Structures.Api
         UnexpectedCavePlan,
         InvalidCavePlan,
         CaveEntranceMismatch,
+        InvalidDungeonPlan,
     }
 
     /// <summary>
@@ -33,6 +32,12 @@ namespace VoxelEngine.Structures.Api
                 return cave == null;
             }
 
+            if (!DungeonPlanValidator.TryValidate(dungeon, out _))
+            {
+                issue = CastleCaveBuildReadinessIssue.InvalidDungeonPlan;
+                return false;
+            }
+
             if (!dungeon.HasCaveExit)
             {
                 issue = cave == null
@@ -47,21 +52,25 @@ namespace VoxelEngine.Structures.Api
                 return false;
             }
 
-            if (!CavePlanValidator.TryValidate(cave, out _))
+            if (!CastleCaveAttachmentValidator.TryValidate(
+                    dungeon, cave, out CastleCaveAttachmentIssue attachmentIssue))
             {
-                issue = CastleCaveBuildReadinessIssue.InvalidCavePlan;
-                return false;
-            }
-
-            DungeonRoomPlan threshold = dungeon.Rooms[dungeon.CaveThresholdRoomId];
-            int3 expectedEntrance = new int3(
-                threshold.Centre.x,
-                threshold.Centre.y - threshold.Size.y / 2,
-                threshold.Centre.z);
-            if (!cave.Entrance.Equals(expectedEntrance))
-            {
-                issue = CastleCaveBuildReadinessIssue.CaveEntranceMismatch;
-                return false;
+                switch (attachmentIssue)
+                {
+                    case CastleCaveAttachmentIssue.InvalidDungeonPlan:
+                    case CastleCaveAttachmentIssue.MissingDungeonPlan:
+                        issue = CastleCaveBuildReadinessIssue.InvalidDungeonPlan;
+                        return false;
+                    case CastleCaveAttachmentIssue.CaveEntranceMismatch:
+                        issue = CastleCaveBuildReadinessIssue.CaveEntranceMismatch;
+                        return false;
+                    case CastleCaveAttachmentIssue.DungeonHasNoCaveThreshold:
+                        issue = CastleCaveBuildReadinessIssue.UnexpectedCavePlan;
+                        return false;
+                    default:
+                        issue = CastleCaveBuildReadinessIssue.InvalidCavePlan;
+                        return false;
+                }
             }
 
             issue = CastleCaveBuildReadinessIssue.None;
