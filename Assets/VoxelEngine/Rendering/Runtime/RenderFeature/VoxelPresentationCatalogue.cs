@@ -72,9 +72,14 @@ namespace VoxelEngine.Rendering.Runtime
     }
 
     /// <summary>
-    /// Authored presentation catalogue. This is currently code-backed so it can consume the
-    /// renderer feature's existing serialized textures without an asset migration. The boundary
-    /// is data-driven: all shader behaviour comes from these rows and texture-array indices.
+    /// Renderer-owned GPU lookup storage. Base-material rows intentionally start neutral: the
+    /// application/game installs its semantic-free <c>MaterialPresentationDefinition</c> rows
+    /// through Composition. Rendering therefore knows how to render material properties but not
+    /// which game materials exist or which opaque index means stone, wood, water, and so on.
+    ///
+    /// Coating and reconstruction-style presentation remain code-backed here as a separate
+    /// migration concern. Texture arrays are still assembled from the render feature's existing
+    /// serialized texture sources.
     /// </summary>
     public static class VoxelPresentationCatalogue
     {
@@ -82,9 +87,9 @@ namespace VoxelEngine.Rendering.Runtime
         public const int MaxCoatings = 16;
         public const int MaxSurfaceStyles = 32;
 
-        // Texture array layers. These names exist only in authoring code, never in HLSL.
-        private const int Stone = 0, Wood = 1, Sand = 2, Rock = 3, Slate = 4,
-                          Grass = 5, Dirt = 6, DarkStone = 7;
+        // Existing texture-array layer used by the renderer-owned moss coating presentation.
+        // Base-material texture-layer selection is game-owned and contains no named constants here.
+        private const int MossCoatingTextureLayer = 5;
 
         public static readonly Vector4[] MaterialAlbedo = new Vector4[MaxMaterials];
         public static readonly Vector4[] MaterialSampling = new Vector4[MaxMaterials];
@@ -99,35 +104,14 @@ namespace VoxelEngine.Rendering.Runtime
 
         static VoxelPresentationCatalogue()
         {
-            // Untextured defaults are valid rows, not shader fallbacks.
+            // Every material row is a valid neutral slot. Game/application composition replaces
+            // the rows it owns before they are rendered; no game semantic identity lives here.
             for (int i = 0; i < MaxMaterials; i++)
                 SetMaterial(i, new VoxelMaterialPresentation(Color.white));
 
-            SetMaterial(0,  new VoxelMaterialPresentation(Color.magenta));
-            SetMaterial(1,  Textured(new Color(0.43f, 0.45f, 0.48f), Stone, true, 0.18f));
-            SetMaterial(2,  Textured(new Color(0.46f, 0.29f, 0.14f), Wood, false, 0.16f));
-            SetMaterial(3,  Textured(new Color(0.82f, 0.72f, 0.46f), Sand, true, 0.16f));
-            SetMaterial(4,  new VoxelMaterialPresentation(new Color(0.78f, 0.48f, 0.18f), roughness: 0.24f));
-            SetMaterial(5,  new VoxelMaterialPresentation(new Color(0.15f, 0.15f, 0.17f), projection: VoxelTextureProjection.Triplanar));
-            SetMaterial(6,  Textured(new Color(0.23f, 0.25f, 0.28f), DarkStone, true, 0.18f, 0.72f, 0.58f, 0.025f, 0.075f));
-            SetMaterial(7,  Textured(new Color(0.24f, 0.26f, 0.32f), Slate, false, 0.16f, roughness: 0.42f));
-            SetMaterial(8,  Textured(new Color(0.46f, 0.24f, 0.18f), Slate, false, 0.16f, roughness: 0.42f));
-            SetMaterial(9,  new VoxelMaterialPresentation(new Color(0.62f, 0.12f, 0.14f)));
-            SetMaterial(10, Textured(new Color(0.31f, 0.44f, 0.20f), Grass, true, 0.16f));
-            SetMaterial(11, new VoxelMaterialPresentation(new Color(0.10f, 0.43f, 0.56f), roughness: 0.18f));
-            SetMaterial(12, new VoxelMaterialPresentation(new Color(0.80f, 0.66f, 0.26f)));
-            SetMaterial(13, Textured(new Color(0.38f, 0.31f, 0.24f), Dirt, true, 0.16f));
-            SetMaterial(14, Textured(new Color(0.32f, 0.40f, 0.24f), Grass, true, 0.16f, roughness: 0.48f));
-            SetMaterial(15, new VoxelMaterialPresentation(new Color(0.16f, 0.19f, 0.18f), roughness: 0.24f));
-            SetMaterial(16, new VoxelMaterialPresentation(new Color(0.22f, 0.62f, 0.78f), roughness: 0.18f));
-            SetMaterial(17, new VoxelMaterialPresentation(new Color(0.08f, 0.56f, 0.82f), roughness: 0.10f));
-            SetMaterial(18, Masonry(new Color(0.65f, 0.56f, 0.41f), 2f));
-            SetMaterial(19, Masonry(new Color(0.68f, 0.58f, 0.42f), 1f));
-            SetMaterial(20, Masonry(new Color(0.63f, 0.54f, 0.40f), 0.5f));
-
             SetCoating(0, new VoxelCoatingPresentation(Color.white));
             SetCoating(1, new VoxelCoatingPresentation(new Color(0.25f, 0.39f, 0.12f),
-                Grass, 1f / 22f, 0.86f, 0.66f, 0.03f, 1f, 0.12f, 0.72f));
+                MossCoatingTextureLayer, 1f / 22f, 0.86f, 0.66f, 0.03f, 1f, 0.12f, 0.72f));
             SetCoating(2, new VoxelCoatingPresentation(new Color(0.88f, 0.91f, 0.94f),
                 blendStrength: 0.88f, verticalFloor: 0f, verticalCeiling: 1f, roughness: 0.72f));
             SetCoating(3, new VoxelCoatingPresentation(new Color(0.08f, 0.07f, 0.06f),
@@ -143,21 +127,6 @@ namespace VoxelEngine.Rendering.Runtime
                 new Color(0.34f, 0.31f, 0.24f), detailColourBlend: 0.48f,
                 detailRoughness: 0.94f, detailVariation: 0.18f, detailWidth: 0.62f));
         }
-
-        private static VoxelMaterialPresentation Textured(Color colour, int layer, bool triplanar,
-            float normalStrength, float detailStrength = 0f, float luminancePivot = 0.68f,
-            float chromaStrength = 0f, float macroVariation = 0f, float roughness = 0.76f) =>
-            new(colour, layer, layer,
-                triplanar ? VoxelTextureProjection.Triplanar : VoxelTextureProjection.Face,
-                textureBlend: detailStrength > 0f ? 1f : 0.28f,
-                normalStrength: normalStrength, roughness: roughness,
-                luminanceOnly: detailStrength > 0f, luminancePivot: luminancePivot,
-                detailStrength: detailStrength, chromaStrength: chromaStrength,
-                macroVariation: macroVariation);
-
-        private static VoxelMaterialPresentation Masonry(Color colour, float textureScale) =>
-            new(colour, Rock, Rock, VoxelTextureProjection.Triplanar, 1f,
-                textureScale / 36f, 0.18f, 0.76f, true, 0.68f, 0.58f, 0.06f, 0.075f);
 
         private static void SetMaterial(int id, in VoxelMaterialPresentation value)
         {
