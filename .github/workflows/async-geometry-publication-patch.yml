@@ -1,0 +1,524 @@
+name: Async geometry publication one-shot patch
+
+on:
+  push:
+    branches:
+      - refactor/async-geometry-pipeline
+    paths:
+      - .github/workflows/async-geometry-publication-patch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/async-geometry-pipeline
+          fetch-depth: 0
+
+      - name: Apply staged publication edits
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          cache_path = Path('Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs')
+          s = cache_path.read_text()
+
+          def once(text, old, new, label):
+              n = text.count(old)
+              if n != 1:
+                  raise SystemExit(f'{label}: expected one match, found {n}')
+              return text.replace(old, new, 1)
+
+          # Entry upload is double-buffered and sliced. Live buffers are never modified until
+          # the replacement payload and indirect args have all reached staging buffers.
+          upload_start = s.index('            internal void Upload(List<SmoothSurfaceVertex> vertices, List<uint> indices)')
+          upload_end = s.index('            public Bounds WorldBounds(float voxelSize)', upload_start)
+          staged_upload = '''            private ComputeBuffer _stagingVertices;
+                      private ComputeBuffer _stagingIndices;
+                      private ComputeBuffer _stagingArgs;
+                      private int _stagingVertexCapacity;
+                      private int _stagingIndexCapacity;
+                      private int _stagingVertexCursor;
+                      private int _stagingIndexCursor;
+                      private readonly uint[] _indirectArgs = new uint[4];
+
+                      internal int RemainingUploadBytes(int vertexCount, int indexCount)
+                      {
+                          int verticesRemaining = math.max(0, vertexCount - _stagingVertexCursor);
+                          int indicesRemaining = math.max(0, indexCount - _stagingIndexCursor);
+                          return verticesRemaining * SmoothSurfaceVertex.Stride
+                               + indicesRemaining * sizeof(uint)
+                               + 4 * sizeof(uint);
+                      }
+
+                      /// <summary>
+                      /// Copies at most <paramref name="byteBudget"/> payload bytes into private
+                      /// staging buffers. The currently published buffers remain untouched until
+                      /// every vertex, index and indirect argument is ready, then the buffers swap
+                      /// atomically from the renderer's point of view.
+                      /// </summary>
+                      internal bool AdvanceUpload(List<SmoothSurfaceVertex> vertices,
+                                                  List<uint> indices,
+                                                  int byteBudget,
+                                                  out int uploadedBytes)
+                      {
+                          uploadedBytes = 0;
+                          if (byteBudget <= 0) return false;
+                          EnsureUploadStaging(vertices.Count, indices.Count);
+
+                          int remainingBudget = byteBudget;
+                          int vertexRemaining = vertices.Count - _stagingVertexCursor;
+                          if (vertexRemaining > 0 && remainingBudget >= SmoothSurfaceVertex.Stride)
+                          {
+                              int count = math.min(vertexRemaining,
+                                  remainingBudget / SmoothSurfaceVertex.Stride);
+                              _stagingVertices.SetData(vertices, _stagingVertexCursor,
+                                                       _stagingVertexCursor, count);
+                              int bytes = count * SmoothSurfaceVertex.Stride;
+                              _stagingVertexCursor += count;
+                              remainingBudget -= bytes;
+                              uploadedBytes += bytes;
+                          }
+
+                          int indexRemaining = indices.Count - _stagingIndexCursor;
+                          if (_stagingVertexCursor == vertices.Count && indexRemaining > 0
+                              && remainingBudget >= sizeof(uint))
+                          {
+                              int count = math.min(indexRemaining, remainingBudget / sizeof(uint));
+                              _stagingIndices.SetData(indices, _stagingIndexCursor,
+                                                      _stagingIndexCursor, count);
+                              int bytes = count * sizeof(uint);
+                              _stagingIndexCursor += count;
+                              remainingBudget -= bytes;
+                              uploadedBytes += bytes;
+                          }
+
+                          const int argsBytes = 4 * sizeof(uint);
+                          if (_stagingVertexCursor != vertices.Count
+                              || _stagingIndexCursor != indices.Count
+                              || remainingBudget < argsBytes)
+                              return false;
+
+                          _indirectArgs[0] = (uint)indices.Count;
+                          _indirectArgs[1] = 1u;
+                          _indirectArgs[2] = 0u;
+                          _indirectArgs[3] = 0u;
+                          _stagingArgs.SetData(_indirectArgs);
+                          uploadedBytes += argsBytes;
+
+                          ComputeBuffer previousVertices = Vertices;
+                          ComputeBuffer previousIndices = Indices;
+                          ComputeBuffer previousArgs = Args;
+                          Vertices = _stagingVertices;
+                          Indices = _stagingIndices;
+                          Args = _stagingArgs;
+                          _stagingVertices = null;
+                          _stagingIndices = null;
+                          _stagingArgs = null;
+                          VertexCapacity = _stagingVertexCapacity;
+                          IndexCapacity = _stagingIndexCapacity;
+                          _stagingVertexCapacity = 0;
+                          _stagingIndexCapacity = 0;
+                          _stagingVertexCursor = 0;
+                          _stagingIndexCursor = 0;
+                          IndexCount = indices.Count;
+                          GpuBytes = (long)VertexCapacity * SmoothSurfaceVertex.Stride
+                                   + (long)IndexCapacity * sizeof(uint) + argsBytes;
+                          Ready = true;
+
+                          previousVertices?.Release();
+                          previousIndices?.Release();
+                          previousArgs?.Release();
+                          return true;
+                      }
+
+                      private void EnsureUploadStaging(int vertexCount, int indexCount)
+                      {
+                          if (_stagingVertices != null) return;
+
+                          int requiredVertices = math.max(1, vertexCount);
+                          int requiredIndices = math.max(1, indexCount);
+                          int vertexCapacity = math.ceilpow2(requiredVertices);
+                          int indexCapacity = math.ceilpow2(requiredIndices);
+                          ComputeBuffer nextVertices = null;
+                          ComputeBuffer nextIndices = null;
+                          ComputeBuffer nextArgs = null;
+                          try
+                          {
+                              nextVertices = new ComputeBuffer(vertexCapacity,
+                                  SmoothSurfaceVertex.Stride, ComputeBufferType.Structured);
+                              nextIndices = new ComputeBuffer(indexCapacity, sizeof(uint),
+                                  ComputeBufferType.Structured);
+                              nextArgs = new ComputeBuffer(4, sizeof(uint),
+                                  ComputeBufferType.IndirectArguments);
+                          }
+                          catch
+                          {
+                              nextVertices?.Release();
+                              nextIndices?.Release();
+                              nextArgs?.Release();
+                              throw;
+                          }
+
+                          _stagingVertices = nextVertices;
+                          _stagingIndices = nextIndices;
+                          _stagingArgs = nextArgs;
+                          _stagingVertexCapacity = vertexCapacity;
+                          _stagingIndexCapacity = indexCapacity;
+                          _stagingVertexCursor = 0;
+                          _stagingIndexCursor = 0;
+                      }
+
+                      internal void CancelUpload()
+                      {
+                          _stagingVertices?.Release();
+                          _stagingIndices?.Release();
+                          _stagingArgs?.Release();
+                          _stagingVertices = null;
+                          _stagingIndices = null;
+                          _stagingArgs = null;
+                          _stagingVertexCapacity = 0;
+                          _stagingIndexCapacity = 0;
+                          _stagingVertexCursor = 0;
+                          _stagingIndexCursor = 0;
+                      }
+
+          '''
+          s = s[:upload_start] + staged_upload + s[upload_end:]
+
+          s = once(s,
+          '''            public void Dispose()
+                      {
+                          Vertices?.Release();''',
+          '''            public void Dispose()
+                      {
+                          CancelUpload();
+                          Vertices?.Release();''',
+          'entry dispose staging cleanup')
+
+          s = once(s,
+          '''        private readonly List<uint> _indices = new(24_576);
+                  private BuildState _build;''',
+          '''        private readonly List<uint> _indices = new(24_576);
+                  private BuildState _build;
+                  private bool _pendingUpload;''',
+          'pending upload field')
+
+          s = once(s,
+          '''        public int PendingUploadCount => _build.Active && _build.Phase >= 2 ? 1 : 0;
+                  public double LastSnapshotMs''',
+          '''        public int PendingUploadCount => _pendingUpload ? 1 : 0;
+                  public int PendingUploadBytes
+                  {
+                      get
+                      {
+                          if (!_pendingUpload
+                              || !_entries.TryGetValue(_build.Coordinate, out Entry entry))
+                              return 0;
+                          return entry.RemainingUploadBytes(_vertices.Count, _indices.Count);
+                      }
+                  }
+                  public double LastSnapshotMs''',
+          'pending upload metrics')
+
+          # A pending build has finished all CPU extraction work. It must not start another build
+          # until the scheduler publishes or rejects it, but still runs rule sync and residency
+          # pruning before returning so invalidation and unload remain authoritative.
+          s = once(s,
+          '''            DropNoLongerResident(source);
+                      _residencyPruneTiming.Add(ElapsedMs(sectionStart));
+                      sectionStart = Time.realtimeSinceStartupAsDouble;
+                      EnforceCapacity(camera, voxelSize);''',
+          '''            DropNoLongerResident(source);
+                      _residencyPruneTiming.Add(ElapsedMs(sectionStart));
+                      if (_pendingUpload) return;
+                      sectionStart = Time.realtimeSinceStartupAsDouble;
+                      EnforceCapacity(camera, voxelSize);''',
+          'pending upload prepare backpressure')
+
+          s = once(s,
+          '''                if (_build.Phase == 4)
+                          {
+                              if (!StepTransitionFaces(source, in palette, camera, voxelSize,
+                                                       deadline))
+                                  break;
+                              FinishBuild(frame);
+                          }''',
+          '''                if (_build.Phase == 4)
+                          {
+                              if (!StepTransitionFaces(source, in palette, camera, voxelSize,
+                                                       deadline))
+                                  break;
+                              FinishBuild(frame);
+                              if (_pendingUpload) break;
+                          }''',
+          'queue upload break')
+
+          finish_start = s.index('        private void FinishBuild(int frame)')
+          finish_end = s.index('        private void DropNoLongerResident(IRegionReadSource source)', finish_start)
+          finish_impl = '''        private void FinishBuild(int frame)
+                  {
+                      if (_desiredVersions.TryGetValue(_build.Coordinate, out ulong desired)
+                          && desired > _build.SourceVersion)
+                      {
+                          RejectPendingOrCompletedBuild(stale: true);
+                          return;
+                      }
+
+                      // An empty result is complete immediately because there is no GPU payload to
+                      // publish. Removing an old ready entry is the atomic publication of "air".
+                      if (_indices.Count == 0)
+                      {
+                          if (_entries.TryGetValue(_build.Coordinate, out Entry stale))
+                          {
+                              stale.Dispose();
+                              _entries.Remove(_build.Coordinate);
+                          }
+                          _emptyVersions[_build.Coordinate] = _build.SourceVersion;
+                          CompletedBuildCount++;
+                          _buildLatencyTiming.Add(ElapsedMs(_build.BuildStartSeconds));
+                          _desiredVersions.Remove(_build.Coordinate);
+                          _queuedAtSeconds.Remove(_build.Coordinate);
+                          ResetCompletedBuild();
+                          return;
+                      }
+
+                      _emptyVersions.Remove(_build.Coordinate);
+                      if (!_entries.TryGetValue(_build.Coordinate, out Entry entry))
+                      {
+                          entry = new Entry(_build.Coordinate, VoxelsPerAxis, SourceStep);
+                          _entries.Add(_build.Coordinate, entry);
+                      }
+
+                      // CPU geometry is complete, but GPU publication is a scheduler-owned phase.
+                      // Keep the build payload and any previous ready Entry alive until the global
+                      // upload budget admits this replacement.
+                      _pendingUpload = true;
+                  }
+
+                  /// <summary>
+                  /// Advances one pending GPU publication by at most <paramref name="byteBudget"/>
+                  /// payload bytes. Returns true only when the replacement became visible.
+                  /// </summary>
+                  public bool TryPublishPending(int frame, int byteBudget, out int uploadedBytes)
+                  {
+                      uploadedBytes = 0;
+                      if (!_pendingUpload || byteBudget <= 0) return false;
+
+                      if (_desiredVersions.TryGetValue(_build.Coordinate, out ulong desired)
+                          && desired > _build.SourceVersion)
+                      {
+                          RejectPendingOrCompletedBuild(stale: true);
+                          return false;
+                      }
+
+                      if (!_entries.TryGetValue(_build.Coordinate, out Entry entry))
+                      {
+                          RejectPendingOrCompletedBuild(stale: false);
+                          return false;
+                      }
+
+                      double uploadStart = Time.realtimeSinceStartupAsDouble;
+                      bool published;
+                      using (s_UploadMarker.Auto())
+                          published = entry.AdvanceUpload(_vertices, _indices, byteBudget,
+                                                          out uploadedBytes);
+                      LastUploadMs = (Time.realtimeSinceStartupAsDouble - uploadStart) * 1000.0;
+                      _uploadTiming.Add(LastUploadMs);
+                      UploadedGeometryBytes += (ulong)math.max(0, uploadedBytes);
+                      if (!published) return false;
+
+                      entry.LastUsedFrame = frame;
+                      entry.SourceVersion = _build.SourceVersion;
+                      entry.MaterialPaletteVersion = _build.MaterialPaletteVersion;
+                      entry.SurfaceCatalogueVersion = _build.SurfaceCatalogueVersion;
+                      entry.SurfaceCatalogueHash = _build.SurfaceCatalogueHash;
+                      entry.CoatingCatalogueVersion = _build.CoatingCatalogueVersion;
+                      entry.CoatingCatalogueHash = _build.CoatingCatalogueHash;
+                      CompletedBuildCount++;
+                      _buildLatencyTiming.Add(ElapsedMs(_build.BuildStartSeconds));
+                      _desiredVersions.Remove(_build.Coordinate);
+                      _queuedAtSeconds.Remove(_build.Coordinate);
+                      ResetCompletedBuild();
+                      return true;
+                  }
+
+                  private void RejectPendingOrCompletedBuild(bool stale)
+                  {
+                      if (_entries.TryGetValue(_build.Coordinate, out Entry entry))
+                      {
+                          entry.CancelUpload();
+                          if (!entry.Ready)
+                          {
+                              entry.Dispose();
+                              _entries.Remove(_build.Coordinate);
+                          }
+                      }
+                      if (stale) StaleBuildCount++;
+                      ResetCompletedBuild();
+                  }
+
+                  private void ResetCompletedBuild()
+                  {
+                      _pendingUpload = false;
+                      _build = default;
+                      _vertices.Clear();
+                      _indices.Clear();
+                      _transitionFace = -1;
+                      _transitionSampleCursor = 0;
+                  }
+
+          '''
+          s = s[:finish_start] + finish_impl + s[finish_end:]
+
+          # Residency removal must also cancel a partially uploaded staging replacement.
+          s = once(s,
+          '''            if (_build.Active && _build.Coordinate.Equals(chunk))
+                      {
+                          // Every handle was observed complete above, so these Complete calls only
+                          // release job safety dependencies; none can stall the frame.
+                          CompleteJobs();
+                          _build = default;
+                          _vertices.Clear();
+                          _indices.Clear();
+                          _transitionFace = -1;
+                          _transitionSampleCursor = 0;
+                      }''',
+          '''            if (_build.Active && _build.Coordinate.Equals(chunk))
+                      {
+                          // Every handle was observed complete above, so these Complete calls only
+                          // release job safety dependencies; none can stall the frame.
+                          CompleteJobs();
+                          _pendingUpload = false;
+                          _build = default;
+                          _vertices.Clear();
+                          _indices.Clear();
+                          _transitionFace = -1;
+                          _transitionSampleCursor = 0;
+                      }''',
+          'residency pending reset')
+
+          cache_path.write_text(s)
+
+          scheduler_path = Path('Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs')
+          q = scheduler_path.read_text()
+
+          q = once(q,
+          '''        private int _workerAdmissionCursor;
+                  private readonly VoxelTimingWindow _prepareTiming''',
+          '''        private int _workerAdmissionCursor;
+                  private int _uploadAdmissionCursor;
+                  private int _lastFrameSolidUploadedBytes;
+                  private int _lastFrameSolidUploadCompletions;
+                  private readonly VoxelTimingWindow _prepareTiming''',
+          'scheduler upload state')
+
+          q = once(q,
+          '''        public double SurfaceDiscoveryBudgetMs { get; set; } = 0.10;
+                  public double WaterBuildBudgetMs { get; set; } = 0.15;''',
+          '''        public double SurfaceDiscoveryBudgetMs { get; set; } = 0.10;
+                  /// <summary>Maximum solid geometry payload copied to GPU buffers per frame.</summary>
+                  public int SolidUploadBudgetBytes { get; set; } = 1024 * 1024;
+                  /// <summary>Maximum payload slice given to one worker in a frame.</summary>
+                  public int SolidUploadSliceBytes { get; set; } = 256 * 1024;
+                  /// <summary>Caps workers touched by GPU publication, including staging starts.</summary>
+                  public int SolidUploadWorkerBudget { get; set; } = 4;
+                  /// <summary>Wall-clock admission deadline around upload slices.</summary>
+                  public double SolidUploadBudgetMs { get; set; } = 0.20;
+                  public int LastFrameSolidUploadedBytes => _lastFrameSolidUploadedBytes;
+                  public int LastFrameSolidUploadCompletions => _lastFrameSolidUploadCompletions;
+                  public int PendingSolidUploadBytes
+                  {
+                      get
+                      {
+                          int total = 0;
+                          for (int i = 0; i < _allWorkers.Length; i++)
+                              total += _allWorkers[i].PendingUploadBytes;
+                          return total;
+                      }
+                  }
+                  public double WaterBuildBudgetMs { get; set; } = 0.15;''',
+          'scheduler upload budgets')
+
+          visibility_anchor = '''            double workerPrepareMs = ElapsedMs(workersStart);
+                      double visibilityStart = Time.realtimeSinceStartupAsDouble;'''
+          publication_block = '''            double workerPrepareMs = ElapsedMs(workersStart);
+
+                      // GPU publication has its own global frame contract. Each worker receives at
+                      // most one bounded slice, so a large completed chunk naturally spans frames
+                      // while its previous ready geometry remains visible.
+                      _lastFrameSolidUploadedBytes = 0;
+                      _lastFrameSolidUploadCompletions = 0;
+                      int uploadBudget = Math.Max(0, SolidUploadBudgetBytes);
+                      int uploadSlice = Math.Max(0, SolidUploadSliceBytes);
+                      int uploadWorkerBudget = Math.Max(0, SolidUploadWorkerBudget);
+                      double uploadDeadline = Time.realtimeSinceStartupAsDouble
+                                            + Math.Max(0.0, SolidUploadBudgetMs) * 0.001;
+                      int uploadWorkersVisited = 0;
+                      int uploadScanAdvance = 0;
+                      if (uploadBudget > 0 && uploadSlice > 0 && uploadWorkerBudget > 0)
+                      {
+                          for (int offset = 0; offset < workerCount; offset++)
+                          {
+                              if (_lastFrameSolidUploadedBytes >= uploadBudget
+                                  || uploadWorkersVisited >= uploadWorkerBudget
+                                  || Time.realtimeSinceStartupAsDouble >= uploadDeadline)
+                                  break;
+
+                              int index = (_uploadAdmissionCursor + offset) % workerCount;
+                              uploadScanAdvance = offset + 1;
+                              CpuTransvoxelChunkCache worker = _allWorkers[index];
+                              if (worker.PendingUploadCount == 0) continue;
+
+                              int remaining = uploadBudget - _lastFrameSolidUploadedBytes;
+                              int slice = Math.Min(remaining, uploadSlice);
+                              if (slice <= 0) break;
+                              bool completed = worker.TryPublishPending(frame, slice,
+                                                                        out int uploadedBytes);
+                              _lastFrameSolidUploadedBytes += uploadedBytes;
+                              uploadWorkersVisited++;
+                              if (completed) _lastFrameSolidUploadCompletions++;
+                          }
+                      }
+                      if (workerCount > 0)
+                          _uploadAdmissionCursor = (_uploadAdmissionCursor
+                                                  + Math.Max(1, uploadScanAdvance)) % workerCount;
+
+                      double visibilityStart = Time.realtimeSinceStartupAsDouble;'''
+          q = once(q, visibility_anchor, publication_block, 'scheduler publication loop')
+
+          scheduler_path.write_text(q)
+          PY
+
+      - name: Static publication guards
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          cache = Path('Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs').read_text()
+          scheduler = Path('Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs').read_text()
+          assert 'entry.Upload(_vertices, _indices)' not in cache
+          assert 'new uint[] { (uint)indices.Count' not in cache
+          assert 'public bool TryPublishPending' in cache
+          assert 'SolidUploadBudgetBytes' in scheduler
+          assert 'TryPublishPending(frame, slice' in scheduler
+          PY
+
+      - name: Commit staged publication
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo 'No source changes were produced' >&2
+            exit 1
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs \
+                  Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs
+          git commit -m 'Stage voxel geometry uploads across frames'
+          git push origin HEAD:refactor/async-geometry-pipeline
