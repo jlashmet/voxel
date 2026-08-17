@@ -60,20 +60,31 @@ namespace Game.Structures.Tests
                 Assert.AreEqual(4, config.CornerTowers.Count);
                 Assert.AreEqual(plan.TowerRadius, config.CornerTowers.Radius);
                 Assert.AreEqual(plan.TowerHeight, config.CornerTowers.Height);
-                Assert.AreEqual(StructureTowerPlacement.Explicit, config.GateTowers.Placement);
-                Assert.AreEqual(2, config.GateTowers.Count);
-                Assert.AreEqual(plan.GateTowerRadius, config.GateTowers.Radius);
-                Assert.AreEqual(plan.GateTowerHeight, config.GateTowers.Height);
+                Assert.AreEqual(StructureTowerPlacement.Explicit, config.Gatehouse.FlankingTowers.Placement);
+                Assert.AreEqual(2, config.Gatehouse.FlankingTowers.Count);
+                Assert.AreEqual(plan.GateTowerRadius, config.Gatehouse.FlankingTowers.Radius);
+                Assert.AreEqual(plan.GateTowerHeight, config.Gatehouse.FlankingTowers.Height);
+                Assert.AreEqual(108, config.Gatehouse.Width);
+                Assert.AreEqual(plan.WallThickness * 2, config.Gatehouse.Depth);
+                Assert.AreEqual(plan.WallHeight + 22, config.Gatehouse.Height);
+                Assert.AreEqual(54, config.Gatehouse.TowerCentreOffset);
+                Assert.AreEqual(38, config.Gatehouse.LeftTowerHeightOffset);
+                Assert.AreEqual(12, config.Gatehouse.RightTowerHeightOffset);
 
-                Assert.AreEqual(StructureOpeningKind.Arch, config.MainGate.Kind);
-                Assert.AreEqual(CastleLayout.FrontGateWidth, config.MainGate.Width);
-                Assert.AreEqual(CastleLayout.FrontGateHeight, config.MainGate.Height);
+                Assert.AreEqual(StructureOpeningKind.Arch, config.Gatehouse.GateOpening.Kind);
+                Assert.AreEqual(CastleLayout.FrontGateWidth, config.Gatehouse.GateOpening.Width);
+                Assert.AreEqual(CastleLayout.FrontGateHeight, config.Gatehouse.GateOpening.Height);
+                Assert.AreEqual(CastleLayout.FrontGateWidth + 4,
+                    config.Gatehouse.PortcullisOpening.Width);
+                Assert.AreEqual(CastleLayout.FrontGateHeight + 14,
+                    config.Gatehouse.PortcullisOpening.Height);
+                Assert.AreEqual(StructureAttachmentKind.Road, config.Gatehouse.RoadAnchor.Kind);
                 Assert.AreEqual(26, config.CurtainBattlements.MerlonWidth);
                 Assert.AreEqual(18, config.CurtainBattlements.GapWidth);
                 Assert.AreEqual(20, config.CurtainBattlements.MerlonHeight);
-                Assert.AreEqual(18, config.GatehouseBattlements.MerlonWidth);
-                Assert.AreEqual(12, config.GatehouseBattlements.MerlonHeight);
-                Assert.AreEqual(18, config.GatehouseBattlements.GapWidth);
+                Assert.AreEqual(18, config.Gatehouse.Battlements.MerlonWidth);
+                Assert.AreEqual(18, config.Gatehouse.Battlements.MerlonHeight);
+                Assert.AreEqual(12, config.Gatehouse.Battlements.GapWidth);
 
                 Assert.AreEqual(GameMaterialIds.DarkStone,
                     config.Palette.Resolve(StructureMaterialRole.Foundation));
@@ -147,8 +158,15 @@ namespace Game.Structures.Tests
                 Assert.AreEqual(a.CurtainWallX.Height, b.CurtainWallX.Height);
                 Assert.AreEqual(a.CornerTowers.Radius, b.CornerTowers.Radius);
                 Assert.AreEqual(a.CornerTowers.Height, b.CornerTowers.Height);
-                Assert.AreEqual(a.GateTowers.Radius, b.GateTowers.Radius);
-                Assert.AreEqual(a.MainGate.Width, b.MainGate.Width);
+                Assert.AreEqual(a.Gatehouse.Width, b.Gatehouse.Width);
+                Assert.AreEqual(a.Gatehouse.Depth, b.Gatehouse.Depth);
+                Assert.AreEqual(a.Gatehouse.FlankingTowers.Radius,
+                    b.Gatehouse.FlankingTowers.Radius);
+                Assert.AreEqual(a.Gatehouse.GateOpening.Width, b.Gatehouse.GateOpening.Width);
+                Assert.AreEqual(a.Gatehouse.PortcullisOpening.Width,
+                    b.Gatehouse.PortcullisOpening.Width);
+                Assert.AreEqual(a.Gatehouse.RoadAnchor.LocalPosition,
+                    b.Gatehouse.RoadAnchor.LocalPosition);
                 Assert.AreEqual(a.CurtainBattlements.MerlonWidth,
                     b.CurtainBattlements.MerlonWidth);
                 Assert.AreEqual(a.Palette.PrimaryWall, b.Palette.PrimaryWall);
