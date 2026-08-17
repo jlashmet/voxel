@@ -48,7 +48,11 @@ namespace VoxelEngine.Structures.Api
             (Placement != HouseFacadePlacementMode.ExplicitOffsets || ExplicitOffsets.Length == Count);
     }
 
-    /// <summary>Window layout for one facade with deterministic width/height variation in Opening.</summary>
+    /// <summary>
+    /// Window layout for one facade. The shared opening bottom offset is the sill height and its
+    /// height determines the head; spacing, frames, and deterministic size variation remain in
+    /// <see cref="OpeningConfig"/> instead of being duplicated by the house layer.
+    /// </summary>
     public struct HouseWindowLayoutConfig
     {
         public HouseFacade Facade;
@@ -59,6 +63,9 @@ namespace VoxelEngine.Structures.Api
         public bool ShuttersEnabled;
         public int ShutterThickness;
         public StructureMaterialRole ShutterMaterialRole;
+
+        public int SillHeight => Opening.BottomOffset;
+        public int HeadHeight => Opening.BottomOffset + Opening.Height;
 
         public bool IsWellFormed =>
             Count >= 0 &&
@@ -75,7 +82,7 @@ namespace VoxelEngine.Structures.Api
         public VerticalAccentConfig Geometry;
         public int FireplaceInteriorVolumeIndex;
 
-        public bool HasFireplaceHook => FireplaceInteriorVolumeIndex >= 0;
+        public bool HasFireplaceHook => Enabled && FireplaceInteriorVolumeIndex >= 0;
         public bool IsWellFormed => !Enabled ||
             (Geometry.Style == StructureVerticalAccentStyle.Chimney && Geometry.IsWellFormed &&
              FireplaceInteriorVolumeIndex >= -1);
