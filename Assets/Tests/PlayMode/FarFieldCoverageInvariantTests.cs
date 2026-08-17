@@ -37,6 +37,12 @@ namespace VoxelEngine.Tests.PlayMode
             bool sawStartupFallback = false;
             for (int frame = 0; frame < 120; frame++)
             {
+                // UnityTest coroutines resume in the update phase. Sample after yielding so the
+                // preceding rendered frame has executed VoxelFarTerrain.LateUpdate; inspecting
+                // immediately after scene activation is pre-render state and cannot establish a
+                // player-visible coverage hole.
+                yield return null;
+
                 VoxelShowcase showcase = Object.FindFirstObjectByType<VoxelShowcase>();
                 VoxelFarTerrain far = Object.FindFirstObjectByType<VoxelFarTerrain>();
                 if (showcase != null && far != null && TryWorld(showcase, out ShowcaseWorld world))
@@ -50,11 +56,10 @@ namespace VoxelEngine.Tests.PlayMode
                     }
 
                     AssertContinuousCoverage(world, far, showcase.transform.position,
-                        $"cold-start frame {frame}");
+                        $"cold-start rendered frame {frame}");
                     observedFrames++;
                     sawStartupFallback |= startupFallbackActive;
                 }
-                yield return null;
             }
 
             Assert.Greater(observedFrames, 0,
@@ -168,12 +173,22 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.NotNull(showcase);
             Assert.NotNull(far);
 
+            // The clipmap samples one ring at a time. Do not turn startup throughput into a
+            // movement-order assertion by assuming every ring can publish in eight frames.
+            yield return WaitForFarFieldIdle(far, 240);
+
             List<Mesh> meshes = RingMeshes(far);
             Assert.GreaterOrEqual(meshes.Count, 2);
             Vector2[] before = RingCentres(meshes);
             for (int ring = 0; ring < before.Length; ring++)
                 Assert.False(float.IsNaN(before[ring].x),
                     $"Far ring {ring} was not published before the movement regression began.");
+
+            // Walking mode writes transform.position back from the CharacterMotor every Update.
+            // Enable the showcase's production fly path so this artificial camera displacement is
+            // persistent and the far renderer actually observes the requested movement.
+            SetShowcaseField(showcase, "m_FlyMode", true);
+            SetShowcaseField(showcase, "_mouseLook", false);
 
             // Large enough to cross every correctness-critical snap cell and at least one outer
             // snap cell. We care about publication order, not how many jobs complete per frame.
@@ -216,6 +231,29 @@ namespace VoxelEngine.Tests.PlayMode
                 ScenePath, new LoadSceneParameters(LoadSceneMode.Single));
             yield return null;
             for (int i = 0; i < 8; i++) yield return null;
+        }
+
+        private static IEnumerator WaitForFarFieldIdle(VoxelFarTerrain far, int maxFrames)
+        {
+            for (int frame = 0; frame < maxFrames; frame++)
+            {
+                bool scheduled = GetField<bool>(far, "_heightJobScheduled");
+                bool allValid = AllRingHeightCachesValid(far);
+                List<Mesh> meshes = RingMeshes(far);
+                bool allPublished = meshes.Count > 0;
+                for (int ring = 0; ring < meshes.Count && allPublished; ring++)
+                {
+                    Mesh mesh = meshes[ring];
+                    allPublished = mesh != null && mesh.vertexCount > 0
+                                && mesh.triangles.Length > 0;
+                }
+
+                if (!scheduled && allValid && allPublished)
+                    yield break;
+                yield return null;
+            }
+
+            Assert.Fail($"Far clipmap did not publish and become idle within {maxFrames} frames.");
         }
 
         private static bool TryWorld(VoxelShowcase showcase, out ShowcaseWorld world)
@@ -472,6 +510,14 @@ namespace VoxelEngine.Tests.PlayMode
                 fieldName, BindingFlags.NonPublic | BindingFlags.Instance);
             Assert.NotNull(field);
             field.SetValue(far, value);
+        }
+
+        private static void SetShowcaseField<T>(VoxelShowcase showcase, string fieldName, T value)
+        {
+            FieldInfo field = typeof(VoxelShowcase).GetField(
+                fieldName, BindingFlags.NonPublic | BindingFlags.Instance);
+            Assert.NotNull(field);
+            field.SetValue(showcase, value);
         }
 
         private readonly struct CoverageInterval
