@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import hashlib
 import json
 from pathlib import Path
+import re
 from typing import Iterable, Mapping
 
 from api import AssetType, BuildSpec, CharacterFactoryError
@@ -11,12 +12,14 @@ from runtime.production import discover_specs
 
 
 CHANGE_KINDS = frozenset({"new", "spec", "geometry", "appearance", "details"})
+_TAG = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 
 
 @dataclass(frozen=True)
 class CatalogueEntry:
     spec_path: Path
     spec: BuildSpec
+    tags: tuple[str, ...] = ()
 
     @property
     def key(self) -> str:
@@ -69,6 +72,24 @@ def _entry_input_state(entry: CatalogueEntry) -> dict[str, object]:
         "specSha256": _file_digest(entry.spec_path),
         "referenceHashes": _reference_hashes(entry.spec),
     }
+
+
+def _load_tags(path: Path) -> tuple[str, ...]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    raw = payload.get("tags", [])
+    if raw is None:
+        return ()
+    if not isinstance(raw, list):
+        raise CharacterFactoryError(f"tags must be an array in {path}")
+    normalized: set[str] = set()
+    for value in raw:
+        tag = str(value).strip().lower()
+        if not tag or not _TAG.fullmatch(tag):
+            raise CharacterFactoryError(
+                f"invalid catalogue tag {value!r} in {path}; use letters, numbers, '.', '_' or '-'"
+            )
+        normalized.add(tag)
+    return tuple(sorted(normalized))
 
 
 def _resolve_manifest_artifact(manifest: Path, value: object) -> Path | None:
@@ -153,6 +174,7 @@ def load_catalogue_entries(
         CatalogueEntry(
             spec_path=path,
             spec=BuildSpec.load(path, validate_paths=validate_paths),
+            tags=_load_tags(path),
         )
         for path in paths
     ]
@@ -176,17 +198,25 @@ def select_entries(
     *,
     asset_types: set[AssetType] | None = None,
     asset_ids: set[str] | None = None,
+    tags: set[str] | None = None,
 ) -> list[CatalogueEntry]:
     normalized_ids = (
         None
         if asset_ids is None
         else {str(value).strip() for value in asset_ids if str(value).strip()}
     )
+    normalized_tags = (
+        None
+        if tags is None
+        else {str(value).strip().lower() for value in tags if str(value).strip()}
+    )
     result = []
     for entry in entries:
         if asset_types is not None and entry.spec.asset_type not in asset_types:
             continue
         if normalized_ids is not None and entry.spec.asset_id not in normalized_ids:
+            continue
+        if normalized_tags is not None and not normalized_tags.issubset(set(entry.tags)):
             continue
         result.append(entry)
     return result
@@ -315,6 +345,7 @@ def catalogue_payload(
                 "key": entry.key,
                 "id": spec.asset_id,
                 "assetType": spec.asset_type.value,
+                "tags": list(entry.tags),
                 "spec": str(entry.spec_path),
                 "specSha256": input_state["specSha256"],
                 "appearanceStrategy": spec.appearance_strategy.value,
