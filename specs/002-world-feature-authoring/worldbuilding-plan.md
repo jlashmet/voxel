@@ -86,7 +86,6 @@ The existing portal/lattice design from the parent world-feature plan remains th
 ---
 
 # Task Checklist
-
 ## Phase 0 — Repository inventory and compatibility baseline
 
 - [x] **WB001** Locate the current house/cottage builder/definition, its public config surface, tests, and showcase usage.
@@ -112,12 +111,12 @@ Phase 0 evidence and compatibility targets are recorded in [worldbuilding-invent
 - [x] **WB016** Define reusable floor/level configuration: floor count, per-level height, slab thickness, and optional level variation.
 - [x] **WB017** Define reusable opening configuration for doors/windows/arches, including size, spacing, margins, frame/lintel options, and deterministic variation.
 - [x] **WB018** Define reusable roof configuration for flat, shed/lean-to, gable, and hip roofs using existing integer primitives where possible.
-- [ ] **WB019** Define reusable stairs/ramps/landing configuration.
-- [ ] **WB020** Define reusable tower/turret configuration including shape, dimensions, count/placement semantics, roof/top style, and openings.
-- [ ] **WB021** Define reusable column/colonnade configuration.
-- [ ] **WB022** Define reusable buttress configuration with an extension point for flying-buttress approximation.
-- [ ] **WB023** Define reusable battlement/crenellation/parapet configuration.
-- [ ] **WB024** Define reusable chimney/spire/vertical-accent configuration where shapes overlap; keep archetype-only semantics outside the shared type.
+- [x] **WB019** Define reusable stairs/ramps/landing configuration.
+- [x] **WB020** Define reusable tower/turret configuration including shape, dimensions, count/placement semantics, roof/top style, and openings.
+- [x] **WB021** Define reusable column/colonnade configuration.
+- [x] **WB022** Define reusable buttress configuration with an extension point for flying-buttress approximation.
+- [x] **WB023** Define reusable battlement/crenellation/parapet configuration.
+- [x] **WB024** Define reusable chimney/spire/vertical-accent configuration where shapes overlap; keep archetype-only semantics outside the shared type.
 - [ ] **WB025** Define interior volume/room carving and connective-opening configuration sufficient for navigable generated interiors.
 - [ ] **WB026** Define reusable courtyard/open-space composition.
 - [ ] **WB027** Define named attachment-anchor semantics (`MainEntrance`, `RearEntrance`, `Road`, `Basement`, `Crypt`, `Cave`, `Extension`, etc.) without coupling consumers to structure internals.
