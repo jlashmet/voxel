@@ -18,6 +18,8 @@ namespace Game.Structures.Runtime
         private readonly List<WorldObjectConnection> _routed = new List<WorldObjectConnection>(16);
         private readonly Queue<PendingSignal> _signals = new Queue<PendingSignal>(16);
 
+        public event Action<WorldObjectId> StateChanged;
+
         public WorldObjectSceneRuntime(WorldObjectDescriptor[] objects, WorldObjectConnection[] connections,
             WorldObjectStateStore state = null)
         {
@@ -58,7 +60,7 @@ namespace Game.Structures.Runtime
             if (result.Changed)
             {
                 PrimeTimedReset(in current.Descriptor, ref result.Delta);
-                _state.Set(in result.Delta);
+                SetState(in result.Delta);
             }
             if (result.Signal != WorldObjectSignal.None)
                 Propagate(id, result.Signal);
@@ -72,7 +74,7 @@ namespace Game.Structures.Runtime
                     out WorldObjectStateDelta delta, out WorldObjectSignal emitted))
                 return false;
             PrimeTimedReset(in current.Descriptor, ref delta);
-            _state.Set(in delta);
+            SetState(in delta);
             if (emitted != WorldObjectSignal.None)
                 Propagate(id, emitted);
             return true;
@@ -108,13 +110,19 @@ namespace Game.Structures.Runtime
                     delta.State &= ~(WorldObjectStateFlags.Triggered | WorldObjectStateFlags.Active);
                     delta.RuntimeValue1 = 0;
                 }
-                _state.Set(in delta);
+                SetState(in delta);
                 changed++;
             }
             return changed;
         }
 
         public WorldObjectStateDelta[] SnapshotState() => _state.Snapshot();
+
+        private void SetState(in WorldObjectStateDelta delta)
+        {
+            _state.Set(in delta);
+            StateChanged?.Invoke(delta.Id);
+        }
 
         private static void PrimeTimedReset(in WorldObjectDescriptor descriptor, ref WorldObjectStateDelta delta)
         {
@@ -142,7 +150,7 @@ namespace Game.Structures.Runtime
                             out WorldObjectStateDelta delta, out WorldObjectSignal emitted))
                         continue;
                     PrimeTimedReset(in target.Descriptor, ref delta);
-                    _state.Set(in delta);
+                    SetState(in delta);
                     if (emitted != WorldObjectSignal.None)
                         _signals.Enqueue(new PendingSignal(connection.Target, emitted));
                 }
