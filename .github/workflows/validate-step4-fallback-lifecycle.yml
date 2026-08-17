@@ -6,16 +6,18 @@ on:
       - feature/voxel-showcase-rendering-repair-v2
     paths:
       - .github/workflows/validate-step4-fallback-lifecycle.yml
+      - Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
+      - Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Step4FalseEmptyDiagnostics.cs
+      - Assets/Tests/PlayMode/Step4FalseEmptyLifecycleTests.cs
 
 permissions:
   contents: read
 
-# Focused exact-guard measurement: the triggering tree prints Step4FalseEmptyDiagnostics.Current
-# for the step-4 observation window. A workflow-file change cancels older queued lifecycle snapshots,
-# and unrelated branch pushes cannot trigger another run. The job checks out the exact triggering SHA.
+# Each run is immutable: later work on this busy repair branch must not cancel the exact lifecycle
+# evidence that selected the next renderer change.
 concurrency:
-  group: unity-step4-lifecycle
-  cancel-in-progress: true
+  group: unity-step4-lifecycle-${{ github.sha }}
+  cancel-in-progress: false
 
 jobs:
   lod-rendering:
@@ -65,7 +67,7 @@ jobs:
             -logFile "$ROOT/showcase-bake.log"
           test -s "$GITHUB_WORKSPACE/Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes"
 
-      - name: Run LOD lifecycle fixture
+      - name: Run step4 false-empty lifecycle gate
         shell: bash
         run: |
           set -uo pipefail
@@ -76,9 +78,9 @@ jobs:
             -batchmode -job-worker-count 1 \
             -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform PlayMode \
             -assemblyNames VoxelEngine.Tests.PlayMode \
-            -testFilter '^VoxelEngine\.Tests\.PlayMode\.LodRenderingTests' \
-            -testResults "$ROOT/lod-rendering.xml" \
-            -logFile "$ROOT/lod-rendering.log" || status=$?
+            -testFilter '^VoxelEngine\.Tests\.PlayMode\.Step4FalseEmptyLifecycleTests\.Step4CastleFrustumCannotSettleEntirelyAsAuthoritativeEmpty$' \
+            -testResults "$ROOT/step4-lifecycle.xml" \
+            -logFile "$ROOT/step4-lifecycle.log" || status=$?
           if [[ -s "${TMPDIR:-/tmp}/unity-run-status" ]]; then
             cp "${TMPDIR:-/tmp}/unity-run-status" "$ROOT/unity-run-status.txt"
           fi
@@ -88,6 +90,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: step4-fallback-lifecycle
+          name: step4-fallback-lifecycle-${{ github.sha }}
           path: Artifacts/Step4Lifecycle/**
           if-no-files-found: ignore
