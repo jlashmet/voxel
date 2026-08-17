@@ -4,10 +4,6 @@ using VoxelEngine.Structures.Api;
 
 namespace Game.Structures.Runtime
 {
-    /// <summary>
-    /// Baseline voxel authoring for guild-house shells. The first goal is to make the building-scale
-    /// programs visible and furnishable; signature roofs/curves can be upgraded independently later.
-    /// </summary>
     public static class GuildHousePrototypeAuthoring
     {
         public static void Author(IStructureAuthoringSession authoring, in GuildHousePrototype prototype)
@@ -36,14 +32,11 @@ namespace Game.Structures.Runtime
             }
 
             GuildHouseSecretAccessAuthoring.Author(authoring, in prototype.SpatialPlan, prototype.Region);
+            GuildHouseExteriorAuthoring.Author(authoring, in prototype);
         }
 
-        private static void AuthorHall(
-            IStructureAuthoringSession authoring,
-            in GuildHouseSpatialPlan plan,
-            byte primary,
-            byte secondary,
-            byte accent)
+        private static void AuthorHall(IStructureAuthoringSession authoring, in GuildHouseSpatialPlan plan,
+            byte primary, byte secondary, byte accent)
         {
             for (int floor = 0; floor < plan.FloorCount; floor++)
             {
@@ -53,17 +46,12 @@ namespace Game.Structures.Runtime
                     plan.Width, plan.Depth, plan.FloorHeight, primary, floor == 0);
             }
             int roofY = plan.Origin.y + plan.FloorCount * plan.FloorHeight;
-            authoring.Box(new int3(plan.Origin.x, roofY, plan.Origin.z),
-                new int3(plan.Width, 3, plan.Depth), secondary);
+            authoring.Box(new int3(plan.Origin.x, roofY, plan.Origin.z), new int3(plan.Width, 3, plan.Depth), secondary);
             AuthorEntranceSign(authoring, in plan, accent);
         }
 
-        private static void AuthorTower(
-            IStructureAuthoringSession authoring,
-            in GuildHouseSpatialPlan plan,
-            byte primary,
-            byte secondary,
-            byte accent)
+        private static void AuthorTower(IStructureAuthoringSession authoring, in GuildHouseSpatialPlan plan,
+            byte primary, byte secondary, byte accent)
         {
             AuthorHall(authoring, in plan, primary, secondary, accent);
             int top = plan.Origin.y + plan.FloorCount * plan.FloorHeight + 3;
@@ -80,14 +68,9 @@ namespace Game.Structures.Runtime
             }
         }
 
-        private static void AuthorLodge(
-            IStructureAuthoringSession authoring,
-            in GuildHouseSpatialPlan plan,
-            byte primary,
-            byte secondary,
-            byte accent)
+        private static void AuthorLodge(IStructureAuthoringSession authoring, in GuildHouseSpatialPlan plan,
+            byte primary, byte secondary, byte accent)
         {
-            // Druid lodge: broad low shell with a deliberately open central roof/courtyard strip.
             int y = plan.Origin.y;
             AuthorFloor(authoring, plan.Origin.x, y, plan.Origin.z, plan.Width, plan.Depth, secondary);
             AuthorPerimeter(authoring, plan.Origin.x, y, plan.Origin.z,
@@ -96,12 +79,10 @@ namespace Game.Structures.Runtime
             int gap = 18;
             int roofY = y + plan.FloorHeight;
             int left = (plan.Width - gap) / 2;
-            authoring.Box(new int3(plan.Origin.x, roofY, plan.Origin.z),
-                new int3(left, 3, plan.Depth), primary);
+            authoring.Box(new int3(plan.Origin.x, roofY, plan.Origin.z), new int3(left, 3, plan.Depth), primary);
             authoring.Box(new int3(plan.Origin.x + left + gap, roofY, plan.Origin.z),
                 new int3(plan.Width - left - gap, 3, plan.Depth), primary);
 
-            // Living-root/tree posts are intentionally chunky for the breadth-first pass.
             for (int z = plan.Origin.z + 10; z < plan.Origin.z + plan.Depth - 8; z += 18)
             {
                 authoring.Box(new int3(plan.Origin.x + 5, y + 1, z), new int3(6, plan.FloorHeight - 2, 6), accent);
@@ -110,28 +91,14 @@ namespace Game.Structures.Runtime
             AuthorEntranceSign(authoring, in plan, accent);
         }
 
-        private static void AuthorFloor(
-            IStructureAuthoringSession authoring,
-            int x,
-            int y,
-            int z,
-            int width,
-            int depth,
-            byte material)
+        private static void AuthorFloor(IStructureAuthoringSession authoring,
+            int x, int y, int z, int width, int depth, byte material)
         {
             authoring.Box(new int3(x, y, z), new int3(width, 2, depth), material);
         }
 
-        private static void AuthorPerimeter(
-            IStructureAuthoringSession authoring,
-            int x,
-            int y,
-            int z,
-            int width,
-            int depth,
-            int height,
-            byte material,
-            bool entrance)
+        private static void AuthorPerimeter(IStructureAuthoringSession authoring,
+            int x, int y, int z, int width, int depth, int height, byte material, bool entrance)
         {
             int wallY = y + 2;
             int wallH = height - 2;
@@ -155,11 +122,11 @@ namespace Game.Structures.Runtime
                 new int3(doorWidth, wallH - doorHeight, 3), material);
         }
 
-        private static void AuthorEntranceSign(
-            IStructureAuthoringSession authoring,
-            in GuildHouseSpatialPlan plan,
-            byte material)
+        private static void AuthorEntranceSign(IStructureAuthoringSession authoring,
+            in GuildHouseSpatialPlan plan, byte material)
         {
+            if (plan.ShellStyle == GuildHouseShellStyle.HiddenDen)
+                return;
             int x = plan.Origin.x + plan.Width / 2 - 6;
             int y = plan.Origin.y + 21;
             int z = plan.Origin.z - 1;
