@@ -77,9 +77,6 @@ _PROFILES: dict[str, BackendProfile] = {
         backend="hunyuan-pytorch",
         source_revision=HUNYUAN_REVISION,
         bootstrap_script="ci/bootstrap_hunyuan_quality_macos.sh",
-        # This is the production multiview-turbo configuration already proven by
-        # the Madeline/Sunlit Cleric work. Individual assets may still override
-        # seed, resolution, steps, removeBackground, or chunk counts.
         defaults={
             "preset": "quality",
             "model": "tencent/Hunyuan3D-2mv",
@@ -127,16 +124,25 @@ def resolve_generator_profile(
     *,
     tool_root: Path,
 ) -> dict[str, Any]:
-    """Expand a named backend profile and apply explicit asset overrides.
+    """Expand a named backend profile and apply asset-specific overrides.
 
-    Profiles own machine/environment concerns. The asset spec remains authoritative
-    for per-asset choices: every explicit generator field overrides the profile.
-    Legacy specs with no profile are returned unchanged.
+    A profile owns machine/environment identity: backend, interpreter, source
+    checkout, weights, source revision, and bootstrap script. An asset may only
+    override generation/art knobs such as model parameters, seed, resolution,
+    chunking, and background handling.
     """
 
     profile_value = data.get("profile")
     if profile_value is None or not str(profile_value).strip():
         return dict(data)
+
+    protected = {"backend", "python", "executable", "source", "weights", "sourceRevision", "bootstrapScript"}
+    conflicts = sorted(key for key in protected if key in data)
+    if conflicts:
+        raise BackendProfileError(
+            "generator.profile owns these fields and they must not be overridden: "
+            + ", ".join(conflicts)
+        )
 
     profile = backend_profile(str(profile_value))
     resolved: dict[str, Any] = profile.resolved_defaults(tool_root.resolve())
@@ -145,8 +151,6 @@ def resolve_generator_profile(
             continue
         resolved[key] = value
 
-    # Profile identity/revision/bootstrap are reproducibility metadata, not
-    # user-overridable runtime knobs.
     resolved["profile"] = profile.name
     resolved["sourceRevision"] = profile.source_revision
     resolved["bootstrapScript"] = str(tool_root.resolve() / profile.bootstrap_script)
