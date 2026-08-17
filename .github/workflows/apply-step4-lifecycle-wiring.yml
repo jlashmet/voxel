@@ -1,0 +1,58 @@
+name: Apply step4 lifecycle diagnostic wiring
+
+on:
+  push:
+    branches:
+      - feature/voxel-showcase-rendering-repair-v2
+    paths:
+      - .github/workflows/apply-step4-lifecycle-wiring.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/voxel-showcase-rendering-repair-v2
+          fetch-depth: 0
+
+      - name: Fast-forward to current branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin feature/voxel-showcase-rendering-repair-v2
+          git reset --hard origin/feature/voxel-showcase-rendering-repair-v2
+
+      - name: Wire lifecycle diagnostics
+        shell: bash
+        run: python .github/scripts/apply-step4-lifecycle-wiring.py
+
+      - name: Verify exact diagnostic diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          grep -q 'Step4FalseEmptyDiagnostics.RecordExactClassification' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
+          grep -q 'Step4FalseEmptyDiagnostics.RecordOrdinaryResult' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
+          grep -q 'Step4FalseEmptyDiagnostics.RecordFallbackScheduled' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
+          grep -q 'Step4FalseEmptyDiagnostics.RecordFallbackCompleted' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
+          grep -q 'Step4FalseEmptyDiagnostics.RecordFallbackPublished' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
+          grep -q 'Step4FalseEmptyDiagnostics.RecordReadyEmptyPublication' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
+          git diff -- Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs .claude/plans/voxel-showcase-rendering-repair-v2.md .github/workflows/validate-step4-fallback-lifecycle.yml
+
+      - name: Commit diagnostic wiring and retire transport
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs \
+                  .claude/plans/voxel-showcase-rendering-repair-v2.md \
+                  .github/workflows/validate-step4-fallback-lifecycle.yml
+          git rm .github/scripts/apply-step4-lifecycle-wiring.py \
+                 .github/workflows/apply-step4-lifecycle-wiring.yml
+          git commit -m 'diag(rendering): wire step4 lifecycle counters'
+          git push origin HEAD:feature/voxel-showcase-rendering-repair-v2
