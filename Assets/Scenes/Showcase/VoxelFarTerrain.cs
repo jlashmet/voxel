@@ -507,13 +507,24 @@ namespace VoxelEngine.Showcase
                 colours[i] = new Color(albedo.x, albedo.y, albedo.z, 1f);
             }
 
-            // Every ring is a full square centred on the camera, so without a hole each one
-            // redraws all the ground the rings inside it already cover. Ring 0's hole is the
-            // voxel world's actual Euclidean footprint; outer rings nest as square annuli.
+            // Every ring is a full square centred on its independently snapped sample lattice.
+            // Ring 0's hole is the voxel world's actual Euclidean footprint. Outer rings reserve
+            // one parent-cell guard band inside the finer ring's nominal half-extent: without it,
+            // two valid published snap states can meet at only an edge (or leave a narrow strip)
+            // even though both rings individually have correct topology.
             bool circularHole = ring == 0;
-            float holeMetres = circularHole
-                ? _holeRadiusMetres
-                : SpacingForRing(ring - 1) * m_Resolution / 2f * 0.1f;
+            float holeMetres;
+            if (circularHole)
+            {
+                holeMetres = _holeRadiusMetres;
+            }
+            else
+            {
+                float childHalfExtent = SpacingForRing(ring - 1)
+                                      * m_Resolution * 0.5f * 0.1f;
+                float parentCellGuard = spacing * 0.1f;
+                holeMetres = Mathf.Max(0f, childHalfExtent - parentCellGuard);
+            }
 
             Vector3 centre = new((origin.x + spacing * m_Resolution / 2) * 0.1f, 0f,
                                  (origin.y + spacing * m_Resolution / 2) * 0.1f);
