@@ -228,11 +228,11 @@ Phase 0 evidence and compatibility targets are recorded in [worldbuilding-invent
 - [ ] **WB103** Run non-Unity static/build validation available in the repo without violating the Unity-run rule.
 - [ ] **WB104** Run the relevant EditMode tests through `tools/unity-run.sh` only when it is safe/authorized to run Unity in the developer environment.
 - [ ] **WB105** Run relevant PlayMode/seam/determinism tests through the same guarded wrapper when safe/authorized.
-- [ ] **WB106** Verify no authoritative structure/cave generation path introduced floating-point state or GPU-derived truth.
-- [ ] **WB107** Verify generated structures/caves respect declared footprint/bounds and report budget overflow rather than silently truncating.
-- [ ] **WB108** Verify all existing house/castle/city call sites are migrated or intentionally retained with compatibility shims documented.
-- [ ] **WB109** Reconcile this checklist against actual implementation, checking completed tasks and adding any discovered follow-up tasks explicitly.
-- [ ] **WB110** Record final cave-reuse outcome, compatibility notes, test results, known limitations, and next recommended worldbuilding increments.
+- [x] **WB106** Verify no authoritative structure/cave generation path introduced floating-point state or GPU-derived truth.
+- [x] **WB107** Verify generated structures/caves respect declared footprint/bounds and report budget overflow rather than silently truncating.
+- [x] **WB108** Verify all existing house/castle/city call sites are migrated or intentionally retained with compatibility shims documented.
+- [x] **WB109** Reconcile this checklist against actual implementation, checking completed tasks and adding any discovered follow-up tasks explicitly.
+- [x] **WB110** Record final cave-reuse outcome, compatibility notes, test results, known limitations, and next recommended worldbuilding increments.
 
 ---
 
