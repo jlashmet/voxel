@@ -124,9 +124,11 @@ jobs:
             -logFile "$ROOT/showcase-bake.log"
           test -s "$GITHUB_WORKSPACE/Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes"
 
-      # PlayMode assemblies run one process each. Sharing a process across them
-      # accumulates native memory over repeated scene loads until the guard in
-      # unity-run.sh kills the run before any assembly reports.
+      # PlayMode assemblies run one process each. VoxelEngine.Tests.PlayMode is large enough that
+      # Unity retains native scene/rendering memory across its repeated scene loads and eventually
+      # crosses the watchdog ceiling even though managed scene memory is released. Split that one
+      # assembly into complementary name ranges so every test still runs, but each shard gets a
+      # fresh Unity process and native allocator state.
       - name: PlayMode (affected)
         if: steps.select.outputs.playmode != ''
         shell: bash
@@ -140,14 +142,36 @@ jobs:
           status=0
           IFS=';' read -ra ASSEMBLIES <<< "$NAMES"
           for asm in "${ASSEMBLIES[@]}"; do
-            echo "::group::PlayMode $asm"
-            UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=30 \
-            UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
-              -batchmode -job-worker-count 1 \
-              -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform PlayMode \
-              -assemblyNames "$asm" \
-              -testResults "$ROOT/playmode-$asm.xml" -logFile "$ROOT/playmode-$asm.log" || status=1
-            echo "::endgroup::"
+            if [[ "$asm" == "VoxelEngine.Tests.PlayMode" ]]; then
+              FILTERS=(
+                '^VoxelEngine\.Tests\.PlayMode\.[A-F]'
+                '^VoxelEngine\.Tests\.PlayMode\.[G-M]'
+                '^VoxelEngine\.Tests\.PlayMode\.[N-S]'
+                '!^VoxelEngine\.Tests\.PlayMode\.[A-S]'
+              )
+              LABELS=(a-f g-m n-s t-z-rest)
+              for i in "${!FILTERS[@]}"; do
+                label="${LABELS[$i]}"
+                echo "::group::PlayMode $asm ($label)"
+                UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=30 \
+                UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
+                  -batchmode -job-worker-count 1 \
+                  -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform PlayMode \
+                  -assemblyNames "$asm" -testFilter "${FILTERS[$i]}" \
+                  -testResults "$ROOT/playmode-$asm-$label.xml" \
+                  -logFile "$ROOT/playmode-$asm-$label.log" || status=1
+                echo "::endgroup::"
+              done
+            else
+              echo "::group::PlayMode $asm"
+              UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=30 \
+              UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
+                -batchmode -job-worker-count 1 \
+                -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform PlayMode \
+                -assemblyNames "$asm" \
+                -testResults "$ROOT/playmode-$asm.xml" -logFile "$ROOT/playmode-$asm.log" || status=1
+              echo "::endgroup::"
+            fi
           done
           exit $status
 
