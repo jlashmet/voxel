@@ -4,7 +4,7 @@ using Unity.Mathematics;
 namespace Game.Structures.Runtime
 {
     /// <summary>
-    /// Builds a constrained semantic sub-space near an existing anchor, then delegates actual
+    /// Builds constrained semantic sub-spaces near existing anchors, then delegates actual
     /// collision/exclusion placement back to DecorationPlacementResolver. This adds composition
     /// without introducing another placement engine.
     /// </summary>
@@ -26,9 +26,7 @@ namespace Game.Structures.Runtime
             out DecorationPlacement placement)
         {
             placement = default;
-            if (!space.IsWellFormed || !context.IsWellFormed || !anchor.IsWellFormed ||
-                descriptor.MountMode != DecorationMountMode.Floor ||
-                !descriptor.Accepts(DecorationSocketKind.Floor) ||
+            if (!CanPlaceFloor(in space, in context, in descriptor, in anchor) ||
                 gap < 0 || forwardDepth <= 0 || lateralRadius <= 0)
                 return false;
 
@@ -72,6 +70,69 @@ namespace Game.Structures.Runtime
                 maxX = math.min(space.Bounds.MaxExclusive.x, centerX + lateralRadius);
             }
 
+            return TryPlaceInZone(
+                in space, in context, sceneId, slotId, in descriptor,
+                minX, maxX, minZ, maxZ,
+                exclusions, occupied, occupiedCount, out placement);
+        }
+
+        public static bool TryPlaceFloorAroundAnchor(
+            in DecorationSpace space,
+            in DecorationContext context,
+            uint sceneId,
+            uint slotId,
+            in DecorationPropDescriptor descriptor,
+            in DecorationPlacement anchor,
+            int radius,
+            DecorationExclusion[] exclusions,
+            DecorationPlacement[] occupied,
+            int occupiedCount,
+            out DecorationPlacement placement)
+        {
+            placement = default;
+            if (!CanPlaceFloor(in space, in context, in descriptor, in anchor) || radius <= 0)
+                return false;
+
+            int centerX = (anchor.Bounds.Min.x + anchor.Bounds.MaxExclusive.x) / 2;
+            int centerZ = (anchor.Bounds.Min.z + anchor.Bounds.MaxExclusive.z) / 2;
+            int minX = math.max(space.Bounds.Min.x, centerX - radius);
+            int maxX = math.min(space.Bounds.MaxExclusive.x, centerX + radius);
+            int minZ = math.max(space.Bounds.Min.z, centerZ - radius);
+            int maxZ = math.min(space.Bounds.MaxExclusive.z, centerZ + radius);
+
+            return TryPlaceInZone(
+                in space, in context, sceneId, slotId, in descriptor,
+                minX, maxX, minZ, maxZ,
+                exclusions, occupied, occupiedCount, out placement);
+        }
+
+        private static bool CanPlaceFloor(
+            in DecorationSpace space,
+            in DecorationContext context,
+            in DecorationPropDescriptor descriptor,
+            in DecorationPlacement anchor) =>
+            space.IsWellFormed &&
+            context.IsWellFormed &&
+            anchor.IsWellFormed &&
+            descriptor.MountMode == DecorationMountMode.Floor &&
+            descriptor.Accepts(DecorationSocketKind.Floor);
+
+        private static bool TryPlaceInZone(
+            in DecorationSpace space,
+            in DecorationContext context,
+            uint sceneId,
+            uint slotId,
+            in DecorationPropDescriptor descriptor,
+            int minX,
+            int maxX,
+            int minZ,
+            int maxZ,
+            DecorationExclusion[] exclusions,
+            DecorationPlacement[] occupied,
+            int occupiedCount,
+            out DecorationPlacement placement)
+        {
+            placement = default;
             if (maxX <= minX || maxZ <= minZ)
                 return false;
 
