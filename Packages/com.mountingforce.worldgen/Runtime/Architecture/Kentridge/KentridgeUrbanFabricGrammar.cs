@@ -49,8 +49,8 @@ namespace MountingForce.WorldGen.Architecture
     }
 
     /// <summary>
-    /// Generic anonymous-frontage handoff. Settlement code controls massing constraints; this
-    /// architecture layer controls local dimensions, roof, facade rhythm and small details.
+    /// Generic anonymous-frontage handoff. Settlement code controls massing constraints; a style
+    /// registry supplies local dimensions, roof, facade rhythm and small details.
     /// </summary>
     public static class UrbanFabricCompiler
     {
@@ -58,18 +58,33 @@ namespace MountingForce.WorldGen.Architecture
             UrbanFabricIntent intent,
             uint seed,
             int runIndex,
-            int siteIndex)
-        {
-            if (intent.StyleId == KentridgeDefinition.Id)
-                return KentridgeUrbanFabricCompiler.Resolve(intent, seed, runIndex, siteIndex);
+            int siteIndex) =>
+            Resolve(intent, seed, runIndex, siteIndex, BuiltInArchitectureStyles.Registry);
 
-            throw new ArgumentException(
-                "No urban-fabric compiler is registered for style '" + intent.StyleId + "'.",
-                nameof(intent));
+        public static UrbanFabricForm Resolve(
+            UrbanFabricIntent intent,
+            uint seed,
+            int runIndex,
+            int siteIndex,
+            ArchitectureStyleRegistry styles)
+        {
+            if (styles == null) throw new ArgumentNullException(nameof(styles));
+            IArchitectureStyleCompiler compiler = styles.Require(intent.StyleId);
+            UrbanFabricForm form = compiler.ResolveUrbanFabric(intent, seed, runIndex, siteIndex);
+            Validate(intent, form, styles);
+            return form;
         }
 
-        public static void Validate(UrbanFabricIntent intent, UrbanFabricForm form)
+        public static void Validate(UrbanFabricIntent intent, UrbanFabricForm form) =>
+            Validate(intent, form, BuiltInArchitectureStyles.Registry);
+
+        public static void Validate(
+            UrbanFabricIntent intent,
+            UrbanFabricForm form,
+            ArchitectureStyleRegistry styles)
         {
+            if (styles == null) throw new ArgumentNullException(nameof(styles));
+
             if (form.Storeys < intent.MinStoreys || form.Storeys > intent.MaxStoreys)
                 throw new InvalidOperationException(
                     "Urban fabric escaped the settlement storey envelope.");
@@ -77,24 +92,7 @@ namespace MountingForce.WorldGen.Architecture
                 throw new InvalidOperationException(
                     "Urban fabric contains non-positive local dimensions.");
 
-            if (intent.StyleId == KentridgeDefinition.Id)
-            {
-                const int roofOverhangDm = 3;
-                int lateral = form.WidthDm
-                            + 2 * form.UpperOverhangDm
-                            + 2 * roofOverhangDm;
-                int depth = form.DepthDm
-                          + form.UpperOverhangDm
-                          + 2 * roofOverhangDm;
-                if (lateral > intent.EnvelopeDm || depth > intent.EnvelopeDm)
-                    throw new InvalidOperationException(
-                        "Urban fabric escaped its high-level frontage envelope.");
-                return;
-            }
-
-            throw new ArgumentException(
-                "No urban-fabric validation is registered for style '" + intent.StyleId + "'.",
-                nameof(intent));
+            styles.Require(intent.StyleId).ValidateUrbanFabric(intent, form);
         }
     }
 
@@ -133,7 +131,7 @@ namespace MountingForce.WorldGen.Architecture
                 : 20 + (int)((h >> 20) % 7u);
             bool awning = intent.District == DistrictKind.Market && ((h >> 24) & 1u) != 0;
 
-            var form = new UrbanFabricForm(
+            return new UrbanFabricForm(
                 width,
                 depth,
                 storeys,
@@ -145,8 +143,20 @@ namespace MountingForce.WorldGen.Architecture
                 awning,
                 ((h >> 25) & 1u) != 0,
                 ((h >> 26) & 1u) != 0);
-            UrbanFabricCompiler.Validate(intent, form);
-            return form;
+        }
+
+        public static void Validate(UrbanFabricIntent intent, UrbanFabricForm form)
+        {
+            const int roofOverhangDm = 3;
+            int lateral = form.WidthDm
+                        + 2 * form.UpperOverhangDm
+                        + 2 * roofOverhangDm;
+            int depth = form.DepthDm
+                      + form.UpperOverhangDm
+                      + 2 * roofOverhangDm;
+            if (lateral > intent.EnvelopeDm || depth > intent.EnvelopeDm)
+                throw new InvalidOperationException(
+                    "Urban fabric escaped its high-level frontage envelope.");
         }
 
         private static uint Hash(
@@ -261,7 +271,12 @@ namespace MountingForce.WorldGen.Content.Kentridge
         public bool ChimneyOnRight => _form.ChimneyOnRight;
         public bool AnnexOnRight => _form.AnnexOnRight;
 
-        internal UrbanFabricForm Inner => _form;
+        /// <summary>
+        /// Immutable generic architecture value behind this transitional compatibility wrapper.
+        /// Backends can consume it without accessing Architecture internals or depending on a
+        /// Kentridge-specific geometry policy.
+        /// </summary>
+        public UrbanFabricForm Inner => _form;
     }
 
     public static class KentridgeUrbanFabricGrammar
