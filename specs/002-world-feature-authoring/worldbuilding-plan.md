@@ -135,7 +135,7 @@ Phase 0 evidence and compatibility targets are recorded in [worldbuilding-invent
 - [x] **WB037** Add configurable porch/awning/balcony hooks using shared components where supported.
 - [x] **WB038** Add interior floor/room/doorway hooks sufficient for later richer house layouts without baking one layout into the geometry layer.
 - [x] **WB039** Add house presets demonstrating materially different output from one builder/config type.
-- [ ] **WB040** Add house invariants/determinism/footprint tests and update showcase usage to exercise at least one detailed configuration.
+- [x] **WB040** Add house invariants/determinism/footprint tests and update showcase usage to exercise at least one detailed configuration.
 
 ## Phase 3 — Castle/detail pass
 
