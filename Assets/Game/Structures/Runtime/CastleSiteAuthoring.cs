@@ -14,21 +14,16 @@ namespace Game.Structures.Runtime
         internal int Cursor;
         internal Random Random;
 
-        public bool IsComplete => Phase > 1;
+        public bool IsComplete => Phase > 2;
     }
 
     /// <summary>
-    /// Authors the crag and lower river that belong to the castle content. The implementation uses
-    /// only the generic structure-authoring API and opaque game-selected material indices; no
-    /// Structures.Runtime type or engine-owned material identity is visible here.
+    /// Authors the crag, lower river, and optional bounded moat that belong to the castle content.
+    /// The implementation uses only the generic structure-authoring API and game-selected material
+    /// indices; no engine-owned castle or terrain-builder abstraction is introduced here.
     /// </summary>
     public static class CastleSiteAuthoring
     {
-        /// <summary>
-        /// Shared-component build seam. The site/crag sculpt remains legacy terrain policy in WB041;
-        /// its declared bailey footprint is used for bounds, while the historical cliff dimensions
-        /// still come from CastlePlan so the compatibility preset cannot change terrain output.
-        /// </summary>
         public static bool Step(
             IStructureAuthoringSession authoring,
             in CastlePlan plan,
@@ -37,13 +32,38 @@ namespace Game.Structures.Runtime
             ref CastleSiteAuthoringState state)
         {
             if (!components.IsWellFormed)
-                throw new System.ArgumentException("Castle component configuration is invalid.", nameof(components));
-            return Step(authoring, in plan, terrainSeed, ref state);
+                throw new System.ArgumentException(
+                    "Castle component configuration is invalid.", nameof(components));
+
+            return StepCore(
+                authoring,
+                in plan,
+                in components.Moat,
+                in components.Palette,
+                terrainSeed,
+                ref state);
         }
 
+        /// <summary>
+        /// Compatibility entry point for older callers. It resolves the current compatibility
+        /// component graph, whose moat is disabled, so historical site output remains unchanged.
+        /// </summary>
         public static bool Step(
             IStructureAuthoringSession authoring,
             in CastlePlan plan,
+            uint terrainSeed,
+            ref CastleSiteAuthoringState state)
+        {
+            StructureMaterialPalette palette = CastleStructurePalette.Compatibility;
+            CastleComponentConfig components = CastleComponentPresets.Compatibility(in plan, in palette);
+            return Step(authoring, in plan, in components, terrainSeed, ref state);
+        }
+
+        private static bool StepCore(
+            IStructureAuthoringSession authoring,
+            in CastlePlan plan,
+            in CastleMoatConfig moat,
+            in StructureMaterialPalette palette,
             uint terrainSeed,
             ref CastleSiteAuthoringState state)
         {
@@ -118,14 +138,99 @@ namespace Game.Structures.Runtime
                 state.Cursor = 0;
             }
 
-            int reach = plan.PlateauRadius + cliffDrop - 8;
-            int columnEnd = math.min(reach * 2 + 1, state.Cursor + 2);
-            LowerRiverGorge(authoring, in plan, top, state.Cursor, columnEnd, reach);
-            state.Cursor = columnEnd;
-            if (state.Cursor <= reach * 2) return false;
+            if (state.Phase == 1)
+            {
+                int reach = plan.PlateauRadius + cliffDrop - 8;
+                int columnEnd = math.min(reach * 2 + 1, state.Cursor + 2);
+                LowerRiverGorge(authoring, in plan, top, state.Cursor, columnEnd, reach);
+                state.Cursor = columnEnd;
+                if (state.Cursor <= reach * 2) return false;
 
-            state.Phase = 2;
+                state.Phase = 2;
+                state.Cursor = 0;
+            }
+
+            if (!moat.Enabled)
+            {
+                state.Phase = 3;
+                return true;
+            }
+
+            int2 outer = moat.OuterHalfExtents;
+            int totalRows = outer.y * 2 + 1;
+            int moatRowEnd = math.min(totalRows, state.Cursor + 2);
+            AuthorMoatRows(
+                authoring,
+                in plan,
+                in moat,
+                in palette,
+                top,
+                state.Cursor,
+                moatRowEnd);
+            state.Cursor = moatRowEnd;
+            if (state.Cursor < totalRows) return false;
+
+            state.Phase = 3;
             return true;
+        }
+
+        private static void AuthorMoatRows(
+            IStructureAuthoringSession authoring,
+            in CastlePlan plan,
+            in CastleMoatConfig moat,
+            in StructureMaterialPalette palette,
+            int top,
+            int firstRow,
+            int endRow)
+        {
+            int2 inner = moat.InnerHalfExtents;
+            int2 outer = moat.OuterHalfExtents;
+            int bottom = top - moat.Depth;
+            byte bedMaterial = palette.Resolve(moat.BedMaterialRole);
+
+            for (int row = firstRow; row < endRow; row++)
+            {
+                int localZ = -outer.y + row;
+                int absZ = math.abs(localZ);
+
+                for (int localX = -outer.x; localX <= outer.x; localX++)
+                {
+                    int absX = math.abs(localX);
+                    if (absX <= inner.x && absZ <= inner.y)
+                        continue;
+
+                    int wx = plan.Centre.x + localX;
+                    int wz = plan.Centre.z + localZ;
+                    int existingSurface = HighestSolid(authoring, wx, wz, top + 8, bottom - 8);
+                    if (existingSurface < bottom)
+                        continue;
+
+                    // The vertical edit interval is fixed by config and the already-bounded local
+                    // ring. No terrain ray/scan can expand the horizontal footprint.
+                    authoring.FillColumnBulk(
+                        wx,
+                        bottom + 1,
+                        math.max(top + 9, existingSurface + 2),
+                        wz,
+                        GameMaterialIds.Empty);
+                    authoring.FillColumnBulk(
+                        wx,
+                        bottom,
+                        bottom + 1,
+                        wz,
+                        bedMaterial);
+
+                    if (moat.WaterDepth > 0)
+                    {
+                        authoring.FillColumnBulk(
+                            wx,
+                            bottom + 1,
+                            bottom + moat.WaterDepth + 1,
+                            wz,
+                            GameMaterialIds.Water);
+                    }
+                }
+            }
         }
 
         private static void LowerRiverGorge(
