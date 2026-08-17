@@ -86,10 +86,9 @@ jobs:
           - VoxelEngine.Tests.Features
           - VoxelEngine.CI.PlayMode
           - MountingForce.CombatPrototype.Tests.PlayMode
-          # Known failing: this suite exhausts the unity-run.sh memory ceiling
-          # partway through, from native memory retained across repeated
-          # VoxelShowcase scene loads. It is listed so the gap stays visible
-          # rather than silently unrun.
+          # This assembly is further split into complementary test-name shards
+          # inside its step so Unity's retained native scene memory is reset
+          # between groups without dropping any coverage.
           - VoxelEngine.Tests.PlayMode
     steps:
       - uses: actions/checkout@v4
@@ -141,14 +140,38 @@ jobs:
           set -euo pipefail
           ROOT="$GITHUB_WORKSPACE/Artifacts/MasterTests"
           mkdir -p "$ROOT"
+          ASM="${{ matrix.assembly }}"
+
+          if [[ "$ASM" == "VoxelEngine.Tests.PlayMode" ]]; then
+            FILTERS=(
+              '^VoxelEngine\.Tests\.PlayMode\.[A-F]'
+              '^VoxelEngine\.Tests\.PlayMode\.[G-M]'
+              '^VoxelEngine\.Tests\.PlayMode\.[N-S]'
+              '!^VoxelEngine\.Tests\.PlayMode\.[A-S]'
+            )
+            LABELS=(a-f g-m n-s t-z-rest)
+            status=0
+            for i in "${!FILTERS[@]}"; do
+              label="${LABELS[$i]}"
+              UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=30 \
+              UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
+                -batchmode -job-worker-count 1 \
+                -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform PlayMode \
+                -assemblyNames "$ASM" -testFilter "${FILTERS[$i]}" \
+                -testResults "$ROOT/$ASM-$label.xml" \
+                -logFile "$ROOT/$ASM-$label.log" || status=1
+            done
+            exit $status
+          fi
+
           UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=30 \
           UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
             -batchmode -job-worker-count 1 \
             -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform PlayMode \
-            -assemblyNames "${{ matrix.assembly }}" \
-            -testResults "$ROOT/${{ matrix.assembly }}.xml" \
-            -logFile "$ROOT/${{ matrix.assembly }}.log"
-          test -s "$ROOT/${{ matrix.assembly }}.xml"
+            -assemblyNames "$ASM" \
+            -testResults "$ROOT/$ASM.xml" \
+            -logFile "$ROOT/$ASM.log"
+          test -s "$ROOT/$ASM.xml"
 
       - name: Upload results
         if: always()
