@@ -13,26 +13,43 @@ namespace Game.Structures.Runtime
     {
         public static void Author(IStructureAuthoringSession authoring, in CastlePlan plan)
         {
-            if (authoring == null) throw new System.ArgumentNullException(nameof(authoring));
+            CastleConfig config = CastlePresets.Compatibility(in plan);
+            Author(
+                authoring,
+                in plan,
+                in config.CurtainWallX,
+                in config.CurtainWallZ,
+                in config.CurtainBattlements);
+        }
 
-            CastleComponentConfig shared = CastleCompatibilityComponents.Resolve(in plan);
+        public static void Author(
+            IStructureAuthoringSession authoring,
+            in CastlePlan plan,
+            in StructureWallRunConfig wallX,
+            in StructureWallRunConfig wallZ,
+            in BattlementConfig battlements)
+        {
+            if (authoring == null) throw new System.ArgumentNullException(nameof(authoring));
+            if (!wallX.IsWellFormed || !wallZ.IsWellFormed || !battlements.IsWellFormed)
+                throw new System.ArgumentException("Castle curtain configuration is invalid.");
+
             int baseY = plan.Centre.y + plan.PlateauHeight;
-            int hx = plan.BaileyHalfX;
-            int hz = plan.BaileyHalfZ;
-            int thickness = shared.CurtainWallX.Thickness;
+            int hx = wallX.Length / 2;
+            int hz = wallZ.Length / 2;
+            int thickness = wallX.Thickness;
 
             WallRun(authoring,
                 new int3(plan.Centre.x - hx, baseY, plan.Centre.z - hz),
-                new int3(1, 0, 0), in shared.CurtainWallX, in shared.CurtainBattlements, true);
+                new int3(1, 0, 0), in wallX, in battlements, true);
             WallRun(authoring,
                 new int3(plan.Centre.x - hx, baseY, plan.Centre.z + hz - thickness),
-                new int3(1, 0, 0), in shared.CurtainWallX, in shared.CurtainBattlements, true);
+                new int3(1, 0, 0), in wallX, in battlements, true);
             WallRun(authoring,
                 new int3(plan.Centre.x - hx, baseY, plan.Centre.z - hz),
-                new int3(0, 0, 1), in shared.CurtainWallZ, in shared.CurtainBattlements, false);
+                new int3(0, 0, 1), in wallZ, in battlements, false);
             WallRun(authoring,
                 new int3(plan.Centre.x + hx - thickness, baseY, plan.Centre.z - hz),
-                new int3(0, 0, 1), in shared.CurtainWallZ, in shared.CurtainBattlements, false);
+                new int3(0, 0, 1), in wallZ, in battlements, false);
 
             CurtainFacadeDetails(authoring, in plan, baseY);
         }
@@ -195,7 +212,7 @@ namespace Game.Structures.Runtime
                 }
             }
 
-            int parapetY = start.y + height + 1;
+            int parapetY = start.y + height + battlements.ParapetHeight;
             int cadence = battlements.MerlonWidth + battlements.GapWidth;
             for (int i = 0; i < length; i += cadence)
             {
