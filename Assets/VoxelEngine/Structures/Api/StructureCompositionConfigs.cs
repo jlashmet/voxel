@@ -3,35 +3,6 @@ using Unity.Mathematics;
 
 namespace VoxelEngine.Structures.Api
 {
-    /// <summary>Reusable enclosed/open courtyard volume and perimeter treatment.</summary>
-    public struct CourtyardConfig
-    {
-        public int OffsetX;
-        public int OffsetZ;
-        public int Width;
-        public int Depth;
-        public bool FloorEnabled;
-        public int FloorThickness;
-        public bool PerimeterWallEnabled;
-        public WallRunConfig PerimeterWall;
-        public StructureMaterialRole FloorMaterialRole;
-
-        public bool IsWellFormed
-        {
-            get
-            {
-                if (Width <= 0 || Depth <= 0)
-                    return false;
-                if (FloorEnabled && FloorThickness <= 0)
-                    return false;
-                if (PerimeterWallEnabled &&
-                    (PerimeterWall.Thickness <= 0 || PerimeterWall.Height <= 0))
-                    return false;
-                return true;
-            }
-        }
-    }
-
     /// <summary>
     /// Stable semantic attachment identities shared across archetypes. Consumers depend on these
     /// meanings rather than knowing which wall, room, tower, or facade produced the anchor.
