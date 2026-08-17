@@ -91,9 +91,6 @@ jobs:
             -assemblyNames "$NAMES" \
             -testResults "$ROOT/editmode.xml" -logFile "$ROOT/editmode.log" || status=$?
 
-          # unity-run can fail before Unity opens the requested -logFile (for example a launcher
-          # guard or an editor boot/import failure). Preserve the editor's global log and the
-          # watchdog's last sample so a PR failure always has actionable diagnostics.
           if [[ ! -s "$ROOT/editmode.log" && -s "$HOME/Library/Logs/Unity/Editor.log" ]]; then
             cp "$HOME/Library/Logs/Unity/Editor.log" "$ROOT/editmode-global.log"
           fi
@@ -105,6 +102,96 @@ jobs:
             exit "$status"
           fi
           test -s "$ROOT/editmode.xml"
+
+      # Diagnostic only: prove the residency hypothesis before changing the large renderer cache.
+      # The checkout is disposable. If this materially reduces hole/backlog metrics, the same
+      # behavior will be implemented in source and this step removed before the PR is ready.
+      - name: Probe demand-driven surface residency
+        if: contains(steps.select.outputs.playmode, 'VoxelEngine.Tests.PlayMode')
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs')
+          text = path.read_text()
+
+          old = '''                    if (!OwnsShard(chunk) || _known.Contains(chunk)) continue;
+                    if (!TrackKnown(chunk)) continue;
+                    Invalidate(chunk);
+                    admitted++;'''
+          new = '''                    if (!OwnsShard(chunk) || _known.Contains(chunk)) continue;
+                    if (!TrackKnown(chunk)) continue;
+                    // Discovery establishes ownership only. Building every discovered chunk,
+                    // including offscreen shells, fills the arena before player-visible work.
+                    admitted++;'''
+          assert old in text
+          text = text.replace(old, new, 1)
+
+          old = '''            if (!_entries.TryGetValue(coordinate, out Entry entry) || !entry.Ready)
+            {
+                // A known-empty chunk is a completed build with nothing to draw, not a hole.
+                if (!_emptyVersions.ContainsKey(coordinate)) MissingVisibleCount++;
+                return;
+            }'''
+          new = '''            if (!_entries.TryGetValue(coordinate, out Entry entry) || !entry.Ready)
+            {
+                // A known-empty chunk is a completed build with nothing to draw, not a hole.
+                if (!_emptyVersions.ContainsKey(coordinate))
+                {
+                    MissingVisibleCount++;
+                    // Visibility is demand. Keep one generation queued until it either publishes
+                    // or proves empty; do not restart an active/pending build every render pass.
+                    bool active = _build.Active && _build.Coordinate.Equals(coordinate);
+                    if (!active && !_dirty.Contains(coordinate))
+                    {
+                        if (!_desiredVersions.ContainsKey(coordinate))
+                            _desiredVersions[coordinate] = ++_versionCounter;
+                        MarkDirty(coordinate);
+                    }
+                }
+                return;
+            }'''
+          assert old in text
+          text = text.replace(old, new, 1)
+
+          old = '''            if (_entries.TryGetValue(victim, out Entry entry)) RecycleEntry(entry);
+            _entries.Remove(victim);
+            MarkDirty(victim);
+            return true;'''
+          new = '''            if (_entries.TryGetValue(victim, out Entry entry)) RecycleEntry(entry);
+            _entries.Remove(victim);
+            // Keep the coordinate known but cold. Visibility will request it again if needed;
+            // immediate redirty creates an arena eviction/rebuild loop for offscreen geometry.
+            return true;'''
+          assert old in text
+          text = text.replace(old, new, 1)
+
+          old = '''            if (_entries.TryGetValue(victim, out Entry entry)) RecycleEntry(entry);
+            _entries.Remove(victim);
+            MarkDirty(victim);
+        }'''
+          new = '''            if (_entries.TryGetValue(victim, out Entry entry)) RecycleEntry(entry);
+            _entries.Remove(victim);
+            // Capacity eviction is a cache miss, not a mutation. Rebuild only on visible demand.
+        }'''
+          assert old in text
+          text = text.replace(old, new, 1)
+
+          # Initial presentation-rule synchronization happens after discovery. Invalidating every
+          # merely-known coordinate here defeats demand-driven admission. Rebuild materialized
+          # meshes; visible cold coordinates are requested by CollectVisibleCoordinate.
+          old = '            foreach (int3 chunk in _known) Invalidate(chunk);'
+          count = text.count(old)
+          assert count >= 4, count
+          text = text.replace(old, '            foreach (int3 chunk in _entries.Keys) Invalidate(chunk);')
+
+          path.write_text(text)
+          print('Applied CI-only demand-driven renderer probe')
+          PY
+          git diff --check
+          git diff -- Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
 
       # The Voxel Showcase deliberately has no Play-mode generation fallback. Its startup image is
       # a build/editor artifact, so a clean CI checkout must run the same bake step a developer or
