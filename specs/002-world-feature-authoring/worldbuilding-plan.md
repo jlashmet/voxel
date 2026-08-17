@@ -204,24 +204,24 @@ Phase 0 evidence and compatibility targets are recorded in [worldbuilding-invent
 
 ## Phase 9 — City/settlement composition
 
-- [ ] **WB088** Refactor current city/settlement generation to consume structure definitions/presets through a weighted structure palette instead of directly owning house geometry.
-- [ ] **WB089** Define lot configuration: width/depth ranges, setbacks, orientation, road frontage, spacing, and occupancy constraints.
-- [ ] **WB090** Define deterministic road/street-facing placement hooks compatible with the existing placement system.
-- [ ] **WB091** Add weighted archetype selection by district/zone while preserving deterministic candidate identity.
-- [ ] **WB092** Add landmark rules so churches, cathedrals, temples, castles, or civic-scale structures can be rare intentional placements rather than ordinary repeated lots.
-- [ ] **WB093** Add density/spacing controls and explicit open-space/plaza hooks.
-- [ ] **WB094** Ensure city composition remains bounded and region-local; reject configurations that would require unbounded global planning.
+- [x] **WB088** Refactor current city/settlement generation to consume structure definitions/presets through a weighted structure palette instead of directly owning house geometry.
+- [x] **WB089** Define lot configuration: width/depth ranges, setbacks, orientation, road frontage, spacing, and occupancy constraints.
+- [x] **WB090** Define deterministic road/street-facing placement hooks compatible with the existing placement system.
+- [x] **WB091** Add weighted archetype selection by district/zone while preserving deterministic candidate identity.
+- [x] **WB092** Add landmark rules so churches, cathedrals, temples, castles, or civic-scale structures can be rare intentional placements rather than ordinary repeated lots.
+- [x] **WB093** Add density/spacing controls and explicit open-space/plaza hooks.
+- [x] **WB094** Ensure city composition remains bounded and region-local; reject configurations that would require unbounded global planning.
 - [ ] **WB095** Add mixed-archetype city tests for determinism, overlap/spacing, road-facing anchors, landmark rarity rules, and region seams.
-- [ ] **WB096** Update the showcase/demo city to exercise multiple structure archetypes and visibly varied configurations.
+- [x] **WB096** Update the showcase/demo city to exercise multiple structure archetypes and visibly varied configurations.
 
 ## Phase 10 — Presets, examples, and authoring ergonomics
 
-- [ ] **WB097** Establish a consistent preset naming/versioning convention and keep presets pure data/config factories.
-- [ ] **WB098** Add examples showing both one-line preset use and deep per-component overrides.
-- [ ] **WB099** Add examples for standalone cave generation and structure-attached cave generation.
-- [ ] **WB100** Add examples showing semantic seed stability: changing a chimney/window option must not reshuffle unrelated structure choices.
-- [ ] **WB101** Update world-feature quickstart/contracts where new reusable configuration or anchor semantics become public API.
-- [ ] **WB102** Extend authoring preview/inspection hooks so a designer can see chosen preset, resolved parameters, anchors, footprint, primitive count, and validation failures.
+- [x] **WB097** Establish a consistent preset naming/versioning convention and keep presets pure data/config factories.
+- [x] **WB098** Add examples showing both one-line preset use and deep per-component overrides.
+- [x] **WB099** Add examples for standalone cave generation and structure-attached cave generation.
+- [x] **WB100** Add examples showing semantic seed stability: changing a chimney/window option must not reshuffle unrelated structure choices.
+- [x] **WB101** Update world-feature quickstart/contracts where new reusable configuration or anchor semantics become public API.
+- [x] **WB102** Extend authoring preview/inspection hooks so a designer can see chosen preset, resolved parameters, anchors, footprint, primitive count, and validation failures.
 
 ## Phase 11 — Validation and completion
 
