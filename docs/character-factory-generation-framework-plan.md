@@ -30,7 +30,7 @@ reference images
 - [x] Give rigid weapons/accessories a real automated validation gate.
 - [x] Make reference-set ingestion convention-driven instead of requiring ad hoc path wiring; canonical views, geometry/appearance separation, named details, and image preflight are now generic. Deterministic re-encoding remains follow-up work.
 - [x] Move generator environment/bootstrap selection into named backend profiles instead of production scripts.
-- [ ] Give every asset type an explicit appearance strategy rather than sharing character-specific assumptions.
+- [x] Give every asset type an explicit appearance strategy instead of sharing character-specific assumptions.
 - [ ] Migrate existing bespoke production scripts onto the generic producer only after their special behavior has a declared extension point.
 
 ## Asset library layout
@@ -107,9 +107,40 @@ Example:
 
 Both `build` and `produce` bootstrap a missing profile automatically and skip bootstrap work when the exact managed runtime/model files are already ready. `bootstrap-profile <name>` exists for transitional preprocessing that needs the profile-managed Python before generation.
 
+## Appearance strategies
+
+Appearance is now declared independently from both `assetType` and generator backend:
+
+```json
+{
+  "appearance": {
+    "strategy": "garment-multiview"
+  }
+}
+```
+
+Registered strategies are:
+
+```text
+character-multiview  character only; current body/T-pose policy
+                      includes the outer-arm side-view redirect
+
+garment-multiview    clothing only; shares atlas/mask/UV mechanics but uses
+                      local surface orientation without character arm heuristics
+
+rigid-multiview      weapon/accessory only; uses object-local surface orientation
+                      and rejects unexpected armatures
+
+preserve-generator   any asset type; keep the generator's existing materials/UVs
+```
+
+A multiview strategy requires complete front/back/left/right appearance references. That requirement is validated before backend bootstrap or geometry generation. Invalid asset-type/strategy combinations are rejected while loading `BuildSpec`.
+
+The strategy layer deliberately separates **routing/mechanics** from **art-quality acceptance**. Garment and rigid multiview now have independent projection policy, but visibility/depth reasoning, semantic fit, seams, disconnected rigid components, and orientation normalization remain quality work below.
+
 ## Production profiles
 
-The new `runtime/production.py` owns standard post-build behavior.
+`runtime/production.py` owns standard post-build behavior; appearance is delegated to the selected appearance strategy.
 
 ### Character
 
@@ -118,7 +149,7 @@ Current standard profile:
 ```text
 generate geometry
   -> align/transfer canonical rig
-  -> Hunyuan four-view appearance projection when all four views exist
+  -> character-multiview appearance
   -> skinning verifier
   -> animation verifier
   -> bind/lookdev preview
@@ -134,12 +165,12 @@ Current standard profile:
 ```text
 generate garment
   -> align/transfer canonical rig
-  -> preserve generator appearance
+  -> garment-multiview OR preserve-generator
   -> skinning/deformation verifier
   -> lookdev preview
 ```
 
-Do not route garments through the character projector yet. The current multiview code contains T-pose body heuristics. A garment appearance profile needs visibility, body-fit, and seam behavior appropriate for clothing.
+`garment-multiview` no longer inherits the character T-pose outer-arm redirect. It still needs body-relative fit/occlusion and seam-quality gates before it is considered production-art complete.
 
 ### Weapon
 
@@ -148,16 +179,16 @@ Current standard profile:
 ```text
 generate rigid mesh
   -> rigid preparation
-  -> preserve generator appearance
+  -> rigid-multiview OR preserve-generator
   -> rigid finite-bounds/no-armature verifier
   -> lookdev preview
 ```
 
-Weapon production must later add grip-axis inference, grip location, scale normalization, and rigid multiview appearance/baking where needed.
+Weapon production still needs grip-axis inference, grip location, scale normalization, stronger rigid-view orientation handling, and visual seam/coverage quality gates.
 
 ### Accessory
 
-Current standard profile mirrors rigid weapon production, with socket metadata controlled by the existing `runtimePart` contract.
+Current standard profile mirrors rigid weapon production, with socket metadata controlled by the existing `runtimePart` contract. Two-view or single-view accessories normally use `preserve-generator` until a complete multiview set exists.
 
 ## Phase 1 — Generic production orchestration
 
@@ -192,11 +223,15 @@ Current standard profile mirrors rigid weapon production, with socket metadata c
 
 ## Phase 4 — Appearance profiles
 
-- [ ] `character-multiview`: finish the current projection repair with bounded/visibility-aware sampling.
-- [ ] `garment-multiview`: project garment references without character T-pose arm heuristics; account for body-relative fit and occlusion.
-- [ ] `rigid-multiview`: texture weapons/props using object-centric view selection, seam handling, and grip-independent coordinates.
-- [ ] `preserve-generator`: retain generated UV/material output where the backend already supplies useful appearance.
-- [ ] Add a common interface so appearance strategy is selected from the production profile, not a bespoke script.
+- [x] Add a common appearance-strategy interface selected by `asset.json` and recorded in both low-level and production manifests.
+- [x] Reject incompatible asset-type/strategy combinations and incomplete multiview sets before expensive generation.
+- [x] `preserve-generator`: retain generated UV/material output when the backend already supplies useful appearance.
+- [x] `garment-multiview`: add a separate clothing route and projection policy with no character/T-pose outer-arm heuristic.
+- [ ] Strengthen `garment-multiview` with body-relative fit, depth/occlusion, seam handling, and production visual gates.
+- [x] `rigid-multiview`: add a separate weapon/accessory route with rigid-FBX validation and object-surface view selection.
+- [ ] Strengthen `rigid-multiview` with orientation normalization, disconnected-component-safe masking, seam handling, and grip-independent coordinates.
+- [ ] `character-multiview`: finish the current Madeline projection repair with bounded/visibility-aware sampling and production visual gates.
+- [x] Exercise all four strategies in focused CI; run #42 (`32063213794`) passed compile, appearance/backend/reference/routing tests, all four per-asset dry runs, and recursive batch production.
 
 ## Phase 5 — Type-specific validation
 
@@ -228,4 +263,4 @@ Current standard profile mirrors rigid weapon production, with socket metadata c
 
 ## Current status
 
-The framework now has three layers that scale beyond a single named character: a generic asset-type production runner, a geometry/appearance/detail reference contract, and pinned backend profiles that own machine/model setup. The focused CI is green across all four asset types and the existing Sunlit Cleric character build has been reduced to the generic `produce` path. Madeline and the Sun Staff still retain bespoke **art operations**, but they no longer own generator revisions/cache paths. The next highest-leverage work is to turn those remaining art operations into declared reusable stages and to split appearance handling into character, garment, and rigid strategies.
+The framework now has four scalable layers: a generic asset-type production runner, a geometry/appearance/detail reference contract, pinned backend profiles that own machine/model setup, and explicit appearance strategies for character, garment, rigid equipment, or generator-preserved materials. Focused CI is green across all four asset types and all four appearance routes. The next highest-leverage work is **quality and migration**, not another routing abstraction: finish Madeline's visibility-aware character projection, add garment fit/occlusion validation, improve rigid orientation/seams/grip metadata, and turn the remaining Madeline/Sun Staff art operations into declared reusable stages.
