@@ -71,6 +71,77 @@ def _entry_input_state(entry: CatalogueEntry) -> dict[str, object]:
     }
 
 
+def _resolve_manifest_artifact(manifest: Path, value: object) -> Path | None:
+    if value is None or not str(value).strip():
+        return None
+    path = Path(str(value))
+    if not path.is_absolute():
+        path = (manifest.parent / path).resolve()
+    return path
+
+
+def _latest_artifact_state(spec: BuildSpec) -> dict[str, object] | None:
+    manifest = spec.output_dir / "manifest.json"
+    if not manifest.is_file():
+        return None
+    try:
+        payload = json.loads(manifest.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {
+            "manifest": str(manifest.resolve()),
+            "manifestReadable": False,
+        }
+    if not isinstance(payload, dict):
+        return {
+            "manifest": str(manifest.resolve()),
+            "manifestReadable": False,
+        }
+
+    output = _resolve_manifest_artifact(manifest, payload.get("output"))
+    production = payload.get("production")
+    production_complete = isinstance(production, dict)
+    previews: dict[str, object] = {}
+    if production_complete:
+        raw_previews = production.get("previews")
+        if isinstance(raw_previews, dict):
+            for name, raw_path in sorted(raw_previews.items()):
+                path = _resolve_manifest_artifact(manifest, raw_path)
+                previews[str(name)] = (
+                    None
+                    if path is None
+                    else {
+                        "path": str(path),
+                        "sha256": _file_digest(path),
+                    }
+                )
+
+    geometry_cache = payload.get("geometryCache")
+    cache_state = None
+    if isinstance(geometry_cache, dict):
+        cache_state = {
+            "fingerprint": geometry_cache.get("fingerprint"),
+            "hit": geometry_cache.get("hit"),
+        }
+
+    return {
+        "manifest": str(manifest.resolve()),
+        "manifestReadable": True,
+        "buildStatus": payload.get("status"),
+        "generatedAtUtc": payload.get("generatedAtUtc"),
+        "productionStatus": "complete" if production_complete else None,
+        "output": (
+            None
+            if output is None
+            else {
+                "path": str(output),
+                "sha256": _file_digest(output),
+            }
+        ),
+        "previews": previews,
+        "geometryCache": cache_state,
+    }
+
+
 def load_catalogue_entries(
     directory: Path,
     *,
@@ -178,7 +249,6 @@ def classify_changes(
 
         previous_refs = previous.get("referenceHashes")
         if not isinstance(previous_refs, Mapping):
-            # Old/malformed catalogues cannot safely prove any reference stage is reusable.
             kinds.update({"geometry", "appearance", "details"})
         else:
             current_refs = current_state["referenceHashes"]
@@ -275,6 +345,7 @@ def catalogue_payload(
                     }
                 ),
                 "referenceHashes": input_state["referenceHashes"],
+                "latestArtifact": _latest_artifact_state(spec),
             }
         )
 
@@ -301,5 +372,7 @@ def write_catalogue(
     )
     output = output.resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    temp = output.with_name(output.name + ".tmp")
+    temp.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    temp.replace(output)
     return output
