@@ -18,32 +18,24 @@ for view in front back left right; do
 done
 
 rm -rf "$OUT"
-mkdir -p "$ROBE_VIEWS"
+mkdir -p "$OUT"
 export PYTORCH_ENABLE_MPS_FALLBACK="${PYTORCH_ENABLE_MPS_FALLBACK:-1}"
 export PYTHONUNBUFFERED=1
 
-printf '%s\n' '[1/3] Resolve the managed Hunyuan preprocessing/runtime environment'
-HUNYUAN_PY="$(
-  python3 tools/character-factory/character_factory.py \
-    bootstrap-profile hunyuan-quality-macos | tail -n 1
-)"
-test -x "$HUNYUAN_PY"
-
-printf '%s\n' '[2/3] Derive clothing-only four-view references with the generic T-pose garment preprocessor'
-"$HUNYUAN_PY" tools/character-factory/ci/prepare_tpose_garment_views.py \
-  --views "$VIEWS" \
-  --output "$ROBE_VIEWS"
-for view in front back left right; do
-  test -s "$ROBE_VIEWS/$view.png"
-done
-
-printf '%s\n' '[3/3] Produce, verify, render, and stage the swappable robe'
+printf '%s\n' '[1/1] Produce the swappable robe from declared preprocessing + production data'
 SPEC="$OUT/sunlit-cleric-robe.json"
 cat > "$SPEC" <<JSON
 {
   "id": "sunlit_cleric_robe_01",
   "assetType": "clothing",
   "tags": ["sunlit-cleric", "robe", "clothing"],
+  "preprocess": [
+    {
+      "strategy": "tpose-garment-views",
+      "inputDirectory": "$VIEWS",
+      "outputDirectory": "$ROBE_VIEWS"
+    }
+  ],
   "references": {
     "geometry": {
       "directory": "$ROBE_VIEWS"
@@ -85,6 +77,9 @@ test -s "$OUT/sunlit_cleric_robe_01.fbx"
 test -s "$OUT/sunlit_cleric_robe_01.basecolor.png"
 test -s "$OUT/sunlit_cleric_robe_01.preview.png"
 test -s "$OUT/reference-audit.json"
+for view in front back left right; do
+  test -s "$ROBE_VIEWS/$view.png"
+done
 
 cat <<EOF
 Sunlit Cleric robe production complete.
@@ -93,7 +88,7 @@ Sunlit Cleric robe production complete.
   Preview: $OUT/sunlit_cleric_robe_01.preview.png
   Slot: Torso / SkinnedToCharacterSkeleton
   Appearance: garment-multiview
-  Preprocessing: generic T-pose garment extraction
+  Preprocessing: declared generic T-pose garment extraction
   Generator profile: hunyuan-quality-macos
   Rig profile: canonical-humanoid-macos
   Unity staging root: $UNITY_ASSETS_ROOT
