@@ -1,5 +1,5 @@
 using NUnit.Framework;
-using Unity.Collections;
+using Unity.Mathematics;
 using VoxelEngine.Structures.Api;
 
 namespace VoxelEngine.Tests.Features
@@ -9,34 +9,27 @@ namespace VoxelEngine.Tests.Features
         [Test]
         public void FootprintConfigSupportsBoundedComposedRectangles()
         {
-            var config = new FootprintFoundationConfig
+            var config = new StructureFootprintConfig
             {
-                Primary = new RectangularFootprintConfig
-                {
-                    OffsetX = 0,
-                    OffsetZ = 0,
-                    Width = 48,
-                    Depth = 32,
-                },
-                FoundationEnabled = true,
+                Primary = new StructureFootprintRect(
+                    new int2(0, 0),
+                    new int2(48, 32)),
+                BasePlane = BasePlaneRule.MeanGround,
+                FoundationStyle = StructureFoundationStyle.TerrainFill,
                 FoundationDepth = 4,
-                TerrainSkirtDepth = 8,
-                MaxTerrainAdjustment = 6,
-                MaterialRole = StructureMaterialRole.Foundation,
+                FoundationMaterial = StructureMaterialRole.Foundation,
             };
 
-            config.Extensions.Add(new RectangularFootprintConfig
-            {
-                OffsetX = 12,
-                OffsetZ = 32,
-                Width = 24,
-                Depth = 16,
-            });
+            config.AdditionalRects.Add(new StructureFootprintRect(
+                new int2(12, 32),
+                new int2(24, 16)));
 
-            Assert.AreEqual(48, config.Primary.Width);
-            Assert.AreEqual(1, config.Extensions.Length);
-            Assert.AreEqual(24, config.Extensions[0].Width);
-            Assert.AreEqual(StructureMaterialRole.Foundation, config.MaterialRole);
+            Assert.AreEqual(2, config.PartCount);
+            Assert.IsTrue(config.IsComposed);
+            Assert.AreEqual(new int2(48, 32), config.Primary.Size);
+            Assert.AreEqual(new int2(24, 16), config.AdditionalRects[0].Size);
+            Assert.AreEqual(StructureMaterialRole.Foundation, config.FoundationMaterial);
+            Assert.IsTrue(config.IsWellFormed);
         }
 
         [Test]
