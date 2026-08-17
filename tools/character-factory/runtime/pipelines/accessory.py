@@ -1,11 +1,16 @@
 from pathlib import Path
 
 from api.models import AssetType, BuildSpec
-from .base import AssetPipeline
+from .base import AssetPipeline, PipelineResult
+from .rigid_composition import composed_rigid_plan
 
 
 class AccessoryPipeline(AssetPipeline):
     asset_type = AssetType.ACCESSORY
+
+    def plan(self, spec: BuildSpec) -> PipelineResult:
+        composed = composed_rigid_plan(self, spec, part_kind="accessory")
+        return composed if composed is not None else super().plan(spec)
 
     def _prepare_command(
         self,
