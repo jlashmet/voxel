@@ -5,6 +5,7 @@ from .appearance_profiles import (
 )
 from .backend_profiles import backend_profile, backend_profiles
 from .models import AssetType, BuildSpec, CharacterFactoryError, GeneratorBackend
+from .rig_profiles import rig_profile, rig_profiles
 
 __all__ = [
     "AppearanceStrategy",
@@ -16,4 +17,6 @@ __all__ = [
     "backend_profile",
     "backend_profiles",
     "default_appearance_strategy",
+    "rig_profile",
+    "rig_profiles",
 ]
