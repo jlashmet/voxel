@@ -52,6 +52,7 @@ namespace VoxelEngine.Tests.EditMode
         {
             bool hasStyledFill = false;
             bool hasRoundedOpening = false;
+            bool hasPlanarGlass = false;
             bool hasArchitecturalCylinder = false;
             bool hasSmoothRoof = false;
 
@@ -74,6 +75,16 @@ namespace VoxelEngine.Tests.EditMode
                     if (mode == PrimitiveMode.Carve
                         && surface == SurfaceStyles.ArchitecturalRounded)
                         hasRoundedOpening = true;
+                }
+                else if (op == ShapeOp.EmitBox)
+                {
+                    byte material = (byte)catalogue.Program[pc + 8];
+                    ushort surface = (ushort)catalogue.Program[pc + 9];
+                    PrimitiveMode mode = (PrimitiveMode)catalogue.Program[pc + 11];
+                    if (mode == PrimitiveMode.Fill
+                        && surface == SurfaceStyles.Planar
+                        && (material == 4 || material == 15))
+                        hasPlanarGlass = true;
                 }
                 else if (op == ShapeOp.EmitCylinder)
                 {
@@ -100,11 +111,17 @@ namespace VoxelEngine.Tests.EditMode
                 $"{definition.Name} must author the selected roof reconstruction treatment.");
 
             if (archetype == StructureArchetype.Well)
+            {
                 Assert.IsTrue(hasArchitecturalCylinder,
                     "The well ring should carry shell reconstruction semantics on its cylinder.");
+            }
             else
+            {
                 Assert.IsTrue(hasRoundedOpening,
                     $"{definition.Name} should author its doors/windows as semantic rounded openings.");
+                Assert.IsTrue(hasPlanarGlass,
+                    $"{definition.Name} should keep glazing planar instead of inheriting rounded detail geometry.");
+            }
         }
 
         private static FeatureDefinition FindRoleDefinition(
