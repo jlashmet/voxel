@@ -26,15 +26,42 @@ namespace Game.Structures.Runtime
             if (!components.IsWellFormed)
                 throw new System.ArgumentException("Castle component configuration is invalid.", nameof(components));
 
-            Author(
-                authoring,
-                in plan,
-                in components.CurtainWallX,
-                in components.CurtainWallZ,
-                in components.CurtainBattlements,
-                in components.Palette);
+            CastleCurtainConfig curtain = CastleCurtainPresets.Compatibility(in components);
+            Author(authoring, in plan, in curtain);
         }
 
+        /// <summary>
+        /// Authors the canonical configurable curtain surface. Rectangle and bounded orthogonal
+        /// polygon layouts use the same shared wall-run/battlement path; segmentation only divides
+        /// a span into bounded runs and never selects a different geometry implementation.
+        /// </summary>
+        public static void Author(
+            IStructureAuthoringSession authoring,
+            in CastlePlan plan,
+            in CastleCurtainConfig curtain)
+        {
+            if (authoring == null) throw new System.ArgumentNullException(nameof(authoring));
+            if (!curtain.IsWellFormed)
+                throw new System.ArgumentException("Castle curtain configuration is invalid.", nameof(curtain));
+
+            int baseY = plan.Centre.y + plan.PlateauHeight;
+            switch (curtain.Layout)
+            {
+                case CastleCurtainLayoutKind.Rectangular:
+                    AuthorRectangle(authoring, in plan, in curtain, baseY);
+                    CurtainFacadeDetails(authoring, in plan, in curtain, baseY);
+                    break;
+
+                case CastleCurtainLayoutKind.Polygon:
+                    AuthorPolygon(authoring, in plan, in curtain, baseY);
+                    break;
+
+                default:
+                    throw new System.ArgumentOutOfRangeException(nameof(curtain.Layout));
+            }
+        }
+
+        /// <summary>Compatibility overload retained for callers still supplying the shared pieces.</summary>
         public static void Author(
             IStructureAuthoringSession authoring,
             in CastlePlan plan,
@@ -46,6 +73,7 @@ namespace Game.Structures.Runtime
             Author(authoring, in plan, in wallX, in wallZ, in battlements, in palette);
         }
 
+        /// <summary>Compatibility overload retained while callers migrate to CastleCurtainConfig.</summary>
         public static void Author(
             IStructureAuthoringSession authoring,
             in CastlePlan plan,
@@ -54,40 +82,120 @@ namespace Game.Structures.Runtime
             in BattlementConfig battlements,
             in StructureMaterialPalette palette)
         {
-            if (authoring == null) throw new System.ArgumentNullException(nameof(authoring));
             if (!wallX.IsWellFormed || !wallZ.IsWellFormed || !battlements.IsWellFormed)
                 throw new System.ArgumentException("Castle curtain configuration is invalid.");
 
-            int baseY = plan.Centre.y + plan.PlateauHeight;
-            int hx = wallX.Length / 2;
-            int hz = wallZ.Length / 2;
-            int thickness = wallX.Thickness;
+            StructureWallRunConfig wall = wallX;
+            int longest = math.max(wallX.Length, wallZ.Length);
+            var curtain = new CastleCurtainConfig
+            {
+                Layout = CastleCurtainLayoutKind.Rectangular,
+                RectangularHalfExtents = new int2(wallX.Length / 2, wallZ.Length / 2),
+                Wall = wall,
+                MaximumSegmentLength = longest,
+                Battlements = battlements,
+                Palette = palette,
+            };
+            Author(authoring, in plan, in curtain);
+        }
 
-            WallRun(authoring,
+        private static void AuthorRectangle(
+            IStructureAuthoringSession authoring,
+            in CastlePlan plan,
+            in CastleCurtainConfig curtain,
+            int baseY)
+        {
+            int hx = curtain.RectangularHalfExtents.x;
+            int hz = curtain.RectangularHalfExtents.y;
+            int thickness = curtain.Thickness;
+            StructureWallRunConfig wallX = curtain.RectangularWallX();
+            StructureWallRunConfig wallZ = curtain.RectangularWallZ();
+
+            AuthorSegmentedWall(authoring,
                 new int3(plan.Centre.x - hx, baseY, plan.Centre.z - hz),
-                new int3(1, 0, 0), in wallX, in battlements, in palette, true);
-            WallRun(authoring,
+                new int3(1, 0, 0), true, in wallX, in curtain);
+            AuthorSegmentedWall(authoring,
                 new int3(plan.Centre.x - hx, baseY, plan.Centre.z + hz - thickness),
-                new int3(1, 0, 0), in wallX, in battlements, in palette, true);
-            WallRun(authoring,
+                new int3(1, 0, 0), true, in wallX, in curtain);
+            AuthorSegmentedWall(authoring,
                 new int3(plan.Centre.x - hx, baseY, plan.Centre.z - hz),
-                new int3(0, 0, 1), in wallZ, in battlements, in palette, false);
-            WallRun(authoring,
+                new int3(0, 0, 1), false, in wallZ, in curtain);
+            AuthorSegmentedWall(authoring,
                 new int3(plan.Centre.x + hx - thickness, baseY, plan.Centre.z - hz),
-                new int3(0, 0, 1), in wallZ, in battlements, in palette, false);
+                new int3(0, 0, 1), false, in wallZ, in curtain);
+        }
 
-            CurtainFacadeDetails(authoring, in plan, baseY);
+        private static void AuthorPolygon(
+            IStructureAuthoringSession authoring,
+            in CastlePlan plan,
+            in CastleCurtainConfig curtain,
+            int baseY)
+        {
+            for (int i = 0; i < curtain.PolygonVertices.Length; i++)
+            {
+                int2 a = curtain.PolygonVertices[i];
+                int2 b = curtain.PolygonVertices[(i + 1) % curtain.PolygonVertices.Length];
+                int dx = b.x - a.x;
+                int dz = b.y - a.y;
+                bool alongX = dz == 0;
+                int spanLength = alongX ? math.abs(dx) : math.abs(dz);
+
+                // Shared wall runs use positive-size bulk fills. Normalize negative polygon edges
+                // to their minimum endpoint rather than introducing a castle-only rasterizer.
+                int2 localStart = alongX
+                    ? new int2(math.min(a.x, b.x), a.y)
+                    : new int2(a.x, math.min(a.y, b.y));
+                int3 direction = alongX ? new int3(1, 0, 0) : new int3(0, 0, 1);
+                int3 start = new(
+                    plan.Centre.x + localStart.x,
+                    baseY,
+                    plan.Centre.z + localStart.y);
+
+                StructureWallRunConfig wall = curtain.WallForSpan(spanLength);
+                AuthorSegmentedWall(authoring, start, direction, alongX, in wall, in curtain);
+            }
+        }
+
+        private static void AuthorSegmentedWall(
+            IStructureAuthoringSession authoring,
+            int3 start,
+            int3 direction,
+            bool alongX,
+            in StructureWallRunConfig wall,
+            in CastleCurtainConfig curtain)
+        {
+            int offset = 0;
+            while (offset < wall.Length)
+            {
+                int segmentLength = math.min(curtain.MaximumSegmentLength, wall.Length - offset);
+                StructureWallRunConfig segment = wall;
+                segment.Length = segmentLength;
+                segment.StartInset = offset == 0 ? wall.StartInset : 0;
+                segment.EndInset = offset + segmentLength == wall.Length ? wall.EndInset : 0;
+
+                WallRun(
+                    authoring,
+                    start + direction * offset,
+                    direction,
+                    in segment,
+                    in curtain.Battlements,
+                    in curtain.Palette,
+                    alongX);
+                offset += segmentLength;
+            }
         }
 
         private static void CurtainFacadeDetails(
             IStructureAuthoringSession authoring,
             in CastlePlan plan,
+            in CastleCurtainConfig curtain,
             int baseY)
         {
-            int hx = plan.BaileyHalfX;
-            int hz = plan.BaileyHalfZ;
+            int hx = curtain.RectangularHalfExtents.x;
+            int hz = curtain.RectangularHalfExtents.y;
+            int thickness = curtain.Thickness;
             int gateZ = plan.Centre.z - hz;
-            int wallTop = baseY + plan.WallHeight;
+            int wallTop = baseY + curtain.Height;
 
             for (int side = -1; side <= 1; side += 2)
             for (int bay = 0; bay < 3; bay++)
@@ -98,7 +206,7 @@ namespace Game.Structures.Runtime
                 authoring.Box(new int3(x - 7, baseY, gateZ - 12),
                     new int3(14, 58, 14), GameMaterialIds.DarkStone);
                 authoring.Box(new int3(x - 5, baseY + 50, gateZ - 9),
-                    new int3(10, plan.WallHeight - 44, 11), GameMaterialIds.Stone);
+                    new int3(10, curtain.Height - 44, 11), GameMaterialIds.Stone);
                 authoring.Box(new int3(x - 9, baseY + 52, gateZ - 14),
                     new int3(18, 5, 16), GameMaterialIds.Stone);
 
@@ -120,13 +228,13 @@ namespace Game.Structures.Runtime
             for (int side = -1; side <= 1; side += 2)
             {
                 int x = plan.Centre.x + side * 132;
-                authoring.Cylinder(x, wallTop + 1, gateZ + plan.WallThickness / 2,
+                authoring.Cylinder(x, wallTop + 1, gateZ + thickness / 2,
                     14, 28, GameMaterialIds.Stone);
-                authoring.Cylinder(x, wallTop + 25, gateZ + plan.WallThickness / 2,
+                authoring.Cylinder(x, wallTop + 25, gateZ + thickness / 2,
                     17, 5, GameMaterialIds.DarkStone, 10);
-                authoring.Cone(x, wallTop + 29, gateZ + plan.WallThickness / 2,
+                authoring.Cone(x, wallTop + 29, gateZ + thickness / 2,
                     16, 32, GameMaterialIds.Slate);
-                authoring.Box(new int3(x, wallTop + 60, gateZ + plan.WallThickness / 2),
+                authoring.Box(new int3(x, wallTop + 60, gateZ + thickness / 2),
                     new int3(2, 15, 2), GameMaterialIds.Gold);
             }
 
@@ -164,7 +272,7 @@ namespace Game.Structures.Runtime
                 authoring.Box(new int3(outerX + (side < 0 ? -10 : 0), baseY, z - 6),
                     new int3(10, 62, 12), GameMaterialIds.DarkStone);
                 authoring.Box(new int3(outerX + (side < 0 ? -7 : 0), baseY + 54, z - 5),
-                    new int3(7, plan.WallHeight - 48, 10), GameMaterialIds.Stone);
+                    new int3(7, curtain.Height - 48, 10), GameMaterialIds.Stone);
             }
 
             int2[] frontWeathering =
