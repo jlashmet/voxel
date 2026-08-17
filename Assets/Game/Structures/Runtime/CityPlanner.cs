@@ -22,6 +22,8 @@ namespace Game.Structures.Runtime
     public static class CityPlanner
     {
         private const ulong CandidateSalt = 0x9E3779B97F4A7C15ul;
+        private const ulong LotWidthSalt = 0xDB4F0B9175AE2165ul;
+        private const ulong LotDepthSalt = 0xBBE0563303A4615Ful;
         private const ulong FrontageSalt = 0xD1B54A32D192ED03ul;
         private const ulong OpenSpaceSalt = 0x94D049BB133111EBul;
         private const ulong DensitySalt = 0xBF58476D1CE4E5B9ul;
@@ -49,11 +51,12 @@ namespace Game.Structures.Runtime
             ulong identity = StableIdentity(citySeed, gx, gz);
             CityRoadFrontage frontage = (CityRoadFrontage)(Hash(identity ^ FrontageSalt) & 3ul);
             CityDistrict district = ResolveDistrict(in config, cx2, cz2, identity);
-            int3 lotOrigin = ResolveLotOrigin(in config, cityOrigin, gx, gz);
-            int2 buildableSize = ResolveBuildableSize(in config, frontage);
+            int2 lotSize = ResolveLotSize(in config, identity);
+            int3 lotOrigin = ResolveLotOrigin(in config, cityOrigin, gx, gz, lotSize);
+            int2 buildableSize = ResolveBuildableSize(in config, frontage, lotSize);
             int3 buildableOrigin = ResolveBuildableOrigin(in config, lotOrigin, frontage);
 
-            FillCommon(ref placement, in config, candidateIndex, identity, gx, gz, lotOrigin,
+            FillCommon(ref placement, candidateIndex, identity, gx, gz, lotOrigin, lotSize,
                 buildableOrigin, buildableSize, frontage, district);
 
             if (InsidePlaza(in config, cx2, cz2))
@@ -113,12 +116,12 @@ namespace Game.Structures.Runtime
 
         private static void FillCommon(
             ref CityPlacement placement,
-            in CityConfig config,
             int candidateIndex,
             ulong identity,
             int gx,
             int gz,
             int3 lotOrigin,
+            int2 lotSize,
             int3 buildableOrigin,
             int2 buildableSize,
             CityRoadFrontage frontage,
@@ -128,7 +131,7 @@ namespace Game.Structures.Runtime
             placement.StableIdentity = identity;
             placement.Grid = new int2(gx, gz);
             placement.LotOrigin = lotOrigin;
-            placement.LotSize = new int2(config.Lot.Width, config.Lot.Depth);
+            placement.LotSize = lotSize;
             placement.BuildableSize = buildableSize;
             placement.StructureOrigin = new int3(
                 buildableOrigin.x + buildableSize.x / 2,
@@ -140,26 +143,45 @@ namespace Game.Structures.Runtime
             placement.IsLandmark = false;
         }
 
-        private static int3 ResolveLotOrigin(in CityConfig config, int3 origin, int gx, int gz)
+        private static int2 ResolveLotSize(in CityConfig config, ulong identity)
+        {
+            int widthRange = config.Lot.MaximumWidth - config.Lot.MinimumWidth + 1;
+            int depthRange = config.Lot.MaximumDepth - config.Lot.MinimumDepth + 1;
+            int width = config.Lot.MinimumWidth + (int)(Hash(identity ^ LotWidthSalt) % (ulong)widthRange);
+            int depth = config.Lot.MinimumDepth + (int)(Hash(identity ^ LotDepthSalt) % (ulong)depthRange);
+            return new int2(width, depth);
+        }
+
+        private static int3 ResolveLotOrigin(
+            in CityConfig config,
+            int3 origin,
+            int gx,
+            int gz,
+            int2 lotSize)
         {
             int totalX = config.BlocksX * config.BlockPitchX - config.StreetWidth - config.Lot.MinimumSpacing;
             int totalZ = config.BlocksZ * config.BlockPitchZ - config.StreetWidth - config.Lot.MinimumSpacing;
+            int slotX = origin.x - totalX / 2 + gx * config.BlockPitchX;
+            int slotZ = origin.z - totalZ / 2 + gz * config.BlockPitchZ;
             return new int3(
-                origin.x - totalX / 2 + gx * config.BlockPitchX,
+                slotX + (config.Lot.MaximumWidth - lotSize.x) / 2,
                 origin.y,
-                origin.z - totalZ / 2 + gz * config.BlockPitchZ);
+                slotZ + (config.Lot.MaximumDepth - lotSize.y) / 2);
         }
 
-        private static int2 ResolveBuildableSize(in CityConfig config, CityRoadFrontage frontage)
+        private static int2 ResolveBuildableSize(
+            in CityConfig config,
+            CityRoadFrontage frontage,
+            int2 lotSize)
         {
             bool sideFrontage = frontage == CityRoadFrontage.East || frontage == CityRoadFrontage.West;
             return sideFrontage
                 ? new int2(
-                    config.Lot.Width - config.Lot.FrontSetback - config.Lot.RearSetback,
-                    config.Lot.Depth - config.Lot.SideSetback * 2)
+                    lotSize.x - config.Lot.FrontSetback - config.Lot.RearSetback,
+                    lotSize.y - config.Lot.SideSetback * 2)
                 : new int2(
-                    config.Lot.Width - config.Lot.SideSetback * 2,
-                    config.Lot.Depth - config.Lot.FrontSetback - config.Lot.RearSetback);
+                    lotSize.x - config.Lot.SideSetback * 2,
+                    lotSize.y - config.Lot.FrontSetback - config.Lot.RearSetback);
         }
 
         private static int3 ResolveBuildableOrigin(
