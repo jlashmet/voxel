@@ -272,16 +272,20 @@ The rigid accessory path shares the same optional canonical-axis/target-length/m
 
 ## Phase 7 — Scale to many assets
 
-- [x] Build a production asset catalogue/index with type+ID keys, spec/reference SHA-256 fingerprints, generator profile/backend, appearance strategy, runtime slot/socket, and rigid canonicalization metadata.
+- [x] Build a production asset catalogue/index with type+ID keys, spec/reference SHA-256 fingerprints, generator profile/backend, appearance strategy, runtime slot/socket, rigid canonicalization metadata, normalized tags, and last-known artifact/cache state.
 - [x] Detect duplicate `assetType:id` identities while indexing.
-- [x] Support filtered `produce-batch` by repeated `--type` and `--id`; run #68 (`32064672302`) passed catalogue generation and a filtered weapon batch.
-- [ ] Add tag filtering and changed-reference/spec selection.
-- [ ] Track latest successful artifact hashes/status in the catalogue.
-- [ ] Cache expensive geometry generation independently from appearance/verification stages.
-- [ ] Re-run only downstream stages when references or configuration affecting those stages change.
-- [ ] Add CI smoke fixtures for at least one character, garment, weapon, and accessory.
-- [ ] Add production workflows that publish artifacts/proofs without requiring character-specific workflow files.
+- [x] Support filtered `produce-batch` by repeated `--type`, `--id`, and `--tag`; tags use AND semantics.
+- [x] Classify incremental input changes as `new`, `spec`, `geometry`, `appearance`, or `details`; run #73 (`32065061128`) proved no-change, spec-only, and appearance-only batch selection.
+- [x] Track last-known final FBX/proof SHA-256s, production status, and geometry-cache fingerprint/hit in catalogue entries when manifests exist.
+- [x] Cache prepared geometry independently from appearance/detail work. The fingerprint includes geometry-reference bytes, generator/profile/revision/command, canonical donor, preparation command/code, and alignment configuration while excluding appearance/detail bytes.
+- [x] Restore prepared geometry before backend bootstrap so appearance/detail-only work can bypass Hunyuan/TripoSR entirely; run #80 (`32065442056`) proved an appearance change restored cached geometry despite an intentionally nonexistent generator executable.
+- [x] Atomically write the next catalogue snapshot after successful/no-change `produce-batch` runs, enabling previous-snapshot -> changed build -> next-snapshot operation.
+- [ ] Cache/reuse appearance and verification stages independently; today changed appearance/details reuse geometry but still rerun downstream production checks.
+- [ ] Add CI smoke fixtures for at least one character, garment, weapon, and accessory. Character/garment/rigid Blender fixtures exist, but the shared self-hosted appearance run has not executed and there is no dedicated accessory smoke proof yet.
+- [x] Add one generic manual `character-factory-production.yml` workflow that selects an asset library by type/ID/tag/previous catalogue/change kind, optionally stages Unity assets, writes the next catalogue, and uploads artifacts/proofs.
+- [ ] Run the generic production workflow end-to-end on the self-hosted Mac and inspect its published proof before treating it as production-accepted.
+- [x] Keep the fast framework contract green through run #86 (`32065894665`), including catalogue tags, change classification, artifact-state hashing, geometry-cache behavior, atomic snapshots, all four asset/appearance dry-runs, and filtered batches.
 
 ## Current status
 
-The framework now has a generic asset production runner, separate geometry/appearance/detail references, named backend profiles, explicit character/garment/rigid appearance strategies, rigid multipart-reference handling, optional rigid axis/length/grip-or-mount canonicalization, and a catalogue with filtered batch production. Fast CI is green through run #68 across all four asset types. The main outstanding integration gate is the self-hosted Blender appearance/canonicalization smoke, currently queued with no runner assigned. After that, the highest-value work is art-quality reasoning: finish Madeline visibility-aware projection, add garment body-fit/occlusion gates, add rigid seam/orientation quality, and convert the remaining bespoke Madeline/Sun Staff art operations into declared reusable stages.
+The framework now has a generic asset production runner, separate geometry/appearance/detail references, named backend profiles, explicit character/garment/rigid appearance strategies, rigid multipart-reference handling, optional rigid axis/length/grip-or-mount canonicalization, a fingerprinted catalogue, changed-only/tag-filtered batch selection, and a persistent prepared-geometry cache. Appearance/detail edits can reuse geometry and skip model inference, and one generic production workflow replaces the need to author a workflow per named character or item. Fast CI is green through run #86 (`32065894665`). The main outstanding integration gate is the self-hosted Blender appearance/canonicalization smoke (`32064496502`), still queued with no runner assigned; the generic production workflow also needs one real end-to-end proof run. After those gates, the highest-value work is art-quality reasoning and remaining migration: finish Madeline visibility-aware projection, add garment body-fit/occlusion gates, add rigid seam/orientation quality, and convert the remaining bespoke Madeline/Sun Staff art operations into declared reusable stages.
