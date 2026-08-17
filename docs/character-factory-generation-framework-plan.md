@@ -29,7 +29,7 @@ reference images
 - [x] Add recursive production-spec discovery so a library of assets can be generated in batches.
 - [x] Give rigid weapons/accessories a real automated validation gate.
 - [x] Make reference-set ingestion convention-driven instead of requiring ad hoc path wiring; canonical views, geometry/appearance separation, named details, and image preflight are now generic. Deterministic re-encoding remains follow-up work.
-- [ ] Move generator environment/bootstrap selection into named backend profiles instead of production scripts.
+- [x] Move generator environment/bootstrap selection into named backend profiles instead of production scripts.
 - [ ] Give every asset type an explicit appearance strategy rather than sharing character-specific assumptions.
 - [ ] Migrate existing bespoke production scripts onto the generic producer only after their special behavior has a declared extension point.
 
@@ -80,6 +80,32 @@ The directory name is organizational. `asset.json` remains authoritative and its
 ```
 
 Existing top-level `views` remain supported during migration. A spec may add `references.details` alongside legacy views, but it cannot define both legacy `views` and `references.geometry` because that would make the geometry source ambiguous.
+
+## Generator backend profiles
+
+Machine/runtime configuration is now separate from asset data. Current profiles:
+
+```text
+hunyuan-quality-macos
+hunyuan-smoke-macos
+triposr-smoke-macos
+```
+
+A profile owns backend selection, pinned source revision, managed Python environment, source checkout/weights where applicable, and its bootstrap script. Assets cannot override those environment-owned fields. They can override art/generation knobs such as seed, steps, octree/MC resolution, chunking, model/subfolder, and background handling.
+
+Example:
+
+```json
+{
+  "generator": {
+    "profile": "hunyuan-quality-macos",
+    "seed": 31827,
+    "removeBackground": true
+  }
+}
+```
+
+Both `build` and `produce` bootstrap a missing profile automatically and skip bootstrap work when the exact managed runtime/model files are already ready. `bootstrap-profile <name>` exists for transitional preprocessing that needs the profile-managed Python before generation.
 
 ## Production profiles
 
@@ -156,10 +182,13 @@ Current standard profile mirrors rigid weapon production, with socket metadata c
 
 ## Phase 3 — Backend profiles
 
-- [ ] Add named generator profiles such as `hunyuan-quality-macos` and `triposr-smoke-macos`.
-- [ ] Move cache roots, model revisions, Python environments, model downloads, and bootstrap checks out of character-specific scripts.
-- [ ] Allow a production asset to request a profile plus only asset-specific overrides such as seed/resolution.
-- [ ] Keep manifests explicit about the resolved backend/model/revision used for reproducibility.
+- [x] Add named generator profiles `hunyuan-quality-macos`, `hunyuan-smoke-macos`, and `triposr-smoke-macos`.
+- [x] Move cache roots, pinned source revisions, Python environments, model downloads, and bootstrap checks into generic profile/bootstrap code instead of character/weapon production scripts.
+- [x] Allow a production asset to request a profile plus only asset-specific overrides such as seed/resolution; reject profile-owned machine-field overrides.
+- [x] Keep manifests explicit about the selected profile, resolved backend/model parameters, pinned source revision, and bootstrap command for reproducibility.
+- [x] Add `profiles` discovery and `bootstrap-profile <name>` CLI commands.
+- [x] Add automatic ready-state detection so already-materialized profile environments do not rerun expensive bootstrap work.
+- [x] Validate the profile contract in focused CI; run #18 (`32061077951`) passed backend-profile tests and all existing production-contract gates, and run #23 (`32061349355`) stayed green after the Sun Staff profile migration.
 
 ## Phase 4 — Appearance profiles
 
@@ -181,11 +210,11 @@ Current standard profile mirrors rigid weapon production, with socket metadata c
 ## Phase 6 — Migrate existing assets
 
 - [ ] Finish Madeline projection repair on `agent/madeline-projection-repair` first.
-- [ ] Move Madeline reference normalization, body-only preprocessing, and face identity into reusable/configurable stages.
+- [ ] Move Madeline reference normalization, body-only preprocessing, and face identity into reusable/configurable stages. Her generator environment and reference declaration are profile/contract-driven now, but the cleanup/face operations remain bespoke.
 - [ ] Replace `production/madeline/build.sh` with an `asset.json` plus only genuinely asset-specific preprocessing configuration.
-- [ ] Migrate the Sunlit Cleric character build to `produce`.
+- [x] Migrate the Sunlit Cleric character build to `produce` using `hunyuan-quality-macos`; the script now only creates the canonical donor and writes the asset spec.
 - [ ] Migrate the Cleric robe to the clothing production profile.
-- [ ] Migrate the Sun Staff to the weapon profile, preserving its ornament+procedural-shaft composition as a declared weapon composition stage.
+- [ ] Migrate the Sun Staff fully to the weapon production profile; its TripoSR environment/spec is profile-driven now, but ornament+procedural-shaft composition is still a bespoke stage.
 - [ ] Migrate the sun charm/accessories.
 
 ## Phase 7 — Scale to many assets
@@ -199,4 +228,4 @@ Current standard profile mirrors rigid weapon production, with socket metadata c
 
 ## Current status
 
-The low-level Character Factory was already more generic than the existing production scripts: `BuildSpec` and runtime routing already distinguish character, clothing, weapon, and accessory. The generation-framework branch now adds the missing common production layer plus a reference-set contract that separates geometry, appearance, and named detail sources. The focused framework CI is green across all four asset types. The next highest-leverage step is named backend profiles, which will remove model-cache/bootstrap/Python-environment duplication from the remaining production scripts before we migrate Madeline, the Cleric robe, and the Sun Staff.
+The framework now has three layers that scale beyond a single named character: a generic asset-type production runner, a geometry/appearance/detail reference contract, and pinned backend profiles that own machine/model setup. The focused CI is green across all four asset types and the existing Sunlit Cleric character build has been reduced to the generic `produce` path. Madeline and the Sun Staff still retain bespoke **art operations**, but they no longer own generator revisions/cache paths. The next highest-leverage work is to turn those remaining art operations into declared reusable stages and to split appearance handling into character, garment, and rigid strategies.
