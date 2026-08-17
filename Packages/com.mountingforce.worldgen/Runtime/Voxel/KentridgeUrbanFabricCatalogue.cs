@@ -4,6 +4,7 @@ using MountingForce.WorldGen.Architecture;
 using MountingForce.WorldGen.Content.Kentridge;
 using ContentKentridgeFrontageRhythm = MountingForce.WorldGen.Content.Kentridge.KentridgeFrontageRhythm;
 using ContentKentridgeRoofForm = MountingForce.WorldGen.Content.Kentridge.KentridgeRoofForm;
+using ContentKentridgeUrbanFabricForm = MountingForce.WorldGen.Content.Kentridge.KentridgeUrbanFabricForm;
 using ContentKentridgeWindowStyle = MountingForce.WorldGen.Content.Kentridge.KentridgeWindowStyle;
 using Unity.Collections;
 using Unity.Mathematics;
@@ -27,13 +28,13 @@ namespace MountingForce.WorldGen.Voxel
         private readonly struct FabricSite
         {
             public readonly KentridgeFrontageRun Run;
-            public readonly KentridgeUrbanFabricForm Form;
+            public readonly ContentKentridgeUrbanFabricForm Form;
             public readonly StructureGeometryProfile Geometry;
             public readonly Int2 PositionDm;
 
             public FabricSite(
                 KentridgeFrontageRun run,
-                KentridgeUrbanFabricForm form,
+                ContentKentridgeUrbanFabricForm form,
                 StructureGeometryProfile geometry,
                 Int2 positionDm)
             {
@@ -182,7 +183,7 @@ namespace MountingForce.WorldGen.Voxel
             for (int i = 0; i < packed.Length; i++)
             {
                 SettlementFrontageSite slot = packed[i];
-                KentridgeUrbanFabricForm form = KentridgeUrbanFabricGrammar.Resolve(
+                ContentKentridgeUrbanFabricForm form = KentridgeUrbanFabricGrammar.Resolve(
                     run, seed, runIndex, slot.SiteIndex);
                 StructureGeometryProfile geometry = UrbanFabricGeometryProfiles.Resolve(
                     intent,
@@ -215,7 +216,7 @@ namespace MountingForce.WorldGen.Voxel
             return new Int2(x, centreAlongDm - half);
         }
 
-        private static int HeightDm(KentridgeUrbanFabricForm form)
+        private static int HeightDm(ContentKentridgeUrbanFabricForm form)
         {
             ArchitectureTheme theme = KentridgeDefinition.Theme;
             return theme.FoundationHeightDm
@@ -228,7 +229,7 @@ namespace MountingForce.WorldGen.Voxel
             FabricSite site,
             VoxelWorldGenSettings settings)
         {
-            KentridgeUrbanFabricForm form = site.Form;
+            ContentKentridgeUrbanFabricForm form = site.Form;
             KentridgeUrbanFabricGrammar.Validate(site.Run, form);
 
             int s = settings.VoxelsPerDecimetre;
@@ -347,7 +348,7 @@ namespace MountingForce.WorldGen.Voxel
 
         private static void AddFrontWindows(
             ProgramBuilder b,
-            KentridgeUrbanFabricForm form,
+            ContentKentridgeUrbanFabricForm form,
             int x0, int z0, int w,
             int y, int t,
             byte glass,
@@ -384,7 +385,7 @@ namespace MountingForce.WorldGen.Voxel
 
         private static void AddRearAndSideWindows(
             ProgramBuilder b,
-            KentridgeUrbanFabricForm form,
+            ContentKentridgeUrbanFabricForm form,
             int x0, int z0, int w, int d,
             int upperX, int upperZ, int upperW, int upperD,
             int f, int t, int floor,
@@ -416,7 +417,7 @@ namespace MountingForce.WorldGen.Voxel
 
         private static void AddLeanToAnnex(
             ProgramBuilder b,
-            KentridgeUrbanFabricForm form,
+            ContentKentridgeUrbanFabricForm form,
             int envelope,
             int x0, int z0, int w, int d,
             int f, int floor, int t,
