@@ -113,11 +113,20 @@ namespace Game.Structures.Api
                 PlatformHeight = platformHeight,
                 ApproachStairs = new StairConfig
                 {
+                    Direction = StructureRunDirection.PositiveZ,
+                    Layout = StructureStairLayout.Straight,
                     Width = 34,
-                    Steps = platformHeight,
-                    Rise = 1,
-                    Run = 2,
-                    LandingDepth = 4,
+                    StepCount = platformHeight,
+                    StepRise = 1,
+                    StepRun = 2,
+                    StepsPerFlight = platformHeight,
+                    Landing = new LandingConfig
+                    {
+                        Width = 34,
+                        Length = 4,
+                        Thickness = 1,
+                        MaterialRole = StructureMaterialRole.Foundation,
+                    },
                     MaterialRole = StructureMaterialRole.Foundation,
                 },
                 SanctuaryWidth = sanctuaryWidth,
