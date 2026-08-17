@@ -28,7 +28,7 @@ namespace Game.Structures.Runtime
             if (!CastleBedroomDecorationAdapter.TryResolve(
                     in plan,
                     out _,
-                    out _,
+                    out DecorationContext context,
                     out _,
                     out DecorationPlacement[] placements))
             {
@@ -36,7 +36,7 @@ namespace Game.Structures.Runtime
                     "Castle bedchamber decoration resolution failed; refusing to author a partial room.");
             }
 
-            if (!DecorationStructureAuthoringEmitter.TryAuthor(authoring, placements))
+            if (!DecorationStructureAuthoringEmitter.TryAuthor(authoring, placements, in context))
             {
                 throw new System.InvalidOperationException(
                     "Castle bedchamber decoration emission failed; refusing to author a partial room.");
