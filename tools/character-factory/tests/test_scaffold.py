@@ -15,14 +15,11 @@ from runtime.scaffold import scaffold_asset
 
 
 class ScaffoldTests(unittest.TestCase):
-    def test_character_scaffold_creates_reference_contract_and_profile(self) -> None:
+    def test_character_scaffold_creates_reference_contract_and_rig_profile(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             project = root / "repo"
             library = project / "tools" / "character-factory" / "production-assets"
-            canonical = project / "Artifacts" / "Canonical" / "female.glb"
-            canonical.parent.mkdir(parents=True)
-            canonical.write_bytes(b"canonical")
 
             result = scaffold_asset(
                 project_root=project,
@@ -30,7 +27,6 @@ class ScaffoldTests(unittest.TestCase):
                 asset_type=AssetType.CHARACTER,
                 asset_id="steven_01",
                 backend_profile="hunyuan-quality-macos",
-                canonical_body=canonical,
                 tags=["Castle", "MainCast", "castle"],
             )
             payload = json.loads(result.spec.read_text(encoding="utf-8"))
@@ -38,17 +34,38 @@ class ScaffoldTests(unittest.TestCase):
             self.assertEqual("character", payload["assetType"])
             self.assertEqual("character-multiview", payload["appearance"]["strategy"])
             self.assertEqual("hunyuan-quality-macos", payload["generator"]["profile"])
+            self.assertEqual("canonical-humanoid-macos", payload["rig"]["profile"])
+            self.assertEqual(0.45, payload["rig"]["maxTransferDistance"])
+            self.assertNotIn("canonicalBody", payload["rig"])
+            self.assertNotIn("blender", payload["rig"])
             self.assertEqual(["castle", "maincast"], payload["tags"])
             self.assertEqual({"directory": "geometry"}, payload["references"]["geometry"])
             self.assertEqual({"directory": "appearance"}, payload["references"]["appearance"])
             self.assertTrue(result.geometry.is_dir())
             self.assertTrue(result.appearance is not None and result.appearance.is_dir())
             self.assertTrue(result.details.is_dir())
-            self.assertEqual("Body", payload["rig"]["bodyObject"])
             self.assertNotIn("runtimePart", payload)
             self.assertIn("Artifacts/CharacterFactoryProduction/character/steven_01", payload["outputDir"])
 
-    def test_clothing_scaffold_uses_garment_donor_and_torso_slot(self) -> None:
+    def test_clothing_scaffold_uses_rig_profile_and_torso_slot(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            result = scaffold_asset(
+                project_root=root,
+                library_root=root / "assets",
+                asset_type=AssetType.CLOTHING,
+                asset_id="guard_tunic_01",
+                backend_profile="hunyuan-quality-macos",
+                tags=["castle", "guard"],
+            )
+            payload = json.loads(result.spec.read_text(encoding="utf-8"))
+            self.assertEqual("garment-multiview", payload["appearance"]["strategy"])
+            self.assertEqual("canonical-humanoid-macos", payload["rig"]["profile"])
+            self.assertNotIn("bodyObject", payload["rig"])
+            self.assertEqual("Torso", payload["runtimePart"]["slot"])
+            self.assertIsNone(payload["runtimePart"]["socketBoneName"])
+
+    def test_explicit_canonical_body_remains_supported_for_legacy_assets(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             canonical = root / "canonical.glb"
@@ -57,16 +74,15 @@ class ScaffoldTests(unittest.TestCase):
                 project_root=root,
                 library_root=root / "assets",
                 asset_type=AssetType.CLOTHING,
-                asset_id="guard_tunic_01",
+                asset_id="legacy_robe",
                 backend_profile="hunyuan-quality-macos",
                 canonical_body=canonical,
-                tags=["castle", "guard"],
+                rig_profile=None,
             )
             payload = json.loads(result.spec.read_text(encoding="utf-8"))
-            self.assertEqual("garment-multiview", payload["appearance"]["strategy"])
+            self.assertNotIn("profile", payload["rig"])
             self.assertEqual("GarmentDonor", payload["rig"]["bodyObject"])
-            self.assertEqual("Torso", payload["runtimePart"]["slot"])
-            self.assertIsNone(payload["runtimePart"]["socketBoneName"])
+            self.assertIn("canonical.glb", payload["rig"]["canonicalBody"])
 
     def test_weapon_scaffold_is_immediately_rigid_and_socketed(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -105,18 +121,6 @@ class ScaffoldTests(unittest.TestCase):
 
             scaffold_asset(**kwargs, force=True)
             self.assertNotEqual("sentinel", result.spec.read_text(encoding="utf-8"))
-
-    def test_character_requires_canonical_body(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            with self.assertRaisesRegex(CharacterFactoryError, "requires --canonical-body"):
-                scaffold_asset(
-                    project_root=root,
-                    library_root=root / "assets",
-                    asset_type=AssetType.CHARACTER,
-                    asset_id="missing_donor",
-                    backend_profile="hunyuan-quality-macos",
-                )
 
 
 if __name__ == "__main__":
