@@ -13,7 +13,7 @@ Status: `[ ]` todo, `[~]` in progress, `[x]` complete.
 
 ## Batch A — traversal and barriers
 
-Geometry and concrete behavior are implemented for this batch; generator integration remains before the kinds meet the full completion contract.
+Geometry and concrete behavior are implemented for this batch; kinds remain `[~]` until each has a generated-content integration path and Unity validation.
 
 - [~] Door
 - [~] Gate
@@ -80,11 +80,11 @@ Geometry and concrete behavior are implemented for this batch; generator integra
 
 ## Generator integration
 
-- [ ] Castle doors and gatehouse controls.
-- [ ] Castle secret-room mechanism.
-- [ ] Castle/dungeon traps.
-- [ ] Castle vertical traversal/elevator example.
-- [ ] Cave/mine carts, switches, lights and traps.
+- [x] Castle doors and gatehouse controls.
+- [x] Castle secret-room mechanism.
+- [x] Castle/dungeon traps.
+- [x] Castle vertical traversal/elevator example.
+- [x] Cave/mine carts, switches, lights and traps.
 - [~] Decoration-generated containers/furniture use common runtime behavior (promotion exists; presentation/runtime activation integration remains).
 
 ## Reusable mechanism presets
@@ -96,6 +96,6 @@ Geometry and concrete behavior are implemented for this batch; generator integra
 - [x] Gatehouse controls.
 - [x] Powered lights.
 - [ ] Timed/resetting trap.
-- [ ] Multi-switch/chained control.
-- [ ] Elevator call-button network.
-- [ ] Lock/key-style gating hook.
+- [x] Multi-switch/chained control.
+- [x] Elevator call-button network.
+- [x] Lock/key-style gating hook.
