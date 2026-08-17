@@ -28,16 +28,20 @@ namespace Game.Structures.Api
         public StructureWallRunConfig CurtainWallX;
         public StructureWallRunConfig CurtainWallZ;
         public TowerConfig CornerTowers;
-        public TowerConfig GateTowers;
-        public OpeningConfig MainGate;
+        public CastleGatehouseConfig Gatehouse;
         public BattlementConfig CurtainBattlements;
-        public BattlementConfig GatehouseBattlements;
         public StructureMaterialPalette Palette;
 
         public int KeepWidth => KeepWalls.Length;
         public int KeepHeight => KeepWalls.Height;
         public int KeepWallThickness => KeepWalls.Thickness;
         public int KeepLevelCount => KeepFloors.FloorCount;
+
+        // Transitional read-only aliases keep older callers source-compatible while gatehouse
+        // semantics move under one castle-specific configuration graph.
+        public TowerConfig GateTowers => Gatehouse.FlankingTowers;
+        public OpeningConfig MainGate => Gatehouse.GateOpening;
+        public BattlementConfig GatehouseBattlements => Gatehouse.Battlements;
 
         public bool IsWellFormed =>
             BaileyFootprint.IsWellFormed &&
@@ -53,10 +57,8 @@ namespace Game.Structures.Api
             CurtainWallX.IsWellFormed &&
             CurtainWallZ.IsWellFormed &&
             CornerTowers.IsWellFormed &&
-            GateTowers.IsWellFormed &&
-            MainGate.IsWellFormed &&
-            CurtainBattlements.IsWellFormed &&
-            GatehouseBattlements.IsWellFormed;
+            Gatehouse.IsWellFormed &&
+            CurtainBattlements.IsWellFormed;
     }
 
     /// <summary>
@@ -73,6 +75,14 @@ namespace Game.Structures.Api
             var wallX = CurtainWall(plan.BaileyHalfX * 2, plan.WallHeight, plan.WallThickness);
             var wallZ = CurtainWall(plan.BaileyHalfZ * 2, plan.WallHeight, plan.WallThickness);
             OpeningConfig towerWindow = TowerWindow(plan.FloorHeight);
+            TowerConfig gateTowers = Tower(
+                StructureTowerPlacement.Explicit,
+                plan.GateTowerRadius,
+                plan.GateTowerHeight,
+                2,
+                in towerWindow);
+            OpeningConfig mainGate = GateOpening();
+            BattlementConfig gatehouseBattlements = GatehouseBattlements();
 
             return new CastleComponentConfig
             {
@@ -170,27 +180,42 @@ namespace Game.Structures.Api
                     plan.TowerHeight,
                     4,
                     in towerWindow),
-                GateTowers = Tower(
-                    StructureTowerPlacement.Explicit,
-                    plan.GateTowerRadius,
-                    plan.GateTowerHeight,
-                    2,
-                    in towerWindow),
-                MainGate = new OpeningConfig
+                Gatehouse = new CastleGatehouseConfig
                 {
-                    Kind = StructureOpeningKind.Arch,
-                    Width = CastleLayout.FrontGateWidth,
-                    Height = CastleLayout.FrontGateHeight,
-                    BottomOffset = 1,
-                    Spacing = 0,
-                    StartMargin = 0,
-                    EndMargin = 0,
-                    FrameThickness = 0,
-                    LintelThickness = 0,
-                    WidthVariation = 0,
-                    HeightVariation = 0,
-                    FrameMaterialRole = StructureMaterialRole.Trim,
-                    FillMaterialRole = StructureMaterialRole.Opening,
+                    Width = 108,
+                    Depth = plan.WallThickness * 2,
+                    Height = plan.WallHeight + 22,
+                    TowerCentreOffset = 54,
+                    GateLeafDepth = CastleLayout.FrontGateDepth,
+                    FlankingTowers = gateTowers,
+                    GateOpening = mainGate,
+                    PortcullisOpening = new OpeningConfig
+                    {
+                        Kind = StructureOpeningKind.Arch,
+                        Width = CastleLayout.FrontGateWidth + 4,
+                        Height = CastleLayout.FrontGateHeight + 14,
+                        BottomOffset = 0,
+                        Spacing = 0,
+                        StartMargin = 0,
+                        EndMargin = 0,
+                        FrameThickness = 0,
+                        LintelThickness = 0,
+                        WidthVariation = 0,
+                        HeightVariation = 0,
+                        FrameMaterialRole = StructureMaterialRole.Trim,
+                        FillMaterialRole = StructureMaterialRole.Opening,
+                    },
+                    Battlements = gatehouseBattlements,
+                    RoadAnchor = new AttachmentAnchorConfig
+                    {
+                        Kind = StructureAttachmentKind.Road,
+                        LocalPosition = new int3(
+                            0,
+                            plan.PlateauHeight,
+                            -plan.BaileyHalfZ - plan.WallThickness - 149),
+                        Facing = Facing.South,
+                        SnapToGround = false,
+                    },
                 },
                 CurtainBattlements = new BattlementConfig
                 {
@@ -200,16 +225,6 @@ namespace Game.Structures.Api
                     MerlonHeight = 20,
                     GapWidth = 18,
                     CornerMerlonWidth = 26,
-                    MaterialRole = StructureMaterialRole.PrimaryWall,
-                },
-                GatehouseBattlements = new BattlementConfig
-                {
-                    ParapetThickness = 8,
-                    ParapetHeight = 0,
-                    MerlonWidth = 18,
-                    MerlonHeight = 18,
-                    GapWidth = 12,
-                    CornerMerlonWidth = 18,
                     MaterialRole = StructureMaterialRole.PrimaryWall,
                 },
                 Palette = palette,
@@ -264,6 +279,34 @@ namespace Game.Structures.Api
             HeightVariation = 0,
             FrameMaterialRole = StructureMaterialRole.Trim,
             FillMaterialRole = StructureMaterialRole.Glass,
+        };
+
+        private static OpeningConfig GateOpening() => new OpeningConfig
+        {
+            Kind = StructureOpeningKind.Arch,
+            Width = CastleLayout.FrontGateWidth,
+            Height = CastleLayout.FrontGateHeight,
+            BottomOffset = 1,
+            Spacing = 0,
+            StartMargin = 0,
+            EndMargin = 0,
+            FrameThickness = 0,
+            LintelThickness = 0,
+            WidthVariation = 0,
+            HeightVariation = 0,
+            FrameMaterialRole = StructureMaterialRole.Trim,
+            FillMaterialRole = StructureMaterialRole.Opening,
+        };
+
+        private static BattlementConfig GatehouseBattlements() => new BattlementConfig
+        {
+            ParapetThickness = 8,
+            ParapetHeight = 0,
+            MerlonWidth = 18,
+            MerlonHeight = 18,
+            GapWidth = 12,
+            CornerMerlonWidth = 18,
+            MaterialRole = StructureMaterialRole.PrimaryWall,
         };
 
         private static TowerConfig Tower(
