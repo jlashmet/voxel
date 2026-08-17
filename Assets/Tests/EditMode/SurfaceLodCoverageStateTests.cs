@@ -130,6 +130,44 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void ObserveMirrorsStaleDrawableWhileNewGenerationIsPending()
+        {
+            var state = new SurfaceLodCoverageState();
+            var key = new SurfaceLodNodeKey(2, new int3(-8, 3, -1));
+
+            state.Observe(key, 15, 14, SurfaceLodCompletionKind.Ready);
+            SurfaceLodNodeState node = state.GetOrDefault(key);
+
+            Assert.AreEqual(15UL, node.DesiredGeneration);
+            Assert.AreEqual(14UL, node.DrawableGeneration);
+            Assert.IsTrue(node.IsDrawableGeometry);
+            Assert.IsFalse(node.IsDesiredComplete,
+                "A stale cache entry can cover the region but cannot authorize an LOD switch.");
+
+            state.Observe(key, 15, 15, SurfaceLodCompletionKind.Ready);
+            Assert.IsTrue(state.IsDesiredComplete(key));
+        }
+
+        [Test]
+        public void ObserveIncompleteClearsEvictedDrawableProof()
+        {
+            var state = new SurfaceLodCoverageState();
+            var key = new SurfaceLodNodeKey(4, new int3(2, -5, 9));
+
+            state.Observe(key, 7, 7, SurfaceLodCompletionKind.Ready);
+            Assert.IsTrue(state.GetOrDefault(key).HasDrawableProof);
+
+            state.Observe(key, 8, 1234, SurfaceLodCompletionKind.Incomplete);
+            SurfaceLodNodeState node = state.GetOrDefault(key);
+
+            Assert.AreEqual(8UL, node.DesiredGeneration);
+            Assert.AreEqual(0UL, node.DrawableGeneration,
+                "Incomplete cache state must not retain a stale completion proof.");
+            Assert.IsFalse(node.HasDrawableProof);
+            Assert.IsFalse(node.IsDesiredComplete);
+        }
+
+        [Test]
         public void DesiredGenerationCannotMoveBackward()
         {
             var state = new SurfaceLodCoverageState();
