@@ -177,7 +177,7 @@ namespace Game.Structures.Api
                     Style = roofStyle,
                     RidgeAxis = roofAxis,
                     PitchRise = roofStyle == RoofStyle.Flat ? 0 : 16,
-                    PitchRun = roofStyle == RoofStyle.Flat ? 1 : 24,
+                    PitchRun = roofStyle == RoofStyle.Flat ? 0 : 24,
                     EaveOverhang = roofStyle == RoofStyle.Flat ? 2 : 4,
                     Thickness = 2,
                     ParapetHeight = 0,
