@@ -21,7 +21,8 @@ namespace Game.Structures.Runtime
         public static void AuthorCastle(IStructureAuthoringSession geometry, WorldObjectAuthoringSession objects,
             in CastlePlan plan, WorldObjectGeometryEmissionMode emissionMode = WorldObjectGeometryEmissionMode.AllVoxel)
         {
-            if (geometry == null) throw new System.ArgumentNullException(nameof(geometry));
+            if (geometry == null && emissionMode != WorldObjectGeometryEmissionMode.None)
+                throw new System.ArgumentNullException(nameof(geometry));
             if (objects == null) throw new System.ArgumentNullException(nameof(objects));
 
             int baseY = plan.Centre.y + plan.PlateauHeight;
@@ -103,7 +104,8 @@ namespace Game.Structures.Runtime
         public static void AuthorMineCave(IStructureAuthoringSession geometry, WorldObjectAuthoringSession objects,
             DecorationBounds chamber, WorldObjectGeometryEmissionMode emissionMode = WorldObjectGeometryEmissionMode.AllVoxel)
         {
-            if (geometry == null) throw new System.ArgumentNullException(nameof(geometry));
+            if (geometry == null && emissionMode != WorldObjectGeometryEmissionMode.None)
+                throw new System.ArgumentNullException(nameof(geometry));
             if (objects == null) throw new System.ArgumentNullException(nameof(objects));
             int3 p = chamber.Min;
             int3 s = chamber.Size;
