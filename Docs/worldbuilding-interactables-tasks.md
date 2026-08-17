@@ -18,6 +18,8 @@ Status: `[ ]` todo, `[~]` in progress, `[x]` complete.
 - [x] Add state-change notifications and presentation refresh sink contract.
 - [x] Add concrete Unity dynamic presentation sink + scene host (proxy geometry, animation, collider, light, particles).
 - [x] Add StaticOnly geometry emission mode so dynamic Unity proxies are not also baked into voxels.
+- [x] Add dedicated Unity composition assembly owning the registry/presentation lifecycle without weakening engine-free composition boundaries.
+- [x] Auto-bootstrap one persistent WorldObject runtime composition owner after scene load.
 - [x] Add geometry/behavior/runtime validation coverage for every registered kind (tests authored; Unity execution still required).
 
 ## Batch A — traversal and barriers
@@ -129,4 +131,4 @@ Geometry, concrete behavior, and generated-content placement are implemented. Pe
 - [ ] Run authored WorldObject tests in Unity and fix compile/runtime failures.
 - [x] Dynamic presentation path: planning + push refresh + concrete Unity sink/scene host; proxy visuals are intentionally gameplay-first placeholders.
 - [ ] Reconcile latest `agent/worldbuilding-decorations` changes into this branch (source branch is still actively moving; connector tree merge is currently blocked).
-- [~] Streaming lifecycle: registry/state retention is complete; wire registry ownership into the final game composition/bootstrap path.
+- [~] Streaming lifecycle: persistent registry/composition owner + auto-bootstrap are complete; actual structure realization call sites still need to call LoadCastle/LoadMineCave when a site becomes live and Unload when it streams out.
