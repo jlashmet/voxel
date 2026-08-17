@@ -34,7 +34,7 @@ namespace VoxelEngine.Structures.Api
 
         public int MaxCountForSpan(int span)
         {
-            if (!IsWellFormed || span <= StartMargin + EndMargin + Width) return 0;
+            if (!IsWellFormed || span < StartMargin + EndMargin + Width) return 0;
             int usable = span - StartMargin - EndMargin;
             return 1 + (usable - Width) / Spacing;
         }

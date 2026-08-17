@@ -88,9 +88,6 @@ namespace VoxelEngine.Structures.Api
             if (config.Width <= config.WallThickness * 2 || config.Depth <= config.WallThickness * 2)
                 return Invalid(StructureDiagnosticCode.InvalidDimensions, "Footprint.Primary.Size",
                     "House width and depth must leave positive interior space after wall thickness.");
-            if (config.Walls.Length != config.Width)
-                return Invalid(StructureDiagnosticCode.InvalidDimensions, "Walls.Length",
-                    "Wall-run length must equal the primary footprint width.");
             if (!config.Floors.IsWellFormed || config.Floors.FloorCount <= 0 ||
                 config.Floors.LevelHeight <= 0 || config.Floors.SlabThickness < 0)
                 return Invalid(StructureDiagnosticCode.InvalidFloors, "Floors",
@@ -181,14 +178,16 @@ namespace VoxelEngine.Structures.Api
             if (!request.TryGetWorldBounds(in config, out _))
                 return Invalid(StructureDiagnosticCode.InvalidBounds, "Origin/BoundsHalfExtents",
                     "Resolved world bounds overflow integer structure-generation bounds.");
+            if (!request.EntranceFitsBounds(in config))
+                return Invalid(StructureDiagnosticCode.InvalidBounds, "Entrance",
+                    "Entrance width/height/clearance must remain inside the declared local cave bounds.");
             return StructureDiagnostic.Valid;
         }
 
         private static StructureDiagnostic HouseOpenings(in HouseConfig config)
         {
-            if (!config.MainDoor.IsWellFormed || config.MainDoor.Kind != StructureOpeningKind.Door)
-                return Invalid(StructureDiagnosticCode.InvalidOpening, "MainDoor",
-                    "MainDoor must be a well-formed door opening.");
+            // MainDoor is a compatibility alias. The general compiler consumes the facade layouts;
+            // diagnostics therefore validate those layouts rather than requiring both sources to agree.
             if (!config.FrontDoors.IsWellFormed)
                 return Invalid(StructureDiagnosticCode.InvalidOpeningLayout, "FrontDoors",
                     "Front-door count/placement/opening/explicit offsets are invalid.");

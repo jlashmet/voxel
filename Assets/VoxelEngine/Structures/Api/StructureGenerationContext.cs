@@ -1,3 +1,4 @@
+using System;
 using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Terrain.Api;
@@ -135,7 +136,7 @@ namespace VoxelEngine.Structures.Api
         /// <summary>
         /// Creates a context using the same stable feature identity rule as FeatureGeneration.
         /// Odd cardinal orientations swap X/Z footprint extents in world-space bounds.
-        /// Callers validating authored content should first use <see cref="StructureGenerationBounds.TryCreate"/>.
+        /// Invalid/overflowing bounds are rejected instead of producing a default context.
         /// </summary>
         public static StructureGenerationContext ForFeature(
             uint worldSeed,
@@ -153,9 +154,12 @@ namespace VoxelEngine.Structures.Api
                 : new int3(footprint.z, footprint.y, footprint.x);
             ulong identity = FeatureHash.Cell(worldSeed, definitionId, origin);
 
-            StructureGenerationBounds.TryCreate(origin, orientedFootprint, out var bounds);
-            var terrain = new StructureTerrainAccess(terrainSeed);
+            if (!StructureGenerationBounds.TryCreate(origin, orientedFootprint, out var bounds))
+                throw new ArgumentOutOfRangeException(
+                    nameof(footprint),
+                    "Structure footprint must be positive and remain representable in world-space integer bounds.");
 
+            var terrain = new StructureTerrainAccess(terrainSeed);
             return new StructureGenerationContext(
                 identity,
                 worldSeed,

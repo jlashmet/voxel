@@ -39,7 +39,9 @@ namespace VoxelEngine.Structures.Api
             {
                 char c = id[i];
                 if (c < '0' || c > '9') return false;
-                version = checked(version * 10 + (c - '0'));
+                int digit = c - '0';
+                if (version > (int.MaxValue - digit) / 10) return false;
+                version = version * 10 + digit;
             }
             return version > 0;
         }
