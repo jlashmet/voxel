@@ -1,0 +1,42 @@
+name: Apply step4 lifecycle counter visibility
+
+on:
+  push:
+    branches:
+      - feature/voxel-showcase-rendering-repair-v2
+    paths:
+      - .github/scripts/expose-step4-lifecycle-counters.py
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/voxel-showcase-rendering-repair-v2
+          fetch-depth: 0
+      - name: Apply exact diagnostic patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/expose-step4-lifecycle-counters.py
+          git diff --check
+          git diff -- Assets/Tests/PlayMode/LodRenderingTests.cs .claude/plans/voxel-showcase-rendering-repair-v2.md
+      - name: Commit clean result
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/scripts/expose-step4-lifecycle-counters.py
+          git rm .github/workflows/apply-step4-lifecycle-counter-visibility.yml
+          git add Assets/Tests/PlayMode/LodRenderingTests.cs .claude/plans/voxel-showcase-rendering-repair-v2.md
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "test(showcase): expose step4 lifecycle cause"
+          git push origin HEAD:feature/voxel-showcase-rendering-repair-v2
