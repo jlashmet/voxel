@@ -7,30 +7,43 @@ namespace VoxelEngine.Tests.Features
     public sealed class HousePresetTests
     {
         [Test]
-        public void CompactCottageAndFarmhouseUseSameCompilerButProduceDifferentPrograms()
+        public void NamedPresetsUseSameConfigAndCompilerButProduceDifferentPrograms()
         {
-            HouseConfig compact = HousePresetLibrary.CompactCottage(7, 11);
-            HouseConfig farmhouse = HousePresetLibrary.Farmhouse(7, 9, 11);
+            HouseConfig cottage = HousePresets.CottageCompatibility(7, 11);
+            HouseConfig farmhouse = HousePresets.Farmhouse(7, 11);
+            HouseConfig townhouse = HousePresets.TallTownhouse(9, 13);
 
-            int[] compactProgram = HouseProgramCompiler.BuildCompatibilityProgram(
-                in compact,
+            int[] cottageProgram = HouseProgramCompiler.BuildCompatibilityProgram(
+                in cottage,
                 mainDoorAnchorIndex: 0,
                 hearthAnchorIndex: 1);
             int[] farmhouseProgram = HouseProgramCompiler.BuildCompatibilityProgram(
                 in farmhouse,
                 mainDoorAnchorIndex: 0,
                 hearthAnchorIndex: 1);
+            int[] townhouseProgram = HouseProgramCompiler.BuildCompatibilityProgram(
+                in townhouse,
+                mainDoorAnchorIndex: 0,
+                hearthAnchorIndex: 1);
 
-            Assert.AreEqual(48, compact.Width);
-            Assert.AreEqual(48, compact.Depth);
-            Assert.AreEqual(1, compact.FloorCount);
+            Assert.AreEqual(64, cottage.Width);
+            Assert.AreEqual(64, cottage.Depth);
+            Assert.AreEqual(1, cottage.FloorCount);
 
-            Assert.AreEqual(88, farmhouse.Width);
+            Assert.AreEqual(96, farmhouse.Width);
             Assert.AreEqual(72, farmhouse.Depth);
             Assert.AreEqual(2, farmhouse.FloorCount);
-            Assert.AreEqual(9, farmhouse.Palette.Resolve(StructureMaterialRole.PrimaryWall));
 
-            CollectionAssert.AreNotEqual(compactProgram, farmhouseProgram,
+            Assert.AreEqual(48, townhouse.Width);
+            Assert.AreEqual(64, townhouse.Depth);
+            Assert.AreEqual(3, townhouse.FloorCount);
+            Assert.AreEqual(9, townhouse.Palette.Resolve(StructureMaterialRole.PrimaryWall));
+
+            CollectionAssert.AreNotEqual(cottageProgram, farmhouseProgram,
+                "materially different house presets must not collapse to the same shape program");
+            CollectionAssert.AreNotEqual(cottageProgram, townhouseProgram,
+                "materially different house presets must not collapse to the same shape program");
+            CollectionAssert.AreNotEqual(farmhouseProgram, townhouseProgram,
                 "materially different house presets must not collapse to the same shape program");
         }
     }
