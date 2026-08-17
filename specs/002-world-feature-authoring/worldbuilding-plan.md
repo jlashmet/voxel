@@ -120,7 +120,7 @@ Phase 0 evidence and compatibility targets are recorded in [worldbuilding-invent
 - [x] **WB025** Define interior volume/room carving and connective-opening configuration sufficient for navigable generated interiors.
 - [x] **WB026** Define reusable courtyard/open-space composition.
 - [x] **WB027** Define named attachment-anchor semantics (`MainEntrance`, `RearEntrance`, `Road`, `Basement`, `Crypt`, `Cave`, `Extension`, etc.) without coupling consumers to structure internals.
-- [ ] **WB028** Extend catalogue/shape-program contracts only where shared components cannot be expressed with current deterministic ops.
+- [x] **WB028** Extend catalogue/shape-program contracts only where shared components cannot be expressed with current deterministic ops.
 - [ ] **WB029** Add validation tests for invalid dimensions, impossible opening spacing, unsupported roof combinations, bounds overflow, and primitive-budget overflow.
 - [ ] **WB030** Add deterministic tests proving the same config/seed produces identical primitive/voxel output and stable semantic sub-seeds.
 
@@ -258,4 +258,3 @@ This order intentionally avoids implementing six independent builders before pro
 - Check a task only when the code/documentation described by that task is actually present on this branch.
 - Keep this file updated in the same implementation commits or in immediately following checklist commits.
 - Do not mark Unity validation tasks complete unless the corresponding guarded Unity run actually occurred.
-- When repository investigation invalidates an assumption in this plan, edit the plan rather than forcing the implementation to match a stale assumption.
