@@ -33,6 +33,7 @@ namespace Game.Structures.Runtime
             Entry entry = GetForLoad(parentId);
             entry.Scene = WorldObjectGeneratedSceneFactory.CreateCastle(
                 geometry, worldSeed, parentId, in plan, entry.State, emissionMode);
+            WorldObjectSceneLifecycle.PublishLoaded(this, parentId, entry.Scene);
             return entry.Scene;
         }
 
@@ -43,6 +44,7 @@ namespace Game.Structures.Runtime
             Entry entry = GetForLoad(parentId);
             entry.Scene = WorldObjectGeneratedSceneFactory.CreateMineCave(
                 geometry, worldSeed, parentId, chamber, entry.State, emissionMode);
+            WorldObjectSceneLifecycle.PublishLoaded(this, parentId, entry.Scene);
             return entry.Scene;
         }
 
@@ -58,6 +60,7 @@ namespace Game.Structures.Runtime
         {
             Entry entry = GetForLoad(parentId);
             entry.Scene = DecorationWorldObjectRuntimeBridge.Create(placements, entry.State);
+            WorldObjectSceneLifecycle.PublishLoaded(this, parentId, entry.Scene);
             return entry.Scene;
         }
 
@@ -76,12 +79,18 @@ namespace Game.Structures.Runtime
         {
             if (!_entries.TryGetValue(parentId, out Entry entry) || entry.Scene == null) return false;
             entry.Scene = null;
+            WorldObjectSceneLifecycle.PublishUnloaded(this, parentId);
             return true;
         }
 
         public bool RemovePersistentState(uint parentId)
         {
-            return _entries.Remove(parentId);
+            if (!_entries.TryGetValue(parentId, out Entry entry)) return false;
+            bool wasLoaded = entry.Scene != null;
+            _entries.Remove(parentId);
+            if (wasLoaded)
+                WorldObjectSceneLifecycle.PublishUnloaded(this, parentId);
+            return true;
         }
 
         public WorldObjectStateDelta[] Snapshot(uint parentId)
