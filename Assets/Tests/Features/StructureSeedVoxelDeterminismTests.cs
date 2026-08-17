@@ -21,7 +21,7 @@ namespace VoxelEngine.Tests.Features
         [Test]
         public void SameCatalogueAndSeedProduceIdenticalVoxelOutput()
         {
-            FeatureCatalogue catalogue = CottageFixture.Build(Allocator.Persistent, placementCount: 1);
+            FeatureCatalogue catalogue = CottageFixture.Build(Allocator.Persistent, placements: 1);
             Assert.AreEqual(CatalogueLoadResult.Ok, FeatureCatalogueBuilder.Finalise(ref catalogue));
 
             try
