@@ -18,9 +18,9 @@ Region identity changes selection weights, material/presentation style, scale an
 Status terms:
 
 - **implemented** — stable semantic ID and recipe exist in source;
-- **reserved** — exact stable identity is documented here but source recipe is not implemented yet.
+- **reserved** — exact stable identity is documented but source recipe is not implemented yet.
 
-## Implemented IDs 1–340
+## Implemented IDs 1–400
 
 ### 1–42 — foundational world content
 1 Anvil; 2 Bellows; 3 ForgeHearth; 4 Grindstone; 5 QuenchTub; 6 SmithToolBoard; 7 BarCounter; 8 KegRack; 9 MugRack; 10 ServingShelf; 11 FirewoodStack; 12 GameTable; 13 Sarcophagus; 14 Coffin; 15 OssuaryShelf; 16 FuneralBier; 17 UrnStand; 18 GraveMarker; 19 MarketStall; 20 HangingScale; 21 BasketStack; 22 MerchantSign; 23 ProduceStand; 24 FabricCanopy; 25 Manger; 26 HayBale; 27 SaddleRack; 28 WaterTrough; 29 HitchingPost; 30 TackHooks; 31 Shackles; 32 Stocks; 33 IronCage; 34 KeyBoard; 35 PrisonBucket; 36 RestraintBench; 37 NoticeBoard; 38 Well; 39 Fountain; 40 LampPost; 41 PublicTrough; 42 Handcart.
@@ -64,10 +64,6 @@ Status terms:
 ### 321–340 — fantasy traps, dungeon mechanisms, puzzles
 321 StonePressurePlate; 322 RunePressurePlate; 323 DartSlit; 324 SpikeFloorPanel; 325 FlameJetNozzle; 326 PoisonVent; 327 SwingingBladePivot; 328 PendulumAxeMount; 329 FallingBlockTrigger; 330 PortcullisWinch; 331 ChainWinch; 332 PuzzleLeverPedestal; 333 RotatingStatuePedestal; 334 RuneDial; 335 GemSocketPuzzle; 336 FloorTilePuzzle; 337 MirrorPuzzleStand; 338 MagicSealDoor; 339 WardEmitterPillar; 340 TreasureTrapChest.
 
-## Reserved fantasy IDs 341–400
-
-These names are canonical reserved content identities. Source implementation may arrive pack-by-pack, but these IDs should not be reused for unrelated concepts.
-
 ### 341–360 — temples, shrines, sacred magic
 341 SacredAltar; 342 SideShrine; 343 PrayerBench; 344 Kneeler; 345 VotiveCandleStand; 346 HolyWaterFont; 347 OfferingChest; 348 RelicPedestal; 349 ReliquaryShrine; 350 SacredLectern; 351 ScriptureStand; 352 IncenseStand; 353 RitualBasin; 354 ShrineBell; 355 SacredBannerStand; 356 ProcessionalStaffRack; 357 PilgrimTokenBoard; 358 BlessingBrazier; 359 SacredCurtain; 360 DivineCrystalFocus.
 
@@ -77,12 +73,12 @@ These names are canonical reserved content identities. Source implementation may
 ### 381–400 — cursed ruins, magical corruption, haunted aftermath
 381 BrokenPortalFrame; 382 CrackedManaCrystal; 383 ArcaneScorchPatch; 384 CorruptionGrowth; 385 CursedVineCluster; 386 HauntedMirror; 387 SpectralCandleCluster; 388 FloatingDebrisCluster; 389 CursedChainBundle; 390 PetrifiedAdventurer; 391 PetrifiedMonster; 392 AbandonedRitualCircle; 393 BrokenRunePillar; 394 ShatteredMagicStatue; 395 CollapsedSpellShelf; 396 PossessedFurniture; 397 ShadowNest; 398 EctoplasmPool; 399 SealedCursedChest; 400 AncientMagicSeal.
 
-## Scene roadmap tied to the 341–400 block
+## Source scene coverage for the final 100
 
-Village shrine, grand temple, sacred crypt, magical school classroom, wizard library, forbidden archive, cursed laboratory, haunted manor room, corrupted ruin chamber.
+The 301–400 block includes source scene compositions for Enchanted Grove, Fairy Clearing, Druid Shrine, Trap Corridor, Puzzle Chamber, Treasure Vault, Village Shrine, Grand Temple, Sacred Crypt, Spell Classroom, Wizard Library, Forbidden Archive, Cursed Laboratory, Haunted Chamber and Corrupted Ruin.
 
 ## Rendering maturity policy
 
 Every implemented archetype must have a path to visible output. That path may begin as a box/voxel assembly. Use the existing curved/SDF/procedural primitives when they are equally straightforward or materially improve a signature silhouette. Examples that should eventually prefer curved/procedural treatment include wheels, cauldrons, urns, bowls, barrels, fountains, wells, cushions, portals, magical circles, organic roots, monster eggs, mushrooms, crystals, chains, and ornate magical furniture. Rectilinear shelves, tables, crates, racks, timber frames, slabs, boards, and signs can remain crisp/box-based where visually appropriate.
 
-The content catalog and task list should link back to this manifest. When source adds a reserved ID, change only its status from reserved to implemented; do not rename/reassign the number casually.
+The stable encoding leaves room through ID 1023, so future packs should append new canonical identities after 400 rather than renumbering the existing library.
