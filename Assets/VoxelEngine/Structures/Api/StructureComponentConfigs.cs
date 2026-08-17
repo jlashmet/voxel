@@ -47,27 +47,12 @@ namespace VoxelEngine.Structures.Api
         public StructureMaterialRole FillMaterialRole;
 
         /// <summary>
-        /// Universal opening invariants. A positive spacing is a bay-to-bay pitch, so it must be at
-        /// least the widest opening this config can deterministically produce; otherwise repeated
-        /// openings can overlap for a valid seed.
+        /// Universal invariants independent of a particular wall-run length. The shared validator
+        /// is the single authority so callers cannot disagree about whether a config is legal.
         /// </summary>
-        public bool IsWellFormed
-        {
-            get
-            {
-                if (Width <= 0 || Height <= 0 || BottomOffset < 0 ||
-                    Spacing < 0 || StartMargin < 0 || EndMargin < 0 ||
-                    FrameThickness < 0 || LintelThickness < 0 ||
-                    WidthVariation < 0 || HeightVariation < 0)
-                    return false;
-
-                if (WidthVariation >= Width || HeightVariation >= Height)
-                    return false;
-
-                int maximumWidth = Width + WidthVariation;
-                return Spacing == 0 || Spacing >= maximumWidth;
-            }
-        }
+        public bool IsWellFormed =>
+            StructureComponentValidation.Opening(in this, int.MaxValue) ==
+            StructureComponentValidationIssue.None;
 
         /// <summary>
         /// Maximum non-overlapping repeated openings that fit in a wall span after margins. Zero
@@ -75,13 +60,12 @@ namespace VoxelEngine.Structures.Api
         /// </summary>
         public int MaxCountForSpan(int span)
         {
-            if (!IsWellFormed || span <= 0)
+            if (StructureComponentValidation.Opening(in this, span) !=
+                StructureComponentValidationIssue.None)
                 return 0;
 
             long usable = (long)span - StartMargin - EndMargin;
             long maximumWidth = (long)Width + WidthVariation;
-            if (usable < maximumWidth)
-                return 0;
             if (Spacing == 0)
                 return 1;
 
@@ -121,23 +105,8 @@ namespace VoxelEngine.Structures.Api
         public StructureMaterialRole MaterialRole;
         public StructureMaterialRole TrimMaterialRole;
 
-        /// <summary>
-        /// Rejects combinations the shared integer roof compiler cannot interpret unambiguously.
-        /// Flat roofs have no pitch; pitched roofs require a positive rational pitch and do not
-        /// carry a flat-roof parapet in the same component.
-        /// </summary>
-        public bool IsWellFormed
-        {
-            get
-            {
-                if (EaveOverhang < 0 || Thickness <= 0 || ParapetHeight < 0)
-                    return false;
-
-                if (Style == RoofStyle.Flat)
-                    return PitchRise == 0 && PitchRun == 0;
-
-                return PitchRise > 0 && PitchRun > 0 && ParapetHeight == 0;
-            }
-        }
+        /// <summary>Delegates to the shared roof validator so every archetype applies one policy.</summary>
+        public bool IsWellFormed =>
+            StructureComponentValidation.Roof(in this) == StructureComponentValidationIssue.None;
     }
 }
