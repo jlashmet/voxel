@@ -167,8 +167,8 @@ namespace Game.Structures.Api
             SpaceId != 0 &&
             StructureKind != DecorationStructureKind.Unknown &&
             SpaceKind != DecorationSpaceKind.Unknown &&
-            Wealth <= DecorationWealthTier.Noble &&
-            Condition <= DecorationConditionTier.Pristine;
+            (byte)Wealth <= (byte)DecorationWealthTier.Noble &&
+            (byte)Condition <= (byte)DecorationConditionTier.Pristine;
     }
 
     /// <summary>Integer voxel AABB using an inclusive minimum and exclusive maximum.</summary>
@@ -243,7 +243,7 @@ namespace Game.Structures.Api
         public int3 Clearance;
         public uint Variant;
 
-        public bool IsWellFormed => DecorationValidation.IsWellFormed(in this);
+        public bool IsWellFormed => DecorationValidation.IsWellFormed(this);
         public bool Accepts(DecorationSocketKind kind) => (AcceptedSockets & kind) != 0;
     }
 
