@@ -58,6 +58,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         /// render density.
         /// </summary>
         public bool UsesBlockHlod => SourceStep == VoxelReadGrid.BlockEdge;
+        private const int FeaturePreservingFallbackStep = VoxelReadGrid.BlockEdge / 2;
+        private bool SupportsFeaturePreservingFallback =>
+            SourceStep == FeaturePreservingFallbackStep;
 
         /// <summary>Chunk geometry of the base ring (SourceStep 1). Authoring and capture tools
         /// address the world in full-resolution chunks, so they want these rather than the
@@ -290,6 +293,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             public double SnapshotCpuMs;
             public bool HasOwnedSolid;
             public bool RequiresContinuousTopology;
+            public bool UsedFeaturePreservingFallback;
             public double BuildStartSeconds;
             public double DensityScheduledSeconds;
             public double TopologyScheduledSeconds;
@@ -540,7 +544,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _coatingCatalogue = CoatingCatalogueView.CreateBuiltIns();
             _workspace = new TransvoxelBuildWorkspace(
                 GridSampleCount, BrickCacheCount, SamplesFromMips, UsesBlockHlod,
-                BricksPerAxis, CellsPerAxis, FaceSamplesPerAxis);
+                SupportsFeaturePreservingFallback, BricksPerAxis, CellsPerAxis,
+                FaceSamplesPerAxis);
             _density = _workspace.Density;
             _materials = _workspace.Materials;
             _surfaceSemantics = _workspace.SurfaceSemantics;
@@ -1156,6 +1161,16 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     _topologyCompactJobScheduled = false;
                     _facetedMaskJobScheduled = false;
                     _facetedMergeJobScheduled = false;
+                    if (RequiresFeaturePreservingFallback(
+                            SourceStep, _build.HasOwnedSolid,
+                            _compactedTopologyVertices.Length + _facetedVertices.Length,
+                            _compactedTopologyIndices.Length + _facetedIndices.Length))
+                    {
+                        ScheduleFeaturePreservingHlod(voxelSize);
+                        _build.UsedFeaturePreservingFallback = true;
+                        _build.Phase = 7;
+                        continue;
+                    }
                     BeginCompletedResultAppend(includeTopology: true);
                     _build.Phase = 6;
                     continue;
@@ -1172,6 +1187,15 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     _facetedTurnaroundTiming.Add(ElapsedMs(_build.FacetedScheduledSeconds));
                     _facetedMaskJobScheduled = false;
                     _facetedMergeJobScheduled = false;
+                    if (RequiresFeaturePreservingFallback(
+                            SourceStep, _build.HasOwnedSolid,
+                            _facetedVertices.Length, _facetedIndices.Length))
+                    {
+                        ScheduleFeaturePreservingHlod(voxelSize);
+                        _build.UsedFeaturePreservingFallback = true;
+                        _build.Phase = 7;
+                        continue;
+                    }
                     BeginCompletedResultAppend(includeTopology: false);
                     _build.Phase = 6;
                     continue;
@@ -1239,7 +1263,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     // four-voxel lattice. Do not feed faceted HLOD through Transvoxel transition
                     // cells; finish directly and let the visual LOD regression police the aligned
                     // boundary. If that test exposes a seam, add a dedicated HLOD boundary pass.
-                    if (UsesBlockHlod)
+                    if (UsesBlockHlod || _build.UsedFeaturePreservingFallback)
                     {
                         FinishBuild(frame);
                         if (_pendingUpload) break;
@@ -1263,6 +1287,44 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 }
             }
             while (Time.realtimeSinceStartupAsDouble < deadline);
+        }
+
+        private static bool RequiresFeaturePreservingFallback(
+            int sourceStep, bool hasOwnedSolid, int vertexCount, int indexCount) =>
+            sourceStep == FeaturePreservingFallbackStep
+            && hasOwnedSolid
+            && vertexCount == 0
+            && indexCount == 0;
+
+        private void ScheduleFeaturePreservingHlod(float voxelSize)
+        {
+            if (!_hlodSummaries.IsCreated || !_hlodMaskScratch.IsCreated || !_hlodOverflow.IsCreated)
+                throw new InvalidOperationException(
+                    $"Feature-preserving scratch was not allocated for source step {SourceStep}.");
+
+            _vertices.Clear();
+            _indices.Clear();
+            _hlodOverflow[0] = 0;
+            JobHandle summaryHandle = new SurfaceBlockHlodSummaryJob
+            {
+                Bricks = _densityBricks,
+                MixedVoxels = PinnedMixedVoxelsOrFallback(),
+                Summaries = _hlodSummaries,
+            }.Schedule(BrickCacheCount, 256);
+            _hlodJobHandle = new SurfaceBlockHlodMeshJob
+            {
+                Summaries = _hlodSummaries,
+                SummaryGridEdge = BrickCacheEdge,
+                PaddingBricks = BrickCachePadding,
+                CoreBrickEdge = BricksPerAxis,
+                CoreOriginVoxel = _build.Coordinate * VoxelsPerAxis,
+                VoxelSize = voxelSize,
+                MaskScratch = _hlodMaskScratch,
+                Vertices = _vertices,
+                Indices = _indices,
+                Overflow = _hlodOverflow,
+            }.Schedule(summaryHandle);
+            _hlodJobScheduled = true;
         }
 
         private void ScheduleTopologyJob(float voxelSize, JobHandle dependency = default)
@@ -2023,27 +2085,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
             if (UsesBlockHlod)
             {
-                _hlodOverflow[0] = 0;
-                JobHandle summaryHandle = new SurfaceBlockHlodSummaryJob
-                {
-                    Bricks = _densityBricks,
-                    MixedVoxels = PinnedMixedVoxelsOrFallback(),
-                    Summaries = _hlodSummaries,
-                }.Schedule(BrickCacheCount, 256);
-                _hlodJobHandle = new SurfaceBlockHlodMeshJob
-                {
-                    Summaries = _hlodSummaries,
-                    SummaryGridEdge = BrickCacheEdge,
-                    PaddingBricks = BrickCachePadding,
-                    CoreBrickEdge = BricksPerAxis,
-                    CoreOriginVoxel = chunkOriginVoxel,
-                    VoxelSize = voxelSize,
-                    MaskScratch = _hlodMaskScratch,
-                    Vertices = _vertices,
-                    Indices = _indices,
-                    Overflow = _hlodOverflow,
-                }.Schedule(summaryHandle);
-                _hlodJobScheduled = true;
+                ScheduleFeaturePreservingHlod(voxelSize);
                 _build.HasOwnedSolid = true; // resolved from final HLOD output on completion
                 _build.RequiresContinuousTopology = false;
                 _build.SnapshotTaken = true;

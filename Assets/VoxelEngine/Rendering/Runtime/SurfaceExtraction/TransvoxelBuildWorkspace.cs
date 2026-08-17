@@ -84,6 +84,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
         internal TransvoxelBuildWorkspace(int gridSampleCount, int brickCacheCount,
                                           bool samplesFromMips, bool usesBlockHlod,
+                                          bool supportsFeaturePreservingFallback,
                                           int hlodCoreBrickEdge, int cellsPerAxis,
                                           int faceSamplesPerAxis)
         {
@@ -155,7 +156,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 SnapshotClassificationFlags = default;
             }
 
-            if (usesBlockHlod)
+            if (usesBlockHlod || supportsFeaturePreservingFallback)
             {
                 HlodSummaries = new NativeArray<SurfaceBlockHlodSummary>(
                     brickCacheCount, Allocator.Persistent,
@@ -217,8 +218,14 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             // Legacy source-contract probe retained for the architecture suite while executable
             // sizing is validated by ProductionWorkspaceCapacityTracksTwoVoxelHlodResolution:
             // usesBlockHlod ? 262_144 : 32_768
-            int finalVertexCapacity = usesBlockHlod ? HlodVertexCapacity : 32_768;
-            int finalIndexCapacity = usesBlockHlod ? HlodIndexCapacity : 49_152;
+            // A step-4 false-empty fallback resolves a 128^3 two-voxel subcell grid,
+            // exactly the resolution the original baseline HLOD capacity was sized for. Reserve
+            // that fixed output only on step-4 workers; normal finer workers keep the compact
+            // 32k/49k lists and step 8 keeps its 4x feature-preserving capacity.
+            int finalVertexCapacity = usesBlockHlod ? HlodVertexCapacity
+                : supportsFeaturePreservingFallback ? BaselineHlodVertexCapacity : 32_768;
+            int finalIndexCapacity = usesBlockHlod ? HlodIndexCapacity
+                : supportsFeaturePreservingFallback ? BaselineHlodIndexCapacity : 49_152;
             Vertices = new NativeList<SmoothSurfaceVertex>(finalVertexCapacity,
                                                            Allocator.Persistent);
             Indices = new NativeList<uint>(finalIndexCapacity, Allocator.Persistent);
