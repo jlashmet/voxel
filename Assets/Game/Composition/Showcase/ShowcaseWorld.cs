@@ -355,19 +355,17 @@ namespace VoxelEngine.Showcase
         {
             using var streamingScope = s_StreamingMarker.Auto();
             var centre = PositionToRegion(cameraMetres);
-            using (s_RefreshPendingMarker.Auto()) RefreshPending(centre);
-
-            var deadline = Time.realtimeSinceStartupAsDouble + budgetMs * 0.001;
-            var start = Time.realtimeSinceStartupAsDouble;
-            bool didWork = false;
-            bool landmarkStepped = false;
 
             // IncrementalBuild holds handle-like RegionTable/BrickPool snapshots whose scalar
             // allocator bookkeeping is published after each stage. No other world writer may
             // allocate between those stages. Give the castle exclusive mutation ownership until
-            // its atomic commit, one semantic stage per frame.
+            // its atomic commit, one semantic stage per frame. The pending terrain list cannot be
+            // consumed while the castle owns writes, so rebuilding and sorting it here would be
+            // dead work on every castle-build frame.
             if (_castleBuild != null && !_castleBuild.IsComplete)
             {
+                var deadline = Time.realtimeSinceStartupAsDouble + budgetMs * 0.001;
+                var start = Time.realtimeSinceStartupAsDouble;
                 // Spend the frame's budget, rather than taking a single step and returning.
                 //
                 // The site stage sub-steps a fixed four rows per call and the keep sub-steps one
@@ -394,6 +392,13 @@ namespace VoxelEngine.Showcase
                 LastGenerateMs = (Time.realtimeSinceStartupAsDouble - start) * 1000.0;
                 return;
             }
+
+            using (s_RefreshPendingMarker.Auto()) RefreshPending(centre);
+
+            var deadline = Time.realtimeSinceStartupAsDouble + budgetMs * 0.001;
+            var start = Time.realtimeSinceStartupAsDouble;
+            bool didWork = false;
+            bool landmarkStepped = false;
 
             // Features belong to regions whose terrain is already committed, so this queue is the
             // only thing between the player and a settlement that is still bare ground. Give it a
@@ -690,12 +695,10 @@ namespace VoxelEngine.Showcase
         private void EvictDistantRegions(int3 centre)
         {
             _residencyStore.Refresh(in _table, in _pool);
-            var resident = _table.GetResidentCoords(Allocator.Temp);
+            int cursor = 0;
 
-            for (int i = 0; i < resident.Length; i++)
+            while (_table.TryGetNextResidentCoord(ref cursor, out int3 rc))
             {
-                var rc = resident[i];
-
                 // The in-flight generator owns this Region value until FinishRegion commits it.
                 // Evicting it here disposes BrickRefs out from under the next StepRegion call.
                 if (_gen.Active && rc.Equals(_gen.Coord)) continue;
@@ -715,8 +718,6 @@ namespace VoxelEngine.Showcase
                 _changes.PublishRegion(rc, VoxelChangeKind.Residency);
                 RegionsEvicted++;
             }
-
-            resident.Dispose();
         }
 
         // -- terrain generation --------------------------------------------------
