@@ -26,6 +26,42 @@ accessory   rigid generated mesh -> FBX + socket metadata
 
 There is intentionally no generic `wearable` pipeline. Character fitting, garment fitting, weapon processing, and accessory mounting can evolve independently.
 
+## Build vs production
+
+`build` is the low-level mesh primitive. It runs the generator and the preparation pipeline selected by `assetType`.
+
+`produce` is the standard image-to-game-asset lifecycle. It calls `build`, then routes appearance handling, verification, proof rendering, and optional Unity staging through an asset-type production profile:
+
+```text
+character
+  build -> multiview appearance when supported -> skin/animation gates -> bind + Idle proof
+
+clothing
+  build -> garment production profile -> skin/deformation gate -> proof
+
+weapon/accessory
+  build -> rigid production profile -> rigid mesh gate -> proof
+```
+
+The current character multiview projector contains body/T-pose-specific heuristics, so clothing and rigid products intentionally preserve generator appearance until dedicated garment and rigid appearance profiles are implemented. We do not silently reuse a character-specific texture algorithm for unrelated asset shapes.
+
+Generate one production asset:
+
+```bash
+python3 tools/character-factory/character_factory.py produce path/to/asset.json
+```
+
+Generate an asset library recursively:
+
+```bash
+python3 tools/character-factory/character_factory.py produce-batch \
+  tools/character-factory/production-assets
+```
+
+Only JSON objects containing both `id` and `assetType` are discovered. Generated `manifest.json` and `*.characterfactory.json` files are ignored.
+
+The scalable production plan and target reference-library layout are documented in `docs/character-factory-generation-framework-plan.md`.
+
 ## Generator backends
 
 Product pipeline and mesh generator are independent choices.
@@ -99,6 +135,13 @@ python3 tools/character-factory/character_factory.py build path/to/spec.json \
   --unity-assets-root Assets/Generated/CharacterFactory
 ```
 
+For the standard production lifecycle, use:
+
+```bash
+python3 tools/character-factory/character_factory.py produce path/to/spec.json \
+  --unity-assets-root Assets/Generated/CharacterFactory
+```
+
 Staging copies the generated FBX to:
 
 ```text
@@ -116,6 +159,8 @@ The Character Factory CLI itself never launches Unity.
 
 Every completed build writes `manifest.json` containing the actual generator backend, pipeline, output FBX, generator/prepare commands, and runtime-part metadata. TripoSR manifests do not claim Hunyuan model metadata.
 
+`produce` extends the same manifest with a `production` section describing the selected appearance mode, verification gates, proof images, and the exact production commands. This keeps the final artifact reproducible without changing the low-level build contract.
+
 Clothing uses `SkinnedToCharacterSkeleton`; rigid weapons/accessories use `BoneSocket`.
 
 ## Integration validation
@@ -126,21 +171,36 @@ After synchronizing the feature branch with `master`, the Character Factory work
 
 The mechanics are now end-to-end validated, but production fitting and art quality still need work. Current body/garment alignment is global rather than semantic or landmark-driven. Remaining quality work includes realistic proportions, faces/fingers/hair, loose-garment conforming, collision/poke-through correction, body-region hiding, LOD generation, weapon-grip inference, and accessory-mount inference.
 
+The generic production layer does not yet eliminate all production-specific preprocessing. Madeline still has custom body-only reference cleanup and face-identity transfer, and the Sun Staff still has a custom ornament/procedural-shaft composition stage. Those become declared reusable stages before the bespoke scripts are removed.
+
 Accessories are currently rigid/socket-mounted. Skinned hair and capes should use the clothing path until a dedicated skinned-accessory mode exists.
 
 ## Commands
 
-Dry-run a spec:
+Dry-run a low-level spec:
 
 ```bash
 python3 tools/character-factory/character_factory.py build \
   tools/character-factory/examples/cleric_character.json --dry-run
 ```
 
-Build all specs in a directory:
+Dry-run the production lifecycle:
+
+```bash
+python3 tools/character-factory/character_factory.py produce \
+  tools/character-factory/examples/cleric_character.json --dry-run
+```
+
+Build all specs in one directory:
 
 ```bash
 python3 tools/character-factory/character_factory.py batch path/to/specs
+```
+
+Produce a recursive asset library:
+
+```bash
+python3 tools/character-factory/character_factory.py produce-batch path/to/asset-library
 ```
 
 Run factory tests:
