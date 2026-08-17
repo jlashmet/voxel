@@ -10,6 +10,15 @@ namespace VoxelEngine.Structures.Api
     /// </summary>
     public static class FeatureCatalogueComposer
     {
+        /// <summary>Convenience overload for the common application-composition case.</summary>
+        public static FeatureCatalogue Combine(
+            in FeatureCatalogue first,
+            in FeatureCatalogue second,
+            Allocator allocator)
+        {
+            return Concatenate(new[] { first, second }, allocator);
+        }
+
         public static FeatureCatalogue Concatenate(
             FeatureCatalogue[] sources,
             Allocator allocator)
