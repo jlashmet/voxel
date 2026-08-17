@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
+using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
 
@@ -9,6 +11,7 @@ namespace VoxelEngine.Showcase
     public sealed partial class ShowcaseWorld
     {
         private const int BakeMaxRegionSnapshotBytes = 64 * 1024 * 1024;
+        private static readonly TimeSpan BakeCastleTimeout = TimeSpan.FromMinutes(10);
 
         /// <summary>
         /// Produces the finished startup world synchronously for an editor/build-time baker.
@@ -27,15 +30,22 @@ namespace VoxelEngine.Showcase
             for (int i = 0; i < _castleRegions.Count; i++)
                 GenerateRegionBlocking(_castleRegions[i]);
 
-            int landmarkGuard = 0;
+            // The existing castle implementation intentionally runs its heavy authoring on a
+            // worker. In gameplay its session is polled once per frame; the baker has no player
+            // loop, so block here while still yielding CPU time to that worker. A tight million-
+            // iteration poll could hit its guard before a perfectly healthy build completed.
+            DateTime castleDeadline = DateTime.UtcNow + BakeCastleTimeout;
             while (!_hasCastlePlan)
             {
                 if (!StepLandmarks())
                     throw new InvalidOperationException(
                         "Showcase castle could not advance during offline baking.");
-                if (++landmarkGuard > 1_000_000)
-                    throw new InvalidOperationException(
-                        "Showcase castle exceeded the offline bake stage guard.");
+                if (DateTime.UtcNow >= castleDeadline)
+                    throw new TimeoutException(
+                        $"Showcase castle did not finish within {BakeCastleTimeout.TotalMinutes:F0} minutes during offline baking.");
+
+                if (_castleBuild != null && _castleBuild.StageNumber == 2)
+                    Thread.Sleep(1);
             }
 
             // Bake a compact startup neighbourhood rather than the entire streaming radius. The
@@ -76,7 +86,22 @@ namespace VoxelEngine.Showcase
                 throw new InvalidOperationException(
                     "The showcase world still has generation work in flight and is not bake-stable.");
 
-            var coords = new List<int3>(_generated);
+            // Castle publication and authored features are allowed to create resident regions that
+            // were not terrain-generation queue entries. Capturing only _generated would silently
+            // omit those authored regions from the startup image. Storage residency is the source
+            // of truth for the finished world image.
+            NativeArray<int3> resident = _table.GetResidentCoords(Allocator.Temp);
+            var coords = new List<int3>(resident.Length);
+            try
+            {
+                for (int i = 0; i < resident.Length; i++)
+                    coords.Add(resident[i]);
+            }
+            finally
+            {
+                resident.Dispose();
+            }
+
             coords.Sort(CompareRegionCoords);
             var regions = new List<ShowcaseWorldBakedRegion>(coords.Count);
             IRegionSnapshotSource source = SnapshotStorage;
