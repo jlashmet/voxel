@@ -36,10 +36,10 @@ namespace Game.Structures.Tests
         }
 
         [Test]
-        public void DestroyedObjectIsRemovedFromPresentationSink()
+        public void DestroyedDynamicObjectIsRemovedFromPresentationSink()
         {
             var a = new WorldObjectAuthoringSession(3u, 4u);
-            WorldObjectId crate = a.Place(1u, WorldObjectKind.Crate, B(0), new int3(0, 0, 1));
+            WorldObjectId wall = a.Place(1u, WorldObjectKind.BreakableWall, B(0), new int3(0, 0, 1));
             var scene = new WorldObjectGeneratedScene
             {
                 Objects = a.BuildObjects(),
@@ -50,11 +50,28 @@ namespace Game.Structures.Tests
 
             using (var presentation = new WorldObjectPresentationRuntime(scene, sink))
             {
-                Assert.IsTrue(sink.Plans.ContainsKey(crate));
-                Assert.IsTrue(scene.Runtime.TryInteract(crate, WorldObjectInteraction.Attack, out _));
-                Assert.IsFalse(sink.Plans.ContainsKey(crate));
-                Assert.IsTrue(sink.Removed.Contains(crate));
+                Assert.IsTrue(sink.Plans.ContainsKey(wall));
+                Assert.IsTrue(scene.Runtime.TryInteract(wall, WorldObjectInteraction.Attack, out _));
+                Assert.IsFalse(sink.Plans.ContainsKey(wall));
+                Assert.IsTrue(sink.Removed.Contains(wall));
             }
+        }
+
+        [Test]
+        public void StaticFurnitureDoesNotCreateDynamicProxy()
+        {
+            var a = new WorldObjectAuthoringSession(5u, 6u);
+            WorldObjectId bed = a.Place(1u, WorldObjectKind.Bed, B(0), new int3(0, 0, 1));
+            var scene = new WorldObjectGeneratedScene
+            {
+                Objects = a.BuildObjects(),
+                Connections = a.BuildConnections(),
+            };
+            scene.Runtime = new WorldObjectSceneRuntime(scene.Objects, scene.Connections);
+            var sink = new RecordingSink();
+
+            using (var presentation = new WorldObjectPresentationRuntime(scene, sink))
+                Assert.IsFalse(sink.Plans.ContainsKey(bed));
         }
 
         private static DecorationBounds B(int x) => new DecorationBounds
