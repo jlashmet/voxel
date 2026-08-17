@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 
 from api.models import (
     AssetType,
@@ -75,6 +76,20 @@ def generator_metadata(spec: BuildSpec) -> dict[str, object]:
     return common
 
 
+def rig_metadata(spec: BuildSpec) -> dict[str, object] | None:
+    rig = spec.rig
+    if rig is None:
+        return None
+    return {
+        "profile": rig.profile,
+        "sourceRevision": rig.source_revision,
+        "canonicalBody": str(rig.canonical_body),
+        "bodyObject": rig.body_object,
+        "armatureObject": rig.armature_object,
+        "maxTransferDistance": rig.max_transfer_distance,
+    }
+
+
 def reference_metadata(spec: BuildSpec) -> dict[str, object]:
     return {
         "geometry": spec.views.as_dict(),
@@ -106,14 +121,18 @@ class CharacterFactoryRuntime:
         cache = cache_entry(spec, fingerprint)
 
         cache_hit = False
-        bootstrap_command: list[str] | None = None
+        generator_bootstrap: list[str] | None = None
+        rig_bootstrap: list[str] | None = None
         if not dry_run and use_geometry_cache:
             cache_hit = restore_geometry_cache(cache, plan)
 
         if cache_hit:
             result = plan
         else:
-            bootstrap_command = self._ensure_backend_profile(spec, dry_run=dry_run)
+            # The donor is only needed when the prepared geometry is not already
+            # cached. Keep both expensive setup paths completely off cache hits.
+            rig_bootstrap = self._ensure_rig_profile(spec, dry_run=dry_run)
+            generator_bootstrap = self._ensure_backend_profile(spec, dry_run=dry_run)
             result = pipeline.execute(plan, dry_run=dry_run)
             if not dry_run and use_geometry_cache:
                 store_geometry_cache(cache, fingerprint, result)
@@ -122,8 +141,12 @@ class CharacterFactoryRuntime:
             "generator": result.generator_command,
             "prepare": result.prepare_command,
         }
-        if bootstrap_command is not None:
-            commands["bootstrap"] = bootstrap_command
+        # Preserve the original generator-bootstrap manifest shape for backwards
+        # compatibility and record rig bootstrap separately.
+        if generator_bootstrap is not None:
+            commands["bootstrap"] = generator_bootstrap
+        if rig_bootstrap is not None:
+            commands["rigBootstrap"] = rig_bootstrap
 
         manifest = spec.output_dir / "manifest.json"
         payload = {
@@ -137,6 +160,7 @@ class CharacterFactoryRuntime:
             "rawMesh": str(result.raw_mesh),
             "references": reference_metadata(spec),
             "generator": generator_metadata(spec),
+            "rig": rig_metadata(spec),
             "geometryCache": {
                 "enabled": use_geometry_cache,
                 "hit": cache_hit,
@@ -148,6 +172,60 @@ class CharacterFactoryRuntime:
         }
         manifest.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
         return manifest
+
+    def _ensure_rig_profile(
+        self,
+        spec: BuildSpec,
+        *,
+        dry_run: bool,
+    ) -> list[str] | None:
+        rig = spec.rig
+        if rig is None or rig.bootstrap_script is None:
+            return None
+
+        command = [
+            sys.executable,
+            str(rig.bootstrap_script),
+            "--blender",
+            str(rig.blender),
+        ]
+        if dry_run:
+            print("+", " ".join(command), flush=True)
+            return command
+
+        if self._rig_profile_ready(spec):
+            print(f"rig-profile-ready: {rig.profile}", flush=True)
+            return command
+
+        print("+", " ".join(command), flush=True)
+        completed = subprocess.run(
+            command,
+            cwd=self.tool_root.parents[1],
+            check=False,
+        )
+        if completed.returncode != 0:
+            raise CharacterFactoryError(
+                f"rig profile bootstrap failed with exit code {completed.returncode}: {rig.profile}"
+            )
+        if not self._rig_profile_ready(spec):
+            raise CharacterFactoryError(
+                f"rig profile bootstrap completed but canonical donor is still incomplete: {rig.profile}"
+            )
+        return command
+
+    @staticmethod
+    def _rig_profile_ready(spec: BuildSpec) -> bool:
+        rig = spec.rig
+        if rig is None or rig.profile is None:
+            return True
+        canonical = rig.canonical_body
+        metadata = canonical.parent / "source.sha256"
+        return bool(
+            canonical.is_file()
+            and canonical.stat().st_size > 0
+            and metadata.is_file()
+            and metadata.read_text(encoding="utf-8").strip() == rig.source_revision
+        )
 
     def _ensure_backend_profile(
         self,
