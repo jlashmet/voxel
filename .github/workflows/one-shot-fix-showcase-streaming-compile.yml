@@ -1,0 +1,61 @@
+name: One-shot fix showcase streaming compile
+
+on:
+  push:
+    branches:
+      - feature/voxel-showcase-rendering-repair-v2
+    paths:
+      - .github/workflows/one-shot-fix-showcase-streaming-compile.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/voxel-showcase-rendering-repair-v2
+          fetch-depth: 0
+      - name: Rename castle streaming locals without touching the rest of ShowcaseWorld
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('Assets/Game/Composition/Showcase/ShowcaseWorld.cs')
+          text = path.read_text()
+          begin = text.index('            if (_castleBuild != null && !_castleBuild.IsComplete)\n')
+          end = text.index('            using (s_RefreshPendingMarker.Auto()) RefreshPending(centre);\n', begin)
+          block = text[begin:end]
+
+          replacements = {
+              '                var deadline = Time.realtimeSinceStartupAsDouble + budgetMs * 0.001;\n':
+                  '                var castleDeadline = Time.realtimeSinceStartupAsDouble + budgetMs * 0.001;\n',
+              '                var start = Time.realtimeSinceStartupAsDouble;\n':
+                  '                var castleStart = Time.realtimeSinceStartupAsDouble;\n',
+              '                           && Time.realtimeSinceStartupAsDouble < deadline);\n':
+                  '                           && Time.realtimeSinceStartupAsDouble < castleDeadline);\n',
+              '                LastGenerateMs = (Time.realtimeSinceStartupAsDouble - start) * 1000.0;\n':
+                  '                LastGenerateMs = (Time.realtimeSinceStartupAsDouble - castleStart) * 1000.0;\n',
+          }
+          for old, new in replacements.items():
+              count = block.count(old)
+              if count != 1:
+                  raise SystemExit(f'expected exactly one target in castle block, found {count}: {old!r}')
+              block = block.replace(old, new, 1)
+
+          updated = text[:begin] + block + text[end:]
+          path.write_text(updated)
+          PY
+          git diff --check
+          git diff -- Assets/Game/Composition/Showcase/ShowcaseWorld.cs
+          test "$(git diff --numstat -- Assets/Game/Composition/Showcase/ShowcaseWorld.cs | awk '{print $1 ":" $2}')" = "4:4"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add Assets/Game/Composition/Showcase/ShowcaseWorld.cs
+          git commit -m 'Fix showcase streaming local scope'
+          git push origin HEAD:feature/voxel-showcase-rendering-repair-v2
