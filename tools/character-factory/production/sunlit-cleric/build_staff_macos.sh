@@ -27,15 +27,19 @@ TRIPOSR_PY="$(python3 tools/character-factory/character_factory.py \
   bootstrap-profile triposr-smoke-macos | tail -n 1)"
 test -x "$TRIPOSR_PY"
 
-echo "[2/3] Prepare the full reference and named generated-detail reference"
+echo "[2/3] Prepare the isolated full reference and generic terminal-detail reference"
 FULL_INPUT="$OUT/sunlit_cleric_staff_01.input.png"
 ORNAMENT_INPUT="$OUT/sunlit_cleric_staff_01.ornament.png"
 "$TRIPOSR_PY" tools/character-factory/ci/prepare_staff_fixture.py \
   --input "$SOURCE" \
   --output "$FULL_INPUT"
-"$TRIPOSR_PY" tools/character-factory/ci/prepare_staff_head_crop.py \
+"$TRIPOSR_PY" tools/character-factory/ci/prepare_linear_terminal_detail.py \
   --input "$FULL_INPUT" \
-  --output "$ORNAMENT_INPUT"
+  --output "$ORNAMENT_INPUT" \
+  --axis vertical \
+  --terminal min \
+  --background 128
+
 test -s "$FULL_INPUT"
 test -s "$ORNAMENT_INPUT"
 
@@ -96,6 +100,7 @@ Sunlit Cleric staff build complete.
   Weapon FBX: $OUT/sunlit_cleric_staff_01.fbx
   Preview: $OUT/sunlit_cleric_staff_01.preview.png
   Composition: generated-detail-shaft (ornament + procedural shaft)
+  Detail crop: generic linear terminal extraction
   Generator profile: triposr-smoke-macos
   Slot: MainHand
   Socket bone: RightHand
