@@ -47,6 +47,11 @@ namespace VoxelEngine.CI
             Texture2D capture = null;
             Mesh baselineMesh = null;
 
+            // ShowcaseTreePopulation.Completed only resets on SubsystemRegistration, not per
+            // scene load. Retire any previous population so the wait below actually waits for
+            // this scene's trees rather than observing the last test's registry.
+            TreeWorldRuntime.Clear();
+
             // Load by path, not by name: VoxelShowcase is deliberately not in the build profile
             // (KentridgePlayableSlice is the launch scene), and LoadSceneAsync by name resolves
             // only against that list. Every other showcase test loads this scene the same way.

@@ -1,6 +1,7 @@
 using MountingForce.WorldGen.Voxel;
 using Unity.Mathematics;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using VoxelEngine.Composition;
 using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
 using VoxelEngine.Structures.Api;
@@ -20,11 +21,32 @@ namespace VoxelEngine.Showcase
         public static bool Completed { get; private set; }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        private static void ResetStatic() => Completed = false;
+        private static void ResetStatic()
+        {
+            Completed = false;
+            SceneManager.sceneLoaded -= OnSceneLoaded;
+            SceneManager.sceneLoaded += OnSceneLoaded;
+        }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-        private static void Bootstrap()
+        private static void Bootstrap() => EnsureInstance();
+
+        /// <summary>
+        /// A single-scene load destroys this adapter along with the rest of the scene, and
+        /// AfterSceneLoad only fires once per play session, so without this a second showcase
+        /// load would come up with no vegetation at all — and anything reading the tree registry
+        /// would silently observe the previous world's trees, damage included.
+        /// </summary>
+        private static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
         {
+            if (mode != LoadSceneMode.Single) return;
+            Completed = false;
+            EnsureInstance();
+        }
+
+        private static void EnsureInstance()
+        {
+            if (FindFirstObjectByType<ShowcaseTreePopulation>() != null) return;
             var go = new GameObject("Showcase Tree Population")
             {
                 hideFlags = HideFlags.DontSave,
