@@ -4,7 +4,7 @@ namespace Game.Structures.Runtime
 {
     /// <summary>
     /// End-to-end source path for guild-house prototypes: author shell, resolve each room through an
-    /// existing semantic decoration scene, then emit the corresponding geometry backend.
+    /// existing semantic decoration scene, emit base geometry, then layer sparse guild signatures.
     /// </summary>
     public static class GuildHouseFurnishedPrototypeAuthoring
     {
@@ -62,6 +62,16 @@ namespace Game.Structures.Runtime
                 }
 
                 if (!ok)
+                    return false;
+            }
+
+            GuildSignatureResolvedRoom[] signatures = GuildSignatureDecorationResolver.Resolve(in prototype, rooms);
+            for (int i = 0; i < signatures.Length; i++)
+            {
+                GuildSignatureResolvedRoom signatureRoom = signatures[i];
+                GuildHouseRoomComposition room = prototype.Rooms[signatureRoom.RoomIndex];
+                if (!GuildSignatureDecorationEmitter.TryAuthorGeometry(
+                        authoring, signatureRoom.Placements, in room.Context, prototype.Region))
                     return false;
             }
 
