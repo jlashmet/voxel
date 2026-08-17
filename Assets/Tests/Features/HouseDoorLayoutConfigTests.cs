@@ -49,8 +49,8 @@ namespace VoxelEngine.Tests.Features
                 StepHeight = 2,
                 StepMaterialRole = StructureMaterialRole.Foundation,
             };
-            layout.ExplicitOffsets.Add(-14);
             layout.ExplicitOffsets.Add(14);
+            layout.ExplicitOffsets.Add(42);
 
             Assert.IsTrue(layout.IsWellFormed);
             Assert.AreEqual(2, layout.Opening.FrameThickness);
