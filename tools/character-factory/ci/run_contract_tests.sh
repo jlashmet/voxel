@@ -20,6 +20,7 @@ python3 -m unittest \
   tools/character-factory/tests/test_production_routing.py \
   tools/character-factory/tests/test_reference_contract.py \
   tools/character-factory/tests/test_backend_profiles.py \
+  tools/character-factory/tests/test_rig_profiles.py \
   tools/character-factory/tests/test_appearance_profiles.py \
   tools/character-factory/tests/test_projection_components.py \
   tools/character-factory/tests/test_rigid_contract.py \
