@@ -100,6 +100,52 @@ namespace VoxelEngine.Structures.Api
             return StructureGenerationBounds.TryCreate(new int3((int)minX, (int)minY, (int)minZ), new int3((int)sizeX, (int)sizeY, (int)sizeZ), out bounds);
         }
 
+        /// <summary>
+        /// Proves the complete entrance clearance carve is inside the cave's declared local bounds.
+        /// This runs before any authoring write so an oversized entrance is rejected, never clipped.
+        /// </summary>
+        public bool EntranceFitsBounds(in CaveConfig config)
+        {
+            if (!IsWellFormed || !config.IsWellFormed) return false;
+
+            long x0 = Entrance.LocalPosition.x;
+            long y0 = Entrance.LocalPosition.y;
+            long z0 = Entrance.LocalPosition.z;
+            long x1 = x0;
+            long z1 = z0;
+            switch (Entrance.Facing)
+            {
+                case Facing.North: z1 += Entrance.ClearanceLength; break;
+                case Facing.East: x1 += Entrance.ClearanceLength; break;
+                case Facing.South: z1 -= Entrance.ClearanceLength; break;
+                case Facing.West: x1 -= Entrance.ClearanceLength; break;
+                default: return false;
+            }
+
+            // Cross-section authoring is perpendicular to travel. Use the larger symmetric radius as
+            // a conservative proof for both odd and even widths.
+            long radius = (Entrance.Width + 1L) / 2L;
+            long minX = x0 < x1 ? x0 : x1;
+            long maxX = x0 > x1 ? x0 : x1;
+            long minZ = z0 < z1 ? z0 : z1;
+            long maxZ = z0 > z1 ? z0 : z1;
+            if (Entrance.Facing == Facing.North || Entrance.Facing == Facing.South)
+            {
+                minX -= radius;
+                maxX += radius;
+            }
+            else
+            {
+                minZ -= radius;
+                maxZ += radius;
+            }
+
+            return minX >= -config.BoundsHalfExtents.x && maxX <= config.BoundsHalfExtents.x &&
+                   minZ >= -config.BoundsHalfExtents.z && maxZ <= config.BoundsHalfExtents.z &&
+                   y0 >= -config.BoundsHalfExtents.y &&
+                   y0 + Entrance.Height <= config.BoundsHalfExtents.y;
+        }
+
         public static CaveGenerationRequest Standalone(ulong seed, uint terrainSeed, int3 surfaceAnchor, Facing facing, int width, int height, int clearanceLength) =>
             Create(seed, terrainSeed, surfaceAnchor, CaveEntranceMode.Surface, facing, width, height, clearanceLength);
         public static CaveGenerationRequest Attached(ulong seed, int3 structureAnchor, Facing facing, int width, int height, int clearanceLength) =>
