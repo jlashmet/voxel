@@ -105,6 +105,7 @@ class CharacterFactoryRuntime:
             "id": spec.asset_id,
             "assetType": spec.asset_type.value,
             "pipeline": result.pipeline,
+            "appearanceStrategy": spec.appearance_strategy.value,
             "status": "dry-run" if dry_run else "complete",
             "generatedAtUtc": datetime.now(timezone.utc).isoformat(),
             "output": str(result.output),
