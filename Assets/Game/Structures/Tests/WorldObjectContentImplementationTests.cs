@@ -44,6 +44,29 @@ namespace Game.Structures.Tests
         }
 
         [Test]
+        public void StaticOnlyEmissionSkipsDynamicProxyObjectsButKeepsStaticProps()
+        {
+            WorldObjectDescriptor door = Descriptor(WorldObjectKind.Door);
+            WorldObjectDescriptor bed = Descriptor(WorldObjectKind.Bed);
+            var all = new CountingAuthoringSession();
+            var staticOnly = new CountingAuthoringSession();
+
+            WorldObjectGeneratedContent.EmitAll(all, new[] { door, bed }, null,
+                WorldObjectGeometryEmissionMode.AllVoxel);
+            WorldObjectGeneratedContent.EmitAll(staticOnly, new[] { door, bed }, null,
+                WorldObjectGeometryEmissionMode.StaticOnly);
+
+            Assert.Multiple(() =>
+            {
+                Assert.IsTrue(WorldObjectPresentationPlanner.RequiresDynamicProxy(WorldObjectKind.Door));
+                Assert.IsFalse(WorldObjectPresentationPlanner.RequiresDynamicProxy(WorldObjectKind.Bed));
+                Assert.Greater(all.WriteOperations, staticOnly.WriteOperations);
+                Assert.Greater(staticOnly.WriteOperations, 0,
+                    "StaticOnly must still emit static furniture/decoration geometry.");
+            });
+        }
+
+        [Test]
         public void DoorInteractionPersistsOpenCloseAndAttackSemantics()
         {
             WorldObjectDescriptor descriptor = Descriptor(WorldObjectKind.Door);
