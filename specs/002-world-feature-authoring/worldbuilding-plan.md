@@ -107,11 +107,11 @@ Phase 0 evidence and compatibility targets are recorded in [worldbuilding-invent
 - [x] **WB011** Add deterministic semantic child-seed derivation so optional details do not perturb unrelated generated details.
 - [x] **WB012** Define common dimension/range validation and clamping/rejection policy for authored structure configs.
 - [x] **WB013** Define semantic material palette roles (foundation, primary wall, secondary wall, trim, roof, floor, column, accent, underground, etc.) mapped to voxel materials.
-- [ ] **WB014** Define reusable footprint/foundation configuration, including rectangular footprints first and extension points for composed footprints.
-- [ ] **WB015** Define reusable wall-run configuration: thickness, height, material bands, corner behavior, and repetition spacing.
-- [ ] **WB016** Define reusable floor/level configuration: floor count, per-level height, slab thickness, and optional level variation.
-- [ ] **WB017** Define reusable opening configuration for doors/windows/arches, including size, spacing, margins, frame/lintel options, and deterministic variation.
-- [ ] **WB018** Define reusable roof configuration for flat, shed/lean-to, gable, and hip roofs using existing integer primitives where possible.
+- [x] **WB014** Define reusable footprint/foundation configuration, including rectangular footprints first and extension points for composed footprints.
+- [x] **WB015** Define reusable wall-run configuration: thickness, height, material bands, corner behavior, and repetition spacing.
+- [x] **WB016** Define reusable floor/level configuration: floor count, per-level height, slab thickness, and optional level variation.
+- [x] **WB017** Define reusable opening configuration for doors/windows/arches, including size, spacing, margins, frame/lintel options, and deterministic variation.
+- [x] **WB018** Define reusable roof configuration for flat, shed/lean-to, gable, and hip roofs using existing integer primitives where possible.
 - [ ] **WB019** Define reusable stairs/ramps/landing configuration.
 - [ ] **WB020** Define reusable tower/turret configuration including shape, dimensions, count/placement semantics, roof/top style, and openings.
 - [ ] **WB021** Define reusable column/colonnade configuration.
