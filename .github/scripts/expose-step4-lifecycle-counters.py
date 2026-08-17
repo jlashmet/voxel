@@ -1,5 +1,6 @@
 from pathlib import Path
 
+# Trigger the one-shot transport after its workflow exists.
 TEST = Path("Assets/Tests/PlayMode/LodRenderingTests.cs")
 PLAN = Path(".claude/plans/voxel-showcase-rendering-repair-v2.md")
 
