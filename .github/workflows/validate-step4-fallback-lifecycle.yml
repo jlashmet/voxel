@@ -6,21 +6,16 @@ on:
       - feature/voxel-showcase-rendering-repair-v2
     paths:
       - .github/workflows/validate-step4-fallback-lifecycle.yml
-      - Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
-      - Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Step4FalseEmptyDiagnostics.cs
-      - Assets/Tests/PlayMode/LodRenderingTests.cs
-      - Assets/Tests/PlayMode/Step4FalseEmptyLifecycleTests.cs
 
 permissions:
   contents: read
 
-# Validate the exact triggering commit. Key concurrency by trigger SHA so unrelated later pushes to
-# this busy branch cannot cancel the pinned lifecycle evidence before the self-hosted Mac starts it.
-# The focused gate waits until the step-4 castle frustum is fully adjudicated and reports the exact
-# ownership -> ordinary geometry -> fallback -> publication lifecycle if it settles ready-empty.
+# This is a one-shot focused diagnostic gate. A workflow-file change cancels older queued lifecycle
+# snapshots, and unrelated branch pushes cannot trigger another run. The job still checks out the
+# exact triggering SHA so its evidence is immutable.
 concurrency:
-  group: unity-step4-lifecycle-${{ github.sha }}
-  cancel-in-progress: false
+  group: unity-step4-lifecycle
+  cancel-in-progress: true
 
 jobs:
   lod-rendering:
