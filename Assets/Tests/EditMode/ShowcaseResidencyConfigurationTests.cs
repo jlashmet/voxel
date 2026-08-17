@@ -18,6 +18,10 @@ namespace VoxelEngine.Tests.EditMode
             int loadRadius = ReadSerializedInt(scene, "m_LoadRadiusRegions");
             int unloadRadius = ReadSerializedInt(scene, "m_UnloadRadiusRegions");
 
+            Assert.AreEqual(8, loadRadius,
+                "The committed showcase scene must match VoxelShowcase's production load default.");
+            Assert.AreEqual(11, unloadRadius,
+                "The committed showcase scene must match VoxelShowcase's production unload default.");
             Assert.Greater(unloadRadius, loadRadius,
                 "Showcase streaming needs unload hysteresis beyond the load window.");
             Assert.LessOrEqual(
