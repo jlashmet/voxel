@@ -16,13 +16,16 @@ namespace VoxelEngine.Showcase
         /// </summary>
         public static HouseConfig DetailedFarmhouse(in ShowcaseMaterialSet materials)
         {
-            HouseConfig config = HousePresetLibrary.Farmhouse(
-                materials.WorldgenFoundation,
+            HouseConfig config = HousePresets.Farmhouse(
                 materials.WorldgenMasonry,
                 materials.WorldgenRoofTile);
 
+            config.Palette.Foundation = materials.WorldgenFoundation;
+            config.Palette.PrimaryWall = materials.WorldgenMasonry;
             config.Palette.SecondaryWall = materials.WorldgenTimber;
             config.Palette.Trim = materials.WorldgenTimber;
+            config.Palette.Roof = materials.WorldgenRoofTile;
+            config.Palette.Floor = materials.WorldgenFoundation;
             config.Palette.Accent = materials.WorldgenDarkMasonry;
             config.Palette.Glass = materials.WorldgenGlass;
 
