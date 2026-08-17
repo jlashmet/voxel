@@ -82,6 +82,27 @@ namespace VoxelEngine.Tests.Features
         }
 
         [Test]
+        public void OpeningConfigRejectsImpossibleRepetitionSpacing()
+        {
+            var opening = new OpeningConfig
+            {
+                Kind = StructureOpeningKind.Window,
+                Width = 6,
+                Height = 8,
+                Spacing = 7,
+                WidthVariation = 2,
+                HeightVariation = 1,
+            };
+
+            Assert.IsFalse(opening.IsWellFormed,
+                "spacing smaller than the maximum deterministic opening width can overlap");
+
+            opening.Spacing = 8;
+            Assert.IsTrue(opening.IsWellFormed);
+            Assert.AreEqual(3, opening.MaxCountForSpan(24));
+        }
+
+        [Test]
         public void FloorAndRoofConfigsRemainIntegerOnly()
         {
             var floors = new FloorLevelConfig
@@ -113,6 +134,51 @@ namespace VoxelEngine.Tests.Features
             Assert.AreEqual(RoofStyle.Gable, roof.Style);
             Assert.AreEqual(1, roof.PitchRise);
             Assert.AreEqual(2, roof.PitchRun);
+        }
+
+        [Test]
+        public void RoofConfigRejectsUnsupportedStyleCombinations()
+        {
+            var flatWithPitch = new RoofConfig
+            {
+                Style = RoofStyle.Flat,
+                PitchRise = 1,
+                PitchRun = 2,
+                Thickness = 2,
+            };
+            Assert.IsFalse(flatWithPitch.IsWellFormed,
+                "flat roofs must not carry an ignored pitch");
+
+            var pitchedWithoutRun = new RoofConfig
+            {
+                Style = RoofStyle.Gable,
+                PitchRise = 1,
+                PitchRun = 0,
+                Thickness = 2,
+            };
+            Assert.IsFalse(pitchedWithoutRun.IsWellFormed,
+                "pitched roofs require a positive integer rise/run pair");
+
+            var pitchedWithParapet = new RoofConfig
+            {
+                Style = RoofStyle.Hip,
+                PitchRise = 1,
+                PitchRun = 2,
+                Thickness = 2,
+                ParapetHeight = 3,
+            };
+            Assert.IsFalse(pitchedWithParapet.IsWellFormed,
+                "the shared roof component does not combine pitched roofs and flat-roof parapets");
+
+            var flat = new RoofConfig
+            {
+                Style = RoofStyle.Flat,
+                PitchRise = 0,
+                PitchRun = 0,
+                Thickness = 2,
+                ParapetHeight = 3,
+            };
+            Assert.IsTrue(flat.IsWellFormed);
         }
 
         [Test]
