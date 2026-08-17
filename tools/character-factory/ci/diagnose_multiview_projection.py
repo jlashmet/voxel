@@ -6,7 +6,6 @@ import json
 import math
 import statistics
 import sys
-from collections import defaultdict
 from pathlib import Path
 
 import bpy
@@ -72,6 +71,15 @@ def _nearest_foreground_distance(
     u: float,
     v: float,
 ) -> tuple[float, int, int, bool]:
+    """Return the true nearest foreground run in image-space Euclidean distance.
+
+    The historical projector stopped at the first *row* containing any foreground.
+    That is not a nearest-neighbor search: a point beside a hand could jump hundreds
+    of pixels sideways to the upper arm even when the hand is only a few rows away.
+    Keep expanding rows until their unavoidable vertical distance can no longer beat
+    the best 2D candidate found so far.
+    """
+
     width = source.width
     height = source.height
     target_x = int(round(max(0.0, min(1.0, u)) * (width - 1)))
@@ -81,7 +89,6 @@ def _nearest_foreground_distance(
     best: tuple[float, int, int] | None = None
     for radius in range(max(width, height) + 1):
         rows = [target_y] if radius == 0 else [target_y - radius, target_y + radius]
-        found_at_radius = False
         for y in rows:
             if y < 0 or y >= height:
                 continue
@@ -101,8 +108,11 @@ def _nearest_foreground_distance(
                     best = (distance_sq, x, y)
                 if y == target_y and safe_start <= target_x <= safe_end:
                     return 0.0, target_x, target_y, True
-                found_at_radius = True
-        if found_at_radius and best is not None:
+
+        # Every unvisited row is at least radius+1 pixels away vertically. Once the
+        # current radius alone equals/exceeds the best full 2D distance, no later row
+        # can improve the answer.
+        if best is not None and float(radius * radius) >= best[0]:
             break
 
     if best is None:
@@ -281,9 +291,9 @@ def main() -> int:
         },
         "interpretation": {
             "largeSnap": (
-                "A large snap means the current unbounded foreground fallback would move a "
-                "projected loop a substantial distance to reach any subject pixel. Repeated "
-                "large snaps can collapse unrelated geometry onto narrow image strips."
+                "A large snap is the true 2D distance from the projected loop to the nearest "
+                "detected subject pixel. Repeated large corrections indicate that global planar "
+                "projection does not match the local silhouette and must be rejected or remapped."
             ),
             "sideOuterSpan": (
                 "Side projection drops world X. Outer-span T-pose geometry is therefore "
