@@ -186,7 +186,10 @@ namespace Game.Structures.Api
                     Depth = plan.WallThickness * 2,
                     Height = plan.WallHeight + 22,
                     TowerCentreOffset = 54,
+                    LeftTowerHeightOffset = 38,
+                    RightTowerHeightOffset = 12,
                     GateLeafDepth = CastleLayout.FrontGateDepth,
+                    GateLeafInset = 2,
                     FlankingTowers = gateTowers,
                     GateOpening = mainGate,
                     PortcullisOpening = new OpeningConfig
