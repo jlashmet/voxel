@@ -14,10 +14,10 @@ namespace VoxelEngine.Showcase
     /// </summary>
     internal static class ShowcaseDetailedHouseCatalogue
     {
-        // Just east of the Kentridge town centre: close enough to exercise showcase streaming while
-        // remaining outside the dense authored building cluster.
+        // East of the service lane and just north of Market Street. Keeping the authored origin off
+        // the roadbed makes the example visible near town without overlapping stable Kentridge roles.
         private const int PlacementX = 1540;
-        private const int PlacementZ = 520;
+        private const int PlacementZ = 560;
 
         public static FeatureCatalogue Build(
             uint seed,
@@ -81,7 +81,7 @@ namespace VoxelEngine.Showcase
                 MaxPrimitives = 256,
             };
 
-            int surfaceY = TerrainQuery.HeightAt(PlacementX, PlacementZ, seed);
+            int surfaceY = LowestGround(seed, PlacementX, PlacementZ, config.Width, config.Depth);
             catalogue.ExplicitPlacements[0] = new ExplicitPlacement
             {
                 Position = new int3(PlacementX, surfaceY - config.FoundationDepth, PlacementZ),
@@ -135,6 +135,27 @@ namespace VoxelEngine.Showcase
                 maxY = math.max(maxY, roofBase + config.Chimney.Geometry.Height);
 
             return maxY + 1;
+        }
+
+        private static int LowestGround(
+            uint seed,
+            int originX,
+            int originZ,
+            int width,
+            int depth)
+        {
+            const int samplesPerAxis = 5;
+            int lowest = int.MaxValue;
+            for (int iz = 0; iz < samplesPerAxis; iz++)
+            for (int ix = 0; ix < samplesPerAxis; ix++)
+            {
+                int x = originX + (width - 1) * ix / (samplesPerAxis - 1);
+                int z = originZ + (depth - 1) * iz / (samplesPerAxis - 1);
+                int sample = TerrainQuery.HeightAt(x, z, seed);
+                if (sample < lowest) lowest = sample;
+            }
+
+            return lowest;
         }
     }
 }
