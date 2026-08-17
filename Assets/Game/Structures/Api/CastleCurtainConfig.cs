@@ -1,3 +1,4 @@
+using System;
 using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Structures.Api;
@@ -8,7 +9,25 @@ namespace Game.Structures.Api
     public enum CastleCurtainLayoutKind : byte
     {
         Rectangular = 0,
+        // Temporary source-compatibility alias for the partially migrated layout contract.
+        Rectangle = Rectangular,
         Polygon = 1,
+    }
+
+    /// <summary>
+    /// Transitional source-compatibility shim for the short-lived layout-only contract. New
+    /// authoring must use <see cref="CastleCurtainConfig"/>, which owns layout, wall style,
+    /// segmentation, battlements, and palette as one validated surface.
+    /// </summary>
+    [Obsolete("Use CastleCurtainConfig. This layout-only bridge exists only for branch compatibility.")]
+    public struct CastleCurtainLayoutConfig
+    {
+        public CastleCurtainLayoutKind Kind;
+        public int SegmentLength;
+
+        public bool IsWellFormed =>
+            (Kind == CastleCurtainLayoutKind.Rectangular || Kind == CastleCurtainLayoutKind.Polygon) &&
+            SegmentLength >= 0;
     }
 
     /// <summary>
@@ -45,7 +64,8 @@ namespace Game.Structures.Api
                 {
                     case CastleCurtainLayoutKind.Rectangular:
                         return RectangularHalfExtents.x > Wall.Thickness &&
-                               RectangularHalfExtents.y > Wall.Thickness;
+                               RectangularHalfExtents.y > Wall.Thickness &&
+                               PolygonVertices.Length == 0;
 
                     case CastleCurtainLayoutKind.Polygon:
                         if (PolygonVertices.Length < 4)
@@ -56,6 +76,7 @@ namespace Game.Structures.Api
                             int2 b = PolygonVertices[(i + 1) % PolygonVertices.Length];
                             int dx = b.x - a.x;
                             int dz = b.y - a.y;
+                            // Exactly one axis must change: no zero-length or diagonal edges.
                             if ((dx == 0) == (dz == 0))
                                 return false;
                         }
