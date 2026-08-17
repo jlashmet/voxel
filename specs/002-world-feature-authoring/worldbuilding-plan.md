@@ -129,11 +129,11 @@ Phase 0 evidence and compatibility targets are recorded in [worldbuilding-invent
 - [x] **WB031** Refactor the current house/cottage authoring path to use shared structure components without changing the default result unintentionally.
 - [x] **WB032** Expose house dimensions, floor count, floor height, wall thickness, foundation behavior, and material palette.
 - [x] **WB033** Expose roof type, pitch, ridge orientation, eaves/overhang, roof material, and optional dormer-capable extension point.
-- [ ] **WB034** Expose front/rear/side door counts and placement rules, door dimensions, frames, and optional porch/step treatment.
-- [ ] **WB035** Expose per-facade window layout, dimensions, spacing, sill/head height, frames, and deterministic variation.
-- [ ] **WB036** Add configurable chimney placement/size/material and optional fireplace/interior hook.
-- [ ] **WB037** Add configurable porch/awning/balcony hooks using shared components where supported.
-- [ ] **WB038** Add interior floor/room/doorway hooks sufficient for later richer house layouts without baking one layout into the geometry layer.
+- [x] **WB034** Expose front/rear/side door counts and placement rules, door dimensions, frames, and optional porch/step treatment.
+- [x] **WB035** Expose per-facade window layout, dimensions, spacing, sill/head height, frames, and deterministic variation.
+- [x] **WB036** Add configurable chimney placement/size/material and optional fireplace/interior hook.
+- [x] **WB037** Add configurable porch/awning/balcony hooks using shared components where supported.
+- [x] **WB038** Add interior floor/room/doorway hooks sufficient for later richer house layouts without baking one layout into the geometry layer.
 - [ ] **WB039** Add house presets demonstrating materially different output from one builder/config type.
 - [ ] **WB040** Add house invariants/determinism/footprint tests and update showcase usage to exercise at least one detailed configuration.
 
