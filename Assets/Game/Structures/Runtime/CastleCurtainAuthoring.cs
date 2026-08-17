@@ -15,7 +15,7 @@ namespace Game.Structures.Runtime
         {
             if (authoring == null) throw new System.ArgumentNullException(nameof(authoring));
 
-            CastleSharedConfig shared = CastleCompatibilityPreset.FromPlan(in plan);
+            CastleComponentConfig shared = CastleCompatibilityComponents.Resolve(in plan);
             int baseY = plan.Centre.y + plan.PlateauHeight;
             int hx = plan.BaileyHalfX;
             int hz = plan.BaileyHalfZ;
