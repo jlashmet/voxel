@@ -6,6 +6,9 @@ on:
       - feature/voxel-showcase-rendering-repair-v2
     paths:
       - .github/workflows/validate-step4-fallback-lifecycle.yml
+      - Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
+      - Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Step4FalseEmptyDiagnostics.cs
+      - Assets/Tests/PlayMode/LodRenderingTests.cs
 
 permissions:
   contents: read
