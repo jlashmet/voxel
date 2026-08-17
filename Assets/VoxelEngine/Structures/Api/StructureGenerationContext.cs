@@ -14,18 +14,48 @@ namespace VoxelEngine.Structures.Api
         public int3 MaxExclusive { get; }
         public int3 Size => MaxExclusive - Min;
 
+        public bool IsWellFormed =>
+            MaxExclusive.x > Min.x && MaxExclusive.y > Min.y && MaxExclusive.z > Min.z;
+
         public StructureGenerationBounds(int3 min, int3 maxExclusive)
         {
             Min = min;
             MaxExclusive = maxExclusive;
         }
 
+        /// <summary>
+        /// Creates half-open bounds from an origin and positive size while proving that every
+        /// exclusive maximum is representable as an <see cref="int"/>. This is the validation path
+        /// for authored/generated dimensions near world-coordinate limits.
+        /// </summary>
+        public static bool TryCreate(int3 min, int3 size, out StructureGenerationBounds bounds)
+        {
+            bounds = default;
+            if (size.x <= 0 || size.y <= 0 || size.z <= 0)
+                return false;
+
+            long maxX = (long)min.x + size.x;
+            long maxY = (long)min.y + size.y;
+            long maxZ = (long)min.z + size.z;
+            if (maxX > int.MaxValue || maxY > int.MaxValue || maxZ > int.MaxValue ||
+                maxX < int.MinValue || maxY < int.MinValue || maxZ < int.MinValue)
+                return false;
+
+            bounds = new StructureGenerationBounds(
+                min,
+                new int3((int)maxX, (int)maxY, (int)maxZ));
+            return true;
+        }
+
         public bool Contains(int3 position) =>
+            IsWellFormed &&
             position.x >= Min.x && position.x < MaxExclusive.x &&
             position.y >= Min.y && position.y < MaxExclusive.y &&
             position.z >= Min.z && position.z < MaxExclusive.z;
 
         public bool ContainsVolume(int3 min, int3 maxExclusive) =>
+            IsWellFormed &&
+            maxExclusive.x > min.x && maxExclusive.y > min.y && maxExclusive.z > min.z &&
             min.x >= Min.x && min.y >= Min.y && min.z >= Min.z &&
             maxExclusive.x <= MaxExclusive.x &&
             maxExclusive.y <= MaxExclusive.y &&
@@ -105,6 +135,7 @@ namespace VoxelEngine.Structures.Api
         /// <summary>
         /// Creates a context using the same stable feature identity rule as FeatureGeneration.
         /// Odd cardinal orientations swap X/Z footprint extents in world-space bounds.
+        /// Callers validating authored content should first use <see cref="StructureGenerationBounds.TryCreate"/>.
         /// </summary>
         public static StructureGenerationContext ForFeature(
             uint worldSeed,
@@ -121,7 +152,8 @@ namespace VoxelEngine.Structures.Api
                 ? footprint
                 : new int3(footprint.z, footprint.y, footprint.x);
             ulong identity = FeatureHash.Cell(worldSeed, definitionId, origin);
-            var bounds = new StructureGenerationBounds(origin, origin + orientedFootprint);
+
+            StructureGenerationBounds.TryCreate(origin, orientedFootprint, out var bounds);
             var terrain = new StructureTerrainAccess(terrainSeed);
 
             return new StructureGenerationContext(
