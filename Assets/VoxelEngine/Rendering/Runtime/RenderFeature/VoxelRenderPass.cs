@@ -161,6 +161,9 @@ namespace VoxelEngine.Rendering.Runtime
 
         public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
         {
+            // Register on actual execution, not feature construction. Projects can contain several
+            // renderer-data assets; the fidelity gate must inspect the pass URP really invoked.
+            VoxelRenderBridge.RegisterActivePass(this);
             VoxelRenderBridge.SurfacePassRecordCount++;
             if (!Enabled)
             {
@@ -393,6 +396,7 @@ namespace VoxelEngine.Rendering.Runtime
 
         public void Dispose()
         {
+            VoxelRenderBridge.UnregisterActivePass(this);
             VoxelRenderBridge.UnregisterWorldReleaseHandler(ReleaseWorldResources);
             _scheduler?.Dispose();
             _scheduler = null;

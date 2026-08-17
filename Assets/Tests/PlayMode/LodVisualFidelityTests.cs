@@ -55,10 +55,14 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.AreEqual(0.0, world.MaxCastleStageMs, 0.0001,
                 "LOD fixture recorded Play-mode castle authoring work after baked startup.");
 
-            VoxelRenderFeature renderFeature = FindActiveVoxelRenderFeature();
-            Assert.NotNull(renderFeature,
-                "Could not inspect the production voxel renderer used by VoxelShowcase.");
-            Assert.NotNull(renderFeature.Pass);
+            // Force one production URP submission before taking the diagnostics handle.
+            // Renderer features are project assets and are not reliably discoverable through
+            // Resources in batchmode; the bridge records the pass URP actually executed.
+            RenderUrpCamera(camera);
+            yield return null;
+            VoxelRenderPass renderPass = VoxelRenderBridge.ActivePass;
+            Assert.NotNull(renderPass,
+                "Could not inspect the production voxel render pass used by VoxelShowcase.");
 
             typeof(VoxelShowcase)
                 .GetField("m_FlyMode", BindingFlags.NonPublic | BindingFlags.Instance)
@@ -135,7 +139,7 @@ namespace VoxelEngine.Tests.PlayMode
 
                             var metrics = VoxelRenderBridge.SurfaceMetrics;
                             observedStepMask = VisibleSourceStepMaskAt(
-                                renderFeature.Pass, centre, VoxelSize);
+                                renderPass, centre, VoxelSize);
                             VisualSignature candidate = Capture(target, readback);
                             bool exactProductionLod = observedStepMask == step;
                             bool substantial = exactProductionLod
@@ -215,15 +219,6 @@ namespace VoxelEngine.Tests.PlayMode
                 "Showcase world never reached atomic render publication.");
             Assert.True(VoxelRenderBridge.TryGetWorld(out _),
                 "Showcase lost the renderer world binding before LOD validation.");
-        }
-
-        private static VoxelRenderFeature FindActiveVoxelRenderFeature()
-        {
-            VoxelRenderFeature[] features = Resources.FindObjectsOfTypeAll<VoxelRenderFeature>();
-            for (int i = 0; i < features.Length; i++)
-                if (features[i] != null && features[i].Pass != null)
-                    return features[i];
-            return null;
         }
 
         private static int VisibleSourceStepMaskAt(
