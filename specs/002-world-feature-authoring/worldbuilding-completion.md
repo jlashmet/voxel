@@ -103,7 +103,7 @@ a GPU-derived gameplay truth. Rendering remains downstream of authoritative voxe
 
 This is a source audit, not a substitute for a compile/test run.
 
-## Bounds and budget audit (WB107 status: not complete)
+## Bounds and budget audit (WB107 complete from source invariants)
 
 Several source-level gaps were fixed during the completion audit:
 
@@ -114,21 +114,19 @@ Several source-level gaps were fixed during the completion audit:
    `CaveAuthoring` before any write if it exceeds the declared envelope.
 4. `FeatureCatalogueBuilder.Finalise` rejects definitions whose declared footprint or declared
    `MaxPrimitives` exceeds the global hard budgets. It does not currently prove the program's true
-   maximum emission count; that deeper invariant remains an authoring/runtime responsibility.
-5. Production `FeatureGeneration.RasteriseInstance` now validates every evaluated primitive against
-   the half-open, cardinally-oriented `FeatureDefinition.Footprint` before rasterisation. Any escape
+   maximum emission count; the runtime remains fail-closed if a bad authored program escapes that
+   deeper validation responsibility.
+5. Production `FeatureGeneration.RasteriseInstance` validates every evaluated primitive against the
+   half-open, cardinally-oriented `FeatureDefinition.Footprint` before rasterisation. Any escape
    returns `EvaluationResult.OutsideFootprint` and writes no voxels.
+6. `ShapeProgram` now rejects a `ShapeOp.Repeat` count above
+   `FeatureBudget.MaxPrimitivesPerInstance` with `PrimitiveLimitExceeded` instead of silently capping
+   the trip count. The ordinary emit path also refuses to exceed either `definition.MaxPrimitives`
+   or the global per-instance primitive limit.
 
-WB107 remains intentionally open for one remaining evaluator behavior:
-
-- `ShapeOp.Repeat` caps an oversized repeat count to `FeatureBudget.MaxPrimitivesPerInstance` instead
-  of returning `PrimitiveLimitExceeded`; that is silent truncation at the control-flow level. The
-  ordinary emit path itself already fails when `definition.MaxPrimitives` or the global primitive
-  limit is reached, but a control-flow construct should still reject an excessive authored/runtime
-  trip count rather than silently rewrite it.
-
-The repeat issue is an explicit follow-up implementation task. Once it is fail-closed, WB107 can be
-closed from the source invariant side; compile/test execution remains tracked separately by WB103-105.
+Together these runtime backstops make footprint and primitive-budget failures explicit rather than
+silently clipping/truncating authoritative structure generation. Compile/test execution remains
+tracked separately by WB103-WB105.
 
 ## Settlement locality audit
 
@@ -159,17 +157,15 @@ implementation without spending time on tests.
 
 ## Known limitations / next increments
 
-1. Reject oversized shape-program `Repeat` counts instead of capping them.
-2. Add shared shape-program compilers for church/cathedral/temple (and other desired landmarks) before
+1. Add shared shape-program compilers for church/cathedral/temple (and other desired landmarks) before
    migrating Kentridge bespoke landmark programmes.
-3. Add hip-roof realization to `HouseProgramCompiler` before advertising hip roofs on that compiler
+2. Add hip-roof realization to `HouseProgramCompiler` before advertising hip roofs on that compiler
    path; keep the config/runtime-session roof support separate until then.
-4. Implement deterministic bounded cave loop/reconnection semantics if loops are still desired.
-5. Resume WB095/WB103-WB105 validation when test/build execution is desired and available.
+3. Implement deterministic bounded cave loop/reconnection semantics if loops are still desired.
+4. Resume WB095/WB103-WB105 validation when test/build execution is desired and available.
 
 ## Checklist reconciliation
 
 Implementation through WB094 and WB096-WB102 is present. WB095 remains intentionally deferred.
-WB106, WB108, WB109 and WB110 can be closed from this source/compatibility audit. WB107 remains open
-only for fail-closed oversized `Repeat` handling. WB103-WB105 remain open because no corresponding
-commands ran.
+WB106-WB110 can be closed from the source/compatibility audit. WB103-WB105 remain open because no
+corresponding commands ran.
