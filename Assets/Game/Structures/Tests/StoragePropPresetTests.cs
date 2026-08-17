@@ -50,10 +50,14 @@ namespace Game.Structures.Tests
                 DecorationInteractionFlags flags = containers[i].Interaction;
                 Assert.Multiple(() =>
                 {
-                    Assert.AreNotEqual(0, flags & DecorationInteractionFlags.Container);
-                    Assert.AreNotEqual(0, flags & DecorationInteractionFlags.Lootable);
-                    Assert.AreNotEqual(0, flags & DecorationInteractionFlags.Movable);
-                    Assert.AreNotEqual(0, flags & DecorationInteractionFlags.Destructible);
+                    Assert.AreNotEqual(DecorationInteractionFlags.None,
+                        flags & DecorationInteractionFlags.Container);
+                    Assert.AreNotEqual(DecorationInteractionFlags.None,
+                        flags & DecorationInteractionFlags.Lootable);
+                    Assert.AreNotEqual(DecorationInteractionFlags.None,
+                        flags & DecorationInteractionFlags.Movable);
+                    Assert.AreNotEqual(DecorationInteractionFlags.None,
+                        flags & DecorationInteractionFlags.Destructible);
                 });
             }
         }
