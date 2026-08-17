@@ -9,6 +9,8 @@ BLENDER_BIN="${BLENDER_BIN:-/Applications/Blender.app/Contents/MacOS/Blender}"
 SOURCE="$REPO_ROOT/tools/character-factory/ci/fixtures/sunlit_cleric_staff.jpg"
 OUT="${1:-$REPO_ROOT/Artifacts/SunlitClericStaffProduction}"
 UNITY_ASSETS_ROOT="${2:-$REPO_ROOT/Assets/Generated/CharacterFactory}"
+FULL_INPUT="$OUT/sunlit_cleric_staff_01.input.png"
+ORNAMENT_INPUT="$OUT/sunlit_cleric_staff_01.ornament.png"
 
 for required in "$BLENDER_BIN" "$SOURCE"; do
   test -e "$required" || {
@@ -22,34 +24,32 @@ mkdir -p "$OUT"
 export PYTORCH_ENABLE_MPS_FALLBACK="${PYTORCH_ENABLE_MPS_FALLBACK:-1}"
 export PYTHONUNBUFFERED=1
 
-echo "[1/3] Bootstrap the pinned TripoSR preprocessing/runtime profile"
-TRIPOSR_PY="$(python3 tools/character-factory/character_factory.py \
-  bootstrap-profile triposr-smoke-macos | tail -n 1)"
-test -x "$TRIPOSR_PY"
-
-echo "[2/3] Prepare the source-specific isolated staff and generic terminal detail"
-FULL_INPUT="$OUT/sunlit_cleric_staff_01.input.png"
-ORNAMENT_INPUT="$OUT/sunlit_cleric_staff_01.ornament.png"
-"$TRIPOSR_PY" "$SCRIPT_DIR/prepare_staff_source.py" \
-  --input "$SOURCE" \
-  --output "$FULL_INPUT"
-"$TRIPOSR_PY" tools/character-factory/ci/prepare_linear_terminal_detail.py \
-  --input "$FULL_INPUT" \
-  --output "$ORNAMENT_INPUT" \
-  --axis vertical \
-  --terminal min \
-  --background 128
-
-test -s "$FULL_INPUT"
-test -s "$ORNAMENT_INPUT"
-
-echo "[3/3] Produce, verify, preview, and stage the composed runtime weapon"
+echo "[1/1] Produce the composed staff from declared preprocessing + production data"
 SPEC="$OUT/sunlit-cleric-staff.json"
 cat > "$SPEC" <<JSON
 {
   "id": "sunlit_cleric_staff_01",
   "assetType": "weapon",
   "tags": ["sunlit-cleric", "staff", "weapon"],
+  "preprocess": [
+    {
+      "strategy": "python-script",
+      "script": "$SCRIPT_DIR/prepare_staff_source.py",
+      "arguments": [
+        "--input", "$SOURCE",
+        "--output", "$FULL_INPUT"
+      ],
+      "outputs": ["$FULL_INPUT"]
+    },
+    {
+      "strategy": "linear-terminal-detail",
+      "input": "$FULL_INPUT",
+      "output": "$ORNAMENT_INPUT",
+      "axis": "vertical",
+      "terminal": "min",
+      "background": 128
+    }
+  ],
   "views": {
     "front": "$FULL_INPUT"
   },
@@ -90,6 +90,8 @@ JSON
 python3 tools/character-factory/character_factory.py produce "$SPEC" \
   --unity-assets-root "$UNITY_ASSETS_ROOT"
 
+test -s "$FULL_INPUT"
+test -s "$ORNAMENT_INPUT"
 test -s "$OUT/sunlit_cleric_staff_01.fbx"
 test -s "$OUT/sunlit_cleric_staff_01.preview.png"
 test -s "$OUT/sunlit_cleric_staff_01.rigid-contract.json"
@@ -100,8 +102,7 @@ Sunlit Cleric staff build complete.
   Weapon FBX: $OUT/sunlit_cleric_staff_01.fbx
   Preview: $OUT/sunlit_cleric_staff_01.preview.png
   Composition: generated-detail-shaft (ornament + procedural shaft)
-  Detail crop: generic linear terminal extraction
-  Source isolation: asset-local Sunlit Cleric heuristic
+  Preprocessing: declared asset-local source isolation + generic linear terminal extraction
   Generator profile: triposr-smoke-macos
   Slot: MainHand
   Socket bone: RightHand
