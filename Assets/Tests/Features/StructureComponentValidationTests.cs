@@ -132,6 +132,12 @@ namespace VoxelEngine.Tests.Features
                     declaredMaxPrimitives: 128));
 
             Assert.AreEqual(
+                StructureComponentValidationIssue.None,
+                StructureComponentValidation.PrimitiveBudget(
+                    emittedPrimitiveCount: FeatureBudget.MaxPrimitivesPerInstance,
+                    declaredMaxPrimitives: FeatureBudget.MaxPrimitivesPerInstance));
+
+            Assert.AreEqual(
                 StructureComponentValidationIssue.PrimitiveBudgetOverflow,
                 StructureComponentValidation.PrimitiveBudget(
                     emittedPrimitiveCount: 129,
@@ -142,6 +148,12 @@ namespace VoxelEngine.Tests.Features
                 StructureComponentValidation.PrimitiveBudget(
                     emittedPrimitiveCount: FeatureBudget.MaxPrimitivesPerInstance + 1,
                     declaredMaxPrimitives: FeatureBudget.MaxPrimitivesPerInstance));
+
+            Assert.AreEqual(
+                StructureComponentValidationIssue.PrimitiveBudgetOverflow,
+                StructureComponentValidation.PrimitiveBudget(
+                    emittedPrimitiveCount: FeatureBudget.MaxPrimitivesPerInstance,
+                    declaredMaxPrimitives: FeatureBudget.MaxPrimitivesPerInstance + 1));
         }
     }
 }
