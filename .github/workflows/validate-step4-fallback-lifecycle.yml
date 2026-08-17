@@ -10,11 +10,11 @@ on:
 permissions:
   contents: read
 
-# Every lifecycle run validates the exact commit that triggered it. Branch activity after this
-# workflow starts must not cancel or retarget the evidence used by the rendering-repair checklist.
+# Validate the exact triggering commit, but keep only the newest requested lifecycle run so stale
+# diagnostic SHAs cannot queue ahead of the current evidence on the single self-hosted Mac runner.
 concurrency:
-  group: unity-step4-lifecycle-${{ github.sha }}
-  cancel-in-progress: false
+  group: unity-step4-lifecycle
+  cancel-in-progress: true
 
 jobs:
   lod-rendering:
@@ -66,7 +66,6 @@ jobs:
 
       # This fixture is intentionally isolated: it records the current step-4 ownership /
       # frustum / ready-empty lifecycle without spending time on unrelated PlayMode suites.
-      # Triggered on the clean compile-valid lifecycle instrumentation head.
       - name: Run LOD lifecycle fixture
         shell: bash
         run: |
