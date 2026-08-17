@@ -13,15 +13,15 @@ namespace VoxelEngine.Tests.Features
             HouseConfig farmhouse = HousePresets.Farmhouse(7, 11);
             HouseConfig townhouse = HousePresets.TallTownhouse(9, 13);
 
-            int[] cottageProgram = HouseProgramCompiler.BuildCompatibilityProgram(
+            int[] cottageProgram = HouseProgramCompiler.BuildProgram(
                 in cottage,
                 mainDoorAnchorIndex: 0,
                 hearthAnchorIndex: 1);
-            int[] farmhouseProgram = HouseProgramCompiler.BuildCompatibilityProgram(
+            int[] farmhouseProgram = HouseProgramCompiler.BuildProgram(
                 in farmhouse,
                 mainDoorAnchorIndex: 0,
                 hearthAnchorIndex: 1);
-            int[] townhouseProgram = HouseProgramCompiler.BuildCompatibilityProgram(
+            int[] townhouseProgram = HouseProgramCompiler.BuildProgram(
                 in townhouse,
                 mainDoorAnchorIndex: 0,
                 hearthAnchorIndex: 1);
@@ -33,6 +33,8 @@ namespace VoxelEngine.Tests.Features
             Assert.AreEqual(96, farmhouse.Width);
             Assert.AreEqual(72, farmhouse.Depth);
             Assert.AreEqual(2, farmhouse.FloorCount);
+            Assert.Greater(farmhouse.FrontWindows.Count, 0,
+                "the farmhouse preset should exercise detailed facade configuration");
 
             Assert.AreEqual(48, townhouse.Width);
             Assert.AreEqual(64, townhouse.Depth);
