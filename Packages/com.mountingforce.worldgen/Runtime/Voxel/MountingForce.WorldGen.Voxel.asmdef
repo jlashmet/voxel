@@ -10,6 +10,7 @@
         "Unity.Collections",
         "Unity.Mathematics",
         "VoxelEngine.Structures.Api",
+        "VoxelEngine.Structures.Runtime",
         "Game.Structures.Api",
         "Game.Materials.Api"
     ],
