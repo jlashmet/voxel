@@ -4,10 +4,13 @@ from dataclasses import dataclass
 import hashlib
 import json
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Mapping
 
 from api import AssetType, BuildSpec, CharacterFactoryError
 from runtime.production import discover_specs
+
+
+CHANGE_KINDS = frozenset({"new", "spec", "geometry", "appearance", "details"})
 
 
 @dataclass(frozen=True)
@@ -18,6 +21,13 @@ class CatalogueEntry:
     @property
     def key(self) -> str:
         return f"{self.spec.asset_type.value}:{self.spec.asset_id}"
+
+
+@dataclass(frozen=True)
+class AssetChange:
+    key: str
+    kinds: frozenset[str]
+    entry: CatalogueEntry
 
 
 def _file_digest(path: Path) -> str | None:
@@ -51,6 +61,13 @@ def _reference_hashes(spec: BuildSpec) -> dict[str, object]:
         "geometry": geometry,
         "appearance": appearance,
         "details": details,
+    }
+
+
+def _entry_input_state(entry: CatalogueEntry) -> dict[str, object]:
+    return {
+        "specSha256": _file_digest(entry.spec_path),
+        "referenceHashes": _reference_hashes(entry.spec),
     }
 
 
@@ -104,6 +121,104 @@ def select_entries(
     return result
 
 
+def load_catalogue(path: Path) -> dict[str, object]:
+    path = path.resolve()
+    if not path.is_file():
+        raise CharacterFactoryError(f"catalogue does not exist: {path}")
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise CharacterFactoryError(f"catalogue is not valid JSON: {path}") from exc
+    if not isinstance(payload, dict) or payload.get("schemaVersion") != 1:
+        raise CharacterFactoryError(f"unsupported Character Factory catalogue: {path}")
+    assets = payload.get("assets")
+    if not isinstance(assets, list):
+        raise CharacterFactoryError(f"catalogue assets must be a list: {path}")
+    return payload
+
+
+def classify_changes(
+    entries: Iterable[CatalogueEntry],
+    previous_catalogue: Mapping[str, object],
+) -> tuple[list[AssetChange], list[str]]:
+    previous_assets = previous_catalogue.get("assets")
+    if not isinstance(previous_assets, list):
+        raise CharacterFactoryError("previous catalogue assets must be a list")
+
+    previous_by_key: dict[str, Mapping[str, object]] = {}
+    for raw in previous_assets:
+        if not isinstance(raw, Mapping):
+            raise CharacterFactoryError("previous catalogue contains a non-object asset entry")
+        key = str(raw.get("key", "")).strip()
+        if not key:
+            raise CharacterFactoryError("previous catalogue asset is missing key")
+        if key in previous_by_key:
+            raise CharacterFactoryError(f"previous catalogue contains duplicate key {key!r}")
+        previous_by_key[key] = raw
+
+    current_entries = list(entries)
+    current_keys = {entry.key for entry in current_entries}
+    changes: list[AssetChange] = []
+    for entry in current_entries:
+        previous = previous_by_key.get(entry.key)
+        if previous is None:
+            changes.append(
+                AssetChange(
+                    key=entry.key,
+                    kinds=frozenset({"new", "spec", "geometry", "appearance", "details"}),
+                    entry=entry,
+                )
+            )
+            continue
+
+        current_state = _entry_input_state(entry)
+        kinds: set[str] = set()
+        if current_state["specSha256"] != previous.get("specSha256"):
+            kinds.add("spec")
+
+        previous_refs = previous.get("referenceHashes")
+        if not isinstance(previous_refs, Mapping):
+            # Old/malformed catalogues cannot safely prove any reference stage is reusable.
+            kinds.update({"geometry", "appearance", "details"})
+        else:
+            current_refs = current_state["referenceHashes"]
+            assert isinstance(current_refs, Mapping)
+            for name in ("geometry", "appearance", "details"):
+                if current_refs.get(name) != previous_refs.get(name):
+                    kinds.add(name)
+
+        if kinds:
+            changes.append(
+                AssetChange(
+                    key=entry.key,
+                    kinds=frozenset(kinds),
+                    entry=entry,
+                )
+            )
+
+    removed = sorted(set(previous_by_key) - current_keys)
+    return sorted(changes, key=lambda change: change.key), removed
+
+
+def select_changed_entries(
+    changes: Iterable[AssetChange],
+    *,
+    change_kinds: set[str] | None = None,
+) -> list[CatalogueEntry]:
+    if change_kinds is not None:
+        unknown = set(change_kinds) - CHANGE_KINDS
+        if unknown:
+            raise CharacterFactoryError(
+                "unknown catalogue change kinds: " + ", ".join(sorted(unknown))
+            )
+    result = []
+    for change in changes:
+        if change_kinds is not None and not (change.kinds & change_kinds):
+            continue
+        result.append(change.entry)
+    return result
+
+
 def catalogue_payload(
     directory: Path,
     *,
@@ -124,13 +239,14 @@ def catalogue_payload(
         type_counts[spec.asset_type.value] += 1
         runtime_part = spec.runtime_part
         rigid = spec.rigid
+        input_state = _entry_input_state(entry)
         assets.append(
             {
                 "key": entry.key,
                 "id": spec.asset_id,
                 "assetType": spec.asset_type.value,
                 "spec": str(entry.spec_path),
-                "specSha256": _file_digest(entry.spec_path),
+                "specSha256": input_state["specSha256"],
                 "appearanceStrategy": spec.appearance_strategy.value,
                 "generator": {
                     "profile": spec.generator.profile,
@@ -158,7 +274,7 @@ def catalogue_payload(
                         ),
                     }
                 ),
-                "referenceHashes": _reference_hashes(spec),
+                "referenceHashes": input_state["referenceHashes"],
             }
         )
 
