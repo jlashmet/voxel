@@ -36,7 +36,7 @@ namespace MountingForce.WorldGen.Voxel
                 KentridgeAnchorUndercroftCatalogue.Build(seed, settings, Allocator.Temp),
                 KentridgeUrbanAccessCatalogue.Build(seed, settings, Allocator.Temp),
                 KentridgeHillsideArchitectureCatalogue.Build(seed, settings, Allocator.Temp),
-                KentridgeSmoothedGrammarVoxelCatalogue.Build(seed, settings, Allocator.Temp),
+                KentridgeSemanticGrammarVoxelCatalogue.Build(seed, settings, Allocator.Temp),
             };
 
             try
