@@ -55,12 +55,9 @@ namespace VoxelEngine.Tests.Features.Fixtures
     }
 
     /// <summary>
-    /// A cottage: foundation, four walls, a hollow interior, a door, and a gable roof.
-    ///
-    /// The compatibility fixture now enters through <see cref="HouseConfig"/> and the shared
-    /// architectural component contracts. It still emits the original bounded integer shape-program
-    /// sequence so WB031 does not silently change the established cottage. Register-driven dimensions
-    /// arrive with the detailed house configuration tasks.
+    /// Compatibility fixture for the original cottage. Defaults now enter through the production
+    /// house authoring config/compiler while this fixture retains the historical anchor indices and
+    /// material ids used by the world-feature tests.
     /// </summary>
     public static class CottageProgram
     {
@@ -70,53 +67,13 @@ namespace VoxelEngine.Tests.Features.Fixtures
         /// <summary>Matches CottageFixture's declared footprint of 96 x 80 x 96 voxels.</summary>
         public static int[] Build()
         {
-            HouseConfig house = HousePresets.CottageCompatibility(
+            HouseConfig config = HousePresets.CottageCompatibility(
                 CottageFixture.MaterialStone,
                 CottageFixture.MaterialWood);
-
-            StructureFootprintConfig footprint = house.Footprint;
-            StructureWallRunConfig wall = house.Walls;
-            OpeningConfig door = house.MainDoor;
-            RoofConfig roof = house.Roof;
-            StructureMaterialPalette palette = house.Palette;
-
-            int width = footprint.Primary.Size.x;
-            int depth = footprint.Primary.Size.y;
-            int wallBaseY = footprint.FoundationDepth;
-            int roofSpan = roof.RidgeAxis == RoofAxis.Z ? width : depth;
-            int roofHeight = (roofSpan / 2 * roof.PitchRise) / roof.PitchRun;
-            byte foundationMaterial = palette.Resolve(footprint.FoundationMaterial);
-            byte wallMaterial = palette.Resolve(wall.PrimaryMaterial);
-            byte roofMaterial = palette.Resolve(roof.MaterialRole);
-
-            var b = new ProgramBuilder();
-
-            // Foundation, sunk so the walls have something to stand on.
-            b.Box(0, 0, 0, width, footprint.FoundationDepth, depth,
-                  foundationMaterial, PrimitiveMode.Fill);
-
-            // Solid block of wall, then the interior carved out of it. Cheaper to express and
-            // impossible to leave a gap in a corner, which four separate walls invite.
-            b.Box(0, wallBaseY, 0, width, wall.Height, depth, wallMaterial, PrimitiveMode.Fill);
-            b.Box(wall.Thickness, wallBaseY, wall.Thickness,
-                  width - 2 * wall.Thickness, wall.Height, depth - 2 * wall.Thickness,
-                  0, PrimitiveMode.Carve);
-
-            // Doorway through the south wall.
-            b.Box(width / 2 - door.Width / 2, wallBaseY + door.BottomOffset, 0,
-                  door.Width, door.Height, wall.Thickness,
-                  palette.Resolve(door.FillMaterialRole), PrimitiveMode.Carve);
-
-            // Gable roof sitting on the walls.
-            b.Prism(0, wallBaseY + wall.Height, 0, width, roofHeight, depth,
-                    PrismProfile.Gable, roofMaterial, PrimitiveMode.Fill);
-
-            b.Anchor(AnchorDoor, width / 2, wallBaseY, 0, Facing.South);
-            b.Anchor(AnchorHearth, width / 2, wallBaseY, depth / 2, Facing.Up);
-
-            b.End();
-
-            return b.Build();
+            return HouseProgramCompiler.BuildCompatibilityProgram(
+                in config,
+                AnchorDoor,
+                AnchorHearth);
         }
     }
 }
