@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from pathlib import Path
 
-from api.models import BuildSpec, ViewSet
+from api.models import BuildSpec, CharacterFactoryError, ViewSet
 from runtime.generators import generator_command_for
 from .base import AssetPipeline, PipelineResult
 
@@ -20,8 +19,11 @@ def composed_rigid_plan(
 
     composition = rigid.composition
     if composition.strategy != "generated-detail-shaft":
-        raise RuntimeError(f"unsupported rigid composition strategy: {composition.strategy}")
+        raise CharacterFactoryError(
+            f"unsupported rigid composition strategy: {composition.strategy}"
+        )
 
+    spec.output_dir.mkdir(parents=True, exist_ok=True)
     detail_path = spec.detail_references[composition.detail_reference]
     raw_mesh = spec.output_dir / f"{spec.asset_id}.{composition.detail_reference}.raw.glb"
     output = spec.output_dir / f"{spec.asset_id}.fbx"
