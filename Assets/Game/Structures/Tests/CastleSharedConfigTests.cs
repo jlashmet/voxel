@@ -13,7 +13,7 @@ namespace Game.Structures.Tests
         public void CompatibilityProjectionPreservesLegacyPlanDimensions()
         {
             CastlePlan plan = CastlePlanner.Plan(new int3(120, 40, -80), 0x12345678u);
-            CastleComponentConfig config = CastleCompatibilityComponents.Resolve(in plan);
+            CastleComponentConfig config = Resolve(in plan);
 
             Assert.Multiple(() =>
             {
@@ -29,6 +29,7 @@ namespace Game.Structures.Tests
                 Assert.AreEqual(8, config.KeepWalls.Thickness);
                 Assert.AreEqual(plan.Floors, config.KeepFloors.FloorCount);
                 Assert.AreEqual(plan.FloorHeight, config.KeepFloors.LevelHeight);
+                Assert.AreEqual(3, config.KeepFloors.SlabThickness);
 
                 Assert.AreEqual(plan.BaileyHalfX * 2, config.CurtainWallX.Length);
                 Assert.AreEqual(plan.BaileyHalfZ * 2, config.CurtainWallZ.Length);
@@ -42,6 +43,7 @@ namespace Game.Structures.Tests
                 Assert.AreEqual(4, config.CornerTowers.Count);
                 Assert.AreEqual(plan.TowerRadius, config.CornerTowers.Radius);
                 Assert.AreEqual(plan.TowerHeight, config.CornerTowers.Height);
+                Assert.AreEqual(StructureTowerPlacement.Explicit, config.GateTowers.Placement);
                 Assert.AreEqual(2, config.GateTowers.Count);
                 Assert.AreEqual(plan.GateTowerRadius, config.GateTowers.Radius);
                 Assert.AreEqual(plan.GateTowerHeight, config.GateTowers.Height);
@@ -70,8 +72,8 @@ namespace Game.Structures.Tests
         public void CompatibilityProjectionIsPureForSamePlan()
         {
             CastlePlan plan = CastlePlanner.Plan(int3.zero, 99u);
-            CastleComponentConfig a = CastleCompatibilityComponents.Resolve(in plan);
-            CastleComponentConfig b = CastleCompatibilityComponents.Resolve(in plan);
+            CastleComponentConfig a = Resolve(in plan);
+            CastleComponentConfig b = Resolve(in plan);
 
             Assert.Multiple(() =>
             {
@@ -89,6 +91,26 @@ namespace Game.Structures.Tests
                     b.CurtainBattlements.MerlonWidth);
                 Assert.AreEqual(a.Palette.PrimaryWall, b.Palette.PrimaryWall);
             });
+        }
+
+        private static CastleComponentConfig Resolve(in CastlePlan plan)
+        {
+            var palette = new StructureMaterialPalette
+            {
+                Foundation = GameMaterialIds.DarkStone,
+                PrimaryWall = GameMaterialIds.Stone,
+                SecondaryWall = GameMaterialIds.DarkStone,
+                Trim = GameMaterialIds.DarkStone,
+                Roof = GameMaterialIds.Slate,
+                Floor = GameMaterialIds.Wood,
+                Column = GameMaterialIds.Stone,
+                Accent = GameMaterialIds.Gold,
+                Underground = GameMaterialIds.DarkStone,
+                Opening = GameMaterialIds.Empty,
+                Glass = GameMaterialIds.LitWindow,
+                Detail = GameMaterialIds.Cloth,
+            };
+            return CastleComponentPresets.Compatibility(in plan, in palette);
         }
     }
 }
