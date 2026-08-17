@@ -9,6 +9,7 @@ namespace VoxelEngine.Tests.EditMode
     public sealed class ShowcaseResidencyConfigurationTests
     {
         private const string ScenePath = "Assets/Scenes/VoxelShowcase.unity";
+        private const string WorldPath = "Assets/Game/Composition/Showcase/ShowcaseWorld.cs";
         private const float RegionMetres = 51.2f;
 
         [Test]
@@ -34,6 +35,26 @@ namespace VoxelEngine.Tests.EditMode
                 unloadRadius * RegionMetres + 1f,
                 "The scene's unload radius must keep already-authored landmarks resident while "
               + "the camera views them through the outer voxel LOD rings.");
+        }
+
+        [Test]
+        public void StreamingAndFarHoleUseTheSameCameraRelativeFootprint()
+        {
+            string world = File.ReadAllText(WorldPath);
+
+            StringAssert.Contains("RefreshPending(centre, cameraMetres)", world,
+                "Streaming eligibility needs the actual camera offset inside its current region.");
+            Assert.AreEqual(2, Regex.Matches(
+                    world, @"ShowcaseResidencyFootprint\.ColumnIntersectsRadius\(",
+                    RegexOptions.CultureInvariant).Count,
+                "Both wanted-set admission and ResidentGroundRadiusMetres must use the same "
+              + "camera-relative physical footprint.");
+            StringAssert.DoesNotContain(
+                "dx * dx + dz * dz > LoadRadiusRegions * LoadRadiusRegions", world,
+                "A region-index disc lags the camera by up to one region diagonal and can leave "
+              + "physically in-range coarse LOD core regions unloaded.");
+            StringAssert.Contains("math.min(LoadRadiusRegions * RegionMetres", world,
+                "The published near-coverage radius must never exceed the configured physical radius.");
         }
 
         private static int ReadSerializedInt(string yaml, string field)
