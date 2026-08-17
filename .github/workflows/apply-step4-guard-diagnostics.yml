@@ -18,7 +18,7 @@ jobs:
         with:
           ref: feature/voxel-showcase-rendering-repair-v2
           fetch-depth: 0
-      - name: Apply guard diagnostics and plan update
+      - name: Apply anchored guard diagnostics and plan update
         run: python3 .github/scripts/apply-step4-guard-diagnostics.py
       - name: Validate patch
         run: |
