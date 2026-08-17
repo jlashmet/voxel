@@ -152,13 +152,14 @@ jobs:
               '^VoxelEngine\.Tests\.PlayMode\.LodVisualFidelityTests'
               '^VoxelEngine\.Tests\.PlayMode\.MemoryStabilityTests'
               '^VoxelEngine\.Tests\.PlayMode\.[N-S]'
+              '^VoxelEngine\.Tests\.PlayMode\.TemporalAnimationVisualTests'
               '^VoxelEngine\.Tests\.PlayMode\.TerrainLookdevScreenshotTests'
               '^VoxelEngine\.Tests\.PlayMode\.TraversalStreamingTests'
               '^VoxelEngine\.Tests\.PlayMode\.[U-Z]'
             )
             LABELS=(
               a-f g-j kentridge late-join lod-rendering lod-fidelity memory n-s
-              terrain-lookdev traversal u-z
+              temporal-animation terrain-lookdev traversal u-z
             )
             status=0
             for i in "${!FILTERS[@]}"; do
