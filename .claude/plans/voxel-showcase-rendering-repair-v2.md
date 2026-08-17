@@ -53,9 +53,11 @@ The original working plan lived in the development conversation rather than a re
 - [x] Reuse persistent height caches for structure/hole presentation refreshes instead of resampling terrain.
 - [x] Reuse invariant ring index topology across camera-origin and structure-only refreshes; rebuild indices only when hole topology changes.
 - [x] Add an isolated regression proving a snapped ring origin updates vertices without rebuilding the index topology.
-- [ ] Validate the isolated far-terrain topology-reuse regression in Unity on the current head.
+- [x] Validate `FarTerrainTopologyReuseTests.RebuildAfterCameraSnap_ReusesExistingIndexTopology` in Unity on the current branch sequence (passed in PR #88 run 32006271470).
 - [x] Fix the measured step-8 feature-preserving HLOD overflow by scaling fixed output capacity with the square of the 2-voxel HLOD linear-resolution increase; continue refusing partial coarse geometry.
 - [x] Add a regression tying production HLOD output capacity to the feature-preserving subcell resolution so future fidelity changes cannot retain a stale smaller budget.
+- [x] Validate the HLOD capacity-resolution regression in EditMode; the current PR run contains no `Feature-preserving HLOD output overflow` diagnostic.
+- [ ] Fix the remaining coarse-coverage defect: `CastleExteriorLookdevTests` still observes 43 visible coarse chunks without ready geometry even after overflow removal.
 
 ### E. Eliminate runtime castle startup work
 
@@ -71,17 +73,21 @@ The original working plan lived in the development conversation rather than a re
 - [x] Split the large `VoxelEngine.Tests.PlayMode` assembly into fresh Unity processes to reset retained native scene/rendering allocator state.
 - [x] Further isolate scene-heavy Kentridge and LOD/memory ranges after the prior G-M shard reached 14,356 MB against the 14,336 MB watchdog ceiling.
 - [x] Reconcile the multi-view LOD fixture with baked startup: require the restored castle and forbid Play-mode castle authoring without changing any LOD fidelity threshold.
-- [ ] Confirm the revised PlayMode shard layout no longer hits the Unity RSS watchdog on the current head.
+- [x] Use PR #88 run 32006271470 to measure the revised shards: A-F peaked at 6,761 MB, G-J 3,421 MB, Kentridge 4,220 MB and N-S 4,584 MB; L-M still hit 14,361 MB and T-Z-rest still hit 14,358 MB.
+- [x] Split the still-failing L-M and T-Z-rest buckets into fresh Unity processes for `LateJoinTests`, `LodRenderingTests`, `LodVisualFidelityTests`, `MemoryStabilityTests`, `TerrainLookdevScreenshotTests`, `TraversalStreamingTests`, and U-Z; mirror the layout in PR and master workflows.
+- [ ] Confirm the new per-fixture PlayMode shard layout no longer hits the Unity RSS watchdog on the current head.
 - [ ] Classify any remaining CI failures as rendering-repair regressions vs unrelated baseline failures; do not mask either category.
 
 ### G. Current-head acceptance validation
 
-- [ ] Run/confirm `FarTerrainTopologyReuseTests.RebuildAfterCameraSnap_ReusesExistingIndexTopology`.
-- [ ] Run/confirm `ShowcaseNoStutterTests.BakedStartup_NeverBuildsCastleDuringPlayAndNeverStallsRendering`.
+- [x] Run/confirm `FarTerrainTopologyReuseTests.RebuildAfterCameraSnap_ReusesExistingIndexTopology`.
+- [ ] Run/confirm `ShowcaseNoStutterTests.BakedStartup_NeverBuildsCastleDuringPlayAndNeverStallsRendering` (current run fails before frame percentiles because it never observes a converged production solid-build window).
 - [ ] Run/confirm `ShowcasePerformanceTests.FullShowcaseConvergesWithinTenSecondsWithoutLaterStalls`.
 - [ ] Run/confirm the production LOD rendering/fidelity suite, including LOD 1/2/4/8 image-space fidelity.
-- [ ] Confirm production step-8 HLOD no longer reports output overflow or publishes a coarse coverage hole.
-- [ ] Record the measured frame/render/upload values from the current head against the acceptance limits above.
+- [x] Confirm production step-8 HLOD no longer reports output overflow.
+- [ ] Confirm production step-8/coarse rendering publishes complete visible coverage with no coarse holes.
+- [x] Record the current failed convergence measurement: at 10.00 s the renderer had 128/5,672 resident chunks, 5,483 dirty chunks, 14 running jobs, 1,591 missing visible chunks, queue p95 4,356.37 ms and build p95 890.13 ms. This is evidence for the next scheduler/coverage repair, not an accepted performance result.
+- [ ] Record passing frame/render/upload values from the current head against the acceptance limits above.
 - [ ] If a relevant gate still fails, identify the measured bottleneck/fidelity defect and fix that next; otherwise stop optimizing.
 - [ ] Final affected PR validation is complete with every rendering-repair failure resolved or explicitly classified.
 
@@ -96,5 +102,9 @@ Current continuation work after PR #86:
 - `5facd3d6` — multi-view LOD gate aligned with baked-startup contract; fidelity thresholds unchanged.
 - `5bd97c37` — production step-8 HLOD output capacity scaled for the 2-voxel feature-preserving representation.
 - `5301daf9` — regression tying HLOD output capacity to feature resolution.
+- `70e49bf8` — PR workflow isolates each remaining scene-heavy L/M/T fixture after measured RSS kills.
+- `b0576ad4` — master workflow mirrors the same per-fixture PlayMode isolation.
+
+Latest measured validation before the per-fixture shard split: PR #88 run 32006271470 on head `82ae4aaf` had green EditMode and bake. PlayMode proved the far-terrain topology test passes and HLOD overflow is removed, but `ShowcaseNoStutterTests` and `ShowcasePerformanceTests` still fail, coarse lookdev still reports 43 missing chunks, and the old L-M/T-Z-rest groups still hit the RSS watchdog.
 
 PR #88 is a draft validation vehicle only. Do not merge it merely to obtain a green check; use its Unity results to complete section G and drive the next measured repair.
