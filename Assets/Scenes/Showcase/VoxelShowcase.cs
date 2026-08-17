@@ -180,6 +180,19 @@ namespace VoxelEngine.Showcase
             _tornadoes.Clear();
             if (_tornadoMaterial != null) Destroy(_tornadoMaterial);
             _tornadoMaterial = null;
+
+            // The far field is dynamically created by OnEnable and owns Persistent NativeArrays,
+            // meshes, and a reference to this world's FarFieldStructureStore. Leaving the child
+            // alive across a component disable lets it draw against a disposed world and creates
+            // a second clipmap on the next enable. Sever the world reference before deferred
+            // GameObject destruction, then let VoxelFarTerrain.OnDestroy retire its job/caches.
+            if (_farTerrain != null)
+            {
+                _farTerrain.Structures = null;
+                Destroy(_farTerrain.gameObject);
+                _farTerrain = null;
+            }
+
             _world?.Dispose();
             _world = null;
         }
