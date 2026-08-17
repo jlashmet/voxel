@@ -43,11 +43,11 @@ export PYTORCH_ENABLE_MPS_FALLBACK="${PYTORCH_ENABLE_MPS_FALLBACK:-1}"
 export PYTHONUNBUFFERED=1
 
 printf '%s\n' '[1/6] Scaffold a fresh character and weapon through the public creation command'
-tools/character-factory/new_asset_macos.sh \
+bash tools/character-factory/new_asset_macos.sh \
   character "$CHARACTER_ID" \
   --library-root "$LIBRARY" \
   --tag e2e
-tools/character-factory/new_asset_macos.sh \
+bash tools/character-factory/new_asset_macos.sh \
   weapon "$WEAPON_ID" \
   --library-root "$LIBRARY" \
   --tag e2e \
