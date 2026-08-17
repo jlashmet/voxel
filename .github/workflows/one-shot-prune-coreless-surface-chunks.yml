@@ -59,30 +59,32 @@ jobs:
           if method_end is None:
               raise SystemExit('helper closing brace not found')
 
-          replacement = '''        /// <summary>
-          /// Whether every Storage region intersecting the chunk's unpadded owned core is
-          /// currently resident. Exact extraction may optimistically treat an unavailable halo as
-          /// empty, but a missing core region can never satisfy exact-snapshot completeness and
-          /// must not remain active build demand merely because its halo touches resident Storage.
-          /// A later residency publication re-runs surface discovery and readmits the chunk.
-          /// </summary>
-          private bool AllOwnedCoreRegionsResident(IRegionReadSource source, int3 chunk)
-          {
-              int3 minVoxel = chunk * VoxelsPerAxis;
-              int3 maxVoxel = (chunk + 1) * VoxelsPerAxis - 1;
-              int3 minRegion = new(FloorDiv(minVoxel.x, VoxelGrid.RegionVoxelEdge),
-                                   FloorDiv(minVoxel.y, VoxelGrid.RegionVoxelEdge),
-                                   FloorDiv(minVoxel.z, VoxelGrid.RegionVoxelEdge));
-              int3 maxRegion = new(FloorDiv(maxVoxel.x, VoxelGrid.RegionVoxelEdge),
-                                   FloorDiv(maxVoxel.y, VoxelGrid.RegionVoxelEdge),
-                                   FloorDiv(maxVoxel.z, VoxelGrid.RegionVoxelEdge));
-
-              for (int z = minRegion.z; z <= maxRegion.z; z++)
-              for (int y = minRegion.y; y <= maxRegion.y; y++)
-              for (int x = minRegion.x; x <= maxRegion.x; x++)
-                  if (!source.IsRegionResident(new int3(x, y, z))) return false;
-              return true;
-          }'''
+          replacement = '\n'.join([
+              '        /// <summary>',
+              "        /// Whether every Storage region intersecting the chunk's unpadded owned core is",
+              '        /// currently resident. Exact extraction may optimistically treat an unavailable halo as',
+              '        /// empty, but a missing core region can never satisfy exact-snapshot completeness and',
+              '        /// must not remain active build demand merely because its halo touches resident Storage.',
+              '        /// A later residency publication re-runs surface discovery and readmits the chunk.',
+              '        /// </summary>',
+              '        private bool AllOwnedCoreRegionsResident(IRegionReadSource source, int3 chunk)',
+              '        {',
+              '            int3 minVoxel = chunk * VoxelsPerAxis;',
+              '            int3 maxVoxel = (chunk + 1) * VoxelsPerAxis - 1;',
+              '            int3 minRegion = new(FloorDiv(minVoxel.x, VoxelGrid.RegionVoxelEdge),',
+              '                                 FloorDiv(minVoxel.y, VoxelGrid.RegionVoxelEdge),',
+              '                                 FloorDiv(minVoxel.z, VoxelGrid.RegionVoxelEdge));',
+              '            int3 maxRegion = new(FloorDiv(maxVoxel.x, VoxelGrid.RegionVoxelEdge),',
+              '                                 FloorDiv(maxVoxel.y, VoxelGrid.RegionVoxelEdge),',
+              '                                 FloorDiv(maxVoxel.z, VoxelGrid.RegionVoxelEdge));',
+              '',
+              '            for (int z = minRegion.z; z <= maxRegion.z; z++)',
+              '            for (int y = minRegion.y; y <= maxRegion.y; y++)',
+              '            for (int x = minRegion.x; x <= maxRegion.x; x++)',
+              '                if (!source.IsRegionResident(new int3(x, y, z))) return false;',
+              '            return true;',
+              '        }',
+          ])
 
           text = text[:comment_start] + replacement + text[method_end:]
           if 'AnyOverlappedRegionResident' in text:
@@ -94,11 +96,11 @@ jobs:
           PY
 
           git diff --check
-          mapfile -t changed < <(git diff --name-only)
-          printf 'changed: %s\n' "${changed[@]}"
-          test "${#changed[@]}" -eq 2
-          printf '%s\n' "${changed[@]}" | grep -Fx 'Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs'
-          printf '%s\n' "${changed[@]}" | grep -Fx '.github/workflows/one-shot-prune-coreless-surface-chunks.yml'
+          changed="$(git diff --name-only)"
+          printf 'changed:\n%s\n' "$changed"
+          test "$(printf '%s\n' "$changed" | sed '/^$/d' | wc -l | tr -d ' ')" = "2"
+          printf '%s\n' "$changed" | grep -Fx 'Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs'
+          printf '%s\n' "$changed" | grep -Fx '.github/workflows/one-shot-prune-coreless-surface-chunks.yml'
           git diff -- Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
