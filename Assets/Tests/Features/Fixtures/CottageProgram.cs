@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using Unity.Mathematics;
 using VoxelEngine.Structures.Runtime;
 
 using VoxelEngine.Structures.Api;
@@ -58,10 +57,10 @@ namespace VoxelEngine.Tests.Features.Fixtures
     /// <summary>
     /// A cottage: foundation, four walls, a hollow interior, a door, and a gable roof.
     ///
-    /// The compatibility fixture now expresses its defaults through the same shared architectural
-    /// component contracts used by configurable structures. It still emits the original bounded
-    /// integer shape-program sequence so WB031 does not silently change the established cottage.
-    /// Register-driven dimensions arrive with the detailed house configuration tasks.
+    /// The compatibility fixture now enters through <see cref="HouseConfig"/> and the shared
+    /// architectural component contracts. It still emits the original bounded integer shape-program
+    /// sequence so WB031 does not silently change the established cottage. Register-driven dimensions
+    /// arrive with the detailed house configuration tasks.
     /// </summary>
     public static class CottageProgram
     {
@@ -71,60 +70,15 @@ namespace VoxelEngine.Tests.Features.Fixtures
         /// <summary>Matches CottageFixture's declared footprint of 96 x 80 x 96 voxels.</summary>
         public static int[] Build()
         {
-            var footprint = new StructureFootprintConfig
-            {
-                Primary = new StructureFootprintRect(int2.zero, new int2(64, 64)),
-                BasePlane = BasePlaneRule.LowestGround,
-                FoundationStyle = StructureFoundationStyle.Slab,
-                FoundationDepth = 8,
-                FoundationMaterial = StructureMaterialRole.Foundation,
-            };
+            HouseConfig house = HousePresets.CottageCompatibility(
+                CottageFixture.MaterialStone,
+                CottageFixture.MaterialWood);
 
-            var wall = new StructureWallRunConfig
-            {
-                Length = footprint.Primary.Size.x,
-                Height = 32,
-                Thickness = 4,
-                PrimaryMaterial = StructureMaterialRole.PrimaryWall,
-                CornerBehavior = StructureWallCornerBehavior.Overlap,
-            };
-
-            var door = new OpeningConfig
-            {
-                Kind = StructureOpeningKind.Door,
-                Width = 12,
-                Height = 20,
-                BottomOffset = 0,
-                Spacing = 0,
-                StartMargin = 0,
-                EndMargin = 0,
-                FrameThickness = 0,
-                LintelThickness = 0,
-                WidthVariation = 0,
-                HeightVariation = 0,
-                FillMaterialRole = StructureMaterialRole.Opening,
-            };
-
-            var roof = new RoofConfig
-            {
-                Style = RoofStyle.Gable,
-                RidgeAxis = RoofAxis.Z,
-                PitchRise = 1,
-                PitchRun = 2,
-                EaveOverhang = 0,
-                Thickness = 1,
-                ParapetHeight = 0,
-                MaterialRole = StructureMaterialRole.Roof,
-                TrimMaterialRole = StructureMaterialRole.Trim,
-            };
-
-            var palette = new StructureMaterialPalette
-            {
-                Foundation = CottageFixture.MaterialStone,
-                PrimaryWall = CottageFixture.MaterialStone,
-                Roof = CottageFixture.MaterialWood,
-                Opening = 0,
-            };
+            StructureFootprintConfig footprint = house.Footprint;
+            StructureWallRunConfig wall = house.Walls;
+            OpeningConfig door = house.MainDoor;
+            RoofConfig roof = house.Roof;
+            StructureMaterialPalette palette = house.Palette;
 
             int width = footprint.Primary.Size.x;
             int depth = footprint.Primary.Size.y;
