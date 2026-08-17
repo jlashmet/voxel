@@ -393,7 +393,7 @@ namespace VoxelEngine.Showcase
                 return;
             }
 
-            using (s_RefreshPendingMarker.Auto()) RefreshPending(centre, cameraMetres);
+            using (s_RefreshPendingMarker.Auto()) RefreshPending(centre);
 
             var deadline = Time.realtimeSinceStartupAsDouble + budgetMs * 0.001;
             var start = Time.realtimeSinceStartupAsDouble;
@@ -642,7 +642,7 @@ namespace VoxelEngine.Showcase
             _pendingLoads.Add(rc);
         }
 
-        private void RefreshPending(int3 centre, float3 cameraMetres)
+        private void RefreshPending(int3 centre)
         {
             _pendingLoads.Clear();
             _pendingLoadSet.Clear();
@@ -655,12 +655,10 @@ namespace VoxelEngine.Showcase
             for (int dx = -LoadRadiusRegions; dx <= LoadRadiusRegions; dx++)
             for (int dz = -LoadRadiusRegions; dz <= LoadRadiusRegions; dz++)
             {
+                if (dx * dx + dz * dz > LoadRadiusRegions * LoadRadiusRegions) continue;
+
                 int rx = centre.x + dx;
                 int rz = centre.z + dz;
-                if (!ShowcaseResidencyFootprint.ColumnIntersectsRadius(
-                        cameraMetres, rx, rz, LoadRadiusRegions * RegionMetres))
-                    continue;
-
                 SurfaceLayerSpan(rx, rz, out int minLayer, out int maxLayer);
 
                 // Bound the span. A near-vertical column on a mountain face can legitimately
