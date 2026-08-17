@@ -10,6 +10,8 @@ namespace Game.Structures.Runtime
     /// Great-hall migration onto the generic dining scene. The central table/benches/chairs are
     /// procedural; the existing fireplace, throne, chandelier, hangings, table settings, lamps,
     /// beams, and seeded wall-side details remain until their own scene families are migrated.
+    /// Undersized/custom keeps that cannot satisfy the dining clearance contract fall back to the
+    /// existing complete floor-0 authoring rather than emitting a partial room.
     /// </summary>
     public static class CastleProceduralGreatHallAuthoring
     {
@@ -23,12 +25,6 @@ namespace Game.Structures.Runtime
             if (authoring == null)
                 throw new System.ArgumentNullException(nameof(authoring));
 
-            int cx = min.x + size.x / 2;
-            int cz = min.z + size.z / 2;
-            const int inner = 8;
-
-            AuthorCeilingBeams(authoring, in plan, min, size, y);
-
             if (!CastleDiningDecorationAdapter.TryResolve(
                     in plan,
                     out _,
@@ -36,9 +32,15 @@ namespace Game.Structures.Runtime
                     out _,
                     out DecorationPlacement[] placements))
             {
-                throw new System.InvalidOperationException(
-                    "Castle great-hall dining resolution failed; refusing to author partial dining furniture.");
+                CastleKeepRoomAuthoring.AuthorFloor(authoring, in plan, min, size, y, 0);
+                return;
             }
+
+            int cx = min.x + size.x / 2;
+            int cz = min.z + size.z / 2;
+            const int inner = 8;
+
+            AuthorCeilingBeams(authoring, in plan, min, size, y);
 
             if (!DiningDecorationAuthoringEmitter.TryAuthor(authoring, placements, in context))
             {
