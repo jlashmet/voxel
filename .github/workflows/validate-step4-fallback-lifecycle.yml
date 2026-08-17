@@ -10,9 +10,11 @@ on:
 permissions:
   contents: read
 
+# Every lifecycle run validates the exact commit that triggered it. Branch activity after this
+# workflow starts must not cancel or retarget the evidence used by the rendering-repair checklist.
 concurrency:
-  group: unity-step4-lifecycle
-  cancel-in-progress: true
+  group: unity-step4-lifecycle-${{ github.sha }}
+  cancel-in-progress: false
 
 jobs:
   lod-rendering:
@@ -21,7 +23,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: feature/voxel-showcase-rendering-repair-v2
+          ref: ${{ github.sha }}
           clean: true
           fetch-depth: 1
 
@@ -64,7 +66,6 @@ jobs:
 
       # This fixture is intentionally isolated: it records the current step-4 ownership /
       # frustum / ready-empty lifecycle without spending time on unrelated PlayMode suites.
-      # Triggered after the ready-empty lifecycle counters landed on the branch.
       - name: Run LOD lifecycle fixture
         shell: bash
         run: |
