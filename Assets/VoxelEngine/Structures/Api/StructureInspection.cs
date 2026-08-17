@@ -15,10 +15,15 @@ namespace VoxelEngine.Structures.Api
         public readonly Facing Facing;
         public readonly int3 PrimaryAnchor;
         public readonly string PrimaryAnchorName;
+        public readonly int3 SecondaryAnchor;
+        public readonly string SecondaryAnchorName;
+        public readonly int PrimitiveCount;
+        public readonly bool PrimitiveCountExact;
         public readonly StructureDiagnostic Diagnostic;
         public readonly string Summary;
 
         public bool IsValid => Diagnostic.IsValid;
+        public bool HasSecondaryAnchor => !string.IsNullOrEmpty(SecondaryAnchorName);
 
         public StructureInspection(
             string presetId,
@@ -28,6 +33,10 @@ namespace VoxelEngine.Structures.Api
             Facing facing,
             int3 primaryAnchor,
             string primaryAnchorName,
+            int3 secondaryAnchor,
+            string secondaryAnchorName,
+            int primitiveCount,
+            bool primitiveCountExact,
             StructureDiagnostic diagnostic,
             string summary)
         {
@@ -38,14 +47,48 @@ namespace VoxelEngine.Structures.Api
             Facing = facing;
             PrimaryAnchor = primaryAnchor;
             PrimaryAnchorName = primaryAnchorName ?? string.Empty;
+            SecondaryAnchor = secondaryAnchor;
+            SecondaryAnchorName = secondaryAnchorName ?? string.Empty;
+            PrimitiveCount = primitiveCount;
+            PrimitiveCountExact = primitiveCountExact;
             Diagnostic = diagnostic;
             Summary = summary ?? string.Empty;
         }
 
-        public override string ToString() =>
-            Archetype + " " + PresetId + " bounds=" + LocalMinimum + "+" + LocalSize +
-            " facing=" + Facing + " anchor=" + PrimaryAnchorName + "@" + PrimaryAnchor +
-            " status=" + Diagnostic;
+        /// <summary>
+        /// Returns a transient copy decorated with a primitive count obtained by an evaluator/tool.
+        /// This is useful for generators such as caves whose exact count depends on the seed.
+        /// </summary>
+        public StructureInspection WithPrimitiveCount(int primitiveCount)
+        {
+            return new StructureInspection(
+                PresetId,
+                Archetype,
+                LocalMinimum,
+                LocalSize,
+                Facing,
+                PrimaryAnchor,
+                PrimaryAnchorName,
+                SecondaryAnchor,
+                SecondaryAnchorName,
+                primitiveCount,
+                true,
+                Diagnostic,
+                Summary);
+        }
+
+        public override string ToString()
+        {
+            string primitiveText = PrimitiveCountExact
+                ? PrimitiveCount.ToString()
+                : "unresolved";
+            string anchors = PrimaryAnchorName + "@" + PrimaryAnchor;
+            if (HasSecondaryAnchor)
+                anchors += "," + SecondaryAnchorName + "@" + SecondaryAnchor;
+            return Archetype + " " + PresetId + " bounds=" + LocalMinimum + "+" + LocalSize +
+                   " facing=" + Facing + " anchors=" + anchors +
+                   " primitives=" + primitiveText + " status=" + Diagnostic;
+        }
     }
 
     public static class StructureInspectionTools
@@ -68,7 +111,12 @@ namespace VoxelEngine.Structures.Api
                 minimum.x + config.Width / 2,
                 config.FoundationDepth + config.MainDoor.BottomOffset,
                 minimum.z);
+            int3 hearth = new int3(
+                minimum.x + config.Width / 2,
+                config.FoundationDepth,
+                minimum.z + config.Depth / 2);
 
+            int primitiveCount = HousePrimitiveCount(in config);
             string summary = config.FloorCount + " floor(s), " + config.Roof.Style +
                              " roof, " + config.Width + "x" + config.Depth + " footprint";
             return new StructureInspection(
@@ -79,6 +127,10 @@ namespace VoxelEngine.Structures.Api
                 Facing.South,
                 door,
                 "door",
+                hearth,
+                "hearth",
+                primitiveCount,
+                true,
                 diagnostic,
                 summary);
         }
@@ -109,8 +161,28 @@ namespace VoxelEngine.Structures.Api
                 request.Entrance.Facing,
                 request.Entrance.LocalPosition,
                 "entrance",
+                int3.zero,
+                string.Empty,
+                -1,
+                false,
                 diagnostic,
                 summary);
+        }
+
+        private static int HousePrimitiveCount(in HouseConfig config)
+        {
+            int count = 4; // foundation, outer shell, interior carve, roof
+            count += math.max(0, config.FloorCount - 1);
+            count += math.max(0, config.FrontDoors.Count);
+            count += math.max(0, config.RearDoors.Count);
+            count += math.max(0, config.LeftDoors.Count);
+            count += math.max(0, config.RightDoors.Count);
+            count += math.max(0, config.FrontWindows.Count);
+            count += math.max(0, config.RearWindows.Count);
+            count += math.max(0, config.LeftWindows.Count);
+            count += math.max(0, config.RightWindows.Count);
+            if (config.Chimney.Enabled) count++;
+            return count;
         }
 
         private static int RoofHeight(in RoofConfig roof, int width, int depth)
