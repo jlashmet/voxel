@@ -152,6 +152,10 @@ The desired model is primarily missing **semantic authoring composition**, not l
 - Terrain access is intentionally narrow (`BasePlaneRule`/ground sampling). Implement bounded terrain adaptation over those contracts first.
 - Existing resolved anchors should carry named architectural attachment semantics rather than introducing a second attachment representation.
 
+### WB028 outcome — no engine extension required for Phase 1
+
+The completed shared Phase 1 component contracts are expressible through the existing bounded integer shape-program vocabulary, current resolved-anchor contracts, semantic authoring-side material mapping, and existing `IStructureAuthoringSession` helpers. No new catalogue field, shape opcode, or runtime slot-execution contract is required to complete the shared authoring foundation. `CallSlot` runtime expansion remains intentionally deferred until a concrete archetype demonstrates that existing deterministic composition cannot express a required structure; it must not be generalized speculatively.
+
 ## WB009 — cave migration verdict
 
 The castle cave is not the shared cave core. Phase 4 will create one deterministic integer cave path, adapt the castle `Cave` attachment to it, and then remove/deprecate the duplicate castle-local carving algorithm after compatibility/reachability coverage exists.
