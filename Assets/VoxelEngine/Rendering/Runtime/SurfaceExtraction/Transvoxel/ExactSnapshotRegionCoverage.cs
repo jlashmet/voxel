@@ -1,3 +1,5 @@
+using Unity.Mathematics;
+
 namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
 {
     /// <summary>
@@ -41,6 +43,23 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
 
             OptionalRegions++;
             if (pinned) PinnedOptionalRegions++;
+        }
+
+        /// <summary>
+        /// Returns whether a storage region owns any block in the chunk's unpadded core.
+        /// Merely intersecting the extraction halo does not make a region authoritative for the
+        /// chunk's empty/non-empty classification.
+        /// </summary>
+        public static bool RegionIntersectsCore(int3 regionCoord, int blocksPerRegionEdge,
+                                                int3 coreMinWorldBlock, int coreEdgeBlocks)
+        {
+            int3 regionMin = regionCoord * blocksPerRegionEdge;
+            int3 regionMaxExclusive = regionMin + blocksPerRegionEdge;
+            int3 coreMaxExclusive = coreMinWorldBlock + coreEdgeBlocks;
+            int3 intersectionMin = math.max(regionMin, coreMinWorldBlock);
+            int3 intersectionMax = math.min(regionMaxExclusive, coreMaxExclusive);
+            int3 size = intersectionMax - intersectionMin;
+            return size.x > 0 && size.y > 0 && size.z > 0;
         }
 
         // Kept while callers migrate to the explicit core/halo contract.
