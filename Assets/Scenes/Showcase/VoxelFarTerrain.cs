@@ -94,6 +94,11 @@ namespace VoxelEngine.Showcase
         private bool _startupFallbackInitialized;
         private int _startupFallbackRing = -1;
 
+        // Showcase-created far terrain uses the renderer's publication state as part of the
+        // near/far ownership contract. Isolated clipmap instances (tests/lookdev) keep direct
+        // control of HoleRadiusMetres so topology can still be exercised without a live renderer.
+        private bool _requirePublishedNearCoverage;
+
         public float InnerRadiusMetres => m_InnerRadiusMetres;
         public float OuterRadiusMetres => m_OuterRadiusMetres;
         public uint Seed { get => m_Seed; set => m_Seed = value; }
@@ -107,17 +112,22 @@ namespace VoxelEngine.Showcase
         /// <summary>
         /// Radius of ring 0's hole, in metres — the disc the voxel world is currently covering.
         ///
-        /// Driven every frame from <c>ShowcaseWorld.ResidentGroundRadiusMetres</c> rather than
-        /// from <see cref="InnerRadiusMetres"/>, which is only the configured ceiling. A hole
-        /// sized from configuration is blind to streaming: it opens at full width on the first
-        /// frame, before any region exists to fill it, and the player watches terrain appear
-        /// inside it. Starting closed and opening as regions land means something is always
-        /// drawn.
+        /// Generated Storage residency is only an upper bound. Showcase-created far terrain keeps
+        /// the hole closed while the asynchronous near renderer is dirty, building, awaiting
+        /// publication, or still reports visible holes. This prevents generated-but-undrawable
+        /// terrain (including the step-4 pin-retry state) from removing the correctness fallback.
         /// </summary>
         public float HoleRadiusMetres
         {
             get => _holeRadiusMetres;
-            set => _holeRadiusMetres = Mathf.Clamp(value, 0f, m_InnerRadiusMetres);
+            set
+            {
+                float requested = Mathf.Clamp(value, 0f, m_InnerRadiusMetres);
+                _holeRadiusMetres = _requirePublishedNearCoverage
+                    && !RenderingComposition.HasCompletePublishedNearSurfaceCoverage()
+                        ? 0f
+                        : requested;
+            }
         }
 
         private float _holeRadiusMetres;
@@ -184,6 +194,7 @@ namespace VoxelEngine.Showcase
             far.m_Seed = seed;
             far.m_InnerRadiusMetres = innerRadiusMetres;
             far.m_OuterRadiusMetres = outerRadiusMetres;
+            far._requirePublishedNearCoverage = true;
             return far;
         }
 
