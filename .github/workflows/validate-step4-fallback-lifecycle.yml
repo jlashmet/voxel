@@ -62,6 +62,8 @@ jobs:
             -logFile "$ROOT/showcase-bake.log"
           test -s "$GITHUB_WORKSPACE/Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes"
 
+      # This fixture is intentionally isolated: it records the current step-4 ownership /
+      # frustum / ready-empty lifecycle without spending time on unrelated PlayMode suites.
       - name: Run LOD lifecycle fixture
         shell: bash
         run: |
