@@ -37,6 +37,10 @@ grep -q '^hunyuan-quality-macos' /tmp/character-factory-profiles.txt
 grep -q '^hunyuan-smoke-macos' /tmp/character-factory-profiles.txt
 grep -q '^triposr-smoke-macos' /tmp/character-factory-profiles.txt
 
+python3 tools/character-factory/character_factory.py rig-profiles | tee /tmp/character-factory-rig-profiles.txt
+grep -q '^canonical-humanoid-macos' /tmp/character-factory-rig-profiles.txt
+grep -q 'canonical_female_with_garment_donor.glb' /tmp/character-factory-rig-profiles.txt
+
 for spec in \
   tools/character-factory/examples/cleric_character.json \
   tools/character-factory/examples/cleric_robe.json \
