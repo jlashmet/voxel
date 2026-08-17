@@ -44,8 +44,8 @@ namespace Game.Structures.Api
             in CastlePlan plan,
             in StructureMaterialPalette palette)
         {
-            var wallX = Wall(plan.BaileyHalfX * 2, plan.WallHeight, plan.WallThickness);
-            var wallZ = Wall(plan.BaileyHalfZ * 2, plan.WallHeight, plan.WallThickness);
+            var wallX = CurtainWall(plan.BaileyHalfX * 2, plan.WallHeight, plan.WallThickness);
+            var wallZ = CurtainWall(plan.BaileyHalfZ * 2, plan.WallHeight, plan.WallThickness);
 
             return new CastleComponentConfig
             {
@@ -71,7 +71,7 @@ namespace Game.Structures.Api
                     FoundationDepth = 30,
                     FoundationMaterial = StructureMaterialRole.Foundation,
                 },
-                KeepWalls = Wall(plan.KeepHalfX * 2, plan.KeepHeight, 8),
+                KeepWalls = KeepWall(plan.KeepHalfX * 2, plan.KeepHeight, 8),
                 KeepFloors = new FloorLevelConfig
                 {
                     FloorCount = plan.Floors,
@@ -140,7 +140,7 @@ namespace Game.Structures.Api
             };
         }
 
-        private static StructureWallRunConfig Wall(int length, int height, int thickness)
+        private static StructureWallRunConfig CurtainWall(int length, int height, int thickness)
         {
             var wall = new StructureWallRunConfig
             {
@@ -156,7 +156,21 @@ namespace Game.Structures.Api
                 0,
                 math.min(22, height),
                 StructureMaterialRole.SecondaryWall));
+            wall.MaterialBands.Add(new StructureWallMaterialBand(
+                height * 66 / 100,
+                2,
+                StructureMaterialRole.SecondaryWall));
             return wall;
         }
+
+        private static StructureWallRunConfig KeepWall(int length, int height, int thickness) =>
+            new StructureWallRunConfig
+            {
+                Length = length,
+                Height = height,
+                Thickness = thickness,
+                PrimaryMaterial = StructureMaterialRole.PrimaryWall,
+                CornerBehavior = StructureWallCornerBehavior.Overlap,
+            };
     }
 }
