@@ -108,4 +108,4 @@ jobs:
           git commit -m 'docs(characters): publish Madeline base-body proof [madeline-base-review]'
           git push origin "HEAD:${GITHUB_REF_NAME}"
 
-# CI trigger: run the fully repaired Madeline source/texture/face pipeline.
+# CI trigger: isolate the restored full-resolution Madeline atlas padding proof.
