@@ -8,10 +8,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
     /// These counters do not participate in scheduling or rendering. They answer which lifecycle
     /// branch adjudicated an exact step-4 chunk after the ordinary four-voxel extractor completed:
     /// exact ownership, profile suppression, feature-preserving fallback, or final publication.
-    /// The focused LOD fixture resets them before its scene run. While the false-empty
-    /// investigation is active, an authoritative empty publication logs the current snapshot so
-    /// the exact adjudication branch is preserved even if the fixture fails before formatting its
-    /// final assertion message.
+    ///
+    /// Ready-empty publication also records the guard inputs from that exact build. This matters
+    /// because a coarse chunk may be background-built before a later camera-band test resets the
+    /// aggregate counters; the publication-time booleans cannot be reconstructed reliably from a
+    /// later visibility snapshot.
     /// </summary>
     public static class Step4FalseEmptyDiagnostics
     {
@@ -26,6 +27,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private static long s_FallbackCompletedEmpty;
         private static long s_FallbackPublishedNonEmpty;
         private static long s_ReadyEmptyPublications;
+        private static long s_ReadyEmptyOwnedSolid;
+        private static long s_ReadyEmptyUnowned;
+        private static long s_ReadyEmptyWithProfiles;
+        private static long s_ReadyEmptyUsedFallback;
 
         public readonly struct Snapshot
         {
@@ -40,6 +45,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             public readonly long FallbackCompletedEmpty;
             public readonly long FallbackPublishedNonEmpty;
             public readonly long ReadyEmptyPublications;
+            public readonly long ReadyEmptyOwnedSolid;
+            public readonly long ReadyEmptyUnowned;
+            public readonly long ReadyEmptyWithProfiles;
+            public readonly long ReadyEmptyUsedFallback;
 
             internal Snapshot(
                 long exactOwnedSolidSnapshots,
@@ -52,7 +61,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 long fallbackCompletedNonEmpty,
                 long fallbackCompletedEmpty,
                 long fallbackPublishedNonEmpty,
-                long readyEmptyPublications)
+                long readyEmptyPublications,
+                long readyEmptyOwnedSolid,
+                long readyEmptyUnowned,
+                long readyEmptyWithProfiles,
+                long readyEmptyUsedFallback)
             {
                 ExactOwnedSolidSnapshots = exactOwnedSolidSnapshots;
                 ExactUnownedSnapshots = exactUnownedSnapshots;
@@ -65,6 +78,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 FallbackCompletedEmpty = fallbackCompletedEmpty;
                 FallbackPublishedNonEmpty = fallbackPublishedNonEmpty;
                 ReadyEmptyPublications = readyEmptyPublications;
+                ReadyEmptyOwnedSolid = readyEmptyOwnedSolid;
+                ReadyEmptyUnowned = readyEmptyUnowned;
+                ReadyEmptyWithProfiles = readyEmptyWithProfiles;
+                ReadyEmptyUsedFallback = readyEmptyUsedFallback;
             }
 
             public override string ToString() =>
@@ -75,7 +92,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
               + $"ordinaryEmptyProfiles:{OrdinaryEmptyOwnedWithProfiles}/"
               + $"fallback:{FallbackScheduled}/nonEmpty:{FallbackCompletedNonEmpty}/"
               + $"empty:{FallbackCompletedEmpty}/published:{FallbackPublishedNonEmpty}/"
-              + $"readyEmpty:{ReadyEmptyPublications}";
+              + $"readyEmpty:{ReadyEmptyPublications}/"
+              + $"readyEmptyOwned:{ReadyEmptyOwnedSolid}/"
+              + $"readyEmptyUnowned:{ReadyEmptyUnowned}/"
+              + $"readyEmptyProfiles:{ReadyEmptyWithProfiles}/"
+              + $"readyEmptyUsedFallback:{ReadyEmptyUsedFallback}";
         }
 
         public static Snapshot Current => new(
@@ -89,7 +110,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             Interlocked.Read(ref s_FallbackCompletedNonEmpty),
             Interlocked.Read(ref s_FallbackCompletedEmpty),
             Interlocked.Read(ref s_FallbackPublishedNonEmpty),
-            Interlocked.Read(ref s_ReadyEmptyPublications));
+            Interlocked.Read(ref s_ReadyEmptyPublications),
+            Interlocked.Read(ref s_ReadyEmptyOwnedSolid),
+            Interlocked.Read(ref s_ReadyEmptyUnowned),
+            Interlocked.Read(ref s_ReadyEmptyWithProfiles),
+            Interlocked.Read(ref s_ReadyEmptyUsedFallback));
 
         public static void Reset()
         {
@@ -104,6 +129,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             Interlocked.Exchange(ref s_FallbackCompletedEmpty, 0);
             Interlocked.Exchange(ref s_FallbackPublishedNonEmpty, 0);
             Interlocked.Exchange(ref s_ReadyEmptyPublications, 0);
+            Interlocked.Exchange(ref s_ReadyEmptyOwnedSolid, 0);
+            Interlocked.Exchange(ref s_ReadyEmptyUnowned, 0);
+            Interlocked.Exchange(ref s_ReadyEmptyWithProfiles, 0);
+            Interlocked.Exchange(ref s_ReadyEmptyUsedFallback, 0);
         }
 
         internal static void RecordExactClassification(bool hasOwnedSolid, bool hasProfiles)
@@ -146,10 +175,22 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         internal static void RecordFallbackPublished() =>
             Interlocked.Increment(ref s_FallbackPublishedNonEmpty);
 
-        internal static void RecordReadyEmptyPublication()
+        internal static void RecordReadyEmptyPublication(
+            bool hasOwnedSolid, bool hasProfiles, bool usedFallback)
         {
             Interlocked.Increment(ref s_ReadyEmptyPublications);
-            UnityEngine.Debug.Log($"[Step4FalseEmptyLifecycle] {Current}");
+            if (hasOwnedSolid)
+                Interlocked.Increment(ref s_ReadyEmptyOwnedSolid);
+            else
+                Interlocked.Increment(ref s_ReadyEmptyUnowned);
+            if (hasProfiles)
+                Interlocked.Increment(ref s_ReadyEmptyWithProfiles);
+            if (usedFallback)
+                Interlocked.Increment(ref s_ReadyEmptyUsedFallback);
+
+            UnityEngine.Debug.Log(
+                $"[Step4FalseEmptyLifecycle] publication owned={hasOwnedSolid} "
+              + $"profiles={hasProfiles} usedFallback={usedFallback} {Current}");
         }
     }
 }
