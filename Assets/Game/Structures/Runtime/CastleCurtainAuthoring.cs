@@ -33,6 +33,7 @@ namespace Game.Structures.Runtime
             if (!wallX.IsWellFormed || !wallZ.IsWellFormed || !battlements.IsWellFormed)
                 throw new System.ArgumentException("Castle curtain configuration is invalid.");
 
+            StructureMaterialPalette palette = CastleStructurePalette.Compatibility;
             int baseY = plan.Centre.y + plan.PlateauHeight;
             int hx = wallX.Length / 2;
             int hz = wallZ.Length / 2;
@@ -40,16 +41,16 @@ namespace Game.Structures.Runtime
 
             WallRun(authoring,
                 new int3(plan.Centre.x - hx, baseY, plan.Centre.z - hz),
-                new int3(1, 0, 0), in wallX, in battlements, true);
+                new int3(1, 0, 0), in wallX, in battlements, in palette, true);
             WallRun(authoring,
                 new int3(plan.Centre.x - hx, baseY, plan.Centre.z + hz - thickness),
-                new int3(1, 0, 0), in wallX, in battlements, true);
+                new int3(1, 0, 0), in wallX, in battlements, in palette, true);
             WallRun(authoring,
                 new int3(plan.Centre.x - hx, baseY, plan.Centre.z - hz),
-                new int3(0, 0, 1), in wallZ, in battlements, false);
+                new int3(0, 0, 1), in wallZ, in battlements, in palette, false);
             WallRun(authoring,
                 new int3(plan.Centre.x + hx - thickness, baseY, plan.Centre.z - hz),
-                new int3(0, 0, 1), in wallZ, in battlements, false);
+                new int3(0, 0, 1), in wallZ, in battlements, in palette, false);
 
             CurtainFacadeDetails(authoring, in plan, baseY);
         }
@@ -168,73 +169,66 @@ namespace Game.Structures.Runtime
             int3 dir,
             in StructureWallRunConfig wall,
             in BattlementConfig battlements,
+            in StructureMaterialPalette palette,
             bool alongX)
         {
-            int length = wall.Length;
+            int length = wall.UsableLength;
             int thickness = wall.Thickness;
             int height = wall.Height;
-            int3 wallSize = alongX
-                ? new int3(length, height, thickness)
-                : new int3(thickness, height, length);
-            authoring.FillBulk(start, wallSize, GameMaterialIds.Stone);
+            int3 usableStart = start + dir * wall.StartInset;
 
-            int plinthHeight = wall.MaterialBands.Length > 0 ? wall.MaterialBands[0].Height : 0;
-            if (plinthHeight > 0)
-            {
-                int3 plinthSize = alongX
-                    ? new int3(length, plinthHeight, thickness)
-                    : new int3(thickness, plinthHeight, length);
-                authoring.FillBulk(start, plinthSize, GameMaterialIds.DarkStone);
-            }
-
-            int courseY = (int)(height * 0.66f);
-            int3 courseMin = start + new int3(0, courseY, 0);
-            int3 courseSize = alongX
-                ? new int3(length, 2, thickness)
-                : new int3(thickness, 2, length);
-            authoring.FillBulk(courseMin, courseSize, GameMaterialIds.DarkStone);
-
-            int3 walkMin = start + new int3(0, height, 0);
-            int3 walkSize = alongX
-                ? new int3(length, 1, thickness)
-                : new int3(thickness, 1, length);
-            authoring.FillBulk(walkMin, walkSize, GameMaterialIds.Stone);
+            StructureComponentAuthoring.AuthorWallRun(
+                authoring, start, dir, alongX, in wall, in palette);
 
             if (wall.RepetitionSpacing > 0)
             {
-                for (int i = wall.RepetitionOffset; i < length; i += wall.RepetitionSpacing)
+                var slit = new OpeningConfig
                 {
-                    int3 slitMin = start + dir * i + new int3(0, 40, 0);
-                    int3 slitSize = alongX
-                        ? new int3(1, 28, thickness)
-                        : new int3(thickness, 28, 1);
-                    authoring.FillBulk(slitMin, slitSize, GameMaterialIds.Empty);
-                }
+                    Kind = StructureOpeningKind.Window,
+                    Width = 1,
+                    Height = 28,
+                    BottomOffset = 40,
+                    Spacing = wall.RepetitionSpacing,
+                    StartMargin = wall.RepetitionOffset,
+                    EndMargin = 0,
+                    FillMaterialRole = StructureMaterialRole.Opening,
+                };
+                StructureComponentAuthoring.AuthorRepeatedOpenings(
+                    authoring,
+                    usableStart,
+                    dir,
+                    alongX,
+                    length,
+                    thickness,
+                    in slit,
+                    in palette);
             }
 
-            int parapetY = start.y + height + battlements.ParapetHeight;
-            int cadence = battlements.MerlonWidth + battlements.GapWidth;
-            for (int i = 0; i < length; i += cadence)
-            {
-                int3 at = start + dir * i;
-                int blockLength = math.min(battlements.MerlonWidth, length - i);
-                int3 blockSize = alongX
-                    ? new int3(blockLength, battlements.MerlonHeight, battlements.ParapetThickness)
-                    : new int3(battlements.ParapetThickness, battlements.MerlonHeight, blockLength);
-                authoring.FillBulk(new int3(at.x, parapetY, at.z),
-                    blockSize, GameMaterialIds.Stone);
-            }
+            int3 walkMin = usableStart + new int3(0, height, 0);
+            int3 walkSize = alongX
+                ? new int3(length, 1, thickness)
+                : new int3(thickness, 1, length);
+            authoring.FillBulk(walkMin, walkSize, palette.Resolve(StructureMaterialRole.PrimaryWall));
+
+            StructureComponentAuthoring.AuthorBattlements(
+                authoring,
+                usableStart + new int3(0, height + 1, 0),
+                dir,
+                alongX,
+                length,
+                in battlements,
+                in palette);
 
             if (length > 400)
             {
                 for (int i = 120; i < length - 120; i += 200)
                 {
-                    int3 at = start + dir * i;
+                    int3 at = usableStart + dir * i;
                     int3 bannerSize = alongX
                         ? new int3(1, 46, 14)
                         : new int3(14, 46, 1);
                     authoring.FillBulk(new int3(at.x, start.y + height - 60, at.z),
-                        bannerSize, GameMaterialIds.Cloth);
+                        bannerSize, palette.Resolve(StructureMaterialRole.Detail));
                 }
             }
         }
