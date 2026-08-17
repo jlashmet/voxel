@@ -41,7 +41,7 @@ jobs:
           bash -n tools/character-factory/production/sunlit-cleric/build_staff_macos.sh
           bash -n tools/character-factory/ci/bootstrap_hunyuan_quality_macos.sh
 
-      - name: Run production routing, reference, backend, appearance, mask, and rigid-contract tests
+      - name: Run production framework tests
         shell: bash
         run: |
           set -euo pipefail
@@ -54,6 +54,7 @@ jobs:
             tools/character-factory/tests/test_appearance_profiles.py \
             tools/character-factory/tests/test_projection_components.py \
             tools/character-factory/tests/test_rigid_contract.py \
+            tools/character-factory/tests/test_catalogue.py \
             -v
 
       - name: List pinned backend profiles
@@ -64,6 +65,26 @@ jobs:
           grep -q '^hunyuan-quality-macos' /tmp/profiles.txt
           grep -q '^hunyuan-smoke-macos' /tmp/profiles.txt
           grep -q '^triposr-smoke-macos' /tmp/profiles.txt
+
+      - name: Build production asset catalogue
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/character-factory/character_factory.py catalogue \
+            tools/character-factory/examples \
+            --output /tmp/character-factory-catalogue.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          payload = json.loads(Path('/tmp/character-factory-catalogue.json').read_text())
+          assert payload['assetCount'] == 4, payload
+          assert payload['typeCounts'] == {
+              'character': 1,
+              'clothing': 1,
+              'weapon': 1,
+              'accessory': 1,
+          }, payload['typeCounts']
+          PY
 
       - name: Dry-run every production asset type and appearance strategy
         shell: bash
@@ -78,9 +99,12 @@ jobs:
           python3 tools/character-factory/character_factory.py produce \
             tools/character-factory/examples/cleric_sun_charm.json --dry-run
 
-      - name: Dry-run recursive production discovery
+      - name: Dry-run recursive and filtered production discovery
         shell: bash
         run: |
           set -euo pipefail
           python3 tools/character-factory/character_factory.py produce-batch \
             tools/character-factory/examples --dry-run
+          python3 tools/character-factory/character_factory.py produce-batch \
+            tools/character-factory/examples --dry-run \
+            --type weapon --id cleric_staff_01
