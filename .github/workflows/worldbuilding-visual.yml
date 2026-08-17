@@ -7,6 +7,8 @@ on:
       - agent/worldbuilding-structures-caves
     paths:
       - 'Assets/Game/Structures/**'
+      - 'Assets/Game/Composition/Showcase/**'
+      - 'Assets/Scenes/WorldbuildingGalleryShowcase.unity'
       - 'Assets/VoxelEngine/Structures/**'
       - 'Packages/com.mountingforce.worldgen/**'
       - '.github/workflows/worldbuilding-visual.yml'
@@ -99,5 +101,3 @@ jobs:
             Artifacts/WorldbuildingVisuals/**
           if-no-files-found: warn
           retention-days: 14
-
-# Retrigger visual regression on restored self-hosted Mac runner.
