@@ -1,14 +1,24 @@
 namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
 {
     /// <summary>
-    /// Tracks whether an exact COW snapshot acquired every resident-region metadata slice that
-    /// intersects its padded brick cache. A failed region pin means the snapshot is unavailable,
-    /// not authoritatively empty; callers must retry rather than classify the cleared cache range.
+    /// Tracks exact COW metadata coverage for one padded brick cache.
+    ///
+    /// The owned chunk core is authoritative: if a region intersecting that core cannot be pinned,
+    /// the snapshot is unavailable and must retry. The one-brick extraction halo is different.
+    /// A halo may cross into a region that is intentionally not resident (for example the
+    /// showcase's y=-1 underground layer), so a missing halo pin remains cleared/empty for this
+    /// optimistic build and can be refreshed when that neighbour later becomes resident.
+    ///
+    /// This distinction prevents both failure modes seen during the showcase repair: silently
+    /// publishing a missing core as empty, and permanently retrying because an optional halo is
+    /// outside the world's residency surface.
     /// </summary>
     internal struct ExactSnapshotRegionCoverage
     {
         public int RequiredRegions { get; private set; }
         public int PinnedRegions { get; private set; }
+        public int OptionalRegions { get; private set; }
+        public int PinnedOptionalRegions { get; private set; }
 
         public bool IsComplete => RequiredRegions == PinnedRegions;
 
@@ -16,12 +26,24 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
         {
             RequiredRegions = 0;
             PinnedRegions = 0;
+            OptionalRegions = 0;
+            PinnedOptionalRegions = 0;
         }
 
-        public void RecordRequiredRegion(bool pinned)
+        public void RecordRegion(bool required, bool pinned)
         {
-            RequiredRegions++;
-            if (pinned) PinnedRegions++;
+            if (required)
+            {
+                RequiredRegions++;
+                if (pinned) PinnedRegions++;
+                return;
+            }
+
+            OptionalRegions++;
+            if (pinned) PinnedOptionalRegions++;
         }
+
+        // Kept while callers migrate to the explicit core/halo contract.
+        public void RecordRequiredRegion(bool pinned) => RecordRegion(required: true, pinned);
     }
 }
