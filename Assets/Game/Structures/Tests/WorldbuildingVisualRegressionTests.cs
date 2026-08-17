@@ -27,7 +27,6 @@ namespace Game.Structures.Tests
                 new int3(96, 80, 96));
 
             ShedAuthoring.Author(capture, int3.zero, in config);
-
             AssertVisual(capture.RenderPng("shed-storage"));
         }
 
@@ -41,7 +40,6 @@ namespace Game.Structures.Tests
                 new int3(160, 160, 240));
 
             ChurchAuthoring.Author(capture, int3.zero, in config);
-
             AssertVisual(capture.RenderPng("church-parish"));
         }
 
@@ -55,7 +53,6 @@ namespace Game.Structures.Tests
                 new int3(260, 300, 410));
 
             CathedralWorldbuildingAuthoring.Author(capture, int3.zero, in config);
-
             AssertVisual(capture.RenderPng("cathedral-gothic", 1440, 1000));
         }
 
@@ -69,7 +66,6 @@ namespace Game.Structures.Tests
                 new int3(144, 112, 184));
 
             TempleAuthoring.Author(capture, int3.zero, in config);
-
             AssertVisual(capture.RenderPng("temple-classical"));
         }
 
@@ -83,7 +79,6 @@ namespace Game.Structures.Tests
                 new int3(168, 112, 208));
 
             TempleAuthoring.Author(capture, int3.zero, in config);
-
             AssertVisual(capture.RenderPng("temple-courtyard"));
         }
 
@@ -92,7 +87,7 @@ namespace Game.Structures.Tests
             Assert.That(File.Exists(path), Is.True, $"Expected visual artifact at {path}");
             Assert.That(new FileInfo(path).Length, Is.GreaterThan(1024),
                 $"Visual artifact was unexpectedly small: {path}");
-            TestContext.AddTestAttachment(path, "Generated worldbuilding geometry");
+            TestContext.WriteLine($"Generated worldbuilding geometry: {path}");
         }
     }
 }
