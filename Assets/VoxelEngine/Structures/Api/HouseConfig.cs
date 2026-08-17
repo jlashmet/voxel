@@ -1,3 +1,5 @@
+using Unity.Collections;
+
 namespace VoxelEngine.Structures.Api
 {
     /// <summary>Which facade owns a house roof detail such as a dormer.</summary>
@@ -36,17 +38,33 @@ namespace VoxelEngine.Structures.Api
 
     /// <summary>
     /// Archetype-level house configuration composed from the shared structure contracts.
-    /// The first compatibility compiler intentionally uses only this common vocabulary so the
-    /// former cottage fixture does not become a second one-off house architecture.
+    /// Compatibility fields remain explicit while detailed facade/interior hooks allow one house
+    /// compiler to grow without introducing per-style builders.
     /// </summary>
     public struct HouseConfig
     {
         public StructureFootprintConfig Footprint;
         public StructureWallRunConfig Walls;
         public FloorLevelConfig Floors;
+
+        /// <summary>Compatibility alias used by the original cottage compiler path.</summary>
         public OpeningConfig MainDoor;
+
+        public HouseDoorLayoutConfig FrontDoors;
+        public HouseDoorLayoutConfig RearDoors;
+        public HouseDoorLayoutConfig LeftDoors;
+        public HouseDoorLayoutConfig RightDoors;
+
+        public HouseWindowLayoutConfig FrontWindows;
+        public HouseWindowLayoutConfig RearWindows;
+        public HouseWindowLayoutConfig LeftWindows;
+        public HouseWindowLayoutConfig RightWindows;
+
         public RoofConfig Roof;
         public HouseDormerConfig Dormers;
+        public HouseChimneyConfig Chimney;
+        public FixedList512Bytes<HouseExteriorFeatureConfig> ExteriorFeatures;
+        public InteriorLayoutConfig Interior;
         public StructureMaterialPalette Palette;
 
         /// <summary>Primary rectangular house width in definition-local X voxels.</summary>
@@ -134,8 +152,42 @@ namespace VoxelEngine.Structures.Api
                 Walls = walls,
                 Floors = floors,
                 MainDoor = door,
+                FrontDoors = new HouseDoorLayoutConfig
+                {
+                    Facade = HouseFacade.Front,
+                    Placement = HouseFacadePlacementMode.Centered,
+                    Count = 1,
+                    Opening = door,
+                },
+                RearDoors = new HouseDoorLayoutConfig
+                {
+                    Facade = HouseFacade.Rear,
+                    Placement = HouseFacadePlacementMode.Centered,
+                    Count = 0,
+                },
+                LeftDoors = new HouseDoorLayoutConfig
+                {
+                    Facade = HouseFacade.Left,
+                    Placement = HouseFacadePlacementMode.Centered,
+                    Count = 0,
+                },
+                RightDoors = new HouseDoorLayoutConfig
+                {
+                    Facade = HouseFacade.Right,
+                    Placement = HouseFacadePlacementMode.Centered,
+                    Count = 0,
+                },
+                FrontWindows = new HouseWindowLayoutConfig { Facade = HouseFacade.Front },
+                RearWindows = new HouseWindowLayoutConfig { Facade = HouseFacade.Rear },
+                LeftWindows = new HouseWindowLayoutConfig { Facade = HouseFacade.Left },
+                RightWindows = new HouseWindowLayoutConfig { Facade = HouseFacade.Right },
                 Roof = roof,
                 Dormers = default,
+                Chimney = new HouseChimneyConfig
+                {
+                    Enabled = false,
+                    FireplaceInteriorVolumeIndex = -1,
+                },
                 Palette = new StructureMaterialPalette
                 {
                     Foundation = stoneMaterial,
