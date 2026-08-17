@@ -99,4 +99,111 @@ namespace VoxelEngine.Structures.Api
         public StructureMaterialRole MaterialRole;
         public StructureMaterialRole TrimMaterialRole;
     }
+
+    /// <summary>Shared vertical-access families used by structure archetypes.</summary>
+    public enum StructureVerticalAccessKind : byte
+    {
+        Stairs = 0,
+        Ramp = 1,
+    }
+
+    /// <summary>Plan shape for a stair run when more than one flight is required.</summary>
+    public enum StructureStairLayout : byte
+    {
+        Straight = 0,
+        QuarterTurn = 1,
+        HalfTurn = 2,
+        Switchback = 3,
+    }
+
+    /// <summary>
+    /// Reusable landing slab configuration. Dimensions are integer voxel units and the material is
+    /// semantic so archetypes do not embed material ids.
+    /// </summary>
+    public struct LandingConfig
+    {
+        public int Width;
+        public int Length;
+        public int Thickness;
+        public StructureMaterialRole MaterialRole;
+
+        public bool IsWellFormed => Width > 0 && Length > 0 && Thickness > 0;
+    }
+
+    /// <summary>
+    /// Archetype-neutral stair configuration. Step rise/run stay integer; StepsPerFlight bounds
+    /// flight length and causes the authoring component to insert the configured landing as needed.
+    /// </summary>
+    public struct StairConfig
+    {
+        public int Width;
+        public int StepRise;
+        public int StepRun;
+        public int StepCount;
+        public int StepsPerFlight;
+        public StructureStairLayout Layout;
+        public LandingConfig Landing;
+        public StructureMaterialRole MaterialRole;
+
+        public int TotalRise => StepRise * StepCount;
+        public int TotalRun => StepRun * StepCount;
+        public bool RequiresIntermediateLanding => StepCount > StepsPerFlight;
+
+        public bool IsWellFormed
+        {
+            get
+            {
+                if (Width <= 0 || StepRise <= 0 || StepRun <= 0 || StepCount <= 0)
+                    return false;
+                if (StepsPerFlight <= 0 || StepsPerFlight > StepCount)
+                    return false;
+                if (RequiresIntermediateLanding && !Landing.IsWellFormed)
+                    return false;
+                return true;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Archetype-neutral ramp configuration. Rise/run are integer totals; MaxRunPerFlight bounds a
+    /// continuous ramp flight and requires the configured landing when the total run exceeds it.
+    /// </summary>
+    public struct RampConfig
+    {
+        public int Width;
+        public int Rise;
+        public int Run;
+        public int Thickness;
+        public int MaxRunPerFlight;
+        public LandingConfig Landing;
+        public StructureMaterialRole MaterialRole;
+
+        public bool RequiresIntermediateLanding => Run > MaxRunPerFlight;
+
+        public bool IsWellFormed
+        {
+            get
+            {
+                if (Width <= 0 || Rise <= 0 || Run <= 0 || Thickness <= 0)
+                    return false;
+                if (MaxRunPerFlight <= 0 || MaxRunPerFlight > Run)
+                    return false;
+                if (RequiresIntermediateLanding && !Landing.IsWellFormed)
+                    return false;
+                return true;
+            }
+        }
+    }
+
+    /// <summary>One reusable vertical transition selecting either stairs or a ramp.</summary>
+    public struct VerticalAccessConfig
+    {
+        public StructureVerticalAccessKind Kind;
+        public StairConfig Stairs;
+        public RampConfig Ramp;
+
+        public bool IsWellFormed => Kind == StructureVerticalAccessKind.Stairs
+            ? Stairs.IsWellFormed
+            : Ramp.IsWellFormed;
+    }
 }
