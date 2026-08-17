@@ -111,7 +111,11 @@ namespace Game.Structures.Runtime
 
                 case 5:
                     stageName = "courtyard";
-                    CastleCourtyardAuthoring.Author(_authoring, in _plan);
+                    CastleCourtyardAuthoring.Author(
+                        _authoring,
+                        in _plan,
+                        in _components.Courtyard,
+                        in _components.Palette);
                     break;
 
                 case 6:
