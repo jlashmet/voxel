@@ -14,7 +14,7 @@ namespace Game.Structures.Runtime
                 Family = DecorationPropFamily.Campfire,
                 AcceptedSockets = DecorationSocketKind.Floor,
                 MountMode = DecorationMountMode.Floor,
-                Backend = DecorationRenderBackend.BoxAssembly,
+                Backend = DecorationRenderBackend.VoxelStamp,
                 Interaction = DecorationInteractionFlags.Destructible |
                               DecorationInteractionFlags.EmitsLight |
                               DecorationInteractionFlags.EmitsParticles,
