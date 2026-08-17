@@ -74,6 +74,7 @@ namespace VoxelEngine.Showcase
         private Color[] _coloursScratch;
         private MeshRenderer _renderer;
         private Camera _camera;
+        private bool _ownsMaterial;
 
         // Height sampling is deliberately single-flight. The old implementation scheduled a Burst
         // job and immediately Complete()d it in LateUpdate, then could repeat that for every ring
@@ -193,6 +194,7 @@ namespace VoxelEngine.Showcase
             }
             if (shader == null) return;
             m_Material = new Material(shader) { name = "FarTerrainDefault" };
+            _ownsMaterial = true;
             if (m_Material.HasProperty("_Smoothness"))
                 m_Material.SetFloat("_Smoothness", 0.05f);
         }
@@ -232,6 +234,14 @@ namespace VoxelEngine.Showcase
                 if (_ringMeshes[i] != null) Destroy(_ringMeshes[i]);
             _ringMeshes.Clear();
             _ringBuiltTopologyHoleMetres.Clear();
+
+            // A serialized/shared material is owned by its asset or caller. Only release the
+            // runtime fallback allocated by EnsureMaterial; otherwise destroying this component
+            // could invalidate another renderer's shared presentation asset.
+            if (_ownsMaterial && m_Material != null)
+                Destroy(m_Material);
+            if (_ownsMaterial) m_Material = null;
+            _ownsMaterial = false;
         }
 
         /// <summary>
