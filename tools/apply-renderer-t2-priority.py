@@ -209,11 +209,11 @@ def main() -> None:
             StringAssert.Contains("priority < bestPriority", cache);
         }
 '''
-    tail = "\n    }\n}"
     if extra.strip() not in test:
-        if not test.endswith(tail):
-            raise RuntimeError("unexpected demand scheduling test file tail")
-        test = test[:-len(tail)] + extra + tail
+        insert_at = test.rfind("\n    }\n}")
+        if insert_at < 0:
+            raise RuntimeError("could not find demand scheduling test class tail")
+        test = test[:insert_at] + extra + test[insert_at:]
     TEST.write_text(test)
 
 
