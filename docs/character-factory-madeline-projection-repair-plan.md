@@ -11,18 +11,29 @@ Produce a reusable, rigged Madeline base body whose geometry, proportions, face,
 - [x] Start the repair branch from the latest published Madeline proof commit (`0ba152129833df31249fec96160b1752a59361ba`).
 - [x] Preserve run #48 (`31962023227`) and artifact `madeline-base-body` as the visual/technical baseline.
 - [x] Record the primary visible defects from the baseline: vertical texture smears on arms/hair, ladder-like white/blue streaks on torso and legs, shoulder/armpit tearing, muddy face/hair contamination, and ribbon-like arms in the idle proof.
+- [x] Make the Madeline workflow branch-safe so repair commits can run on `agent/madeline-projection-repair`, use branch-scoped concurrency, and publish proof images back to the branch that produced them.
 - [ ] Add durable diagnostic output that makes source-view selection, projected UVs, masks, and rejected samples inspectable after a build.
 
 ## Phase 1 — Reproduce and localize the projection failure
 
-- [ ] Identify the exact script(s) that project front/back/left/right appearance onto the canonical skinned mesh.
-- [ ] Trace the coordinate spaces used by the projection path: generated reconstruction space, canonical bind-pose space, camera/view space, normal space, and UV/image space.
+- [x] Identify the exact script(s) that project front/back/left/right appearance onto the canonical skinned mesh.
+- [x] Trace the coordinate spaces used by the projection path: generated reconstruction space, canonical bind-pose space, camera/view space, normal space, and UV/image space.
 - [ ] Verify that every projection sample uses the same transformed vertex position and normal basis when selecting a source view and computing image coordinates.
 - [ ] Verify source-image orientation for all four views, including horizontal mirroring rules and right/left assignment.
 - [ ] Verify projection coordinates are clamped/rejected before sampling and never wrap to an unrelated strip of the image.
 - [ ] Verify the subject bounds/mask used by each turnaround view excludes gray/white canvas and neighboring content.
 - [ ] Add a deterministic regression fixture for representative head, torso, arm, hand, thigh, calf, and hair points with expected source view and valid projected coordinates.
 - [ ] Add a failure mode that rejects implausibly elongated or discontinuous projected islands instead of publishing a visibly corrupted texture.
+
+### Phase 1 findings
+
+- `production/madeline/build.sh` invokes `runtime/blender_texture_rigged_character.py`, which imports the already aligned/skinned FBX and delegates body/hair appearance projection to `runtime/blender_multiview_texture.py`.
+- `blender_multiview_texture.py` computes character bounds and loop positions in Blender world space, maps world X/Z for front/back and world Y/Z for side views, selects a single source view per polygon from the polygon normal, then writes UVs into a 2x2 source-image atlas.
+- Face identity is a second independent pass in `runtime/blender_project_face_texture.py`; it uses Head weights plus an anatomical gate and front-facing world normals to assign a separate face material/UV set.
+- The clean run #48 body-only front/back/left/right sources and atlas prove the large smears are introduced after source preparation, not by the turnaround generation itself.
+- The current multiview code has an important failure amplifier: `_nearest_foreground_uv()` searches arbitrarily far for foreground and snaps a miss to the first nearby foreground row/run. On thin/foreshortened regions this can collapse many unrelated loops onto a narrow strip instead of rejecting the projection and trying another view.
+- Side projection intentionally drops world X. In a T-pose, the extended arms lie largely along that dropped axis and are severely foreshortened/occluded in the side references. A normal-only side-view choice can therefore map large arm surfaces onto the same tiny torso/hand strip even when the UV technically lands on foreground.
+- Body/hair normal selection currently uses `mesh.matrix_world.to_3x3()` while the face pass correctly uses inverse-transpose normal transformation. Alignment is baked into vertices, so this is not yet proven to cause the baseline defect, but the body pass should still use the mathematically correct normal matrix before view-selection behavior is trusted.
 
 ## Phase 2 — Fix body/hair appearance projection
 
@@ -95,4 +106,4 @@ Produce a reusable, rigged Madeline base body whose geometry, proportions, face,
 
 ## Current status
 
-The generation/reconstruction and canonical-rig pipeline are functional. The highest-priority defect is now the appearance-transfer stage: the clean turnaround/body appearance is being corrupted while being projected onto the canonical skinned mesh. Work should therefore repair and harden projection before attempting another wholesale character regeneration.
+The generation/reconstruction and canonical-rig pipeline are functional. The highest-priority defect is now the appearance-transfer stage: the clean turnaround/body appearance is being corrupted while being projected onto the canonical skinned mesh. The first repair should make projection decisions observable, stop unbounded foreground snapping, and keep side-view projection away from T-pose arm regions that are degenerate in the source image.
