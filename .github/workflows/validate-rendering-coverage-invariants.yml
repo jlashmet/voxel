@@ -1,0 +1,145 @@
+name: Validate rendering coverage invariants
+
+on:
+  push:
+    branches:
+      - feature/voxel-showcase-rendering-repair-v2
+    paths:
+      - .github/workflows/validate-rendering-coverage-invariants.yml
+      - Assets/Scenes/Showcase/VoxelFarTerrain.cs
+      - Assets/Scenes/Showcase/VoxelShowcase.cs
+      - Assets/VoxelEngine/Composition/RenderingComposition.cs
+      - Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
+      - Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs
+      - Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/SurfaceDiscoveryChunkOwner.cs
+      - Assets/Tests/EditMode/ExactSnapshotRegionCoverageTests.cs
+      - Assets/Tests/PlayMode/FarFieldCoverageInvariantTests.cs
+      - Assets/Tests/PlayMode/LodRenderingTests.cs
+      - Assets/Tests/PlayMode/Step4FalseEmptyLifecycleTests.cs
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rendering-coverage-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  focused:
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          clean: true
+          fetch-depth: 1
+
+      - name: Resolve Unity
+        id: unity
+        shell: bash
+        run: |
+          set -euo pipefail
+          UNITY_VERSION="$(awk '/m_EditorVersion:/ { print $2 }' ProjectSettings/ProjectVersion.txt)"
+          UNITY_PATH="/Applications/Unity/Hub/Editor/${UNITY_VERSION}/Unity.app/Contents/MacOS/Unity"
+          test -x "$UNITY_PATH"
+          echo "path=$UNITY_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for any running Unity editor
+        shell: bash
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 900))
+          while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
+            if (( SECONDS >= deadline )); then
+              pgrep -alf '/Unity.app/Contents/MacOS/Unity' || true
+              exit 1
+            fi
+            sleep 5
+          done
+
+      - name: Run exact snapshot owner-discovery gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/Artifacts/RenderingCoverage"
+          mkdir -p "$ROOT"
+          UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=10 \
+          UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
+            -batchmode -nographics -job-worker-count 1 \
+            -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform EditMode \
+            -assemblyNames VoxelEngine.Tests.EditMode \
+            -testFilter '^VoxelEngine\.Tests\.EditMode\.ExactSnapshotRegionCoverageTests' \
+            -testResults "$ROOT/editmode-owner-discovery.xml" \
+            -logFile "$ROOT/editmode-owner-discovery.log"
+
+      - name: Bake Voxel Showcase startup world
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/Artifacts/RenderingCoverage"
+          UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=20 \
+          UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
+            -batchmode -nographics -job-worker-count 1 -quit \
+            -projectPath "$GITHUB_WORKSPACE" \
+            -executeMethod VoxelEngine.Showcase.Editor.ShowcaseWorldBaker.BakeShowcaseWorld \
+            -logFile "$ROOT/showcase-bake.log"
+          test -s "$GITHUB_WORKSPACE/Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes"
+
+      - name: Run near-far coverage invariants
+        shell: bash
+        run: |
+          set -uo pipefail
+          ROOT="$GITHUB_WORKSPACE/Artifacts/RenderingCoverage"
+          status=0
+          UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=15 \
+          UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
+            -batchmode -job-worker-count 1 \
+            -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform PlayMode \
+            -assemblyNames VoxelEngine.Tests.PlayMode \
+            -testFilter '^VoxelEngine\.Tests\.PlayMode\.FarFieldCoverageInvariantTests' \
+            -testResults "$ROOT/playmode-near-far-coverage.xml" \
+            -logFile "$ROOT/playmode-near-far-coverage.log" || status=$?
+          exit "$status"
+
+      - name: Run step4 lifecycle gate
+        if: always()
+        shell: bash
+        run: |
+          set -uo pipefail
+          ROOT="$GITHUB_WORKSPACE/Artifacts/RenderingCoverage"
+          status=0
+          UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=15 \
+          UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
+            -batchmode -job-worker-count 1 \
+            -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform PlayMode \
+            -assemblyNames VoxelEngine.Tests.PlayMode \
+            -testFilter '^VoxelEngine\.Tests\.PlayMode\.Step4FalseEmptyLifecycleTests\.Step4CastleFrustumCannotSettleEntirelyAsAuthoritativeEmpty$' \
+            -testResults "$ROOT/playmode-step4-lifecycle.xml" \
+            -logFile "$ROOT/playmode-step4-lifecycle.log" || status=$?
+          exit "$status"
+
+      - name: Run production LOD lifecycle evidence
+        if: always()
+        shell: bash
+        run: |
+          set -uo pipefail
+          ROOT="$GITHUB_WORKSPACE/Artifacts/RenderingCoverage"
+          status=0
+          UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=15 \
+          UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
+            -batchmode -job-worker-count 1 \
+            -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform PlayMode \
+            -assemblyNames VoxelEngine.Tests.PlayMode \
+            -testFilter '^VoxelEngine\.Tests\.PlayMode\.LodRenderingTests\.CastleKeepsVoxelGeometryAcrossEveryLodBand$' \
+            -testResults "$ROOT/playmode-lod-rendering.xml" \
+            -logFile "$ROOT/playmode-lod-rendering.log" || status=$?
+          exit "$status"
+
+      - name: Upload focused evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rendering-coverage-${{ github.sha }}
+          path: Artifacts/RenderingCoverage/**
+          if-no-files-found: ignore
