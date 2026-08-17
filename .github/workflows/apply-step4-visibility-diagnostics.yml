@@ -1,0 +1,35 @@
+name: Apply step-4 visibility diagnostics
+
+on:
+  push:
+    branches:
+      - feature/voxel-showcase-rendering-repair-v2
+    paths:
+      - .github/workflows/apply-step4-visibility-diagnostics.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply exact diagnostics patch
+        run: python .github/scripts/apply-step4-visibility-diagnostics.py
+      - name: Verify target diff
+        run: |
+          git diff --check -- Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs Assets/Tests/PlayMode/LodRenderingTests.cs
+          git diff -- Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs Assets/Tests/PlayMode/LodRenderingTests.cs
+          test -z "$(git diff --name-only -- .claude/plans/voxel-showcase-rendering-repair-v2.md)"
+      - name: Commit diagnostics and remove transport
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm .github/workflows/apply-step4-visibility-diagnostics.yml .github/scripts/apply-step4-visibility-diagnostics.py
+          git add -A
+          git diff --cached --check
+          git commit -m "test(rendering): expose step4 visibility ownership diagnostics"
+          git push origin HEAD:feature/voxel-showcase-rendering-repair-v2
