@@ -13,15 +13,16 @@ This checklist is the source of truth for implementation progress. Mark each ite
 - Decoration context has explicit style-family IDs plus game-owned presentation profiles. Style changes material/silhouette policy, wealth changes ornamentation and optional scene density, and condition changes damage/material/light treatment without moving those game presentation concerns into the semantic API.
 - Noble/courtly bedrooms may deterministically add an optional accent torch after the required five-prop baseline; optional placement failure never invalidates the required scene.
 - A castle-bedchamber adapter derives semantic space plus stair/navigation, window, fireplace, sitting-area, and retained wall-hanging exclusions from `CastlePlan` and resolves the generic bedroom scene.
-- The normal castle keep build routes floor 1 through `CastleProceduralBedroomAuthoring`; floors 0 and 2+ remain on the existing room-authoring path. The old private hand-authored bedchamber remains in `CastleKeepRoomAuthoring` as rollback/reference code but is bypassed by `CastleAuthoringBuild`.
-- The procedural castle bedroom renders through its resolved Courtly/Noble/Maintained context and emits the required bed, rug, dresser, painting, and wall torch plus optional density when space permits, while retaining the existing ceiling beams, fireplace, sitting cluster, wall hangings, and chandelier until those receive scene recipes.
+- Castle floor 1 routes through `CastleProceduralBedroomAuthoring`; the required bed, rug, dresser, painting, and wall torch are procedural while existing beams, fireplace, sitting cluster, wall hangings, and chandelier remain until their scene recipes are migrated.
+- DEC110 adds reusable table/chair/bench families plus a relational dining scene with table anchor, required opposed benches, and wealth-driven optional head chairs.
+- Castle floor 0 now routes through `CastleProceduralGreatHallAuthoring`: the dining furniture is procedural while the legacy beams, fireplace, throne, chandelier, wall hangings, place settings, lamps, and seeded side details remain. Undersized/custom keeps that cannot satisfy dining clearances fall back to the complete legacy floor-0 authoring.
 - `CastleBedroomDecorationDebugGizmo` provides selected Scene-view look-dev visibility for room bounds, sockets/facings, exclusions, resolved placements, labels, and anchor relationships.
 - Cave reuse is implemented through an explicit `CaveWalkablePatch` contract. The cave adapter emits walkable-floor/wall/ceiling candidates plus alcove/ledge candidates and navigation/hazard exclusions without guessing private cave-network turn state.
 - `CaveCampScene` resolves campfire, bedroll, and lantern placements through the same `DecorationSceneScheduler` and `DecorationPlacementResolver` used by castle rooms. Cross-adapter tests feed both castle and cave sockets directly to the core resolver.
 - Render/build outputs are separated by intent: box assemblies for voxel furniture, aggregated true thin-surface quads for rugs/wall art, voxel stamps for world-integrated details such as campfires, data-only procedural-mesh requests, and condition-aware light/particle hooks. The old one-voxel thin-surface structure path remains only as a compatibility fallback for the current castle build.
 - Runtime planning separates interaction/persistence metadata from render batches, isolates movable props, combines static props by backend rather than by prop, and applies a distance/detail policy before secondary clutter is materialized. A 1,000-prop regression verifies static batch count stays bounded by backend count.
 - Persistence overlays are keyed by deterministic `GeneratedPropId`; moved, looted, and destroyed deltas reapply to a regenerated baseline without perturbing untouched props.
-- NUnit regressions are committed for scheduling, context variation, cave reuse, render backends, runtime batching/detail policy, persistence deltas, a 128-seed bedroom stress pass, representative castle integration, and the existing castle build progression path. They still require execution in the Unity test environment/CI.
+- NUnit regressions are committed for scheduling, context variation, cave reuse, render backends, runtime batching/detail policy, persistence deltas, dining semantics/integration including a 64-seed great-hall pass, a 128-seed bedroom stress pass, representative castle integration, and the existing castle build progression path. They still require execution in the Unity test environment/CI.
 
 ## Setup and architecture
 
@@ -116,7 +117,7 @@ This checklist is the source of truth for implementation progress. Mark each ite
 
 ## Content expansion
 
-- [ ] **DEC110** Add table/chair/bench families and dining scene.
+- [x] **DEC110** Add table/chair/bench families and dining scene.
 - [ ] **DEC111** Add chest/shelf/bookcase/storage families.
 - [ ] **DEC112** Add fireplace/candle/chandelier/standing-lamp families.
 - [ ] **DEC113** Add banners/curtains/shields/weapons/armor display families.
