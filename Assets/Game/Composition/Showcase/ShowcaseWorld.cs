@@ -364,8 +364,8 @@ namespace VoxelEngine.Showcase
             // dead work on every castle-build frame.
             if (_castleBuild != null && !_castleBuild.IsComplete)
             {
-                var deadline = Time.realtimeSinceStartupAsDouble + budgetMs * 0.001;
-                var start = Time.realtimeSinceStartupAsDouble;
+                var castleDeadline = Time.realtimeSinceStartupAsDouble + budgetMs * 0.001;
+                var castleStart = Time.realtimeSinceStartupAsDouble;
                 // Spend the frame's budget, rather than taking a single step and returning.
                 //
                 // The site stage sub-steps a fixed four rows per call and the keep sub-steps one
@@ -387,9 +387,9 @@ namespace VoxelEngine.Showcase
                         StepLandmarks();
                     }
                     while (_castleBuild != null && !_castleBuild.IsComplete
-                           && Time.realtimeSinceStartupAsDouble < deadline);
+                           && Time.realtimeSinceStartupAsDouble < castleDeadline);
                 }
-                LastGenerateMs = (Time.realtimeSinceStartupAsDouble - start) * 1000.0;
+                LastGenerateMs = (Time.realtimeSinceStartupAsDouble - castleStart) * 1000.0;
                 return;
             }
 
