@@ -18,6 +18,7 @@ This is the focused guild-house checklist; the general decoration checklist rema
 - Guild-specific exterior dressing is implemented: wizard crystal entry, knight heraldry/hitching, druid standing-stone threshold, ranger field/hitching gear, bard marquee, alchemist chimney/service area, cleric entry fixtures and deliberately mundane Assassin/Thieves presentation.
 - IDs **401-440** are implemented as stable guild-signature archetypes and sparsely layered over appropriate rooms. The existing 1-400 library remains the base content vocabulary.
 - `GuildHouseRegionPolicy` supplies guild/settlement preference signals without hard-banning unusual combinations; settlement integration still needs to consume those scores.
+- `GuildHouseDebugGizmo` visualizes shell bounds, room roles, public/private depth and concealed-access portals in Scene view.
 - Source regressions cover deterministic layouts, room non-overlap, all-ten-guild scene dispatch, concealed portal planning, region preference, signature recipe identity/layering and stable placement identity.
 - Unity/CI execution remains a separate evidence gate.
 
@@ -39,7 +40,7 @@ This is the focused guild-house checklist; the general decoration checklist rema
 - [x] **GH016** Author an Assassins Guild source path with deliberately mundane exterior, contract/poison/training rooms and physical concealed vault/hidden access.
 - [x] **GH017** Author representative source paths for Adventurers, Thieves, Clerics, Rangers, Bards and Alchemists; roster-wide regression source covers all ten guilds.
 - [x] **GH018** Implement append-only guild-signature archetypes IDs 401-440, their presentation backends and sparse per-guild room layering.
-- [ ] **GH019** Add look-dev/debug visualization for room roles, public/private depth, hidden connections and guild identity.
+- [x] **GH019** Add Scene-view look-dev/debug visualization for guild shell, room roles, public/private depth and concealed connections.
 - [ ] **GH020** Execute Unity tests/look-dev and record results separately from source completion.
 - [ ] **GH021** Add richer exterior `DecorationSpace` adapters for full guild gardens, stable yards, courtyards and street-facing activity beyond the current baseline exterior authoring.
 - [ ] **GH022** Integrate guild-house region preference scores into settlement/world guild placement rather than only exposing the policy API.
