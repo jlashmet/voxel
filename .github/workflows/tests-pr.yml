@@ -88,6 +88,24 @@ jobs:
             -testResults "$ROOT/editmode.xml" -logFile "$ROOT/editmode.log"
           test -s "$ROOT/editmode.xml"
 
+      # The Voxel Showcase deliberately has no Play-mode generation fallback. Its startup image is
+      # a build/editor artifact, so a clean CI checkout must run the same bake step a developer or
+      # release build runs before any suite opens VoxelShowcase.unity.
+      - name: Bake Voxel Showcase startup world
+        if: contains(steps.select.outputs.playmode, 'VoxelEngine.Tests.PlayMode')
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/Artifacts/PrTests"
+          mkdir -p "$ROOT"
+          UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=20 \
+          UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
+            -batchmode -nographics -job-worker-count 1 -quit \
+            -projectPath "$GITHUB_WORKSPACE" \
+            -executeMethod VoxelEngine.Showcase.Editor.ShowcaseWorldBaker.BakeShowcaseWorld \
+            -logFile "$ROOT/showcase-bake.log"
+          test -s "$GITHUB_WORKSPACE/Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes"
+
       # PlayMode assemblies run one process each. Sharing a process across them
       # accumulates native memory over repeated scene loads until the guard in
       # unity-run.sh kills the run before any assembly reports.
