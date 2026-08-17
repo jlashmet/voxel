@@ -16,6 +16,11 @@ namespace VoxelEngine.Structures.Api
 
         public int3 MaxExclusive => Min + Size;
         public bool IsWellFormed => Size.x > 0 && Size.y > 0 && Size.z > 0;
+
+        public bool ProvidesClearance(int minimumPassageWidth, int minimumPassageHeight) =>
+            minimumPassageWidth > 0 && minimumPassageHeight > 0 &&
+            Size.x >= minimumPassageWidth && Size.z >= minimumPassageWidth &&
+            Size.y >= minimumPassageHeight;
     }
 
     /// <summary>How two authored interior volumes are connected.</summary>
@@ -51,6 +56,18 @@ namespace VoxelEngine.Structures.Api
             ToVolumeIndex != FromVolumeIndex &&
             Size.x > 0 && Size.y > 0 && Size.z > 0 &&
             FrameThickness >= 0;
+
+        /// <summary>
+        /// The carve is thin along the wall normal, so horizontal clearance is the larger X/Z
+        /// extent while Y is headroom. This stays orientation-neutral until component compilation.
+        /// </summary>
+        public bool ProvidesClearance(int minimumPassageWidth, int minimumPassageHeight)
+        {
+            int horizontalClearance = Size.x > Size.z ? Size.x : Size.z;
+            return minimumPassageWidth > 0 && minimumPassageHeight > 0 &&
+                   horizontalClearance >= minimumPassageWidth &&
+                   Size.y >= minimumPassageHeight;
+        }
     }
 
     /// <summary>
@@ -87,6 +104,72 @@ namespace VoxelEngine.Structures.Api
 
                 return true;
             }
+        }
+
+        /// <summary>
+        /// Validates the guarantees needed by archetypes that promise a navigable interior: every
+        /// clear room meets minimum player clearance, every configured connective opening meets
+        /// passage/headroom clearance, and every room is reachable from room zero through interior
+        /// connections. Exterior openings do not participate in the room graph.
+        /// </summary>
+        public bool IsNavigable(int minimumPassageWidth, int minimumPassageHeight)
+        {
+            if (!IsWellFormed || minimumPassageWidth <= 0 || minimumPassageHeight <= 0)
+                return false;
+
+            for (var i = 0; i < Volumes.Length; i++)
+            {
+                if (!Volumes[i].ProvidesClearance(minimumPassageWidth, minimumPassageHeight))
+                    return false;
+            }
+
+            for (var i = 0; i < Connections.Length; i++)
+            {
+                ConnectiveOpeningConfig connection = Connections[i];
+                if (connection.ToVolumeIndex >= 0 &&
+                    !connection.ProvidesClearance(minimumPassageWidth, minimumPassageHeight))
+                    return false;
+            }
+
+            return HasConnectedInteriorGraph();
+        }
+
+        /// <summary>Allocation-free reachability check over the bounded room graph.</summary>
+        public bool HasConnectedInteriorGraph()
+        {
+            if (!IsWellFormed || Volumes.Length > 64)
+                return false;
+            if (Volumes.Length == 1)
+                return true;
+
+            ulong visited = 1ul;
+            bool changed;
+            do
+            {
+                changed = false;
+                for (var i = 0; i < Connections.Length; i++)
+                {
+                    ConnectiveOpeningConfig connection = Connections[i];
+                    if (connection.ToVolumeIndex < 0)
+                        continue;
+
+                    ulong fromBit = 1ul << connection.FromVolumeIndex;
+                    ulong toBit = 1ul << connection.ToVolumeIndex;
+                    bool fromVisited = (visited & fromBit) != 0;
+                    bool toVisited = (visited & toBit) != 0;
+                    if (fromVisited == toVisited)
+                        continue;
+
+                    visited |= fromBit | toBit;
+                    changed = true;
+                }
+            }
+            while (changed);
+
+            ulong expected = Volumes.Length == 64
+                ? ulong.MaxValue
+                : (1ul << Volumes.Length) - 1ul;
+            return visited == expected;
         }
     }
 }
