@@ -21,6 +21,9 @@ namespace Game.Structures.Runtime
             _parentId = parentId;
         }
 
+        public int ObjectCount => _objects.Count;
+        public int ConnectionCount => _connections.Count;
+
         public WorldObjectId Place(uint localKey, WorldObjectKind kind, DecorationBounds bounds, int3 facing,
             uint variant = 0, WorldObjectStateFlags? defaultState = null, int parameter0 = int.MinValue,
             int parameter1 = int.MinValue, int parameter2 = int.MinValue, int parameter3 = int.MinValue)
@@ -70,5 +73,15 @@ namespace Game.Structures.Runtime
 
         public WorldObjectDescriptor[] BuildObjects() => _objects.ToArray();
         public WorldObjectConnection[] BuildConnections() => _connections.ToArray();
+
+        public WorldObjectDescriptor[] BuildObjectsFrom(int startIndex)
+        {
+            if (startIndex < 0 || startIndex > _objects.Count)
+                throw new ArgumentOutOfRangeException(nameof(startIndex));
+            int count = _objects.Count - startIndex;
+            var result = new WorldObjectDescriptor[count];
+            for (int i = 0; i < count; i++) result[i] = _objects[startIndex + i];
+            return result;
+        }
     }
 }
