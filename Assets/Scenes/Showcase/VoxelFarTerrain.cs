@@ -68,6 +68,7 @@ namespace VoxelEngine.Showcase
         private readonly List<NativeArray<int>> _ringHeights = new();
         private readonly List<bool> _ringHeightValid = new();
         private readonly List<int> _ringBuiltStructureVersion = new();
+        private readonly List<float> _ringBuiltTopologyHoleMetres = new();
         private readonly List<int> _indicesScratch = new();
         private Vector3[] _positionsScratch;
         private Color[] _coloursScratch;
@@ -83,10 +84,17 @@ namespace VoxelEngine.Showcase
         private int _heightJobRing = -1;
         private int2 _heightJobOrigin;
         private int _ringWorkCursor;
+        private ulong _topologyRebuildCount;
 
         public float InnerRadiusMetres => m_InnerRadiusMetres;
         public float OuterRadiusMetres => m_OuterRadiusMetres;
         public uint Seed { get => m_Seed; set => m_Seed = value; }
+
+        /// <summary>
+        /// Diagnostic count of clipmap index-buffer rebuilds. Camera movement and structure-only
+        /// presentation refreshes must not advance this once a ring topology has been established.
+        /// </summary>
+        public ulong TopologyRebuildCount => _topologyRebuildCount;
 
         /// <summary>
         /// Radius of ring 0's hole, in metres — the disc the voxel world is currently covering.
@@ -188,6 +196,7 @@ namespace VoxelEngine.Showcase
             for (int i = 0; i < _ringMeshes.Count; i++)
                 if (_ringMeshes[i] != null) Destroy(_ringMeshes[i]);
             _ringMeshes.Clear();
+            _ringBuiltTopologyHoleMetres.Clear();
         }
 
         /// <summary>
@@ -372,13 +381,15 @@ namespace VoxelEngine.Showcase
                     sampleCount, Allocator.Persistent, NativeArrayOptions.UninitializedMemory));
                 _ringHeightValid.Add(false);
                 _ringBuiltStructureVersion.Add(int.MinValue);
+                _ringBuiltTopologyHoleMetres.Add(float.NaN);
             }
         }
 
         /// <summary>
         /// Rebuilds one ring from its already-completed persistent height cache. This method does
-        /// no job waiting and reuses managed scratch buffers, so moving the camera no longer
-        /// creates a TempJob allocation, two arrays and a large List for every ring rebuild.
+        /// no job waiting and reuses managed scratch buffers. Ring topology is retained across
+        /// camera moves and structure-only presentation refreshes, avoiding a full index rebuild,
+        /// mesh clear, and index-buffer upload on the ordinary frame path.
         /// </summary>
         private void RebuildRingFromCachedHeights(int ring, int2 origin, int spacing)
         {
@@ -426,35 +437,47 @@ namespace VoxelEngine.Showcase
             Vector3 centre = new((origin.x + spacing * m_Resolution / 2) * 0.1f, 0f,
                                  (origin.y + spacing * m_Resolution / 2) * 0.1f);
 
-            _indicesScratch.Clear();
-            for (int z = 0; z < m_Resolution; z++)
-            for (int x = 0; x < m_Resolution; x++)
+            float builtTopologyHole = _ringBuiltTopologyHoleMetres[ring];
+            bool topologyDirty = float.IsNaN(builtTopologyHole)
+                              || !Mathf.Approximately(builtTopologyHole, holeMetres);
+            if (topologyDirty)
             {
-                int i = x + z * verts;
-                // Test the quad's far corner against the hole so the ring's inner edge closes
-                // over the finer ring's outer edge rather than leaving a gap between them.
-                float dx = Mathf.Max(Mathf.Abs(positions[i].x - centre.x),
-                                     Mathf.Abs(positions[i + verts + 1].x - centre.x));
-                float dz = Mathf.Max(Mathf.Abs(positions[i].z - centre.z),
-                                     Mathf.Abs(positions[i + verts + 1].z - centre.z));
-                bool inHole = circularHole
-                    ? dx * dx + dz * dz < holeMetres * holeMetres
-                    : Mathf.Max(dx, dz) < holeMetres;
-                if (inHole) continue;
+                _indicesScratch.Clear();
+                for (int z = 0; z < m_Resolution; z++)
+                for (int x = 0; x < m_Resolution; x++)
+                {
+                    int i = x + z * verts;
+                    // Test the quad's far corner against the hole so the ring's inner edge closes
+                    // over the finer ring's outer edge rather than leaving a gap between them.
+                    float dx = Mathf.Max(Mathf.Abs(positions[i].x - centre.x),
+                                         Mathf.Abs(positions[i + verts + 1].x - centre.x));
+                    float dz = Mathf.Max(Mathf.Abs(positions[i].z - centre.z),
+                                         Mathf.Abs(positions[i + verts + 1].z - centre.z));
+                    bool inHole = circularHole
+                        ? dx * dx + dz * dz < holeMetres * holeMetres
+                        : Mathf.Max(dx, dz) < holeMetres;
+                    if (inHole) continue;
 
-                _indicesScratch.Add(i);
-                _indicesScratch.Add(i + verts);
-                _indicesScratch.Add(i + 1);
-                _indicesScratch.Add(i + 1);
-                _indicesScratch.Add(i + verts);
-                _indicesScratch.Add(i + verts + 1);
+                    _indicesScratch.Add(i);
+                    _indicesScratch.Add(i + verts);
+                    _indicesScratch.Add(i + 1);
+                    _indicesScratch.Add(i + 1);
+                    _indicesScratch.Add(i + verts);
+                    _indicesScratch.Add(i + verts + 1);
+                }
             }
 
             Mesh mesh = _ringMeshes[ring];
-            mesh.Clear();
+            // Do not Clear(): vertex count is invariant for a ring and clearing also invalidates
+            // the index buffer we deliberately retain between presentation refreshes.
             mesh.vertices = positions;
             mesh.colors = colours;
-            mesh.SetTriangles(_indicesScratch, 0, false);
+            if (topologyDirty)
+            {
+                mesh.SetTriangles(_indicesScratch, 0, false);
+                _ringBuiltTopologyHoleMetres[ring] = holeMetres;
+                _topologyRebuildCount++;
+            }
             mesh.RecalculateNormals();
             mesh.bounds = new Bounds(centre,
                 new Vector3(spacing * m_Resolution * 0.1f, 20000f,
