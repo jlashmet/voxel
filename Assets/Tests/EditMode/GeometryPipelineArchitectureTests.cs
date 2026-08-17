@@ -479,20 +479,22 @@ namespace VoxelEngine.Tests.EditMode
 
 
         [Test]
-        public void GeometryResidencyIncludesTheSnapshotHalo()
+        public void GeometryResidencyRequiresOwnedCoreRegions()
         {
             string cache = ReadRenderingSource(
                 Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"));
-            int start = cache.IndexOf("private bool AnyOverlappedRegionResident",
+            int start = cache.IndexOf("private bool AllOwnedCoreRegionsResident",
                                       StringComparison.Ordinal);
             int end = cache.IndexOf("internal bool TryEvictOneForArenaPressure", start,
                                     StringComparison.Ordinal);
             Assert.GreaterOrEqual(start, 0);
             Assert.Greater(end, start);
             string residency = cache.Substring(start, end - start);
-            StringAssert.Contains("int halo = Padding * SourceStep;", residency);
-            StringAssert.Contains("chunk * VoxelsPerAxis - halo", residency);
-            StringAssert.Contains("(chunk + 1) * VoxelsPerAxis + halo - 1", residency);
+            StringAssert.Contains("int3 minVoxel = chunk * VoxelsPerAxis;", residency);
+            StringAssert.Contains("int3 maxVoxel = (chunk + 1) * VoxelsPerAxis - 1;", residency);
+            StringAssert.Contains(
+                "if (!source.IsRegionResident(new int3(x, y, z))) return false;", residency);
+            StringAssert.DoesNotContain("int halo = Padding * SourceStep;", residency);
         }
 
 
