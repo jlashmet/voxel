@@ -22,6 +22,8 @@ namespace MountingForce.WorldGen.Voxel
         {
             public int[] Code;
             public int3 Door;
+            public int3 Hearth;
+            public bool HasHearth;
         }
 
         public static FeatureCatalogue Build(
@@ -35,6 +37,7 @@ namespace MountingForce.WorldGen.Voxel
             BuildingPlot[] plots = PlotsByRole(plan);
             var programs = new CompiledProgram[DefinitionCount];
             int programLength = 0;
+            int anchorCount = 0;
 
             for (int roleId = 0; roleId < DefinitionCount; roleId++)
             {
@@ -45,13 +48,14 @@ namespace MountingForce.WorldGen.Voxel
                     ? SharedGeneratedProgram(plot, form, theme, settings, seed)
                     : BespokeProgram(intent, form, theme, settings);
                 programLength += programs[roleId].Code.Length;
+                anchorCount += programs[roleId].HasHearth ? 2 : 1;
             }
 
             FeatureCatalogue catalogue = FeatureCatalogueBuilder.Allocate(
                 definitions: DefinitionCount,
                 rules: DefinitionCount,
                 parameters: 0,
-                anchors: DefinitionCount,
+                anchors: anchorCount,
                 slots: 0,
                 programLength: programLength,
                 materials: 0,
@@ -60,6 +64,7 @@ namespace MountingForce.WorldGen.Voxel
                 allocator);
 
             int programOffset = 0;
+            int anchorOffset = 0;
             for (int roleId = 0; roleId < DefinitionCount; roleId++)
             {
                 BuildingPlot plot = plots[roleId];
@@ -74,13 +79,23 @@ namespace MountingForce.WorldGen.Voxel
                     footprintDm.Z * scale);
                 KentridgeRole role = (KentridgeRole)roleId;
 
-                catalogue.Anchors[roleId] = new AnchorSpec
+                catalogue.Anchors[anchorOffset] = new AnchorSpec
                 {
                     Name = plot.Archetype == StructureArchetype.Well ? "interaction" : "door",
                     LocalPosition = program.Door,
                     Facing = Facing.South,
                     SnapToGround = false,
                 };
+                if (program.HasHearth)
+                {
+                    catalogue.Anchors[anchorOffset + 1] = new AnchorSpec
+                    {
+                        Name = "hearth",
+                        LocalPosition = program.Hearth,
+                        Facing = Facing.Up,
+                        SnapToGround = false,
+                    };
+                }
 
                 catalogue.Definitions[roleId] = new FeatureDefinition
                 {
@@ -93,8 +108,8 @@ namespace MountingForce.WorldGen.Voxel
                     Precedence = plot.Archetype == StructureArchetype.Mansion ? 130 : 100,
                     ParameterOffset = 0,
                     ParameterCount = 0,
-                    AnchorOffset = roleId,
-                    AnchorCount = 1,
+                    AnchorOffset = anchorOffset,
+                    AnchorCount = program.HasHearth ? 2 : 1,
                     SlotOffset = 0,
                     SlotCount = 0,
                     ProgramOffset = programOffset,
@@ -134,6 +149,7 @@ namespace MountingForce.WorldGen.Voxel
                 };
 
                 programOffset += program.Code.Length;
+                anchorOffset += program.HasHearth ? 2 : 1;
             }
 
             CatalogueLoadResult result = FeatureCatalogueBuilder.Finalise(ref catalogue);
@@ -156,7 +172,13 @@ namespace MountingForce.WorldGen.Voxel
         {
             KentridgeSharedHouseProgram.Program program =
                 KentridgeSharedHouseProgram.Build(plot, form, theme, settings, seed);
-            return new CompiledProgram { Code = program.Code, Door = program.Door };
+            return new CompiledProgram
+            {
+                Code = program.Code,
+                Door = program.Door,
+                Hearth = program.Hearth,
+                HasHearth = true,
+            };
         }
 
         private static CompiledProgram BespokeProgram(
@@ -170,7 +192,12 @@ namespace MountingForce.WorldGen.Voxel
             StructureGeometryProfile geometry = style.ResolveGeometry(intent, form);
             KentridgeBespokeVoxelPrograms.Program program =
                 KentridgeBespokeVoxelPrograms.Build(form.Archetype, theme, settings, geometry);
-            return new CompiledProgram { Code = program.Code, Door = program.Door };
+            return new CompiledProgram
+            {
+                Code = program.Code,
+                Door = program.Door,
+                HasHearth = false,
+            };
         }
 
         private static BuildingPlot[] PlotsByRole(SettlementPlan plan)
