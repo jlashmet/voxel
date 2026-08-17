@@ -12,6 +12,15 @@ name: Tests (PR — affected only)
 
 on:
   pull_request:
+  # Character Factory development can be validated before a PR without launching
+  # the Unity lane. This remains self-hosted and only triggers for factory changes.
+  push:
+    branches:
+      - agent/character-asset-generation-framework
+    paths:
+      - 'tools/character-factory/**'
+      - 'docs/character-factory-generation-framework-plan.md'
+      - '.github/workflows/tests-pr.yml'
 
 permissions:
   contents: read
@@ -23,7 +32,55 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  character-factory:
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          clean: true
+          fetch-depth: 0
+
+      - name: Detect Character Factory changes
+        id: factory
+        shell: bash
+        run: |
+          set -euo pipefail
+          run=false
+          if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+            run=true
+          else
+            BASE="origin/${{ github.base_ref }}"
+            git fetch --no-tags --depth=0 origin "${{ github.base_ref }}" >/dev/null 2>&1 || true
+            if git diff --name-only "$BASE"...HEAD | grep -Eq '^(tools/character-factory/|docs/character-factory-generation-framework-plan\.md$|\.github/workflows/tests-pr\.yml$)'; then
+              run=true
+            fi
+          fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+          echo "Character Factory lane: $run"
+
+      - name: Character Factory contract
+        if: steps.factory.outputs.run == 'true'
+        shell: bash
+        run: bash tools/character-factory/ci/run_contract_tests.sh
+
+      - name: Character Factory Blender smoke
+        if: steps.factory.outputs.run == 'true'
+        shell: bash
+        env:
+          CHARACTER_FACTORY_SMOKE_OUT: ${{ github.workspace }}/Artifacts/CharacterFactorySmoke
+        run: bash tools/character-factory/ci/run_blender_smoke.sh
+
+      - name: Upload Character Factory smoke artifacts
+        if: always() && steps.factory.outputs.run == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: character-factory-pr-smoke
+          path: Artifacts/CharacterFactorySmoke/**
+          if-no-files-found: ignore
+
   affected:
+    if: github.event_name == 'pull_request'
     runs-on: [self-hosted, macOS]
     timeout-minutes: 60
     steps:
