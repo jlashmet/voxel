@@ -26,12 +26,18 @@ namespace MountingForce.WorldGen.Voxel
         {
             public readonly int[] Code;
             public readonly int3 Door;
+            public readonly int3 Hearth;
             public readonly KentridgeHousePresetId Preset;
 
-            public Program(int[] code, int3 door, KentridgeHousePresetId preset)
+            public Program(
+                int[] code,
+                int3 door,
+                int3 hearth,
+                KentridgeHousePresetId preset)
             {
                 Code = code;
                 Door = door;
+                Hearth = hearth;
                 Preset = preset;
             }
         }
@@ -87,6 +93,8 @@ namespace MountingForce.WorldGen.Voxel
             config.Roof.Thickness = math.max(1, scale);
             config.Palette = palette;
 
+            // The shared compiler deliberately emits two semantic anchors: public entrance and
+            // hearth. Kentridge preserves both rather than mutating compiled bytecode to hide one.
             int[] compiled = HouseProgramCompiler.BuildProgram(in config, 0, 1);
             Int3 envelopeDm = KentridgeDefinition.FootprintDm(form.Archetype);
             int envelopeWidth = envelopeDm.X * scale;
@@ -96,43 +104,29 @@ namespace MountingForce.WorldGen.Voxel
             int[] translated = ShapeProgramComposition.Translate(compiled, localOffset);
 
             int3 door = new int3(x0 + width / 2, foundation, z0);
-            return new Program(translated, door, preset);
+            int3 hearth = new int3(x0 + width / 2, foundation, z0 + depth / 2);
+            return new Program(translated, door, hearth, preset);
         }
 
         public static KentridgeHousePresetId SelectPreset(BuildingPlot plot, uint seed)
         {
-            uint value = StableHash(seed, plot.RoleId, (int)plot.Archetype, (int)plot.District);
+            string presetId = KentridgeTownPlanner.CompositionPolicy.Palette.SelectPreset(
+                seed,
+                plot.RoleId,
+                plot.Archetype,
+                plot.District);
 
-            // District-weighted but identity-stable. Noble frontage strongly prefers the larger base;
-            // market/working plots skew compact; civic/residential retain all three choices.
-            switch (plot.District)
+            switch (presetId)
             {
-                case DistrictKind.Noble:
-                    return value % 5u == 0u
-                        ? KentridgeHousePresetId.TallTownhouse
-                        : KentridgeHousePresetId.Farmhouse;
-                case DistrictKind.Market:
-                case DistrictKind.Working:
-                    return value % 5u < 3u
-                        ? KentridgeHousePresetId.Compact
-                        : KentridgeHousePresetId.TallTownhouse;
-                case DistrictKind.Civic:
-                    return value % 4u == 0u
-                        ? KentridgeHousePresetId.Compact
-                        : KentridgeHousePresetId.TallTownhouse;
+                case KentridgeTownPlanner.CompactHousePresetId:
+                    return KentridgeHousePresetId.Compact;
+                case KentridgeTownPlanner.FarmhousePresetId:
+                    return KentridgeHousePresetId.Farmhouse;
+                case KentridgeTownPlanner.TallTownhousePresetId:
+                    return KentridgeHousePresetId.TallTownhouse;
                 default:
-                    switch (value % 8u)
-                    {
-                        case 0u:
-                        case 1u:
-                            return KentridgeHousePresetId.Compact;
-                        case 2u:
-                        case 3u:
-                        case 4u:
-                            return KentridgeHousePresetId.Farmhouse;
-                        default:
-                            return KentridgeHousePresetId.TallTownhouse;
-                    }
+                    throw new InvalidOperationException(
+                        "Kentridge settlement palette selected an unsupported house preset: " + presetId);
             }
         }
 
@@ -186,20 +180,6 @@ namespace MountingForce.WorldGen.Voxel
                 Glass = window,
                 Detail = frame,
             };
-        }
-
-        private static uint StableHash(uint seed, int roleId, int archetype, int district)
-        {
-            uint h = seed
-                   ^ ((uint)(roleId + 1) * 0x9E3779B9u)
-                   ^ ((uint)(archetype + 7) * 0x85EBCA6Bu)
-                   ^ ((uint)(district + 11) * 0xC2B2AE35u);
-            h ^= h >> 16;
-            h *= 0x7FEB352Du;
-            h ^= h >> 15;
-            h *= 0x846CA68Bu;
-            h ^= h >> 16;
-            return h;
         }
     }
 }
