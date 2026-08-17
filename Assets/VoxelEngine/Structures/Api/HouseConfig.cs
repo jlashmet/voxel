@@ -23,7 +23,7 @@ namespace VoxelEngine.Structures.Api
         public int Depth;
         public int Spacing;
         public int EdgeMargin;
-        public RoofStyle RoofStyle;
+        public RoofStyle Style;
         public StructureMaterialRole RoofMaterialRole;
         public StructureMaterialRole WallMaterialRole;
 
@@ -31,8 +31,7 @@ namespace VoxelEngine.Structures.Api
 
         public bool IsWellFormed => Count == 0 ||
             (Count > 0 && Width > 0 && Height > 0 && Depth > 0 &&
-             Spacing >= 0 && EdgeMargin >= 0 &&
-             RoofStyle != RoofStyle.Flat);
+             Spacing >= 0 && EdgeMargin >= 0 && Style != RoofStyle.Flat);
     }
 
     /// <summary>
