@@ -17,6 +17,8 @@ This checklist is the source of truth for implementation progress. Mark each ite
 - The generic semantic resolver, deterministic scene scheduler, stable prop IDs, socket/exclusion model, style/wealth/condition profiles, backend dispatch, runtime batching/detail policy, and persistence overlays are implemented.
 - The stable content manifest contains **300 implemented archetypes** and exact reserved identities through **400**. The encoding leaves room through ID 1023.
 - IDs 261-280 implement monster-lair/creature-occupation content. IDs 281-300 implement adventurer-guild/quest/caravan content, with MonsterDen, SpiderNest, AdventurerGuildHall and CaravanStaging source scenes.
+- The 261-300 scene path now supports region-weighted optional selection and region-specific material/ornament presentation while retaining global semantic IDs. Older 1-260 scene/catalog paths still require migration onto that policy.
+- `DecorationRegionLookDevComposition` resolves the same AdventurerGuildHall semantic scene for all six named settlements for direct comparison in tests/look-dev tooling.
 - Rendering policy is breadth-first: box/voxel assemblies are valid initial implementations; use smooth/curved/procedural forms immediately when they are not meaningfully more work, and upgrade signature silhouettes later without changing semantic IDs.
 - Unity/CI execution and visual/performance evidence remain separate completion gates.
 
@@ -67,11 +69,14 @@ This checklist is the source of truth for implementation progress. Mark each ite
 - [x] **DEC198** Document evidence-backed regional themes plus voxel-owned material/color direction in `WORLDBUILDER_REGION_DECORATION_GUIDE.md`.
 - [x] **DEC199** Implement `DecorationRegionProfile` defaults for all six named settlements, including style family, wealth bias, material guidance and preferred content tags.
 - [x] **DEC200** Add source tests proving all six region profiles are valid, distinct and allow per-building wealth overrides.
-- [ ] **DEC201** Add region-aware content weighting to scene/archetype selection so regional identity changes object choice, not only presentation.
-- [ ] **DEC202** Add region-aware presentation override layer so Kentridge/Moordell/Fairy/Orc versions of the same semantic prop can use different materials/ornament/clutter without duplicate stable IDs.
-- [ ] **DEC203** Add representative look-dev compositions for all six settlements using the same semantic room archetypes.
-- [ ] **DEC204** Add region-specific scene-density tests: Kentridge lived-in/practical, Hightown sacred/scholarly, Moordell wealthy/ordered, Rossdam royal/formal, Fairy Village organic/enchanted, Orc Village rugged/trophy/craft.
+- [x] **DEC201** Add the initial region-aware content-weighting path, first applied to optional selection for IDs 261-300 without changing required scene anchors or stable IDs.
+- [x] **DEC202** Add the initial region-aware presentation override layer, first applied to the 261-300 geometry emitter so the same semantic prop can use settlement-specific materials/ornament without duplicate IDs.
+- [x] **DEC203** Add a representative six-settlement comparison composition using the same AdventurerGuildHall semantic room across Kentridge, Hightown, Moordell, Rossdam, Fairy Village and Orc Village.
+- [ ] **DEC204** Expand region-density source coverage beyond the guild comparison: Kentridge lived-in/practical, Hightown sacred/scholarly, Moordell wealthy/ordered, Rossdam royal/formal, Fairy Village organic/enchanted, Orc Village rugged/trophy/craft across multiple scene families.
 - [ ] **DEC205** Preserve the verified special visual outliers (Fairy Village Treehouse, Forest Maze, Mountains) as explicit palette/profile overrides rather than flattening them into generic settlement styling.
+- [ ] **DEC206** Migrate older stable IDs/scenes 1-260 onto shared region content-tag weighting where optional selection is meaningful.
+- [ ] **DEC207** Thread region presentation overrides through older 1-260 geometry emitters without duplicating semantic IDs.
+- [ ] **DEC208** Add an Editor/debug look-dev view that renders the six-region comparison side-by-side or in selectable fixtures rather than source data only.
 
 ## Composition milestones
 
