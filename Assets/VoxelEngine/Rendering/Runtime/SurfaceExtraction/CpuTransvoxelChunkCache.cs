@@ -1163,6 +1163,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     _facetedMergeJobScheduled = false;
                     if (RequiresFeaturePreservingFallback(
                             SourceStep, _build.HasOwnedSolid,
+                            _buildProfileBlocks.Length != 0,
                             _compactedTopologyVertices.Length + _facetedVertices.Length,
                             _compactedTopologyIndices.Length + _facetedIndices.Length))
                     {
@@ -1189,6 +1190,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     _facetedMergeJobScheduled = false;
                     if (RequiresFeaturePreservingFallback(
                             SourceStep, _build.HasOwnedSolid,
+                            _buildProfileBlocks.Length != 0,
                             _facetedVertices.Length, _facetedIndices.Length))
                     {
                         ScheduleFeaturePreservingHlod(voxelSize);
@@ -1290,9 +1292,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         }
 
         private static bool RequiresFeaturePreservingFallback(
-            int sourceStep, bool hasOwnedSolid, int vertexCount, int indexCount) =>
+            int sourceStep, bool hasOwnedSolid, bool hasProfileGeometry,
+            int vertexCount, int indexCount) =>
             sourceStep == FeaturePreservingFallbackStep
             && hasOwnedSolid
+            && !hasProfileGeometry
             && vertexCount == 0
             && indexCount == 0;
 
