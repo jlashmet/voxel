@@ -19,14 +19,23 @@ namespace Game.Structures.Tests
         }
 
         [Test]
-        public void RequiredRoomsAreSelectedBeforeOptionalRooms()
+        public void MinimumShellContainsEveryRequiredIdentityRoom()
         {
             var program = GuildHouseProgramCatalog.Get(GuildHouseKind.Druids);
             var selected = GuildHouseRoomSelector.Select(program, 42u, program.MinimumRooms);
 
             Assert.That(selected.Length, Is.EqualTo(program.MinimumRooms));
-            foreach (var room in selected)
-                Assert.That(room.Required, Is.True);
+            foreach (var authored in program.Rooms)
+            {
+                if (!authored.Required)
+                    continue;
+
+                var found = false;
+                foreach (var actual in selected)
+                    if (actual.Role == authored.Role)
+                        found = true;
+                Assert.That(found, Is.True, $"missing required druid room {authored.Role}");
+            }
         }
 
         [Test]
