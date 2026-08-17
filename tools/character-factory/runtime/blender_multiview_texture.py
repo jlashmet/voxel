@@ -36,12 +36,6 @@ def _load_subject_image(path: Path) -> ImageInfo:
         raise RuntimeError(f"multiview texture source has invalid dimensions: {path}")
 
     pixels = image.pixels[:]
-
-    # Approved turnarounds use a light neutral gray canvas rather than pure white.
-    # Estimate that canvas from the corners in Blender's own color space, then find
-    # character pixels by either color/chroma separation or a meaningful drop in
-    # luminance. This remains stable whether Blender exposes the image as sRGB-like
-    # values or scene-linear floats.
     sample_radius = max(2, min(width, height) // 64)
     background_levels: list[float] = []
     for y0 in (0, height - sample_radius):
@@ -172,33 +166,18 @@ def _source_uv(
     hi: Vector,
 ) -> tuple[float, float]:
     if name == "front":
-        # Canonical character front faces -Y. Character-left is +X and appears
-        # viewer-right in a front turnaround.
         return _normalized(point.x, lo.x, hi.x), _normalized(point.z, lo.z, hi.z)
     if name == "back":
-        # Behind the character, left/right swap from the viewer's perspective.
         return 1.0 - _normalized(point.x, lo.x, hi.x), _normalized(point.z, lo.z, hi.z)
     if name == "left":
-        # The approved left-side reference faces image-left: canonical front (-Y)
-        # therefore maps to low U, while the back (+Y) maps to high U.
         return _normalized(point.y, lo.y, hi.y), _normalized(point.z, lo.z, hi.z)
     if name == "right":
-        # The approved right-side reference faces image-right, the horizontal mirror
-        # of the left reference: canonical front (-Y) maps to high U.
         return 1.0 - _normalized(point.y, lo.y, hi.y), _normalized(point.z, lo.z, hi.z)
     raise ValueError(name)
 
 
 def _nearest_foreground_uv(source: ImageInfo, u: float, v: float) -> tuple[float, float]:
-    """Keep a projected coordinate on the true nearest visible turnaround pixel.
-
-    Global planar projection does not perfectly follow local silhouette bends. The
-    previous implementation stopped at the first *row* containing any foreground,
-    which could move a hand coordinate hundreds of pixels sideways to an upper-arm
-    strip even when the actual hand was only a few rows away. Search in image-space
-    Euclidean distance and stop only when unexplored rows cannot beat the best 2D
-    candidate already found.
-    """
+    """Keep a projected coordinate on the true nearest visible turnaround pixel."""
 
     width = source.width
     height = source.height
@@ -233,9 +212,6 @@ def _nearest_foreground_uv(source: ImageInfo, u: float, v: float) -> tuple[float
                         target_y / max(1, height - 1),
                     )
 
-        # Any row not yet visited is at least radius+1 pixels away vertically. If
-        # radius alone already equals/exceeds the best complete 2D distance, later
-        # rows cannot produce a closer pixel regardless of their horizontal match.
         if best is not None and float(radius * radius) >= best[0]:
             break
 
@@ -246,9 +222,6 @@ def _nearest_foreground_uv(source: ImageInfo, u: float, v: float) -> tuple[float
 
 
 def _subject_adjusted_uv(source: ImageInfo, u: float, v: float) -> tuple[float, float]:
-    # Bounding boxes were measured before image.scale(). Keep the original source
-    # dimensions stored in ImageInfo so later atlas resizing cannot corrupt the
-    # crop normalization.
     x0 = source.x0 / max(1, source.width - 1)
     x1 = source.x1 / max(1, source.width - 1)
     y0 = source.y0 / max(1, source.height - 1)
@@ -265,7 +238,6 @@ def _atlas_uv(name: str, u: float, v: float) -> tuple[float, float]:
         "left": (0.0, 0.0),
         "right": (0.5, 0.0),
     }[name]
-    # Keep a tiny inset so bilinear filtering never samples the adjacent view.
     inset = 1.0 / 1024.0
     return (
         tile[0] + inset + u * (0.5 - inset * 2.0),
@@ -274,12 +246,35 @@ def _atlas_uv(name: str, u: float, v: float) -> tuple[float, float]:
 
 
 def _projection_for_normal(normal: Vector) -> str:
-    # Side projections win only when the surface is more lateral than frontal.
-    # Up/down-facing cloth uses the nearest front/back source rather than a
-    # stretched side texture.
     if abs(normal.x) > abs(normal.y) * 1.05:
         return "left" if normal.x >= 0.0 else "right"
     return "front" if normal.y <= 0.0 else "back"
+
+
+def _projection_for_polygon(
+    normal: Vector,
+    centroid: Vector,
+    center: Vector,
+    x_half_span: float,
+    *,
+    outer_span_fraction: float = 0.45,
+) -> tuple[str, bool]:
+    """Select a view without collapsing T-pose arm length into a side profile.
+
+    Side orthographic views discard world X. For polygons near the outer X extent,
+    that removes the axis along the arm and maps many distant arm vertices onto the
+    same narrow shoulder/hand profile strip. Redirect only those polygons to the
+    front/back image matching their local circumference.
+    """
+
+    view = _projection_for_normal(normal)
+    outer_span = abs(float(centroid.x - center.x)) / max(x_half_span, 1e-8)
+    if view not in {"left", "right"} or outer_span < outer_span_fraction:
+        return view, False
+
+    if abs(float(normal.y)) >= 0.05:
+        return ("front" if normal.y <= 0.0 else "back"), True
+    return ("front" if centroid.y <= center.y else "back"), True
 
 
 def _material(atlas: bpy.types.Image) -> bpy.types.Material:
@@ -312,14 +307,6 @@ def project_multiview_texture(
     right: Path,
     output: Path,
 ) -> Path:
-    """Project four clean orthographic turnaround views onto aligned geometry.
-
-    UVs are selected per polygon from the most-facing camera, which preserves
-    crisp source colors and avoids dependence on a learned texture generator.
-    This is deliberately deterministic and headless; seams can later be blended
-    as a quality refinement without changing the pipeline contract.
-    """
-
     sources = {
         "front": _load_subject_image(front),
         "back": _load_subject_image(back),
@@ -329,6 +316,9 @@ def project_multiview_texture(
     atlas = _atlas_image(sources, output)
     material = _material(atlas)
     lo, hi = _bounds(meshes)
+    center = (lo + hi) * 0.5
+    x_half_span = max(abs(hi.x - lo.x) * 0.5, 1e-8)
+    outer_side_redirects = 0
 
     for mesh in meshes:
         if mesh.type != "MESH":
@@ -340,15 +330,19 @@ def project_multiview_texture(
             uv_layer = mesh.data.uv_layers.new(name="CharacterFactoryMultiview")
         mesh.data.uv_layers.active = uv_layer
 
-        # Normals transform with the inverse-transpose. On Madeline's current FBX
-        # this selects the same views as the historical direct 3x3 transform, but
-        # using the correct basis prevents future non-uniform object transforms from
-        # silently changing source-view selection.
         normal_matrix = mesh.matrix_world.to_3x3().inverted().transposed()
         world_matrix = mesh.matrix_world
         for polygon in mesh.data.polygons:
             world_normal = (normal_matrix @ polygon.normal).normalized()
-            view = _projection_for_normal(world_normal)
+            centroid = world_matrix @ polygon.center
+            view, redirected = _projection_for_polygon(
+                world_normal,
+                centroid,
+                center,
+                x_half_span,
+            )
+            if redirected:
+                outer_side_redirects += 1
             source = sources[view]
             for loop_index in polygon.loop_indices:
                 vertex_index = mesh.data.loops[loop_index].vertex_index
@@ -361,7 +355,7 @@ def project_multiview_texture(
     print(
         "multiview texture projection: "
         f"front={front.name} back={back.name} left={left.name} right={right.name} "
-        f"atlas={output}",
+        f"outerSideRedirects={outer_side_redirects} atlas={output}",
         flush=True,
     )
     return output
