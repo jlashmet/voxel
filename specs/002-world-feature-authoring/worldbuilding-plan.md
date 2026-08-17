@@ -141,8 +141,8 @@ Phase 0 evidence and compatibility targets are recorded in [worldbuilding-invent
 
 - [x] **WB041** Refactor the current castle path to shared wall/tower/opening/battlement/foundation components while preserving a compatibility preset.
 - [x] **WB042** Expose keep dimensions, levels, wall thickness, roof/parapet/top style, openings, and material palette.
-- [ ] **WB043** Expose curtain-wall polygon/rectangular dimensions, height/thickness, wall segmentation, and battlement controls.
-- [ ] **WB044** Expose tower count/placement, corner/intermediate towers, square/round-compatible shape choice, radius/width, height, taper/top, roof, openings, and crenellations.
+- [x] **WB043** Expose curtain-wall polygon/rectangular dimensions, height/thickness, wall segmentation, and battlement controls.
+- [x] **WB044** Expose tower count/placement, corner/intermediate towers, square/round-compatible shape choice, radius/width, height, taper/top, roof, openings, and crenellations.
 - [ ] **WB045** Add configurable gatehouse width/depth/height, gate opening, flanking towers, portcullis-ready opening hook, and road anchor.
 - [ ] **WB046** Add courtyard configuration and slots/anchors for secondary buildings.
 - [ ] **WB047** Add optional moat/ditch terrain-carve configuration if expressible within current bounded terrain adaptation; otherwise record it as a separate follow-up rather than hiding an unbounded carve.
