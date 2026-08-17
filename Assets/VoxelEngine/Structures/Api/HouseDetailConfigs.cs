@@ -18,7 +18,11 @@ namespace VoxelEngine.Structures.Api
         ExplicitOffsets = 2,
     }
 
-    /// <summary>Door layout for one facade, including optional step/porch treatment.</summary>
+    /// <summary>
+    /// Door layout for one facade. Door shape/frame semantics stay in <see cref="OpeningConfig"/>;
+    /// this layer owns facade count/placement and the bounded porch/step treatment associated with
+    /// that entry. The legacy step fields remain available for callers already composing them.
+    /// </summary>
     public struct HouseDoorLayoutConfig
     {
         public HouseFacade Facade;
@@ -26,6 +30,10 @@ namespace VoxelEngine.Structures.Api
         public int Count;
         public OpeningConfig Opening;
         public FixedList128Bytes<int> ExplicitOffsets;
+
+        /// <summary>Optional entry treatment tied to this facade's door layout.</summary>
+        public HouseEntryTreatmentConfig EntryTreatment;
+
         public bool StepsEnabled;
         public int StepDepth;
         public int StepHeight;
@@ -34,7 +42,9 @@ namespace VoxelEngine.Structures.Api
         public bool IsWellFormed =>
             Count >= 0 &&
             (Count == 0 || (Opening.Kind == StructureOpeningKind.Door && Opening.Width > 0 && Opening.Height > 0)) &&
+            EntryTreatment.IsWellFormed &&
             StepDepth >= 0 && StepHeight >= 0 &&
+            (!StepsEnabled || (StepDepth > 0 && StepHeight > 0)) &&
             (Placement != HouseFacadePlacementMode.ExplicitOffsets || ExplicitOffsets.Length == Count);
     }
 
