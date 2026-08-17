@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Reflection;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -32,6 +33,12 @@ namespace VoxelEngine.Tests.PlayMode
                 "A freshly loaded showcase must own exactly one far-terrain clipmap.");
             int originalInstanceId = initial[0].GetInstanceID();
             VoxelFarTerrain original = initial[0];
+            FieldInfo materialField = typeof(VoxelFarTerrain).GetField(
+                "m_Material", BindingFlags.NonPublic | BindingFlags.Instance);
+            Assert.NotNull(materialField);
+            Material originalMaterial = materialField.GetValue(original) as Material;
+            Assert.NotNull(originalMaterial,
+                "Dynamically-created far terrain did not create its fallback material.");
 
             showcase.enabled = false;
             yield return null;
@@ -44,6 +51,8 @@ namespace VoxelEngine.Tests.PlayMode
               + "world being disposed.");
             Assert.True(original == null,
                 "The original far-terrain component survived the showcase lifecycle boundary.");
+            Assert.True(originalMaterial == null,
+                "Destroying the dynamically-created far terrain leaked its owned fallback Material.");
 
             showcase.enabled = true;
             yield return null;
