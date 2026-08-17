@@ -17,7 +17,35 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  character-factory:
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          clean: true
+          fetch-depth: 1
+
+      - name: Character Factory contract
+        shell: bash
+        run: bash tools/character-factory/ci/run_contract_tests.sh
+
+      - name: Character Factory Blender smoke
+        shell: bash
+        env:
+          CHARACTER_FACTORY_SMOKE_OUT: ${{ github.workspace }}/Artifacts/CharacterFactorySmoke
+        run: bash tools/character-factory/ci/run_blender_smoke.sh
+
+      - name: Upload Character Factory smoke artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: master-character-factory-smoke
+          path: Artifacts/CharacterFactorySmoke/**
+          if-no-files-found: ignore
+
   editmode:
+    needs: character-factory
     runs-on: [self-hosted, macOS]
     timeout-minutes: 60
     steps:
