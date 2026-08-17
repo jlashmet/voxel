@@ -16,15 +16,20 @@ namespace VoxelEngine.Tests.PlayMode
 {
     /// <summary>
     /// Focused lifecycle gate for the production step-4 castle disappearance. This deliberately
-    /// does not compare screenshots or change renderer budgets. It holds the real showcase camera
-    /// in the step-4 band until every frustum-intersecting step-4 chunk has been adjudicated as
-    /// ready or authoritative-empty, then requires at least one ready chunk. A failure prints the
-    /// exact ownership -> ordinary geometry -> fallback -> publication counters so the next repair
-    /// is chosen from evidence rather than another coarse-geometry guess.
+    /// does not compare screenshots or change renderer budgets. It parks the real showcase camera
+    /// in the step-4 band, then aims at the nearest actual step-4 active slot rather than assuming
+    /// the castle reference point happens to fall inside a coarse chunk's narrow test frustum.
+    /// Once a witness enters the frustum, every intersecting step-4 chunk must be adjudicated as
+    /// ready or authoritative-empty and at least one must remain ready. A failure prints the exact
+    /// ownership -> ordinary geometry -> fallback -> publication counters so the next repair is
+    /// chosen from evidence rather than another coarse-geometry guess.
     /// </summary>
     public sealed class Step4FalseEmptyLifecycleTests
     {
         private const string ScenePath = "Assets/Scenes/VoxelShowcase.unity";
+        private const int Step4SourceStep = 4;
+        private const float Step4InnerRadiusMetres = 192f;
+        private const float Step4OuterRadiusMetres = 288f;
 
         [UnityTest, Timeout(900000)]
         public IEnumerator Step4CastleFrustumCannotSettleEntirelyAsAuthoritativeEmpty()
@@ -79,6 +84,7 @@ namespace VoxelEngine.Tests.PlayMode
                 Step4FalseEmptyDiagnostics.Reset();
 
                 VoxelSurfaceMetrics metrics = default;
+                bool aimedAtWitness = false;
                 bool sawFrustum = false;
                 bool adjudicated = false;
                 int frames = 0;
@@ -88,6 +94,14 @@ namespace VoxelEngine.Tests.PlayMode
                     RenderUrpCamera(camera);
                     yield return null;
                     metrics = VoxelRenderBridge.SurfaceMetrics;
+
+                    // Surface discovery/clipmap admission does not require frustum ownership. Once
+                    // the first real step-4 slot exists in this camera's shell, point the same
+                    // fixed camera position directly at that slot. This keeps the regression about
+                    // the step-4 worker lifecycle, not about accidental alignment between the
+                    // authored castle reference point and a 25.6 m coarse chunk grid.
+                    if (!aimedAtWitness)
+                        aimedAtWitness = TryAimAtNearestStep4ActiveSlot(camera, centre);
 
                     sawFrustum |= metrics.Step4VisibilityFrustum > 0;
                     if (!sawFrustum) continue;
@@ -99,9 +113,12 @@ namespace VoxelEngine.Tests.PlayMode
                     if (adjudicated) break;
                 }
 
-                string evidence = Evidence(metrics, frames);
+                string evidence = Evidence(metrics, frames)
+                                + $" witnessAimed={aimedAtWitness}.";
                 Debug.Log($"[Step4FalseEmptyGate] {evidence}");
 
+                Assert.True(aimedAtWitness,
+                    "Step-4 castle camera never found an in-band active slot to witness; " + evidence);
                 Assert.True(sawFrustum,
                     "Step-4 castle camera never acquired frustum ownership; " + evidence);
                 Assert.True(adjudicated,
@@ -119,6 +136,97 @@ namespace VoxelEngine.Tests.PlayMode
                 target.Release();
                 Object.DestroyImmediate(target);
             }
+        }
+
+        private static bool TryAimAtNearestStep4ActiveSlot(Camera camera, Vector3 castleCentre)
+        {
+            VoxelRenderPass pass = VoxelRenderBridge.ActivePass;
+            if (pass == null) return false;
+
+            FieldInfo schedulerField = typeof(VoxelRenderPass).GetField(
+                "_scheduler", BindingFlags.NonPublic | BindingFlags.Instance);
+            object scheduler = schedulerField?.GetValue(pass);
+            if (scheduler == null) return false;
+
+            FieldInfo ringsField = scheduler.GetType().GetField(
+                "_rings", BindingFlags.NonPublic | BindingFlags.Instance);
+            System.Array rings = ringsField?.GetValue(scheduler) as System.Array;
+            if (rings == null) return false;
+
+            bool found = false;
+            Bounds bestBounds = default;
+            float bestScore = float.PositiveInfinity;
+            float voxelSize = pass.VoxelSize;
+            Vector3 cameraPosition = camera.transform.position;
+
+            foreach (object ring in rings)
+            {
+                System.Type ringType = ring.GetType();
+                FieldInfo sourceStepField = ringType.GetField(
+                    "SourceStep", BindingFlags.Public | BindingFlags.Instance);
+                if (sourceStepField == null
+                    || (int)sourceStepField.GetValue(ring) != Step4SourceStep)
+                    continue;
+
+                PropertyInfo activeCountProperty = ringType.GetProperty(
+                    "ActiveSlotCount", BindingFlags.Public | BindingFlags.Instance);
+                MethodInfo activeCoordinateMethod = ringType.GetMethod(
+                    "ActiveSlotCoordinate", BindingFlags.Public | BindingFlags.Instance);
+                if (activeCountProperty == null || activeCoordinateMethod == null) return false;
+
+                int activeCount = (int)activeCountProperty.GetValue(ring);
+                for (int i = 0; i < activeCount; i++)
+                {
+                    int3 coordinate = (int3)activeCoordinateMethod.Invoke(
+                        ring, new object[] { i });
+                    Bounds bounds = Step4ChunkBounds(coordinate, voxelSize);
+                    if (!WithinStep4Band(bounds, cameraPosition)) continue;
+
+                    float score = (bounds.center - castleCentre).sqrMagnitude;
+                    if (score >= bestScore) continue;
+                    bestScore = score;
+                    bestBounds = bounds;
+                    found = true;
+                }
+            }
+
+            if (!found) return false;
+
+            Vector3 toWitness = bestBounds.center - cameraPosition;
+            float witnessDistance = toWitness.magnitude;
+            if (witnessDistance <= 0.01f) return false;
+
+            float witnessRadius = bestBounds.extents.magnitude;
+            camera.transform.LookAt(bestBounds.center);
+            camera.orthographicSize = Mathf.Max(24f, witnessRadius + 2f);
+            camera.nearClipPlane = Mathf.Max(0.05f, witnessDistance - witnessRadius - 2f);
+            camera.farClipPlane = witnessDistance + witnessRadius + 2f;
+            return true;
+        }
+
+        private static Bounds Step4ChunkBounds(int3 coordinate, float voxelSize)
+        {
+            float size = CpuTransvoxelChunkCache.CellsPerAxis * Step4SourceStep * voxelSize;
+            Vector3 min = new Vector3(coordinate.x, coordinate.y, coordinate.z) * size;
+            return new Bounds(
+                min + Vector3.one * (size * 0.5f),
+                Vector3.one * (size + Step4SourceStep * voxelSize * 2f));
+        }
+
+        private static bool WithinStep4Band(Bounds bounds, Vector3 cameraPosition)
+        {
+            Vector3 extents = bounds.extents;
+            Vector3 delta = bounds.center - cameraPosition;
+            float nearX = Mathf.Max(0f, Mathf.Abs(delta.x) - extents.x);
+            float nearY = Mathf.Max(0f, Mathf.Abs(delta.y) - extents.y);
+            float nearZ = Mathf.Max(0f, Mathf.Abs(delta.z) - extents.z);
+            float near = Mathf.Max(nearX, Mathf.Max(nearY, nearZ));
+            if (near > Step4OuterRadiusMetres) return false;
+
+            float far = Mathf.Max(Mathf.Abs(delta.x) + extents.x,
+                        Mathf.Max(Mathf.Abs(delta.y) + extents.y,
+                                  Mathf.Abs(delta.z) + extents.z));
+            return far > Step4InnerRadiusMetres;
         }
 
         private static string Evidence(in VoxelSurfaceMetrics metrics, int frames) =>
