@@ -798,13 +798,19 @@ namespace VoxelEngine.Tests.EditMode
 
             cache.InvalidateSurfaceBricks(new[] { new int3(1, 1, 1) });
             Assert.AreEqual(1, cache.KnownCount);
+            Assert.AreEqual(0, cache.DirtyCount,
+                "A cold mutation advances truth without creating offscreen render work.");
+            Assert.True(cache.RequestHierarchyCoverage(
+                int3.zero, SurfaceBuildPriority.VisibleRefinement));
             Assert.AreEqual(1, cache.DirtyCount);
 
             // Brick eight begins the next 64-voxel extraction chunk. Because it lies on all three
-            // local zero faces, the one-brick sampling halo also invalidates seven neighbours.
+            // local zero faces, the one-brick sampling halo admits seven neighbours too. Those
+            // invalidations stay cold: only the already-requested origin remains queued.
             cache.InvalidateSurfaceBricks(new[] { new int3(8, 8, 8) });
             Assert.AreEqual(8, cache.KnownCount);
-            Assert.AreEqual(8, cache.DirtyCount);
+            Assert.AreEqual(1, cache.DirtyCount,
+                "Halo invalidation must not flood newly admitted cold neighbours into the queue.");
         }
 
         [Test]

@@ -283,20 +283,24 @@ namespace VoxelEngine.Tests.EditMode
             Assert.AreEqual(1, cache.DiscoverSurfaceBricks(new[] { brick }),
                 "The first immutable summary publication must admit the chunk.");
             Assert.AreEqual(1, cache.KnownCount);
-            Assert.AreEqual(1, cache.DirtyCount);
+            Assert.AreEqual(0, cache.DirtyCount,
+                "Discovery must admit render ownership without creating geometry work.");
 
             Assert.AreEqual(0, cache.DiscoverSurfaceBricks(new[] { brick }),
                 "Later publication slices for the same unchanged region must not create a new "
               + "source generation for an already-known chunk.");
             Assert.AreEqual(1, cache.KnownCount);
-            Assert.AreEqual(1, cache.DirtyCount);
+            Assert.AreEqual(0, cache.DirtyCount);
 
-            // Real edits keep the old semantics: known chunks are explicitly invalidated. The
-            // dirty set coalesces membership, but the call is still routed through the mutation
-            // path rather than discovery admission.
+            // A real edit invalidates the generation proof but remains cold until visible
+            // coverage explicitly requests it. This is the demand-driven T2 contract.
             cache.InvalidateSurfaceBricks(new[] { brick });
             Assert.AreEqual(1, cache.KnownCount);
-            Assert.AreEqual(1, cache.DirtyCount);
+            Assert.AreEqual(0, cache.DirtyCount);
+            Assert.True(cache.RequestHierarchyCoverage(
+                int3.zero, SurfaceBuildPriority.VisibleRefinement));
+            Assert.AreEqual(1, cache.DirtyCount,
+                "Explicit coverage demand must enqueue the invalidated generation.");
         }
 
         [Test]
