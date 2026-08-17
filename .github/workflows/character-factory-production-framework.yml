@@ -40,7 +40,7 @@ jobs:
           bash -n tools/character-factory/production/sunlit-cleric/build_staff_macos.sh
           bash -n tools/character-factory/ci/bootstrap_hunyuan_quality_macos.sh
 
-      - name: Run production routing, reference, and backend-profile tests
+      - name: Run production routing, reference, backend, and appearance tests
         shell: bash
         run: |
           set -euo pipefail
@@ -50,6 +50,7 @@ jobs:
             tools/character-factory/tests/test_production_routing.py \
             tools/character-factory/tests/test_reference_contract.py \
             tools/character-factory/tests/test_backend_profiles.py \
+            tools/character-factory/tests/test_appearance_profiles.py \
             -v
 
       - name: List pinned backend profiles
@@ -61,7 +62,7 @@ jobs:
           grep -q '^hunyuan-smoke-macos' /tmp/profiles.txt
           grep -q '^triposr-smoke-macos' /tmp/profiles.txt
 
-      - name: Dry-run every production asset type
+      - name: Dry-run every production asset type and appearance strategy
         shell: bash
         run: |
           set -euo pipefail
