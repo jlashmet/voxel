@@ -36,7 +36,6 @@ namespace Game.Structures.Api
         Civic = 6,
     }
 
-    /// <summary>Stable data-only identity for an ordinary structure preset.</summary>
     public enum CityStructurePresetId : byte
     {
         CompactCabin = 0,
@@ -62,10 +61,16 @@ namespace Game.Structures.Api
         West = 3,
     }
 
+    /// <summary>
+    /// Bounded lot envelope. Candidate lots choose deterministic integer dimensions inside these
+    /// ranges; the grid pitch uses maxima so neighbouring candidates never overlap as sizes vary.
+    /// </summary>
     public struct CityLotConfig
     {
-        public int Width;
-        public int Depth;
+        public int MinimumWidth;
+        public int MaximumWidth;
+        public int MinimumDepth;
+        public int MaximumDepth;
         public int FrontSetback;
         public int RearSetback;
         public int SideSetback;
@@ -73,16 +78,14 @@ namespace Game.Structures.Api
         public int OccupancyPermille;
 
         public bool IsWellFormed =>
-            Width >= 8 && Depth >= 8 && FrontSetback >= 0 && RearSetback >= 0 &&
-            SideSetback >= 0 && MinimumSpacing >= 0 &&
-            OccupancyPermille >= 0 && OccupancyPermille <= 1000 &&
-            Width - SideSetback * 2 >= 4 &&
-            Depth - FrontSetback - RearSetback >= 4 &&
-            Width - FrontSetback - RearSetback >= 4 &&
-            Depth - SideSetback * 2 >= 4;
-
-        public int BuildableWidth => Width - SideSetback * 2;
-        public int BuildableDepth => Depth - FrontSetback - RearSetback;
+            MinimumWidth >= 8 && MaximumWidth >= MinimumWidth &&
+            MinimumDepth >= 8 && MaximumDepth >= MinimumDepth &&
+            FrontSetback >= 0 && RearSetback >= 0 && SideSetback >= 0 &&
+            MinimumSpacing >= 0 && OccupancyPermille >= 0 && OccupancyPermille <= 1000 &&
+            MinimumWidth - SideSetback * 2 >= 4 &&
+            MinimumDepth - FrontSetback - RearSetback >= 4 &&
+            MinimumWidth - FrontSetback - RearSetback >= 4 &&
+            MinimumDepth - SideSetback * 2 >= 4;
     }
 
     public struct CityPaletteEntry
@@ -107,7 +110,6 @@ namespace Game.Structures.Api
         public CityDistrictMask Districts;
         public int MinimumBuildableWidth;
         public int MinimumBuildableDepth;
-        /// <summary>Bounded deterministic cadence; zero disables the rule.</summary>
         public int EveryNthEligibleLot;
         public int Priority;
 
@@ -117,10 +119,6 @@ namespace Game.Structures.Api
             CityStructurePresetLibrary.MatchesArchetype(Archetype, PresetId);
     }
 
-    /// <summary>
-    /// Region-local city composition input. Block counts, palette entries, landmark rules, and every
-    /// derived candidate are explicitly bounded; this contract cannot request global world planning.
-    /// </summary>
     public struct CityConfig
     {
         public const int MaximumBlocksPerAxis = 32;
@@ -139,8 +137,8 @@ namespace Game.Structures.Api
         public FixedList512Bytes<CityLandmarkRule> Landmarks;
 
         public int CandidateCount => BlocksX * BlocksZ;
-        public int BlockPitchX => Lot.Width + StreetWidth + Lot.MinimumSpacing;
-        public int BlockPitchZ => Lot.Depth + StreetWidth + Lot.MinimumSpacing;
+        public int BlockPitchX => Lot.MaximumWidth + StreetWidth + Lot.MinimumSpacing;
+        public int BlockPitchZ => Lot.MaximumDepth + StreetWidth + Lot.MinimumSpacing;
 
         public bool IsWellFormed
         {
@@ -200,8 +198,10 @@ namespace Game.Structures.Api
                 CivicDensityPermille = 760,
                 Lot = new CityLotConfig
                 {
-                    Width = 112,
-                    Depth = 96,
+                    MinimumWidth = 96,
+                    MaximumWidth = 112,
+                    MinimumDepth = 88,
+                    MaximumDepth = 104,
                     FrontSetback = 8,
                     RearSetback = 8,
                     SideSetback = 8,
