@@ -38,21 +38,21 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void StreamingAndFarHoleUseTheSameCameraRelativeFootprint()
+        public void BoundedStreamingMakesFarHoleConservativeAtSubRegionOffsets()
         {
             string world = File.ReadAllText(WorldPath);
 
-            StringAssert.Contains("RefreshPending(centre, cameraMetres)", world,
-                "Streaming eligibility needs the actual camera offset inside its current region.");
-            Assert.AreEqual(2, Regex.Matches(
+            StringAssert.Contains("RefreshPending(centre)", world,
+                "Full-detail residency must stay on the bounded radius-8 region budget; expanding "
+              + "the loaded disc for sub-region camera offsets exhausts the mixed-brick pool.");
+            StringAssert.Contains(
+                "dx * dx + dz * dz > LoadRadiusRegions * LoadRadiusRegions", world,
+                "The wanted set must retain its bounded integer-region disc.");
+            Assert.AreEqual(1, Regex.Matches(
                     world, @"ShowcaseResidencyFootprint\.ColumnIntersectsRadius\(",
                     RegexOptions.CultureInvariant).Count,
-                "Both wanted-set admission and ResidentGroundRadiusMetres must use the same "
-              + "camera-relative physical footprint.");
-            StringAssert.DoesNotContain(
-                "dx * dx + dz * dz > LoadRadiusRegions * LoadRadiusRegions", world,
-                "A region-index disc lags the camera by up to one region diagonal and can leave "
-              + "physically in-range coarse LOD core regions unloaded.");
+                "Camera-relative geometry belongs only in ResidentGroundRadiusMetres: fringe "
+              + "columns outside the bounded world budget must shrink the far hole, not grow residency.");
             StringAssert.Contains("math.min(LoadRadiusRegions * RegionMetres", world,
                 "The published near-coverage radius must never exceed the configured physical radius.");
         }
