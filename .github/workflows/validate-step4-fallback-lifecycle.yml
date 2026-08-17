@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/voxel-showcase-rendering-repair-v2
+      - feature/voxel-showcase-rendering-repair-v2-lifecycle-clean
     paths:
       - .github/workflows/validate-step4-fallback-lifecycle.yml
 
@@ -11,7 +12,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: unity-step4-lifecycle
+  group: unity-step4-lifecycle-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -21,7 +22,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: feature/voxel-showcase-rendering-repair-v2
           clean: true
           fetch-depth: 1
 
