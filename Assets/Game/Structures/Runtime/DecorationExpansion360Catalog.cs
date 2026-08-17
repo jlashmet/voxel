@@ -51,8 +51,8 @@ namespace Game.Structures.Runtime
             if (i < 0 || i >= Count) return default;
             DecorationContentShape[] shapes =
             {
-                DecorationContentShape.Pedestal, DecorationContentShape.Pedestal, DecorationContentShape.Bench,
-                DecorationContentShape.Bench, DecorationContentShape.LampPost, DecorationContentShape.Well,
+                DecorationContentShape.Pedestal, DecorationContentShape.Pedestal, DecorationContentShape.WorkSurface,
+                DecorationContentShape.WorkSurface, DecorationContentShape.LampPost, DecorationContentShape.Well,
                 DecorationContentShape.Coffin, DecorationContentShape.Pedestal, DecorationContentShape.Monument,
                 DecorationContentShape.Pedestal, DecorationContentShape.Pedestal, DecorationContentShape.LampPost,
                 DecorationContentShape.Tub, DecorationContentShape.Hanging, DecorationContentShape.Post,
