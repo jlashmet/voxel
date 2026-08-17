@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 import sys
@@ -42,6 +43,60 @@ class CatalogueTests(unittest.TestCase):
         self.assertIsNotNone(sword["referenceHashes"]["geometry"]["front"])
         self.assertIsNotNone(sword["referenceHashes"]["appearance"]["front"])
         self.assertIsNotNone(sword["referenceHashes"]["details"]["ornament"])
+        self.assertIsNone(sword["latestArtifact"])
+
+    def test_catalogue_records_latest_output_preview_and_cache_fingerprints(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            spec_path = root / "weapon" / "asset.json"
+            self._write_weapon(spec_path, "sword_01")
+            entries = load_catalogue_entries(root)
+            spec = entries[0].spec
+            spec.output_dir.mkdir(parents=True, exist_ok=True)
+
+            output = spec.output_dir / "sword_01.fbx"
+            preview = spec.output_dir / "sword_01.preview.png"
+            output.write_bytes(b"final-fbx")
+            preview.write_bytes(b"preview-png")
+            (spec.output_dir / "manifest.json").write_text(
+                json.dumps(
+                    {
+                        "id": "sword_01",
+                        "assetType": "weapon",
+                        "status": "complete",
+                        "generatedAtUtc": "2026-08-17T20:00:00+00:00",
+                        "output": str(output),
+                        "geometryCache": {
+                            "fingerprint": "geometry-fingerprint-123",
+                            "hit": True,
+                        },
+                        "production": {
+                            "previews": {"bind": str(preview)},
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            payload = catalogue_payload(root)
+
+        latest = payload["assets"][0]["latestArtifact"]
+        self.assertEqual("complete", latest["buildStatus"])
+        self.assertEqual("complete", latest["productionStatus"])
+        self.assertTrue(latest["manifestReadable"])
+        self.assertEqual(
+            hashlib.sha256(b"final-fbx").hexdigest(),
+            latest["output"]["sha256"],
+        )
+        self.assertEqual(
+            hashlib.sha256(b"preview-png").hexdigest(),
+            latest["previews"]["bind"]["sha256"],
+        )
+        self.assertEqual(
+            "geometry-fingerprint-123",
+            latest["geometryCache"]["fingerprint"],
+        )
+        self.assertTrue(latest["geometryCache"]["hit"])
 
     def test_duplicate_type_and_id_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -79,14 +134,12 @@ class CatalogueTests(unittest.TestCase):
             self._write_weapon(spec_path, "sword_01")
             baseline = catalogue_payload(root)
 
-            # Geometry-only content change.
             (spec_path.parent / "front.png").write_bytes(b"geometry-v2")
             changes, removed = classify_changes(load_catalogue_entries(root), baseline)
             self.assertEqual([], removed)
             self.assertEqual(1, len(changes))
             self.assertEqual(frozenset({"geometry"}), changes[0].kinds)
 
-            # Reset the baseline, then change only appearance.
             baseline = catalogue_payload(root)
             (spec_path.parent / "appearance.png").write_bytes(b"appearance-v2")
             changes, _ = classify_changes(load_catalogue_entries(root), baseline)
@@ -100,7 +153,6 @@ class CatalogueTests(unittest.TestCase):
                 select_changed_entries(changes, change_kinds={"geometry"}),
             )
 
-            # Reset again, then change only a named detail.
             baseline = catalogue_payload(root)
             (spec_path.parent / "ornament.png").write_bytes(b"ornament-v2")
             changes, _ = classify_changes(load_catalogue_entries(root), baseline)
@@ -115,12 +167,10 @@ class CatalogueTests(unittest.TestCase):
             self._write_clothing(robe_path, "robe_01")
             baseline = catalogue_payload(root)
 
-            # Spec-only change: adjust target length without touching references.
             payload = json.loads(sword_path.read_text(encoding="utf-8"))
             payload["rigid"]["targetLength"] = 1.35
             sword_path.write_text(json.dumps(payload), encoding="utf-8")
 
-            # Remove the robe and add a new staff.
             robe_path.unlink()
             self._write_weapon(root / "staff" / "asset.json", "staff_01")
 
