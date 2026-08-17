@@ -53,8 +53,14 @@ namespace VoxelEngine.Structures.Api
                 if (Height <= 0 || Count <= 0 || Spacing < 0)
                     return false;
                 if (Shape == StructureTowerShape.Round)
-                    return Radius > 0;
-                return Width > 0 && Depth > 0;
+                {
+                    if (Radius <= 0) return false;
+                }
+                else if (Width <= 0 || Depth <= 0)
+                {
+                    return false;
+                }
+                return true;
             }
         }
     }
