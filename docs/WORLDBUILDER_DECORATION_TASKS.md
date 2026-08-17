@@ -9,183 +9,65 @@ This checklist is the source of truth for implementation progress. Mark each ite
 
 ## Current implementation notes
 
+- The game content target is a **fantasy RPG in a magic world**. New decoration work should favor magical, medieval/fantasy, ancient, rustic, religious, dungeon, wilderness, monster, adventuring, trade, domestic, and fantastical content. Do not spend catalog budget on modern buildings, modern civic infrastructure, or military/war-room/training-yard content.
+- Ordinary medieval weapons/armor can still appear where they make sense as fantasy-world shop, guard, adventurer, trophy, dungeon, or castle dressing; they are not a standalone military-content priority.
 - The generic semantic resolver, deterministic scene scheduler, stable prop IDs, socket/exclusion model, style/wealth/condition profiles, backend dispatch, runtime batching/detail policy, and persistence overlays are implemented.
 - Castle bedroom and great-hall furniture have procedural integration paths; many other legacy castle details remain available for incremental migration.
 - Cave runtime content includes `CaveCampScene`, natural cave environmental families, and occupied/mine environmental families.
-- The natural/mine runtime source is present, but dedicated `NaturalCaveDecorationTests.cs` and `MineCaveDecorationTests.cs` source files are not currently present on the branch. Do not treat earlier notes implying those test files were committed as validation evidence.
 - Unity/CI execution and visual/performance evidence remain separate completion gates.
-- Large-scale content uses coarse prop families as behavior/placement classes while stable archetype IDs carry actual object identity in deterministic variant bits.
-- The content identity space now contains **200 stable archetypes**. IDs 1-114 remain in `DecorationContentKind`; IDs 115-200 are append-only stable IDs in `DecorationExpandedContentKind`. Both use the same 10-bit stable-id / 20-bit variation encoding layout, leaving room through ID 1023.
-- IDs 1-42 cover smithy/tavern/crypt/market/stable/prison/civic; 43-60 carpentry/wheelwright; 61-84 textile/leather/pottery; 85-114 kitchen/bakery/brewery/winery/pantry; 115-144 alchemy/magic/occult/observatory; 145-168 graveyard/funerary/catacomb; 169-200 farmyard/garden/street/civic exterior dressing.
-- `DecorationContentAuthoringEmitter` and `DecorationExpansion200AuthoringEmitter` use shared shape grammars so content growth is mostly catalog data. Procedural-mesh and thin-surface items remain data requests; integrated/box content has baseline geometry authoring.
-- Relational composition reuses semantic sub-spaces while delegating validity/collision/exclusion decisions to `DecorationPlacementResolver`.
-- Implemented content compositions include the initial seven scenes; carpentry, textile, leather, pottery, kitchen, bakery, brewery, winery and pantry; plus alchemy lab, ritual chamber, observatory, graveyard, catacomb, farmyard, garden court and civic street.
-- `DecorationExpansion200Tests` verifies every stable ID 115-200 has a well-formed recipe/descriptor and round-trips identity, checks scene socket compatibility, exercises eight new scenes across representative seeds, and verifies backend/interaction diversity. These remain source tests until Unity/CI executes them.
+- The content identity space contains **260 stable archetypes in source**. IDs 1-200 cover the original craft, domestic, dungeon, arcane, funerary, farm and settlement packs. IDs 201-220 add fantasy merchants; IDs 221-240 are explicitly magical/enchanter/familiar/arcane-gallery content; IDs 241-260 add lived-in/noble household content.
+- IDs 221-240 were originally drafted as military/training content but were replaced before further expansion with enchanter workstations, rune/wand/staff making, enchanted displays, familiars, levitating books, magic mirrors, divination, elemental braziers, mana fonts, portal/ward pieces, fairy lights and enchanted plants.
+- The stable-ID encoding leaves room through ID 1023, so the 400+ target remains append-only.
 
-## Setup and architecture
+## Completed architecture and first content foundation
 
-- [x] **DEC001** Create `agent/worldbuilding-decorations` from `agent/worldbuilding-structures-caves`.
-- [x] **DEC002** Inspect current `Game.Structures.Api`, `Game.Structures.Runtime`, and `Game.WorldBuilder` ownership boundaries.
-- [x] **DEC003** Document the procedural decoration architecture and implementation order.
-- [x] **DEC004** Create this tracked task list and establish the rule that completed implementation work is checked off here.
-
-## Foundation API
-
-- [x] **DEC010** Define backend-independent decoration context/value types.
-- [x] **DEC011** Define semantic placement socket kinds and socket data.
-- [x] **DEC012** Define prop recipe/descriptor vocabulary.
-- [x] **DEC013** Define resolved `DecorationPlacement` output with stable semantic identity and anchor relationship data.
-- [x] **DEC014** Define decoration scene recipe/slot vocabulary.
-- [x] **DEC015** Add validation rules for invalid dimensions, unsupported sockets, impossible clearances, and invalid scene dependency graphs.
-- [x] **DEC016** Add focused API tests for foundation value types and validation rules.
-
-## Determinism and identity
-
-- [x] **DEC020** Implement deterministic seed derivation for structure -> space -> scene -> prop slot.
-- [x] **DEC021** Implement stable generated prop IDs that do not depend on runtime iteration order.
-- [x] **DEC022** Add tests proving identical context/seed produces identical placements/IDs and controlled seed changes produce variation.
-
-## Space analysis and placement
-
-- [x] **DEC030** Define `DecorationSpace` plus associated semantic socket and exclusion data.
-- [x] **DEC031** Implement rectangular/interior room floor socket extraction.
-- [x] **DEC032** Implement wall socket extraction with usable span, facing, and height constraints.
-- [x] **DEC033** Implement corner and ceiling socket extraction.
-- [x] **DEC034** Represent door, stair, navigation, gameplay, and hazard exclusion regions.
-- [x] **DEC035** Implement placement collision/clearance checks and deterministic candidate ordering.
-- [x] **DEC036** Add placement invariant tests.
-
-## First prop families
-
-- [x] **DEC040** Implement parameterized bed recipe/authoring data.
-- [x] **DEC041** Implement parameterized dresser/cabinet recipe/authoring data.
-- [x] **DEC042** Implement rug/carpet/runner recipe/authoring data with thin-surface intent.
-- [x] **DEC043** Implement painting/frame/tapestry recipe/authoring data with wall-surface intent.
-- [x] **DEC044** Implement wall torch recipe/authoring data with light/emissive hook intent.
-- [x] **DEC045** Add deterministic variation tests across prop dimensions/style/material parameters.
-
-## Bedroom vertical slice
-
-- [x] **DEC050** Implement `BedroomScene` with bed as the primary anchor.
-- [x] **DEC051** Place rug relative to the bed rather than independently.
-- [x] **DEC052** Place dresser against a compatible secondary wall with standing clearance.
-- [x] **DEC053** Place painting above a compatible wall/furniture region.
-- [x] **DEC054** Place wall torch using wall socket and spacing rules.
-- [x] **DEC055** Add scene tests for required/optional slot resolution and dependency order.
-- [x] **DEC056** Verify multiple seeds remain coherent and deterministic without leaving room bounds.
-
-## Castle integration
-
-- [x] **DEC060** Expose one castle bedroom/interior as a semantic `DecorationSpace`.
-- [x] **DEC061** Run the bedroom scene through castle authoring/build output.
-- [x] **DEC062** Add castle integration tests proving the first five props resolve in a representative room.
-- [x] **DEC063** Add debug/look-dev visibility for decoration sockets, exclusions, anchor relationships, and resolved placements.
-
-## Style, wealth, and condition
-
-- [x] **DEC070** Add style/culture profiles.
-- [x] **DEC071** Add wealth tiers.
-- [x] **DEC072** Add condition/damage tiers.
-- [x] **DEC073** Add tests proving context changes variation without breaking placement invariants.
-
-## Cave reuse
-
-- [x] **DEC080** Add cave-space adapter for walkable floor patches.
-- [x] **DEC081** Derive cave wall, ceiling, alcove, and ledge placement candidates.
-- [x] **DEC082** Add cave hazard/exclusion support.
-- [x] **DEC083** Implement `CaveCampScene` using the same scene/placement abstractions.
-- [x] **DEC084** Prove castle and cave decoration feed the same core semantic concepts in source/tests.
-
-## Render/build backends
-
-- [x] **DEC090** Define backend dispatch contract.
-- [x] **DEC091** Implement box-assembly backend.
-- [x] **DEC092** Implement true thin-surface backend.
-- [x] **DEC093** Add voxel/structure stamp backend.
-- [x] **DEC094** Add procedural-mesh hook.
-- [x] **DEC095** Add optional light/emissive/particle hooks.
-
-## Runtime scale and persistence
-
-- [x] **DEC100** Separate semantic/interactable metadata from static render geometry.
-- [x] **DEC101** Add batching/static-combination path.
-- [x] **DEC102** Add distance/detail policy.
-- [x] **DEC103** Define persistence delta contract keyed by deterministic prop ID.
-- [x] **DEC104** Add state-override tests for regenerated baselines.
-
-## First content expansion
-
-- [x] **DEC110** Add table/chair/bench families and dining scene.
-- [x] **DEC111** Add chest/shelf/bookcase/storage families.
-- [x] **DEC112** Add fireplace/candle/chandelier/standing-lamp families.
-- [x] **DEC113** Add banners/curtains/shields/weapons/armor display families.
-- [x] **DEC114** Add books, pottery, food, tools, containers, and tabletop clutter.
-- [x] **DEC115** Add guard post, kitchen, dining hall, library/study, chapel/shrine, barracks, throne room, cellar, and storage scene source.
-- [x] **DEC116** Add natural cave runtime families.
-- [x] **DEC117** Add mine/occupied-cave runtime families.
+- [x] **DEC001-DEC117** Core decoration architecture, first castle/cave integration, render backends, runtime scale/persistence, and first content expansion.
 - [ ] **DEC118** Restore dedicated natural-cave regression source and Unity metadata.
 - [ ] **DEC119** Restore dedicated occupied/mine-cave regression source and Unity metadata.
+- [x] **DEC130-DEC144** Scalable archetype identity, shared shape grammar, first 114 archetypes and coherent smithy/tavern/crypt/market/stable/prison/civic/craft/food-production scenes.
+- [x] **DEC146** Farm/animal-husbandry source pack.
+- [x] **DEC147** Fantasy street/courtyard/garden source pack; avoid modern-city-specific follow-ons.
+- [x] **DEC150** Graveyard/funerary/catacomb source pack.
+- [x] **DEC153** Alchemy/magic/occult/observatory source pack.
+- [x] **DEC162** Reach 200 stable archetypes with integrity and representative multi-seed scene test source.
+- [x] **DEC166-DEC174** Craft and food-production scene milestones.
+- [x] **DEC176** Farmyard composition.
+- [x] **DEC178-DEC184** Alchemy, ritual, observatory, graveyard, catacomb, garden and fantasy-street scene source.
 
-## Large-scale content library — 400+ archetype target
+## Fantasy content expansion — next priorities
 
-- [x] **DEC130** Implement scalable content-archetype identity/variant encoding while retaining coarse `DecorationPropFamily` behavior classes.
-- [x] **DEC131** Implement the first 42 archetype recipes spanning smithy, tavern, crypt, market, stable, prison, and civic packs.
-- [x] **DEC132** Implement generic content authoring-shape grammar so new archetypes usually require catalog data rather than a bespoke authorer.
-- [x] **DEC133** Implement content-scene slot wrapper that reuses `DecorationSceneScheduler` and `DecorationPlacementResolver`.
-- [x] **DEC134** Add coherent smithy scene.
-- [x] **DEC135** Add coherent tavern-bar scene.
-- [x] **DEC136** Add coherent crypt scene.
-- [x] **DEC137** Add coherent market scene.
-- [x] **DEC138** Add coherent stable scene.
-- [x] **DEC139** Add coherent prison scene.
-- [x] **DEC140** Add coherent civic-corner scene.
-- [x] **DEC141** Add catalog/scene deterministic test source for the initial archetypes and representative multi-seed rooms.
-- [x] **DEC142** Add carpentry/general-workshop pack (stable archetype IDs 43-60).
-- [x] **DEC143** Add textile/leather/pottery craft pack (stable archetype IDs 61-84).
-- [x] **DEC144** Add kitchen/bakery/brewery/winery/pantry pack (stable archetype IDs 85-114).
-- [ ] **DEC145** Expand market/shop/merchant pack.
-- [x] **DEC146** Expand stable/farm/animal-husbandry pack with farm fences/gates, grain/feed storage, chicken coop, rabbit hutch, beehive, implements, pump/barrels and farmyard composition.
-- [x] **DEC147** Add street/civic/courtyard/garden pack with benches, planters, hedge/trellis/arbor, statue/sundial, bollards/signposts/milestones and civic-street/garden scenes.
-- [ ] **DEC148** Expand military/guard/training pack.
-- [ ] **DEC149** Expand prison/dungeon/interrogation pack.
-- [x] **DEC150** Expand crypt/graveyard/funerary pack with tombs, graves, ossuary/bone content, offerings, crypt fixtures, corpse cart and graveyard/catacomb scenes.
-- [ ] **DEC151** Expand chapel/temple/shrine/ritual pack.
-- [ ] **DEC152** Expand library/study/school/scholar pack.
-- [x] **DEC153** Add alchemy/magic/occult/science pack with laboratory, ritual and observatory content/scenes.
-- [ ] **DEC154** Add noble/leisure/music/luxury pack.
-- [ ] **DEC155** Add household/lived-in prop pack.
-- [ ] **DEC156** Expand mine/quarry/industry pack.
-- [ ] **DEC157** Add dock/fishing/waterfront pack.
-- [ ] **DEC158** Add camp/travel/hunting/expedition pack.
-- [ ] **DEC159** Add ruin/abandonment/damage/aftermath pack.
-- [ ] **DEC160** Add regional/faction/cultural dressing pack.
-- [ ] **DEC161** Add festivals/ceremonies/temporary-world-state pack.
-- [x] **DEC162** Reach 200 stable archetypes with catalog integrity and representative multi-seed scene test source.
-- [ ] **DEC163** Reach 400 stable archetypes with catalog integrity, batching, and representative scene-density tests.
-- [ ] **DEC164** Add exterior/settlement adapters so streets, gardens, markets, farmyards, and docks consume the same socket/exclusion vocabulary from real exterior geometry.
+- [ ] **DEC145** Expand fantasy market/shop/merchant pack: jewelers, apothecaries, potion shops, scroll/book merchants, curios, magical component vendors, traveling merchants and enchanted shop displays. IDs 201-220 provide the first slice.
+- [ ] **DEC149** Expand dungeon/prison/torture/secret-passage content: cells, chains, cages, keys, mechanisms, hidden doors, trap dressing, oubliette fixtures, confiscated loot and jailer spaces.
+- [ ] **DEC151** Expand chapel/temple/shrine/ritual content: altars, relics, sacred lamps, icons, offerings, fonts, prayer furniture, holy/magical symbols, pilgrimage and cult variants.
+- [ ] **DEC152** Expand library/wizard-study/school/scholar content: books, scrolls, maps, globes, lecterns, magical tomes, scriptorium tools, magical schools and archive variants.
+- [x] **DEC185** Replace the drafted 221-240 military block with magical fantasy content: enchanter, rune/wand/staff crafting, familiar room, levitation/portal/ward, elemental and enchanted-object archetypes.
+- [x] **DEC186** Add initial EnchantersWorkshop, FamiliarRoom and ArcaneGallery scene definitions.
+- [ ] **DEC154** Expand noble/leisure/music/luxury fantasy content: salons, feasting, instruments, trophies, heraldry, wardrobes, jewelry, canopy furniture and magical luxury variants.
+- [ ] **DEC155** Expand household/lived-in fantasy content: laundry, toys, cradles, pets/familiars, hearth clutter, sewing, tools, food storage, servant spaces and family shrines. IDs 241-260 provide the first slice.
+- [ ] **DEC156** Expand mine/quarry/dwarven/underground-industry content, favoring fantasy mechanisms and magical ore processing over industrial-era machinery.
+- [ ] **DEC157** Add dock/fishing/waterfront fantasy pack: nets, boats, oars, fish racks, rope, crates, piers, ferries, river shrines and magical waterfront details.
+- [ ] **DEC158** Add adventurer/camp/travel/hunting/expedition pack: tents, bedrolls, maps, packs, monster trophies, cooking, traps, camp shrines, caravans and magical expedition gear.
+- [ ] **DEC159** Add ruin/abandonment/damage/aftermath pack: rubble, broken furniture, burned/flooded/cursed variants, webs, nests, bones, overgrowth, magical corruption and abandoned belongings.
+- [ ] **DEC160** Add regional/faction/cultural fantasy dressing: heraldry, guilds, clans, races/cultures, religious motifs, local pottery/textiles, magical traditions and architecture-adjacent dressing.
+- [ ] **DEC161** Add festivals/ceremonies/temporary-world-state pack: feast days, markets, weddings, funerals, harvest festivals, tournaments/fairs as civilian spectacle, magical celebrations and seasonal decorations.
+- [ ] **DEC187** Add monster-lair content: dragon hoards, goblin clutter, giant furniture, undead crypt dressing, spider nests, beast dens, slime/corruption, cult lairs and boss-room trophies.
+- [ ] **DEC188** Add magical-nature content: glowing fungi, fairy rings, enchanted trees, rune stones, spirit shrines, magical crystals, floating rocks, elemental growths and cursed vegetation.
+- [ ] **DEC189** Add adventurer/guild content: quest boards, trophy walls, maps, bounty ledgers, gear racks, party tables, training props, supply lockers and guild-specific magical dressing.
+- [ ] **DEC190** Add treasure/loot-display vocabulary: coin piles, gem heaps, reliquaries, magical chests, cursed treasure, artifact pedestals, vault shelving and hidden caches.
+- [ ] **DEC191** Add trap/puzzle/environmental-interaction dressing: pressure plates, rune locks, rotating statues, crystal sockets, lever walls, chain mechanisms, magical seals, movable blocks and clue displays.
+- [ ] **DEC192** Add fantasy food/feast variety: whole animals, pies, breads, fruit, cheeses, hanging herbs, exotic monster ingredients, magical drinks, banquet displays and kitchen mess.
+- [ ] **DEC163** Reach **400 stable fantasy archetypes** with integrity, batching and representative scene-density test source.
+- [ ] **DEC164** Add exterior/settlement adapters so fantasy streets, gardens, markets, farmyards, shrines and docks consume real exterior geometry.
 - [ ] **DEC165** Add content look-dev/debug view that labels archetype kind in addition to coarse family.
 
-## Expansion scene milestones
+## Composition milestones
 
-- [x] **DEC166** Add coherent carpentry/wheelwright workshop scene.
-- [x] **DEC167** Add coherent textile/weaver workshop scene.
-- [x] **DEC168** Add coherent leather/tannery workshop scene.
-- [x] **DEC169** Add coherent pottery workshop scene.
-- [x] **DEC170** Add coherent working-kitchen scene.
-- [x] **DEC171** Add coherent bakery scene.
-- [x] **DEC172** Add coherent brewery scene.
-- [x] **DEC173** Add coherent winery/cellar scene.
-- [x] **DEC174** Add coherent pantry scene.
-- [ ] **DEC175** Add multi-stall market district composition using multiple trade-specialized stall scenes.
-- [x] **DEC176** Add farmyard composition combining crop storage, animal enclosure, water, equipment, and movable work props.
-- [ ] **DEC177** Add civic-square composition combining fountain/well, notices, lighting, seating, carts, and market-day overlays.
-- [x] **DEC178** Add coherent alchemy-laboratory scene.
-- [x] **DEC179** Add coherent ritual-chamber scene.
-- [x] **DEC180** Add coherent observatory/scrying scene.
-- [x] **DEC181** Add coherent graveyard scene.
-- [x] **DEC182** Add coherent catacomb scene.
-- [x] **DEC183** Add coherent garden-court scene.
-- [x] **DEC184** Add coherent civic-street scene.
+- [ ] **DEC175** Multi-stall fantasy market district composition with trade-specialized and magical stalls.
+- [ ] **DEC177** Fantasy village/town square composition with well/fountain, shrine/notice board, seating, carts, merchants and seasonal overlays.
+- [ ] **DEC193** Wizard tower composition spanning study, alchemy, enchanting, observatory and familiar spaces.
+- [ ] **DEC194** Dungeon wing composition spanning cells, traps, shrine/ritual spaces, treasure and monster occupation.
+- [ ] **DEC195** Adventurer guild hall composition spanning quest board, trophy area, supply/storage, social tables and magical services.
+- [ ] **DEC196** Monster-lair compositions with species/faction-specific clutter and loot relationships.
 
 ## Completion gates
 
