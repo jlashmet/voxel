@@ -106,16 +106,21 @@ namespace VoxelEngine.Showcase
         /// <summary>
         /// Diagnostic count of clipmap index-buffer rebuilds. Camera movement and structure-only
         /// presentation refreshes must not advance this once a ring topology has been established.
+        /// Correctness-driven ring-0 fallback closure is intentionally counted because it really
+        /// does replace the index topology and therefore remains visible to performance tests.
         /// </summary>
         public ulong TopologyRebuildCount => _topologyRebuildCount;
 
         /// <summary>
-        /// Radius of ring 0's hole, in metres — the disc the voxel world is currently covering.
+        /// Radius of ring 0's actual published hole, in metres.
         ///
         /// Generated Storage residency is only an upper bound. Showcase-created far terrain keeps
         /// the hole closed while the asynchronous near renderer is dirty, building, awaiting
-        /// publication, or still reports visible holes. This prevents generated-but-undrawable
-        /// terrain (including the step-4 pin-retry state) from removing the correctness fallback.
+        /// publication, or still reports visible holes. Once near coverage is complete, the hole
+        /// remains one maximum ring-0 snap diagonal smaller than that coverage. The near renderer
+        /// follows the player continuously while the far lattice is floor-snapped, so using the
+        /// full near radius would let the snapped hole protrude outside near coverage near a cell
+        /// corner even though both renderers were individually healthy.
         /// </summary>
         public float HoleRadiusMetres
         {
@@ -123,10 +128,21 @@ namespace VoxelEngine.Showcase
             set
             {
                 float requested = Mathf.Clamp(value, 0f, m_InnerRadiusMetres);
-                _holeRadiusMetres = _requirePublishedNearCoverage
-                    && !RenderingComposition.HasCompletePublishedNearSurfaceCoverage()
-                        ? 0f
-                        : requested;
+                if (_requirePublishedNearCoverage)
+                {
+                    if (!RenderingComposition.HasCompletePublishedNearSurfaceCoverage())
+                    {
+                        _holeRadiusMetres = 0f;
+                        return;
+                    }
+
+                    float snapCellMetres = SpacingForRing(0) * 0.1f;
+                    float snapDiagonalGuard = snapCellMetres * Mathf.Sqrt(2f);
+                    _holeRadiusMetres = Mathf.Max(0f, requested - snapDiagonalGuard);
+                    return;
+                }
+
+                _holeRadiusMetres = requested;
             }
         }
 
@@ -252,11 +268,40 @@ namespace VoxelEngine.Showcase
                 _heightJobRing = -1;
                 _ringHeightValid[ring] = true;
                 _ringOrigin[ring] = _heightJobOrigin;
+
+                // The player can cross another snap while this single-flight job is running. If
+                // the completed ring-0 sample is already stale, publish it as full fallback rather
+                // than briefly reopening a hole around the old lattice point before scheduling the
+                // next sample. Height data are still useful; only the stale ownership hole closes.
+                float requestedHole = _holeRadiusMetres;
+                bool staleCriticalPublication = ring == 0
+                    && !OriginFor(cameraPosition, _ringSpacing[0]).Equals(_heightJobOrigin);
+                if (staleCriticalPublication) _holeRadiusMetres = 0f;
                 RebuildRingFromCachedHeights(ring, _ringOrigin[ring], _ringSpacing[ring]);
+                if (staleCriticalPublication) _holeRadiusMetres = requestedHole;
+
                 if (ring == _startupFallbackRing) _startupFallbackRing = -1;
                 _ringBuiltStructureVersion[ring] = structureVersion;
-                if (ring == 0) _builtHoleRadiusMetres = _holeRadiusMetres;
+                if (ring == 0)
+                    _builtHoleRadiusMetres = staleCriticalPublication ? 0f : _holeRadiusMetres;
                 _ringWorkCursor = (ring + 1) % _ringMeshes.Count;
+                rebuiltThisFrame = true;
+            }
+
+            // A published ring can lag the camera while its replacement sample is still queued or
+            // running. Its old vertex heights remain valid fallback terrain, but an open hole at
+            // the old snap centre does not. Close only the index hole immediately; do not touch the
+            // NativeArray height cache that a worker may be writing and do not recalculate vertices
+            // or normals on this correctness path.
+            int criticalSpacing = _ringSpacing[0];
+            int2 criticalOrigin = OriginFor(cameraPosition, criticalSpacing);
+            bool criticalOriginStale = _ringHeightValid[0]
+                && !criticalOrigin.Equals(_ringOrigin[0]);
+            if (criticalOriginStale
+                && _ringBuiltTopologyHoleMetres[0] > 0.05f)
+            {
+                CloseRingZeroHoleTopology();
+                _builtHoleRadiusMetres = 0f;
                 rebuiltThisFrame = true;
             }
 
@@ -297,8 +342,6 @@ namespace VoxelEngine.Showcase
             // movement does not abandon outer coverage work.
             if (!_heightJobScheduled)
             {
-                int criticalSpacing = _ringSpacing[0];
-                int2 criticalOrigin = OriginFor(cameraPosition, criticalSpacing);
                 bool criticalNeedsSample = !_ringHeightValid[0]
                     || !criticalOrigin.Equals(_ringOrigin[0]);
                 if (criticalNeedsSample)
@@ -464,6 +507,34 @@ namespace VoxelEngine.Showcase
             mesh.bounds = new Bounds(
                 new Vector3(cameraPosition.x, y, cameraPosition.z),
                 new Vector3(radius * 2f, 2f, radius * 2f));
+        }
+
+        /// <summary>
+        /// Replaces ring 0's annulus with the full square using only its already-published vertex
+        /// buffer. This is the fallback transition used while the ring's snapped height sample is
+        /// stale. It deliberately does not read the persistent height cache, so it is safe even
+        /// when the single-flight worker is currently writing ring 0.
+        /// </summary>
+        private void CloseRingZeroHoleTopology()
+        {
+            const int ring = 0;
+            int verts = m_Resolution + 1;
+            _indicesScratch.Clear();
+            for (int z = 0; z < m_Resolution; z++)
+            for (int x = 0; x < m_Resolution; x++)
+            {
+                int i = x + z * verts;
+                _indicesScratch.Add(i);
+                _indicesScratch.Add(i + verts);
+                _indicesScratch.Add(i + 1);
+                _indicesScratch.Add(i + 1);
+                _indicesScratch.Add(i + verts);
+                _indicesScratch.Add(i + verts + 1);
+            }
+
+            _ringMeshes[ring].SetTriangles(_indicesScratch, 0, false);
+            _ringBuiltTopologyHoleMetres[ring] = 0f;
+            _topologyRebuildCount++;
         }
 
         /// <summary>
