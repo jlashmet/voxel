@@ -138,6 +138,48 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void FindsActiveAncestorAcrossNegativeCoordinateHierarchy()
+        {
+            var state = new SurfaceLodCoverageState();
+            var active = new SurfaceLodActiveCoverage();
+            var root = new SurfaceLodNodeKey(8, new int3(-2, 1, -3));
+            Complete(state, root, 1, SurfaceLodCompletionKind.Ready);
+            Assert.IsTrue(active.TryActivateCompleteNode(root, state));
+
+            int3 step4 = SurfaceLodHierarchy.ChildCoordinate(root.Coordinate, 5);
+            int3 step2 = SurfaceLodHierarchy.ChildCoordinate(step4, 2);
+            int3 step1 = SurfaceLodHierarchy.ChildCoordinate(step2, 7);
+            var desired = new SurfaceLodNodeKey(1, step1);
+
+            Assert.IsTrue(active.TryFindActiveAncestorOrSelf(desired, out SurfaceLodNodeKey found));
+            Assert.AreEqual(root, found);
+        }
+
+        [Test]
+        public void HasActiveDescendantTracksMixedRefinementDepths()
+        {
+            var state = new SurfaceLodCoverageState();
+            var active = new SurfaceLodActiveCoverage();
+            var root = new SurfaceLodNodeKey(8, new int3(-1, -2, 0));
+            Complete(state, root, 1, SurfaceLodCompletionKind.Ready);
+            Assert.IsTrue(active.TryActivateCompleteNode(root, state));
+
+            CompleteChildren(state, root, 10);
+            Assert.IsTrue(active.TryRefine(root, state));
+            Assert.IsTrue(active.HasActiveDescendant(root));
+
+            var oneChild = new SurfaceLodNodeKey(
+                4, SurfaceLodHierarchy.ChildCoordinate(root.Coordinate, 6));
+            Assert.IsTrue(active.TryFindActiveAncestorOrSelf(oneChild, out SurfaceLodNodeKey found));
+            Assert.AreEqual(oneChild, found);
+            Assert.IsFalse(active.HasActiveDescendant(oneChild));
+
+            CompleteChildren(state, oneChild, 100);
+            Assert.IsTrue(active.TryRefine(oneChild, state));
+            Assert.IsTrue(active.HasActiveDescendant(oneChild));
+        }
+
+        [Test]
         public void ActiveNodesCanBeCopiedWithoutExposingMutableSet()
         {
             var state = new SurfaceLodCoverageState();
