@@ -1,4 +1,5 @@
 using System.Threading;
+using Unity.Mathematics;
 
 namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 {
@@ -12,7 +13,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
     /// Ready-empty publication also records the guard inputs from that exact build. This matters
     /// because a coarse chunk may be background-built before a later camera-band test resets the
     /// aggregate counters; the publication-time booleans cannot be reconstructed reliably from a
-    /// later visibility snapshot.
+    /// later visibility snapshot. The chunk coordinate is logged with those inputs so castle-
+    /// frustum empties can be distinguished from unrelated background empties.
     /// </summary>
     public static class Step4FalseEmptyDiagnostics
     {
@@ -176,7 +178,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             Interlocked.Increment(ref s_FallbackPublishedNonEmpty);
 
         internal static void RecordReadyEmptyPublication(
-            bool hasOwnedSolid, bool hasProfiles, bool usedFallback)
+            int3 coordinate, bool hasOwnedSolid, bool hasProfiles, bool usedFallback)
         {
             Interlocked.Increment(ref s_ReadyEmptyPublications);
             if (hasOwnedSolid)
@@ -189,8 +191,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 Interlocked.Increment(ref s_ReadyEmptyUsedFallback);
 
             UnityEngine.Debug.Log(
-                $"[Step4FalseEmptyLifecycle] publication owned={hasOwnedSolid} "
-              + $"profiles={hasProfiles} usedFallback={usedFallback} {Current}");
+                $"[Step4FalseEmptyLifecycle] chunk={coordinate} publication "
+              + $"owned={hasOwnedSolid} profiles={hasProfiles} "
+              + $"usedFallback={usedFallback} {Current}");
         }
     }
 }
