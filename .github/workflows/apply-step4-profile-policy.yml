@@ -1,0 +1,33 @@
+name: Apply step-4 profile exclusion
+
+on:
+  push:
+    branches:
+      - feature/voxel-showcase-rendering-repair-v2
+    paths:
+      - .github/workflows/apply-step4-profile-policy.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/voxel-showcase-rendering-repair-v2
+          fetch-depth: 0
+      - name: Apply exact patch
+        run: python3 .github/scripts/apply-step4-profile-policy.py
+      - name: Validate diff
+        run: git diff --check
+      - name: Commit repair
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --stat
+          git commit -m 'fix(rendering): exclude profiles from step-4 fallback'
+          git push origin HEAD:feature/voxel-showcase-rendering-repair-v2
