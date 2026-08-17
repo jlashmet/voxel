@@ -70,7 +70,7 @@ namespace Game.Structures.Runtime
         {
             if (context.Condition == DecorationConditionTier.Ruined) return 1;
             int budget = kind == DecorationExpansion340SceneKind.TrapCorridor ? 3 : 2;
-            if (context.Wealth >= DecorationWealthTier.Wealthy) budget++;
+            if ((byte)context.Wealth >= (byte)DecorationWealthTier.Wealthy) budget++;
             return budget;
         }
 
