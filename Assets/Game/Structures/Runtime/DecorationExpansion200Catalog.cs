@@ -13,94 +13,30 @@ namespace Game.Structures.Runtime
     /// <summary>Stable content IDs 115-200. Numeric values are persistence/catalog identity.</summary>
     public enum DecorationExpandedContentKind : ushort
     {
-        AlchemyTable = 115,
-        AlembicStand = 116,
-        RetortRack = 117,
-        MortarStation = 118,
-        IngredientCabinet = 119,
-        HerbariumShelf = 120,
-        CrystalStand = 121,
-        RuneTable = 122,
-        ScryingBasin = 123,
-        AstrolabeStand = 124,
-        TelescopeTripod = 125,
-        Orrery = 126,
-        SpellbookLectern = 127,
-        ScrollRack = 128,
-        WandRack = 129,
-        StaffStand = 130,
-        PotionShelf = 131,
-        ReagentChest = 132,
-        DistillationFurnace = 133,
-        ArcaneBrazier = 134,
-        SummoningCircle = 135,
-        RitualPedestal = 136,
-        CandleCluster = 137,
-        SkullReliquary = 138,
-        SpecimenJarRack = 139,
-        SpecimenCage = 140,
-        EnchantingAnvil = 141,
-        ManaCrystalCluster = 142,
-        ChalkRuneBoard = 143,
-        StarChart = 144,
+        AlchemyTable = 115, AlembicStand = 116, RetortRack = 117, MortarStation = 118,
+        IngredientCabinet = 119, HerbariumShelf = 120, CrystalStand = 121, RuneTable = 122,
+        ScryingBasin = 123, AstrolabeStand = 124, TelescopeTripod = 125, Orrery = 126,
+        SpellbookLectern = 127, ScrollRack = 128, WandRack = 129, StaffStand = 130,
+        PotionShelf = 131, ReagentChest = 132, DistillationFurnace = 133, ArcaneBrazier = 134,
+        SummoningCircle = 135, RitualPedestal = 136, CandleCluster = 137, SkullReliquary = 138,
+        SpecimenJarRack = 139, SpecimenCage = 140, EnchantingAnvil = 141, ManaCrystalCluster = 142,
+        ChalkRuneBoard = 143, StarChart = 144,
 
-        TombSlab = 145,
-        GraveStone = 146,
-        GraveCross = 147,
-        GraveFence = 148,
-        MausoleumDoor = 149,
-        OssuaryNiche = 150,
-        BonePile = 151,
-        SkullStack = 152,
-        BurialUrn = 153,
-        OfferingBowl = 154,
-        MourningBench = 155,
-        FuneralCandleStand = 156,
-        IncenseBrazier = 157,
-        ShroudRack = 158,
-        GraveDiggerTools = 159,
-        SoilMound = 160,
-        BrokenHeadstone = 161,
-        MemorialPlaque = 162,
-        CryptGate = 163,
-        CorpseCart = 164,
-        FlowerOffering = 165,
-        CatacombShelf = 166,
-        BurialChest = 167,
-        ReliquaryCasket = 168,
+        TombSlab = 145, GraveStone = 146, GraveCross = 147, GraveFence = 148,
+        MausoleumDoor = 149, OssuaryNiche = 150, BonePile = 151, SkullStack = 152,
+        BurialUrn = 153, OfferingBowl = 154, MourningBench = 155, FuneralCandleStand = 156,
+        IncenseBrazier = 157, ShroudRack = 158, GraveDiggerTools = 159, SoilMound = 160,
+        BrokenHeadstone = 161, MemorialPlaque = 162, CryptGate = 163, CorpseCart = 164,
+        FlowerOffering = 165, CatacombShelf = 166, BurialChest = 167, ReliquaryCasket = 168,
 
-        FarmFence = 169,
-        FarmGate = 170,
-        Scarecrow = 171,
-        Haystack = 172,
-        GrainSilo = 173,
-        FeedBin = 174,
-        ChickenCoop = 175,
-        RabbitHutch = 176,
-        Beehive = 177,
-        CompostPile = 178,
-        Wheelbarrow = 179,
-        Plow = 180,
-        Harrow = 181,
-        SeedChest = 182,
-        WaterPump = 183,
-        RainBarrel = 184,
-        Clothesline = 185,
-        WashTub = 186,
-        GardenBench = 187,
-        FlowerPlanter = 188,
-        HedgeSection = 189,
-        Trellis = 190,
-        Arbor = 191,
-        Statue = 192,
-        Sundial = 193,
-        StreetBench = 194,
-        Bollard = 195,
-        Signpost = 196,
-        Milestone = 197,
-        TrashHeap = 198,
-        FirewoodPile = 199,
-        WateringCanRack = 200,
+        FarmFence = 169, FarmGate = 170, Scarecrow = 171, Haystack = 172,
+        GrainSilo = 173, FeedBin = 174, ChickenCoop = 175, RabbitHutch = 176,
+        Beehive = 177, CompostPile = 178, Wheelbarrow = 179, Plow = 180,
+        Harrow = 181, SeedChest = 182, WaterPump = 183, RainBarrel = 184,
+        Clothesline = 185, WashTub = 186, GardenBench = 187, FlowerPlanter = 188,
+        HedgeSection = 189, Trellis = 190, Arbor = 191, Statue = 192,
+        Sundial = 193, StreetBench = 194, Bollard = 195, Signpost = 196,
+        Milestone = 197, TrashHeap = 198, FirewoodPile = 199, WateringCanRack = 200,
     }
 
     public struct DecorationExpandedContentRecipe
@@ -125,7 +61,6 @@ namespace Game.Structures.Runtime
             math.all(BaseSize > 0) && math.all(Clearance >= 0);
     }
 
-    /// <summary>Uses the same 10-bit stable-id + 20-bit variation layout as the bootstrap content codec.</summary>
     public static class DecorationExpandedContentVariants
     {
         private const uint Marker = 0xC0000000u;
@@ -135,14 +70,12 @@ namespace Game.Structures.Runtime
 
         public static uint Encode(DecorationExpandedContentKind kind, uint variation) =>
             Marker | ((uint)kind << KindShift) | (variation & VariationMask);
-
         public static ushort StableIdOf(uint variant) => (ushort)((variant & KindMask) >> KindShift);
         public static DecorationExpandedContentKind KindOf(uint variant)
         {
             ushort id = StableIdOf(variant);
             return id >= 115 && id <= 200 ? (DecorationExpandedContentKind)id : default;
         }
-
         public static bool IsExpanded(uint variant)
         {
             ushort id = StableIdOf(variant);
@@ -162,44 +95,29 @@ namespace Game.Structures.Runtime
         public static DecorationExpandedContentRecipe Recipe(DecorationExpandedContentKind kind)
         {
             ushort id = (ushort)kind;
-            if (id < FirstId || id > LastId)
-                return default;
-            if (id <= 144)
-                return Arcane(kind, id - 115);
-            if (id <= 168)
-                return Funerary(kind, id - 145);
+            if (id < FirstId || id > LastId) return default;
+            if (id <= 144) return Arcane(kind, id - 115);
+            if (id <= 168) return Funerary(kind, id - 145);
             return Settlement(kind, id - 169);
         }
 
         public static DecorationPropDescriptor Describe(
-            in DecorationContext context,
-            uint sceneId,
-            uint slotId,
-            DecorationExpandedContentKind kind)
+            in DecorationContext context, uint sceneId, uint slotId, DecorationExpandedContentKind kind)
         {
             DecorationExpandedContentRecipe recipe = Recipe(kind);
-            if (!context.IsWellFormed || sceneId == 0 || slotId == 0 || !recipe.IsWellFormed)
-                return default;
-
+            if (!context.IsWellFormed || sceneId == 0 || slotId == 0 || !recipe.IsWellFormed) return default;
             uint seed = DecorationSeed.ForSlot(in context, sceneId, slotId);
             int3 size = recipe.BaseSize;
-            if (recipe.WidthJitter > 0)
-                size.x += (int)(seed % (uint)(recipe.WidthJitter + 1)) * 2;
+            if (recipe.WidthJitter > 0) size.x += (int)(seed % (uint)(recipe.WidthJitter + 1)) * 2;
             if (recipe.DepthJitter > 0)
                 size.z += (int)(DecorationSeed.Derive(seed, 0xE200u) % (uint)(recipe.DepthJitter + 1)) * 2;
-
             uint variation = DecorationSeed.Derive(seed,
                 context.StyleId ^ ((uint)context.Wealth << 12) ^ ((uint)context.Condition << 8) ^ (uint)kind);
             return new DecorationPropDescriptor
             {
-                Family = recipe.ProxyFamily,
-                AcceptedSockets = recipe.AcceptedSockets,
-                MountMode = recipe.MountMode,
-                Backend = recipe.Backend,
-                Interaction = recipe.Interaction,
-                Size = size,
-                Clearance = recipe.Clearance,
-                Variant = DecorationExpandedContentVariants.Encode(kind, variation),
+                Family = recipe.ProxyFamily, AcceptedSockets = recipe.AcceptedSockets, MountMode = recipe.MountMode,
+                Backend = recipe.Backend, Interaction = recipe.Interaction, Size = size,
+                Clearance = recipe.Clearance, Variant = DecorationExpandedContentVariants.Encode(kind, variation),
             };
         }
 
@@ -224,13 +142,12 @@ namespace Game.Structures.Runtime
             bool mesh = index == 1 || index == 8 || index == 10 || index == 11 || index == 22 || index == 27;
             bool light = index == 18 || index == 19 || index == 22 || index == 27;
             return R(DecorationExpandedContentCategory.Arcane, kind, shapes[index],
-                index == 17 ? DecorationPropFamily.Chest : (wall ? DecorationPropFamily.Shelf : DecorationPropFamily.Table),
+                index == 17 ? DecorationPropFamily.Chest : wall ? DecorationPropFamily.Shelf : DecorationPropFamily.Table,
                 wall ? DecorationSocketKind.Wall : DecorationSocketKind.Floor,
                 wall ? DecorationMountMode.FloorAgainstWall : DecorationMountMode.Floor,
                 thin ? DecorationRenderBackend.ThinSurface : mesh ? DecorationRenderBackend.ProceduralMesh :
                     (index == 18 || index == 19 ? DecorationRenderBackend.VoxelStamp : DecorationRenderBackend.BoxAssembly),
-                Flags(blocking: !wall && !thin && !mesh, movable: index == 17, container: index == 17,
-                    light: light, particles: index == 18 || index == 19),
+                Flags(!wall && !thin && !mesh, index == 17, index == 17, light, index == 18 || index == 19),
                 ArcaneSize(index), wall ? new int3(2, 1, 3) : new int3(3, 0, 3), 2, 2);
         }
 
@@ -258,9 +175,8 @@ namespace Game.Structures.Runtime
                 wall ? DecorationMountMode.Wall : DecorationMountMode.Floor,
                 thin ? DecorationRenderBackend.ThinSurface : mesh ? DecorationRenderBackend.ProceduralMesh :
                     (index == 12 ? DecorationRenderBackend.VoxelStamp : DecorationRenderBackend.BoxAssembly),
-                Flags(blocking: index == 0 || index == 3 || index == 10 || index == 18 || index == 19 || container,
-                    movable: index == 8 || index == 9 || index == 19 || container,
-                    container: container, light: light, particles: index == 12),
+                Flags(index == 0 || index == 3 || index == 10 || index == 18 || index == 19 || container,
+                    index == 8 || index == 9 || index == 19 || container, container, light, index == 12),
                 FunerarySize(index), wall ? new int3(2, 2, 1) : new int3(2, 0, 2), 2, 2);
         }
 
@@ -272,7 +188,7 @@ namespace Game.Structures.Runtime
                 DecorationContentShape.Stack, DecorationContentShape.Monument, DecorationContentShape.Trough,
                 DecorationContentShape.Cage, DecorationContentShape.Cage, DecorationContentShape.Stack,
                 DecorationContentShape.Stack, DecorationContentShape.Cart, DecorationContentShape.Machine,
-                DecorationContentShape.Machine, DecorationContentShape.Coffin, DecorationContentShape.Pump,
+                DecorationContentShape.Machine, DecorationContentShape.Coffin, DecorationContentShape.Machine,
                 DecorationContentShape.Tub, DecorationContentShape.Hanging, DecorationContentShape.Tub,
                 DecorationContentShape.WorkSurface, DecorationContentShape.Stack, DecorationContentShape.WallRack,
                 DecorationContentShape.WallRack, DecorationContentShape.Post, DecorationContentShape.Monument,
@@ -292,8 +208,8 @@ namespace Game.Structures.Runtime
                 wall ? DecorationMountMode.Wall : DecorationMountMode.Floor,
                 thin ? DecorationRenderBackend.ThinSurface : mesh ? DecorationRenderBackend.ProceduralMesh :
                     voxel ? DecorationRenderBackend.VoxelStamp : DecorationRenderBackend.BoxAssembly,
-                Flags(blocking: index <= 8 || index == 14 || index == 18 || index == 22 || index == 23 || index == 24 || index == 25 || index == 28,
-                    movable: movable, container: container),
+                Flags(index <= 8 || index == 14 || index == 18 || index == 22 || index == 23 || index == 24 || index == 25 || index == 28,
+                    movable, container, false, false),
                 SettlementSize(index), wall ? new int3(2, 2, 1) : new int3(2, 0, 2), 2, 2);
         }
 
@@ -327,9 +243,7 @@ namespace Game.Structures.Runtime
             return new int3(8 + (i % 5) * 4, 7 + (i % 4) * 3, 7 + (i % 4) * 4);
         }
 
-        private static DecorationInteractionFlags Flags(
-            bool blocking = false, bool movable = false, bool container = false,
-            bool light = false, bool particles = false)
+        private static DecorationInteractionFlags Flags(bool blocking, bool movable, bool container, bool light, bool particles)
         {
             DecorationInteractionFlags flags = DecorationInteractionFlags.Destructible;
             if (blocking) flags |= DecorationInteractionFlags.BlocksNavigation;
@@ -342,23 +256,13 @@ namespace Game.Structures.Runtime
 
         private static DecorationExpandedContentRecipe R(
             DecorationExpandedContentCategory category, DecorationExpandedContentKind kind,
-            DecorationContentShape shape, DecorationPropFamily proxy,
-            DecorationSocketKind sockets, DecorationMountMode mount,
-            DecorationRenderBackend backend, DecorationInteractionFlags interaction,
+            DecorationContentShape shape, DecorationPropFamily proxy, DecorationSocketKind sockets,
+            DecorationMountMode mount, DecorationRenderBackend backend, DecorationInteractionFlags interaction,
             int3 size, int3 clearance, byte widthJitter, byte depthJitter) => new DecorationExpandedContentRecipe
         {
-            Category = category,
-            Kind = kind,
-            Shape = shape,
-            ProxyFamily = proxy,
-            AcceptedSockets = sockets,
-            MountMode = mount,
-            Backend = backend,
-            Interaction = interaction,
-            BaseSize = size,
-            Clearance = clearance,
-            WidthJitter = widthJitter,
-            DepthJitter = depthJitter,
+            Category = category, Kind = kind, Shape = shape, ProxyFamily = proxy,
+            AcceptedSockets = sockets, MountMode = mount, Backend = backend, Interaction = interaction,
+            BaseSize = size, Clearance = clearance, WidthJitter = widthJitter, DepthJitter = depthJitter,
         };
     }
 }
