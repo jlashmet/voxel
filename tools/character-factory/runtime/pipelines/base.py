@@ -25,7 +25,7 @@ class AssetPipeline(ABC):
     def __init__(self, tool_root: Path):
         self.tool_root = tool_root.resolve()
 
-    def build(self, spec: BuildSpec, dry_run: bool = False) -> PipelineResult:
+    def plan(self, spec: BuildSpec) -> PipelineResult:
         if spec.asset_type != self.asset_type:
             raise CharacterFactoryError(
                 f"{self.__class__.__name__} cannot build {spec.asset_type.value}"
@@ -34,13 +34,8 @@ class AssetPipeline(ABC):
         spec.output_dir.mkdir(parents=True, exist_ok=True)
         raw_mesh = spec.output_dir / f"{spec.asset_id}.raw.glb"
         output = spec.output_dir / f"{spec.asset_id}.fbx"
-
         generator_command = generator_command_for(self.tool_root, spec, raw_mesh)
-        self._run(generator_command, dry_run)
-
         prepare_command = self._prepare_command(spec, raw_mesh, output)
-        self._run(prepare_command, dry_run)
-
         return PipelineResult(
             pipeline=self.asset_type.value,
             output=output,
@@ -49,6 +44,12 @@ class AssetPipeline(ABC):
             prepare_command=prepare_command,
             runtime_metadata=self._runtime_metadata(spec),
         )
+
+    def build(self, spec: BuildSpec, dry_run: bool = False) -> PipelineResult:
+        result = self.plan(spec)
+        self._run(result.generator_command, dry_run)
+        self._run(result.prepare_command, dry_run)
+        return result
 
     @abstractmethod
     def _prepare_command(
