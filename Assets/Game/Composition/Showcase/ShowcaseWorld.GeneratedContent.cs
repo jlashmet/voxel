@@ -18,8 +18,14 @@ namespace VoxelEngine.Showcase
         /// </summary>
         public void GenerateCastleOriginBlocking()
         {
-            // Respawn/re-entry after the startup image has already been installed is free.
-            if (_hasCastlePlan && _generated.Contains(int3.zero)) return;
+            // Respawn/re-entry after the startup image has already been installed is free, but the
+            // gameplay scene may have deliberately unloaded presentation/runtime state. Re-establish
+            // the authoritative WorldObject scene before returning.
+            if (_hasCastlePlan && _generated.Contains(int3.zero))
+            {
+                EnsureCastleWorldObjectSceneLoaded();
+                return;
+            }
 
             if (_generated.Count != 0 || _gen.Active || RegionsGenerated != 0
                 || _pendingLoads.Count != 0 || _pendingFeatureRegions.Count != 0
@@ -50,6 +56,7 @@ namespace VoxelEngine.Showcase
             }
 
             LoadBake(bake);
+            EnsureCastleWorldObjectSceneLoaded();
         }
 
         /// <summary>
