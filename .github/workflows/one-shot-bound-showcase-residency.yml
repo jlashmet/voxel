@@ -1,0 +1,70 @@
+name: One-shot bound showcase residency
+
+on:
+  push:
+    branches:
+      - feature/voxel-showcase-rendering-repair-v2
+    paths:
+      - .github/workflows/one-shot-bound-showcase-residency.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/voxel-showcase-rendering-repair-v2
+          fetch-depth: 0
+      - name: Keep full-detail residency bounded and far hole conservative
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('Assets/Game/Composition/Showcase/ShowcaseWorld.cs')
+          text = path.read_text()
+
+          old_call = '            using (s_RefreshPendingMarker.Auto()) RefreshPending(centre, cameraMetres);\n'
+          new_call = '            using (s_RefreshPendingMarker.Auto()) RefreshPending(centre);\n'
+          if text.count(old_call) != 1:
+              raise SystemExit('expected exactly one camera-relative RefreshPending call')
+          text = text.replace(old_call, new_call, 1)
+
+          old_sig = '        private void RefreshPending(int3 centre, float3 cameraMetres)\n'
+          new_sig = '        private void RefreshPending(int3 centre)\n'
+          if text.count(old_sig) != 1:
+              raise SystemExit('expected exactly one camera-relative RefreshPending signature')
+          text = text.replace(old_sig, new_sig, 1)
+
+          begin = text.index('        private void RefreshPending(int3 centre)\n')
+          end = text.index('        private void EvictDistantRegions(int3 centre)\n', begin)
+          block = text[begin:end]
+          old = '''                int rx = centre.x + dx;\n                int rz = centre.z + dz;\n                if (!ShowcaseResidencyFootprint.ColumnIntersectsRadius(\n                        cameraMetres, rx, rz, LoadRadiusRegions * RegionMetres))\n                    continue;\n\n                SurfaceLayerSpan(rx, rz, out int minLayer, out int maxLayer);\n'''
+          new = '''                if (dx * dx + dz * dz > LoadRadiusRegions * LoadRadiusRegions) continue;\n\n                int rx = centre.x + dx;\n                int rz = centre.z + dz;\n                SurfaceLayerSpan(rx, rz, out int minLayer, out int maxLayer);\n'''
+          if block.count(old) != 1:
+              raise SystemExit(f'expected one expanded residency block, found {block.count(old)}')
+          block = block.replace(old, new, 1)
+          text = text[:begin] + block + text[end:]
+
+          if text.count('ShowcaseResidencyFootprint.ColumnIntersectsRadius(') != 1:
+              raise SystemExit('camera-relative footprint must remain exactly once for far-hole coverage')
+          if 'RefreshPending(centre, cameraMetres)' in text:
+              raise SystemExit('expanded residency call survived')
+          path.write_text(text)
+          PY
+          git diff --check
+          git diff -- Assets/Game/Composition/Showcase/ShowcaseWorld.cs
+          grep -q 'RefreshPending(centre)' Assets/Game/Composition/Showcase/ShowcaseWorld.cs
+          grep -q 'dx \* dx + dz \* dz > LoadRadiusRegions \* LoadRadiusRegions' Assets/Game/Composition/Showcase/ShowcaseWorld.cs
+          test "$(grep -c 'ShowcaseResidencyFootprint.ColumnIntersectsRadius(' Assets/Game/Composition/Showcase/ShowcaseWorld.cs)" = "1"
+          git rm .github/workflows/one-shot-bound-showcase-residency.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Keep showcase residency within mixed-brick budget'
+          git push origin HEAD:feature/voxel-showcase-rendering-repair-v2
