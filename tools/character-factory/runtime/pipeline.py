@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import json
 from pathlib import Path
+import subprocess
 
 from api.models import (
     AssetType,
@@ -39,6 +40,9 @@ def generator_metadata(spec: BuildSpec) -> dict[str, object]:
         "preset": generator.preset,
         "device": generator.device,
     }
+    if generator.profile is not None:
+        common["profile"] = generator.profile
+        common["sourceRevision"] = generator.source_revision
 
     if generator.backend == GeneratorBackend.TRIPOSR_MPS:
         common.update(
@@ -82,9 +86,18 @@ class CharacterFactoryRuntime:
         self.tool_root = tool_root.resolve()
 
     def build(self, spec: BuildSpec, dry_run: bool = False) -> Path:
+        bootstrap_command = self._ensure_backend_profile(spec, dry_run=dry_run)
+
         pipeline_type = pipeline_type_for(spec.asset_type)
         pipeline = pipeline_type(self.tool_root)
         result = pipeline.build(spec, dry_run=dry_run)
+
+        commands: dict[str, object] = {
+            "generator": result.generator_command,
+            "prepare": result.prepare_command,
+        }
+        if bootstrap_command is not None:
+            commands["bootstrap"] = bootstrap_command
 
         manifest = spec.output_dir / "manifest.json"
         payload = {
@@ -98,10 +111,48 @@ class CharacterFactoryRuntime:
             "references": reference_metadata(spec),
             "generator": generator_metadata(spec),
             "runtimePart": result.runtime_metadata,
-            "commands": {
-                "generator": result.generator_command,
-                "prepare": result.prepare_command,
-            },
+            "commands": commands,
         }
         manifest.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
         return manifest
+
+    def _ensure_backend_profile(
+        self,
+        spec: BuildSpec,
+        *,
+        dry_run: bool,
+    ) -> list[str] | None:
+        script = spec.generator.bootstrap_script
+        if script is None:
+            return None
+
+        command = ["bash", str(script)]
+        print("+", " ".join(command), flush=True)
+        if dry_run:
+            return command
+
+        completed = subprocess.run(
+            command,
+            cwd=self.tool_root.parents[1],
+            check=False,
+        )
+        if completed.returncode != 0:
+            raise CharacterFactoryError(
+                f"generator backend bootstrap failed with exit code {completed.returncode}: {spec.generator.profile}"
+            )
+
+        python_path = Path(spec.generator.python)
+        if not python_path.is_file():
+            raise CharacterFactoryError(
+                f"generator profile bootstrap did not create Python runtime: {python_path}"
+            )
+        if spec.generator.backend == GeneratorBackend.TRIPOSR_MPS:
+            if spec.generator.source is None or not spec.generator.source.is_dir():
+                raise CharacterFactoryError(
+                    f"TripoSR profile bootstrap did not create source checkout: {spec.generator.source}"
+                )
+            if spec.generator.weights is None or not spec.generator.weights.is_dir():
+                raise CharacterFactoryError(
+                    f"TripoSR profile bootstrap did not create weights: {spec.generator.weights}"
+                )
+        return command
