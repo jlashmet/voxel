@@ -23,6 +23,7 @@ namespace Game.Structures.Api
         public OpeningConfig KeepEntrance;
         public OpeningConfig KeepWindow;
 
+        public CastleCurtainLayoutConfig CurtainLayout;
         public StructureWallRunConfig CurtainWallX;
         public StructureWallRunConfig CurtainWallZ;
         public TowerConfig CornerTowers;
@@ -48,6 +49,7 @@ namespace Game.Structures.Api
             KeepParapet.IsWellFormed &&
             KeepEntrance.Kind == StructureOpeningKind.Arch && KeepEntrance.IsWellFormed &&
             KeepWindow.Kind == StructureOpeningKind.Window && KeepWindow.IsWellFormed &&
+            CurtainLayout.IsWellFormed &&
             CurtainWallX.IsWellFormed &&
             CurtainWallZ.IsWellFormed &&
             CornerTowers.IsWellFormed &&
@@ -160,6 +162,11 @@ namespace Game.Structures.Api
                     FrameMaterialRole = StructureMaterialRole.Trim,
                     FillMaterialRole = StructureMaterialRole.Glass,
                 },
+                CurtainLayout = new CastleCurtainLayoutConfig
+                {
+                    Kind = CastleCurtainLayoutKind.Rectangle,
+                    SegmentLength = 0,
+                },
                 CurtainWallX = wallX,
                 CurtainWallZ = wallZ,
                 CornerTowers = Tower(
@@ -205,8 +212,8 @@ namespace Game.Structures.Api
                     ParapetThickness = 8,
                     ParapetHeight = 0,
                     MerlonWidth = 18,
-                    MerlonHeight = 12,
-                    GapWidth = 18,
+                    MerlonHeight = 18,
+                    GapWidth = 12,
                     CornerMerlonWidth = 18,
                     MaterialRole = StructureMaterialRole.PrimaryWall,
                 },
