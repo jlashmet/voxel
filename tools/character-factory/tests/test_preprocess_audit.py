@@ -116,7 +116,10 @@ class PreprocessAuditTests(unittest.TestCase):
                     )
 
                 manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-                self.assertEqual(str(audit_path), manifest["preprocessAudit"])
+                self.assertEqual(
+                    audit_path.resolve(),
+                    Path(manifest["preprocessAudit"]).resolve(),
+                )
 
 
 if __name__ == "__main__":
