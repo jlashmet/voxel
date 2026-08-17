@@ -36,10 +36,7 @@ namespace Game.Structures.Api
         Civic = 6,
     }
 
-    /// <summary>
-    /// Stable, data-only preset identity. The city planner selects these ids; concrete structure
-    /// authorers resolve them to the ordinary house/church/cathedral/temple/castle presets.
-    /// </summary>
+    /// <summary>Stable data-only identity for an ordinary structure preset.</summary>
     public enum CityStructurePresetId : byte
     {
         CompactCabin = 0,
@@ -76,11 +73,13 @@ namespace Game.Structures.Api
         public int OccupancyPermille;
 
         public bool IsWellFormed =>
-            Width >= 8 && Depth >= 8 &&
-            FrontSetback >= 0 && RearSetback >= 0 && SideSetback >= 0 &&
-            MinimumSpacing >= 0 && OccupancyPermille >= 0 && OccupancyPermille <= 1000 &&
+            Width >= 8 && Depth >= 8 && FrontSetback >= 0 && RearSetback >= 0 &&
+            SideSetback >= 0 && MinimumSpacing >= 0 &&
+            OccupancyPermille >= 0 && OccupancyPermille <= 1000 &&
             Width - SideSetback * 2 >= 4 &&
-            Depth - FrontSetback - RearSetback >= 4;
+            Depth - FrontSetback - RearSetback >= 4 &&
+            Width - FrontSetback - RearSetback >= 4 &&
+            Depth - SideSetback * 2 >= 4;
 
         public int BuildableWidth => Width - SideSetback * 2;
         public int BuildableDepth => Depth - FrontSetback - RearSetback;
@@ -97,7 +96,8 @@ namespace Game.Structures.Api
 
         public bool IsWellFormed =>
             Districts != CityDistrictMask.None && Weight > 0 &&
-            MinimumBuildableWidth > 0 && MinimumBuildableDepth > 0;
+            MinimumBuildableWidth > 0 && MinimumBuildableDepth > 0 &&
+            CityStructurePresetLibrary.MatchesArchetype(Archetype, PresetId);
     }
 
     public struct CityLandmarkRule
@@ -113,12 +113,13 @@ namespace Game.Structures.Api
 
         public bool IsWellFormed =>
             Districts != CityDistrictMask.None && MinimumBuildableWidth > 0 &&
-            MinimumBuildableDepth > 0 && EveryNthEligibleLot >= 0 && Priority >= 0;
+            MinimumBuildableDepth > 0 && EveryNthEligibleLot >= 0 && Priority >= 0 &&
+            CityStructurePresetLibrary.MatchesArchetype(Archetype, PresetId);
     }
 
     /// <summary>
-    /// Region-local city composition input. The plan is deliberately finite: block counts, palette
-    /// entries, landmark rules, and every derived candidate have explicit upper bounds.
+    /// Region-local city composition input. Block counts, palette entries, landmark rules, and every
+    /// derived candidate are explicitly bounded; this contract cannot request global world planning.
     /// </summary>
     public struct CityConfig
     {
@@ -215,10 +216,10 @@ namespace Game.Structures.Api
                 CityDistrictMask.Residential | CityDistrictMask.Mixed, 3, 96, 72);
             AddPalette(ref config, CityStructureArchetype.Shed, CityStructurePresetId.WorkshopShed,
                 CityDistrictMask.Residential | CityDistrictMask.Mixed, 2, 40, 32);
+            AddPalette(ref config, CityStructureArchetype.Church, CityStructurePresetId.Chapel,
+                CityDistrictMask.Civic | CityDistrictMask.Sacred, 3, 48, 80);
             AddPalette(ref config, CityStructureArchetype.Church, CityStructurePresetId.ParishChurch,
-                CityDistrictMask.Sacred | CityDistrictMask.Civic, 2, 72, 96);
-            AddPalette(ref config, CityStructureArchetype.Civic, CityStructurePresetId.CivicHall,
-                CityDistrictMask.Civic | CityDistrictMask.Mixed, 3, 72, 64);
+                CityDistrictMask.Sacred | CityDistrictMask.Civic, 2, 96, 80);
 
             config.Landmarks.Add(new CityLandmarkRule
             {
@@ -239,6 +240,16 @@ namespace Game.Structures.Api
                 MinimumBuildableDepth = 80,
                 EveryNthEligibleLot = 5,
                 Priority = 10,
+            });
+            config.Landmarks.Add(new CityLandmarkRule
+            {
+                Archetype = CityStructureArchetype.Castle,
+                PresetId = CityStructurePresetId.KeepCastle,
+                Districts = CityDistrictMask.Residential,
+                MinimumBuildableWidth = 96,
+                MinimumBuildableDepth = 80,
+                EveryNthEligibleLot = 31,
+                Priority = 30,
             });
             return config;
         }
