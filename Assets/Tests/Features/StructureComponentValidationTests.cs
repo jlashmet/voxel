@@ -69,6 +69,23 @@ namespace VoxelEngine.Tests.Features
         }
 
         [Test]
+        public void UnknownRoofStyleIsRejectedRatherThanTreatedAsSloped()
+        {
+            var unknown = new RoofConfig
+            {
+                Style = (RoofStyle)255,
+                RidgeAxis = RoofAxis.X,
+                PitchRise = 1,
+                PitchRun = 2,
+                Thickness = 2,
+            };
+
+            Assert.AreEqual(
+                StructureComponentValidationIssue.UnsupportedRoofCombination,
+                StructureComponentValidation.Roof(unknown));
+        }
+
+        [Test]
         public void BoundsOverflowIsRejected()
         {
             var bounds = new StructureGenerationBounds(
@@ -88,6 +105,21 @@ namespace VoxelEngine.Tests.Features
                     bounds,
                     new int3(-8, 0, -8),
                     new int3(17, 16, 8)));
+        }
+
+        [Test]
+        public void ExtremeCoordinateSpanCannotWrapIntoValidBounds()
+        {
+            var bounds = new StructureGenerationBounds(
+                new int3(-16, 0, -16),
+                new int3(16, 32, 16));
+
+            Assert.AreEqual(
+                StructureComponentValidationIssue.BoundsOverflow,
+                StructureComponentValidation.VolumeWithinBounds(
+                    bounds,
+                    new int3(int.MinValue, 0, 0),
+                    new int3(int.MaxValue, 1, 1)));
         }
 
         [Test]
