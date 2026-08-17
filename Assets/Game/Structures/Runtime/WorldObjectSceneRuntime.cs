@@ -55,7 +55,11 @@ namespace Game.Structures.Runtime
             result = default;
             if (!TryResolve(id, out WorldObjectResolvedState current)) return false;
             if (!WorldObjectBehavior.TryInteract(in current, interaction, out result)) return false;
-            if (result.Changed) _state.Set(in result.Delta);
+            if (result.Changed)
+            {
+                PrimeTimedReset(in current.Descriptor, ref result.Delta);
+                _state.Set(in result.Delta);
+            }
             if (result.Signal != WorldObjectSignal.None)
                 Propagate(id, result.Signal);
             return true;
@@ -67,13 +71,57 @@ namespace Game.Structures.Runtime
             if (!WorldObjectActions.TryApply(in current, action, argument,
                     out WorldObjectStateDelta delta, out WorldObjectSignal emitted))
                 return false;
+            PrimeTimedReset(in current.Descriptor, ref delta);
             _state.Set(in delta);
             if (emitted != WorldObjectSignal.None)
                 Propagate(id, emitted);
             return true;
         }
 
+        /// <summary>
+        /// Advances deterministic coarse runtime timers. A triggered object with Parameter0 > 0 uses that value
+        /// as its reset delay in ticks. The timer is stored in the sparse state delta and therefore survives
+        /// streaming/save boundaries without persisting frame-level animation state.
+        /// </summary>
+        public int Tick(int ticks = 1)
+        {
+            if (ticks <= 0) return 0;
+            int changed = 0;
+            foreach (var pair in _objects)
+            {
+                WorldObjectDescriptor descriptor = pair.Value;
+                if (descriptor.Parameter0 <= 0) continue;
+                WorldObjectResolvedState current = WorldObjectStateResolver.Resolve(in descriptor, _state);
+                if ((current.State & WorldObjectStateFlags.Triggered) == 0) continue;
+
+                int remaining = current.RuntimeValue1 > 0 ? current.RuntimeValue1 : descriptor.Parameter0;
+                remaining -= ticks;
+                var delta = new WorldObjectStateDelta
+                {
+                    Id = descriptor.Id,
+                    State = current.State,
+                    RuntimeValue0 = current.RuntimeValue0,
+                    RuntimeValue1 = Math.Max(0, remaining),
+                };
+                if (remaining <= 0)
+                {
+                    delta.State &= ~(WorldObjectStateFlags.Triggered | WorldObjectStateFlags.Active);
+                    delta.RuntimeValue1 = 0;
+                }
+                _state.Set(in delta);
+                changed++;
+            }
+            return changed;
+        }
+
         public WorldObjectStateDelta[] SnapshotState() => _state.Snapshot();
+
+        private static void PrimeTimedReset(in WorldObjectDescriptor descriptor, ref WorldObjectStateDelta delta)
+        {
+            if (descriptor.Parameter0 > 0 &&
+                (delta.State & WorldObjectStateFlags.Triggered) != 0 && delta.RuntimeValue1 <= 0)
+                delta.RuntimeValue1 = descriptor.Parameter0;
+        }
 
         private void Propagate(WorldObjectId source, WorldObjectSignal signal)
         {
@@ -93,6 +141,7 @@ namespace Game.Structures.Runtime
                     if (!WorldObjectActions.TryApply(in target, connection.Action, connection.Argument,
                             out WorldObjectStateDelta delta, out WorldObjectSignal emitted))
                         continue;
+                    PrimeTimedReset(in target.Descriptor, ref delta);
                     _state.Set(in delta);
                     if (emitted != WorldObjectSignal.None)
                         _signals.Enqueue(new PendingSignal(connection.Target, emitted));
