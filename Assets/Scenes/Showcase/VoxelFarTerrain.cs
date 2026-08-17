@@ -291,21 +291,36 @@ namespace VoxelEngine.Showcase
                 }
             }
 
-            // One single-flight height job updates a moved ring. Round-robin admission prevents a
-            // constantly moving near ring from starving the outer clipmap indefinitely.
+            // One single-flight height job updates a moved ring. Ring 0 owns the correctness
+            // boundary around the camera, so a moved/invalid ring 0 always gets first refusal.
+            // Once it is current, the remaining rings retain round-robin admission so ordinary
+            // movement does not abandon outer coverage work.
             if (!_heightJobScheduled)
             {
-                for (int offset = 0; offset < _ringMeshes.Count; offset++)
+                int criticalSpacing = _ringSpacing[0];
+                int2 criticalOrigin = OriginFor(cameraPosition, criticalSpacing);
+                bool criticalNeedsSample = !_ringHeightValid[0]
+                    || !criticalOrigin.Equals(_ringOrigin[0]);
+                if (criticalNeedsSample)
                 {
-                    int ring = (_ringWorkCursor + offset) % _ringMeshes.Count;
-                    int spacing = _ringSpacing[ring];
-                    int2 targetOrigin = OriginFor(cameraPosition, spacing);
-                    if (_ringHeightValid[ring] && targetOrigin.Equals(_ringOrigin[ring]))
-                        continue;
+                    ScheduleHeightJob(0, criticalOrigin, criticalSpacing);
+                    _ringWorkCursor = _ringMeshes.Count > 1 ? 1 : 0;
+                }
+                else
+                {
+                    for (int offset = 0; offset < _ringMeshes.Count; offset++)
+                    {
+                        int ring = (_ringWorkCursor + offset) % _ringMeshes.Count;
+                        if (ring == 0) continue;
+                        int spacing = _ringSpacing[ring];
+                        int2 targetOrigin = OriginFor(cameraPosition, spacing);
+                        if (_ringHeightValid[ring] && targetOrigin.Equals(_ringOrigin[ring]))
+                            continue;
 
-                    ScheduleHeightJob(ring, targetOrigin, spacing);
-                    _ringWorkCursor = (ring + 1) % _ringMeshes.Count;
-                    break;
+                        ScheduleHeightJob(ring, targetOrigin, spacing);
+                        _ringWorkCursor = (ring + 1) % _ringMeshes.Count;
+                        break;
+                    }
                 }
             }
 
