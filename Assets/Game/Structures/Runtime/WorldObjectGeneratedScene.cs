@@ -14,22 +14,34 @@ namespace Game.Structures.Runtime
     public static class WorldObjectGeneratedSceneFactory
     {
         public static WorldObjectGeneratedScene CreateCastle(IStructureAuthoringSession geometry,
-            uint worldSeed, uint parentId, in CastlePlan plan, WorldObjectStateStore state = null)
+            uint worldSeed, uint parentId, in CastlePlan plan, WorldObjectStateStore state = null,
+            WorldObjectGeometryEmissionMode emissionMode = WorldObjectGeometryEmissionMode.AllVoxel)
         {
             var authoring = new WorldObjectAuthoringSession(worldSeed, parentId);
-            WorldObjectGeneratedContent.AuthorCastle(geometry, authoring, in plan);
-            WorldObjectGeneratedExpansion.AuthorCastle(geometry, authoring, in plan);
+            WorldObjectGeneratedContent.AuthorCastle(geometry, authoring, in plan, emissionMode);
+            WorldObjectGeneratedExpansion.AuthorCastle(geometry, authoring, in plan, emissionMode);
             return Build(authoring, state);
         }
 
         public static WorldObjectGeneratedScene CreateMineCave(IStructureAuthoringSession geometry,
-            uint worldSeed, uint parentId, DecorationBounds chamber, WorldObjectStateStore state = null)
+            uint worldSeed, uint parentId, DecorationBounds chamber, WorldObjectStateStore state = null,
+            WorldObjectGeometryEmissionMode emissionMode = WorldObjectGeometryEmissionMode.AllVoxel)
         {
             var authoring = new WorldObjectAuthoringSession(worldSeed, parentId);
-            WorldObjectGeneratedContent.AuthorMineCave(geometry, authoring, chamber);
-            WorldObjectGeneratedExpansion.AuthorMineCave(geometry, authoring, chamber);
+            WorldObjectGeneratedContent.AuthorMineCave(geometry, authoring, chamber, emissionMode);
+            WorldObjectGeneratedExpansion.AuthorMineCave(geometry, authoring, chamber, emissionMode);
             return Build(authoring, state);
         }
+
+        public static WorldObjectGeneratedScene CreateCastleForUnityDynamicPresentation(
+            IStructureAuthoringSession geometry, uint worldSeed, uint parentId, in CastlePlan plan,
+            WorldObjectStateStore state = null) =>
+            CreateCastle(geometry, worldSeed, parentId, in plan, state, WorldObjectGeometryEmissionMode.StaticOnly);
+
+        public static WorldObjectGeneratedScene CreateMineCaveForUnityDynamicPresentation(
+            IStructureAuthoringSession geometry, uint worldSeed, uint parentId, DecorationBounds chamber,
+            WorldObjectStateStore state = null) =>
+            CreateMineCave(geometry, worldSeed, parentId, chamber, state, WorldObjectGeometryEmissionMode.StaticOnly);
 
         private static WorldObjectGeneratedScene Build(WorldObjectAuthoringSession authoring, WorldObjectStateStore state)
         {
