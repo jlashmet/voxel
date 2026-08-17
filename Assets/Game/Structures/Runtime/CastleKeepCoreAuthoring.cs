@@ -26,12 +26,14 @@ namespace Game.Structures.Runtime
 
         public static void AuthorShell(IStructureAuthoringSession authoring, in CastlePlan plan)
         {
-            CastleConfig config = CastlePresets.Compatibility(in plan);
+            CastleComponentConfig components = CastleCompatibilityComponents.Resolve(in plan);
             AuthorShell(
                 authoring,
                 in plan,
-                in config.KeepFoundation,
-                config.KeepFoundationTopOffset);
+                in components.KeepFoundation,
+                components.KeepFoundationTopOffset,
+                in components.KeepWalls,
+                in components.Palette);
         }
 
         public static void AuthorShell(
@@ -40,40 +42,65 @@ namespace Game.Structures.Runtime
             in StructureFootprintConfig foundation,
             int foundationTopOffset)
         {
+            CastleComponentConfig components = CastleCompatibilityComponents.Resolve(in plan);
+            AuthorShell(
+                authoring,
+                in plan,
+                in foundation,
+                foundationTopOffset,
+                in components.KeepWalls,
+                in components.Palette);
+        }
+
+        public static void AuthorShell(
+            IStructureAuthoringSession authoring,
+            in CastlePlan plan,
+            in StructureFootprintConfig foundation,
+            int foundationTopOffset,
+            in StructureWallRunConfig wall,
+            in StructureMaterialPalette palette)
+        {
             Require(authoring);
             if (!foundation.IsWellFormed || foundation.FoundationStyle != StructureFoundationStyle.Slab)
                 throw new System.ArgumentException("Castle keep foundation must be a well-formed slab.");
             if (foundationTopOffset < 0)
                 throw new System.ArgumentOutOfRangeException(nameof(foundationTopOffset));
+            if (!wall.IsWellFormed)
+                throw new System.ArgumentException("Castle keep wall configuration is invalid.");
 
             int baseY = plan.Centre.y + plan.PlateauHeight;
             int3 min = Minimum(in plan);
-            int3 size = Size(in plan);
+            int3 legacySize = Size(in plan);
+            int3 size = new(legacySize.x, wall.Height, legacySize.z);
+            int thickness = wall.Thickness;
             StructureFootprintRect foundationRect = foundation.Primary;
 
             authoring.Box(
                 new int3(
                     plan.Centre.x + foundationRect.Min.x,
                     baseY + foundationTopOffset - foundation.FoundationDepth,
-                    plan.Centre.z + foundationRect.Min.y),
+                    plan.Centre.z + 60 + foundationRect.Min.y),
                 new int3(
                     foundationRect.Size.x,
                     foundation.FoundationDepth,
                     foundationRect.Size.y),
-                GameMaterialIds.DarkStone);
+                palette.Resolve(foundation.FoundationMaterial));
             authoring.HollowBox(
                 min,
                 size,
-                8,
-                GameMaterialIds.Stone,
+                thickness,
+                palette.Resolve(wall.PrimaryMaterial),
                 false,
                 false);
 
             // HollowBox writes only the shell. Preserve the base floor and explicitly clear the
             // occupied volume before floors, partitions, furniture, and circulation are authored.
             authoring.FillBulk(
-                new int3(min.x + 8, baseY + 1, min.z + 8),
-                new int3(size.x - 16, size.y - 1, size.z - 16),
+                new int3(min.x + thickness, baseY + 1, min.z + thickness),
+                new int3(
+                    size.x - 2 * thickness,
+                    size.y - 1,
+                    size.z - 2 * thickness),
                 GameMaterialIds.Empty);
         }
 
