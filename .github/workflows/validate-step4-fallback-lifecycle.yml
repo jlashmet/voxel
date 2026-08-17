@@ -15,6 +15,7 @@ permissions:
 
 # Each run is immutable: later work on this busy repair branch must not cancel the exact lifecycle
 # evidence that selected the next renderer change.
+# Validation marker: exact-region coverage repair (ad9d7c13 / ff102876 tree).
 concurrency:
   group: unity-step4-lifecycle-${{ github.sha }}
   cancel-in-progress: false
