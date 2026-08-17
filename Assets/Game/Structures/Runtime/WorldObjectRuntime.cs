@@ -116,9 +116,12 @@ namespace Game.Structures.Runtime
                     emitted = WorldObjectSignal.Deactivated;
                     return true;
                 case WorldObjectAction.Toggle:
+                {
+                    bool wasActive = (current.State & WorldObjectStateFlags.Active) != 0;
                     delta.State ^= WorldObjectStateFlags.Active;
-                    emitted = WorldObjectSignal.Toggled;
+                    emitted = wasActive ? WorldObjectSignal.Deactivated : WorldObjectSignal.Activated;
                     return true;
+                }
                 case WorldObjectAction.Enable:
                     delta.State &= ~WorldObjectStateFlags.Disabled;
                     return true;
@@ -131,6 +134,7 @@ namespace Game.Structures.Runtime
                     return true;
                 case WorldObjectAction.Reset:
                     delta.State &= ~(WorldObjectStateFlags.Triggered | WorldObjectStateFlags.Active);
+                    emitted = WorldObjectSignal.Deactivated;
                     return true;
                 case WorldObjectAction.PowerOn:
                     delta.State |= WorldObjectStateFlags.Powered;
