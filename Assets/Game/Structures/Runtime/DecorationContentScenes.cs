@@ -66,8 +66,8 @@ namespace Game.Structures.Runtime
                 case DecorationContentSceneKind.TavernBar:
                     return new[]
                     {
-                        Slot(1, DecorationContentKind.BarCounter, DecorationSocketKind.Floor, true, 5),
-                        Slot(2, DecorationContentKind.KegRack, DecorationSocketKind.Wall, true, 5),
+                        Slot(1, DecorationContentKind.KegRack, DecorationSocketKind.Wall, true, 5),
+                        Slot(2, DecorationContentKind.BarCounter, DecorationSocketKind.Floor, true, 5),
                         Slot(3, DecorationContentKind.MugRack, DecorationSocketKind.Wall, false, 4),
                         Slot(4, DecorationContentKind.ServingShelf, DecorationSocketKind.Wall, false, 3),
                         Slot(5, DecorationContentKind.FirewoodStack, DecorationSocketKind.Floor, false, 2),
@@ -118,10 +118,9 @@ namespace Game.Structures.Runtime
                     {
                         Slot(1, DecorationContentKind.Fountain, DecorationSocketKind.Floor, true, 5),
                         Slot(2, DecorationContentKind.NoticeBoard, DecorationSocketKind.Wall, true, 4),
-                        Slot(3, DecorationContentKind.Well, DecorationSocketKind.Floor, false, 2),
-                        Slot(4, DecorationContentKind.LampPost, DecorationSocketKind.Floor, false, 4),
-                        Slot(5, DecorationContentKind.PublicTrough, DecorationSocketKind.Floor, false, 2),
-                        Slot(6, DecorationContentKind.Handcart, DecorationSocketKind.Floor, false, 3),
+                        Slot(3, DecorationContentKind.LampPost, DecorationSocketKind.Floor, false, 4),
+                        Slot(4, DecorationContentKind.PublicTrough, DecorationSocketKind.Floor, false, 2),
+                        Slot(5, DecorationContentKind.Handcart, DecorationSocketKind.Floor, false, 3),
                     };
             }
         }
@@ -160,6 +159,13 @@ namespace Game.Structures.Runtime
     /// </summary>
     public static class DecorationContentSceneResolver
     {
+        private enum RelationMode : byte
+        {
+            None = 0,
+            InFront = 1,
+            Around = 2,
+        }
+
         public static bool TryResolve(
             DecorationContentSceneKind kind,
             in DecorationSpace space,
@@ -201,32 +207,49 @@ namespace Game.Structures.Runtime
                 if (!descriptor.IsWellFormed || !descriptor.Accepts(contentSlot.RequestedSocket))
                     return false;
 
-                bool placed;
-                if (kind == DecorationContentSceneKind.Smithy &&
-                    IsSmithyFloorCluster(contentSlot.Kind) &&
-                    TryFindPlacement(resolved, count, 1u, out DecorationPlacement hearth))
+                RelationMode relation = RelationFor(kind, contentSlot.Kind, out uint anchorSlotId);
+                bool placed = false;
+                if (relation != RelationMode.None &&
+                    TryFindPlacement(resolved, count, anchorSlotId, out DecorationPlacement anchor))
                 {
-                    placed = DecorationContentRelationalPlacement.TryPlaceFloorNearAnchor(
-                        in space,
-                        in context,
-                        sceneId,
-                        contentSlot.SlotId,
-                        in descriptor,
-                        in hearth,
-                        4,
-                        52,
-                        42,
-                        exclusions,
-                        resolved,
-                        count,
-                        out DecorationPlacement placement);
-                    if (placed)
+                    if (relation == RelationMode.InFront)
                     {
-                        resolved[count++] = placement;
-                        continue;
+                        placed = DecorationContentRelationalPlacement.TryPlaceFloorNearAnchor(
+                            in space,
+                            in context,
+                            sceneId,
+                            contentSlot.SlotId,
+                            in descriptor,
+                            in anchor,
+                            4,
+                            ForwardDepth(kind),
+                            LateralRadius(kind),
+                            exclusions,
+                            resolved,
+                            count,
+                            out DecorationPlacement placement);
+                        if (placed)
+                            resolved[count++] = placement;
+                    }
+                    else
+                    {
+                        placed = DecorationContentRelationalPlacement.TryPlaceFloorAroundAnchor(
+                            in space,
+                            in context,
+                            sceneId,
+                            contentSlot.SlotId,
+                            in descriptor,
+                            in anchor,
+                            AroundRadius(kind),
+                            exclusions,
+                            resolved,
+                            count,
+                            out DecorationPlacement placement);
+                        if (placed)
+                            resolved[count++] = placement;
                     }
                 }
-                else
+                else if (relation == RelationMode.None)
                 {
                     placed = DecorationPlacementResolver.TryPlace(
                         in space,
@@ -240,13 +263,10 @@ namespace Game.Structures.Runtime
                         count,
                         out DecorationPlacement placement);
                     if (placed)
-                    {
                         resolved[count++] = placement;
-                        continue;
-                    }
                 }
 
-                if (contentSlot.Required)
+                if (!placed && contentSlot.Required)
                     return false;
             }
 
@@ -256,11 +276,91 @@ namespace Game.Structures.Runtime
             return true;
         }
 
-        private static bool IsSmithyFloorCluster(DecorationContentKind kind) =>
-            kind == DecorationContentKind.Anvil ||
-            kind == DecorationContentKind.Bellows ||
-            kind == DecorationContentKind.QuenchTub ||
-            kind == DecorationContentKind.Grindstone;
+        private static RelationMode RelationFor(
+            DecorationContentSceneKind scene,
+            DecorationContentKind kind,
+            out uint anchorSlotId)
+        {
+            anchorSlotId = 1u;
+            switch (scene)
+            {
+                case DecorationContentSceneKind.Smithy:
+                    return kind == DecorationContentKind.Anvil ||
+                           kind == DecorationContentKind.Bellows ||
+                           kind == DecorationContentKind.QuenchTub ||
+                           kind == DecorationContentKind.Grindstone
+                        ? RelationMode.InFront
+                        : RelationMode.None;
+                case DecorationContentSceneKind.TavernBar:
+                    return kind == DecorationContentKind.BarCounter ||
+                           kind == DecorationContentKind.FirewoodStack
+                        ? RelationMode.InFront
+                        : RelationMode.None;
+                case DecorationContentSceneKind.Crypt:
+                    return kind == DecorationContentKind.Coffin ||
+                           kind == DecorationContentKind.FuneralBier ||
+                           kind == DecorationContentKind.UrnStand
+                        ? RelationMode.Around
+                        : RelationMode.None;
+                case DecorationContentSceneKind.Market:
+                    return kind == DecorationContentKind.ProduceStand ||
+                           kind == DecorationContentKind.BasketStack
+                        ? RelationMode.Around
+                        : RelationMode.None;
+                case DecorationContentSceneKind.Stable:
+                    return kind == DecorationContentKind.WaterTrough ||
+                           kind == DecorationContentKind.HayBale ||
+                           kind == DecorationContentKind.HitchingPost
+                        ? RelationMode.InFront
+                        : RelationMode.None;
+                case DecorationContentSceneKind.Prison:
+                    return kind == DecorationContentKind.Stocks ||
+                           kind == DecorationContentKind.PrisonBucket ||
+                           kind == DecorationContentKind.RestraintBench
+                        ? RelationMode.Around
+                        : RelationMode.None;
+                case DecorationContentSceneKind.CivicCorner:
+                    return kind == DecorationContentKind.LampPost ||
+                           kind == DecorationContentKind.PublicTrough ||
+                           kind == DecorationContentKind.Handcart
+                        ? RelationMode.Around
+                        : RelationMode.None;
+                default:
+                    return RelationMode.None;
+            }
+        }
+
+        private static int ForwardDepth(DecorationContentSceneKind scene)
+        {
+            switch (scene)
+            {
+                case DecorationContentSceneKind.TavernBar: return 70;
+                case DecorationContentSceneKind.Stable: return 64;
+                default: return 52;
+            }
+        }
+
+        private static int LateralRadius(DecorationContentSceneKind scene)
+        {
+            switch (scene)
+            {
+                case DecorationContentSceneKind.TavernBar: return 58;
+                case DecorationContentSceneKind.Stable: return 52;
+                default: return 42;
+            }
+        }
+
+        private static int AroundRadius(DecorationContentSceneKind scene)
+        {
+            switch (scene)
+            {
+                case DecorationContentSceneKind.Crypt: return 78;
+                case DecorationContentSceneKind.Market: return 74;
+                case DecorationContentSceneKind.Prison: return 68;
+                case DecorationContentSceneKind.CivicCorner: return 88;
+                default: return 64;
+            }
+        }
 
         private static bool TryFindPlacement(
             DecorationPlacement[] placements,
