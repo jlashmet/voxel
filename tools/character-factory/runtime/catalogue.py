@@ -43,6 +43,12 @@ def _file_digest(path: Path) -> str | None:
     return digest.hexdigest()
 
 
+def _geometry_detail_names(spec: BuildSpec) -> tuple[str, ...]:
+    if spec.rigid is None or spec.rigid.composition is None:
+        return ()
+    return (spec.rigid.composition.detail_reference,)
+
+
 def _reference_hashes(spec: BuildSpec) -> dict[str, object]:
     geometry = {
         name: None if path is None else _file_digest(path)
@@ -71,6 +77,7 @@ def _entry_input_state(entry: CatalogueEntry) -> dict[str, object]:
     return {
         "specSha256": _file_digest(entry.spec_path),
         "referenceHashes": _reference_hashes(entry.spec),
+        "geometryDetailNames": list(_geometry_detail_names(entry.spec)),
     }
 
 
@@ -283,9 +290,31 @@ def classify_changes(
         else:
             current_refs = current_state["referenceHashes"]
             assert isinstance(current_refs, Mapping)
-            for name in ("geometry", "appearance", "details"):
+            for name in ("geometry", "appearance"):
                 if current_refs.get(name) != previous_refs.get(name):
                     kinds.add(name)
+
+            current_details = current_refs.get("details")
+            previous_details = previous_refs.get("details")
+            if current_details != previous_details:
+                kinds.add("details")
+                current_geometry_names = {
+                    str(value)
+                    for value in current_state.get("geometryDetailNames", [])
+                }
+                previous_geometry_names = {
+                    str(value)
+                    for value in previous.get("geometryDetailNames", [])
+                }
+                geometry_names = current_geometry_names | previous_geometry_names
+                if not isinstance(current_details, Mapping) or not isinstance(previous_details, Mapping):
+                    if geometry_names:
+                        kinds.add("geometry")
+                elif any(
+                    current_details.get(name) != previous_details.get(name)
+                    for name in geometry_names
+                ):
+                    kinds.add("geometry")
 
         if kinds:
             changes.append(
@@ -375,6 +404,18 @@ def catalogue_payload(
                         ),
                     }
                 ),
+                "rigidComposition": (
+                    None
+                    if rigid is None or rigid.composition is None
+                    else {
+                        "strategy": rigid.composition.strategy,
+                        "detailReference": rigid.composition.detail_reference,
+                        "totalLength": rigid.composition.total_length,
+                        "detailLength": rigid.composition.detail_length,
+                        "shaftRadius": rigid.composition.shaft_radius,
+                    }
+                ),
+                "geometryDetailNames": input_state["geometryDetailNames"],
                 "referenceHashes": input_state["referenceHashes"],
                 "latestArtifact": _latest_artifact_state(spec),
             }
