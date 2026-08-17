@@ -82,6 +82,46 @@ namespace Game.Structures.Tests
             AssertVisual(capture.RenderPng("temple-courtyard"));
         }
 
+        [Test]
+        public void WalledCastle_WritesRenderedGeometryPng()
+        {
+            StructureMaterialPalette palette = CastleStructurePalette.Compatibility;
+            var plan = new CastlePlan
+            {
+                Centre = int3.zero,
+                PlateauRadius = 190,
+                PlateauHeight = 16,
+                CliffDrop = 44,
+                BaileyHalfX = 150,
+                BaileyHalfZ = 132,
+                WallHeight = 54,
+                WallThickness = 8,
+                TowerRadius = 20,
+                TowerHeight = 78,
+                GateTowerRadius = 24,
+                GateTowerHeight = 92,
+                KeepHalfX = 48,
+                KeepHalfZ = 42,
+                KeepHeight = 102,
+                FloorHeight = 30,
+                Floors = 3,
+                Seed = 0xCA571Eu,
+            };
+            CastlePresetConfig preset = CastlePresets.WalledCastle(in plan, in palette);
+            // The visual is for authored castle geometry. Site/landscape terrain sculpting has its
+            // own terrain visual suite and would obscure the walls in this structure-only capture.
+            preset.Stages.Site = false;
+            preset.Stages.Landscape = false;
+
+            var capture = new VisualStructureCapture(
+                new int3(-220, -20, -220),
+                new int3(440, 260, 440));
+            var build = new CastleAuthoringBuild(capture, in plan, preset, plan.Seed);
+            while (!build.Step()) { }
+
+            AssertVisual(capture.RenderPng("castle-walled", 1440, 1000));
+        }
+
         private static void AssertVisual(string path)
         {
             Assert.That(File.Exists(path), Is.True, $"Expected visual artifact at {path}");
