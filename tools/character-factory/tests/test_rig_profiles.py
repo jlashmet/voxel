@@ -90,9 +90,9 @@ class RigProfileTests(unittest.TestCase):
             path.write_text(json.dumps(payload), encoding="utf-8")
             with patch.dict(os.environ, {"CHARACTER_FACTORY_CACHE_ROOT": str(root / "cache")}):
                 spec = BuildSpec.load(path, validate_paths=False)
-        self.assertEqual("canonical-humanoid-macos", spec.rig.profile)
-        self.assertFalse(spec.rig.canonical_body.exists())
-        self.assertEqual("Body", spec.rig.body_object)
+                self.assertEqual("canonical-humanoid-macos", spec.rig.profile)
+                self.assertFalse(spec.rig.canonical_body.exists())
+                self.assertEqual("Body", spec.rig.body_object)
 
     def test_dry_run_records_rig_bootstrap_and_manifest_metadata(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -147,9 +147,8 @@ class RigProfileTests(unittest.TestCase):
                 (donor.parent / "source.sha256").write_text(revision + "\n", encoding="utf-8")
                 runtime = CharacterFactoryRuntime(TOOL_ROOT)
                 command = runtime._ensure_rig_profile(spec, dry_run=False)
-
-        self.assertIsNotNone(command)
-        self.assertTrue(runtime._rig_profile_ready(spec))
+                self.assertIsNotNone(command)
+                self.assertTrue(runtime._rig_profile_ready(spec))
 
     def test_rig_metadata_records_profile_identity(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
