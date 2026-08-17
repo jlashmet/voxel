@@ -26,14 +26,40 @@ namespace Game.Structures.Runtime
 
         public static void AuthorShell(IStructureAuthoringSession authoring, in CastlePlan plan)
         {
+            CastleConfig config = CastlePresets.Compatibility(in plan);
+            AuthorShell(
+                authoring,
+                in plan,
+                in config.KeepFoundation,
+                config.KeepFoundationTopOffset);
+        }
+
+        public static void AuthorShell(
+            IStructureAuthoringSession authoring,
+            in CastlePlan plan,
+            in StructureFootprintConfig foundation,
+            int foundationTopOffset)
+        {
             Require(authoring);
+            if (!foundation.IsWellFormed || foundation.FoundationStyle != StructureFoundationStyle.Slab)
+                throw new System.ArgumentException("Castle keep foundation must be a well-formed slab.");
+            if (foundationTopOffset < 0)
+                throw new System.ArgumentOutOfRangeException(nameof(foundationTopOffset));
+
             int baseY = plan.Centre.y + plan.PlateauHeight;
             int3 min = Minimum(in plan);
             int3 size = Size(in plan);
+            StructureFootprintRect foundationRect = foundation.Primary;
 
             authoring.Box(
-                new int3(min.x - 6, baseY - 26, min.z - 6),
-                new int3(size.x + 12, 30, size.z + 12),
+                new int3(
+                    plan.Centre.x + foundationRect.Min.x,
+                    baseY + foundationTopOffset - foundation.FoundationDepth,
+                    plan.Centre.z + foundationRect.Min.y),
+                new int3(
+                    foundationRect.Size.x,
+                    foundation.FoundationDepth,
+                    foundationRect.Size.y),
                 GameMaterialIds.DarkStone);
             authoring.HollowBox(
                 min,
