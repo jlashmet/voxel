@@ -146,7 +146,10 @@ namespace Game.Structures.Runtime
                 case DecorationPropFamily.Campfire:
                     return DecorationDetailClass.Essential;
 
+                case DecorationPropFamily.Chest:
+                case DecorationPropFamily.Shelf:
                 case DecorationPropFamily.Candle:
+                case DecorationPropFamily.Chandelier:
                 case DecorationPropFamily.Painting:
                 case DecorationPropFamily.WallTorch:
                 case DecorationPropFamily.Lantern:
