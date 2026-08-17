@@ -72,8 +72,8 @@ namespace Game.Structures.Tests
                 Assert.AreEqual(18, config.CurtainBattlements.GapWidth);
                 Assert.AreEqual(20, config.CurtainBattlements.MerlonHeight);
                 Assert.AreEqual(18, config.GatehouseBattlements.MerlonWidth);
-                Assert.AreEqual(18, config.GatehouseBattlements.MerlonHeight);
-                Assert.AreEqual(12, config.GatehouseBattlements.GapWidth);
+                Assert.AreEqual(12, config.GatehouseBattlements.MerlonHeight);
+                Assert.AreEqual(18, config.GatehouseBattlements.GapWidth);
 
                 Assert.AreEqual(GameMaterialIds.DarkStone,
                     config.Palette.Resolve(StructureMaterialRole.Foundation));
