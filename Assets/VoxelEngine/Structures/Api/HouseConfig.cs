@@ -13,6 +13,18 @@ namespace VoxelEngine.Structures.Api
         public OpeningConfig MainDoor;
         public RoofConfig Roof;
         public StructureMaterialPalette Palette;
+
+        /// <summary>Primary rectangular house width in definition-local X voxels.</summary>
+        public int Width => Footprint.Primary.Size.x;
+
+        /// <summary>Primary rectangular house depth in definition-local Z voxels.</summary>
+        public int Depth => Footprint.Primary.Size.y;
+
+        public int FloorCount => Floors.FloorCount;
+        public int FloorHeight => Floors.LevelHeight;
+        public int WallThickness => Walls.Thickness;
+        public StructureFoundationStyle FoundationStyle => Footprint.FoundationStyle;
+        public int FoundationDepth => Footprint.FoundationDepth;
     }
 
     /// <summary>Compatibility defaults for the original hand-authored cottage shape program.</summary>
