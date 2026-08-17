@@ -124,11 +124,11 @@ jobs:
             -logFile "$ROOT/showcase-bake.log"
           test -s "$GITHUB_WORKSPACE/Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes"
 
-      # PlayMode assemblies run one process each. VoxelEngine.Tests.PlayMode is large enough that
-      # Unity retains native scene/rendering memory across repeated scene loads even after managed
-      # scene memory is released. Keep the broad ranges for the light tests, but give Kentridge and
-      # the LOD/memory fixtures fresh Unity processes; the previous G-M bucket reached 14.356 GB
-      # against the 14.336 GB watchdog ceiling before the remaining shards could run.
+      # PlayMode assemblies run one process each. VoxelEngine.Tests.PlayMode repeatedly opens
+      # scene-heavy fixtures and Unity retains native scene/rendering allocations after teardown.
+      # The old L-M and T-Z buckets still reached ~14.36 GB against the 14.336 GB watchdog, so the
+      # LOD/memory and late alphabet showcase fixtures each get a fresh Unity process. The broad
+      # low-memory ranges remain grouped to keep validation latency reasonable.
       - name: PlayMode (affected)
         if: steps.select.outputs.playmode != ''
         shell: bash
@@ -147,11 +147,19 @@ jobs:
                 '^VoxelEngine\.Tests\.PlayMode\.[A-F]'
                 '^VoxelEngine\.Tests\.PlayMode\.[G-J]'
                 '^VoxelEngine\.Tests\.PlayMode\.K'
-                '^VoxelEngine\.Tests\.PlayMode\.[L-M]'
+                '^VoxelEngine\.Tests\.PlayMode\.LateJoinTests'
+                '^VoxelEngine\.Tests\.PlayMode\.LodRenderingTests'
+                '^VoxelEngine\.Tests\.PlayMode\.LodVisualFidelityTests'
+                '^VoxelEngine\.Tests\.PlayMode\.MemoryStabilityTests'
                 '^VoxelEngine\.Tests\.PlayMode\.[N-S]'
-                '!^VoxelEngine\.Tests\.PlayMode\.[A-S]'
+                '^VoxelEngine\.Tests\.PlayMode\.TerrainLookdevScreenshotTests'
+                '^VoxelEngine\.Tests\.PlayMode\.TraversalStreamingTests'
+                '^VoxelEngine\.Tests\.PlayMode\.[U-Z]'
               )
-              LABELS=(a-f g-j kentridge l-m n-s t-z-rest)
+              LABELS=(
+                a-f g-j kentridge late-join lod-rendering lod-fidelity memory n-s
+                terrain-lookdev traversal u-z
+              )
               for i in "${!FILTERS[@]}"; do
                 label="${LABELS[$i]}"
                 echo "::group::PlayMode $asm ($label)"
