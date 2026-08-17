@@ -13,13 +13,26 @@ namespace Game.Structures.Runtime
     {
         public static void Author(IStructureAuthoringSession authoring, in CastlePlan plan)
         {
-            CastleConfig config = CastlePresets.Compatibility(in plan);
+            StructureMaterialPalette palette = CastleStructurePalette.Compatibility;
+            CastleComponentConfig components = CastleComponentPresets.Compatibility(in plan, in palette);
+            Author(authoring, in plan, in components);
+        }
+
+        public static void Author(
+            IStructureAuthoringSession authoring,
+            in CastlePlan plan,
+            in CastleComponentConfig components)
+        {
+            if (!components.IsWellFormed)
+                throw new System.ArgumentException("Castle component configuration is invalid.", nameof(components));
+
             Author(
                 authoring,
                 in plan,
-                in config.CurtainWallX,
-                in config.CurtainWallZ,
-                in config.CurtainBattlements);
+                in components.CurtainWallX,
+                in components.CurtainWallZ,
+                in components.CurtainBattlements,
+                in components.Palette);
         }
 
         public static void Author(
@@ -29,11 +42,22 @@ namespace Game.Structures.Runtime
             in StructureWallRunConfig wallZ,
             in BattlementConfig battlements)
         {
+            StructureMaterialPalette palette = CastleStructurePalette.Compatibility;
+            Author(authoring, in plan, in wallX, in wallZ, in battlements, in palette);
+        }
+
+        public static void Author(
+            IStructureAuthoringSession authoring,
+            in CastlePlan plan,
+            in StructureWallRunConfig wallX,
+            in StructureWallRunConfig wallZ,
+            in BattlementConfig battlements,
+            in StructureMaterialPalette palette)
+        {
             if (authoring == null) throw new System.ArgumentNullException(nameof(authoring));
             if (!wallX.IsWellFormed || !wallZ.IsWellFormed || !battlements.IsWellFormed)
                 throw new System.ArgumentException("Castle curtain configuration is invalid.");
 
-            StructureMaterialPalette palette = CastleStructurePalette.Compatibility;
             int baseY = plan.Centre.y + plan.PlateauHeight;
             int hx = wallX.Length / 2;
             int hz = wallZ.Length / 2;
