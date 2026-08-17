@@ -18,8 +18,9 @@ Status: `[ ]` todo, `[~]` in progress, `[x]` complete.
 - [x] Add state-change notifications and presentation refresh sink contract.
 - [x] Add concrete Unity dynamic presentation sink + scene host (proxy geometry, animation, collider, light, particles).
 - [x] Add StaticOnly geometry emission mode so dynamic Unity proxies are not also baked into voxels.
-- [x] Add dedicated Unity composition assembly owning the registry/presentation lifecycle without weakening engine-free composition boundaries.
-- [x] Auto-bootstrap one persistent WorldObject runtime composition owner after scene load.
+- [x] Add dedicated Unity composition assembly without weakening engine-free application/voxel composition boundaries.
+- [x] Auto-bootstrap the Unity WorldObject presentation observer before scene load.
+- [x] Publish authoritative registry scene load/unload events so presentation can observe external registry owners without duplicating state.
 - [x] Add geometry/behavior/runtime validation coverage for every registered kind (tests authored; Unity execution still required).
 
 ## Batch A — traversal and barriers
@@ -112,6 +113,10 @@ Geometry, concrete behavior, and generated-content placement are implemented. Pe
 - [x] Decoration-generated containers/furniture use common live runtime behavior while preserving GeneratedPropId identity.
 - [x] Expansion passes emit only newly-authored geometry instead of duplicating base-object writes.
 - [x] Dynamic-proxy scene factories/registry modes emit static voxel content only.
+- [x] Showcase castle owns one authoritative persistent WorldObject registry/scene alongside the baked voxel world.
+- [x] Showcase castle startup/re-entry ensures the authoritative WorldObject scene is loaded after the bake.
+- [x] Unity presentation automatically follows the showcase-owned registry through registry lifecycle notifications.
+- [x] Descriptor-only (`emissionMode=None`) generation is regression-tested for baked-world startup.
 
 ## Reusable mechanism presets
 
@@ -131,4 +136,5 @@ Geometry, concrete behavior, and generated-content placement are implemented. Pe
 - [ ] Run authored WorldObject tests in Unity and fix compile/runtime failures.
 - [x] Dynamic presentation path: planning + push refresh + concrete Unity sink/scene host; proxy visuals are intentionally gameplay-first placeholders.
 - [ ] Reconcile latest `agent/worldbuilding-decorations` changes into this branch (source branch is still actively moving; connector tree merge is currently blocked).
-- [~] Streaming lifecycle: persistent registry/composition owner + auto-bootstrap are complete; actual structure realization call sites still need to call LoadCastle/LoadMineCave when a site becomes live and Unload when it streams out.
+- [x] Showcase castle streaming/startup lifecycle is wired end-to-end.
+- [~] Generic mine/cave streaming lifecycle: registry/factory/presentation support is complete; wire the concrete streamed mine/cave realization caller once that owner is identified.
