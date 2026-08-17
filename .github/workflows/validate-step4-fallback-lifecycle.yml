@@ -9,6 +9,7 @@ on:
       - Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
       - Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Step4FalseEmptyDiagnostics.cs
       - Assets/Tests/PlayMode/LodRenderingTests.cs
+      - Assets/Tests/PlayMode/Step4LifecycleDiagnosticsTests.cs
 
 permissions:
   contents: read
@@ -67,7 +68,7 @@ jobs:
             -logFile "$ROOT/showcase-bake.log"
           test -s "$GITHUB_WORKSPACE/Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes"
 
-      - name: Run LOD lifecycle fixture
+      - name: Run step4 lifecycle diagnostic fixture
         shell: bash
         run: |
           set -uo pipefail
@@ -78,9 +79,9 @@ jobs:
             -batchmode -job-worker-count 1 \
             -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform PlayMode \
             -assemblyNames VoxelEngine.Tests.PlayMode \
-            -testFilter '^VoxelEngine\.Tests\.PlayMode\.LodRenderingTests' \
-            -testResults "$ROOT/lod-rendering.xml" \
-            -logFile "$ROOT/lod-rendering.log" || status=$?
+            -testFilter '^VoxelEngine\.Tests\.PlayMode\.Step4LifecycleDiagnosticsTests' \
+            -testResults "$ROOT/step4-lifecycle.xml" \
+            -logFile "$ROOT/step4-lifecycle.log" || status=$?
           if [[ -s "${TMPDIR:-/tmp}/unity-run-status" ]]; then
             cp "${TMPDIR:-/tmp}/unity-run-status" "$ROOT/unity-run-status.txt"
           fi
