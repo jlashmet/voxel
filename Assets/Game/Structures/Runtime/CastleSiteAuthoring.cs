@@ -27,6 +27,7 @@ namespace Game.Structures.Runtime
         public static bool Step(
             IStructureAuthoringSession authoring,
             in CastlePlan plan,
+            in CastleComponentConfig components,
             uint terrainSeed,
             ref CastleSiteAuthoringState state)
         {
@@ -35,7 +36,8 @@ namespace Game.Structures.Runtime
 
             int top = plan.Centre.y + plan.PlateauHeight;
             int radius = plan.PlateauRadius;
-            int skirt = radius + plan.CliffDrop;
+            int cliffDrop = components.BaileyFootprint.FoundationDepth;
+            int skirt = radius + cliffDrop;
 
             if (state.Phase == 0)
             {
@@ -58,7 +60,7 @@ namespace Game.Structures.Runtime
                                      + math.sin(angle * 17.1f) * 4f;
 
                         float edge = radius + wobble;
-                        if (d > edge + plan.CliffDrop) continue;
+                        if (d > edge + cliffDrop) continue;
 
                         int ground = TerrainSampler.HeightAt(wx, wz, terrainSeed);
                         int target;
@@ -68,7 +70,7 @@ namespace Game.Structures.Runtime
                         }
                         else
                         {
-                            float t = (d - edge) / plan.CliffDrop;
+                            float t = (d - edge) / cliffDrop;
                             float broken = math.pow(t, 1.7f)
                                          + math.sin(angle * 11f + t * 6f) * 0.10f;
                             target = (int)math.round(math.lerp(
@@ -100,7 +102,7 @@ namespace Game.Structures.Runtime
                 state.Cursor = 0;
             }
 
-            int reach = plan.PlateauRadius + plan.CliffDrop - 8;
+            int reach = plan.PlateauRadius + cliffDrop - 8;
             int columnEnd = math.min(reach * 2 + 1, state.Cursor + 2);
             LowerRiverGorge(authoring, in plan, top, state.Cursor, columnEnd, reach);
             state.Cursor = columnEnd;
