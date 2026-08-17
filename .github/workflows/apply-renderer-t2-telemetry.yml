@@ -1,0 +1,39 @@
+name: Apply renderer T2 telemetry patch
+
+on:
+  push:
+    branches:
+      - feature/renderer-lod-hole-regression
+    paths:
+      - tools/apply-renderer-t2-telemetry.py
+      - .github/workflows/apply-renderer-t2-telemetry.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply assertion-based source patch
+        run: python3 tools/apply-renderer-t2-telemetry.py
+      - name: Validate patch
+        run: git diff --check
+      - name: Commit renderer demand telemetry
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo "Patch already applied"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs \
+            Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs \
+            Assets/Tests/EditMode/SurfaceDemandSchedulingArchitectureTests.cs
+          git commit -m "Expose hierarchical renderer demand telemetry"
+          git push origin HEAD:feature/renderer-lod-hole-regression
