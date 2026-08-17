@@ -21,6 +21,7 @@ on:
       - 'tools/character-factory/ci/create_rigid_reference_fixture.py'
       - 'tools/character-factory/ci/verify_rigid_asset.py'
       - 'tools/character-factory/ci/verify_rigid_reference_mask.py'
+      - 'tools/character-factory/ci/verify_skinned_character.py'
       - '.github/workflows/character-factory-appearance-blender-smoke.yml'
   workflow_dispatch:
 
