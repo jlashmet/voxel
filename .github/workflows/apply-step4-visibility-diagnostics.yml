@@ -17,17 +17,31 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Drop stale plan mutations from transport
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('.github/scripts/apply-step4-visibility-diagnostics.py')
+          text = path.read_text()
+          marker = '\nreplace_once(plan,'
+          index = text.find(marker)
+          if index < 0:
+              raise SystemExit('expected stale plan mutation block')
+          path.write_text(text[:index] + '\n')
+          PY
       - name: Apply exact diagnostics patch
         run: python .github/scripts/apply-step4-visibility-diagnostics.py
       - name: Verify diff
         run: |
           git diff --check
-          git diff -- Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs Assets/Tests/PlayMode/LodRenderingTests.cs .claude/plans/voxel-showcase-rendering-repair-v2.md
+          git diff -- Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs Assets/Tests/PlayMode/LodRenderingTests.cs
+          test -z "$(git diff --name-only -- .claude/plans/voxel-showcase-rendering-repair-v2.md)"
       - name: Commit diagnostics and remove transport
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           rm .github/workflows/apply-step4-visibility-diagnostics.yml .github/scripts/apply-step4-visibility-diagnostics.py
           git add -A
+          git diff --cached --check
           git commit -m "test(rendering): expose step4 visibility ownership diagnostics"
           git push origin HEAD:feature/voxel-showcase-rendering-repair-v2
