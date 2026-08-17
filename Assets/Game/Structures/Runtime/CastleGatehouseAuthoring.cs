@@ -10,7 +10,7 @@ namespace Game.Structures.Runtime
     {
         public static void Author(IStructureAuthoringSession authoring, in CastlePlan plan)
         {
-            CastleConfig config = CastlePresets.Compatibility(in plan);
+            CastleComponentConfig config = CastleCompatibilityComponents.Resolve(in plan);
             Author(
                 authoring,
                 in plan,
