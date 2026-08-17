@@ -1,0 +1,35 @@
+name: Apply hierarchical renderer integration
+
+on:
+  push:
+    branches:
+      - feature/renderer-lod-hole-regression
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply source integration
+        run: python3 tools/apply-hierarchical-renderer.py
+      - name: Commit source integration
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo "No source changes to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
+          git add Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/SurfaceLodCoverageState.cs
+          git add Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/SurfaceLodActiveCoverage.cs
+          git add Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs
+          git commit -m "Integrate hierarchical LOD coverage"
+          git push origin HEAD:${GITHUB_REF_NAME}
