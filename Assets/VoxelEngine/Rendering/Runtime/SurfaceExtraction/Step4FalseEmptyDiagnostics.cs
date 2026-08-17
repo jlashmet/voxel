@@ -8,8 +8,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
     /// These counters do not participate in scheduling or rendering. They answer which lifecycle
     /// branch adjudicated an exact step-4 chunk after the ordinary four-voxel extractor completed:
     /// exact ownership, profile suppression, feature-preserving fallback, or final publication.
-    /// The LOD acceptance fixture resets them before its scene run and reports one snapshot only
-    /// on failure so the counters cannot become a gameplay logging path.
+    /// The focused LOD fixture resets them before its scene run. While the false-empty
+    /// investigation is active, an authoritative empty publication logs the current snapshot so
+    /// the exact adjudication branch is preserved even if the fixture fails before formatting its
+    /// final assertion message.
     /// </summary>
     public static class Step4FalseEmptyDiagnostics
     {
@@ -144,7 +146,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         internal static void RecordFallbackPublished() =>
             Interlocked.Increment(ref s_FallbackPublishedNonEmpty);
 
-        internal static void RecordReadyEmptyPublication() =>
+        internal static void RecordReadyEmptyPublication()
+        {
             Interlocked.Increment(ref s_ReadyEmptyPublications);
+            UnityEngine.Debug.Log($"[Step4FalseEmptyLifecycle] {Current}");
+        }
     }
 }
