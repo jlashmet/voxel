@@ -2,16 +2,19 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
-import os
 from pathlib import Path
 import subprocess
 import sys
 
 TOOL_ROOT = Path(__file__).resolve().parent
 PROJECT_ROOT = TOOL_ROOT.parents[1]
+if str(TOOL_ROOT) not in sys.path:
+    sys.path.insert(0, str(TOOL_ROOT))
+
+from api.rig_profiles import DEFAULT_BLENDER, canonical_donor_state
+
+
 FIXTURE_SCRIPT = TOOL_ROOT / "ci" / "create_canonical_character_fixture.py"
-DEFAULT_BLENDER = "/Applications/Blender.app/Contents/MacOS/Blender"
 
 
 def parse_args() -> argparse.Namespace:
@@ -23,36 +26,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--blender", default=DEFAULT_BLENDER)
     parser.add_argument(
-        "--cache-root",
-        type=Path,
-        help="override the canonical donor cache root",
-    )
-    parser.add_argument(
         "--force",
         action="store_true",
         help="rebuild even if the code-keyed donor already exists",
     )
     return parser.parse_args()
-
-
-def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
-def cache_root(args: argparse.Namespace) -> Path:
-    if args.cache_root is not None:
-        return args.cache_root.expanduser().resolve()
-    factory_cache = Path(
-        os.environ.get(
-            "CHARACTER_FACTORY_CACHE_ROOT",
-            str(Path.home() / "Library/Caches/voxel-character-factory"),
-        )
-    ).expanduser()
-    return (factory_cache / "canonical-donors").resolve()
 
 
 def main() -> int:
@@ -61,17 +39,14 @@ def main() -> int:
     if not blender.is_file():
         print(f"canonical-bootstrap: Blender does not exist: {blender}", file=sys.stderr)
         return 1
-    if not FIXTURE_SCRIPT.is_file():
-        print(
-            f"canonical-bootstrap: fixture generator does not exist: {FIXTURE_SCRIPT}",
-            file=sys.stderr,
-        )
+
+    try:
+        revision, canonical = canonical_donor_state(TOOL_ROOT)
+    except ValueError as exc:
+        print(f"canonical-bootstrap: {exc}", file=sys.stderr)
         return 1
 
-    code_hash = sha256_file(FIXTURE_SCRIPT)
-    root = cache_root(args)
-    version_dir = root / code_hash[:16]
-    canonical = version_dir / "canonical_female_with_garment_donor.glb"
+    version_dir = canonical.parent
     body_preview = version_dir / "canonical_body.png"
     garment_preview = version_dir / "canonical_garment.png"
     metadata = version_dir / "source.sha256"
@@ -81,7 +56,7 @@ def main() -> int:
         and canonical.is_file()
         and canonical.stat().st_size > 0
         and metadata.is_file()
-        and metadata.read_text(encoding="utf-8").strip() == code_hash
+        and metadata.read_text(encoding="utf-8").strip() == revision
     ):
         print(canonical)
         return 0
@@ -123,7 +98,7 @@ def main() -> int:
         )
         return 1
 
-    metadata.write_text(code_hash + "\n", encoding="utf-8")
+    metadata.write_text(revision + "\n", encoding="utf-8")
     print(canonical)
     return 0
 
