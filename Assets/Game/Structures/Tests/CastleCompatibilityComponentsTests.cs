@@ -1,3 +1,4 @@
+using Game.Materials.Api;
 using Game.Structures.Api;
 using Game.Structures.Runtime;
 using NUnit.Framework;
@@ -12,8 +13,7 @@ namespace Game.Structures.Tests
         public void PlannerOutputMapsToWellFormedSharedComponents()
         {
             CastlePlan plan = CastlePlanner.Plan(new int3(320, 24, -180), 0xC0FFEEu);
-            CastleCompatibilityComponents components =
-                CastleCompatibilityPreset.FromPlan(in plan);
+            CastleComponentConfig components = CastleCompatibilityComponents.Resolve(in plan);
 
             Assert.IsTrue(components.IsWellFormed);
 
@@ -28,11 +28,7 @@ namespace Game.Structures.Tests
             Assert.AreEqual(plan.TowerRadius, components.CornerTowers.Radius);
             Assert.AreEqual(plan.TowerHeight, components.CornerTowers.Height);
 
-            Assert.AreEqual(2, components.GateTowers.Count);
-            Assert.AreEqual(plan.GateTowerRadius, components.GateTowers.Radius);
-            Assert.AreEqual(plan.GateTowerHeight, components.GateTowers.Height);
-
-            Assert.AreEqual(StructureOpeningKind.Door, components.MainGate.Kind);
+            Assert.AreEqual(StructureOpeningKind.Arch, components.MainGate.Kind);
             Assert.AreEqual(CastleLayout.FrontGateWidth, components.MainGate.Width);
             Assert.AreEqual(CastleLayout.FrontGateHeight, components.MainGate.Height);
 
@@ -42,37 +38,52 @@ namespace Game.Structures.Tests
         }
 
         [Test]
-        public void KeepCompatibilityFoundationPreservesHistoricalSupportBounds()
+        public void CompatibilityFootprintPreservesBaileyBoundsAndFoundationPolicy()
         {
             CastlePlan plan = CastlePlanner.Plan(int3.zero, 17u);
-            CastleCompatibilityComponents components =
-                CastleCompatibilityPreset.FromPlan(in plan);
+            CastleComponentConfig components = CastleCompatibilityComponents.Resolve(in plan);
 
-            StructureFootprintRect footprint = components.KeepFoundation.Primary;
-            Assert.AreEqual(new int2(-6, -6), footprint.Min);
+            StructureFootprintRect footprint = components.BaileyFootprint.Primary;
+            Assert.AreEqual(new int2(-plan.BaileyHalfX, -plan.BaileyHalfZ), footprint.Min);
             Assert.AreEqual(
-                new int2(plan.KeepHalfX * 2 + 12, plan.KeepHalfZ * 2 + 12),
+                new int2(plan.BaileyHalfX * 2, plan.BaileyHalfZ * 2),
                 footprint.Size);
-            Assert.AreEqual(StructureFoundationStyle.Slab,
-                components.KeepFoundation.FoundationStyle);
-            Assert.AreEqual(30, components.KeepFoundation.FoundationDepth);
-            Assert.AreEqual(8, components.KeepWallX.Thickness);
-            Assert.AreEqual(8, components.KeepWallZ.Thickness);
+            Assert.AreEqual(BasePlaneRule.FixedAltitude, components.BaileyFootprint.BasePlane);
+            Assert.AreEqual(StructureFoundationStyle.TerrainFill,
+                components.BaileyFootprint.FoundationStyle);
+            Assert.AreEqual(plan.CliffDrop, components.BaileyFootprint.FoundationDepth);
+        }
+
+        [Test]
+        public void CompatibilityPalettePreservesLegacyCastleMaterials()
+        {
+            CastlePlan plan = CastlePlanner.Plan(int3.zero, 27u);
+            CastleComponentConfig components = CastleCompatibilityComponents.Resolve(in plan);
+
+            Assert.AreEqual(GameMaterialIds.DarkStone,
+                components.Palette.Resolve(StructureMaterialRole.Foundation));
+            Assert.AreEqual(GameMaterialIds.Stone,
+                components.Palette.Resolve(StructureMaterialRole.PrimaryWall));
+            Assert.AreEqual(GameMaterialIds.DarkStone,
+                components.Palette.Resolve(StructureMaterialRole.Trim));
+            Assert.AreEqual(GameMaterialIds.Slate,
+                components.Palette.Resolve(StructureMaterialRole.Roof));
+            Assert.AreEqual(GameMaterialIds.Empty,
+                components.Palette.Resolve(StructureMaterialRole.Opening));
         }
 
         [Test]
         public void SamePlanProducesIdenticalSharedComponentPolicy()
         {
             CastlePlan plan = CastlePlanner.Plan(new int3(-100, 12, 400), 99u);
-            CastleCompatibilityComponents first = CastleCompatibilityPreset.FromPlan(in plan);
-            CastleCompatibilityComponents second = CastleCompatibilityPreset.FromPlan(in plan);
+            CastleComponentConfig first = CastleCompatibilityComponents.Resolve(in plan);
+            CastleComponentConfig second = CastleCompatibilityComponents.Resolve(in plan);
 
-            Assert.AreEqual(first.KeepFoundation.Primary.Min, second.KeepFoundation.Primary.Min);
-            Assert.AreEqual(first.KeepFoundation.Primary.Size, second.KeepFoundation.Primary.Size);
+            Assert.AreEqual(first.BaileyFootprint.Primary.Min, second.BaileyFootprint.Primary.Min);
+            Assert.AreEqual(first.BaileyFootprint.Primary.Size, second.BaileyFootprint.Primary.Size);
             Assert.AreEqual(first.CurtainWallX.Length, second.CurtainWallX.Length);
             Assert.AreEqual(first.CurtainWallZ.Length, second.CurtainWallZ.Length);
             Assert.AreEqual(first.CornerTowers.Radius, second.CornerTowers.Radius);
-            Assert.AreEqual(first.GateTowers.Radius, second.GateTowers.Radius);
             Assert.AreEqual(first.MainGate.Width, second.MainGate.Width);
             Assert.AreEqual(first.CurtainBattlements.MerlonWidth,
                 second.CurtainBattlements.MerlonWidth);
