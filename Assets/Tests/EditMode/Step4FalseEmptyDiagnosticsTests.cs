@@ -1,5 +1,6 @@
 using System.Reflection;
 using NUnit.Framework;
+using Unity.Mathematics;
 using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 
 namespace VoxelEngine.Tests.EditMode
@@ -15,9 +16,9 @@ namespace VoxelEngine.Tests.EditMode
                 BindingFlags.NonPublic | BindingFlags.Static);
             Assert.NotNull(record);
 
-            record.Invoke(null, new object[] { false, false, false });
-            record.Invoke(null, new object[] { true, true, false });
-            record.Invoke(null, new object[] { true, false, true });
+            record.Invoke(null, new object[] { new int3(1, 2, 3), false, false, false });
+            record.Invoke(null, new object[] { new int3(4, 5, 6), true, true, false });
+            record.Invoke(null, new object[] { new int3(7, 8, 9), true, false, true });
 
             Step4FalseEmptyDiagnostics.Snapshot snapshot = Step4FalseEmptyDiagnostics.Current;
             Assert.AreEqual(3, snapshot.ReadyEmptyPublications);
