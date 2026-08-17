@@ -19,9 +19,9 @@ namespace VoxelEngine.Structures.Api
     }
 
     /// <summary>
-    /// Door layout for one facade. Door shape/frame semantics stay in <see cref="OpeningConfig"/>;
-    /// this layer owns facade count/placement and the bounded porch/step treatment associated with
-    /// that entry. The legacy step fields remain available for callers already composing them.
+    /// Door layout for one facade. Door dimensions/frame/lintel semantics stay in
+    /// <see cref="OpeningConfig"/>; this layer owns facade count/placement and one bounded
+    /// porch/step treatment associated with that entry.
     /// </summary>
     public struct HouseDoorLayoutConfig
     {
@@ -30,22 +30,32 @@ namespace VoxelEngine.Structures.Api
         public int Count;
         public OpeningConfig Opening;
         public FixedList128Bytes<int> ExplicitOffsets;
-
-        /// <summary>Optional entry treatment tied to this facade's door layout.</summary>
         public HouseEntryTreatmentConfig EntryTreatment;
 
-        public bool StepsEnabled;
-        public int StepDepth;
-        public int StepHeight;
-        public StructureMaterialRole StepMaterialRole;
+        public bool IsWellFormed
+        {
+            get
+            {
+                if (Count < 0 || !EntryTreatment.IsWellFormed)
+                    return false;
 
-        public bool IsWellFormed =>
-            Count >= 0 &&
-            (Count == 0 || (Opening.Kind == StructureOpeningKind.Door && Opening.Width > 0 && Opening.Height > 0)) &&
-            EntryTreatment.IsWellFormed &&
-            StepDepth >= 0 && StepHeight >= 0 &&
-            (!StepsEnabled || (StepDepth > 0 && StepHeight > 0)) &&
-            (Placement != HouseFacadePlacementMode.ExplicitOffsets || ExplicitOffsets.Length == Count);
+                if (Placement == HouseFacadePlacementMode.ExplicitOffsets)
+                {
+                    if (ExplicitOffsets.Length != Count)
+                        return false;
+                    for (var i = 0; i < ExplicitOffsets.Length; i++)
+                    {
+                        if (ExplicitOffsets[i] < 0)
+                            return false;
+                    }
+                }
+
+                if (Count == 0)
+                    return true;
+
+                return Opening.Kind == StructureOpeningKind.Door && Opening.IsWellFormed;
+            }
+        }
     }
 
     /// <summary>
@@ -67,11 +77,30 @@ namespace VoxelEngine.Structures.Api
         public int SillHeight => Opening.BottomOffset;
         public int HeadHeight => Opening.BottomOffset + Opening.Height;
 
-        public bool IsWellFormed =>
-            Count >= 0 &&
-            (Count == 0 || (Opening.Kind == StructureOpeningKind.Window && Opening.Width > 0 && Opening.Height > 0)) &&
-            ShutterThickness >= 0 &&
-            (Placement != HouseFacadePlacementMode.ExplicitOffsets || ExplicitOffsets.Length == Count);
+        public bool IsWellFormed
+        {
+            get
+            {
+                if (Count < 0 || ShutterThickness < 0 || (ShuttersEnabled && ShutterThickness == 0))
+                    return false;
+
+                if (Placement == HouseFacadePlacementMode.ExplicitOffsets)
+                {
+                    if (ExplicitOffsets.Length != Count)
+                        return false;
+                    for (var i = 0; i < ExplicitOffsets.Length; i++)
+                    {
+                        if (ExplicitOffsets[i] < 0)
+                            return false;
+                    }
+                }
+
+                if (Count == 0)
+                    return true;
+
+                return Opening.Kind == StructureOpeningKind.Window && Opening.IsWellFormed;
+            }
+        }
     }
 
     /// <summary>Configurable chimney plus optional link to an authored interior/fireplace volume.</summary>
@@ -110,6 +139,7 @@ namespace VoxelEngine.Structures.Api
         public StructureMaterialRole MaterialRole;
 
         public bool IsWellFormed => !Enabled ||
-            (Width > 0 && Depth > 0 && Thickness > 0 && BottomOffset >= 0);
+            (Width > 0 && Depth > 0 && Thickness > 0 && BottomOffset >= 0 &&
+             (Kind != HouseExteriorFeatureKind.Awning || CoverRoof.IsWellFormed));
     }
 }
