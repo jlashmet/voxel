@@ -12,6 +12,7 @@ permissions:
 
 # Retry after making the patch script idempotent across partially wired branch heads.
 # This trigger uses the idempotent script that accepts already-present publication hooks.
+# The hosted patch fast-forwards before editing so concurrent validation work is preserved.
 jobs:
   patch:
     runs-on: ubuntu-latest
