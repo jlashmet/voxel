@@ -741,11 +741,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
                 if (clipmapMoved)
                 {
-                    // Active leaves are camera-window local. Rebuild the logical leaf set from
-                    // still-resident cache generations after a clipmap move instead of retaining
-                    // stale off-window ownership indefinitely. Ready entries are not discarded.
-                    _activeLodCoverage.Clear();
-                    _lodCoverageState.Clear();
+                    // A clipmap move changes cache admission, not presentation ownership. Keep
+                    // still-owned active leaves so camera motion cannot erase a stale-but-drawable
+                    // fallback while its replacement generation is pending. Retired leaves are
+                    // pruned after worker residency maintenance below.
                     AddImmediateCameraDiscoveryRegions(storage, cameraPosition, voxelSize);
                 }
                 StepClipmapAdmissionDiscovery(storage);
@@ -783,6 +782,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             // about newly surfaced bricks even if this frame has no time left to rebuild them.
             for (int i = 0; i < _allWorkers.Length; i++)
                 _allWorkers[i].DiscoverSurfaceBricks(_discoveredSurfaceBricks);
+
+            PinActiveHierarchyCoverageForFrame();
 
             double workersStart = Time.realtimeSinceStartupAsDouble;
             double solidDeadline = workersStart + Math.Max(0.0, SolidBuildBudgetMs) * 0.001;
@@ -917,6 +918,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             {
                 for (int i = 0; i < _allWorkers.Length; i++)
                     _allWorkers[i].BeginVisibilityCollection();
+                PruneRetiredActiveCoverage();
 
                 if (camera != null)
                 {
@@ -980,6 +982,36 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 _water.CollectVisible(camera, voxelSize);
             }
             _visibilityTiming.Add(ElapsedMs(visibilityStart));
+        }
+
+        private void PinActiveHierarchyCoverageForFrame()
+        {
+            for (int i = 0; i < _allWorkers.Length; i++)
+                _allWorkers[i].BeginHierarchyActiveFrame();
+
+            _activeLodScratch.Clear();
+            _activeLodCoverage.CopyActiveTo(_activeLodScratch);
+            for (int i = 0; i < _activeLodScratch.Count; i++)
+            {
+                SurfaceLodNodeKey active = _activeLodScratch[i];
+                WorkerFor(active).MarkHierarchyActive(active.Coordinate);
+            }
+        }
+
+        private void PruneRetiredActiveCoverage()
+        {
+            _activeLodScratch.Clear();
+            _activeLodCoverage.CopyActiveTo(_activeLodScratch);
+            for (int i = 0; i < _activeLodScratch.Count; i++)
+            {
+                SurfaceLodNodeKey active = _activeLodScratch[i];
+                CpuTransvoxelChunkCache worker = WorkerFor(active);
+                if (worker.TryGetHierarchyState(
+                        active.Coordinate, out _, out _, out _))
+                    continue;
+                _activeLodCoverage.RemoveRetiredLeaf(active);
+                _lodCoverageState.Remove(active);
+            }
         }
 
         private bool EnsureDesiredCoverage(in SurfaceLodNodeKey desired)

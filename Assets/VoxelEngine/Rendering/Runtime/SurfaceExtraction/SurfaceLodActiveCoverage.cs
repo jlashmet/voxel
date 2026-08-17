@@ -50,6 +50,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             return false;
         }
 
+        internal bool RemoveRetiredLeaf(in SurfaceLodNodeKey key) => _active.Remove(key);
+
         /// <summary>
         /// Seeds an uncovered region once a current-generation completion proof exists.
         /// This is intended for initial/coarse emergency coverage, not arbitrary overlapping

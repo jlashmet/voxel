@@ -424,7 +424,10 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("ring.ActiveSlotCount", productionVisibility);
             StringAssert.Contains("ring.ActiveSlotCoordinate(slotIndex)", productionVisibility);
             StringAssert.Contains("ShardForChunk", productionVisibility);
-            StringAssert.Contains("CollectVisibleCoordinate", productionVisibility);
+            StringAssert.Contains("IsDesiredVisibleCoordinate", productionVisibility);
+            StringAssert.Contains("CollectActiveCoordinate", productionVisibility);
+            StringAssert.Contains("_activeLodCoverage", productionVisibility);
+            StringAssert.DoesNotContain("CollectVisibleCoordinate(", productionVisibility);
             StringAssert.DoesNotContain("for (int z = -radius; z <= radius; z++)", productionVisibility);
             StringAssert.DoesNotContain("_allWorkers[i].CollectVisible", productionVisibility);
 

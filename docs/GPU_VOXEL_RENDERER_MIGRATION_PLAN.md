@@ -392,7 +392,7 @@ The checkboxes below are the execution order. A task is complete only when code,
 
 ### T1 - Hierarchical coverage contract on current CPU renderer
 
-- [ ] **T1.1** Add tested floor-safe parent/child coordinate mapping for steps 1/2/4/8.
+- [x] **T1.1** Add tested floor-safe parent/child coordinate mapping for steps 1/2/4/8.
 - [ ] **T1.2** Represent render-node completion as `Ready`, `KnownEmpty`, or incomplete for a specific source generation.
 - [ ] **T1.3** Add explicit parent/fallback active-coverage state above the per-step caches.
 - [ ] **T1.4** Change distance bands from exclusive render shells to desired refinement levels.

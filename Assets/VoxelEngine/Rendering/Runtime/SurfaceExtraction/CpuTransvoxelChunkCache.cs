@@ -349,6 +349,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         // These requests are explicit and bounded by scheduler-visible coverage; they do not
         // make every discovered coarse chunk eligible for eager out-of-band rebuilding.
         private readonly HashSet<int3> _hierarchyRequested = new();
+        private readonly HashSet<int3> _hierarchyActive = new();
         private readonly Dictionary<int3, double> _queuedAtSeconds = new();
         private ulong _versionCounter;
         private readonly List<Entry> _visible = new();
@@ -891,9 +892,23 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             bool hasEmpty = _emptyVersions.ContainsKey(coordinate);
             if (!_desiredVersions.ContainsKey(coordinate) && !hasReady && !hasEmpty)
                 Invalidate(coordinate);
-            else if (_desiredVersions.ContainsKey(coordinate))
+            else if (_desiredVersions.ContainsKey(coordinate)
+                     && !_dirty.Contains(coordinate)
+                     && (!_build.Active || !_build.Coordinate.Equals(coordinate)))
                 MarkDirty(coordinate);
             return true;
+        }
+
+        /// <summary>
+        /// Active hierarchy leaves are coverage, not cache. Keep their live leases out of both
+        /// arena-pressure and resident-capacity eviction for the entire world frame. The scheduler
+        /// republishes this bounded set once per frame from its logical active-leaf hierarchy.
+        /// </summary>
+        internal void BeginHierarchyActiveFrame() => _hierarchyActive.Clear();
+
+        internal void MarkHierarchyActive(int3 coordinate)
+        {
+            if (_known.Contains(coordinate)) _hierarchyActive.Add(coordinate);
         }
 
         /// <summary>True when a known node is in its legacy distance shell and camera frustum.
@@ -3504,6 +3519,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 // Keep current replacement geometry alive. Arena pressure may only retire a
                 // different, already-published, offscreen lease.
                 if (_build.Active && pair.Key.Equals(_build.Coordinate)) continue;
+                if (_hierarchyActive.Contains(pair.Key)) continue;
                 Bounds bounds = ChunkWorldBounds(pair.Key, voxelSize);
                 if (camera != null && GeometryUtility.TestPlanesAABB(_frustumPlanes, bounds))
                     continue;
@@ -3519,7 +3535,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             if (farthest < 0f) return false;
             if (_entries.TryGetValue(victim, out Entry entry)) RecycleEntry(entry);
             _entries.Remove(victim);
-            MarkDirty(victim);
             return true;
         }
 
@@ -3538,6 +3553,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 // Capacity pressure is also bounded: at most one offscreen lease retires from
                 // this workspace per Prepare call. Repeated eviction loops turn a cache miss into
                 // a frame spike exactly when streaming is already under pressure.
+                if (_hierarchyActive.Contains(pair.Key)) continue;
                 if (camera != null && GeometryUtility.TestPlanesAABB(
                         _frustumPlanes, ChunkWorldBounds(pair.Key, voxelSize)))
                     continue;
@@ -3556,7 +3572,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             }
             if (_entries.TryGetValue(victim, out Entry entry)) RecycleEntry(entry);
             _entries.Remove(victim);
-            MarkDirty(victim);
         }
 
         /// <summary>
@@ -3677,6 +3692,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _desiredVersions.Remove(chunk);
             _emptyVersions.Remove(chunk);
             _hierarchyRequested.Remove(chunk);
+            _hierarchyActive.Remove(chunk);
             _queuedAtSeconds.Remove(chunk);
             if (_entries.TryGetValue(chunk, out Entry entry))
             {
@@ -3837,6 +3853,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _dirty.Clear();
             _desiredVersions.Clear();
             _hierarchyRequested.Clear();
+            _hierarchyActive.Clear();
             _queuedAtSeconds.Clear();
             _visible.Clear();
             _vertices.Clear();
