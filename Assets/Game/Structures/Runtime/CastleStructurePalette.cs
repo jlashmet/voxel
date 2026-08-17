@@ -1,4 +1,5 @@
 using Game.Materials.Api;
+using Game.Structures.Api;
 using VoxelEngine.Structures.Api;
 
 namespace Game.Structures.Runtime
@@ -25,5 +26,16 @@ namespace Game.Structures.Runtime
             Glass = GameMaterialIds.LitWindow,
             Detail = GameMaterialIds.Cloth,
         };
+
+        /// <summary>
+        /// Single game-runtime compatibility bridge from the historical CastlePlan into the
+        /// canonical shared-component bundle. Keeping the palette binding here prevents each
+        /// castle stage from inventing its own projection or material mapping.
+        /// </summary>
+        public static CastleComponentConfig ResolveCompatibility(in CastlePlan plan)
+        {
+            StructureMaterialPalette palette = Compatibility;
+            return CastleComponentPresets.Compatibility(in plan, in palette);
+        }
     }
 }
