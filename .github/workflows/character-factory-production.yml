@@ -1,0 +1,160 @@
+name: Character Factory production
+
+on:
+  workflow_dispatch:
+    inputs:
+      directory:
+        description: Production asset library directory
+        required: true
+        default: tools/character-factory/production-assets
+        type: string
+      asset_type:
+        description: Optional asset type filter
+        required: false
+        default: all
+        type: choice
+        options:
+          - all
+          - character
+          - clothing
+          - weapon
+          - accessory
+      asset_id:
+        description: Optional exact asset id
+        required: false
+        default: ''
+        type: string
+      tag:
+        description: Optional catalogue tag
+        required: false
+        default: ''
+        type: string
+      change_kind:
+        description: Optional changed-input stage (requires changed_catalogue)
+        required: false
+        default: all
+        type: choice
+        options:
+          - all
+          - new
+          - spec
+          - geometry
+          - appearance
+          - details
+      changed_catalogue:
+        description: Optional repository-relative previous catalogue JSON
+        required: false
+        default: ''
+        type: string
+      stage_unity:
+        description: Include staged Unity assets in the uploaded artifact
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: character-factory-production-${{ github.ref }}-${{ inputs.directory }}-${{ inputs.asset_type }}-${{ inputs.asset_id }}-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  produce:
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 180
+    env:
+      PYTORCH_ENABLE_MPS_FALLBACK: '1'
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          clean: false
+          fetch-depth: 1
+
+      - name: Resolve Blender
+        shell: bash
+        run: |
+          set -euo pipefail
+          BLENDER_BIN="${BLENDER_BIN:-/Applications/Blender.app/Contents/MacOS/Blender}"
+          test -x "$BLENDER_BIN"
+          echo "BLENDER_BIN=$BLENDER_BIN" >> "$GITHUB_ENV"
+
+      - name: Validate production selection
+        shell: bash
+        env:
+          DIRECTORY: ${{ inputs.directory }}
+          CHANGED_CATALOGUE: ${{ inputs.changed_catalogue }}
+        run: |
+          set -euo pipefail
+          test -d "$DIRECTORY" || {
+            echo "Production asset directory does not exist: $DIRECTORY" >&2
+            exit 2
+          }
+          if [ -n "$CHANGED_CATALOGUE" ]; then
+            test -s "$CHANGED_CATALOGUE" || {
+              echo "Previous catalogue does not exist: $CHANGED_CATALOGUE" >&2
+              exit 2
+            }
+          fi
+
+      - name: Produce selected assets
+        shell: bash
+        env:
+          DIRECTORY: ${{ inputs.directory }}
+          ASSET_TYPE: ${{ inputs.asset_type }}
+          ASSET_ID: ${{ inputs.asset_id }}
+          TAG: ${{ inputs.tag }}
+          CHANGE_KIND: ${{ inputs.change_kind }}
+          CHANGED_CATALOGUE: ${{ inputs.changed_catalogue }}
+          STAGE_UNITY: ${{ inputs.stage_unity }}
+        run: |
+          set -euo pipefail
+          STATE_ROOT="$GITHUB_WORKSPACE/Artifacts/CharacterFactoryProductionState"
+          mkdir -p "$STATE_ROOT"
+          CATALOGUE_OUT="$STATE_ROOT/catalogue.json"
+
+          args=(
+            python3 tools/character-factory/character_factory.py produce-batch
+            "$DIRECTORY"
+            --catalogue-output "$CATALOGUE_OUT"
+          )
+          if [ "$ASSET_TYPE" != "all" ]; then
+            args+=(--type "$ASSET_TYPE")
+          fi
+          if [ -n "$ASSET_ID" ]; then
+            args+=(--id "$ASSET_ID")
+          fi
+          if [ -n "$TAG" ]; then
+            args+=(--tag "$TAG")
+          fi
+          if [ -n "$CHANGED_CATALOGUE" ]; then
+            args+=(--changed-from "$CHANGED_CATALOGUE")
+            if [ "$CHANGE_KIND" != "all" ]; then
+              args+=(--change-kind "$CHANGE_KIND")
+            fi
+          elif [ "$CHANGE_KIND" != "all" ]; then
+            echo "change_kind requires changed_catalogue" >&2
+            exit 2
+          fi
+          if [ "$STAGE_UNITY" = "true" ]; then
+            args+=(--unity-assets-root Assets/Generated/CharacterFactory)
+          fi
+
+          printf 'Running:'
+          printf ' %q' "${args[@]}"
+          printf '\n'
+          "${args[@]}"
+
+          test -s "$CATALOGUE_OUT"
+
+      - name: Upload production artifacts and proofs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: character-factory-production-${{ github.run_id }}
+          path: |
+            Artifacts/
+            Assets/Generated/CharacterFactory/
+          if-no-files-found: warn
+          retention-days: 14
