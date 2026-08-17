@@ -15,24 +15,24 @@ namespace Game.Structures.Runtime
         {
             if (authoring == null) throw new System.ArgumentNullException(nameof(authoring));
 
+            CastleSharedConfig shared = CastleCompatibilityPreset.FromPlan(in plan);
             int baseY = plan.Centre.y + plan.PlateauHeight;
             int hx = plan.BaileyHalfX;
             int hz = plan.BaileyHalfZ;
-            int thickness = plan.WallThickness;
-            int height = plan.WallHeight;
+            int thickness = shared.CurtainWallX.Thickness;
 
-            WallRun(authoring, in plan,
+            WallRun(authoring,
                 new int3(plan.Centre.x - hx, baseY, plan.Centre.z - hz),
-                new int3(1, 0, 0), hx * 2, thickness, height, true);
-            WallRun(authoring, in plan,
+                new int3(1, 0, 0), in shared.CurtainWallX, in shared.CurtainBattlements, true);
+            WallRun(authoring,
                 new int3(plan.Centre.x - hx, baseY, plan.Centre.z + hz - thickness),
-                new int3(1, 0, 0), hx * 2, thickness, height, true);
-            WallRun(authoring, in plan,
+                new int3(1, 0, 0), in shared.CurtainWallX, in shared.CurtainBattlements, true);
+            WallRun(authoring,
                 new int3(plan.Centre.x - hx, baseY, plan.Centre.z - hz),
-                new int3(0, 0, 1), hz * 2, thickness, height, false);
-            WallRun(authoring, in plan,
+                new int3(0, 0, 1), in shared.CurtainWallZ, in shared.CurtainBattlements, false);
+            WallRun(authoring,
                 new int3(plan.Centre.x + hx - thickness, baseY, plan.Centre.z - hz),
-                new int3(0, 0, 1), hz * 2, thickness, height, false);
+                new int3(0, 0, 1), in shared.CurtainWallZ, in shared.CurtainBattlements, false);
 
             CurtainFacadeDetails(authoring, in plan, baseY);
         }
@@ -147,23 +147,28 @@ namespace Game.Structures.Runtime
 
         private static void WallRun(
             IStructureAuthoringSession authoring,
-            in CastlePlan plan,
             int3 start,
             int3 dir,
-            int length,
-            int thickness,
-            int height,
+            in StructureWallRunConfig wall,
+            in BattlementConfig battlements,
             bool alongX)
         {
+            int length = wall.Length;
+            int thickness = wall.Thickness;
+            int height = wall.Height;
             int3 wallSize = alongX
                 ? new int3(length, height, thickness)
                 : new int3(thickness, height, length);
             authoring.FillBulk(start, wallSize, GameMaterialIds.Stone);
 
-            int3 plinthSize = alongX
-                ? new int3(length, 22, thickness)
-                : new int3(thickness, 22, length);
-            authoring.FillBulk(start, plinthSize, GameMaterialIds.DarkStone);
+            int plinthHeight = wall.MaterialBands.Length > 0 ? wall.MaterialBands[0].Height : 0;
+            if (plinthHeight > 0)
+            {
+                int3 plinthSize = alongX
+                    ? new int3(length, plinthHeight, thickness)
+                    : new int3(thickness, plinthHeight, length);
+                authoring.FillBulk(start, plinthSize, GameMaterialIds.DarkStone);
+            }
 
             int courseY = (int)(height * 0.66f);
             int3 courseMin = start + new int3(0, courseY, 0);
@@ -178,26 +183,27 @@ namespace Game.Structures.Runtime
                 : new int3(thickness, 1, length);
             authoring.FillBulk(walkMin, walkSize, GameMaterialIds.Stone);
 
-            for (int i = 40; i < length; i += 90)
+            if (wall.RepetitionSpacing > 0)
             {
-                int3 slitMin = start + dir * i + new int3(0, 40, 0);
-                int3 slitSize = alongX
-                    ? new int3(1, 28, thickness)
-                    : new int3(thickness, 28, 1);
-                authoring.FillBulk(slitMin, slitSize, GameMaterialIds.Empty);
+                for (int i = wall.RepetitionOffset; i < length; i += wall.RepetitionSpacing)
+                {
+                    int3 slitMin = start + dir * i + new int3(0, 40, 0);
+                    int3 slitSize = alongX
+                        ? new int3(1, 28, thickness)
+                        : new int3(thickness, 28, 1);
+                    authoring.FillBulk(slitMin, slitSize, GameMaterialIds.Empty);
+                }
             }
 
             int parapetY = start.y + height + 1;
-            const int merlon = 26;
-            const int gap = 18;
-
-            for (int i = 0; i < length; i += merlon + gap)
+            int cadence = battlements.MerlonWidth + battlements.GapWidth;
+            for (int i = 0; i < length; i += cadence)
             {
                 int3 at = start + dir * i;
-                int blockLength = math.min(merlon, length - i);
+                int blockLength = math.min(battlements.MerlonWidth, length - i);
                 int3 blockSize = alongX
-                    ? new int3(blockLength, 20, 8)
-                    : new int3(8, 20, blockLength);
+                    ? new int3(blockLength, battlements.MerlonHeight, battlements.ParapetThickness)
+                    : new int3(battlements.ParapetThickness, battlements.MerlonHeight, blockLength);
                 authoring.FillBulk(new int3(at.x, parapetY, at.z),
                     blockSize, GameMaterialIds.Stone);
             }
