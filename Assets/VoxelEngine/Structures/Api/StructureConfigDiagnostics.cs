@@ -178,6 +178,9 @@ namespace VoxelEngine.Structures.Api
             if (!request.TryGetWorldBounds(in config, out _))
                 return Invalid(StructureDiagnosticCode.InvalidBounds, "Origin/BoundsHalfExtents",
                     "Resolved world bounds overflow integer structure-generation bounds.");
+            if (!request.EntranceFitsBounds(in config))
+                return Invalid(StructureDiagnosticCode.InvalidBounds, "Entrance",
+                    "Entrance width/height/clearance must remain inside the declared local cave bounds.");
             return StructureDiagnostic.Valid;
         }
 
