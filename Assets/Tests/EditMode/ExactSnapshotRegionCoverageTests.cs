@@ -6,26 +6,44 @@ namespace VoxelEngine.Tests.EditMode
     public sealed class ExactSnapshotRegionCoverageTests
     {
         [Test]
-        public void MissingRequiredRegionCannotBeTreatedAsAuthoritativeEmpty()
+        public void MissingRequiredCoreRegionCannotBeTreatedAsAuthoritativeEmpty()
         {
             ExactSnapshotRegionCoverage coverage = default;
             coverage.Reset();
-            coverage.RecordRequiredRegion(pinned: true);
-            coverage.RecordRequiredRegion(pinned: false);
-            coverage.RecordRequiredRegion(pinned: true);
+            coverage.RecordRegion(required: true, pinned: true);
+            coverage.RecordRegion(required: true, pinned: false);
+            coverage.RecordRegion(required: false, pinned: true);
 
-            Assert.AreEqual(3, coverage.RequiredRegions);
-            Assert.AreEqual(2, coverage.PinnedRegions);
+            Assert.AreEqual(2, coverage.RequiredRegions);
+            Assert.AreEqual(1, coverage.PinnedRegions);
+            Assert.AreEqual(1, coverage.OptionalRegions);
+            Assert.AreEqual(1, coverage.PinnedOptionalRegions);
             Assert.False(coverage.IsComplete,
-                "A failed exact region pin must make the snapshot unavailable, not empty.");
+                "A failed core-region pin must make the exact snapshot unavailable, not empty.");
         }
 
         [Test]
-        public void CompleteRequiredRegionSetMayProceedToExactClassification()
+        public void MissingOptionalHaloRegionDoesNotBlockCoreClassification()
         {
             ExactSnapshotRegionCoverage coverage = default;
-            coverage.RecordRequiredRegion(pinned: true);
-            coverage.RecordRequiredRegion(pinned: true);
+            coverage.RecordRegion(required: true, pinned: true);
+            coverage.RecordRegion(required: false, pinned: false);
+            coverage.RecordRegion(required: false, pinned: true);
+
+            Assert.AreEqual(1, coverage.RequiredRegions);
+            Assert.AreEqual(1, coverage.PinnedRegions);
+            Assert.AreEqual(2, coverage.OptionalRegions);
+            Assert.AreEqual(1, coverage.PinnedOptionalRegions);
+            Assert.True(coverage.IsComplete,
+                "A non-resident extraction halo must not permanently retry an otherwise coherent core snapshot.");
+        }
+
+        [Test]
+        public void CompleteRequiredCoreRegionSetMayProceedToExactClassification()
+        {
+            ExactSnapshotRegionCoverage coverage = default;
+            coverage.RecordRegion(required: true, pinned: true);
+            coverage.RecordRegion(required: true, pinned: true);
 
             Assert.True(coverage.IsComplete);
         }
