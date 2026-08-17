@@ -67,6 +67,33 @@ namespace Game.Structures.Tests
         }
 
         [Test]
+        public void DescriptorOnlyCastleGenerationAllowsNullGeometry()
+        {
+            var plan = new CastlePlan
+            {
+                Centre = int3.zero,
+                PlateauHeight = 16,
+                BaileyHalfX = 120,
+                BaileyHalfZ = 120,
+                WallThickness = 8,
+                KeepHalfX = 48,
+                KeepHalfZ = 48,
+                FloorHeight = 32,
+                Floors = 3,
+                Seed = 123u,
+            };
+
+            Assert.DoesNotThrow(() =>
+            {
+                WorldObjectGeneratedScene scene = WorldObjectGeneratedSceneFactory.CreateCastle(
+                    null, 123u, 456u, in plan, null, WorldObjectGeometryEmissionMode.None);
+                Assert.IsNotNull(scene);
+                Assert.Greater(scene.Objects.Length, 0);
+                Assert.Greater(scene.Connections.Length, 0);
+            });
+        }
+
+        [Test]
         public void DoorInteractionPersistsOpenCloseAndAttackSemantics()
         {
             WorldObjectDescriptor descriptor = Descriptor(WorldObjectKind.Door);
