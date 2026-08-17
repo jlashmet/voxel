@@ -81,6 +81,12 @@ These are append-only reserved identities. The first implementation should conti
 
 ## Source status
 
-`GuildHouseProgramCatalog` implements ten initial building programs and maps their rooms to existing canonical decoration IDs 1–400. `GuildHouseRoomSelector` deterministically chooses required/optional rooms for different shell capacities. `GuildHouseTopologyPlanner` assigns public-to-private semantic depth and marks deep Assassin/Thieves hidden/vault spaces for concealed access. NUnit regression source covers program validity, deterministic selection and topology semantics.
+`GuildHouseProgramCatalog` implements ten initial building programs and maps their rooms to canonical decoration IDs 1–400. `GuildHouseRoomSelector` deterministically chooses required/optional rooms. `GuildHouseTopologyPlanner` assigns public-to-private semantic depth and marks concealed deep spaces for secretive guilds.
 
-The next implementation milestone is spatial shell/room allocation, converting those allocated rooms into real `DecorationSpace` instances, and then representative Wizards Guild and Druids Lodge end-to-end authoring fixtures.
+`GuildHouseSpatialPlanner` now converts that topology into concrete non-overlapping voxel room blocks. Wizards use a multi-floor tower grammar; Druids use a wide lodge grammar with an open courtyard/roof spine. `GuildHousePrototypeComposition` converts those room blocks into region-aware `DecorationSpace` / `DecorationContext` values.
+
+`GuildHouseRoomDecorationResolver` currently dispatches Wizard and Druid room roles directly into existing scene resolvers rather than duplicating content: WizardLibrary, SpellClassroom, ForbiddenArchive, EnchantersWorkshop, RitualChamber, EnchantedGrove, DruidShrine, FairyClearing and AlchemyLab are reused. `GuildHouseFurnishedPrototypeAuthoring` provides the first complete source path from guild program through shell, room allocation, semantic furnishing and emitted voxel geometry. A new `DecorationExpansion260AuthoringEmitter` supplies the previously missing box/voxel authoring path for IDs 201–260.
+
+Source regression files cover program validity, deterministic selection/topology, spatial non-overlap, valid region-aware room spaces, Wizard/Druid scene dispatch and stable placement identity. Unity/CI execution is still tracked separately and is not implied by source coverage.
+
+The next source milestones are physical secret passages for Assassin/Thieves guilds, room-scene dispatch for the remaining eight guild identities, guild-specific exterior identity, and the first signature archetypes from IDs 401+ where the existing 1–400 library is not distinctive enough.
