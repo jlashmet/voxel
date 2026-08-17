@@ -37,9 +37,9 @@ namespace VoxelEngine.Tests.Features
         {
             HouseConfig house = Farmhouse();
 
-            int[] first = HouseProgramCompiler.BuildCompatibilityProgram(
+            int[] first = HouseProgramCompiler.BuildProgram(
                 in house, mainDoorAnchorIndex: 0, hearthAnchorIndex: 1);
-            int[] second = HouseProgramCompiler.BuildCompatibilityProgram(
+            int[] second = HouseProgramCompiler.BuildProgram(
                 in house, mainDoorAnchorIndex: 0, hearthAnchorIndex: 1);
 
             CollectionAssert.AreEqual(first, second);
@@ -49,7 +49,7 @@ namespace VoxelEngine.Tests.Features
         public void CompiledHouseShellStaysInsideConfiguredHorizontalFootprint()
         {
             HouseConfig house = Farmhouse();
-            int[] program = HouseProgramCompiler.BuildCompatibilityProgram(
+            int[] program = HouseProgramCompiler.BuildProgram(
                 in house, mainDoorAnchorIndex: 0, hearthAnchorIndex: 1);
 
             int width = house.Footprint.Primary.Size.x;
@@ -89,7 +89,7 @@ namespace VoxelEngine.Tests.Features
                         Assert.AreEqual(program.Length, pc, "End must terminate the compiled house program.");
                         return;
                     default:
-                        Assert.Fail($"Unexpected opcode {op} in compatibility house program.");
+                        Assert.Fail($"Unexpected opcode {op} in compiled house program.");
                         return;
                 }
             }
