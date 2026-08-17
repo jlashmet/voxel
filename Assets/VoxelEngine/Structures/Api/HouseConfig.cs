@@ -78,6 +78,13 @@ namespace VoxelEngine.Structures.Api
         public int WallThickness => Walls.Thickness;
         public StructureFoundationStyle FoundationStyle => Footprint.FoundationStyle;
         public int FoundationDepth => Footprint.FoundationDepth;
+
+        public RoofStyle RoofStyle => Roof.Style;
+        public int RoofPitchRise => Roof.PitchRise;
+        public int RoofPitchRun => Roof.PitchRun;
+        public RoofAxis RoofRidgeAxis => Roof.RidgeAxis;
+        public int RoofEaveOverhang => Roof.EaveOverhang;
+        public byte RoofMaterial => Palette.Resolve(Roof.MaterialRole);
     }
 
     /// <summary>Compatibility defaults for the original hand-authored cottage shape program.</summary>
