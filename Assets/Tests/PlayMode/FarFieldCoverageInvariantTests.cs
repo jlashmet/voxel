@@ -35,21 +35,33 @@ namespace VoxelEngine.Tests.PlayMode
             yield return null;
 
             int observedFrames = 0;
-            for (int frame = 0; frame < 48; frame++)
+            bool sawStartupFallback = false;
+            for (int frame = 0; frame < 120; frame++)
             {
                 VoxelShowcase showcase = Object.FindFirstObjectByType<VoxelShowcase>();
                 VoxelFarTerrain far = Object.FindFirstObjectByType<VoxelFarTerrain>();
                 if (showcase != null && far != null && TryWorld(showcase, out ShowcaseWorld world))
                 {
+                    bool startupFallbackActive = StartupFallbackActive(far);
+                    if (sawStartupFallback && !startupFallbackActive)
+                    {
+                        Assert.True(AllRingHeightCachesValid(far),
+                            "Cold-start fallback retired before every far ring had an authoritative height cache.");
+                        break;
+                    }
+
                     AssertContinuousCoverage(world, far, showcase.transform.position,
                         $"cold-start frame {frame}");
                     observedFrames++;
+                    sawStartupFallback |= startupFallbackActive;
                 }
                 yield return null;
             }
 
             Assert.Greater(observedFrames, 0,
                 "The showcase never exposed a world/far-field pair to validate during cold start.");
+            Assert.True(sawStartupFallback,
+                "The far field never published its cold-start fallback before async ring publication.");
         }
 
         [UnityTest, Timeout(900000)]
@@ -170,7 +182,7 @@ namespace VoxelEngine.Tests.PlayMode
                 * Mathf.Max(512f, far.InnerRadiusMetres * 1.5f);
 
             int[] firstChangedFrame = new int[meshes.Count];
-            Array.Fill(firstChangedFrame, -1);
+            for (int i = 0; i < firstChangedFrame.Length; i++) firstChangedFrame[i] = -1;
             int changedOuterRings = 0;
 
             for (int frame = 0; frame < 180; frame++)
@@ -215,6 +227,18 @@ namespace VoxelEngine.Tests.PlayMode
             if (field == null) return false;
             world = field.GetValue(showcase) as ShowcaseWorld;
             return world != null;
+        }
+
+        private static bool StartupFallbackActive(VoxelFarTerrain far) =>
+            GetField<int>(far, "_startupFallbackRing") >= 0;
+
+        private static bool AllRingHeightCachesValid(VoxelFarTerrain far)
+        {
+            List<bool> valid = GetField<List<bool>>(far, "_ringHeightValid");
+            if (valid.Count == 0) return false;
+            for (int ring = 0; ring < valid.Count; ring++)
+                if (!valid[ring]) return false;
+            return true;
         }
 
         private static void AssertContinuousCoverage(ShowcaseWorld world, VoxelFarTerrain far,
