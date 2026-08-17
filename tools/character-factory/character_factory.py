@@ -12,7 +12,15 @@ PROJECT_ROOT = TOOL_ROOT.parents[1]
 if str(TOOL_ROOT) not in sys.path:
     sys.path.insert(0, str(TOOL_ROOT))
 
-from api import AssetType, BuildSpec, CharacterFactoryError, backend_profile, backend_profiles
+from api import (
+    AssetType,
+    BuildSpec,
+    CharacterFactoryError,
+    backend_profile,
+    backend_profiles,
+    rig_profile,
+    rig_profiles,
+)
 from runtime import CharacterFactoryRuntime
 from runtime.catalogue import (
     CHANGE_KINDS,
@@ -147,12 +155,22 @@ def parse_args() -> argparse.Namespace:
         "profiles",
         help="list named generator backend profiles and their pinned source revisions",
     )
+    subparsers.add_parser(
+        "rig-profiles",
+        help="list named canonical rig profiles and their code-keyed donor revisions",
+    )
 
     bootstrap = subparsers.add_parser(
         "bootstrap-profile",
-        help="materialize one named backend profile and print its managed Python path",
+        help="materialize one named generator backend profile and print its managed Python path",
     )
     bootstrap.add_argument("name")
+
+    bootstrap_rig = subparsers.add_parser(
+        "bootstrap-rig-profile",
+        help="materialize one named canonical rig profile and print its donor GLB path",
+    )
+    bootstrap_rig.add_argument("name")
 
     stage = subparsers.add_parser(
         "stage-unity",
@@ -199,6 +217,29 @@ def bootstrap_backend_profile(name: str) -> None:
             f"backend profile bootstrap did not create Python runtime: {python_path}"
         )
     print(python_path)
+
+
+def bootstrap_canonical_rig_profile(name: str) -> None:
+    profile = rig_profile(name)
+    resolved = profile.resolved_defaults(TOOL_ROOT, asset_type="character")
+    script = Path(str(resolved["bootstrapScript"]))
+    canonical = Path(str(resolved["canonicalBody"]))
+    blender = str(resolved["blender"])
+    if not script.is_file():
+        raise CharacterFactoryError(f"rig profile bootstrap script does not exist: {script}")
+
+    command = [sys.executable, str(script), "--blender", blender]
+    print("+", " ".join(command), flush=True)
+    completed = subprocess.run(command, cwd=PROJECT_ROOT, check=False)
+    if completed.returncode != 0:
+        raise CharacterFactoryError(
+            f"rig profile bootstrap failed with exit code {completed.returncode}: {profile.name}"
+        )
+    if not canonical.is_file() or canonical.stat().st_size <= 0:
+        raise CharacterFactoryError(
+            f"rig profile bootstrap did not create canonical donor: {canonical}"
+        )
+    print(canonical)
 
 
 def build_one(
@@ -257,8 +298,21 @@ def main() -> int:
                 )
             return 0
 
+        if args.command == "rig-profiles":
+            for profile in rig_profiles():
+                resolved = profile.resolved_defaults(TOOL_ROOT, asset_type="character")
+                print(
+                    f"{profile.name}\trevision={resolved['sourceRevision']}\t"
+                    f"canonical={resolved['canonicalBody']}\tbootstrap={profile.bootstrap_script}"
+                )
+            return 0
+
         if args.command == "bootstrap-profile":
             bootstrap_backend_profile(args.name)
+            return 0
+
+        if args.command == "bootstrap-rig-profile":
+            bootstrap_canonical_rig_profile(args.name)
             return 0
 
         if args.command == "catalogue":
