@@ -12,7 +12,8 @@ namespace Game.Structures.Tests
         public void CompatibilityProjectionPreservesLegacyPlanDimensions()
         {
             CastlePlan plan = CastlePlanner.Plan(new int3(120, 40, -80), 0x12345678u);
-            CastleSharedConfig config = CastleCompatibilityPreset.FromPlan(in plan);
+            CastleConfig config = CastlePresets.Compatibility(in plan);
+            CastlePlan resolved = config.ResolvePlan();
 
             Assert.Multiple(() =>
             {
@@ -21,10 +22,7 @@ namespace Game.Structures.Tests
                 Assert.AreEqual(plan.KeepHalfX * 2 + 12, config.KeepFoundation.Primary.Size.x);
                 Assert.AreEqual(plan.KeepHalfZ * 2 + 12, config.KeepFoundation.Primary.Size.y);
                 Assert.AreEqual(30, config.KeepFoundation.FoundationDepth);
-                Assert.AreEqual(8, config.KeepWalls.Thickness);
-                Assert.AreEqual(plan.KeepHeight, config.KeepWalls.Height);
-                Assert.AreEqual(plan.Floors, config.KeepFloors.FloorCount);
-                Assert.AreEqual(plan.FloorHeight, config.KeepFloors.LevelHeight);
+                Assert.AreEqual(4, config.KeepFoundationTopOffset);
 
                 Assert.AreEqual(plan.BaileyHalfX * 2, config.CurtainWallX.Length);
                 Assert.AreEqual(plan.BaileyHalfZ * 2, config.CurtainWallZ.Length);
@@ -38,12 +36,22 @@ namespace Game.Structures.Tests
                 Assert.AreEqual(4, config.CornerTowers.Count);
                 Assert.AreEqual(plan.TowerRadius, config.CornerTowers.Radius);
                 Assert.AreEqual(plan.TowerHeight, config.CornerTowers.Height);
+                Assert.AreEqual(2, config.GateTowers.Count);
+                Assert.AreEqual(plan.GateTowerRadius, config.GateTowers.Radius);
+                Assert.AreEqual(plan.GateTowerHeight, config.GateTowers.Height);
 
                 Assert.AreEqual(CastleLayout.FrontGateWidth, config.MainGate.Width);
                 Assert.AreEqual(CastleLayout.FrontGateHeight, config.MainGate.Height);
                 Assert.AreEqual(26, config.CurtainBattlements.MerlonWidth);
                 Assert.AreEqual(18, config.CurtainBattlements.GapWidth);
                 Assert.AreEqual(20, config.CurtainBattlements.MerlonHeight);
+
+                Assert.AreEqual(plan.BaileyHalfX, resolved.BaileyHalfX);
+                Assert.AreEqual(plan.BaileyHalfZ, resolved.BaileyHalfZ);
+                Assert.AreEqual(plan.WallHeight, resolved.WallHeight);
+                Assert.AreEqual(plan.WallThickness, resolved.WallThickness);
+                Assert.AreEqual(plan.TowerRadius, resolved.TowerRadius);
+                Assert.AreEqual(plan.GateTowerRadius, resolved.GateTowerRadius);
             });
         }
 
@@ -51,11 +59,12 @@ namespace Game.Structures.Tests
         public void CompatibilityProjectionIsPureForSamePlan()
         {
             CastlePlan plan = CastlePlanner.Plan(int3.zero, 99u);
-            CastleSharedConfig a = CastleCompatibilityPreset.FromPlan(in plan);
-            CastleSharedConfig b = CastleCompatibilityPreset.FromPlan(in plan);
+            CastleConfig a = CastlePresets.Compatibility(in plan);
+            CastleConfig b = CastlePresets.Compatibility(in plan);
 
             Assert.Multiple(() =>
             {
+                Assert.AreEqual(a.KeepFoundation.Primary.Min, b.KeepFoundation.Primary.Min);
                 Assert.AreEqual(a.KeepFoundation.Primary.Size, b.KeepFoundation.Primary.Size);
                 Assert.AreEqual(a.CurtainWallX.Length, b.CurtainWallX.Length);
                 Assert.AreEqual(a.CurtainWallX.Height, b.CurtainWallX.Height);
