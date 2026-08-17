@@ -79,9 +79,9 @@ shape-program compiler, so forcing those into the Kentridge catalogue would crea
 conversion path. A future increment can add shared landmark shape-program compilers and then migrate
 those bespoke programmes deliberately.
 
-The abandoned `Game.Structures` parallel-city experiment was retired; the executable planner source
-was removed. Any residual retired metadata/comment-only files are cleanup-only and are not referenced
-by the production assembly graph.
+The abandoned `Game.Structures` parallel-city experiment was retired; executable planner/test stubs
+have been removed as encountered. Any residual metadata-only remnants are cleanup-only and are not
+part of the production assembly graph.
 
 ## Integer / CPU authority audit (WB106)
 
@@ -109,25 +109,26 @@ Several source-level gaps were fixed during the completion audit:
 
 1. `StructureGenerationContext.ForFeature` previously ignored a failed
    `StructureGenerationBounds.TryCreate`; it now rejects non-positive/overflowing footprints.
-2. Cave path segments/chambers already reject steps that cannot fit their local margins.
-3. The cave entrance clearance carve now has an explicit `EntranceFitsBounds` proof and is rejected
-   by `CaveAuthoring` before any write if it exceeds the declared envelope.
-4. `FeatureCatalogueBuilder.Finalise` rejects invalid footprints, invalid `MaxPrimitives`, programs
-   whose proven primitive bound exceeds the definition budget, and programs over the global budget.
+2. Cave path segments/chambers reject steps that cannot fit their local margins.
+3. The cave entrance clearance carve has an explicit `EntranceFitsBounds` proof and is rejected by
+   `CaveAuthoring` before any write if it exceeds the declared envelope.
+4. `FeatureCatalogueBuilder.Finalise` rejects definitions whose declared footprint or declared
+   `MaxPrimitives` exceeds the global hard budgets. It does not currently prove the program's true
+   maximum emission count; that deeper invariant remains an authoring/runtime responsibility.
+5. Production `FeatureGeneration.RasteriseInstance` now validates every evaluated primitive against
+   the half-open, cardinally-oriented `FeatureDefinition.Footprint` before rasterisation. Any escape
+   returns `EvaluationResult.OutsideFootprint` and writes no voxels.
 
-WB107 remains intentionally open because the shared `ShapeProgram` evaluator still contains two
-pre-existing behaviors that should be corrected before claiming the invariant end-to-end:
+WB107 remains intentionally open for one remaining evaluator behavior:
 
 - `ShapeOp.Repeat` caps an oversized repeat count to `FeatureBudget.MaxPrimitivesPerInstance` instead
-  of returning `PrimitiveLimitExceeded`; that is silent truncation at the control-flow level.
-- `EvaluationResult.OutsideFootprint` exists, but the current evaluator does not actively return it
-  when an emitted primitive escapes `FeatureDefinition.Footprint`. Region rasterization can clip, but
-  the authoring contract says a declared footprint is a promise and escape should be a validation or
-  evaluation failure, not merely downstream clipping.
+  of returning `PrimitiveLimitExceeded`; that is silent truncation at the control-flow level. The
+  ordinary emit path itself already fails when `definition.MaxPrimitives` or the global primitive
+  limit is reached, but a control-flow construct should still reject an excessive authored/runtime
+  trip count rather than silently rewrite it.
 
-These are recorded as explicit follow-up implementation tasks in the worldbuilding checklist. They
-should be changed together with the relevant catalogue/evaluator invariant coverage when test work is
-resumed.
+The repeat issue is an explicit follow-up implementation task. Once it is fail-closed, WB107 can be
+closed from the source invariant side; compile/test execution remains tracked separately by WB103-105.
 
 ## Settlement locality audit
 
@@ -146,8 +147,9 @@ does not consume a traversal-order-dependent random stream.
 ## Validation that was not run
 
 No local checkout is mounted in the current execution environment. The repository contains
-`tools/check-compile.sh`, but it could not be executed without a checkout. Therefore WB103 is not
-checked.
+`tools/check-compile.sh`, but it could not be executed without a checkout. A connector-only branch
+copy cannot execute repository scripts, and the container has no outbound DNS for cloning. Therefore
+WB103 is not checked.
 
 No Unity editor/test invocation was performed. WB104 and WB105 remain unchecked. When validation is
 resumed it must use `tools/unity-run.sh` as required by the repository rules.
@@ -158,17 +160,16 @@ implementation without spending time on tests.
 ## Known limitations / next increments
 
 1. Reject oversized shape-program `Repeat` counts instead of capping them.
-2. Enforce emitted primitive containment inside the declared `FeatureDefinition.Footprint` and return
-   `OutsideFootprint` on escape.
-3. Add shared shape-program compilers for church/cathedral/temple (and other desired landmarks) before
+2. Add shared shape-program compilers for church/cathedral/temple (and other desired landmarks) before
    migrating Kentridge bespoke landmark programmes.
-4. Add hip-roof realization to `HouseProgramCompiler` before advertising hip roofs on that compiler
+3. Add hip-roof realization to `HouseProgramCompiler` before advertising hip roofs on that compiler
    path; keep the config/runtime-session roof support separate until then.
-5. Implement deterministic bounded cave loop/reconnection semantics if loops are still desired.
-6. Resume WB095/WB103-WB105 validation when test/build execution is desired and available.
+4. Implement deterministic bounded cave loop/reconnection semantics if loops are still desired.
+5. Resume WB095/WB103-WB105 validation when test/build execution is desired and available.
 
 ## Checklist reconciliation
 
 Implementation through WB094 and WB096-WB102 is present. WB095 remains intentionally deferred.
 WB106, WB108, WB109 and WB110 can be closed from this source/compatibility audit. WB107 remains open
-for the two evaluator invariants above. WB103-WB105 remain open because no corresponding commands ran.
+only for fail-closed oversized `Repeat` handling. WB103-WB105 remain open because no corresponding
+commands ran.
