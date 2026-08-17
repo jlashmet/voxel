@@ -80,6 +80,35 @@ namespace Game.Structures.Tests
         }
 
         [Test]
+        public void SmithyWorkClusterStaysInFrontOfForgeHearthAcrossSeeds()
+        {
+            DecorationSpace space = Space();
+            for (uint seed = 1; seed <= 32; seed++)
+            {
+                DecorationContext context = Context(seed);
+                Assert.IsTrue(DecorationContentSceneResolver.TryResolve(
+                    DecorationContentSceneKind.Smithy,
+                    in space,
+                    in context,
+                    null,
+                    out DecorationPlacement[] placements),
+                    $"Smithy failed for seed {seed}.");
+
+                DecorationPlacement hearth = FindPlacement(placements, 1u);
+                DecorationPlacement anvil = FindPlacement(placements, 2u);
+                DecorationPlacement bellows = FindPlacement(placements, 3u);
+                Assert.Multiple(() =>
+                {
+                    Assert.IsTrue(hearth.IsWellFormed);
+                    Assert.IsTrue(anvil.IsWellFormed);
+                    Assert.IsTrue(bellows.IsWellFormed);
+                });
+                AssertNearWorkingFace(in hearth, in anvil, "anvil", seed);
+                AssertNearWorkingFace(in hearth, in bellows, "bellows", seed);
+            }
+        }
+
+        [Test]
         public void GenericAuthoringGrammarHandlesGeometryAndPartitionsMeshAndThinContent()
         {
             DecorationContext context = Context(91u);
@@ -111,6 +140,40 @@ namespace Game.Structures.Tests
                 Assert.AreEqual(1, thin.Length);
                 Assert.AreEqual(DecorationContentKind.MerchantSign, thin[0].Kind);
             });
+        }
+
+        private static void AssertNearWorkingFace(
+            in DecorationPlacement anchor,
+            in DecorationPlacement placement,
+            string label,
+            uint seed)
+        {
+            int anchorX = (anchor.Bounds.Min.x + anchor.Bounds.MaxExclusive.x) / 2;
+            int anchorZ = (anchor.Bounds.Min.z + anchor.Bounds.MaxExclusive.z) / 2;
+            int itemX = (placement.Bounds.Min.x + placement.Bounds.MaxExclusive.x) / 2;
+            int itemZ = (placement.Bounds.Min.z + placement.Bounds.MaxExclusive.z) / 2;
+            int dx = itemX - anchorX;
+            int dz = itemZ - anchorZ;
+            int forward = dx * anchor.Facing.x + dz * anchor.Facing.z;
+            int lateral = math.abs(dx * anchor.Facing.z - dz * anchor.Facing.x);
+
+            Assert.Multiple(() =>
+            {
+                Assert.Greater(forward, 0, $"Smithy {label} was not in front of hearth for seed {seed}.");
+                Assert.LessOrEqual(forward, 80, $"Smithy {label} was too far from hearth for seed {seed}.");
+                Assert.LessOrEqual(lateral, 60, $"Smithy {label} drifted too far laterally for seed {seed}.");
+            });
+        }
+
+        private static DecorationPlacement FindPlacement(DecorationPlacement[] placements, uint slotId)
+        {
+            if (placements != null)
+            {
+                for (int i = 0; i < placements.Length; i++)
+                    if (placements[i].SlotId == slotId)
+                        return placements[i];
+            }
+            return default;
         }
 
         private static void AssertRequiredSlots(
