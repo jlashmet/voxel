@@ -82,6 +82,11 @@ def geometry_fingerprint(
         name: None if path is None else _file_state(path)
         for name, path in spec.views.items()
     }
+    geometry_detail_references: dict[str, object] = {}
+    if spec.rigid is not None and spec.rigid.composition is not None:
+        name = spec.rigid.composition.detail_reference
+        geometry_detail_references[name] = _file_state(spec.detail_references[name])
+
     canonical = None
     if spec.rig is not None:
         canonical = _file_state(spec.rig.canonical_body)
@@ -105,6 +110,7 @@ def geometry_fingerprint(
         "generatorCommand": plan.generator_command,
         "prepareCommand": plan.prepare_command,
         "geometryReferences": geometry_references,
+        "geometryDetailReferences": geometry_detail_references,
         "canonicalDonor": canonical,
         "alignmentBlend": os.environ.get("CHARACTER_FACTORY_ALIGNMENT_BLEND"),
         "code": code,
