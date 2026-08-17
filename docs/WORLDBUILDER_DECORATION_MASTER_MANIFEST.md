@@ -1,6 +1,7 @@
 # WorldBuilder Decoration Master Manifest
 
 Branch: `agent/worldbuilding-decorations`
+Region art direction: `docs/WORLDBUILDER_REGION_DECORATION_GUIDE.md`
 
 This file is the canonical stable content identity manifest for the procedural decoration library.
 
@@ -12,12 +13,14 @@ Stable IDs are append-only. Once an ID ships or is used by persistence/test cont
 
 Rendering is intentionally independent from semantic identity. **Use boxes/voxel assemblies first when that is faster. Use smooth/curved/procedural primitives immediately when they are no harder.** High-visibility props can later move from box assembly to curved/SDF/procedural geometry without changing stable ID, placement semantics, persistence identity, or scene composition.
 
+Region identity changes selection weights, material/presentation style, scale and clutter—not stable semantic identity. The same `AlchemyTable`, `QuestBoard` or `MarketStall` should render and compose differently in Kentridge, Moordell, Fairy Village or Orc Village without consuming duplicate IDs solely for recoloring.
+
 Status terms:
 
 - **implemented** — stable semantic ID and recipe exist in source;
 - **reserved** — exact stable identity is documented here but source recipe is not implemented yet.
 
-## Implemented IDs 1–260
+## Implemented IDs 1–300
 
 ### 1–42 — foundational world content
 
@@ -59,10 +62,6 @@ Status terms:
 
 241 Wardrobe; 242 VanityTable; 243 WashBasinStand; 244 ChamberPot; 245 FoldingScreen; 246 WritingDesk; 247 SideTable; 248 Footstool; 249 Settee; 250 Chaise; 251 GrandMirror; 252 Candelabra; 253 MusicStand; 254 LuteRack; 255 Harp; 256 Harpsichord; 257 TrophyCase; 258 WineCabinet; 259 JewelryCasket; 260 PerfumeTray.
 
-## Reserved fantasy IDs 261–400
-
-These names are the next canonical content identities. Source implementation may arrive pack-by-pack, but these IDs should not be reused for unrelated concepts.
-
 ### 261–280 — monster lairs and creature occupation
 
 261 MonsterNest; 262 EggClutch; 263 CocoonBundle; 264 GiantWebSheet; 265 WebbedVictim; 266 BoneTotem; 267 TrophySkullPile; 268 GnawedBonePile; 269 ClawMarkedPost; 270 ScentMarkerTotem; 271 SlimePool; 272 SlimeTrailPatch; 273 AcidPool; 274 MoltedShellPile; 275 ShedScalePile; 276 BeastBedding; 277 BurrowMound; 278 HoardScrapPile; 279 MonsterFoodCache; 280 ChainedPreyCage.
@@ -70,6 +69,10 @@ These names are the next canonical content identities. Source implementation may
 ### 281–300 — adventurer guild, questing, caravan
 
 281 QuestBoard; 282 BountyBoard; 283 GuildRegistryDesk; 284 AdventurerMapTable; 285 ExpeditionSupplyRack; 286 PotionSatchelRack; 287 BedrollRack; 288 RopeGearRack; 289 LanternGearRack; 290 GuildTrophyWall; 291 MonsterContractBoard; 292 PartyNoticeBoard; 293 GuildStrongbox; 294 MemberLockerBank; 295 TrainingManualShelf; 296 CartographersDesk; 297 CaravanSupplyCrate; 298 PackSaddleStand; 299 TravelCharmDisplay; 300 WaystoneAttunementPedestal.
+
+## Reserved fantasy IDs 301–400
+
+These names are the next canonical content identities. Source implementation may arrive pack-by-pack, but these IDs should not be reused for unrelated concepts.
 
 ### 301–320 — magical nature, fae, enchanted forest
 
@@ -91,9 +94,9 @@ These names are the next canonical content identities. Source implementation may
 
 381 BrokenPortalFrame; 382 CrackedManaCrystal; 383 ArcaneScorchPatch; 384 CorruptionGrowth; 385 CursedVineCluster; 386 HauntedMirror; 387 SpectralCandleCluster; 388 FloatingDebrisCluster; 389 CursedChainBundle; 390 PetrifiedAdventurer; 391 PetrifiedMonster; 392 AbandonedRitualCircle; 393 BrokenRunePillar; 394 ShatteredMagicStatue; 395 CollapsedSpellShelf; 396 PossessedFurniture; 397 ShadowNest; 398 EctoplasmPool; 399 SealedCursedChest; 400 AncientMagicSeal.
 
-## Scene roadmap tied to the 261–400 block
+## Scene roadmap tied to the 301–400 block
 
-Monster den, spider nest, beast cave, adventurer guild hall, quest office, caravan staging area, enchanted grove, fairy clearing, druid shrine, trap corridor, puzzle chamber, treasure vault, village shrine, grand temple, magical school classroom, wizard library, forbidden archive, cursed laboratory, haunted manor room, corrupted ruin chamber.
+Enchanted grove, fairy clearing, druid shrine, trap corridor, puzzle chamber, treasure vault, village shrine, grand temple, magical school classroom, wizard library, forbidden archive, cursed laboratory, haunted manor room, corrupted ruin chamber.
 
 ## Rendering maturity policy
 
