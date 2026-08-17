@@ -3,8 +3,8 @@ using VoxelEngine.Structures.Api;
 namespace Game.Structures.Runtime
 {
     /// <summary>
-    /// End-to-end source path for the first guild-house prototypes: author shell, resolve each room
-    /// through an existing semantic decoration scene, then emit the corresponding geometry backend.
+    /// End-to-end source path for guild-house prototypes: author shell, resolve each room through an
+    /// existing semantic decoration scene, then emit the corresponding geometry backend.
     /// </summary>
     public static class GuildHouseFurnishedPrototypeAuthoring
     {
@@ -24,6 +24,10 @@ namespace Game.Structures.Runtime
                 bool ok;
                 switch (room.Source)
                 {
+                    case GuildHouseDecorationSource.Content:
+                        ok = DecorationContentAuthoringEmitter.TryAuthorGeometry(
+                            authoring, room.Placements, in room.Room.Context);
+                        break;
                     case GuildHouseDecorationSource.Expansion200:
                         ok = DecorationExpansion200AuthoringEmitter.TryAuthorGeometry(
                             authoring, room.Placements, in room.Room.Context);
@@ -32,8 +36,20 @@ namespace Game.Structures.Runtime
                         ok = DecorationExpansion260AuthoringEmitter.TryAuthorGeometry(
                             authoring, room.Placements, in room.Room.Context, prototype.Region);
                         break;
+                    case GuildHouseDecorationSource.Expansion300:
+                        ok = DecorationExpansion300AuthoringEmitter.TryAuthorGeometry(
+                            authoring, room.Placements, in room.Room.Context, prototype.Region);
+                        break;
                     case GuildHouseDecorationSource.Expansion320:
                         ok = DecorationExpansion320AuthoringEmitter.TryAuthorGeometry(
+                            authoring, room.Placements, in room.Room.Context, prototype.Region);
+                        break;
+                    case GuildHouseDecorationSource.Expansion340:
+                        ok = DecorationExpansion340AuthoringEmitter.TryAuthorGeometry(
+                            authoring, room.Placements, in room.Room.Context);
+                        break;
+                    case GuildHouseDecorationSource.Expansion360:
+                        ok = DecorationExpansion360AuthoringEmitter.TryAuthorGeometry(
                             authoring, room.Placements, in room.Room.Context, prototype.Region);
                         break;
                     case GuildHouseDecorationSource.Expansion380:
