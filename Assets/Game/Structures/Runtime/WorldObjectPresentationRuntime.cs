@@ -10,8 +10,8 @@ namespace Game.Structures.Runtime
     }
 
     /// <summary>
-    /// Keeps object-owned dynamic presentation synchronized with a live WorldObject scene. The sink decides
-    /// whether plans become generated meshes, GameObjects, ECS entities, colliders, lights, or another backend.
+    /// Keeps object-owned dynamic presentation synchronized with a live WorldObject scene. Static objects remain
+    /// on the deterministic voxel/decoration presentation path; only state-driven objects receive dynamic proxies.
     /// </summary>
     public sealed class WorldObjectPresentationRuntime : IDisposable
     {
@@ -59,7 +59,7 @@ namespace Game.Structures.Runtime
 
         private void Apply(in WorldObjectPresentationPlan plan)
         {
-            if (!plan.Visible)
+            if (!plan.UsesDynamicProxy || !plan.Visible)
                 _sink.Remove(plan.Id);
             else
                 _sink.CreateOrUpdate(in plan);
