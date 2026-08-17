@@ -25,7 +25,7 @@ namespace Game.Structures.Runtime
                 Backend = DecorationRenderBackend.BoxAssembly,
                 Interaction = DecorationInteractionFlags.BlocksNavigation | DecorationInteractionFlags.Destructible,
                 Size = new int3(
-                    56 + wealth * 6 + style.SilhouetteBias * 2 + (int)(seed & 3u) * 4,
+                    math.min(84, 56 + wealth * 6 + style.SilhouetteBias * 2 + (int)(seed & 3u) * 4),
                     9 + math.max(0, style.SilhouetteBias),
                     14 + wealth + (int)((seed >> 3) & 1u) * 2),
                 Clearance = new int3(4, 0, 4),
