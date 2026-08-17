@@ -26,7 +26,7 @@ namespace VoxelEngine.Tests.Features
         }
 
         [Test]
-        public void ExplicitDoorLayoutSupportsFramesAndStepTreatment()
+        public void ExplicitDoorLayoutSupportsFramesPorchAndStepTreatment()
         {
             var layout = new HouseDoorLayoutConfig
             {
@@ -44,6 +44,17 @@ namespace VoxelEngine.Tests.Features
                     FrameMaterialRole = StructureMaterialRole.Trim,
                     FillMaterialRole = StructureMaterialRole.Opening,
                 },
+                EntryTreatment = new HouseEntryTreatmentConfig
+                {
+                    PorchWidth = 24,
+                    PorchDepth = 6,
+                    PorchHeight = 2,
+                    StepCount = 2,
+                    StepDepth = 3,
+                    StepHeight = 1,
+                    PorchMaterialRole = StructureMaterialRole.Floor,
+                    StepMaterialRole = StructureMaterialRole.Foundation,
+                },
                 StepsEnabled = true,
                 StepDepth = 4,
                 StepHeight = 2,
@@ -55,6 +66,11 @@ namespace VoxelEngine.Tests.Features
             Assert.IsTrue(layout.IsWellFormed);
             Assert.AreEqual(2, layout.Opening.FrameThickness);
             Assert.AreEqual(3, layout.Opening.LintelThickness);
+            Assert.IsTrue(layout.EntryTreatment.HasPorch);
+            Assert.AreEqual(24, layout.EntryTreatment.PorchWidth);
+            Assert.AreEqual(6, layout.EntryTreatment.PorchDepth);
+            Assert.IsTrue(layout.EntryTreatment.HasSteps);
+            Assert.AreEqual(2, layout.EntryTreatment.StepCount);
             Assert.IsTrue(layout.StepsEnabled);
             Assert.AreEqual(4, layout.StepDepth);
             Assert.AreEqual(2, layout.StepHeight);
