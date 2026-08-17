@@ -30,7 +30,7 @@ namespace Game.Structures.Runtime
             uint worldSeed, uint parentId, in CastlePlan plan,
             WorldObjectGeometryEmissionMode emissionMode = WorldObjectGeometryEmissionMode.AllVoxel)
         {
-            Entry entry = GetOrCreate(parentId);
+            Entry entry = GetForLoad(parentId);
             entry.Scene = WorldObjectGeneratedSceneFactory.CreateCastle(
                 geometry, worldSeed, parentId, in plan, entry.State, emissionMode);
             return entry.Scene;
@@ -40,7 +40,7 @@ namespace Game.Structures.Runtime
             uint worldSeed, uint parentId, DecorationBounds chamber,
             WorldObjectGeometryEmissionMode emissionMode = WorldObjectGeometryEmissionMode.AllVoxel)
         {
-            Entry entry = GetOrCreate(parentId);
+            Entry entry = GetForLoad(parentId);
             entry.Scene = WorldObjectGeneratedSceneFactory.CreateMineCave(
                 geometry, worldSeed, parentId, chamber, entry.State, emissionMode);
             return entry.Scene;
@@ -56,7 +56,7 @@ namespace Game.Structures.Runtime
 
         public WorldObjectGeneratedScene LoadDecorations(uint parentId, DecorationPlacement[] placements)
         {
-            Entry entry = GetOrCreate(parentId);
+            Entry entry = GetForLoad(parentId);
             entry.Scene = DecorationWorldObjectRuntimeBridge.Create(placements, entry.State);
             return entry.Scene;
         }
@@ -93,6 +93,9 @@ namespace Game.Structures.Runtime
         public void Restore(uint parentId, WorldObjectStateDelta[] deltas)
         {
             Entry entry = GetOrCreate(parentId);
+            if (entry.Scene != null)
+                throw new InvalidOperationException(
+                    $"World object scene {parentId} is loaded. Unload it before restoring persistent state.");
             entry.State.Clear();
             if (deltas == null) return;
             for (int i = 0; i < deltas.Length; i++)
@@ -106,6 +109,15 @@ namespace Game.Structures.Runtime
                 if (pair.Value.Scene != null)
                     changed += pair.Value.Scene.Runtime.Tick(ticks);
             return changed;
+        }
+
+        private Entry GetForLoad(uint parentId)
+        {
+            Entry entry = GetOrCreate(parentId);
+            if (entry.Scene != null)
+                throw new InvalidOperationException(
+                    $"World object scene {parentId} is already loaded. Unload it before loading it again.");
+            return entry;
         }
 
         private Entry GetOrCreate(uint parentId)
