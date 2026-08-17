@@ -14,6 +14,7 @@ namespace Game.Structures.Runtime
         public static void AuthorCastle(IStructureAuthoringSession geometry, WorldObjectAuthoringSession objects,
             in CastlePlan plan)
         {
+            int firstNewObject = objects.ObjectCount;
             int y = plan.Centre.y + plan.PlateauHeight;
             int x = plan.Centre.x + plan.KeepHalfX + 18;
             int z = plan.Centre.z;
@@ -31,34 +32,31 @@ namespace Game.Structures.Runtime
             objects.Connect(0x3122u, WorldObjectSignal.Powered, 0x3103u, WorldObjectAction.PowerOn);
             objects.Connect(0x3122u, WorldObjectSignal.Unpowered, 0x3103u, WorldObjectAction.PowerOff);
 
-            // Usable/storage furniture cluster.
             objects.Place(0x3140u, WorldObjectKind.Cabinet, B(x, y + 2, z + 25, 12, 20, 7), new int3(0, 0, -1));
             objects.Place(0x3141u, WorldObjectKind.Chair, B(x + 16, y + 2, z + 25, 8, 12, 8), new int3(0, 0, -1));
             objects.Place(0x3142u, WorldObjectKind.Bench, B(x + 28, y + 2, z + 25, 18, 10, 8), new int3(0, 0, -1));
             objects.Place(0x3143u, WorldObjectKind.Altar, B(x + 50, y + 2, z + 25, 18, 14, 10), new int3(0, 0, -1));
 
-            // Fire/light variants.
             objects.Place(0x3160u, WorldObjectKind.Torch, B(x, y + 12, z + 48, 4, 9, 4), new int3(0, 0, -1));
             objects.Place(0x3161u, WorldObjectKind.Brazier, B(x + 14, y + 2, z + 48, 10, 12, 10), new int3(0, 1, 0));
 
-            // Secret/destruction variants plus timed generic trap.
             objects.Place(0x3180u, WorldObjectKind.Trap, B(x + 32, y + 1, z + 48, 12, 3, 12), new int3(0, 1, 0), parameter0: 20);
             objects.Place(0x3181u, WorldObjectKind.RotatingWall, B(x + 50, y + 2, z + 45, 5, 22, 18), new int3(1, 0, 0));
             WorldObjectMechanismPresets.AddTimedResettingTrap(objects, 0x3190u,
                 B(x + 70, y + 8, z + 48, 5, 6, 3), new int3(0, 0, -1),
                 B(x + 78, y + 2, z + 45, 14, 18, 14), new int3(0, 1, 0), WorldObjectKind.Crusher, 24);
 
-            // Utility/navigation anchors.
             objects.Place(0x31A0u, WorldObjectKind.Cart, B(x, y + 2, z + 72, 18, 12, 25), new int3(0, 0, 1));
             objects.Place(0x31A1u, WorldObjectKind.Checkpoint, B(x + 28, y + 2, z + 72, 10, 16, 10), new int3(0, 0, 1));
             objects.Place(0x31A2u, WorldObjectKind.SpawnPoint, B(x + 48, y + 1, z + 72, 8, 2, 8), new int3(0, 1, 0));
 
-            WorldObjectGeneratedContent.EmitAll(geometry, objects.BuildObjects());
+            WorldObjectGeneratedContent.EmitAll(geometry, objects.BuildObjectsFrom(firstNewObject));
         }
 
         public static void AuthorMineCave(IStructureAuthoringSession geometry, WorldObjectAuthoringSession objects,
             DecorationBounds chamber)
         {
+            int firstNewObject = objects.ObjectCount;
             int3 p = chamber.Min;
             int3 s = chamber.Size;
             int y = p.y + 1;
@@ -80,7 +78,7 @@ namespace Game.Structures.Runtime
             objects.Place(0x3206u, WorldObjectKind.SpawnPoint,
                 B(p.x + 22, y, p.z + s.z - 14, 8, 2, 8), new int3(0, 1, 0));
 
-            WorldObjectGeneratedContent.EmitAll(geometry, objects.BuildObjects());
+            WorldObjectGeneratedContent.EmitAll(geometry, objects.BuildObjectsFrom(firstNewObject));
         }
 
         private static DecorationBounds B(int x, int y, int z, int sx, int sy, int sz) => new DecorationBounds
