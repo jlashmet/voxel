@@ -20,8 +20,9 @@ namespace VoxelEngine.Structures.Api
 
     /// <summary>
     /// Door layout for one facade. Door dimensions/frame/lintel semantics stay in
-    /// <see cref="OpeningConfig"/>; this layer owns facade count/placement and one bounded
-    /// porch/step treatment associated with that entry.
+    /// <see cref="OpeningConfig"/>; this layer owns facade count/placement and bounded step
+    /// treatment. Porch/awning/balcony additions use <see cref="HouseExteriorFeatureConfig"/>
+    /// so there is one exterior-feature representation rather than a second entry contract.
     /// </summary>
     public struct HouseDoorLayoutConfig
     {
@@ -30,13 +31,17 @@ namespace VoxelEngine.Structures.Api
         public int Count;
         public OpeningConfig Opening;
         public FixedList128Bytes<int> ExplicitOffsets;
-        public HouseEntryTreatmentConfig EntryTreatment;
+        public bool StepsEnabled;
+        public int StepDepth;
+        public int StepHeight;
+        public StructureMaterialRole StepMaterialRole;
 
         public bool IsWellFormed
         {
             get
             {
-                if (Count < 0 || !EntryTreatment.IsWellFormed)
+                if (Count < 0 || StepDepth < 0 || StepHeight < 0 ||
+                    (StepsEnabled && (StepDepth == 0 || StepHeight == 0)))
                     return false;
 
                 if (Placement == HouseFacadePlacementMode.ExplicitOffsets)
