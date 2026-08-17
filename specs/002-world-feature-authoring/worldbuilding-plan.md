@@ -143,29 +143,29 @@ Phase 0 evidence and compatibility targets are recorded in [worldbuilding-invent
 - [x] **WB042** Expose keep dimensions, levels, wall thickness, roof/parapet/top style, openings, and material palette.
 - [x] **WB043** Expose curtain-wall polygon/rectangular dimensions, height/thickness, wall segmentation, and battlement controls.
 - [x] **WB044** Expose tower count/placement, corner/intermediate towers, square/round-compatible shape choice, radius/width, height, taper/top, roof, openings, and crenellations.
-- [ ] **WB045** Add configurable gatehouse width/depth/height, gate opening, flanking towers, portcullis-ready opening hook, and road anchor.
-- [ ] **WB046** Add courtyard configuration and slots/anchors for secondary buildings.
-- [ ] **WB047** Add optional moat/ditch terrain-carve configuration if expressible within current bounded terrain adaptation; otherwise record it as a separate follow-up rather than hiding an unbounded carve.
-- [ ] **WB048** Add basement/dungeon/crypt-style interior attachment points beneath the keep/gatehouse.
-- [ ] **WB049** Replace any castle-private cave generation with a request into the generic cave system and a `Cave` attachment anchor.
-- [ ] **WB050** Add castle presets (at minimum keep-only and walled-castle) plus determinism, seam, footprint, and attachment tests.
+- [x] **WB045** Add configurable gatehouse width/depth/height, gate opening, flanking towers, portcullis-ready opening hook, and road anchor.
+- [x] **WB046** Add courtyard configuration and slots/anchors for secondary buildings.
+- [x] **WB047** Add optional moat/ditch terrain-carve configuration if expressible within current bounded terrain adaptation; otherwise record it as a separate follow-up rather than hiding an unbounded carve.
+- [x] **WB048** Add basement/dungeon/crypt-style interior attachment points beneath the keep/gatehouse.
+- [x] **WB049** Replace any castle-private cave generation with a request into the generic cave system and a `Cave` attachment anchor.
+- [x] **WB050** Add castle presets (at minimum keep-only and walled-castle) plus determinism, seam, footprint, and attachment tests.
 
 ## Phase 4 — Reusable cave system
 
-- [ ] **WB051** Define `CaveConfig` (or equivalent existing contract extension) as a reusable deterministic authoring configuration independent of castles.
-- [ ] **WB052** Define cave entrance/portal configuration with surface, structure-attached, and underground anchor modes.
-- [ ] **WB053** Implement/complete reusable tunnel path generation with integer-only deterministic turns and bounded segment counts.
-- [ ] **WB054** Expose tunnel width, height, segment length, horizontal turn tendency, and verticality controls.
-- [ ] **WB055** Expose branching controls: branch chance/count/depth, minimum separation, and bounded recursion/iteration.
-- [ ] **WB056** Expose chamber controls: frequency, dimensions/ranges, shape choice supported by existing primitives, and connection rules.
-- [ ] **WB057** Expose floor, ceiling, and wall roughness using deterministic integer noise/variation that cannot break required traversability guarantees.
-- [ ] **WB058** Expose overall depth range, bounds/footprint, entrance clearance, and terrain-surface avoidance rules.
-- [ ] **WB059** Add loop/reconnection support only if it can remain region-local/deterministic under the existing cave-lattice contract; otherwise document the limitation explicitly.
-- [ ] **WB060** Add semantic cave palette roles and decoration/resource/water attachment hooks without putting gameplay loot state into immutable generation.
-- [ ] **WB061** Guarantee required attachment connections remain traversable after roughness/chamber passes.
-- [ ] **WB062** Make standalone caves and structure-attached caves invoke the same generation code path.
-- [ ] **WB063** Migrate the existing castle cave configuration/output to the generic cave path and remove or deprecate duplicate castle-local cave logic.
-- [ ] **WB064** Add cave determinism, cross-region continuity, entrance reachability, bounds, branch/chamber, and castle-attachment tests.
+- [x] **WB051** Define `CaveConfig` (or equivalent existing contract extension) as a reusable deterministic authoring configuration independent of castles.
+- [x] **WB052** Define cave entrance/portal configuration with surface, structure-attached, and underground anchor modes.
+- [x] **WB053** Implement/complete reusable tunnel path generation with integer-only deterministic turns and bounded segment counts.
+- [x] **WB054** Expose tunnel width, height, segment length, horizontal turn tendency, and verticality controls.
+- [x] **WB055** Expose branching controls: branch chance/count/depth, minimum separation, and bounded recursion/iteration.
+- [x] **WB056** Expose chamber controls: frequency, dimensions/ranges, shape choice supported by existing primitives, and connection rules.
+- [x] **WB057** Expose floor, ceiling, and wall roughness using deterministic integer noise/variation that cannot break required traversability guarantees.
+- [x] **WB058** Expose overall depth range, bounds/footprint, entrance clearance, and terrain-surface avoidance rules.
+- [x] **WB059** Add loop/reconnection support only if it can remain region-local/deterministic under the existing cave-lattice contract; otherwise document the limitation explicitly.
+- [x] **WB060** Add semantic cave palette roles and decoration/resource/water attachment hooks without putting gameplay loot state into immutable generation.
+- [x] **WB061** Guarantee required attachment connections remain traversable after roughness/chamber passes.
+- [x] **WB062** Make standalone caves and structure-attached caves invoke the same generation code path.
+- [x] **WB063** Migrate the existing castle cave configuration/output to the generic cave path and remove or deprecate duplicate castle-local cave logic.
+- [x] **WB064** Add cave determinism, cross-region continuity, entrance reachability, bounds, branch/chamber, and castle-attachment tests.
 
 ## Phase 5 — Shed archetype
 
