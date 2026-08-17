@@ -13,7 +13,7 @@ permissions:
 # Validate the exact triggering commit, but keep only the newest requested lifecycle run so stale
 # diagnostic SHAs cannot queue ahead of the current evidence on the single self-hosted Mac runner.
 # This trigger includes the complete ownership / ordinary-result / fallback / publication counters,
-# and runs after the ExactSnapshotClassificationTests NativeArray ownership compile fix.
+# after the compile fix and idempotent production lifecycle wiring are both present on the tree.
 concurrency:
   group: unity-step4-lifecycle
   cancel-in-progress: true
