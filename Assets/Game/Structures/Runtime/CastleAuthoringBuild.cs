@@ -106,9 +106,7 @@ namespace Game.Structures.Runtime
                     CastleGatehouseAuthoring.Author(
                         _authoring,
                         in _plan,
-                        in _components.GateTowers,
-                        in _components.MainGate,
-                        in _components.GatehouseBattlements);
+                        in _components.Gatehouse);
                     break;
 
                 case 5:
