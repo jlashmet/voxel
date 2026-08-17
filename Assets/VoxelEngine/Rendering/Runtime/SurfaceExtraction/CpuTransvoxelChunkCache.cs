@@ -999,7 +999,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     int3 chunk = baseChunk + new int3(x, y, z);
                     if (!OwnsShard(chunk) || _known.Contains(chunk)) continue;
                     if (!TrackKnown(chunk)) continue;
-                    Invalidate(chunk);
+                    // Discovery establishes cache ownership only. Expensive geometry work is
+                    // requested explicitly by hierarchical visible/coverage demand.
                     admitted++;
                 }
             }

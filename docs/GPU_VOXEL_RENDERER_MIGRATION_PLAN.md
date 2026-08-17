@@ -388,17 +388,17 @@ The checkboxes below are the execution order. A task is complete only when code,
 - [x] **T0.3** Confirm current exclusive-shell renderer fails the new gate and capture dirty/missing/arena diagnostics.
 - [x] **T0.4** Research established hierarchical/progressive-refinement voxel architectures and choose CPU-authoritative + GPU-derived rendering direction.
 - [x] **T0.5** Check this proposal/tracker into PR #87.
-- [ ] **T0.6** Remove the temporary CI-only demand-probe script/workflow injection once source implementation replaces it.
+- [x] **T0.6** Remove the temporary CI-only demand-probe script/workflow injection once source implementation replaces it.
 
 ### T1 - Hierarchical coverage contract on current CPU renderer
 
 - [x] **T1.1** Add tested floor-safe parent/child coordinate mapping for steps 1/2/4/8.
-- [ ] **T1.2** Represent render-node completion as `Ready`, `KnownEmpty`, or incomplete for a specific source generation.
-- [ ] **T1.3** Add explicit parent/fallback active-coverage state above the per-step caches.
-- [ ] **T1.4** Change distance bands from exclusive render shells to desired refinement levels.
-- [ ] **T1.5** Keep a parent active until all required finer children are complete; atomically switch parent -> children.
-- [ ] **T1.6** Keep children active until replacement parent is complete while moving outward; atomically switch children -> parent.
-- [ ] **T1.7** Add negative-coordinate, known-empty, inward-transition, and outward-transition unit/PlayMode tests.
+- [x] **T1.2** Represent render-node completion as `Ready`, `KnownEmpty`, or incomplete for a specific source generation.
+- [x] **T1.3** Add explicit parent/fallback active-coverage state above the per-step caches.
+- [x] **T1.4** Change distance bands from exclusive render shells to desired refinement levels.
+- [x] **T1.5** Keep a parent active until all required finer children are complete; atomically switch parent -> children.
+- [x] **T1.6** Keep children active until replacement parent is complete while moving outward; atomically switch children -> parent.
+- [x] **T1.7** Add negative-coordinate, known-empty, inward-transition, and outward-transition unit/PlayMode tests.
 - [ ] **T1.8** Make the no-hole traversal gate pass under intentionally constrained CPU build/upload budgets.
 
 ### T2 - Demand-driven CPU scheduling and residency cleanup
@@ -497,6 +497,13 @@ The checkboxes below are the execution order. A task is complete only when code,
 - [ ] **T12.6** Run all EditMode, PlayMode shards, architecture boundary gates, renderer coverage/destruction stress gates, and performance baselines green.
 
 ## 18. Working notes / decisions
+
+### 2026-08-16 - CPU hierarchy integration validated
+
+- Generation-aware `Ready`/`KnownEmpty` completion and scheduler-owned active parent/child coverage are integrated in production source.
+- Distance shells now select desired refinement while active hierarchy leaves own drawing, including atomic inward/outward swaps and negative-coordinate coverage.
+- Active fallback leases are pinned against arena/capacity eviction and cold eviction no longer re-dirties itself.
+- Latest EditMode and Architecture Boundary Gate were green before beginning T2; constrained-budget visual acceptance remains T1.8.
 
 ### 2026-08-16 - Initial direction
 
