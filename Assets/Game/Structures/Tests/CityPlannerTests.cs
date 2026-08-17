@@ -19,6 +19,27 @@ namespace Game.Structures.Tests
         }
 
         [Test]
+        public void LotDimensionsStayInsideConfiguredRangesAndVaryByIdentity()
+        {
+            CityConfig config = CityPresets.MixedTown();
+            bool sawWidthVariation = false;
+            bool sawDepthVariation = false;
+            CityPlanner.ResolveCandidate(in config, 42ul, int3.zero, 0, out CityPlacement first);
+
+            for (int i = 0; i < config.CandidateCount; i++)
+            {
+                CityPlanner.ResolveCandidate(in config, 42ul, int3.zero, i, out CityPlacement placement);
+                Assert.That(placement.LotSize.x, Is.InRange(config.Lot.MinimumWidth, config.Lot.MaximumWidth));
+                Assert.That(placement.LotSize.y, Is.InRange(config.Lot.MinimumDepth, config.Lot.MaximumDepth));
+                sawWidthVariation |= placement.LotSize.x != first.LotSize.x;
+                sawDepthVariation |= placement.LotSize.y != first.LotSize.y;
+            }
+
+            Assert.That(sawWidthVariation, Is.True);
+            Assert.That(sawDepthVariation, Is.True);
+        }
+
+        [Test]
         public void SameSeedAndCandidate_ProducesIdenticalPlacement()
         {
             CityConfig config = CityPresets.MixedTown();
@@ -34,6 +55,7 @@ namespace Game.Structures.Tests
                 Assert.That(b.StableIdentity, Is.EqualTo(a.StableIdentity));
                 Assert.That(b.Grid, Is.EqualTo(a.Grid));
                 Assert.That(b.LotOrigin, Is.EqualTo(a.LotOrigin));
+                Assert.That(b.LotSize, Is.EqualTo(a.LotSize));
                 Assert.That(b.StructureOrigin, Is.EqualTo(a.StructureOrigin));
                 Assert.That(b.BuildableSize, Is.EqualTo(a.BuildableSize));
                 Assert.That(b.Facing, Is.EqualTo(a.Facing));
@@ -153,6 +175,38 @@ namespace Game.Structures.Tests
                 in config, 123ul, int3.zero, center, out _);
 
             Assert.That(result, Is.EqualTo(CityCandidateResult.Plaza));
+        }
+
+        [Test]
+        public void RegionSeamCandidatesResolveIdenticallyWhenVisitedAsIndependentSlices()
+        {
+            CityConfig config = CityPresets.MixedTown();
+            int splitX = config.BlocksX / 2;
+            ulong seed = 0xCAFEBABEul;
+            int3 origin = new int3(1000, 32, -1000);
+
+            for (int z = 0; z < config.BlocksZ; z++)
+            {
+                int leftIndex = (splitX - 1) + z * config.BlocksX;
+                int rightIndex = splitX + z * config.BlocksX;
+
+                CityCandidateResult leftA = CityPlanner.ResolveCandidate(
+                    in config, seed, origin, leftIndex, out CityPlacement leftPlacementA);
+                CityCandidateResult rightA = CityPlanner.ResolveCandidate(
+                    in config, seed, origin, rightIndex, out CityPlacement rightPlacementA);
+
+                CityCandidateResult rightB = CityPlanner.ResolveCandidate(
+                    in config, seed, origin, rightIndex, out CityPlacement rightPlacementB);
+                CityCandidateResult leftB = CityPlanner.ResolveCandidate(
+                    in config, seed, origin, leftIndex, out CityPlacement leftPlacementB);
+
+                Assert.That(leftB, Is.EqualTo(leftA));
+                Assert.That(rightB, Is.EqualTo(rightA));
+                Assert.That(leftPlacementB.StableIdentity, Is.EqualTo(leftPlacementA.StableIdentity));
+                Assert.That(rightPlacementB.StableIdentity, Is.EqualTo(rightPlacementA.StableIdentity));
+                Assert.That(leftPlacementB.LotOrigin, Is.EqualTo(leftPlacementA.LotOrigin));
+                Assert.That(rightPlacementB.LotOrigin, Is.EqualTo(rightPlacementA.LotOrigin));
+            }
         }
 
         [Test]
