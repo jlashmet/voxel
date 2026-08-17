@@ -13,6 +13,7 @@ if str(TOOL_ROOT) not in sys.path:
     sys.path.insert(0, str(TOOL_ROOT))
 
 from api import BuildSpec
+from runtime import CharacterFactoryRuntime
 from runtime.geometry_cache import (
     cache_entry,
     geometry_fingerprint,
@@ -54,6 +55,42 @@ class GeometryCacheTests(unittest.TestCase):
                 )
                 metadata = json.loads(entry.metadata.read_text())
                 self.assertEqual(fingerprint.value, metadata["fingerprint"])
+
+    def test_runtime_cache_hit_skips_missing_generator_after_appearance_change(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            cache_root = root / "cache"
+            spec = self._write_and_load(root)
+            pipeline = WeaponPipeline(TOOL_ROOT)
+            plan = pipeline.plan(spec)
+            fingerprint = geometry_fingerprint(TOOL_ROOT, spec, plan)
+
+            with patch.dict(
+                os.environ,
+                {"CHARACTER_FACTORY_GEOMETRY_CACHE_ROOT": str(cache_root)},
+            ):
+                entry = cache_entry(spec, fingerprint)
+                plan.output.write_bytes(b"cached-prepared-fbx")
+                plan.output.with_suffix(".rigid-contract.json").write_text(
+                    json.dumps({"schemaVersion": 1}),
+                    encoding="utf-8",
+                )
+                store_geometry_cache(entry, fingerprint, plan)
+                plan.output.unlink()
+                plan.output.with_suffix(".rigid-contract.json").unlink()
+
+                # Appearance is not a geometry dependency. The generator executable
+                # is intentionally nonexistent; a cache miss would try to execute it
+                # and fail this test.
+                (root / "appearance.png").write_bytes(b"appearance-v2")
+                spec = BuildSpec.load(root / "asset.json", validate_paths=False)
+                manifest = CharacterFactoryRuntime(TOOL_ROOT).build(spec)
+
+                payload = json.loads(manifest.read_text(encoding="utf-8"))
+                self.assertTrue(payload["geometryCache"]["hit"])
+                self.assertEqual(fingerprint.value, payload["geometryCache"]["fingerprint"])
+                self.assertEqual(b"cached-prepared-fbx", plan.output.read_bytes())
+                self.assertTrue(plan.output.with_suffix(".rigid-contract.json").is_file())
 
     def test_appearance_and_detail_changes_do_not_invalidate_geometry(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
