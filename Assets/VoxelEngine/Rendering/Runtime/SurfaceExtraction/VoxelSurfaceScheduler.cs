@@ -16,6 +16,14 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public readonly int SolidKnownChunks;
         public readonly int SolidResidentChunks;
         public readonly int SolidDirtyChunks;
+        public readonly int ActiveSolidCoverageNodes;
+        public readonly int FallbackSolidParentNodes;
+        public readonly int ColdKnownSolidChunks;
+        public readonly int RequestedSolidP0MissingCoverage;
+        public readonly int RequestedSolidP1PreserveCoverage;
+        public readonly int RequestedSolidP2VisibleRefinement;
+        public readonly int RequestedSolidP3Prefetch;
+        public readonly long SolidStagingBytes;
         public readonly int WaterResidentChunks;
         public readonly int WaterDirtyChunks;
         public readonly int VisibleSolidChunks;
@@ -92,6 +100,15 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             SolidKnownChunks = solids.KnownCount;
             SolidResidentChunks = solids.ResidentCount;
             SolidDirtyChunks = solids.DirtyCount;
+            ActiveSolidCoverageNodes = solids.HierarchyActiveCount;
+            FallbackSolidParentNodes = 0;
+            ColdKnownSolidChunks = solids.ColdKnownCount;
+            solids.GetHierarchyRequestCounts(
+                out RequestedSolidP0MissingCoverage,
+                out RequestedSolidP1PreserveCoverage,
+                out RequestedSolidP2VisibleRefinement,
+                out RequestedSolidP3Prefetch);
+            SolidStagingBytes = solids.PendingUploadBytes;
             WaterResidentChunks = water.ResidentCount;
             WaterDirtyChunks = water.DirtyCount;
             VisibleSolidChunks = solids.Visible.Count;
@@ -168,6 +185,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                                      CpuWaterSurfaceChunkCache water,
                                      int changeRecords, int discoveredSurfaceBricks,
                                      int visibleSolidChunks,
+                                     int activeSolidCoverageNodes,
+                                     int fallbackSolidParentNodes,
                                      int solidUploadBudgetBytes,
                                      int lastFrameSolidUploadedBytes,
                                      int lastFrameSolidUploadCompletions,
@@ -195,7 +214,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             RejectedStaleWaterBuilds = water.StaleBuildCount;
             VisibleSolidChunks = visibleSolidChunks;
             VisibleDetailSolidChunks = 0;
+            ActiveSolidCoverageNodes = activeSolidCoverageNodes;
+            FallbackSolidParentNodes = fallbackSolidParentNodes;
             int known = 0, resident = 0, dirty = 0, missing = 0, running = 0, uploads = 0;
+            int coldKnown = 0, requestedP0 = 0, requestedP1 = 0, requestedP2 = 0, requestedP3 = 0;
             int step4Known = 0, step4Resident = 0, step4Dirty = 0, step4Missing = 0, step4Running = 0;
             uint step4BuildPhaseMask = 0, step4ActiveJobMask = 0;
             ulong step4MetadataScheduled = 0, step4MetadataCompleted = 0;
@@ -216,6 +238,13 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 dirty += worker.DirtyCount;
                 missing += worker.MissingVisibleCount;
                 running += worker.RunningJobCount;
+                coldKnown += worker.ColdKnownCount;
+                worker.GetHierarchyRequestCounts(
+                    out int workerP0, out int workerP1, out int workerP2, out int workerP3);
+                requestedP0 += workerP0;
+                requestedP1 += workerP1;
+                requestedP2 += workerP2;
+                requestedP3 += workerP3;
                 if (worker.SourceStep == 4)
                 {
                     step4Known += worker.KnownCount;
@@ -251,6 +280,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             SolidKnownChunks = known;
             SolidResidentChunks = resident;
             SolidDirtyChunks = dirty;
+            ColdKnownSolidChunks = coldKnown;
+            RequestedSolidP0MissingCoverage = requestedP0;
+            RequestedSolidP1PreserveCoverage = requestedP1;
+            RequestedSolidP2VisibleRefinement = requestedP2;
+            RequestedSolidP3Prefetch = requestedP3;
             MissingVisibleSolidChunks = missing;
             RunningSolidJobs = running;
             Step4KnownChunks = step4Known;
@@ -274,6 +308,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             LastFrameManagedAllocationBytes = lastFrameManagedAllocationBytes;
             SolidMeshesAwaitingUpload = uploads;
             SolidPendingUploadBytes = pendingUploadBytes;
+            SolidStagingBytes = pendingUploadBytes;
             SolidUploadBudgetBytes = solidUploadBudgetBytes;
             LastFrameSolidUploadedBytes = lastFrameSolidUploadedBytes;
             LastFrameSolidUploadCompletions = lastFrameSolidUploadCompletions;
@@ -486,6 +521,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private readonly SurfaceLodCoverageState _lodCoverageState = new();
         private readonly SurfaceLodActiveCoverage _activeLodCoverage = new();
         private readonly HashSet<SurfaceLodNodeKey> _desiredLodNodes = new();
+        private readonly HashSet<SurfaceLodNodeKey> _fallbackLodNodes = new();
         private readonly List<SurfaceLodNodeKey> _activeLodScratch = new(512);
         private readonly Plane[] _visibilityFrustumPlanes = new Plane[6];
         private int _lastVisibilityCandidateChecks;
@@ -634,7 +670,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public IReadOnlyList<CpuWaterSurfaceChunkCache.Entry> VisibleWater => _water.Visible;
         public VoxelSurfaceMetrics Metrics => new(
             _allWorkers, _water, _lastChangeRecords, _discoveredSurfaceBricks.Count,
-            _visibleSolids.Count, SolidUploadBudgetBytes, _lastFrameSolidUploadedBytes,
+            _visibleSolids.Count, _activeLodCoverage.Count, _fallbackLodNodes.Count,
+            SolidUploadBudgetBytes, _lastFrameSolidUploadedBytes,
             _lastFrameSolidUploadCompletions, _geometryArena.CommittedGpuBytes,
             _geometryArena.UsedGpuBytes, _geometryArena.UsedArgsRecords,
             _geometryArena.AllocationFailureCount,
@@ -912,6 +949,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         {
             _visibleSolids.Clear();
             _desiredLodNodes.Clear();
+            _fallbackLodNodes.Clear();
             _lastVisibilityCandidateChecks = 0;
             double visibilityStart = Time.realtimeSinceStartupAsDouble;
             using (s_VisibilityMarker.Auto())
@@ -956,8 +994,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
                     foreach (SurfaceLodNodeKey desired in _desiredLodNodes)
                     {
-                        if (EnsureDesiredCoverage(desired)) continue;
-                        WorkerFor(desired).RecordHierarchyMissingVisible();
+                        bool covered = EnsureDesiredCoverage(desired);
+                        if (_activeLodCoverage.TryFindActiveAncestorOrSelf(desired, out SurfaceLodNodeKey active)
+                            && active.SourceStep > desired.SourceStep)
+                            _fallbackLodNodes.Add(active);
+                        if (!covered) WorkerFor(desired).RecordHierarchyMissingVisible();
                     }
 
                     _activeLodScratch.Clear();

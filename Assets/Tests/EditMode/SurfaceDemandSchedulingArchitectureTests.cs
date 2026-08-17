@@ -153,5 +153,30 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("_hierarchyRequestPriorities.Remove(coordinate)", request);
         }
 
+
+        [Test]
+        public void DemandTelemetryIsBoundedAndExposesCoveragePriorityState()
+        {
+            string cache = CacheSource();
+            StringAssert.Contains("internal int HierarchyActiveCount", cache);
+            StringAssert.Contains("internal int ColdKnownCount", cache);
+            StringAssert.Contains("GetHierarchyRequestCounts", cache);
+            StringAssert.DoesNotContain("foreach (int3 chunk in _known)",
+                MethodSlice(cache, "internal int ColdKnownCount", "public ulong ActiveSurfaceCatalogueHash"));
+
+            string scheduler = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Rendering", "Runtime", "SurfaceExtraction",
+                "VoxelSurfaceScheduler.cs"));
+            StringAssert.Contains("ActiveSolidCoverageNodes", scheduler);
+            StringAssert.Contains("FallbackSolidParentNodes", scheduler);
+            StringAssert.Contains("ColdKnownSolidChunks", scheduler);
+            StringAssert.Contains("RequestedSolidP0MissingCoverage", scheduler);
+            StringAssert.Contains("RequestedSolidP1PreserveCoverage", scheduler);
+            StringAssert.Contains("RequestedSolidP2VisibleRefinement", scheduler);
+            StringAssert.Contains("RequestedSolidP3Prefetch", scheduler);
+            StringAssert.Contains("SolidStagingBytes", scheduler);
+            StringAssert.Contains("QueueLatencyTiming", scheduler);
+        }
+
     }
 }

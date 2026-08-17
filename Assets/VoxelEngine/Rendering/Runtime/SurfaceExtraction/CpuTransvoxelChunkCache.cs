@@ -769,6 +769,32 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         /// <summary>Number of exact-snapshot brick records reserved by this build workspace.</summary>
         public int SnapshotBrickCapacity => BrickCacheCount;
         public int DirtyCount => _dirty.Count + (_build.Active ? 1 : 0);
+        internal int HierarchyActiveCount => _hierarchyActive.Count;
+        internal int ColdKnownCount
+        {
+            get
+            {
+                int activeRequestedOverlap = 0;
+                foreach (int3 active in _hierarchyActive)
+                    if (_hierarchyRequestPriorities.ContainsKey(active)) activeRequestedOverlap++;
+                return math.max(0, _known.Count - _hierarchyActive.Count
+                    - _hierarchyRequestPriorities.Count + activeRequestedOverlap);
+            }
+        }
+        internal void GetHierarchyRequestCounts(out int p0, out int p1, out int p2, out int p3)
+        {
+            p0 = p1 = p2 = p3 = 0;
+            foreach (SurfaceBuildPriority priority in _hierarchyRequestPriorities.Values)
+            {
+                switch (priority)
+                {
+                    case SurfaceBuildPriority.MissingVisibleCoverage: p0++; break;
+                    case SurfaceBuildPriority.PreserveActiveCoverage: p1++; break;
+                    case SurfaceBuildPriority.VisibleRefinement: p2++; break;
+                    default: p3++; break;
+                }
+            }
+        }
         public ulong ActiveSurfaceCatalogueHash => _surfaceCatalogue.CatalogueHash;
         public ulong CompletedBuildCount { get; private set; }
         public ulong StaleBuildCount { get; private set; }
