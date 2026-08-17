@@ -1,4 +1,3 @@
-using Game.Composition.Materials;
 using NUnit.Framework;
 using UnityEngine;
 using VoxelEngine.Composition;
@@ -12,9 +11,8 @@ namespace VoxelEngine.Tests.PlayMode
         [Test]
         public void ReplacingStorageOwnerClearsOldWorldTransientPresentation()
         {
-            var definitions = GameMaterialComposition.SimulationDefinitions();
-            using var first = new ShowcaseWorld(0x11112222u, 64, 1, 2, definitions);
-            using var second = new ShowcaseWorld(0x33334444u, 64, 1, 2, definitions);
+            using var first = new ShowcaseWorld(0x11112222u, 64, 1, 2);
+            using var second = new ShowcaseWorld(0x33334444u, 64, 1, 2);
 
             try
             {
