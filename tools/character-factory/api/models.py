@@ -266,13 +266,49 @@ class RigConfig:
 @dataclass(frozen=True)
 class RigidConfig:
     blender: str
+    canonical_axis: str | None = None
+    target_length: float | None = None
+    anchor_fraction: tuple[float, float, float] | None = None
 
     @staticmethod
     def from_dict(data: dict[str, Any]) -> "RigidConfig":
         blender = data.get("blender")
         if not blender:
             raise CharacterFactoryError("rigid.blender is required")
-        return RigidConfig(blender=str(blender))
+
+        axis_value = data.get("canonicalAxis")
+        canonical_axis = None
+        if axis_value is not None and str(axis_value).strip():
+            canonical_axis = str(axis_value).strip().lower()
+            if canonical_axis not in {"x", "y", "z"}:
+                raise CharacterFactoryError("rigid.canonicalAxis must be one of: x, y, z")
+
+        target_value = data.get("targetLength")
+        target_length = None if target_value is None else float(target_value)
+        if target_length is not None and target_length <= 0.0:
+            raise CharacterFactoryError("rigid.targetLength must be > 0")
+
+        anchor_value = data.get("anchorFraction")
+        anchor_fraction = None
+        if anchor_value is not None:
+            if not isinstance(anchor_value, (list, tuple)) or len(anchor_value) != 3:
+                raise CharacterFactoryError("rigid.anchorFraction must contain exactly 3 numbers")
+            anchor_fraction = (
+                float(anchor_value[0]),
+                float(anchor_value[1]),
+                float(anchor_value[2]),
+            )
+            if any(value < 0.0 or value > 1.0 for value in anchor_fraction):
+                raise CharacterFactoryError(
+                    "rigid.anchorFraction values must be between 0 and 1"
+                )
+
+        return RigidConfig(
+            blender=str(blender),
+            canonical_axis=canonical_axis,
+            target_length=target_length,
+            anchor_fraction=anchor_fraction,
+        )
 
 
 @dataclass(frozen=True)
