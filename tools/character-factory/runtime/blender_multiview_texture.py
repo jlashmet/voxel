@@ -179,10 +179,13 @@ def _source_uv(
         # Behind the character, left/right swap from the viewer's perspective.
         return 1.0 - _normalized(point.x, lo.x, hi.x), _normalized(point.z, lo.z, hi.z)
     if name == "left":
-        # Character-left is +X; show front (-Y) toward image-right.
-        return 1.0 - _normalized(point.y, lo.y, hi.y), _normalized(point.z, lo.z, hi.z)
-    if name == "right":
+        # The approved left-side reference faces image-left: canonical front (-Y)
+        # therefore maps to low U, while the back (+Y) maps to high U.
         return _normalized(point.y, lo.y, hi.y), _normalized(point.z, lo.z, hi.z)
+    if name == "right":
+        # The approved right-side reference faces image-right, the horizontal mirror
+        # of the left reference: canonical front (-Y) maps to high U.
+        return 1.0 - _normalized(point.y, lo.y, hi.y), _normalized(point.z, lo.z, hi.z)
     raise ValueError(name)
 
 
@@ -336,7 +339,11 @@ def project_multiview_texture(
             uv_layer = mesh.data.uv_layers.new(name="CharacterFactoryMultiview")
         mesh.data.uv_layers.active = uv_layer
 
-        normal_matrix = mesh.matrix_world.to_3x3()
+        # Normals transform with the inverse-transpose. On Madeline's current FBX
+        # this selects the same views as the historical direct 3x3 transform, but
+        # using the correct basis prevents future non-uniform object transforms from
+        # silently changing source-view selection.
+        normal_matrix = mesh.matrix_world.to_3x3().inverted().transposed()
         world_matrix = mesh.matrix_world
         for polygon in mesh.data.polygons:
             world_normal = (normal_matrix @ polygon.normal).normalized()
