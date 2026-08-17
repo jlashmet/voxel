@@ -32,6 +32,9 @@ namespace VoxelEngine.Structures.Runtime
                 throw new System.ArgumentException("Cave configuration is invalid.", nameof(config));
             if (!request.TryGetWorldBounds(in config, out _))
                 throw new System.ArgumentException("Cave bounds overflow world coordinates.", nameof(request));
+            if (!request.EntranceFitsBounds(in config))
+                throw new System.ArgumentException(
+                    "Cave entrance/clearance exceeds the declared cave bounds.", nameof(request));
 
             return CaveNetworkAuthoringCore.Author(
                 authoring,
