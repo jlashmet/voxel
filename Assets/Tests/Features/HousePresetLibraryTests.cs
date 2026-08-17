@@ -8,27 +8,26 @@ namespace VoxelEngine.Tests.Features
     public sealed class HousePresetLibraryTests
     {
         [Test]
-        public void CompactCottageAndFarmhouseUseOneConfigTypeButProduceDifferentPrograms()
+        public void CompactCabinAndFarmhouseUseOneConfigTypeButProduceDifferentPrograms()
         {
-            HouseConfig cottage = HousePresetLibrary.CompactCottage(
-                stoneMaterial: 4,
-                woodMaterial: 9);
-            HouseConfig farmhouse = HousePresetLibrary.Farmhouse(
-                foundationMaterial: 4,
+            HouseConfig cabin = HouseStylePresets.CompactCabin(
+                wallMaterial: 4,
+                roofMaterial: 9);
+            HouseConfig farmhouse = HouseStylePresets.Farmhouse(
                 wallMaterial: 7,
                 roofMaterial: 9);
 
-            Assert.AreEqual(48, cottage.Width);
-            Assert.AreEqual(48, cottage.Depth);
-            Assert.AreEqual(1, cottage.FloorCount);
+            Assert.AreEqual(48, cabin.Width);
+            Assert.AreEqual(40, cabin.Depth);
+            Assert.AreEqual(1, cabin.FloorCount);
 
-            Assert.AreEqual(88, farmhouse.Width);
+            Assert.AreEqual(96, farmhouse.Width);
             Assert.AreEqual(72, farmhouse.Depth);
             Assert.AreEqual(2, farmhouse.FloorCount);
             Assert.AreEqual(7, farmhouse.Palette.Resolve(StructureMaterialRole.PrimaryWall));
 
-            int[] cottageProgram = HouseProgramCompiler.BuildCompatibilityProgram(
-                in cottage,
+            int[] cabinProgram = HouseProgramCompiler.BuildCompatibilityProgram(
+                in cabin,
                 mainDoorAnchorIndex: 0,
                 hearthAnchorIndex: 1);
             int[] farmhouseProgram = HouseProgramCompiler.BuildCompatibilityProgram(
@@ -36,14 +35,14 @@ namespace VoxelEngine.Tests.Features
                 mainDoorAnchorIndex: 0,
                 hearthAnchorIndex: 1);
 
-            Assert.IsFalse(cottageProgram.SequenceEqual(farmhouseProgram),
+            Assert.IsFalse(cabinProgram.SequenceEqual(farmhouseProgram),
                 "materially different house presets compiled to the same shape program");
         }
 
         [Test]
         public void PresetsRemainOrdinaryOverrideableHouseConfigs()
         {
-            HouseConfig farmhouse = HousePresetLibrary.Farmhouse(1, 2, 3);
+            HouseConfig farmhouse = HouseStylePresets.Farmhouse(2, 3);
             farmhouse.Roof.EaveOverhang = 5;
             farmhouse.FrontDoors.Opening.FrameThickness = 2;
             farmhouse.Palette.Trim = 8;
