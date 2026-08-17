@@ -18,8 +18,10 @@ This checklist is the source of truth for implementation progress. Mark each ite
 - `CastleBedroomDecorationDebugGizmo` provides selected Scene-view look-dev visibility for room bounds, sockets/facings, exclusions, resolved placements, labels, and anchor relationships.
 - Cave reuse is implemented through an explicit `CaveWalkablePatch` contract. The cave adapter emits walkable-floor/wall/ceiling candidates plus alcove/ledge candidates and navigation/hazard exclusions without guessing private cave-network turn state.
 - `CaveCampScene` resolves campfire, bedroll, and lantern placements through the same `DecorationSceneScheduler` and `DecorationPlacementResolver` used by castle rooms. Cross-adapter tests feed both castle and cave sockets directly to the core resolver.
-- Render/build outputs are now separated by intent: box assemblies for voxel furniture, aggregated true thin-surface quads for rugs/wall art, voxel stamps for world-integrated details such as campfires, data-only procedural-mesh requests, and condition-aware light/particle hooks. The old one-voxel thin-surface structure path remains only as a compatibility fallback for the current castle build.
-- NUnit regressions are committed, including scene scheduler dependency/optional tests, style/wealth/condition invariant tests, cave adapter/reuse tests, thin-surface/backend tests, a 128-seed bedroom stress test, representative castle-adapter tests, and the existing castle build progression test exercises the newly routed floor-1 authoring path. They still require execution in the Unity test environment/CI.
+- Render/build outputs are separated by intent: box assemblies for voxel furniture, aggregated true thin-surface quads for rugs/wall art, voxel stamps for world-integrated details such as campfires, data-only procedural-mesh requests, and condition-aware light/particle hooks. The old one-voxel thin-surface structure path remains only as a compatibility fallback for the current castle build.
+- Runtime planning separates interaction/persistence metadata from render batches, isolates movable props, combines static props by backend rather than by prop, and applies a distance/detail policy before secondary clutter is materialized. A 1,000-prop regression verifies static batch count stays bounded by backend count.
+- Persistence overlays are keyed by deterministic `GeneratedPropId`; moved, looted, and destroyed deltas reapply to a regenerated baseline without perturbing untouched props.
+- NUnit regressions are committed for scheduling, context variation, cave reuse, render backends, runtime batching/detail policy, persistence deltas, a 128-seed bedroom stress pass, representative castle integration, and the existing castle build progression path. They still require execution in the Unity test environment/CI.
 
 ## Setup and architecture
 
@@ -106,11 +108,11 @@ This checklist is the source of truth for implementation progress. Mark each ite
 
 ## Runtime scale and persistence
 
-- [ ] **DEC100** Separate semantic/interactable prop metadata from static render geometry.
-- [ ] **DEC101** Add batching/static-combination path so distant static decorations do not require one heavyweight runtime object each.
-- [ ] **DEC102** Add distance/detail policy for tiny clutter and secondary decoration.
-- [ ] **DEC103** Define persistence delta contract keyed by deterministic prop ID.
-- [ ] **DEC104** Add tests for destroyed/looted/moved state overriding deterministic regenerated baseline.
+- [x] **DEC100** Separate semantic/interactable prop metadata from static render geometry.
+- [x] **DEC101** Add batching/static-combination path so distant static decorations do not require one heavyweight runtime object each.
+- [x] **DEC102** Add distance/detail policy for tiny clutter and secondary decoration.
+- [x] **DEC103** Define persistence delta contract keyed by deterministic prop ID.
+- [x] **DEC104** Add tests for destroyed/looted/moved state overriding deterministic regenerated baseline.
 
 ## Content expansion
 
