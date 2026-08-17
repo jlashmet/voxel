@@ -1,0 +1,1 @@
+Validation trigger for the exact step-4 fallback lifecycle diagnostics tree. Remove after the diagnostic run is harvested.
