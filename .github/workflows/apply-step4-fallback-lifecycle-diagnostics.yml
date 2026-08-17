@@ -1,0 +1,36 @@
+name: Apply step4 fallback lifecycle diagnostics
+
+on:
+  push:
+    branches:
+      - feature/voxel-showcase-rendering-repair-v2
+    paths:
+      - .github/workflows/apply-step4-fallback-lifecycle-diagnostics.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/voxel-showcase-rendering-repair-v2
+          fetch-depth: 0
+      - name: Apply exact diagnostics patch
+        run: python3 .github/scripts/apply-step4-fallback-lifecycle-diagnostics.py
+      - name: Remove one-shot transport
+        run: |
+          rm .github/scripts/apply-step4-fallback-lifecycle-diagnostics.py
+          rm .github/workflows/apply-step4-fallback-lifecycle-diagnostics.yml
+      - name: Verify and publish
+        run: |
+          set -euo pipefail
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --stat
+          git commit -m "diag(rendering): trace step4 fallback lifecycle"
+          git push origin HEAD:feature/voxel-showcase-rendering-repair-v2
