@@ -32,6 +32,7 @@ _DEFAULT_SOCKET = {
     AssetType.WEAPON: "RightHand",
     AssetType.ACCESSORY: "Chest",
 }
+DEFAULT_RIG_PROFILE = "canonical-humanoid-macos"
 
 
 @dataclass(frozen=True)
@@ -70,6 +71,7 @@ def scaffold_asset(
     tags: list[str] | None = None,
     blender: str = "/Applications/Blender.app/Contents/MacOS/Blender",
     canonical_body: Path | None = None,
+    rig_profile: str | None = DEFAULT_RIG_PROFILE,
     slot: str | None = None,
     socket_bone_name: str | None = None,
     force: bool = False,
@@ -134,17 +136,26 @@ def scaffold_asset(
         references["appearance"] = {"directory": "appearance"}
 
     if asset_type in {AssetType.CHARACTER, AssetType.CLOTHING}:
-        if canonical_body is None:
-            raise CharacterFactoryError(
-                f"{asset_type.value} scaffolding requires --canonical-body"
-            )
-        payload["rig"] = {
-            "blender": blender,
-            "canonicalBody": _relative_path(canonical_body, asset_dir),
-            "bodyObject": "GarmentDonor" if asset_type == AssetType.CLOTHING else "Body",
-            "armatureObject": "Armature",
-            "maxTransferDistance": 0.45,
-        }
+        if canonical_body is not None:
+            if rig_profile is not None and rig_profile != DEFAULT_RIG_PROFILE:
+                raise CharacterFactoryError(
+                    "use either a named rig profile or canonical_body, not both"
+                )
+            payload["rig"] = {
+                "blender": blender,
+                "canonicalBody": _relative_path(canonical_body, asset_dir),
+                "bodyObject": "GarmentDonor" if asset_type == AssetType.CLOTHING else "Body",
+                "armatureObject": "Armature",
+                "maxTransferDistance": 0.45,
+            }
+        else:
+            profile = str(rig_profile or DEFAULT_RIG_PROFILE).strip()
+            if not profile:
+                raise CharacterFactoryError("character/clothing rig profile cannot be empty")
+            payload["rig"] = {
+                "profile": profile,
+                "maxTransferDistance": 0.45,
+            }
     else:
         payload["rigid"] = {
             "blender": blender,
