@@ -15,7 +15,10 @@ This checklist is the source of truth for implementation progress. Mark each ite
 - Cave runtime content includes `CaveCampScene`, natural cave environmental families, and occupied/mine environmental families.
 - The natural/mine runtime source is present, but dedicated `NaturalCaveDecorationTests.cs` and `MineCaveDecorationTests.cs` source files are not currently present on the branch. Do not treat earlier notes implying those test files were committed as validation evidence.
 - Unity/CI execution and visual/performance evidence remain separate completion gates.
-- Large-scale content expansion now uses a planned two-level identity model: existing coarse prop families remain behavior/placement classes while stable content-archetype identity distinguishes hundreds of actual objects.
+- Large-scale content now has a two-level identity model: existing coarse prop families remain behavior/placement classes while `DecorationContentKind` carries stable archetype identity in deterministic variant bits.
+- The first catalog wave contains 42 archetypes across smithy, tavern, crypt, market, stable, prison, and civic packs. `DecorationContentAuthoringEmitter` maps them through a shared 24-shape grammar; mesh/thin content is emitted as data requests.
+- `DecorationContentSceneResolver` adapts content slots to the existing scheduler and placement resolver rather than introducing another collision engine. Smithy additionally uses a reusable near-anchor sub-space so anvil/bellows/quench/grindstone form a working cluster in front of the forge hearth.
+- `DecorationContentCatalogTests` provides source coverage for all 42 archetypes, seven initial scene definitions over representative seeds, authoring/backend partitioning, and 32-seed smithy relational placement. These tests still require Unity execution before any validation gate is closed.
 
 ## Setup and architecture
 
@@ -123,18 +126,18 @@ This checklist is the source of truth for implementation progress. Mark each ite
 
 ## Large-scale content library — 400+ archetype target
 
-- [ ] **DEC130** Implement scalable content-archetype identity/variant encoding while retaining coarse `DecorationPropFamily` behavior classes.
-- [ ] **DEC131** Implement the first 42 archetype recipes spanning smithy, tavern, crypt, market, stable, prison, and civic packs.
-- [ ] **DEC132** Implement generic content authoring-shape grammar so new archetypes usually require catalog data rather than a bespoke authorer.
-- [ ] **DEC133** Implement content-scene slot wrapper that reuses `DecorationSceneScheduler` and `DecorationPlacementResolver`.
-- [ ] **DEC134** Add coherent smithy scene: hearth, anvil, bellows, quench tub, grindstone, tool board.
+- [x] **DEC130** Implement scalable content-archetype identity/variant encoding while retaining coarse `DecorationPropFamily` behavior classes.
+- [x] **DEC131** Implement the first 42 archetype recipes spanning smithy, tavern, crypt, market, stable, prison, and civic packs.
+- [x] **DEC132** Implement generic content authoring-shape grammar so new archetypes usually require catalog data rather than a bespoke authorer.
+- [x] **DEC133** Implement content-scene slot wrapper that reuses `DecorationSceneScheduler` and `DecorationPlacementResolver`.
+- [x] **DEC134** Add coherent smithy scene: hearth, anvil, bellows, quench tub, grindstone, tool board.
 - [ ] **DEC135** Add coherent tavern-bar scene: bar, keg rack, mug rack, serving shelf, firewood, game table.
 - [ ] **DEC136** Add coherent crypt scene: sarcophagus/coffin anchor, ossuary, bier, urns, grave marker.
 - [ ] **DEC137** Add coherent market scene: stall, canopy/sign, goods display, scale, baskets.
 - [ ] **DEC138** Add coherent stable scene: manger, trough, hay, saddle/tack, hitching fixture.
 - [ ] **DEC139** Add coherent prison scene: cage/stocks anchor, shackles, key board, bucket, restraint bench.
 - [ ] **DEC140** Add coherent civic-corner scene: notice board, well/fountain, lamp, public trough, handcart.
-- [ ] **DEC141** Add catalog/scene deterministic tests for the first 42 archetypes and representative multi-seed rooms.
+- [x] **DEC141** Add catalog/scene deterministic test source for the first 42 archetypes and representative multi-seed rooms.
 - [ ] **DEC142** Add carpentry/general-workshop pack.
 - [ ] **DEC143** Add textile/leather/pottery craft pack.
 - [ ] **DEC144** Add kitchen/bakery/brewery/winery pack.
