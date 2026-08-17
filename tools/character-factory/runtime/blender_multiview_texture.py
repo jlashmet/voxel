@@ -190,13 +190,14 @@ def _source_uv(
 
 
 def _nearest_foreground_uv(source: ImageInfo, u: float, v: float) -> tuple[float, float]:
-    """Keep a projected coordinate on visible turnaround pixels.
+    """Keep a projected coordinate on the true nearest visible turnaround pixel.
 
-    Global 3D bounds can be wider than a local silhouette slice—for example long
-    hair establishes the character's depth while the calves are much thinner.
-    A side projection can therefore land just outside a leg and sample the gray
-    canvas. Clamp only those misses to the nearest foreground run at the same or a
-    nearby image row; coordinates already inside the subject are left unchanged.
+    Global planar projection does not perfectly follow local silhouette bends. The
+    previous implementation stopped at the first *row* containing any foreground,
+    which could move a hand coordinate hundreds of pixels sideways to an upper-arm
+    strip even when the actual hand was only a few rows away. Search in image-space
+    Euclidean distance and stop only when unexplored rows cannot beat the best 2D
+    candidate already found.
     """
 
     width = source.width
@@ -209,7 +210,6 @@ def _nearest_foreground_uv(source: ImageInfo, u: float, v: float) -> tuple[float
     max_radius = max(height, width)
     for radius in range(max_radius + 1):
         rows = [target_y] if radius == 0 else [target_y - radius, target_y + radius]
-        found_at_radius = False
         for y in rows:
             if y < 0 or y >= height:
                 continue
@@ -224,18 +224,19 @@ def _nearest_foreground_uv(source: ImageInfo, u: float, v: float) -> tuple[float
                 x = min(max(target_x, safe_start), safe_end)
                 dx = x - target_x
                 dy = y - target_y
-                distance = float(dx * dx + dy * dy)
-                if best is None or distance < best[0]:
-                    best = (distance, x, y)
+                distance_sq = float(dx * dx + dy * dy)
+                if best is None or distance_sq < best[0]:
+                    best = (distance_sq, x, y)
                 if safe_start <= target_x <= safe_end and y == target_y:
                     return (
                         target_x / max(1, width - 1),
                         target_y / max(1, height - 1),
                     )
-                found_at_radius = True
-        # Once rows at this radius contain foreground, any farther row has a larger
-        # vertical distance. The best candidate from this radius is sufficient.
-        if found_at_radius and best is not None:
+
+        # Any row not yet visited is at least radius+1 pixels away vertically. If
+        # radius alone already equals/exceeds the best complete 2D distance, later
+        # rows cannot produce a closer pixel regardless of their horizontal match.
+        if best is not None and float(radius * radius) >= best[0]:
             break
 
     if best is None:
