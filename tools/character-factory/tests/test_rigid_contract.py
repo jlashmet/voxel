@@ -11,6 +11,8 @@ if str(TOOL_ROOT) not in sys.path:
     sys.path.insert(0, str(TOOL_ROOT))
 
 from api import BuildSpec, CharacterFactoryError
+from runtime.catalogue import catalogue_payload, classify_changes, load_catalogue_entries
+from runtime.geometry_cache import geometry_fingerprint
 from runtime.pipelines.accessory import AccessoryPipeline
 from runtime.pipelines.weapon import WeaponPipeline
 
@@ -67,29 +69,7 @@ class RigidContractTests(unittest.TestCase):
         self.assertIn("--anchor-fraction", command)
 
     def test_generated_detail_shaft_uses_named_detail_as_geometry_input(self) -> None:
-        payload = self._weapon_payload()
-        payload["references"] = {
-            "details": {
-                "ornament": "ornament.png",
-            }
-        }
-        payload["rigid"].update(
-            {
-                "canonicalAxis": "z",
-                "targetLength": 1.8,
-                "anchorFraction": [0.5, 0.5, 0.1],
-                "composition": {
-                    "strategy": "generated-detail-shaft",
-                    "detailReference": "ornament",
-                    "totalLength": 1.8,
-                    "detailLength": 0.38,
-                    "shaftRadius": 0.024,
-                    "axis": "auto",
-                    "attachmentSide": "min",
-                    "overlap": 0.025,
-                },
-            }
-        )
+        payload = self._composed_weapon_payload()
         spec = self._load(payload)
         assert spec.rigid is not None
         assert spec.rigid.composition is not None
@@ -125,6 +105,45 @@ class RigidContractTests(unittest.TestCase):
         plan = AccessoryPipeline(TOOL_ROOT).plan(spec)
         self.assertIn(str(spec.detail_references["shade"]), plan.generator_command)
         self.assertEqual("accessory", plan.prepare_command[plan.prepare_command.index("--part-kind") + 1])
+
+    def test_composition_detail_change_invalidates_geometry_fingerprint(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self._write_composed_weapon(root)
+            spec = BuildSpec.load(root / "asset.json", validate_paths=False)
+            pipeline = WeaponPipeline(TOOL_ROOT)
+            first = geometry_fingerprint(TOOL_ROOT, spec, pipeline.plan(spec)).value
+
+            (root / "ornament.png").write_bytes(b"ornament-v2")
+            spec = BuildSpec.load(root / "asset.json", validate_paths=False)
+            second = geometry_fingerprint(TOOL_ROOT, spec, pipeline.plan(spec)).value
+            self.assertNotEqual(first, second)
+
+    def test_catalogue_marks_composition_detail_as_geometry_change(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self._write_composed_weapon(root)
+            baseline = catalogue_payload(root)
+
+            (root / "ornament.png").write_bytes(b"ornament-v2")
+            changes, removed = classify_changes(load_catalogue_entries(root), baseline)
+            self.assertEqual([], removed)
+            self.assertEqual(1, len(changes))
+            self.assertEqual(frozenset({"details", "geometry"}), changes[0].kinds)
+
+    def test_unused_detail_change_remains_detail_only(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self._write_composed_weapon(root)
+            payload = json.loads((root / "asset.json").read_text(encoding="utf-8"))
+            payload["references"]["details"]["decal"] = "decal.png"
+            (root / "decal.png").write_bytes(b"decal-v1")
+            (root / "asset.json").write_text(json.dumps(payload), encoding="utf-8")
+            baseline = catalogue_payload(root)
+
+            (root / "decal.png").write_bytes(b"decal-v2")
+            changes, _ = classify_changes(load_catalogue_entries(root), baseline)
+            self.assertEqual(frozenset({"details"}), changes[0].kinds)
 
     def test_composition_requires_existing_named_detail(self) -> None:
         payload = self._weapon_payload()
@@ -184,6 +203,38 @@ class RigidContractTests(unittest.TestCase):
             path = Path(directory) / "asset.json"
             path.write_text(json.dumps(payload), encoding="utf-8")
             return BuildSpec.load(path, validate_paths=False)
+
+    @classmethod
+    def _write_composed_weapon(cls, root: Path) -> None:
+        (root / "front.png").write_bytes(b"full-object-v1")
+        (root / "ornament.png").write_bytes(b"ornament-v1")
+        (root / "asset.json").write_text(
+            json.dumps(cls._composed_weapon_payload()),
+            encoding="utf-8",
+        )
+
+    @classmethod
+    def _composed_weapon_payload(cls) -> dict[str, object]:
+        payload = cls._weapon_payload()
+        payload["references"] = {"details": {"ornament": "ornament.png"}}
+        payload["rigid"].update(
+            {
+                "canonicalAxis": "z",
+                "targetLength": 1.8,
+                "anchorFraction": [0.5, 0.5, 0.1],
+                "composition": {
+                    "strategy": "generated-detail-shaft",
+                    "detailReference": "ornament",
+                    "totalLength": 1.8,
+                    "detailLength": 0.38,
+                    "shaftRadius": 0.024,
+                    "axis": "auto",
+                    "attachmentSide": "min",
+                    "overlap": 0.025,
+                },
+            }
+        )
+        return payload
 
     @staticmethod
     def _weapon_payload() -> dict[str, object]:
