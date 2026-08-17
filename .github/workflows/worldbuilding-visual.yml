@@ -61,7 +61,7 @@ jobs:
           mkdir -p "$ROOT" "$GITHUB_WORKSPACE/TestResults/WorldbuildingVisuals"
 
           # Developer/reviewer images only: real authorers write deterministic voxel geometry into
-          # capture volumes; the test harness renders those volumes and preserves PNG artifacts.
+          # capture volumes; two independent solid renderers plus the cave cutaway preserve PNGs.
           status=0
           UNITY_MAX_RSS_MB=12288 UNITY_MAX_MINUTES=15 \
           UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
@@ -82,8 +82,8 @@ jobs:
 
           find "$GITHUB_WORKSPACE/TestResults/WorldbuildingVisuals" -name '*.png' -size +1k -print | sort | tee "$ROOT/images.txt"
           image_count="$(wc -l < "$ROOT/images.txt" | tr -d ' ')"
-          if (( image_count < 7 )); then
-            echo "Expected at least 7 rendered worldbuilding images, found $image_count" >&2
+          if (( image_count < 13 )); then
+            echo "Expected at least 13 rendered worldbuilding images, found $image_count" >&2
             status=1
           fi
 
