@@ -965,7 +965,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     for (int i = 0; i < _activeLodScratch.Count; i++)
                     {
                         SurfaceLodNodeKey active = _activeLodScratch[i];
-                        RequestAndSync(active);
+                        RequestAndSync(active, SurfaceBuildPriority.PreserveActiveCoverage);
                         WorkerFor(active).CollectActiveCoordinate(
                             active.Coordinate, _visibilityFrustumPlanes, voxelSize, frame);
                     }
@@ -1019,7 +1019,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             // Moving outward: descendants continue to draw until the requested parent is current.
             if (_activeLodCoverage.HasActiveDescendant(desired))
             {
-                RequestAndSync(desired);
+                RequestAndSync(desired, SurfaceBuildPriority.PreserveActiveCoverage);
                 _activeLodCoverage.TryMerge(desired, _lodCoverageState);
                 return true;
             }
@@ -1028,13 +1028,13 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     desired, out SurfaceLodNodeKey active))
             {
                 SurfaceLodNodeKey root = CoarsestAncestor(desired);
-                RequestAndSync(root);
+                RequestAndSync(root, SurfaceBuildPriority.MissingVisibleCoverage);
                 _activeLodCoverage.TryActivateCompleteNode(root, _lodCoverageState);
                 if (!_activeLodCoverage.TryFindActiveAncestorOrSelf(desired, out active))
                     return false;
             }
 
-            RequestAndSync(active);
+            RequestAndSync(active, SurfaceBuildPriority.PreserveActiveCoverage);
 
             // Moving inward: subdivide one level at a time. A parent is removed only after all
             // eight children have current Ready/KnownEmpty proofs.
@@ -1064,15 +1064,15 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 var child = new SurfaceLodNodeKey(
                     childStep,
                     SurfaceLodHierarchy.ChildCoordinate(parent.Coordinate, childIndex));
-                allObserved &= RequestAndSync(child);
+                allObserved &= RequestAndSync(child, SurfaceBuildPriority.VisibleRefinement);
             }
             return allObserved;
         }
 
-        private bool RequestAndSync(in SurfaceLodNodeKey key)
+        private bool RequestAndSync(in SurfaceLodNodeKey key, SurfaceBuildPriority priority)
         {
             CpuTransvoxelChunkCache worker = WorkerFor(key);
-            if (!worker.RequestHierarchyCoverage(key.Coordinate)) return false;
+            if (!worker.RequestHierarchyCoverage(key.Coordinate, priority)) return false;
             return SyncLodState(key, worker);
         }
 

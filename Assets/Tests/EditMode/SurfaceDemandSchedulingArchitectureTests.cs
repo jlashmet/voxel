@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using NUnit.Framework;
+using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 
 namespace VoxelEngine.Tests.EditMode
 {
@@ -58,7 +59,7 @@ namespace VoxelEngine.Tests.EditMode
                 "internal bool RequestHierarchyCoverage",
                 "internal void BeginHierarchyActiveFrame");
 
-            StringAssert.Contains("_hierarchyRequested.Add(coordinate)", request);
+            StringAssert.Contains("_hierarchyRequestPriorities", request);
             StringAssert.Contains("Invalidate(coordinate)", request);
             StringAssert.Contains("MarkDirty(coordinate)", request);
         }
@@ -94,5 +95,36 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.DoesNotContain("MarkDirty(victim)", arena);
             StringAssert.DoesNotContain("MarkDirty(victim)", capacity);
         }
+
+        [Test]
+        public void BuildPriorityOrderingKeepsCoverageAheadOfRefinement()
+        {
+            Assert.Less((byte)SurfaceBuildPriority.MissingVisibleCoverage,
+                        (byte)SurfaceBuildPriority.PreserveActiveCoverage);
+            Assert.Less((byte)SurfaceBuildPriority.PreserveActiveCoverage,
+                        (byte)SurfaceBuildPriority.VisibleRefinement);
+            Assert.Less((byte)SurfaceBuildPriority.VisibleRefinement,
+                        (byte)SurfaceBuildPriority.Prefetch);
+        }
+
+        [Test]
+        public void SchedulerAssignsExplicitCoverageAndRefinementPriorities()
+        {
+            string scheduler = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Rendering", "Runtime", "SurfaceExtraction",
+                "VoxelSurfaceScheduler.cs"));
+            StringAssert.Contains(
+                "RequestAndSync(root, SurfaceBuildPriority.MissingVisibleCoverage)", scheduler);
+            StringAssert.Contains(
+                "RequestAndSync(desired, SurfaceBuildPriority.PreserveActiveCoverage)", scheduler);
+            StringAssert.Contains(
+                "RequestAndSync(child, SurfaceBuildPriority.VisibleRefinement)", scheduler);
+
+            string cache = CacheSource();
+            StringAssert.Contains(
+                "Dictionary<int3, SurfaceBuildPriority> _hierarchyRequestPriorities", cache);
+            StringAssert.Contains("priority < bestPriority", cache);
+        }
+
     }
 }

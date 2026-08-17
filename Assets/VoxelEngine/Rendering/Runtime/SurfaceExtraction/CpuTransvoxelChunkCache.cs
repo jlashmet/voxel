@@ -348,7 +348,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         // Hierarchical coverage may need a coarse parent inside its nominal inner LOD cut.
         // These requests are explicit and bounded by scheduler-visible coverage; they do not
         // make every discovered coarse chunk eligible for eager out-of-band rebuilding.
-        private readonly HashSet<int3> _hierarchyRequested = new();
+        private readonly Dictionary<int3, SurfaceBuildPriority> _hierarchyRequestPriorities = new();
         private readonly HashSet<int3> _hierarchyActive = new();
         private readonly Dictionary<int3, double> _queuedAtSeconds = new();
         private ulong _versionCounter;
@@ -883,10 +883,17 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         /// ring admission, an explicit request may build a parent inside the ring's inner cut so
         /// it can cover missing fine detail. The request is cleared when the generation publishes.
         /// </summary>
-        internal bool RequestHierarchyCoverage(int3 coordinate)
+        internal bool RequestHierarchyCoverage(int3 coordinate, SurfaceBuildPriority priority)
         {
             if (!OwnsShard(coordinate) || !TrackKnown(coordinate)) return false;
-            _hierarchyRequested.Add(coordinate);
+            if (_hierarchyRequestPriorities.TryGetValue(coordinate, out SurfaceBuildPriority existing))
+            {
+                if (priority < existing) _hierarchyRequestPriorities[coordinate] = priority;
+            }
+            else
+            {
+                _hierarchyRequestPriorities.Add(coordinate, priority);
+            }
 
             bool hasReady = _entries.TryGetValue(coordinate, out Entry entry) && entry.Ready;
             bool hasEmpty = _emptyVersions.ContainsKey(coordinate);
@@ -1643,6 +1650,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
             int3 best = default;
             bool hasBest = false;
+            SurfaceBuildPriority bestPriority = SurfaceBuildPriority.Prefetch;
+            bool bestVisible = false;
             float bestScore = float.PositiveInfinity;
             float chunkMetres = VoxelsPerAxis * voxelSize;
             Vector3 cameraWorldPosition = camera.transform.position;
@@ -1657,7 +1666,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
                 Bounds bounds = ChunkWorldBounds(candidate, voxelSize);
                 if (!WithinRingBand(bounds, cameraWorldPosition)
-                    && !_hierarchyRequested.Contains(candidate))
+                    && !_hierarchyRequestPriorities.ContainsKey(candidate))
                 {
                     RequeueDirty(candidate);
                     continue;
@@ -1666,12 +1675,20 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 Vector3 centre = (new Vector3(candidate.x, candidate.y, candidate.z)
                                 + Vector3.one * 0.5f) * chunkMetres;
                 float distance = (centre - cameraWorldPosition).sqrMagnitude;
-                float score = GeometryUtility.TestPlanesAABB(_frustumPlanes, bounds)
-                    ? distance : distance + 1_000_000_000f;
-                if (!hasBest || score < bestScore)
+                bool visible = GeometryUtility.TestPlanesAABB(_frustumPlanes, bounds);
+                SurfaceBuildPriority priority = _hierarchyRequestPriorities.TryGetValue(
+                    candidate, out SurfaceBuildPriority requestedPriority)
+                        ? requestedPriority : SurfaceBuildPriority.Prefetch;
+                bool better = !hasBest
+                    || priority < bestPriority
+                    || (priority == bestPriority && visible && !bestVisible)
+                    || (priority == bestPriority && visible == bestVisible && distance < bestScore);
+                if (better)
                 {
                     if (hasBest) RequeueDirty(best);
-                    bestScore = score;
+                    bestPriority = priority;
+                    bestVisible = visible;
+                    bestScore = distance;
                     best = candidate;
                     hasBest = true;
                 }
@@ -3192,7 +3209,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     _entries.Remove(_build.Coordinate);
                 }
                 _emptyVersions[_build.Coordinate] = _build.SourceVersion;
-                _hierarchyRequested.Remove(_build.Coordinate);
+                _hierarchyRequestPriorities.Remove(_build.Coordinate);
                 CompletedBuildCount++;
                 _buildLatencyTiming.Add(ElapsedMs(_build.BuildStartSeconds));
                 _desiredVersions.Remove(_build.Coordinate);
@@ -3258,7 +3275,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             entry.SurfaceCatalogueHash = _build.SurfaceCatalogueHash;
             entry.CoatingCatalogueVersion = _build.CoatingCatalogueVersion;
             entry.CoatingCatalogueHash = _build.CoatingCatalogueHash;
-            _hierarchyRequested.Remove(_build.Coordinate);
+            _hierarchyRequestPriorities.Remove(_build.Coordinate);
             CompletedBuildCount++;
             _buildLatencyTiming.Add(ElapsedMs(_build.BuildStartSeconds));
             _desiredVersions.Remove(_build.Coordinate);
@@ -3692,7 +3709,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _queuedDirty.Remove(chunk);
             _desiredVersions.Remove(chunk);
             _emptyVersions.Remove(chunk);
-            _hierarchyRequested.Remove(chunk);
+            _hierarchyRequestPriorities.Remove(chunk);
             _hierarchyActive.Remove(chunk);
             _queuedAtSeconds.Remove(chunk);
             if (_entries.TryGetValue(chunk, out Entry entry))
@@ -3853,7 +3870,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _known.Clear();
             _dirty.Clear();
             _desiredVersions.Clear();
-            _hierarchyRequested.Clear();
+            _hierarchyRequestPriorities.Clear();
             _hierarchyActive.Clear();
             _queuedAtSeconds.Clear();
             _visible.Clear();
