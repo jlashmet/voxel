@@ -31,6 +31,7 @@ namespace Game.Structures.Api
         public CastleGatehouseConfig Gatehouse;
         public CastleCourtyardConfig Courtyard;
         public CastleMoatConfig Moat;
+        public CastleUndergroundAttachmentConfig UndergroundAttachments;
         public BattlementConfig CurtainBattlements;
         public StructureMaterialPalette Palette;
 
@@ -62,6 +63,7 @@ namespace Game.Structures.Api
             Gatehouse.IsWellFormed &&
             Courtyard.IsWellFormed &&
             Moat.IsWellFormed &&
+            UndergroundAttachments.IsWellFormed &&
             CurtainBattlements.IsWellFormed;
     }
 
@@ -226,6 +228,7 @@ namespace Game.Structures.Api
                 },
                 Courtyard = CastleCourtyardPresets.Compatibility(in plan),
                 Moat = CastleMoatPresets.Compatibility(in plan),
+                UndergroundAttachments = CastleUndergroundAttachmentPresets.Compatibility(in plan),
                 CurtainBattlements = new BattlementConfig
                 {
                     ParapetThickness = 8,
