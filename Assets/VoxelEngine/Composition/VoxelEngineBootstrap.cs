@@ -67,9 +67,14 @@ namespace VoxelEngine.Composition
     public static class VoxelEngineBootstrap
     {
         /// <summary>
-        /// Absolute safety ceiling for one eagerly allocated mixed-brick pool. BrickPool reserves
+        /// Fallback safety ceiling for one eagerly allocated mixed-brick pool. BrickPool reserves
         /// every payload plane up front, so an unchecked capacity can otherwise consume gigabytes
         /// before streaming has authored a single brick.
+        ///
+        /// This is a backstop for callers that do not know their own budget, not a global cap: it
+        /// sits below every tier in device-matrix.md, which is authoritative for memory targets.
+        /// A caller that has already sized itself against a tier budget must pass that budget to
+        /// <see cref="CreateStorage"/> so this constant does not silently re-clamp it downward.
         /// </summary>
         public const int MaximumMixedBrickAllocationBytes = 256 * 1024 * 1024;
 
@@ -77,6 +82,13 @@ namespace VoxelEngine.Composition
         /// Converts an application memory budget into a mixed-brick capacity without exposing
         /// Storage.Runtime physical byte layout to scene/application code.
         /// </summary>
+        /// <remarks>
+        /// A non-positive <paramref name="budgetBytes"/> means "no budget information available"
+        /// and degrades to <paramref name="minimumCapacity"/> rather than throwing: this is a
+        /// clamp, and the safe answer for an absent budget is the smallest pool, not an exception
+        /// on a caller that has no budget to offer. Entry points that genuinely require a budget
+        /// — <see cref="CreateStorage"/> — validate it at their own boundary instead.
+        /// </remarks>
         public static int ClampMixedBrickCapacityToBudget(
             int requestedCapacity,
             int budgetBytes,
@@ -84,8 +96,6 @@ namespace VoxelEngine.Composition
         {
             if (requestedCapacity <= 0)
                 throw new ArgumentOutOfRangeException(nameof(requestedCapacity));
-            if (budgetBytes <= 0)
-                throw new ArgumentOutOfRangeException(nameof(budgetBytes));
             if (minimumCapacity <= 0)
                 throw new ArgumentOutOfRangeException(nameof(minimumCapacity));
 
@@ -206,10 +216,17 @@ namespace VoxelEngine.Composition
                 writeBudget);
         }
 
+        /// <param name="maxMixedBrickAllocationBytes">
+        /// Memory ceiling this storage's eager mixed-brick pool must respect. Callers that have
+        /// already sized <paramref name="mixedBrickCapacity"/> against their device-tier budget
+        /// should pass that same budget; leaving the default applies the conservative
+        /// <see cref="MaximumMixedBrickAllocationBytes"/> backstop instead.
+        /// </param>
         public static IVoxelStorageRuntime CreateStorage(
             int expectedResidentRegions,
             int mixedBrickCapacity,
-            int changeJournalCapacity = 4096)
+            int changeJournalCapacity = 4096,
+            int maxMixedBrickAllocationBytes = MaximumMixedBrickAllocationBytes)
         {
             if (expectedResidentRegions <= 0)
                 throw new ArgumentOutOfRangeException(nameof(expectedResidentRegions));
@@ -217,11 +234,14 @@ namespace VoxelEngine.Composition
                 throw new ArgumentOutOfRangeException(nameof(mixedBrickCapacity));
             if (changeJournalCapacity <= 0)
                 throw new ArgumentOutOfRangeException(nameof(changeJournalCapacity));
+            if (maxMixedBrickAllocationBytes <= 0)
+                throw new ArgumentOutOfRangeException(nameof(maxMixedBrickAllocationBytes));
 
             return new StorageRuntimeLifetime(
                 expectedResidentRegions,
                 mixedBrickCapacity,
-                changeJournalCapacity);
+                changeJournalCapacity,
+                maxMixedBrickAllocationBytes);
         }
 
         internal sealed class StorageRuntimeLifetime : IVoxelStorageRuntime
@@ -242,11 +262,16 @@ namespace VoxelEngine.Composition
             public StorageRuntimeLifetime(
                 int expectedResidentRegions,
                 int mixedBrickCapacity,
-                int changeJournalCapacity)
+                int changeJournalCapacity,
+                int maxMixedBrickAllocationBytes = MaximumMixedBrickAllocationBytes)
             {
+                // The ceiling is still applied before the eager BrickPool allocation — that guard
+                // exists to stop a pathological request freezing the machine. What it must not do
+                // is invent its own number: a caller that already clamped against its device-tier
+                // budget passes that budget here, so this cannot silently halve it.
                 int boundedMixedBrickCapacity = ClampMixedBrickCapacityToBudget(
                     mixedBrickCapacity,
-                    MaximumMixedBrickAllocationBytes,
+                    maxMixedBrickAllocationBytes,
                     minimumCapacity: 1);
 
                 _table = new RegionTable(expectedResidentRegions, Allocator.Persistent);

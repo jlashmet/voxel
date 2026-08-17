@@ -268,14 +268,17 @@ namespace VoxelEngine.Showcase
 
         public int UnloadRadiusRegions { get; }
 
-        public ShowcaseWorld(uint seed, int brickPoolCapacity, int loadRadiusRegions, int unloadRadiusRegions)
+        public ShowcaseWorld(uint seed, int brickPoolCapacity, int loadRadiusRegions,
+                             int unloadRadiusRegions,
+                             int maxMixedBrickAllocationBytes =
+                                 VoxelEngineBootstrap.MaximumMixedBrickAllocationBytes)
         {
             Seed = seed;
             LoadRadiusRegions = math.max(1, loadRadiusRegions);
             UnloadRadiusRegions = math.max(LoadRadiusRegions + 1, unloadRadiusRegions);
 
             _storage = new VoxelEngineBootstrap.StorageRuntimeLifetime(
-                64, brickPoolCapacity, 4096);
+                64, brickPoolCapacity, 4096, maxMixedBrickAllocationBytes);
 
             const uint weatherCoatings = (1u << Coatings.Moss) | (1u << Coatings.Snow)
                                         | (1u << Coatings.Soot) | (1u << Coatings.Wet);

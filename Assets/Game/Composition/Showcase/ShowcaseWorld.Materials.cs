@@ -33,7 +33,9 @@ namespace VoxelEngine.Showcase
         /// </summary>
         public ShowcaseWorld(uint seed, int brickPoolCapacity, int loadRadiusRegions,
                              int unloadRadiusRegions, MaterialDefinition[] materialDefinitions,
-                             ShowcaseMaterialSet materialRoles)
+                             ShowcaseMaterialSet materialRoles,
+                             int maxMixedBrickAllocationBytes =
+                                 VoxelEngineBootstrap.MaximumMixedBrickAllocationBytes)
         {
             if (materialDefinitions == null)
                 throw new ArgumentNullException(nameof(materialDefinitions));
@@ -44,7 +46,7 @@ namespace VoxelEngine.Showcase
             _materials = materialRoles;
 
             _storage = new VoxelEngineBootstrap.StorageRuntimeLifetime(
-                64, brickPoolCapacity, 4096);
+                64, brickPoolCapacity, 4096, maxMixedBrickAllocationBytes);
 
             for (int i = 0; i < materialDefinitions.Length; i++)
                 _palette.Register(in materialDefinitions[i]);
@@ -60,9 +62,12 @@ namespace VoxelEngine.Showcase
         /// configuration channel.
         /// </summary>
         public ShowcaseWorld(uint seed, int brickPoolCapacity, int loadRadiusRegions,
-                             int unloadRadiusRegions, MaterialDefinition[] materialDefinitions)
+                             int unloadRadiusRegions, MaterialDefinition[] materialDefinitions,
+                             int maxMixedBrickAllocationBytes =
+                                 VoxelEngineBootstrap.MaximumMixedBrickAllocationBytes)
             : this(seed, brickPoolCapacity, loadRadiusRegions, unloadRadiusRegions,
-                   materialDefinitions, GameShowcaseMaterials.Default)
+                   materialDefinitions, GameShowcaseMaterials.Default,
+                   maxMixedBrickAllocationBytes)
         {
         }
     }

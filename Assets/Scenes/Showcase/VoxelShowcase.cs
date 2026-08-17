@@ -122,9 +122,12 @@ namespace VoxelEngine.Showcase
             int capacity = VoxelEngineBootstrap.ClampMixedBrickCapacityToBudget(
                 m_BrickPoolCapacity, tierBytes);
 
+            // Pass the tier budget down as well as the capacity it produced. Storage applies its
+            // own ceiling before the eager BrickPool allocation; without the tier budget it would
+            // fall back to the conservative backstop and halve a pool this scene already sized.
             _world = new ShowcaseWorld(
                 m_Seed, capacity, m_LoadRadiusRegions, m_UnloadRadiusRegions,
-                GameMaterialComposition.SimulationDefinitions());
+                GameMaterialComposition.SimulationDefinitions(), tierBytes);
             _gpuDebris = new GpuDebrisSystem();
             _motor = new CharacterMotor { WalkSpeed = m_WalkSpeed };
 

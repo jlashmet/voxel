@@ -250,8 +250,12 @@ namespace MountingForce.WorldGen.Voxel
         private static int ClampRadius(int requested, int sx, int sy, int sz)
         {
             if (requested <= 0 || sx <= 2 || sy <= 2 || sz <= 2) return 0;
+            // A rounded box degenerates once the corner radius passes half the smallest extent,
+            // so half is the bound. Reserving an extra voxel below that silently downgraded an
+            // authored radius on even extents — a 4-deep opening with a 2 dm profile radius came
+            // back as 1 — which is what the semantic profile is meant to prevent.
             int minExtent = math.min(sx, math.min(sy, sz));
-            return math.clamp(requested, 1, math.max(1, (minExtent - 1) / 2));
+            return math.clamp(requested, 1, math.max(1, minExtent / 2));
         }
 
         private void Op(ShapeOp op, params int[] operands)

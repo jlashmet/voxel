@@ -161,32 +161,56 @@ namespace VoxelEngine.CI
         {
             GameObject cameraObject = VegetationLifeRenderingVisualTests.CreateCamera("CI Vine Wind Camera", new Vector3(0f, 1.4f, -4.2f), new Vector3(0f, 1.15f, 0f), 32f, out Camera camera, out RenderTexture target);
             GameObject root = new GameObject("CI Vine Wind Validation");
-            Texture2D backgroundFirst = null, backgroundSecond = null;
+
+            // A vine sways periodically, so a single fixed interval can land near a whole number
+            // of periods and measure almost no displacement even while the animation is perfectly
+            // healthy. Sample the window and take the strongest pair, matching how
+            // DeterministicVegetationAnimationVisualTests measures the same envelope.
+            const int sampleCount = 5;
+            const float sampleSpacingSeconds = 0.37f;
+            var samples = new Texture2D[sampleCount];
+            var backgrounds = new Texture2D[sampleCount];
             try
             {
                 VegetationRenderingShowcase showcase = root.AddComponent<VegetationRenderingShowcase>(); yield return null;
                 VegetationLifeRenderingVisualTests.RemovePresentationGeometry(root.transform); showcase.Renderer.enabled = false; showcase.Renderer.Clear();
                 showcase.Renderer.SetInstances(new[] { Instance(VegetationKind.HangingVine, new float3(0,2.4f,0), new float3(0,0,-1), 0xA11CE551u, 1.35f) });
 
-                camera.Render(); backgroundFirst = VegetationLifeRenderingVisualTests.ReadTarget(target);
-                showcase.Renderer.DrawNow(); camera.Render(); Texture2D first = VegetationLifeRenderingVisualTests.ReadTarget(target); frames.Add(first);
-                File.WriteAllBytes(VegetationLifeRenderingVisualTests.ArtifactPath("vegetation_vine_t0.png"), first.EncodeToPNG());
+                for (int i = 0; i < sampleCount; i++)
+                {
+                    if (i > 0) yield return new WaitForSeconds(sampleSpacingSeconds);
+                    camera.Render(); backgrounds[i] = VegetationLifeRenderingVisualTests.ReadTarget(target);
+                    showcase.Renderer.DrawNow(); camera.Render();
+                    samples[i] = VegetationLifeRenderingVisualTests.ReadTarget(target);
+                }
+                frames.Add(samples[0]);
+                frames.Add(samples[sampleCount - 1]);
 
-                yield return new WaitForSeconds(0.75f);
-                camera.Render(); backgroundSecond = VegetationLifeRenderingVisualTests.ReadTarget(target);
-                showcase.Renderer.DrawNow(); camera.Render(); Texture2D second = VegetationLifeRenderingVisualTests.ReadTarget(target); frames.Add(second);
-                File.WriteAllBytes(VegetationLifeRenderingVisualTests.ArtifactPath("vegetation_vine_t1.png"), second.EncodeToPNG());
+                VerticalMotion m = new VerticalMotion(0, 0, 0, 0);
+                int bestA = 0, bestB = 1;
+                for (int a = 0; a < sampleCount - 1; a++)
+                for (int b = a + 1; b < sampleCount; b++)
+                {
+                    VerticalMotion candidate = AnalyseVertical(samples[a], samples[b], backgrounds[a], backgrounds[b], 0.46f, 0.78f);
+                    if (candidate.LowerRate <= m.LowerRate) continue;
+                    m = candidate; bestA = a; bestB = b;
+                }
 
-                VerticalMotion m = AnalyseVertical(first, second, backgroundFirst, backgroundSecond, 0.46f, 0.78f);
-                File.WriteAllText(VegetationLifeRenderingVisualTests.ArtifactPath("vegetation_vine_motion.txt"), m.Describe("free_end", "attachment"));
+                File.WriteAllBytes(VegetationLifeRenderingVisualTests.ArtifactPath("vegetation_vine_t0.png"), samples[bestA].EncodeToPNG());
+                File.WriteAllBytes(VegetationLifeRenderingVisualTests.ArtifactPath("vegetation_vine_t1.png"), samples[bestB].EncodeToPNG());
+                File.WriteAllText(VegetationLifeRenderingVisualTests.ArtifactPath("vegetation_vine_motion.txt"),
+                    $"sample_a={bestA} sample_b={bestB} spacing={sampleSpacingSeconds:0.00}s\n" + m.Describe("free_end", "attachment"));
                 Assert.That(m.LowerRate, Is.GreaterThan(0.05f), "Vine free end is not visibly swaying.");
                 Assert.That(m.UpperRate, Is.LessThan(0.14f), "Vine attachment region is sliding too much.");
                 Assert.That(m.LowerRate, Is.GreaterThan(m.UpperRate * 1.25f), "Vine motion should increase toward its free end.");
             }
             finally
             {
-                if (backgroundFirst != null) Object.DestroyImmediate(backgroundFirst);
-                if (backgroundSecond != null) Object.DestroyImmediate(backgroundSecond);
+                for (int i = 0; i < sampleCount; i++)
+                {
+                    if (backgrounds[i] != null) Object.DestroyImmediate(backgrounds[i]);
+                    if (samples[i] != null && !frames.Contains(samples[i])) Object.DestroyImmediate(samples[i]);
+                }
                 VegetationLifeRenderingVisualTests.ReleaseTarget(camera, target); Object.DestroyImmediate(cameraObject); Object.DestroyImmediate(root);
             }
         }

@@ -579,9 +579,13 @@ namespace MountingForce.WorldGen.Voxel
             KentridgeWindowStyle style)
         {
             if (width <= 0 || height <= 0 || depth <= 0) return;
-            b.Carve(x, y, z, width, height, depth);
-            if (style != KentridgeWindowStyle.Open)
-                b.Box(x, y, z, width, height, depth, material);
+            // Glazing must stay planar. Going through Box() would fill the pane with the
+            // structure's detail profile, so a rounded architectural style would round the glass
+            // itself; GlazedOpening is the shared pattern that carves the aperture semantically
+            // and keeps the pane flat, and is what the bespoke landmark programs already use.
+            ArchitectureVoxelPatterns.GlazedOpening(
+                b.Inner, x, y, z, width, height, depth, material,
+                fillPane: style != KentridgeWindowStyle.Open);
         }
 
         private static void AddWindowX(
@@ -592,9 +596,9 @@ namespace MountingForce.WorldGen.Voxel
             KentridgeWindowStyle style)
         {
             if (width <= 0 || height <= 0 || depth <= 0) return;
-            b.Carve(x, y, z, depth, height, width);
-            if (style != KentridgeWindowStyle.Open)
-                b.Box(x, y, z, depth, height, width, material);
+            ArchitectureVoxelPatterns.GlazedOpening(
+                b.Inner, x, y, z, depth, height, width, material,
+                fillPane: style != KentridgeWindowStyle.Open);
         }
 
         private static void AddTimberFrame(
@@ -642,6 +646,13 @@ namespace MountingForce.WorldGen.Voxel
             {
                 _inner = new ArchitectureShapeProgramBuilder(profile, voxelsPerDecimetre);
             }
+
+            /// <summary>
+            /// Raw builder, for shared construction patterns in
+            /// <see cref="ArchitectureVoxelPatterns"/> that need to override the semantic profile
+            /// defaults this wrapper applies — glazing being the case that must stay planar.
+            /// </summary>
+            public ArchitectureShapeProgramBuilder Inner => _inner;
 
             public void FoundationBox(
                 int x, int y, int z,

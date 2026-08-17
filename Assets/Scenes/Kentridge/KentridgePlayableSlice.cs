@@ -89,7 +89,8 @@ namespace Game.Kentridge.PlayableSlice
                     m_Seed,
                     capacity,
                     m_LoadRadiusRegions,
-                    m_UnloadRadiusRegions);
+                    m_UnloadRadiusRegions,
+                    tierBytes);
                 catalogue = KentridgeCombinedVoxelCatalogue.Build(
                     settlement,
                     BuildSettings(),
