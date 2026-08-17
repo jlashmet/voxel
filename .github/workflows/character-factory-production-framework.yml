@@ -30,6 +30,16 @@ jobs:
           set -euo pipefail
           python3 -m compileall -q tools/character-factory
 
+      - name: Lint migrated production shell entrypoints
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n tools/character-factory/production/madeline/build.sh
+          bash -n tools/character-factory/production/madeline/bootstrap_hunyuan_quality_macos.sh
+          bash -n tools/character-factory/production/sunlit-cleric/build_macos.sh
+          bash -n tools/character-factory/production/sunlit-cleric/build_staff_macos.sh
+          bash -n tools/character-factory/ci/bootstrap_hunyuan_quality_macos.sh
+
       - name: Run production routing, reference, and backend-profile tests
         shell: bash
         run: |
