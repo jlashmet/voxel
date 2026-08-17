@@ -3,8 +3,9 @@ using UnityEngine;
 namespace Game.Composition.WorldObjects.Runtime
 {
     /// <summary>
-    /// Ensures one persistent Unity composition owner exists for WorldObjects. Structure/cave realization code
-    /// can obtain Current and load deterministic scenes without scene-specific bootstrap duplication.
+    /// Ensures one persistent Unity composition owner exists before scene startup can publish generated
+    /// WorldObject scenes. Authoritative registries may live elsewhere; this owner observes their lifecycle for
+    /// dynamic presentation while retaining its own registry only for simple direct callers.
     /// </summary>
     public static class WorldObjectRuntimeBootstrap
     {
@@ -20,7 +21,7 @@ namespace Game.Composition.WorldObjects.Runtime
             }
         }
 
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         private static void Ensure()
         {
             if (_current != null) return;
