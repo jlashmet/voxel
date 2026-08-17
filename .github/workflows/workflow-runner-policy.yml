@@ -1,0 +1,33 @@
+name: Workflow Runner Policy
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/**'
+  push:
+    branches:
+      - master
+    paths:
+      - '.github/workflows/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  policy:
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          clean: true
+      - name: Reject GitHub-hosted runners
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -RInE 'runs-on:[[:space:]]*(ubuntu|macos|windows)-latest|runs-on:[[:space:]]*\[[^]]*(ubuntu|macos|windows)-latest' .github/workflows; then
+            echo 'GitHub-hosted runners are forbidden in this repository. Use runs-on: [self-hosted, macOS].' >&2
+            exit 1
+          fi
+          echo 'All workflows use self-hosted runners.'
