@@ -1,0 +1,31 @@
+name: Mark step4 lifecycle checklist
+
+on:
+  push:
+    branches:
+      - feature/voxel-showcase-rendering-repair-v2
+    paths:
+      - .github/workflows/mark-step4-lifecycle-plan.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/voxel-showcase-rendering-repair-v2
+      - run: python3 .github/scripts/mark-step4-lifecycle-plan.py
+      - run: |
+          rm .github/scripts/mark-step4-lifecycle-plan.py
+          rm .github/workflows/mark-step4-lifecycle-plan.yml
+      - run: |
+          set -euo pipefail
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "docs: mark step4 lifecycle diagnostics complete"
+          git push origin HEAD:feature/voxel-showcase-rendering-repair-v2
