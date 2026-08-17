@@ -12,6 +12,8 @@ namespace Game.Structures.Runtime
         Stable = 4,
         Prison = 5,
         Civic = 6,
+        Carpentry = 7,
+        Craft = 8,
     }
 
     /// <summary>
@@ -70,6 +72,50 @@ namespace Game.Structures.Runtime
         LampPost = 40,
         PublicTrough = 41,
         Handcart = 42,
+
+        CarpenterBench = 43,
+        SawHorse = 44,
+        LumberStack = 45,
+        PlankRack = 46,
+        ToolChest = 47,
+        ChiselBoard = 48,
+        PlaneRack = 49,
+        ClampRack = 50,
+        WoodScrapBasket = 51,
+        Lathe = 52,
+        WheelwrightJig = 53,
+        WheelStack = 54,
+        RepairTrestle = 55,
+        MeasuringBoard = 56,
+        GluePotStation = 57,
+        MalletShelf = 58,
+        DowelBin = 59,
+        ShavingPile = 60,
+
+        Loom = 61,
+        SpinningWheel = 62,
+        YarnBasket = 63,
+        SpindleRack = 64,
+        DyeVat = 65,
+        DryingLine = 66,
+        FoldedClothStack = 67,
+        BoltRack = 68,
+        CuttingTable = 69,
+        DressForm = 70,
+        LeatherStretchingFrame = 71,
+        HideRack = 72,
+        TanningTub = 73,
+        BootmakerBench = 74,
+        PotteryWheel = 75,
+        Kiln = 76,
+        ClayBin = 77,
+        DryingShelf = 78,
+        AmphoraRack = 79,
+        GlazeJarRack = 80,
+        BasketWeavingFrame = 81,
+        WickerStack = 82,
+        SewingStool = 83,
+        LeatherToolBoard = 84,
     }
 
     /// <summary>
@@ -153,7 +199,7 @@ namespace Game.Structures.Runtime
             if ((variant & MarkerMask) != Marker)
                 return DecorationContentKind.Unknown;
             uint raw = (variant & KindMask) >> KindShift;
-            return raw == 0 || raw > (uint)DecorationContentKind.Handcart
+            return raw == 0 || raw > (uint)DecorationContentKind.LeatherToolBoard
                 ? DecorationContentKind.Unknown
                 : (DecorationContentKind)raw;
         }
@@ -163,10 +209,10 @@ namespace Game.Structures.Runtime
 
     public static class DecorationContentCatalog
     {
-        public const int KindCount = 42;
+        public const int KindCount = 84;
 
         public static bool IsDefined(DecorationContentKind kind) =>
-            kind >= DecorationContentKind.Anvil && kind <= DecorationContentKind.Handcart;
+            kind >= DecorationContentKind.Anvil && kind <= DecorationContentKind.LeatherToolBoard;
 
         public static DecorationContentRecipe Recipe(DecorationContentKind kind)
         {
@@ -378,7 +424,7 @@ namespace Game.Structures.Runtime
                         Blocking() | DecorationInteractionFlags.Container | DecorationInteractionFlags.Movable,
                         new int3(18, 12, 28), new int3(4, 0, 5), 2, 3);
                 default:
-                    return default;
+                    return DecorationContentCraftExpansionCatalog.Recipe(kind);
             }
         }
 
