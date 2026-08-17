@@ -22,8 +22,9 @@ namespace VoxelEngine.Tests.PlayMode
     /// MissingVisibleSolidChunks is necessary but not sufficient: an expected chunk that never
     /// entered the renderer's known set is visually absent without incrementing that counter.
     /// These tests therefore combine scheduler telemetry with a real URP render-target coverage
-    /// mask. The clear colour is deliberately impossible terrain/castle magenta, so uncovered
-    /// pixels expose renderer holes directly.
+    /// mask. The sky is forced to impossible terrain/castle magenta while the voxel surface shader
+    /// runs in debug-normal mode, so every non-magenta pixel in the measured area is production
+    /// voxel geometry rather than sky presentation accidentally hiding a hole.
     /// </summary>
     public sealed class RendererLodCoverageTests
     {
@@ -51,7 +52,7 @@ namespace VoxelEngine.Tests.PlayMode
         {
             yield return LoadShowcaseScene();
             GetShowcaseContext(out VoxelShowcase showcase, out ShowcaseWorld world,
-                               out Camera camera, out CastlePlan plan, out Vector3 castleCentre);
+                               out Camera camera, out CastlePlan plan, out _);
             ConfigureFlyCamera(showcase);
 
             VoxelFarTerrain farTerrain = Object.FindFirstObjectByType<VoxelFarTerrain>();
@@ -67,12 +68,11 @@ namespace VoxelEngine.Tests.PlayMode
 
             var target = new RenderTexture(Width, Height, 24, RenderTextureFormat.ARGB32);
             var readback = new Texture2D(Width, Height, TextureFormat.RGB24, false, true);
-            CameraState cameraState = CaptureCameraState(camera);
-            double oldBuildBudgetMs = VoxelRenderBridge.SolidBuildBudgetMs;
+            RenderTestState state = CaptureRenderTestState(camera);
             try
             {
                 ConfigureCoverageCamera(camera, target, orthographicSize: 20f);
-                VoxelRenderBridge.SolidBuildBudgetMs = 8.0;
+                ConfigureCorrectnessBudgets();
 
                 foreach ((int step, float distance) in LodBands)
                 {
@@ -115,8 +115,7 @@ namespace VoxelEngine.Tests.PlayMode
             }
             finally
             {
-                VoxelRenderBridge.SolidBuildBudgetMs = oldBuildBudgetMs;
-                RestoreCameraState(camera, in cameraState);
+                RestoreRenderTestState(camera, in state);
                 target.Release();
                 Object.DestroyImmediate(target);
                 Object.DestroyImmediate(readback);
@@ -127,8 +126,8 @@ namespace VoxelEngine.Tests.PlayMode
         public IEnumerator Castle_PreservesPublishedCoverageAtEveryLodAndAcrossTransitions()
         {
             yield return LoadShowcaseScene();
-            GetShowcaseContext(out VoxelShowcase showcase, out ShowcaseWorld world,
-                               out Camera camera, out CastlePlan plan, out Vector3 centre);
+            GetShowcaseContext(out VoxelShowcase showcase, out _, out Camera camera,
+                               out _, out Vector3 centre);
             ConfigureFlyCamera(showcase);
 
             VoxelFarTerrain farTerrain = Object.FindFirstObjectByType<VoxelFarTerrain>();
@@ -136,12 +135,11 @@ namespace VoxelEngine.Tests.PlayMode
 
             var target = new RenderTexture(Width, Height, 24, RenderTextureFormat.ARGB32);
             var readback = new Texture2D(Width, Height, TextureFormat.RGB24, false, true);
-            CameraState cameraState = CaptureCameraState(camera);
-            double oldBuildBudgetMs = VoxelRenderBridge.SolidBuildBudgetMs;
+            RenderTestState state = CaptureRenderTestState(camera);
             try
             {
                 ConfigureCoverageCamera(camera, target, orthographicSize: 24f);
-                VoxelRenderBridge.SolidBuildBudgetMs = 8.0;
+                ConfigureCorrectnessBudgets();
                 Vector3 lookAt = centre + Vector3.up * 10f;
                 RectInt crop = new(Width / 4, Height / 5,
                                    Width / 2, Height * 13 / 20);
@@ -200,8 +198,7 @@ namespace VoxelEngine.Tests.PlayMode
             }
             finally
             {
-                VoxelRenderBridge.SolidBuildBudgetMs = oldBuildBudgetMs;
-                RestoreCameraState(camera, in cameraState);
+                RestoreRenderTestState(camera, in state);
                 target.Release();
                 Object.DestroyImmediate(target);
                 Object.DestroyImmediate(readback);
@@ -270,6 +267,26 @@ namespace VoxelEngine.Tests.PlayMode
             camera.allowHDR = false;
             UniversalAdditionalCameraData additional = camera.GetUniversalAdditionalCameraData();
             if (additional != null) additional.renderPostProcessing = false;
+
+            // Voxel surface debug mode emits normal colours; presentation sky is forced to the
+            // clear colour. This makes the framebuffer itself an ownership mask: non-magenta is
+            // production voxel geometry, not a sky pass that happened to cover the clear target.
+            VoxelRenderBridge.SurfaceDebugTint = Color.magenta;
+            VoxelRenderBridge.SkyHorizon = CoverageClear;
+            VoxelRenderBridge.SkyZenith = CoverageClear;
+            VoxelRenderBridge.CloudOpacity = 0f;
+        }
+
+        private static void ConfigureCorrectnessBudgets()
+        {
+            // Remove runtime throttles from this fidelity gate. If this still cannot become
+            // hole-free, the problem is admission/capacity/LOD semantics rather than the
+            // production frame budget. Separate stress tests police the real frame limits.
+            VoxelRenderBridge.SolidBuildBudgetMs = 8.0;
+            VoxelRenderBridge.SolidUploadBudgetBytes = 16 * 1024 * 1024;
+            VoxelRenderBridge.SolidUploadSliceBytes = 2 * 1024 * 1024;
+            VoxelRenderBridge.SolidUploadWorkerBudget = 22;
+            VoxelRenderBridge.SolidUploadBudgetMs = 8.0;
         }
 
         private static void SetTopDownTerrainView(Camera camera, Vector3 target, float distance)
@@ -503,7 +520,7 @@ namespace VoxelEngine.Tests.PlayMode
             }
         }
 
-        private readonly struct CameraState
+        private readonly struct RenderTestState
         {
             public readonly RenderTexture Target;
             public readonly bool Orthographic;
@@ -514,8 +531,17 @@ namespace VoxelEngine.Tests.PlayMode
             public readonly Color Background;
             public readonly bool AllowHdr;
             public readonly bool RenderPostProcessing;
+            public readonly Color SurfaceDebugTint;
+            public readonly Color SkyHorizon;
+            public readonly Color SkyZenith;
+            public readonly float CloudOpacity;
+            public readonly double SolidBuildBudgetMs;
+            public readonly int SolidUploadBudgetBytes;
+            public readonly int SolidUploadSliceBytes;
+            public readonly int SolidUploadWorkerBudget;
+            public readonly double SolidUploadBudgetMs;
 
-            public CameraState(Camera camera)
+            public RenderTestState(Camera camera)
             {
                 Target = camera.targetTexture;
                 Orthographic = camera.orthographic;
@@ -527,12 +553,21 @@ namespace VoxelEngine.Tests.PlayMode
                 AllowHdr = camera.allowHDR;
                 UniversalAdditionalCameraData additional = camera.GetUniversalAdditionalCameraData();
                 RenderPostProcessing = additional != null && additional.renderPostProcessing;
+                SurfaceDebugTint = VoxelRenderBridge.SurfaceDebugTint;
+                SkyHorizon = VoxelRenderBridge.SkyHorizon;
+                SkyZenith = VoxelRenderBridge.SkyZenith;
+                CloudOpacity = VoxelRenderBridge.CloudOpacity;
+                SolidBuildBudgetMs = VoxelRenderBridge.SolidBuildBudgetMs;
+                SolidUploadBudgetBytes = VoxelRenderBridge.SolidUploadBudgetBytes;
+                SolidUploadSliceBytes = VoxelRenderBridge.SolidUploadSliceBytes;
+                SolidUploadWorkerBudget = VoxelRenderBridge.SolidUploadWorkerBudget;
+                SolidUploadBudgetMs = VoxelRenderBridge.SolidUploadBudgetMs;
             }
         }
 
-        private static CameraState CaptureCameraState(Camera camera) => new(camera);
+        private static RenderTestState CaptureRenderTestState(Camera camera) => new(camera);
 
-        private static void RestoreCameraState(Camera camera, in CameraState state)
+        private static void RestoreRenderTestState(Camera camera, in RenderTestState state)
         {
             camera.targetTexture = state.Target;
             camera.orthographic = state.Orthographic;
@@ -544,6 +579,15 @@ namespace VoxelEngine.Tests.PlayMode
             camera.allowHDR = state.AllowHdr;
             UniversalAdditionalCameraData additional = camera.GetUniversalAdditionalCameraData();
             if (additional != null) additional.renderPostProcessing = state.RenderPostProcessing;
+            VoxelRenderBridge.SurfaceDebugTint = state.SurfaceDebugTint;
+            VoxelRenderBridge.SkyHorizon = state.SkyHorizon;
+            VoxelRenderBridge.SkyZenith = state.SkyZenith;
+            VoxelRenderBridge.CloudOpacity = state.CloudOpacity;
+            VoxelRenderBridge.SolidBuildBudgetMs = state.SolidBuildBudgetMs;
+            VoxelRenderBridge.SolidUploadBudgetBytes = state.SolidUploadBudgetBytes;
+            VoxelRenderBridge.SolidUploadSliceBytes = state.SolidUploadSliceBytes;
+            VoxelRenderBridge.SolidUploadWorkerBudget = state.SolidUploadWorkerBudget;
+            VoxelRenderBridge.SolidUploadBudgetMs = state.SolidUploadBudgetMs;
         }
     }
 }
