@@ -15,6 +15,7 @@ from runtime.production import discover_specs
 CHANGE_KINDS = frozenset({"new", "spec", "geometry", "appearance", "details"})
 _TAG = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 _TOOL_ROOT = Path(__file__).resolve().parents[1]
+_DERIVED_REFERENCE = "preprocess-derived"
 
 
 @dataclass(frozen=True)
@@ -97,21 +98,30 @@ def _geometry_detail_names(spec: BuildSpec) -> tuple[str, ...]:
     return (spec.rigid.composition.detail_reference,)
 
 
-def _reference_hashes(spec: BuildSpec) -> dict[str, object]:
+def _reference_digest(path: Path, derived_outputs: set[Path]) -> str | None:
+    if path.resolve() in derived_outputs:
+        # Derived-reference presence is workspace state, not source state. A clean
+        # checkout must compare equal to a post-production workspace when all
+        # declared source/preprocessor inputs are unchanged.
+        return _DERIVED_REFERENCE
+    return _file_digest(path)
+
+
+def _reference_hashes(spec: BuildSpec, derived_outputs: set[Path]) -> dict[str, object]:
     geometry = {
-        name: None if path is None else _file_digest(path)
+        name: None if path is None else _reference_digest(path, derived_outputs)
         for name, path in spec.views.items()
     }
     appearance = (
         None
         if spec.appearance_views is None
         else {
-            name: None if path is None else _file_digest(path)
+            name: None if path is None else _reference_digest(path, derived_outputs)
             for name, path in spec.appearance_views.items()
         }
     )
     details = {
-        name: _file_digest(path)
+        name: _reference_digest(path, derived_outputs)
         for name, path in sorted(spec.detail_references.items())
     }
     return {
@@ -121,7 +131,7 @@ def _reference_hashes(spec: BuildSpec) -> dict[str, object]:
     }
 
 
-def _preprocess_hashes(entry: CatalogueEntry) -> list[dict[str, object]]:
+def _preprocess_state(entry: CatalogueEntry) -> tuple[list[dict[str, object]], set[Path]]:
     payload = json.loads(entry.spec_path.read_text(encoding="utf-8"))
     raw_steps = payload.get("preprocess", []) if isinstance(payload, dict) else []
     steps = declared_preprocess_steps(entry.spec_path, _TOOL_ROOT)
@@ -153,15 +163,16 @@ def _preprocess_hashes(entry: CatalogueEntry) -> list[dict[str, object]]:
             }
         )
         produced.update(path.resolve() for path in step.outputs)
-    return result
+    return result, produced
 
 
 def _entry_input_state(entry: CatalogueEntry) -> dict[str, object]:
+    preprocess_hashes, derived_outputs = _preprocess_state(entry)
     return {
         "specSha256": _file_digest(entry.spec_path),
-        "referenceHashes": _reference_hashes(entry.spec),
+        "referenceHashes": _reference_hashes(entry.spec, derived_outputs),
         "geometryDetailNames": list(_geometry_detail_names(entry.spec)),
-        "preprocessHashes": _preprocess_hashes(entry),
+        "preprocessHashes": preprocess_hashes,
     }
 
 
@@ -335,7 +346,7 @@ def _preprocess_affects(raw: object) -> set[str]:
     affects = raw.get("affects")
     if not isinstance(affects, list):
         return set()
-    return {str(value) for value in affects if str(value) in CHANGE_KINDS}
+    return {str(value) for value in affects if str(value) in {"geometry", "appearance", "details"}}
 
 
 def _classify_preprocess_changes(
