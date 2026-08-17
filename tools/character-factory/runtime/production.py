@@ -6,15 +6,22 @@ import os
 from pathlib import Path
 import subprocess
 
-from api.models import AssetType, BuildSpec, CharacterFactoryError, GeneratorBackend, ViewSet
+from api.models import AssetType, BuildSpec, CharacterFactoryError
 from api.references import audit_references
+from runtime.appearance import (
+    appearance_profile_for,
+    appearance_views_for,
+    blender_for,
+    has_complete_multiview,
+    multiview_command,
+    validate_appearance_spec,
+)
 from runtime.pipeline import CharacterFactoryRuntime
 
 
 @dataclass(frozen=True)
 class ProductionProfile:
     asset_type: AssetType
-    project_multiview_appearance: bool
     verification_scripts: tuple[str, ...]
     render_idle: bool = False
 
@@ -22,7 +29,6 @@ class ProductionProfile:
 _PROFILES: dict[AssetType, ProductionProfile] = {
     AssetType.CHARACTER: ProductionProfile(
         asset_type=AssetType.CHARACTER,
-        project_multiview_appearance=True,
         verification_scripts=(
             "verify_skinned_character.py",
             "verify_character_animations.py",
@@ -31,20 +37,14 @@ _PROFILES: dict[AssetType, ProductionProfile] = {
     ),
     AssetType.CLOTHING: ProductionProfile(
         asset_type=AssetType.CLOTHING,
-        # Garments use the same canonical skeleton, but the current multiview
-        # projector still contains character/T-pose-specific view heuristics.
-        # Preserve generator appearance until a garment projection profile exists.
-        project_multiview_appearance=False,
         verification_scripts=("verify_skinned_character.py",),
     ),
     AssetType.WEAPON: ProductionProfile(
         asset_type=AssetType.WEAPON,
-        project_multiview_appearance=False,
         verification_scripts=("verify_rigid_asset.py",),
     ),
     AssetType.ACCESSORY: ProductionProfile(
         asset_type=AssetType.ACCESSORY,
-        project_multiview_appearance=False,
         verification_scripts=("verify_rigid_asset.py",),
     ),
 }
@@ -57,14 +57,6 @@ def production_profile_for(asset_type: AssetType) -> ProductionProfile:
         raise CharacterFactoryError(
             f"No production profile registered for {asset_type.value}"
         ) from exc
-
-
-def appearance_views_for(spec: BuildSpec) -> ViewSet:
-    return spec.appearance_views or spec.views
-
-
-def has_complete_multiview(spec: BuildSpec) -> bool:
-    return all(path is not None for _name, path in appearance_views_for(spec).items())
 
 
 def discover_specs(directory: Path, recursive: bool = True) -> list[Path]:
@@ -94,12 +86,20 @@ class ProductionRunner:
 
     def produce(self, spec: BuildSpec, dry_run: bool = False) -> Path:
         profile = production_profile_for(spec.asset_type)
+        # Appearance requirements are cheap and deterministic. Validate them before
+        # backend bootstrap or geometry generation so a missing side/back reference
+        # cannot waste an expensive model run.
+        appearance_profile = validate_appearance_spec(spec)
+
         manifest = self.runtime.build(spec, dry_run=dry_run)
         output = spec.output_dir / f"{spec.asset_id}.fbx"
         production_commands: dict[str, object] = {}
         production_payload: dict[str, object] = {
             "profile": profile.asset_type.value,
-            "appearance": {"mode": "preserve-generator"},
+            "appearance": {
+                "strategy": spec.appearance_strategy.value,
+                "mode": "preserve-generator",
+            },
             "verification": [],
             "previews": {},
         }
@@ -121,13 +121,21 @@ class ProductionRunner:
             )
             production_payload["referenceAudit"] = str(audit_path)
 
-        if self._should_project_multiview(spec, profile):
+        if appearance_profile.projection_profile is not None:
             prepared = spec.output_dir / f"{spec.asset_id}.prepared.fbx"
             atlas = spec.output_dir / f"{spec.asset_id}.basecolor.png"
-            command = self._multiview_command(spec, prepared, output, atlas)
+            command = multiview_command(
+                self.tool_root,
+                spec,
+                input_mesh=prepared,
+                output_mesh=output,
+                atlas=atlas,
+            )
             production_commands["appearance"] = command
             production_payload["appearance"] = {
+                "strategy": spec.appearance_strategy.value,
                 "mode": "multiview-project",
+                "projectionProfile": appearance_profile.projection_profile,
                 "referenceSet": (
                     "appearance" if spec.appearance_views is not None else "geometry"
                 ),
@@ -146,15 +154,6 @@ class ProductionRunner:
                     if prepared.is_file() and not output.exists():
                         os.replace(prepared, output)
                     raise
-        elif (
-            profile.project_multiview_appearance
-            and spec.generator.backend == GeneratorBackend.HUNYUAN_PYTORCH
-            and not has_complete_multiview(spec)
-        ):
-            production_payload["appearance"] = {
-                "mode": "preserve-generator",
-                "reason": "multiview projection requires front/back/left/right appearance references",
-            }
 
         verification_commands: list[list[str]] = []
         for script in profile.verification_scripts:
@@ -209,61 +208,6 @@ class ProductionRunner:
         )
         return manifest
 
-    def _should_project_multiview(
-        self,
-        spec: BuildSpec,
-        profile: ProductionProfile,
-    ) -> bool:
-        return (
-            profile.project_multiview_appearance
-            and spec.generator.backend == GeneratorBackend.HUNYUAN_PYTORCH
-            and has_complete_multiview(spec)
-        )
-
-    def _blender_for(self, spec: BuildSpec) -> str:
-        if spec.rig is not None:
-            return spec.rig.blender
-        if spec.rigid is not None:
-            return spec.rigid.blender
-        raise CharacterFactoryError(
-            f"{spec.asset_type.value} production profile has no Blender executable"
-        )
-
-    def _multiview_command(
-        self,
-        spec: BuildSpec,
-        input_mesh: Path,
-        output_mesh: Path,
-        atlas: Path,
-    ) -> list[str]:
-        paths = dict(appearance_views_for(spec).items())
-        missing = [name for name in ("front", "back", "left", "right") if paths[name] is None]
-        if missing:
-            raise CharacterFactoryError(
-                "multiview appearance requires: " + ", ".join(missing)
-            )
-        return self._blender_script_command(
-            spec,
-            "blender_texture_rigged_character.py",
-            [
-                "--input",
-                str(input_mesh),
-                "--output",
-                str(output_mesh),
-                "--front",
-                str(paths["front"]),
-                "--back",
-                str(paths["back"]),
-                "--left",
-                str(paths["left"]),
-                "--right",
-                str(paths["right"]),
-                "--atlas",
-                str(atlas),
-            ],
-            runtime_script=True,
-        )
-
     def _blender_script_command(
         self,
         spec: BuildSpec,
@@ -274,7 +218,7 @@ class ProductionRunner:
     ) -> list[str]:
         directory = "runtime" if runtime_script else "ci"
         return [
-            self._blender_for(spec),
+            blender_for(spec),
             "--background",
             "--python-exit-code",
             "1",
@@ -308,3 +252,15 @@ class ProductionRunner:
         commands["production"] = production_commands
         payload["commands"] = commands
         manifest.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+
+__all__ = [
+    "ProductionProfile",
+    "ProductionRunner",
+    "appearance_profile_for",
+    "appearance_views_for",
+    "discover_specs",
+    "has_complete_multiview",
+    "production_profile_for",
+    "validate_appearance_spec",
+]
