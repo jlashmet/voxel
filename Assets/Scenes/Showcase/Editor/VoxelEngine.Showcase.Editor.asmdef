@@ -5,6 +5,7 @@
         "VoxelEngine.Showcase",
         "Game.Composition.Showcase",
         "Game.Composition.Materials",
+        "VoxelEngine.Composition.Api",
         "VoxelEngine.Composition",
         "VoxelEngine.Storage.Api",
         "VoxelEngine.Tiering.Api"
