@@ -17,6 +17,7 @@ from .references import (
     resolve_detail_mapping,
     resolve_view_mapping,
 )
+from .rig_profiles import RigProfileError, resolve_rig_profile
 
 
 class CharacterFactoryError(RuntimeError):
@@ -188,8 +189,6 @@ class GeneratorConfig:
                 raise CharacterFactoryError("triposr-mps requires generator.source")
             if weights is None:
                 raise CharacterFactoryError("triposr-mps requires generator.weights")
-            # Profile-managed paths are intentionally allowed to be absent before
-            # bootstrap; the runtime creates/pins them before generation starts.
             if validate_paths and profile_name is None:
                 if not source.is_dir():
                     raise CharacterFactoryError(f"generator.source does not exist: {source}")
@@ -234,32 +233,84 @@ class RigConfig:
     body_object: str | None = None
     armature_object: str | None = None
     max_transfer_distance: float = 0.25
+    profile: str | None = None
+    source_revision: str | None = None
+    bootstrap_script: Path | None = None
 
     @staticmethod
     def from_dict(
         data: dict[str, Any],
         base_dir: Path,
+        *,
+        asset_type: AssetType,
         validate_paths: bool = True,
     ) -> "RigConfig":
-        blender = data.get("blender")
-        canonical = data.get("canonicalBody")
-        if not blender:
-            raise CharacterFactoryError("rig.blender is required")
-        if not canonical:
-            raise CharacterFactoryError("rig.canonicalBody is required")
+        tool_root = Path(__file__).resolve().parents[1]
+        try:
+            resolved_data = resolve_rig_profile(
+                data,
+                tool_root=tool_root,
+                asset_type=asset_type.value,
+            )
+        except RigProfileError as exc:
+            raise CharacterFactoryError(str(exc)) from exc
 
-        canonical_path = Path(canonical)
+        profile_name = (
+            str(resolved_data.get("profile")).strip()
+            if resolved_data.get("profile") is not None
+            else None
+        )
+        blender = resolved_data.get("blender")
+        canonical = resolved_data.get("canonicalBody")
+        if not blender:
+            raise CharacterFactoryError(
+                "rig.blender is required unless rig.profile supplies it"
+            )
+        if not canonical:
+            raise CharacterFactoryError(
+                "rig.canonicalBody is required unless rig.profile supplies it"
+            )
+
+        canonical_path = Path(str(canonical))
         if not canonical_path.is_absolute():
             canonical_path = (base_dir / canonical_path).resolve()
-        if validate_paths and not canonical_path.is_file():
+
+        bootstrap_value = resolved_data.get("bootstrapScript")
+        bootstrap_script = None
+        if bootstrap_value is not None and str(bootstrap_value).strip():
+            bootstrap_script = Path(str(bootstrap_value))
+            if not bootstrap_script.is_absolute():
+                bootstrap_script = (base_dir / bootstrap_script).resolve()
+            if validate_paths and not bootstrap_script.is_file():
+                raise CharacterFactoryError(
+                    f"rig profile bootstrap script does not exist: {bootstrap_script}"
+                )
+
+        # Profile-managed donors are allowed to be absent before bootstrap.
+        if validate_paths and profile_name is None and not canonical_path.is_file():
             raise CharacterFactoryError(f"canonical body does not exist: {canonical_path}")
 
         return RigConfig(
             blender=str(blender),
             canonical_body=canonical_path,
-            body_object=data.get("bodyObject"),
-            armature_object=data.get("armatureObject"),
-            max_transfer_distance=float(data.get("maxTransferDistance", 0.25)),
+            body_object=(
+                None
+                if resolved_data.get("bodyObject") is None
+                else str(resolved_data.get("bodyObject"))
+            ),
+            armature_object=(
+                None
+                if resolved_data.get("armatureObject") is None
+                else str(resolved_data.get("armatureObject"))
+            ),
+            max_transfer_distance=float(resolved_data.get("maxTransferDistance", 0.25)),
+            profile=profile_name,
+            source_revision=(
+                str(resolved_data.get("sourceRevision"))
+                if resolved_data.get("sourceRevision") is not None
+                else None
+            ),
+            bootstrap_script=bootstrap_script,
         )
 
 
@@ -465,7 +516,12 @@ class BuildSpec:
 
         rig = None
         if isinstance(rig_data, dict):
-            rig = RigConfig.from_dict(rig_data, base_dir, validate_paths=validate_paths)
+            rig = RigConfig.from_dict(
+                rig_data,
+                base_dir,
+                asset_type=asset_type,
+                validate_paths=validate_paths,
+            )
 
         rigid = None
         if isinstance(rigid_data, dict):
