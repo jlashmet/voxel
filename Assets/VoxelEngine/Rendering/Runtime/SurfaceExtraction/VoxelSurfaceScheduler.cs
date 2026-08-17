@@ -42,6 +42,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public readonly ulong Step4ExactMetadataCompleted;
         public readonly ulong Step4ExactMetadataRevisionRejects;
         public readonly ulong Step4ExactMetadataPinRejects;
+        public readonly ulong Step4FeatureFallbackScheduled;
+        public readonly ulong Step4FeatureFallbackCompleted;
+        public readonly ulong Step4FeatureFallbackNonEmpty;
+        public readonly ulong Step4FeatureFallbackPublished;
         public readonly ulong MaterialPaletteInvalidations;
         public readonly ulong SurfaceCatalogueInvalidations;
         public readonly ulong CoatingCatalogueInvalidations;
@@ -120,6 +124,14 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             Step4ExactMetadataCompleted = isStep4 ? solids.ExactMetadataCompleteCount : 0UL;
             Step4ExactMetadataRevisionRejects = isStep4 ? solids.ExactMetadataRevisionRejectCount : 0UL;
             Step4ExactMetadataPinRejects = isStep4 ? solids.ExactMetadataPinRejectCount : 0UL;
+            Step4FeatureFallbackScheduled = isStep4
+                ? solids.FeaturePreservingFallbackScheduleCount : 0UL;
+            Step4FeatureFallbackCompleted = isStep4
+                ? solids.FeaturePreservingFallbackCompleteCount : 0UL;
+            Step4FeatureFallbackNonEmpty = isStep4
+                ? solids.FeaturePreservingFallbackNonEmptyCount : 0UL;
+            Step4FeatureFallbackPublished = isStep4
+                ? solids.FeaturePreservingFallbackPublishCount : 0UL;
             MaterialPaletteInvalidations = solids.MaterialPaletteInvalidationCount;
             SurfaceCatalogueInvalidations = solids.SurfaceCatalogueInvalidationCount;
             CoatingCatalogueInvalidations = solids.CoatingCatalogueInvalidationCount;
@@ -200,6 +212,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             uint step4BuildPhaseMask = 0, step4ActiveJobMask = 0;
             ulong step4MetadataScheduled = 0, step4MetadataCompleted = 0;
             ulong step4MetadataRevisionRejects = 0, step4MetadataPinRejects = 0;
+            ulong step4FallbackScheduled = 0, step4FallbackCompleted = 0;
+            ulong step4FallbackNonEmpty = 0, step4FallbackPublished = 0;
             ulong materialInvalidations = 0, surfaceInvalidations = 0;
             ulong coatingInvalidations = 0, profileInvalidations = 0;
             long pendingUploadBytes = 0;
@@ -230,6 +244,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     step4MetadataCompleted += worker.ExactMetadataCompleteCount;
                     step4MetadataRevisionRejects += worker.ExactMetadataRevisionRejectCount;
                     step4MetadataPinRejects += worker.ExactMetadataPinRejectCount;
+                    step4FallbackScheduled += worker.FeaturePreservingFallbackScheduleCount;
+                    step4FallbackCompleted += worker.FeaturePreservingFallbackCompleteCount;
+                    step4FallbackNonEmpty += worker.FeaturePreservingFallbackNonEmptyCount;
+                    step4FallbackPublished += worker.FeaturePreservingFallbackPublishCount;
                 }
                 materialInvalidations += worker.MaterialPaletteInvalidationCount;
                 surfaceInvalidations += worker.SurfaceCatalogueInvalidationCount;
@@ -264,6 +282,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             Step4ExactMetadataCompleted = step4MetadataCompleted;
             Step4ExactMetadataRevisionRejects = step4MetadataRevisionRejects;
             Step4ExactMetadataPinRejects = step4MetadataPinRejects;
+            Step4FeatureFallbackScheduled = step4FallbackScheduled;
+            Step4FeatureFallbackCompleted = step4FallbackCompleted;
+            Step4FeatureFallbackNonEmpty = step4FallbackNonEmpty;
+            Step4FeatureFallbackPublished = step4FallbackPublished;
             MaterialPaletteInvalidations = materialInvalidations;
             SurfaceCatalogueInvalidations = surfaceInvalidations;
             CoatingCatalogueInvalidations = coatingInvalidations;

@@ -783,6 +783,13 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public ulong ExactMetadataCompleteCount { get; private set; }
         public ulong ExactMetadataRevisionRejectCount { get; private set; }
         public ulong ExactMetadataPinRejectCount { get; private set; }
+        // Step-4 false-empty fallback lifecycle diagnostics. These counters do not affect
+        // admission or publication; they distinguish policy selection, worker output and final
+        // visibility when a coarse exact-owned chunk disappears in production.
+        public ulong FeaturePreservingFallbackScheduleCount { get; private set; }
+        public ulong FeaturePreservingFallbackCompleteCount { get; private set; }
+        public ulong FeaturePreservingFallbackNonEmptyCount { get; private set; }
+        public ulong FeaturePreservingFallbackPublishCount { get; private set; }
         public ulong MaterialPaletteInvalidationCount { get; private set; }
         public ulong SurfaceCatalogueInvalidationCount { get; private set; }
         public ulong CoatingCatalogueInvalidationCount { get; private set; }
@@ -1213,6 +1220,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                             break;
                         _hlodJobScheduled = false;
                         _build.HasOwnedSolid = _indices.Length > 0;
+                        if (_build.UsedFeaturePreservingFallback)
+                        {
+                            FeaturePreservingFallbackCompleteCount++;
+                            if (_build.HasOwnedSolid)
+                                FeaturePreservingFallbackNonEmptyCount++;
+                        }
                     }
                     if (_hlodOverflow[0] != 0)
                         throw new InvalidOperationException(
@@ -1302,6 +1315,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
         private void ScheduleFeaturePreservingHlod(float voxelSize)
         {
+            if (SupportsFeaturePreservingFallback)
+                FeaturePreservingFallbackScheduleCount++;
             if (!_hlodSummaries.IsCreated || !_hlodMaskScratch.IsCreated || !_hlodOverflow.IsCreated)
                 throw new InvalidOperationException(
                     $"Feature-preserving scratch was not allocated for source step {SourceStep}.");
@@ -3323,6 +3338,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             entry.CoatingCatalogueVersion = _build.CoatingCatalogueVersion;
             entry.CoatingCatalogueHash = _build.CoatingCatalogueHash;
             CompletedBuildCount++;
+            if (_build.UsedFeaturePreservingFallback)
+                FeaturePreservingFallbackPublishCount++;
             _buildLatencyTiming.Add(ElapsedMs(_build.BuildStartSeconds));
             _desiredVersions.Remove(_build.Coordinate);
             _queuedAtSeconds.Remove(_build.Coordinate);
