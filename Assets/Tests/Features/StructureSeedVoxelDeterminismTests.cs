@@ -10,8 +10,9 @@ namespace VoxelEngine.Tests.Features
 {
     /// <summary>
     /// End-to-end determinism guard for WB030. Primitive determinism is covered by
-    /// ShapeProgramTests.EvaluationIsDeterministic; this test proves that the same catalogue and
-    /// world seed also produce identical authoritative voxel cells after rasterisation.
+    /// ShapeProgramTests.EvaluationIsDeterministic; these tests prove that the same catalogue and
+    /// world seed also produce identical authoritative voxel cells after rasterisation and that
+    /// semantic child streams remain stable without consuming shared mutable RNG state.
     /// </summary>
     public sealed class StructureSeedVoxelDeterminismTests
     {
@@ -40,6 +41,32 @@ namespace VoxelEngine.Tests.Features
             {
                 catalogue.Dispose();
             }
+        }
+
+        [Test]
+        public void SemanticChildSeedsAreStableAndIndependent()
+        {
+            const ulong parentSeed = 0x7D31A5B9C2E4F607ul;
+            FixedString64Bytes wallKey = new("wall.front");
+            FixedString64Bytes roofKey = new("roof.main");
+
+            ulong firstWall = StructureSeed.Child(parentSeed, in wallKey);
+            ulong roof = StructureSeed.Child(parentSeed, in roofKey);
+            ulong secondWall = StructureSeed.Child(parentSeed, in wallKey);
+
+            Assert.AreEqual(firstWall, secondWall,
+                "deriving an unrelated semantic child must not perturb an existing child stream");
+            Assert.AreNotEqual(firstWall, roof,
+                "different semantic keys should resolve to independent child streams");
+
+            ulong firstDormer = StructureSeed.Child(parentSeed, in roofKey, ordinal: 3);
+            ulong secondDormer = StructureSeed.Child(parentSeed, in roofKey, ordinal: 3);
+            ulong nextDormer = StructureSeed.Child(parentSeed, in roofKey, ordinal: 4);
+
+            Assert.AreEqual(firstDormer, secondDormer,
+                "the same semantic key and ordinal must always derive the same child seed");
+            Assert.AreNotEqual(firstDormer, nextDormer,
+                "different ordinals under one semantic key should resolve to independent streams");
         }
 
         private static byte[] GenerateSnapshot(
