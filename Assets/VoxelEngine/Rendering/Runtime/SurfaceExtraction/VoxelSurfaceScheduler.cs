@@ -46,6 +46,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public readonly ulong Step4FeatureFallbackCompleted;
         public readonly ulong Step4FeatureFallbackNonEmpty;
         public readonly ulong Step4FeatureFallbackPublished;
+        public readonly int Step4VisibilityKnown;
+        public readonly int Step4VisibilityInBand;
+        public readonly int Step4VisibilityFrustum;
+        public readonly int Step4VisibilityReady;
+        public readonly int Step4VisibilityEmpty;
         public readonly ulong MaterialPaletteInvalidations;
         public readonly ulong SurfaceCatalogueInvalidations;
         public readonly ulong CoatingCatalogueInvalidations;
@@ -132,6 +137,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 ? solids.FeaturePreservingFallbackNonEmptyCount : 0UL;
             Step4FeatureFallbackPublished = isStep4
                 ? solids.FeaturePreservingFallbackPublishCount : 0UL;
+            Step4VisibilityKnown = isStep4 ? solids.LastVisibilityKnownCount : 0;
+            Step4VisibilityInBand = isStep4 ? solids.LastVisibilityInBandCount : 0;
+            Step4VisibilityFrustum = isStep4 ? solids.LastVisibilityFrustumCount : 0;
+            Step4VisibilityReady = isStep4 ? solids.LastVisibilityReadyCount : 0;
+            Step4VisibilityEmpty = isStep4 ? solids.LastVisibilityEmptyCount : 0;
             MaterialPaletteInvalidations = solids.MaterialPaletteInvalidationCount;
             SurfaceCatalogueInvalidations = solids.SurfaceCatalogueInvalidationCount;
             CoatingCatalogueInvalidations = solids.CoatingCatalogueInvalidationCount;
@@ -214,6 +224,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             ulong step4MetadataRevisionRejects = 0, step4MetadataPinRejects = 0;
             ulong step4FallbackScheduled = 0, step4FallbackCompleted = 0;
             ulong step4FallbackNonEmpty = 0, step4FallbackPublished = 0;
+            int step4VisibilityKnown = 0, step4VisibilityInBand = 0;
+            int step4VisibilityFrustum = 0, step4VisibilityReady = 0, step4VisibilityEmpty = 0;
             ulong materialInvalidations = 0, surfaceInvalidations = 0;
             ulong coatingInvalidations = 0, profileInvalidations = 0;
             long pendingUploadBytes = 0;
@@ -248,6 +260,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     step4FallbackCompleted += worker.FeaturePreservingFallbackCompleteCount;
                     step4FallbackNonEmpty += worker.FeaturePreservingFallbackNonEmptyCount;
                     step4FallbackPublished += worker.FeaturePreservingFallbackPublishCount;
+                    step4VisibilityKnown += worker.LastVisibilityKnownCount;
+                    step4VisibilityInBand += worker.LastVisibilityInBandCount;
+                    step4VisibilityFrustum += worker.LastVisibilityFrustumCount;
+                    step4VisibilityReady += worker.LastVisibilityReadyCount;
+                    step4VisibilityEmpty += worker.LastVisibilityEmptyCount;
                 }
                 materialInvalidations += worker.MaterialPaletteInvalidationCount;
                 surfaceInvalidations += worker.SurfaceCatalogueInvalidationCount;
@@ -286,6 +303,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             Step4FeatureFallbackCompleted = step4FallbackCompleted;
             Step4FeatureFallbackNonEmpty = step4FallbackNonEmpty;
             Step4FeatureFallbackPublished = step4FallbackPublished;
+            Step4VisibilityKnown = step4VisibilityKnown;
+            Step4VisibilityInBand = step4VisibilityInBand;
+            Step4VisibilityFrustum = step4VisibilityFrustum;
+            Step4VisibilityReady = step4VisibilityReady;
+            Step4VisibilityEmpty = step4VisibilityEmpty;
             MaterialPaletteInvalidations = materialInvalidations;
             SurfaceCatalogueInvalidations = surfaceInvalidations;
             CoatingCatalogueInvalidations = coatingInvalidations;

@@ -790,6 +790,14 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public ulong FeaturePreservingFallbackCompleteCount { get; private set; }
         public ulong FeaturePreservingFallbackNonEmptyCount { get; private set; }
         public ulong FeaturePreservingFallbackPublishCount { get; private set; }
+        // Last visibility pass diagnostics. These counters are reset by BeginVisibilityCollection
+        // and never participate in scheduling; they distinguish ring ownership, frustum routing,
+        // current-ready and current-empty states when a production LOD disappears.
+        public int LastVisibilityKnownCount { get; private set; }
+        public int LastVisibilityInBandCount { get; private set; }
+        public int LastVisibilityFrustumCount { get; private set; }
+        public int LastVisibilityReadyCount { get; private set; }
+        public int LastVisibilityEmptyCount { get; private set; }
         public ulong MaterialPaletteInvalidationCount { get; private set; }
         public ulong SurfaceCatalogueInvalidationCount { get; private set; }
         public ulong CoatingCatalogueInvalidationCount { get; private set; }
@@ -1569,6 +1577,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         {
             _visible.Clear();
             MissingVisibleCount = 0;
+            LastVisibilityKnownCount = 0;
+            LastVisibilityInBandCount = 0;
+            LastVisibilityFrustumCount = 0;
+            LastVisibilityReadyCount = 0;
+            LastVisibilityEmptyCount = 0;
         }
 
         /// <summary>
@@ -1579,6 +1592,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                                              Vector3 cameraPosition, float voxelSize, int frame)
         {
             if (!_known.Contains(coordinate)) return;
+            LastVisibilityKnownCount++;
 
             Bounds bounds = ChunkWorldBounds(coordinate, voxelSize);
             if (!WithinRingBand(bounds, cameraPosition))
@@ -1588,6 +1602,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 if (_dirty.Contains(coordinate)) ParkDirty(coordinate);
                 return;
             }
+            LastVisibilityInBandCount++;
 
             bool hasDesired = _desiredVersions.TryGetValue(coordinate, out ulong desired);
             bool currentGenerationInFlight = CurrentBuildCoversDesiredGeneration(
@@ -1604,6 +1619,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 MarkDirty(coordinate);
 
             if (!GeometryUtility.TestPlanesAABB(frustumPlanes, bounds)) return;
+            LastVisibilityFrustumCount++;
+            if (currentReady) LastVisibilityReadyCount++;
+            if (currentEmpty) LastVisibilityEmptyCount++;
 
             // Background prefetch above remains intentionally 360 degrees. Once a chunk is in
             // the actual camera frustum, however, promote its still-needed generation so build
