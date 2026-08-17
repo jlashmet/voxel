@@ -14,17 +14,22 @@ namespace Game.Structures.Tests
     /// Dense bounded voxel capture session for human-inspectable visual regression output.
     /// Structure authorers execute their real IStructureAuthoringSession writes into this volume;
     /// exposed voxel faces are then rasterized with a deterministic software isometric camera.
+    /// Optional empty-write recording makes excavation/cave voids directly renderable as cutaways.
     /// </summary>
     internal sealed class VisualStructureCapture : IStructureAuthoringSession
     {
         private readonly int3 _min;
         private readonly int3 _size;
         private readonly byte[] _voxels;
+        private readonly byte[] _voidWrites;
         private bool _hasSolid;
         private int3 _occupiedMin;
         private int3 _occupiedMaxExclusive;
+        private bool _hasVoid;
+        private int3 _voidMin;
+        private int3 _voidMaxExclusive;
 
-        public VisualStructureCapture(int3 min, int3 size)
+        public VisualStructureCapture(int3 min, int3 size, bool recordEmptyWrites = false)
         {
             if (size.x <= 0 || size.y <= 0 || size.z <= 0)
                 throw new ArgumentOutOfRangeException(nameof(size));
@@ -35,8 +40,11 @@ namespace Game.Structures.Tests
             _min = min;
             _size = size;
             _voxels = new byte[(int)volume];
+            _voidWrites = recordEmptyWrites ? new byte[(int)volume] : null;
             _occupiedMin = min + size;
             _occupiedMaxExclusive = min;
+            _voidMin = min + size;
+            _voidMaxExclusive = min;
         }
 
         public bool BudgetExceeded => false;
@@ -52,6 +60,23 @@ namespace Game.Structures.Tests
         public void Set(int x, int y, int z, byte material)
         {
             if (!TryIndex(x, y, z, out int index)) return;
+
+            if (_voidWrites != null)
+            {
+                if (material == GameMaterialIds.Empty)
+                {
+                    if (_voidWrites[index] == 0)
+                    {
+                        _voidWrites[index] = 1;
+                        IncludeVoid(x, y, z);
+                    }
+                }
+                else
+                {
+                    _voidWrites[index] = 0;
+                }
+            }
+
             byte previous = _voxels[index];
             if (previous == material) return;
 
@@ -273,9 +298,42 @@ namespace Game.Structures.Tests
         {
             if (!_hasSolid)
                 throw new InvalidOperationException("Cannot render an empty visual capture.");
+            return RenderFaces(
+                fileStem,
+                BuildSolidFaces(),
+                _occupiedMin,
+                _occupiedMaxExclusive,
+                width,
+                height);
+        }
 
-            List<Face> faces = BuildFaces();
-            Vector4 projectedBounds = ComputeProjectedBounds();
+        public string RenderCarvedVoidPng(string fileStem, int width = 1280, int height = 900)
+        {
+            if (_voidWrites == null)
+                throw new InvalidOperationException("Construct the capture with recordEmptyWrites=true.");
+            if (!_hasVoid)
+                throw new InvalidOperationException("No carve/empty writes were recorded.");
+            return RenderFaces(
+                fileStem,
+                BuildVoidFaces(),
+                _voidMin,
+                _voidMaxExclusive,
+                width,
+                height);
+        }
+
+        private string RenderFaces(
+            string fileStem,
+            List<Face> faces,
+            int3 boundsMin,
+            int3 boundsMaxExclusive,
+            int width,
+            int height)
+        {
+            if (faces.Count == 0)
+                throw new InvalidOperationException("Visual capture contained no exposed faces.");
+
+            Vector4 projectedBounds = ComputeProjectedBounds(boundsMin, boundsMaxExclusive);
             const float margin = 28f;
             float scaleX = (width - margin * 2f) / math.max(1f, projectedBounds.z - projectedBounds.x);
             float scaleY = (height - margin * 2f) / math.max(1f, projectedBounds.w - projectedBounds.y);
@@ -314,7 +372,7 @@ namespace Game.Structures.Tests
             return path;
         }
 
-        private List<Face> BuildFaces()
+        private List<Face> BuildSolidFaces()
         {
             var faces = new List<Face>(65536);
             for (int y = _occupiedMin.y; y < _occupiedMaxExclusive.y; y++)
@@ -335,10 +393,27 @@ namespace Game.Structures.Tests
             return faces;
         }
 
-        private Vector4 ComputeProjectedBounds()
+        private List<Face> BuildVoidFaces()
         {
-            int3 min = _occupiedMin;
-            int3 max = _occupiedMaxExclusive;
+            var faces = new List<Face>(32768);
+            var baseColor = new Color32(210, 132, 76, 255);
+            for (int y = _voidMin.y; y < _voidMaxExclusive.y; y++)
+            for (int z = _voidMin.z; z < _voidMaxExclusive.z; z++)
+            for (int x = _voidMin.x; x < _voidMaxExclusive.x; x++)
+            {
+                if (!IsVoid(x, y, z)) continue;
+                if (!IsVoid(x, y + 1, z))
+                    faces.Add(Face.Top(x, y, z, Shade(baseColor, 1.10f)));
+                if (!IsVoid(x + 1, y, z))
+                    faces.Add(Face.Right(x, y, z, Shade(baseColor, 0.88f)));
+                if (!IsVoid(x, y, z - 1))
+                    faces.Add(Face.Left(x, y, z, Shade(baseColor, 0.70f)));
+            }
+            return faces;
+        }
+
+        private Vector4 ComputeProjectedBounds(int3 min, int3 max)
+        {
             float minX = float.MaxValue;
             float minY = float.MaxValue;
             float maxX = float.MinValue;
@@ -446,6 +521,27 @@ namespace Game.Structures.Tests
             }
             _occupiedMin = math.min(_occupiedMin, p);
             _occupiedMaxExclusive = math.max(_occupiedMaxExclusive, p + 1);
+        }
+
+        private void IncludeVoid(int x, int y, int z)
+        {
+            var p = new int3(x, y, z);
+            if (!_hasVoid)
+            {
+                _hasVoid = true;
+                _voidMin = p;
+                _voidMaxExclusive = p + 1;
+                return;
+            }
+            _voidMin = math.min(_voidMin, p);
+            _voidMaxExclusive = math.max(_voidMaxExclusive, p + 1);
+        }
+
+        private bool IsVoid(int x, int y, int z)
+        {
+            return _voidWrites != null &&
+                   TryIndex(x, y, z, out int index) &&
+                   _voidWrites[index] != 0;
         }
 
         private bool TryIndex(int x, int y, int z, out int index)
