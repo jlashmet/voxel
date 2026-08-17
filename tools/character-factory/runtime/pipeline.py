@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import json
+import os
 from pathlib import Path
 import subprocess
 
@@ -127,10 +128,15 @@ class CharacterFactoryRuntime:
             return None
 
         command = ["bash", str(script)]
-        print("+", " ".join(command), flush=True)
         if dry_run:
+            print("+", " ".join(command), flush=True)
             return command
 
+        if self._backend_profile_ready(spec):
+            print(f"backend-profile-ready: {spec.generator.profile}", flush=True)
+            return command
+
+        print("+", " ".join(command), flush=True)
         completed = subprocess.run(
             command,
             cwd=self.tool_root.parents[1],
@@ -141,18 +147,37 @@ class CharacterFactoryRuntime:
                 f"generator backend bootstrap failed with exit code {completed.returncode}: {spec.generator.profile}"
             )
 
-        python_path = Path(spec.generator.python)
-        if not python_path.is_file():
+        if not self._backend_profile_ready(spec):
             raise CharacterFactoryError(
-                f"generator profile bootstrap did not create Python runtime: {python_path}"
+                f"generator profile bootstrap completed but runtime is still incomplete: {spec.generator.profile}"
             )
-        if spec.generator.backend == GeneratorBackend.TRIPOSR_MPS:
-            if spec.generator.source is None or not spec.generator.source.is_dir():
-                raise CharacterFactoryError(
-                    f"TripoSR profile bootstrap did not create source checkout: {spec.generator.source}"
-                )
-            if spec.generator.weights is None or not spec.generator.weights.is_dir():
-                raise CharacterFactoryError(
-                    f"TripoSR profile bootstrap did not create weights: {spec.generator.weights}"
-                )
         return command
+
+    def _backend_profile_ready(self, spec: BuildSpec) -> bool:
+        generator = spec.generator
+        if generator.profile is None or not Path(generator.python).is_file():
+            return False
+
+        if generator.backend == GeneratorBackend.TRIPOSR_MPS:
+            return bool(
+                generator.source is not None
+                and (generator.source / ".git").is_dir()
+                and generator.weights is not None
+                and (generator.weights / "model.ckpt").is_file()
+                and (generator.weights / "config.yaml").is_file()
+            )
+
+        cache_root = Path(
+            os.environ.get(
+                "CHARACTER_FACTORY_CACHE_ROOT",
+                str(Path.home() / "Library/Caches/voxel-character-factory"),
+            )
+        ).expanduser()
+        model_root = Path(
+            os.environ.get("HY3DGEN_MODELS", str(cache_root / "models"))
+        ).expanduser()
+        model_dir = model_root / generator.model / generator.subfolder
+        return bool(
+            (model_dir / "config.yaml").is_file()
+            and (model_dir / "model.fp16.safetensors").is_file()
+        )
