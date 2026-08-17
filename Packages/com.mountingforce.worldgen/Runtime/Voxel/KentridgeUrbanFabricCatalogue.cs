@@ -467,7 +467,7 @@ namespace MountingForce.WorldGen.Voxel
             byte material)
         {
             b.Carve(x, y, z, width, height, depth);
-            b.Box(x, y, z, width, height, depth, material);
+            b.GlazingBox(x, y, z, width, height, depth, material);
         }
 
         private static void AddWindowX(
@@ -477,7 +477,7 @@ namespace MountingForce.WorldGen.Voxel
             byte material)
         {
             b.Carve(x, y, z, depth, height, width);
-            b.Box(x, y, z, depth, height, width, material);
+            b.GlazingBox(x, y, z, depth, height, width, material);
         }
 
         private static void AddTimberFrame(
@@ -539,6 +539,15 @@ namespace MountingForce.WorldGen.Voxel
                 byte material,
                 PrimitiveMode mode = PrimitiveMode.Fill) =>
                 _inner.DetailBox(x, y, z, sx, sy, sz, material, mode);
+
+            public void GlazingBox(
+                int x, int y, int z,
+                int sx, int sy, int sz,
+                byte material) =>
+                _inner.DetailBox(
+                    x, y, z, sx, sy, sz, material,
+                    cornerRadiusDm: 0,
+                    surface: StructureSurfaceTreatment.Planar);
 
             public void Carve(
                 int x, int y, int z,
