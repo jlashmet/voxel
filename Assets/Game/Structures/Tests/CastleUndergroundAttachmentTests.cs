@@ -8,7 +8,7 @@ namespace Game.Structures.Tests
     public sealed class CastleUndergroundAttachmentTests
     {
         [Test]
-        public void CompatibilityAnchorsMatchExistingCellarAndDungeonCoordinates()
+        public void CompatibilityAnchorsMatchExistingCellarDungeonAndCaveCoordinates()
         {
             CastlePlan plan = CastlePlanner.Plan(new int3(140, 32, -90), 0x55112233u);
             CastleUndergroundAttachmentConfig underground =
@@ -27,6 +27,10 @@ namespace Game.Structures.Tests
                 plan.Centre.x,
                 plan.Centre.y + plan.PlateauHeight - 64,
                 plan.Centre.z - plan.BaileyHalfZ);
+            var expectedCave = new int3(
+                trapdoor.x,
+                plan.Centre.y + plan.PlateauHeight - 46 - 120,
+                trapdoor.z - 411);
 
             Assert.Multiple(() =>
             {
@@ -34,12 +38,15 @@ namespace Game.Structures.Tests
                 Assert.AreEqual(StructureAttachmentKind.Basement, underground.KeepBasement.Kind);
                 Assert.AreEqual(StructureAttachmentKind.Dungeon, underground.Dungeon.Kind);
                 Assert.AreEqual(StructureAttachmentKind.Crypt, underground.GatehouseCrypt.Kind);
+                Assert.AreEqual(StructureAttachmentKind.Cave, underground.Cave.Kind);
                 Assert.AreEqual(expectedBasement, underground.ResolveKeepBasement(in plan));
                 Assert.AreEqual(expectedDungeon, underground.ResolveDungeon(in plan));
                 Assert.AreEqual(expectedCrypt, underground.ResolveGatehouseCrypt(in plan));
+                Assert.AreEqual(expectedCave, underground.ResolveCave(in plan));
                 Assert.AreEqual(Facing.Down, underground.KeepBasement.Facing);
                 Assert.AreEqual(Facing.South, underground.Dungeon.Facing);
                 Assert.AreEqual(Facing.Down, underground.GatehouseCrypt.Facing);
+                Assert.AreEqual(Facing.South, underground.Cave.Facing);
             });
         }
 
@@ -56,6 +63,8 @@ namespace Game.Structures.Tests
                     StructureAttachmentKind.Dungeon).ToString());
                 Assert.AreEqual("Crypt", StructureAttachmentNames.Resolve(
                     StructureAttachmentKind.Crypt).ToString());
+                Assert.AreEqual("Cave", StructureAttachmentNames.Resolve(
+                    StructureAttachmentKind.Cave).ToString());
             });
         }
 
@@ -69,6 +78,7 @@ namespace Game.Structures.Tests
             underground.KeepBasement.LocalPosition += new int3(12, -8, 4);
             underground.Dungeon.LocalPosition += new int3(-20, -30, 15);
             underground.GatehouseCrypt.LocalPosition += new int3(0, -24, 18);
+            underground.Cave.LocalPosition += new int3(8, -12, -20);
 
             Assert.Multiple(() =>
             {
@@ -82,6 +92,9 @@ namespace Game.Structures.Tests
                 Assert.AreEqual(
                     plan.Centre + underground.GatehouseCrypt.LocalPosition,
                     underground.ResolveGatehouseCrypt(in plan));
+                Assert.AreEqual(
+                    plan.Centre + underground.Cave.LocalPosition,
+                    underground.ResolveCave(in plan));
             });
         }
 
@@ -101,12 +114,16 @@ namespace Game.Structures.Tests
             CastleUndergroundAttachmentConfig wrongCrypt = valid;
             wrongCrypt.GatehouseCrypt.Kind = StructureAttachmentKind.Basement;
 
+            CastleUndergroundAttachmentConfig wrongCave = valid;
+            wrongCave.Cave.Kind = StructureAttachmentKind.Dungeon;
+
             Assert.Multiple(() =>
             {
                 Assert.IsTrue(valid.IsWellFormed);
                 Assert.IsFalse(wrongBasement.IsWellFormed);
                 Assert.IsFalse(wrongDungeon.IsWellFormed);
                 Assert.IsFalse(wrongCrypt.IsWellFormed);
+                Assert.IsFalse(wrongCave.IsWellFormed);
             });
         }
     }
