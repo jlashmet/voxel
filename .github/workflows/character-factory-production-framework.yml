@@ -30,7 +30,7 @@ jobs:
           set -euo pipefail
           python3 -m compileall -q tools/character-factory
 
-      - name: Run production routing and reference-contract tests
+      - name: Run production routing, reference, and backend-profile tests
         shell: bash
         run: |
           set -euo pipefail
@@ -39,7 +39,17 @@ jobs:
             tools/character-factory/tests/test_generator_backends.py \
             tools/character-factory/tests/test_production_routing.py \
             tools/character-factory/tests/test_reference_contract.py \
+            tools/character-factory/tests/test_backend_profiles.py \
             -v
+
+      - name: List pinned backend profiles
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/character-factory/character_factory.py profiles | tee /tmp/profiles.txt
+          grep -q '^hunyuan-quality-macos' /tmp/profiles.txt
+          grep -q '^hunyuan-smoke-macos' /tmp/profiles.txt
+          grep -q '^triposr-smoke-macos' /tmp/profiles.txt
 
       - name: Dry-run every production asset type
         shell: bash
