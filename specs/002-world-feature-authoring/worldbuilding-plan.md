@@ -127,7 +127,7 @@ Phase 0 evidence and compatibility targets are recorded in [worldbuilding-invent
 ## Phase 2 — House/detail pass
 
 - [x] **WB031** Refactor the current house/cottage authoring path to use shared structure components without changing the default result unintentionally.
-- [ ] **WB032** Expose house dimensions, floor count, floor height, wall thickness, foundation behavior, and material palette.
+- [x] **WB032** Expose house dimensions, floor count, floor height, wall thickness, foundation behavior, and material palette.
 - [ ] **WB033** Expose roof type, pitch, ridge orientation, eaves/overhang, roof material, and optional dormer-capable extension point.
 - [ ] **WB034** Expose front/rear/side door counts and placement rules, door dimensions, frames, and optional porch/step treatment.
 - [ ] **WB035** Expose per-facade window layout, dimensions, spacing, sill/head height, frames, and deterministic variation.
