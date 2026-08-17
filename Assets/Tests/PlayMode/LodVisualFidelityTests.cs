@@ -45,15 +45,15 @@ namespace VoxelEngine.Tests.PlayMode
             Camera camera = Camera.main;
             Assert.NotNull(camera);
 
-            double castleDeadline = Time.realtimeSinceStartupAsDouble + 90.0;
-            while ((world.CastleBuildStage < 9 || world.CastleVoxels <= 100_000)
-                   && Time.realtimeSinceStartupAsDouble < castleDeadline)
-                yield return null;
-            Assert.GreaterOrEqual(world.CastleBuildStage, 9,
-                $"LOD fixture reached capture before castle publication completed; "
-              + $"stage={world.CastleBuildStage}, voxels={world.CastleVoxels}.");
+            // The showcase startup contract changed from live castle publication to a baked
+            // semantic-world restore. LOD validation must inspect that production startup image,
+            // not wait for the runtime authoring stage that is now deliberately forbidden.
             Assert.Greater(world.CastleVoxels, 100_000,
-                "LOD fixture did not build the production-size showcase castle.");
+                "LOD fixture did not restore the production-size baked showcase castle.");
+            Assert.AreEqual(0, world.CastleBuildStage,
+                "LOD fixture started Play-mode castle authoring instead of using the baked world.");
+            Assert.AreEqual(0.0, world.MaxCastleStageMs, 0.0001,
+                "LOD fixture recorded Play-mode castle authoring work after baked startup.");
 
             VoxelRenderFeature renderFeature = FindActiveVoxelRenderFeature();
             Assert.NotNull(renderFeature,
