@@ -64,6 +64,19 @@ def generator_metadata(spec: BuildSpec) -> dict[str, object]:
     return common
 
 
+def reference_metadata(spec: BuildSpec) -> dict[str, object]:
+    return {
+        "geometry": spec.views.as_dict(),
+        "appearance": (
+            None if spec.appearance_views is None else spec.appearance_views.as_dict()
+        ),
+        "details": {
+            name: str(path)
+            for name, path in sorted(spec.detail_references.items())
+        },
+    }
+
+
 class CharacterFactoryRuntime:
     def __init__(self, tool_root: Path):
         self.tool_root = tool_root.resolve()
@@ -82,6 +95,7 @@ class CharacterFactoryRuntime:
             "generatedAtUtc": datetime.now(timezone.utc).isoformat(),
             "output": str(result.output),
             "rawMesh": str(result.raw_mesh),
+            "references": reference_metadata(spec),
             "generator": generator_metadata(spec),
             "runtimePart": result.runtime_metadata,
             "commands": {
