@@ -24,6 +24,7 @@ from .pipelines.base import AssetPipeline
 from .pipelines.character import CharacterPipeline
 from .pipelines.clothing import ClothingPipeline
 from .pipelines.weapon import WeaponPipeline
+from .preprocess import PREPROCESS_AUDIT_NAME
 
 
 _PIPELINE_TYPES: dict[AssetType, type[AssetPipeline]] = {
@@ -170,6 +171,9 @@ class CharacterFactoryRuntime:
             "runtimePart": result.runtime_metadata,
             "commands": commands,
         }
+        preprocess_audit = spec.output_dir / PREPROCESS_AUDIT_NAME
+        if not dry_run and preprocess_audit.is_file():
+            payload["preprocessAudit"] = str(preprocess_audit)
         manifest.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
         return manifest
 
