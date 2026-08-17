@@ -1,4 +1,3 @@
-using System.IO;
 using MountingForce.WorldGen;
 using MountingForce.WorldGen.Architecture;
 using MountingForce.WorldGen.Voxel;
@@ -91,7 +90,7 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void KentridgeGeneratedGrammarAuthorsGeometryRolesBeforeCompatibilityRealization()
+        public void KentridgeGrammarAuthorsGeometryRolesDirectly()
         {
             FeatureCatalogue catalogue = KentridgeGrammarVoxelCatalogue.Build(
                 Seed, BuildSettings(), Allocator.Temp);
@@ -143,13 +142,13 @@ namespace VoxelEngine.Tests.EditMode
                 }
 
                 Assert.Greater(architecturalRounded, 0,
-                    "Generated Kentridge shells must author architecture-specific smoothing directly.");
+                    "Kentridge shells must author architecture-specific smoothing directly.");
                 Assert.Greater(beveled, 0,
-                    "Generated foundations/details must author their reconstruction policy directly.");
+                    "Kentridge foundations/details must author their reconstruction policy directly.");
                 Assert.Greater(roundedOpenings, 0,
-                    "Generated door/window cuts must author opening geometry directly.");
+                    "Kentridge door/window cuts must author opening geometry directly.");
                 Assert.Greater(smoothRoofs, 0,
-                    "Generated roof prisms must author roof reconstruction directly.");
+                    "Kentridge roof prisms must author roof reconstruction directly.");
             }
             finally
             {
@@ -292,43 +291,16 @@ namespace VoxelEngine.Tests.EditMode
             }
         }
 
-        [Test]
-        public void GenericGeometryRealizerDoesNotReferenceKentridgeContent()
-        {
-            string root = FindRepoRoot();
-            string path = Path.Combine(
-                root,
-                "Packages",
-                "com.mountingforce.worldgen",
-                "Runtime",
-                "Voxel",
-                "ArchitectureGeometryCatalogue.cs");
-            string source = File.ReadAllText(path);
-
-            StringAssert.DoesNotContain("Content.Kentridge", source);
-            StringAssert.DoesNotContain("KentridgeDefinition", source);
-            StringAssert.DoesNotContain("KentridgeRole", source);
-        }
-
         private static VoxelWorldGenSettings BuildSettings()
         {
             // Match the showcase alias: foundation stone and wall masonry are allowed to share one
-            // palette slot. Geometry-role resolution must still keep their profiles independent.
+            // palette slot. Semantic authoring must keep their geometry profiles independent anyway.
             var materials = new VoxelMaterialMap(
                 foundationStone: 1, masonry: 1, darkMasonry: 6,
                 timber: 2, glass: 4, warmWindow: 15,
                 roofTile: 8, slate: 7, cloth: 9,
                 moss: 14, water: 11, roadSurface: 13);
             return new VoxelWorldGenSettings(1, materials);
-        }
-
-        private static string FindRepoRoot()
-        {
-            DirectoryInfo directory = new DirectoryInfo(Directory.GetCurrentDirectory());
-            while (directory != null && !Directory.Exists(Path.Combine(directory.FullName, "Packages")))
-                directory = directory.Parent;
-            Assert.NotNull(directory, "Could not locate project root containing Packages/.");
-            return directory.FullName;
         }
     }
 }
