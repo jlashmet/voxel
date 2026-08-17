@@ -110,7 +110,8 @@ namespace VoxelEngine.Showcase
             _worldObjectHost = null;
             _worldObjects = null;
 
-            _farTerrain?.Dispose();
+            if (_farTerrain != null)
+                Destroy(_farTerrain.gameObject);
             _farTerrain = null;
 
             _world?.Dispose();
