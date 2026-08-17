@@ -87,13 +87,9 @@ namespace VoxelEngine.Structures.Api
         public byte RoofMaterial => Palette.Resolve(Roof.MaterialRole);
     }
 
-    /// <summary>
-    /// Named house presets are pure configuration factories. They all compile through the same
-    /// HouseProgramCompiler path; callers may freely override any returned shared component.
-    /// </summary>
+    /// <summary>Compatibility defaults for the original hand-authored cottage shape program.</summary>
     public static class HousePresets
     {
-        /// <summary>Compatibility defaults for the original hand-authored cottage shape program.</summary>
         public static HouseConfig CottageCompatibility(byte stoneMaterial, byte woodMaterial)
         {
             var footprint = new StructureFootprintConfig
@@ -209,96 +205,6 @@ namespace VoxelEngine.Structures.Api
                     Floor = stoneMaterial,
                     Opening = 0,
                 },
-            };
-        }
-
-        /// <summary>A broad two-level farmhouse with a steeper roof and generous front entry.</summary>
-        public static HouseConfig Farmhouse(byte masonryMaterial, byte timberMaterial)
-        {
-            HouseConfig config = CottageCompatibility(masonryMaterial, timberMaterial);
-            config.Footprint.Primary = new StructureFootprintRect(
-                new Unity.Mathematics.int2(0, 0),
-                new Unity.Mathematics.int2(96, 72));
-            config.Footprint.FoundationDepth = 10;
-
-            config.Walls.Length = 96;
-            config.Walls.Height = 48;
-            config.Walls.Thickness = 4;
-
-            config.Floors.FloorCount = 2;
-            config.Floors.LevelHeight = 24;
-            config.Floors.SlabThickness = 6;
-
-            config.MainDoor.Width = 14;
-            config.MainDoor.Height = 22;
-            config.MainDoor.FrameThickness = 1;
-            config.MainDoor.LintelThickness = 2;
-            config.FrontDoors.Opening = config.MainDoor;
-
-            config.Roof.PitchRise = 2;
-            config.Roof.PitchRun = 3;
-            config.Roof.EaveOverhang = 2;
-            config.Roof.Thickness = 2;
-
-            config.FrontWindows.Count = 4;
-            config.FrontWindows.Placement = HouseFacadePlacementMode.EvenlySpaced;
-            config.FrontWindows.Opening = StandardWindow();
-            config.RearWindows = config.FrontWindows;
-            config.RearWindows.Facade = HouseFacade.Rear;
-
-            return config;
-        }
-
-        /// <summary>A narrow three-level urban house using the same shared house configuration.</summary>
-        public static HouseConfig TallTownhouse(byte masonryMaterial, byte roofMaterial)
-        {
-            HouseConfig config = CottageCompatibility(masonryMaterial, roofMaterial);
-            config.Footprint.Primary = new StructureFootprintRect(
-                new Unity.Mathematics.int2(0, 0),
-                new Unity.Mathematics.int2(48, 64));
-            config.Footprint.FoundationDepth = 6;
-
-            config.Walls.Length = 48;
-            config.Walls.Height = 72;
-            config.Walls.Thickness = 4;
-
-            config.Floors.FloorCount = 3;
-            config.Floors.LevelHeight = 24;
-            config.Floors.SlabThickness = 4;
-
-            config.MainDoor.Width = 10;
-            config.MainDoor.Height = 22;
-            config.MainDoor.FrameThickness = 1;
-            config.FrontDoors.Opening = config.MainDoor;
-
-            config.Roof.PitchRise = 1;
-            config.Roof.PitchRun = 3;
-            config.Roof.EaveOverhang = 1;
-
-            config.FrontWindows.Count = 3;
-            config.FrontWindows.Placement = HouseFacadePlacementMode.EvenlySpaced;
-            config.FrontWindows.Opening = StandardWindow();
-            config.FrontWindows.Opening.BottomOffset = 10;
-
-            return config;
-        }
-
-        private static OpeningConfig StandardWindow()
-        {
-            return new OpeningConfig
-            {
-                Kind = StructureOpeningKind.Window,
-                Width = 8,
-                Height = 10,
-                BottomOffset = 8,
-                Spacing = 12,
-                StartMargin = 6,
-                EndMargin = 6,
-                FrameThickness = 1,
-                LintelThickness = 1,
-                WidthVariation = 1,
-                HeightVariation = 1,
-                FillMaterialRole = StructureMaterialRole.Opening,
             };
         }
     }
