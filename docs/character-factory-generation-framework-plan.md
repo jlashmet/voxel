@@ -123,7 +123,8 @@ Current standard profile mirrors rigid weapon production, with socket metadata c
 - [x] Preserve the existing `build` command as the low-level generator/preparation primitive.
 - [x] Record production-stage decisions and commands in `manifest.json`.
 - [x] Restore the prepared character FBX if character appearance projection fails, instead of losing the successful geometry/rig result.
-- [ ] Run the Character Factory unit suite and production smoke CI on the generation-framework branch.
+- [x] Run the focused production-contract CI on the generation-framework branch; run #1 (`32051087040`) passed compile, routing tests, all four asset-type dry runs, and recursive discovery.
+- [ ] Run the existing self-hosted MPS/Blender Character Factory smoke against the generation-framework branch before migration/merge.
 
 ## Phase 2 — Reference-set contract
 
@@ -179,4 +180,4 @@ Current standard profile mirrors rigid weapon production, with socket metadata c
 
 ## Current status
 
-The low-level Character Factory was already more generic than the existing production scripts: `BuildSpec` and runtime routing already distinguish character, clothing, weapon, and accessory. The new generation-framework branch adds the missing common production layer. The next high-leverage work is the reference-set contract and named backend profiles; those two changes remove most of the shell-script duplication that currently makes adding a new character or item expensive.
+The low-level Character Factory was already more generic than the existing production scripts: `BuildSpec` and runtime routing already distinguish character, clothing, weapon, and accessory. The generation-framework branch now adds the missing common production layer and has a green focused production-contract workflow across all four asset types. The next high-leverage work is the reference-set contract and named backend profiles; those two changes remove most of the shell-script duplication that currently makes adding a new character or item expensive.
