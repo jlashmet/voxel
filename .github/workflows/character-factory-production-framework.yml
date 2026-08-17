@@ -30,7 +30,7 @@ jobs:
           set -euo pipefail
           python3 -m compileall -q tools/character-factory
 
-      - name: Run production routing tests
+      - name: Run production routing and reference-contract tests
         shell: bash
         run: |
           set -euo pipefail
@@ -38,6 +38,7 @@ jobs:
             tools/character-factory/tests/test_pipeline_routing.py \
             tools/character-factory/tests/test_generator_backends.py \
             tools/character-factory/tests/test_production_routing.py \
+            tools/character-factory/tests/test_reference_contract.py \
             -v
 
       - name: Dry-run every production asset type
