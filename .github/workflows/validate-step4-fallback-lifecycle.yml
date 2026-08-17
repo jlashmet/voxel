@@ -13,14 +13,11 @@ on:
 permissions:
   contents: read
 
-# Validate the exact triggering commit, but keep only the newest requested lifecycle run so stale
-# diagnostic SHAs cannot queue ahead of the current evidence on the single self-hosted Mac runner.
-# This trigger includes the complete ownership / ordinary-result / fallback / publication counters,
-# after the compile fix and idempotent production lifecycle wiring are both present on the tree.
-# Current-head lifecycle validation trigger after the NativeArray test lifetime compile repair.
+# Validate the exact triggering commit. Key concurrency by trigger SHA so unrelated later pushes to
+# this busy branch cannot cancel the pinned lifecycle evidence before the self-hosted Mac starts it.
 concurrency:
-  group: unity-step4-lifecycle
-  cancel-in-progress: true
+  group: unity-step4-lifecycle-${{ github.sha }}
+  cancel-in-progress: false
 
 jobs:
   lod-rendering:
@@ -70,8 +67,6 @@ jobs:
             -logFile "$ROOT/showcase-bake.log"
           test -s "$GITHUB_WORKSPACE/Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes"
 
-      # This fixture is intentionally isolated: it records the current step-4 ownership /
-      # frustum / ready-empty lifecycle without spending time on unrelated PlayMode suites.
       - name: Run LOD lifecycle fixture
         shell: bash
         run: |
