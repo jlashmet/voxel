@@ -23,6 +23,17 @@ mkdir -p "$OUT"
   --garment "$OUT/garment.fbx" \
   --rigid "$OUT/rigid-basic.fbx"
 
+# Regression for real generated meshes that extend beyond the canonical donor's
+# bounded transfer radius. The first pass intentionally misses this displaced
+# fixture; the unweighted-only fallback must still produce a fully skinned FBX.
+"$BLENDER_BIN" --background --python-exit-code 1 \
+  --python tools/character-factory/ci/create_weight_transfer_fallback_fixture.py -- \
+  --canonical "$OUT/canonical.glb" \
+  --output "$OUT/character.weight-fallback.fbx"
+"$BLENDER_BIN" --background --python-exit-code 1 \
+  --python tools/character-factory/ci/verify_skinned_character.py -- \
+  --input "$OUT/character.weight-fallback.fbx"
+
 "$BLENDER_BIN" --background --python-exit-code 1 \
   --python tools/character-factory/ci/create_rigid_canonicalization_fixture.py -- \
   --output "$OUT/rigid-raw.glb"
