@@ -1,133 +1,53 @@
 from pathlib import Path
 
-path = Path("Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs")
-text = path.read_text()
 
-old_visibility = '''        public void CollectVisibleCoordinate(int3 coordinate, Plane[] frustumPlanes,
-                                             Vector3 cameraPosition, float voxelSize, int frame)
-        {
-            if (!_known.Contains(coordinate)) return;
-
-            Bounds bounds = ChunkWorldBounds(coordinate, voxelSize);
-            if (!WithinRingBand(bounds, cameraPosition)) return;
-            if (!GeometryUtility.TestPlanesAABB(frustumPlanes, bounds)) return;
-
-            if (!_entries.TryGetValue(coordinate, out Entry entry) || !entry.Ready)
-            {
-                // A known-empty chunk is a completed build with nothing to draw, not a hole.
-                if (!_emptyVersions.ContainsKey(coordinate)) MissingVisibleCount++;
-                return;
-            }
-            if (entry.IndexCount == 0) return;
-            entry.LastUsedFrame = frame;
-            _visible.Add(entry);
-        }
-'''
-new_visibility = '''        public void CollectVisibleCoordinate(int3 coordinate, Plane[] frustumPlanes,
-                                             Vector3 cameraPosition, float voxelSize, int frame)
-        {
-            if (!_known.Contains(coordinate)) return;
-
-            Bounds bounds = ChunkWorldBounds(coordinate, voxelSize);
-            if (!WithinRingBand(bounds, cameraPosition)) return;
-            if (!GeometryUtility.TestPlanesAABB(frustumPlanes, bounds)) return;
-
-            bool hasDesired = _desiredVersions.TryGetValue(coordinate, out ulong desired);
-            if (_entries.TryGetValue(coordinate, out Entry entry) && entry.Ready)
-            {
-                // Keep the previous mesh drawable while a newer authoritative generation waits
-                // for this ring to need it. Parking background work must never turn an edit into
-                // stale visible geometry when the chunk comes back into the active shell.
-                if (hasDesired && desired > entry.SourceVersion) MarkDirty(coordinate);
-                if (entry.IndexCount == 0) return;
-                entry.LastUsedFrame = frame;
-                _visible.Add(entry);
-                return;
-            }
-
-            // A current known-empty result is complete, not a visual hole. Any other in-band
-            // visible coordinate is demand: reactivate work that discovery parked while the
-            // coordinate belonged to another LOD ring (or was evicted under pressure).
-            if (_emptyVersions.TryGetValue(coordinate, out ulong emptyVersion)
-                && (!hasDesired || emptyVersion >= desired))
-                return;
-
-            MarkDirty(coordinate);
-            MissingVisibleCount++;
-        }
-'''
-
-old_band = '''                Bounds bounds = ChunkWorldBounds(candidate, voxelSize);
-                if (!WithinRingBand(bounds, cameraWorldPosition))
-                {
-                    RequeueDirty(candidate);
-                    continue;
-                }
-'''
-new_band = '''                Bounds bounds = ChunkWorldBounds(candidate, voxelSize);
-                if (!WithinRingBand(bounds, cameraWorldPosition))
-                {
-                    // Discovery is shared across LOD workers, so a worker can learn about chunks
-                    // that currently belong wholly to a finer/coarser ring. Requeueing those
-                    // impossible candidates forever makes the dirty FIFO scale with all streamed
-                    // surface data and starves real visible work. Retain the authoritative desired
-                    // version, but park active build demand until visibility makes it relevant.
-                    ParkDirty(candidate);
-                    continue;
-                }
-'''
-
-old_dirty = '''        private void MarkDirty(int3 chunk)
-        {
-            if (_dirty.Add(chunk))
-                _queuedAtSeconds[chunk] = Time.realtimeSinceStartupAsDouble;
-            RequeueDirty(chunk);
-        }
-
-        private void RequeueDirty(int3 chunk)
-        {
-            if (!_dirty.Contains(chunk) || !_queuedDirty.Add(chunk)) return;
-            _dirtyQueue.Enqueue(chunk);
-        }
-'''
-new_dirty = '''        private void MarkDirty(int3 chunk)
-        {
-            // Every active dirty record needs a durable desired generation. Most callers arrive
-            // through Invalidate, but arena/capacity eviction can request a rebuild directly.
-            // Keeping that generation lets parked work be reactivated safely when it becomes
-            // visible again.
-            if (!_desiredVersions.ContainsKey(chunk))
-                _desiredVersions[chunk] = ++_versionCounter;
-            if (_dirty.Add(chunk))
-                _queuedAtSeconds[chunk] = Time.realtimeSinceStartupAsDouble;
-            RequeueDirty(chunk);
-        }
-
-        private void RequeueDirty(int3 chunk)
-        {
-            if (!_dirty.Contains(chunk) || !_queuedDirty.Add(chunk)) return;
-            _dirtyQueue.Enqueue(chunk);
-        }
-
-        private void ParkDirty(int3 chunk)
-        {
-            _dirty.Remove(chunk);
-            _queuedDirty.Remove(chunk);
-            _queuedAtSeconds.Remove(chunk);
-            // Intentionally retain _desiredVersions: discovery/edit state remains authoritative,
-            // and CollectVisibleCoordinate will reactivate it if this chunk enters the ring.
-        }
-'''
-
-replacements = [
-    ("visibility demand", old_visibility, new_visibility),
-    ("out-of-band selection", old_band, new_band),
-    ("dirty parking", old_dirty, new_dirty),
-]
-for name, old, new in replacements:
+def replace_once(path_text, old, new, label):
+    path = Path(path_text)
+    text = path.read_text()
     count = text.count(old)
     if count != 1:
-        raise SystemExit(f"{name}: expected exactly one source match, found {count}")
-    text = text.replace(old, new, 1)
+        raise SystemExit(f"{label}: expected exactly one source match, found {count}")
+    path.write_text(text.replace(old, new, 1))
 
-path.write_text(text)
+
+replace_once(
+    "Assets/VoxelEngine/Rendering/Runtime/RenderFeature/VoxelRenderBridge.cs",
+    '''        private static event System.Action s_WorldReleasing;\n\n        internal static void RegisterWorldReleaseHandler(System.Action handler) =>\n            s_WorldReleasing += handler;\n''',
+    '''        private static event System.Action s_WorldReleasing;\n        private static VoxelRenderPass s_ActivePass;\n\n        /// <summary>\n        /// The render pass that most recently executed through URP. This is diagnostics-only:\n        /// tests may inspect production-visible entries without trying to discover renderer-data\n        /// assets through Resources, but cannot replace or drive scheduler ownership.\n        /// </summary>\n        internal static VoxelRenderPass ActivePass => s_ActivePass;\n\n        internal static void RegisterActivePass(VoxelRenderPass pass) =>\n            s_ActivePass = pass;\n\n        internal static void UnregisterActivePass(VoxelRenderPass pass)\n        {\n            if (ReferenceEquals(s_ActivePass, pass)) s_ActivePass = null;\n        }\n\n        internal static void RegisterWorldReleaseHandler(System.Action handler) =>\n            s_WorldReleasing += handler;\n''',
+    "render bridge active pass",
+)
+
+replace_once(
+    "Assets/VoxelEngine/Rendering/Runtime/RenderFeature/VoxelRenderPass.cs",
+    '''        public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)\n        {\n            VoxelRenderBridge.SurfacePassRecordCount++;\n''',
+    '''        public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)\n        {\n            // Register on actual execution, not feature construction. Projects can contain several\n            // renderer-data assets; the fidelity gate must inspect the pass URP really invoked.\n            VoxelRenderBridge.RegisterActivePass(this);\n            VoxelRenderBridge.SurfacePassRecordCount++;\n''',
+    "render pass execution registration",
+)
+
+replace_once(
+    "Assets/VoxelEngine/Rendering/Runtime/RenderFeature/VoxelRenderPass.cs",
+    '''        public void Dispose()\n        {\n            VoxelRenderBridge.UnregisterWorldReleaseHandler(ReleaseWorldResources);\n            _scheduler?.Dispose();\n''',
+    '''        public void Dispose()\n        {\n            VoxelRenderBridge.UnregisterActivePass(this);\n            VoxelRenderBridge.UnregisterWorldReleaseHandler(ReleaseWorldResources);\n            _scheduler?.Dispose();\n''',
+    "render pass diagnostic cleanup",
+)
+
+replace_once(
+    "Assets/Tests/PlayMode/LodVisualFidelityTests.cs",
+    '''            VoxelRenderFeature renderFeature = FindActiveVoxelRenderFeature();\n            Assert.NotNull(renderFeature,\n                "Could not inspect the production voxel renderer used by VoxelShowcase.");\n            Assert.NotNull(renderFeature.Pass);\n\n            typeof(VoxelShowcase)\n''',
+    '''            // Force one production URP submission before taking the diagnostics handle.\n            // Renderer features are project assets and are not reliably discoverable through\n            // Resources in batchmode; the bridge records the pass URP actually executed.\n            RenderUrpCamera(camera);\n            yield return null;\n            VoxelRenderPass renderPass = VoxelRenderBridge.ActivePass;\n            Assert.NotNull(renderPass,\n                "Could not inspect the production voxel render pass used by VoxelShowcase.");\n\n            typeof(VoxelShowcase)\n''',
+    "fidelity active pass acquisition",
+)
+
+replace_once(
+    "Assets/Tests/PlayMode/LodVisualFidelityTests.cs",
+    '''                            observedStepMask = VisibleSourceStepMaskAt(\n                                renderFeature.Pass, centre, VoxelSize);\n''',
+    '''                            observedStepMask = VisibleSourceStepMaskAt(\n                                renderPass, centre, VoxelSize);\n''',
+    "fidelity visible step inspection",
+)
+
+replace_once(
+    "Assets/Tests/PlayMode/LodVisualFidelityTests.cs",
+    '''        private static VoxelRenderFeature FindActiveVoxelRenderFeature()\n        {\n            VoxelRenderFeature[] features = Resources.FindObjectsOfTypeAll<VoxelRenderFeature>();\n            for (int i = 0; i < features.Length; i++)\n                if (features[i] != null && features[i].Pass != null)\n                    return features[i];\n            return null;\n        }\n\n''',
+    '''''',
+    "remove unreliable renderer feature discovery",
+)
