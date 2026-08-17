@@ -12,14 +12,13 @@ namespace Game.Structures.Runtime
     public static class WorldObjectGeneratedExpansion
     {
         public static void AuthorCastle(IStructureAuthoringSession geometry, WorldObjectAuthoringSession objects,
-            in CastlePlan plan)
+            in CastlePlan plan, WorldObjectGeometryEmissionMode emissionMode = WorldObjectGeometryEmissionMode.AllVoxel)
         {
             int firstNewObject = objects.ObjectCount;
             int y = plan.Centre.y + plan.PlateauHeight;
             int x = plan.Centre.x + plan.KeepHalfX + 18;
             int z = plan.Centre.z;
 
-            // Training/utility annex: traversal and mechanism vocabulary not otherwise guaranteed by the castle profile.
             objects.Place(0x3100u, WorldObjectKind.Gate, B(x, y + 2, z - 52, 22, 24, 4), new int3(0, 0, 1));
             objects.Place(0x3101u, WorldObjectKind.MovingPlatform, B(x + 28, y + 4, z - 45, 18, 3, 18), new int3(1, 0, 0));
             objects.Place(0x3102u, WorldObjectKind.Zipline, B(x + 5, y + 28, z - 20, 44, 3, 3), new int3(1, 0, 0));
@@ -50,11 +49,11 @@ namespace Game.Structures.Runtime
             objects.Place(0x31A1u, WorldObjectKind.Checkpoint, B(x + 28, y + 2, z + 72, 10, 16, 10), new int3(0, 0, 1));
             objects.Place(0x31A2u, WorldObjectKind.SpawnPoint, B(x + 48, y + 1, z + 72, 8, 2, 8), new int3(0, 1, 0));
 
-            WorldObjectGeneratedContent.EmitAll(geometry, objects.BuildObjectsFrom(firstNewObject));
+            WorldObjectGeneratedContent.EmitAll(geometry, objects.BuildObjectsFrom(firstNewObject), null, emissionMode);
         }
 
         public static void AuthorMineCave(IStructureAuthoringSession geometry, WorldObjectAuthoringSession objects,
-            DecorationBounds chamber)
+            DecorationBounds chamber, WorldObjectGeometryEmissionMode emissionMode = WorldObjectGeometryEmissionMode.AllVoxel)
         {
             int firstNewObject = objects.ObjectCount;
             int3 p = chamber.Min;
@@ -78,7 +77,7 @@ namespace Game.Structures.Runtime
             objects.Place(0x3206u, WorldObjectKind.SpawnPoint,
                 B(p.x + 22, y, p.z + s.z - 14, 8, 2, 8), new int3(0, 1, 0));
 
-            WorldObjectGeneratedContent.EmitAll(geometry, objects.BuildObjectsFrom(firstNewObject));
+            WorldObjectGeneratedContent.EmitAll(geometry, objects.BuildObjectsFrom(firstNewObject), null, emissionMode);
         }
 
         private static DecorationBounds B(int x, int y, int z, int sx, int sy, int sz) => new DecorationBounds
