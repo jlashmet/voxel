@@ -122,10 +122,17 @@ namespace VoxelEngine.Tests.EditMode
                 "Job batches should flush once per world frame, not once per worker/job.");
             int water = scheduler.IndexOf("_water.Prepare(storage, camera, voxelSize, WaterBuildBudgetMs);",
                                           StringComparison.Ordinal);
-            int visibility = scheduler.IndexOf("CollectVisibility(camera, voxelSize, frame);", first,
-                                               StringComparison.Ordinal);
-            Assert.Greater(first, water, "Flush must include water and solid jobs scheduled this frame.");
-            Assert.Greater(visibility, first, "Flush must happen before the frame returns to draw traversal.");
+            int visibility = scheduler.LastIndexOf(
+                "CollectVisibility(camera, voxelSize, frame);", StringComparison.Ordinal);
+            int frameAccounting = scheduler.IndexOf(
+                "_prepareTiming.Add(ElapsedMs(prepareStart));", first, StringComparison.Ordinal);
+            Assert.Greater(first, water,
+                "Flush must include water and solid jobs scheduled this frame.");
+            Assert.Greater(first, visibility,
+                "Current-ring/visible demand must be collected before worker admission and its "
+              + "single non-blocking batch flush.");
+            Assert.Greater(frameAccounting, first,
+                "The non-blocking batch flush must occur before the scheduler returns the frame.");
         }
 
         [Test]
