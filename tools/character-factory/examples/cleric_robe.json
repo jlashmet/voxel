@@ -7,6 +7,9 @@
     "left": "views/cleric_robe_left.png",
     "right": "views/cleric_robe_right.png"
   },
+  "appearance": {
+    "strategy": "garment-multiview"
+  },
   "outputDir": "../build/cleric_robe_01",
   "generator": {
     "python": "/path/to/hunyuan-env/bin/python",
