@@ -169,38 +169,38 @@ Phase 0 evidence and compatibility targets are recorded in [worldbuilding-invent
 
 ## Phase 5 — Shed archetype
 
-- [ ] **WB065** Implement a configurable shed archetype using shared footprint/wall/opening/roof components.
-- [ ] **WB066** Expose shed width/depth/height, wall thickness, foundation, material palette, door count/size/placement, optional windows, and lean-to/gable/flat roof controls.
-- [ ] **WB067** Add storage/workshop/lean-to presets and deterministic geometry tests.
+- [x] **WB065** Implement a configurable shed archetype using shared footprint/wall/opening/roof components.
+- [x] **WB066** Expose shed width/depth/height, wall thickness, foundation, material palette, door count/size/placement, optional windows, and lean-to/gable/flat roof controls.
+- [x] **WB067** Add storage/workshop/lean-to presets and deterministic geometry tests.
 
 ## Phase 6 — Church archetype
 
-- [ ] **WB068** Define church-specific plan configuration: nave length/width/height, optional aisles, sanctuary/chancel, apse, and entry orientation.
-- [ ] **WB069** Implement configurable nave/aisle wall and roof composition using shared components.
-- [ ] **WB070** Add configurable apse/sanctuary geometry using available radial/rounded primitives where appropriate.
-- [ ] **WB071** Add bell-tower/steeple/spire options with tower placement and height controls.
-- [ ] **WB072** Add church facade/opening controls: primary portal, side doors, regular windows, clerestory-ready hook, and trim palette.
-- [ ] **WB073** Add chapel/parish-church presets and deterministic/navigation/footprint tests.
+- [x] **WB068** Define church-specific plan configuration: nave length/width/height, optional aisles, sanctuary/chancel, apse, and entry orientation.
+- [x] **WB069** Implement configurable nave/aisle wall and roof composition using shared components.
+- [x] **WB070** Add configurable apse/sanctuary geometry using available radial/rounded primitives where appropriate.
+- [x] **WB071** Add bell-tower/steeple/spire options with tower placement and height controls.
+- [x] **WB072** Add church facade/opening controls: primary portal, side doors, regular windows, clerestory-ready hook, and trim palette.
+- [x] **WB073** Add chapel/parish-church presets and deterministic/navigation/footprint tests.
 
 ## Phase 7 — Cathedral archetype
 
-- [ ] **WB074** Build cathedral configuration as an extension/composition of church semantics rather than a forked implementation.
-- [ ] **WB075** Add configurable transept, crossing, expanded choir/apse, and optional side chapels.
-- [ ] **WB076** Add configurable multi-aisle proportions and clerestory/window bands.
-- [ ] **WB077** Add configurable buttresses and flying-buttress approximation using shared buttress primitives.
-- [ ] **WB078** Add configurable west-front towers/spires and alternate central crossing tower/spire.
-- [ ] **WB079** Add configurable rose-window/large-facade-opening approximation through existing opening/arch primitives.
-- [ ] **WB080** Add optional crypt volume plus `Crypt`/`Cave` attachment anchors so underground content composes cleanly.
-- [ ] **WB081** Add gothic-style and simpler cathedral presets plus determinism, seam, footprint, primitive-budget, and navigability tests.
+- [x] **WB074** Build cathedral configuration as an extension/composition of church semantics rather than a forked implementation.
+- [x] **WB075** Add configurable transept, crossing, expanded choir/apse, and optional side chapels.
+- [x] **WB076** Add configurable multi-aisle proportions and clerestory/window bands.
+- [x] **WB077** Add configurable buttresses and flying-buttress approximation using shared buttress primitives.
+- [x] **WB078** Add configurable west-front towers/spires and alternate central crossing tower/spire.
+- [x] **WB079** Add configurable rose-window/large-facade-opening approximation through existing opening/arch primitives.
+- [x] **WB080** Add optional crypt volume plus `Crypt`/`Cave` attachment anchors so underground content composes cleanly.
+- [x] **WB081** Add gothic-style and simpler cathedral presets plus determinism, seam, footprint, primitive-budget, and navigability tests.
 
 ## Phase 8 — Temple archetype
 
-- [ ] **WB082** Define temple plan configuration around sanctuary/cella, platform, approach axis, stairs, courtyard, and colonnade.
-- [ ] **WB083** Implement configurable raised platform/foundation and monumental stair approach.
-- [ ] **WB084** Implement configurable perimeter/front colonnades using shared column components.
-- [ ] **WB085** Add sanctuary/cella dimensions, inner rooms, entry opening, and optional courtyard.
-- [ ] **WB086** Add configurable roof/top families that are actually supported by current primitives; expose extension hooks for dome/tower/pagoda families rather than faking unsupported geometry.
-- [ ] **WB087** Add classical-columned and courtyard-temple presets plus deterministic/navigation/footprint tests.
+- [x] **WB082** Define temple plan configuration around sanctuary/cella, platform, approach axis, stairs, courtyard, and colonnade.
+- [x] **WB083** Implement configurable raised platform/foundation and monumental stair approach.
+- [x] **WB084** Implement configurable perimeter/front colonnades using shared column components.
+- [x] **WB085** Add sanctuary/cella dimensions, inner rooms, entry opening, and optional courtyard.
+- [x] **WB086** Add configurable roof/top families that are actually supported by current primitives; expose extension hooks for dome/tower/pagoda families rather than faking unsupported geometry.
+- [x] **WB087** Add classical-columned and courtyard-temple presets plus deterministic/navigation/footprint tests.
 
 ## Phase 9 — City/settlement composition
 
