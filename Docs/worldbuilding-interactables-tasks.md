@@ -13,11 +13,14 @@ Status: `[ ]` todo, `[~]` in progress, `[x]` complete.
 - [x] Add deterministic timed/reset runtime updates without frame-level save state.
 - [x] Add generated castle and mine/cave scene factories.
 - [x] Add decoration placement -> live WorldObject runtime activation bridge.
+- [x] Add scene registry retaining sparse state across unload/reload and save snapshot/restore.
+- [x] Add backend-neutral dynamic presentation plans for doors/gates/elevators/traps/lights/etc.
+- [x] Add state-change notifications and presentation refresh sink contract.
 - [x] Add geometry/behavior/runtime validation coverage for every registered kind (tests authored; Unity execution still required).
 
 ## Batch A — traversal and barriers
 
-Geometry, concrete behavior, and generated-content placement are implemented for this batch. Kinds remain `[~]` only until Unity validation executes.
+Geometry, concrete behavior, generated-content placement, and dynamic presentation intent are implemented for this batch. Kinds remain `[~]` only until Unity validation executes.
 
 - [~] Door
 - [~] Gate
@@ -32,7 +35,7 @@ Geometry, concrete behavior, and generated-content placement are implemented for
 
 ## Batch B — controls and mechanisms
 
-Geometry, concrete behavior, signal semantics, and generated-content placement are implemented. Pending Unity validation only.
+Geometry, concrete behavior, signal semantics, generated-content placement, and control presentation intent are implemented. Pending Unity validation only.
 
 - [~] Lever
 - [~] Switch
@@ -63,7 +66,7 @@ Geometry, concrete behavior, persistence semantics, and generated-content placem
 
 ## Batch D — lighting and fire
 
-Geometry, concrete behavior, and generated-content placement are implemented. Pending Unity validation only.
+Geometry, concrete behavior, generated-content placement, and light/particle presentation intent are implemented. Pending Unity validation only.
 
 - [~] Torch
 - [~] Lantern
@@ -72,7 +75,7 @@ Geometry, concrete behavior, and generated-content placement are implemented. Pe
 
 ## Batch E — traps, secrets, and destruction
 
-Geometry, concrete behavior, timed/reset behavior where applicable, and generated-content placement are implemented. Pending Unity validation only.
+Geometry, concrete behavior, timed/reset behavior where applicable, generated-content placement, and dynamic presentation intent are implemented. Pending Unity validation only.
 
 - [~] Trap
 - [~] SpikeTrap
@@ -103,6 +106,7 @@ Geometry, concrete behavior, and generated-content placement are implemented. Pe
 - [x] Mine/cave expansion covers secondary traversal, utility, storage and control families.
 - [x] Every registered WorldObject kind now has at least one generated-content placement path.
 - [x] Decoration-generated containers/furniture use common live runtime behavior while preserving GeneratedPropId identity.
+- [x] Expansion passes emit only newly-authored geometry instead of duplicating base-object writes.
 
 ## Reusable mechanism presets
 
@@ -120,6 +124,6 @@ Geometry, concrete behavior, and generated-content placement are implemented. Pe
 ## Remaining integration / validation
 
 - [ ] Run authored WorldObject tests in Unity and fix compile/runtime failures.
-- [ ] Add presentation refresh/animation path for state-changing geometry (doors, gates, elevators, traps) without carving unrelated structure voxels.
-- [ ] Reconcile latest `agent/worldbuilding-decorations` changes into this branch.
-- [ ] Wire generated WorldObject scenes into the main structure/cave streaming/composition lifecycle if not already invoked by the final composition path.
+- [~] Dynamic presentation path: planning + push refresh are complete; implement concrete Unity presentation sink/animation backend.
+- [ ] Reconcile latest `agent/worldbuilding-decorations` changes into this branch (source branch is still actively moving).
+- [~] Streaming lifecycle: registry/state retention is complete; wire registry ownership into the final game composition/bootstrap path.
