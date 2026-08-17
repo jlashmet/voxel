@@ -10,12 +10,12 @@ PROJECT_ROOT = TOOL_ROOT.parents[1]
 if str(TOOL_ROOT) not in sys.path:
     sys.path.insert(0, str(TOOL_ROOT))
 
-from api import AssetType, CharacterFactoryError, backend_profile
+from api import AssetType, CharacterFactoryError, backend_profile, rig_profile
 from api.appearance_profiles import (
     AppearanceProfileError,
     resolve_appearance_strategy,
 )
-from runtime.scaffold import scaffold_asset
+from runtime.scaffold import DEFAULT_RIG_PROFILE, scaffold_asset
 
 
 DEFAULT_LIBRARY_ROOT = TOOL_ROOT / "production-assets"
@@ -42,6 +42,14 @@ def parse_args() -> argparse.Namespace:
         help="named generator backend profile",
     )
     parser.add_argument(
+        "--rig-profile",
+        default=DEFAULT_RIG_PROFILE,
+        help=(
+            "named character/clothing canonical-rig profile; ignored when the legacy "
+            "--canonical-body override is supplied"
+        ),
+    )
+    parser.add_argument(
         "--appearance-strategy",
         help=(
             "override the asset-type default appearance strategy; defaults are "
@@ -53,7 +61,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--canonical-body",
         type=Path,
-        help="required for character/clothing; canonical GLB containing Armature and Body/GarmentDonor",
+        help=(
+            "legacy explicit character/clothing canonical GLB override; normally omit "
+            "this and let --rig-profile manage the donor"
+        ),
     )
     parser.add_argument("--slot")
     parser.add_argument("--socket-bone")
@@ -70,7 +81,6 @@ def main() -> int:
     asset_type = AssetType(args.asset_type)
 
     try:
-        # Resolve early so a typo never leaves a half-valid asset directory behind.
         backend_profile(args.profile)
         try:
             resolve_appearance_strategy(
@@ -85,16 +95,20 @@ def main() -> int:
             raise CharacterFactoryError(str(exc)) from exc
 
         canonical_body = args.canonical_body
+        selected_rig_profile: str | None = args.rig_profile
         if asset_type in {AssetType.CHARACTER, AssetType.CLOTHING}:
-            if canonical_body is None:
-                raise CharacterFactoryError(
-                    f"{asset_type.value} assets require --canonical-body"
-                )
-            canonical_body = canonical_body.resolve()
-            if not canonical_body.is_file():
-                raise CharacterFactoryError(
-                    f"canonical body does not exist: {canonical_body}"
-                )
+            if canonical_body is not None:
+                canonical_body = canonical_body.resolve()
+                if not canonical_body.is_file():
+                    raise CharacterFactoryError(
+                        f"canonical body does not exist: {canonical_body}"
+                    )
+                selected_rig_profile = None
+            else:
+                try:
+                    rig_profile(args.rig_profile)
+                except ValueError as exc:
+                    raise CharacterFactoryError(str(exc)) from exc
 
         result = scaffold_asset(
             project_root=PROJECT_ROOT,
@@ -106,6 +120,7 @@ def main() -> int:
             tags=args.tag,
             blender=args.blender,
             canonical_body=canonical_body,
+            rig_profile=selected_rig_profile,
             slot=args.slot,
             socket_bone_name=args.socket_bone,
             force=args.force,
