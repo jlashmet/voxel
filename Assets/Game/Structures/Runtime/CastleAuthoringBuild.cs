@@ -145,12 +145,21 @@ namespace Game.Structures.Runtime
                     nameof(components));
 
             _plan = plan;
+            // Keep-only legacy detail passes still consume CastlePlan. Project the canonical shared
+            // controls into that compatibility view so changing the public keep dimensions/levels
+            // affects all of those passes consistently instead of only the migrated shell call.
+            _plan.KeepHalfX = components.KeepWidth / 2;
+            _plan.KeepHalfZ = components.KeepDepth / 2;
+            _plan.KeepHeight = components.KeepHeight;
+            _plan.Floors = components.KeepFloors.FloorCount;
+            _plan.FloorHeight = components.KeepFloors.LevelHeight;
+
             _components = components;
             _terrainSeed = terrainSeed;
             _stage = 1;
             _keepStage = 0;
 
-            long estimate = CastlePlanner.EstimateWrites(in plan);
+            long estimate = CastlePlanner.EstimateWrites(in _plan);
             if (estimate > authoring.WriteBudget)
             {
                 throw new System.InvalidOperationException(
