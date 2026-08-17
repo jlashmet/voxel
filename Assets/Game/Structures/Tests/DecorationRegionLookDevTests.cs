@@ -36,10 +36,10 @@ namespace Game.Structures.Tests
             {
                 Assert.Greater(kentridge.Placements.Length, rossdam.Placements.Length);
                 Assert.AreNotEqual(kentridge.Presentation.PrimaryMaterial, moordell.Presentation.PrimaryMaterial);
-                Assert.AreNotEqual(hightown.Presentation.MagicMaterial, kentridge.Presentation.MagicMaterial);
-                Assert.AreNotEqual(fairy.Presentation.SecondaryMaterial, orc.Presentation.SecondaryMaterial);
+                Assert.AreNotEqual(hightown.Presentation.EmissiveMaterial, kentridge.Presentation.EmissiveMaterial);
+                Assert.AreNotEqual(fairy.Presentation.SoftMaterial, orc.Presentation.SoftMaterial);
                 Assert.Greater(rossdam.Presentation.Ornamentation, kentridge.Presentation.Ornamentation);
-                Assert.Greater(moordell.Context.Wealth, kentridge.Context.Wealth);
+                Assert.Greater((int)moordell.Context.Wealth, (int)kentridge.Context.Wealth);
             });
         }
 
