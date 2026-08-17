@@ -15,6 +15,7 @@ from blender_multiview_texture import (
     _source_uv,
     _subject_adjusted_uv,
 )
+from blender_rigid_reference import load_rigid_subject_image
 
 
 PROJECTION_PROFILES = ("character", "garment", "rigid")
@@ -38,7 +39,7 @@ def _projection_for_profile(
     if profile in {"garment", "rigid"}:
         # Garments and rigid equipment must not inherit the character/T-pose
         # outer-arm redirect. Their view is selected only from the local surface
-        # orientation. This deliberately keeps shared atlas/mask mechanics while
+        # orientation. This deliberately keeps shared atlas/UV mechanics while
         # making object-type projection policy independent.
         return _projection_for_normal(normal), False
     raise ValueError(f"unknown multiview projection profile: {profile}")
@@ -59,11 +60,16 @@ def project_profiled_multiview_texture(
             f"profile must be one of: {', '.join(PROJECTION_PROFILES)}"
         )
 
+    # Character/garment references are one connected silhouette. Rigid equipment
+    # can contain legitimate detached ornaments or multipart geometry, so its
+    # reference loader keeps every substantial foreground component while still
+    # rejecting tiny compression speckles.
+    loader = load_rigid_subject_image if profile == "rigid" else _load_subject_image
     sources = {
-        "front": _load_subject_image(front),
-        "back": _load_subject_image(back),
-        "left": _load_subject_image(left),
-        "right": _load_subject_image(right),
+        "front": loader(front),
+        "back": loader(back),
+        "left": loader(left),
+        "right": loader(right),
     }
     atlas = _atlas_image(sources, output)
     material = _material(atlas)
