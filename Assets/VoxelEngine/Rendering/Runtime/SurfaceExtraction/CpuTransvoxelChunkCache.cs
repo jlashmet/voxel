@@ -1490,12 +1490,18 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             if (!GeometryUtility.TestPlanesAABB(frustumPlanes, bounds)) return;
 
             bool hasDesired = _desiredVersions.TryGetValue(coordinate, out ulong desired);
+            bool currentGenerationInFlight = CurrentBuildCoversDesiredGeneration(
+                coordinate, hasDesired, desired);
             if (_entries.TryGetValue(coordinate, out Entry entry) && entry.Ready)
             {
                 // Keep the previous mesh drawable while a newer authoritative generation waits
                 // for this ring to need it. Parking background work must never turn an edit into
-                // stale visible geometry when the chunk comes back into the active shell.
-                if (hasDesired && desired > entry.SourceVersion) MarkDirty(coordinate);
+                // stale visible geometry when the chunk comes back into the active shell. Do not
+                // enqueue the same generation again while its replacement is already building or
+                // awaiting upload; admission removes active builds from _dirty, so visibility
+                // would otherwise recreate a permanent duplicate rebuild loop every frame.
+                if (hasDesired && desired > entry.SourceVersion && !currentGenerationInFlight)
+                    MarkDirty(coordinate);
                 if (entry.IndexCount == 0) return;
                 entry.LastUsedFrame = frame;
                 _visible.Add(entry);
@@ -1504,12 +1510,13 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
             // A current known-empty result is complete, not a visual hole. Any other in-band
             // visible coordinate is demand: reactivate work that discovery parked while the
-            // coordinate belonged to another LOD ring (or was evicted under pressure).
+            // coordinate belonged to another LOD ring (or was evicted under pressure). An active
+            // build/pending upload already satisfies that demand for its exact source generation.
             if (_emptyVersions.TryGetValue(coordinate, out ulong emptyVersion)
                 && (!hasDesired || emptyVersion >= desired))
                 return;
 
-            MarkDirty(coordinate);
+            if (!currentGenerationInFlight) MarkDirty(coordinate);
             MissingVisibleCount++;
         }
 
@@ -1669,6 +1676,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _queuedAtSeconds.Remove(chunk);
             // Intentionally retain _desiredVersions: discovery/edit state remains authoritative,
             // and CollectVisibleCoordinate will reactivate it if this chunk enters the ring.
+        }
+
+        private bool CurrentBuildCoversDesiredGeneration(int3 chunk, bool hasDesired, ulong desired)
+        {
+            return _build.Active && _build.Coordinate.Equals(chunk)
+                && (!hasDesired || _build.SourceVersion >= desired);
         }
 
         public static int ShardForChunk(int3 chunk, int shardCount)

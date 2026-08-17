@@ -11,6 +11,67 @@ namespace VoxelEngine.Tests.EditMode
     public sealed class SurfaceRingBuildAdmissionTests
     {
         [Test]
+        public void VisibleCurrentGenerationBuildDoesNotQueueDuplicateAdmission()
+        {
+            using var cache = new CpuTransvoxelChunkCache(1)
+            {
+                MinViewDistanceMetres = 0f,
+                MaxViewDistanceMetres = 96f,
+                ShardCount = 1,
+                ShardIndex = 0,
+            };
+            cache.SetClipmapWindow(int3.zero, 8);
+
+            MethodInfo discover = typeof(CpuTransvoxelChunkCache).GetMethod(
+                "DiscoverSurfaceBricks", BindingFlags.Instance | BindingFlags.NonPublic);
+            MethodInfo select = typeof(CpuTransvoxelChunkCache).GetMethod(
+                "BeginNearestBuild", BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.NotNull(discover);
+            Assert.NotNull(select);
+
+            // Interior brick coordinates admit exactly chunk (0,0,0), avoiding border-neighbour
+            // discovery so the active-build assertion is unambiguous.
+            int admitted = (int)discover.Invoke(cache, new object[]
+            {
+                new List<int3> { new int3(1, 1, 1) }
+            });
+            Assert.AreEqual(1, admitted);
+
+            var cameraObject = new GameObject("SurfaceRingBuildAdmissionTests.ActiveCamera");
+            var camera = cameraObject.AddComponent<Camera>();
+            try
+            {
+                camera.transform.position = new Vector3(0f, 0f, -10f);
+                camera.transform.LookAt(Vector3.zero);
+                camera.nearClipPlane = 0.3f;
+                camera.farClipPlane = 200f;
+
+                bool selected = (bool)select.Invoke(cache, new object[]
+                {
+                    camera,
+                    0.1f,
+                    Time.realtimeSinceStartupAsDouble + 1.0,
+                });
+                Assert.True(selected);
+                Assert.AreEqual(1, cache.DirtyCount,
+                    "The selected generation should be represented only by the active build.");
+
+                Plane[] planes = GeometryUtility.CalculateFrustumPlanes(camera);
+                cache.BeginVisibilityCollection();
+                cache.CollectVisibleCoordinate(int3.zero, planes,
+                    camera.transform.position, 0.1f, 1);
+
+                Assert.AreEqual(1, cache.MissingVisibleCount);
+                Assert.AreEqual(1, cache.DirtyCount,
+                    "Visibility requeued the same source generation while it was already in flight.");
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(cameraObject);
+            }
+        }
+
+        [Test]
         public void OutOfBandDiscoveryParksUntilChunkBecomesVisibleInRing()
         {
             using var cache = new CpuTransvoxelChunkCache(4)
