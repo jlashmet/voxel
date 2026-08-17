@@ -28,7 +28,7 @@ reference images
 - [x] Add a generic production layer above `build` so each production asset does not reimplement validation/render/staging orchestration.
 - [x] Add recursive production-spec discovery so a library of assets can be generated in batches.
 - [x] Give rigid weapons/accessories a real automated validation gate.
-- [ ] Make reference-set ingestion convention-driven instead of requiring ad hoc image-copy/validation shell code.
+- [x] Make reference-set ingestion convention-driven instead of requiring ad hoc path wiring; canonical views, geometry/appearance separation, named details, and image preflight are now generic. Deterministic re-encoding remains follow-up work.
 - [ ] Move generator environment/bootstrap selection into named backend profiles instead of production scripts.
 - [ ] Give every asset type an explicit appearance strategy rather than sharing character-specific assumptions.
 - [ ] Migrate existing bespoke production scripts onto the generic producer only after their special behavior has a declared extension point.
@@ -42,26 +42,44 @@ tools/character-factory/production-assets/
   characters/
     madeline/
       asset.json
-      views/front.png
-      views/back.png
-      views/left.png
-      views/right.png
-      details/face.png           # optional character identity detail
+      geometry/front.png
+      geometry/back.png
+      geometry/left.png
+      geometry/right.png
+      appearance/front.png       # optional; geometry is the fallback
+      appearance/back.png
+      appearance/left.png
+      appearance/right.png
+      details/face.png           # optional named identity/detail source
   clothing/
     cleric-robe/
       asset.json
-      views/...
+      geometry/...
+      appearance/...
   weapons/
     sun-staff/
       asset.json
-      views/...
+      geometry/...
+      details/ornament.png
   accessories/
     sun-charm/
       asset.json
-      views/...
+      geometry/...
 ```
 
-The directory name is organizational. `asset.json` remains authoritative and its `assetType` controls the pipeline.
+The directory name is organizational. `asset.json` remains authoritative and its `assetType` controls the pipeline. A reference block can discover canonical view names from a directory:
+
+```json
+{
+  "references": {
+    "geometry": { "directory": "geometry" },
+    "appearance": { "directory": "appearance" },
+    "details": { "face": "details/face.png" }
+  }
+}
+```
+
+Existing top-level `views` remain supported during migration. A spec may add `references.details` alongside legacy views, but it cannot define both legacy `views` and `references.geometry` because that would make the geometry source ambiguous.
 
 ## Production profiles
 
@@ -128,12 +146,13 @@ Current standard profile mirrors rigid weapon production, with socket metadata c
 
 ## Phase 2 — Reference-set contract
 
-- [ ] Introduce a reusable reference-ingestion stage that validates image decode, dimensions, orientation metadata, and deterministic re-encoding.
-- [ ] Support canonical `front/back/left/right` discovery from a reference directory.
-- [ ] Support optional named detail references such as `face`, `hands`, `ornament`, `material`, or `fit` without hard-coding character names.
-- [ ] Separate **geometry references** from **appearance references** so preprocessing for reconstruction does not destroy texture/identity information.
-- [ ] Produce a reference audit in every production artifact.
-- [ ] Reject missing/ambiguous required views before expensive generation starts.
+- [ ] Complete reusable reference ingestion with deterministic normalization/re-encoding. PNG/JPEG header and dimension preflight is implemented; normalization/re-encoding remains.
+- [x] Support canonical `front/back/left/right` discovery from a reference directory, with explicit per-view overrides.
+- [x] Support optional named detail references such as `face`, `hands`, `ornament`, `material`, or `fit` without hard-coding character names.
+- [x] Separate **geometry references** from **appearance references** so preprocessing for reconstruction does not destroy texture/identity information; appearance falls back to geometry when omitted.
+- [x] Produce a `reference-audit.json` in every non-dry-run production artifact and record resolved reference paths in `manifest.json`.
+- [x] Reject missing/ambiguous canonical views and unsupported/invalid image headers before expensive generation starts.
+- [x] Run the expanded reference-contract CI; run #8 (`32051547185`) passed the reference tests, all four production dry runs, and recursive discovery.
 
 ## Phase 3 — Backend profiles
 
@@ -180,4 +199,4 @@ Current standard profile mirrors rigid weapon production, with socket metadata c
 
 ## Current status
 
-The low-level Character Factory was already more generic than the existing production scripts: `BuildSpec` and runtime routing already distinguish character, clothing, weapon, and accessory. The generation-framework branch now adds the missing common production layer and has a green focused production-contract workflow across all four asset types. The next high-leverage work is the reference-set contract and named backend profiles; those two changes remove most of the shell-script duplication that currently makes adding a new character or item expensive.
+The low-level Character Factory was already more generic than the existing production scripts: `BuildSpec` and runtime routing already distinguish character, clothing, weapon, and accessory. The generation-framework branch now adds the missing common production layer plus a reference-set contract that separates geometry, appearance, and named detail sources. The focused framework CI is green across all four asset types. The next highest-leverage step is named backend profiles, which will remove model-cache/bootstrap/Python-environment duplication from the remaining production scripts before we migrate Madeline, the Cleric robe, and the Sun Staff.
