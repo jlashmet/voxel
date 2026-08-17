@@ -108,3 +108,51 @@ jobs:
           python3 tools/character-factory/character_factory.py produce-batch \
             tools/character-factory/examples --dry-run \
             --type weapon --id cleric_staff_01
+
+      - name: Dry-run changed-only production selection
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE=/tmp/character-factory-catalogue.json
+
+          # Identical catalogue: no-op is success, not an error.
+          python3 tools/character-factory/character_factory.py produce-batch \
+            tools/character-factory/examples --dry-run \
+            --changed-from "$BASE" | tee /tmp/no-change.txt
+          grep -q 'produce-batch: no changed assets selected' /tmp/no-change.txt
+
+          # Simulate a prior catalogue with a stale staff spec fingerprint.
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          payload = json.loads(Path('/tmp/character-factory-catalogue.json').read_text())
+          for asset in payload['assets']:
+              if asset['key'] == 'weapon:cleric_staff_01':
+                  asset['specSha256'] = 'stale-spec'
+          Path('/tmp/stale-spec-catalogue.json').write_text(json.dumps(payload))
+          PY
+          python3 tools/character-factory/character_factory.py produce-batch \
+            tools/character-factory/examples --dry-run \
+            --changed-from /tmp/stale-spec-catalogue.json \
+            --change-kind spec --type weapon --id cleric_staff_01 \
+            | tee /tmp/spec-change.txt
+          grep -q 'catalogue-change: weapon:cleric_staff_01 kinds=spec' /tmp/spec-change.txt
+          grep -q 'produce weapon/cleric_staff_01' /tmp/spec-change.txt
+
+          # Simulate an appearance-reference-only delta for the robe.
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          payload = json.loads(Path('/tmp/character-factory-catalogue.json').read_text())
+          for asset in payload['assets']:
+              if asset['key'] == 'clothing:cleric_robe_01':
+                  asset['referenceHashes']['appearance'] = {'front': 'stale-appearance'}
+          Path('/tmp/stale-appearance-catalogue.json').write_text(json.dumps(payload))
+          PY
+          python3 tools/character-factory/character_factory.py produce-batch \
+            tools/character-factory/examples --dry-run \
+            --changed-from /tmp/stale-appearance-catalogue.json \
+            --change-kind appearance --type clothing --id cleric_robe_01 \
+            | tee /tmp/appearance-change.txt
+          grep -q 'catalogue-change: clothing:cleric_robe_01 kinds=appearance' /tmp/appearance-change.txt
+          grep -q 'produce clothing/cleric_robe_01' /tmp/appearance-change.txt
