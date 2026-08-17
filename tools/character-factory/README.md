@@ -28,7 +28,7 @@ There is intentionally no generic `wearable` pipeline. Character fitting, garmen
 
 ## Build vs production
 
-`build` is the low-level mesh primitive. It runs the generator and the preparation pipeline selected by `assetType`.
+`build` is the low-level mesh primitive. It resolves the generator backend/profile, bootstraps it when necessary, runs generation, and runs the preparation pipeline selected by `assetType`.
 
 `produce` is the standard image-to-game-asset lifecycle. It calls `build`, then routes appearance handling, verification, proof rendering, and optional Unity staging through an asset-type production profile:
 
@@ -62,35 +62,92 @@ Only JSON objects containing both `id` and `assetType` are discovered. Generated
 
 The scalable production plan and target reference-library layout are documented in `docs/character-factory-generation-framework-plan.md`.
 
-## Generator backends
+## Reference sets
 
-Product pipeline and mesh generator are independent choices.
+New production assets should separate geometry, appearance, and optional detail references instead of overloading one image set for every stage:
 
-Current backends:
+```json
+{
+  "references": {
+    "geometry": { "directory": "geometry" },
+    "appearance": { "directory": "appearance" },
+    "details": {
+      "face": "details/face.png"
+    }
+  }
+}
+```
 
-- `triposr-mps`: fast Apple-Silicon smoke/prototyping path. It reconstructs a single image, bakes UV color, harmonizes source palette, and can project source pixels onto confidently aligned surfaces.
-- `hunyuan-pytorch`: higher-quality Hunyuan path, including the multiview quality preset.
+A reference directory discovers canonical `front`, `back`, `left`, and `right` PNG/JPEG files. Explicit per-view paths remain available as overrides. Geometry and appearance can point at different turnarounds, which lets reconstruction use cleaned/modeling-safe images while appearance/identity work keeps higher-fidelity sources. Named details are arbitrary validated images such as `face`, `hands`, `ornament`, `material`, or `fit`.
 
-Current Hunyuan presets:
+Legacy top-level `views` remain supported during migration.
+
+## Generator backends and profiles
+
+Product pipeline and mesh generator are independent choices. Low-level explicit backend configuration remains supported, but production assets should normally use a named profile so machine/environment details are not copied into every asset.
+
+Current named profiles:
 
 ```text
-smoke
-  tencent/Hunyuan3D-2mini
-  hunyuan3d-dit-v2-mini-turbo
-  FlashVDM enabled
-  5 diffusion steps
+hunyuan-quality-macos
+  backend: hunyuan-pytorch
+  model: tencent/Hunyuan3D-2mv / hunyuan3d-dit-v2-mv-turbo
+  pinned Hunyuan source revision
+  cached Python environment + multiview checkpoint
+  production defaults: 5 steps, octree 256, 16000 chunks
 
-quality
-  tencent/Hunyuan3D-2mv
-  hunyuan3d-dit-v2-mv
-  50 diffusion steps
+hunyuan-smoke-macos
+  backend: hunyuan-pytorch
+  model: tencent/Hunyuan3D-2mini / hunyuan3d-dit-v2-mini-turbo
+  pinned Hunyuan source revision
+  cached Python environment + mini checkpoint
+
+triposr-smoke-macos
+  backend: triposr-mps
+  pinned TripoSR source revision
+  cached Python 3.12 environment + TripoSR/DINO weights
+  production default: mcResolution 192
 ```
+
+List them with:
+
+```bash
+python3 tools/character-factory/character_factory.py profiles
+```
+
+A production spec now only needs the profile plus asset-specific generation choices:
+
+```json
+{
+  "generator": {
+    "profile": "hunyuan-quality-macos",
+    "seed": 31827,
+    "removeBackground": true
+  }
+}
+```
+
+The profile owns `backend`, `python`/interpreter, source checkout, weights, source revision, and bootstrap script. Those fields cannot be overridden by an asset using a profile. Asset-specific knobs such as seed, steps, resolution, chunking, model/subfolder selection, and background handling may override profile defaults.
+
+Both `build` and `produce` automatically bootstrap a missing profile environment. If custom preprocessing needs the same managed Python runtime before generation, use:
+
+```bash
+python3 tools/character-factory/character_factory.py \
+  bootstrap-profile triposr-smoke-macos
+```
+
+The final output line is the managed Python executable path. This is how bespoke transitional stages can share the profile without reintroducing cache/revision logic.
+
+Current raw backends remain:
+
+- `triposr-mps`: fast Apple-Silicon smoke/prototyping path. It reconstructs a single image, bakes UV color, harmonizes source palette, and can project source pixels onto confidently aligned surfaces.
+- `hunyuan-pytorch`: higher-quality Hunyuan path, including multiview generation.
 
 Swapping generators does not change the `character`, `clothing`, `weapon`, or `accessory` pipeline contract.
 
 ## Accepted mechanics
 
-The Apple-Silicon CI smoke now validates all of these paths with real TripoSR inference:
+The Apple-Silicon CI smoke validates these mechanics with real TripoSR inference:
 
 ```text
 weapon
@@ -128,13 +185,6 @@ python3 tools/character-factory/character_factory.py stage-unity \
   --assets-root Assets/Generated/CharacterFactory
 ```
 
-Or build and stage in one command:
-
-```bash
-python3 tools/character-factory/character_factory.py build path/to/spec.json \
-  --unity-assets-root Assets/Generated/CharacterFactory
-```
-
 For the standard production lifecycle, use:
 
 ```bash
@@ -157,9 +207,9 @@ The Character Factory CLI itself never launches Unity.
 
 ## Manifest
 
-Every completed build writes `manifest.json` containing the actual generator backend, pipeline, output FBX, generator/prepare commands, and runtime-part metadata. TripoSR manifests do not claim Hunyuan model metadata.
+Every completed build writes `manifest.json` containing the actual generator backend, selected named profile (when used), pinned source revision, resolved generation parameters, pipeline, output FBX, reference sets, generator/prepare/bootstrap commands, and runtime-part metadata. TripoSR manifests do not claim Hunyuan model metadata.
 
-`produce` extends the same manifest with a `production` section describing the selected appearance mode, verification gates, proof images, and the exact production commands. This keeps the final artifact reproducible without changing the low-level build contract.
+`produce` extends the same manifest with a `production` section describing the selected appearance mode, verification gates, proof images, reference audit, and exact production commands. This keeps the final artifact reproducible without requiring local environment paths in every source asset spec.
 
 Clothing uses `SkinnedToCharacterSkeleton`; rigid weapons/accessories use `BoneSocket`.
 
@@ -169,9 +219,9 @@ After synchronizing the feature branch with `master`, the Character Factory work
 
 ## Current limitations
 
-The mechanics are now end-to-end validated, but production fitting and art quality still need work. Current body/garment alignment is global rather than semantic or landmark-driven. Remaining quality work includes realistic proportions, faces/fingers/hair, loose-garment conforming, collision/poke-through correction, body-region hiding, LOD generation, weapon-grip inference, and accessory-mount inference.
+The mechanics are end-to-end validated, but production fitting and art quality still need work. Current body/garment alignment is global rather than semantic or landmark-driven. Remaining quality work includes realistic proportions, faces/fingers/hair, loose-garment conforming, collision/poke-through correction, body-region hiding, LOD generation, weapon-grip inference, and accessory-mount inference.
 
-The generic production layer does not yet eliminate all production-specific preprocessing. Madeline still has custom body-only reference cleanup and face-identity transfer, and the Sun Staff still has a custom ornament/procedural-shaft composition stage. Those become declared reusable stages before the bespoke scripts are removed.
+The generic production layer does not yet eliminate every production-specific art stage. Madeline still has custom body-only reference cleanup and face-identity transfer, and the Sun Staff still has an ornament/procedural-shaft composition stage. Their generator environments are profile-managed now; the remaining bespoke art operations become declared reusable stages before those scripts disappear entirely.
 
 Accessories are currently rigid/socket-mounted. Skinned hair and capes should use the clothing path until a dedicated skinned-accessory mode exists.
 
