@@ -11,15 +11,18 @@ using VoxelEngine.Structures.Api;
 namespace Game.Structures.Tests
 {
     /// <summary>
-    /// Dense bounded voxel capture session for visual regression tests. It executes the same
-    /// IStructureAuthoringSession writes as production structure authorers, then renders exposed
-    /// voxel faces through a deterministic software isometric camera and writes a PNG.
+    /// Dense bounded voxel capture session for human-inspectable visual regression output.
+    /// Structure authorers execute their real IStructureAuthoringSession writes into this volume;
+    /// exposed voxel faces are then rasterized with a deterministic software isometric camera.
     /// </summary>
     internal sealed class VisualStructureCapture : IStructureAuthoringSession
     {
         private readonly int3 _min;
         private readonly int3 _size;
         private readonly byte[] _voxels;
+        private bool _hasSolid;
+        private int3 _occupiedMin;
+        private int3 _occupiedMaxExclusive;
 
         public VisualStructureCapture(int3 min, int3 size)
         {
@@ -28,19 +31,20 @@ namespace Game.Structures.Tests
             long volume = (long)size.x * size.y * size.z;
             if (volume > int.MaxValue)
                 throw new ArgumentOutOfRangeException(nameof(size), "Visual capture volume is too large.");
+
             _min = min;
             _size = size;
             _voxels = new byte[(int)volume];
+            _occupiedMin = min + size;
+            _occupiedMaxExclusive = min;
         }
 
         public bool BudgetExceeded => false;
         public int WriteBudget => int.MaxValue;
         public long TotalVoxelsWritten { get; private set; }
 
-        public byte Get(int x, int y, int z)
-        {
-            return TryIndex(x, y, z, out int index) ? _voxels[index] : GameMaterialIds.Empty;
-        }
+        public byte Get(int x, int y, int z) =>
+            TryIndex(x, y, z, out int index) ? _voxels[index] : GameMaterialIds.Empty;
 
         public byte GetCoating(int x, int y, int z) => Coatings.None;
         public bool IsSolid(int x, int y, int z) => Get(x, y, z) != GameMaterialIds.Empty;
@@ -49,8 +53,12 @@ namespace Game.Structures.Tests
         {
             if (!TryIndex(x, y, z, out int index)) return;
             byte previous = _voxels[index];
+            if (previous == material) return;
+
             _voxels[index] = material;
-            if (previous != material) TotalVoxelsWritten++;
+            TotalVoxelsWritten++;
+            if (material != GameMaterialIds.Empty)
+                IncludeSolid(x, y, z);
         }
 
         public void SetStyled(
@@ -79,6 +87,7 @@ namespace Game.Structures.Tests
             int ex = math.min(max.x, _min.x + _size.x);
             int ey = math.min(max.y, _min.y + _size.y);
             int ez = math.min(max.z, _min.z + _size.z);
+
             for (int y = sy; y < ey; y++)
             for (int z = sz; z < ez; z++)
             for (int x = sx; x < ex; x++)
@@ -209,8 +218,8 @@ namespace Game.Structures.Tests
 
         public void Arch(int3 min, int width, int height, int depth, int depthAxis, byte material)
         {
-            // Visual capture preserves occupancy/order; shared structure openings generally carve
-            // through Box. For legacy Arch calls, approximate the bounded arch envelope.
+            // Legacy direct Arch calls are represented by their bounded envelope. Shared modern
+            // openings carve through Box, so their final occupancy is captured exactly.
             int3 size = depthAxis == 0
                 ? new int3(depth, height, width)
                 : new int3(width, height, depth);
@@ -248,8 +257,7 @@ namespace Game.Structures.Tests
 
         public void SpiralStair(int cx, int baseY, int cz, int radius, int height, byte material)
         {
-            int steps = math.max(1, height);
-            for (int i = 0; i < steps; i++)
+            for (int i = 0; i < math.max(1, height); i++)
             {
                 double angle = i * Math.PI / 4.0;
                 int x = cx + (int)Math.Round(Math.Cos(angle) * radius);
@@ -263,8 +271,11 @@ namespace Game.Structures.Tests
 
         public string RenderPng(string fileStem, int width = 1280, int height = 900)
         {
-            var faces = BuildFaces();
-            var projectedBounds = ComputeProjectedBounds();
+            if (!_hasSolid)
+                throw new InvalidOperationException("Cannot render an empty visual capture.");
+
+            List<Face> faces = BuildFaces();
+            Vector4 projectedBounds = ComputeProjectedBounds();
             const float margin = 28f;
             float scaleX = (width - margin * 2f) / math.max(1f, projectedBounds.z - projectedBounds.x);
             float scaleY = (height - margin * 2f) / math.max(1f, projectedBounds.w - projectedBounds.y);
@@ -277,17 +288,15 @@ namespace Game.Structures.Tests
             for (int i = 0; i < pixels.Length; i++) pixels[i] = background;
 
             faces.Sort((a, b) => a.Depth.CompareTo(b.Depth));
-            foreach (Face face in faces)
+            for (int i = 0; i < faces.Count; i++)
             {
-                var points = new Vector2[4];
-                for (int i = 0; i < 4; i++)
-                {
-                    Vector2 p = Project(face.Vertices[i]);
-                    points[i] = new Vector2(
-                        p.x * scale + offsetX,
-                        height - (p.y * scale + offsetY));
-                }
-                FillQuad(pixels, width, height, points, face.Color);
+                Face face = faces[i];
+                Vector2 a = Screen(face.A, scale, offsetX, offsetY, height);
+                Vector2 b = Screen(face.B, scale, offsetX, offsetY, height);
+                Vector2 c = Screen(face.C, scale, offsetX, offsetY, height);
+                Vector2 d = Screen(face.D, scale, offsetX, offsetY, height);
+                FillTriangle(pixels, width, height, a, b, c, face.Color);
+                FillTriangle(pixels, width, height, a, c, d, face.Color);
             }
 
             var texture = new Texture2D(width, height, TextureFormat.RGBA32, false, true);
@@ -296,23 +305,21 @@ namespace Game.Structures.Tests
             byte[] png = texture.EncodeToPNG();
             UnityEngine.Object.DestroyImmediate(texture);
 
-            string directory = Path.Combine(Directory.GetCurrentDirectory(), "TestResults", "WorldbuildingVisuals");
+            string directory = Path.Combine(
+                Directory.GetCurrentDirectory(), "TestResults", "WorldbuildingVisuals");
             Directory.CreateDirectory(directory);
             string path = Path.Combine(directory, fileStem + ".png");
             File.WriteAllBytes(path, png);
-            TestContext.Progress.WriteLine($"Worldbuilding visual: {path}");
+            TestContext.WriteLine($"Worldbuilding visual: {path}");
             return path;
         }
 
         private List<Face> BuildFaces()
         {
             var faces = new List<Face>(65536);
-            int maxX = _min.x + _size.x;
-            int maxY = _min.y + _size.y;
-            int maxZ = _min.z + _size.z;
-            for (int y = _min.y; y < maxY; y++)
-            for (int z = _min.z; z < maxZ; z++)
-            for (int x = _min.x; x < maxX; x++)
+            for (int y = _occupiedMin.y; y < _occupiedMaxExclusive.y; y++)
+            for (int z = _occupiedMin.z; z < _occupiedMaxExclusive.z; z++)
+            for (int x = _occupiedMin.x; x < _occupiedMaxExclusive.x; x++)
             {
                 byte material = Get(x, y, z);
                 if (material == GameMaterialIds.Empty) continue;
@@ -330,25 +337,42 @@ namespace Game.Structures.Tests
 
         private Vector4 ComputeProjectedBounds()
         {
+            int3 min = _occupiedMin;
+            int3 max = _occupiedMaxExclusive;
             float minX = float.MaxValue;
             float minY = float.MaxValue;
             float maxX = float.MinValue;
             float maxY = float.MinValue;
-            int3 max = _min + _size;
-            int[] xs = { _min.x, max.x };
-            int[] ys = { _min.y, max.y };
-            int[] zs = { _min.z, max.z };
-            foreach (int x in xs)
-            foreach (int y in ys)
-            foreach (int z in zs)
-            {
-                Vector2 p = Project(new Vector3(x, y, z));
-                minX = math.min(minX, p.x);
-                minY = math.min(minY, p.y);
-                maxX = math.max(maxX, p.x);
-                maxY = math.max(maxY, p.y);
-            }
+
+            IncludeProjection(min.x, min.y, min.z, ref minX, ref minY, ref maxX, ref maxY);
+            IncludeProjection(max.x, min.y, min.z, ref minX, ref minY, ref maxX, ref maxY);
+            IncludeProjection(min.x, max.y, min.z, ref minX, ref minY, ref maxX, ref maxY);
+            IncludeProjection(max.x, max.y, min.z, ref minX, ref minY, ref maxX, ref maxY);
+            IncludeProjection(min.x, min.y, max.z, ref minX, ref minY, ref maxX, ref maxY);
+            IncludeProjection(max.x, min.y, max.z, ref minX, ref minY, ref maxX, ref maxY);
+            IncludeProjection(min.x, max.y, max.z, ref minX, ref minY, ref maxX, ref maxY);
+            IncludeProjection(max.x, max.y, max.z, ref minX, ref minY, ref maxX, ref maxY);
             return new Vector4(minX, minY, maxX, maxY);
+        }
+
+        private static void IncludeProjection(
+            int x, int y, int z,
+            ref float minX, ref float minY, ref float maxX, ref float maxY)
+        {
+            Vector2 p = Project(new Vector3(x, y, z));
+            minX = math.min(minX, p.x);
+            minY = math.min(minY, p.y);
+            maxX = math.max(maxX, p.x);
+            maxY = math.max(maxY, p.y);
+        }
+
+        private static Vector2 Screen(
+            Vector3 world, float scale, float offsetX, float offsetY, int imageHeight)
+        {
+            Vector2 p = Project(world);
+            return new Vector2(
+                p.x * scale + offsetX,
+                imageHeight - (p.y * scale + offsetY));
         }
 
         private static Vector2 Project(Vector3 p)
@@ -359,53 +383,69 @@ namespace Game.Structures.Tests
 
         private static Color32 MaterialColor(byte material)
         {
-            uint h = (uint)(material * 2654435761u);
+            uint h = material * 2654435761u;
             byte r = (byte)(96 + ((h >> 16) & 95));
             byte g = (byte)(96 + ((h >> 8) & 95));
             byte b = (byte)(96 + (h & 95));
             return new Color32(r, g, b, 255);
         }
 
-        private static Color32 Shade(Color32 c, float factor)
-        {
-            return new Color32(
-                (byte)math.clamp((int)(c.r * factor), 0, 255),
-                (byte)math.clamp((int)(c.g * factor), 0, 255),
-                (byte)math.clamp((int)(c.b * factor), 0, 255),
-                255);
-        }
+        private static Color32 Shade(Color32 c, float factor) => new Color32(
+            (byte)math.clamp((int)(c.r * factor), 0, 255),
+            (byte)math.clamp((int)(c.g * factor), 0, 255),
+            (byte)math.clamp((int)(c.b * factor), 0, 255),
+            255);
 
-        private static void FillQuad(
+        private static void FillTriangle(
             Color32[] pixels,
             int width,
             int height,
-            Vector2[] p,
+            Vector2 a,
+            Vector2 b,
+            Vector2 c,
             Color32 color)
         {
-            float minY = math.min(math.min(p[0].y, p[1].y), math.min(p[2].y, p[3].y));
-            float maxY = math.max(math.max(p[0].y, p[1].y), math.max(p[2].y, p[3].y));
-            int y0 = math.clamp((int)Math.Floor(minY), 0, height - 1);
-            int y1 = math.clamp((int)Math.Ceiling(maxY), 0, height - 1);
-            for (int y = y0; y <= y1; y++)
+            float area = Edge(a, b, c);
+            if (math.abs(area) < 0.0001f) return;
+
+            int minX = math.clamp((int)Math.Floor(math.min(a.x, math.min(b.x, c.x))), 0, width - 1);
+            int maxX = math.clamp((int)Math.Ceiling(math.max(a.x, math.max(b.x, c.x))), 0, width - 1);
+            int minY = math.clamp((int)Math.Floor(math.min(a.y, math.min(b.y, c.y))), 0, height - 1);
+            int maxY = math.clamp((int)Math.Ceiling(math.max(a.y, math.max(b.y, c.y))), 0, height - 1);
+            bool positive = area > 0f;
+
+            for (int y = minY; y <= maxY; y++)
             {
-                var intersections = new List<float>(4);
-                for (int i = 0; i < 4; i++)
-                {
-                    Vector2 a = p[i];
-                    Vector2 b = p[(i + 1) & 3];
-                    if ((a.y <= y && b.y > y) || (b.y <= y && a.y > y))
-                    {
-                        float t = (y - a.y) / (b.y - a.y);
-                        intersections.Add(a.x + (b.x - a.x) * t);
-                    }
-                }
-                if (intersections.Count < 2) continue;
-                intersections.Sort();
-                int x0 = math.clamp((int)Math.Floor(intersections[0]), 0, width - 1);
-                int x1 = math.clamp((int)Math.Ceiling(intersections[intersections.Count - 1]), 0, width - 1);
                 int row = y * width;
-                for (int x = x0; x <= x1; x++) pixels[row + x] = color;
+                for (int x = minX; x <= maxX; x++)
+                {
+                    var p = new Vector2(x + 0.5f, y + 0.5f);
+                    float e0 = Edge(a, b, p);
+                    float e1 = Edge(b, c, p);
+                    float e2 = Edge(c, a, p);
+                    if (positive
+                        ? e0 >= 0f && e1 >= 0f && e2 >= 0f
+                        : e0 <= 0f && e1 <= 0f && e2 <= 0f)
+                        pixels[row + x] = color;
+                }
             }
+        }
+
+        private static float Edge(Vector2 a, Vector2 b, Vector2 p) =>
+            (p.x - a.x) * (b.y - a.y) - (p.y - a.y) * (b.x - a.x);
+
+        private void IncludeSolid(int x, int y, int z)
+        {
+            var p = new int3(x, y, z);
+            if (!_hasSolid)
+            {
+                _hasSolid = true;
+                _occupiedMin = p;
+                _occupiedMaxExclusive = p + 1;
+                return;
+            }
+            _occupiedMin = math.min(_occupiedMin, p);
+            _occupiedMaxExclusive = math.max(_occupiedMaxExclusive, p + 1);
         }
 
         private bool TryIndex(int x, int y, int z, out int index)
@@ -413,7 +453,9 @@ namespace Game.Structures.Tests
             int lx = x - _min.x;
             int ly = y - _min.y;
             int lz = z - _min.z;
-            if ((uint)lx >= (uint)_size.x || (uint)ly >= (uint)_size.y || (uint)lz >= (uint)_size.z)
+            if ((uint)lx >= (uint)_size.x ||
+                (uint)ly >= (uint)_size.y ||
+                (uint)lz >= (uint)_size.z)
             {
                 index = -1;
                 return false;
@@ -424,37 +466,48 @@ namespace Game.Structures.Tests
 
         private readonly struct Face
         {
-            public readonly Vector3[] Vertices;
+            public readonly Vector3 A;
+            public readonly Vector3 B;
+            public readonly Vector3 C;
+            public readonly Vector3 D;
             public readonly float Depth;
             public readonly Color32 Color;
 
-            private Face(Vector3[] vertices, float depth, Color32 color)
+            private Face(
+                Vector3 a, Vector3 b, Vector3 c, Vector3 d,
+                float depth, Color32 color)
             {
-                Vertices = vertices;
+                A = a;
+                B = b;
+                C = c;
+                D = d;
                 Depth = depth;
                 Color = color;
             }
 
             public static Face Top(int x, int y, int z, Color32 color) => new Face(
-                new[]
-                {
-                    new Vector3(x, y + 1, z), new Vector3(x + 1, y + 1, z),
-                    new Vector3(x + 1, y + 1, z + 1), new Vector3(x, y + 1, z + 1),
-                }, x - z + y + 0.75f, color);
+                new Vector3(x, y + 1, z),
+                new Vector3(x + 1, y + 1, z),
+                new Vector3(x + 1, y + 1, z + 1),
+                new Vector3(x, y + 1, z + 1),
+                x - z + y + 0.75f,
+                color);
 
             public static Face Right(int x, int y, int z, Color32 color) => new Face(
-                new[]
-                {
-                    new Vector3(x + 1, y, z), new Vector3(x + 1, y + 1, z),
-                    new Vector3(x + 1, y + 1, z + 1), new Vector3(x + 1, y, z + 1),
-                }, x - z + y + 0.5f, color);
+                new Vector3(x + 1, y, z),
+                new Vector3(x + 1, y + 1, z),
+                new Vector3(x + 1, y + 1, z + 1),
+                new Vector3(x + 1, y, z + 1),
+                x - z + y + 0.50f,
+                color);
 
             public static Face Left(int x, int y, int z, Color32 color) => new Face(
-                new[]
-                {
-                    new Vector3(x, y, z), new Vector3(x, y + 1, z),
-                    new Vector3(x + 1, y + 1, z), new Vector3(x + 1, y, z),
-                }, x - z + y + 0.25f, color);
+                new Vector3(x, y, z),
+                new Vector3(x, y + 1, z),
+                new Vector3(x + 1, y + 1, z),
+                new Vector3(x + 1, y, z),
+                x - z + y + 0.25f,
+                color);
         }
     }
 }
