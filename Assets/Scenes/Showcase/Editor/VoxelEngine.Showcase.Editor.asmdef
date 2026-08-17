@@ -1,0 +1,21 @@
+{
+    "name": "VoxelEngine.Showcase.Editor",
+    "rootNamespace": "VoxelEngine.Showcase.Editor",
+    "references": [
+        "VoxelEngine.Showcase",
+        "Game.Composition.Showcase",
+        "Game.Composition.Materials",
+        "VoxelEngine.Composition",
+        "VoxelEngine.Tiering.Api"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
