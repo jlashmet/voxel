@@ -101,6 +101,106 @@ def _load_subject_image(path: Path) -> ImageInfo:
     return info
 
 
+def _copy_rgba(
+    pixels: list[float],
+    width: int,
+    dst_x: int,
+    dst_y: int,
+    src_x: int,
+    src_y: int,
+) -> None:
+    dst = (dst_y * width + dst_x) * 4
+    src = (src_y * width + src_x) * 4
+    pixels[dst : dst + 4] = pixels[src : src + 4]
+
+
+def _edge_padded_pixels(source: ImageInfo) -> tuple[list[float], int]:
+    """Fill turnaround canvas with nearest local silhouette edge colors.
+
+    UV vertices are constrained to detected foreground, but the interior of a UV
+    triangle is linearly interpolated. When a triangle bridges an irregular hand,
+    hair, or leg silhouette, that interpolation can still cross the neutral canvas
+    and render a large gray/white polygon patch. Build a deterministic padded copy
+    for sampling while retaining the original foreground mask for projection checks.
+
+    Rows containing subject pixels are filled horizontally from the nearest run edge.
+    Completely empty rows then copy the nearest already-padded subject row. This is
+    intentionally a texture-sampling safety margin, not a change to the approved
+    source image or its subject mask.
+    """
+
+    width = source.width
+    height = source.height
+    padded = list(source.image.pixels[:])
+    valid_rows: list[int] = []
+    padded_pixels = 0
+
+    for y, runs in enumerate(source.foreground_runs):
+        if not runs:
+            continue
+        valid_rows.append(y)
+
+        first_start = runs[0][0]
+        for x in range(0, first_start):
+            _copy_rgba(padded, width, x, y, first_start, y)
+            padded_pixels += 1
+
+        for index in range(len(runs) - 1):
+            left_end = runs[index][1]
+            right_start = runs[index + 1][0]
+            gap_start = left_end + 1
+            gap_end = right_start - 1
+            if gap_start > gap_end:
+                continue
+            midpoint = (left_end + right_start) * 0.5
+            for x in range(gap_start, gap_end + 1):
+                source_x = left_end if x <= midpoint else right_start
+                _copy_rgba(padded, width, x, y, source_x, y)
+                padded_pixels += 1
+
+        last_end = runs[-1][1]
+        for x in range(last_end + 1, width):
+            _copy_rgba(padded, width, x, y, last_end, y)
+            padded_pixels += 1
+
+    if not valid_rows:
+        raise RuntimeError("cannot edge-pad a multiview source without foreground rows")
+
+    nearest_above: list[int | None] = [None] * height
+    nearest_below: list[int | None] = [None] * height
+    last_valid: int | None = None
+    for y in range(height):
+        if source.foreground_runs[y]:
+            last_valid = y
+        nearest_above[y] = last_valid
+    last_valid = None
+    for y in range(height - 1, -1, -1):
+        if source.foreground_runs[y]:
+            last_valid = y
+        nearest_below[y] = last_valid
+
+    row_width = width * 4
+    for y, runs in enumerate(source.foreground_runs):
+        if runs:
+            continue
+        above = nearest_above[y]
+        below = nearest_below[y]
+        if above is None:
+            source_y = below
+        elif below is None:
+            source_y = above
+        else:
+            source_y = above if y - above <= below - y else below
+        if source_y is None:
+            raise RuntimeError("failed to locate a neighboring subject row for atlas padding")
+        dst = y * row_width
+        src = source_y * row_width
+        padded[dst : dst + row_width] = padded[src : src + row_width]
+        padded_pixels += width
+
+    return padded, padded_pixels
+
+
 def _atlas_image(sources: dict[str, ImageInfo], output: Path) -> bpy.types.Image:
     tile = 512
     atlas_size = tile * 2
@@ -120,10 +220,17 @@ def _atlas_image(sources: dict[str, ImageInfo], output: Path) -> bpy.types.Image
     }
 
     for name, source in sources.items():
-        image = source.image
-        if int(image.size[0]) != tile or int(image.size[1]) != tile:
-            image.scale(tile, tile)
-        pixels = image.pixels[:]
+        padded_pixels, padded_count = _edge_padded_pixels(source)
+        padded_image = bpy.data.images.new(
+            f"CharacterFactoryMultiviewPadded_{name}",
+            width=source.width,
+            height=source.height,
+            alpha=True,
+        )
+        padded_image.pixels[:] = padded_pixels
+        if source.width != tile or source.height != tile:
+            padded_image.scale(tile, tile)
+        pixels = padded_image.pixels[:]
         ox, oy = placements[name]
         for y in range(tile):
             src_row = y * tile * 4
@@ -131,6 +238,10 @@ def _atlas_image(sources: dict[str, ImageInfo], output: Path) -> bpy.types.Image
             target[dst_row : dst_row + tile * 4] = pixels[
                 src_row : src_row + tile * 4
             ]
+        print(
+            f"multiview atlas padding: view={name} paddedPixels={padded_count}",
+            flush=True,
+        )
 
     atlas.pixels[:] = target
     atlas.filepath_raw = str(output.resolve())
