@@ -1,0 +1,36 @@
+name: Apply hierarchical coverage follow-up
+
+on:
+  push:
+    branches:
+      - feature/renderer-lod-hole-regression
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply follow-up source patch
+        run: python3 tools/apply-hierarchy-followup.py
+      - name: Commit follow-up
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
+          git add Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs
+          git add Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/SurfaceLodActiveCoverage.cs
+          git add Assets/Tests/EditMode/GeometryPipelineArchitectureTests.cs
+          git add docs/GPU_VOXEL_RENDERER_MIGRATION_PLAN.md
+          git commit -m "Protect hierarchical LOD fallback coverage"
+          git push origin HEAD:${GITHUB_REF_NAME}
