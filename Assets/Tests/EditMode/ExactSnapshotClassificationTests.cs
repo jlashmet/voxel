@@ -13,61 +13,81 @@ namespace VoxelEngine.Tests.EditMode
         [Test]
         public void OffLatticeSolidInsideOwnedCoreSetsOwnedSolidFlag()
         {
-            using var bricks = new NativeArray<TransvoxelDensityBrick>(
+            var bricks = new NativeArray<TransvoxelDensityBrick>(
                 BrickEdge * BrickEdge * BrickEdge, Allocator.Temp,
                 NativeArrayOptions.ClearMemory);
-            using var voxels = new NativeArray<byte>(512, Allocator.Temp,
+            var voxels = new NativeArray<byte>(512, Allocator.Temp,
                 NativeArrayOptions.ClearMemory);
-            using var surfaces = new NativeArray<ushort>(512, Allocator.Temp,
+            var surfaces = new NativeArray<ushort>(512, Allocator.Temp,
                 NativeArrayOptions.ClearMemory);
-            using var boundaries = new NativeArray<byte>(512, Allocator.Temp,
+            var boundaries = new NativeArray<byte>(512, Allocator.Temp,
                 NativeArrayOptions.ClearMemory);
-            using var flags = new NativeArray<byte>(2, Allocator.Temp,
+            var flags = new NativeArray<byte>(2, Allocator.Temp,
                 NativeArrayOptions.ClearMemory);
-
-            bricks[CoreBrickIndex] = new TransvoxelDensityBrick
+            try
             {
-                Kind = 2,
-                MixedOffset = 0,
-            };
-            // This voxel is deliberately between every four-voxel step-4 lattice sample.
-            // Exact ownership classification must still see it because routing is based on the
-            // immutable core payload, not on the later geometry sampling lattice.
-            voxels[OffLatticeVoxelIndex] = 7;
+                bricks[CoreBrickIndex] = new TransvoxelDensityBrick
+                {
+                    Kind = 2,
+                    MixedOffset = 0,
+                };
+                // This voxel is deliberately between every four-voxel step-4 lattice sample.
+                // Exact ownership classification must still see it because routing is based on the
+                // immutable core payload, not on the later geometry sampling lattice.
+                voxels[OffLatticeVoxelIndex] = 7;
 
-            RunClassification(bricks, voxels, surfaces, boundaries, flags);
+                RunClassification(bricks, voxels, surfaces, boundaries, flags);
 
-            Assert.AreEqual(1, flags[0],
-                "An off-lattice solid inside the owned core was lost before step-4 geometry.");
+                Assert.AreEqual(1, flags[0],
+                    "An off-lattice solid inside the owned core was lost before step-4 geometry.");
+            }
+            finally
+            {
+                flags.Dispose();
+                boundaries.Dispose();
+                surfaces.Dispose();
+                voxels.Dispose();
+                bricks.Dispose();
+            }
         }
 
         [Test]
         public void OffLatticeSolidInPaddingHaloDoesNotClaimCoreOwnership()
         {
-            using var bricks = new NativeArray<TransvoxelDensityBrick>(
+            var bricks = new NativeArray<TransvoxelDensityBrick>(
                 BrickEdge * BrickEdge * BrickEdge, Allocator.Temp,
                 NativeArrayOptions.ClearMemory);
-            using var voxels = new NativeArray<byte>(512, Allocator.Temp,
+            var voxels = new NativeArray<byte>(512, Allocator.Temp,
                 NativeArrayOptions.ClearMemory);
-            using var surfaces = new NativeArray<ushort>(512, Allocator.Temp,
+            var surfaces = new NativeArray<ushort>(512, Allocator.Temp,
                 NativeArrayOptions.ClearMemory);
-            using var boundaries = new NativeArray<byte>(512, Allocator.Temp,
+            var boundaries = new NativeArray<byte>(512, Allocator.Temp,
                 NativeArrayOptions.ClearMemory);
-            using var flags = new NativeArray<byte>(2, Allocator.Temp,
+            var flags = new NativeArray<byte>(2, Allocator.Temp,
                 NativeArrayOptions.ClearMemory);
-
-            // Index zero is padding in all three axes for a one-brick core with one-brick halo.
-            bricks[0] = new TransvoxelDensityBrick
+            try
             {
-                Kind = 2,
-                MixedOffset = 0,
-            };
-            voxels[OffLatticeVoxelIndex] = 7;
+                // Index zero is padding in all three axes for a one-brick core with one-brick halo.
+                bricks[0] = new TransvoxelDensityBrick
+                {
+                    Kind = 2,
+                    MixedOffset = 0,
+                };
+                voxels[OffLatticeVoxelIndex] = 7;
 
-            RunClassification(bricks, voxels, surfaces, boundaries, flags);
+                RunClassification(bricks, voxels, surfaces, boundaries, flags);
 
-            Assert.AreEqual(0, flags[0],
-                "A halo-only solid incorrectly claimed geometry ownership for the core chunk.");
+                Assert.AreEqual(0, flags[0],
+                    "A halo-only solid incorrectly claimed geometry ownership for the core chunk.");
+            }
+            finally
+            {
+                flags.Dispose();
+                boundaries.Dispose();
+                surfaces.Dispose();
+                voxels.Dispose();
+                bricks.Dispose();
+            }
         }
 
         private static void RunClassification(
