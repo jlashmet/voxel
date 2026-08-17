@@ -15,6 +15,31 @@ namespace Game.Structures.Runtime
 
     public static class DecorationClutterPresentation
     {
+        public static DecorationClutterInstance[] FilterByDistance(
+            DecorationClutterInstance[] items,
+            float distanceVoxels)
+        {
+            if (items == null || distanceVoxels < 0f ||
+                distanceVoxels > DecorationDetailPolicy.ClutterDistanceVoxels)
+                return new DecorationClutterInstance[0];
+
+            var kept = new DecorationClutterInstance[items.Length];
+            int count = 0;
+            for (int i = 0; i < items.Length; i++)
+            {
+                if (!items[i].IsWellFormed)
+                    continue;
+                kept[count++] = items[i];
+            }
+
+            if (count == kept.Length)
+                return kept;
+            var compact = new DecorationClutterInstance[count];
+            for (int i = 0; i < count; i++)
+                compact[i] = kept[i];
+            return compact;
+        }
+
         public static DecorationClutterMeshRequest[] CollectMeshRequests(
             DecorationClutterInstance[] items)
         {
