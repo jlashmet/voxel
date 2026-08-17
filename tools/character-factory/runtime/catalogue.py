@@ -8,11 +8,13 @@ import re
 from typing import Iterable, Mapping
 
 from api import AssetType, BuildSpec, CharacterFactoryError
+from runtime.preprocess import declared_preprocess_steps
 from runtime.production import discover_specs
 
 
 CHANGE_KINDS = frozenset({"new", "spec", "geometry", "appearance", "details"})
 _TAG = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+_TOOL_ROOT = Path(__file__).resolve().parents[1]
 
 
 @dataclass(frozen=True)
@@ -41,6 +43,52 @@ def _file_digest(path: Path) -> str | None:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _json_digest(value: object) -> str:
+    serialized = json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(serialized).hexdigest()
+
+
+def _path_state(path: Path) -> dict[str, object]:
+    resolved = path.resolve()
+    if resolved.is_file():
+        return {
+            "kind": "file",
+            "sha256": _file_digest(resolved),
+        }
+    if resolved.is_dir():
+        files = [candidate for candidate in resolved.rglob("*") if candidate.is_file()]
+        entries = [
+            {
+                "path": candidate.relative_to(resolved).as_posix(),
+                "sha256": _file_digest(candidate),
+            }
+            for candidate in sorted(files)
+        ]
+        return {
+            "kind": "directory",
+            "sha256": _json_digest(entries),
+            "fileCount": len(entries),
+        }
+    return {
+        "kind": "missing",
+        "sha256": None,
+    }
+
+
+def _stable_path_label(path: Path, spec_dir: Path) -> str:
+    resolved = path.resolve()
+    for prefix, root in (("spec", spec_dir.resolve()), ("tool", _TOOL_ROOT.resolve())):
+        try:
+            return f"{prefix}:{resolved.relative_to(root).as_posix()}"
+        except ValueError:
+            pass
+    return str(resolved)
 
 
 def _geometry_detail_names(spec: BuildSpec) -> tuple[str, ...]:
@@ -73,11 +121,47 @@ def _reference_hashes(spec: BuildSpec) -> dict[str, object]:
     }
 
 
+def _preprocess_hashes(entry: CatalogueEntry) -> list[dict[str, object]]:
+    payload = json.loads(entry.spec_path.read_text(encoding="utf-8"))
+    raw_steps = payload.get("preprocess", []) if isinstance(payload, dict) else []
+    steps = declared_preprocess_steps(entry.spec_path, _TOOL_ROOT)
+    if not isinstance(raw_steps, list):
+        # The preprocessing resolver supplies the user-facing validation error; this
+        # branch only keeps static type expectations explicit.
+        raw_steps = []
+
+    produced: set[Path] = set()
+    result: list[dict[str, object]] = []
+    for index, step in enumerate(steps):
+        # Intermediate outputs are derived state, not catalogue source inputs. If
+        # they are present after a prior production run (or absent in a clean
+        # checkout) that must not make the asset appear changed. The upstream
+        # source inputs and every preprocessing implementation script are hashed.
+        source_inputs = [path for path in step.inputs if path.resolve() not in produced]
+        inputs = {
+            _stable_path_label(path, entry.spec_path.parent): _path_state(path)
+            for path in source_inputs
+        }
+        raw = raw_steps[index] if index < len(raw_steps) else {}
+        result.append(
+            {
+                "strategy": step.strategy,
+                "pythonProfile": step.python_profile,
+                "affects": sorted(step.affects),
+                "definitionSha256": _json_digest(raw),
+                "inputs": inputs,
+            }
+        )
+        produced.update(path.resolve() for path in step.outputs)
+    return result
+
+
 def _entry_input_state(entry: CatalogueEntry) -> dict[str, object]:
     return {
         "specSha256": _file_digest(entry.spec_path),
         "referenceHashes": _reference_hashes(entry.spec),
         "geometryDetailNames": list(_geometry_detail_names(entry.spec)),
+        "preprocessHashes": _preprocess_hashes(entry),
     }
 
 
@@ -245,6 +329,41 @@ def load_catalogue(path: Path) -> dict[str, object]:
     return payload
 
 
+def _preprocess_affects(raw: object) -> set[str]:
+    if not isinstance(raw, Mapping):
+        return set()
+    affects = raw.get("affects")
+    if not isinstance(affects, list):
+        return set()
+    return {str(value) for value in affects if str(value) in CHANGE_KINDS}
+
+
+def _classify_preprocess_changes(
+    current: object,
+    previous: object,
+) -> set[str]:
+    current_steps = current if isinstance(current, list) else []
+    previous_steps = previous if isinstance(previous, list) else []
+    if current_steps == previous_steps:
+        return set()
+
+    kinds: set[str] = set()
+    count = max(len(current_steps), len(previous_steps))
+    for index in range(count):
+        current_step = current_steps[index] if index < len(current_steps) else None
+        previous_step = previous_steps[index] if index < len(previous_steps) else None
+        if current_step == previous_step:
+            continue
+        affects = _preprocess_affects(current_step) | _preprocess_affects(previous_step)
+        if affects:
+            kinds.update(affects)
+        else:
+            # A legacy catalogue without preprocessing metadata cannot tell which
+            # derived stage was affected. Rebuild conservatively rather than skip.
+            kinds.update({"geometry", "appearance", "details"})
+    return kinds
+
+
 def classify_changes(
     entries: Iterable[CatalogueEntry],
     previous_catalogue: Mapping[str, object],
@@ -315,6 +434,13 @@ def classify_changes(
                     for name in geometry_names
                 ):
                     kinds.add("geometry")
+
+        kinds.update(
+            _classify_preprocess_changes(
+                current_state.get("preprocessHashes"),
+                previous.get("preprocessHashes"),
+            )
+        )
 
         if kinds:
             changes.append(
@@ -417,6 +543,7 @@ def catalogue_payload(
                 ),
                 "geometryDetailNames": input_state["geometryDetailNames"],
                 "referenceHashes": input_state["referenceHashes"],
+                "preprocessHashes": input_state["preprocessHashes"],
                 "latestArtifact": _latest_artifact_state(spec),
             }
         )
