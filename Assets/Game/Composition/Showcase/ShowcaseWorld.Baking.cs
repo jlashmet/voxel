@@ -1,0 +1,203 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using Unity.Mathematics;
+using VoxelEngine.Storage.Api;
+
+namespace VoxelEngine.Showcase
+{
+    public sealed partial class ShowcaseWorld
+    {
+        private const int BakeMaxRegionSnapshotBytes = 64 * 1024 * 1024;
+
+        /// <summary>
+        /// Produces the finished startup world synchronously for an editor/build-time baker.
+        /// Nothing in gameplay calls this path. Castle authoring and nearby terrain/features are
+        /// paid once, then captured as semantic storage snapshots for later sessions.
+        /// </summary>
+        public void GenerateForBakeBlocking(int startupRadiusRegions)
+        {
+            EnsureFreshForBake();
+            int radius = math.clamp(startupRadiusRegions, 0, LoadRadiusRegions);
+
+            // Queue the deterministic landmark footprint, then materialise every terrain region
+            // it can touch before authoring. This preserves the same ordering requirements as
+            // runtime generation without making a player watch those stages execute.
+            GenerateCastleOriginBlocking();
+            for (int i = 0; i < _castleRegions.Count; i++)
+                GenerateRegionBlocking(_castleRegions[i]);
+
+            int landmarkGuard = 0;
+            while (!_hasCastlePlan)
+            {
+                if (!StepLandmarks())
+                    throw new InvalidOperationException(
+                        "Showcase castle could not advance during offline baking.");
+                if (++landmarkGuard > 1_000_000)
+                    throw new InvalidOperationException(
+                        "Showcase castle exceeded the offline bake stage guard.");
+            }
+
+            // Bake a compact startup neighbourhood rather than the entire streaming radius. The
+            // castle is complete on the first gameplay frame and terrain around the player is
+            // already solid; ordinary streaming can fill the outer rings afterwards without a
+            // giant hundreds-of-megabytes startup asset.
+            int3 centre = RegionAt(SpawnPosition());
+            for (int dx = -radius; dx <= radius; dx++)
+            for (int dz = -radius; dz <= radius; dz++)
+            {
+                if (dx * dx + dz * dz > radius * radius) continue;
+
+                int rx = centre.x + dx;
+                int rz = centre.z + dz;
+                SurfaceLayerSpan(rx, rz, out int minLayer, out int maxLayer);
+                if (maxLayer - minLayer > MaxSurfaceLayersPerColumn)
+                    maxLayer = minLayer + MaxSurfaceLayersPerColumn;
+
+                for (int ry = minLayer; ry <= maxLayer; ry++)
+                    GenerateRegionBlocking(new int3(rx, ry, rz));
+
+                if (centre.y < minLayer || centre.y > maxLayer)
+                    GenerateRegionBlocking(new int3(rx, centre.y, rz));
+            }
+
+            if (_pendingFeatureRegions.Count != 0 || _featureBuild != null)
+                throw new InvalidOperationException(
+                    "Offline showcase bake ended with unfinished generic feature work.");
+        }
+
+        /// <summary>Captures every resident region produced by <see cref="GenerateForBakeBlocking"/>.</summary>
+        public ShowcaseWorldBake CaptureBake(int startupRadiusRegions)
+        {
+            if (!_hasCastlePlan || CastleVoxels <= 0)
+                throw new InvalidOperationException(
+                    "The showcase castle must be complete before a startup bake can be captured.");
+            if (_gen.Active || _pendingFeatureRegions.Count != 0 || _featureBuild != null)
+                throw new InvalidOperationException(
+                    "The showcase world still has generation work in flight and is not bake-stable.");
+
+            var coords = new List<int3>(_generated);
+            coords.Sort(CompareRegionCoords);
+            var regions = new List<ShowcaseWorldBakedRegion>(coords.Count);
+            IRegionSnapshotSource source = SnapshotStorage;
+
+            for (int i = 0; i < coords.Count; i++)
+            {
+                int3 coord = coords[i];
+                RegionSnapshotCaptureResult result = source.CaptureSemanticSnapshot(
+                    coord, BakeMaxRegionSnapshotBytes, out RegionSemanticSnapshot snapshot);
+                if (result != RegionSnapshotCaptureResult.Ok)
+                    throw new InvalidDataException(
+                        $"Could not capture baked region {coord}: {result}.");
+                regions.Add(new ShowcaseWorldBakedRegion(
+                    coord, snapshot.SemanticHash, snapshot.Bytes));
+            }
+
+            return new ShowcaseWorldBake(
+                Seed,
+                math.clamp(startupRadiusRegions, 0, LoadRadiusRegions),
+                CastleVoxels,
+                FeatureVoxelsBuilt,
+                FeatureInstancesBuilt,
+                ReferenceArchMin,
+                ReferenceArchMax,
+                regions);
+        }
+
+        /// <summary>
+        /// Restores a previously baked startup world into a fresh ShowcaseWorld. This is the only
+        /// startup path gameplay needs: no terrain generator or castle authoring session runs
+        /// before the player is spawned.
+        /// </summary>
+        public void LoadBake(ShowcaseWorldBake bake)
+        {
+            if (bake == null) throw new ArgumentNullException(nameof(bake));
+            EnsureFreshForBake();
+            if (bake.Seed != Seed)
+                throw new InvalidDataException(
+                    $"Showcase bake seed 0x{bake.Seed:X8} does not match scene seed 0x{Seed:X8}. Re-bake the world.");
+            if (bake.StartupRadiusRegions > LoadRadiusRegions)
+                throw new InvalidDataException(
+                    $"Showcase bake startup radius {bake.StartupRadiusRegions} exceeds runtime load radius {LoadRadiusRegions}.");
+
+            var seen = new HashSet<int3>();
+            for (int i = 0; i < bake.Regions.Count; i++)
+            {
+                ShowcaseWorldBakedRegion region = bake.Regions[i];
+                if (!seen.Add(region.Coord))
+                    throw new InvalidDataException(
+                        $"Showcase bake contains duplicate region {region.Coord}.");
+
+                _snapshotMutationStore.Refresh(in _table, in _pool);
+                if (!_snapshotMutationStore.TryApplySemanticSnapshot(
+                        region.Coord, region.Payload, region.SemanticHash, createIfMissing: true))
+                    throw new InvalidDataException(
+                        $"Storage rejected baked showcase region {region.Coord}. " +
+                        "The bake may be stale or the runtime BrickPool tier may be too small.");
+                _generated.Add(region.Coord);
+            }
+
+            // Recreate only cheap deterministic landmark metadata. The expensive authored voxel
+            // result is already in storage; marking the plan complete prevents StepStreaming from
+            // ever starting a castle build for this session.
+            QueueLandmarks();
+            if (!_castleTerrainQueued)
+                throw new InvalidDataException("Could not reconstruct showcase castle metadata.");
+            for (int i = 0; i < _castleRegions.Count; i++)
+                if (!_generated.Contains(_castleRegions[i]))
+                    throw new InvalidDataException(
+                        $"Showcase bake is missing required castle region {_castleRegions[i]}.");
+
+            _castlePlan = _pendingCastlePlan;
+            _hasCastlePlan = true;
+            _castleBuild = null;
+            _castleTrapdoorOpen = false;
+            _castleFrontGateOpen = false;
+            _deferredFeatureRegions.Clear();
+            _pendingFeatureRegions.Clear();
+            _featureBuild = null;
+
+            CastleVoxels = bake.CastleVoxels;
+            FeatureVoxelsBuilt = bake.FeatureVoxels;
+            FeatureInstancesBuilt = bake.FeatureInstances;
+            ReferenceArchMin = bake.ReferenceArchMin;
+            ReferenceArchMax = bake.ReferenceArchMax;
+            RegionsGenerated = _generated.Count;
+            RegionsEvicted = 0;
+            LastGenerateMs = 0;
+            LastFeatureMs = 0;
+            LastCastleStage = 0;
+            LastCastleStageMs = 0;
+            MaxCastleStage = 0;
+            MaxCastleStageMs = 0;
+            BuildCastlePresentationLights(in _castlePlan);
+
+            // Rebuild presentation metadata and publish one current-state notification per region
+            // after all snapshots exist. Consumers never observe a half-restored castle.
+            foreach (int3 coord in _generated)
+            {
+                CaptureFarField(coord);
+                _changes.PublishRegion(coord, VoxelChangeKind.All);
+            }
+        }
+
+        private void EnsureFreshForBake()
+        {
+            if (_generated.Count != 0 || _gen.Active || RegionsGenerated != 0
+                || _pendingLoads.Count != 0 || _pendingFeatureRegions.Count != 0
+                || _featureBuild != null || _castleBuild != null || _castleTerrainQueued
+                || _hasCastlePlan)
+                throw new InvalidOperationException(
+                    "Showcase baking/loading requires a fresh ShowcaseWorld instance.");
+        }
+
+        private static int CompareRegionCoords(int3 a, int3 b)
+        {
+            int y = a.y.CompareTo(b.y);
+            if (y != 0) return y;
+            int z = a.z.CompareTo(b.z);
+            if (z != 0) return z;
+            return a.x.CompareTo(b.x);
+        }
+    }
+}
