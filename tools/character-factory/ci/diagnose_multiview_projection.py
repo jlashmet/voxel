@@ -49,7 +49,7 @@ def parse_args() -> argparse.Namespace:
         "--outer-span-fraction",
         type=float,
         default=0.45,
-        help="Flag side-view projection beyond this normalized half-span on world X.",
+        help="Redirect side-view projection beyond this normalized half-span on world X.",
     )
     return parser.parse_args(argv[argv.index("--") + 1 :])
 
@@ -71,14 +71,7 @@ def _nearest_foreground_distance(
     u: float,
     v: float,
 ) -> tuple[float, int, int, bool]:
-    """Return the true nearest foreground run in image-space Euclidean distance.
-
-    The historical projector stopped at the first *row* containing any foreground.
-    That is not a nearest-neighbor search: a point beside a hand could jump hundreds
-    of pixels sideways to the upper arm even when the hand is only a few rows away.
-    Keep expanding rows until their unavoidable vertical distance can no longer beat
-    the best 2D candidate found so far.
-    """
+    """Return the true nearest foreground run in image-space Euclidean distance."""
 
     width = source.width
     height = source.height
@@ -109,9 +102,6 @@ def _nearest_foreground_distance(
                 if y == target_y and safe_start <= target_x <= safe_end:
                     return 0.0, target_x, target_y, True
 
-        # Every unvisited row is at least radius+1 pixels away vertically. Once the
-        # current radius alone equals/exceeds the best full 2D distance, no later row
-        # can improve the answer.
         if best is not None and float(radius * radius) >= best[0]:
             break
 
@@ -119,6 +109,29 @@ def _nearest_foreground_distance(
         return math.inf, target_x, target_y, False
     distance_sq, x, y = best
     return math.sqrt(distance_sq), x, y, False
+
+
+def _redirect_outer_side_view(
+    view: str,
+    normal: Vector,
+    centroid: Vector,
+    center: Vector,
+    x_half_span: float,
+    outer_span_fraction: float,
+) -> tuple[str, bool, float]:
+    outer_span = abs(float(centroid.x - center.x)) / max(x_half_span, 1e-8)
+    if view not in {"left", "right"} or outer_span < outer_span_fraction:
+        return view, False, outer_span
+
+    # A side orthographic projection drops world X, which is the length axis of the
+    # T-pose arms. Redirect those outer polygons to the front/back image matching
+    # their local circumference so arm texture continues along X instead of collapsing
+    # into the side profile's narrow shoulder/hand slice.
+    if abs(float(normal.y)) >= 0.05:
+        redirected = "front" if normal.y <= 0.0 else "back"
+    else:
+        redirected = "front" if centroid.y <= center.y else "back"
+    return redirected, True, outer_span
 
 
 def _point_tuple(point: Vector) -> list[float]:
@@ -156,14 +169,14 @@ def main() -> int:
             "largeSnapLoops": 0,
             "maxSnapPixels": 0.0,
             "snapPixelsTotal": 0.0,
-            "outerSpanSidePolygons": 0,
         }
         for name in sources
     }
     snap_distances: list[float] = []
     large_samples: list[dict[str, object]] = []
-    side_outer_samples: list[dict[str, object]] = []
+    outer_redirect_samples: list[dict[str, object]] = []
     normal_transform_disagreements = 0
+    outer_side_redirected_polygons = 0
     polygon_count = 0
     loop_count = 0
 
@@ -180,31 +193,38 @@ def main() -> int:
                 direct_normal.normalize()
             if correct_normal.length_squared > 0.0:
                 correct_normal.normalize()
-            view = _projection_for_normal(direct_normal)
-            correct_view = _projection_for_normal(correct_normal)
-            if view != correct_view:
+            direct_view = _projection_for_normal(direct_normal)
+            preferred_view = _projection_for_normal(correct_normal)
+            if direct_view != preferred_view:
                 normal_transform_disagreements += 1
+
+            centroid = world_matrix @ polygon.center
+            view, redirected, outer_span = _redirect_outer_side_view(
+                preferred_view,
+                correct_normal,
+                centroid,
+                center,
+                x_half_span,
+                args.outer_span_fraction,
+            )
+            if redirected:
+                outer_side_redirected_polygons += 1
+                if len(outer_redirect_samples) < max(0, args.sample_limit):
+                    outer_redirect_samples.append(
+                        {
+                            "mesh": mesh.name,
+                            "polygon": int(polygon.index),
+                            "fromView": preferred_view,
+                            "toView": view,
+                            "outerSpan": round(outer_span, 6),
+                            "centroidWorld": _point_tuple(centroid),
+                            "normalWorld": _point_tuple(correct_normal),
+                        }
+                    )
 
             source = sources[view]
             stats = per_view[view]
             stats["polygons"] = int(stats["polygons"]) + 1
-
-            centroid = world_matrix @ polygon.center
-            outer_span = abs(float(centroid.x - center.x)) / x_half_span
-            if view in {"left", "right"} and outer_span >= args.outer_span_fraction:
-                stats["outerSpanSidePolygons"] = int(stats["outerSpanSidePolygons"]) + 1
-                if len(side_outer_samples) < max(0, args.sample_limit):
-                    side_outer_samples.append(
-                        {
-                            "mesh": mesh.name,
-                            "polygon": int(polygon.index),
-                            "view": view,
-                            "outerSpan": round(outer_span, 6),
-                            "centroidWorld": _point_tuple(centroid),
-                            "normalWorldDirect": _point_tuple(direct_normal),
-                        }
-                    )
-
             large_threshold = max(
                 4.0,
                 min(source.width, source.height) * max(0.0, args.large_snap_fraction),
@@ -246,7 +266,7 @@ def main() -> int:
                             }
                         )
 
-    for name, stats in per_view.items():
+    for stats in per_view.values():
         loops = max(1, int(stats["loops"]))
         stats["snappedLoopRatio"] = round(int(stats["snappedLoops"]) / loops, 6)
         stats["largeSnapLoopRatio"] = round(int(stats["largeSnapLoops"]) / loops, 6)
@@ -283,11 +303,12 @@ def main() -> int:
             "loops": loop_count,
             "perView": per_view,
             "normalTransformDisagreements": normal_transform_disagreements,
+            "outerSideRedirectedPolygons": outer_side_redirected_polygons,
             "snapPixelsMedian": round(float(median_snap), 6),
             "snapPixelsP95": round(float(p95_snap), 6),
             "snapPixelsMax": round(float(max_snap), 6),
             "largeSnapSamples": large_samples,
-            "sideOuterSpanSamples": side_outer_samples,
+            "outerSideRedirectSamples": outer_redirect_samples,
         },
         "interpretation": {
             "largeSnap": (
@@ -295,9 +316,9 @@ def main() -> int:
                 "detected subject pixel. Repeated large corrections indicate that global planar "
                 "projection does not match the local silhouette and must be rejected or remapped."
             ),
-            "sideOuterSpan": (
-                "Side projection drops world X. Outer-span T-pose geometry is therefore "
-                "foreshortened or occluded in side references and is a high-risk source for arm smears."
+            "outerSideRedirect": (
+                "Side projection drops world X, the T-pose arm-length axis. Outer polygons are "
+                "therefore redirected to front/back before UV sampling."
             ),
         },
     }
@@ -307,6 +328,7 @@ def main() -> int:
     print(
         "CI_MULTIVIEW_PROJECTION_DIAGNOSTIC "
         f"polygons={polygon_count} loops={loop_count} "
+        f"outerSideRedirects={outer_side_redirected_polygons} "
         f"medianSnap={median_snap:.2f}px p95Snap={p95_snap:.2f}px maxSnap={max_snap:.2f}px "
         f"normalTransformDisagreements={normal_transform_disagreements} output={output_path}",
         flush=True,
