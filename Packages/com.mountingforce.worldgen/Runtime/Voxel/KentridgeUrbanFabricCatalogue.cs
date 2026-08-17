@@ -17,6 +17,8 @@ namespace MountingForce.WorldGen.Voxel
     /// </summary>
     public static class KentridgeUrbanFabricCatalogue
     {
+        // Density policy remains a Kentridge choice. Segment splitting, site counts and stable centre
+        // placement are city-independent and live in SettlementPlotLayout.PackFrontage.
         private const int ModulePitchDm = 80;
 
         private readonly struct FabricSite
@@ -25,38 +27,18 @@ namespace MountingForce.WorldGen.Voxel
             public readonly KentridgeUrbanFabricForm Form;
             public readonly StructureGeometryProfile Geometry;
             public readonly Int2 PositionDm;
-            public readonly int RunIndex;
-            public readonly int SiteIndex;
 
             public FabricSite(
                 KentridgeFrontageRun run,
                 KentridgeUrbanFabricForm form,
                 StructureGeometryProfile geometry,
-                Int2 positionDm,
-                int runIndex,
-                int siteIndex)
+                Int2 positionDm)
             {
                 Run = run;
                 Form = form;
                 Geometry = geometry;
                 PositionDm = positionDm;
-                RunIndex = runIndex;
-                SiteIndex = siteIndex;
             }
-        }
-
-        private readonly struct RunSegment
-        {
-            public readonly int StartDm;
-            public readonly int EndDm;
-
-            public RunSegment(int startDm, int endDm)
-            {
-                StartDm = startDm;
-                EndDm = endDm;
-            }
-
-            public int LengthDm => EndDm - StartDm;
         }
 
         public static FeatureCatalogue Build(
@@ -177,61 +159,38 @@ namespace MountingForce.WorldGen.Voxel
             int runIndex,
             List<FabricSite> sites)
         {
-            RunSegment[] segments = Segments(run);
-            int siteIndex = 0;
-
-            for (int segmentIndex = 0; segmentIndex < segments.Length; segmentIndex++)
-            {
-                RunSegment segment = segments[segmentIndex];
-                if (segment.LengthDm <= 0) continue;
-
-                int effectiveCoverage = Math.Min(94, run.CoveragePercent + 14);
-                int targetOccupiedDm = segment.LengthDm * effectiveCoverage / 100;
-                int count = Math.Max(1,
-                    (targetOccupiedDm + ModulePitchDm - 1) / ModulePitchDm);
-
-                for (int i = 0; i < count; i++)
-                {
-                    int centreAlong = segment.StartDm
-                        + segment.LengthDm * (2 * i + 1) / (2 * count);
-                    KentridgeUrbanFabricForm form = KentridgeUrbanFabricGrammar.Resolve(
-                        run, seed, runIndex, siteIndex);
-                    UrbanFabricIntent intent = KentridgeDefinition.UrbanFabricIntent(run);
-                    StructureGeometryProfile geometry = UrbanFabricGeometryProfiles.Resolve(
-                        intent,
-                        form.Inner,
-                        BuiltInArchitectureStyles.Registry);
-                    sites.Add(new FabricSite(
-                        run,
-                        form,
-                        geometry,
-                        SiteOrigin(run, centreAlong),
-                        runIndex,
-                        siteIndex));
-                    siteIndex++;
-                }
-            }
-        }
-
-        private static RunSegment[] Segments(KentridgeFrontageRun run)
-        {
             int start = run.IsHorizontal
                 ? Math.Min(run.StartDm.X, run.EndDm.X)
                 : Math.Min(run.StartDm.Y, run.EndDm.Y);
             int end = run.IsHorizontal
                 ? Math.Max(run.StartDm.X, run.EndDm.X)
                 : Math.Max(run.StartDm.Y, run.EndDm.Y);
+            int effectiveCoverage = Math.Min(94, run.CoveragePercent + 14);
+            SettlementFrontageSite[] packed = SettlementPlotLayout.PackFrontage(
+                start,
+                end,
+                effectiveCoverage,
+                ModulePitchDm,
+                run.HasGap,
+                run.GapCentreDm,
+                run.GapWidthDm);
+            UrbanFabricIntent intent = KentridgeDefinition.UrbanFabricIntent(run);
 
-            if (!run.HasGap)
-                return new[] { new RunSegment(start, end) };
-
-            int gapStart = Math.Max(start, run.GapCentreDm - run.GapWidthDm / 2);
-            int gapEnd = Math.Min(end, gapStart + run.GapWidthDm);
-            return new[]
+            for (int i = 0; i < packed.Length; i++)
             {
-                new RunSegment(start, gapStart),
-                new RunSegment(gapEnd, end),
-            };
+                SettlementFrontageSite slot = packed[i];
+                KentridgeUrbanFabricForm form = KentridgeUrbanFabricGrammar.Resolve(
+                    run, seed, runIndex, slot.SiteIndex);
+                StructureGeometryProfile geometry = UrbanFabricGeometryProfiles.Resolve(
+                    intent,
+                    form.Inner,
+                    BuiltInArchitectureStyles.Registry);
+                sites.Add(new FabricSite(
+                    run,
+                    form,
+                    geometry,
+                    SiteOrigin(run, slot.CentreAlongDm)));
+            }
         }
 
         private static Int2 SiteOrigin(KentridgeFrontageRun run, int centreAlongDm)
