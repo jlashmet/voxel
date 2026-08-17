@@ -21,6 +21,7 @@ jobs:
         run: python .github/scripts/apply-step4-visibility-diagnostics.py
       - name: Verify target diff
         run: |
+          # Plan state is intentionally updated only after the Unity evidence exists.
           git diff --check -- Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs Assets/Tests/PlayMode/LodRenderingTests.cs
           git diff -- Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs Assets/Tests/PlayMode/LodRenderingTests.cs
           test -z "$(git diff --name-only -- .claude/plans/voxel-showcase-rendering-repair-v2.md)"
