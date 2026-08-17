@@ -2,81 +2,114 @@ using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Structures.Api;
-using VoxelEngine.Structures.Runtime;
 
 namespace VoxelEngine.Tests.Features
 {
     public sealed class StructureAuthoringFoundationTests
     {
         [Test]
-        public void GenerationContextCarriesStableInstanceInputsAndOutputs()
+        public void GenerationContextCarriesStableIdentityBoundsTerrainPaletteAndAnchors()
         {
             var anchors = new NativeList<ResolvedAnchor>(4, Allocator.Temp);
-            var palette = new StructureMaterialPalette
+            try
             {
-                Foundation = 1,
-                PrimaryWall = 2,
-                SecondaryWall = 3,
-                Trim = 4,
-                Roof = 5,
-                Floor = 6,
-                Column = 7,
-                Accent = 8,
-                Underground = 9,
-                Opening = 0,
-                Glass = 10,
-                Detail = 11,
-            };
+                var palette = new StructureMaterialPalette
+                {
+                    Foundation = 1,
+                    PrimaryWall = 2,
+                    SecondaryWall = 3,
+                    Trim = 4,
+                    Roof = 5,
+                    Floor = 6,
+                    Column = 7,
+                    Accent = 8,
+                    Underground = 9,
+                    Opening = 10,
+                    Glass = 11,
+                    Detail = 12,
+                };
 
-            var context = new StructureGenerationContext(
-                1234ul,
-                55u,
-                7,
-                987654321ul,
-                new int3(100, 20, 300),
-                5,
-                new int3(90, 10, 290),
-                new int3(170, 100, 370),
-                77u,
-                in palette,
-                anchors);
+                const uint worldSeed = 0x12345678u;
+                const uint terrainSeed = 0x87654321u;
+                const int definitionId = 17;
+                int3 origin = new(100, 200, 300);
+                int3 footprint = new(40, 50, 60);
 
-            Assert.AreEqual(1234ul, context.InstanceId);
-            Assert.AreEqual(55u, context.WorldSeed);
-            Assert.AreEqual(7, context.DefinitionId);
-            Assert.AreEqual(987654321ul, context.InstanceSeed);
-            Assert.AreEqual(new int3(100, 20, 300), context.Origin);
-            Assert.AreEqual(1, context.Orientation, "orientation must normalize to four cardinal values");
-            Assert.IsTrue(context.ContainsWorld(new int3(90, 10, 290)));
-            Assert.IsFalse(context.ContainsWorld(new int3(170, 10, 290)), "max bounds are exclusive");
-            Assert.AreEqual(5, context.Material(StructureMaterialRole.Roof));
-            Assert.AreEqual(context.SampleGround(3, 4), context.SampleGround(3, 4));
+                StructureGenerationContext context = StructureGenerationContext.ForFeature(
+                    worldSeed,
+                    terrainSeed,
+                    definitionId,
+                    origin,
+                    orientation: 5,
+                    footprint,
+                    in palette,
+                    anchors);
 
-            var name = new FixedString32Bytes("MainEntrance");
-            Assert.IsTrue(context.TryAddResolvedAnchor(in name, new int3(101, 21, 301), Facing.South));
-            Assert.AreEqual(1, anchors.Length);
-            Assert.AreEqual(name, anchors[0].Name);
-            Assert.AreEqual(new int3(101, 21, 301), anchors[0].Position);
-            Assert.AreEqual(Facing.South, anchors[0].Facing);
+                ulong expectedIdentity = FeatureHash.Cell(worldSeed, definitionId, origin);
+                Assert.AreEqual(expectedIdentity, context.InstanceId);
+                Assert.AreEqual(expectedIdentity, context.InstanceSeed);
+                Assert.AreEqual(worldSeed, context.WorldSeed);
+                Assert.AreEqual(definitionId, context.DefinitionId);
+                Assert.AreEqual(origin, context.Origin);
+                Assert.AreEqual(1, context.Orientation, "orientation must normalize to four cardinal values");
+                Assert.AreEqual(origin, context.Bounds.Min);
+                Assert.AreEqual(
+                    origin + new int3(footprint.z, footprint.y, footprint.x),
+                    context.Bounds.MaxExclusive,
+                    "odd cardinal rotations must swap X/Z footprint extents");
+                Assert.IsTrue(context.Bounds.Contains(origin));
+                Assert.IsFalse(context.Bounds.Contains(context.Bounds.MaxExclusive),
+                    "max bounds are exclusive");
+                Assert.AreEqual(terrainSeed, context.Terrain.Seed);
+                Assert.AreEqual(context.Terrain.HeightAt(111, 333), context.Terrain.HeightAt(111, 333));
+                Assert.AreEqual(5, context.Material(StructureMaterialRole.Roof));
+                Assert.AreEqual(9, context.Material(StructureMaterialRole.Underground));
 
-            anchors.Dispose();
+                var name = new FixedString32Bytes("MainEntrance");
+                Assert.IsTrue(context.TryAddResolvedAnchor(
+                    in name, new int3(120, 201, 300), Facing.South));
+                Assert.AreEqual(1, context.AnchorCount);
+                Assert.AreEqual(1, anchors.Length);
+                Assert.AreEqual(name, anchors[0].Name);
+                Assert.AreEqual(new int3(120, 201, 300), anchors[0].Position);
+                Assert.AreEqual(Facing.South, anchors[0].Facing);
+            }
+            finally
+            {
+                anchors.Dispose();
+            }
         }
 
         [Test]
-        public void SemanticChildSeedsDoNotDependOnUnrelatedDrawOrder()
+        public void SemanticChildSeedsDoNotDependOnUnrelatedEvaluationOrder()
         {
-            const ulong parent = 0x1122334455667788ul;
+            var palette = new StructureMaterialPalette();
+            var bounds = new StructureGenerationBounds(int3.zero, new int3(64));
+            var terrain = new StructureTerrainAccess(42u);
+            var context = new StructureGenerationContext(
+                instanceId: 99ul,
+                worldSeed: 7u,
+                definitionId: 3,
+                instanceSeed: 0xDEADBEEFCAFEBABEul,
+                origin: int3.zero,
+                orientation: 0,
+                in bounds,
+                in terrain,
+                in palette,
+                default);
+
             var roof = new FixedString64Bytes("roof");
-            var windows = new FixedString64Bytes("windows");
+            var windows = new FixedString64Bytes("windows.north");
             var unrelated = new FixedString64Bytes("porch-detail");
 
-            ulong roofBefore = StructureSeed.Child(parent, in roof);
-            _ = StructureSeed.Child(parent, in unrelated);
-            ulong roofAfter = StructureSeed.Child(parent, in roof);
+            ulong roofBefore = context.ChildSeed(in roof);
+            _ = context.ChildSeed(in unrelated);
+            ulong roofAfter = context.ChildSeed(in roof);
 
             Assert.AreEqual(roofBefore, roofAfter);
-            Assert.AreNotEqual(roofBefore, StructureSeed.Child(parent, in windows));
-            Assert.AreNotEqual(roofBefore, StructureSeed.Child(parent, in roof, 1));
+            Assert.AreNotEqual(roofBefore, context.ChildSeed(in windows));
+            Assert.AreNotEqual(roofBefore, context.ChildSeed(in roof, 1));
+            Assert.AreEqual(StructureSeed.Child(context.InstanceSeed, in roof), roofBefore);
         }
 
         [Test]
