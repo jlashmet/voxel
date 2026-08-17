@@ -9,13 +9,15 @@ This checklist is the source of truth for implementation progress. Mark each ite
 ## Current implementation notes
 
 - The generic semantic resolver and the first five bedroom prop families are implemented.
-- `DecorationSceneScheduler` now provides deterministic required/optional slot selection, weighted optional priority, dependency closure, and anchor-before-dependent ordering.
+- `DecorationSceneScheduler` provides deterministic required/optional slot selection, weighted optional priority, dependency closure, and anchor-before-dependent ordering.
+- Decoration context now has explicit style-family IDs plus game-owned presentation profiles. Style changes material/silhouette policy, wealth changes ornamentation and optional scene density, and condition changes damage/material/light treatment without moving those game presentation concerns into the semantic API.
+- Noble/courtly bedrooms may deterministically add an optional accent torch after the required five-prop baseline; optional placement failure never invalidates the required scene.
 - A castle-bedchamber adapter derives semantic space plus stair/navigation, window, fireplace, sitting-area, and retained wall-hanging exclusions from `CastlePlan` and resolves the generic bedroom scene.
-- The normal castle keep build now routes floor 1 through `CastleProceduralBedroomAuthoring`; floors 0 and 2+ remain on the existing room-authoring path. The old private hand-authored bedchamber remains in `CastleKeepRoomAuthoring` as rollback/reference code but is bypassed by `CastleAuthoringBuild`.
-- The procedural castle bedroom emits the bed, rug, dresser, painting, and wall torch, while retaining the existing ceiling beams, fireplace, sitting cluster, wall hangings, and chandelier until those receive scene recipes.
+- The normal castle keep build routes floor 1 through `CastleProceduralBedroomAuthoring`; floors 0 and 2+ remain on the existing room-authoring path. The old private hand-authored bedchamber remains in `CastleKeepRoomAuthoring` as rollback/reference code but is bypassed by `CastleAuthoringBuild`.
+- The procedural castle bedroom renders through its resolved Courtly/Noble/Maintained context and emits the required bed, rug, dresser, painting, and wall torch plus optional density when space permits, while retaining the existing ceiling beams, fireplace, sitting cluster, wall hangings, and chandelier until those receive scene recipes.
 - `CastleBedroomDecorationDebugGizmo` provides selected Scene-view look-dev visibility for room bounds, sockets/facings, exclusions, resolved placements, labels, and anchor relationships.
 - A structure-authoring compatibility emitter exists for box-assembly props. Rug/painting thin surfaces currently emit as one-voxel sheets; this does **not** complete the true thin-surface backend task.
-- NUnit regressions are committed, including scene scheduler dependency/optional tests, a 128-seed bedroom stress test, representative castle-adapter tests, and the existing castle build progression test exercises the newly routed floor-1 authoring path. They still require execution in the Unity test environment/CI.
+- NUnit regressions are committed, including scene scheduler dependency/optional tests, style/wealth/condition invariant tests, a 128-seed bedroom stress test, representative castle-adapter tests, and the existing castle build progression test exercises the newly routed floor-1 authoring path. They still require execution in the Unity test environment/CI.
 
 ## Setup and architecture
 
@@ -78,10 +80,10 @@ This checklist is the source of truth for implementation progress. Mark each ite
 
 ## Style, wealth, and condition
 
-- [ ] **DEC070** Add style/culture profiles that influence materials, silhouettes, and optional detail.
-- [ ] **DEC071** Add wealth tiers that influence prop quality, count, ornamentation, and scene density.
-- [ ] **DEC072** Add condition/damage tiers for maintained, worn, abandoned, and ruined spaces.
-- [ ] **DEC073** Add tests proving context changes variation without breaking placement invariants.
+- [x] **DEC070** Add style/culture profiles that influence materials, silhouettes, and optional detail.
+- [x] **DEC071** Add wealth tiers that influence prop quality, count, ornamentation, and scene density.
+- [x] **DEC072** Add condition/damage tiers for maintained, worn, abandoned, and ruined spaces.
+- [x] **DEC073** Add tests proving context changes variation without breaking placement invariants.
 
 ## Cave reuse
 
