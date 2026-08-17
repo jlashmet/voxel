@@ -3,31 +3,19 @@
 Branch: `agent/worldbuilding-decorations`
 Base: `agent/worldbuilding-structures-caves`
 Plan: `docs/WORLDBUILDER_DECORATION_SYSTEM_PLAN.md`
+Large content catalog: `docs/WORLDBUILDER_DECORATION_CONTENT_CATALOG.md`
 
 This checklist is the source of truth for implementation progress. Mark each item complete in the same change that completes the work whenever practical.
 
 ## Current implementation notes
 
-- The generic semantic resolver and the first five bedroom prop families are implemented.
-- `DecorationSceneScheduler` provides deterministic required/optional slot selection, weighted optional priority, dependency closure, and anchor-before-dependent ordering.
-- Decoration context has explicit style-family IDs plus game-owned presentation profiles. Style changes material/silhouette policy, wealth changes ornamentation and optional scene density, and condition changes damage/material/light treatment without moving those game presentation concerns into the semantic API.
-- Noble/courtly bedrooms may deterministically add an optional accent torch after the required five-prop baseline; optional placement failure never invalidates the required scene.
-- A castle-bedchamber adapter derives semantic space plus stair/navigation, window, fireplace, sitting-area, and retained wall-hanging exclusions from `CastlePlan` and resolves the generic bedroom scene.
-- Castle floor 1 routes through `CastleProceduralBedroomAuthoring`; the required bed, rug, dresser, painting, and wall torch are procedural while existing beams, fireplace, sitting cluster, wall hangings, and chandelier remain until their scene recipes are migrated.
-- DEC110 adds reusable table/chair/bench families plus a relational dining scene with table anchor, required opposed benches, and wealth-driven optional head chairs.
-- Castle floor 0 routes through `CastleProceduralGreatHallAuthoring`: the dining furniture is procedural while the legacy beams, fireplace, throne, chandelier, wall hangings, place settings, lamps, and seeded side details remain. Undersized/custom keeps that cannot satisfy dining clearances fall back to the complete legacy floor-0 authoring.
-- DEC111 adds reusable chest, shelf, bookcase, crate, and barrel recipes plus a shared box-assembly authoring backend. Container families carry deterministic IDs and persistence-relevant container/lootable/movable/destructible flags.
-- DEC112 adds reusable fireplace, candle, chandelier, and floor-standing lamp recipes. Fireplaces use the world-integrated voxel-stamp backend; candles/chandeliers/lantern-lamps use box assemblies and the generic condition-aware effect-hook path. The existing `Lantern` family distinguishes floor standing lamps from wall lanterns by placement mount/facing.
-- DEC113 adds reusable banner/curtain thin-surface recipes plus shield, weapon, and armor display recipes. Martial displays share the existing `WeaponRack` semantic family and encode shield/weapons/armor subtype in deterministic variant bits for authoring dispatch.
-- DEC114 adds a compact deterministic child-clutter layer for books, pottery, food, tools, small containers, and miscellaneous tabletop detail. Clutter anchors to resolved table/dresser/chest tops, uses stable IDs plus tiny bounds, splits box items from batched procedural-mesh requests, and is explicitly culled at the clutter distance tier rather than becoming one heavyweight runtime object per item.
-- DEC115 adds semantic scene recipes for guard posts, kitchens, libraries/studies, chapels/shrines, barracks, throne rooms, cellars, and storage rooms through one shared utility-scene scheduler/placer plus a separate dining-hall composition layered over DIN1. A 32-seed × 8-scene stress regression and 32-seed dining-hall regression are committed; live room migrations can consume these contracts incrementally.
-- `CastleBedroomDecorationDebugGizmo` provides selected Scene-view look-dev visibility for room bounds, sockets/facings, exclusions, resolved placements, labels, and anchor relationships.
-- Cave reuse is implemented through an explicit `CaveWalkablePatch` contract. The cave adapter emits walkable-floor/wall/ceiling candidates plus alcove/ledge candidates and navigation/hazard exclusions without guessing private cave-network turn state.
-- `CaveCampScene` resolves campfire, bedroll, and lantern placements through the same `DecorationSceneScheduler` and `DecorationPlacementResolver` used by castle rooms. Cross-adapter tests feed both castle and cave sockets directly to the core resolver.
-- Render/build outputs are separated by intent: box assemblies for voxel furniture, aggregated true thin-surface quads for rugs/wall art/textiles, voxel stamps for world-integrated details such as campfires/fireplaces, data-only procedural-mesh requests, and condition-aware light/particle hooks. The old one-voxel thin-surface structure path remains only as a compatibility fallback for the current castle build.
-- Runtime planning separates interaction/persistence metadata from render batches, isolates movable props, combines static props by backend rather than by prop, and applies a distance/detail policy before secondary clutter is materialized. Fireplace stays essential; chandeliers/candles/lanterns, wall storage, and martial displays use standard detail distance; crates/barrels and child clutter remain clutter-tier. A 1,000-prop regression verifies static batch count stays bounded by backend count.
-- Persistence overlays are keyed by deterministic `GeneratedPropId`; moved, looted, and destroyed deltas reapply to a regenerated baseline without perturbing untouched props.
-- NUnit regressions are committed for scheduling, context variation, cave reuse, render backends, runtime batching/detail policy, persistence deltas, dining semantics/integration including a 64-seed great-hall pass, storage-family determinism/placement, lighting-family placement/effect policy, textile/martial display placement and thin-surface batching, compact clutter determinism/density/presentation, utility-room/dining-hall scene matrices and stress passes, a 128-seed bedroom stress pass, representative castle integration, and the existing castle build progression path. They still require execution in the Unity test environment/CI.
+- The generic semantic resolver, deterministic scene scheduler, stable prop IDs, socket/exclusion model, style/wealth/condition profiles, backend dispatch, runtime batching/detail policy, and persistence overlays are implemented.
+- Castle bedroom and great-hall furniture have procedural integration paths; many other legacy castle details remain available for incremental migration.
+- Reusable furniture/content currently includes beds, dressers, rugs, paintings, torches, tables, chairs, benches, storage, fireplace/candles/chandeliers/lanterns, textiles, martial displays, compact tabletop clutter, and utility-room scene recipes.
+- Cave runtime content includes `CaveCampScene`, natural cave environmental families, and occupied/mine environmental families.
+- The natural/mine runtime source is present, but dedicated `NaturalCaveDecorationTests.cs` and `MineCaveDecorationTests.cs` source files are not currently present on the branch. Do not treat earlier notes implying those test files were committed as validation evidence.
+- Unity/CI execution and visual/performance evidence remain separate completion gates.
+- Large-scale content expansion now uses a planned two-level identity model: existing coarse prop families remain behavior/placement classes while stable content-archetype identity distinguishes hundreds of actual objects.
 
 ## Setup and architecture
 
@@ -39,12 +27,12 @@ This checklist is the source of truth for implementation progress. Mark each ite
 ## Foundation API
 
 - [x] **DEC010** Define backend-independent decoration context/value types: structure/space kind, style, wealth, condition, environment tags, deterministic seed inputs.
-- [x] **DEC011** Define semantic placement socket kinds and socket data (floor, wall, corner, ceiling, anchor-relative sockets).
-- [x] **DEC012** Define prop recipe/descriptor vocabulary: family, footprint, clearance, supported sockets, orientation, backend, interaction flags.
+- [x] **DEC011** Define semantic placement socket kinds and socket data.
+- [x] **DEC012** Define prop recipe/descriptor vocabulary.
 - [x] **DEC013** Define resolved `DecorationPlacement` output with stable semantic identity and anchor relationship data.
-- [x] **DEC014** Define decoration scene recipe/slot vocabulary for required, optional, weighted, and dependent props.
+- [x] **DEC014** Define decoration scene recipe/slot vocabulary.
 - [x] **DEC015** Add validation rules for invalid dimensions, unsupported sockets, impossible clearances, and invalid scene dependency graphs.
-- [x] **DEC016** Add focused API tests for the foundation value types and validation rules.
+- [x] **DEC016** Add focused API tests for foundation value types and validation rules.
 
 ## Determinism and identity
 
@@ -54,13 +42,13 @@ This checklist is the source of truth for implementation progress. Mark each ite
 
 ## Space analysis and placement
 
-- [x] **DEC030** Define `DecorationSpace` plus associated semantic socket and exclusion data while keeping the base space value-oriented.
+- [x] **DEC030** Define `DecorationSpace` plus associated semantic socket and exclusion data.
 - [x] **DEC031** Implement rectangular/interior room floor socket extraction.
 - [x] **DEC032** Implement wall socket extraction with usable span, facing, and height constraints.
 - [x] **DEC033** Implement corner and ceiling socket extraction.
 - [x] **DEC034** Represent door, stair, navigation, gameplay, and hazard exclusion regions.
 - [x] **DEC035** Implement placement collision/clearance checks and deterministic candidate ordering.
-- [x] **DEC036** Add tests that placements remain supported, in bounds, non-overlapping where required, and outside exclusions.
+- [x] **DEC036** Add placement invariant tests.
 
 ## First prop families
 
@@ -83,16 +71,16 @@ This checklist is the source of truth for implementation progress. Mark each ite
 
 ## Castle integration
 
-- [x] **DEC060** Expose one castle bedroom/interior as a semantic `DecorationSpace` rather than hard-coded prop placement.
+- [x] **DEC060** Expose one castle bedroom/interior as a semantic `DecorationSpace`.
 - [x] **DEC061** Run the bedroom scene through castle authoring/build output.
 - [x] **DEC062** Add castle integration tests proving the first five props resolve in a representative room.
 - [x] **DEC063** Add debug/look-dev visibility for decoration sockets, exclusions, anchor relationships, and resolved placements.
 
 ## Style, wealth, and condition
 
-- [x] **DEC070** Add style/culture profiles that influence materials, silhouettes, and optional detail.
-- [x] **DEC071** Add wealth tiers that influence prop quality, count, ornamentation, and scene density.
-- [x] **DEC072** Add condition/damage tiers for maintained, worn, abandoned, and ruined spaces.
+- [x] **DEC070** Add style/culture profiles.
+- [x] **DEC071** Add wealth tiers.
+- [x] **DEC072** Add condition/damage tiers.
 - [x] **DEC073** Add tests proving context changes variation without breaking placement invariants.
 
 ## Cave reuse
@@ -101,39 +89,80 @@ This checklist is the source of truth for implementation progress. Mark each ite
 - [x] **DEC081** Derive cave wall, ceiling, alcove, and ledge placement candidates.
 - [x] **DEC082** Add cave hazard/exclusion support.
 - [x] **DEC083** Implement `CaveCampScene` using the same scene/placement abstractions.
-- [x] **DEC084** Prove castle and cave decoration use the same core resolver in tests.
+- [x] **DEC084** Prove castle and cave decoration feed the same core semantic concepts in source/tests.
 
 ## Render/build backends
 
-- [x] **DEC090** Define backend dispatch contract between semantic placements and visual/build output.
-- [x] **DEC091** Implement box-assembly backend for furniture-scale props.
-- [x] **DEC092** Implement true thin-surface backend for rugs, paintings, banners, and maps; aggregated presentation quads no longer require a full voxel slab.
-- [x] **DEC093** Add voxel/structure stamp backend where world-integrated geometry is appropriate.
-- [x] **DEC094** Add procedural-mesh hook for detail that should not be voxelized.
-- [x] **DEC095** Add optional light/emissive/particle hooks for torches, candles, lamps, chandeliers, fires, and magic props.
+- [x] **DEC090** Define backend dispatch contract.
+- [x] **DEC091** Implement box-assembly backend.
+- [x] **DEC092** Implement true thin-surface backend.
+- [x] **DEC093** Add voxel/structure stamp backend.
+- [x] **DEC094** Add procedural-mesh hook.
+- [x] **DEC095** Add optional light/emissive/particle hooks.
 
 ## Runtime scale and persistence
 
-- [x] **DEC100** Separate semantic/interactable prop metadata from static render geometry.
-- [x] **DEC101** Add batching/static-combination path so distant static decorations do not require one heavyweight runtime object each.
-- [x] **DEC102** Add distance/detail policy for tiny clutter and secondary decoration.
+- [x] **DEC100** Separate semantic/interactable metadata from static render geometry.
+- [x] **DEC101** Add batching/static-combination path.
+- [x] **DEC102** Add distance/detail policy.
 - [x] **DEC103** Define persistence delta contract keyed by deterministic prop ID.
-- [x] **DEC104** Add tests for destroyed/looted/moved state overriding deterministic regenerated baseline.
+- [x] **DEC104** Add state-override tests for regenerated baselines.
 
-## Content expansion
+## First content expansion
 
 - [x] **DEC110** Add table/chair/bench families and dining scene.
 - [x] **DEC111** Add chest/shelf/bookcase/storage families.
 - [x] **DEC112** Add fireplace/candle/chandelier/standing-lamp families.
 - [x] **DEC113** Add banners/curtains/shields/weapons/armor display families.
 - [x] **DEC114** Add books, pottery, food, tools, containers, and tabletop clutter.
-- [x] **DEC115** Add guard post, kitchen, dining hall, library/study, chapel/shrine, barracks, throne room, cellar, and storage scenes.
-- [ ] **DEC116** Add natural cave families: stones, roots, mushrooms, crystals, bones, puddles, formations.
-- [ ] **DEC117** Add mine/occupied-cave families: supports, rails/carts, ropes, lanterns, crates, tools, ladders.
+- [x] **DEC115** Add guard post, kitchen, dining hall, library/study, chapel/shrine, barracks, throne room, cellar, and storage scene source.
+- [x] **DEC116** Add natural cave runtime families: stones, roots, mushrooms, crystals, bones, puddles, formations.
+- [x] **DEC117** Add mine/occupied-cave runtime families: supports, rails/carts, ropes, lanterns, crates, tools, ladders.
+- [ ] **DEC118** Restore dedicated natural-cave regression source and Unity metadata.
+- [ ] **DEC119** Restore dedicated occupied/mine-cave regression source and Unity metadata.
+
+## Large-scale content library — 400+ archetype target
+
+- [ ] **DEC130** Implement scalable content-archetype identity/variant encoding while retaining coarse `DecorationPropFamily` behavior classes.
+- [ ] **DEC131** Implement the first 42 archetype recipes spanning smithy, tavern, crypt, market, stable, prison, and civic packs.
+- [ ] **DEC132** Implement generic content authoring-shape grammar so new archetypes usually require catalog data rather than a bespoke authorer.
+- [ ] **DEC133** Implement content-scene slot wrapper that reuses `DecorationSceneScheduler` and `DecorationPlacementResolver`.
+- [ ] **DEC134** Add coherent smithy scene: hearth, anvil, bellows, quench tub, grindstone, tool board.
+- [ ] **DEC135** Add coherent tavern-bar scene: bar, keg rack, mug rack, serving shelf, firewood, game table.
+- [ ] **DEC136** Add coherent crypt scene: sarcophagus/coffin anchor, ossuary, bier, urns, grave marker.
+- [ ] **DEC137** Add coherent market scene: stall, canopy/sign, goods display, scale, baskets.
+- [ ] **DEC138** Add coherent stable scene: manger, trough, hay, saddle/tack, hitching fixture.
+- [ ] **DEC139** Add coherent prison scene: cage/stocks anchor, shackles, key board, bucket, restraint bench.
+- [ ] **DEC140** Add coherent civic-corner scene: notice board, well/fountain, lamp, public trough, handcart.
+- [ ] **DEC141** Add catalog/scene deterministic tests for the first 42 archetypes and representative multi-seed rooms.
+- [ ] **DEC142** Add carpentry/general-workshop pack.
+- [ ] **DEC143** Add textile/leather/pottery craft pack.
+- [ ] **DEC144** Add kitchen/bakery/brewery/winery pack.
+- [ ] **DEC145** Expand market/shop/merchant pack.
+- [ ] **DEC146** Expand stable/farm/animal-husbandry pack.
+- [ ] **DEC147** Add street/civic/courtyard/garden pack.
+- [ ] **DEC148** Expand military/guard/training pack.
+- [ ] **DEC149** Expand prison/dungeon/interrogation pack.
+- [ ] **DEC150** Expand crypt/graveyard/funerary pack.
+- [ ] **DEC151** Expand chapel/temple/shrine/ritual pack.
+- [ ] **DEC152** Expand library/study/school/scholar pack.
+- [ ] **DEC153** Add alchemy/magic/occult/science pack.
+- [ ] **DEC154** Add noble/leisure/music/luxury pack.
+- [ ] **DEC155** Add household/lived-in prop pack.
+- [ ] **DEC156** Expand mine/quarry/industry pack.
+- [ ] **DEC157** Add dock/fishing/waterfront pack.
+- [ ] **DEC158** Add camp/travel/hunting/expedition pack.
+- [ ] **DEC159** Add ruin/abandonment/damage/aftermath pack.
+- [ ] **DEC160** Add regional/faction/cultural dressing pack.
+- [ ] **DEC161** Add festivals/ceremonies/temporary-world-state pack.
+- [ ] **DEC162** Reach 200 stable archetypes with catalog integrity tests.
+- [ ] **DEC163** Reach 400 stable archetypes with catalog integrity, batching, and representative scene-density tests.
+- [ ] **DEC164** Add exterior/settlement adapters so streets, gardens, markets, farmyards, and docks consume the same socket/exclusion vocabulary.
+- [ ] **DEC165** Add content look-dev/debug view that labels archetype kind in addition to coarse family.
 
 ## Completion gates
 
-- [ ] **DEC120** First castle bedroom milestone meets the plan definition of success.
-- [ ] **DEC121** Cave reuse milestone proves no castle-specific dependency in core decoration resolution.
-- [ ] **DEC122** Performance pass demonstrates decoration density scales to large structures/world regions without per-prop heavyweight runtime overhead.
+- [ ] **DEC120** First castle bedroom milestone meets the plan definition of success in executed Unity tests/look-dev.
+- [ ] **DEC121** Cave reuse milestone meets the plan definition of success in executed Unity tests/look-dev.
+- [ ] **DEC122** Performance pass demonstrates representative decoration density without per-prop heavyweight runtime overhead and records Unity profiling results.
 - [ ] **DEC123** Update architecture/runtime documentation with final integration contracts and examples.
