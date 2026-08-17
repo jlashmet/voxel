@@ -53,13 +53,26 @@ cache = replace_if_missing(
     """            if (SupportsFeaturePreservingFallback)\n            {\n                FeaturePreservingFallbackScheduleCount++;\n                Step4FalseEmptyDiagnostics.RecordFallbackScheduled();\n            }\n""",
     "fallback schedule",
 )
-cache = replace_if_missing(
-    cache,
-    "Step4FalseEmptyDiagnostics.RecordReadyEmptyPublication",
-    """            if (_indices.Length == 0)\n            {\n                if (_entries.TryGetValue(_build.Coordinate, out Entry stale))\n""",
-    """            if (_indices.Length == 0)\n            {\n                if (SupportsFeaturePreservingFallback)\n                    Step4FalseEmptyDiagnostics.RecordReadyEmptyPublication();\n                if (_entries.TryGetValue(_build.Coordinate, out Entry stale))\n""",
-    "ready-empty publication",
-)
+ready_anchored = """                    Step4FalseEmptyDiagnostics.RecordReadyEmptyPublication(\n                        _build.Coordinate, _build.HasOwnedSolid,\n                        _buildProfileBlocks.Length != 0,\n                        _build.UsedFeaturePreservingFallback);\n"""
+ready_old = """                    Step4FalseEmptyDiagnostics.RecordReadyEmptyPublication();\n"""
+if ready_anchored in cache:
+    print("ready-empty publication: anchored")
+elif ready_old in cache:
+    if cache.count(ready_old) != 1:
+        raise SystemExit(
+            f"ready-empty publication: expected one legacy call, found {cache.count(ready_old)}")
+    cache = cache.replace(ready_old, ready_anchored, 1)
+    print("ready-empty publication: anchoring guard state")
+elif "Step4FalseEmptyDiagnostics.RecordReadyEmptyPublication" not in cache:
+    old = """            if (_indices.Length == 0)\n            {\n                if (_entries.TryGetValue(_build.Coordinate, out Entry stale))\n"""
+    new = """            if (_indices.Length == 0)\n            {\n                if (SupportsFeaturePreservingFallback)\n                    Step4FalseEmptyDiagnostics.RecordReadyEmptyPublication(\n                        _build.Coordinate, _build.HasOwnedSolid,\n                        _buildProfileBlocks.Length != 0,\n                        _build.UsedFeaturePreservingFallback);\n                if (_entries.TryGetValue(_build.Coordinate, out Entry stale))\n"""
+    if cache.count(old) != 1:
+        raise SystemExit(f"ready-empty publication: expected one unwired match, found {cache.count(old)}")
+    cache = cache.replace(old, new, 1)
+    print("ready-empty publication: wiring anchored guard state")
+else:
+    raise SystemExit("ready-empty publication: found an unknown call shape")
+
 if "Step4FalseEmptyDiagnostics.RecordFallbackPublished" not in cache:
     old = """            CompletedBuildCount++;\n            if (_build.UsedFeaturePreservingFallback)\n                FeaturePreservingFallbackPublishCount++;\n            _buildLatencyTiming.Add(ElapsedMs(_build.BuildStartSeconds));\n"""
     new = """            CompletedBuildCount++;\n            if (_build.UsedFeaturePreservingFallback)\n            {\n                FeaturePreservingFallbackPublishCount++;\n                Step4FalseEmptyDiagnostics.RecordFallbackPublished();\n            }\n            _buildLatencyTiming.Add(ElapsedMs(_build.BuildStartSeconds));\n"""
