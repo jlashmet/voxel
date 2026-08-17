@@ -14,6 +14,7 @@ namespace Game.Structures.Runtime
         Civic = 6,
         Carpentry = 7,
         Craft = 8,
+        FoodProduction = 9,
     }
 
     /// <summary>
@@ -116,6 +117,37 @@ namespace Game.Structures.Runtime
         WickerStack = 82,
         SewingStool = 83,
         LeatherToolBoard = 84,
+
+        PrepTable = 85,
+        ButcherBlock = 86,
+        HangingPotRack = 87,
+        PanRack = 88,
+        CauldronStand = 89,
+        BreadOven = 90,
+        RoastingSpit = 91,
+        WashSink = 92,
+        WaterBarrel = 93,
+        FlourBin = 94,
+        GrainSackStack = 95,
+        SpiceShelf = 96,
+        HerbDryingRack = 97,
+        MeatHookRail = 98,
+        CheeseShelf = 99,
+        BreadCoolingRack = 100,
+        PantryCabinet = 101,
+        VegetableBasket = 102,
+        FishCrate = 103,
+        BreweryVat = 104,
+        MashTun = 105,
+        Fermenter = 106,
+        WinePress = 107,
+        BottleRack = 108,
+        CaskStand = 109,
+        PieRack = 110,
+        SausageRack = 111,
+        FoodPrepShelf = 112,
+        KettleStand = 113,
+        CellarCaskStack = 114,
     }
 
     /// <summary>
@@ -199,7 +231,7 @@ namespace Game.Structures.Runtime
             if ((variant & MarkerMask) != Marker)
                 return DecorationContentKind.Unknown;
             uint raw = (variant & KindMask) >> KindShift;
-            return raw == 0 || raw > (uint)DecorationContentKind.LeatherToolBoard
+            return raw == 0 || raw > (uint)DecorationContentKind.CellarCaskStack
                 ? DecorationContentKind.Unknown
                 : (DecorationContentKind)raw;
         }
@@ -209,10 +241,10 @@ namespace Game.Structures.Runtime
 
     public static class DecorationContentCatalog
     {
-        public const int KindCount = 84;
+        public const int KindCount = 114;
 
         public static bool IsDefined(DecorationContentKind kind) =>
-            kind >= DecorationContentKind.Anvil && kind <= DecorationContentKind.LeatherToolBoard;
+            kind >= DecorationContentKind.Anvil && kind <= DecorationContentKind.CellarCaskStack;
 
         public static DecorationContentRecipe Recipe(DecorationContentKind kind)
         {
@@ -424,7 +456,7 @@ namespace Game.Structures.Runtime
                         Blocking() | DecorationInteractionFlags.Container | DecorationInteractionFlags.Movable,
                         new int3(18, 12, 28), new int3(4, 0, 5), 2, 3);
                 default:
-                    return DecorationContentCraftExpansionCatalog.Recipe(kind);
+                    return DecorationContentExpansionRegistry.Recipe(kind);
             }
         }
 
