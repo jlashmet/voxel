@@ -12,6 +12,7 @@ bash -n tools/character-factory/production/sunlit-cleric/build_macos.sh
 bash -n tools/character-factory/production/sunlit-cleric/build_robe_macos.sh
 bash -n tools/character-factory/production/sunlit-cleric/build_staff_macos.sh
 bash -n tools/character-factory/ci/bootstrap_hunyuan_quality_macos.sh
+bash -n tools/character-factory/ci/run_character_weapon_e2e_macos.sh
 bash -n tools/character-factory/new_asset_macos.sh
 
 python3 -m unittest \
