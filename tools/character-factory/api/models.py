@@ -6,6 +6,11 @@ import json
 from pathlib import Path
 from typing import Any
 
+from .appearance_profiles import (
+    AppearanceProfileError,
+    AppearanceStrategy,
+    resolve_appearance_strategy,
+)
 from .backend_profiles import BackendProfileError, resolve_generator_profile
 from .references import (
     ReferenceContractError,
@@ -308,6 +313,7 @@ class BuildSpec:
     views: ViewSet
     appearance_views: ViewSet | None
     detail_references: dict[str, Path]
+    appearance_strategy: AppearanceStrategy
     output_dir: Path
     generator: GeneratorConfig
     rig: RigConfig | None
@@ -330,6 +336,14 @@ class BuildSpec:
         except ValueError as exc:
             allowed = ", ".join(item.value for item in AssetType)
             raise CharacterFactoryError(f"assetType must be one of: {allowed}") from exc
+
+        try:
+            appearance_strategy = resolve_appearance_strategy(
+                data.get("appearance"),
+                asset_type=asset_type.value,
+            )
+        except AppearanceProfileError as exc:
+            raise CharacterFactoryError(str(exc)) from exc
 
         output = Path(data.get("outputDir", f"build/{asset_id}"))
         if not output.is_absolute():
@@ -412,6 +426,7 @@ class BuildSpec:
             views=views,
             appearance_views=appearance_views,
             detail_references=detail_references,
+            appearance_strategy=appearance_strategy,
             output_dir=output,
             generator=GeneratorConfig.from_dict(
                 data.get("generator", {}),
