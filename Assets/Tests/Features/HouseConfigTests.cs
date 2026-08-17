@@ -72,7 +72,7 @@ namespace VoxelEngine.Tests.Features
                 Depth = 5,
                 Spacing = 12,
                 EdgeMargin = 6,
-                RoofStyle = RoofStyle.Gable,
+                Style = RoofStyle.Gable,
                 RoofMaterialRole = StructureMaterialRole.Roof,
                 WallMaterialRole = StructureMaterialRole.SecondaryWall,
             };
