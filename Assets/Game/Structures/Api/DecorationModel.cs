@@ -29,6 +29,7 @@ namespace Game.Structures.Api
         CaveChamber = 7,
         MineTunnel = 8,
         Shrine = 9,
+        ExteriorYard = 10,
     }
 
     public enum DecorationWealthTier : byte
@@ -119,10 +120,9 @@ namespace Game.Structures.Api
     public enum DecorationMountMode : byte
     {
         Floor = 0,
-        FloorAgainstWall = 1,
-        Wall = 2,
-        Ceiling = 3,
-        AnchorRelative = 4,
+        Wall = 1,
+        Ceiling = 2,
+        Surface = 3,
     }
 
     [Flags]
@@ -138,26 +138,14 @@ namespace Game.Structures.Api
         EmitsParticles = 1 << 6,
     }
 
-    [Flags]
-    public enum DecorationExclusionKind : byte
-    {
-        None = 0,
-        Door = 1 << 0,
-        Stair = 1 << 1,
-        Navigation = 1 << 2,
-        Gameplay = 1 << 3,
-        Hazard = 1 << 4,
-    }
-
-    /// <summary>Deterministic game-facing context for one decoration pass.</summary>
     public struct DecorationContext
     {
         public uint WorldSeed;
         public uint StructureId;
         public uint SpaceId;
-        public uint StyleId;
         public DecorationStructureKind StructureKind;
         public DecorationSpaceKind SpaceKind;
+        public uint StyleId;
         public DecorationWealthTier Wealth;
         public DecorationConditionTier Condition;
         public DecorationEnvironmentTags Environment;
@@ -171,30 +159,26 @@ namespace Game.Structures.Api
             (byte)Condition <= (byte)DecorationConditionTier.Pristine;
     }
 
-    /// <summary>Integer voxel AABB using an inclusive minimum and exclusive maximum.</summary>
     public struct DecorationBounds
     {
         public int3 Min;
         public int3 MaxExclusive;
 
         public int3 Size => MaxExclusive - Min;
+        public int3 Center => Min + Size / 2;
         public bool IsWellFormed => math.all(MaxExclusive > Min);
 
         public bool Contains(in DecorationBounds other) =>
             math.all(other.Min >= Min) && math.all(other.MaxExclusive <= MaxExclusive);
 
         public bool Overlaps(in DecorationBounds other) =>
-            math.all(Min < other.MaxExclusive) && math.all(MaxExclusive > other.Min);
+            math.all(Min < other.MaxExclusive) && math.all(other.Min < MaxExclusive);
 
-        public DecorationBounds Expanded(int3 amount)
+        public DecorationBounds Expanded(int3 amount) => new DecorationBounds
         {
-            int3 safe = math.max(amount, int3.zero);
-            return new DecorationBounds
-            {
-                Min = Min - safe,
-                MaxExclusive = MaxExclusive + safe,
-            };
-        }
+            Min = Min - amount,
+            MaxExclusive = MaxExclusive + amount,
+        };
     }
 
     public struct DecorationSpace
@@ -204,34 +188,37 @@ namespace Game.Structures.Api
         public DecorationBounds Bounds;
 
         public bool IsWellFormed =>
-            SpaceId != 0 && Kind != DecorationSpaceKind.Unknown && Bounds.IsWellFormed;
+            SpaceId != 0 &&
+            Kind != DecorationSpaceKind.Unknown &&
+            Bounds.IsWellFormed;
     }
 
     public struct DecorationExclusion
     {
-        public DecorationExclusionKind Kind;
         public DecorationBounds Bounds;
+        public uint Tag;
 
-        public bool IsWellFormed => Kind != DecorationExclusionKind.None && Bounds.IsWellFormed;
+        public bool IsWellFormed => Bounds.IsWellFormed;
     }
 
     public struct DecorationSocket
     {
-        public uint SocketId;
+        public uint Id;
         public DecorationSocketKind Kind;
-        public DecorationBounds Bounds;
-        /// <summary>Cardinal direction pointing from the supporting surface into usable room volume.</summary>
+        public int3 Position;
         public int3 Facing;
-        public uint AnchorSlotId;
+        public int2 UsableSize;
+        public uint Tags;
+        public uint AnchorId;
 
         public bool IsWellFormed =>
-            SocketId != 0 &&
-            DecorationValidation.IsSingleSocketKind(Kind) &&
-            Bounds.IsWellFormed &&
-            math.csum(math.abs(Facing)) == 1;
+            Id != 0 &&
+            Kind != DecorationSocketKind.None &&
+            UsableSize.x > 0 &&
+            UsableSize.y > 0 &&
+            math.abs(Facing.x) + math.abs(Facing.y) + math.abs(Facing.z) <= 1;
     }
 
-    /// <summary>Backend-independent description of one parameterized prop family variant.</summary>
     public struct DecorationPropDescriptor
     {
         public DecorationPropFamily Family;
@@ -243,8 +230,52 @@ namespace Game.Structures.Api
         public int3 Clearance;
         public uint Variant;
 
-        public bool IsWellFormed => DecorationValidation.IsWellFormed(this);
-        public bool Accepts(DecorationSocketKind kind) => (AcceptedSockets & kind) != 0;
+        public bool IsWellFormed =>
+            Family != DecorationPropFamily.Unknown &&
+            AcceptedSockets != DecorationSocketKind.None &&
+            math.all(Size > 0) &&
+            math.all(Clearance >= 0);
+    }
+
+    public struct GeneratedPropId : IEquatable<GeneratedPropId>
+    {
+        public ulong High;
+        public ulong Low;
+
+        public bool IsValid => High != 0 || Low != 0;
+        public bool Equals(GeneratedPropId other) => High == other.High && Low == other.Low;
+        public override bool Equals(object obj) => obj is GeneratedPropId other && Equals(other);
+        public override int GetHashCode() => unchecked((High.GetHashCode() * 397) ^ Low.GetHashCode());
+        public override string ToString() => $"{High:x16}{Low:x16}";
+        public static bool operator ==(GeneratedPropId a, GeneratedPropId b) => a.Equals(b);
+        public static bool operator !=(GeneratedPropId a, GeneratedPropId b) => !a.Equals(b);
+    }
+
+    public struct DecorationPlacement
+    {
+        public GeneratedPropId Id;
+        public uint SceneId;
+        public uint SlotId;
+        public uint AnchorSlotId;
+        public DecorationPropFamily Family;
+        public uint Variant;
+        public DecorationBounds Bounds;
+        public int3 Facing;
+        public DecorationRenderBackend Backend;
+        public DecorationInteractionFlags Interaction;
+        public uint StyleId;
+        public DecorationWealthTier Wealth;
+        public DecorationConditionTier Condition;
+
+        public bool IsWellFormed =>
+            Id.IsValid &&
+            SceneId != 0 &&
+            SlotId != 0 &&
+            Family != DecorationPropFamily.Unknown &&
+            Bounds.IsWellFormed &&
+            math.abs(Facing.x) + math.abs(Facing.y) + math.abs(Facing.z) <= 1 &&
+            (byte)Wealth <= (byte)DecorationWealthTier.Noble &&
+            (byte)Condition <= (byte)DecorationConditionTier.Pristine;
     }
 
     public struct DecorationSceneSlot
@@ -259,318 +290,27 @@ namespace Game.Structures.Api
         public bool IsWellFormed =>
             SlotId != 0 &&
             Family != DecorationPropFamily.Unknown &&
-            DecorationValidation.IsSingleSocketKind(RequestedSocket) &&
+            RequestedSocket != DecorationSocketKind.None &&
             Weight > 0 &&
             AnchorSlotId != SlotId;
     }
 
-    public readonly struct GeneratedPropId : IEquatable<GeneratedPropId>
+    public struct DecorationScene
     {
-        public readonly ulong Value;
-
-        public GeneratedPropId(ulong value) => Value = value == 0 ? 1UL : value;
-
-        public bool Equals(GeneratedPropId other) => Value == other.Value;
-        public override bool Equals(object obj) => obj is GeneratedPropId other && Equals(other);
-        public override int GetHashCode() => unchecked((int)(Value ^ (Value >> 32)));
-        public override string ToString() => Value.ToString("X16");
-        public static bool operator ==(GeneratedPropId left, GeneratedPropId right) => left.Equals(right);
-        public static bool operator !=(GeneratedPropId left, GeneratedPropId right) => !left.Equals(right);
-    }
-
-    /// <summary>Resolved semantic output. Render/build systems consume this without re-running scene logic.</summary>
-    public struct DecorationPlacement
-    {
-        public GeneratedPropId Id;
         public uint SceneId;
-        public uint SlotId;
-        public uint AnchorSlotId;
-        public uint SocketId;
-        public DecorationPropFamily Family;
-        public DecorationRenderBackend Backend;
-        public DecorationInteractionFlags Interaction;
-        public DecorationBounds Bounds;
-        public int3 Facing;
-        public uint Variant;
+        public DecorationSceneSlot[] Slots;
 
-        public bool IsWellFormed =>
-            Id.Value != 0 &&
-            SceneId != 0 &&
-            SlotId != 0 &&
-            Family != DecorationPropFamily.Unknown &&
-            Bounds.IsWellFormed &&
-            math.csum(math.abs(Facing)) == 1;
-    }
-
-    public static class DecorationSeed
-    {
-        public static uint Derive(uint parent, uint discriminator)
+        public bool IsWellFormed
         {
-            uint value = parent ^ (discriminator + 0x9E3779B9u + (parent << 6) + (parent >> 2));
-            value ^= value >> 16;
-            value *= 0x7FEB352Du;
-            value ^= value >> 15;
-            value *= 0x846CA68Bu;
-            value ^= value >> 16;
-            return value == 0 ? 0xA511E9B3u : value;
-        }
-
-        public static uint ForSpace(in DecorationContext context) =>
-            Derive(Derive(context.WorldSeed, context.StructureId), context.SpaceId);
-
-        public static uint ForScene(in DecorationContext context, uint sceneId) =>
-            Derive(ForSpace(in context), sceneId);
-
-        public static uint ForSlot(in DecorationContext context, uint sceneId, uint slotId) =>
-            Derive(ForScene(in context, sceneId), slotId);
-    }
-
-    public static class GeneratedPropIds
-    {
-        public static GeneratedPropId Create(in DecorationContext context, uint sceneId, uint slotId)
-        {
-            uint low = DecorationSeed.ForSlot(in context, sceneId, slotId);
-            uint high = DecorationSeed.Derive(low, context.StyleId ^ ((uint)context.StructureKind << 24));
-            return new GeneratedPropId(((ulong)high << 32) | low);
-        }
-    }
-
-    public static class DecorationValidation
-    {
-        public static bool IsSingleSocketKind(DecorationSocketKind kind)
-        {
-            uint value = (uint)kind;
-            return value != 0 && (value & (value - 1)) == 0;
-        }
-
-        public static bool IsWellFormed(in DecorationPropDescriptor descriptor)
-        {
-            if (descriptor.Family == DecorationPropFamily.Unknown || descriptor.AcceptedSockets == DecorationSocketKind.None)
-                return false;
-            if (!math.all(descriptor.Size > 0) || math.any(descriptor.Clearance < 0))
-                return false;
-
-            switch (descriptor.MountMode)
+            get
             {
-                case DecorationMountMode.Floor:
-                    return (descriptor.AcceptedSockets & DecorationSocketKind.Floor) != 0;
-                case DecorationMountMode.FloorAgainstWall:
-                case DecorationMountMode.Wall:
-                    return (descriptor.AcceptedSockets & DecorationSocketKind.Wall) != 0;
-                case DecorationMountMode.Ceiling:
-                    return (descriptor.AcceptedSockets & DecorationSocketKind.Ceiling) != 0;
-                case DecorationMountMode.AnchorRelative:
-                    return (descriptor.AcceptedSockets &
-                        (DecorationSocketKind.BesideAnchor | DecorationSocketKind.AboveAnchor | DecorationSocketKind.Floor)) != 0;
-                default:
+                if (SceneId == 0 || Slots == null || Slots.Length == 0)
                     return false;
+                for (int i = 0; i < Slots.Length; i++)
+                    if (!Slots[i].IsWellFormed)
+                        return false;
+                return true;
             }
         }
-
-        /// <summary>Validates uniqueness, anchor existence, and acyclic slot dependencies.</summary>
-        public static bool ValidateScene(DecorationSceneSlot[] slots, out uint errorSlotId)
-        {
-            errorSlotId = 0;
-            if (slots == null || slots.Length == 0)
-                return false;
-
-            for (int i = 0; i < slots.Length; i++)
-            {
-                if (!slots[i].IsWellFormed)
-                {
-                    errorSlotId = slots[i].SlotId;
-                    return false;
-                }
-
-                for (int j = i + 1; j < slots.Length; j++)
-                {
-                    if (slots[i].SlotId == slots[j].SlotId)
-                    {
-                        errorSlotId = slots[i].SlotId;
-                        return false;
-                    }
-                }
-
-                if (slots[i].AnchorSlotId != 0 && FindSlot(slots, slots[i].AnchorSlotId) < 0)
-                {
-                    errorSlotId = slots[i].SlotId;
-                    return false;
-                }
-            }
-
-            for (int i = 0; i < slots.Length; i++)
-            {
-                uint current = slots[i].AnchorSlotId;
-                int hops = 0;
-                while (current != 0)
-                {
-                    if (++hops > slots.Length)
-                    {
-                        errorSlotId = slots[i].SlotId;
-                        return false;
-                    }
-                    int index = FindSlot(slots, current);
-                    if (index < 0)
-                    {
-                        errorSlotId = slots[i].SlotId;
-                        return false;
-                    }
-                    current = slots[index].AnchorSlotId;
-                }
-            }
-
-            return true;
-        }
-
-        private static int FindSlot(DecorationSceneSlot[] slots, uint slotId)
-        {
-            for (int i = 0; i < slots.Length; i++)
-                if (slots[i].SlotId == slotId)
-                    return i;
-            return -1;
-        }
-    }
-
-    /// <summary>Initial parameterized prop families used to prove the decoration pipeline.</summary>
-    public static class DecorationPropPresets
-    {
-        public static DecorationPropDescriptor Bed(in DecorationContext context)
-        {
-            uint seed = DecorationSeed.ForSlot(in context, BedroomSceneDefinition.SceneId, BedroomSceneDefinition.BedSlot);
-            int wealth = (int)context.Wealth;
-            return new DecorationPropDescriptor
-            {
-                Family = DecorationPropFamily.Bed,
-                AcceptedSockets = DecorationSocketKind.Wall,
-                MountMode = DecorationMountMode.FloorAgainstWall,
-                Backend = DecorationRenderBackend.BoxAssembly,
-                Interaction = DecorationInteractionFlags.BlocksNavigation | DecorationInteractionFlags.Destructible,
-                Size = new int3(16 + wealth * 2 + (int)(seed & 1u) * 2, 8 + wealth, 28 + (int)((seed >> 1) & 1u) * 2),
-                Clearance = new int3(3, 0, 6),
-                Variant = DecorationSeed.Derive(seed, context.StyleId ^ (uint)context.Condition),
-            };
-        }
-
-        public static DecorationPropDescriptor Dresser(in DecorationContext context)
-        {
-            uint seed = DecorationSeed.ForSlot(in context, BedroomSceneDefinition.SceneId, BedroomSceneDefinition.DresserSlot);
-            return new DecorationPropDescriptor
-            {
-                Family = DecorationPropFamily.Dresser,
-                AcceptedSockets = DecorationSocketKind.Wall,
-                MountMode = DecorationMountMode.FloorAgainstWall,
-                Backend = DecorationRenderBackend.BoxAssembly,
-                Interaction = DecorationInteractionFlags.BlocksNavigation | DecorationInteractionFlags.Destructible |
-                              DecorationInteractionFlags.Container | DecorationInteractionFlags.Lootable,
-                Size = new int3(12 + (int)(seed & 3u) * 2, 16 + (int)context.Wealth * 2, 6),
-                Clearance = new int3(3, 0, 5),
-                Variant = DecorationSeed.Derive(seed, context.StyleId ^ 0xD2E55E12u),
-            };
-        }
-
-        public static DecorationPropDescriptor Rug(in DecorationContext context)
-        {
-            uint seed = DecorationSeed.ForSlot(in context, BedroomSceneDefinition.SceneId, BedroomSceneDefinition.RugSlot);
-            return new DecorationPropDescriptor
-            {
-                Family = DecorationPropFamily.Rug,
-                AcceptedSockets = DecorationSocketKind.Floor | DecorationSocketKind.BesideAnchor,
-                MountMode = DecorationMountMode.AnchorRelative,
-                Backend = DecorationRenderBackend.ThinSurface,
-                Interaction = DecorationInteractionFlags.None,
-                Size = new int3(20 + (int)context.Wealth * 3, 1, 30 + (int)(seed & 3u) * 2),
-                Clearance = int3.zero,
-                Variant = DecorationSeed.Derive(seed, context.StyleId ^ 0xA6F31C91u),
-            };
-        }
-
-        public static DecorationPropDescriptor Painting(in DecorationContext context)
-        {
-            uint seed = DecorationSeed.ForSlot(in context, BedroomSceneDefinition.SceneId, BedroomSceneDefinition.PaintingSlot);
-            return new DecorationPropDescriptor
-            {
-                Family = DecorationPropFamily.Painting,
-                AcceptedSockets = DecorationSocketKind.Wall | DecorationSocketKind.AboveAnchor,
-                MountMode = DecorationMountMode.Wall,
-                Backend = DecorationRenderBackend.ThinSurface,
-                Interaction = DecorationInteractionFlags.Destructible | DecorationInteractionFlags.Movable,
-                Size = new int3(10 + (int)(seed & 3u) * 2, 10 + (int)((seed >> 3) & 3u) * 2, 1),
-                Clearance = new int3(2, 2, 0),
-                Variant = DecorationSeed.Derive(seed, context.StyleId ^ 0x9BC01F3Du),
-            };
-        }
-
-        public static DecorationPropDescriptor WallTorch(in DecorationContext context)
-        {
-            uint seed = DecorationSeed.ForSlot(in context, BedroomSceneDefinition.SceneId, BedroomSceneDefinition.TorchSlot);
-            return new DecorationPropDescriptor
-            {
-                Family = DecorationPropFamily.WallTorch,
-                AcceptedSockets = DecorationSocketKind.Wall,
-                MountMode = DecorationMountMode.Wall,
-                Backend = DecorationRenderBackend.BoxAssembly,
-                Interaction = DecorationInteractionFlags.Destructible | DecorationInteractionFlags.EmitsLight |
-                              DecorationInteractionFlags.EmitsParticles,
-                Size = new int3(3, 8, 3),
-                Clearance = new int3(5, 4, 2),
-                Variant = DecorationSeed.Derive(seed, context.StyleId ^ 0xF17E5A11u),
-            };
-        }
-    }
-
-    public static class BedroomSceneDefinition
-    {
-        public const uint SceneId = 0x42454431u; // BED1
-        public const uint BedSlot = 1;
-        public const uint RugSlot = 2;
-        public const uint DresserSlot = 3;
-        public const uint PaintingSlot = 4;
-        public const uint TorchSlot = 5;
-
-        public static DecorationSceneSlot[] CreateSlots() => new[]
-        {
-            new DecorationSceneSlot
-            {
-                SlotId = BedSlot,
-                Family = DecorationPropFamily.Bed,
-                RequestedSocket = DecorationSocketKind.Wall,
-                Weight = 1,
-                Required = true,
-            },
-            new DecorationSceneSlot
-            {
-                SlotId = RugSlot,
-                Family = DecorationPropFamily.Rug,
-                RequestedSocket = DecorationSocketKind.BesideAnchor,
-                AnchorSlotId = BedSlot,
-                Weight = 1,
-                Required = true,
-            },
-            new DecorationSceneSlot
-            {
-                SlotId = DresserSlot,
-                Family = DecorationPropFamily.Dresser,
-                RequestedSocket = DecorationSocketKind.Wall,
-                Weight = 1,
-                Required = true,
-            },
-            new DecorationSceneSlot
-            {
-                SlotId = PaintingSlot,
-                Family = DecorationPropFamily.Painting,
-                RequestedSocket = DecorationSocketKind.AboveAnchor,
-                AnchorSlotId = DresserSlot,
-                Weight = 1,
-                Required = true,
-            },
-            new DecorationSceneSlot
-            {
-                SlotId = TorchSlot,
-                Family = DecorationPropFamily.WallTorch,
-                RequestedSocket = DecorationSocketKind.Wall,
-                Weight = 1,
-                Required = true,
-            },
-        };
     }
 }
