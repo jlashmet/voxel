@@ -27,7 +27,6 @@ namespace Game.Structures.Runtime
         public static bool Step(
             IStructureAuthoringSession authoring,
             in CastlePlan plan,
-            in CastleComponentConfig components,
             uint terrainSeed,
             ref CastleSiteAuthoringState state)
         {
@@ -36,7 +35,7 @@ namespace Game.Structures.Runtime
 
             int top = plan.Centre.y + plan.PlateauHeight;
             int radius = plan.PlateauRadius;
-            int cliffDrop = components.BaileyFootprint.FoundationDepth;
+            int cliffDrop = plan.CliffDrop;
             int skirt = radius + cliffDrop;
 
             if (state.Phase == 0)
