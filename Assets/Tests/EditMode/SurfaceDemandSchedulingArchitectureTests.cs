@@ -126,5 +126,32 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("priority < bestPriority", cache);
         }
 
+
+        [Test]
+        public void InvalidationAdvancesTruthWithoutQueueingColdNodes()
+        {
+            string source = CacheSource();
+            string invalidation = MethodSlice(source,
+                "private void Invalidate(int3 chunk)",
+                "private void MarkDirty(int3 chunk)");
+
+            StringAssert.Contains("_desiredVersions[chunk] = ++_versionCounter", invalidation);
+            StringAssert.Contains("_hierarchyActive.Contains(chunk)", invalidation);
+            StringAssert.Contains("_hierarchyRequestPriorities.ContainsKey(chunk)", invalidation);
+            StringAssert.Contains("MarkDirty(chunk)", invalidation);
+        }
+
+        [Test]
+        public void CurrentCompletionProofDoesNotRemainAnOutstandingRequest()
+        {
+            string source = CacheSource();
+            string request = MethodSlice(source,
+                "internal bool RequestHierarchyCoverage",
+                "internal void BeginHierarchyActiveFrame");
+
+            StringAssert.Contains("!hasDesiredGeneration && (hasReady || hasEmpty)", request);
+            StringAssert.Contains("_hierarchyRequestPriorities.Remove(coordinate)", request);
+        }
+
     }
 }

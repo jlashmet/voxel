@@ -886,6 +886,18 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         internal bool RequestHierarchyCoverage(int3 coordinate, SurfaceBuildPriority priority)
         {
             if (!OwnsShard(coordinate) || !TrackKnown(coordinate)) return false;
+
+            bool hasReady = _entries.TryGetValue(coordinate, out Entry entry) && entry.Ready;
+            bool hasEmpty = _emptyVersions.ContainsKey(coordinate);
+            bool hasDesiredGeneration = _desiredVersions.ContainsKey(coordinate);
+            if (!hasDesiredGeneration && (hasReady || hasEmpty))
+            {
+                // A current proof needs no work request. Visibility observing an already-current
+                // node must not keep it artificially hot after it leaves active coverage.
+                _hierarchyRequestPriorities.Remove(coordinate);
+                return true;
+            }
+
             if (_hierarchyRequestPriorities.TryGetValue(coordinate, out SurfaceBuildPriority existing))
             {
                 if (priority < existing) _hierarchyRequestPriorities[coordinate] = priority;
@@ -895,12 +907,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 _hierarchyRequestPriorities.Add(coordinate, priority);
             }
 
-            bool hasReady = _entries.TryGetValue(coordinate, out Entry entry) && entry.Ready;
-            bool hasEmpty = _emptyVersions.ContainsKey(coordinate);
-            if (!_desiredVersions.ContainsKey(coordinate) && !hasReady && !hasEmpty)
+            if (!hasDesiredGeneration)
                 Invalidate(coordinate);
-            else if (_desiredVersions.ContainsKey(coordinate)
-                     && !_dirty.Contains(coordinate)
+            else if (!_dirty.Contains(coordinate)
                      && (!_build.Active || !_build.Coordinate.Equals(coordinate)))
                 MarkDirty(coordinate);
             return true;
@@ -1743,7 +1752,13 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         {
             _emptyVersions.Remove(chunk);
             _desiredVersions[chunk] = ++_versionCounter;
-            MarkDirty(chunk);
+
+            // Invalidation changes truth; it is not itself a render-work request. Active coverage
+            // and already-requested refinement rebuild immediately, while cold/offscreen nodes
+            // remain stale until visibility explicitly requests their new generation.
+            if (_hierarchyActive.Contains(chunk)
+                || _hierarchyRequestPriorities.ContainsKey(chunk))
+                MarkDirty(chunk);
         }
 
         private void MarkDirty(int3 chunk)
@@ -1780,7 +1795,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 _surfaceCatalogue.Seal(_surfaceCatalogue.Version, hash);
 
             // Catalogue data participates in geometry. Existing meshes may remain visible while
-            // every known chunk queues a replacement built from the new immutable snapshot.
+            // every known chunk invalidates its proof; only active/requested chunks queue replacement work.
             SurfaceCatalogueInvalidationCount++;
             foreach (int3 chunk in _known) Invalidate(chunk);
         }
