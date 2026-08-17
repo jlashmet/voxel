@@ -14,7 +14,9 @@ namespace Game.Structures.Api
     /// <summary>
     /// Castle-specific curtain composition over the shared wall and battlement contracts.
     /// Rectangles use integer half-extents; polygons use an explicitly bounded local vertex list.
-    /// MaximumSegmentLength controls deterministic wall subdivision without changing the wall style.
+    /// Polygon edges are orthogonal because the existing deterministic wall-run authoring primitive
+    /// is axis-aligned. MaximumSegmentLength controls deterministic wall subdivision without changing
+    /// the wall style.
     /// </summary>
     public struct CastleCurtainConfig
     {
@@ -46,13 +48,17 @@ namespace Game.Structures.Api
                                RectangularHalfExtents.y > Wall.Thickness;
 
                     case CastleCurtainLayoutKind.Polygon:
-                        if (PolygonVertices.Length < 3)
+                        if (PolygonVertices.Length < 4)
                             return false;
                         for (int i = 0; i < PolygonVertices.Length; i++)
                         {
                             int2 a = PolygonVertices[i];
                             int2 b = PolygonVertices[(i + 1) % PolygonVertices.Length];
-                            if (math.all(a == b))
+                            int dx = b.x - a.x;
+                            int dz = b.y - a.y;
+                            if ((dx == 0 && dz == 0) || (dx != 0 && dz != 0))
+                                return false;
+                            if (math.abs(dx) + math.abs(dz) <= Wall.Thickness)
                                 return false;
                         }
                         return true;
