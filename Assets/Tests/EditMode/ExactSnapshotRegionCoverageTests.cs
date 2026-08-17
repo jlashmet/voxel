@@ -68,8 +68,10 @@ namespace VoxelEngine.Tests.EditMode
             // chunk borders. The scheduler must preserve that ownership while moving the solid
             // discovery feed off the border before it reaches the cache's generic halo-aware
             // admission path. Water and mutation invalidation continue to receive the original
-            // coordinates.
+            // coordinates. The production scheduler establishes the clipmap slot window before
+            // discovery, so the focused cache fixture must mirror that precondition.
             using var cache = new CpuTransvoxelChunkCache(sourceStep: 4);
+            cache.SetClipmapWindow(int3.zero, 1);
             var canonical = new List<int3>
             {
                 SurfaceDiscoveryChunkOwner.Canonicalize(int3.zero, cache.BricksPerAxis),
