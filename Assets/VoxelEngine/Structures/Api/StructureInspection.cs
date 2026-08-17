@@ -109,7 +109,7 @@ namespace VoxelEngine.Structures.Api
             int3 size = new int3(config.Width, math.max(1, height), config.Depth);
             int3 door = new int3(
                 minimum.x + config.Width / 2,
-                config.FoundationDepth + config.MainDoor.BottomOffset,
+                config.FoundationDepth + config.FrontDoors.Opening.BottomOffset,
                 minimum.z);
             int3 hearth = new int3(
                 minimum.x + config.Width / 2,
