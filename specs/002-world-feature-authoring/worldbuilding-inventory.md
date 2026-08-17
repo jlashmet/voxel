@@ -1,152 +1,161 @@
 # Worldbuilding Repository Inventory
 
-This note records the Phase 0 evidence for `worldbuilding-plan.md`. The inventory describes what is actually present on `agent/worldbuilding-structures-caves`; an absent builder is recorded as an absence rather than inferred from a similarly named world-planning type.
+This note records the Phase 0 evidence for `worldbuilding-plan.md`. The inventory describes what is actually present on `agent/worldbuilding-structures-caves`; an absent builder is recorded as an absence rather than inferred from a similarly named type.
 
 ## WB001 — house/cottage baseline
 
-There is no production house/cottage builder under `Assets/Game/Structures` on this branch. The current concrete cottage baseline is test-owned feature-authoring content:
+There are two relevant house baselines on this branch: a small test-owned cottage feature and the production Kentridge architecture pipeline.
 
-- `Assets/Tests/Features/Fixtures/CottageFixture.cs` exposes `CottageFixture.Build(Allocator, int)` and constructs a `FeatureCatalogue` containing one `FeatureDefinition` named `cottage`.
-- `Assets/Tests/Features/Fixtures/CottageProgram.cs` exposes `CottageProgram.Build()` and hand-authors the cottage as integer `ShapeProgram` opcodes.
-- The fixture's public parameters are width, depth, wall height, and roof pitch. It declares `door` and `hearth` anchors and stone/wood/glass material ids.
-- The fixture is intentionally test-owned and is the current compatibility surface to migrate in WB031 rather than evidence of a separate production `HouseBuilder`.
+### Test-owned cottage fixture
 
-Current cottage compatibility defaults are: width 64, depth 64, wall height 32, wall thickness 4 in the hand-authored program, an 8-voxel stone foundation, a 12 x 20 south doorway, a 16-voxel gable roof, and a declared 96 x 80 x 96 maximum footprint. Catalogue parameter ranges are width/depth 48..88 in quanta of 8, wall height 24..40 in quanta of 4, and roof pitch 4..12 in quanta of 2. The fixture uses deterministic catalogue/instance generation; it contains no independent floating-point house RNG.
+- `Assets/Tests/Features/Fixtures/CottageFixture.cs` exposes `CottageFixture.Build(Allocator, int)` and constructs a `FeatureCatalogue` containing a `FeatureDefinition` named `cottage`.
+- `Assets/Tests/Features/Fixtures/CottageProgram.cs` hand-authors the cottage as integer shape-program opcodes.
+- The fixture exposes width, depth, wall height, and roof pitch; declares `door` and `hearth` anchors; and uses stone/wood/glass material ids.
+- Compatibility defaults are width 64, depth 64, wall height 32, wall thickness 4, an 8-voxel stone foundation, a 12 x 20 south doorway, a 16-voxel gable roof, and a declared 96 x 80 x 96 maximum footprint. Catalogue parameter ranges are width/depth 48..88 in quanta of 8, wall height 24..40 in quanta of 4, and roof pitch 4..12 in quanta of 2.
 
-No production/showcase house caller exists outside the feature fixture/test path in the branch inventory. The detailed house showcase required by WB040 will therefore be a new migration target over this fixture baseline.
+This fixture remains the narrow `FeatureDefinition`/shape-program compatibility target for WB031.
+
+### Production Kentridge houses
+
+Production house and town content lives in the in-repository package `Packages/com.mountingforce.worldgen`, not in `Assets/Game/Structures`.
+
+- `Runtime/Architecture/Kentridge/KentridgeBuildingGrammar.cs` defines the renderer-independent `StructureForm` and the Kentridge style compiler.
+- Generated forms expose footprint form, roof form, frontage rhythm, window treatment, width/depth, storeys, door offset, upper overhang, roof height, optional wing dimensions/side, and chimney side.
+- Ordinary generated house grammar covers `Townhouse`, `WideHouse`, `Shop`, and `Inn`. Normal houses are deterministically 66..76 dm wide and 64..74 dm deep; wide houses are 84..96 dm wide and 74..86 dm deep. They are normally two storeys, with deterministic three-storey variation in civic/market districts. Roof, frontage, overhang, door offset, wing, and chimney choices derive from a stable integer hash of seed/role/archetype/district.
+- Named house-like roles preserve authored compatibility values. For example, `MayorHouse` resolves to 90 x 78 dm, three storeys, rear wing, twin gable, and warm windows; `AbandonedHouse` resolves to 66 x 66 dm, two storeys, side wing, gable-with-lean-to, and open windows.
+- `Runtime/Content/Kentridge/KentridgeDefinition.cs` supplies semantic material defaults through `ArchitectureTheme`: foundation stone, masonry wall, timber frame, glass window, roof tile, dark-masonry accent; with 7 dm foundation height, 4 dm wall thickness, 34 dm floor height, 24 dm door height, 20 dm window base, 12 dm window height, 3 dm beam width, and 4 dm roof overhang.
+- Maximum structure envelopes are 104 x 120 x 104 dm for townhouses, 132 x 120 x 132 for wide houses, 124 x 120 x 124 for shops, and 184 x 120 x 184 for inns.
+
+The live showcase call site is `Assets/Game/Composition/Showcase/ShowcaseCatalogue.cs`, which delegates catalogue construction to `MountingForce.WorldGen.Voxel.KentridgeCombinedVoxelCatalogue`.
+
+**Migration seam:** WB031 should reuse the semantic house controls already represented by `StructureForm`/`ArchitectureTheme` while moving reusable wall/opening/roof/foundation mechanics onto the shared authoring components. It must not create a third independent house generator.
 
 ## WB002 — castle baseline
 
-The dedicated game structure module is currently castle-specific.
+The dedicated game structure module is castle-specific.
 
-### Public surface and entry path
+- `Assets/Game/Structures/Api/CastlePlan.cs` is the plan surface.
+- `Assets/Game/Structures/Runtime/CastlePlanner.cs` owns deterministic layout policy.
+- `Assets/Game/Structures/Runtime/CastleAuthoringBuild.cs` is the bounded incremental authoring entry point and deliberately preserves legacy keep write ordering.
+- `Assets/Game/Composition/Showcase/ShowcaseStructureComposition.cs` is the showcase/application facade: `PlanCastle` terminates at `CastlePlanner.Plan`, while `BeginCastleBuild` creates `AsyncCastleBuildSession` backed by game-owned castle content.
+- Authoring is split into focused keep, curtain-wall, courtyard, tower, gatehouse, chapel, dungeon, cave, roofline, room, and site helpers rather than one monolithic geometry method.
 
-- `Assets/Game/Structures/Api/CastlePlan.cs` is the castle plan data surface.
-- `Assets/Game/Structures/Runtime/CastlePlanner.cs` exposes `CastlePlanner.Plan(int3 centre, uint seed)` and `EstimateWrites(in CastlePlan)`.
-- `Assets/Game/Structures/Runtime/CastleAuthoringBuild.cs` is the bounded incremental authoring entry point. It accepts an `IStructureAuthoringSession`, `CastlePlan`, and terrain seed; `Step()` executes eight semantic stages and refuses plans/builds that exceed the write budget.
-- `CastleAuthoringBuild` deliberately preserves legacy write ordering in the keep so migration must not casually reorder overlapping writes.
+`CastlePlanner` uses deterministic seeded choices. Current compatibility policy includes bailey half extents 220..279, plateau height/cliff drop 26..43, curtain-wall height 82..107 and thickness 18..24, corner-tower radius 30..38 and height 125..159, gate-tower radius 28..35 and height 135..171, keep half extents X 92..120 and Z 78..100, floor height 46, and 5..6 floors.
 
-The direct structure tests are:
+Castle authorers currently choose game material ids directly. The current palette includes stone, dark stone, wood, slate, gold, tile, lit-window, moss, cloth, and empty/carve semantics. WB013 should centralize semantic roles without unintentionally changing the compatibility preset.
 
-- `Assets/Game/Structures/Tests/CastlePlannerTests.cs`
-- `Assets/Game/Structures/Tests/CastleAuthoringBuildTests.cs`
+Direct castle tests include planner, feature-pipeline, authoring, seed-variation, and structure-property coverage under `Assets/Game/Structures/Tests`.
 
-The branch tree contains no separate castle showcase builder/definition alongside these entry points. Existing runtime/tests therefore form the castle compatibility surface until WB050 adds explicit preset/showcase coverage.
-
-### Current deterministic dimensions and materials
-
-`CastlePlanner.Plan` seeds `Unity.Mathematics.Random` with `seed | 1u` and preserves a historical RNG draw so refactors do not perturb unrelated dimensions. Current planned ranges/default policy are:
-
-- bailey half extents: 220..279 x 220..279
-- plateau radius: bailey diagonal ceiling plus 18..31
-- plateau height and cliff drop: 26..43
-- curtain-wall height: 82..107
-- curtain-wall thickness: 18..24
-- corner tower radius: 30..38; height: 125..159
-- gate tower radius: 28..35; height: 135..171
-- keep half extents: X 92..120, Z 78..100
-- floor height: 46; floor count: 5..6; keep height is their product
-
-Castle authorers currently choose game material ids directly. The curtain-wall path demonstrates the compatibility palette currently in use: `Stone`, `DarkStone`, `Wood`, `Slate`, `Gold`, `Tile`, `LitWindow`, `Moss`, `Cloth`, and `Empty` for carving/openings. Other focused castle authorers add their own hard-coded semantic choices; WB013 will centralize those roles without changing the compatibility preset unintentionally.
+**Migration seam:** preserve `CastlePlanner`/`CastlePlan` policy and compatibility sequencing while replacing lower-level wall/tower/opening/roof/foundation mechanics with shared components in WB041.
 
 ## WB003 — city/settlement baseline
 
-There is no city/settlement geometry builder or structure definition on the current branch.
+Production settlement generation exists in `Packages/com.mountingforce.worldgen`; `Assets/Game/WorldBuilder` is a higher-level campaign/world hierarchy and is not the geometry builder.
 
-`Assets/Game/WorldBuilder` contains campaign/world-hierarchy planning contracts and compilation/runtime orchestration (`CampaignBlueprint`, `CampaignBuilder`, `WorldHierarchy*`, site/story/secret planning, and related handles). Its recursive branch tree contains no `City` or `Settlement` builder/definition and does not own house geometry. `Assets/Game/Structures` likewise contains only castle production authoring. There are consequently no current city structure tests or showcase calls to migrate as a geometry compatibility fixture.
+### Settlement planning
 
-This makes WB088's wording intentionally forward-looking: the future city/settlement composition layer must consume shared structure definitions/presets and bounded placement rules rather than refactor a hidden existing `CityBuilder`. Compatibility for city output is therefore architectural (world-planning contracts and deterministic placement invariants), not a golden geometry snapshot that does not exist.
+- `Runtime/Content/Kentridge/KentridgeTownPlanner.cs` builds the deterministic `SettlementPlan`.
+- It authors four named streets, one market plaza, and 17 named plots, then delegates frontage placement/jitter/envelope work to reusable `SettlementPlotLayout` helpers.
+- Current road baselines are: main spine X=1170 dm with width 56 dm, market street Z=520 dm with width 48 dm, residential street Z=900 dm with width 44 dm, and east service lane X=1490 dm with width 36 dm.
+- Plot identities include church, mayor house, inn, shops, named residential houses, warehouse, mansion, and well. Residential positional jitter is deterministic and bounded.
+- `KentridgeDefinition.Build(seed)` is the semantic entry point and supplies the shared architecture theme and per-archetype maximum envelopes.
+
+### Architecture and voxel realization
+
+The settlement planner does **not** directly own house geometry. It emits `BuildingPlot`/`SettlementPlan` intent. `KentridgeDefinition.StructureIntent` hands plots to the lower architecture layer, `ArchitectureCompiler` resolves detailed `StructureForm` data, and the voxel catalogues compile those forms into engine `FeatureDefinition`/shape-program content.
+
+`Runtime/Voxel/KentridgeCombinedVoxelCatalogue.cs` is the aggregate voxel entry point. It can build from a seed/settings pair, semantic hidden-space requests, or an exact `SettlementPlan` plus realized hidden-space geometry. This boundary explicitly prevents campaign/world-builder types from crossing into voxel realization.
+
+The live showcase uses this production path through `Assets/Game/Composition/Showcase/ShowcaseCatalogue.cs`.
+
+**Migration seam:** WB088 should preserve `SettlementPlan`/plot/road/district semantics and change structure selection/realization to consume the shared structure definitions/presets. City composition remains responsible for lots, roads, districts, landmarks, and deterministic placement; it must not absorb duplicate house/church/castle geometry.
 
 ## WB004 — castle cave reuse verdict
 
 `Assets/Game/Structures/Runtime/CastleCaveAuthoring.cs` is castle-local, not a reusable cave generator.
 
-It owns the cave layout, castle-relative coordinates, material/decorative choices, carving behavior, and its ellipsoid/noise carving routine. It does not delegate to a generic cave core. The authoritative authoring path also uses floating-point trigonometric/math operations, so preserving the implementation as a generic deterministic cave engine would conflict with the project's integer deterministic generation constraint.
+It owns the cave layout, castle-relative coordinates, material/decorative choices, carving behavior, and its ellipsoid/noise carving routine. It does not delegate to a generic cave core. The authoritative path also uses floating-point trigonometric/math operations, conflicting with the project's integer deterministic generation constraint.
 
-**Reuse verdict:** there is no generic cave algorithm here that should remain as the shared cave implementation. Useful intent/defaults may be migrated as a castle cave compatibility preset, but the algorithm itself must move to the generic deterministic cave path described by Phase 4.
-
-**Chosen migration path:**
-
-1. Define the reusable deterministic cave configuration/generation path in WB051-WB062.
-2. Preserve relevant castle entrance/layout/material intent as data/configuration rather than private cave code.
-3. Route the castle's `Cave` attachment through the same generic path used by standalone caves (WB049/WB062-WB063).
-4. Retire/deprecate the duplicate castle-local carving algorithm after compatibility and reachability tests cover the migration.
+**Reuse verdict:** preserve useful entrance/layout/material intent as compatibility data, but migrate the algorithm to the generic deterministic cave path in WB051-WB063. Standalone and castle-attached caves must eventually enter the same generator.
 
 ## WB005 — reusable feature-authoring capabilities
 
-The reusable engine layer lives under `Assets/VoxelEngine/Structures`, not under the game castle module.
+The reusable engine layer is `Assets/VoxelEngine/Structures`.
 
-### Definition/catalogue contracts
+- `FeatureDefinition` is the reusable definition boundary and references shared parameter, anchor, slot, program, and material pools.
+- `AnchorSpec`/resolved anchors provide named attachment positions and facings.
+- `FeatureCatalogue`/`FeatureCatalogueBuilder` own bounded blittable definition data.
+- `ShapeOps` and the runtime shape program already support integer box, cylinder, prism, capsule, ramp, rounded-box, ellipsoid, frustum, annulus, and arc-wedge placement/carving plus transforms, bounded repeat/conditionals, deterministic choices, ground sampling, anchors, and slot opcodes.
+- `FeatureHash` provides deterministic integer hashing/seed derivation.
+- `IStructureAuthoringSession` already exposes reusable immediate helpers including fill/carve/hollow box, gable, crenellation, arch, stairs, and spiral stairs.
 
-`Assets/VoxelEngine/Structures/Api/FeatureDefinition.cs` already provides the reusable definition boundary: feature kind, base-plane rule, declared integer footprint, slope/precedence policy, ranges into shared parameter/anchor/slot/program/material pools, and a proved maximum primitive count. `FeatureCatalogue`/`FeatureCatalogueBuilder` own the blittable shared pools and placement definitions.
-
-`AnchorSpec` and resolved anchors provide named attachment positions/facings. Slots are represented in catalogue/definition ranges, but current slot execution is not yet a usable composition mechanism (see WB008).
-
-The material surface is presently a compact list of byte material ids. This is efficient and deterministic but has no semantic roles such as `PrimaryWall`, `Roof`, or `Trim`; that semantic layer belongs in the shared authoring model.
-
-### Shape-program/runtime capabilities
-
-`Assets/VoxelEngine/Structures/Runtime/ShapeProgram.cs` is an integer, bounded evaluator. It already supports primitive emission for boxes, cylinders, prisms, capsules, ramps, rounded boxes, ellipsoids, frustums, annuli, and arc wedges. It also supports transform push/pop, bounded repeat/conditionals, deterministic draw ranges, arithmetic, terrain sampling, and anchor output.
-
-The evaluator receives origin, cardinal orientation, terrain seed, and instance seed. It may sample terrain through `TerrainQuery` but does not inspect already-generated voxel state, preserving region-order independence. `FeatureGeneration`/`FeatureRegionBuild` provide the broader deterministic feature generation path, while runtime emitters/rasterization remain the primitive-to-voxel layer.
-
-Terrain adaptation currently consists of definition base-plane policy plus explicit `SampleGround` access. Higher-level foundations, skirts, retaining behavior, and bounded cut/fill semantics are authoring-library concepts unless a proven missing primitive requires an engine extension.
+Most Phase 1 geometry can therefore be expressed by composition over existing bounded integer primitives. The missing layer is semantic structure configuration, not another voxel engine.
 
 ## WB006 — existing helper reuse classification
 
-The castle implementation contains useful behavior but it is organized by castle semantic stage rather than shared architectural component. Classification for refactoring is:
-
 ### Generalize into shared components
 
-- `CastleCurtainAuthoring` wall runs, material courses, openings/slits, and parapets -> wall-run/opening/battlement configs.
-- `CastleTowerAuthoring` -> tower/turret config and reusable tower authoring.
-- `CastleKeepRoomAuthoring` and dungeon room/connective carving -> interior volume/opening configs.
-- `CastleKeepRooflineAuthoring` -> roof/parapet/vertical-accent pieces where geometry is archetype-neutral.
-- `CastleCourtyardAuthoring` -> courtyard/open-space composition.
-- `CastleSiteAuthoring` -> bounded foundation/terrain-adaptation pieces; castle siting policy stays game-owned.
-- repeated `Arch`, `Box`, `Cylinder`, `Cone`, ramp/roof-like calls -> shared component emitters over the existing `IStructureAuthoringSession`/shape primitives rather than copied loops.
+- castle curtain-wall runs/courses/openings/parapets -> wall/opening/battlement configs
+- castle towers -> tower/turret config
+- keep/dungeon room carving -> interior volume/connective-opening config
+- keep roofline -> roof/parapet/vertical-accent pieces
+- courtyard -> reusable courtyard/open-space composition
+- `CastleSiteAuthoring` -> bounded foundation/terrain-adaptation pieces while castle siting policy stays game-owned
+- existing `IStructureAuthoringSession` arch/stairs/gable/crenellation helpers -> component implementation primitives rather than duplicated loops
+- Kentridge `StructureForm`/`ArchitectureTheme` semantics -> input/migration source for shared house components, not a parallel long-term structure framework
 
-### Keep as castle composition/policy
+### Keep as archetype/composition policy
 
-- `CastlePlanner` dimension/layout policy and compatibility RNG stream.
-- `CastleAuthoringBuild` high-level castle stage orchestration until WB041 replaces stages with shared component composition while retaining compatibility ordering.
-- gatehouse, great-hall wing, chapel, keep facade/oriel, and landscape classes where the *semantic arrangement* is castle-specific; their lower-level wall/opening/roof/tower mechanics should delegate to shared components.
+- `CastlePlanner` dimension/layout policy and compatibility seed stream
+- `CastleAuthoringBuild` orchestration until WB041 replaces its lower-level mechanics
+- Kentridge settlement road/plot/district planning (`SettlementPlan`, `KentridgeTownPlanner`) while WB088 changes how plots select/realize structures
 
 ### Replace/migrate
 
-- `CastleCaveAuthoring`'s private cave algorithm -> generic cave generator (WB049/WB051-WB063).
-- hard-coded material-role choices distributed across castle authorers -> semantic structure palette (WB013), with a castle compatibility palette preserving current ids.
+- `CastleCaveAuthoring` private cave algorithm -> generic cave generator
+- hard-coded material ids distributed through builders -> semantic structure palette with compatibility mappings
 
 ## WB007 — compatibility targets
 
-Compatibility means preserving deterministic authored intent where an output exists, not freezing implementation structure.
-
-- **House/cottage:** preserve the fixture geometry/defaults listed under WB001 until the shared-house tests deliberately approve a migration.
-- **Castle:** preserve `CastlePlanner` seed behavior/ranges, write-budget refusal behavior, the legacy keep write ordering called out in `CastleAuthoringBuild`, cardinal placement semantics, and current hard-coded game material choices through an explicit compatibility preset before varying them.
-- **City/settlement:** no existing geometry output exists to snapshot. Preserve the existing `WorldBuilder` deterministic world-hierarchy/planning boundary; new city geometry must be introduced as bounded composition rather than changing campaign/world hierarchy semantics.
-- **Cave:** preserve useful castle entrance/layout/material intent as a migration fixture, but do not preserve the floating-point private algorithm as the architecture.
+- **House/cottage fixture:** preserve the fixture defaults and integer shape-program behavior until WB031 deliberately migrates it.
+- **Kentridge houses:** preserve deterministic `StructureForm` choices, named-role authored dimensions, `ArchitectureTheme` material/dimension defaults, plot envelopes, and seed/role/archetype/district variation behavior unless a migration test records an intentional difference.
+- **Castle:** preserve `CastlePlanner` seed behavior/ranges, write-budget refusal, legacy keep write ordering, cardinal placement semantics, and current material intent through an explicit compatibility preset.
+- **City/settlement:** preserve Kentridge street/plaza/plot topology, deterministic bounded jitter, role identities, district/frontage assignments, and the `SettlementPlan -> architecture -> voxel catalogue` separation while moving geometry mechanics to shared definitions/presets.
+- **Cave:** preserve useful castle entrance/layout/material intent as a migration fixture, but not the floating-point private algorithm as architecture.
 
 ## WB008 — engine-extension versus authoring-library gaps
 
-The desired worldbuilding model is mostly missing **semantic authoring composition**, not low-level voxel shapes.
+The desired model is primarily missing **semantic authoring composition**, not low-level voxel shapes.
 
 ### Authoring-library work; no new engine opcode required initially
 
 - stable structure generation context and semantic child seeds
 - semantic material palette roles
-- footprint/foundation, wall, floor, opening, roof, stair/ramp, tower, column, buttress, battlement, chimney/spire, room, and courtyard config/builders
+- reusable footprint/foundation, wall, floor, opening, roof, stair/ramp, tower, column, buttress, battlement, chimney/spire, room, and courtyard configs/builders
 - archetype presets and composition policies
-- deterministic validation of dimensions/spacing/bounds before emission
+- deterministic dimension/spacing/bounds validation before emission
+- adapters from current Kentridge `StructureForm`/`ArchitectureTheme` and castle plans into the shared components during migration
 
-Existing integer primitives and shape-program control flow are already sufficient to prove the rectangular house/shared-component path and a large fraction of castle refactoring. New opcodes must therefore be justified by geometry that cannot be expressed boundedly with the current primitive set.
+### Existing archetype controls versus gaps
 
-### Actual engine/contract gaps to address deliberately
+- **House:** Kentridge already models footprint/roof/frontage/window families, dimensions, storeys, door offset, overhang, wings, chimney side, and semantic theme materials. It lacks the target shared component schemas, richer per-facade opening/porch/balcony/interior controls, and a unified engine-facing structure context/palette.
+- **Castle:** rich geometry exists, but most dimensions/material choices are planner- or authorer-specific rather than a reusable public config graph.
+- **Cave:** castle-local layout/material/decorative controls exist; no reusable integer `CaveConfig` or generic algorithm exists.
+- **Shed/cathedral/temple:** no dedicated target schemas exist.
+- **Church:** Kentridge has a church archetype/plot and castle has chapel-specific geometry, but neither is the reusable church configuration required by Phase 6.
+- **City:** Kentridge already has deterministic roads, plaza, plots, districts, role identities, architecture handoff, and voxel catalogues. It lacks the target weighted palette of reusable structure presets and generalized lot/district/landmark config.
 
-- `FeatureDefinition` exposes slot ranges, and the opcode vocabulary includes `CallSlot`, but the current `ShapeProgram` evaluator's `CallSlot` case performs no composition. If runtime shape-program slot composition is required by the shared model, WB028 must implement/validate that contract rather than hiding composition in a parallel builder framework.
-- materials are raw byte ids without semantic structure roles; the role mapping can remain authoring-side unless catalogue serialization needs to persist it.
-- terrain access is intentionally narrow (`BasePlaneRule`/`SampleGround`); reusable bounded terrain adaptation should first be authored from those contracts and only extend the engine if a required deterministic operation is impossible.
-- the evaluator already produces resolved anchors, so named architectural attachment semantics should layer over anchors rather than introduce another attachment representation.
+### Contract gaps to address deliberately
+
+- `FeatureDefinition` exposes slot ranges and the opcode vocabulary includes `CallSlot`, but current runtime slot execution is not yet a complete shared composition mechanism. WB028 should extend it only if Phase 1 components truly require runtime slot calls.
+- Engine materials are compact ids without shared architectural semantic roles; map roles authoring-side unless serialization proves a lower-level contract is needed.
+- Terrain access is intentionally narrow (`BasePlaneRule`/ground sampling). Implement bounded terrain adaptation over those contracts first.
+- Existing resolved anchors should carry named architectural attachment semantics rather than introducing a second attachment representation.
+
+## WB009 — cave migration verdict
+
+The castle cave is not the shared cave core. Phase 4 will create one deterministic integer cave path, adapt the castle `Cave` attachment to it, and then remove/deprecate the duplicate castle-local carving algorithm after compatibility/reachability coverage exists.
 
 ## Phase 0 conclusion
 
-WB001-WB009 are now inventoried. The repository has one production structure family (castle), one test-owned cottage feature baseline, no production city/settlement geometry builder, and a castle-local cave algorithm that must be migrated. Phase 1 should therefore add the missing shared deterministic authoring model directly over `VoxelEngine.Structures` contracts, while game-specific castle/house/city semantics remain outside the engine.
+WB001-WB009 are inventoried. The repository currently has three relevant structure-generation surfaces: the reusable `VoxelEngine.Structures` pipeline, game-owned castle composition, and the in-repository MountingForce/Kentridge settlement + architecture package. The refactor must converge their reusable geometry mechanics on the existing `FeatureDefinition -> ShapeProgram -> Primitive -> voxel` pipeline rather than add another structure framework.
