@@ -2,7 +2,9 @@ using System;
 using System.IO;
 using Game.Composition.Materials;
 using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using VoxelEngine.Composition;
 using VoxelEngine.Tiering.Api;
 
@@ -14,6 +16,7 @@ namespace VoxelEngine.Showcase.Editor
     /// </summary>
     public static class ShowcaseWorldBaker
     {
+        private const string ShowcaseScenePath = "Assets/Scenes/VoxelShowcase.unity";
         private const string OutputAssetPath =
             "Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes";
 
@@ -31,12 +34,24 @@ namespace VoxelEngine.Showcase.Editor
 
             VoxelShowcase showcase = UnityEngine.Object.FindFirstObjectByType<VoxelShowcase>(
                 FindObjectsInactive.Include);
+            if (showcase == null && Application.isBatchMode)
+            {
+                // CI starts from a clean checkout and an arbitrary editor scene. The bake command
+                // owns its source scene in batch mode so tests/builds never depend on whatever the
+                // runner happened to have open before Unity launched.
+                EditorSceneManager.OpenScene(ShowcaseScenePath, OpenSceneMode.Single);
+                showcase = UnityEngine.Object.FindFirstObjectByType<VoxelShowcase>(
+                    FindObjectsInactive.Include);
+            }
+
             if (showcase == null)
             {
-                EditorUtility.DisplayDialog(
-                    "Voxel Showcase Bake",
-                    "Open a scene containing VoxelShowcase, then run the bake command again.",
-                    "OK");
+                const string message =
+                    "Open Assets/Scenes/VoxelShowcase.unity, then run the bake command again.";
+                if (Application.isBatchMode)
+                    throw new InvalidOperationException(message);
+
+                EditorUtility.DisplayDialog("Voxel Showcase Bake", message, "OK");
                 return;
             }
 
@@ -54,10 +69,11 @@ namespace VoxelEngine.Showcase.Editor
 
             try
             {
-                EditorUtility.DisplayProgressBar(
-                    "Voxel Showcase Bake",
-                    "Generating terrain, castle, and startup regions…",
-                    0.15f);
+                if (!Application.isBatchMode)
+                    EditorUtility.DisplayProgressBar(
+                        "Voxel Showcase Bake",
+                        "Generating terrain, castle, and startup regions…",
+                        0.15f);
 
                 using var world = new ShowcaseWorld(
                     seed,
@@ -69,10 +85,11 @@ namespace VoxelEngine.Showcase.Editor
 
                 world.GenerateForBakeBlocking(startupRadius);
 
-                EditorUtility.DisplayProgressBar(
-                    "Voxel Showcase Bake",
-                    "Capturing semantic region snapshots…",
-                    0.75f);
+                if (!Application.isBatchMode)
+                    EditorUtility.DisplayProgressBar(
+                        "Voxel Showcase Bake",
+                        "Capturing semantic region snapshots…",
+                        0.75f);
                 ShowcaseWorldBake bake = world.CaptureBake(startupRadius);
                 byte[] bytes = ShowcaseWorldBakeCodec.Serialize(bake);
 
@@ -82,6 +99,7 @@ namespace VoxelEngine.Showcase.Editor
                 Directory.CreateDirectory(directory);
                 File.WriteAllBytes(OutputAssetPath, bytes);
                 AssetDatabase.ImportAsset(OutputAssetPath, ImportAssetOptions.ForceUpdate);
+                AssetDatabase.SaveAssets();
 
                 float mebibytes = bytes.Length / (1024f * 1024f);
                 Debug.Log(
@@ -92,15 +110,17 @@ namespace VoxelEngine.Showcase.Editor
             catch (Exception ex)
             {
                 Debug.LogException(ex);
-                EditorUtility.DisplayDialog(
-                    "Voxel Showcase Bake Failed",
-                    ex.Message,
-                    "OK");
+                if (!Application.isBatchMode)
+                    EditorUtility.DisplayDialog(
+                        "Voxel Showcase Bake Failed",
+                        ex.Message,
+                        "OK");
                 throw;
             }
             finally
             {
-                EditorUtility.ClearProgressBar();
+                if (!Application.isBatchMode)
+                    EditorUtility.ClearProgressBar();
             }
         }
 
