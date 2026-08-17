@@ -151,19 +151,16 @@ namespace VoxelEngine.Structures.Api
     /// </summary>
     public static class StructureSeed
     {
-        private const ulong SemanticSalt = 0xD6E8FEB86659FD93ul;
-        private const ulong ByteSalt = 0x9E3779B97F4A7C15ul;
         private const ulong OrdinalSalt = 0xC2B2AE3D27D4EB4Ful;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ulong Child(ulong parentSeed, in FixedString64Bytes semanticKey, int ordinal = 0)
         {
-            ulong hash = FeatureHash.Mix(parentSeed ^ SemanticSalt);
-            for (var i = 0; i < semanticKey.Length; i++)
-                hash = FeatureHash.Mix(hash ^ ((ulong)semanticKey[i] + ByteSalt + (ulong)(uint)i));
+            ulong semantic = FeatureHash.Semantic(parentSeed, in semanticKey);
+            if (ordinal == 0)
+                return semantic;
 
-            hash = FeatureHash.Mix(hash ^ ((ulong)(uint)semanticKey.Length * ByteSalt));
-            return FeatureHash.Mix(hash ^ ((ulong)(uint)ordinal * OrdinalSalt));
+            return FeatureHash.Mix(semantic ^ ((ulong)(uint)ordinal * OrdinalSalt));
         }
     }
 }
