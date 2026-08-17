@@ -64,20 +64,24 @@ namespace VoxelEngine.Tests.EditMode
         [Test]
         public void SurfaceDiscoveryDoesNotCreateHaloOnlyStep4ChunksWithNonResidentCore()
         {
-            // World block (0,0,0) is the concrete showcase floor case. It belongs to step-4
-            // chunk (0,0,0). The extractor needs neighbouring block samples as an optional halo,
-            // but that does not give chunks (-1/0,-1/0,-1/0) authoritative owned content.
-            // Admitting those neighbours during initial discovery creates chunk y=-1 even though
+            // Both corners are authoritative bricks owned by the same step-4 chunk. They exercise
+            // both low and high chunk borders. Discovery must learn the owner only; extraction
+            // halo dependency does not create authoritative ownership in any adjacent chunk.
+            // In particular, admitting a low-Y neighbour creates step-4 chunk y=-1 even though
             // showcase residency deliberately has no y=-1 core region; exact snapshot admission
             // then retries its required core pin forever. Mutation invalidation may still touch
-            // already-known neighbours because their existing geometry can depend on this border.
+            // already-known neighbours because their existing geometry can depend on a border.
             using var cache = new CpuTransvoxelChunkCache(sourceStep: 4);
-            int admitted = cache.DiscoverSurfaceBricks(new List<int3> { int3.zero });
+            int admitted = cache.DiscoverSurfaceBricks(new List<int3>
+            {
+                int3.zero,
+                new int3(31, 31, 31),
+            });
 
             Assert.AreEqual(1, admitted,
-                "Initial discovery should admit only the chunk that owns the authoritative surface brick; halo-only neighbours must wait for their own core surface content.");
+                "Initial discovery should admit only the chunk that owns authoritative surface bricks; halo-only neighbours must wait for their own core surface content.");
             Assert.AreEqual(1, cache.KnownCount,
-                "A boundary surface brick must not create seven halo-only coarse chunks, including the nonresident negative-Y core that caused persistent pin rejection.");
+                "Low/high boundary surface bricks must not create halo-only coarse chunks, including the nonresident negative-Y core that caused persistent pin rejection.");
         }
 
         [Test]
