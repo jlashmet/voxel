@@ -1,31 +1,5 @@
 namespace VoxelEngine.Structures.Api
 {
-    /// <summary>How adjoining wall runs own their corner volume.</summary>
-    public enum WallCornerMode : byte
-    {
-        Continuous = 0,
-        FirstRunOwnsCorner = 1,
-        SecondRunOwnsCorner = 2,
-        LeaveCornerOpen = 3,
-    }
-
-    /// <summary>
-    /// Archetype-neutral wall-run configuration. Repetition spacing is the component cadence used
-    /// by windows, buttresses, crenellations, or other regular facade details layered on the run.
-    /// </summary>
-    public struct WallRunConfig
-    {
-        public int Thickness;
-        public int Height;
-        public int BaseOffset;
-        public int MaterialBandHeight;
-        public int RepetitionSpacing;
-        public WallCornerMode CornerMode;
-        public StructureMaterialRole PrimaryMaterialRole;
-        public StructureMaterialRole SecondaryMaterialRole;
-        public StructureMaterialRole TrimMaterialRole;
-    }
-
     /// <summary>Reusable repeated-level/floor-slab configuration.</summary>
     public struct FloorLevelConfig
     {
