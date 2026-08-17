@@ -1,5 +1,6 @@
 using NUnit.Framework;
 using VoxelEngine.Structures.Api;
+using VoxelEngine.Structures.Runtime;
 
 namespace VoxelEngine.Tests.Features
 {
@@ -71,6 +72,63 @@ namespace VoxelEngine.Tests.Features
                 Assert.IsTrue(townhouse.RearWindows.IsWellFormed);
                 Assert.IsTrue(townhouse.Roof.IsWellFormed);
             });
+        }
+
+        [Test]
+        public void DetailedFarmhouseProgramIsDeterministic()
+        {
+            HouseConfig farmhouse = HousePresetVariants.Farmhouse(7, 9);
+
+            int[] first = HouseProgramCompiler.BuildProgram(
+                in farmhouse,
+                mainDoorAnchorIndex: 0,
+                hearthAnchorIndex: 1);
+            int[] second = HouseProgramCompiler.BuildProgram(
+                in farmhouse,
+                mainDoorAnchorIndex: 0,
+                hearthAnchorIndex: 1);
+
+            CollectionAssert.AreEqual(first, second,
+                "same house config must compile to the exact same shape program");
+        }
+
+        [Test]
+        public void DetailedFarmhouseFoundationMatchesConfiguredFootprint()
+        {
+            HouseConfig farmhouse = HousePresetVariants.Farmhouse(7, 9);
+            int[] program = HouseProgramCompiler.BuildProgram(
+                in farmhouse,
+                mainDoorAnchorIndex: 0,
+                hearthAnchorIndex: 1);
+
+            Assert.Multiple(() =>
+            {
+                Assert.AreEqual((int)ShapeOp.EmitBox, program[0]);
+                Assert.AreEqual(0, program[2], "foundation X origin must be definition-local");
+                Assert.AreEqual(0, program[3], "foundation Y origin must begin at the base plane");
+                Assert.AreEqual(0, program[4], "foundation Z origin must be definition-local");
+                Assert.AreEqual(farmhouse.Width, program[5]);
+                Assert.AreEqual(farmhouse.FoundationDepth, program[6]);
+                Assert.AreEqual(farmhouse.Depth, program[7]);
+            });
+        }
+
+        [Test]
+        public void HouseCompilerRejectsFootprintWithoutNavigableInterior()
+        {
+            HouseConfig invalid = HousePresets.CottageCompatibility(7, 9);
+            invalid.Footprint.Primary = new Unity.Mathematics.int2(0, 0) == default
+                ? new StructureFootprintRect(
+                    new Unity.Mathematics.int2(0, 0),
+                    new Unity.Mathematics.int2(8, 8))
+                : invalid.Footprint.Primary;
+            invalid.Walls.Thickness = 4;
+
+            Assert.Throws<System.ArgumentException>(() =>
+                HouseProgramCompiler.BuildProgram(
+                    in invalid,
+                    mainDoorAnchorIndex: 0,
+                    hearthAnchorIndex: 1));
         }
     }
 }
