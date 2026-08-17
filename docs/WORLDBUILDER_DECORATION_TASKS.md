@@ -14,13 +14,13 @@ This checklist is the source of truth for implementation progress. Mark each ite
 - Cave runtime content includes `CaveCampScene`, natural cave environmental families, and occupied/mine environmental families.
 - The natural/mine runtime source is present, but dedicated `NaturalCaveDecorationTests.cs` and `MineCaveDecorationTests.cs` source files are not currently present on the branch. Do not treat earlier notes implying those test files were committed as validation evidence.
 - Unity/CI execution and visual/performance evidence remain separate completion gates.
-- Large-scale content uses a two-level identity model: coarse prop families remain behavior/placement classes while `DecorationContentKind` carries stable archetype identity in deterministic variant bits.
-- The catalog now contains **114 stable archetypes**: IDs 1-42 smithy/tavern/crypt/market/stable/prison/civic; 43-60 carpentry/wheelwright; 61-84 textile/leather/pottery craft; 85-114 kitchen/bakery/brewery/winery/pantry.
-- Later recipe packs dispatch through `DecorationContentExpansionRegistry`, keeping the bootstrap catalog stable while allowing pack files to grow independently.
-- `DecorationContentAuthoringEmitter` maps content through a shared 24-shape grammar; mesh/thin content is emitted as data requests.
-- Relational composition reuses front-of-anchor and around-anchor semantic sub-spaces while delegating actual validity/collision/exclusion decisions to `DecorationPlacementResolver`.
-- Implemented content compositions now include the initial seven scenes plus carpentry, textile, leather, pottery, kitchen, bakery, brewery, winery, and pantry scenes.
-- Test source covers global archetype identity/recipe integrity, initial multi-seed scenes, relational scene behavior, generic authoring/backend partitioning, focused craft expansion integrity, four workshop scene families, and five food-production scenes. These tests still require Unity execution before validation gates close.
+- Large-scale content uses coarse prop families as behavior/placement classes while stable archetype IDs carry actual object identity in deterministic variant bits.
+- The content identity space now contains **200 stable archetypes**. IDs 1-114 remain in `DecorationContentKind`; IDs 115-200 are append-only stable IDs in `DecorationExpandedContentKind`. Both use the same 10-bit stable-id / 20-bit variation encoding layout, leaving room through ID 1023.
+- IDs 1-42 cover smithy/tavern/crypt/market/stable/prison/civic; 43-60 carpentry/wheelwright; 61-84 textile/leather/pottery; 85-114 kitchen/bakery/brewery/winery/pantry; 115-144 alchemy/magic/occult/observatory; 145-168 graveyard/funerary/catacomb; 169-200 farmyard/garden/street/civic exterior dressing.
+- `DecorationContentAuthoringEmitter` and `DecorationExpansion200AuthoringEmitter` use shared shape grammars so content growth is mostly catalog data. Procedural-mesh and thin-surface items remain data requests; integrated/box content has baseline geometry authoring.
+- Relational composition reuses semantic sub-spaces while delegating validity/collision/exclusion decisions to `DecorationPlacementResolver`.
+- Implemented content compositions include the initial seven scenes; carpentry, textile, leather, pottery, kitchen, bakery, brewery, winery and pantry; plus alchemy lab, ritual chamber, observatory, graveyard, catacomb, farmyard, garden court and civic street.
+- `DecorationExpansion200Tests` verifies every stable ID 115-200 has a well-formed recipe/descriptor and round-trips identity, checks scene socket compatibility, exercises eight new scenes across representative seeds, and verifies backend/interaction diversity. These remain source tests until Unity/CI executes them.
 
 ## Setup and architecture
 
@@ -138,20 +138,20 @@ This checklist is the source of truth for implementation progress. Mark each ite
 - [x] **DEC137** Add coherent market scene.
 - [x] **DEC138** Add coherent stable scene.
 - [x] **DEC139** Add coherent prison scene.
-- [x] **DEC140** Add coherent civic-corner scene. (`Well` remains available as an alternate civic anchor archetype.)
+- [x] **DEC140** Add coherent civic-corner scene.
 - [x] **DEC141** Add catalog/scene deterministic test source for the initial archetypes and representative multi-seed rooms.
 - [x] **DEC142** Add carpentry/general-workshop pack (stable archetype IDs 43-60).
 - [x] **DEC143** Add textile/leather/pottery craft pack (stable archetype IDs 61-84).
 - [x] **DEC144** Add kitchen/bakery/brewery/winery/pantry pack (stable archetype IDs 85-114).
 - [ ] **DEC145** Expand market/shop/merchant pack.
-- [ ] **DEC146** Expand stable/farm/animal-husbandry pack.
-- [ ] **DEC147** Add street/civic/courtyard/garden pack.
+- [x] **DEC146** Expand stable/farm/animal-husbandry pack with farm fences/gates, grain/feed storage, chicken coop, rabbit hutch, beehive, implements, pump/barrels and farmyard composition.
+- [x] **DEC147** Add street/civic/courtyard/garden pack with benches, planters, hedge/trellis/arbor, statue/sundial, bollards/signposts/milestones and civic-street/garden scenes.
 - [ ] **DEC148** Expand military/guard/training pack.
 - [ ] **DEC149** Expand prison/dungeon/interrogation pack.
-- [ ] **DEC150** Expand crypt/graveyard/funerary pack.
+- [x] **DEC150** Expand crypt/graveyard/funerary pack with tombs, graves, ossuary/bone content, offerings, crypt fixtures, corpse cart and graveyard/catacomb scenes.
 - [ ] **DEC151** Expand chapel/temple/shrine/ritual pack.
 - [ ] **DEC152** Expand library/study/school/scholar pack.
-- [ ] **DEC153** Add alchemy/magic/occult/science pack.
+- [x] **DEC153** Add alchemy/magic/occult/science pack with laboratory, ritual and observatory content/scenes.
 - [ ] **DEC154** Add noble/leisure/music/luxury pack.
 - [ ] **DEC155** Add household/lived-in prop pack.
 - [ ] **DEC156** Expand mine/quarry/industry pack.
@@ -160,9 +160,9 @@ This checklist is the source of truth for implementation progress. Mark each ite
 - [ ] **DEC159** Add ruin/abandonment/damage/aftermath pack.
 - [ ] **DEC160** Add regional/faction/cultural dressing pack.
 - [ ] **DEC161** Add festivals/ceremonies/temporary-world-state pack.
-- [ ] **DEC162** Reach 200 stable archetypes with catalog integrity tests.
+- [x] **DEC162** Reach 200 stable archetypes with catalog integrity and representative multi-seed scene test source.
 - [ ] **DEC163** Reach 400 stable archetypes with catalog integrity, batching, and representative scene-density tests.
-- [ ] **DEC164** Add exterior/settlement adapters so streets, gardens, markets, farmyards, and docks consume the same socket/exclusion vocabulary.
+- [ ] **DEC164** Add exterior/settlement adapters so streets, gardens, markets, farmyards, and docks consume the same socket/exclusion vocabulary from real exterior geometry.
 - [ ] **DEC165** Add content look-dev/debug view that labels archetype kind in addition to coarse family.
 
 ## Expansion scene milestones
@@ -177,8 +177,15 @@ This checklist is the source of truth for implementation progress. Mark each ite
 - [x] **DEC173** Add coherent winery/cellar scene.
 - [x] **DEC174** Add coherent pantry scene.
 - [ ] **DEC175** Add multi-stall market district composition using multiple trade-specialized stall scenes.
-- [ ] **DEC176** Add farmyard composition combining barn/stable, animal yard, equipment, and crop storage.
+- [x] **DEC176** Add farmyard composition combining crop storage, animal enclosure, water, equipment, and movable work props.
 - [ ] **DEC177** Add civic-square composition combining fountain/well, notices, lighting, seating, carts, and market-day overlays.
+- [x] **DEC178** Add coherent alchemy-laboratory scene.
+- [x] **DEC179** Add coherent ritual-chamber scene.
+- [x] **DEC180** Add coherent observatory/scrying scene.
+- [x] **DEC181** Add coherent graveyard scene.
+- [x] **DEC182** Add coherent catacomb scene.
+- [x] **DEC183** Add coherent garden-court scene.
+- [x] **DEC184** Add coherent civic-street scene.
 
 ## Completion gates
 
