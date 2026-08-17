@@ -65,12 +65,13 @@ namespace Game.Structures.Runtime
         public static DecorationContext CreateContext(in CastlePlan plan, uint spaceId)
         {
             uint structureId = CastleStructureId(in plan);
+            uint styleVariation = DecorationSeed.Derive(plan.Seed, 0x57A1Eu);
             return new DecorationContext
             {
                 WorldSeed = plan.Seed,
                 StructureId = structureId,
                 SpaceId = spaceId,
-                StyleId = DecorationSeed.Derive(plan.Seed, 0x57A1Eu),
+                StyleId = DecorationStyleIds.Compose(DecorationStyleFamily.Courtly, styleVariation),
                 StructureKind = DecorationStructureKind.Castle,
                 SpaceKind = DecorationSpaceKind.Bedroom,
                 Wealth = DecorationWealthTier.Noble,
