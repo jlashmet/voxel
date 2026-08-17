@@ -9,11 +9,15 @@ Status: `[ ]` todo, `[~]` in progress, `[x]` complete.
 - [x] Decoration-to-world-object promotion bridge.
 - [x] Add common geometry-emission API and per-kind geometry recipes.
 - [x] Add concrete per-kind interaction behavior dispatch beyond generic flag toggles.
-- [x] Add geometry/behavior validation coverage for every registered kind (tests authored; Unity execution still required).
+- [x] Add live scene runtime: interaction -> state delta -> signal routing -> target action -> persistence.
+- [x] Add deterministic timed/reset runtime updates without frame-level save state.
+- [x] Add generated castle and mine/cave scene factories.
+- [x] Add decoration placement -> live WorldObject runtime activation bridge.
+- [x] Add geometry/behavior/runtime validation coverage for every registered kind (tests authored; Unity execution still required).
 
 ## Batch A — traversal and barriers
 
-Geometry and concrete behavior are implemented for this batch; kinds remain `[~]` until each has a generated-content integration path and Unity validation.
+Geometry, concrete behavior, and generated-content placement are implemented for this batch. Kinds remain `[~]` only until Unity validation executes.
 
 - [~] Door
 - [~] Gate
@@ -28,6 +32,8 @@ Geometry and concrete behavior are implemented for this batch; kinds remain `[~]
 
 ## Batch B — controls and mechanisms
 
+Geometry, concrete behavior, signal semantics, and generated-content placement are implemented. Pending Unity validation only.
+
 - [~] Lever
 - [~] Switch
 - [~] Button
@@ -39,6 +45,8 @@ Geometry and concrete behavior are implemented for this batch; kinds remain `[~]
 - [~] FuseBox
 
 ## Batch C — containers and usable furniture
+
+Geometry, concrete behavior, persistence semantics, and generated-content placement are implemented. Pending Unity validation only.
 
 - [~] Chest
 - [~] Dresser
@@ -55,12 +63,16 @@ Geometry and concrete behavior are implemented for this batch; kinds remain `[~]
 
 ## Batch D — lighting and fire
 
+Geometry, concrete behavior, and generated-content placement are implemented. Pending Unity validation only.
+
 - [~] Torch
 - [~] Lantern
 - [~] Brazier
 - [~] Fireplace
 
 ## Batch E — traps, secrets, and destruction
+
+Geometry, concrete behavior, timed/reset behavior where applicable, and generated-content placement are implemented. Pending Unity validation only.
 
 - [~] Trap
 - [~] SpikeTrap
@@ -72,6 +84,8 @@ Geometry and concrete behavior are implemented for this batch; kinds remain `[~]
 - [~] BreakableWall
 
 ## Batch F — vehicles and world utility
+
+Geometry, concrete behavior, and generated-content placement are implemented. Pending Unity validation only.
 
 - [~] MineCart
 - [~] Cart
@@ -85,7 +99,10 @@ Geometry and concrete behavior are implemented for this batch; kinds remain `[~]
 - [x] Castle/dungeon traps.
 - [x] Castle vertical traversal/elevator example.
 - [x] Cave/mine carts, switches, lights and traps.
-- [~] Decoration-generated containers/furniture use common runtime behavior (promotion exists; presentation/runtime activation integration remains).
+- [x] Interaction-rich castle annex covers otherwise-unused object families.
+- [x] Mine/cave expansion covers secondary traversal, utility, storage and control families.
+- [x] Every registered WorldObject kind now has at least one generated-content placement path.
+- [x] Decoration-generated containers/furniture use common live runtime behavior while preserving GeneratedPropId identity.
 
 ## Reusable mechanism presets
 
@@ -95,7 +112,14 @@ Geometry and concrete behavior are implemented for this batch; kinds remain `[~]
 - [x] Powered elevator.
 - [x] Gatehouse controls.
 - [x] Powered lights.
-- [ ] Timed/resetting trap.
+- [x] Timed/resetting trap.
 - [x] Multi-switch/chained control.
 - [x] Elevator call-button network.
 - [x] Lock/key-style gating hook.
+
+## Remaining integration / validation
+
+- [ ] Run authored WorldObject tests in Unity and fix compile/runtime failures.
+- [ ] Add presentation refresh/animation path for state-changing geometry (doors, gates, elevators, traps) without carving unrelated structure voxels.
+- [ ] Reconcile latest `agent/worldbuilding-decorations` changes into this branch.
+- [ ] Wire generated WorldObject scenes into the main structure/cave streaming/composition lifecycle if not already invoked by the final composition path.
