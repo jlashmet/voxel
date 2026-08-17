@@ -102,6 +102,8 @@ The original working plan lived in the development conversation rather than a re
 - [x] Validate the corrected passive-discovery and batch-flush contracts on the clean current head; PR run 32019741845 passes all 651 affected EditMode tests.
 - [x] Repair the two reproducible validation-path blockers from run 32019741845 without changing acceptance thresholds: explicitly render `Camera.main` into a created target inside the no-stutter measurement window, and provide a created destination for the fidelity fixture's bootstrap URP `RenderRequest`.
 - [x] Validate the corrected no-stutter and LOD-fidelity harnesses on the clean current head. PR run 32022085431 proves both fixtures now exercise real production rendering: no-stutter reaches a live renderer and fails on convergence (`dirty=4264`, `running=16`, `missingVisible=818`, `visible=131`), while fidelity gets past bootstrap `RenderRequest` setup and fails because LOD 1/view 0 never stabilizes (centre-step mask 0). The harness blockers are resolved; the renderer acceptance failures remain open.
+- [x] Ensure the master PlayMode matrix bakes the showcase startup world for `VoxelEngine.CI.PlayMode` as well as `VoxelEngine.Tests.PlayMode`; both can open `VoxelShowcase.unity`, and runtime castle authoring is intentionally forbidden (`c331ad9a`).
+- [ ] Validate the expanded master bake prerequisite on a clean master/full-suite execution; only mark complete after `VoxelEngine.CI.PlayMode` reaches its tests with `ShowcaseWorld.bytes` present.
 
 ### G. Current-head acceptance validation
 
@@ -145,6 +147,7 @@ Current continuation work after PR #86:
 - `31182c61` — final step-4 lifecycle hooks add ready-empty and successful-fallback publication counters without changing renderer behavior.
 - `2b7ba60c` — bounded actual-resident eviction reaches historical regions left behind player movement and adds the traversal regression.
 - `88610d2b` / `27d0f141` — two-hour memory soak split by tier/process and mirrored in PR/master workflow isolation.
+- `c331ad9a` — master full-suite bake now also covers `VoxelEngine.CI.PlayMode`.
 
 Pinned lifecycle run 32032548787 on source `4842bd44` resolves the first coarse-loss stage: step-4 routing reaches 23 in-band chunks and 8 frustum chunks, but all 8 are already current-empty (`ready=0/empty=8`) and the feature-preserving fallback never schedules (`0/0/0/0`). Full immutable lifecycle run 32033135300 then resolves the guard predicate: `owned:3/unowned:20/ownedProfiles:0/ordinaryNonEmpty:3/ordinaryEmpty:0/ordinaryEmptyProfiles:0/fallback:0/readyEmpty:16`. Exact-owned classification is the first false predicate for the authoritative-empty path; profile exclusion and fallback execution are not. The next task is therefore a focused exact-classification regression and the smallest classifier/data-boundary repair it proves, before any broader coarse geometry or atomic active-coverage integration.
 
