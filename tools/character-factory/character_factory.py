@@ -113,6 +113,14 @@ def parse_args() -> argparse.Namespace:
             "(new/spec/geometry/appearance/details); may be repeated"
         ),
     )
+    produce_batch.add_argument(
+        "--catalogue-output",
+        type=Path,
+        help=(
+            "after a successful batch (including a no-change batch), atomically write "
+            "the current catalogue snapshot here for the next incremental run"
+        ),
+    )
     _add_catalogue_filters(produce_batch)
     _add_unity_assets_root(produce_batch)
 
@@ -217,6 +225,18 @@ def produce_one(
         stage_for_unity(manifest, unity_assets_root)
 
 
+def write_batch_catalogue(args: argparse.Namespace) -> None:
+    if args.catalogue_output is None:
+        return
+    output = write_catalogue(
+        args.directory,
+        args.catalogue_output,
+        recursive=not args.no_recursive,
+        validate_paths=False,
+    )
+    print(f"catalogue-snapshot: {output}", flush=True)
+
+
 def main() -> int:
     args = parse_args()
     runtime = CharacterFactoryRuntime(TOOL_ROOT)
@@ -305,6 +325,7 @@ def main() -> int:
             if not selected:
                 if args.changed_from is not None:
                     print("produce-batch: no changed assets selected", flush=True)
+                    write_batch_catalogue(args)
                     return 0
                 filters = []
                 if asset_types:
@@ -322,6 +343,7 @@ def main() -> int:
                     args.dry_run,
                     args.unity_assets_root,
                 )
+            write_batch_catalogue(args)
             return 0
 
         specs = sorted(args.directory.glob("*.json"))
