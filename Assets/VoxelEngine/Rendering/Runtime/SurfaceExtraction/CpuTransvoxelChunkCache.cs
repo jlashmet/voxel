@@ -1489,15 +1489,28 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             if (!WithinRingBand(bounds, cameraPosition)) return;
             if (!GeometryUtility.TestPlanesAABB(frustumPlanes, bounds)) return;
 
-            if (!_entries.TryGetValue(coordinate, out Entry entry) || !entry.Ready)
+            bool hasDesired = _desiredVersions.TryGetValue(coordinate, out ulong desired);
+            if (_entries.TryGetValue(coordinate, out Entry entry) && entry.Ready)
             {
-                // A known-empty chunk is a completed build with nothing to draw, not a hole.
-                if (!_emptyVersions.ContainsKey(coordinate)) MissingVisibleCount++;
+                // Keep the previous mesh drawable while a newer authoritative generation waits
+                // for this ring to need it. Parking background work must never turn an edit into
+                // stale visible geometry when the chunk comes back into the active shell.
+                if (hasDesired && desired > entry.SourceVersion) MarkDirty(coordinate);
+                if (entry.IndexCount == 0) return;
+                entry.LastUsedFrame = frame;
+                _visible.Add(entry);
                 return;
             }
-            if (entry.IndexCount == 0) return;
-            entry.LastUsedFrame = frame;
-            _visible.Add(entry);
+
+            // A current known-empty result is complete, not a visual hole. Any other in-band
+            // visible coordinate is demand: reactivate work that discovery parked while the
+            // coordinate belonged to another LOD ring (or was evicted under pressure).
+            if (_emptyVersions.TryGetValue(coordinate, out ulong emptyVersion)
+                && (!hasDesired || emptyVersion >= desired))
+                return;
+
+            MarkDirty(coordinate);
+            MissingVisibleCount++;
         }
 
         /// <summary>
@@ -1555,7 +1568,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 Bounds bounds = ChunkWorldBounds(candidate, voxelSize);
                 if (!WithinRingBand(bounds, cameraWorldPosition))
                 {
-                    RequeueDirty(candidate);
+                    // Discovery is shared across LOD workers, so a worker can learn about chunks
+                    // that currently belong wholly to a finer/coarser ring. Requeueing those
+                    // impossible candidates forever makes the dirty FIFO scale with all streamed
+                    // surface data and starves real visible work. Retain the authoritative desired
+                    // version, but park active build demand until visibility makes it relevant.
+                    ParkDirty(candidate);
                     continue;
                 }
 
@@ -1627,6 +1645,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
         private void MarkDirty(int3 chunk)
         {
+            // Every active dirty record needs a durable desired generation. Most callers arrive
+            // through Invalidate, but arena/capacity eviction can request a rebuild directly.
+            // Keeping that generation lets parked work be reactivated safely when it becomes
+            // visible again.
+            if (!_desiredVersions.ContainsKey(chunk))
+                _desiredVersions[chunk] = ++_versionCounter;
             if (_dirty.Add(chunk))
                 _queuedAtSeconds[chunk] = Time.realtimeSinceStartupAsDouble;
             RequeueDirty(chunk);
@@ -1636,6 +1660,15 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         {
             if (!_dirty.Contains(chunk) || !_queuedDirty.Add(chunk)) return;
             _dirtyQueue.Enqueue(chunk);
+        }
+
+        private void ParkDirty(int3 chunk)
+        {
+            _dirty.Remove(chunk);
+            _queuedDirty.Remove(chunk);
+            _queuedAtSeconds.Remove(chunk);
+            // Intentionally retain _desiredVersions: discovery/edit state remains authoritative,
+            // and CollectVisibleCoordinate will reactivate it if this chunk enters the ring.
         }
 
         public static int ShardForChunk(int3 chunk, int shardCount)
