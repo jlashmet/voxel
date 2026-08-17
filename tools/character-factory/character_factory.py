@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+import subprocess
 import sys
 
 TOOL_ROOT = Path(__file__).resolve().parent
@@ -10,7 +11,7 @@ PROJECT_ROOT = TOOL_ROOT.parents[1]
 if str(TOOL_ROOT) not in sys.path:
     sys.path.insert(0, str(TOOL_ROOT))
 
-from api import BuildSpec, CharacterFactoryError, backend_profiles
+from api import BuildSpec, CharacterFactoryError, backend_profile, backend_profiles
 from runtime import CharacterFactoryRuntime
 from runtime.production import ProductionRunner, discover_specs
 from runtime.unity_staging import stage_manifest_for_unity
@@ -75,6 +76,12 @@ def parse_args() -> argparse.Namespace:
         help="list named generator backend profiles and their pinned source revisions",
     )
 
+    bootstrap = subparsers.add_parser(
+        "bootstrap-profile",
+        help="materialize one named backend profile and print its managed Python path",
+    )
+    bootstrap.add_argument("name")
+
     stage = subparsers.add_parser(
         "stage-unity",
         help="stage an existing completed manifest for automatic Unity import",
@@ -97,6 +104,29 @@ def stage_for_unity(manifest: Path, assets_root: Path) -> None:
     print(
         f"unity-stage: {result.asset_id} -> {result.descriptor.relative_to(PROJECT_ROOT)}"
     )
+
+
+def bootstrap_backend_profile(name: str) -> None:
+    profile = backend_profile(name)
+    resolved = profile.resolved_defaults(TOOL_ROOT)
+    script = Path(str(resolved["bootstrapScript"]))
+    if not script.is_file():
+        raise CharacterFactoryError(f"backend profile bootstrap script does not exist: {script}")
+
+    command = ["bash", str(script)]
+    print("+", " ".join(command), flush=True)
+    completed = subprocess.run(command, cwd=PROJECT_ROOT, check=False)
+    if completed.returncode != 0:
+        raise CharacterFactoryError(
+            f"backend profile bootstrap failed with exit code {completed.returncode}: {profile.name}"
+        )
+
+    python_path = Path(str(resolved["python"]))
+    if not python_path.is_file():
+        raise CharacterFactoryError(
+            f"backend profile bootstrap did not create Python runtime: {python_path}"
+        )
+    print(python_path)
 
 
 def build_one(
@@ -141,6 +171,10 @@ def main() -> int:
                     f"{profile.name}\tbackend={profile.backend}\t"
                     f"revision={profile.source_revision}\tbootstrap={profile.bootstrap_script}"
                 )
+            return 0
+
+        if args.command == "bootstrap-profile":
+            bootstrap_backend_profile(args.name)
             return 0
 
         if args.command == "build":
