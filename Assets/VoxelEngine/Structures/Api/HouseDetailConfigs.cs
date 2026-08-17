@@ -57,27 +57,6 @@ namespace VoxelEngine.Structures.Api
             (Placement != HouseFacadePlacementMode.ExplicitOffsets || ExplicitOffsets.Length == Count);
     }
 
-    /// <summary>
-    /// Dormer extension hook over the shared opening/roof contracts. Detailed dormer geometry may
-    /// evolve independently without adding dormer-only fields to the common RoofConfig.
-    /// </summary>
-    public struct HouseDormerConfig
-    {
-        public bool Enabled;
-        public HouseFacade Facade;
-        public int Count;
-        public int Width;
-        public int Depth;
-        public int Height;
-        public int Spacing;
-        public OpeningConfig Window;
-        public RoofConfig Roof;
-
-        public bool IsWellFormed => !Enabled ||
-            (Count > 0 && Width > 0 && Depth > 0 && Height > 0 && Spacing >= 0 &&
-             Window.Kind == StructureOpeningKind.Window);
-    }
-
     /// <summary>Configurable chimney plus optional link to an authored interior/fireplace volume.</summary>
     public struct HouseChimneyConfig
     {
