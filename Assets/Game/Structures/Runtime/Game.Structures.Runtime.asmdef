@@ -7,8 +7,7 @@
         "VoxelEngine.Structures.Api",
         "VoxelEngine.Structures.Runtime",
         "VoxelEngine.Terrain.Api",
-        "Unity.Mathematics",
-        "Unity.Collections"
+        "Unity.Mathematics"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
