@@ -1,14 +1,15 @@
 from __future__ import annotations
 
-import base64
 import json
 import os
 from pathlib import Path
+import struct
 import sys
 import tempfile
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
+import zlib
 
 TOOL_ROOT = Path(__file__).resolve().parents[1]
 if str(TOOL_ROOT) not in sys.path:
@@ -19,9 +20,20 @@ from runtime.pipeline import CharacterFactoryRuntime
 from runtime.preprocess import PREPROCESS_AUDIT_NAME, declared_preprocess_steps, prepare_spec_references
 
 
-_PNG_1X1 = base64.b64decode(
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZLAAAAABJRU5ErkJggg=="
-)
+def _png_rgb(width: int = 16, height: int = 16) -> bytes:
+    def chunk(kind: bytes, data: bytes) -> bytes:
+        checksum = zlib.crc32(kind + data) & 0xFFFFFFFF
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", checksum)
+
+    ihdr = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    row = b"\x00" + bytes((128, 128, 128)) * width
+    pixels = row * height
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + chunk(b"IHDR", ihdr)
+        + chunk(b"IDAT", zlib.compress(pixels))
+        + chunk(b"IEND", b"")
+    )
 
 
 class PreprocessAuditTests(unittest.TestCase):
@@ -73,7 +85,7 @@ class PreprocessAuditTests(unittest.TestCase):
                 def fake_preprocess(command, cwd, check):
                     output = root / "generated/front.png"
                     output.parent.mkdir(parents=True, exist_ok=True)
-                    output.write_bytes(_PNG_1X1)
+                    output.write_bytes(_png_rgb())
                     return SimpleNamespace(returncode=0)
 
                 with patch("runtime.preprocess.subprocess.run", side_effect=fake_preprocess):
