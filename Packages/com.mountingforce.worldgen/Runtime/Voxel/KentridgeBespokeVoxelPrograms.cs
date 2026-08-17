@@ -11,7 +11,8 @@ namespace MountingForce.WorldGen.Voxel
     /// These preserve the authored silhouettes from the original Kentridge catalogue while replacing
     /// anonymous box/carve bytecode with architecture roles. The selected city style therefore owns
     /// corner radii and reconstruction for the inn, warehouse, mansion, church and well exactly as it
-    /// does for generated houses and anonymous frontage.
+    /// does for generated houses and anonymous frontage. Shared glazed-opening and timber-frame
+    /// construction comes from ArchitectureVoxelPatterns rather than Kentridge-local implementations.
     /// </summary>
     internal static class KentridgeBespokeVoxelPrograms
     {
@@ -336,53 +337,27 @@ namespace MountingForce.WorldGen.Voxel
             ProgramBuilder b,
             int x, int y, int z,
             int width, int height, int depth,
-            byte material)
-        {
-            b.Carve(x, y, z, width, height, depth);
-            b.Box(x, y, z, width, height, depth, material);
-        }
+            byte material) =>
+            ArchitectureVoxelPatterns.GlazedOpening(
+                b.Inner, x, y, z, width, height, depth, material);
 
         private static void AddWindowX(
             ProgramBuilder b,
             int x, int y, int z,
             int depth, int height, int width,
-            byte material)
-        {
-            b.Carve(x, y, z, depth, height, width);
-            b.Box(x, y, z, depth, height, width, material);
-        }
+            byte material) =>
+            ArchitectureVoxelPatterns.GlazedOpening(
+                b.Inner, x, y, z, depth, height, width, material);
 
         private static void AddTimberFrame(
             ProgramBuilder b,
             int x0, int z0, int width, int depth,
             int baseY, int wallHeight, int beam,
-            byte timber)
-        {
-            b.Box(x0, baseY, z0, beam, wallHeight, 2 * beam, timber);
-            b.Box(x0 + width - beam, baseY, z0,
-                beam, wallHeight, 2 * beam, timber);
-            b.Box(x0, baseY, z0 + depth - 2 * beam,
-                beam, wallHeight, 2 * beam, timber);
-            b.Box(x0 + width - beam, baseY, z0 + depth - 2 * beam,
-                beam, wallHeight, 2 * beam, timber);
-
-            int[] levels =
-            {
-                baseY,
-                baseY + wallHeight / 2,
-                baseY + wallHeight - beam,
-            };
-            for (int i = 0; i < levels.Length; i++)
-            {
-                int y = levels[i];
-                b.Box(x0, y, z0, width, beam, 2 * beam, timber);
-                b.Box(x0, y, z0 + depth - 2 * beam,
-                    width, beam, 2 * beam, timber);
-                b.Box(x0, y, z0, 2 * beam, beam, depth, timber);
-                b.Box(x0 + width - 2 * beam, y, z0,
-                    2 * beam, beam, depth, timber);
-            }
-        }
+            byte timber) =>
+            ArchitectureVoxelPatterns.TimberFrame(
+                b.Inner,
+                x0, z0, width, depth,
+                baseY, wallHeight, beam, timber);
 
         private sealed class ProgramBuilder
         {
@@ -392,6 +367,8 @@ namespace MountingForce.WorldGen.Voxel
             {
                 _inner = new ArchitectureShapeProgramBuilder(profile, voxelsPerDecimetre);
             }
+
+            public ArchitectureShapeProgramBuilder Inner => _inner;
 
             public void FoundationBox(
                 int x, int y, int z,
