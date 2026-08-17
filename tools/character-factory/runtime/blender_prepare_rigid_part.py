@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 import sys
 
@@ -119,6 +120,15 @@ def anchor_at_fraction(
         mesh.select_set(False)
 
 
+def observed_origin_fraction(lo: Vector, hi: Vector) -> tuple[float, float, float]:
+    extent = hi - lo
+    result = []
+    for axis in range(3):
+        length = extent[axis]
+        result.append(0.5 if abs(length) <= 1e-8 else (0.0 - lo[axis]) / length)
+    return tuple(result)
+
+
 def main() -> int:
     args = parse_args()
     output = Path(args.output).resolve()
@@ -148,16 +158,40 @@ def main() -> int:
 
     final_axis, final_length = longest_axis(meshes)
     lo, hi = bounds(meshes)
+    origin_fraction = observed_origin_fraction(lo, hi)
+    contract_path = output.with_suffix(".rigid-contract.json")
+    contract = {
+        "schemaVersion": 1,
+        "partKind": args.part_kind,
+        "canonicalAxis": args.canonical_axis,
+        "targetLength": args.target_length,
+        "anchorFraction": args.anchor_fraction,
+        "source": {
+            "longAxis": source_axis,
+            "length": source_length,
+        },
+        "prepared": {
+            "longAxis": final_axis,
+            "length": final_length,
+            "boundsMin": list(lo),
+            "boundsMax": list(hi),
+            "originFraction": list(origin_fraction),
+        },
+    }
+    contract_path.write_text(json.dumps(contract, indent=2) + "\n", encoding="utf-8")
+
     print(
         "rigid canonicalization: "
         f"kind={args.part_kind} sourceAxis={source_axis} sourceLength={source_length:.5f} "
         f"finalAxis={final_axis} finalLength={final_length:.5f} "
         f"bounds=({tuple(round(v, 5) for v in lo)}, {tuple(round(v, 5) for v in hi)}) "
-        f"anchorFraction={args.anchor_fraction}",
+        f"anchorFraction={args.anchor_fraction} "
+        f"originFraction={tuple(round(v, 5) for v in origin_fraction)}",
         flush=True,
     )
 
     export_fbx(output, meshes)
+    print(contract_path)
     print(output)
     return 0
 
