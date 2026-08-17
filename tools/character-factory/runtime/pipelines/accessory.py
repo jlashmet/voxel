@@ -15,7 +15,7 @@ class AccessoryPipeline(AssetPipeline):
     ) -> list[str]:
         cfg = spec.rigid
         assert cfg is not None
-        return [
+        command = [
             cfg.blender,
             "--background",
             "--python",
@@ -28,3 +28,12 @@ class AccessoryPipeline(AssetPipeline):
             "--part-kind",
             "accessory",
         ]
+        if cfg.canonical_axis is not None:
+            command.extend(["--canonical-axis", cfg.canonical_axis])
+        if cfg.target_length is not None:
+            command.extend(["--target-length", str(cfg.target_length)])
+        if cfg.anchor_fraction is not None:
+            command.extend(
+                ["--anchor-fraction", *(str(value) for value in cfg.anchor_fraction)]
+            )
+        return command
