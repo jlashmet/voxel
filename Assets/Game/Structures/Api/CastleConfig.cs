@@ -21,7 +21,8 @@ namespace Game.Structures.Api
         public TowerConfig CornerTowers;
         public TowerConfig GateTowers;
         public OpeningConfig MainGate;
-        public BattlementConfig Battlements;
+        public BattlementConfig CurtainBattlements;
+        public BattlementConfig GatehouseBattlements;
 
         public bool IsWellFormed
         {
@@ -44,7 +45,7 @@ namespace Game.Structures.Api
                     return false;
                 if (MainGate.Kind != StructureOpeningKind.Arch || !MainGate.IsWellFormed)
                     return false;
-                if (!Battlements.IsWellFormed)
+                if (!CurtainBattlements.IsWellFormed || !GatehouseBattlements.IsWellFormed)
                     return false;
 
                 return LegacyPlan.PlateauRadius > 0 && LegacyPlan.PlateauHeight > 0 &&
@@ -139,12 +140,22 @@ namespace Game.Structures.Api
                     Height = CastleLayout.FrontGateHeight,
                     FillMaterialRole = StructureMaterialRole.Opening,
                 },
-                Battlements = new BattlementConfig
+                CurtainBattlements = new BattlementConfig
                 {
                     ParapetThickness = 8,
                     ParapetHeight = 0,
                     MerlonWidth = 26,
                     MerlonHeight = 20,
+                    GapWidth = 18,
+                    CornerMerlonWidth = 0,
+                    MaterialRole = StructureMaterialRole.PrimaryWall,
+                },
+                GatehouseBattlements = new BattlementConfig
+                {
+                    ParapetThickness = 8,
+                    ParapetHeight = 0,
+                    MerlonWidth = 18,
+                    MerlonHeight = 12,
                     GapWidth = 18,
                     CornerMerlonWidth = 0,
                     MaterialRole = StructureMaterialRole.PrimaryWall,
