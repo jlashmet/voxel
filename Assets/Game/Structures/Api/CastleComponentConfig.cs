@@ -7,6 +7,8 @@ namespace Game.Structures.Api
     /// Canonical game-owned castle composition expressed through the reusable structure-authoring
     /// contracts. Castle semantics stay in the game layer while foundation, floors, walls, towers,
     /// openings, battlements, and semantic materials use the same bounded configs as other archetypes.
+    /// Richer curtain polygon/layout policy is projected through <see cref="CastleCurtainPresets"/>
+    /// so this compatibility bundle has only one source for wall dimensions and battlements.
     /// </summary>
     public struct CastleComponentConfig
     {
@@ -23,7 +25,6 @@ namespace Game.Structures.Api
         public OpeningConfig KeepEntrance;
         public OpeningConfig KeepWindow;
 
-        public CastleCurtainLayoutConfig CurtainLayout;
         public StructureWallRunConfig CurtainWallX;
         public StructureWallRunConfig CurtainWallZ;
         public TowerConfig CornerTowers;
@@ -49,7 +50,6 @@ namespace Game.Structures.Api
             KeepParapet.IsWellFormed &&
             KeepEntrance.Kind == StructureOpeningKind.Arch && KeepEntrance.IsWellFormed &&
             KeepWindow.Kind == StructureOpeningKind.Window && KeepWindow.IsWellFormed &&
-            CurtainLayout.IsWellFormed &&
             CurtainWallX.IsWellFormed &&
             CurtainWallZ.IsWellFormed &&
             CornerTowers.IsWellFormed &&
@@ -161,11 +161,6 @@ namespace Game.Structures.Api
                     HeightVariation = 4,
                     FrameMaterialRole = StructureMaterialRole.Trim,
                     FillMaterialRole = StructureMaterialRole.Glass,
-                },
-                CurtainLayout = new CastleCurtainLayoutConfig
-                {
-                    Kind = CastleCurtainLayoutKind.Rectangle,
-                    SegmentLength = 0,
                 },
                 CurtainWallX = wallX,
                 CurtainWallZ = wallZ,
