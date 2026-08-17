@@ -92,6 +92,32 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void AnonymousFrontagePackingClampsGapsToTheFrontage()
+        {
+            SettlementFrontageSite[] outside = SettlementPlotLayout.PackFrontage(
+                startDm: 0,
+                endDm: 100,
+                coveragePercent: 100,
+                modulePitchDm: 100,
+                hasGap: true,
+                gapCentreDm: 200,
+                gapWidthDm: 20);
+
+            Assert.AreEqual(1, outside.Length);
+            Assert.AreEqual(50, outside[0].CentreAlongDm,
+                "A gap outside the run must not extend or truncate the frontage.");
+
+            Assert.IsEmpty(SettlementPlotLayout.PackFrontage(
+                startDm: 0,
+                endDm: 100,
+                coveragePercent: 100,
+                modulePitchDm: 100,
+                hasGap: true,
+                gapCentreDm: 50,
+                gapWidthDm: 200));
+        }
+
+        [Test]
         public void AnonymousFrontagePackingIsDirectionIndependentAndPolicyDriven()
         {
             SettlementFrontageSite[] forward = SettlementPlotLayout.PackFrontage(
