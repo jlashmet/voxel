@@ -14,6 +14,7 @@ if str(TOOL_ROOT) not in sys.path:
     sys.path.insert(0, str(TOOL_ROOT))
 
 from api.preprocess import PreprocessContractError, resolve_preprocess_steps
+from runtime.catalogue import catalogue_payload, classify_changes, load_catalogue_entries
 from runtime.preprocess import declared_preprocess_steps, prepare_spec_references
 
 
@@ -183,6 +184,127 @@ class PreprocessTests(unittest.TestCase):
         self.assertEqual(2, len(calls))
         self.assertIn("asset_local.py", calls[0][1])
         self.assertIn("prepare_linear_terminal_detail.py", calls[1][1])
+
+    def test_catalogue_source_change_uses_declared_affects(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source, _script = self._write_catalogue_fixture(root)
+            previous = catalogue_payload(root)
+            source.write_bytes(b"source-v2")
+
+            changes, removed = classify_changes(
+                load_catalogue_entries(root),
+                previous,
+            )
+
+        self.assertEqual([], removed)
+        self.assertEqual(1, len(changes))
+        self.assertEqual(frozenset({"geometry", "details"}), changes[0].kinds)
+
+    def test_catalogue_preprocessor_code_change_uses_declared_affects(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _source, script = self._write_catalogue_fixture(root)
+            previous = catalogue_payload(root)
+            script.write_text("print('v2')\n", encoding="utf-8")
+
+            changes, removed = classify_changes(
+                load_catalogue_entries(root),
+                previous,
+            )
+
+        self.assertEqual([], removed)
+        self.assertEqual(1, len(changes))
+        self.assertEqual(frozenset({"geometry", "details"}), changes[0].kinds)
+
+    def test_catalogue_ignores_materialization_of_derived_references(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self._write_catalogue_fixture(root)
+            previous = catalogue_payload(root)
+            asset = previous["assets"][0]
+            self.assertEqual(
+                "preprocess-derived",
+                asset["referenceHashes"]["geometry"]["front"],
+            )
+            self.assertEqual(
+                "preprocess-derived",
+                asset["referenceHashes"]["details"]["ornament"],
+            )
+
+            generated = root / "generated"
+            generated.mkdir(parents=True, exist_ok=True)
+            (generated / "full.png").write_bytes(b"materialized-full")
+            (generated / "detail.png").write_bytes(b"materialized-detail")
+
+            current = catalogue_payload(root)
+            changes, removed = classify_changes(
+                load_catalogue_entries(root),
+                previous,
+            )
+
+        self.assertEqual(
+            previous["assets"][0]["referenceHashes"],
+            current["assets"][0]["referenceHashes"],
+        )
+        self.assertEqual(previous["assets"][0]["preprocessHashes"], current["assets"][0]["preprocessHashes"])
+        self.assertEqual([], changes)
+        self.assertEqual([], removed)
+
+    @staticmethod
+    def _write_catalogue_fixture(root: Path) -> tuple[Path, Path]:
+        source = root / "source.jpg"
+        source.write_bytes(b"source-v1")
+        script = root / "asset_local.py"
+        script.write_text("print('v1')\n", encoding="utf-8")
+        spec = root / "asset.json"
+        spec.write_text(
+            json.dumps(
+                {
+                    "id": "catalogued_staff",
+                    "assetType": "weapon",
+                    "preprocess": [
+                        {
+                            "strategy": "python-script",
+                            "script": "asset_local.py",
+                            "inputs": ["source.jpg"],
+                            "arguments": ["--input", "source.jpg", "--output", "generated/full.png"],
+                            "outputs": ["generated/full.png"],
+                            "affects": ["geometry", "details"],
+                        },
+                        {
+                            "strategy": "linear-terminal-detail",
+                            "input": "generated/full.png",
+                            "output": "generated/detail.png",
+                            "axis": "vertical",
+                            "terminal": "min",
+                        },
+                    ],
+                    "views": {"front": "generated/full.png"},
+                    "references": {
+                        "details": {"ornament": "generated/detail.png"},
+                    },
+                    "outputDir": "out",
+                    "generator": {"profile": "triposr-smoke-macos"},
+                    "rigid": {
+                        "blender": "/Applications/Blender.app/Contents/MacOS/Blender",
+                        "composition": {
+                            "strategy": "generated-detail-shaft",
+                            "detailReference": "ornament",
+                            "totalLength": 1.8,
+                            "detailLength": 0.38,
+                            "shaftRadius": 0.024,
+                        },
+                    },
+                    "runtimePart": {
+                        "slot": "MainHand",
+                        "socketBoneName": "RightHand",
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        return source, script
 
 
 if __name__ == "__main__":
