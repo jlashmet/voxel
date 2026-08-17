@@ -8,7 +8,7 @@ namespace VoxelEngine.Tests.Features
     public sealed class HouseStylePresetTests
     {
         [Test]
-        public void PresetsUseOneConfigTypeButChooseMateriallyDifferentGeometry()
+        public void PresetsUseOneConfigTypeAndGeneralCompilerButChooseMateriallyDifferentGeometry()
         {
             HouseConfig cottage = HousePresets.CottageCompatibility(3, 7);
             HouseConfig cabin = HouseStylePresets.CompactCabin(3, 7);
@@ -26,9 +26,9 @@ namespace VoxelEngine.Tests.Features
             Assert.AreEqual(4, farmhouse.FrontWindows.Count);
             Assert.AreEqual(1, farmhouse.RearDoors.Count);
 
-            int[] cottageProgram = HouseProgramCompiler.BuildCompatibilityProgram(in cottage, 0, 1);
-            int[] cabinProgram = HouseProgramCompiler.BuildCompatibilityProgram(in cabin, 0, 1);
-            int[] farmhouseProgram = HouseProgramCompiler.BuildCompatibilityProgram(in farmhouse, 0, 1);
+            int[] cottageProgram = HouseProgramCompiler.BuildProgram(in cottage, 0, 1);
+            int[] cabinProgram = HouseProgramCompiler.BuildProgram(in cabin, 0, 1);
+            int[] farmhouseProgram = HouseProgramCompiler.BuildProgram(in farmhouse, 0, 1);
 
             Assert.IsFalse(cottageProgram.SequenceEqual(cabinProgram));
             Assert.IsFalse(cottageProgram.SequenceEqual(farmhouseProgram));
@@ -36,13 +36,13 @@ namespace VoxelEngine.Tests.Features
         }
 
         [Test]
-        public void SamePresetInputsCompileDeterministically()
+        public void SamePresetInputsCompileDeterministicallyThroughGeneralCompiler()
         {
             HouseConfig first = HouseStylePresets.Farmhouse(5, 9);
             HouseConfig second = HouseStylePresets.Farmhouse(5, 9);
 
-            int[] firstProgram = HouseProgramCompiler.BuildCompatibilityProgram(in first, 2, 3);
-            int[] secondProgram = HouseProgramCompiler.BuildCompatibilityProgram(in second, 2, 3);
+            int[] firstProgram = HouseProgramCompiler.BuildProgram(in first, 2, 3);
+            int[] secondProgram = HouseProgramCompiler.BuildProgram(in second, 2, 3);
 
             CollectionAssert.AreEqual(firstProgram, secondProgram);
         }
