@@ -24,6 +24,23 @@ namespace Game.Structures.Runtime
     /// </summary>
     public static class CastleSiteAuthoring
     {
+        /// <summary>
+        /// Shared-component build seam. The site/crag sculpt remains legacy terrain policy in WB041;
+        /// its declared bailey footprint is used for bounds, while the historical cliff dimensions
+        /// still come from CastlePlan so the compatibility preset cannot change terrain output.
+        /// </summary>
+        public static bool Step(
+            IStructureAuthoringSession authoring,
+            in CastlePlan plan,
+            in CastleComponentConfig components,
+            uint terrainSeed,
+            ref CastleSiteAuthoringState state)
+        {
+            if (!components.IsWellFormed)
+                throw new System.ArgumentException("Castle component configuration is invalid.", nameof(components));
+            return Step(authoring, in plan, terrainSeed, ref state);
+        }
+
         public static bool Step(
             IStructureAuthoringSession authoring,
             in CastlePlan plan,
