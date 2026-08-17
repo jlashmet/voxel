@@ -72,6 +72,17 @@ namespace VoxelEngine.Tests.Features
                     FrameThickness = 1,
                     LintelThickness = 2,
                 },
+                EntryTreatment = new HouseEntryTreatmentConfig
+                {
+                    PorchWidth = 20,
+                    PorchDepth = 7,
+                    PorchHeight = 2,
+                    StepCount = 2,
+                    StepDepth = 2,
+                    StepHeight = 1,
+                    PorchMaterialRole = StructureMaterialRole.Floor,
+                    StepMaterialRole = StructureMaterialRole.Foundation,
+                },
                 StepsEnabled = true,
                 StepDepth = 3,
                 StepHeight = 1,
@@ -88,6 +99,20 @@ namespace VoxelEngine.Tests.Features
                     Kind = StructureOpeningKind.Door,
                     Width = 8,
                     Height = 18,
+                },
+            };
+
+            var sideDoor = new HouseDoorLayoutConfig
+            {
+                Facade = HouseFacade.Right,
+                Placement = HouseFacadePlacementMode.Centered,
+                Count = 1,
+                Opening = new OpeningConfig
+                {
+                    Kind = StructureOpeningKind.Door,
+                    Width = 7,
+                    Height = 18,
+                    FrameThickness = 1,
                 },
             };
 
@@ -115,8 +140,12 @@ namespace VoxelEngine.Tests.Features
 
             Assert.IsTrue(frontDoor.IsWellFormed);
             Assert.IsTrue(frontDoor.StepsEnabled);
+            Assert.IsTrue(frontDoor.EntryTreatment.HasPorch);
+            Assert.IsTrue(frontDoor.EntryTreatment.HasSteps);
             Assert.AreEqual(2, rearDoors.Count);
             Assert.IsTrue(rearDoors.IsWellFormed);
+            Assert.AreEqual(HouseFacade.Right, sideDoor.Facade);
+            Assert.IsTrue(sideDoor.IsWellFormed);
             Assert.IsTrue(sideWindows.IsWellFormed);
             Assert.AreEqual(4, sideWindows.Count);
             Assert.AreEqual(1, sideWindows.Opening.WidthVariation);
