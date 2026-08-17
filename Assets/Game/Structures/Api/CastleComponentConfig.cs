@@ -12,25 +12,31 @@ namespace Game.Structures.Api
     {
         public StructureFootprintConfig BaileyFootprint;
         public StructureFootprintConfig KeepFoundation;
+        public int KeepFoundationTopOffset;
         public StructureWallRunConfig KeepWalls;
         public FloorLevelConfig KeepFloors;
         public StructureWallRunConfig CurtainWallX;
         public StructureWallRunConfig CurtainWallZ;
         public TowerConfig CornerTowers;
+        public TowerConfig GateTowers;
         public OpeningConfig MainGate;
         public BattlementConfig CurtainBattlements;
+        public BattlementConfig GatehouseBattlements;
         public StructureMaterialPalette Palette;
 
         public bool IsWellFormed =>
             BaileyFootprint.IsWellFormed &&
             KeepFoundation.IsWellFormed &&
+            KeepFoundationTopOffset >= 0 &&
             KeepWalls.IsWellFormed &&
             KeepFloors.IsWellFormed &&
             CurtainWallX.IsWellFormed &&
             CurtainWallZ.IsWellFormed &&
             CornerTowers.IsWellFormed &&
+            GateTowers.IsWellFormed &&
             MainGate.IsWellFormed &&
-            CurtainBattlements.IsWellFormed;
+            CurtainBattlements.IsWellFormed &&
+            GatehouseBattlements.IsWellFormed;
     }
 
     /// <summary>
@@ -46,6 +52,7 @@ namespace Game.Structures.Api
         {
             var wallX = CurtainWall(plan.BaileyHalfX * 2, plan.WallHeight, plan.WallThickness);
             var wallZ = CurtainWall(plan.BaileyHalfZ * 2, plan.WallHeight, plan.WallThickness);
+            OpeningConfig towerWindow = TowerWindow(plan.FloorHeight);
 
             return new CastleComponentConfig
             {
@@ -71,6 +78,7 @@ namespace Game.Structures.Api
                     FoundationDepth = 30,
                     FoundationMaterial = StructureMaterialRole.Foundation,
                 },
+                KeepFoundationTopOffset = 4,
                 KeepWalls = KeepWall(plan.KeepHalfX * 2, plan.KeepHeight, 8),
                 KeepFloors = new FloorLevelConfig
                 {
@@ -81,35 +89,18 @@ namespace Game.Structures.Api
                 },
                 CurtainWallX = wallX,
                 CurtainWallZ = wallZ,
-                CornerTowers = new TowerConfig
-                {
-                    Shape = StructureTowerShape.Round,
-                    Placement = StructureTowerPlacement.Corners,
-                    TopStyle = StructureTowerTopStyle.Parapet,
-                    Radius = plan.TowerRadius,
-                    Height = plan.TowerHeight,
-                    Count = 4,
-                    Spacing = 0,
-                    OpeningsEnabled = true,
-                    Opening = new OpeningConfig
-                    {
-                        Kind = StructureOpeningKind.Window,
-                        Width = 14,
-                        Height = 24,
-                        BottomOffset = 9,
-                        Spacing = plan.FloorHeight,
-                        StartMargin = 0,
-                        EndMargin = 0,
-                        FrameThickness = 3,
-                        LintelThickness = 2,
-                        WidthVariation = 0,
-                        HeightVariation = 0,
-                        FrameMaterialRole = StructureMaterialRole.Trim,
-                        FillMaterialRole = StructureMaterialRole.Glass,
-                    },
-                    WallMaterialRole = StructureMaterialRole.PrimaryWall,
-                    TrimMaterialRole = StructureMaterialRole.Trim,
-                },
+                CornerTowers = Tower(
+                    StructureTowerPlacement.Corners,
+                    plan.TowerRadius,
+                    plan.TowerHeight,
+                    4,
+                    in towerWindow),
+                GateTowers = Tower(
+                    StructureTowerPlacement.Explicit,
+                    plan.GateTowerRadius,
+                    plan.GateTowerHeight,
+                    2,
+                    in towerWindow),
                 MainGate = new OpeningConfig
                 {
                     Kind = StructureOpeningKind.Arch,
@@ -134,6 +125,16 @@ namespace Game.Structures.Api
                     MerlonHeight = 20,
                     GapWidth = 18,
                     CornerMerlonWidth = 26,
+                    MaterialRole = StructureMaterialRole.PrimaryWall,
+                },
+                GatehouseBattlements = new BattlementConfig
+                {
+                    ParapetThickness = 8,
+                    ParapetHeight = 0,
+                    MerlonWidth = 18,
+                    MerlonHeight = 12,
+                    GapWidth = 18,
+                    CornerMerlonWidth = 18,
                     MaterialRole = StructureMaterialRole.PrimaryWall,
                 },
                 Palette = palette,
@@ -172,5 +173,42 @@ namespace Game.Structures.Api
                 PrimaryMaterial = StructureMaterialRole.PrimaryWall,
                 CornerBehavior = StructureWallCornerBehavior.Overlap,
             };
+
+        private static OpeningConfig TowerWindow(int floorHeight) => new OpeningConfig
+        {
+            Kind = StructureOpeningKind.Window,
+            Width = 14,
+            Height = 24,
+            BottomOffset = 9,
+            Spacing = floorHeight,
+            StartMargin = 0,
+            EndMargin = 0,
+            FrameThickness = 3,
+            LintelThickness = 2,
+            WidthVariation = 0,
+            HeightVariation = 0,
+            FrameMaterialRole = StructureMaterialRole.Trim,
+            FillMaterialRole = StructureMaterialRole.Glass,
+        };
+
+        private static TowerConfig Tower(
+            StructureTowerPlacement placement,
+            int radius,
+            int height,
+            int count,
+            in OpeningConfig opening) => new TowerConfig
+        {
+            Shape = StructureTowerShape.Round,
+            Placement = placement,
+            TopStyle = StructureTowerTopStyle.Parapet,
+            Radius = radius,
+            Height = height,
+            Count = count,
+            Spacing = 0,
+            OpeningsEnabled = true,
+            Opening = opening,
+            WallMaterialRole = StructureMaterialRole.PrimaryWall,
+            TrimMaterialRole = StructureMaterialRole.Trim,
+        };
     }
 }
