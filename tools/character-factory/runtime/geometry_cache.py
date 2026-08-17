@@ -89,7 +89,17 @@ def geometry_fingerprint(
 
     canonical = None
     if spec.rig is not None:
-        canonical = _file_state(spec.rig.canonical_body)
+        if spec.rig.profile is not None:
+            # A profile-managed donor is deterministic from its source revision.
+            # Do not key the first build on "missing file" and the second build on
+            # file bytes after bootstrap; that would create a guaranteed false miss.
+            canonical = {
+                "path": str(spec.rig.canonical_body.resolve()),
+                "profile": spec.rig.profile,
+                "sourceRevision": spec.rig.source_revision,
+            }
+        else:
+            canonical = _file_state(spec.rig.canonical_body)
 
     code_files = _command_code_files(
         [plan.generator_command, plan.prepare_command],
@@ -107,6 +117,8 @@ def geometry_fingerprint(
         "assetId": spec.asset_id,
         "generatorProfile": spec.generator.profile,
         "generatorSourceRevision": spec.generator.source_revision,
+        "rigProfile": None if spec.rig is None else spec.rig.profile,
+        "rigSourceRevision": None if spec.rig is None else spec.rig.source_revision,
         "generatorCommand": plan.generator_command,
         "prepareCommand": plan.prepare_command,
         "geometryReferences": geometry_references,
