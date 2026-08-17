@@ -118,15 +118,15 @@ namespace Game.Structures.Api
                 },
                 Palette = new StructureMaterialPalette
                 {
-                    Foundation = 2,
+                    Foundation = 6,
                     PrimaryWall = 1,
-                    SecondaryWall = 2,
-                    Trim = 2,
-                    Roof = 9,
-                    Floor = 6,
+                    SecondaryWall = 6,
+                    Trim = 6,
+                    Roof = 8,
+                    Floor = 2,
                     Opening = 0,
                     Glass = 15,
-                    Detail = 2,
+                    Detail = 6,
                 },
             };
         }
