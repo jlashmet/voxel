@@ -10,12 +10,12 @@ namespace VoxelEngine.Tests.Features
         {
             HouseConfig house = HousePresets.CottageCompatibility(stoneMaterial: 1, woodMaterial: 2);
 
-            Assert.AreEqual(RoofStyle.Gable, house.Roof.Style);
-            Assert.AreEqual(RoofAxis.Z, house.Roof.RidgeAxis);
-            Assert.AreEqual(1, house.Roof.PitchRise);
-            Assert.AreEqual(2, house.Roof.PitchRun);
-            Assert.AreEqual(0, house.Roof.EaveOverhang);
-            Assert.AreEqual(StructureMaterialRole.Roof, house.Roof.MaterialRole);
+            Assert.AreEqual(RoofStyle.Gable, house.RoofStyle);
+            Assert.AreEqual(RoofAxis.Z, house.RoofRidgeAxis);
+            Assert.AreEqual(1, house.RoofPitchRise);
+            Assert.AreEqual(2, house.RoofPitchRun);
+            Assert.AreEqual(0, house.RoofEaveOverhang);
+            Assert.AreEqual(2, house.RoofMaterial);
             Assert.IsFalse(house.Dormers.Enabled);
             Assert.IsTrue(house.Dormers.IsWellFormed);
         }
