@@ -12,8 +12,8 @@ namespace Game.Structures.Runtime
     public sealed class CastleAuthoringBuild
     {
         private readonly IStructureAuthoringSession _authoring;
-        private readonly CastleConfig _config;
         private readonly CastlePlan _plan;
+        private readonly CastleComponentConfig _components;
         private readonly uint _terrainSeed;
         private CastleSiteAuthoringState _siteState;
         private int _stage;
@@ -23,34 +23,45 @@ namespace Game.Structures.Runtime
             IStructureAuthoringSession authoring,
             in CastlePlan plan,
             uint terrainSeed)
-            : this(authoring, CastlePresets.Compatibility(in plan), terrainSeed)
+            : this(
+                authoring,
+                in plan,
+                CastleCompatibilityComponents.Resolve(in plan),
+                terrainSeed)
         {
         }
 
+        /// <summary>
+        /// Compatibility seam used while castle stages migrate from CastlePlan fields to the
+        /// reusable structure-component contracts. The plan still owns castle-only semantics and
+        /// placement; migrated geometry policy is supplied by <paramref name="components"/>.
+        /// </summary>
         public CastleAuthoringBuild(
             IStructureAuthoringSession authoring,
-            CastleConfig config,
+            in CastlePlan plan,
+            CastleComponentConfig components,
             uint terrainSeed)
         {
             _authoring = authoring
                 ?? throw new System.ArgumentNullException(nameof(authoring));
-            if (!config.IsWellFormed)
+            if (!components.IsWellFormed)
                 throw new System.ArgumentException(
-                    "Castle authoring refused: castle configuration is invalid.", nameof(config));
+                    "Castle authoring refused: shared castle component configuration is invalid.",
+                    nameof(components));
 
-            _config = config;
-            _plan = config.ResolvePlan();
+            _plan = plan;
+            _components = components;
             _terrainSeed = terrainSeed;
             _stage = 1;
             _keepStage = 0;
 
-            long estimate = CastlePlanner.EstimateWrites(in _plan);
+            long estimate = CastlePlanner.EstimateWrites(in plan);
             if (estimate > authoring.WriteBudget)
             {
                 throw new System.InvalidOperationException(
                     $"Castle authoring refused: plan implies ~{estimate:N0} expensive-write " +
                     $"equivalents, budget is {authoring.WriteBudget:N0}. Reduce PlateauRadius " +
-                    $"({_plan.PlateauRadius}) or the primary structure dimensions before retrying.");
+                    $"({plan.PlateauRadius}) or the primary structure dimensions before retrying.");
             }
         }
 
@@ -71,6 +82,7 @@ namespace Game.Structures.Runtime
                     if (!CastleSiteAuthoring.Step(
                             _authoring,
                             in _plan,
+                            in _components,
                             _terrainSeed,
                             ref _siteState))
                     {
@@ -81,12 +93,7 @@ namespace Game.Structures.Runtime
 
                 case 2:
                     stageName = "curtain walls";
-                    CastleCurtainAuthoring.Author(
-                        _authoring,
-                        in _plan,
-                        in _config.CurtainWallX,
-                        in _config.CurtainWallZ,
-                        in _config.CurtainBattlements);
+                    CastleCurtainAuthoring.Author(_authoring, in _plan, in _components);
                     break;
 
                 case 3:
@@ -94,7 +101,7 @@ namespace Game.Structures.Runtime
                     CastleTowerAuthoring.AuthorCornerTowers(
                         _authoring,
                         in _plan,
-                        in _config.CornerTowers);
+                        in _components.CornerTowers);
                     break;
 
                 case 4:
@@ -102,9 +109,7 @@ namespace Game.Structures.Runtime
                     CastleGatehouseAuthoring.Author(
                         _authoring,
                         in _plan,
-                        in _config.GateTowers,
-                        in _config.MainGate,
-                        in _config.GatehouseBattlements);
+                        in _components.MainGate);
                     break;
 
                 case 5:
@@ -152,8 +157,9 @@ namespace Game.Structures.Runtime
                     CastleKeepCoreAuthoring.AuthorShell(
                         _authoring,
                         in _plan,
-                        in _config.KeepFoundation,
-                        _config.KeepFoundationTopOffset);
+                        in _components.KeepFoundation,
+                        in _components.KeepWalls,
+                        in _components.Palette);
                     break;
 
                 case 1:
@@ -164,15 +170,19 @@ namespace Game.Structures.Runtime
                     // Preserve the legacy write order exactly: each upper timber slab is written
                     // immediately before that floor's partitions/furnishing, rather than writing
                     // every slab first and then furnishing every floor.
-                    for (int floor = 0; floor < _plan.Floors; floor++)
+                    for (int floor = 0; floor < _components.KeepFloors.FloorCount; floor++)
                     {
-                        int y = baseY + floor * _plan.FloorHeight;
+                        int y = baseY + floor * _components.KeepFloors.LevelHeight;
                         if (floor > 0)
                         {
                             _authoring.Box(
-                                new int3(min.x + 8, y, min.z + 8),
-                                new int3(size.x - 16, 3, size.z - 16),
-                                Game.Materials.Api.GameMaterialIds.Wood);
+                                new int3(min.x + _components.KeepWalls.Thickness, y,
+                                         min.z + _components.KeepWalls.Thickness),
+                                new int3(
+                                    size.x - 2 * _components.KeepWalls.Thickness,
+                                    _components.KeepFloors.SlabThickness,
+                                    size.z - 2 * _components.KeepWalls.Thickness),
+                                _components.Palette.Resolve(_components.KeepFloors.SlabMaterialRole));
                         }
 
                         CastleKeepRoomAuthoring.AuthorFloor(
