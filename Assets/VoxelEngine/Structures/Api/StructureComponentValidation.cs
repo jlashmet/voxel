@@ -30,8 +30,8 @@ namespace VoxelEngine.Structures.Api
                 config.WidthVariation < 0 || config.HeightVariation < 0 || config.Spacing < 0)
                 return StructureComponentValidationIssue.InvalidDimension;
 
-            int widestOpening = config.Width + config.WidthVariation;
-            int requiredWidth = config.StartMargin + widestOpening + config.EndMargin;
+            long widestOpening = (long)config.Width + config.WidthVariation;
+            long requiredWidth = (long)config.StartMargin + widestOpening + config.EndMargin;
             if (requiredWidth > wallRunLength)
                 return StructureComponentValidationIssue.ImpossibleOpeningSpacing;
 
@@ -49,17 +49,26 @@ namespace VoxelEngine.Structures.Api
                 config.PitchRise < 0 || config.PitchRun < 0)
                 return StructureComponentValidationIssue.InvalidDimension;
 
-            if (config.Style == RoofStyle.Flat)
+            if (config.RidgeAxis != RoofAxis.X && config.RidgeAxis != RoofAxis.Z)
+                return StructureComponentValidationIssue.UnsupportedRoofCombination;
+
+            switch (config.Style)
             {
-                if (config.PitchRise != 0 || config.PitchRun != 0)
+                case RoofStyle.Flat:
+                    return config.PitchRise == 0 && config.PitchRun == 0
+                        ? StructureComponentValidationIssue.None
+                        : StructureComponentValidationIssue.UnsupportedRoofCombination;
+
+                case RoofStyle.Shed:
+                case RoofStyle.Gable:
+                case RoofStyle.Hip:
+                    return config.PitchRise > 0 && config.PitchRun > 0
+                        ? StructureComponentValidationIssue.None
+                        : StructureComponentValidationIssue.UnsupportedRoofCombination;
+
+                default:
                     return StructureComponentValidationIssue.UnsupportedRoofCombination;
             }
-            else if (config.PitchRise <= 0 || config.PitchRun <= 0)
-            {
-                return StructureComponentValidationIssue.UnsupportedRoofCombination;
-            }
-
-            return StructureComponentValidationIssue.None;
         }
 
         public static StructureComponentValidationIssue VolumeWithinBounds(
@@ -67,9 +76,16 @@ namespace VoxelEngine.Structures.Api
             int3 min,
             int3 maxExclusive)
         {
-            int3 size = maxExclusive - min;
-            if (size.x <= 0 || size.y <= 0 || size.z <= 0)
+            long sizeX = (long)maxExclusive.x - min.x;
+            long sizeY = (long)maxExclusive.y - min.y;
+            long sizeZ = (long)maxExclusive.z - min.z;
+            if (sizeX <= 0 || sizeY <= 0 || sizeZ <= 0)
                 return StructureComponentValidationIssue.InvalidDimension;
+
+            // Calculate in 64-bit space so extreme authored coordinates cannot wrap an int size and
+            // accidentally appear to fit. Oversized volumes are outside the declared bounded model.
+            if (sizeX > int.MaxValue || sizeY > int.MaxValue || sizeZ > int.MaxValue)
+                return StructureComponentValidationIssue.BoundsOverflow;
 
             return bounds.ContainsVolume(min, maxExclusive)
                 ? StructureComponentValidationIssue.None
