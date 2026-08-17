@@ -1,0 +1,141 @@
+name: Animation Quality Validation
+
+# Automatic test runs are owned by tests-pr.yml (affected assemblies on a pull
+# request) and tests-master.yml (the full suite on merge to master). Nothing else
+# should trigger tests off a branch name or a path glob: which tests a change
+# affects is a property of the .asmdef reference graph, not of where the work
+# happens to live. Retained as manually dispatchable.
+on:
+  workflow_dispatch:
+concurrency:
+  group: animation-quality-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  animation-quality:
+    name: Validate animation semantics and temporal quality
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          clean: true
+
+      - name: Locate Unity editor
+        id: unity
+        shell: bash
+        run: |
+          set -euo pipefail
+          UNITY_VERSION="$(awk '/m_EditorVersion:/ { print $2 }' ProjectSettings/ProjectVersion.txt)"
+          UNITY_PATH="/Applications/Unity/Hub/Editor/${UNITY_VERSION}/Unity.app/Contents/MacOS/Unity"
+          echo "Unity version: ${UNITY_VERSION}"
+          if [[ ! -x "${UNITY_PATH}" ]]; then
+            echo "Unity executable was not found at ${UNITY_PATH}" >&2
+            exit 1
+          fi
+          echo "path=${UNITY_PATH}" >> "$GITHUB_OUTPUT"
+
+      - name: Run semantic trajectory quality gate
+        id: semantic
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual"
+          "${{ steps.unity.outputs.path }}" \
+            -batchmode -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform PlayMode \
+            -testFilter "VoxelEngine.CI.AnimationSemanticQualityTests.SemanticAnimationQuality_AllMovementFormsAndVegetationPolicies" \
+            -testResults "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/animation-semantic-results.xml" \
+            -logFile "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/animation-semantic.log"
+          test -s "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/animation-semantic-results.xml"
+          test -s "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/ambient_trajectory_metrics.csv"
+          test -s "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/ambient_trajectory_samples.csv"
+          test -s "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/flock_coherence.txt"
+          test -s "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/vegetation_animation_policy.csv"
+
+      - name: Run fixed-position articulation gate
+        id: articulation
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          "${{ steps.unity.outputs.path }}" \
+            -batchmode -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform PlayMode \
+            -testFilter "VoxelEngine.CI.AmbientLifeArticulationVisualTests.AllVisualShapeFamilies_HaveExpectedArticulationWithoutLocomotion" \
+            -testResults "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/ambient-articulation-results.xml" \
+            -logFile "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/ambient-articulation.log"
+          test -s "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/ambient_articulation_quality.csv"
+          test -s "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/ambient_articulation_contact_sheet.png"
+
+      - name: Run temporal visual animation gate
+        id: temporal
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          "${{ steps.unity.outputs.path }}" \
+            -batchmode -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform PlayMode \
+            -testFilter "VoxelEngine.CI.TemporalAnimationVisualTests.AmbientAndVegetationAnimationSequences_AreContinuousAndReadable" \
+            -testResults "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/animation-temporal-results.xml" \
+            -logFile "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/animation-temporal.log"
+          test -s "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/ambient_animation_gallery_labeled.png"
+          test -s "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/ambient_animation_contact_sheet.png"
+          test -s "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/ambient_animation_temporal_quality.txt"
+          test -s "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/vegetation_animation_contact_sheet.png"
+          test -s "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/vegetation_grass_motion.txt"
+          test -s "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/vegetation_vine_motion.txt"
+          test -s "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/vegetation_woody_motion.txt"
+
+      - name: Run deterministic vegetation shader-time gate
+        id: vegetation
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          "${{ steps.unity.outputs.path }}" \
+            -batchmode -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform PlayMode \
+            -testFilter "VoxelEngine.CI.DeterministicVegetationAnimationVisualTests.VegetationAnimation_UsesAnchoredWindAndDeterministicSurfaceShimmer" \
+            -testResults "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/vegetation-animation-deterministic-results.xml" \
+            -logFile "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/vegetation-animation-deterministic.log"
+          test -s "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/vegetation_grass_deterministic_motion.txt"
+          test -s "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/vegetation_vine_deterministic_motion.txt"
+          test -s "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/vegetation_surface_shimmer.txt"
+          test -s "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/vegetation_starmoss_shimmer_t0.png"
+          test -s "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/vegetation_starmoss_shimmer_t130.png"
+
+      - name: Upload animation validation artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: animation-quality-${{ github.sha }}
+          path: Artifacts/VegetationLifeVisual/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Enforce aggregate animation quality result
+        if: always()
+        shell: bash
+        env:
+          SEMANTIC_OUTCOME: ${{ steps.semantic.outcome }}
+          ARTICULATION_OUTCOME: ${{ steps.articulation.outcome }}
+          TEMPORAL_OUTCOME: ${{ steps.temporal.outcome }}
+          VEGETATION_OUTCOME: ${{ steps.vegetation.outcome }}
+        run: |
+          set -euo pipefail
+          failed=0
+          for gate in SEMANTIC ARTICULATION TEMPORAL VEGETATION; do
+            outcome_var="${gate}_OUTCOME"
+            outcome="${!outcome_var}"
+            echo "${gate} gate: ${outcome}"
+            if [[ "$outcome" != "success" ]]; then
+              failed=1
+            fi
+          done
+          if (( failed != 0 )); then
+            echo "One or more animation quality gates failed; see the uploaded artifacts for every gate." >&2
+            exit 1
+          fi
+          echo "All animation quality gates passed."
