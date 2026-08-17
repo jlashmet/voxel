@@ -21,7 +21,8 @@ namespace Game.Structures.Runtime
     /// <summary>
     /// Produces a deterministic semantic adjacency spine before any rectangular/polygonal shell is
     /// allocated. Public rooms stay shallow, operational rooms sit in the middle, and vault/hidden
-    /// spaces are pushed deeper. Secretive guilds can mark deep HiddenRoom/Vault access as concealed.
+    /// spaces are pushed deeper. Secretive guilds mark deep HiddenRoom/Vault access as concealed;
+    /// Wizards also conceal their optional forbidden-archive HiddenRoom.
     /// </summary>
     public static class GuildHouseTopologyPlanner
     {
@@ -41,9 +42,11 @@ namespace Game.Structures.Runtime
                 // Keep the graph connected as a simple semantic spine/branch seed. Spatial allocation
                 // may later add more adjacency edges, but never needs to infer public/private order.
                 var parent = i == 0 ? -1 : FindParent(nodes, i, depth);
+                GuildHouseRoomRole role = ordered[i].Role;
                 var hidden = secretive && depth >= 3
-                    && (ordered[i].Role == GuildHouseRoomRole.HiddenRoom
-                        || ordered[i].Role == GuildHouseRoomRole.Vault);
+                    && (role == GuildHouseRoomRole.HiddenRoom || role == GuildHouseRoomRole.Vault);
+                if (program.Kind == GuildHouseKind.Wizards && role == GuildHouseRoomRole.HiddenRoom)
+                    hidden = true;
                 nodes[i] = new GuildHouseRoomNode(ordered[i], depth, parent, hidden);
             }
 
