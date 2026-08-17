@@ -264,11 +264,75 @@ class RigConfig:
 
 
 @dataclass(frozen=True)
+class RigidCompositionConfig:
+    strategy: str
+    detail_reference: str
+    total_length: float = 1.8
+    detail_length: float = 0.38
+    shaft_radius: float = 0.024
+    axis: str = "auto"
+    attachment_side: str = "min"
+    overlap: float = 0.025
+
+    @staticmethod
+    def from_dict(data: dict[str, Any]) -> "RigidCompositionConfig":
+        strategy = str(data.get("strategy", "")).strip().lower()
+        if strategy != "generated-detail-shaft":
+            raise CharacterFactoryError(
+                "rigid.composition.strategy must be: generated-detail-shaft"
+            )
+
+        detail_reference = str(data.get("detailReference", "")).strip()
+        if not detail_reference:
+            raise CharacterFactoryError(
+                "rigid.composition.detailReference is required"
+            )
+
+        total_length = float(data.get("totalLength", 1.8))
+        detail_length = float(data.get("detailLength", 0.38))
+        shaft_radius = float(data.get("shaftRadius", 0.024))
+        overlap = float(data.get("overlap", 0.025))
+        if total_length <= 0.0 or detail_length <= 0.0 or shaft_radius <= 0.0:
+            raise CharacterFactoryError(
+                "rigid composition totalLength/detailLength/shaftRadius must be > 0"
+            )
+        if total_length <= detail_length:
+            raise CharacterFactoryError(
+                "rigid.composition.totalLength must exceed detailLength"
+            )
+        if overlap < 0.0:
+            raise CharacterFactoryError("rigid.composition.overlap must be >= 0")
+
+        axis = str(data.get("axis", "auto")).strip().lower()
+        if axis not in {"auto", "x", "y", "z"}:
+            raise CharacterFactoryError(
+                "rigid.composition.axis must be one of: auto, x, y, z"
+            )
+        attachment_side = str(data.get("attachmentSide", "min")).strip().lower()
+        if attachment_side not in {"min", "max"}:
+            raise CharacterFactoryError(
+                "rigid.composition.attachmentSide must be one of: min, max"
+            )
+
+        return RigidCompositionConfig(
+            strategy=strategy,
+            detail_reference=detail_reference,
+            total_length=total_length,
+            detail_length=detail_length,
+            shaft_radius=shaft_radius,
+            axis=axis,
+            attachment_side=attachment_side,
+            overlap=overlap,
+        )
+
+
+@dataclass(frozen=True)
 class RigidConfig:
     blender: str
     canonical_axis: str | None = None
     target_length: float | None = None
     anchor_fraction: tuple[float, float, float] | None = None
+    composition: RigidCompositionConfig | None = None
 
     @staticmethod
     def from_dict(data: dict[str, Any]) -> "RigidConfig":
@@ -303,11 +367,21 @@ class RigidConfig:
                     "rigid.anchorFraction values must be between 0 and 1"
                 )
 
+        composition_data = data.get("composition")
+        if composition_data is not None and not isinstance(composition_data, dict):
+            raise CharacterFactoryError("rigid.composition must be an object")
+        composition = (
+            RigidCompositionConfig.from_dict(composition_data)
+            if isinstance(composition_data, dict)
+            else None
+        )
+
         return RigidConfig(
             blender=str(blender),
             canonical_axis=canonical_axis,
             target_length=target_length,
             anchor_fraction=anchor_fraction,
+            composition=composition,
         )
 
 
@@ -455,6 +529,14 @@ class BuildSpec:
             )
         except ReferenceContractError as exc:
             raise CharacterFactoryError(str(exc)) from exc
+
+        if rigid is not None and rigid.composition is not None:
+            detail_name = rigid.composition.detail_reference
+            if detail_name not in detail_references:
+                raise CharacterFactoryError(
+                    "rigid.composition.detailReference must name an entry in references.details: "
+                    f"{detail_name!r}"
+                )
 
         return BuildSpec(
             asset_id=asset_id,
