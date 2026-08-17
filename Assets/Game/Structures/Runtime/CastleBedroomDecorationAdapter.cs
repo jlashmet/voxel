@@ -33,7 +33,12 @@ namespace Game.Structures.Runtime
             space = CreateSpace(in plan);
             context = CreateContext(in plan, space.SpaceId);
             exclusions = CreateExclusions(in plan, in space);
-            return BedroomSceneResolver.TryResolve(in space, in context, exclusions, out placements);
+            if (!BedroomSceneResolver.TryResolve(
+                    in space, in context, exclusions, out DecorationPlacement[] baseline))
+                return false;
+
+            return BedroomSceneContextVariation.TryApply(
+                in space, in context, exclusions, baseline, out placements);
         }
 
         public static DecorationSpace CreateSpace(in CastlePlan plan)
