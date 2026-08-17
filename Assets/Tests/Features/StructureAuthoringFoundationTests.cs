@@ -180,5 +180,58 @@ namespace VoxelEngine.Tests.Features
             Assert.AreEqual(11, palette.Resolve(StructureMaterialRole.Glass));
             Assert.AreEqual(12, palette.Resolve(StructureMaterialRole.Detail));
         }
+
+        [Test]
+        public void FootprintConfigSupportsRectangularAndComposedFootprints()
+        {
+            var config = new StructureFootprintConfig
+            {
+                Primary = new StructureFootprintRect(new int2(0, 0), new int2(12, 8)),
+                FoundationStyle = StructureFoundationStyle.Slab,
+                FoundationDepth = 2,
+                FoundationMaterial = StructureMaterialRole.Foundation,
+            };
+            config.AdditionalRects.Add(new StructureFootprintRect(new int2(8, 8), new int2(4, 6)));
+
+            Assert.IsTrue(config.IsWellFormed);
+            Assert.IsTrue(config.IsComposed);
+            Assert.AreEqual(2, config.PartCount);
+            Assert.AreEqual(new int2(0, 0), config.PartAt(0).Min);
+            Assert.AreEqual(new int2(8, 8), config.PartAt(1).Min);
+
+            Assert.IsTrue(config.Primary.Contains(new int2(0, 0)));
+            Assert.IsTrue(config.Primary.Contains(new int2(11, 7)));
+            Assert.IsFalse(config.Primary.Contains(new int2(12, 7)), "rectangles are max-exclusive");
+            Assert.IsFalse(config.Primary.Contains(new int2(11, 8)), "rectangles are max-exclusive");
+        }
+
+        [Test]
+        public void FootprintConfigRejectsInvalidFoundationInvariants()
+        {
+            var missingDepth = new StructureFootprintConfig
+            {
+                Primary = new StructureFootprintRect(new int2(0, 0), new int2(8, 8)),
+                FoundationStyle = StructureFoundationStyle.Slab,
+                FoundationDepth = 0,
+            };
+            Assert.IsFalse(missingDepth.IsWellFormed);
+
+            var missingTerraceStep = new StructureFootprintConfig
+            {
+                Primary = new StructureFootprintRect(new int2(0, 0), new int2(8, 8)),
+                FoundationStyle = StructureFoundationStyle.Terraced,
+                FoundationDepth = 2,
+                MaxTerraceStep = 0,
+            };
+            Assert.IsFalse(missingTerraceStep.IsWellFormed);
+
+            var noFoundation = new StructureFootprintConfig
+            {
+                Primary = new StructureFootprintRect(new int2(0, 0), new int2(8, 8)),
+                FoundationStyle = StructureFoundationStyle.None,
+                FoundationDepth = 0,
+            };
+            Assert.IsTrue(noFoundation.IsWellFormed);
+        }
     }
 }
