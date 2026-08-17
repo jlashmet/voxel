@@ -1,0 +1,134 @@
+name: Character Factory appearance Blender smoke
+
+on:
+  push:
+    branches:
+      - agent/character-asset-generation-framework
+    paths:
+      - 'tools/character-factory/api/appearance_profiles.py'
+      - 'tools/character-factory/runtime/appearance.py'
+      - 'tools/character-factory/runtime/blender_multiview_texture.py'
+      - 'tools/character-factory/runtime/blender_profiled_multiview_texture.py'
+      - 'tools/character-factory/runtime/blender_project_multiview_asset.py'
+      - 'tools/character-factory/ci/create_appearance_strategy_fixtures.py'
+      - '.github/workflows/character-factory-appearance-blender-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: character-factory-appearance-blender-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  appearance-blender-smoke:
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          clean: false
+          fetch-depth: 1
+
+      - name: Resolve Blender
+        shell: bash
+        run: |
+          set -euo pipefail
+          BLENDER_BIN="${BLENDER_BIN:-/Applications/Blender.app/Contents/MacOS/Blender}"
+          test -x "$BLENDER_BIN"
+          echo "BLENDER_BIN=$BLENDER_BIN" >> "$GITHUB_ENV"
+
+      - name: Create prepared appearance fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/character-factory-appearance-smoke"
+          rm -rf "$OUT"
+          mkdir -p "$OUT"
+
+          "$BLENDER_BIN" --background --python-exit-code 1 \
+            --python tools/character-factory/ci/create_canonical_character_fixture.py -- \
+            --canonical "$OUT/canonical.glb" \
+            --input "$OUT/body.png" \
+            --garment-input "$OUT/garment.png"
+
+          "$BLENDER_BIN" --background --python-exit-code 1 \
+            --python tools/character-factory/ci/create_appearance_strategy_fixtures.py -- \
+            --canonical "$OUT/canonical.glb" \
+            --character "$OUT/character.fbx" \
+            --garment "$OUT/garment.fbx" \
+            --rigid "$OUT/rigid.fbx"
+
+          for profile in character garment rigid; do
+            mkdir -p "$OUT/$profile-refs"
+          done
+          for view in front back left right; do
+            cp "$OUT/body.png" "$OUT/character-refs/$view.png"
+            cp "$OUT/garment.png" "$OUT/garment-refs/$view.png"
+            cp "$OUT/body.png" "$OUT/rigid-refs/$view.png"
+          done
+          echo "APPEARANCE_SMOKE_OUT=$OUT" >> "$GITHUB_ENV"
+
+      - name: Project character appearance policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="$APPEARANCE_SMOKE_OUT"
+          "$BLENDER_BIN" --background --python-exit-code 1 \
+            --python tools/character-factory/runtime/blender_project_multiview_asset.py -- \
+            --input "$OUT/character.fbx" \
+            --output "$OUT/character.projected.fbx" \
+            --front "$OUT/character-refs/front.png" \
+            --back "$OUT/character-refs/back.png" \
+            --left "$OUT/character-refs/left.png" \
+            --right "$OUT/character-refs/right.png" \
+            --atlas "$OUT/character.atlas.png" \
+            --profile character
+          test -s "$OUT/character.projected.fbx"
+          test -s "$OUT/character.atlas.png"
+          "$BLENDER_BIN" --background --python-exit-code 1 \
+            --python tools/character-factory/ci/verify_skinned_character.py -- \
+            --input "$OUT/character.projected.fbx"
+
+      - name: Project garment appearance policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="$APPEARANCE_SMOKE_OUT"
+          "$BLENDER_BIN" --background --python-exit-code 1 \
+            --python tools/character-factory/runtime/blender_project_multiview_asset.py -- \
+            --input "$OUT/garment.fbx" \
+            --output "$OUT/garment.projected.fbx" \
+            --front "$OUT/garment-refs/front.png" \
+            --back "$OUT/garment-refs/back.png" \
+            --left "$OUT/garment-refs/left.png" \
+            --right "$OUT/garment-refs/right.png" \
+            --atlas "$OUT/garment.atlas.png" \
+            --profile garment
+          test -s "$OUT/garment.projected.fbx"
+          test -s "$OUT/garment.atlas.png"
+          "$BLENDER_BIN" --background --python-exit-code 1 \
+            --python tools/character-factory/ci/verify_skinned_character.py -- \
+            --input "$OUT/garment.projected.fbx"
+
+      - name: Project rigid appearance policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="$APPEARANCE_SMOKE_OUT"
+          "$BLENDER_BIN" --background --python-exit-code 1 \
+            --python tools/character-factory/runtime/blender_project_multiview_asset.py -- \
+            --input "$OUT/rigid.fbx" \
+            --output "$OUT/rigid.projected.fbx" \
+            --front "$OUT/rigid-refs/front.png" \
+            --back "$OUT/rigid-refs/back.png" \
+            --left "$OUT/rigid-refs/left.png" \
+            --right "$OUT/rigid-refs/right.png" \
+            --atlas "$OUT/rigid.atlas.png" \
+            --profile rigid
+          test -s "$OUT/rigid.projected.fbx"
+          test -s "$OUT/rigid.atlas.png"
+          "$BLENDER_BIN" --background --python-exit-code 1 \
+            --python tools/character-factory/ci/verify_rigid_asset.py -- \
+            --input "$OUT/rigid.projected.fbx"
