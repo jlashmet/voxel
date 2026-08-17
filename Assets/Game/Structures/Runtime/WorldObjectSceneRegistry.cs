@@ -27,22 +27,32 @@ namespace Game.Structures.Runtime
         public int PersistentSceneCount => _entries.Count;
 
         public WorldObjectGeneratedScene LoadCastle(IStructureAuthoringSession geometry,
-            uint worldSeed, uint parentId, in CastlePlan plan)
+            uint worldSeed, uint parentId, in CastlePlan plan,
+            WorldObjectGeometryEmissionMode emissionMode = WorldObjectGeometryEmissionMode.AllVoxel)
         {
             Entry entry = GetOrCreate(parentId);
             entry.Scene = WorldObjectGeneratedSceneFactory.CreateCastle(
-                geometry, worldSeed, parentId, in plan, entry.State);
+                geometry, worldSeed, parentId, in plan, entry.State, emissionMode);
             return entry.Scene;
         }
 
         public WorldObjectGeneratedScene LoadMineCave(IStructureAuthoringSession geometry,
-            uint worldSeed, uint parentId, DecorationBounds chamber)
+            uint worldSeed, uint parentId, DecorationBounds chamber,
+            WorldObjectGeometryEmissionMode emissionMode = WorldObjectGeometryEmissionMode.AllVoxel)
         {
             Entry entry = GetOrCreate(parentId);
             entry.Scene = WorldObjectGeneratedSceneFactory.CreateMineCave(
-                geometry, worldSeed, parentId, chamber, entry.State);
+                geometry, worldSeed, parentId, chamber, entry.State, emissionMode);
             return entry.Scene;
         }
+
+        public WorldObjectGeneratedScene LoadCastleForUnityDynamicPresentation(IStructureAuthoringSession geometry,
+            uint worldSeed, uint parentId, in CastlePlan plan) =>
+            LoadCastle(geometry, worldSeed, parentId, in plan, WorldObjectGeometryEmissionMode.StaticOnly);
+
+        public WorldObjectGeneratedScene LoadMineCaveForUnityDynamicPresentation(IStructureAuthoringSession geometry,
+            uint worldSeed, uint parentId, DecorationBounds chamber) =>
+            LoadMineCave(geometry, worldSeed, parentId, chamber, WorldObjectGeometryEmissionMode.StaticOnly);
 
         public WorldObjectGeneratedScene LoadDecorations(uint parentId, DecorationPlacement[] placements)
         {
