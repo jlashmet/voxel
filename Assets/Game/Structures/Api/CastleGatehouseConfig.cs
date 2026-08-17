@@ -22,8 +22,18 @@ namespace Game.Structures.Api
         /// <summary>Absolute X offset from gate centre to each flanking tower centre.</summary>
         public int TowerCentreOffset;
 
+        /// <summary>
+        /// Per-tower additions to <see cref="FlankingTowers"/> height. Signed offsets allow one
+        /// flanking tower to be intentionally lower while preserving one shared tower family.
+        /// </summary>
+        public int LeftTowerHeightOffset;
+        public int RightTowerHeightOffset;
+
         /// <summary>Depth of the authored gate leaf inside the cleared opening.</summary>
         public int GateLeafDepth;
+
+        /// <summary>Inset from the gatehouse front face to the gate leaf.</summary>
+        public int GateLeafInset;
 
         public TowerConfig FlankingTowers;
         public OpeningConfig GateOpening;
@@ -42,13 +52,16 @@ namespace Game.Structures.Api
         {
             get
             {
-                if (Width <= 0 || Depth <= 0 || Height <= 0 ||
-                    TowerCentreOffset <= 0 || GateLeafDepth <= 0 || GateLeafDepth > Depth)
+                if (Width <= 0 || Depth <= 0 || Height <= 0 || TowerCentreOffset <= 0 ||
+                    GateLeafDepth <= 0 || GateLeafInset < 0 ||
+                    (long)GateLeafInset + GateLeafDepth > Depth)
                     return false;
 
                 if (!FlankingTowers.IsWellFormed ||
                     FlankingTowers.Placement != StructureTowerPlacement.Explicit ||
-                    FlankingTowers.Count != 2)
+                    FlankingTowers.Count != 2 ||
+                    (long)FlankingTowers.Height + LeftTowerHeightOffset <= 0 ||
+                    (long)FlankingTowers.Height + RightTowerHeightOffset <= 0)
                     return false;
 
                 if (!GateOpening.IsWellFormed || GateOpening.Kind != StructureOpeningKind.Arch ||
@@ -63,7 +76,7 @@ namespace Game.Structures.Api
                     PortcullisOpening.BottomOffset > GateOpening.BottomOffset)
                     return false;
 
-                if (TowerCentreOffset * 2 > Width ||
+                if ((long)TowerCentreOffset * 2 > Width ||
                     TowerCentreOffset <= GateOpening.Width / 2)
                     return false;
 
