@@ -13,7 +13,18 @@ namespace Game.Structures.Runtime
             IStructureAuthoringSession authoring,
             in CastlePlan plan)
         {
+            CastleConfig config = CastlePresets.Compatibility(in plan);
+            AuthorCornerTowers(authoring, in plan, in config.CornerTowers);
+        }
+
+        public static void AuthorCornerTowers(
+            IStructureAuthoringSession authoring,
+            in CastlePlan plan,
+            in TowerConfig towers)
+        {
             if (authoring == null) throw new System.ArgumentNullException(nameof(authoring));
+            if (!towers.IsWellFormed || towers.Shape != StructureTowerShape.Round)
+                throw new System.ArgumentException("Castle tower configuration is invalid.");
 
             int baseY = plan.Centre.y + plan.PlateauHeight;
             int hx = plan.BaileyHalfX;
@@ -26,15 +37,16 @@ namespace Game.Structures.Runtime
                 new(plan.Centre.x + hx, baseY, plan.Centre.z + hz),
             };
 
-            for (int i = 0; i < corners.Length; i++)
+            int count = math.min(towers.Count, corners.Length);
+            for (int i = 0; i < count; i++)
             {
                 int heightVariation = i == 0 ? 58 : i == 1 ? 8 : i == 2 ? 30 : 14;
-                int towerHeight = plan.TowerHeight + heightVariation;
-                AuthorTower(authoring, in plan, corners[i], plan.TowerRadius,
+                int towerHeight = towers.Height + heightVariation;
+                AuthorTower(authoring, in plan, corners[i], towers.Radius,
                     towerHeight, roof: i >= 2);
-                if (i < 2)
-                    AuthorFrontWindows(authoring, corners[i], plan.TowerRadius,
-                        towerHeight, plan.FloorHeight);
+                if (i < 2 && towers.OpeningsEnabled)
+                    AuthorFrontWindows(authoring, corners[i], towers.Radius,
+                        towerHeight, plan.FloorHeight, in towers.Opening);
             }
         }
 
@@ -113,15 +125,35 @@ namespace Game.Structures.Runtime
             int height,
             int floorHeight)
         {
-            const int width = 14;
-            const int windowHeight = 24;
+            var opening = new OpeningConfig
+            {
+                Kind = StructureOpeningKind.Window,
+                Width = 14,
+                Height = 24,
+                BottomOffset = 9,
+                FrameThickness = 3,
+            };
+            AuthorFrontWindows(authoring, at, radius, height, floorHeight, in opening);
+        }
+
+        public static void AuthorFrontWindows(
+            IStructureAuthoringSession authoring,
+            int3 at,
+            int radius,
+            int height,
+            int floorHeight,
+            in OpeningConfig opening)
+        {
+            int width = opening.Width;
+            int windowHeight = opening.Height;
+            int frame = math.max(0, opening.FrameThickness);
             int frontZ = at.z - radius - 2;
 
             for (int floor = 1; floor * floorHeight + windowHeight + 12 < height; floor++)
             {
-                int y = at.y + floor * floorHeight + 9;
-                authoring.Arch(new int3(at.x - width / 2 - 3, y - 3, frontZ - 3),
-                    width + 6, windowHeight + 6, 5, 2, GameMaterialIds.DarkStone);
+                int y = at.y + floor * floorHeight + opening.BottomOffset;
+                authoring.Arch(new int3(at.x - width / 2 - frame, y - frame, frontZ - 3),
+                    width + frame * 2, windowHeight + frame * 2, 5, 2, GameMaterialIds.DarkStone);
                 authoring.Arch(new int3(at.x - width / 2, y, frontZ - 4),
                     width, windowHeight, 20, 2, GameMaterialIds.Empty);
                 authoring.Arch(new int3(at.x - width / 2 + 3, y + 3, frontZ + 2),
