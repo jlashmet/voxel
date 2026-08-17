@@ -398,6 +398,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private JobHandle _exactMetadataJobHandle;
         private bool _exactMetadataJobScheduled;
         private bool _exactMetadataReady;
+        private ExactSnapshotRegionCoverage _exactMetadataRegionCoverage;
         private JobHandle _exactClassificationJobHandle;
         private bool _exactClassificationJobScheduled;
         private int _exactMixedPinCursor;
@@ -2044,6 +2045,18 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 }
                 _exactMetadataJobScheduled = false;
                 ExactMetadataCompleteCount++;
+                if (!_exactMetadataRegionCoverage.IsComplete)
+                {
+                    // A failed region metadata pin means this exact snapshot is unavailable,
+                    // never that the cleared cache range is authoritatively empty. Waited jobs
+                    // are already complete here, so release every successful pin and retry the
+                    // generation through the existing bounded discard/requeue lifecycle.
+                    ExactMetadataPinRejectCount++;
+                    ReleasePinnedRegionMetadataImmediate();
+                    _discardBuildAfterPinRelease = true;
+                    AccumulateSnapshotSlice(sliceStart, completed: false);
+                    return false;
+                }
                 if (!PinnedRegionMetadataCurrent())
                 {
                     ExactMetadataRevisionRejectCount++;
@@ -2233,6 +2246,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 throw new InvalidOperationException("Exact metadata regions were already pinned.");
             _pinnedRegionSource = source;
             _exactMixedBrickIndices.Clear();
+            _exactMetadataRegionCoverage.Reset();
 
             JobHandle clearHandle = new ExactBrickMetadataClearJob
             {
@@ -2255,8 +2269,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             for (int rx = minRegion.x; rx <= maxRegion.x; rx++)
             {
                 int3 regionCoord = new(rx, ry, rz);
-                if (!source.TryPinRegionBlockRefs(regionCoord, out PinnedRegionBlockRefs pinned))
-                    continue;
+                bool pinnedRegion = source.TryPinRegionBlockRefs(
+                    regionCoord, out PinnedRegionBlockRefs pinned);
+                _exactMetadataRegionCoverage.RecordRequiredRegion(pinnedRegion);
+                if (!pinnedRegion) continue;
                 if (_pinnedRegionCount >= MaxExactSnapshotRegions)
                 {
                     source.ReleasePinnedRegion(in pinned.Pin);
