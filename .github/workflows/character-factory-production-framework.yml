@@ -1,0 +1,61 @@
+name: Character Factory production framework
+
+on:
+  push:
+    branches:
+      - agent/character-asset-generation-framework
+    paths:
+      - 'tools/character-factory/**'
+      - 'docs/character-factory-generation-framework-plan.md'
+      - '.github/workflows/character-factory-production-framework.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: character-factory-production-framework-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  production-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compile Character Factory Python
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m compileall -q tools/character-factory
+
+      - name: Run production routing tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest \
+            tools/character-factory/tests/test_pipeline_routing.py \
+            tools/character-factory/tests/test_generator_backends.py \
+            tools/character-factory/tests/test_production_routing.py \
+            -v
+
+      - name: Dry-run every production asset type
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/character-factory/character_factory.py produce \
+            tools/character-factory/examples/cleric_character.json --dry-run
+          python3 tools/character-factory/character_factory.py produce \
+            tools/character-factory/examples/cleric_robe.json --dry-run
+          python3 tools/character-factory/character_factory.py produce \
+            tools/character-factory/examples/cleric_staff.json --dry-run
+          python3 tools/character-factory/character_factory.py produce \
+            tools/character-factory/examples/cleric_sun_charm.json --dry-run
+
+      - name: Dry-run recursive production discovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/character-factory/character_factory.py produce-batch \
+            tools/character-factory/examples --dry-run
