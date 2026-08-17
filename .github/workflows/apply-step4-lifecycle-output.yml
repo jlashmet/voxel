@@ -26,6 +26,7 @@ jobs:
           git fetch origin feature/voxel-showcase-rendering-repair-v2
           git reset --hard origin/feature/voxel-showcase-rendering-repair-v2
 
+      # Retry after correcting the exact-match patcher's Python string literal.
       - name: Wire focused lifecycle output
         shell: bash
         run: python3 .github/scripts/apply-step4-lifecycle-output.py
