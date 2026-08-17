@@ -6,14 +6,20 @@ on:
       - agent/character-asset-generation-framework
     paths:
       - 'tools/character-factory/api/appearance_profiles.py'
+      - 'tools/character-factory/api/models.py'
       - 'tools/character-factory/runtime/appearance.py'
       - 'tools/character-factory/runtime/blender_multiview_texture.py'
       - 'tools/character-factory/runtime/blender_profiled_multiview_texture.py'
       - 'tools/character-factory/runtime/blender_project_multiview_asset.py'
+      - 'tools/character-factory/runtime/blender_prepare_rigid_part.py'
       - 'tools/character-factory/runtime/blender_rigid_reference.py'
       - 'tools/character-factory/runtime/projection_components.py'
+      - 'tools/character-factory/runtime/pipelines/weapon.py'
+      - 'tools/character-factory/runtime/pipelines/accessory.py'
       - 'tools/character-factory/ci/create_appearance_strategy_fixtures.py'
+      - 'tools/character-factory/ci/create_rigid_canonicalization_fixture.py'
       - 'tools/character-factory/ci/create_rigid_reference_fixture.py'
+      - 'tools/character-factory/ci/verify_rigid_asset.py'
       - 'tools/character-factory/ci/verify_rigid_reference_mask.py'
       - '.github/workflows/character-factory-appearance-blender-smoke.yml'
   workflow_dispatch:
@@ -62,7 +68,26 @@ jobs:
             --canonical "$OUT/canonical.glb" \
             --character "$OUT/character.fbx" \
             --garment "$OUT/garment.fbx" \
-            --rigid "$OUT/rigid.fbx"
+            --rigid "$OUT/rigid-basic.fbx"
+
+          "$BLENDER_BIN" --background --python-exit-code 1 \
+            --python tools/character-factory/ci/create_rigid_canonicalization_fixture.py -- \
+            --output "$OUT/rigid-raw.glb"
+
+          "$BLENDER_BIN" --background --python-exit-code 1 \
+            --python tools/character-factory/runtime/blender_prepare_rigid_part.py -- \
+            --input "$OUT/rigid-raw.glb" \
+            --output "$OUT/rigid.fbx" \
+            --part-kind weapon \
+            --canonical-axis z \
+            --target-length 1.5 \
+            --anchor-fraction 0.5 0.5 0.1
+          test -s "$OUT/rigid.fbx"
+          test -s "$OUT/rigid.rigid-contract.json"
+
+          "$BLENDER_BIN" --background --python-exit-code 1 \
+            --python tools/character-factory/ci/verify_rigid_asset.py -- \
+            --input "$OUT/rigid.fbx"
 
           "$BLENDER_BIN" --background --python-exit-code 1 \
             --python tools/character-factory/ci/create_rigid_reference_fixture.py -- \
