@@ -1,0 +1,92 @@
+name: Character Factory scaffold contract
+
+on:
+  push:
+    branches:
+      - agent/character-asset-generation-framework
+    paths:
+      - 'tools/character-factory/init_asset.py'
+      - 'tools/character-factory/runtime/scaffold.py'
+      - 'tools/character-factory/tests/test_scaffold.py'
+      - '.github/workflows/character-factory-scaffold-contract.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: character-factory-scaffold-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scaffold-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compile scaffold Python
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile \
+            tools/character-factory/init_asset.py \
+            tools/character-factory/runtime/scaffold.py \
+            tools/character-factory/tests/test_scaffold.py
+
+      - name: Run scaffold unit tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest tools/character-factory/tests/test_scaffold.py -v
+
+      - name: Create a weapon asset from the CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          LIB=/tmp/character-factory-assets
+          python3 tools/character-factory/init_asset.py \
+            weapon guard_sword_ci \
+            --library-root "$LIB" \
+            --tag castle --tag guard
+          SPEC="$LIB/weapons/guard_sword_ci/asset.json"
+          test -s "$SPEC"
+          python3 - "$SPEC" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+          payload = json.loads(Path(sys.argv[1]).read_text())
+          assert payload['id'] == 'guard_sword_ci'
+          assert payload['assetType'] == 'weapon'
+          assert payload['tags'] == ['castle', 'guard']
+          assert payload['appearance']['strategy'] == 'preserve-generator'
+          assert payload['runtimePart']['slot'] == 'MainHand'
+          assert payload['runtimePart']['socketBoneName'] == 'RightHand'
+          PY
+
+      - name: Create a character asset from the CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          LIB=/tmp/character-factory-assets
+          CANONICAL=/tmp/canonical.glb
+          printf 'fixture' > "$CANONICAL"
+          python3 tools/character-factory/init_asset.py \
+            character steven_ci \
+            --library-root "$LIB" \
+            --canonical-body "$CANONICAL" \
+            --tag main-cast
+          SPEC="$LIB/characters/steven_ci/asset.json"
+          test -s "$SPEC"
+          test -d "$LIB/characters/steven_ci/geometry"
+          test -d "$LIB/characters/steven_ci/appearance"
+          test -d "$LIB/characters/steven_ci/details"
+          python3 - "$SPEC" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+          payload = json.loads(Path(sys.argv[1]).read_text())
+          assert payload['appearance']['strategy'] == 'character-multiview'
+          assert payload['generator']['profile'] == 'hunyuan-quality-macos'
+          assert payload['rig']['bodyObject'] == 'Body'
+          PY
