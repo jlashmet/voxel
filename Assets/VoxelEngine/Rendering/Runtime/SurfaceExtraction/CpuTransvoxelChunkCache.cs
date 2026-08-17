@@ -3308,7 +3308,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 }
                 _emptyVersions[_build.Coordinate] = _build.SourceVersion;
                 if (SourceStep == FeaturePreservingFallbackStep)
-                    Step4FalseEmptyDiagnostics.RecordReadyEmptyPublication();
+                    Step4FalseEmptyDiagnostics.RecordReadyEmptyPublication(
+                        _build.Coordinate, _build.HasOwnedSolid,
+                        _buildProfileBlocks.Length != 0,
+                        _build.UsedFeaturePreservingFallback);
                 CompletedBuildCount++;
                 _buildLatencyTiming.Add(ElapsedMs(_build.BuildStartSeconds));
                 _desiredVersions.Remove(_build.Coordinate);
