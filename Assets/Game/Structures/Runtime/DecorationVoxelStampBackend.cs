@@ -5,11 +5,6 @@ using VoxelEngine.Structures.Api;
 
 namespace Game.Structures.Runtime
 {
-    /// <summary>
-    /// Structure-authoring backend for decorations that should become world-integrated voxel
-    /// geometry rather than presentation-only meshes. Supported stamps include campfires and
-    /// wall-integrated fireplaces.
-    /// </summary>
     public static class DecorationVoxelStampBackend
     {
         public static bool TryAuthor(
@@ -48,7 +43,6 @@ namespace Game.Structures.Runtime
             int centerZ = (bounds.Min.z + bounds.MaxExclusive.z) / 2;
             int radius = math.max(2, math.min(size.x, size.z) / 2);
             int innerRadius = math.max(0, radius - 2);
-
             authoring.Cylinder(centerX, bounds.Min.y, centerZ, radius, 1,
                 profile.AccentMaterial, innerRadius);
 
@@ -68,39 +62,42 @@ namespace Game.Structures.Runtime
             in DecorationPlacement placement,
             in DecorationPresentationProfile profile)
         {
-            DecorationBounds bounds = placement.Bounds;
-            int3 size = bounds.Size;
-            int surround = math.max(2, math.min(4, size.x / 6));
+            DecorationBounds b = placement.Bounds;
+            int3 size = b.Size;
+            bool wallAlongZ = math.abs(placement.Facing.x) == 1;
+            int wallWidth = wallAlongZ ? size.z : size.x;
+            int wallDepth = wallAlongZ ? size.x : size.z;
+            int surround = math.max(2, math.min(4, wallWidth / 6));
             int openingHeight = math.max(6, size.y * 2 / 3);
-            int openingWidth = math.max(6, size.x - surround * 2);
-            int openingDepth = math.max(2, size.z - 2);
-            authoring.Box(bounds.Min, size, profile.AccentMaterial);
+            int openingWidth = math.max(6, wallWidth - surround * 2);
+            int openingDepth = math.max(2, wallDepth - 2);
+            authoring.Box(b.Min, size, profile.AccentMaterial);
 
-            if (math.abs(placement.Facing.x) == 1)
+            if (wallAlongZ)
             {
-                int minX = placement.Facing.x > 0 ? bounds.Min.x + 1 : bounds.MaxExclusive.x - openingDepth - 1;
-                int minZ = bounds.Min.z + (size.z - openingWidth) / 2;
-                authoring.Box(new int3(minX, bounds.Min.y + 2, minZ),
+                int minX = placement.Facing.x > 0 ? b.Min.x + 1 : b.MaxExclusive.x - openingDepth - 1;
+                int minZ = b.Min.z + (size.z - openingWidth) / 2;
+                authoring.Box(new int3(minX, b.Min.y + 2, minZ),
                     new int3(openingDepth, openingHeight, openingWidth), GameMaterialIds.Empty);
                 int fireX = placement.Facing.x > 0 ? minX + openingDepth - 2 : minX + 1;
-                AuthorFirebed(authoring, fireX, bounds.Min.y + 2,
-                    (bounds.Min.z + bounds.MaxExclusive.z) / 2, true, openingWidth, in profile);
+                AuthorFirebed(authoring, fireX, b.Min.y + 2,
+                    (b.Min.z + b.MaxExclusive.z) / 2, true, openingWidth, in profile);
             }
             else
             {
-                int minZ = placement.Facing.z > 0 ? bounds.Min.z + 1 : bounds.MaxExclusive.z - openingDepth - 1;
-                int minX = bounds.Min.x + (size.x - openingWidth) / 2;
-                authoring.Box(new int3(minX, bounds.Min.y + 2, minZ),
+                int minZ = placement.Facing.z > 0 ? b.Min.z + 1 : b.MaxExclusive.z - openingDepth - 1;
+                int minX = b.Min.x + (size.x - openingWidth) / 2;
+                authoring.Box(new int3(minX, b.Min.y + 2, minZ),
                     new int3(openingWidth, openingHeight, openingDepth), GameMaterialIds.Empty);
                 int fireZ = placement.Facing.z > 0 ? minZ + openingDepth - 2 : minZ + 1;
-                AuthorFirebed(authoring, (bounds.Min.x + bounds.MaxExclusive.x) / 2,
-                    bounds.Min.y + 2, fireZ, false, openingWidth, in profile);
+                AuthorFirebed(authoring, (b.Min.x + b.MaxExclusive.x) / 2,
+                    b.Min.y + 2, fireZ, false, openingWidth, in profile);
             }
 
             if (profile.Ornamentation >= 3)
             {
                 int mantelHeight = math.min(3, math.max(1, size.y / 10));
-                authoring.Box(new int3(bounds.Min.x - 1, bounds.MaxExclusive.y - mantelHeight, bounds.Min.z - 1),
+                authoring.Box(new int3(b.Min.x - 1, b.MaxExclusive.y - mantelHeight, b.Min.z - 1),
                     new int3(size.x + 2, mantelHeight, size.z + 2), profile.PrimaryMaterial);
             }
         }
@@ -114,13 +111,15 @@ namespace Game.Structures.Runtime
             byte ember = profile.EmitsLight ? profile.EmissiveMaterial : GameMaterialIds.DarkStone;
             if (alongZ)
             {
-                authoring.Box(new int3(x, y, z - length / 2), new int3(2, 2, length), profile.PrimaryMaterial);
+                authoring.Box(new int3(x, y, z - length / 2),
+                    new int3(2, 2, length), profile.PrimaryMaterial);
                 authoring.Box(new int3(x, y + 2, z - math.max(1, length / 4)),
                     new int3(2, 2, math.max(2, length / 2)), ember);
             }
             else
             {
-                authoring.Box(new int3(x - length / 2, y, z), new int3(length, 2, 2), profile.PrimaryMaterial);
+                authoring.Box(new int3(x - length / 2, y, z),
+                    new int3(length, 2, 2), profile.PrimaryMaterial);
                 authoring.Box(new int3(x - math.max(1, length / 4), y + 2, z),
                     new int3(math.max(2, length / 2), 2, 2), ember);
             }
