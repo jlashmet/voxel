@@ -103,5 +103,156 @@ namespace VoxelEngine.Tests.Features
             Assert.AreEqual(1, roof.PitchRise);
             Assert.AreEqual(2, roof.PitchRun);
         }
+
+        [Test]
+        public void StairRampConfigCoversStraightRampAndLandingSemantics()
+        {
+            var stairs = new StairRampConfig
+            {
+                Style = StairRampStyle.LandingTurn,
+                Axis = RoofAxis.Z,
+                Width = 5,
+                StepCount = 12,
+                Rise = 1,
+                Run = 2,
+                LandingLength = 6,
+                MaterialRole = StructureMaterialRole.Floor,
+            };
+
+            Assert.AreEqual(StairRampStyle.LandingTurn, stairs.Style);
+            Assert.AreEqual(RoofAxis.Z, stairs.Axis);
+            Assert.AreEqual(12, stairs.StepCount);
+            Assert.AreEqual(6, stairs.LandingLength);
+            Assert.AreEqual(StructureMaterialRole.Floor, stairs.MaterialRole);
+        }
+
+        [Test]
+        public void TowerConfigCapturesShapePlacementTopAndOpeningPolicy()
+        {
+            var tower = new TowerConfig
+            {
+                Shape = TowerShape.Round,
+                PlacementMode = TowerPlacementMode.Corners,
+                TopStyle = TowerTopStyle.Roof,
+                Radius = 8,
+                Height = 40,
+                Count = 4,
+                Spacing = 32,
+                OpeningsEnabled = true,
+                Opening = new OpeningConfig
+                {
+                    Kind = StructureOpeningKind.Window,
+                    Width = 3,
+                    Height = 6,
+                    Spacing = 10,
+                },
+                Roof = new RoofConfig
+                {
+                    Style = RoofStyle.Hip,
+                    PitchRise = 1,
+                    PitchRun = 2,
+                },
+                WallMaterialRole = StructureMaterialRole.PrimaryWall,
+                TrimMaterialRole = StructureMaterialRole.Trim,
+            };
+
+            Assert.AreEqual(TowerShape.Round, tower.Shape);
+            Assert.AreEqual(TowerPlacementMode.Corners, tower.PlacementMode);
+            Assert.AreEqual(TowerTopStyle.Roof, tower.TopStyle);
+            Assert.AreEqual(8, tower.Radius);
+            Assert.AreEqual(4, tower.Count);
+            Assert.IsTrue(tower.OpeningsEnabled);
+            Assert.AreEqual(StructureOpeningKind.Window, tower.Opening.Kind);
+            Assert.AreEqual(RoofStyle.Hip, tower.Roof.Style);
+        }
+
+        [Test]
+        public void ColumnConfigSupportsRepeatedColonnades()
+        {
+            var columns = new ColumnConfig
+            {
+                Shape = ColumnShape.Round,
+                Radius = 2,
+                Height = 18,
+                BaseHeight = 2,
+                CapitalHeight = 2,
+                Count = 10,
+                Spacing = 7,
+                ShaftMaterialRole = StructureMaterialRole.Column,
+                TrimMaterialRole = StructureMaterialRole.Trim,
+            };
+
+            Assert.AreEqual(ColumnShape.Round, columns.Shape);
+            Assert.AreEqual(10, columns.Count);
+            Assert.AreEqual(7, columns.Spacing);
+            Assert.AreEqual(StructureMaterialRole.Column, columns.ShaftMaterialRole);
+        }
+
+        [Test]
+        public void ButtressConfigKeepsFlyingApproximationBoundedAndExplicit()
+        {
+            var buttress = new ButtressConfig
+            {
+                Width = 3,
+                Depth = 5,
+                Height = 22,
+                Count = 6,
+                Spacing = 12,
+                Taper = 2,
+                FlyingEnabled = true,
+                FlyingSpan = 8,
+                FlyingRise = 4,
+                FlyingConnectionHeight = 14,
+                MaterialRole = StructureMaterialRole.SecondaryWall,
+            };
+
+            Assert.IsTrue(buttress.FlyingEnabled);
+            Assert.AreEqual(8, buttress.FlyingSpan);
+            Assert.AreEqual(4, buttress.FlyingRise);
+            Assert.AreEqual(14, buttress.FlyingConnectionHeight);
+        }
+
+        [Test]
+        public void BattlementConfigSeparatesParapetAndCrenellationCadence()
+        {
+            var battlement = new BattlementConfig
+            {
+                ParapetThickness = 2,
+                ParapetHeight = 4,
+                MerlonWidth = 3,
+                MerlonHeight = 3,
+                GapWidth = 2,
+                CornerMerlonWidth = 4,
+                MaterialRole = StructureMaterialRole.PrimaryWall,
+            };
+
+            Assert.AreEqual(2, battlement.ParapetThickness);
+            Assert.AreEqual(3, battlement.MerlonWidth);
+            Assert.AreEqual(2, battlement.GapWidth);
+            Assert.AreEqual(4, battlement.CornerMerlonWidth);
+        }
+
+        [Test]
+        public void VerticalAccentConfigSharesGeometryWithoutArchetypeOwnership()
+        {
+            var accent = new VerticalAccentConfig
+            {
+                Style = VerticalAccentStyle.Spire,
+                Width = 7,
+                Depth = 7,
+                Height = 28,
+                Taper = 6,
+                Count = 2,
+                Spacing = 24,
+                MaterialRole = StructureMaterialRole.Accent,
+                TrimMaterialRole = StructureMaterialRole.Trim,
+            };
+
+            Assert.AreEqual(VerticalAccentStyle.Spire, accent.Style);
+            Assert.AreEqual(28, accent.Height);
+            Assert.AreEqual(6, accent.Taper);
+            Assert.AreEqual(2, accent.Count);
+            Assert.AreEqual(StructureMaterialRole.Accent, accent.MaterialRole);
+        }
     }
 }
