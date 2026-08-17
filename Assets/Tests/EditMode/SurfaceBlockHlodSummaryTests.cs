@@ -1,3 +1,4 @@
+using System.Reflection;
 using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
@@ -152,6 +153,30 @@ namespace VoxelEngine.Tests.EditMode
             Assert.AreEqual(1, overflow[0]);
             Assert.LessOrEqual(vertices.Length, vertices.Capacity);
             Assert.LessOrEqual(indices.Length, indices.Capacity);
+        }
+
+        [Test]
+        public void ProductionWorkspaceCapacityTracksTwoVoxelHlodResolution()
+        {
+            // The production workspace is intentionally internal, but this is a regression on its
+            // sizing contract: the 2-voxel HLOD change doubled linear resolution from the original
+            // 4-voxel representation, so face output needs four times the original area budget.
+            System.Type workspace = typeof(SurfaceBlockHlodMeshJob).Assembly.GetType(
+                "VoxelEngine.Rendering.Runtime.SurfaceExtraction.TransvoxelBuildWorkspace");
+            Assert.NotNull(workspace);
+
+            BindingFlags flags = BindingFlags.Static | BindingFlags.NonPublic;
+            PropertyInfo scale = workspace.GetProperty("HlodSurfaceCapacityScale", flags);
+            PropertyInfo vertices = workspace.GetProperty("HlodVertexCapacity", flags);
+            PropertyInfo indices = workspace.GetProperty("HlodIndexCapacity", flags);
+            Assert.NotNull(scale);
+            Assert.NotNull(vertices);
+            Assert.NotNull(indices);
+
+            Assert.AreEqual(4, (int)scale.GetValue(null),
+                "Doubling HLOD linear resolution must quadruple its surface-output budget.");
+            Assert.AreEqual(1_048_576, (int)vertices.GetValue(null));
+            Assert.AreEqual(1_572_864, (int)indices.GetValue(null));
         }
 
         private static NativeArray<SurfaceBlockHlodSummary> PaddedSingleBlock(
