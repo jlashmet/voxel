@@ -3,7 +3,8 @@
     "rootNamespace": "Game.Structures.Api",
     "references": [
         "VoxelEngine.Structures.Api",
-        "Unity.Mathematics"
+        "Unity.Mathematics",
+        "Unity.Collections"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
