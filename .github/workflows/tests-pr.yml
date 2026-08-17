@@ -124,26 +124,6 @@ jobs:
             -logFile "$ROOT/showcase-bake.log"
           test -s "$GITHUB_WORKSPACE/Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes"
 
-      # Renderer coverage is a correctness gate, not a broad-suite side effect. Run it before the
-      # historical PlayMode shards so unrelated native-memory growth in another class range cannot
-      # prevent us from learning whether the production LOD renderer has visible holes.
-      - name: Renderer LOD coverage gate
-        if: contains(steps.select.outputs.playmode, 'VoxelEngine.Tests.PlayMode')
-        shell: bash
-        run: |
-          set -euo pipefail
-          ROOT="$GITHUB_WORKSPACE/Artifacts/PrTests"
-          mkdir -p "$ROOT"
-          UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=30 \
-          UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
-            -batchmode -job-worker-count 1 \
-            -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform PlayMode \
-            -assemblyNames "VoxelEngine.Tests.PlayMode" \
-            -testFilter "^VoxelEngine\.Tests\.PlayMode\.RendererLodCoverageTests" \
-            -testResults "$ROOT/playmode-renderer-lod-coverage.xml" \
-            -logFile "$ROOT/playmode-renderer-lod-coverage.log"
-          test -s "$ROOT/playmode-renderer-lod-coverage.xml"
-
       # PlayMode assemblies run one process each. VoxelEngine.Tests.PlayMode is large enough that
       # Unity retains native scene/rendering memory across its repeated scene loads and eventually
       # crosses the watchdog ceiling even though managed scene memory is released. Split that one
