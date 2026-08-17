@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 import subprocess
 
 from api.models import CharacterFactoryError
 from api.preprocess import PreprocessContractError, PreprocessStep, resolve_preprocess_steps
+
+
+PREPROCESS_AUDIT_NAME = "preprocess-audit.json"
 
 
 def declared_preprocess_steps(spec_path: Path, tool_root: Path) -> tuple[PreprocessStep, ...]:
@@ -53,6 +57,82 @@ def _ensure_python(step: PreprocessStep, *, project_root: Path, dry_run: bool) -
         )
 
 
+def _sha256_file(path: Path) -> str | None:
+    if not path.is_file():
+        return None
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _path_audit(path: Path) -> dict[str, object]:
+    resolved = path.resolve()
+    if resolved.is_file():
+        return {
+            "path": str(resolved),
+            "kind": "file",
+            "sha256": _sha256_file(resolved),
+        }
+    if resolved.is_dir():
+        files = [candidate for candidate in resolved.rglob("*") if candidate.is_file()]
+        entries = [
+            {
+                "path": candidate.relative_to(resolved).as_posix(),
+                "sha256": _sha256_file(candidate),
+            }
+            for candidate in sorted(files)
+        ]
+        digest = hashlib.sha256(
+            json.dumps(entries, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+        return {
+            "path": str(resolved),
+            "kind": "directory",
+            "sha256": digest,
+            "fileCount": len(entries),
+        }
+    return {
+        "path": str(resolved),
+        "kind": "missing",
+        "sha256": None,
+    }
+
+
+def _output_dir(spec_path: Path) -> Path:
+    payload = json.loads(spec_path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise CharacterFactoryError("asset spec root must be an object")
+    asset_id = str(payload.get("id", "")).strip()
+    raw = payload.get("outputDir", f"build/{asset_id}")
+    output = Path(str(raw))
+    return output.resolve() if output.is_absolute() else (spec_path.parent / output).resolve()
+
+
+def _write_preprocess_audit(
+    spec_path: Path,
+    steps: tuple[PreprocessStep, ...],
+) -> Path:
+    output_dir = _output_dir(spec_path)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    audit = output_dir / PREPROCESS_AUDIT_NAME
+    payload = {
+        "schemaVersion": 1,
+        "spec": str(spec_path.resolve()),
+        "steps": [
+            {
+                **step.metadata(),
+                "inputs": [_path_audit(path) for path in step.inputs],
+                "outputs": [_path_audit(path) for path in step.outputs],
+            }
+            for step in steps
+        ],
+    }
+    audit.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    return audit
+
+
 def prepare_spec_references(
     spec_path: Path,
     tool_root: Path,
@@ -61,6 +141,11 @@ def prepare_spec_references(
 ) -> tuple[PreprocessStep, ...]:
     path = spec_path.resolve()
     steps = declared_preprocess_steps(path, tool_root)
+    audit = _output_dir(path) / PREPROCESS_AUDIT_NAME
+    if not dry_run and audit.exists():
+        # Never let a failed/new preprocessing attempt leave an old audit looking
+        # like evidence for the current references.
+        audit.unlink()
     if not steps:
         return ()
 
@@ -82,7 +167,13 @@ def prepare_spec_references(
                 f"preprocess step {step.strategy!r} did not produce expected outputs: "
                 + ", ".join(str(output) for output in missing)
             )
+    if not dry_run:
+        _write_preprocess_audit(path, steps)
     return steps
 
 
-__all__ = ["declared_preprocess_steps", "prepare_spec_references"]
+__all__ = [
+    "PREPROCESS_AUDIT_NAME",
+    "declared_preprocess_steps",
+    "prepare_spec_references",
+]
