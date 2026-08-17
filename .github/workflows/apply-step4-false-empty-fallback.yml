@@ -1,0 +1,33 @@
+name: Apply step-4 false-empty fallback
+
+on:
+  push:
+    branches:
+      - feature/voxel-showcase-rendering-repair-v2
+    paths:
+      - .github/workflows/apply-step4-false-empty-fallback.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/voxel-showcase-rendering-repair-v2
+          fetch-depth: 0
+      - name: Apply exact patch
+        run: python3 tools/apply-step4-false-empty-fallback.py
+      - name: Validate diff
+        run: git diff --check
+      - name: Commit repair
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --stat
+          git commit -m 'fix(rendering): preserve step-4 false-empty solids'
+          git push origin HEAD:feature/voxel-showcase-rendering-repair-v2
