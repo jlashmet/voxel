@@ -57,7 +57,11 @@ namespace Game.Structures.Tests
 
             Assert.That(CityStructurePresetLibrary.TryResolveHouse(
                 CityStructurePresetId.Farmhouse, in palette, out HouseConfig house), Is.True);
-            Assert.That(house.IsWellFormed, Is.True);
+            Assert.That(house.Width, Is.GreaterThan(0));
+            Assert.That(house.Depth, Is.GreaterThan(0));
+            Assert.That(house.Footprint.IsWellFormed, Is.True);
+            Assert.That(house.Walls.IsWellFormed, Is.True);
+            Assert.That(house.Roof.IsWellFormed, Is.True);
 
             Assert.That(CityStructurePresetLibrary.TryResolveShed(
                 CityStructurePresetId.WorkshopShed, in palette, out ShedConfig shed), Is.True);
