@@ -393,7 +393,7 @@ namespace VoxelEngine.Showcase
                 return;
             }
 
-            using (s_RefreshPendingMarker.Auto()) RefreshPending(centre);
+            using (s_RefreshPendingMarker.Auto()) RefreshPending(centre, cameraMetres);
 
             var deadline = Time.realtimeSinceStartupAsDouble + budgetMs * 0.001;
             var start = Time.realtimeSinceStartupAsDouble;
@@ -530,12 +530,16 @@ namespace VoxelEngine.Showcase
                 {
                     // Perimeter of this shell only; the interior was cleared by earlier passes.
                     if (math.max(math.abs(dx), math.abs(dz)) != shell) continue;
-                    // Residency is a disc, so corners outside it are never loaded and must not
-                    // be treated as a gap.
-                    if (dx * dx + dz * dz > LoadRadiusRegions * LoadRadiusRegions) continue;
-
+                    // The far-terrain hole is centred on the actual camera, not on the integer
+                    // coordinate of its current region. Check the same physical footprint used by
+                    // RefreshPending so a sub-region camera offset cannot classify an unloaded
+                    // fringe column as safely covered near terrain.
                     int rx = centre.x + dx;
                     int rz = centre.z + dz;
+                    if (!ShowcaseResidencyFootprint.ColumnIntersectsRadius(
+                            cameraMetres, rx, rz, LoadRadiusRegions * RegionMetres))
+                        continue;
+
                     SurfaceLayerSpan(rx, rz, out int minLayer, out int maxLayer);
                     if (maxLayer - minLayer > MaxSurfaceLayersPerColumn)
                         maxLayer = minLayer + MaxSurfaceLayersPerColumn;
@@ -546,7 +550,8 @@ namespace VoxelEngine.Showcase
                 }
             }
 
-            return GuaranteedRadius(cameraMetres, centre, LoadRadiusRegions);
+            return math.min(LoadRadiusRegions * RegionMetres,
+                            GuaranteedRadius(cameraMetres, centre, LoadRadiusRegions));
         }
 
         /// <summary>
@@ -637,7 +642,7 @@ namespace VoxelEngine.Showcase
             _pendingLoads.Add(rc);
         }
 
-        private void RefreshPending(int3 centre)
+        private void RefreshPending(int3 centre, float3 cameraMetres)
         {
             _pendingLoads.Clear();
             _pendingLoadSet.Clear();
@@ -650,10 +655,12 @@ namespace VoxelEngine.Showcase
             for (int dx = -LoadRadiusRegions; dx <= LoadRadiusRegions; dx++)
             for (int dz = -LoadRadiusRegions; dz <= LoadRadiusRegions; dz++)
             {
-                if (dx * dx + dz * dz > LoadRadiusRegions * LoadRadiusRegions) continue;
-
                 int rx = centre.x + dx;
                 int rz = centre.z + dz;
+                if (!ShowcaseResidencyFootprint.ColumnIntersectsRadius(
+                        cameraMetres, rx, rz, LoadRadiusRegions * RegionMetres))
+                    continue;
+
                 SurfaceLayerSpan(rx, rz, out int minLayer, out int maxLayer);
 
                 // Bound the span. A near-vertical column on a mountain face can legitimately
