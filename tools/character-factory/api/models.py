@@ -6,6 +6,12 @@ import json
 from pathlib import Path
 from typing import Any
 
+from .references import (
+    ReferenceContractError,
+    resolve_detail_mapping,
+    resolve_view_mapping,
+)
+
 
 class CharacterFactoryError(RuntimeError):
     pass
@@ -62,27 +68,27 @@ class ViewSet:
         data: dict[str, Any],
         base_dir: Path,
         validate_paths: bool = True,
+        *,
+        label: str = "views",
     ) -> "ViewSet":
-        if not data.get("front"):
-            raise CharacterFactoryError("views.front is required")
+        try:
+            resolved = resolve_view_mapping(
+                data,
+                base_dir,
+                label=label,
+                validate_paths=validate_paths,
+            )
+        except ReferenceContractError as exc:
+            raise CharacterFactoryError(str(exc)) from exc
 
-        def resolve(value: str | None) -> Path | None:
-            if not value:
-                return None
-            path = Path(value)
-            return path if path.is_absolute() else (base_dir / path).resolve()
-
-        result = ViewSet(
-            front=resolve(data["front"]),
-            back=resolve(data.get("back")),
-            left=resolve(data.get("left")),
-            right=resolve(data.get("right")),
+        front = resolved["front"]
+        assert front is not None
+        return ViewSet(
+            front=front,
+            back=resolved["back"],
+            left=resolved["left"],
+            right=resolved["right"],
         )
-        if validate_paths:
-            for name, path in result.items():
-                if path is not None and not path.is_file():
-                    raise CharacterFactoryError(f"views.{name} does not exist: {path}")
-        return result
 
     def items(self):
         return (
@@ -91,6 +97,12 @@ class ViewSet:
             ("left", self.left),
             ("right", self.right),
         )
+
+    def as_dict(self) -> dict[str, str | None]:
+        return {
+            name: None if path is None else str(path)
+            for name, path in self.items()
+        }
 
 
 @dataclass(frozen=True)
@@ -267,6 +279,8 @@ class BuildSpec:
     asset_id: str
     asset_type: AssetType
     views: ViewSet
+    appearance_views: ViewSet | None
+    detail_references: dict[str, Path]
     output_dir: Path
     generator: GeneratorConfig
     rig: RigConfig | None
@@ -312,14 +326,65 @@ class BuildSpec:
 
         BuildSpec._validate_pipeline_config(asset_type, rig, rigid, runtime_part)
 
+        legacy_views = data.get("views")
+        if legacy_views is not None and not isinstance(legacy_views, dict):
+            raise CharacterFactoryError("views must be an object")
+
+        references_data = data.get("references")
+        if references_data is None:
+            references_data = {}
+        if not isinstance(references_data, dict):
+            raise CharacterFactoryError("references must be an object")
+
+        geometry_data = references_data.get("geometry")
+        if geometry_data is not None and legacy_views:
+            raise CharacterFactoryError(
+                "use either legacy views or references.geometry, not both"
+            )
+        if geometry_data is None:
+            geometry_data = legacy_views or {}
+        if not isinstance(geometry_data, dict):
+            raise CharacterFactoryError("references.geometry must be an object")
+
+        appearance_data = references_data.get("appearance")
+        if appearance_data is not None and not isinstance(appearance_data, dict):
+            raise CharacterFactoryError("references.appearance must be an object")
+
+        details_data = references_data.get("details", {})
+        if not isinstance(details_data, dict):
+            raise CharacterFactoryError("references.details must be an object")
+
+        views = ViewSet.from_dict(
+            geometry_data,
+            base_dir,
+            validate_paths=validate_paths,
+            label=("references.geometry" if references_data.get("geometry") is not None else "views"),
+        )
+        appearance_views = (
+            ViewSet.from_dict(
+                appearance_data,
+                base_dir,
+                validate_paths=validate_paths,
+                label="references.appearance",
+            )
+            if appearance_data is not None
+            else None
+        )
+        try:
+            detail_references = resolve_detail_mapping(
+                details_data,
+                base_dir,
+                validate_paths=validate_paths,
+            )
+        except ReferenceContractError as exc:
+            raise CharacterFactoryError(str(exc)) from exc
+
         return BuildSpec(
             asset_id=asset_id,
             asset_type=asset_type,
-            views=ViewSet.from_dict(
-                data.get("views", {}),
-                base_dir,
-                validate_paths=validate_paths,
-            ),
+            views=views,
+            appearance_views=appearance_views,
+            detail_references=detail_references,
             output_dir=output,
             generator=GeneratorConfig.from_dict(
                 data.get("generator", {}),
