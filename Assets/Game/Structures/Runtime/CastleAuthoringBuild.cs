@@ -23,12 +23,10 @@ namespace Game.Structures.Runtime
             IStructureAuthoringSession authoring,
             in CastlePlan plan,
             uint terrainSeed)
-            : this(
-                authoring,
-                in plan,
-                CastleCompatibilityComponents.Resolve(in plan),
-                terrainSeed)
         {
+            StructureMaterialPalette palette = CastleStructurePalette.Compatibility;
+            CastleComponentConfig components = CastleComponentPresets.Compatibility(in plan, in palette);
+            Initialize(authoring, in plan, in components, terrainSeed);
         }
 
         /// <summary>
@@ -42,27 +40,7 @@ namespace Game.Structures.Runtime
             CastleComponentConfig components,
             uint terrainSeed)
         {
-            _authoring = authoring
-                ?? throw new System.ArgumentNullException(nameof(authoring));
-            if (!components.IsWellFormed)
-                throw new System.ArgumentException(
-                    "Castle authoring refused: shared castle component configuration is invalid.",
-                    nameof(components));
-
-            _plan = plan;
-            _components = components;
-            _terrainSeed = terrainSeed;
-            _stage = 1;
-            _keepStage = 0;
-
-            long estimate = CastlePlanner.EstimateWrites(in plan);
-            if (estimate > authoring.WriteBudget)
-            {
-                throw new System.InvalidOperationException(
-                    $"Castle authoring refused: plan implies ~{estimate:N0} expensive-write " +
-                    $"equivalents, budget is {authoring.WriteBudget:N0}. Reduce PlateauRadius " +
-                    $"({plan.PlateauRadius}) or the primary structure dimensions before retrying.");
-            }
+            Initialize(authoring, in plan, in components, terrainSeed);
         }
 
         public bool IsComplete => _stage > 8;
@@ -79,10 +57,11 @@ namespace Game.Structures.Runtime
             {
                 case 1:
                     stageName = "site";
+                    // The legacy site stage owns bounded terrain sculpting. BaileyFootprint declares
+                    // shared bounds but deliberately does not author a second terrain foundation.
                     if (!CastleSiteAuthoring.Step(
                             _authoring,
                             in _plan,
-                            in _components,
                             _terrainSeed,
                             ref _siteState))
                     {
@@ -109,7 +88,9 @@ namespace Game.Structures.Runtime
                     CastleGatehouseAuthoring.Author(
                         _authoring,
                         in _plan,
-                        in _components.MainGate);
+                        in _components.GateTowers,
+                        in _components.MainGate,
+                        in _components.GatehouseBattlements);
                     break;
 
                 case 5:
@@ -145,6 +126,35 @@ namespace Game.Structures.Runtime
             return IsComplete;
         }
 
+        private void Initialize(
+            IStructureAuthoringSession authoring,
+            in CastlePlan plan,
+            in CastleComponentConfig components,
+            uint terrainSeed)
+        {
+            _authoring = authoring
+                ?? throw new System.ArgumentNullException(nameof(authoring));
+            if (!components.IsWellFormed)
+                throw new System.ArgumentException(
+                    "Castle authoring refused: shared castle component configuration is invalid.",
+                    nameof(components));
+
+            _plan = plan;
+            _components = components;
+            _terrainSeed = terrainSeed;
+            _stage = 1;
+            _keepStage = 0;
+
+            long estimate = CastlePlanner.EstimateWrites(in plan);
+            if (estimate > authoring.WriteBudget)
+            {
+                throw new System.InvalidOperationException(
+                    $"Castle authoring refused: plan implies ~{estimate:N0} expensive-write " +
+                    $"equivalents, budget is {authoring.WriteBudget:N0}. Reduce PlateauRadius " +
+                    $"({plan.PlateauRadius}) or the primary structure dimensions before retrying.");
+            }
+        }
+
         private bool StepKeep()
         {
             int baseY = _plan.Centre.y + _plan.PlateauHeight;
@@ -158,6 +168,7 @@ namespace Game.Structures.Runtime
                         _authoring,
                         in _plan,
                         in _components.KeepFoundation,
+                        _components.KeepFoundationTopOffset,
                         in _components.KeepWalls,
                         in _components.Palette);
                     break;
