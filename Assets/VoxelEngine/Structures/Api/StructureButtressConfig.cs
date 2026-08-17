@@ -23,9 +23,28 @@ namespace VoxelEngine.Structures.Api
         public StructureMaterialRole MaterialRole;
         public StructureMaterialRole FlyingMaterialRole;
 
+        // Compatibility aliases for the first shared vertical-feature contract. Repetition is now
+        // span-derived, but preserving Count avoids breaking older serialized/preset/test code.
+        public int Count;
+        public int Taper
+        {
+            get => TaperPercent;
+            set => TaperPercent = value;
+        }
+        public int FlyingConnectionHeight
+        {
+            get => FlyingSupportHeight;
+            set
+            {
+                FlyingSupportHeight = value;
+                if (FlyingThickness <= 0)
+                    FlyingThickness = 1;
+            }
+        }
+
         public bool IsWellFormed =>
             Width > 0 && Depth > 0 && Height > 0 &&
-            Spacing >= Width && StartMargin >= 0 && EndMargin >= 0 &&
+            Spacing >= Width && StartMargin >= 0 && EndMargin >= 0 && Count >= 0 &&
             TaperPercent >= 0 && TaperPercent <= 80 &&
             (!FlyingEnabled ||
              (FlyingSpan > 0 && FlyingRise >= 0 && FlyingThickness > 0 &&
