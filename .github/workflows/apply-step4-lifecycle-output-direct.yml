@@ -1,0 +1,64 @@
+name: Apply step4 lifecycle output directly
+
+on:
+  push:
+    branches:
+      - feature/voxel-showcase-rendering-repair-v2
+    paths:
+      - .github/workflows/apply-step4-lifecycle-output-direct.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/voxel-showcase-rendering-repair-v2
+          fetch-depth: 0
+
+      - name: Fast-forward current repair head
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin feature/voxel-showcase-rendering-repair-v2
+          git reset --hard origin/feature/voxel-showcase-rendering-repair-v2
+
+      - name: Expose exact step4 lifecycle snapshot
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('Assets/Tests/PlayMode/LodRenderingTests.cs')
+          s = p.read_text()
+          old = '''                foreach (var band in bands)\n                {\n                    // Fixed orthographic framing means camera distance selects the LOD ring without\n'''
+          new = '''                foreach (var band in bands)\n                {\n                    // Keep the lifecycle snapshot specific to the step-4 observation window.\n                    if (band.step == 4)\n                        Step4FalseEmptyDiagnostics.Reset();\n\n                    // Fixed orthographic framing means camera distance selects the LOD ring without\n'''
+          assert s.count(old) == 1, f'reset anchor count={s.count(old)}'
+          s = s.replace(old, new, 1)
+          old = '''                      + $"frustum:{metrics.Step4VisibilityFrustum}/ready:{metrics.Step4VisibilityReady}/"\n                      + $"empty:{metrics.Step4VisibilityEmpty} "\n                      + $"fallback:{metrics.Step4FeatureFallbackScheduled}/{metrics.Step4FeatureFallbackCompleted}/"\n'''
+          new = '''                      + $"frustum:{metrics.Step4VisibilityFrustum}/ready:{metrics.Step4VisibilityReady}/"\n                      + $"empty:{metrics.Step4VisibilityEmpty} "\n                      + $"lifecycle:{Step4FalseEmptyDiagnostics.Current} "\n                      + $"fallback:{metrics.Step4FeatureFallbackScheduled}/{metrics.Step4FeatureFallbackCompleted}/"\n'''
+          assert s.count(old) == 1, f'output anchor count={s.count(old)}'
+          p.write_text(s.replace(old, new, 1))
+          PY
+
+      - name: Verify diagnostic-only diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          grep -q 'Step4FalseEmptyDiagnostics.Reset' Assets/Tests/PlayMode/LodRenderingTests.cs
+          grep -q 'lifecycle:{Step4FalseEmptyDiagnostics.Current}' Assets/Tests/PlayMode/LodRenderingTests.cs
+          git diff -- Assets/Tests/PlayMode/LodRenderingTests.cs
+
+      - name: Commit diagnostic output and retire transports
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add Assets/Tests/PlayMode/LodRenderingTests.cs
+          git rm -f .github/scripts/apply-step4-lifecycle-output.py .github/workflows/apply-step4-lifecycle-output.yml .github/workflows/apply-step4-lifecycle-output-direct.yml
+          git commit -m 'diag(rendering): print step4 empty predicate snapshot'
+          git push origin HEAD:feature/voxel-showcase-rendering-repair-v2
