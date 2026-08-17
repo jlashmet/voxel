@@ -1,5 +1,40 @@
 namespace VoxelEngine.Structures.Api
 {
+    /// <summary>Which facade owns a house roof detail such as a dormer.</summary>
+    public enum HouseRoofFacade : byte
+    {
+        Front = 0,
+        Rear = 1,
+        Left = 2,
+        Right = 3,
+    }
+
+    /// <summary>
+    /// Optional bounded dormer hook for house roofs. This remains authoring data: a house compiler
+    /// may realize it with existing box/prism/opening operations without adding a roof-specific
+    /// engine opcode. Count zero disables dormers while preserving the rest of the roof config.
+    /// </summary>
+    public struct HouseDormerConfig
+    {
+        public int Count;
+        public HouseRoofFacade Facade;
+        public int Width;
+        public int Height;
+        public int Depth;
+        public int Spacing;
+        public int EdgeMargin;
+        public RoofStyle RoofStyle;
+        public StructureMaterialRole RoofMaterialRole;
+        public StructureMaterialRole WallMaterialRole;
+
+        public bool Enabled => Count > 0;
+
+        public bool IsWellFormed => Count == 0 ||
+            (Count > 0 && Width > 0 && Height > 0 && Depth > 0 &&
+             Spacing >= 0 && EdgeMargin >= 0 &&
+             RoofStyle != RoofStyle.Flat);
+    }
+
     /// <summary>
     /// Archetype-level house configuration composed from the shared structure contracts.
     /// The first compatibility compiler intentionally uses only this common vocabulary so the
@@ -12,6 +47,7 @@ namespace VoxelEngine.Structures.Api
         public FloorLevelConfig Floors;
         public OpeningConfig MainDoor;
         public RoofConfig Roof;
+        public HouseDormerConfig Dormers;
         public StructureMaterialPalette Palette;
 
         /// <summary>Primary rectangular house width in definition-local X voxels.</summary>
@@ -100,6 +136,7 @@ namespace VoxelEngine.Structures.Api
                 Floors = floors,
                 MainDoor = door,
                 Roof = roof,
+                Dormers = default,
                 Palette = new StructureMaterialPalette
                 {
                     Foundation = stoneMaterial,
