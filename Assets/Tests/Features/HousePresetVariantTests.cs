@@ -117,11 +117,9 @@ namespace VoxelEngine.Tests.Features
         public void HouseCompilerRejectsFootprintWithoutNavigableInterior()
         {
             HouseConfig invalid = HousePresets.CottageCompatibility(7, 9);
-            invalid.Footprint.Primary = new Unity.Mathematics.int2(0, 0) == default
-                ? new StructureFootprintRect(
-                    new Unity.Mathematics.int2(0, 0),
-                    new Unity.Mathematics.int2(8, 8))
-                : invalid.Footprint.Primary;
+            invalid.Footprint.Primary = new StructureFootprintRect(
+                new Unity.Mathematics.int2(0, 0),
+                new Unity.Mathematics.int2(8, 8));
             invalid.Walls.Thickness = 4;
 
             Assert.Throws<System.ArgumentException>(() =>
