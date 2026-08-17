@@ -12,8 +12,8 @@ namespace Game.Structures.Runtime
     public sealed class CastleAuthoringBuild
     {
         private readonly IStructureAuthoringSession _authoring;
+        private readonly CastleConfig _config;
         private readonly CastlePlan _plan;
-        private readonly CastleComponentConfig _components;
         private readonly uint _terrainSeed;
         private CastleSiteAuthoringState _siteState;
         private int _stage;
@@ -23,26 +23,34 @@ namespace Game.Structures.Runtime
             IStructureAuthoringSession authoring,
             in CastlePlan plan,
             uint terrainSeed)
+            : this(authoring, CastlePresets.Compatibility(in plan), terrainSeed)
+        {
+        }
+
+        public CastleAuthoringBuild(
+            IStructureAuthoringSession authoring,
+            CastleConfig config,
+            uint terrainSeed)
         {
             _authoring = authoring
                 ?? throw new System.ArgumentNullException(nameof(authoring));
-            _plan = plan;
-            _components = CastleCompatibilityComponents.Resolve(in plan);
+            if (!config.IsWellFormed)
+                throw new System.ArgumentException(
+                    "Castle authoring refused: castle configuration is invalid.", nameof(config));
+
+            _config = config;
+            _plan = config.ResolvePlan();
             _terrainSeed = terrainSeed;
             _stage = 1;
             _keepStage = 0;
 
-            if (!_components.IsWellFormed)
-                throw new System.InvalidOperationException(
-                    "Castle authoring refused: compatibility component projection is invalid.");
-
-            long estimate = CastlePlanner.EstimateWrites(in plan);
+            long estimate = CastlePlanner.EstimateWrites(in _plan);
             if (estimate > authoring.WriteBudget)
             {
                 throw new System.InvalidOperationException(
                     $"Castle authoring refused: plan implies ~{estimate:N0} expensive-write " +
                     $"equivalents, budget is {authoring.WriteBudget:N0}. Reduce PlateauRadius " +
-                    $"({plan.PlateauRadius}) or the primary structure dimensions before retrying.");
+                    $"({_plan.PlateauRadius}) or the primary structure dimensions before retrying.");
             }
         }
 
@@ -63,7 +71,6 @@ namespace Game.Structures.Runtime
                     if (!CastleSiteAuthoring.Step(
                             _authoring,
                             in _plan,
-                            in _components,
                             _terrainSeed,
                             ref _siteState))
                     {
@@ -74,17 +81,30 @@ namespace Game.Structures.Runtime
 
                 case 2:
                     stageName = "curtain walls";
-                    CastleCurtainAuthoring.Author(_authoring, in _plan, in _components);
+                    CastleCurtainAuthoring.Author(
+                        _authoring,
+                        in _plan,
+                        in _config.CurtainWallX,
+                        in _config.CurtainWallZ,
+                        in _config.CurtainBattlements);
                     break;
 
                 case 3:
                     stageName = "corner towers";
-                    CastleTowerAuthoring.AuthorCornerTowers(_authoring, in _plan, in _components);
+                    CastleTowerAuthoring.AuthorCornerTowers(
+                        _authoring,
+                        in _plan,
+                        in _config.CornerTowers);
                     break;
 
                 case 4:
                     stageName = "gatehouse";
-                    CastleGatehouseAuthoring.Author(_authoring, in _plan, in _components);
+                    CastleGatehouseAuthoring.Author(
+                        _authoring,
+                        in _plan,
+                        in _config.GateTowers,
+                        in _config.MainGate,
+                        in _config.GatehouseBattlements);
                     break;
 
                 case 5:
@@ -129,7 +149,11 @@ namespace Game.Structures.Runtime
             switch (_keepStage)
             {
                 case 0:
-                    CastleKeepCoreAuthoring.AuthorShell(_authoring, in _plan);
+                    CastleKeepCoreAuthoring.AuthorShell(
+                        _authoring,
+                        in _plan,
+                        in _config.KeepFoundation,
+                        _config.KeepFoundationTopOffset);
                     break;
 
                 case 1:
