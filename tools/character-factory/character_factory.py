@@ -10,7 +10,7 @@ PROJECT_ROOT = TOOL_ROOT.parents[1]
 if str(TOOL_ROOT) not in sys.path:
     sys.path.insert(0, str(TOOL_ROOT))
 
-from api import BuildSpec, CharacterFactoryError
+from api import BuildSpec, CharacterFactoryError, backend_profiles
 from runtime import CharacterFactoryRuntime
 from runtime.production import ProductionRunner, discover_specs
 from runtime.unity_staging import stage_manifest_for_unity
@@ -69,6 +69,11 @@ def parse_args() -> argparse.Namespace:
         help="only inspect JSON specs directly inside the supplied directory",
     )
     _add_unity_assets_root(produce_batch)
+
+    subparsers.add_parser(
+        "profiles",
+        help="list named generator backend profiles and their pinned source revisions",
+    )
 
     stage = subparsers.add_parser(
         "stage-unity",
@@ -130,6 +135,14 @@ def main() -> int:
     production = ProductionRunner(TOOL_ROOT, runtime)
 
     try:
+        if args.command == "profiles":
+            for profile in backend_profiles():
+                print(
+                    f"{profile.name}\tbackend={profile.backend}\t"
+                    f"revision={profile.source_revision}\tbootstrap={profile.bootstrap_script}"
+                )
+            return 0
+
         if args.command == "build":
             build_one(runtime, args.spec, args.dry_run, args.unity_assets_root)
             return 0
