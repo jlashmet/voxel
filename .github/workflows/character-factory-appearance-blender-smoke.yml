@@ -1,5 +1,6 @@
 name: Character Factory appearance Blender smoke
 
+# Keep this workflow directly retriggerable when the shared self-hosted Mac runner returns.
 on:
   push:
     branches:
