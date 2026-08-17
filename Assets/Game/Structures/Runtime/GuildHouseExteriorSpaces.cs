@@ -41,7 +41,7 @@ namespace Game.Structures.Runtime
                 var space = new DecorationSpace
                 {
                     SpaceId = spaceId,
-                    Kind = DecorationSpaceKind.CaveChamber,
+                    Kind = DecorationSpaceKind.ExteriorYard,
                     Bounds = bounds,
                 };
                 var context = new DecorationContext
