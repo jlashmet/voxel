@@ -118,12 +118,7 @@ namespace VoxelEngine.Streaming.Runtime
             }
 
             int unloadRadiusBlocks = (int)(GetUnloadRadius(DeviceTier.PC) / 0.8f);
-            using (NativeArray<int3> evictionCandidates =
-                   GetEvictionCandidates(playerPosition, unloadRadiusBlocks, Allocator.Temp))
-            {
-                for (int i = 0; i < evictionCandidates.Length; i++)
-                    EvictWithoutWriteBack(evictionCandidates[i], storage);
-            }
+            EvictResidentRegionsOutsideRadius(playerPosition, unloadRadiusBlocks, storage);
 
             StoragePressure pressure = storage.Pressure;
             if (!pressure.IsUnderPressure) return;
@@ -133,6 +128,40 @@ namespace VoxelEngine.Streaming.Runtime
                 if (!EvictLRU(storage)) break;
                 pressure = storage.Pressure;
             }
+        }
+
+        /// <summary>
+        /// Evicts the authoritative resident set outside the unload sphere.
+        ///
+        /// Enumerating coordinates around the <em>new</em> player position cannot find regions
+        /// that were left completely behind that cube after long traversal. Storage therefore
+        /// supplies the actual resident coordinates and Streaming applies the hysteresis policy to
+        /// that set. This is intentionally allocation-bounded by current residency rather than by
+        /// world extent.
+        /// </summary>
+        public static int EvictResidentRegionsOutsideRadius(
+            float3 playerPosition, int unloadRadiusBlocks, IRegionResidencyStore storage)
+        {
+            if (storage == null) throw new ArgumentNullException(nameof(storage));
+            if (!_accessTicks.IsCreated) EnsureAccessMap();
+
+            float distanceSquaredLimit = unloadRadiusBlocks * 0.8f;
+            distanceSquaredLimit *= distanceSquaredLimit;
+            int evicted = 0;
+            using NativeArray<int3> residents =
+                storage.GetResidentRegionCoords(Allocator.Temp);
+            for (int i = 0; i < residents.Length; i++)
+            {
+                int3 regionCoord = residents[i];
+                if (math.distancesq(RegionWorldPos(regionCoord), playerPosition)
+                    <= distanceSquaredLimit)
+                    continue;
+
+                if (!storage.EvictRegion(regionCoord)) continue;
+                if (_accessTicks.IsCreated) _accessTicks.Remove(regionCoord);
+                evicted++;
+            }
+            return evicted;
         }
 
         public static NativeArray<int3> GetResidentRegions(float3 playerPosition,
@@ -164,6 +193,11 @@ namespace VoxelEngine.Streaming.Runtime
             return trimmed;
         }
 
+        /// <summary>
+        /// Legacy geometric helper retained for callers that need to enumerate coordinates in the
+        /// current unload cube. Normal residency eviction does not use this method because it
+        /// cannot discover regions left completely behind the current player cube.
+        /// </summary>
         public static NativeArray<int3> GetEvictionCandidates(float3 playerPosition,
                                                                int unloadRadiusBlocks,
                                                                Allocator allocator)
