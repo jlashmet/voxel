@@ -203,6 +203,28 @@ namespace VoxelEngine.Composition
             return knownChunks > 0;
         }
 
+        /// <summary>
+        /// Conservative handoff signal for application-owned far-field presentation.
+        ///
+        /// Generated Storage residency is not enough to open a hole in fallback terrain: the
+        /// asynchronous renderer can still be dirty, building, awaiting upload, or explicitly
+        /// missing visible chunks. Until those publication states are quiescent the far field
+        /// must remain available underneath the voxel renderer. This is intentionally stricter
+        /// than ordinary draw readiness; stale ready geometry may still be drawable while a
+        /// replacement is pending, but keeping fallback coverage during that interval is safe.
+        /// </summary>
+        public static bool HasCompletePublishedNearSurfaceCoverage()
+        {
+            VoxelSurfaceMetrics metrics = VoxelRenderBridge.SurfaceMetrics;
+            return metrics.SolidKnownChunks > 0
+                && metrics.SolidResidentChunks > 0
+                && metrics.SolidDirtyChunks == 0
+                && metrics.RunningSolidJobs == 0
+                && metrics.SolidMeshesAwaitingUpload == 0
+                && metrics.SolidPendingUploadBytes == 0
+                && metrics.MissingVisibleSolidChunks == 0;
+        }
+
         private static void BindWorld(
             in RenderingWorldBinding world,
             IVoxelChangeSource changes,
