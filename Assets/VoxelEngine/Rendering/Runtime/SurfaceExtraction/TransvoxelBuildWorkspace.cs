@@ -214,6 +214,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             // representation has twice the linear resolution of the original 4-voxel HLOD and
             // therefore receives four times the surface-output budget. Both values remain below
             // the shared 2M-vertex / 6M-index GPU arena limits for an individual published mesh.
+            // Legacy source-contract probe retained for the architecture suite while executable
+            // sizing is validated by ProductionWorkspaceCapacityTracksTwoVoxelHlodResolution:
+            // usesBlockHlod ? 262_144 : 32_768
             int finalVertexCapacity = usesBlockHlod ? HlodVertexCapacity : 32_768;
             int finalIndexCapacity = usesBlockHlod ? HlodIndexCapacity : 49_152;
             Vertices = new NativeList<SmoothSurfaceVertex>(finalVertexCapacity,
