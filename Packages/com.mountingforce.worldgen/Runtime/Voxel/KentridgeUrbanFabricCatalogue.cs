@@ -2,6 +2,9 @@ using System;
 using System.Collections.Generic;
 using MountingForce.WorldGen.Architecture;
 using MountingForce.WorldGen.Content.Kentridge;
+using ContentKentridgeFrontageRhythm = MountingForce.WorldGen.Content.Kentridge.KentridgeFrontageRhythm;
+using ContentKentridgeRoofForm = MountingForce.WorldGen.Content.Kentridge.KentridgeRoofForm;
+using ContentKentridgeWindowStyle = MountingForce.WorldGen.Content.Kentridge.KentridgeWindowStyle;
 using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Structures.Api;
@@ -246,7 +249,7 @@ namespace MountingForce.WorldGen.Voxel
             byte foundation = settings.Materials.Resolve(theme.Foundation);
             byte wall = settings.Materials.Resolve(theme.Wall);
             byte timber = settings.Materials.Resolve(theme.Frame);
-            byte glass = form.WindowStyle == KentridgeWindowStyle.Warm
+            byte glass = form.WindowStyle == ContentKentridgeWindowStyle.Warm
                 ? settings.Materials.Resolve(MaterialRole.WarmWindow)
                 : settings.Materials.Resolve(theme.Window);
             byte roof = site.Run.District == DistrictKind.Civic
@@ -269,7 +272,7 @@ namespace MountingForce.WorldGen.Voxel
                     upperW, upperH, upperD, t, wall);
 
             int doorW = 11 * s;
-            int doorOffset = form.FrontageRhythm == KentridgeFrontageRhythm.Asymmetric
+            int doorOffset = form.FrontageRhythm == ContentKentridgeFrontageRhythm.Asymmetric
                 ? (form.AnnexOnRight ? -8 : 8) * s
                 : 0;
             int doorX = x0 + w / 2 - doorW / 2 + doorOffset;
@@ -305,7 +308,7 @@ namespace MountingForce.WorldGen.Voxel
                     w - 2 * awningInset, 3 * s, 12 * s, cloth);
             }
 
-            if (form.Roof == KentridgeRoofForm.GableWithLeanTo)
+            if (form.Roof == ContentKentridgeRoofForm.GableWithLeanTo)
                 AddLeanToAnnex(b, form, envelope, x0, z0, w, d,
                     f, floor, t, wall, timber, roof, s);
 
@@ -357,10 +360,10 @@ namespace MountingForce.WorldGen.Voxel
             int[] centres;
             switch (form.FrontageRhythm)
             {
-                case KentridgeFrontageRhythm.ThreeBay:
+                case ContentKentridgeFrontageRhythm.ThreeBay:
                     centres = new[] { x0 + w / 5, x0 + w / 2, x0 + 4 * w / 5 };
                     break;
-                case KentridgeFrontageRhythm.Asymmetric:
+                case ContentKentridgeFrontageRhythm.Asymmetric:
                     centres = new[] { x0 + w / 4, x0 + 2 * w / 3 };
                     break;
                 default:
@@ -439,13 +442,13 @@ namespace MountingForce.WorldGen.Voxel
 
         private static void EmitRoof(
             ProgramBuilder b,
-            KentridgeRoofForm form,
+            ContentKentridgeRoofForm form,
             int x, int y, int z,
             int w, int h, int d,
             byte material,
             int s)
         {
-            if (form != KentridgeRoofForm.TwinGable)
+            if (form != ContentKentridgeRoofForm.TwinGable)
             {
                 ArchitectureVoxelPatterns.GableRoof(
                     b.Inner, x, y, z, w, h, d, material);
