@@ -3,8 +3,12 @@ using Unity.Mathematics;
 
 namespace Game.Structures.Runtime
 {
-    public enum DecorationExpansion260Category : byte { Commerce, Military, Household }
+    public enum DecorationExpansion260Category : byte { Commerce, Enchanted, Household }
 
+    /// <summary>
+    /// Stable fantasy-RPG content IDs 201-260. IDs 221-240 intentionally contain magical/worldbuilding
+    /// content rather than modern or military infrastructure.
+    /// </summary>
     public enum DecorationExpansion260Kind : ushort
     {
         JewelerBench = 201, GemDisplayCase = 202, CoinScale = 203, Lockbox = 204,
@@ -13,11 +17,11 @@ namespace Game.Structures.Runtime
         PotionDisplayCase = 213, GeneralStoreCounter = 214, SackDisplay = 215, ProduceBasketStand = 216,
         ButcherDisplay = 217, FishmongerSlab = 218, ShopSignHanging = 219, AwningStriped = 220,
 
-        TrainingDummy = 221, ArcheryTarget = 222, WeaponStand = 223, ShieldRack = 224,
-        ArmorStand = 225, SpearRack = 226, SwordRack = 227, BowRack = 228,
-        ArrowBarrel = 229, PracticeRingMarker = 230, SandTable = 231, WarMapBoard = 232,
-        CommandDesk = 233, DrumStand = 234, SignalHornRack = 235, Barricade = 236,
-        SpikeBarrier = 237, GuardBell = 238, WatchBrazier = 239, SiegeToolRack = 240,
+        EnchantersWorkbench = 221, RuneCarvingTable = 222, WandmakersBench = 223, StaffmakersRack = 224,
+        CrystalCabinet = 225, EnchantedWeaponStand = 226, EnchantedArmorStand = 227, SpellScrollCabinet = 228,
+        FamiliarPerch = 229, FamiliarNest = 230, FloatingBookStand = 231, LevitationPedestal = 232,
+        MagicMirror = 233, DivinationTable = 234, ElementalBrazier = 235, ManaFont = 236,
+        PortalKeystone = 237, WardTotem = 238, FairyLanternCluster = 239, EnchantedPlantStand = 240,
 
         Wardrobe = 241, VanityTable = 242, WashBasinStand = 243, ChamberPot = 244,
         FoldingScreen = 245, WritingDesk = 246, SideTable = 247, Footstool = 248,
@@ -67,7 +71,7 @@ namespace Game.Structures.Runtime
             int id = (int)kind;
             if (id < 201 || id > 260) return default;
             if (id <= 220) return Commerce(kind, id - 201);
-            if (id <= 240) return Military(kind, id - 221);
+            if (id <= 240) return Enchanted(kind, id - 221);
             return Household(kind, id - 241);
         }
 
@@ -115,29 +119,31 @@ namespace Game.Structures.Runtime
                 wall ? new int3(2, 2, 1) : new int3(3, 0, 3));
         }
 
-        private static DecorationExpansion260Recipe Military(DecorationExpansion260Kind kind, int i)
+        private static DecorationExpansion260Recipe Enchanted(DecorationExpansion260Kind kind, int i)
         {
             DecorationContentShape[] shapes =
             {
-                DecorationContentShape.Post, DecorationContentShape.Monument, DecorationContentShape.Pedestal,
-                DecorationContentShape.WallRack, DecorationContentShape.Pedestal, DecorationContentShape.WallRack,
-                DecorationContentShape.WallRack, DecorationContentShape.WallRack, DecorationContentShape.Tub,
-                DecorationContentShape.Sign, DecorationContentShape.WorkSurface, DecorationContentShape.Sign,
-                DecorationContentShape.WorkSurface, DecorationContentShape.Pedestal, DecorationContentShape.WallRack,
-                DecorationContentShape.Post, DecorationContentShape.Post, DecorationContentShape.Hanging,
-                DecorationContentShape.Hearth, DecorationContentShape.Rack,
+                DecorationContentShape.WorkSurface, DecorationContentShape.WorkSurface, DecorationContentShape.WorkSurface,
+                DecorationContentShape.WallRack, DecorationContentShape.Rack, DecorationContentShape.Pedestal,
+                DecorationContentShape.Pedestal, DecorationContentShape.Rack, DecorationContentShape.Post,
+                DecorationContentShape.Stack, DecorationContentShape.Pedestal, DecorationContentShape.Pedestal,
+                DecorationContentShape.Sign, DecorationContentShape.WorkSurface, DecorationContentShape.Hearth,
+                DecorationContentShape.Fountain, DecorationContentShape.Monument, DecorationContentShape.Post,
+                DecorationContentShape.Hanging, DecorationContentShape.Pedestal,
             };
-            bool wall = i == 3 || i == 5 || i == 6 || i == 7 || i == 11 || i == 14 || i == 17 || i == 19;
-            bool thin = i == 9 || i == 11;
-            bool mesh = i == 17;
-            bool light = i == 18;
-            return R(DecorationExpansion260Category.Military, kind, shapes[i],
-                wall ? DecorationPropFamily.WeaponRack : DecorationPropFamily.Table,
-                wall ? DecorationSocketKind.Wall : DecorationSocketKind.Floor,
-                wall ? DecorationMountMode.Wall : DecorationMountMode.Floor,
+            bool wall = i == 3 || i == 7 || i == 12;
+            bool mesh = i == 8 || i == 9 || i == 10 || i == 11 || i == 18 || i == 19;
+            bool thin = i == 12;
+            bool integrated = i == 14 || i == 15 || i == 16 || i == 17;
+            bool light = i == 14 || i == 15 || i == 18 || i == 19;
+            return R(DecorationExpansion260Category.Enchanted, kind, shapes[i],
+                wall ? DecorationPropFamily.Shelf : DecorationPropFamily.Table,
+                wall ? DecorationSocketKind.Wall : i == 18 ? DecorationSocketKind.Ceiling : DecorationSocketKind.Floor,
+                wall ? DecorationMountMode.Wall : i == 18 ? DecorationMountMode.Ceiling : DecorationMountMode.Floor,
                 thin ? DecorationRenderBackend.ThinSurface : mesh ? DecorationRenderBackend.ProceduralMesh :
-                    (i == 18 ? DecorationRenderBackend.VoxelStamp : DecorationRenderBackend.BoxAssembly),
-                F(blocking: !wall && !thin && !mesh, movable: i == 8 || i == 13, light: light, particles: light),
+                    integrated ? DecorationRenderBackend.VoxelStamp : DecorationRenderBackend.BoxAssembly,
+                F(blocking: !wall && !thin && !mesh, movable: i == 8 || i == 9,
+                    light: light, particles: light || i == 10 || i == 11),
                 new int3(9 + (i % 5) * 4, 10 + (i % 4) * 4, 7 + (i % 3) * 4),
                 wall ? new int3(2, 2, 1) : new int3(4, 0, 4));
         }
