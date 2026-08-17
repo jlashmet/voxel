@@ -139,7 +139,7 @@ Phase 0 evidence and compatibility targets are recorded in [worldbuilding-invent
 
 ## Phase 3 — Castle/detail pass
 
-- [ ] **WB041** Refactor the current castle path to shared wall/tower/opening/battlement/foundation components while preserving a compatibility preset.
+- [x] **WB041** Refactor the current castle path to shared wall/tower/opening/battlement/foundation components while preserving a compatibility preset.
 - [ ] **WB042** Expose keep dimensions, levels, wall thickness, roof/parapet/top style, openings, and material palette.
 - [ ] **WB043** Expose curtain-wall polygon/rectangular dimensions, height/thickness, wall segmentation, and battlement controls.
 - [ ] **WB044** Expose tower count/placement, corner/intermediate towers, square/round-compatible shape choice, radius/width, height, taper/top, roof, openings, and crenellations.
