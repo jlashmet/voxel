@@ -77,9 +77,9 @@ namespace Game.Structures.Runtime
 
             authoring.Box(
                 new int3(
-                    plan.Centre.x + foundationRect.Min.x,
+                    min.x + foundationRect.Min.x,
                     baseY + foundationTopOffset - foundation.FoundationDepth,
-                    plan.Centre.z + 60 + foundationRect.Min.y),
+                    min.z + foundationRect.Min.y),
                 new int3(
                     foundationRect.Size.x,
                     foundation.FoundationDepth,
