@@ -37,6 +37,34 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         internal readonly NativeArray<byte> HlodMaskScratch;
         internal readonly NativeArray<int> HlodOverflow;
 
+        // The original fixed HLOD output budget was sized for 2 subcells per 8^3 source brick
+        // (a 128^3 subcell chunk). Feature-preserving LOD later doubled linear resolution to
+        // 4 subcells per brick / a 256^3 chunk but left this budget unchanged. Surface output
+        // scales with area, so capacity must scale with the square of the linear-resolution
+        // ratio. Keeping the relationship explicit prevents another fidelity change from silently
+        // reintroducing partial/overflowing coarse geometry.
+        private const int BaselineHlodSubcellsPerBrickAxis = 2;
+        private const int BaselineHlodVertexCapacity = 262_144;
+        private const int BaselineHlodIndexCapacity = 393_216;
+        internal static int HlodSurfaceCapacityScale
+        {
+            get
+            {
+                int current = SurfaceBlockHlodMeshJob.SubcellsPerBrickAxis;
+                if (current < BaselineHlodSubcellsPerBrickAxis
+                    || current % BaselineHlodSubcellsPerBrickAxis != 0)
+                    throw new InvalidOperationException(
+                        $"HLOD subcell resolution {current} is incompatible with the "
+                      + $"{BaselineHlodSubcellsPerBrickAxis}-subcell capacity baseline.");
+                int linearScale = current / BaselineHlodSubcellsPerBrickAxis;
+                return linearScale * linearScale;
+            }
+        }
+        internal static int HlodVertexCapacity =>
+            BaselineHlodVertexCapacity * HlodSurfaceCapacityScale;
+        internal static int HlodIndexCapacity =>
+            BaselineHlodIndexCapacity * HlodSurfaceCapacityScale;
+
         internal readonly NativeList<SmoothSurfaceVertex> CompactedTopologyVertices;
         internal readonly NativeList<uint> CompactedTopologyIndices;
         internal readonly NativeArray<int> TopologyOverflowCell;
@@ -181,11 +209,13 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 TransitionIndices = new NativeList<uint>(3072, Allocator.Persistent);
             }
 
-            // The HLOD worker meshes a 128^3 subcell volume. Keep its output fixed-capacity and
-            // comfortably below the shared GPU arena ceiling so Burst can use AddNoResize and
-            // report overflow instead of growing native memory on the frame path.
-            int finalVertexCapacity = usesBlockHlod ? 262_144 : 32_768;
-            int finalIndexCapacity = usesBlockHlod ? 393_216 : 49_152;
+            // HLOD output remains fixed-capacity so Burst uses AddNoResize and cannot allocate on
+            // the player frame. The capacity now tracks feature resolution: the current 2-voxel
+            // representation has twice the linear resolution of the original 4-voxel HLOD and
+            // therefore receives four times the surface-output budget. Both values remain below
+            // the shared 2M-vertex / 6M-index GPU arena limits for an individual published mesh.
+            int finalVertexCapacity = usesBlockHlod ? HlodVertexCapacity : 32_768;
+            int finalIndexCapacity = usesBlockHlod ? HlodIndexCapacity : 49_152;
             Vertices = new NativeList<SmoothSurfaceVertex>(finalVertexCapacity,
                                                            Allocator.Persistent);
             Indices = new NativeList<uint>(finalIndexCapacity, Allocator.Persistent);
