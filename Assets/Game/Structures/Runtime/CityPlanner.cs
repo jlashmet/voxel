@@ -47,14 +47,14 @@ namespace Game.Structures.Runtime
             int cx2 = gx * 2 - (config.BlocksX - 1);
             int cz2 = gz * 2 - (config.BlocksZ - 1);
             ulong identity = StableIdentity(citySeed, gx, gz);
-
             CityRoadFrontage frontage = (CityRoadFrontage)(Hash(identity ^ FrontageSalt) & 3ul);
             CityDistrict district = ResolveDistrict(in config, cx2, cz2, identity);
             int3 lotOrigin = ResolveLotOrigin(in config, cityOrigin, gx, gz);
+            int2 buildableSize = ResolveBuildableSize(in config, frontage);
             int3 buildableOrigin = ResolveBuildableOrigin(in config, lotOrigin, frontage);
 
             FillCommon(ref placement, in config, candidateIndex, identity, gx, gz, lotOrigin,
-                buildableOrigin, frontage, district);
+                buildableOrigin, buildableSize, frontage, district);
 
             if (InsidePlaza(in config, cx2, cz2))
                 return CityCandidateResult.Plaza;
@@ -65,7 +65,7 @@ namespace Game.Structures.Runtime
             if (Roll(identity ^ OccupancySalt) >= config.Lot.OccupancyPermille)
                 return CityCandidateResult.OccupancyRejected;
 
-            if (TryResolveLandmark(in config, identity, district, placement.BuildableSize,
+            if (TryResolveLandmark(in config, identity, district, buildableSize,
                     out CityStructureArchetype landmarkArchetype,
                     out CityStructurePresetId landmarkPreset))
             {
@@ -75,7 +75,7 @@ namespace Game.Structures.Runtime
                 return CityCandidateResult.Placed;
             }
 
-            if (!TryResolvePalette(in config, identity, district, placement.BuildableSize,
+            if (!TryResolvePalette(in config, identity, district, buildableSize,
                     out CityStructureArchetype archetype, out CityStructurePresetId preset))
                 return CityCandidateResult.NoFittingArchetype;
 
@@ -120,6 +120,7 @@ namespace Game.Structures.Runtime
             int gz,
             int3 lotOrigin,
             int3 buildableOrigin,
+            int2 buildableSize,
             CityRoadFrontage frontage,
             CityDistrict district)
         {
@@ -128,11 +129,11 @@ namespace Game.Structures.Runtime
             placement.Grid = new int2(gx, gz);
             placement.LotOrigin = lotOrigin;
             placement.LotSize = new int2(config.Lot.Width, config.Lot.Depth);
-            placement.BuildableSize = new int2(config.Lot.BuildableWidth, config.Lot.BuildableDepth);
+            placement.BuildableSize = buildableSize;
             placement.StructureOrigin = new int3(
-                buildableOrigin.x + placement.BuildableSize.x / 2,
+                buildableOrigin.x + buildableSize.x / 2,
                 lotOrigin.y,
-                buildableOrigin.z + placement.BuildableSize.y / 2);
+                buildableOrigin.z + buildableSize.y / 2);
             placement.Frontage = frontage;
             placement.Facing = FacingFor(frontage);
             placement.District = district;
@@ -143,9 +144,22 @@ namespace Game.Structures.Runtime
         {
             int totalX = config.BlocksX * config.BlockPitchX - config.StreetWidth - config.Lot.MinimumSpacing;
             int totalZ = config.BlocksZ * config.BlockPitchZ - config.StreetWidth - config.Lot.MinimumSpacing;
-            int x = origin.x - totalX / 2 + gx * config.BlockPitchX;
-            int z = origin.z - totalZ / 2 + gz * config.BlockPitchZ;
-            return new int3(x, origin.y, z);
+            return new int3(
+                origin.x - totalX / 2 + gx * config.BlockPitchX,
+                origin.y,
+                origin.z - totalZ / 2 + gz * config.BlockPitchZ);
+        }
+
+        private static int2 ResolveBuildableSize(in CityConfig config, CityRoadFrontage frontage)
+        {
+            bool sideFrontage = frontage == CityRoadFrontage.East || frontage == CityRoadFrontage.West;
+            return sideFrontage
+                ? new int2(
+                    config.Lot.Width - config.Lot.FrontSetback - config.Lot.RearSetback,
+                    config.Lot.Depth - config.Lot.SideSetback * 2)
+                : new int2(
+                    config.Lot.Width - config.Lot.SideSetback * 2,
+                    config.Lot.Depth - config.Lot.FrontSetback - config.Lot.RearSetback);
         }
 
         private static int3 ResolveBuildableOrigin(
@@ -153,24 +167,21 @@ namespace Game.Structures.Runtime
             int3 lotOrigin,
             CityRoadFrontage frontage)
         {
-            int x = lotOrigin.x + config.Lot.SideSetback;
-            int z = lotOrigin.z + config.Lot.RearSetback;
             switch (frontage)
             {
                 case CityRoadFrontage.North:
-                    z = lotOrigin.z + config.Lot.FrontSetback;
-                    break;
+                    return new int3(lotOrigin.x + config.Lot.SideSetback, lotOrigin.y,
+                        lotOrigin.z + config.Lot.FrontSetback);
                 case CityRoadFrontage.South:
-                    z = lotOrigin.z + config.Lot.RearSetback;
-                    break;
+                    return new int3(lotOrigin.x + config.Lot.SideSetback, lotOrigin.y,
+                        lotOrigin.z + config.Lot.RearSetback);
                 case CityRoadFrontage.East:
-                    x = lotOrigin.x + config.Lot.RearSetback;
-                    break;
-                case CityRoadFrontage.West:
-                    x = lotOrigin.x + config.Lot.FrontSetback;
-                    break;
+                    return new int3(lotOrigin.x + config.Lot.RearSetback, lotOrigin.y,
+                        lotOrigin.z + config.Lot.SideSetback);
+                default:
+                    return new int3(lotOrigin.x + config.Lot.FrontSetback, lotOrigin.y,
+                        lotOrigin.z + config.Lot.SideSetback);
             }
-            return new int3(x, lotOrigin.y, z);
         }
 
         private static bool InsidePlaza(in CityConfig config, int cx2, int cz2)
@@ -275,10 +286,8 @@ namespace Game.Structures.Runtime
             return false;
         }
 
-        private static CityDistrictMask MaskFor(CityDistrict district)
-        {
-            return (CityDistrictMask)(1 << (int)district);
-        }
+        private static CityDistrictMask MaskFor(CityDistrict district) =>
+            (CityDistrictMask)(1 << (int)district);
 
         private static Facing FacingFor(CityRoadFrontage frontage)
         {
