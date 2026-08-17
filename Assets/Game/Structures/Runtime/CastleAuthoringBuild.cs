@@ -75,11 +75,10 @@ namespace Game.Structures.Runtime
             {
                 case 1:
                     stageName = "site";
-                    // The legacy site stage owns bounded terrain sculpting. BaileyFootprint declares
-                    // shared bounds but deliberately does not author a second terrain foundation.
                     if (!CastleSiteAuthoring.Step(
                             _authoring,
                             in _plan,
+                            in _components,
                             _terrainSeed,
                             ref _siteState))
                     {
