@@ -9,11 +9,14 @@ This is the focused guild-house checklist; the general decoration checklist rema
 
 - Ten guild identities and room programs are implemented.
 - Deterministic room selection and semantic public/private topology are implemented.
-- A deterministic spatial allocator now maps topology into concrete room blocks.
+- A deterministic spatial allocator maps topology into concrete room blocks.
 - Wizards use a multi-floor tower shell grammar; Druids use a broad lodge grammar with an open central courtyard/roof strip.
-- Concrete guild rooms are bridged into region-aware `DecorationSpace` / `DecorationContext` values, but room-specific decoration dispatch is not yet complete.
-- Baseline voxel shell authoring exists for hall/tower/lodge prototypes, including region materials and a simple entrance sign treatment.
-- Source regressions cover deterministic layouts, room non-overlap, valid Wizard decoration spaces and exterior Druid garden spaces.
+- Concrete guild rooms are bridged into region-aware `DecorationSpace` / `DecorationContext` values.
+- Wizard and Druid room roles dispatch to existing semantic scene resolvers instead of duplicating their content logic.
+- `GuildHouseFurnishedPrototypeAuthoring` provides a complete source path for the first two guilds: shell -> room spaces -> scene resolution -> geometry emission.
+- IDs 201-260 now also have a baseline box/voxel authoring emitter, closing the visible-geometry gap for enchanting/guild content in that block.
+- Baseline voxel shell authoring includes region materials and simple entrance/sign treatment. Signature architecture remains a later polish layer.
+- Source regressions cover deterministic layouts, room non-overlap, valid Wizard/Druid spaces, semantic scene dispatch and stable placement identity.
 - Unity/CI execution remains a separate evidence gate.
 
 - [x] **GH001** Document fantasy guild-house design and initial guild roster.
@@ -25,11 +28,11 @@ This is the focused guild-house checklist; the general decoration checklist rema
 - [x] **GH007** Add deterministic room-selection regression source.
 - [x] **GH008** Implement baseline shell/room allocation with public-to-private topology feeding deterministic room blocks.
 - [ ] **GH009** Implement hidden-room/secret-access semantics for Assassin, Thieves and forbidden Wizard spaces in physical shell connectivity.
-- [ ] **GH010** Convert selected rooms into real `DecorationSpace` instances and dispatch existing scene/prop resolvers. (`DecorationSpace` conversion is complete; resolver dispatch remains.)
+- [ ] **GH010** Convert selected rooms into real `DecorationSpace` instances and dispatch existing scene/prop resolvers for the full guild roster. (Conversion is complete; Wizard/Druid dispatch is complete; remaining guild dispatch is open.)
 - [ ] **GH011** Implement exterior guild identity: crest/sign, entrance treatment and optional yard/garden/stable. (Baseline sign/entrance treatment exists; guild-specific exteriors remain.)
-- [ ] **GH012** Add guild-specific regional weighting for Kentridge, Hightown, Moordell, Rossdam, Fairy Village and Orc Village.
-- [ ] **GH013** Author an end-to-end Wizards Guild fixture with library, enchanting workshop, ritual room and spell classroom. (Tower shell + room spaces exist; furnishing dispatch remains.)
-- [ ] **GH014** Author an end-to-end Druids Lodge fixture with garden/grove, shrine, ritual circle and herb workshop. (Lodge shell + room spaces exist; furnishing dispatch remains.)
+- [ ] **GH012** Add guild-specific regional weighting for Kentridge, Hightown, Moordell, Rossdam, Fairy Village and Orc Village. (Region contexts/materials are threaded through Wizard/Druid prototypes; broader guild-specific preference tuning remains.)
+- [x] **GH013** Author an end-to-end Wizards Guild source fixture with tower shell plus library, enchanting workshop, ritual room, spell classroom, office/vault variants and geometry emission.
+- [x] **GH014** Author an end-to-end Druids Lodge source fixture with lodge shell plus garden/grove, shrine, ritual circle, herb workshop/common variants and geometry emission.
 - [ ] **GH015** Author an end-to-end Knights Order fixture with order hall, equipment room, oath shrine and stable.
 - [ ] **GH016** Author an end-to-end Assassins Guild fixture with mundane facade, hidden contract room, poison workshop and concealed vault.
 - [ ] **GH017** Author representative Adventurers, Thieves, Clerics, Rangers, Bards and Alchemists fixtures.
