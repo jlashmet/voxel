@@ -14,22 +14,27 @@ namespace Game.Structures.Tests
             WorldObjectId lever = a.Place(1u, WorldObjectKind.Lever, B(0), new int3(0, 0, 1));
             WorldObjectId door = a.Place(2u, WorldObjectKind.Door, B(4), new int3(1, 0, 0));
             a.Connect(1u, WorldObjectSignal.Activated, 2u, WorldObjectAction.Open);
+            a.Connect(1u, WorldObjectSignal.Deactivated, 2u, WorldObjectAction.Close);
 
             var runtime = new WorldObjectSceneRuntime(a.BuildObjects(), a.BuildConnections());
             Assert.IsTrue(runtime.TryInteract(lever, WorldObjectInteraction.Primary, out _));
-            Assert.IsTrue(runtime.TryResolve(door, out WorldObjectResolvedState state));
-            Assert.IsTrue(state.IsOpen);
+            Assert.IsTrue(runtime.TryResolve(door, out WorldObjectResolvedState opened));
+            Assert.IsTrue(opened.IsOpen);
+
+            Assert.IsTrue(runtime.TryInteract(lever, WorldObjectInteraction.Primary, out _));
+            Assert.IsTrue(runtime.TryResolve(door, out WorldObjectResolvedState closed));
+            Assert.IsFalse(closed.IsOpen);
             Assert.Greater(runtime.StateStore.Count, 0);
         }
 
         [Test]
-        public void PressurePlateRoutesPressedAndReleasedSignals()
+        public void PressurePlateRoutesActivatedAndDeactivatedSignals()
         {
             var a = new WorldObjectAuthoringSession(33u, 44u);
             WorldObjectId plate = a.Place(1u, WorldObjectKind.PressurePlate, B(0), new int3(0, 1, 0));
             WorldObjectId spikes = a.Place(2u, WorldObjectKind.SpikeTrap, B(4), new int3(0, 1, 0));
-            a.Connect(1u, WorldObjectSignal.Pressed, 2u, WorldObjectAction.Trigger);
-            a.Connect(1u, WorldObjectSignal.Released, 2u, WorldObjectAction.Reset);
+            a.Connect(1u, WorldObjectSignal.Activated, 2u, WorldObjectAction.Trigger);
+            a.Connect(1u, WorldObjectSignal.Deactivated, 2u, WorldObjectAction.Reset);
 
             var runtime = new WorldObjectSceneRuntime(a.BuildObjects(), a.BuildConnections());
             Assert.IsTrue(runtime.TryInteract(plate, WorldObjectInteraction.Enter, out _));
@@ -39,6 +44,31 @@ namespace Game.Structures.Tests
             Assert.IsTrue(runtime.TryInteract(plate, WorldObjectInteraction.Exit, out _));
             Assert.IsTrue(runtime.TryResolve(spikes, out WorldObjectResolvedState reset));
             Assert.IsFalse((reset.State & WorldObjectStateFlags.Triggered) != 0);
+        }
+
+        [Test]
+        public void TimedTrapResetsAfterConfiguredTicks()
+        {
+            var a = new WorldObjectAuthoringSession(55u, 66u);
+            WorldObjectId trigger = a.Place(1u, WorldObjectKind.Button, B(0), new int3(0, 0, 1));
+            WorldObjectId trap = a.Place(2u, WorldObjectKind.SpikeTrap, B(4), new int3(0, 1, 0), parameter0: 5);
+            a.Connect(1u, WorldObjectSignal.Activated, 2u, WorldObjectAction.Trigger);
+
+            var runtime = new WorldObjectSceneRuntime(a.BuildObjects(), a.BuildConnections());
+            Assert.IsTrue(runtime.TryInteract(trigger, WorldObjectInteraction.Primary, out _));
+            Assert.IsTrue(runtime.TryResolve(trap, out WorldObjectResolvedState triggered));
+            Assert.IsTrue((triggered.State & WorldObjectStateFlags.Triggered) != 0);
+            Assert.AreEqual(5, triggered.RuntimeValue1);
+
+            runtime.Tick(4);
+            Assert.IsTrue(runtime.TryResolve(trap, out WorldObjectResolvedState stillTriggered));
+            Assert.IsTrue((stillTriggered.State & WorldObjectStateFlags.Triggered) != 0);
+            Assert.AreEqual(1, stillTriggered.RuntimeValue1);
+
+            runtime.Tick(1);
+            Assert.IsTrue(runtime.TryResolve(trap, out WorldObjectResolvedState reset));
+            Assert.IsFalse((reset.State & WorldObjectStateFlags.Triggered) != 0);
+            Assert.AreEqual(0, reset.RuntimeValue1);
         }
 
         [Test]
