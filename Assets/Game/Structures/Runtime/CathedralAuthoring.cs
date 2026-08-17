@@ -7,653 +7,203 @@ using SharedRoofAuthoring = VoxelEngine.Structures.Runtime.StructureRoofAuthorin
 
 namespace Game.Structures.Runtime
 {
-    /// <summary>
-    /// Cathedral-scale composition over ChurchAuthoring. The nested ChurchConfig remains the source
-    /// of nave/choir/apse semantics; this layer adds only cathedral-specific massing and attachments.
-    /// </summary>
     public static class CathedralAuthoring
     {
-        public static void Author(
-            IStructureAuthoringSession authoring,
-            int3 origin,
-            in CathedralConfig config)
+        private struct Rect
         {
-            if (authoring == null) throw new System.ArgumentNullException(nameof(authoring));
-            if (!config.IsWellFormed)
-                throw new System.ArgumentException("Cathedral configuration is invalid.", nameof(config));
+            public int3 Min;
+            public int Width;
+            public int Depth;
+        }
 
-            AuthorFoundation(authoring, origin, in config);
-
-            // The cathedral owns the overall slab. Suppress the nested church slab so the base
-            // composition does not redundantly rewrite the same foundation region.
-            ChurchConfig church = config.Church;
+        public static void Author(IStructureAuthoringSession a, int3 origin, in CathedralConfig c)
+        {
+            if (a == null) throw new System.ArgumentNullException(nameof(a));
+            if (!c.IsWellFormed) throw new System.ArgumentException("Cathedral configuration is invalid.", nameof(c));
+            Foundation(a, origin, in c);
+            ChurchConfig church = c.Church;
             church.Footprint.FoundationStyle = StructureFoundationStyle.None;
             church.Footprint.FoundationDepth = 0;
-            ChurchAuthoring.Author(authoring, origin, in church);
-
-            AuthorExtraAisles(authoring, origin, in config);
-            AuthorTransept(authoring, origin, in config);
-            AuthorSideChapels(authoring, origin, in config);
-            AuthorRoseWindow(authoring, origin, in config);
-            AuthorWestFrontTowers(authoring, origin, in config);
-            AuthorCrossingTower(authoring, origin, in config);
-            AuthorCrypt(authoring, origin, in config);
+            ChurchAuthoring.Author(a, origin, in church);
+            ExtraAisles(a, origin, in c);
+            Transept(a, origin, in c);
+            Chapels(a, origin, in c);
+            Rose(a, origin, in c);
+            FrontTowers(a, origin, in c);
+            CrossingTower(a, origin, in c);
+            Crypt(a, origin, in c);
         }
 
-        private static void AuthorFoundation(
-            IStructureAuthoringSession authoring,
-            int3 origin,
-            in CathedralConfig config)
+        private static void Foundation(IStructureAuthoringSession a, int3 origin, in CathedralConfig c)
         {
-            if (config.Footprint.FoundationStyle == StructureFoundationStyle.None) return;
-            if (config.Footprint.FoundationStyle != StructureFoundationStyle.Slab)
-                throw new System.ArgumentException(
-                    "Cathedral authoring currently supports None or Slab foundations only.", nameof(config));
-
-            StructureFootprintRect world = StructureCardinalTransform.Rect(
-                in config.Footprint.Primary,
-                config.Church.EntryFacing);
-            authoring.Box(
-                new int3(
-                    origin.x + world.Min.x,
-                    origin.y - config.Footprint.FoundationDepth,
-                    origin.z + world.Min.y),
-                new int3(world.Size.x, config.Footprint.FoundationDepth, world.Size.y),
-                config.Church.Palette.Resolve(config.Footprint.FoundationMaterial));
+            if (c.Footprint.FoundationStyle == StructureFoundationStyle.None) return;
+            Rect r = Resolve(in c.Footprint.Primary, origin, c.Church.EntryFacing);
+            a.Box(new int3(r.Min.x, origin.y-c.Footprint.FoundationDepth, r.Min.z),
+                new int3(r.Width,c.Footprint.FoundationDepth,r.Depth),
+                c.Church.Palette.Resolve(c.Footprint.FoundationMaterial));
         }
 
-        private static void AuthorExtraAisles(
-            IStructureAuthoringSession authoring,
-            int3 origin,
-            in CathedralConfig config)
+        private static void ExtraAisles(IStructureAuthoringSession a, int3 origin, in CathedralConfig c)
         {
-            if (config.ExtraAisleCountPerSide <= 0) return;
-
-            ChurchConfig church = config.Church;
-            int frontZ = church.Footprint.Primary.Min.y;
-            int wall = church.WallThickness;
-            int archCount = config.ExtraAisleArch.MaxCountForSpan(church.NaveLength);
-            int windowCount = config.ExtraAisleWindow.MaxCountForSpan(church.NaveLength);
-            Facing localWest = Facing.West;
-            Facing localEast = Facing.East;
-
-            StructureFootprintRect previousWestLocal = new StructureFootprintRect(
-                new int2(-church.NaveWidth / 2 - church.AisleWidth, frontZ),
-                new int2(church.AisleWidth, church.NaveLength));
-            StructureFootprintRect previousEastLocal = new StructureFootprintRect(
-                new int2(church.NaveWidth / 2, frontZ),
-                new int2(church.AisleWidth, church.NaveLength));
-            int previousWestHeight = church.AisleHeight;
-            int previousEastHeight = church.AisleHeight;
-
-            for (int level = 0; level < config.ExtraAisleCountPerSide; level++)
+            if (c.ExtraAisleCountPerSide<=0) return;
+            ChurchConfig ch=c.Church; int front=ch.Footprint.Primary.Min.y;
+            Facing west=World(Facing.West,in ch), east=World(Facing.East,in ch);
+            int arches=c.ExtraAisleArch.MaxCountForSpan(ch.NaveLength);
+            int windows=c.ExtraAisleWindow.MaxCountForSpan(ch.NaveLength);
+            StructureFootprintRect pwLocal=new StructureFootprintRect(new int2(-ch.NaveWidth/2-ch.AisleWidth,front),new int2(ch.AisleWidth,ch.NaveLength));
+            StructureFootprintRect peLocal=new StructureFootprintRect(new int2(ch.NaveWidth/2,front),new int2(ch.AisleWidth,ch.NaveLength));
+            int pwHeight=ch.AisleHeight, peHeight=ch.AisleHeight;
+            for(int level=0;level<c.ExtraAisleCountPerSide;level++)
             {
-                int baseHalfWidth = config.BaseAssemblyWidth / 2 + level * config.ExtraAisleWidth;
-                var westLocal = new StructureFootprintRect(
-                    new int2(-baseHalfWidth - config.ExtraAisleWidth, frontZ),
-                    new int2(config.ExtraAisleWidth, church.NaveLength));
-                var eastLocal = new StructureFootprintRect(
-                    new int2(baseHalfWidth, frontZ),
-                    new int2(config.ExtraAisleWidth, church.NaveLength));
-
-                ResolveRect(in westLocal, origin, church.EntryFacing,
-                    out int3 westMin, out int westWidth, out int westDepth);
-                ResolveRect(in eastLocal, origin, church.EntryFacing,
-                    out int3 eastMin, out int eastWidth, out int eastDepth);
-                authoring.HollowBox(
-                    westMin,
-                    new int3(westWidth, config.ExtraAisleHeight, westDepth),
-                    wall,
-                    church.Palette.Resolve(church.NaveWalls.PrimaryMaterial),
-                    false,
-                    false);
-                authoring.HollowBox(
-                    eastMin,
-                    new int3(eastWidth, config.ExtraAisleHeight, eastDepth),
-                    wall,
-                    church.Palette.Resolve(church.NaveWalls.PrimaryMaterial),
-                    false,
-                    false);
-
-                ResolveRect(in previousWestLocal, origin, church.EntryFacing,
-                    out int3 previousWestMin, out int previousWestWidth, out int previousWestDepth);
-                ResolveRect(in previousEastLocal, origin, church.EntryFacing,
-                    out int3 previousEastMin, out int previousEastWidth, out int previousEastDepth);
-                Facing west = StructureCardinalTransform.FacingDirection(localWest, church.EntryFacing);
-                Facing east = StructureCardinalTransform.FacingDirection(localEast, church.EntryFacing);
-
-                SharedOpeningAuthoring.AuthorRepeated(
-                    authoring,
-                    previousWestMin,
-                    previousWestWidth,
-                    previousWestHeight,
-                    previousWestDepth,
-                    wall,
-                    in config.ExtraAisleArch,
-                    archCount,
-                    west,
-                    0,
-                    config.ExtraAisleArch.Spacing,
-                    in church.Palette);
-                SharedOpeningAuthoring.AuthorRepeated(
-                    authoring,
-                    westMin,
-                    westWidth,
-                    config.ExtraAisleHeight,
-                    westDepth,
-                    wall,
-                    in config.ExtraAisleArch,
-                    archCount,
-                    east,
-                    0,
-                    config.ExtraAisleArch.Spacing,
-                    in church.Palette);
-                SharedOpeningAuthoring.AuthorRepeated(
-                    authoring,
-                    previousEastMin,
-                    previousEastWidth,
-                    previousEastHeight,
-                    previousEastDepth,
-                    wall,
-                    in config.ExtraAisleArch,
-                    archCount,
-                    east,
-                    0,
-                    config.ExtraAisleArch.Spacing,
-                    in church.Palette);
-                SharedOpeningAuthoring.AuthorRepeated(
-                    authoring,
-                    eastMin,
-                    eastWidth,
-                    config.ExtraAisleHeight,
-                    eastDepth,
-                    wall,
-                    in config.ExtraAisleArch,
-                    archCount,
-                    west,
-                    0,
-                    config.ExtraAisleArch.Spacing,
-                    in church.Palette);
-
-                AuthorRoof(
-                    authoring,
-                    westMin,
-                    westWidth,
-                    westDepth,
-                    origin.y + config.ExtraAisleHeight,
-                    in config.ExtraAisleRoof,
-                    church.EntryFacing,
-                    in church.Palette);
-                AuthorRoof(
-                    authoring,
-                    eastMin,
-                    eastWidth,
-                    eastDepth,
-                    origin.y + config.ExtraAisleHeight,
-                    in config.ExtraAisleRoof,
-                    church.EntryFacing,
-                    in church.Palette);
-
-                if (level == config.ExtraAisleCountPerSide - 1)
+                int half=c.BaseAssemblyWidth/2+level*c.ExtraAisleWidth;
+                StructureFootprintRect wl=new StructureFootprintRect(new int2(-half-c.ExtraAisleWidth,front),new int2(c.ExtraAisleWidth,ch.NaveLength));
+                StructureFootprintRect el=new StructureFootprintRect(new int2(half,front),new int2(c.ExtraAisleWidth,ch.NaveLength));
+                Rect w=Resolve(in wl,origin,ch.EntryFacing), e=Resolve(in el,origin,ch.EntryFacing);
+                Rect pw=Resolve(in pwLocal,origin,ch.EntryFacing), pe=Resolve(in peLocal,origin,ch.EntryFacing);
+                Shell(a,in w,c.ExtraAisleHeight,in ch); Shell(a,in e,c.ExtraAisleHeight,in ch);
+                Open(a,in pw,pwHeight,in c.ExtraAisleArch,arches,west,c.ExtraAisleArch.Spacing,0,in ch);
+                Open(a,in w,c.ExtraAisleHeight,in c.ExtraAisleArch,arches,east,c.ExtraAisleArch.Spacing,0,in ch);
+                Open(a,in pe,peHeight,in c.ExtraAisleArch,arches,east,c.ExtraAisleArch.Spacing,0,in ch);
+                Open(a,in e,c.ExtraAisleHeight,in c.ExtraAisleArch,arches,west,c.ExtraAisleArch.Spacing,0,in ch);
+                Roof(a,in w,origin.y+c.ExtraAisleHeight,in c.ExtraAisleRoof,in ch);
+                Roof(a,in e,origin.y+c.ExtraAisleHeight,in c.ExtraAisleRoof,in ch);
+                if(level==c.ExtraAisleCountPerSide-1)
                 {
-                    SharedOpeningAuthoring.AuthorRepeated(
-                        authoring,
-                        westMin,
-                        westWidth,
-                        config.ExtraAisleHeight,
-                        westDepth,
-                        wall,
-                        in config.ExtraAisleWindow,
-                        windowCount,
-                        west,
-                        0,
-                        config.ExtraAisleWindow.Spacing,
-                        in church.Palette);
-                    SharedOpeningAuthoring.AuthorRepeated(
-                        authoring,
-                        eastMin,
-                        eastWidth,
-                        config.ExtraAisleHeight,
-                        eastDepth,
-                        wall,
-                        in config.ExtraAisleWindow,
-                        windowCount,
-                        east,
-                        0,
-                        config.ExtraAisleWindow.Spacing,
-                        in church.Palette);
+                    Open(a,in w,c.ExtraAisleHeight,in c.ExtraAisleWindow,windows,west,c.ExtraAisleWindow.Spacing,0,in ch);
+                    Open(a,in e,c.ExtraAisleHeight,in c.ExtraAisleWindow,windows,east,c.ExtraAisleWindow.Spacing,0,in ch);
                 }
-
-                previousWestLocal = westLocal;
-                previousEastLocal = eastLocal;
-                previousWestHeight = config.ExtraAisleHeight;
-                previousEastHeight = config.ExtraAisleHeight;
+                pwLocal=wl; peLocal=el; pwHeight=c.ExtraAisleHeight; peHeight=c.ExtraAisleHeight;
             }
         }
 
-        private static void AuthorTransept(
-            IStructureAuthoringSession authoring,
-            int3 origin,
-            in CathedralConfig config)
+        private static void Transept(IStructureAuthoringSession a,int3 origin,in CathedralConfig c)
         {
-            ChurchConfig church = config.Church;
-            int frontZ = church.Footprint.Primary.Min.y;
-            int transeptMinZ = frontZ + config.TranseptCentreFromNaveFront - config.TranseptDepth / 2;
-            var local = new StructureFootprintRect(
-                new int2(-config.TranseptWidth / 2, transeptMinZ),
-                new int2(config.TranseptWidth, config.TranseptDepth));
-            ResolveRect(in local, origin, church.EntryFacing,
-                out int3 min, out int width, out int depth);
-
-            authoring.HollowBox(
-                min,
-                new int3(width, config.TranseptHeight, depth),
-                church.WallThickness,
-                church.Palette.Resolve(church.NaveWalls.PrimaryMaterial),
-                false,
-                false);
-
-            // The crossing clearance removes only the central assembly slice. It clears the
-            // inherited nave/aisle side walls and the transept north/south walls without punching
-            // through the exterior ends of either transept arm.
-            var crossingLocal = new StructureFootprintRect(
-                new int2(
-                    -config.NaveAssemblyWidth / 2 + church.WallThickness,
-                    transeptMinZ),
-                new int2(
-                    config.NaveAssemblyWidth - church.WallThickness * 2,
-                    config.TranseptDepth));
-            ResolveRect(in crossingLocal, origin, church.EntryFacing,
-                out int3 crossingMin, out int crossingWidth, out int crossingDepth);
-            authoring.Box(
-                crossingMin,
-                new int3(crossingWidth, config.CrossingClearanceHeight, crossingDepth),
-                church.Palette.Resolve(StructureMaterialRole.Opening));
-
-            AuthorRoof(
-                authoring,
-                min,
-                width,
-                depth,
-                origin.y + config.TranseptHeight,
-                in config.TranseptRoof,
-                church.EntryFacing,
-                in church.Palette);
+            ChurchConfig ch=c.Church; int front=ch.Footprint.Primary.Min.y;
+            int z=front+c.TranseptCentreFromNaveFront-c.TranseptDepth/2;
+            StructureFootprintRect local=new StructureFootprintRect(new int2(-c.TranseptWidth/2,z),new int2(c.TranseptWidth,c.TranseptDepth));
+            Rect r=Resolve(in local,origin,ch.EntryFacing); Shell(a,in r,c.TranseptHeight,in ch);
+            StructureFootprintRect crossingLocal=new StructureFootprintRect(
+                new int2(-c.NaveAssemblyWidth/2+ch.WallThickness,z),
+                new int2(c.NaveAssemblyWidth-ch.WallThickness*2,c.TranseptDepth));
+            Rect crossing=Resolve(in crossingLocal,origin,ch.EntryFacing);
+            a.Box(crossing.Min,new int3(crossing.Width,c.CrossingClearanceHeight,crossing.Depth),ch.Palette.Resolve(StructureMaterialRole.Opening));
+            Roof(a,in r,origin.y+c.TranseptHeight,in c.TranseptRoof,in ch);
         }
 
-        private static void AuthorSideChapels(
-            IStructureAuthoringSession authoring,
-            int3 origin,
-            in CathedralConfig config)
+        private static void Chapels(IStructureAuthoringSession a,int3 origin,in CathedralConfig c)
         {
-            if (!config.SideChapelsEnabled) return;
-
-            ChurchConfig church = config.Church;
-            int wall = church.WallThickness;
-            int frontZ = church.Footprint.Primary.Min.y;
-            int sanctuaryStartZ = frontZ + church.NaveLength;
-            int sanctuaryCentreZ = sanctuaryStartZ + church.SanctuaryLength / 2;
-            var sanctuaryLocal = new StructureFootprintRect(
-                new int2(-church.SanctuaryWidth / 2, sanctuaryStartZ),
-                new int2(church.SanctuaryWidth, church.SanctuaryLength));
-            ResolveRect(in sanctuaryLocal, origin, church.EntryFacing,
-                out int3 sanctuaryMin, out int sanctuaryWidth, out int sanctuaryDepth);
-
-            int groupLength = config.SideChapelWidth +
-                (config.SideChapelCountPerSide - 1) * config.SideChapelSpacing;
-            int firstCentreZ = sanctuaryCentreZ - groupLength / 2 + config.SideChapelWidth / 2;
-            Facing worldWest = StructureCardinalTransform.FacingDirection(Facing.West, church.EntryFacing);
-            Facing worldEast = StructureCardinalTransform.FacingDirection(Facing.East, church.EntryFacing);
-
-            for (int i = 0; i < config.SideChapelCountPerSide; i++)
+            if(!c.SideChapelsEnabled) return;
+            ChurchConfig ch=c.Church; int front=ch.Footprint.Primary.Min.y;
+            int start=front+ch.NaveLength, centre=start+ch.SanctuaryLength/2;
+            StructureFootprintRect sanctuaryLocal=new StructureFootprintRect(new int2(-ch.SanctuaryWidth/2,start),new int2(ch.SanctuaryWidth,ch.SanctuaryLength));
+            Rect sanctuary=Resolve(in sanctuaryLocal,origin,ch.EntryFacing);
+            Facing west=World(Facing.West,in ch), east=World(Facing.East,in ch);
+            int group=c.SideChapelWidth+(c.SideChapelCountPerSide-1)*c.SideChapelSpacing;
+            int first=centre-group/2+c.SideChapelWidth/2;
+            for(int i=0;i<c.SideChapelCountPerSide;i++)
             {
-                int centreZ = firstCentreZ + i * config.SideChapelSpacing;
-                int groupOffset = centreZ - sanctuaryCentreZ;
-                var westLocal = new StructureFootprintRect(
-                    new int2(
-                        -church.SanctuaryWidth / 2 - config.SideChapelDepth,
-                        centreZ - config.SideChapelWidth / 2),
-                    new int2(config.SideChapelDepth, config.SideChapelWidth));
-                var eastLocal = new StructureFootprintRect(
-                    new int2(
-                        church.SanctuaryWidth / 2,
-                        centreZ - config.SideChapelWidth / 2),
-                    new int2(config.SideChapelDepth, config.SideChapelWidth));
-                ResolveRect(in westLocal, origin, church.EntryFacing,
-                    out int3 westMin, out int westWidth, out int westDepth);
-                ResolveRect(in eastLocal, origin, church.EntryFacing,
-                    out int3 eastMin, out int eastWidth, out int eastDepth);
-
-                authoring.HollowBox(
-                    westMin,
-                    new int3(westWidth, config.SideChapelHeight, westDepth),
-                    wall,
-                    church.Palette.Resolve(church.NaveWalls.PrimaryMaterial),
-                    false,
-                    false);
-                authoring.HollowBox(
-                    eastMin,
-                    new int3(eastWidth, config.SideChapelHeight, eastDepth),
-                    wall,
-                    church.Palette.Resolve(church.NaveWalls.PrimaryMaterial),
-                    false,
-                    false);
-
-                SharedOpeningAuthoring.AuthorRepeated(
-                    authoring,
-                    sanctuaryMin,
-                    sanctuaryWidth,
-                    church.SanctuaryHeight,
-                    sanctuaryDepth,
-                    wall,
-                    in config.SideChapelArch,
-                    1,
-                    worldWest,
-                    groupOffset,
-                    0,
-                    in church.Palette);
-                SharedOpeningAuthoring.AuthorRepeated(
-                    authoring,
-                    westMin,
-                    westWidth,
-                    config.SideChapelHeight,
-                    westDepth,
-                    wall,
-                    in config.SideChapelArch,
-                    1,
-                    worldEast,
-                    0,
-                    0,
-                    in church.Palette);
-                SharedOpeningAuthoring.AuthorRepeated(
-                    authoring,
-                    sanctuaryMin,
-                    sanctuaryWidth,
-                    church.SanctuaryHeight,
-                    sanctuaryDepth,
-                    wall,
-                    in config.SideChapelArch,
-                    1,
-                    worldEast,
-                    groupOffset,
-                    0,
-                    in church.Palette);
-                SharedOpeningAuthoring.AuthorRepeated(
-                    authoring,
-                    eastMin,
-                    eastWidth,
-                    config.SideChapelHeight,
-                    eastDepth,
-                    wall,
-                    in config.SideChapelArch,
-                    1,
-                    worldWest,
-                    0,
-                    0,
-                    in church.Palette);
-
-                AuthorRoof(
-                    authoring,
-                    westMin,
-                    westWidth,
-                    westDepth,
-                    origin.y + config.SideChapelHeight,
-                    in config.SideChapelRoof,
-                    church.EntryFacing,
-                    in church.Palette);
-                AuthorRoof(
-                    authoring,
-                    eastMin,
-                    eastWidth,
-                    eastDepth,
-                    origin.y + config.SideChapelHeight,
-                    in config.SideChapelRoof,
-                    church.EntryFacing,
-                    in church.Palette);
+                int cz=first+i*c.SideChapelSpacing, offset=cz-centre;
+                StructureFootprintRect wl=new StructureFootprintRect(new int2(-ch.SanctuaryWidth/2-c.SideChapelDepth,cz-c.SideChapelWidth/2),new int2(c.SideChapelDepth,c.SideChapelWidth));
+                StructureFootprintRect el=new StructureFootprintRect(new int2(ch.SanctuaryWidth/2,cz-c.SideChapelWidth/2),new int2(c.SideChapelDepth,c.SideChapelWidth));
+                Rect w=Resolve(in wl,origin,ch.EntryFacing), e=Resolve(in el,origin,ch.EntryFacing);
+                Shell(a,in w,c.SideChapelHeight,in ch); Shell(a,in e,c.SideChapelHeight,in ch);
+                Open(a,in sanctuary,ch.SanctuaryHeight,in c.SideChapelArch,1,west,0,offset,in ch);
+                Open(a,in w,c.SideChapelHeight,in c.SideChapelArch,1,east,0,0,in ch);
+                Open(a,in sanctuary,ch.SanctuaryHeight,in c.SideChapelArch,1,east,0,offset,in ch);
+                Open(a,in e,c.SideChapelHeight,in c.SideChapelArch,1,west,0,0,in ch);
+                Roof(a,in w,origin.y+c.SideChapelHeight,in c.SideChapelRoof,in ch);
+                Roof(a,in e,origin.y+c.SideChapelHeight,in c.SideChapelRoof,in ch);
             }
         }
 
-        private static void AuthorRoseWindow(
-            IStructureAuthoringSession authoring,
-            int3 origin,
-            in CathedralConfig config)
+        private static void Rose(IStructureAuthoringSession a,int3 origin,in CathedralConfig c)
         {
-            if (!config.RoseWindowEnabled) return;
-            ChurchConfig church = config.Church;
-            int frontZ = church.Footprint.Primary.Min.y;
-            var naveLocal = new StructureFootprintRect(
-                new int2(-church.NaveWidth / 2, frontZ),
-                new int2(church.NaveWidth, church.NaveLength));
-            ResolveRect(in naveLocal, origin, church.EntryFacing,
-                out int3 naveMin, out int naveWidth, out int naveDepth);
-            SharedOpeningAuthoring.AuthorRepeated(
-                authoring,
-                naveMin,
-                naveWidth,
-                church.NaveWalls.Height,
-                naveDepth,
-                church.WallThickness,
-                in config.RoseWindow,
-                1,
-                StructureCardinalTransform.FacingDirection(Facing.South, church.EntryFacing),
-                0,
-                0,
-                in church.Palette);
+            if(!c.RoseWindowEnabled) return;
+            ChurchConfig ch=c.Church;
+            StructureFootprintRect local=new StructureFootprintRect(new int2(-ch.NaveWidth/2,ch.Footprint.Primary.Min.y),new int2(ch.NaveWidth,ch.NaveLength));
+            Rect r=Resolve(in local,origin,ch.EntryFacing);
+            Open(a,in r,ch.NaveWalls.Height,in c.RoseWindow,1,World(Facing.South,in ch),0,0,in ch);
         }
 
-        private static void AuthorWestFrontTowers(
-            IStructureAuthoringSession authoring,
-            int3 origin,
-            in CathedralConfig config)
+        private static void FrontTowers(IStructureAuthoringSession a,int3 origin,in CathedralConfig c)
         {
-            if (!config.WestFrontTowersEnabled) return;
-            AuthorFrontTower(authoring, origin, -config.WestTowerCentreOffset, in config);
-            AuthorFrontTower(authoring, origin, config.WestTowerCentreOffset, in config);
+            if(!c.WestFrontTowersEnabled) return;
+            FrontTower(a,origin,-c.WestTowerCentreOffset,in c); FrontTower(a,origin,c.WestTowerCentreOffset,in c);
         }
 
-        private static void AuthorFrontTower(
-            IStructureAuthoringSession authoring,
-            int3 origin,
-            int localCentreX,
-            in CathedralConfig config)
+        private static void FrontTower(IStructureAuthoringSession a,int3 origin,int cx,in CathedralConfig c)
         {
-            ChurchConfig church = config.Church;
-            TowerConfig tower = config.WestFrontTower;
-            int frontZ = church.Footprint.Primary.Min.y;
-            var local = new StructureFootprintRect(
-                new int2(localCentreX - tower.Width / 2, frontZ),
-                new int2(tower.Width, tower.Depth));
-            ResolveRect(in local, origin, church.EntryFacing,
-                out int3 min, out int width, out int depth);
-            AuthorTowerShellAndOpenings(
-                authoring,
-                min,
-                width,
-                depth,
-                origin.y,
-                in tower,
-                church.WallThickness,
-                church.EntryFacing,
-                in church.Palette);
-            AuthorRoof(
-                authoring,
-                min,
-                width,
-                depth,
-                origin.y + tower.Height,
-                in tower.Roof,
-                church.EntryFacing,
-                in church.Palette);
-
-            if (config.WestTowerSpiresEnabled)
+            ChurchConfig ch=c.Church; TowerConfig t=c.WestFrontTower; int front=ch.Footprint.Primary.Min.y;
+            StructureFootprintRect local=new StructureFootprintRect(new int2(cx-t.Width/2,front),new int2(t.Width,t.Depth));
+            Rect r=Resolve(in local,origin,ch.EntryFacing); TowerShell(a,in r,origin.y,in t,in ch);
+            Open(a,in r,t.Height,in ch.MainPortal,1,World(Facing.North,in ch),0,0,in ch); TowerWindows(a,in r,in t,in ch);
+            Roof(a,in r,origin.y+t.Height,in t.Roof,in ch);
+            if(c.WestTowerSpiresEnabled)
             {
-                int2 centre = StructureCardinalTransform.Point(
-                    new int2(localCentreX, frontZ + tower.Depth / 2),
-                    church.EntryFacing);
-                authoring.Cone(
-                    origin.x + centre.x,
-                    origin.y + tower.Height + math.max(2, tower.Roof.PitchRise / 2),
-                    origin.z + centre.y,
-                    math.max(2, math.min(tower.Width, tower.Depth) / 2),
-                    config.WestTowerSpireHeight,
-                    church.Palette.Resolve(tower.Roof.MaterialRole));
+                int2 centre=StructureCardinalTransform.Point(new int2(cx,front+t.Depth/2),ch.EntryFacing);
+                a.Cone(origin.x+centre.x,origin.y+t.Height+math.max(2,t.Roof.PitchRise/2),origin.z+centre.y,
+                    math.max(2,math.min(t.Width,t.Depth)/2),c.WestTowerSpireHeight,ch.Palette.Resolve(t.Roof.MaterialRole));
             }
         }
 
-        private static void AuthorCrossingTower(
-            IStructureAuthoringSession authoring,
-            int3 origin,
-            in CathedralConfig config)
+        private static void CrossingTower(IStructureAuthoringSession a,int3 origin,in CathedralConfig c)
         {
-            if (!config.CrossingTowerEnabled) return;
-            ChurchConfig church = config.Church;
-            TowerConfig tower = config.CrossingTower;
-            int frontZ = church.Footprint.Primary.Min.y;
-            int centreZ = frontZ + config.TranseptCentreFromNaveFront;
-            var local = new StructureFootprintRect(
-                new int2(-tower.Width / 2, centreZ - tower.Depth / 2),
-                new int2(tower.Width, tower.Depth));
-            ResolveRect(in local, origin, church.EntryFacing,
-                out int3 footprintMin, out int width, out int depth);
-            int baseY = origin.y + math.max(church.NaveWalls.Height, config.TranseptHeight);
-            int3 towerMin = new int3(footprintMin.x, baseY, footprintMin.z);
-            AuthorTowerShellAndOpenings(
-                authoring,
-                towerMin,
-                width,
-                depth,
-                baseY,
-                in tower,
-                church.WallThickness,
-                church.EntryFacing,
-                in church.Palette);
-            AuthorRoof(
-                authoring,
-                towerMin,
-                width,
-                depth,
-                baseY + tower.Height,
-                in tower.Roof,
-                church.EntryFacing,
-                in church.Palette);
-
-            if (config.CrossingSpireEnabled)
+            if(!c.CrossingTowerEnabled) return;
+            ChurchConfig ch=c.Church; TowerConfig t=c.CrossingTower;
+            int cz=ch.Footprint.Primary.Min.y+c.TranseptCentreFromNaveFront;
+            StructureFootprintRect local=new StructureFootprintRect(new int2(-t.Width/2,cz-t.Depth/2),new int2(t.Width,t.Depth));
+            Rect r=Resolve(in local,origin,ch.EntryFacing); int baseY=origin.y+math.max(ch.NaveWalls.Height,c.TranseptHeight); r.Min.y=baseY;
+            TowerShell(a,in r,baseY,in t,in ch); TowerWindows(a,in r,in t,in ch); Roof(a,in r,baseY+t.Height,in t.Roof,in ch);
+            if(c.CrossingSpireEnabled)
             {
-                int2 centre = StructureCardinalTransform.Point(
-                    new int2(0, centreZ),
-                    church.EntryFacing);
-                authoring.Cone(
-                    origin.x + centre.x,
-                    baseY + tower.Height + math.max(2, tower.Roof.PitchRise / 2),
-                    origin.z + centre.y,
-                    math.max(2, math.min(tower.Width, tower.Depth) / 2),
-                    config.CrossingSpireHeight,
-                    church.Palette.Resolve(tower.Roof.MaterialRole));
+                int2 centre=StructureCardinalTransform.Point(new int2(0,cz),ch.EntryFacing);
+                a.Cone(origin.x+centre.x,baseY+t.Height+math.max(2,t.Roof.PitchRise/2),origin.z+centre.y,
+                    math.max(2,math.min(t.Width,t.Depth)/2),c.CrossingSpireHeight,ch.Palette.Resolve(t.Roof.MaterialRole));
             }
         }
 
-        private static void AuthorTowerShellAndOpenings(
-            IStructureAuthoringSession authoring,
-            int3 min,
-            int width,
-            int depth,
-            int baseY,
-            in TowerConfig tower,
-            int wallThickness,
-            Facing entryFacing,
-            in StructureMaterialPalette palette)
+        private static void Crypt(IStructureAuthoringSession a,int3 origin,in CathedralConfig c)
         {
-            authoring.HollowBox(
-                min,
-                new int3(width, tower.Height, depth),
-                wallThickness,
-                palette.Resolve(tower.WallMaterialRole),
-                false,
-                false);
-            if (!tower.OpeningsEnabled) return;
-
-            Facing[] facades = { Facing.South, Facing.North, Facing.West, Facing.East };
-            for (int i = 0; i < facades.Length; i++)
-            {
-                SharedOpeningAuthoring.AuthorRepeated(
-                    authoring,
-                    min,
-                    width,
-                    tower.Height,
-                    depth,
-                    wallThickness,
-                    in tower.Opening,
-                    1,
-                    StructureCardinalTransform.FacingDirection(facades[i], entryFacing),
-                    0,
-                    0,
-                    in palette);
-            }
+            if(!c.CryptEnabled) return;
+            ChurchConfig ch=c.Church;
+            int2 centre=new int2(c.CryptAnchor.LocalPosition.x,c.CryptAnchor.LocalPosition.z);
+            StructureFootprintRect local=new StructureFootprintRect(centre-new int2(c.CryptWidth/2,c.CryptDepth/2),new int2(c.CryptWidth,c.CryptDepth));
+            Rect r=Resolve(in local,origin,ch.EntryFacing); int bottom=origin.y-c.CryptTopOffset-c.CryptHeight;
+            int3 min=new int3(r.Min.x,bottom,r.Min.z), size=new int3(r.Width,c.CryptHeight,r.Depth);
+            a.Box(min,size,GameMaterialIds.Empty);
+            a.HollowBox(min,size,ch.WallThickness,ch.Palette.Resolve(StructureMaterialRole.Underground),true,true);
         }
 
-        private static void AuthorCrypt(
-            IStructureAuthoringSession authoring,
-            int3 origin,
-            in CathedralConfig config)
-        {
-            if (!config.CryptEnabled) return;
-            ChurchConfig church = config.Church;
-            int2 localCentre = new int2(
-                config.CryptAnchor.LocalPosition.x,
-                config.CryptAnchor.LocalPosition.z);
-            int2 centre = StructureCardinalTransform.Point(localCentre, church.EntryFacing);
-            int topY = origin.y - config.CryptTopOffset;
-            int bottomY = topY - config.CryptHeight;
-            int3 min = new int3(
-                origin.x + centre.x - config.CryptWidth / 2,
-                bottomY,
-                origin.z + centre.y - config.CryptDepth / 2);
-            int3 size = new int3(config.CryptWidth, config.CryptHeight, config.CryptDepth);
+        private static void Shell(IStructureAuthoringSession a,in Rect r,int height,in ChurchConfig ch)=>
+            a.HollowBox(r.Min,new int3(r.Width,height,r.Depth),ch.WallThickness,ch.Palette.Resolve(ch.NaveWalls.PrimaryMaterial),false,false);
 
-            authoring.Box(min, size, GameMaterialIds.Empty);
-            authoring.HollowBox(
-                min,
-                size,
-                church.WallThickness,
-                church.Palette.Resolve(StructureMaterialRole.Underground),
-                true,
-                true);
+        private static void TowerShell(IStructureAuthoringSession a,in Rect r,int baseY,in TowerConfig t,in ChurchConfig ch)=>
+            a.HollowBox(new int3(r.Min.x,baseY,r.Min.z),new int3(r.Width,t.Height,r.Depth),ch.WallThickness,ch.Palette.Resolve(t.WallMaterialRole),false,false);
+
+        private static void TowerWindows(IStructureAuthoringSession a,in Rect r,in TowerConfig t,in ChurchConfig ch)
+        {
+            if(!t.OpeningsEnabled) return;
+            Open(a,in r,t.Height,in t.Opening,1,World(Facing.South,in ch),0,0,in ch);
+            Open(a,in r,t.Height,in t.Opening,1,World(Facing.North,in ch),0,0,in ch);
+            Open(a,in r,t.Height,in t.Opening,1,World(Facing.West,in ch),0,0,in ch);
+            Open(a,in r,t.Height,in t.Opening,1,World(Facing.East,in ch),0,0,in ch);
         }
 
-        private static void AuthorRoof(
-            IStructureAuthoringSession authoring,
-            int3 shellMin,
-            int width,
-            int depth,
-            int roofY,
-            in RoofConfig localRoof,
-            Facing entryFacing,
-            in StructureMaterialPalette palette)
+        private static void Open(IStructureAuthoringSession a,in Rect r,int height,in OpeningConfig opening,int count,Facing facade,int spacing,int offset,in ChurchConfig ch)=>
+            SharedOpeningAuthoring.AuthorRepeated(a,r.Min,r.Width,height,r.Depth,ch.WallThickness,in opening,count,facade,offset,spacing,in ch.Palette);
+
+        private static void Roof(IStructureAuthoringSession a,in Rect r,int y,in RoofConfig local,in ChurchConfig ch)
         {
-            RoofConfig roof = localRoof;
-            roof.RidgeAxis = StructureCardinalTransform.Axis(localRoof.RidgeAxis, entryFacing);
-            SharedRoofAuthoring.Author(
-                authoring,
-                shellMin,
-                width,
-                depth,
-                roofY,
-                in roof,
-                palette.Resolve(roof.MaterialRole));
+            RoofConfig roof=local; roof.RidgeAxis=StructureCardinalTransform.Axis(local.RidgeAxis,ch.EntryFacing);
+            SharedRoofAuthoring.Author(a,r.Min,r.Width,r.Depth,y,in roof,ch.Palette.Resolve(roof.MaterialRole));
         }
 
-        private static void ResolveRect(
-            in StructureFootprintRect local,
-            int3 origin,
-            Facing facing,
-            out int3 min,
-            out int width,
-            out int depth)
+        private static Rect Resolve(in StructureFootprintRect local,int3 origin,Facing facing)
         {
-            StructureFootprintRect rotated = StructureCardinalTransform.Rect(in local, facing);
-            min = new int3(origin.x + rotated.Min.x, origin.y, origin.z + rotated.Min.y);
-            width = rotated.Size.x;
-            depth = rotated.Size.y;
+            StructureFootprintRect world=StructureCardinalTransform.Rect(in local,facing);
+            return new Rect{Min=new int3(origin.x+world.Min.x,origin.y,origin.z+world.Min.y),Width=world.Size.x,Depth=world.Size.y};
         }
+
+        private static Facing World(Facing local,in ChurchConfig ch)=>StructureCardinalTransform.FacingDirection(local,ch.EntryFacing);
     }
 }
