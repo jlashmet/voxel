@@ -294,6 +294,12 @@ namespace VoxelEngine.Showcase
             if (ring < 0 || ring >= _ringMeshes.Count || !_ringHeightValid[ring])
                 return false;
 
+            // A scheduled height job owns this ring's persistent cache until Complete() transfers
+            // ownership back to the main thread. Keep drawing the existing mesh, but never rebuild
+            // presentation from a NativeArray while the worker may still be writing it.
+            if (_heightJobScheduled && _heightJobRing == ring)
+                return false;
+
             int2 targetOrigin = OriginFor(cameraPosition, _ringSpacing[ring]);
             if (!targetOrigin.Equals(_ringOrigin[ring])) return false;
             if (_ringBuiltStructureVersion[ring] != structureVersion) return true;
