@@ -13,7 +13,8 @@ namespace Game.Structures.Runtime
             IStructureAuthoringSession authoring,
             in CastlePlan plan)
         {
-            CastleComponentConfig components = CastleCompatibilityComponents.Resolve(in plan);
+            StructureMaterialPalette palette = CastleStructurePalette.Compatibility;
+            CastleComponentConfig components = CastleComponentPresets.Compatibility(in plan, in palette);
             AuthorCornerTowers(authoring, in plan, in components.CornerTowers);
         }
 
