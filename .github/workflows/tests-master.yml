@@ -119,8 +119,11 @@ jobs:
             sleep 5
           done
 
+      # Both PlayMode assemblies below can open VoxelShowcase.unity. Runtime castle authoring is
+      # intentionally forbidden, so each clean master matrix process must receive the baked world
+      # before it starts; otherwise CI.PlayMode fails the startup contract for harness reasons.
       - name: Bake Voxel Showcase startup world
-        if: matrix.assembly == 'VoxelEngine.Tests.PlayMode'
+        if: matrix.assembly == 'VoxelEngine.Tests.PlayMode' || matrix.assembly == 'VoxelEngine.CI.PlayMode'
         shell: bash
         run: |
           set -euo pipefail
