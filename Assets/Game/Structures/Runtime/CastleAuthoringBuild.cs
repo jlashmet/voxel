@@ -187,7 +187,11 @@ namespace Game.Structures.Runtime
                                     _components.KeepFloors.SlabThickness,
                                     size.z - 2 * _components.KeepWalls.Thickness),
                                 _components.Palette.Resolve(_components.KeepFloors.SlabMaterialRole));
-                        CastleKeepRoomAuthoring.AuthorFloor(_authoring, in _plan, min, size, y, floor);
+
+                        if (floor == 1)
+                            CastleProceduralBedroomAuthoring.Author(_authoring, in _plan, min, size, y);
+                        else
+                            CastleKeepRoomAuthoring.AuthorFloor(_authoring, in _plan, min, size, y, floor);
                     }
                     break;
                 case 3:
