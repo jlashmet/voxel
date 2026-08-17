@@ -3290,6 +3290,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     _entries.Remove(_build.Coordinate);
                 }
                 _emptyVersions[_build.Coordinate] = _build.SourceVersion;
+                if (SourceStep == FeaturePreservingFallbackStep)
+                    Step4FalseEmptyDiagnostics.RecordReadyEmptyPublication();
                 CompletedBuildCount++;
                 _buildLatencyTiming.Add(ElapsedMs(_build.BuildStartSeconds));
                 _desiredVersions.Remove(_build.Coordinate);
@@ -3357,7 +3359,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             entry.CoatingCatalogueHash = _build.CoatingCatalogueHash;
             CompletedBuildCount++;
             if (_build.UsedFeaturePreservingFallback)
+            {
                 FeaturePreservingFallbackPublishCount++;
+                Step4FalseEmptyDiagnostics.RecordFallbackPublished();
+            }
             _buildLatencyTiming.Add(ElapsedMs(_build.BuildStartSeconds));
             _desiredVersions.Remove(_build.Coordinate);
             _queuedAtSeconds.Remove(_build.Coordinate);
