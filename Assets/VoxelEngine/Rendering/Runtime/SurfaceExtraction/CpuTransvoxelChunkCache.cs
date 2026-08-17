@@ -2261,6 +2261,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
             int edge = VoxelReadGrid.BlocksPerRegionEdge;
             int3 cacheMaxExclusive = cacheOrigin + BrickCacheEdge;
+            int3 coreMinWorldBlock = cacheOrigin + BrickCachePadding;
             int3 minRegion = cacheOrigin >> VoxelReadGrid.BlocksPerRegionEdgeLog2;
             int3 maxRegion = (cacheMaxExclusive - 1) >> VoxelReadGrid.BlocksPerRegionEdgeLog2;
 
@@ -2269,9 +2270,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             for (int rx = minRegion.x; rx <= maxRegion.x; rx++)
             {
                 int3 regionCoord = new(rx, ry, rz);
+                bool requiredRegion = ExactSnapshotRegionCoverage.RegionIntersectsCore(
+                    regionCoord, edge, coreMinWorldBlock, BricksPerAxis);
                 bool pinnedRegion = source.TryPinRegionBlockRefs(
                     regionCoord, out PinnedRegionBlockRefs pinned);
-                _exactMetadataRegionCoverage.RecordRequiredRegion(pinnedRegion);
+                _exactMetadataRegionCoverage.RecordRegion(requiredRegion, pinnedRegion);
                 if (!pinnedRegion) continue;
                 if (_pinnedRegionCount >= MaxExactSnapshotRegions)
                 {
