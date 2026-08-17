@@ -22,15 +22,10 @@ ASSET_ID="$2"
 shift 2
 
 case "$ASSET_TYPE" in
-  character|clothing)
-    CANONICAL="$(python3 tools/character-factory/bootstrap_canonical.py)"
-    test -s "$CANONICAL"
-    exec python3 tools/character-factory/init_asset.py \
-      "$ASSET_TYPE" "$ASSET_ID" \
-      --canonical-body "$CANONICAL" \
-      "$@"
-    ;;
-  weapon|accessory)
+  character|clothing|weapon|accessory)
+    # Character/clothing specs now carry the named canonical rig profile. The
+    # shared donor is materialized only if production misses prepared geometry,
+    # so creating an asset no longer needs Blender or any canonical file path.
     exec python3 tools/character-factory/init_asset.py \
       "$ASSET_TYPE" "$ASSET_ID" \
       "$@"
