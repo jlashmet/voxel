@@ -10,15 +10,13 @@ namespace VoxelEngine.Tests.Features
         [Test]
         public void FarmhousePresetKeepsAllConfiguredHouseHooksWellFormed()
         {
-            HouseConfig house = HousePresetLibrary.Farmhouse(
-                foundationMaterial: 7,
-                wallMaterial: 9,
-                roofMaterial: 11);
+            HouseConfig house = Farmhouse();
 
             Assert.IsTrue(house.Footprint.IsWellFormed);
             Assert.IsTrue(house.Walls.IsWellFormed);
             Assert.IsTrue(house.Floors.IsWellFormed);
             Assert.AreEqual(StructureOpeningKind.Door, house.MainDoor.Kind);
+            Assert.IsTrue(house.MainDoor.IsWellFormed);
             Assert.IsTrue(house.FrontDoors.IsWellFormed);
             Assert.IsTrue(house.RearDoors.IsWellFormed);
             Assert.IsTrue(house.LeftDoors.IsWellFormed);
@@ -27,13 +25,17 @@ namespace VoxelEngine.Tests.Features
             Assert.IsTrue(house.RearWindows.IsWellFormed);
             Assert.IsTrue(house.LeftWindows.IsWellFormed);
             Assert.IsTrue(house.RightWindows.IsWellFormed);
+            Assert.IsTrue(house.Roof.IsWellFormed);
             Assert.IsTrue(house.Dormers.IsWellFormed);
+            Assert.AreEqual(7, house.Palette.Resolve(StructureMaterialRole.Foundation));
+            Assert.AreEqual(9, house.Palette.Resolve(StructureMaterialRole.PrimaryWall));
+            Assert.AreEqual(11, house.Palette.Resolve(StructureMaterialRole.Roof));
         }
 
         [Test]
         public void SameHouseConfigProducesIdenticalShapeProgram()
         {
-            HouseConfig house = HousePresetLibrary.Farmhouse(7, 9, 11);
+            HouseConfig house = Farmhouse();
 
             int[] first = HouseProgramCompiler.BuildCompatibilityProgram(
                 in house, mainDoorAnchorIndex: 0, hearthAnchorIndex: 1);
@@ -46,7 +48,7 @@ namespace VoxelEngine.Tests.Features
         [Test]
         public void CompiledHouseShellStaysInsideConfiguredHorizontalFootprint()
         {
-            HouseConfig house = HousePresetLibrary.Farmhouse(7, 9, 11);
+            HouseConfig house = Farmhouse();
             int[] program = HouseProgramCompiler.BuildCompatibilityProgram(
                 in house, mainDoorAnchorIndex: 0, hearthAnchorIndex: 1);
 
@@ -93,6 +95,16 @@ namespace VoxelEngine.Tests.Features
             }
 
             Assert.Fail("Compiled house program did not terminate with ShapeOp.End.");
+        }
+
+        private static HouseConfig Farmhouse()
+        {
+            HouseConfig house = HousePresets.Farmhouse(
+                masonryMaterial: 9,
+                timberMaterial: 11);
+            house.Palette.Foundation = 7;
+            house.Palette.Floor = 7;
+            return house;
         }
 
         private static void AssertHorizontalBounds(
