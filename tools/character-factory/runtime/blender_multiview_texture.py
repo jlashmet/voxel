@@ -101,82 +101,49 @@ def _load_subject_image(path: Path) -> ImageInfo:
     return info
 
 
-def _scaled_foreground_runs(
-    source: ImageInfo,
-    width: int,
-    height: int,
-) -> tuple[tuple[tuple[int, int], ...], ...]:
-    """Resample the immutable source mask into atlas-tile coordinates."""
-
-    x_scale = (width - 1) / max(1, source.width - 1)
-    rows: list[tuple[tuple[int, int], ...]] = []
-    for y in range(height):
-        source_y = int(round(y * (source.height - 1) / max(1, height - 1)))
-        scaled: list[tuple[int, int]] = []
-        for start, end in source.foreground_runs[source_y]:
-            scaled_start = max(0, min(width - 1, int(round(start * x_scale))))
-            scaled_end = max(0, min(width - 1, int(round(end * x_scale))))
-            if scaled_end < scaled_start:
-                scaled_start, scaled_end = scaled_end, scaled_start
-            if scaled and scaled_start <= scaled[-1][1] + 1:
-                scaled[-1] = (scaled[-1][0], max(scaled[-1][1], scaled_end))
-            else:
-                scaled.append((scaled_start, scaled_end))
-        rows.append(tuple(scaled))
-    return tuple(rows)
-
-
-def _fill_span_from_pixel(
+def _copy_rgba(
     pixels: list[float],
     width: int,
-    y: int,
-    start_x: int,
-    end_x: int,
-    source_x: int,
-) -> int:
-    if end_x < start_x:
-        return 0
-    source_index = (y * width + source_x) * 4
-    rgba = pixels[source_index : source_index + 4]
-    count = end_x - start_x + 1
-    destination = (y * width + start_x) * 4
-    pixels[destination : destination + count * 4] = rgba * count
-    return count
+    dst_x: int,
+    dst_y: int,
+    src_x: int,
+    src_y: int,
+) -> None:
+    dst = (dst_y * width + dst_x) * 4
+    src = (src_y * width + src_x) * 4
+    pixels[dst : dst + 4] = pixels[src : src + 4]
 
 
-def _edge_padded_pixels(
-    source: ImageInfo,
-    width: int,
-    height: int,
-    pixels: list[float],
-) -> tuple[list[float], int]:
-    """Fill atlas-tile background with nearby silhouette edge colors.
+def _edge_padded_pixels(source: ImageInfo) -> tuple[list[float], int]:
+    """Fill turnaround canvas with nearest local silhouette edge colors.
 
-    Projection UV vertices are constrained to foreground, but a UV triangle can
-    interpolate across neutral canvas between those vertices. Padding prevents that
-    interpolation from producing large gray/white wedges. The mask remains defined
-    in the original source resolution; only the sampling copy is padded.
+    UV vertices are constrained to detected foreground, but the interior of a UV
+    triangle is linearly interpolated. When a triangle bridges an irregular hand,
+    hair, or leg silhouette, that interpolation can still cross the neutral canvas
+    and render a large gray/white polygon patch. Build a deterministic padded copy
+    for sampling while retaining the original foreground mask for projection checks.
 
-    Padding happens after the turnaround is reduced to the 512px atlas tile. This
-    keeps the operation bounded and avoids millions of Python-level pixel copies on
-    high-resolution source images.
+    Rows containing subject pixels are filled horizontally from the nearest run edge.
+    Completely empty rows then copy the nearest already-padded subject row. This is
+    intentionally a texture-sampling safety margin, not a change to the approved
+    source image or its subject mask.
     """
 
-    padded = list(pixels)
-    foreground_rows = _scaled_foreground_runs(source, width, height)
-    valid_rows = [y for y, runs in enumerate(foreground_rows) if runs]
-    if not valid_rows:
-        raise RuntimeError("cannot edge-pad a multiview source without foreground rows")
-
+    width = source.width
+    height = source.height
+    padded = list(source.image.pixels[:])
+    valid_rows: list[int] = []
     padded_pixels = 0
-    for y, runs in enumerate(foreground_rows):
+
+    for y, runs in enumerate(source.foreground_runs):
         if not runs:
             continue
+        valid_rows.append(y)
 
         first_start = runs[0][0]
-        padded_pixels += _fill_span_from_pixel(
-            padded, width, y, 0, first_start - 1, first_start
-        )
+        for x in range(0, first_start):
+            _copy_rgba(padded, width, x, y, first_start, y)
+            padded_pixels += 1
 
         for index in range(len(runs) - 1):
             left_end = runs[index][1]
@@ -185,34 +152,35 @@ def _edge_padded_pixels(
             gap_end = right_start - 1
             if gap_start > gap_end:
                 continue
-            midpoint = (left_end + right_start) // 2
-            padded_pixels += _fill_span_from_pixel(
-                padded, width, y, gap_start, midpoint, left_end
-            )
-            padded_pixels += _fill_span_from_pixel(
-                padded, width, y, midpoint + 1, gap_end, right_start
-            )
+            midpoint = (left_end + right_start) * 0.5
+            for x in range(gap_start, gap_end + 1):
+                source_x = left_end if x <= midpoint else right_start
+                _copy_rgba(padded, width, x, y, source_x, y)
+                padded_pixels += 1
 
         last_end = runs[-1][1]
-        padded_pixels += _fill_span_from_pixel(
-            padded, width, y, last_end + 1, width - 1, last_end
-        )
+        for x in range(last_end + 1, width):
+            _copy_rgba(padded, width, x, y, last_end, y)
+            padded_pixels += 1
+
+    if not valid_rows:
+        raise RuntimeError("cannot edge-pad a multiview source without foreground rows")
 
     nearest_above: list[int | None] = [None] * height
     nearest_below: list[int | None] = [None] * height
     last_valid: int | None = None
     for y in range(height):
-        if foreground_rows[y]:
+        if source.foreground_runs[y]:
             last_valid = y
         nearest_above[y] = last_valid
     last_valid = None
     for y in range(height - 1, -1, -1):
-        if foreground_rows[y]:
+        if source.foreground_runs[y]:
             last_valid = y
         nearest_below[y] = last_valid
 
     row_width = width * 4
-    for y, runs in enumerate(foreground_rows):
+    for y, runs in enumerate(source.foreground_runs):
         if runs:
             continue
         above = nearest_above[y]
@@ -225,11 +193,9 @@ def _edge_padded_pixels(
             source_y = above if y - above <= below - y else below
         if source_y is None:
             raise RuntimeError("failed to locate a neighboring subject row for atlas padding")
-        destination = y * row_width
-        source_index = source_y * row_width
-        padded[destination : destination + row_width] = padded[
-            source_index : source_index + row_width
-        ]
+        dst = y * row_width
+        src = source_y * row_width
+        padded[dst : dst + row_width] = padded[src : src + row_width]
         padded_pixels += width
 
     return padded, padded_pixels
@@ -254,15 +220,17 @@ def _atlas_image(sources: dict[str, ImageInfo], output: Path) -> bpy.types.Image
     }
 
     for name, source in sources.items():
-        image = source.image
-        if int(image.size[0]) != tile or int(image.size[1]) != tile:
-            image.scale(tile, tile)
-        pixels, padded_count = _edge_padded_pixels(
-            source,
-            tile,
-            tile,
-            list(image.pixels[:]),
+        padded_pixels, padded_count = _edge_padded_pixels(source)
+        padded_image = bpy.data.images.new(
+            f"CharacterFactoryMultiviewPadded_{name}",
+            width=source.width,
+            height=source.height,
+            alpha=True,
         )
+        padded_image.pixels[:] = padded_pixels
+        if source.width != tile or source.height != tile:
+            padded_image.scale(tile, tile)
+        pixels = padded_image.pixels[:]
         ox, oy = placements[name]
         for y in range(tile):
             src_row = y * tile * 4
