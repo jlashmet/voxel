@@ -5,11 +5,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
 cd "$REPO_ROOT"
 
-TRIPOSR_REV="24e6763a8b20d07b4b9f796f44aed45e412f2dcd"
-CACHE_ROOT="${CHARACTER_FACTORY_CACHE_ROOT:-$HOME/Library/Caches/voxel-character-factory}"
-TRIPOSR_SOURCE="$CACHE_ROOT/TripoSR-$TRIPOSR_REV"
-TRIPOSR_PY="$CACHE_ROOT/triposr-$TRIPOSR_REV-py312-venv/bin/python"
-TRIPOSR_WEIGHTS="$CACHE_ROOT/models/triposr"
 BLENDER_BIN="${BLENDER_BIN:-/Applications/Blender.app/Contents/MacOS/Blender}"
 SOURCE="$REPO_ROOT/tools/character-factory/ci/fixtures/sunlit_cleric_staff.jpg"
 OUT="${1:-$REPO_ROOT/Artifacts/SunlitClericStaffProduction}"
@@ -28,11 +23,10 @@ mkdir -p "$OUT" "$HEAD_OUT"
 export PYTORCH_ENABLE_MPS_FALLBACK="${PYTORCH_ENABLE_MPS_FALLBACK:-1}"
 export PYTHONUNBUFFERED=1
 
-echo "[1/6] Bootstrap cached TripoSR MPS backend"
-chmod +x tools/character-factory/ci/bootstrap_triposr_macos.sh
-tools/character-factory/ci/bootstrap_triposr_macos.sh
+echo "[1/6] Bootstrap the pinned TripoSR profile"
+TRIPOSR_PY="$(python3 tools/character-factory/character_factory.py \
+  bootstrap-profile triposr-smoke-macos | tail -n 1)"
 test -x "$TRIPOSR_PY"
-test -f "$TRIPOSR_WEIGHTS/model.ckpt"
 
 echo "[2/6] Isolate the staff and its ornate sun head"
 FULL_INPUT="$OUT/sunlit_cleric_staff_01.input.png"
@@ -57,14 +51,8 @@ cat > "$FULL_SPEC" <<JSON
   },
   "outputDir": "$OUT",
   "generator": {
-    "python": "$TRIPOSR_PY",
-    "backend": "triposr-mps",
-    "source": "$TRIPOSR_SOURCE",
-    "weights": "$TRIPOSR_WEIGHTS",
-    "preset": "smoke",
-    "device": "auto",
+    "profile": "triposr-smoke-macos",
     "mcResolution": 320,
-    "chunkSize": 8192,
     "removeBackground": false
   },
   "rigid": {
@@ -93,14 +81,8 @@ cat > "$HEAD_SPEC" <<JSON
   },
   "outputDir": "$HEAD_OUT",
   "generator": {
-    "python": "$TRIPOSR_PY",
-    "backend": "triposr-mps",
-    "source": "$TRIPOSR_SOURCE",
-    "weights": "$TRIPOSR_WEIGHTS",
-    "preset": "smoke",
-    "device": "auto",
+    "profile": "triposr-smoke-macos",
     "mcResolution": 320,
-    "chunkSize": 8192,
     "removeBackground": false
   },
   "rigid": {
@@ -152,6 +134,7 @@ cat <<EOF
 Sunlit Cleric staff build complete.
   Weapon FBX: $BASE_FBX
   Preview: $OUT/sunlit_cleric_staff_01.preview.png
+  Generator profile: triposr-smoke-macos
   Slot: MainHand
   Socket bone: RightHand
   Unity staging root: $UNITY_ASSETS_ROOT
