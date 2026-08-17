@@ -27,14 +27,21 @@ namespace Game.Structures.Tests
                 Assert.IsTrue(context.IsWellFormed);
                 Assert.AreEqual(DecorationStructureKind.Castle, context.StructureKind);
                 Assert.AreEqual(DecorationSpaceKind.Bedroom, context.SpaceKind);
+                Assert.AreEqual(DecorationStyleFamily.Courtly, DecorationStyleIds.FamilyOf(context.StyleId));
                 Assert.AreEqual(DecorationWealthTier.Noble, context.Wealth);
                 Assert.AreEqual(12, exclusions.Length);
-                Assert.AreEqual(BedroomSceneResolver.PlacementCount, placements.Length);
+                Assert.That(placements.Length,
+                    Is.InRange(BedroomSceneResolver.PlacementCount, BedroomSceneContextVariation.MaximumPlacementCount));
                 Assert.AreEqual(DecorationPropFamily.Bed, placements[0].Family);
                 Assert.AreEqual(DecorationPropFamily.Rug, placements[1].Family);
                 Assert.AreEqual(DecorationPropFamily.Dresser, placements[2].Family);
                 Assert.AreEqual(DecorationPropFamily.Painting, placements[3].Family);
                 Assert.AreEqual(DecorationPropFamily.WallTorch, placements[4].Family);
+                if (placements.Length > BedroomSceneResolver.PlacementCount)
+                {
+                    Assert.AreEqual(BedroomSceneContextVariation.AccentTorchSlot, placements[5].SlotId);
+                    Assert.AreEqual(DecorationPropFamily.WallTorch, placements[5].Family);
+                }
             });
 
             for (int i = 0; i < exclusions.Length; i++)
