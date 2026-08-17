@@ -9,7 +9,7 @@ on:
       - Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
       - Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Step4FalseEmptyDiagnostics.cs
       - Assets/Tests/PlayMode/LodRenderingTests.cs
-      - Assets/Tests/PlayMode/Step4LifecycleDiagnosticsTests.cs
+      - Assets/Tests/PlayMode/Step4LifecycleDiagnosticTests.cs
 
 permissions:
   contents: read
@@ -79,7 +79,7 @@ jobs:
             -batchmode -job-worker-count 1 \
             -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform PlayMode \
             -assemblyNames VoxelEngine.Tests.PlayMode \
-            -testFilter '^VoxelEngine\.Tests\.PlayMode\.Step4LifecycleDiagnosticsTests' \
+            -testFilter '^VoxelEngine\.Tests\.PlayMode\.Step4LifecycleDiagnosticTests' \
             -testResults "$ROOT/step4-lifecycle.xml" \
             -logFile "$ROOT/step4-lifecycle.log" || status=$?
           if [[ -s "${TMPDIR:-/tmp}/unity-run-status" ]]; then
