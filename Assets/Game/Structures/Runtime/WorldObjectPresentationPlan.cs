@@ -14,6 +14,7 @@ namespace Game.Structures.Runtime
         public DecorationBounds BaselineBounds;
         public int3 TranslationVoxels;
         public int3 RotationDegrees;
+        public bool UsesDynamicProxy;
         public bool Visible;
         public bool BlocksNavigation;
         public bool LightActive;
@@ -33,6 +34,7 @@ namespace Game.Structures.Runtime
                 Id = d.Id,
                 Kind = d.Kind,
                 BaselineBounds = d.Bounds,
+                UsesDynamicProxy = RequiresDynamicProxy(d.Kind),
                 Visible = !state.IsDestroyed && (state.State & WorldObjectStateFlags.Hidden) == 0,
                 BlocksNavigation = !state.IsDestroyed &&
                     (d.Capabilities & WorldObjectCapabilities.BlocksNavigation) != 0,
@@ -144,6 +146,47 @@ namespace Game.Structures.Runtime
             }
 
             return plan;
+        }
+
+        public static bool RequiresDynamicProxy(WorldObjectKind kind)
+        {
+            switch (kind)
+            {
+                case WorldObjectKind.Door:
+                case WorldObjectKind.Gate:
+                case WorldObjectKind.Portcullis:
+                case WorldObjectKind.Drawbridge:
+                case WorldObjectKind.Elevator:
+                case WorldObjectKind.MovingPlatform:
+                case WorldObjectKind.Lever:
+                case WorldObjectKind.Switch:
+                case WorldObjectKind.Button:
+                case WorldObjectKind.PressurePlate:
+                case WorldObjectKind.PullChain:
+                case WorldObjectKind.Winch:
+                case WorldObjectKind.Valve:
+                case WorldObjectKind.Chest:
+                case WorldObjectKind.Torch:
+                case WorldObjectKind.Lantern:
+                case WorldObjectKind.Brazier:
+                case WorldObjectKind.Fireplace:
+                case WorldObjectKind.Trap:
+                case WorldObjectKind.SpikeTrap:
+                case WorldObjectKind.DartTrap:
+                case WorldObjectKind.FallingBlockTrap:
+                case WorldObjectKind.Crusher:
+                case WorldObjectKind.SecretDoor:
+                case WorldObjectKind.RotatingWall:
+                case WorldObjectKind.BreakableWall:
+                case WorldObjectKind.Generator:
+                case WorldObjectKind.FuseBox:
+                case WorldObjectKind.MineCart:
+                case WorldObjectKind.Cart:
+                case WorldObjectKind.Teleporter:
+                    return true;
+                default:
+                    return false;
+            }
         }
 
         public static WorldObjectPresentationPlan[] PlanAll(WorldObjectDescriptor[] objects, WorldObjectStateStore state)
