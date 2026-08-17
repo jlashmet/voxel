@@ -2,7 +2,9 @@ name: Madeline base-body build
 
 on:
   push:
-    branches: [feature/character-weapon-asset-pipeline]
+    branches:
+      - feature/character-weapon-asset-pipeline
+      - agent/madeline-projection-repair
     paths:
       - 'tools/character-factory/production/madeline/**'
       - 'tools/character-factory/runtime/blender_alignment.py'
@@ -21,7 +23,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: madeline-base-body-build
+  group: madeline-base-body-build-${{ github.ref_name }}
   cancel-in-progress: true
 
 jobs:
@@ -104,6 +106,6 @@ jobs:
             exit 0
           fi
           git commit -m 'docs(characters): publish Madeline base-body proof [madeline-base-review]'
-          git push origin HEAD:feature/character-weapon-asset-pipeline
+          git push origin "HEAD:${GITHUB_REF_NAME}"
 
 # CI trigger: run the fully repaired Madeline source/texture/face pipeline.
