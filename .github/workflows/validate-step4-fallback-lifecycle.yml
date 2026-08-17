@@ -1,0 +1,90 @@
+name: Validate step4 fallback lifecycle
+
+on:
+  push:
+    branches:
+      - feature/voxel-showcase-rendering-repair-v2
+    paths:
+      - .github/workflows/validate-step4-fallback-lifecycle.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: unity-step4-lifecycle
+  cancel-in-progress: true
+
+jobs:
+  lod-rendering:
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/voxel-showcase-rendering-repair-v2
+          clean: true
+          fetch-depth: 1
+
+      - name: Resolve Unity
+        id: unity
+        shell: bash
+        run: |
+          set -euo pipefail
+          UNITY_VERSION="$(awk '/m_EditorVersion:/ { print $2 }' ProjectSettings/ProjectVersion.txt)"
+          UNITY_PATH="/Applications/Unity/Hub/Editor/${UNITY_VERSION}/Unity.app/Contents/MacOS/Unity"
+          test -x "$UNITY_PATH"
+          echo "path=$UNITY_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for any running Unity editor
+        shell: bash
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 900))
+          while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
+            if (( SECONDS >= deadline )); then
+              pgrep -alf '/Unity.app/Contents/MacOS/Unity' || true
+              exit 1
+            fi
+            sleep 5
+          done
+
+      - name: Bake Voxel Showcase startup world
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/Artifacts/Step4Lifecycle"
+          mkdir -p "$ROOT"
+          UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=20 \
+          UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
+            -batchmode -nographics -job-worker-count 1 -quit \
+            -projectPath "$GITHUB_WORKSPACE" \
+            -executeMethod VoxelEngine.Showcase.Editor.ShowcaseWorldBaker.BakeShowcaseWorld \
+            -logFile "$ROOT/showcase-bake.log"
+          test -s "$GITHUB_WORKSPACE/Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes"
+
+      - name: Run LOD lifecycle fixture
+        shell: bash
+        run: |
+          set -uo pipefail
+          ROOT="$GITHUB_WORKSPACE/Artifacts/Step4Lifecycle"
+          status=0
+          UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=30 \
+          UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
+            -batchmode -job-worker-count 1 \
+            -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform PlayMode \
+            -assemblyNames VoxelEngine.Tests.PlayMode \
+            -testFilter '^VoxelEngine\.Tests\.PlayMode\.LodRenderingTests' \
+            -testResults "$ROOT/lod-rendering.xml" \
+            -logFile "$ROOT/lod-rendering.log" || status=$?
+          if [[ -s "${TMPDIR:-/tmp}/unity-run-status" ]]; then
+            cp "${TMPDIR:-/tmp}/unity-run-status" "$ROOT/unity-run-status.txt"
+          fi
+          exit "$status"
+
+      - name: Upload lifecycle evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: step4-fallback-lifecycle
+          path: Artifacts/Step4Lifecycle/**
+          if-no-files-found: ignore
