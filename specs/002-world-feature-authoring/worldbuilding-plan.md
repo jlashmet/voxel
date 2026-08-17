@@ -103,10 +103,10 @@ Phase 0 evidence and compatibility targets are recorded in [worldbuilding-invent
 
 ## Phase 1 — Shared deterministic authoring foundation
 
-- [ ] **WB010** Define a stable structure generation context carrying instance identity, seed, origin/orientation, bounds, terrain access, palette, and anchor output.
-- [ ] **WB011** Add deterministic semantic child-seed derivation so optional details do not perturb unrelated generated details.
-- [ ] **WB012** Define common dimension/range validation and clamping/rejection policy for authored structure configs.
-- [ ] **WB013** Define semantic material palette roles (foundation, primary wall, secondary wall, trim, roof, floor, column, accent, underground, etc.) mapped to voxel materials.
+- [x] **WB010** Define a stable structure generation context carrying instance identity, seed, origin/orientation, bounds, terrain access, palette, and anchor output.
+- [x] **WB011** Add deterministic semantic child-seed derivation so optional details do not perturb unrelated generated details.
+- [x] **WB012** Define common dimension/range validation and clamping/rejection policy for authored structure configs.
+- [x] **WB013** Define semantic material palette roles (foundation, primary wall, secondary wall, trim, roof, floor, column, accent, underground, etc.) mapped to voxel materials.
 - [ ] **WB014** Define reusable footprint/foundation configuration, including rectangular footprints first and extension points for composed footprints.
 - [ ] **WB015** Define reusable wall-run configuration: thickness, height, material bands, corner behavior, and repetition spacing.
 - [ ] **WB016** Define reusable floor/level configuration: floor count, per-level height, slab thickness, and optional level variation.
