@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 import os
 from pathlib import Path
@@ -9,8 +10,6 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from PIL import Image
-
 TOOL_ROOT = Path(__file__).resolve().parents[1]
 if str(TOOL_ROOT) not in sys.path:
     sys.path.insert(0, str(TOOL_ROOT))
@@ -18,6 +17,11 @@ if str(TOOL_ROOT) not in sys.path:
 from api.models import BuildSpec
 from runtime.pipeline import CharacterFactoryRuntime
 from runtime.preprocess import PREPROCESS_AUDIT_NAME, declared_preprocess_steps, prepare_spec_references
+
+
+_PNG_1X1 = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZLAAAAABJRU5ErkJggg=="
+)
 
 
 class PreprocessAuditTests(unittest.TestCase):
@@ -69,7 +73,7 @@ class PreprocessAuditTests(unittest.TestCase):
                 def fake_preprocess(command, cwd, check):
                     output = root / "generated/front.png"
                     output.parent.mkdir(parents=True, exist_ok=True)
-                    Image.new("RGB", (16, 16), (128, 128, 128)).save(output)
+                    output.write_bytes(_PNG_1X1)
                     return SimpleNamespace(returncode=0)
 
                 with patch("runtime.preprocess.subprocess.run", side_effect=fake_preprocess):
