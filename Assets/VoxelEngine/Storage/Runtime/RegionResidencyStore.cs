@@ -1,3 +1,4 @@
+using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
 
@@ -43,6 +44,9 @@ namespace VoxelEngine.Storage.Runtime
         }
 
         public bool IsRegionResident(int3 regionCoord) => _table.IsResident(regionCoord);
+
+        public NativeArray<int3> GetResidentRegionCoords(Allocator allocator) =>
+            _table.GetResidentCoords(allocator);
 
         public void EnsureRegionResident(int3 regionCoord) => _table.LoadRegion(regionCoord);
 
