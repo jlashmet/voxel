@@ -71,11 +71,11 @@ jobs:
           CHARACTER_FACTORY_SMOKE_OUT: ${{ github.workspace }}/Artifacts/CharacterFactorySmoke
         run: bash tools/character-factory/ci/run_blender_smoke.sh
 
-      # This is intentionally opt-in because it performs two real image-to-3D
-      # generations plus a Unity import/equip proof. Add [character-e2e] to a push
-      # commit message when the expensive end-to-end gate should execute.
+      # This expensive proof is intentionally opt-in. A temporary draft PR whose
+      # title contains [character-e2e] performs two real image-to-3D generations
+      # plus a Unity import/equip proof, while the unrelated affected-Unity lane is skipped.
       - name: Character Factory generated character + weapon E2E
-        if: steps.factory.outputs.run == 'true' && github.event_name == 'push' && contains(github.event.head_commit.message, '[character-e2e]')
+        if: steps.factory.outputs.run == 'true' && github.event_name == 'pull_request' && contains(github.event.pull_request.title, '[character-e2e]')
         shell: bash
         run: bash tools/character-factory/ci/run_character_weapon_e2e_macos.sh
 
@@ -88,7 +88,7 @@ jobs:
           if-no-files-found: ignore
 
   affected:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && !contains(github.event.pull_request.title, '[character-e2e]')
     runs-on: [self-hosted, macOS]
     timeout-minutes: 60
     steps:
