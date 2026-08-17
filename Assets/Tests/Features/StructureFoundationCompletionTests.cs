@@ -79,7 +79,11 @@ namespace VoxelEngine.Tests.Features
             {
                 Assert.AreEqual(first.Length, second.Length, "primitive count changed for identical inputs");
                 for (var i = 0; i < first.Length; i++)
-                    AssertPrimitiveEqual(in first.ElementAt(i), in second.ElementAt(i), i);
+                {
+                    Primitive expected = first[i];
+                    Primitive actual = second[i];
+                    AssertPrimitiveEqual(in expected, in actual, i);
+                }
 
                 Assert.AreEqual(firstAnchors.Length, secondAnchors.Length);
                 for (var i = 0; i < firstAnchors.Length; i++)
