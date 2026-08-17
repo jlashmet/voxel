@@ -215,7 +215,7 @@ namespace VoxelEngine.Composition
         /// </summary>
         public static bool HasCompletePublishedNearSurfaceCoverage()
         {
-            VoxelSurfaceMetrics metrics = VoxelRenderBridge.SurfaceMetrics;
+            var metrics = VoxelRenderBridge.SurfaceMetrics;
             return metrics.SolidKnownChunks > 0
                 && metrics.SolidResidentChunks > 0
                 && metrics.SolidDirtyChunks == 0
