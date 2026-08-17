@@ -66,6 +66,75 @@ class RigidContractTests(unittest.TestCase):
         self.assertIn("--target-length", command)
         self.assertIn("--anchor-fraction", command)
 
+    def test_generated_detail_shaft_uses_named_detail_as_geometry_input(self) -> None:
+        payload = self._weapon_payload()
+        payload["references"] = {
+            "details": {
+                "ornament": "ornament.png",
+            }
+        }
+        payload["rigid"].update(
+            {
+                "canonicalAxis": "z",
+                "targetLength": 1.8,
+                "anchorFraction": [0.5, 0.5, 0.1],
+                "composition": {
+                    "strategy": "generated-detail-shaft",
+                    "detailReference": "ornament",
+                    "totalLength": 1.8,
+                    "detailLength": 0.38,
+                    "shaftRadius": 0.024,
+                    "axis": "auto",
+                    "attachmentSide": "min",
+                    "overlap": 0.025,
+                },
+            }
+        )
+        spec = self._load(payload)
+        assert spec.rigid is not None
+        assert spec.rigid.composition is not None
+        self.assertEqual("ornament", spec.rigid.composition.detail_reference)
+
+        plan = WeaponPipeline(TOOL_ROOT).plan(spec)
+        ornament = str(spec.detail_references["ornament"])
+        geometry_front = str(spec.views.front)
+        self.assertIn(ornament, plan.generator_command)
+        self.assertNotIn(geometry_front, plan.generator_command)
+        self.assertTrue(str(plan.raw_mesh).endswith("sword.ornament.raw.glb"))
+        self.assertIn("blender_compose_generated_detail_shaft.py", " ".join(plan.prepare_command))
+        self.assertEqual("weapon", plan.prepare_command[plan.prepare_command.index("--part-kind") + 1])
+        self.assertEqual("z", plan.prepare_command[plan.prepare_command.index("--canonical-axis") + 1])
+
+    def test_accessory_can_use_generated_detail_shaft_composition(self) -> None:
+        payload = self._weapon_payload()
+        payload["id"] = "lantern"
+        payload["assetType"] = "accessory"
+        payload["runtimePart"] = {
+            "slot": "Accessory",
+            "socketBoneName": "RightHand",
+        }
+        payload["references"] = {"details": {"shade": "shade.png"}}
+        payload["rigid"]["composition"] = {
+            "strategy": "generated-detail-shaft",
+            "detailReference": "shade",
+            "totalLength": 0.45,
+            "detailLength": 0.14,
+            "shaftRadius": 0.01,
+        }
+        spec = self._load(payload)
+        plan = AccessoryPipeline(TOOL_ROOT).plan(spec)
+        self.assertIn(str(spec.detail_references["shade"]), plan.generator_command)
+        self.assertEqual("accessory", plan.prepare_command[plan.prepare_command.index("--part-kind") + 1])
+
+    def test_composition_requires_existing_named_detail(self) -> None:
+        payload = self._weapon_payload()
+        payload["rigid"]["composition"] = {
+            "strategy": "generated-detail-shaft",
+            "detailReference": "ornament",
+        }
+        with self.assertRaisesRegex(CharacterFactoryError, "references.details"):
+            self._load(payload)
+
     def test_invalid_rigid_canonicalization_is_rejected_before_generation(self) -> None:
         cases = (
             ({"canonicalAxis": "diagonal"}, "canonicalAxis"),
@@ -77,6 +146,36 @@ class RigidContractTests(unittest.TestCase):
             with self.subTest(overrides=overrides):
                 payload = self._weapon_payload()
                 payload["rigid"].update(overrides)
+                with self.assertRaisesRegex(CharacterFactoryError, expected):
+                    self._load(payload)
+
+    def test_invalid_rigid_composition_is_rejected_before_generation(self) -> None:
+        cases = (
+            ({"strategy": "magic"}, "strategy"),
+            ({"strategy": "generated-detail-shaft"}, "detailReference"),
+            (
+                {
+                    "strategy": "generated-detail-shaft",
+                    "detailReference": "ornament",
+                    "totalLength": 0.2,
+                    "detailLength": 0.3,
+                },
+                "totalLength",
+            ),
+            (
+                {
+                    "strategy": "generated-detail-shaft",
+                    "detailReference": "ornament",
+                    "axis": "diagonal",
+                },
+                "axis",
+            ),
+        )
+        for composition, expected in cases:
+            with self.subTest(composition=composition):
+                payload = self._weapon_payload()
+                payload["references"] = {"details": {"ornament": "ornament.png"}}
+                payload["rigid"]["composition"] = composition
                 with self.assertRaisesRegex(CharacterFactoryError, expected):
                     self._load(payload)
 
