@@ -38,6 +38,7 @@ namespace VoxelEngine.Structures.Api
         public int Depth;
         public int Radius;
         public int Height;
+        public int TaperPercent;
         public int Count;
         public int Spacing;
         public bool OpeningsEnabled;
@@ -50,7 +51,7 @@ namespace VoxelEngine.Structures.Api
         {
             get
             {
-                if (Height <= 0 || Count <= 0 || Spacing < 0)
+                if (Height <= 0 || TaperPercent < 0 || TaperPercent >= 100 || Count <= 0 || Spacing < 0)
                     return false;
                 if (Shape == StructureTowerShape.Round)
                 {
