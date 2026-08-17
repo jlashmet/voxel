@@ -69,6 +69,29 @@ namespace VoxelEngine.Tests.Features
         }
 
         [Test]
+        public void SameCatalogueAndSeedProduceIdenticalVoxelOutput()
+        {
+            FeatureCatalogue catalogue = BuildCatalogue();
+            try
+            {
+                byte[] first = Run(in catalogue, int.MaxValue, out var firstReport, out _);
+                byte[] second = Run(in catalogue, int.MaxValue, out var secondReport, out _);
+
+                Assert.Greater(firstReport.VoxelsWritten, 0,
+                    "The fixture must actually build voxels or determinism comparison is vacuous.");
+                Assert.AreEqual(-1, SubVolumeEquality.FirstDifference(first, second),
+                    "the same catalogue and world seed produced different authoritative voxels");
+                Assert.AreEqual(firstReport.VoxelsWritten, secondReport.VoxelsWritten);
+                Assert.AreEqual(firstReport.InstancesRasterised, secondReport.InstancesRasterised);
+                Assert.AreEqual(firstReport.InstancesConsidered, secondReport.InstancesConsidered);
+            }
+            finally
+            {
+                catalogue.Dispose();
+            }
+        }
+
+        [Test]
         public void SlicedBuildWritesTheSameVoxelsAsAnUnslicedOne()
         {
             FeatureCatalogue catalogue = BuildCatalogue();
