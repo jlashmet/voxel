@@ -56,7 +56,7 @@ namespace VoxelEngine.Rendering.Runtime
         private static readonly int s_CameraPosition = Shader.PropertyToID("_CameraPosition");
         private static readonly int s_WaterTime = Shader.PropertyToID("_WaterTime");
 
-        private VoxelSurfaceScheduler _scheduler = new();
+        private VoxelSurfaceScheduler _scheduler;
         // Draw staging is bounded by the fixed arena args capacities. Allocate once with the
         // render pass; camera motion may change counts but can never resize managed arrays.
         private readonly CpuTransvoxelChunkCache.Entry[] _transvoxelDrawEntries =
@@ -192,6 +192,12 @@ namespace VoxelEngine.Rendering.Runtime
                 VoxelRenderBridge.LastSurfacePassState = "waiting-for-atomic-world";
                 return;
             }
+
+            // World teardown deliberately leaves the large native/GPU scheduler fully released.
+            // Recreate it only once a valid world is actually ready to render, so Metal never has
+            // to retire one arena while teardown eagerly allocates the next world's replacement.
+            _scheduler ??= new VoxelSurfaceScheduler();
+
             VoxelRenderBridge.LastSurfacePassState = VoxelRenderBridge.VerboseSurfaceDiagnostics
                 ? $"preparing-{camera.cameraType}" : "preparing";
             IReadOnlyList<CpuTransvoxelChunkCache.Entry> transvoxelVisible =
@@ -375,11 +381,12 @@ namespace VoxelEngine.Rendering.Runtime
 
             // Dispose is deliberately synchronous here: world teardown is a lifecycle boundary,
             // not the frame path. Completing ready/running jobs and releasing every Storage pin
-            // before the application disposes its Storage backing is the ownership contract. Recreate
-            // fixed renderer state immediately so the next world does not allocate on its first
-            // RenderGraph frame.
+            // before the application disposes its Storage backing is the ownership contract.
+            // Leave the scheduler null after disposal. Reallocating its persistent native buffers
+            // and shared ComputeBuffers here overlaps the old Metal resources' deferred retirement
+            // with the next arena and turns repeated scene loads into process-wide memory growth.
             _scheduler.Dispose();
-            _scheduler = new VoxelSurfaceScheduler();
+            _scheduler = null;
             Array.Clear(_transvoxelDrawEntries, 0, _transvoxelDrawEntries.Length);
             Array.Clear(_waterDrawEntries, 0, _waterDrawEntries.Length);
         }

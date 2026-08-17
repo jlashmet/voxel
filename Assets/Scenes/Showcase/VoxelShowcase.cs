@@ -158,6 +158,11 @@ namespace VoxelEngine.Showcase
 
         private void OnDisable()
         {
+            // The castle worker borrows this world's read-only material catalogue even though its
+            // heavy mutation target is private. Cancel/join it while this world is still alive;
+            // a global render clear must never be responsible for another world's task lifetime.
+            _world?.StopBackgroundWork();
+
             RenderingComposition.ResetTransientPresentation();
             RenderingComposition.ClearWorld();
             RenderingComposition.SetSurfaceBuildEnabled(true);
@@ -193,7 +198,7 @@ namespace VoxelEngine.Showcase
             // The landmark is owned by the origin region. Build it first even though the safe
             // approach spawn is just south of that region; landmark construction also preloads
             // every neighbouring region its terrain sculpt can touch.
-            _world.GenerateRegionBlocking(int3.zero);
+            _world.GenerateCastleOriginBlocking();
 
             var spawn = _world.SpawnPosition();
 

@@ -117,19 +117,49 @@ namespace VoxelEngine.Showcase
 
         private static int[] NewColumnArray() => new int[ColumnsPerRegion * ColumnsPerRegion];
 
-        /// <summary>Topmost solid voxel in a column within one region's vertical span.</summary>
+        /// <summary>
+        /// Topmost solid voxel in a column within one region's vertical span. Skip empty 8^3
+        /// blocks through the compact block-ref/occupancy summary first; only the top occupied
+        /// mixed block needs up to eight cell reads. This keeps terminal castle far-field capture
+        /// bounded to roughly 64 block checks per coarse column instead of 512 cell reads.
+        /// </summary>
         private static int TopSolidVoxel(in RegionReadView region,
                                          int worldX, int worldZ, int baseY, int height)
         {
             int3 originVoxel = region.RegionCoord * ShowcaseWorld.RegionVoxelEdge;
             int localX = worldX - originVoxel.x;
             int localZ = worldZ - originVoxel.z;
-            for (int localY = height - 1; localY >= 0; localY--)
+            int maxLocalY = height - 1;
+            int blockX = localX >> VoxelReadGrid.BlockEdgeLog2;
+            int blockZ = localZ >> VoxelReadGrid.BlockEdgeLog2;
+            int topBlockY = maxLocalY >> VoxelReadGrid.BlockEdgeLog2;
+
+            for (int blockY = topBlockY; blockY >= 0; blockY--)
             {
-                if (!region.TryReadCell(new int3(localX, localY, localZ), out VoxelCell cell))
+                int3 localBlock = new(blockX, blockY, blockZ);
+                if (!region.IsBlockOccupied(localBlock)
+                    || !region.TryGetBlock(localBlock, out VoxelReadBlock block))
                     continue;
-                if (cell.BaseMaterialId != VoxelGrid.MaterialEmpty)
-                    return baseY + localY;
+
+                int blockBaseY = blockY << VoxelReadGrid.BlockEdgeLog2;
+                int maxInnerY = math.min(VoxelReadGrid.BlockEdge - 1,
+                                         maxLocalY - blockBaseY);
+                if (block.Kind == VoxelReadBlockKind.Uniform)
+                {
+                    if (block.UniformMaterial != VoxelGrid.MaterialEmpty)
+                        return baseY + blockBaseY + maxInnerY;
+                    continue;
+                }
+
+                for (int innerY = maxInnerY; innerY >= 0; innerY--)
+                {
+                    int localY = blockBaseY + innerY;
+                    if (!region.TryReadCell(
+                            new int3(localX, localY, localZ), out VoxelCell cell))
+                        continue;
+                    if (cell.BaseMaterialId != VoxelGrid.MaterialEmpty)
+                        return baseY + localY;
+                }
             }
             return int.MinValue;
         }

@@ -137,15 +137,9 @@ namespace VoxelEngine.Showcase
             IRegionMutationStore mutations,
             in CastlePlan plan,
             uint terrainSeed,
-            IMaterialAuthoringCatalogue materials)
-        {
-            IStructureAuthoringSession authoring =
-                EngineStructuresComposition.CreateAuthoringSession(
-                    reads, mutations, materials);
-            GameCastlePlan gamePlan = plan.Value;
-            return new CastleBuildSession(
-                new CastleAuthoringBuild(authoring, in gamePlan, terrainSeed));
-        }
+            IMaterialAuthoringCatalogue materials) =>
+            new AsyncCastleBuildSession(
+                reads, mutations, materials, in plan, terrainSeed);
 
         public static VoxelEngine.Composition.ReferenceArchBuildResult BuildReferenceArch(
             IRegionReadSource reads,
@@ -171,20 +165,5 @@ namespace VoxelEngine.Showcase
                 pierStyle,
                 ringStyle,
                 coating);
-
-        private sealed class CastleBuildSession : ICastleBuildSession
-        {
-            private readonly CastleAuthoringBuild _build;
-
-            public CastleBuildSession(CastleAuthoringBuild build)
-            {
-                _build = build;
-            }
-
-            public bool IsComplete => _build.IsComplete;
-            public int StageNumber => _build.StageNumber;
-            public long TotalVoxelsWritten => _build.TotalVoxelsWritten;
-            public bool Step() => _build.Step();
-        }
     }
 }

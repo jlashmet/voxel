@@ -67,6 +67,13 @@ namespace VoxelEngine.Composition
     public static class VoxelEngineBootstrap
     {
         /// <summary>
+        /// Absolute safety ceiling for one eagerly allocated mixed-brick pool. BrickPool reserves
+        /// every payload plane up front, so an unchecked capacity can otherwise consume gigabytes
+        /// before streaming has authored a single brick.
+        /// </summary>
+        public const int MaximumMixedBrickAllocationBytes = 256 * 1024 * 1024;
+
+        /// <summary>
         /// Converts an application memory budget into a mixed-brick capacity without exposing
         /// Storage.Runtime physical byte layout to scene/application code.
         /// </summary>
@@ -75,6 +82,10 @@ namespace VoxelEngine.Composition
             int budgetBytes,
             int minimumCapacity = 4096)
         {
+            if (requestedCapacity <= 0)
+                throw new ArgumentOutOfRangeException(nameof(requestedCapacity));
+            if (budgetBytes <= 0)
+                throw new ArgumentOutOfRangeException(nameof(budgetBytes));
             if (minimumCapacity <= 0)
                 throw new ArgumentOutOfRangeException(nameof(minimumCapacity));
 
@@ -233,8 +244,13 @@ namespace VoxelEngine.Composition
                 int mixedBrickCapacity,
                 int changeJournalCapacity)
             {
+                int boundedMixedBrickCapacity = ClampMixedBrickCapacityToBudget(
+                    mixedBrickCapacity,
+                    MaximumMixedBrickAllocationBytes,
+                    minimumCapacity: 1);
+
                 _table = new RegionTable(expectedResidentRegions, Allocator.Persistent);
-                _pool = new BrickPool(mixedBrickCapacity, Allocator.Persistent);
+                _pool = new BrickPool(boundedMixedBrickCapacity, Allocator.Persistent);
                 _materials = default;
                 _surfaces = SurfaceCatalogue.CreateBuiltIns();
                 _coatings = CoatingCatalogue.CreateBuiltIns();

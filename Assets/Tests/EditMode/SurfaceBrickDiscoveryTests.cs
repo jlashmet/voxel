@@ -233,34 +233,37 @@ namespace VoxelEngine.Tests.EditMode
                 camera.transform.position = Vector3.zero;
 
                 bool discoveredByOuterLod = false;
-                for (int frame = 1; frame <= 256 && !discoveredByOuterLod; frame++)
+                int frame = 1;
+                var initialDiscoveryClock = System.Diagnostics.Stopwatch.StartNew();
+                while (!discoveredByOuterLod && initialDiscoveryClock.ElapsedMilliseconds < 2000)
                 {
                     scheduler.Prepare(source, in palette, in surfaceCatalogue,
                                       in coatingCatalogue, null, _journal,
-                                      camera, 0.1f, frame);
+                                      camera, 0.1f, frame++);
                     discoveredByOuterLod = scheduler.KnownChunkCountForSourceStep(4) > 0;
-                    if (!discoveredByOuterLod) System.Threading.Thread.Yield();
+                    if (!discoveredByOuterLod) System.Threading.Thread.Sleep(1);
                 }
 
                 Assert.True(discoveredByOuterLod,
-                    "Initial discovery never reached the step-4 ring, so the re-admission setup is invalid.");
+                    $"Initial discovery never reached the step-4 ring within {initialDiscoveryClock.ElapsedMilliseconds} ms, so the re-admission setup is invalid.");
                 Assert.AreEqual(0, scheduler.KnownChunkCountForSourceStep(1),
                     "The target surface must begin outside the fine-ring clipmap.");
 
                 camera.transform.position = new Vector3(200f, 0f, 0f);
                 bool admittedToFineLod = false;
-                for (int frame = 257; frame <= 640 && !admittedToFineLod; frame++)
+                var fineAdmissionClock = System.Diagnostics.Stopwatch.StartNew();
+                while (!admittedToFineLod && fineAdmissionClock.ElapsedMilliseconds < 2000)
                 {
                     scheduler.Prepare(source, in palette, in surfaceCatalogue,
                                       in coatingCatalogue, null, _journal,
-                                      camera, 0.1f, frame);
+                                      camera, 0.1f, frame++);
                     admittedToFineLod = scheduler.KnownChunkCountForSourceStep(1) > 0;
-                    if (!admittedToFineLod) System.Threading.Thread.Yield();
+                    if (!admittedToFineLod) System.Threading.Thread.Sleep(1);
                 }
 
                 Assert.True(admittedToFineLod,
-                    "Camera motion entered an already-resident surface region but the fine LOD "
-                  + "never re-ran surface discovery. This would create an LOD handoff hole.");
+                    $"Camera motion entered an already-resident surface region but the fine LOD "
+                  + $"never re-ran surface discovery within {fineAdmissionClock.ElapsedMilliseconds} ms. This would create an LOD handoff hole.");
             }
             finally
             {
@@ -331,17 +334,19 @@ namespace VoxelEngine.Tests.EditMode
                 SurfaceCatalogueView surfaceCatalogue = default;
                 CoatingCatalogueView coatingCatalogue = default;
                 bool discovered = false;
-                for (int frame = 1; frame <= 256 && !discovered; frame++)
+                int frame = 1;
+                var discoveryClock = System.Diagnostics.Stopwatch.StartNew();
+                while (!discovered && discoveryClock.ElapsedMilliseconds < 2000)
                 {
                     scheduler.Prepare(source, in palette, in surfaceCatalogue, in coatingCatalogue,
-                                      null, _journal, camera, 0.1f, frame);
+                                      null, _journal, camera, 0.1f, frame++);
                     discovered = scheduler.Metrics.DiscoveredSurfaceBricks > 0;
-                    if (!discovered) System.Threading.Thread.Yield();
+                    if (!discovered) System.Threading.Thread.Sleep(1);
                 }
 
                 Assert.True(discovered,
-                    "Async discovery must eventually publish surface bricks without waiting "
-                  + "on an unfinished Burst job in Prepare.");
+                    $"Async discovery must publish surface bricks within {discoveryClock.ElapsedMilliseconds} ms "
+                  + "without waiting on an unfinished Burst job in Prepare.");
             }
             finally
             {
