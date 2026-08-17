@@ -34,7 +34,7 @@ namespace Game.Structures.Tests
         }
 
         [Test]
-        public void PolygonCurtainRequiresThreeDistinctConsecutiveVertices()
+        public void PolygonCurtainRequiresBoundedOrthogonalSegments()
         {
             CastlePlan plan = CastlePlanner.Plan(int3.zero, 0x99u);
             CastleComponentConfig components = CastleCompatibilityComponents.Resolve(in plan);
@@ -43,15 +43,18 @@ namespace Game.Structures.Tests
             curtain.PolygonVertices.Clear();
 
             curtain.PolygonVertices.Add(new int2(-80, -60));
-            curtain.PolygonVertices.Add(new int2(90, -50));
-            Assert.IsFalse(curtain.IsWellFormed);
+            curtain.PolygonVertices.Add(new int2(90, -60));
+            curtain.PolygonVertices.Add(new int2(90, 85));
+            Assert.IsFalse(curtain.IsWellFormed, "A polygon loop needs at least four bounded vertices.");
 
-            curtain.PolygonVertices.Add(new int2(70, 85));
-            curtain.PolygonVertices.Add(new int2(-65, 70));
+            curtain.PolygonVertices.Add(new int2(-80, 85));
             Assert.IsTrue(curtain.IsWellFormed);
 
+            curtain.PolygonVertices[2] = new int2(70, 85);
+            Assert.IsFalse(curtain.IsWellFormed, "Diagonal wall edges are not supported by axis-aligned wall runs.");
+
             curtain.PolygonVertices[2] = curtain.PolygonVertices[1];
-            Assert.IsFalse(curtain.IsWellFormed);
+            Assert.IsFalse(curtain.IsWellFormed, "Zero-length wall edges must be rejected.");
         }
 
         [Test]
