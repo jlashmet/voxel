@@ -11,9 +11,7 @@ namespace VoxelEngine.Tests.Features
         {
             var config = new StructureFootprintConfig
             {
-                Primary = new StructureFootprintRect(
-                    new int2(0, 0),
-                    new int2(48, 32)),
+                Primary = new StructureFootprintRect(new int2(0, 0), new int2(48, 32)),
                 BasePlane = BasePlaneRule.MeanGround,
                 FoundationStyle = StructureFoundationStyle.TerrainFill,
                 FoundationDepth = 4,
@@ -21,8 +19,7 @@ namespace VoxelEngine.Tests.Features
             };
 
             config.AdditionalRects.Add(new StructureFootprintRect(
-                new int2(12, 32),
-                new int2(24, 16)));
+                new int2(12, 32), new int2(24, 16)));
 
             Assert.AreEqual(2, config.PartCount);
             Assert.IsTrue(config.IsComposed);
@@ -33,21 +30,34 @@ namespace VoxelEngine.Tests.Features
         }
 
         [Test]
-        public void WallAndOpeningConfigsKeepGeometryAndMaterialSemanticsSeparate()
+        public void WallConfigSupportsBandsCornersAndRepetition()
         {
-            var wall = new WallRunConfig
+            var wall = new StructureWallRunConfig
             {
+                Length = 48,
                 Thickness = 4,
                 Height = 24,
-                BaseOffset = 0,
-                MaterialBandHeight = 6,
+                PrimaryMaterial = StructureMaterialRole.PrimaryWall,
+                CornerBehavior = StructureWallCornerBehavior.TrimBoth,
                 RepetitionSpacing = 12,
-                CornerMode = WallCornerMode.Continuous,
-                PrimaryMaterialRole = StructureMaterialRole.PrimaryWall,
-                SecondaryMaterialRole = StructureMaterialRole.SecondaryWall,
-                TrimMaterialRole = StructureMaterialRole.Trim,
+                RepetitionOffset = 2,
             };
+            wall.MaterialBands.Add(new StructureWallMaterialBand(
+                0, 4, StructureMaterialRole.SecondaryWall));
+            wall.MaterialBands.Add(new StructureWallMaterialBand(
+                20, 4, StructureMaterialRole.Trim));
 
+            Assert.IsTrue(wall.IsWellFormed);
+            Assert.AreEqual(4, wall.StartInset);
+            Assert.AreEqual(4, wall.EndInset);
+            Assert.AreEqual(40, wall.UsableLength);
+            Assert.AreEqual(2, wall.MaterialBands.Length);
+            Assert.AreEqual(12, wall.RepetitionSpacing);
+        }
+
+        [Test]
+        public void OpeningConfigKeepsGeometryAndMaterialSemanticsSeparate()
+        {
             var opening = new OpeningConfig
             {
                 Kind = StructureOpeningKind.Window,
@@ -65,9 +75,9 @@ namespace VoxelEngine.Tests.Features
                 FillMaterialRole = StructureMaterialRole.Glass,
             };
 
-            Assert.AreEqual(4, wall.Thickness);
-            Assert.AreEqual(12, wall.RepetitionSpacing);
             Assert.AreEqual(StructureOpeningKind.Window, opening.Kind);
+            Assert.AreEqual(12, opening.Spacing);
+            Assert.AreEqual(1, opening.FrameThickness);
             Assert.AreEqual(StructureMaterialRole.Glass, opening.FillMaterialRole);
         }
 
@@ -99,31 +109,62 @@ namespace VoxelEngine.Tests.Features
 
             Assert.AreEqual(3, floors.FloorCount);
             Assert.AreEqual(18, floors.LevelHeight);
+            Assert.AreEqual(2, floors.SlabThickness);
             Assert.AreEqual(RoofStyle.Gable, roof.Style);
             Assert.AreEqual(1, roof.PitchRise);
             Assert.AreEqual(2, roof.PitchRun);
         }
 
         [Test]
-        public void StairRampConfigCoversStraightRampAndLandingSemantics()
+        public void StairAndLandingConfigBoundsMultiFlightCirculation()
         {
-            var stairs = new StairRampConfig
+            var stairs = new StairConfig
             {
-                Style = StairRampStyle.LandingTurn,
-                Axis = RoofAxis.Z,
                 Width = 5,
+                StepRise = 1,
+                StepRun = 2,
                 StepCount = 12,
-                Rise = 1,
-                Run = 2,
-                LandingLength = 6,
+                StepsPerFlight = 6,
+                Layout = StructureStairLayout.HalfTurn,
+                Landing = new LandingConfig
+                {
+                    Width = 5,
+                    Length = 6,
+                    Thickness = 1,
+                    MaterialRole = StructureMaterialRole.Floor,
+                },
                 MaterialRole = StructureMaterialRole.Floor,
             };
 
-            Assert.AreEqual(StairRampStyle.LandingTurn, stairs.Style);
-            Assert.AreEqual(RoofAxis.Z, stairs.Axis);
-            Assert.AreEqual(12, stairs.StepCount);
-            Assert.AreEqual(6, stairs.LandingLength);
-            Assert.AreEqual(StructureMaterialRole.Floor, stairs.MaterialRole);
+            Assert.IsTrue(stairs.IsWellFormed);
+            Assert.IsTrue(stairs.RequiresIntermediateLanding);
+            Assert.AreEqual(12, stairs.TotalRise);
+            Assert.AreEqual(24, stairs.TotalRun);
+            Assert.AreEqual(StructureStairLayout.HalfTurn, stairs.Layout);
+        }
+
+        [Test]
+        public void RampConfigRequiresLandingWhenFlightRunIsBounded()
+        {
+            var ramp = new RampConfig
+            {
+                Width = 6,
+                Rise = 6,
+                Run = 30,
+                Thickness = 2,
+                MaxRunPerFlight = 15,
+                Landing = new LandingConfig
+                {
+                    Width = 6,
+                    Length = 6,
+                    Thickness = 2,
+                    MaterialRole = StructureMaterialRole.Floor,
+                },
+                MaterialRole = StructureMaterialRole.Floor,
+            };
+
+            Assert.IsTrue(ramp.IsWellFormed);
+            Assert.IsTrue(ramp.RequiresIntermediateLanding);
         }
 
         [Test]
@@ -131,9 +172,9 @@ namespace VoxelEngine.Tests.Features
         {
             var tower = new TowerConfig
             {
-                Shape = TowerShape.Round,
-                PlacementMode = TowerPlacementMode.Corners,
-                TopStyle = TowerTopStyle.Roof,
+                Shape = StructureTowerShape.Round,
+                Placement = StructureTowerPlacement.Corners,
+                TopStyle = StructureTowerTopStyle.Roof,
                 Radius = 8,
                 Height = 40,
                 Count = 4,
@@ -156,14 +197,13 @@ namespace VoxelEngine.Tests.Features
                 TrimMaterialRole = StructureMaterialRole.Trim,
             };
 
-            Assert.AreEqual(TowerShape.Round, tower.Shape);
-            Assert.AreEqual(TowerPlacementMode.Corners, tower.PlacementMode);
-            Assert.AreEqual(TowerTopStyle.Roof, tower.TopStyle);
+            Assert.IsTrue(tower.IsWellFormed);
+            Assert.AreEqual(StructureTowerShape.Round, tower.Shape);
+            Assert.AreEqual(StructureTowerPlacement.Corners, tower.Placement);
+            Assert.AreEqual(StructureTowerTopStyle.Roof, tower.TopStyle);
             Assert.AreEqual(8, tower.Radius);
             Assert.AreEqual(4, tower.Count);
             Assert.IsTrue(tower.OpeningsEnabled);
-            Assert.AreEqual(StructureOpeningKind.Window, tower.Opening.Kind);
-            Assert.AreEqual(RoofStyle.Hip, tower.Roof.Style);
         }
 
         [Test]
@@ -171,7 +211,7 @@ namespace VoxelEngine.Tests.Features
         {
             var columns = new ColumnConfig
             {
-                Shape = ColumnShape.Round,
+                Shape = StructureColumnShape.Round,
                 Radius = 2,
                 Height = 18,
                 BaseHeight = 2,
@@ -182,10 +222,10 @@ namespace VoxelEngine.Tests.Features
                 TrimMaterialRole = StructureMaterialRole.Trim,
             };
 
-            Assert.AreEqual(ColumnShape.Round, columns.Shape);
+            Assert.IsTrue(columns.IsWellFormed);
+            Assert.AreEqual(StructureColumnShape.Round, columns.Shape);
             Assert.AreEqual(10, columns.Count);
             Assert.AreEqual(7, columns.Spacing);
-            Assert.AreEqual(StructureMaterialRole.Column, columns.ShaftMaterialRole);
         }
 
         [Test]
@@ -206,9 +246,9 @@ namespace VoxelEngine.Tests.Features
                 MaterialRole = StructureMaterialRole.SecondaryWall,
             };
 
+            Assert.IsTrue(buttress.IsWellFormed);
             Assert.IsTrue(buttress.FlyingEnabled);
             Assert.AreEqual(8, buttress.FlyingSpan);
-            Assert.AreEqual(4, buttress.FlyingRise);
             Assert.AreEqual(14, buttress.FlyingConnectionHeight);
         }
 
@@ -226,7 +266,7 @@ namespace VoxelEngine.Tests.Features
                 MaterialRole = StructureMaterialRole.PrimaryWall,
             };
 
-            Assert.AreEqual(2, battlement.ParapetThickness);
+            Assert.IsTrue(battlement.IsWellFormed);
             Assert.AreEqual(3, battlement.MerlonWidth);
             Assert.AreEqual(2, battlement.GapWidth);
             Assert.AreEqual(4, battlement.CornerMerlonWidth);
@@ -237,7 +277,7 @@ namespace VoxelEngine.Tests.Features
         {
             var accent = new VerticalAccentConfig
             {
-                Style = VerticalAccentStyle.Spire,
+                Style = StructureVerticalAccentStyle.Spire,
                 Width = 7,
                 Depth = 7,
                 Height = 28,
@@ -248,11 +288,10 @@ namespace VoxelEngine.Tests.Features
                 TrimMaterialRole = StructureMaterialRole.Trim,
             };
 
-            Assert.AreEqual(VerticalAccentStyle.Spire, accent.Style);
+            Assert.IsTrue(accent.IsWellFormed);
+            Assert.AreEqual(StructureVerticalAccentStyle.Spire, accent.Style);
             Assert.AreEqual(28, accent.Height);
-            Assert.AreEqual(6, accent.Taper);
             Assert.AreEqual(2, accent.Count);
-            Assert.AreEqual(StructureMaterialRole.Accent, accent.MaterialRole);
         }
     }
 }
