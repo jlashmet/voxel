@@ -8,98 +8,102 @@ namespace VoxelEngine.Tests.Features
     public sealed class StructureCompositionConfigTests
     {
         [Test]
-        public void InteriorLayoutUsesBoundedRoomsAndSharedOpenings()
+        public void OpenSpaceSupportsCourtyardSurfaceAndIndependentEdgeTreatments()
         {
-            var layout = new InteriorLayoutConfig();
-            layout.Rooms.Add(new RoomVolumeConfig
+            var courtyard = new OpenSpaceConfig
             {
-                LocalMin = new int3(0, 0, 0),
-                Size = new int3(16, 10, 16),
-                WallThickness = 2,
-                FloorThickness = 1,
-                CeilingThickness = 1,
-                WallMaterialRole = StructureMaterialRole.PrimaryWall,
-                FloorMaterialRole = StructureMaterialRole.Floor,
-                CeilingMaterialRole = StructureMaterialRole.Floor,
-            });
-            layout.Rooms.Add(new RoomVolumeConfig
-            {
-                LocalMin = new int3(16, 0, 0),
-                Size = new int3(16, 10, 16),
-                WallThickness = 2,
-                FloorThickness = 1,
-                CeilingThickness = 1,
-                WallMaterialRole = StructureMaterialRole.PrimaryWall,
-                FloorMaterialRole = StructureMaterialRole.Floor,
-                CeilingMaterialRole = StructureMaterialRole.Floor,
-            });
-            layout.Connections.Add(new ConnectiveOpeningConfig
-            {
-                FromRoomIndex = 0,
-                ToRoomIndex = 1,
-                Facing = Facing.East,
-                LocalOffset = 8,
-                Opening = new OpeningConfig
+                Area = new StructureFootprintRect(new int2(8, 8), new int2(32, 24)),
+                SurfaceMode = OpenSpaceSurfaceMode.Paved,
+                SurfaceThickness = 1,
+                SurfaceMaterialRole = StructureMaterialRole.Floor,
+                North = new OpenSpaceEdgeConfig
                 {
-                    Kind = StructureOpeningKind.Door,
-                    Width = 4,
-                    Height = 7,
-                    FrameThickness = 1,
-                    FrameMaterialRole = StructureMaterialRole.Trim,
-                    FillMaterialRole = StructureMaterialRole.Opening,
-                },
-            });
-
-            Assert.AreEqual(2, layout.Rooms.Length);
-            Assert.AreEqual(1, layout.Connections.Length);
-            Assert.AreEqual(StructureOpeningKind.Door, layout.Connections[0].Opening.Kind);
-        }
-
-        [Test]
-        public void CourtyardComposesSharedWallConfiguration()
-        {
-            var courtyard = new CourtyardConfig
-            {
-                OffsetX = 8,
-                OffsetZ = 8,
-                Width = 32,
-                Depth = 24,
-                FloorEnabled = true,
-                FloorThickness = 1,
-                PerimeterWallEnabled = true,
-                PerimeterWall = new WallRunConfig
-                {
+                    Kind = OpenSpaceEdgeKind.Wall,
+                    Height = 8,
                     Thickness = 2,
-                    Height = 6,
-                    RepetitionSpacing = 8,
+                    EntranceWidth = 4,
                     PrimaryMaterialRole = StructureMaterialRole.PrimaryWall,
-                    TrimMaterialRole = StructureMaterialRole.Trim,
                 },
-                FloorMaterialRole = StructureMaterialRole.Floor,
+                East = new OpenSpaceEdgeConfig
+                {
+                    Kind = OpenSpaceEdgeKind.Colonnade,
+                    Height = 10,
+                    Thickness = 2,
+                    RepetitionSpacing = 6,
+                    PrimaryMaterialRole = StructureMaterialRole.Column,
+                },
+                South = new OpenSpaceEdgeConfig { Kind = OpenSpaceEdgeKind.BuildingFace },
+                West = new OpenSpaceEdgeConfig { Kind = OpenSpaceEdgeKind.Open },
             };
 
-            Assert.IsTrue(courtyard.PerimeterWallEnabled);
-            Assert.AreEqual(32, courtyard.Width);
-            Assert.AreEqual(2, courtyard.PerimeterWall.Thickness);
+            Assert.IsTrue(courtyard.IsWellFormed);
+            Assert.AreEqual(new int2(32, 24), courtyard.Area.Size);
+            Assert.AreEqual(OpenSpaceEdgeKind.Colonnade, courtyard.East.Kind);
+            Assert.AreEqual(6, courtyard.East.RepetitionSpacing);
         }
 
         [Test]
-        public void AttachmentKindsResolveToStableExternalNames()
+        public void OpenSpaceRejectsInvalidSurfaceOrEdgeDimensions()
         {
-            Assert.AreEqual(new FixedString32Bytes("MainEntrance"),
-                StructureAttachmentNames.Resolve(StructureAttachmentKind.MainEntrance));
-            Assert.AreEqual(new FixedString32Bytes("RearEntrance"),
-                StructureAttachmentNames.Resolve(StructureAttachmentKind.RearEntrance));
-            Assert.AreEqual(new FixedString32Bytes("Road"),
-                StructureAttachmentNames.Resolve(StructureAttachmentKind.Road));
-            Assert.AreEqual(new FixedString32Bytes("Basement"),
-                StructureAttachmentNames.Resolve(StructureAttachmentKind.Basement));
-            Assert.AreEqual(new FixedString32Bytes("Crypt"),
-                StructureAttachmentNames.Resolve(StructureAttachmentKind.Crypt));
-            Assert.AreEqual(new FixedString32Bytes("Cave"),
-                StructureAttachmentNames.Resolve(StructureAttachmentKind.Cave));
-            Assert.AreEqual(new FixedString32Bytes("Extension"),
-                StructureAttachmentNames.Resolve(StructureAttachmentKind.Extension));
+            var invalidSurface = new OpenSpaceConfig
+            {
+                Area = new StructureFootprintRect(int2.zero, new int2(16, 16)),
+                SurfaceMode = OpenSpaceSurfaceMode.Paved,
+                SurfaceThickness = 0,
+                North = new OpenSpaceEdgeConfig { Kind = OpenSpaceEdgeKind.Open },
+                East = new OpenSpaceEdgeConfig { Kind = OpenSpaceEdgeKind.Open },
+                South = new OpenSpaceEdgeConfig { Kind = OpenSpaceEdgeKind.Open },
+                West = new OpenSpaceEdgeConfig { Kind = OpenSpaceEdgeKind.Open },
+            };
+            Assert.IsFalse(invalidSurface.IsWellFormed);
+
+            var invalidWall = new OpenSpaceConfig
+            {
+                Area = new StructureFootprintRect(int2.zero, new int2(16, 16)),
+                SurfaceMode = OpenSpaceSurfaceMode.None,
+                North = new OpenSpaceEdgeConfig
+                {
+                    Kind = OpenSpaceEdgeKind.Wall,
+                    Height = 8,
+                    Thickness = 0,
+                },
+                East = new OpenSpaceEdgeConfig { Kind = OpenSpaceEdgeKind.Open },
+                South = new OpenSpaceEdgeConfig { Kind = OpenSpaceEdgeKind.Open },
+                West = new OpenSpaceEdgeConfig { Kind = OpenSpaceEdgeKind.Open },
+            };
+            Assert.IsFalse(invalidWall.IsWellFormed);
+        }
+
+        [TestCase(StructureAttachmentKind.MainEntrance, "MainEntrance")]
+        [TestCase(StructureAttachmentKind.RearEntrance, "RearEntrance")]
+        [TestCase(StructureAttachmentKind.Road, "Road")]
+        [TestCase(StructureAttachmentKind.Basement, "Basement")]
+        [TestCase(StructureAttachmentKind.Crypt, "Crypt")]
+        [TestCase(StructureAttachmentKind.Cave, "Cave")]
+        [TestCase(StructureAttachmentKind.Extension, "Extension")]
+        public void AttachmentKindsResolveToStableExternalNames(
+            StructureAttachmentKind kind,
+            string expectedName)
+        {
+            FixedString32Bytes name = StructureAttachmentNames.Resolve(kind);
+            Assert.AreEqual(expectedName, name.ToString());
+        }
+
+        [Test]
+        public void AttachmentConfigCarriesSemanticKindWithoutStructureInternals()
+        {
+            var attachment = new AttachmentAnchorConfig
+            {
+                Kind = StructureAttachmentKind.Cave,
+                LocalPosition = new int3(12, -4, 0),
+                Facing = Facing.North,
+                SnapToGround = false,
+            };
+
+            Assert.IsTrue(attachment.IsWellFormed);
+            Assert.AreEqual(StructureAttachmentKind.Cave, attachment.Kind);
+            Assert.AreEqual(new int3(12, -4, 0), attachment.LocalPosition);
+            Assert.AreEqual("Cave", StructureAttachmentNames.Resolve(attachment.Kind).ToString());
         }
     }
 }
