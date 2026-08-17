@@ -10,11 +10,29 @@ namespace Game.Structures.Runtime
     {
         public static void Author(IStructureAuthoringSession authoring, in CastlePlan plan)
         {
+            CastleConfig config = CastlePresets.Compatibility(in plan);
+            Author(
+                authoring,
+                in plan,
+                in config.GateTowers,
+                in config.MainGate,
+                in config.GatehouseBattlements);
+        }
+
+        public static void Author(
+            IStructureAuthoringSession authoring,
+            in CastlePlan plan,
+            in TowerConfig gateTowers,
+            in OpeningConfig mainGate,
+            in BattlementConfig battlements)
+        {
             if (authoring == null) throw new System.ArgumentNullException(nameof(authoring));
+            if (!gateTowers.IsWellFormed || !mainGate.IsWellFormed || !battlements.IsWellFormed)
+                throw new System.ArgumentException("Castle gatehouse configuration is invalid.");
 
             int baseY = plan.Centre.y + plan.PlateauHeight;
             int gateZ = plan.Centre.z - plan.BaileyHalfZ;
-            int radius = plan.GateTowerRadius;
+            int radius = gateTowers.Radius;
             const int spacing = 54;
 
             var left = new int3(plan.Centre.x - spacing, baseY, gateZ);
@@ -26,31 +44,43 @@ namespace Game.Structures.Runtime
                 new int3(spacing * 2, blockHeight, plan.WallThickness * 2),
                 GameMaterialIds.Stone);
 
-            int leftHeight = plan.GateTowerHeight + 38;
-            int rightHeight = plan.GateTowerHeight + 12;
+            int leftHeight = gateTowers.Height + 38;
+            int rightHeight = gateTowers.Height + 12;
             CastleTowerAuthoring.AuthorTower(authoring, in plan, left, radius, leftHeight, false);
             CastleTowerAuthoring.AuthorTower(authoring, in plan, right, radius, rightHeight, false);
-            CastleTowerAuthoring.AuthorFrontWindows(
-                authoring, left, radius, leftHeight, plan.FloorHeight);
-            CastleTowerAuthoring.AuthorFrontWindows(
-                authoring, right, radius, rightHeight, plan.FloorHeight);
+            if (gateTowers.OpeningsEnabled)
+            {
+                CastleTowerAuthoring.AuthorFrontWindows(
+                    authoring, left, radius, leftHeight, plan.FloorHeight, in gateTowers.Opening);
+                CastleTowerAuthoring.AuthorFrontWindows(
+                    authoring, right, radius, rightHeight, plan.FloorHeight, in gateTowers.Opening);
+            }
 
             authoring.Arch(
-                new int3(plan.Centre.x - 26, baseY, gateZ - plan.WallThickness),
-                52, 74, plan.WallThickness * 2, 2, GameMaterialIds.Empty);
+                new int3(plan.Centre.x - (mainGate.Width + 4) / 2,
+                         baseY,
+                         gateZ - plan.WallThickness),
+                mainGate.Width + 4,
+                mainGate.Height + 14,
+                plan.WallThickness * 2,
+                2,
+                GameMaterialIds.Empty);
 
-            int3 gateMin = CastleLayout.FrontGateMinimum(in plan);
+            int3 gateMin = new(
+                plan.Centre.x - mainGate.Width / 2,
+                baseY + mainGate.BottomOffset,
+                gateZ - plan.WallThickness + 2);
             authoring.Arch(
                 gateMin,
-                CastleLayout.FrontGateWidth,
-                CastleLayout.FrontGateHeight,
+                mainGate.Width,
+                mainGate.Height,
                 CastleLayout.FrontGateDepth,
                 2,
                 GameMaterialIds.Wood);
             for (int band = 0; band < 3; band++)
                 authoring.Box(
                     new int3(gateMin.x + 2, gateMin.y + 10 + band * 13, gateMin.z),
-                    new int3(CastleLayout.FrontGateWidth - 4, 3, CastleLayout.FrontGateDepth),
+                    new int3(mainGate.Width - 4, 3, CastleLayout.FrontGateDepth),
                     GameMaterialIds.DarkStone);
             authoring.Box(
                 new int3(plan.Centre.x - 2, gateMin.y + 2, gateMin.z),
@@ -82,10 +112,10 @@ namespace Game.Structures.Runtime
                          gateZ - plan.WallThickness),
                 new int3(1, 0, 0),
                 spacing * 2,
-                8,
-                18,
-                18,
-                12,
+                battlements.ParapetThickness,
+                battlements.MerlonWidth,
+                battlements.GapWidth,
+                battlements.MerlonHeight,
                 GameMaterialIds.Stone);
 
             for (int side = -1; side <= 1; side += 2)
