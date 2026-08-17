@@ -7,6 +7,9 @@
     "left": "views/cleric_left.png",
     "right": "views/cleric_right.png"
   },
+  "appearance": {
+    "strategy": "character-multiview"
+  },
   "outputDir": "../build/sunlit_cleric_body_01",
   "generator": {
     "python": "/path/to/hunyuan-env/bin/python",
