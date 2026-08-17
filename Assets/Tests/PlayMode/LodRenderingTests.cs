@@ -35,6 +35,7 @@ namespace VoxelEngine.Tests.PlayMode
         [UnityTest, Timeout(900000)]
         public IEnumerator CastleKeepsVoxelGeometryAcrossEveryLodBand()
         {
+            Step4FalseEmptyDiagnostics.Reset();
             UnityEditor.SceneManagement.EditorSceneManager.LoadSceneInPlayMode(
                 ScenePath, new LoadSceneParameters(LoadSceneMode.Single));
             yield return null;
@@ -182,6 +183,7 @@ namespace VoxelEngine.Tests.PlayMode
                       + $"c:{metrics.Step4FeatureFallbackCompleted}/"
                       + $"n:{metrics.Step4FeatureFallbackNonEmpty}/"
                       + $"p:{metrics.Step4FeatureFallbackPublished} "
+                      + $"step4Lifecycle={Step4FalseEmptyDiagnostics.Current} "
                       + $"globalInvalidations=palette:{metrics.MaterialPaletteInvalidations}/"
                       + $"surface:{metrics.SurfaceCatalogueInvalidations}/"
                       + $"coating:{metrics.CoatingCatalogueInvalidations}/"

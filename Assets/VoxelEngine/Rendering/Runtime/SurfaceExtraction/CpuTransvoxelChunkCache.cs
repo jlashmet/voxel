@@ -1176,6 +1176,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     _topologyCompactJobScheduled = false;
                     _facetedMaskJobScheduled = false;
                     _facetedMergeJobScheduled = false;
+                    if (SourceStep == FeaturePreservingFallbackStep)
+                        Step4FalseEmptyDiagnostics.RecordOrdinaryResult(
+                            _build.HasOwnedSolid, _buildProfileBlocks.Length != 0,
+                            _compactedTopologyVertices.Length + _facetedVertices.Length,
+                            _compactedTopologyIndices.Length + _facetedIndices.Length);
                     if (RequiresFeaturePreservingFallback(
                             SourceStep, _build.HasOwnedSolid,
                             _buildProfileBlocks.Length != 0,
@@ -1203,6 +1208,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     _facetedTurnaroundTiming.Add(ElapsedMs(_build.FacetedScheduledSeconds));
                     _facetedMaskJobScheduled = false;
                     _facetedMergeJobScheduled = false;
+                    if (SourceStep == FeaturePreservingFallbackStep)
+                        Step4FalseEmptyDiagnostics.RecordOrdinaryResult(
+                            _build.HasOwnedSolid, _buildProfileBlocks.Length != 0,
+                            _facetedVertices.Length, _facetedIndices.Length);
                     if (RequiresFeaturePreservingFallback(
                             SourceStep, _build.HasOwnedSolid,
                             _buildProfileBlocks.Length != 0,
@@ -1233,6 +1242,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                             FeaturePreservingFallbackCompleteCount++;
                             if (_build.HasOwnedSolid)
                                 FeaturePreservingFallbackNonEmptyCount++;
+                            Step4FalseEmptyDiagnostics.RecordFallbackCompleted(
+                                _build.HasOwnedSolid);
                         }
                     }
                     if (_hlodOverflow[0] != 0)
@@ -1324,7 +1335,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private void ScheduleFeaturePreservingHlod(float voxelSize)
         {
             if (SupportsFeaturePreservingFallback)
+            {
                 FeaturePreservingFallbackScheduleCount++;
+                Step4FalseEmptyDiagnostics.RecordFallbackScheduled();
+            }
             if (!_hlodSummaries.IsCreated || !_hlodMaskScratch.IsCreated || !_hlodOverflow.IsCreated)
                 throw new InvalidOperationException(
                     $"Feature-preserving scratch was not allocated for source step {SourceStep}.");
@@ -2170,6 +2184,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _exactClassificationJobScheduled = false;
             _build.HasOwnedSolid = _snapshotClassificationFlags[0] != 0;
             _build.RequiresContinuousTopology = _snapshotClassificationFlags[1] != 0;
+            if (SourceStep == FeaturePreservingFallbackStep)
+                Step4FalseEmptyDiagnostics.RecordExactClassification(
+                    _build.HasOwnedSolid, _buildProfileBlocks.Length != 0);
             _build.SnapshotTaken = true;
             _exactMetadataReady = false;
             _exactMixedPinCursor = 0;
@@ -3289,6 +3306,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     RecycleEntry(stale);
                     _entries.Remove(_build.Coordinate);
                 }
+                if (SourceStep == FeaturePreservingFallbackStep)
+                    Step4FalseEmptyDiagnostics.RecordReadyEmptyPublication();
                 _emptyVersions[_build.Coordinate] = _build.SourceVersion;
                 CompletedBuildCount++;
                 _buildLatencyTiming.Add(ElapsedMs(_build.BuildStartSeconds));
@@ -3357,7 +3376,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             entry.CoatingCatalogueHash = _build.CoatingCatalogueHash;
             CompletedBuildCount++;
             if (_build.UsedFeaturePreservingFallback)
+            {
                 FeaturePreservingFallbackPublishCount++;
+                if (SourceStep == FeaturePreservingFallbackStep)
+                    Step4FalseEmptyDiagnostics.RecordFallbackPublished();
+            }
             _buildLatencyTiming.Add(ElapsedMs(_build.BuildStartSeconds));
             _desiredVersions.Remove(_build.Coordinate);
             _queuedAtSeconds.Remove(_build.Coordinate);
