@@ -15,10 +15,12 @@ This checklist is the source of truth for implementation progress. Mark each ite
 - Cave runtime content includes `CaveCampScene`, natural cave environmental families, and occupied/mine environmental families.
 - The natural/mine runtime source is present, but dedicated `NaturalCaveDecorationTests.cs` and `MineCaveDecorationTests.cs` source files are not currently present on the branch. Do not treat earlier notes implying those test files were committed as validation evidence.
 - Unity/CI execution and visual/performance evidence remain separate completion gates.
-- Large-scale content now has a two-level identity model: existing coarse prop families remain behavior/placement classes while `DecorationContentKind` carries stable archetype identity in deterministic variant bits.
-- The first catalog wave contains 42 archetypes across smithy, tavern, crypt, market, stable, prison, and civic packs. `DecorationContentAuthoringEmitter` maps them through a shared 24-shape grammar; mesh/thin content is emitted as data requests.
-- `DecorationContentSceneResolver` adapts content slots to the existing scheduler and placement resolver rather than introducing another collision engine. Smithy additionally uses a reusable near-anchor sub-space so anvil/bellows/quench/grindstone form a working cluster in front of the forge hearth.
-- `DecorationContentCatalogTests` provides source coverage for all 42 archetypes, seven initial scene definitions over representative seeds, authoring/backend partitioning, and 32-seed smithy relational placement. These tests still require Unity execution before any validation gate is closed.
+- Large-scale content uses a two-level identity model: existing coarse prop families remain behavior/placement classes while `DecorationContentKind` carries stable archetype identity in deterministic variant bits.
+- The catalog now contains **84 stable archetypes**. IDs 1-42 cover smithy, tavern, crypt, market, stable, prison, and civic content. IDs 43-60 cover carpentry/wheelwright content. IDs 61-84 cover textile, leather, pottery, and related crafts.
+- Later content packs are split into expansion catalog files so continued growth toward 400+ does not produce one monolithic recipe switch while numeric archetype IDs remain globally stable.
+- `DecorationContentAuthoringEmitter` maps content through a shared 24-shape grammar; mesh/thin content is emitted as data requests.
+- `DecorationContentSceneResolver` adapts content slots to the existing scheduler and placement resolver rather than introducing another collision engine. The initial seven scenes now use reusable front-of-anchor or around-anchor composition zones for their important floor relationships.
+- Test source covers global archetype identity/recipe integrity, seven initial multi-seed scenes, relational smithy/tavern/market/stable/crypt/prison/civic behavior, generic authoring/backend partitioning, and focused carpentry/craft expansion integrity. These tests still require Unity execution before any validation gate is closed.
 
 ## Setup and architecture
 
@@ -131,15 +133,15 @@ This checklist is the source of truth for implementation progress. Mark each ite
 - [x] **DEC132** Implement generic content authoring-shape grammar so new archetypes usually require catalog data rather than a bespoke authorer.
 - [x] **DEC133** Implement content-scene slot wrapper that reuses `DecorationSceneScheduler` and `DecorationPlacementResolver`.
 - [x] **DEC134** Add coherent smithy scene: hearth, anvil, bellows, quench tub, grindstone, tool board.
-- [ ] **DEC135** Add coherent tavern-bar scene: bar, keg rack, mug rack, serving shelf, firewood, game table.
-- [ ] **DEC136** Add coherent crypt scene: sarcophagus/coffin anchor, ossuary, bier, urns, grave marker.
-- [ ] **DEC137** Add coherent market scene: stall, canopy/sign, goods display, scale, baskets.
-- [ ] **DEC138** Add coherent stable scene: manger, trough, hay, saddle/tack, hitching fixture.
-- [ ] **DEC139** Add coherent prison scene: cage/stocks anchor, shackles, key board, bucket, restraint bench.
-- [ ] **DEC140** Add coherent civic-corner scene: notice board, well/fountain, lamp, public trough, handcart.
-- [x] **DEC141** Add catalog/scene deterministic test source for the first 42 archetypes and representative multi-seed rooms.
-- [ ] **DEC142** Add carpentry/general-workshop pack.
-- [ ] **DEC143** Add textile/leather/pottery craft pack.
+- [x] **DEC135** Add coherent tavern-bar scene: bar, keg rack, mug rack, serving shelf, firewood, game table.
+- [x] **DEC136** Add coherent crypt scene: sarcophagus/coffin anchor, ossuary, bier, urns, grave marker.
+- [x] **DEC137** Add coherent market scene: stall, canopy/sign, goods display, scale, baskets.
+- [x] **DEC138** Add coherent stable scene: manger, trough, hay, saddle/tack, hitching fixture.
+- [x] **DEC139** Add coherent prison scene: cage/stocks anchor, shackles, key board, bucket, restraint bench.
+- [x] **DEC140** Add coherent civic-corner scene: notice board, fountain, lamp, public trough, handcart. (`Well` remains available as an alternate civic anchor archetype.)
+- [x] **DEC141** Add catalog/scene deterministic test source for the initial archetypes and representative multi-seed rooms.
+- [x] **DEC142** Add carpentry/general-workshop pack (stable archetype IDs 43-60).
+- [x] **DEC143** Add textile/leather/pottery craft pack (stable archetype IDs 61-84).
 - [ ] **DEC144** Add kitchen/bakery/brewery/winery pack.
 - [ ] **DEC145** Expand market/shop/merchant pack.
 - [ ] **DEC146** Expand stable/farm/animal-husbandry pack.
