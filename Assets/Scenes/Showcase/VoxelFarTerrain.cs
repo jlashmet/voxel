@@ -86,6 +86,14 @@ namespace VoxelEngine.Showcase
         private int _ringWorkCursor;
         private ulong _topologyRebuildCount;
 
+        // A newly-created clipmap has no completed height cache to draw. Keep one zero-sampling
+        // emergency mesh in the outer-ring slot until that ring receives its first authoritative
+        // async sample. It is deliberately not marked height-valid: normal single-flight admission
+        // still visits every ring in order, while DrawMesh can provide continuous fallback coverage
+        // from the first rendered frame. The real outer ring replaces this mesh on publication.
+        private bool _startupFallbackInitialized;
+        private int _startupFallbackRing = -1;
+
         public float InnerRadiusMetres => m_InnerRadiusMetres;
         public float OuterRadiusMetres => m_OuterRadiusMetres;
         public uint Seed { get => m_Seed; set => m_Seed = value; }
@@ -234,6 +242,7 @@ namespace VoxelEngine.Showcase
                 _ringHeightValid[ring] = true;
                 _ringOrigin[ring] = _heightJobOrigin;
                 RebuildRingFromCachedHeights(ring, _ringOrigin[ring], _ringSpacing[ring]);
+                if (ring == _startupFallbackRing) _startupFallbackRing = -1;
                 _ringBuiltStructureVersion[ring] = structureVersion;
                 if (ring == 0) _builtHoleRadiusMetres = _holeRadiusMetres;
                 _ringWorkCursor = (ring + 1) % _ringMeshes.Count;
@@ -291,7 +300,10 @@ namespace VoxelEngine.Showcase
 
             for (int ring = 0; ring < _ringMeshes.Count; ring++)
             {
-                if (!_ringHeightValid[ring]) continue;
+                // The startup fallback deliberately has no valid height cache. It is a published
+                // emergency mesh only, so allow that one slot to draw while ordinary rings still
+                // require an authoritative completed sample.
+                if (!_ringHeightValid[ring] && ring != _startupFallbackRing) continue;
                 Graphics.DrawMesh(_ringMeshes[ring], Matrix4x4.identity, m_Material,
                                   gameObject.layer, _camera);
             }
@@ -383,6 +395,49 @@ namespace VoxelEngine.Showcase
                 _ringBuiltStructureVersion.Add(int.MinValue);
                 _ringBuiltTopologyHoleMetres.Add(float.NaN);
             }
+
+            if (!_startupFallbackInitialized && _ringMeshes.Count > 0)
+            {
+                _startupFallbackInitialized = true;
+                _startupFallbackRing = _ringMeshes.Count - 1;
+                BuildStartupFallback(_ringMeshes[_startupFallbackRing]);
+            }
+        }
+
+        /// <summary>
+        /// Publishes a zero-sampling full-square fallback before any asynchronous far height cache
+        /// has completed. It intentionally uses the showcase base height rather than touching the
+        /// terrain sampler on the player frame. The normal outer-ring height job later overwrites
+        /// this mesh atomically through <see cref="RebuildRingFromCachedHeights"/>.
+        /// </summary>
+        private void BuildStartupFallback(Mesh mesh)
+        {
+            Vector3 cameraPosition = _camera != null ? _camera.transform.position : transform.position;
+            float radius = Mathf.Max(m_OuterRadiusMetres, m_InnerRadiusMetres);
+            float y = ShowcaseWorld.BaseHeightVoxels * 0.1f;
+            float minX = cameraPosition.x - radius;
+            float maxX = cameraPosition.x + radius;
+            float minZ = cameraPosition.z - radius;
+            float maxZ = cameraPosition.z + radius;
+
+            mesh.vertices = new[]
+            {
+                new Vector3(minX, y, minZ),
+                new Vector3(minX, y, maxZ),
+                new Vector3(maxX, y, minZ),
+                new Vector3(maxX, y, maxZ),
+            };
+
+            byte material = MaterialRoles.SurfaceAt(
+                ShowcaseWorld.BaseHeightVoxels, ShowcaseWorld.BaseHeightVoxels);
+            Vector4 albedo = RenderingComposition.GetMaterialAlbedo(material);
+            Color colour = new(albedo.x, albedo.y, albedo.z, 1f);
+            mesh.colors = new[] { colour, colour, colour, colour };
+            mesh.SetTriangles(new[] { 0, 1, 2, 2, 1, 3 }, 0, false);
+            mesh.RecalculateNormals();
+            mesh.bounds = new Bounds(
+                new Vector3(cameraPosition.x, y, cameraPosition.z),
+                new Vector3(radius * 2f, 2f, radius * 2f));
         }
 
         /// <summary>
