@@ -34,6 +34,8 @@ namespace Game.Structures.Runtime
                     AuthorHall(authoring, in prototype.SpatialPlan, primary, secondary, accent);
                     break;
             }
+
+            GuildHouseSecretAccessAuthoring.Author(authoring, in prototype.SpatialPlan, prototype.Region);
         }
 
         private static void AuthorHall(
