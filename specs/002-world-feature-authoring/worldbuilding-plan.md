@@ -117,9 +117,9 @@ Phase 0 evidence and compatibility targets are recorded in [worldbuilding-invent
 - [x] **WB022** Define reusable buttress configuration with an extension point for flying-buttress approximation.
 - [x] **WB023** Define reusable battlement/crenellation/parapet configuration.
 - [x] **WB024** Define reusable chimney/spire/vertical-accent configuration where shapes overlap; keep archetype-only semantics outside the shared type.
-- [ ] **WB025** Define interior volume/room carving and connective-opening configuration sufficient for navigable generated interiors.
-- [ ] **WB026** Define reusable courtyard/open-space composition.
-- [ ] **WB027** Define named attachment-anchor semantics (`MainEntrance`, `RearEntrance`, `Road`, `Basement`, `Crypt`, `Cave`, `Extension`, etc.) without coupling consumers to structure internals.
+- [x] **WB025** Define interior volume/room carving and connective-opening configuration sufficient for navigable generated interiors.
+- [x] **WB026** Define reusable courtyard/open-space composition.
+- [x] **WB027** Define named attachment-anchor semantics (`MainEntrance`, `RearEntrance`, `Road`, `Basement`, `Crypt`, `Cave`, `Extension`, etc.) without coupling consumers to structure internals.
 - [ ] **WB028** Extend catalogue/shape-program contracts only where shared components cannot be expressed with current deterministic ops.
 - [ ] **WB029** Add validation tests for invalid dimensions, impossible opening spacing, unsupported roof combinations, bounds overflow, and primitive-budget overflow.
 - [ ] **WB030** Add deterministic tests proving the same config/seed produces identical primitive/voxel output and stable semantic sub-seeds.
