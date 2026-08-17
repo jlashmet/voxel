@@ -21,6 +21,7 @@ Status: `[ ]` todo, `[~]` in progress, `[x]` complete.
 - [x] Add dedicated Unity composition assembly without weakening engine-free application/voxel composition boundaries.
 - [x] Auto-bootstrap the Unity WorldObject presentation observer before scene load.
 - [x] Publish authoritative registry scene load/unload events so presentation can observe external registry owners without duplicating state.
+- [x] Advance every actively presented authoritative registry exactly once per Unity fixed step, including externally-owned streamed registries.
 - [x] Add geometry/behavior/runtime validation coverage for every registered kind (tests authored; Unity execution still required).
 
 ## Batch A — traversal and barriers
@@ -135,6 +136,7 @@ Geometry, concrete behavior, and generated-content placement are implemented. Pe
 
 - [ ] Run authored WorldObject tests in Unity and fix compile/runtime failures.
 - [x] Dynamic presentation path: planning + push refresh + concrete Unity sink/scene host; proxy visuals are intentionally gameplay-first placeholders.
-- [ ] Reconcile latest `agent/worldbuilding-decorations` changes into this branch (source branch is still actively moving; connector tree merge is currently blocked).
-- [x] Showcase castle streaming/startup lifecycle is wired end-to-end.
+- [ ] Reconcile latest `agent/worldbuilding-decorations` changes into this branch (source branch is still actively moving; a true reconciled merge commit is preserved on `agent/worldbuilding-interactables-decoration-reconcile`, but the live branch has continued moving concurrently).
+- [x] Showcase castle streaming/startup lifecycle is wired end-to-end, including automatic fixed-step WorldObject simulation while presented.
 - [~] Generic mine/cave streaming lifecycle: registry/factory/presentation support is complete; wire the concrete streamed mine/cave realization caller once that owner is identified.
+- [~] Ensure every external streamed WorldObject registry explicitly unloads its scenes before owner disposal so lifecycle-observed Unity presentation cannot outlive the authoritative world.
