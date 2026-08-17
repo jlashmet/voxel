@@ -9,10 +9,11 @@ This checklist is the source of truth for implementation progress. Mark each ite
 ## Current implementation notes
 
 - The generic semantic resolver and the first five bedroom prop families are implemented.
-- A castle-bedchamber adapter now derives semantic space, stair/navigation exclusions, and window exclusions from `CastlePlan` and resolves the generic bedroom scene.
+- A castle-bedchamber adapter derives semantic space plus stair/navigation, window, fireplace, sitting-area, and retained wall-hanging exclusions from `CastlePlan` and resolves the generic bedroom scene.
+- The normal castle keep build now routes floor 1 through `CastleProceduralBedroomAuthoring`; floors 0 and 2+ remain on the existing room-authoring path. The old private hand-authored bedchamber remains in `CastleKeepRoomAuthoring` as rollback/reference code but is bypassed by `CastleAuthoringBuild`.
+- The procedural castle bedroom emits the bed, rug, dresser, painting, and wall torch, while retaining the existing ceiling beams, fireplace, sitting cluster, wall hangings, and chandelier until those receive scene recipes.
 - A structure-authoring compatibility emitter exists for box-assembly props. Rug/painting thin surfaces currently emit as one-voxel sheets; this does **not** complete the true thin-surface backend task.
-- `CastleKeepRoomAuthoring` still owns the live hand-authored bedchamber furniture. The procedural scene is not wired into the live castle build yet, avoiding duplicate furniture while migration is incomplete.
-- NUnit regressions are committed, including a 128-seed bedroom stress test and representative castle-adapter tests. They still require execution in the Unity test environment/CI.
+- NUnit regressions are committed, including a 128-seed bedroom stress test, representative castle-adapter tests, and the existing castle build progression test exercises the newly routed floor-1 authoring path. They still require execution in the Unity test environment/CI.
 
 ## Setup and architecture
 
@@ -69,7 +70,7 @@ This checklist is the source of truth for implementation progress. Mark each ite
 ## Castle integration
 
 - [x] **DEC060** Expose one castle bedroom/interior as a semantic `DecorationSpace` rather than hard-coded prop placement.
-- [ ] **DEC061** Run the bedroom scene through castle authoring/build output.
+- [x] **DEC061** Run the bedroom scene through castle authoring/build output.
 - [x] **DEC062** Add castle integration tests proving the first five props resolve in a representative room.
 - [ ] **DEC063** Add debug/look-dev visibility for decoration sockets, exclusions, anchor relationships, and resolved placements.
 
