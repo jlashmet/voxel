@@ -51,5 +51,42 @@ namespace VoxelEngine.Tests.Features
             Assert.AreEqual(10, config.FoundationDepth);
             Assert.AreEqual(9, config.Palette.Resolve(StructureMaterialRole.PrimaryWall));
         }
+
+        [Test]
+        public void HouseRoofControlsAndDormerHookAreExplicitAndOverrideable()
+        {
+            HouseConfig config = HousePresets.CottageCompatibility(1, 2);
+
+            config.Roof.Style = RoofStyle.Hip;
+            config.Roof.PitchRise = 3;
+            config.Roof.PitchRun = 5;
+            config.Roof.RidgeAxis = RoofAxis.X;
+            config.Roof.EaveOverhang = 3;
+            config.Palette.Roof = 12;
+            config.Dormers = new HouseDormerConfig
+            {
+                Count = 2,
+                Facade = HouseRoofFacade.Front,
+                Width = 8,
+                Height = 7,
+                Depth = 5,
+                Spacing = 12,
+                EdgeMargin = 6,
+                RoofStyle = RoofStyle.Gable,
+                RoofMaterialRole = StructureMaterialRole.Roof,
+                WallMaterialRole = StructureMaterialRole.SecondaryWall,
+            };
+
+            Assert.AreEqual(RoofStyle.Hip, config.Roof.Style);
+            Assert.AreEqual(3, config.Roof.PitchRise);
+            Assert.AreEqual(5, config.Roof.PitchRun);
+            Assert.AreEqual(RoofAxis.X, config.Roof.RidgeAxis);
+            Assert.AreEqual(3, config.Roof.EaveOverhang);
+            Assert.AreEqual(12, config.Palette.Resolve(config.Roof.MaterialRole));
+            Assert.IsTrue(config.Dormers.Enabled);
+            Assert.IsTrue(config.Dormers.IsWellFormed);
+            Assert.AreEqual(2, config.Dormers.Count);
+            Assert.AreEqual(HouseRoofFacade.Front, config.Dormers.Facade);
+        }
     }
 }
