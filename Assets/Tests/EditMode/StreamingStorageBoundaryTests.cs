@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using NUnit.Framework;
+using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Streaming.Api;
@@ -138,6 +139,27 @@ namespace VoxelEngine.Tests.EditMode
             }
         }
 
+        [Test]
+        public void TraversalEvictionUsesActualResidentSetNotOnlyCurrentPlayerCube()
+        {
+            var store = new RecordingResidencyStore();
+            int3 current = int3.zero;
+            int3 farBehind = new int3(-100, 0, 0);
+            store.EnsureRegionResident(current);
+            store.EnsureRegionResident(farBehind);
+
+            int unloadBlocks = (int)(ResidencyManager.UnloadRadiusMetres_PC / 0.8f);
+            int evicted = ResidencyManager.EvictResidentRegionsOutsideRadius(
+                float3.zero, unloadBlocks, store);
+
+            Assert.AreEqual(1, evicted);
+            Assert.True(store.IsRegionResident(current),
+                "A region inside the unload sphere was incorrectly evicted.");
+            Assert.False(store.IsRegionResident(farBehind),
+                "A region left completely behind the current unload cube remained resident.");
+            CollectionAssert.Contains(store.Evicted, farBehind);
+        }
+
         private static string FindRepoRoot()
         {
             DirectoryInfo directory = new DirectoryInfo(Directory.GetCurrentDirectory());
@@ -150,11 +172,29 @@ namespace VoxelEngine.Tests.EditMode
         private sealed class RecordingResidencyStore : IRegionResidencyStore
         {
             public readonly List<int3> Ensured = new List<int3>();
+            public readonly List<int3> Evicted = new List<int3>();
 
             public StoragePressure Pressure => default;
             public bool IsRegionResident(int3 regionCoord) => Ensured.Contains(regionCoord);
-            public void EnsureRegionResident(int3 regionCoord) => Ensured.Add(regionCoord);
-            public bool EvictRegion(int3 regionCoord) => false;
+
+            public NativeArray<int3> GetResidentRegionCoords(Allocator allocator)
+            {
+                var result = new NativeArray<int3>(Ensured.Count, allocator);
+                for (int i = 0; i < Ensured.Count; i++) result[i] = Ensured[i];
+                return result;
+            }
+
+            public void EnsureRegionResident(int3 regionCoord)
+            {
+                if (!Ensured.Contains(regionCoord)) Ensured.Add(regionCoord);
+            }
+
+            public bool EvictRegion(int3 regionCoord)
+            {
+                if (!Ensured.Remove(regionCoord)) return false;
+                Evicted.Add(regionCoord);
+                return true;
+            }
         }
     }
 }
