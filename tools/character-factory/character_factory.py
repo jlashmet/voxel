@@ -14,7 +14,16 @@ if str(TOOL_ROOT) not in sys.path:
 
 from api import AssetType, BuildSpec, CharacterFactoryError, backend_profile, backend_profiles
 from runtime import CharacterFactoryRuntime
-from runtime.catalogue import catalogue_payload, load_catalogue_entries, select_entries, write_catalogue
+from runtime.catalogue import (
+    CHANGE_KINDS,
+    catalogue_payload,
+    classify_changes,
+    load_catalogue,
+    load_catalogue_entries,
+    select_changed_entries,
+    select_entries,
+    write_catalogue,
+)
 from runtime.production import ProductionRunner
 from runtime.unity_staging import stage_manifest_for_unity
 
@@ -86,6 +95,23 @@ def parse_args() -> argparse.Namespace:
         "--no-recursive",
         action="store_true",
         help="only inspect JSON specs directly inside the supplied directory",
+    )
+    produce_batch.add_argument(
+        "--changed-from",
+        type=Path,
+        help=(
+            "produce only assets whose spec or reference fingerprints differ from "
+            "this previous Character Factory catalogue"
+        ),
+    )
+    produce_batch.add_argument(
+        "--change-kind",
+        action="append",
+        choices=sorted(CHANGE_KINDS),
+        help=(
+            "with --changed-from, select only this input-change class "
+            "(new/spec/geometry/appearance/details); may be repeated"
+        ),
     )
     _add_catalogue_filters(produce_batch)
     _add_unity_assets_root(produce_batch)
@@ -240,11 +266,31 @@ def main() -> int:
             return 0
 
         if args.command == "produce-batch":
+            if args.change_kind and args.changed_from is None:
+                raise CharacterFactoryError("--change-kind requires --changed-from")
+
             entries = load_catalogue_entries(
                 args.directory,
                 recursive=not args.no_recursive,
                 validate_paths=False,
             )
+
+            if args.changed_from is not None:
+                previous = load_catalogue(args.changed_from)
+                changes, removed = classify_changes(entries, previous)
+                for change in changes:
+                    print(
+                        f"catalogue-change: {change.key} "
+                        f"kinds={','.join(sorted(change.kinds))}",
+                        flush=True,
+                    )
+                for key in removed:
+                    print(f"catalogue-removed: {key}", flush=True)
+                entries = select_changed_entries(
+                    changes,
+                    change_kinds=(None if not args.change_kind else set(args.change_kind)),
+                )
+
             asset_types = (
                 None
                 if not args.asset_types
@@ -257,6 +303,9 @@ def main() -> int:
                 asset_ids=asset_ids,
             )
             if not selected:
+                if args.changed_from is not None:
+                    print("produce-batch: no changed assets selected", flush=True)
+                    return 0
                 filters = []
                 if asset_types:
                     filters.append("types=" + ",".join(sorted(item.value for item in asset_types)))
