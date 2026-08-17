@@ -99,3 +99,5 @@ jobs:
             Artifacts/WorldbuildingVisuals/**
           if-no-files-found: warn
           retention-days: 14
+
+# Retrigger visual regression on restored self-hosted Mac runner.
