@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 import subprocess
 import sys
@@ -11,9 +12,10 @@ PROJECT_ROOT = TOOL_ROOT.parents[1]
 if str(TOOL_ROOT) not in sys.path:
     sys.path.insert(0, str(TOOL_ROOT))
 
-from api import BuildSpec, CharacterFactoryError, backend_profile, backend_profiles
+from api import AssetType, BuildSpec, CharacterFactoryError, backend_profile, backend_profiles
 from runtime import CharacterFactoryRuntime
-from runtime.production import ProductionRunner, discover_specs
+from runtime.catalogue import catalogue_payload, load_catalogue_entries, select_entries, write_catalogue
+from runtime.production import ProductionRunner
 from runtime.unity_staging import stage_manifest_for_unity
 
 
@@ -28,6 +30,22 @@ def _add_unity_assets_root(parser: argparse.ArgumentParser) -> None:
             "after a successful build, copy the FBX and a portable import descriptor "
             "under this Unity Assets directory"
         ),
+    )
+
+
+def _add_catalogue_filters(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--type",
+        dest="asset_types",
+        action="append",
+        choices=[item.value for item in AssetType],
+        help="select one asset type; may be repeated",
+    )
+    parser.add_argument(
+        "--id",
+        dest="asset_ids",
+        action="append",
+        help="select one asset id; may be repeated",
     )
 
 
@@ -60,7 +78,7 @@ def parse_args() -> argparse.Namespace:
 
     produce_batch = subparsers.add_parser(
         "produce-batch",
-        help="recursively discover and produce character/clothing/weapon/accessory specs",
+        help="recursively discover and selectively produce asset-library specs",
     )
     produce_batch.add_argument("directory", type=Path)
     produce_batch.add_argument("--dry-run", action="store_true")
@@ -69,7 +87,21 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="only inspect JSON specs directly inside the supplied directory",
     )
+    _add_catalogue_filters(produce_batch)
     _add_unity_assets_root(produce_batch)
+
+    catalogue = subparsers.add_parser(
+        "catalogue",
+        help="index a production asset library with type/profile/reference fingerprints",
+    )
+    catalogue.add_argument("directory", type=Path)
+    catalogue.add_argument("--output", type=Path)
+    catalogue.add_argument("--no-recursive", action="store_true")
+    catalogue.add_argument(
+        "--validate-paths",
+        action="store_true",
+        help="require all referenced source files and rig inputs to exist while indexing",
+    )
 
     subparsers.add_parser(
         "profiles",
@@ -177,6 +209,24 @@ def main() -> int:
             bootstrap_backend_profile(args.name)
             return 0
 
+        if args.command == "catalogue":
+            if args.output is not None:
+                output = write_catalogue(
+                    args.directory,
+                    args.output,
+                    recursive=not args.no_recursive,
+                    validate_paths=args.validate_paths,
+                )
+                print(output)
+            else:
+                payload = catalogue_payload(
+                    args.directory,
+                    recursive=not args.no_recursive,
+                    validate_paths=args.validate_paths,
+                )
+                print(json.dumps(payload, indent=2))
+            return 0
+
         if args.command == "build":
             build_one(runtime, args.spec, args.dry_run, args.unity_assets_root)
             return 0
@@ -190,15 +240,36 @@ def main() -> int:
             return 0
 
         if args.command == "produce-batch":
-            specs = discover_specs(args.directory, recursive=not args.no_recursive)
-            if not specs:
+            entries = load_catalogue_entries(
+                args.directory,
+                recursive=not args.no_recursive,
+                validate_paths=False,
+            )
+            asset_types = (
+                None
+                if not args.asset_types
+                else {AssetType(value) for value in args.asset_types}
+            )
+            asset_ids = None if not args.asset_ids else set(args.asset_ids)
+            selected = select_entries(
+                entries,
+                asset_types=asset_types,
+                asset_ids=asset_ids,
+            )
+            if not selected:
+                filters = []
+                if asset_types:
+                    filters.append("types=" + ",".join(sorted(item.value for item in asset_types)))
+                if asset_ids:
+                    filters.append("ids=" + ",".join(sorted(asset_ids)))
+                suffix = " (" + " ".join(filters) + ")" if filters else ""
                 raise CharacterFactoryError(
-                    f"No Character Factory production specs found in {args.directory}"
+                    f"No Character Factory production specs selected in {args.directory}{suffix}"
                 )
-            for spec_path in specs:
+            for entry in selected:
                 produce_one(
                     production,
-                    spec_path,
+                    entry.spec_path,
                     args.dry_run,
                     args.unity_assets_root,
                 )
