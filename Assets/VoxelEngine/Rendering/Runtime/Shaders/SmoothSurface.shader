@@ -35,6 +35,7 @@ Shader "Hidden/VoxelEngine/SmoothSurface"
             StructuredBuffer<uint> _SurfaceIndices;
             uint _SurfaceIndexBase;
             uint _SurfaceVertexBase;
+            uint _SurfaceTransitionMask;
             float4 _BaseColor;
             float4 _MaterialAlbedo[32];
             float4 _MaterialSampling[32];
@@ -82,11 +83,26 @@ Shader "Hidden/VoxelEngine/SmoothSurface"
             {
                 SurfaceVertex vertex = _SurfaceVertices[_SurfaceVertexBase + _SurfaceIndices[_SurfaceIndexBase + vertexID]];
                 Varyings output;
-                output.positionCS = TransformWorldToHClip(vertex.position);
                 output.positionWS = vertex.position;
                 output.normalNS = normalize(vertex.normal);
                 output.material = vertex.material;
                 output.occlusion = ((vertex.active >> 8) & 0xFFu) * (1.0 / 255.0);
+
+                uint transitionTag = (vertex.active >> 24) & 0xFFu;
+                if (transitionTag > 0u)
+                {
+                    uint faceBit = 1u << (transitionTag - 1u);
+                    if ((_SurfaceTransitionMask & faceBit) == 0u)
+                    {
+                        // Every vertex in one reusable transition triangle carries the same face
+                        // tag. Collapsing disabled vertices to one offscreen point makes the
+                        // triangle degenerate without changing buffers or issuing another draw.
+                        output.positionCS = float4(2.0, 2.0, 2.0, 1.0);
+                        return output;
+                    }
+                }
+
+                output.positionCS = TransformWorldToHClip(vertex.position);
                 return output;
             }
 

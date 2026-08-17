@@ -15,7 +15,14 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         /// </summary>
         public uint Material;
 
+        /// <summary>
+        /// Bits 8..15 carry ambient-occlusion strength. Bits 24..31 carry a reusable
+        /// Transvoxel transition-face tag: zero for ordinary geometry, face+1 for seams.
+        /// The active six-bit face mask is supplied per draw so LOD changes do not remesh.
+        /// </summary>
         public uint Active;
+        public const int TransitionTagShift = 24;
+        public const uint TransitionTagMask = 0xFF000000u;
         public const int Stride = 32;
     }
 }

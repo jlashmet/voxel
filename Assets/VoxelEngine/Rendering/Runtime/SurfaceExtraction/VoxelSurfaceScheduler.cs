@@ -1007,7 +1007,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     {
                         SurfaceLodNodeKey active = _activeLodScratch[i];
                         RequestAndSync(active, SurfaceBuildPriority.PreserveActiveCoverage);
-                        WorkerFor(active).CollectActiveCoordinate(
+                        CpuTransvoxelChunkCache worker = WorkerFor(active);
+                        worker.SetHierarchyTransitionMask(active.Coordinate,
+                            SurfaceLodTransitionMask.Compute(active, _activeLodCoverage));
+                        worker.CollectActiveCoordinate(
                             active.Coordinate, _visibilityFrustumPlanes, voxelSize, frame);
                     }
 

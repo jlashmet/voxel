@@ -81,6 +81,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private static readonly int s_SurfaceIndices = Shader.PropertyToID("_SurfaceIndices");
         private static readonly int s_SurfaceIndexBase = Shader.PropertyToID("_SurfaceIndexBase");
         private static readonly int s_SurfaceVertexBase = Shader.PropertyToID("_SurfaceVertexBase");
+        private static readonly int s_SurfaceTransitionMask = Shader.PropertyToID("_SurfaceTransitionMask");
 
         public sealed class Entry : IDisposable
         {
@@ -99,6 +100,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             public bool Ready;
             public int IndexCount;
             public int LastUsedFrame;
+            public byte TransitionMask;
             public long GpuBytes { get; private set; }
             public int VertexCapacity { get; private set; }
             public int IndexCapacity { get; private set; }
@@ -126,6 +128,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 Coordinate = coordinate;
                 IndexCount = 0;
                 LastUsedFrame = 0;
+                TransitionMask = 0;
                 GpuBytes = 0;
                 VertexCapacity = 0;
                 IndexCapacity = 0;
@@ -253,6 +256,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 properties.SetBuffer(s_SurfaceIndices, _arena.Indices);
                 properties.SetInt(s_SurfaceVertexBase, _liveLease.VertexStart);
                 properties.SetInt(s_SurfaceIndexBase, _liveLease.IndexStart);
+                properties.SetInt(s_SurfaceTransitionMask, TransitionMask);
                 commandBuffer.DrawProceduralIndirect(Matrix4x4.identity, material, 0,
                     MeshTopology.Triangles, _arena.Args,
                     _liveLease.ArgsWordStart * sizeof(uint), properties);
@@ -265,6 +269,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 _liveLease = default;
                 Ready = false;
                 IndexCount = 0;
+                TransitionMask = 0;
                 GpuBytes = 0;
                 VertexCapacity = 0;
                 IndexCapacity = 0;
@@ -589,10 +594,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         /// </summary>
         private bool StepTransitionFaces(IRegionReadSource source,
                                          in MaterialPaletteView palette,
-                                         Camera camera, float voxelSize,
+                                         float voxelSize,
                                          double deadlineSeconds)
         {
-            if (MinViewDistanceMetres <= 0f || camera == null) return true;
+            if (SourceStep <= SurfaceLodHierarchy.FinestSourceStep) return true;
 
             if (_transitionJobScheduled)
             {
@@ -604,6 +609,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                         _transitionJobHandle, ref _framePathBlockingCompletionViolations))
                     return false;
                 _transitionJobScheduled = false;
+                TagTransitionVertices(_transitionFace);
                 _transitionResultPending = true;
                 _transitionAppendVertexCursor = 0;
                 _transitionAppendIndexCursor = 0;
@@ -626,16 +632,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 _transitionSampleCursor = 0;
             }
 
-            Vector3 cameraPosition = camera.transform.position;
             while (_build.Cursor < 6)
             {
                 int face = _build.Cursor;
-                if (!FaceNeedsTransition(_build.Coordinate, face, voxelSize,
-                                         cameraPosition))
-                {
-                    _build.Cursor++;
-                    continue;
-                }
 
                 if (_transitionFace != face)
                 {
@@ -675,6 +674,20 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             }
 
             return true;
+        }
+
+        private void TagTransitionVertices(int face)
+        {
+            if ((uint)face >= SurfaceLodTransitionMask.FaceCount)
+                throw new ArgumentOutOfRangeException(nameof(face), face,
+                    "Transition face must be in [0,5].");
+            uint tag = (uint)(face + 1) << SmoothSurfaceVertex.TransitionTagShift;
+            for (int i = 0; i < _transitionVertices.Length; i++)
+            {
+                SmoothSurfaceVertex vertex = _transitionVertices[i];
+                vertex.Active = (vertex.Active & ~SmoothSurfaceVertex.TransitionTagMask) | tag;
+                _transitionVertices[i] = vertex;
+            }
         }
 
         /// <summary>
@@ -951,6 +964,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         internal void MarkHierarchyActive(int3 coordinate)
         {
             if (_known.Contains(coordinate)) _hierarchyActive.Add(coordinate);
+        }
+
+        internal void SetHierarchyTransitionMask(int3 coordinate, byte mask)
+        {
+            if (_entries.TryGetValue(coordinate, out Entry entry) && entry.Ready)
+                entry.TransitionMask = (byte)(mask & 0x3Fu);
         }
 
         /// <summary>True when a known node is in its legacy distance shell and camera frustum.
@@ -1386,8 +1405,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
                 if (_build.Phase == 4)
                 {
-                    if (!StepTransitionFaces(source, in palette, camera, voxelSize,
-                                             deadline))
+                    if (!StepTransitionFaces(source, in palette, voxelSize, deadline))
                         break;
                     FinishBuild(frame);
                     if (_pendingUpload) break;
