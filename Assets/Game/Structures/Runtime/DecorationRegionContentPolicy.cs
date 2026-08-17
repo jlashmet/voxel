@@ -88,6 +88,14 @@ namespace Game.Structures.Runtime
                 baseProfile.DamageLevel);
         }
 
+        /// <summary>
+        /// Compatibility alias for newer emitters that naturally pass region before context.
+        /// Semantic behavior is identical to <see cref="Presentation"/>.
+        /// </summary>
+        public static DecorationPresentationProfile ResolvePresentation(
+            DecorationRegionTheme region,
+            in DecorationContext context) => Presentation(in context, region);
+
         private static bool IsClutterLike(DecorationExpansion300Kind kind) =>
             kind == DecorationExpansion300Kind.TrophySkullPile ||
             kind == DecorationExpansion300Kind.GnawedBonePile ||
