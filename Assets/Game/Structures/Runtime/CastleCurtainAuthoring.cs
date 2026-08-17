@@ -204,7 +204,7 @@ namespace Game.Structures.Runtime
             StructureComponentAuthoring.AuthorWallRun(
                 authoring, start, dir, alongX, in wall, in palette);
 
-            if (wall.RepetitionSpacing > 0)
+            if (wall.RepetitionSpacing > 0 && wall.RepetitionOffset < length)
             {
                 var slit = new OpeningConfig
                 {
