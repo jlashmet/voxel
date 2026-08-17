@@ -71,6 +71,56 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void AnonymousFrontagePackingSplitsGapsAndKeepsStableSiteIndices()
+        {
+            SettlementFrontageSite[] sites = SettlementPlotLayout.PackFrontage(
+                startDm: 0,
+                endDm: 300,
+                coveragePercent: 100,
+                modulePitchDm: 100,
+                hasGap: true,
+                gapCentreDm: 150,
+                gapWidthDm: 100);
+
+            Assert.AreEqual(2, sites.Length);
+            Assert.AreEqual(50, sites[0].CentreAlongDm);
+            Assert.AreEqual(0, sites[0].SegmentIndex);
+            Assert.AreEqual(0, sites[0].SiteIndex);
+            Assert.AreEqual(250, sites[1].CentreAlongDm);
+            Assert.AreEqual(1, sites[1].SegmentIndex);
+            Assert.AreEqual(1, sites[1].SiteIndex);
+        }
+
+        [Test]
+        public void AnonymousFrontagePackingIsDirectionIndependentAndPolicyDriven()
+        {
+            SettlementFrontageSite[] forward = SettlementPlotLayout.PackFrontage(
+                startDm: 20,
+                endDm: 320,
+                coveragePercent: 67,
+                modulePitchDm: 100);
+            SettlementFrontageSite[] reversed = SettlementPlotLayout.PackFrontage(
+                startDm: 320,
+                endDm: 20,
+                coveragePercent: 67,
+                modulePitchDm: 100);
+
+            Assert.AreEqual(3, forward.Length);
+            Assert.AreEqual(forward.Length, reversed.Length);
+            for (int i = 0; i < forward.Length; i++)
+            {
+                Assert.AreEqual(forward[i].CentreAlongDm, reversed[i].CentreAlongDm);
+                Assert.AreEqual(i, forward[i].SiteIndex);
+            }
+
+            Assert.IsEmpty(SettlementPlotLayout.PackFrontage(
+                0, 300, coveragePercent: 0, modulePitchDm: 100));
+            Assert.Throws<System.ArgumentOutOfRangeException>(() =>
+                SettlementPlotLayout.PackFrontage(
+                    0, 300, coveragePercent: 101, modulePitchDm: 100));
+        }
+
+        [Test]
         public void JitterIsStableBoundedAndIndependentOfCallOrder()
         {
             int first = SettlementPlotLayout.StableSignedJitter(0xCAFEu, 17u, 8);
