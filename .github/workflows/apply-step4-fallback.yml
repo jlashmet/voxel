@@ -1,0 +1,35 @@
+name: Apply measured step-4 fallback repair
+
+on:
+  push:
+    branches:
+      - feature/voxel-showcase-rendering-repair-v2
+    paths:
+      - .github/workflows/apply-step4-fallback.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/voxel-showcase-rendering-repair-v2
+          fetch-depth: 0
+      - name: Apply refined profile-safe source patch
+        run: python3 tools/apply-step4-fallback.py
+      - name: Validate patch
+        run: |
+          git diff --check
+          git diff -- Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
+      - name: Commit clean repair and retire transport
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
+          git rm .github/workflows/apply-step4-fallback.yml tools/apply-step4-fallback.py
+          git commit -m 'fix(rendering): guard step-4 false-empty fallback'
+          git push origin HEAD:feature/voxel-showcase-rendering-repair-v2
