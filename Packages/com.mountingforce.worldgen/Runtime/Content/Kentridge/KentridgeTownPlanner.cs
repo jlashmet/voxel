@@ -19,10 +19,12 @@ namespace MountingForce.WorldGen.Content.Kentridge
         public const string EastServiceLaneId = "east-service-lane";
         public const string MarketSquareId = "market-square";
 
-        public const string CompactHousePresetId = "house.compact";
-        public const string FarmhousePresetId = "house.farmhouse";
-        public const string TallTownhousePresetId = "house.tall-townhouse";
-        public const string ParishChurchPresetId = "church.parish";
+        // Core deliberately treats preset IDs as opaque strings so it never depends on a game or
+        // voxel structure assembly. These values follow the shared <archetype>.<variant>.vN convention.
+        public const string CompactHousePresetId = "house.compact-cabin.v1";
+        public const string FarmhousePresetId = "house.farmhouse.v1";
+        public const string TallTownhousePresetId = "house.tall-townhouse.v1";
+        public const string ParishChurchPresetId = "church.parish.v1";
 
         public const int MainSpineXDm = 1170;
         public const int MarketStreetZDm = 520;
@@ -170,7 +172,8 @@ namespace MountingForce.WorldGen.Content.Kentridge
             FrontageDirection frontage, int roadWidthDm, int setbackDm, int jitterDm)
         {
             Int3 footprint = KentridgeDefinition.FootprintDm(archetype);
-            BuildingPlot plot = SettlementPlotLayout.AlongHorizontalStreet(
+            SettlementLotConfig lot = LotFor(footprint, frontage, setbackDm, jitterDm, district);
+            return SettlementRoadFacingPlacement.AlongHorizontalStreet(
                 seed,
                 salt,
                 (int)role,
@@ -183,10 +186,8 @@ namespace MountingForce.WorldGen.Content.Kentridge
                 roadWidthDm,
                 setbackDm,
                 jitterDm,
-                footprint);
-            LotFor(footprint, frontage, setbackDm, jitterDm, district)
-                .ValidatePlacement(seed, (int)role, frontage, plot.Access, footprint);
-            return plot;
+                footprint,
+                in lot);
         }
 
         private static BuildingPlot AlongVerticalStreet(
@@ -195,7 +196,8 @@ namespace MountingForce.WorldGen.Content.Kentridge
             FrontageDirection frontage, int roadWidthDm, int setbackDm, int jitterDm)
         {
             Int3 footprint = KentridgeDefinition.FootprintDm(archetype);
-            BuildingPlot plot = SettlementPlotLayout.AlongVerticalStreet(
+            SettlementLotConfig lot = LotFor(footprint, frontage, setbackDm, jitterDm, district);
+            return SettlementRoadFacingPlacement.AlongVerticalStreet(
                 seed,
                 salt,
                 (int)role,
@@ -208,10 +210,8 @@ namespace MountingForce.WorldGen.Content.Kentridge
                 roadWidthDm,
                 setbackDm,
                 jitterDm,
-                footprint);
-            LotFor(footprint, frontage, setbackDm, jitterDm, district)
-                .ValidatePlacement(seed, (int)role, frontage, plot.Access, footprint);
-            return plot;
+                footprint,
+                in lot);
         }
 
         private static BuildingPlot CentrePlot(
@@ -220,14 +220,6 @@ namespace MountingForce.WorldGen.Content.Kentridge
             string plazaId, Int2 centreDm)
         {
             Int3 footprint = KentridgeDefinition.FootprintDm(archetype);
-            BuildingPlot plot = SettlementPlotLayout.CentreOnPlaza(
-                (int)role,
-                archetype,
-                district,
-                plazaId,
-                centreDm,
-                footprint);
-
             int width = Math.Max(footprint.X, footprint.Z);
             var plazaLot = new SettlementLotConfig(
                 new SettlementIntRange(width, width),
@@ -239,8 +231,15 @@ namespace MountingForce.WorldGen.Content.Kentridge
                 SettlementFrontageMask.Cardinal,
                 false,
                 100);
-            plazaLot.ValidatePlacement(seed, (int)role, plot.Frontage, plot.Access, footprint);
-            return plot;
+            return SettlementRoadFacingPlacement.CentreOnPlaza(
+                seed,
+                (int)role,
+                archetype,
+                district,
+                plazaId,
+                centreDm,
+                footprint,
+                in plazaLot);
         }
 
         private static SettlementLotConfig LotFor(
