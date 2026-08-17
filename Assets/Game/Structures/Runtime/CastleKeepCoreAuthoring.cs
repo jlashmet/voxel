@@ -26,7 +26,8 @@ namespace Game.Structures.Runtime
 
         public static void AuthorShell(IStructureAuthoringSession authoring, in CastlePlan plan)
         {
-            CastleComponentConfig components = CastleCompatibilityComponents.Resolve(in plan);
+            StructureMaterialPalette palette = CastleStructurePalette.Compatibility;
+            CastleComponentConfig components = CastleComponentPresets.Compatibility(in plan, in palette);
             AuthorShell(
                 authoring,
                 in plan,
@@ -42,7 +43,8 @@ namespace Game.Structures.Runtime
             in StructureFootprintConfig foundation,
             int foundationTopOffset)
         {
-            CastleComponentConfig components = CastleCompatibilityComponents.Resolve(in plan);
+            StructureMaterialPalette palette = CastleStructurePalette.Compatibility;
+            CastleComponentConfig components = CastleComponentPresets.Compatibility(in plan, in palette);
             AuthorShell(
                 authoring,
                 in plan,
@@ -73,18 +75,15 @@ namespace Game.Structures.Runtime
             int3 legacySize = Size(in plan);
             int3 size = new(legacySize.x, wall.Height, legacySize.z);
             int thickness = wall.Thickness;
-            StructureFootprintRect foundationRect = foundation.Primary;
 
-            authoring.Box(
-                new int3(
-                    min.x + foundationRect.Min.x,
-                    baseY + foundationTopOffset - foundation.FoundationDepth,
-                    min.z + foundationRect.Min.y),
-                new int3(
-                    foundationRect.Size.x,
-                    foundation.FoundationDepth,
-                    foundationRect.Size.y),
-                palette.Resolve(foundation.FoundationMaterial));
+            // The compatibility footprint is local to the keep minimum, matching the historical
+            // six-voxel apron and four-voxel foundation cap exactly.
+            StructureComponentAuthoring.AuthorSlabFoundation(
+                authoring,
+                new int3(min.x, baseY + foundationTopOffset, min.z),
+                in foundation,
+                in palette);
+
             authoring.HollowBox(
                 min,
                 size,
@@ -101,7 +100,7 @@ namespace Game.Structures.Runtime
                     size.x - 2 * thickness,
                     size.y - 1,
                     size.z - 2 * thickness),
-                GameMaterialIds.Empty);
+                palette.Resolve(StructureMaterialRole.Opening));
         }
 
         public static void AuthorCornerTurrets(
