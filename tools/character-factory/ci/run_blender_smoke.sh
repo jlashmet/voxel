@@ -99,7 +99,7 @@ done
   --python tools/character-factory/ci/verify_rigid_asset.py -- \
   --input "$OUT/rigid.projected.fbx"
 
-# New reusable rigid-composition gate. The generated-detail stage receives an
+# Reusable rigid-composition gate. The generated-detail stage receives an
 # intentionally X-long detail mesh, constructs the shaft, then must canonicalize
 # the final asset to Z with an exact physical length and a grip anchor near one end.
 "$BLENDER_BIN" --background --python-exit-code 1 \
@@ -123,7 +123,28 @@ done
   --python tools/character-factory/ci/verify_rigid_asset.py -- \
   --input "$OUT/composed-staff.fbx"
 
+# Exercise the same composition/preparation machinery as an accessory with a
+# different canonical axis, physical size, and mount-anchor convention.
+"$BLENDER_BIN" --background --python-exit-code 1 \
+  --python tools/character-factory/runtime/blender_compose_generated_detail_shaft.py -- \
+  --input-detail "$OUT/generated-detail.glb" \
+  --output "$OUT/composed-accessory.fbx" \
+  --part-kind accessory \
+  --total-length 0.25 \
+  --detail-length 0.08 \
+  --shaft-radius 0.008 \
+  --axis auto \
+  --attachment-side max \
+  --overlap 0.008 \
+  --canonical-axis y \
+  --target-length 0.25 \
+  --anchor-fraction 0.5 0.0 0.5
+"$BLENDER_BIN" --background --python-exit-code 1 \
+  --python tools/character-factory/ci/verify_rigid_asset.py -- \
+  --input "$OUT/composed-accessory.fbx"
+
 test -s "$OUT/composed-staff.rigid-contract.json"
+test -s "$OUT/composed-accessory.rigid-contract.json"
 test -s "$OUT/character.atlas.png"
 test -s "$OUT/garment.atlas.png"
 test -s "$OUT/rigid.atlas.png"
