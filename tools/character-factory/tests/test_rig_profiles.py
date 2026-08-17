@@ -32,7 +32,8 @@ class RigProfileTests(unittest.TestCase):
         self.assertEqual("canonical-humanoid-macos", config.profile)
         self.assertEqual("Body", config.body_object)
         self.assertEqual("Armature", config.armature_object)
-        self.assertTrue(str(config.canonical_body).startswith("/tmp/cf-rig-cache/canonical-donors/"))
+        expected_root = Path("/tmp/cf-rig-cache").resolve() / "canonical-donors"
+        self.assertTrue(config.canonical_body.is_relative_to(expected_root))
         self.assertTrue(str(config.canonical_body).endswith("canonical_female_with_garment_donor.glb"))
         self.assertIsNotNone(config.source_revision)
         self.assertEqual("bootstrap_canonical.py", config.bootstrap_script.name)
