@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Unity.Mathematics;
 using VoxelEngine.Structures.Runtime;
 
 using VoxelEngine.Structures.Api;
@@ -57,9 +58,10 @@ namespace VoxelEngine.Tests.Features.Fixtures
     /// <summary>
     /// A cottage: foundation, four walls, a hollow interior, a door, and a gable roof.
     ///
-    /// Written against the *default* parameters rather than reading registers, because US1's
-    /// tests are about the evaluator and the rasteriser rather than about parameter plumbing.
-    /// Register-driven dimensions arrive when the compiler does.
+    /// The compatibility fixture now expresses its defaults through the same shared architectural
+    /// component contracts used by configurable structures. It still emits the original bounded
+    /// integer shape-program sequence so WB031 does not silently change the established cottage.
+    /// Register-driven dimensions arrive with the detailed house configuration tasks.
     /// </summary>
     public static class CottageProgram
     {
@@ -69,36 +71,94 @@ namespace VoxelEngine.Tests.Features.Fixtures
         /// <summary>Matches CottageFixture's declared footprint of 96 x 80 x 96 voxels.</summary>
         public static int[] Build()
         {
-            const int width = 64;
-            const int depth = 64;
-            const int wallHeight = 32;
-            const int wallThickness = 4;
-            const int roofHeight = 16;
+            var footprint = new StructureFootprintConfig
+            {
+                Primary = new StructureFootprintRect(int2.zero, new int2(64, 64)),
+                BasePlane = BasePlaneRule.LowestGround,
+                FoundationStyle = StructureFoundationStyle.Slab,
+                FoundationDepth = 8,
+                FoundationMaterial = StructureMaterialRole.Foundation,
+            };
 
-            const byte stone = CottageFixture.MaterialStone;
-            const byte wood = CottageFixture.MaterialWood;
+            var wall = new StructureWallRunConfig
+            {
+                Length = footprint.Primary.Size.x,
+                Height = 32,
+                Thickness = 4,
+                PrimaryMaterial = StructureMaterialRole.PrimaryWall,
+                CornerBehavior = StructureWallCornerBehavior.Overlap,
+            };
+
+            var door = new OpeningConfig
+            {
+                Kind = StructureOpeningKind.Door,
+                Width = 12,
+                Height = 20,
+                BottomOffset = 0,
+                Spacing = 0,
+                StartMargin = 0,
+                EndMargin = 0,
+                FrameThickness = 0,
+                LintelThickness = 0,
+                WidthVariation = 0,
+                HeightVariation = 0,
+                FillMaterialRole = StructureMaterialRole.Opening,
+            };
+
+            var roof = new RoofConfig
+            {
+                Style = RoofStyle.Gable,
+                RidgeAxis = RoofAxis.Z,
+                PitchRise = 1,
+                PitchRun = 2,
+                EaveOverhang = 0,
+                Thickness = 1,
+                ParapetHeight = 0,
+                MaterialRole = StructureMaterialRole.Roof,
+                TrimMaterialRole = StructureMaterialRole.Trim,
+            };
+
+            var palette = new StructureMaterialPalette
+            {
+                Foundation = CottageFixture.MaterialStone,
+                PrimaryWall = CottageFixture.MaterialStone,
+                Roof = CottageFixture.MaterialWood,
+                Opening = 0,
+            };
+
+            int width = footprint.Primary.Size.x;
+            int depth = footprint.Primary.Size.y;
+            int wallBaseY = footprint.FoundationDepth;
+            int roofSpan = roof.RidgeAxis == RoofAxis.Z ? width : depth;
+            int roofHeight = (roofSpan / 2 * roof.PitchRise) / roof.PitchRun;
+            byte foundationMaterial = palette.Resolve(footprint.FoundationMaterial);
+            byte wallMaterial = palette.Resolve(wall.PrimaryMaterial);
+            byte roofMaterial = palette.Resolve(roof.MaterialRole);
 
             var b = new ProgramBuilder();
 
             // Foundation, sunk so the walls have something to stand on.
-            b.Box(0, 0, 0, width, 8, depth, stone, PrimitiveMode.Fill);
+            b.Box(0, 0, 0, width, footprint.FoundationDepth, depth,
+                  foundationMaterial, PrimitiveMode.Fill);
 
             // Solid block of wall, then the interior carved out of it. Cheaper to express and
             // impossible to leave a gap in a corner, which four separate walls invite.
-            b.Box(0, 8, 0, width, wallHeight, depth, stone, PrimitiveMode.Fill);
-            b.Box(wallThickness, 8, wallThickness,
-                  width - 2 * wallThickness, wallHeight, depth - 2 * wallThickness,
+            b.Box(0, wallBaseY, 0, width, wall.Height, depth, wallMaterial, PrimitiveMode.Fill);
+            b.Box(wall.Thickness, wallBaseY, wall.Thickness,
+                  width - 2 * wall.Thickness, wall.Height, depth - 2 * wall.Thickness,
                   0, PrimitiveMode.Carve);
 
             // Doorway through the south wall.
-            b.Box(width / 2 - 6, 8, 0, 12, 20, wallThickness, 0, PrimitiveMode.Carve);
+            b.Box(width / 2 - door.Width / 2, wallBaseY + door.BottomOffset, 0,
+                  door.Width, door.Height, wall.Thickness,
+                  palette.Resolve(door.FillMaterialRole), PrimitiveMode.Carve);
 
             // Gable roof sitting on the walls.
-            b.Prism(0, 8 + wallHeight, 0, width, roofHeight, depth,
-                    PrismProfile.Gable, wood, PrimitiveMode.Fill);
+            b.Prism(0, wallBaseY + wall.Height, 0, width, roofHeight, depth,
+                    PrismProfile.Gable, roofMaterial, PrimitiveMode.Fill);
 
-            b.Anchor(AnchorDoor, width / 2, 8, 0, Facing.South);
-            b.Anchor(AnchorHearth, width / 2, 8, depth / 2, Facing.Up);
+            b.Anchor(AnchorDoor, width / 2, wallBaseY, 0, Facing.South);
+            b.Anchor(AnchorHearth, width / 2, wallBaseY, depth / 2, Facing.Up);
 
             b.End();
 
