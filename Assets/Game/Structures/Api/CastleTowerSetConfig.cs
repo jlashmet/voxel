@@ -14,7 +14,7 @@ namespace Game.Structures.Api
         public TowerConfig Towers;
         public int Taper;
         public BattlementConfig Crenellations;
-        public FixedList256Bytes<int2> ExplicitPositions;
+        public FixedList512Bytes<int2> ExplicitPositions;
 
         public bool IsWellFormed
         {
