@@ -69,6 +69,27 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void ExtremeChildCoordinatesRoundTripThroughParentAndIndex()
+        {
+            int3[] children =
+            {
+                new int3(int.MinValue, int.MinValue + 1, int.MaxValue),
+                new int3(int.MaxValue, int.MaxValue - 1, int.MinValue),
+                new int3(-1, 0, 1),
+                new int3(-2, -3, -4),
+            };
+
+            foreach (int3 child in children)
+            {
+                int3 parent = SurfaceLodHierarchy.ParentCoordinate(child);
+                int childIndex = SurfaceLodHierarchy.ChildIndexWithinParent(child);
+                int3 rebuilt = SurfaceLodHierarchy.ChildCoordinate(parent, childIndex);
+                Assert.AreEqual(child, rebuilt,
+                    $"Extreme child {child} did not round-trip through parent {parent} and index {childIndex}.");
+            }
+        }
+
+        [Test]
         public void ChildOffsetsCoverExactTwoByTwoByTwoVolume()
         {
             int3 parent = new int3(-3, 5, -7);
