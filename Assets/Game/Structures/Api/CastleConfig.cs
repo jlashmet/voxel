@@ -89,18 +89,8 @@ namespace Game.Structures.Api
                 FoundationMaterial = StructureMaterialRole.Foundation,
             };
 
-            var wallX = new StructureWallRunConfig
-            {
-                Length = plan.BaileyHalfX * 2,
-                Height = plan.WallHeight,
-                Thickness = plan.WallThickness,
-                PrimaryMaterial = StructureMaterialRole.PrimaryWall,
-                CornerBehavior = StructureWallCornerBehavior.Overlap,
-                RepetitionSpacing = 90,
-                RepetitionOffset = 40,
-            };
-            var wallZ = wallX;
-            wallZ.Length = plan.BaileyHalfZ * 2;
+            var wallX = CurtainWall(plan.BaileyHalfX * 2, plan.WallHeight, plan.WallThickness);
+            var wallZ = CurtainWall(plan.BaileyHalfZ * 2, plan.WallHeight, plan.WallThickness);
 
             var towerOpening = new OpeningConfig
             {
@@ -168,7 +158,7 @@ namespace Game.Structures.Api
                 CurtainBattlements = new BattlementConfig
                 {
                     ParapetThickness = 8,
-                    ParapetHeight = 1,
+                    ParapetHeight = 0,
                     MerlonWidth = 26,
                     MerlonHeight = 20,
                     GapWidth = 18,
@@ -186,6 +176,29 @@ namespace Game.Structures.Api
                     MaterialRole = StructureMaterialRole.PrimaryWall,
                 },
             };
+        }
+
+        private static StructureWallRunConfig CurtainWall(int length, int height, int thickness)
+        {
+            var wall = new StructureWallRunConfig
+            {
+                Length = length,
+                Height = height,
+                Thickness = thickness,
+                PrimaryMaterial = StructureMaterialRole.PrimaryWall,
+                CornerBehavior = StructureWallCornerBehavior.Overlap,
+                RepetitionSpacing = 90,
+                RepetitionOffset = 40,
+            };
+            wall.MaterialBands.Add(new StructureWallMaterialBand(
+                0,
+                math.min(22, height),
+                StructureMaterialRole.SecondaryWall));
+            wall.MaterialBands.Add(new StructureWallMaterialBand(
+                height * 66 / 100,
+                2,
+                StructureMaterialRole.SecondaryWall));
+            return wall;
         }
     }
 }
