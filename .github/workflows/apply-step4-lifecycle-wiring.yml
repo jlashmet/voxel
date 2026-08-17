@@ -10,6 +10,7 @@ on:
 permissions:
   contents: write
 
+# Retry after making the patch script idempotent across partially wired branch heads.
 jobs:
   patch:
     runs-on: ubuntu-latest
