@@ -23,7 +23,7 @@ namespace VoxelEngine.Showcase
             // Queue the deterministic landmark footprint, then materialise every terrain region
             // it can touch before authoring. This preserves the same ordering requirements as
             // runtime generation without making a player watch those stages execute.
-            GenerateCastleOriginBlocking();
+            GenerateCastleOriginForBakeBlocking();
             for (int i = 0; i < _castleRegions.Count; i++)
                 GenerateRegionBlocking(_castleRegions[i]);
 
