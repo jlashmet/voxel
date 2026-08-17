@@ -1,32 +1,5 @@
-using Unity.Collections;
-
 namespace VoxelEngine.Structures.Api
 {
-    /// <summary>A rectangular piece of a composed structure footprint, in local X/Z voxels.</summary>
-    public struct RectangularFootprintConfig
-    {
-        public int OffsetX;
-        public int OffsetZ;
-        public int Width;
-        public int Depth;
-    }
-
-    /// <summary>
-    /// Reusable footprint/foundation configuration. The primary rectangle covers simple buildings;
-    /// optional rectangles provide a bounded extension point for L/T/cross plans without requiring
-    /// a new footprint representation for each archetype.
-    /// </summary>
-    public struct FootprintFoundationConfig
-    {
-        public RectangularFootprintConfig Primary;
-        public FixedList128Bytes<RectangularFootprintConfig> Extensions;
-        public bool FoundationEnabled;
-        public int FoundationDepth;
-        public int TerrainSkirtDepth;
-        public int MaxTerrainAdjustment;
-        public StructureMaterialRole MaterialRole;
-    }
-
     /// <summary>How adjoining wall runs own their corner volume.</summary>
     public enum WallCornerMode : byte
     {
