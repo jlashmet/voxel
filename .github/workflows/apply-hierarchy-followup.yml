@@ -17,7 +17,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Apply follow-up source patch
-        run: python3 tools/apply-hierarchy-followup.py
+        run: python3 tools/run-hierarchy-followup.py
       - name: Commit follow-up
         shell: bash
         run: |
