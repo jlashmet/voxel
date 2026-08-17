@@ -46,7 +46,11 @@ The original working plan lived in the development conversation rather than a re
 - [x] Reject synchronous worker-job completion from the frame path with runtime diagnostics/tests.
 - [x] Keep surface rendering work budgeted while the world changes.
 
-### D. Repair far-terrain frame pacing without sacrificing fidelity
+### D. Repair missing-terrain completeness without sacrificing fidelity
+
+Treat missing terrain as two independent correctness domains. **Near-field completeness** means the extracted voxel renderer must produce authoritative drawable geometry for demanded near/coarse chunks. **Near/far coverage invariants** mean the far heightfield must continuously cover everything the near renderer is not yet able to draw, with no geometric gaps introduced by hole sizing, ring snapping, or asynchronous publication. A defect in one domain does not invalidate or supersede investigation of the other.
+
+#### D1. Far-field pacing and shared renderer groundwork
 
 - [x] Move far-terrain height sampling off the player frame.
 - [x] Make far-terrain height work single-flight and publish at most one completed ring per frame while stale rings remain drawable.
@@ -64,6 +68,9 @@ The original working plan lived in the development conversation rather than a re
 - [x] Identify the next measured scheduler hotspot: run 32019741845 records `BuildSelectionTiming.p95 = 0.52 ms` while the entire renderer-wide solid-build budget is 0.50 ms, so ranking up to 64 already-visible priority records can consume the whole frame's geometry budget.
 - [x] Make frustum-visible priority admission constant-time in the normal case: take the first current FIFO demand after at most eight stale-motion checks instead of ranking up to 64 visible holes; keep the background FIFO and the 0.50 ms global build budget unchanged.
 - [x] Validate the constant-time visible selector in EditMode and remeasure production selection timing/coarse coverage. PR run 32022085431 (`f0e0b689`) passes the affected EditMode gate and drops selection p95 from 0.52 ms to 0.02 ms with the unchanged 0.50 ms build budget; at 10.00 s production is still only 141/5,672 resident with 4,264 dirty, 16 running, 104 visible and 1,543 missing visible chunks, so the selector hotspot is fixed but coverage is not.
+
+#### D2. Near-field completeness
+
 - [ ] Fix the remaining coarse-coverage defect: exact-head PR run 32028393584 (`63577998`) still has 48 visible coarse silhouette holes and step 4 again ends `known=110/resident=7/dirty=0/missing=0/jobs=0/visible=0` after 20 s. The requested step-4 coverage is therefore being adjudicated as ready/empty rather than remaining queued; the next repair belongs in exact-owned empty/publication semantics, not scheduler priority.
 - [x] Add a focused step-4 false-empty regression proving an exact owned solid that falls between four-voxel lattice samples cannot be published as an authoritative empty chunk. PR run 32024887037 (`e53f14ce`) executes the focused EditMode gate and fails exactly because production has no `RequiresFeaturePreservingFallback` guard, proving the regression targets the measured false-empty path.
 - [x] Implement the proven step-4 false-empty repair: when exact classification owns solid content but ordinary step-4 topology/faceted output is empty, reuse the existing exact 2-voxel subcell summary/greedy HLOD path before publication. Normal step-4 geometry, LOD distances, the 0.50 ms global build budget and fidelity thresholds remain unchanged.
@@ -78,6 +85,14 @@ The original working plan lived in the development conversation rather than a re
 - [x] Correct exact snapshot coverage so only regions intersecting the unpadded owned core are required; available halo metadata is still copied, unavailable halo ranges remain cleared for the optimistic build, and unavailable core metadata still rejects/retries through the existing bounded lifecycle. Add regressions proving a missing core pin rejects the snapshot while the step-4 negative-Y halo is optional. No synchronous completion, LOD distance, frame budget, fallback rule, or geometry threshold changes (`7cad2b26`, `d6b38e5f`, `94029f35`).
 - [x] Validate the corrected core/halo exact-region coverage regression in EditMode and rerun the step-4 lifecycle/LOD coverage gate. PR run 32037051272 (`e9fd2779`) passes all four `ExactSnapshotRegionCoverageTests`, and production no longer reaches the old false-empty adjudication (`unowned=0`, `readyEmpty=0`). The production defect is not resolved: step 4 now remains pending with `resident=0`, `dirty=21-23`, `missing=6-8`, and repeated required-core pin rejection (`pinReject=113-140`) over 20 seconds, so the repair correctly refuses incomplete core snapshots but exposes a permanent retry/residency mismatch.
 - [ ] Identify why required step-4 core regions are still unavailable to `TryPinRegionBlockRefs` after clipmap demand reaches the camera frustum; add a focused residency/snapshot-admission regression before changing residency or retry policy. The next repair must eliminate the persistent `pinReject` backlog without reintroducing authoritative empties, synchronous completion, or broader residency inflation.
+
+#### D3. Near/far coverage invariants
+
+- [x] Add a cold-start regression requiring continuous published coverage from either drawable near geometry or the far fallback while near streaming is incomplete (`FarFieldCoverageInvariantTests.ColdStartMaintainsContinuousPublishedFallbackCoverage`, `a6000709`).
+- [x] Add a world-space handoff regression requiring ring 0's hole never to exceed actual drawable near coverage; generated-region residency is explicitly not sufficient (`FarFieldCoverageInvariantTests.RingZeroHoleNeverExceedsDrawableNearCoverageInWorldSpace`, `a6000709`).
+- [x] Add an isolated topology regression requiring independently snapped published parent/child far rings to geometrically overlap (`FarFieldCoverageInvariantTests.PublishedParentChildRingsOverlapAcrossIndependentSnapStates`, `a6000709`).
+- [x] Add a movement regression requiring the correctness-critical inner far ring to publish the moved-camera sample no later than any outer ring (`FarFieldCoverageInvariantTests.CameraMovementNeverPublishesOuterRingAheadOfCriticalRing`, `a6000709`).
+- [ ] Validate the four near/far coverage regressions in Unity and identify the first failing invariant. Fix that invariant rather than guessing from screenshots; do not close or abandon the independent D2 step-4 `pinReject` investigation.
 
 ### E. Eliminate runtime castle startup work
 
@@ -152,7 +167,10 @@ Current continuation work after PR #86:
 - `88610d2b` / `27d0f141` — two-hour memory soak split by tier/process and mirrored in PR/master workflow isolation.
 - `c331ad9a` — master full-suite bake now also covers `VoxelEngine.CI.PlayMode`.
 - `7cad2b26` / `d6b38e5f` / `94029f35` — exact snapshot coverage refined to require only unpadded core regions while allowing unavailable extraction-halo regions; focused core/halo regressions added.
+- `a6000709` — four near/far coverage invariants added against published drawable near geometry and published far-ring triangles; validation pending.
 
-Run 32037051272 on head `e9fd2779` closes the core/halo validation task but does not close production coarse coverage. All `ExactSnapshotRegionCoverageTests` pass and the old `unowned/readyEmpty` false-empty state disappears, proving incomplete core metadata is no longer published as empty. The new first loss stage is persistent required-core pin rejection: step 4 stays dirty/missing with zero resident chunks and 113-140 `pinReject` events in 20 seconds. The next task is therefore to trace clipmap/residency ownership for those required core regions and add a focused regression before changing retry or residency policy.
+Run 32037051272 on head `e9fd2779` closes the core/halo validation task but does not close production coarse coverage. All `ExactSnapshotRegionCoverageTests` pass and the old `unowned/readyEmpty` false-empty state disappears, proving incomplete core metadata is no longer published as empty. The near-field first loss stage remains persistent required-core pin rejection: step 4 stays dirty/missing with zero resident chunks and 113-140 `pinReject` events in 20 seconds. The D2 task remains to trace clipmap/residency ownership for those required core regions and add a focused regression before changing retry or residency policy.
+
+Separately, D3 now pins the near/far handoff with four regressions. Their Unity validation must identify the first failing coverage invariant before any far-field production behavior changes; a D3 failure does not supersede or close the independent D2 `pinReject` defect.
 
 PR #88 is a draft validation vehicle only. Do not merge it merely to obtain a green check; use its Unity results to complete section G and drive the next measured repair.
