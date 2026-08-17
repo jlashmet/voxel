@@ -38,7 +38,7 @@ namespace VoxelEngine.Tests.Features
                     CottageFixture.CottageId,
                     in parameters,
                     origin,
-                    orientation: 0,
+                    0,
                     Seed,
                     InstanceSeed,
                     primitivesA,
@@ -48,7 +48,7 @@ namespace VoxelEngine.Tests.Features
                     CottageFixture.CottageId,
                     in parameters,
                     origin,
-                    orientation: 0,
+                    0,
                     Seed,
                     InstanceSeed,
                     primitivesB,
@@ -60,7 +60,11 @@ namespace VoxelEngine.Tests.Features
                 Assert.AreEqual(anchorsA.Length, anchorsB.Length);
 
                 for (var i = 0; i < primitivesA.Length; i++)
-                    AssertPrimitiveEqual(in primitivesA.ElementAt(i), in primitivesB.ElementAt(i), i);
+                {
+                    Primitive expected = primitivesA[i];
+                    Primitive actual = primitivesB[i];
+                    AssertPrimitiveEqual(in expected, in actual, i);
+                }
 
                 for (var i = 0; i < anchorsA.Length; i++)
                 {
