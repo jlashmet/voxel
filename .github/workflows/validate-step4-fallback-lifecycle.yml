@@ -66,7 +66,7 @@ jobs:
 
       # This fixture is intentionally isolated: it records the current step-4 ownership /
       # frustum / ready-empty lifecycle without spending time on unrelated PlayMode suites.
-      # Triggered after both visibility and ready-empty lifecycle counters are present.
+      # Triggered on the clean compile-valid lifecycle instrumentation head.
       - name: Run LOD lifecycle fixture
         shell: bash
         run: |
