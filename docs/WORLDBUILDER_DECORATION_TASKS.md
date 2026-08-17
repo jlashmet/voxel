@@ -11,16 +11,16 @@ This checklist is the source of truth for implementation progress. Mark each ite
 
 - The generic semantic resolver, deterministic scene scheduler, stable prop IDs, socket/exclusion model, style/wealth/condition profiles, backend dispatch, runtime batching/detail policy, and persistence overlays are implemented.
 - Castle bedroom and great-hall furniture have procedural integration paths; many other legacy castle details remain available for incremental migration.
-- Reusable furniture/content currently includes beds, dressers, rugs, paintings, torches, tables, chairs, benches, storage, fireplace/candles/chandeliers/lanterns, textiles, martial displays, compact tabletop clutter, and utility-room scene recipes.
 - Cave runtime content includes `CaveCampScene`, natural cave environmental families, and occupied/mine environmental families.
 - The natural/mine runtime source is present, but dedicated `NaturalCaveDecorationTests.cs` and `MineCaveDecorationTests.cs` source files are not currently present on the branch. Do not treat earlier notes implying those test files were committed as validation evidence.
 - Unity/CI execution and visual/performance evidence remain separate completion gates.
-- Large-scale content uses a two-level identity model: existing coarse prop families remain behavior/placement classes while `DecorationContentKind` carries stable archetype identity in deterministic variant bits.
-- The catalog now contains **84 stable archetypes**. IDs 1-42 cover smithy, tavern, crypt, market, stable, prison, and civic content. IDs 43-60 cover carpentry/wheelwright content. IDs 61-84 cover textile, leather, pottery, and related crafts.
-- Later content packs are split into expansion catalog files so continued growth toward 400+ does not produce one monolithic recipe switch while numeric archetype IDs remain globally stable.
+- Large-scale content uses a two-level identity model: coarse prop families remain behavior/placement classes while `DecorationContentKind` carries stable archetype identity in deterministic variant bits.
+- The catalog now contains **114 stable archetypes**: IDs 1-42 smithy/tavern/crypt/market/stable/prison/civic; 43-60 carpentry/wheelwright; 61-84 textile/leather/pottery craft; 85-114 kitchen/bakery/brewery/winery/pantry.
+- Later recipe packs dispatch through `DecorationContentExpansionRegistry`, keeping the bootstrap catalog stable while allowing pack files to grow independently.
 - `DecorationContentAuthoringEmitter` maps content through a shared 24-shape grammar; mesh/thin content is emitted as data requests.
-- `DecorationContentSceneResolver` adapts content slots to the existing scheduler and placement resolver rather than introducing another collision engine. The initial seven scenes now use reusable front-of-anchor or around-anchor composition zones for their important floor relationships.
-- Test source covers global archetype identity/recipe integrity, seven initial multi-seed scenes, relational smithy/tavern/market/stable/crypt/prison/civic behavior, generic authoring/backend partitioning, and focused carpentry/craft expansion integrity. These tests still require Unity execution before any validation gate is closed.
+- Relational composition reuses front-of-anchor and around-anchor semantic sub-spaces while delegating actual validity/collision/exclusion decisions to `DecorationPlacementResolver`.
+- Implemented content compositions now include the initial seven scenes plus carpentry, textile, leather, pottery, kitchen, bakery, brewery, winery, and pantry scenes.
+- Test source covers global archetype identity/recipe integrity, initial multi-seed scenes, relational scene behavior, generic authoring/backend partitioning, focused craft expansion integrity, four workshop scene families, and five food-production scenes. These tests still require Unity execution before validation gates close.
 
 ## Setup and architecture
 
@@ -31,7 +31,7 @@ This checklist is the source of truth for implementation progress. Mark each ite
 
 ## Foundation API
 
-- [x] **DEC010** Define backend-independent decoration context/value types: structure/space kind, style, wealth, condition, environment tags, deterministic seed inputs.
+- [x] **DEC010** Define backend-independent decoration context/value types.
 - [x] **DEC011** Define semantic placement socket kinds and socket data.
 - [x] **DEC012** Define prop recipe/descriptor vocabulary.
 - [x] **DEC013** Define resolved `DecorationPlacement` output with stable semantic identity and anchor relationship data.
@@ -121,8 +121,8 @@ This checklist is the source of truth for implementation progress. Mark each ite
 - [x] **DEC113** Add banners/curtains/shields/weapons/armor display families.
 - [x] **DEC114** Add books, pottery, food, tools, containers, and tabletop clutter.
 - [x] **DEC115** Add guard post, kitchen, dining hall, library/study, chapel/shrine, barracks, throne room, cellar, and storage scene source.
-- [x] **DEC116** Add natural cave runtime families: stones, roots, mushrooms, crystals, bones, puddles, formations.
-- [x] **DEC117** Add mine/occupied-cave runtime families: supports, rails/carts, ropes, lanterns, crates, tools, ladders.
+- [x] **DEC116** Add natural cave runtime families.
+- [x] **DEC117** Add mine/occupied-cave runtime families.
 - [ ] **DEC118** Restore dedicated natural-cave regression source and Unity metadata.
 - [ ] **DEC119** Restore dedicated occupied/mine-cave regression source and Unity metadata.
 
@@ -132,17 +132,17 @@ This checklist is the source of truth for implementation progress. Mark each ite
 - [x] **DEC131** Implement the first 42 archetype recipes spanning smithy, tavern, crypt, market, stable, prison, and civic packs.
 - [x] **DEC132** Implement generic content authoring-shape grammar so new archetypes usually require catalog data rather than a bespoke authorer.
 - [x] **DEC133** Implement content-scene slot wrapper that reuses `DecorationSceneScheduler` and `DecorationPlacementResolver`.
-- [x] **DEC134** Add coherent smithy scene: hearth, anvil, bellows, quench tub, grindstone, tool board.
-- [x] **DEC135** Add coherent tavern-bar scene: bar, keg rack, mug rack, serving shelf, firewood, game table.
-- [x] **DEC136** Add coherent crypt scene: sarcophagus/coffin anchor, ossuary, bier, urns, grave marker.
-- [x] **DEC137** Add coherent market scene: stall, canopy/sign, goods display, scale, baskets.
-- [x] **DEC138** Add coherent stable scene: manger, trough, hay, saddle/tack, hitching fixture.
-- [x] **DEC139** Add coherent prison scene: cage/stocks anchor, shackles, key board, bucket, restraint bench.
-- [x] **DEC140** Add coherent civic-corner scene: notice board, fountain, lamp, public trough, handcart. (`Well` remains available as an alternate civic anchor archetype.)
+- [x] **DEC134** Add coherent smithy scene.
+- [x] **DEC135** Add coherent tavern-bar scene.
+- [x] **DEC136** Add coherent crypt scene.
+- [x] **DEC137** Add coherent market scene.
+- [x] **DEC138** Add coherent stable scene.
+- [x] **DEC139** Add coherent prison scene.
+- [x] **DEC140** Add coherent civic-corner scene. (`Well` remains available as an alternate civic anchor archetype.)
 - [x] **DEC141** Add catalog/scene deterministic test source for the initial archetypes and representative multi-seed rooms.
 - [x] **DEC142** Add carpentry/general-workshop pack (stable archetype IDs 43-60).
 - [x] **DEC143** Add textile/leather/pottery craft pack (stable archetype IDs 61-84).
-- [ ] **DEC144** Add kitchen/bakery/brewery/winery pack.
+- [x] **DEC144** Add kitchen/bakery/brewery/winery/pantry pack (stable archetype IDs 85-114).
 - [ ] **DEC145** Expand market/shop/merchant pack.
 - [ ] **DEC146** Expand stable/farm/animal-husbandry pack.
 - [ ] **DEC147** Add street/civic/courtyard/garden pack.
@@ -164,6 +164,21 @@ This checklist is the source of truth for implementation progress. Mark each ite
 - [ ] **DEC163** Reach 400 stable archetypes with catalog integrity, batching, and representative scene-density tests.
 - [ ] **DEC164** Add exterior/settlement adapters so streets, gardens, markets, farmyards, and docks consume the same socket/exclusion vocabulary.
 - [ ] **DEC165** Add content look-dev/debug view that labels archetype kind in addition to coarse family.
+
+## Expansion scene milestones
+
+- [x] **DEC166** Add coherent carpentry/wheelwright workshop scene.
+- [x] **DEC167** Add coherent textile/weaver workshop scene.
+- [x] **DEC168** Add coherent leather/tannery workshop scene.
+- [x] **DEC169** Add coherent pottery workshop scene.
+- [x] **DEC170** Add coherent working-kitchen scene.
+- [x] **DEC171** Add coherent bakery scene.
+- [x] **DEC172** Add coherent brewery scene.
+- [x] **DEC173** Add coherent winery/cellar scene.
+- [x] **DEC174** Add coherent pantry scene.
+- [ ] **DEC175** Add multi-stall market district composition using multiple trade-specialized stall scenes.
+- [ ] **DEC176** Add farmyard composition combining barn/stable, animal yard, equipment, and crop storage.
+- [ ] **DEC177** Add civic-square composition combining fountain/well, notices, lighting, seating, carts, and market-day overlays.
 
 ## Completion gates
 
