@@ -11,10 +11,10 @@ namespace Game.Structures.Runtime
     /// </summary>
     public sealed class CastleAuthoringBuild
     {
-        private readonly IStructureAuthoringSession _authoring;
-        private readonly CastlePlan _plan;
-        private readonly CastleComponentConfig _components;
-        private readonly uint _terrainSeed;
+        private IStructureAuthoringSession _authoring;
+        private CastlePlan _plan;
+        private CastleComponentConfig _components;
+        private uint _terrainSeed;
         private CastleSiteAuthoringState _siteState;
         private int _stage;
         private int _keepStage;
