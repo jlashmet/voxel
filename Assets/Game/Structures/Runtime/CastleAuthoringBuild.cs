@@ -14,6 +14,7 @@ namespace Game.Structures.Runtime
         private IStructureAuthoringSession _authoring;
         private CastlePlan _plan;
         private CastleComponentConfig _components;
+        private CastleCurtainConfig _curtain;
         private uint _terrainSeed;
         private CastleSiteAuthoringState _siteState;
         private int _stage;
@@ -26,7 +27,8 @@ namespace Game.Structures.Runtime
         {
             StructureMaterialPalette palette = CastleStructurePalette.Compatibility;
             CastleComponentConfig components = CastleComponentPresets.Compatibility(in plan, in palette);
-            Initialize(authoring, in plan, in components, terrainSeed);
+            CastleCurtainConfig curtain = CastleCurtainPresets.Compatibility(in components);
+            Initialize(authoring, in plan, in components, in curtain, terrainSeed);
         }
 
         /// <summary>
@@ -40,7 +42,23 @@ namespace Game.Structures.Runtime
             CastleComponentConfig components,
             uint terrainSeed)
         {
-            Initialize(authoring, in plan, in components, terrainSeed);
+            CastleCurtainConfig curtain = CastleCurtainPresets.Compatibility(in components);
+            Initialize(authoring, in plan, in components, in curtain, terrainSeed);
+        }
+
+        /// <summary>
+        /// Detailed authoring entry point for callers that need non-default curtain dimensions,
+        /// bounded segmentation, or an orthogonal polygon perimeter while keeping the same castle
+        /// orchestration and shared component path.
+        /// </summary>
+        public CastleAuthoringBuild(
+            IStructureAuthoringSession authoring,
+            in CastlePlan plan,
+            CastleComponentConfig components,
+            CastleCurtainConfig curtain,
+            uint terrainSeed)
+        {
+            Initialize(authoring, in plan, in components, in curtain, terrainSeed);
         }
 
         public bool IsComplete => _stage > 8;
@@ -72,12 +90,7 @@ namespace Game.Structures.Runtime
 
                 case 2:
                     stageName = "curtain walls";
-                    CastleCurtainAuthoring.Author(
-                        _authoring,
-                        in _plan,
-                        in _components.CurtainWallX,
-                        in _components.CurtainWallZ,
-                        in _components.CurtainBattlements);
+                    CastleCurtainAuthoring.Author(_authoring, in _plan, in _curtain);
                     break;
 
                 case 3:
@@ -135,6 +148,7 @@ namespace Game.Structures.Runtime
             IStructureAuthoringSession authoring,
             in CastlePlan plan,
             in CastleComponentConfig components,
+            in CastleCurtainConfig curtain,
             uint terrainSeed)
         {
             _authoring = authoring
@@ -143,18 +157,29 @@ namespace Game.Structures.Runtime
                 throw new System.ArgumentException(
                     "Castle authoring refused: shared castle component configuration is invalid.",
                     nameof(components));
+            if (!curtain.IsWellFormed)
+                throw new System.ArgumentException(
+                    "Castle authoring refused: curtain configuration is invalid.",
+                    nameof(curtain));
 
             _plan = plan;
-            // Keep-only legacy detail passes still consume CastlePlan. Project the canonical shared
-            // controls into that compatibility view so changing the public keep dimensions/levels
-            // affects all of those passes consistently instead of only the migrated shell call.
+            // Legacy detail passes still consume CastlePlan. Project shared controls into that
+            // compatibility view so changing the public dimensions affects those passes consistently.
             _plan.KeepHalfX = components.KeepWidth / 2;
             _plan.KeepHalfZ = components.KeepDepth / 2;
             _plan.KeepHeight = components.KeepHeight;
             _plan.Floors = components.KeepFloors.FloorCount;
             _plan.FloorHeight = components.KeepFloors.LevelHeight;
+            if (curtain.Layout == CastleCurtainLayoutKind.Rectangular)
+            {
+                _plan.BaileyHalfX = curtain.RectangularHalfExtents.x;
+                _plan.BaileyHalfZ = curtain.RectangularHalfExtents.y;
+                _plan.WallHeight = curtain.Height;
+                _plan.WallThickness = curtain.Thickness;
+            }
 
             _components = components;
+            _curtain = curtain;
             _terrainSeed = terrainSeed;
             _stage = 1;
             _keepStage = 0;
