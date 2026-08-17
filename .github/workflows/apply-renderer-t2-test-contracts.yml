@@ -1,0 +1,38 @@
+name: Apply renderer T2 test contracts
+
+on:
+  push:
+    branches:
+      - feature/renderer-lod-hole-regression
+    paths:
+      - tools/apply-renderer-t2-test-contracts.py
+      - .github/workflows/apply-renderer-t2-test-contracts.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply assertion-based test patch
+        run: python3 tools/apply-renderer-t2-test-contracts.py
+      - name: Validate patch
+        run: git diff --check
+      - name: Commit demand-driven test contracts
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo "Patch already applied"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            Assets/Tests/EditMode/SurfaceBrickDiscoveryTests.cs \
+            Assets/Tests/EditMode/VoxelSurfaceArchitectureTests.cs
+          git commit -m "Align renderer tests with demand-driven invalidation"
+          git push origin HEAD:feature/renderer-lod-hole-regression
