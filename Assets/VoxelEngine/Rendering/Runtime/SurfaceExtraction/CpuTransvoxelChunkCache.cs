@@ -346,6 +346,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private readonly Queue<int3> _visibleDirtyQueue = new();
         private readonly HashSet<int3> _queuedVisibleDirty = new();
         private const int BuildSelectionCandidatesPerSlice = 64;
+        private const int VisibleBuildSelectionCandidatesPerSlice = 8;
         private readonly Dictionary<int3, ulong> _desiredVersions = new();
         // Chunks whose last completed build produced no geometry, and the source version that
         // proved it. They hold no Entry and no GPU memory, so they cost a dictionary slot
@@ -1598,7 +1599,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             // A priority record that moved offscreen simply falls back to its existing background
             // FIFO record; no authoritative work is lost.
             int visibleCandidates = math.min(
-                BuildSelectionCandidatesPerSlice, _visibleDirtyQueue.Count);
+                VisibleBuildSelectionCandidatesPerSlice, _visibleDirtyQueue.Count);
             for (int i = 0; i < visibleCandidates; i++)
             {
                 int3 candidate = _visibleDirtyQueue.Dequeue();
@@ -1614,22 +1615,13 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 if (!GeometryUtility.TestPlanesAABB(_frustumPlanes, bounds))
                     continue;
 
-                Vector3 centre = (new Vector3(candidate.x, candidate.y, candidate.z)
-                                + Vector3.one * 0.5f) * chunkMetres;
-                float score = (centre - cameraWorldPosition).sqrMagnitude;
-                if (!hasBest || score < bestScore)
-                {
-                    if (hasBest) RequeueVisibleDirty(best);
-                    bestScore = score;
-                    best = candidate;
-                    hasBest = true;
-                }
-                else
-                {
-                    RequeueVisibleDirty(candidate);
-                }
-
-                if (Time.realtimeSinceStartupAsDouble >= deadlineSeconds) break;
+                // Visibility already established urgency. Ranking dozens of visible holes by
+                // distance cost the entire renderer-wide build budget in production (0.52 ms
+                // selection p95 against a 0.50 ms budget). FIFO is fair, deterministic and lets
+                // the selected workspace spend this frame advancing geometry instead.
+                best = candidate;
+                hasBest = true;
+                break;
             }
 
             // No currently visible hole was ready for this workspace. Preserve the original

@@ -58,8 +58,21 @@ namespace VoxelEngine.Tests.PlayMode
             // Force one production URP submission before taking the diagnostics handle.
             // Renderer features are project assets and are not reliably discoverable through
             // Resources in batchmode; the bridge records the pass URP actually executed.
-            RenderUrpCamera(camera);
-            yield return null;
+            var bootstrapTarget = new RenderTexture(Width, Height, 24,
+                RenderTextureFormat.ARGB32);
+            bootstrapTarget.Create();
+            camera.targetTexture = bootstrapTarget;
+            try
+            {
+                RenderUrpCamera(camera);
+                yield return null;
+            }
+            finally
+            {
+                camera.targetTexture = null;
+                bootstrapTarget.Release();
+                Object.DestroyImmediate(bootstrapTarget);
+            }
             VoxelRenderPass renderPass = VoxelRenderBridge.ActivePass;
             Assert.NotNull(renderPass,
                 "Could not inspect the production voxel render pass used by VoxelShowcase.");

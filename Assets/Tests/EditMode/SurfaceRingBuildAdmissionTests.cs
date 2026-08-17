@@ -119,9 +119,12 @@ namespace VoxelEngine.Tests.EditMode
             Assert.Greater(background, 64);
 
             int3 target = int3.zero;
+            int3 closerTarget = new(0, 0, -2);
             Assert.True((bool)track.Invoke(cache, new object[] { target }));
             invalidate.Invoke(cache, new object[] { target });
-            Assert.AreEqual(background + 1, cache.DirtyCount);
+            Assert.True((bool)track.Invoke(cache, new object[] { closerTarget }));
+            invalidate.Invoke(cache, new object[] { closerTarget });
+            Assert.AreEqual(background + 2, cache.DirtyCount);
 
             var cameraObject = new GameObject("SurfaceRingBuildAdmissionTests.PriorityCamera");
             var camera = cameraObject.AddComponent<Camera>();
@@ -136,8 +139,10 @@ namespace VoxelEngine.Tests.EditMode
                 cache.BeginVisibilityCollection();
                 cache.CollectVisibleCoordinate(target, planes,
                     camera.transform.position, 0.1f, 1);
-                Assert.AreEqual(1, cache.MissingVisibleCount,
-                    "Fixture target must be a real frustum-visible missing chunk.");
+                cache.CollectVisibleCoordinate(closerTarget, planes,
+                    camera.transform.position, 0.1f, 1);
+                Assert.AreEqual(2, cache.MissingVisibleCount,
+                    "Both fixture targets must be real frustum-visible missing chunks.");
 
                 bool selected = (bool)select.Invoke(cache, new object[]
                 {
@@ -153,7 +158,8 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.NotNull(coordinateField);
                 int3 selectedCoordinate = (int3)coordinateField.GetValue(build);
                 Assert.AreEqual(target, selectedCoordinate,
-                    "Visible demand waited behind the saturated background prefetch FIFO.");
+                    "Visible demand was rescanned/re-ranked instead of taking the first current "
+                  + "priority record ahead of the saturated background prefetch FIFO.");
                 Assert.Greater(cache.DirtyCount, 64,
                     "Prioritizing the visible hole must not discard background prefetch work.");
             }
