@@ -11,6 +11,7 @@ permissions:
   contents: write
 
 # Retry after making the patch script idempotent across partially wired branch heads.
+# This trigger uses the idempotent script that accepts already-present publication hooks.
 jobs:
   patch:
     runs-on: ubuntu-latest
