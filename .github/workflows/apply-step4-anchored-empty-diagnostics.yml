@@ -1,0 +1,56 @@
+name: Apply anchored step4 empty diagnostics
+
+on:
+  push:
+    branches:
+      - feature/voxel-showcase-rendering-repair-v2
+    paths:
+      - .github/workflows/apply-step4-anchored-empty-diagnostics.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/voxel-showcase-rendering-repair-v2
+          fetch-depth: 0
+
+      - name: Fast-forward to current branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git pull --ff-only origin feature/voxel-showcase-rendering-repair-v2
+
+      - name: Apply exact-match cache wiring
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/apply-step4-lifecycle-wiring.py
+          rm .github/workflows/apply-step4-anchored-empty-diagnostics.yml
+
+      - name: Validate patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          git diff -- Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs .claude/plans/voxel-showcase-rendering-repair-v2.md .github/workflows/apply-step4-anchored-empty-diagnostics.yml
+
+      - name: Commit cache wiring and retire transport
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs \
+                  .claude/plans/voxel-showcase-rendering-repair-v2.md \
+                  .github/workflows/apply-step4-anchored-empty-diagnostics.yml
+          if git diff --cached --quiet; then
+            echo "No cache wiring change required"
+            exit 0
+          fi
+          git commit -m "diag(rendering): anchor step4 empty publication state"
+          git push origin HEAD:feature/voxel-showcase-rendering-repair-v2
