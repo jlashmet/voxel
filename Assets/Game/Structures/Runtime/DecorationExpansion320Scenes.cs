@@ -67,8 +67,11 @@ namespace Game.Structures.Runtime
         {
             int budget = 2 + (int)context.Wealth / 2;
             DecorationRegionProfile profile = DecorationRegionProfiles.Resolve(region);
-            if (profile.IsWellFormed && profile.Prefers(DecorationRegionContentTags.Enchanted | DecorationRegionContentTags.Organic))
-                budget += 2;
+            if (profile.IsWellFormed)
+            {
+                if (profile.Prefers(DecorationRegionContentTags.Organic)) budget += 2;
+                else if (profile.Prefers(DecorationRegionContentTags.Enchanted)) budget += 1;
+            }
             if (context.Condition == DecorationConditionTier.Ruined) budget = 1;
             return budget;
         }
@@ -87,15 +90,16 @@ namespace Game.Structures.Runtime
             DecorationExpansion320SceneSlot[] slots = DecorationExpansion320SceneCatalog.Slots(kind);
             uint sceneId = DecorationExpansion320SceneCatalog.SceneId(kind);
             var core = new DecorationSceneSlot[slots.Length];
+            DecorationRegionProfile profile = DecorationRegionProfiles.Resolve(region);
             for (int i = 0; i < slots.Length; i++)
             {
                 DecorationExpansion320Recipe recipe = DecorationExpansion320Catalog.Recipe(slots[i].Kind);
                 if (!recipe.IsWellFormed || (recipe.Sockets & slots[i].Socket) == 0) return false;
                 core[i] = new DecorationSceneSlot { SlotId = slots[i].SlotId, Family = recipe.ProxyFamily, RequestedSocket = slots[i].Socket, Required = slots[i].Required, Weight = slots[i].Weight };
-                if (!slots[i].Required)
+                if (!slots[i].Required && profile.IsWellFormed)
                 {
-                    DecorationRegionProfile profile = DecorationRegionProfiles.Resolve(region);
-                    if (profile.IsWellFormed && profile.Prefers(DecorationRegionContentTags.Enchanted | DecorationRegionContentTags.Organic)) core[i].Weight = (ushort)(core[i].Weight + 5);
+                    if (profile.Prefers(DecorationRegionContentTags.Organic)) core[i].Weight = (ushort)(core[i].Weight + 5);
+                    else if (profile.Prefers(DecorationRegionContentTags.Enchanted)) core[i].Weight = (ushort)(core[i].Weight + 2);
                 }
             }
             if (!DecorationSceneScheduler.TrySelectAndOrder(in context, sceneId, core,
