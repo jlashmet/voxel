@@ -13,8 +13,16 @@ namespace Game.Structures.Api
         public StructureFootprintConfig BaileyFootprint;
         public StructureFootprintConfig KeepFoundation;
         public int KeepFoundationTopOffset;
+
+        /// <summary>Keep width/height/thickness; <see cref="KeepDepth"/> supplies the second axis.</summary>
         public StructureWallRunConfig KeepWalls;
+        public int KeepDepth;
         public FloorLevelConfig KeepFloors;
+        public RoofConfig KeepRoof;
+        public BattlementConfig KeepParapet;
+        public OpeningConfig KeepEntrance;
+        public OpeningConfig KeepWindow;
+
         public StructureWallRunConfig CurtainWallX;
         public StructureWallRunConfig CurtainWallZ;
         public TowerConfig CornerTowers;
@@ -24,12 +32,22 @@ namespace Game.Structures.Api
         public BattlementConfig GatehouseBattlements;
         public StructureMaterialPalette Palette;
 
+        public int KeepWidth => KeepWalls.Length;
+        public int KeepHeight => KeepWalls.Height;
+        public int KeepWallThickness => KeepWalls.Thickness;
+        public int KeepLevelCount => KeepFloors.FloorCount;
+
         public bool IsWellFormed =>
             BaileyFootprint.IsWellFormed &&
             KeepFoundation.IsWellFormed &&
             KeepFoundationTopOffset >= 0 &&
             KeepWalls.IsWellFormed &&
+            KeepDepth > KeepWalls.Thickness * 2 &&
             KeepFloors.IsWellFormed &&
+            KeepRoof.IsWellFormed &&
+            KeepParapet.IsWellFormed &&
+            KeepEntrance.Kind == StructureOpeningKind.Arch && KeepEntrance.IsWellFormed &&
+            KeepWindow.Kind == StructureOpeningKind.Window && KeepWindow.IsWellFormed &&
             CurtainWallX.IsWellFormed &&
             CurtainWallZ.IsWellFormed &&
             CornerTowers.IsWellFormed &&
@@ -80,12 +98,67 @@ namespace Game.Structures.Api
                 },
                 KeepFoundationTopOffset = 4,
                 KeepWalls = KeepWall(plan.KeepHalfX * 2, plan.KeepHeight, 8),
+                KeepDepth = plan.KeepHalfZ * 2,
                 KeepFloors = new FloorLevelConfig
                 {
                     FloorCount = plan.Floors,
                     LevelHeight = plan.FloorHeight,
                     SlabThickness = 3,
                     SlabMaterialRole = StructureMaterialRole.Floor,
+                },
+                KeepRoof = new RoofConfig
+                {
+                    Style = RoofStyle.Gable,
+                    RidgeAxis = RoofAxis.X,
+                    PitchRise = 70,
+                    PitchRun = math.max(1, plan.KeepHalfZ * 2),
+                    EaveOverhang = 0,
+                    Thickness = 1,
+                    ParapetHeight = 0,
+                    MaterialRole = StructureMaterialRole.Roof,
+                    TrimMaterialRole = StructureMaterialRole.Trim,
+                },
+                KeepParapet = new BattlementConfig
+                {
+                    ParapetThickness = 7,
+                    ParapetHeight = 6,
+                    MerlonWidth = 24,
+                    MerlonHeight = 20,
+                    GapWidth = 20,
+                    CornerMerlonWidth = 24,
+                    MaterialRole = StructureMaterialRole.PrimaryWall,
+                },
+                KeepEntrance = new OpeningConfig
+                {
+                    Kind = StructureOpeningKind.Arch,
+                    Width = 30,
+                    Height = 34,
+                    BottomOffset = 1,
+                    Spacing = 0,
+                    StartMargin = 0,
+                    EndMargin = 0,
+                    FrameThickness = 0,
+                    LintelThickness = 0,
+                    WidthVariation = 0,
+                    HeightVariation = 0,
+                    FrameMaterialRole = StructureMaterialRole.Trim,
+                    FillMaterialRole = StructureMaterialRole.Opening,
+                },
+                KeepWindow = new OpeningConfig
+                {
+                    Kind = StructureOpeningKind.Window,
+                    Width = 16,
+                    Height = math.max(1, plan.FloorHeight - 18),
+                    BottomOffset = 12,
+                    Spacing = 0,
+                    StartMargin = 0,
+                    EndMargin = 0,
+                    FrameThickness = 3,
+                    LintelThickness = 0,
+                    WidthVariation = 0,
+                    HeightVariation = 4,
+                    FrameMaterialRole = StructureMaterialRole.Trim,
+                    FillMaterialRole = StructureMaterialRole.Glass,
                 },
                 CurtainWallX = wallX,
                 CurtainWallZ = wallZ,
@@ -132,8 +205,8 @@ namespace Game.Structures.Api
                     ParapetThickness = 8,
                     ParapetHeight = 0,
                     MerlonWidth = 18,
-                    MerlonHeight = 12,
-                    GapWidth = 18,
+                    MerlonHeight = 18,
+                    GapWidth = 12,
                     CornerMerlonWidth = 18,
                     MaterialRole = StructureMaterialRole.PrimaryWall,
                 },
