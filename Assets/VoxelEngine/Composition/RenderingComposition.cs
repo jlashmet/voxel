@@ -236,11 +236,14 @@ namespace VoxelEngine.Composition
 
             // A persistent renderer feature can outlive many application worlds. If a caller
             // replaces the authoritative storage binding without an explicit ClearWorld first,
-            // retire scheduler jobs, pins, and derived meshes while the old owner is still live.
-            // Reapplying configuration for the same storage is intentionally cheap and keeps its
-            // warm derived geometry.
+            // retire scheduler jobs, pins, derived meshes, and old-world transient presentation
+            // while the old owner is still live. Reapplying configuration for the same storage is
+            // intentionally cheap and keeps both its warm derived geometry and presentation state.
             if (s_hasWorld && !ReferenceEquals(s_world.Storage, world.Storage))
+            {
                 VoxelRenderBridge.ReleaseWorldResources();
+                ResetTransientPresentation();
+            }
 
             s_world = world;
             s_terrainSeed = terrainSeed;
