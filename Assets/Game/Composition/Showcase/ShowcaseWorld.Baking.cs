@@ -10,7 +10,7 @@ namespace VoxelEngine.Showcase
 {
     public sealed partial class ShowcaseWorld
     {
-        private const int BakeMaxRegionSnapshotBytes = 64 * 1024 * 1024;
+        private const int BakeMaxRegionSnapshotBytes = ShowcaseWorldBakeCodec.MaxRawRegionPayloadBytes;
         private static readonly TimeSpan BakeCastleTimeout = TimeSpan.FromMinutes(10);
 
         /// <summary>
@@ -153,9 +153,13 @@ namespace VoxelEngine.Showcase
                     throw new InvalidDataException(
                         $"Showcase bake contains duplicate region {region.Coord}.");
 
+                // Keep the on-disk image compressed. Inflate only the region currently being
+                // installed, verify it through Storage.Api, then let that temporary byte array go
+                // before moving to the next region. Runtime never materialises the raw whole world.
+                byte[] semanticPayload = ShowcaseWorldBakeCodec.DecodeRegionPayload(region);
                 _snapshotMutationStore.Refresh(in _table, in _pool);
                 if (!_snapshotMutationStore.TryApplySemanticSnapshot(
-                        region.Coord, region.Payload, region.SemanticHash, createIfMissing: true))
+                        region.Coord, semanticPayload, region.SemanticHash, createIfMissing: true))
                     throw new InvalidDataException(
                         $"Storage rejected baked showcase region {region.Coord}. " +
                         "The bake may be stale or the runtime BrickPool tier may be too small.");
