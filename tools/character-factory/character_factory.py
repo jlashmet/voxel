@@ -32,6 +32,7 @@ from runtime.catalogue import (
     select_entries,
     write_catalogue,
 )
+from runtime.preprocess import prepare_spec_references
 from runtime.production import ProductionRunner
 from runtime.unity_staging import stage_manifest_for_unity
 
@@ -92,7 +93,8 @@ def parse_args() -> argparse.Namespace:
         "produce",
         help=(
             "run the standard production lifecycle for one image-driven asset: "
-            "build, type-specific appearance/verification, proof render, and optional Unity staging"
+            "preprocess references, build, type-specific appearance/verification, proof render, "
+            "and optional Unity staging"
         ),
     )
     produce.add_argument("spec", type=Path)
@@ -242,13 +244,18 @@ def bootstrap_canonical_rig_profile(name: str) -> None:
     print(canonical)
 
 
+def _load_prepared_spec(path: Path, *, dry_run: bool) -> BuildSpec:
+    prepare_spec_references(path, TOOL_ROOT, dry_run=dry_run)
+    return BuildSpec.load(path, validate_paths=not dry_run)
+
+
 def build_one(
     runtime: CharacterFactoryRuntime,
     path: Path,
     dry_run: bool,
     unity_assets_root: Path | None,
 ) -> None:
-    spec = BuildSpec.load(path, validate_paths=not dry_run)
+    spec = _load_prepared_spec(path, dry_run=dry_run)
     manifest = runtime.build(spec, dry_run=dry_run)
     print(f"{spec.asset_id}: {manifest}")
     if unity_assets_root is not None:
@@ -263,7 +270,7 @@ def produce_one(
     dry_run: bool,
     unity_assets_root: Path | None,
 ) -> None:
-    spec = BuildSpec.load(path, validate_paths=not dry_run)
+    spec = _load_prepared_spec(path, dry_run=dry_run)
     manifest = runner.produce(spec, dry_run=dry_run)
     print(f"produce {spec.asset_type.value}/{spec.asset_id}: {manifest}")
     if unity_assets_root is not None:
