@@ -106,18 +106,6 @@ jobs:
           fi
           test -s "$ROOT/editmode.xml"
 
-      # Diagnostic only: patch the disposable CI checkout to prove whether eager offscreen builds
-      # and immediate re-dirty after eviction are the dominant cause of the renderer backlog.
-      # Remove this step once the behavior is implemented in the renderer source itself.
-      - name: Probe demand-driven surface residency
-        if: contains(steps.select.outputs.playmode, 'VoxelEngine.Tests.PlayMode')
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 tools/probe-renderer-demand.py
-          git diff --check
-          git diff -- Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
-
       # The Voxel Showcase deliberately has no Play-mode generation fallback. Its startup image is
       # a build/editor artifact, so a clean CI checkout must run the same bake step a developer or
       # release build runs before any suite opens VoxelShowcase.unity.
