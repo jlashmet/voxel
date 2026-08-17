@@ -60,9 +60,8 @@ jobs:
           ROOT="$GITHUB_WORKSPACE/Artifacts/WorldbuildingVisuals"
           mkdir -p "$ROOT" "$GITHUB_WORKSPACE/TestResults/WorldbuildingVisuals"
 
-          # These are developer/reviewer images, not gameplay rendering state. They run the real
-          # structure authorers into a deterministic capture volume and preserve the PNGs as CI
-          # artifacts so geometry can be inspected without opening the scene interactively.
+          # Developer/reviewer images only: real authorers write deterministic voxel geometry into
+          # capture volumes; the test harness renders those volumes and preserves PNG artifacts.
           status=0
           UNITY_MAX_RSS_MB=12288 UNITY_MAX_MINUTES=15 \
           UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
@@ -83,8 +82,8 @@ jobs:
 
           find "$GITHUB_WORKSPACE/TestResults/WorldbuildingVisuals" -name '*.png' -size +1k -print | sort | tee "$ROOT/images.txt"
           image_count="$(wc -l < "$ROOT/images.txt" | tr -d ' ')"
-          if (( image_count < 5 )); then
-            echo "Expected at least 5 rendered worldbuilding images, found $image_count" >&2
+          if (( image_count < 7 )); then
+            echo "Expected at least 7 rendered worldbuilding images, found $image_count" >&2
             status=1
           fi
 
