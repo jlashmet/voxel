@@ -1,14 +1,34 @@
 using System;
+using System.Collections.Generic;
 
 namespace MountingForce.WorldGen
 {
+    /// <summary>
+    /// One deterministic anonymous-building slot along a one-dimensional street frontage.
+    /// The settlement owns what the frontage means in world space; Core only owns subdivision.
+    /// </summary>
+    public readonly struct SettlementFrontageSite
+    {
+        public readonly int CentreAlongDm;
+        public readonly int SegmentIndex;
+        public readonly int SiteIndex;
+
+        public SettlementFrontageSite(int centreAlongDm, int segmentIndex, int siteIndex)
+        {
+            CentreAlongDm = centreAlongDm;
+            SegmentIndex = segmentIndex;
+            SiteIndex = siteIndex;
+        }
+    }
+
     /// <summary>
     /// City-independent plot placement primitives for authored or generated street graphs.
     ///
     /// A settlement definition owns topology, role ids, districts, street coordinates and structure
     /// envelopes. These helpers own the geometric bookkeeping for putting a footprint against a
-    /// horizontal/vertical street or centring it on a plaza. Keeping this in Core means every city
-    /// can share the same deterministic frontage rules without depending on Kentridge content.
+    /// horizontal/vertical street, centring it on a plaza, or subdividing a frontage run into
+    /// anonymous-building sites. Keeping this in Core means every city can share the same
+    /// deterministic frontage rules without depending on Kentridge content.
     /// </summary>
     public static class SettlementPlotLayout
     {
@@ -127,6 +147,73 @@ namespace MountingForce.WorldGen
                     centreDm.Y - footprintDm.Z / 2),
                 frontage,
                 access);
+        }
+
+        /// <summary>
+        /// Splits a one-dimensional frontage into deterministic anonymous-building sites. A gap can
+        /// represent a plaza entrance, stair, lane, view corridor, or any other city-owned opening.
+        /// Coverage and module pitch are explicit policy inputs so this function contains no city
+        /// identity or density assumptions.
+        /// </summary>
+        public static SettlementFrontageSite[] PackFrontage(
+            int startDm,
+            int endDm,
+            int coveragePercent,
+            int modulePitchDm,
+            bool hasGap = false,
+            int gapCentreDm = 0,
+            int gapWidthDm = 0)
+        {
+            if (coveragePercent < 0 || coveragePercent > 100)
+                throw new ArgumentOutOfRangeException(nameof(coveragePercent));
+            if (modulePitchDm <= 0)
+                throw new ArgumentOutOfRangeException(nameof(modulePitchDm));
+            if (gapWidthDm < 0)
+                throw new ArgumentOutOfRangeException(nameof(gapWidthDm));
+
+            int start = Math.Min(startDm, endDm);
+            int end = Math.Max(startDm, endDm);
+            if (end <= start || coveragePercent == 0)
+                return Array.Empty<SettlementFrontageSite>();
+
+            var segments = new List<(int Start, int End)>(2);
+            if (!hasGap || gapWidthDm == 0)
+            {
+                segments.Add((start, end));
+            }
+            else
+            {
+                int gapStart = Math.Max(start, gapCentreDm - gapWidthDm / 2);
+                int gapEnd = Math.Min(end, gapStart + gapWidthDm);
+                if (gapStart > start) segments.Add((start, gapStart));
+                if (gapEnd < end) segments.Add((gapEnd, end));
+            }
+
+            var sites = new List<SettlementFrontageSite>();
+            int siteIndex = 0;
+            for (int segmentIndex = 0; segmentIndex < segments.Count; segmentIndex++)
+            {
+                (int segmentStart, int segmentEnd) = segments[segmentIndex];
+                int lengthDm = segmentEnd - segmentStart;
+                if (lengthDm <= 0) continue;
+
+                int targetOccupiedDm = lengthDm * coveragePercent / 100;
+                if (targetOccupiedDm <= 0) continue;
+                int count = Math.Max(1,
+                    (targetOccupiedDm + modulePitchDm - 1) / modulePitchDm);
+
+                for (int i = 0; i < count; i++)
+                {
+                    int centreAlongDm = segmentStart
+                        + lengthDm * (2 * i + 1) / (2 * count);
+                    sites.Add(new SettlementFrontageSite(
+                        centreAlongDm,
+                        segmentIndex,
+                        siteIndex++));
+                }
+            }
+
+            return sites.ToArray();
         }
 
         /// <summary>
