@@ -26,12 +26,18 @@ namespace MountingForce.WorldGen.Voxel
         {
             public readonly int[] Code;
             public readonly int3 Door;
+            public readonly int3 Hearth;
             public readonly KentridgeHousePresetId Preset;
 
-            public Program(int[] code, int3 door, KentridgeHousePresetId preset)
+            public Program(
+                int[] code,
+                int3 door,
+                int3 hearth,
+                KentridgeHousePresetId preset)
             {
                 Code = code;
                 Door = door;
+                Hearth = hearth;
                 Preset = preset;
             }
         }
@@ -87,6 +93,8 @@ namespace MountingForce.WorldGen.Voxel
             config.Roof.Thickness = math.max(1, scale);
             config.Palette = palette;
 
+            // The shared compiler deliberately emits two semantic anchors: public entrance and
+            // hearth. Kentridge preserves both rather than mutating compiled bytecode to hide one.
             int[] compiled = HouseProgramCompiler.BuildProgram(in config, 0, 1);
             Int3 envelopeDm = KentridgeDefinition.FootprintDm(form.Archetype);
             int envelopeWidth = envelopeDm.X * scale;
@@ -96,7 +104,8 @@ namespace MountingForce.WorldGen.Voxel
             int[] translated = ShapeProgramComposition.Translate(compiled, localOffset);
 
             int3 door = new int3(x0 + width / 2, foundation, z0);
-            return new Program(translated, door, preset);
+            int3 hearth = new int3(x0 + width / 2, foundation, z0 + depth / 2);
+            return new Program(translated, door, hearth, preset);
         }
 
         public static KentridgeHousePresetId SelectPreset(BuildingPlot plot, uint seed)
