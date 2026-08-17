@@ -145,11 +145,13 @@ jobs:
           if [[ "$ASM" == "VoxelEngine.Tests.PlayMode" ]]; then
             FILTERS=(
               '^VoxelEngine\.Tests\.PlayMode\.[A-F]'
-              '^VoxelEngine\.Tests\.PlayMode\.[G-M]'
+              '^VoxelEngine\.Tests\.PlayMode\.[G-J]'
+              '^VoxelEngine\.Tests\.PlayMode\.K'
+              '^VoxelEngine\.Tests\.PlayMode\.[L-M]'
               '^VoxelEngine\.Tests\.PlayMode\.[N-S]'
               '!^VoxelEngine\.Tests\.PlayMode\.[A-S]'
             )
-            LABELS=(a-f g-m n-s t-z-rest)
+            LABELS=(a-f g-j kentridge l-m n-s t-z-rest)
             status=0
             for i in "${!FILTERS[@]}"; do
               label="${LABELS[$i]}"
