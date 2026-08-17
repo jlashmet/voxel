@@ -68,6 +68,7 @@ The original working plan lived in the development conversation rather than a re
 
 - [x] Split the large `VoxelEngine.Tests.PlayMode` assembly into fresh Unity processes to reset retained native scene/rendering allocator state.
 - [x] Further isolate scene-heavy Kentridge and LOD/memory ranges after the prior G-M shard reached 14,356 MB against the 14,336 MB watchdog ceiling.
+- [x] Reconcile the multi-view LOD fixture with baked startup: require the restored castle and forbid Play-mode castle authoring without changing any LOD fidelity threshold.
 - [ ] Confirm the revised PlayMode shard layout no longer hits the Unity RSS watchdog on the current head.
 - [ ] Classify any remaining CI failures as rendering-repair regressions vs unrelated baseline failures; do not mask either category.
 
@@ -89,5 +90,6 @@ Current continuation work after PR #86:
 - `d50f5e99` — tighter PR PlayMode memory sharding.
 - `63813b9c` — mirrored master PlayMode memory sharding.
 - `eb880d82` — isolated far-terrain topology-reuse regression.
+- `5facd3d6` — multi-view LOD gate aligned with baked-startup contract; fidelity thresholds unchanged.
 
 PR #88 is a draft validation vehicle only. Do not merge it merely to obtain a green check; use its Unity results to complete section G and drive the next measured repair.
