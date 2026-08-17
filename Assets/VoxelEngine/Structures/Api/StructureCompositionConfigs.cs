@@ -16,6 +16,8 @@ namespace VoxelEngine.Structures.Api
         Crypt = 4,
         Cave = 5,
         Extension = 6,
+        // Appended to preserve the numeric identities already used by serialized/configured data.
+        Dungeon = 7,
     }
 
     /// <summary>Authored local attachment point resolved to an ordinary engine anchor at generation.</summary>
@@ -46,6 +48,7 @@ namespace VoxelEngine.Structures.Api
                 case StructureAttachmentKind.Crypt: return new FixedString32Bytes("Crypt");
                 case StructureAttachmentKind.Cave: return new FixedString32Bytes("Cave");
                 case StructureAttachmentKind.Extension: return new FixedString32Bytes("Extension");
+                case StructureAttachmentKind.Dungeon: return new FixedString32Bytes("Dungeon");
                 default: return new FixedString32Bytes("Extension");
             }
         }
