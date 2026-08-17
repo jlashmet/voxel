@@ -28,7 +28,7 @@ namespace Game.Structures.Tests
                 Assert.AreEqual(DecorationStructureKind.Castle, context.StructureKind);
                 Assert.AreEqual(DecorationSpaceKind.Bedroom, context.SpaceKind);
                 Assert.AreEqual(DecorationWealthTier.Noble, context.Wealth);
-                Assert.AreEqual(8, exclusions.Length);
+                Assert.AreEqual(12, exclusions.Length);
                 Assert.AreEqual(BedroomSceneResolver.PlacementCount, placements.Length);
                 Assert.AreEqual(DecorationPropFamily.Bed, placements[0].Family);
                 Assert.AreEqual(DecorationPropFamily.Rug, placements[1].Family);
