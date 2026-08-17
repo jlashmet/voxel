@@ -22,9 +22,12 @@ namespace Game.Structures.Tests
         {
             StructureMaterialPalette palette = CastleStructurePalette.Compatibility;
             ShedConfig config = ShedPresets.Storage(in palette);
-            var capture = new VisualStructureCapture(new int3(-48, -8, -48), new int3(96, 80, 96));
+            int3 min = new int3(-48, -8, -48);
+            int3 size = new int3(96, 80, 96);
+            var capture = new VisualStructureCapture(min, size);
             ShedAuthoring.Author(capture, int3.zero, in config);
             AssertVisual(capture.RenderPng("shed-storage"));
+            AssertVisual(VisualStructureDiagnosticRenderer.Render(capture, min, size, "shed-storage-diagnostic"));
         }
 
         [Test]
@@ -32,9 +35,12 @@ namespace Game.Structures.Tests
         {
             StructureMaterialPalette palette = CastleStructurePalette.Compatibility;
             ChurchConfig config = ChurchPresets.ParishChurch(in palette);
-            var capture = new VisualStructureCapture(new int3(-80, -8, -120), new int3(160, 160, 240));
+            int3 min = new int3(-80, -8, -120);
+            int3 size = new int3(160, 160, 240);
+            var capture = new VisualStructureCapture(min, size);
             ChurchAuthoring.Author(capture, int3.zero, in config);
             AssertVisual(capture.RenderPng("church-parish"));
+            AssertVisual(VisualStructureDiagnosticRenderer.Render(capture, min, size, "church-parish-diagnostic"));
         }
 
         [Test]
@@ -42,9 +48,13 @@ namespace Game.Structures.Tests
         {
             StructureMaterialPalette palette = CastleStructurePalette.Compatibility;
             CathedralWorldbuildingConfig config = CathedralWorldbuildingPresets.Gothic(in palette);
-            var capture = new VisualStructureCapture(new int3(-130, -32, -205), new int3(260, 300, 410));
+            int3 min = new int3(-130, -32, -205);
+            int3 size = new int3(260, 300, 410);
+            var capture = new VisualStructureCapture(min, size);
             CathedralWorldbuildingAuthoring.Author(capture, int3.zero, in config);
             AssertVisual(capture.RenderPng("cathedral-gothic", 1440, 1000));
+            AssertVisual(VisualStructureDiagnosticRenderer.Render(
+                capture, min, size, "cathedral-gothic-diagnostic", 1440, 1000));
         }
 
         [Test]
@@ -52,9 +62,12 @@ namespace Game.Structures.Tests
         {
             StructureMaterialPalette palette = CastleStructurePalette.Compatibility;
             TempleConfig config = TemplePresets.ClassicalColumned(in palette);
-            var capture = new VisualStructureCapture(new int3(-72, -16, -92), new int3(144, 112, 184));
+            int3 min = new int3(-72, -16, -92);
+            int3 size = new int3(144, 112, 184);
+            var capture = new VisualStructureCapture(min, size);
             TempleAuthoring.Author(capture, int3.zero, in config);
             AssertVisual(capture.RenderPng("temple-classical"));
+            AssertVisual(VisualStructureDiagnosticRenderer.Render(capture, min, size, "temple-classical-diagnostic"));
         }
 
         [Test]
@@ -62,9 +75,12 @@ namespace Game.Structures.Tests
         {
             StructureMaterialPalette palette = CastleStructurePalette.Compatibility;
             TempleConfig config = TemplePresets.CourtyardTemple(in palette);
-            var capture = new VisualStructureCapture(new int3(-84, -16, -104), new int3(168, 112, 208));
+            int3 min = new int3(-84, -16, -104);
+            int3 size = new int3(168, 112, 208);
+            var capture = new VisualStructureCapture(min, size);
             TempleAuthoring.Author(capture, int3.zero, in config);
             AssertVisual(capture.RenderPng("temple-courtyard"));
+            AssertVisual(VisualStructureDiagnosticRenderer.Render(capture, min, size, "temple-courtyard-diagnostic"));
         }
 
         [Test]
@@ -96,10 +112,14 @@ namespace Game.Structures.Tests
             preset.Stages.Site = false;
             preset.Stages.Landscape = false;
 
-            var capture = new VisualStructureCapture(new int3(-220, -20, -220), new int3(440, 260, 440));
+            int3 min = new int3(-220, -20, -220);
+            int3 size = new int3(440, 260, 440);
+            var capture = new VisualStructureCapture(min, size);
             var build = new CastleAuthoringBuild(capture, in plan, preset, plan.Seed);
             while (!build.Step()) { }
             AssertVisual(capture.RenderPng("castle-walled", 1440, 1000));
+            AssertVisual(VisualStructureDiagnosticRenderer.Render(
+                capture, min, size, "castle-walled-diagnostic", 1440, 1000));
         }
 
         [Test]
