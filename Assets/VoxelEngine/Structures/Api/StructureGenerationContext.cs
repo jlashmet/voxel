@@ -1,4 +1,3 @@
-using System;
 using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Terrain.Api;
@@ -56,74 +55,113 @@ namespace VoxelEngine.Structures.Api
 
     /// <summary>
     /// Stable deterministic inputs and outputs shared by reusable structure authoring components.
-    ///
-    /// The context carries identity separately from the random stream seed: identity tells other
-    /// systems which structure instance produced an anchor, while the seed controls deterministic
-    /// variation. Origin/orientation and bounds are integer world-space values. Terrain access is
-    /// pure. Materials are opaque voxel ids until semantic roles are layered on by the shared
-    /// structure palette. Anchor output remains caller-owned native memory.
+    /// This is a value-level view over the existing feature-generation contracts, not a parallel
+    /// generation system: geometry still terminates in shape programs/primitives/authoring sessions.
     /// </summary>
     public struct StructureGenerationContext
     {
-        private NativeArray<byte> _materials;
         private NativeList<ResolvedAnchor> _anchors;
 
-        public ulong InstanceId { get; }
-        public ulong InstanceSeed { get; }
-        public int3 Origin { get; }
+        public ulong InstanceId { get; private set; }
+        public uint WorldSeed { get; private set; }
+        public int DefinitionId { get; private set; }
+        public ulong InstanceSeed { get; private set; }
+        public int3 Origin { get; private set; }
 
         /// <summary>Cardinal Y rotation, encoded identically to ShapeProgram: 0..3.</summary>
-        public byte Orientation { get; }
+        public byte Orientation { get; private set; }
 
-        public StructureGenerationBounds Bounds { get; }
-        public StructureTerrainAccess Terrain { get; }
+        public StructureGenerationBounds Bounds { get; private set; }
+        public StructureTerrainAccess Terrain { get; private set; }
+        public StructureMaterialPalette Palette { get; private set; }
 
-        public int MaterialCount => _materials.IsCreated ? _materials.Length : 0;
         public bool HasAnchorOutput => _anchors.IsCreated;
         public int AnchorCount => _anchors.IsCreated ? _anchors.Length : 0;
 
         public StructureGenerationContext(
             ulong instanceId,
+            uint worldSeed,
+            int definitionId,
             ulong instanceSeed,
             int3 origin,
             byte orientation,
             in StructureGenerationBounds bounds,
             in StructureTerrainAccess terrain,
-            NativeArray<byte> materials,
+            in StructureMaterialPalette palette,
             NativeList<ResolvedAnchor> anchors)
         {
             InstanceId = instanceId;
+            WorldSeed = worldSeed;
+            DefinitionId = definitionId;
             InstanceSeed = instanceSeed;
             Origin = origin;
-            Orientation = orientation;
+            Orientation = (byte)(orientation & 3);
             Bounds = bounds;
             Terrain = terrain;
-            _materials = materials;
+            Palette = palette;
             _anchors = anchors;
         }
 
-        /// <summary>Returns the opaque material id at a catalogue/palette-local index.</summary>
-        public byte MaterialAt(int index) => _materials[index];
-
-        /// <summary>Adds one resolved anchor to the caller-owned output list.</summary>
-        public void AddAnchor(in ResolvedAnchor anchor)
+        /// <summary>
+        /// Creates a context using the same stable feature identity rule as FeatureGeneration.
+        /// Odd cardinal orientations swap X/Z footprint extents in world-space bounds.
+        /// </summary>
+        public static StructureGenerationContext ForFeature(
+            uint worldSeed,
+            uint terrainSeed,
+            int definitionId,
+            int3 origin,
+            byte orientation,
+            int3 footprint,
+            in StructureMaterialPalette palette,
+            NativeList<ResolvedAnchor> anchors)
         {
-            if (!_anchors.IsCreated)
-                throw new InvalidOperationException("Structure generation context has no anchor output.");
+            byte cardinal = (byte)(orientation & 3);
+            int3 orientedFootprint = (cardinal & 1) == 0
+                ? footprint
+                : new int3(footprint.z, footprint.y, footprint.x);
+            ulong identity = FeatureHash.Cell(worldSeed, definitionId, origin);
+            var bounds = new StructureGenerationBounds(origin, origin + orientedFootprint);
+            var terrain = new StructureTerrainAccess(terrainSeed);
 
-            _anchors.Add(anchor);
+            return new StructureGenerationContext(
+                identity,
+                worldSeed,
+                definitionId,
+                identity,
+                origin,
+                cardinal,
+                in bounds,
+                in terrain,
+                in palette,
+                anchors);
         }
+
+        public byte Material(StructureMaterialRole role) => Palette.Resolve(role);
 
         /// <summary>
-        /// Exposes the anchors emitted so far without transferring ownership. The returned array is
-        /// invalidated by list growth and must not outlive the caller-owned anchor list.
+        /// Derives a stable semantic child stream without consuming mutable RNG state. Optional
+        /// sibling components therefore cannot perturb an existing component's random choices.
         /// </summary>
-        public NativeArray<ResolvedAnchor> AnchorsAsArray()
+        public ulong ChildSeed(in FixedString64Bytes semanticKey, int ordinal = 0) =>
+            StructureSeed.Child(InstanceSeed, in semanticKey, ordinal);
+
+        /// <summary>Adds one already-resolved world-space anchor to caller-owned native output.</summary>
+        public bool TryAddResolvedAnchor(in FixedString32Bytes name, int3 worldPosition, Facing facing)
         {
             if (!_anchors.IsCreated)
-                throw new InvalidOperationException("Structure generation context has no anchor output.");
+                return false;
 
-            return _anchors.AsArray();
+            _anchors.Add(new ResolvedAnchor
+            {
+                Name = name,
+                Position = worldPosition,
+                Facing = facing,
+            });
+            return true;
         }
+
+        public NativeArray<ResolvedAnchor> AnchorsAsArray() =>
+            _anchors.IsCreated ? _anchors.AsArray() : default;
     }
 }
