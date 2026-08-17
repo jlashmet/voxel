@@ -12,6 +12,12 @@ from api.models import (
     CharacterFactoryError,
     GeneratorBackend,
 )
+from .geometry_cache import (
+    cache_entry,
+    geometry_fingerprint,
+    restore_geometry_cache,
+    store_geometry_cache,
+)
 from .pipelines.accessory import AccessoryPipeline
 from .pipelines.base import AssetPipeline
 from .pipelines.character import CharacterPipeline
@@ -86,12 +92,31 @@ class CharacterFactoryRuntime:
     def __init__(self, tool_root: Path):
         self.tool_root = tool_root.resolve()
 
-    def build(self, spec: BuildSpec, dry_run: bool = False) -> Path:
-        bootstrap_command = self._ensure_backend_profile(spec, dry_run=dry_run)
-
+    def build(
+        self,
+        spec: BuildSpec,
+        dry_run: bool = False,
+        *,
+        use_geometry_cache: bool = True,
+    ) -> Path:
         pipeline_type = pipeline_type_for(spec.asset_type)
         pipeline = pipeline_type(self.tool_root)
-        result = pipeline.build(spec, dry_run=dry_run)
+        plan = pipeline.plan(spec)
+        fingerprint = geometry_fingerprint(self.tool_root, spec, plan)
+        cache = cache_entry(spec, fingerprint)
+
+        cache_hit = False
+        bootstrap_command: list[str] | None = None
+        if not dry_run and use_geometry_cache:
+            cache_hit = restore_geometry_cache(cache, plan)
+
+        if cache_hit:
+            result = plan
+        else:
+            bootstrap_command = self._ensure_backend_profile(spec, dry_run=dry_run)
+            result = pipeline.execute(plan, dry_run=dry_run)
+            if not dry_run and use_geometry_cache:
+                store_geometry_cache(cache, fingerprint, result)
 
         commands: dict[str, object] = {
             "generator": result.generator_command,
@@ -112,6 +137,12 @@ class CharacterFactoryRuntime:
             "rawMesh": str(result.raw_mesh),
             "references": reference_metadata(spec),
             "generator": generator_metadata(spec),
+            "geometryCache": {
+                "enabled": use_geometry_cache,
+                "hit": cache_hit,
+                "fingerprint": fingerprint.value,
+                "preparedFbx": str(cache.fbx),
+            },
             "runtimePart": result.runtime_metadata,
             "commands": commands,
         }
