@@ -46,11 +46,11 @@ tools/character-factory/production-assets/
       geometry/back.png
       geometry/left.png
       geometry/right.png
-      appearance/front.png       # optional; geometry is the fallback
+      appearance/front.png
       appearance/back.png
       appearance/left.png
       appearance/right.png
-      details/face.png           # optional named identity/detail source
+      details/face.png
   clothing/
     cleric-robe/
       asset.json
@@ -83,7 +83,7 @@ Existing top-level `views` remain supported during migration. A spec may add `re
 
 ## Generator backend profiles
 
-Machine/runtime configuration is now separate from asset data. Current profiles:
+Machine/runtime configuration is separate from asset data. Current profiles:
 
 ```text
 hunyuan-quality-macos
@@ -109,7 +109,7 @@ Both `build` and `produce` bootstrap a missing profile automatically and skip bo
 
 ## Appearance strategies
 
-Appearance is now declared independently from both `assetType` and generator backend:
+Appearance is declared independently from both `assetType` and generator backend:
 
 ```json
 {
@@ -128,15 +128,34 @@ character-multiview  character only; current body/T-pose policy
 garment-multiview    clothing only; shares atlas/mask/UV mechanics but uses
                       local surface orientation without character arm heuristics
 
-rigid-multiview      weapon/accessory only; uses object-local surface orientation
-                      and rejects unexpected armatures
+rigid-multiview      weapon/accessory only; uses object-local surface orientation,
+                      rigid-specific multipart foreground masking, and rejects armatures
 
 preserve-generator   any asset type; keep the generator's existing materials/UVs
 ```
 
 A multiview strategy requires complete front/back/left/right appearance references. That requirement is validated before backend bootstrap or geometry generation. Invalid asset-type/strategy combinations are rejected while loading `BuildSpec`.
 
-The strategy layer deliberately separates **routing/mechanics** from **art-quality acceptance**. Garment and rigid multiview now have independent projection policy, but visibility/depth reasoning, semantic fit, seams, disconnected rigid components, and orientation normalization remain quality work below.
+The strategy layer deliberately separates **routing/mechanics** from **art-quality acceptance**. Garment and rigid multiview now have independent projection policy. Rigid references also keep substantial disconnected islands while filtering tiny speckles. Visibility/depth reasoning, semantic garment fit, seam quality, and stronger object-orientation semantics remain separate quality work.
+
+## Rigid canonicalization
+
+Weapons and rigid accessories may opt into a generic preparation contract:
+
+```json
+{
+  "rigid": {
+    "blender": "/Applications/Blender.app/Contents/MacOS/Blender",
+    "canonicalAxis": "z",
+    "targetLength": 1.2,
+    "anchorFraction": [0.5, 0.5, 0.1]
+  }
+}
+```
+
+`canonicalAxis` rotates the generated mesh's detected longest bounds axis onto the requested local axis. `targetLength` uniformly scales that longest extent to a physical size. `anchorFraction` translates a normalized bounds point to the origin; for a weapon this is the grip anchor and for an accessory it is the mount anchor. All three are optional so existing assets remain unchanged.
+
+Preparation writes a `*.rigid-contract.json` sidecar recording source/final axis, length, bounds, and anchor. The normal rigid verifier consumes that contract and checks the FBX round-trip. The spec/command contract is covered by fast CI; the Blender round-trip gate remains pending on the shared self-hosted runner.
 
 ## Production profiles
 
@@ -144,13 +163,11 @@ The strategy layer deliberately separates **routing/mechanics** from **art-quali
 
 ### Character
 
-Current standard profile:
-
 ```text
 generate geometry
   -> align/transfer canonical rig
   -> character-multiview appearance
-  -> skinning verifier
+  -> skeleton + skin-weight/deformation verifier
   -> animation verifier
   -> bind/lookdev preview
   -> Idle preview
@@ -160,35 +177,31 @@ Character-specific identity work such as face detail must become a configurable 
 
 ### Clothing
 
-Current standard profile:
-
 ```text
 generate garment
   -> align/transfer canonical rig
   -> garment-multiview OR preserve-generator
-  -> skinning/deformation verifier
+  -> skeleton + skin-weight/deformation verifier
   -> lookdev preview
 ```
 
-`garment-multiview` no longer inherits the character T-pose outer-arm redirect. It still needs body-relative fit/occlusion and seam-quality gates before it is considered production-art complete.
+`garment-multiview` does not inherit the character T-pose outer-arm redirect. The skinned verifier now requires at least 99% weight coverage per skinned mesh, but that strengthened Blender gate is not checked complete until the self-hosted smoke executes. Body-relative fit/poke-through and seam quality still remain.
 
 ### Weapon
 
-Current standard profile:
-
 ```text
 generate rigid mesh
-  -> rigid preparation
+  -> optional axis/length/grip canonicalization
   -> rigid-multiview OR preserve-generator
-  -> rigid finite-bounds/no-armature verifier
+  -> rigid contract + finite-bounds/no-armature verifier
   -> lookdev preview
 ```
 
-Weapon production still needs grip-axis inference, grip location, scale normalization, stronger rigid-view orientation handling, and visual seam/coverage quality gates.
+Weapon production still needs automatic grip/axis inference and visual seam/coverage gates; explicit canonicalization is now supported when the intended dimensions/anchor are known.
 
 ### Accessory
 
-Current standard profile mirrors rigid weapon production, with socket metadata controlled by the existing `runtimePart` contract. Two-view or single-view accessories normally use `preserve-generator` until a complete multiview set exists.
+The rigid accessory path shares the same optional canonical-axis/target-length/mount-anchor contract and socket metadata from `runtimePart`. Two-view or single-view accessories normally use `preserve-generator` until a complete multiview set exists.
 
 ## Phase 1 — Generic production orchestration
 
@@ -198,7 +211,7 @@ Current standard profile mirrors rigid weapon production, with socket metadata c
 - [x] Preserve the existing `build` command as the low-level generator/preparation primitive.
 - [x] Record production-stage decisions and commands in `manifest.json`.
 - [x] Restore the prepared character FBX if character appearance projection fails, instead of losing the successful geometry/rig result.
-- [x] Run the focused production-contract CI on the generation-framework branch; run #1 (`32051087040`) passed compile, routing tests, all four asset-type dry runs, and recursive discovery.
+- [x] Run focused production-contract CI; run #1 (`32051087040`) passed compile, routing tests, all four asset-type dry runs, and recursive discovery.
 - [ ] Run the existing self-hosted MPS/Blender Character Factory smoke against the generation-framework branch before migration/merge.
 
 ## Phase 2 — Reference-set contract
@@ -209,17 +222,17 @@ Current standard profile mirrors rigid weapon production, with socket metadata c
 - [x] Separate **geometry references** from **appearance references** so preprocessing for reconstruction does not destroy texture/identity information; appearance falls back to geometry when omitted.
 - [x] Produce a `reference-audit.json` in every non-dry-run production artifact and record resolved reference paths in `manifest.json`.
 - [x] Reject missing/ambiguous canonical views and unsupported/invalid image headers before expensive generation starts.
-- [x] Run the expanded reference-contract CI; run #8 (`32051547185`) passed the reference tests, all four production dry runs, and recursive discovery.
+- [x] Run expanded reference-contract CI; run #8 (`32051547185`) passed the reference tests, all four production dry runs, and recursive discovery.
 
 ## Phase 3 — Backend profiles
 
 - [x] Add named generator profiles `hunyuan-quality-macos`, `hunyuan-smoke-macos`, and `triposr-smoke-macos`.
 - [x] Move cache roots, pinned source revisions, Python environments, model downloads, and bootstrap checks into generic profile/bootstrap code instead of character/weapon production scripts.
 - [x] Allow a production asset to request a profile plus only asset-specific overrides such as seed/resolution; reject profile-owned machine-field overrides.
-- [x] Keep manifests explicit about the selected profile, resolved backend/model parameters, pinned source revision, and bootstrap command for reproducibility.
+- [x] Keep manifests explicit about selected profile, resolved backend/model parameters, pinned source revision, and bootstrap command.
 - [x] Add `profiles` discovery and `bootstrap-profile <name>` CLI commands.
 - [x] Add automatic ready-state detection so already-materialized profile environments do not rerun expensive bootstrap work.
-- [x] Validate the profile contract in focused CI; run #18 (`32061077951`) passed backend-profile tests and all existing production-contract gates, and run #23 (`32061349355`) stayed green after the Sun Staff profile migration.
+- [x] Validate the profile contract in focused CI; run #18 (`32061077951`) passed backend-profile tests and run #23 (`32061349355`) stayed green after the Sun Staff profile migration.
 
 ## Phase 4 — Appearance profiles
 
@@ -229,7 +242,9 @@ Current standard profile mirrors rigid weapon production, with socket metadata c
 - [x] `garment-multiview`: add a separate clothing route and projection policy with no character/T-pose outer-arm heuristic.
 - [ ] Strengthen `garment-multiview` with body-relative fit, depth/occlusion, seam handling, and production visual gates.
 - [x] `rigid-multiview`: add a separate weapon/accessory route with rigid-FBX validation and object-surface view selection.
-- [ ] Strengthen `rigid-multiview` with orientation normalization, disconnected-component-safe masking, seam handling, and grip-independent coordinates.
+- [x] Add rigid-specific foreground selection that preserves substantial disconnected components while rejecting isolated speckles; pure regression coverage passed in run #52 (`32063774082`).
+- [ ] Prove multipart rigid masking and character/garment/rigid projection through Blender; self-hosted appearance run #5 (`32064496502`) is queued with no runner assigned.
+- [ ] Strengthen `rigid-multiview` further with seam handling and view/orientation quality gates.
 - [ ] `character-multiview`: finish the current Madeline projection repair with bounded/visibility-aware sampling and production visual gates.
 - [x] Exercise all four strategies in focused CI; run #42 (`32063213794`) passed compile, appearance/backend/reference/routing tests, all four per-asset dry runs, and recursive batch production.
 
@@ -237,25 +252,31 @@ Current standard profile mirrors rigid weapon production, with socket metadata c
 
 - [ ] Character: projection quality, skeleton, weights, animation deformation, identity proof.
 - [ ] Clothing: skeleton compatibility, deformation, body fit/poke-through, hidden-body-region metadata, seam quality.
+- [x] Add a 99% minimum per-mesh skin-weight coverage gate for character/clothing; Blender proof is still pending before treating this as production-accepted.
 - [x] Weapon/accessory: mesh present, no unexpected armature, finite/non-degenerate bounds.
-- [ ] Weapon: grip axis/location and plausible scale.
-- [ ] Accessory: socket metadata and plausible local transform.
+- [x] Add generic rigid canonical-axis/physical-length/grip-or-mount-anchor config plus fast spec/command tests; framework run #63 (`32064307955`) remained green with the contract.
+- [ ] Prove rigid canonicalization and contract verification through FBX round-trip in Blender; included in queued appearance run #5 (`32064496502`).
+- [ ] Weapon: automatically infer grip axis/location and plausible scale when not explicitly declared.
+- [ ] Accessory: automatically infer a plausible local mount transform when not explicitly declared.
 - [ ] Prevent Unity staging when the production profile fails.
 
 ## Phase 6 — Migrate existing assets
 
 - [ ] Finish Madeline projection repair on `agent/madeline-projection-repair` first.
-- [ ] Move Madeline reference normalization, body-only preprocessing, and face identity into reusable/configurable stages. Her generator environment and reference declaration are profile/contract-driven now, but the cleanup/face operations remain bespoke.
+- [ ] Move Madeline reference normalization, body-only preprocessing, and face identity into reusable/configurable stages. Her generator environment and reference declaration are profile/contract-driven now, but cleanup/face operations remain bespoke.
 - [ ] Replace `production/madeline/build.sh` with an `asset.json` plus only genuinely asset-specific preprocessing configuration.
 - [x] Migrate the Sunlit Cleric character build to `produce` using `hunyuan-quality-macos`; the script now only creates the canonical donor and writes the asset spec.
-- [ ] Migrate the Cleric robe to the clothing production profile.
-- [ ] Migrate the Sun Staff fully to the weapon production profile; its TripoSR environment/spec is profile-driven now, but ornament+procedural-shaft composition is still a bespoke stage.
+- [ ] Migrate the Cleric robe to the clothing production profile. A generic `build_robe_macos.sh` entrypoint now derives robe views, creates `GarmentDonor`, and calls `produce` with `garment-multiview`; a real Hunyuan/Blender production proof is still required.
+- [ ] Migrate the Sun Staff fully to the weapon production profile; its TripoSR environment/spec is profile-driven now, but ornament+procedural-shaft composition is still bespoke.
 - [ ] Migrate the sun charm/accessories.
 
 ## Phase 7 — Scale to many assets
 
-- [ ] Build a production asset catalogue/index with IDs, types, references, dependencies, and latest successful artifact hashes.
-- [ ] Support filtered batches by type, ID, tag, or changed reference/spec.
+- [x] Build a production asset catalogue/index with type+ID keys, spec/reference SHA-256 fingerprints, generator profile/backend, appearance strategy, runtime slot/socket, and rigid canonicalization metadata.
+- [x] Detect duplicate `assetType:id` identities while indexing.
+- [x] Support filtered `produce-batch` by repeated `--type` and `--id`; run #68 (`32064672302`) passed catalogue generation and a filtered weapon batch.
+- [ ] Add tag filtering and changed-reference/spec selection.
+- [ ] Track latest successful artifact hashes/status in the catalogue.
 - [ ] Cache expensive geometry generation independently from appearance/verification stages.
 - [ ] Re-run only downstream stages when references or configuration affecting those stages change.
 - [ ] Add CI smoke fixtures for at least one character, garment, weapon, and accessory.
@@ -263,4 +284,4 @@ Current standard profile mirrors rigid weapon production, with socket metadata c
 
 ## Current status
 
-The framework now has four scalable layers: a generic asset-type production runner, a geometry/appearance/detail reference contract, pinned backend profiles that own machine/model setup, and explicit appearance strategies for character, garment, rigid equipment, or generator-preserved materials. Focused CI is green across all four asset types and all four appearance routes. The next highest-leverage work is **quality and migration**, not another routing abstraction: finish Madeline's visibility-aware character projection, add garment fit/occlusion validation, improve rigid orientation/seams/grip metadata, and turn the remaining Madeline/Sun Staff art operations into declared reusable stages.
+The framework now has a generic asset production runner, separate geometry/appearance/detail references, named backend profiles, explicit character/garment/rigid appearance strategies, rigid multipart-reference handling, optional rigid axis/length/grip-or-mount canonicalization, and a catalogue with filtered batch production. Fast CI is green through run #68 across all four asset types. The main outstanding integration gate is the self-hosted Blender appearance/canonicalization smoke, currently queued with no runner assigned. After that, the highest-value work is art-quality reasoning: finish Madeline visibility-aware projection, add garment body-fit/occlusion gates, add rigid seam/orientation quality, and convert the remaining bespoke Madeline/Sun Staff art operations into declared reusable stages.
