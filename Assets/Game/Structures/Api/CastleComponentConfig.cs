@@ -30,6 +30,7 @@ namespace Game.Structures.Api
         public TowerConfig CornerTowers;
         public CastleGatehouseConfig Gatehouse;
         public CastleCourtyardConfig Courtyard;
+        public CastleMoatConfig Moat;
         public BattlementConfig CurtainBattlements;
         public StructureMaterialPalette Palette;
 
@@ -60,6 +61,7 @@ namespace Game.Structures.Api
             CornerTowers.IsWellFormed &&
             Gatehouse.IsWellFormed &&
             Courtyard.IsWellFormed &&
+            Moat.IsWellFormed &&
             CurtainBattlements.IsWellFormed;
     }
 
@@ -223,6 +225,7 @@ namespace Game.Structures.Api
                     },
                 },
                 Courtyard = CastleCourtyardPresets.Compatibility(in plan),
+                Moat = CastleMoatPresets.Compatibility(in plan),
                 CurtainBattlements = new BattlementConfig
                 {
                     ParapetThickness = 8,
