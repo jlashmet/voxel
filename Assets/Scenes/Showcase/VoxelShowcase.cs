@@ -131,10 +131,13 @@ namespace VoxelEngine.Showcase
             _gpuDebris = new GpuDebrisSystem();
             _motor = new CharacterMotor { WalkSpeed = m_WalkSpeed };
 
-            // Hand stable world capabilities to Composition; URP still owns the concrete render
-            // feature, but the showcase no longer reaches into Rendering.Runtime globals.
+            // Keep the production surface scheduler live from the first rendered frame. The
+            // castle is published incrementally, and ready chunk geometry already remains visible
+            // until replacements upload. Disabling this pass used to accumulate all terrain and
+            // castle work, then dump the entire backlog into the renderer when the landmark
+            // finished — producing the exact castle-arrival cliff this showcase is meant to avoid.
             RenderingComposition.ResetSurfacePassDiagnostics("showcase-enabled");
-            RenderingComposition.SetSurfaceBuildEnabled(false);
+            RenderingComposition.SetSurfaceBuildEnabled(true);
             RenderingComposition.SetFarBaseHeight(ShowcaseWorld.BaseHeightVoxels);
 
             // Terrain past the streaming radius. The voxel world only makes a few hundred
@@ -238,12 +241,10 @@ namespace VoxelEngine.Showcase
                 StepTornadoes(Time.deltaTime);
                 _gpuDebris?.Step(_world, Time.deltaTime);
 
-                // Startup may spend a loading budget until the atomic landmark is committed.
-                // Afterwards streaming returns to the interactive 3 ms slice.
-                double streamingBudget = _world.CastleVoxels == 0
-                    ? Mathf.Max(m_GenerateBudgetMs, 12f) : m_GenerateBudgetMs;
-                _world.StepStreaming(transform.position, streamingBudget);
-                if (_world.CastleVoxels > 0) RenderingComposition.SetSurfaceBuildEnabled(true);
+                // This is an interactive showcase even while the landmark worker is active.
+                // Never switch into the old 12 ms "loading" slice: castle authoring, voxel
+                // streaming and surface extraction must share the frame without a startup cliff.
+                _world.StepStreaming(transform.position, m_GenerateBudgetMs);
 
                 // The far field's hole has to follow what streaming has actually finished, not
                 // the radius it was configured with. Set after StepStreaming so a region that

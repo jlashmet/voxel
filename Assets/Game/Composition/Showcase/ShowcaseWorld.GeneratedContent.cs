@@ -1,5 +1,7 @@
 using System;
+using System.IO;
 using Unity.Mathematics;
+using UnityEngine;
 using VoxelEngine.Structures.Api;
 
 namespace VoxelEngine.Showcase
@@ -7,18 +9,55 @@ namespace VoxelEngine.Showcase
     public sealed partial class ShowcaseWorld
     {
         /// <summary>
-        /// Generates the origin terrain needed to place the player and queue the showcase castle,
-        /// but deliberately does not run the generic feature catalogue in the region the castle
-        /// owns. The normal blocking generator used to queue landmarks at the end of terrain and
-        /// then immediately rasterise the origin's generic features anyway. That made the castle's
-        /// pre-authoring input differ from the other eight castle regions and forced async castle
-        /// authoring to serialize the whole live region just to preserve accidental dressing.
+        /// Restores the pre-generated showcase startup world.
         ///
-        /// Castle-owned regions are now plain deterministic terrain until the castle commits, which
-        /// matches the streaming path's existing deferred-feature rule and lets the worker recreate
-        /// the exact source from the world seed without touching live storage.
+        /// This method intentionally keeps its old name because the scene driver's Spawn path
+        /// already calls it before touching the player. It no longer generates terrain or runs
+        /// castle authoring during play. The expensive source generation lives exclusively behind
+        /// <see cref="GenerateForBakeBlocking"/> and the editor bake command.
         /// </summary>
         public void GenerateCastleOriginBlocking()
+        {
+            // Respawn/re-entry after the startup image has already been installed is free.
+            if (_hasCastlePlan && _generated.Contains(int3.zero)) return;
+
+            if (_generated.Count != 0 || _gen.Active || RegionsGenerated != 0
+                || _pendingLoads.Count != 0 || _pendingFeatureRegions.Count != 0
+                || _featureBuild != null || _castleBuild != null || _castleTerrainQueued
+                || _hasCastlePlan)
+                throw new InvalidOperationException(
+                    "The baked showcase world must be loaded before runtime world generation starts.");
+
+            TextAsset asset = Resources.Load<TextAsset>(ShowcaseWorldBakeCodec.ResourcePath);
+            if (asset == null)
+                throw new InvalidOperationException(
+                    "The Voxel Showcase startup bake is missing. Run " +
+                    "Tools > Voxel Engine > Bake Showcase World before entering Play mode. " +
+                    "Runtime generation is deliberately disabled for the showcase startup path.");
+
+            ShowcaseWorldBake bake;
+            try
+            {
+                bake = ShowcaseWorldBakeCodec.Deserialize(asset.bytes);
+            }
+            catch (Exception ex) when (ex is InvalidDataException
+                                       || ex is EndOfStreamException
+                                       || ex is ArgumentException)
+            {
+                throw new InvalidOperationException(
+                    "The Voxel Showcase startup bake is invalid or stale. Re-run " +
+                    "Tools > Voxel Engine > Bake Showcase World.", ex);
+            }
+
+            LoadBake(bake);
+        }
+
+        /// <summary>
+        /// Builds only the source origin used by the offline baker. Keeping this separate from the
+        /// runtime compatibility entry point above makes it impossible for Play mode to silently
+        /// fall back to procedural castle generation when a bake is absent.
+        /// </summary>
+        private void GenerateCastleOriginForBakeBlocking()
         {
             int3 regionCoord = int3.zero;
             if (_generated.Contains(regionCoord)) return;
@@ -34,7 +73,7 @@ namespace VoxelEngine.Showcase
 
             // FinishRegion had to make the castle plan first, so it could not know this was a
             // castle-owned region when it made its feature-queue decision. Remove that one stale
-            // queue entry before the blocking caller can rasterise it.
+            // queue entry before the blocking baker can rasterise it.
             _pendingFeatureRegions.Remove(regionCoord);
         }
 

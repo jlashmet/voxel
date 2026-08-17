@@ -76,40 +76,102 @@ jobs:
       - name: EditMode (affected)
         if: steps.select.outputs.editmode != ''
         shell: bash
+        env:
+          EDITMODE_ARGS: ${{ steps.select.outputs.editmode }}
         run: |
-          set -euo pipefail
+          set -uo pipefail
           ROOT="$GITHUB_WORKSPACE/Artifacts/PrTests"
           mkdir -p "$ROOT"
+          NAMES="${EDITMODE_ARGS#-assemblyNames }"
+          status=0
           UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=30 \
           UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
             -batchmode -nographics -job-worker-count 1 \
             -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform EditMode \
-            ${{ steps.select.outputs.editmode }} \
-            -testResults "$ROOT/editmode.xml" -logFile "$ROOT/editmode.log"
+            -assemblyNames "$NAMES" \
+            -testResults "$ROOT/editmode.xml" -logFile "$ROOT/editmode.log" || status=$?
+
+          # unity-run can fail before Unity opens the requested -logFile (for example a launcher
+          # guard or an editor boot/import failure). Preserve the editor's global log and the
+          # watchdog's last sample so a PR failure always has actionable diagnostics.
+          if [[ ! -s "$ROOT/editmode.log" && -s "$HOME/Library/Logs/Unity/Editor.log" ]]; then
+            cp "$HOME/Library/Logs/Unity/Editor.log" "$ROOT/editmode-global.log"
+          fi
+          if [[ -s "${TMPDIR:-/tmp}/unity-run-status" ]]; then
+            cp "${TMPDIR:-/tmp}/unity-run-status" "$ROOT/unity-run-status.txt"
+          fi
+
+          if (( status != 0 )); then
+            exit "$status"
+          fi
           test -s "$ROOT/editmode.xml"
 
-      # PlayMode assemblies run one process each. Sharing a process across them
-      # accumulates native memory over repeated scene loads until the guard in
-      # unity-run.sh kills the run before any assembly reports.
-      - name: PlayMode (affected)
-        if: steps.select.outputs.playmode != ''
+      # The Voxel Showcase deliberately has no Play-mode generation fallback. Its startup image is
+      # a build/editor artifact, so a clean CI checkout must run the same bake step a developer or
+      # release build runs before any suite opens VoxelShowcase.unity.
+      - name: Bake Voxel Showcase startup world
+        if: contains(steps.select.outputs.playmode, 'VoxelEngine.Tests.PlayMode')
         shell: bash
         run: |
           set -euo pipefail
           ROOT="$GITHUB_WORKSPACE/Artifacts/PrTests"
           mkdir -p "$ROOT"
-          NAMES="$(echo '${{ steps.select.outputs.playmode }}' | sed 's/^-assemblyNames //')"
+          UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=20 \
+          UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
+            -batchmode -nographics -job-worker-count 1 -quit \
+            -projectPath "$GITHUB_WORKSPACE" \
+            -executeMethod VoxelEngine.Showcase.Editor.ShowcaseWorldBaker.BakeShowcaseWorld \
+            -logFile "$ROOT/showcase-bake.log"
+          test -s "$GITHUB_WORKSPACE/Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes"
+
+      # PlayMode assemblies run one process each. VoxelEngine.Tests.PlayMode is large enough that
+      # Unity retains native scene/rendering memory across its repeated scene loads and eventually
+      # crosses the watchdog ceiling even though managed scene memory is released. Split that one
+      # assembly into complementary name ranges so every test still runs, but each shard gets a
+      # fresh Unity process and native allocator state.
+      - name: PlayMode (affected)
+        if: steps.select.outputs.playmode != ''
+        shell: bash
+        env:
+          PLAYMODE_ARGS: ${{ steps.select.outputs.playmode }}
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/Artifacts/PrTests"
+          mkdir -p "$ROOT"
+          NAMES="${PLAYMODE_ARGS#-assemblyNames }"
           status=0
           IFS=';' read -ra ASSEMBLIES <<< "$NAMES"
           for asm in "${ASSEMBLIES[@]}"; do
-            echo "::group::PlayMode $asm"
-            UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=30 \
-            UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
-              -batchmode -job-worker-count 1 \
-              -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform PlayMode \
-              -assemblyNames "$asm" \
-              -testResults "$ROOT/playmode-$asm.xml" -logFile "$ROOT/playmode-$asm.log" || status=1
-            echo "::endgroup::"
+            if [[ "$asm" == "VoxelEngine.Tests.PlayMode" ]]; then
+              FILTERS=(
+                '^VoxelEngine\.Tests\.PlayMode\.[A-F]'
+                '^VoxelEngine\.Tests\.PlayMode\.[G-M]'
+                '^VoxelEngine\.Tests\.PlayMode\.[N-S]'
+                '!^VoxelEngine\.Tests\.PlayMode\.[A-S]'
+              )
+              LABELS=(a-f g-m n-s t-z-rest)
+              for i in "${!FILTERS[@]}"; do
+                label="${LABELS[$i]}"
+                echo "::group::PlayMode $asm ($label)"
+                UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=30 \
+                UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
+                  -batchmode -job-worker-count 1 \
+                  -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform PlayMode \
+                  -assemblyNames "$asm" -testFilter "${FILTERS[$i]}" \
+                  -testResults "$ROOT/playmode-$asm-$label.xml" \
+                  -logFile "$ROOT/playmode-$asm-$label.log" || status=1
+                echo "::endgroup::"
+              done
+            else
+              echo "::group::PlayMode $asm"
+              UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=30 \
+              UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
+                -batchmode -job-worker-count 1 \
+                -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform PlayMode \
+                -assemblyNames "$asm" \
+                -testResults "$ROOT/playmode-$asm.xml" -logFile "$ROOT/playmode-$asm.log" || status=1
+              echo "::endgroup::"
+            fi
           done
           exit $status
 

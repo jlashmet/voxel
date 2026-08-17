@@ -33,7 +33,8 @@ namespace VoxelEngine.Showcase
     /// </summary>
     internal sealed class AsyncCastleBuildSession : ICastleBuildSession, IDisposable
     {
-        private const int BlocksPerPublishSlice = 32;
+        private const int MaxBlocksPerPublishSlice = 32;
+        private const double PublishBudgetMs = 0.35;
         private const int MinimumPrivateMixedBrickCapacity = 8 * 1024;
         private const int PrivateMixedBrickSafetyReserve = 4 * 1024;
         private const int PrivateCapacityGrowthFloor = 8 * 1024;
@@ -118,10 +119,23 @@ namespace VoxelEngine.Showcase
                     throw new OperationCanceledException("Castle build was cancelled before publication.");
             }
 
-            int end = math.min(_result.Blocks.Count,
-                               _publishCursor + BlocksPerPublishSlice);
-            for (; _publishCursor < end; _publishCursor++)
+            // Publication is a frame-path mutation producer: every copied block can invalidate
+            // several surface chunks and enqueue replacement geometry. A fixed 32-block burst
+            // could consume multiple milliseconds on its own and then leave the renderer chasing
+            // a large dirty wave. Keep the old hard cap as a backstop, but stop on a tight wall-
+            // clock budget as well. Always publish at least one block so progress cannot stall on
+            // machines where the first mutation itself crosses the deadline.
+            double publishDeadline = Time.realtimeSinceStartupAsDouble + PublishBudgetMs * 0.001;
+            int published = 0;
+            while (_publishCursor < _result.Blocks.Count
+                   && published < MaxBlocksPerPublishSlice)
+            {
                 PublishBlock(_result.Blocks[_publishCursor]);
+                _publishCursor++;
+                published++;
+                if (Time.realtimeSinceStartupAsDouble >= publishDeadline)
+                    break;
+            }
 
             if (_publishCursor < _result.Blocks.Count)
                 return false;
@@ -226,14 +240,25 @@ namespace VoxelEngine.Showcase
                     }
                 }
 
-                // Stable order keeps publication deterministic and makes frame-budget regressions
-                // reproducible rather than dependent on Dictionary iteration order. PayloadOffset
-                // remains stable because it addresses the staging arrays rather than list order.
-                blocks.Sort(static (a, b) =>
+                // Publish bottom-up so an in-progress landmark reads as a coherent structure
+                // growing from its foundation instead of disconnected north/south slices. Within
+                // each level, work from the castle centre outward. This remains fully deterministic
+                // while making bounded publication visually much less broken.
+                int centreBlockX = _plan.Centre.x >> VoxelReadGrid.BlockEdgeLog2;
+                int centreBlockZ = _plan.Centre.z >> VoxelReadGrid.BlockEdgeLog2;
+                blocks.Sort((a, b) =>
                 {
-                    int c = a.WorldBlock.z.CompareTo(b.WorldBlock.z);
+                    int c = a.WorldBlock.y.CompareTo(b.WorldBlock.y);
                     if (c != 0) return c;
-                    c = a.WorldBlock.y.CompareTo(b.WorldBlock.y);
+                    int adx = a.WorldBlock.x - centreBlockX;
+                    int adz = a.WorldBlock.z - centreBlockZ;
+                    int bdx = b.WorldBlock.x - centreBlockX;
+                    int bdz = b.WorldBlock.z - centreBlockZ;
+                    long aDistance = (long)adx * adx + (long)adz * adz;
+                    long bDistance = (long)bdx * bdx + (long)bdz * bdz;
+                    c = aDistance.CompareTo(bDistance);
+                    if (c != 0) return c;
+                    c = a.WorldBlock.z.CompareTo(b.WorldBlock.z);
                     return c != 0 ? c : a.WorldBlock.x.CompareTo(b.WorldBlock.x);
                 });
 
