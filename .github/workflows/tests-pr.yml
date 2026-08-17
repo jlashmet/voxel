@@ -77,15 +77,30 @@ jobs:
         if: steps.select.outputs.editmode != ''
         shell: bash
         run: |
-          set -euo pipefail
+          set -uo pipefail
           ROOT="$GITHUB_WORKSPACE/Artifacts/PrTests"
           mkdir -p "$ROOT"
+          status=0
           UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=30 \
           UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
             -batchmode -nographics -job-worker-count 1 \
             -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform EditMode \
             ${{ steps.select.outputs.editmode }} \
-            -testResults "$ROOT/editmode.xml" -logFile "$ROOT/editmode.log"
+            -testResults "$ROOT/editmode.xml" -logFile "$ROOT/editmode.log" || status=$?
+
+          # unity-run can fail before Unity opens the requested -logFile (for example a launcher
+          # guard or an editor boot/import failure). Preserve the editor's global log and the
+          # watchdog's last sample so a PR failure always has actionable diagnostics.
+          if [[ ! -s "$ROOT/editmode.log" && -s "$HOME/Library/Logs/Unity/Editor.log" ]]; then
+            cp "$HOME/Library/Logs/Unity/Editor.log" "$ROOT/editmode-global.log"
+          fi
+          if [[ -s "${TMPDIR:-/tmp}/unity-run-status" ]]; then
+            cp "${TMPDIR:-/tmp}/unity-run-status" "$ROOT/unity-run-status.txt"
+          fi
+
+          if (( status != 0 )); then
+            exit "$status"
+          fi
           test -s "$ROOT/editmode.xml"
 
       # The Voxel Showcase deliberately has no Play-mode generation fallback. Its startup image is
