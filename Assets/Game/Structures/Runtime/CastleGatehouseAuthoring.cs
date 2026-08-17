@@ -10,13 +10,14 @@ namespace Game.Structures.Runtime
     {
         public static void Author(IStructureAuthoringSession authoring, in CastlePlan plan)
         {
-            CastleComponentConfig config = CastleCompatibilityComponents.Resolve(in plan);
+            StructureMaterialPalette palette = CastleStructurePalette.Compatibility;
+            CastleComponentConfig components = CastleComponentPresets.Compatibility(in plan, in palette);
             Author(
                 authoring,
                 in plan,
-                in config.GateTowers,
-                in config.MainGate,
-                in config.GatehouseBattlements);
+                in components.GateTowers,
+                in components.MainGate,
+                in components.GatehouseBattlements);
         }
 
         public static void Author(
