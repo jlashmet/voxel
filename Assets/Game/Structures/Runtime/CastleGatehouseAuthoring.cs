@@ -107,15 +107,17 @@ namespace Game.Structures.Runtime
                     GameMaterialIds.DarkStone);
             }
 
+            // Preserve the legacy raw crenellation dimensions (8,18,18,12) while mapping them to
+            // the shared contract by meaning: wall thickness, merlon height, merlon width, gap.
             authoring.Crenellate(
                 new int3(plan.Centre.x - spacing, baseY + blockHeight,
                          gateZ - plan.WallThickness),
                 new int3(1, 0, 0),
                 spacing * 2,
                 battlements.ParapetThickness,
+                battlements.MerlonHeight,
                 battlements.MerlonWidth,
                 battlements.GapWidth,
-                battlements.MerlonHeight,
                 GameMaterialIds.Stone);
 
             for (int side = -1; side <= 1; side += 2)
