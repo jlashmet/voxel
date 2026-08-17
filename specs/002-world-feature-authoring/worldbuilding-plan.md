@@ -121,7 +121,7 @@ Phase 0 evidence and compatibility targets are recorded in [worldbuilding-invent
 - [x] **WB026** Define reusable courtyard/open-space composition.
 - [x] **WB027** Define named attachment-anchor semantics (`MainEntrance`, `RearEntrance`, `Road`, `Basement`, `Crypt`, `Cave`, `Extension`, etc.) without coupling consumers to structure internals.
 - [x] **WB028** Extend catalogue/shape-program contracts only where shared components cannot be expressed with current deterministic ops.
-- [ ] **WB029** Add validation tests for invalid dimensions, impossible opening spacing, unsupported roof combinations, bounds overflow, and primitive-budget overflow.
+- [x] **WB029** Add validation tests for invalid dimensions, impossible opening spacing, unsupported roof combinations, bounds overflow, and primitive-budget overflow.
 - [ ] **WB030** Add deterministic tests proving the same config/seed produces identical primitive/voxel output and stable semantic sub-seeds.
 
 ## Phase 2 — House/detail pass
