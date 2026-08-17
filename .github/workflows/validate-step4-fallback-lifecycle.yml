@@ -17,6 +17,7 @@ permissions:
 # diagnostic SHAs cannot queue ahead of the current evidence on the single self-hosted Mac runner.
 # This trigger includes the complete ownership / ordinary-result / fallback / publication counters,
 # after the compile fix and idempotent production lifecycle wiring are both present on the tree.
+# Current-head lifecycle validation trigger after the NativeArray test lifetime compile repair.
 concurrency:
   group: unity-step4-lifecycle
   cancel-in-progress: true
