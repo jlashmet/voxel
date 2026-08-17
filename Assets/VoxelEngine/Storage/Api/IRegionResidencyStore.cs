@@ -1,3 +1,4 @@
+using Unity.Collections;
 using Unity.Mathematics;
 
 namespace VoxelEngine.Storage.Api
@@ -13,6 +14,13 @@ namespace VoxelEngine.Storage.Api
         StoragePressure Pressure { get; }
 
         bool IsRegionResident(int3 regionCoord);
+
+        /// <summary>
+        /// Returns an allocator-owned snapshot of the regions that are actually resident now.
+        /// Streaming uses this authoritative set for distance eviction; synthesising candidate
+        /// coordinates around the current player cannot find regions left behind after traversal.
+        /// </summary>
+        NativeArray<int3> GetResidentRegionCoords(Allocator allocator);
 
         /// <summary>Makes the requested region resident. Idempotent.</summary>
         void EnsureRegionResident(int3 regionCoord);
