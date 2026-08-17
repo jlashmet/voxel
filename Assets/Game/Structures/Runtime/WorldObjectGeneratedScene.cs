@@ -18,6 +18,7 @@ namespace Game.Structures.Runtime
         {
             var authoring = new WorldObjectAuthoringSession(worldSeed, parentId);
             WorldObjectGeneratedContent.AuthorCastle(geometry, authoring, in plan);
+            WorldObjectGeneratedExpansion.AuthorCastle(geometry, authoring, in plan);
             return Build(authoring, state);
         }
 
@@ -26,6 +27,7 @@ namespace Game.Structures.Runtime
         {
             var authoring = new WorldObjectAuthoringSession(worldSeed, parentId);
             WorldObjectGeneratedContent.AuthorMineCave(geometry, authoring, chamber);
+            WorldObjectGeneratedExpansion.AuthorMineCave(geometry, authoring, chamber);
             return Build(authoring, state);
         }
 
