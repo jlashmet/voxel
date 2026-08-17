@@ -150,16 +150,22 @@ jobs:
               '^VoxelEngine\.Tests\.PlayMode\.LateJoinTests'
               '^VoxelEngine\.Tests\.PlayMode\.LodRenderingTests'
               '^VoxelEngine\.Tests\.PlayMode\.LodVisualFidelityTests'
-              '^VoxelEngine\.Tests\.PlayMode\.MemoryStabilityTests'
+              '^VoxelEngine\.Tests\.PlayMode\.MemoryStabilityTests\.MemoryStaysWithinTierBudgetOverTwoHours$'
+              '^VoxelEngine\.Tests\.PlayMode\.MemoryStabilityTests\.EvictionReturnsBricksToPool$'
+              '^VoxelEngine\.Tests\.PlayMode\.MemoryStabilityTests\.AnySnapshotMemoryFitsTierBudget$'
               '^VoxelEngine\.Tests\.PlayMode\.[N-S]'
               '^VoxelEngine\.Tests\.PlayMode\.TemporalAnimationVisualTests'
               '^VoxelEngine\.Tests\.PlayMode\.TerrainLookdevScreenshotTests'
-              '^VoxelEngine\.Tests\.PlayMode\.TraversalStreamingTests'
+              '^VoxelEngine\.Tests\.PlayMode\.TraversalStreamingTests\.ContinuousTraversalOverKilometresShowsNoGaps$'
+              '^VoxelEngine\.Tests\.PlayMode\.TraversalStreamingTests\.StreamingWorkStaysWithinTierBudgets$'
+              '^VoxelEngine\.Tests\.PlayMode\.TraversalStreamingTests\.DirectionalPrefetchExtendsResidentSetAheadOfPlayer$'
               '^VoxelEngine\.Tests\.PlayMode\.[U-Z]'
             )
             LABELS=(
-              a-f g-j kentridge late-join lod-rendering lod-fidelity memory n-s
-              temporal-animation terrain-lookdev traversal u-z
+              a-f g-j kentridge late-join lod-rendering lod-fidelity
+              memory-two-hours memory-eviction memory-snapshot n-s
+              temporal-animation terrain-lookdev
+              traversal-continuous traversal-budget traversal-prefetch u-z
             )
             status=0
             for i in "${!FILTERS[@]}"; do
