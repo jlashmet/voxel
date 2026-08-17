@@ -57,6 +57,13 @@ namespace VoxelEngine.Structures.Api
         public LandingConfig Landing;
         public StructureMaterialRole MaterialRole;
 
+        // Compatibility aliases for the original straight-stair authorer. These deliberately map
+        // onto the richer bounded-flight contract rather than restoring a second StairConfig type.
+        public int Steps => StepCount;
+        public int Rise => StepRise;
+        public int Run => StepRun;
+        public int LandingDepth => Landing.Length;
+
         public int TotalRise => StepCount * StepRise;
         public int TotalRun => StepCount * StepRun;
         public bool RequiresIntermediateLanding =>
