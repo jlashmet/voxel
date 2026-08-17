@@ -20,7 +20,7 @@ Status terms:
 - **implemented** — stable semantic ID and recipe exist in source;
 - **reserved** — exact stable identity is documented here but source recipe is not implemented yet.
 
-## Implemented IDs 1–300
+## Implemented IDs 1–320
 
 ### 1–42 — foundational world content
 
@@ -70,13 +70,13 @@ Status terms:
 
 281 QuestBoard; 282 BountyBoard; 283 GuildRegistryDesk; 284 AdventurerMapTable; 285 ExpeditionSupplyRack; 286 PotionSatchelRack; 287 BedrollRack; 288 RopeGearRack; 289 LanternGearRack; 290 GuildTrophyWall; 291 MonsterContractBoard; 292 PartyNoticeBoard; 293 GuildStrongbox; 294 MemberLockerBank; 295 TrainingManualShelf; 296 CartographersDesk; 297 CaravanSupplyCrate; 298 PackSaddleStand; 299 TravelCharmDisplay; 300 WaystoneAttunementPedestal.
 
-## Reserved fantasy IDs 301–400
-
-These names are the next canonical content identities. Source implementation may arrive pack-by-pack, but these IDs should not be reused for unrelated concepts.
-
 ### 301–320 — magical nature, fae, enchanted forest
 
 301 GlowingMushroomCluster; 302 GiantMushroomSeat; 303 ManaBlossom; 304 CrystalFlowerPatch; 305 EnchantedVineCluster; 306 LivingRootArch; 307 FairyRing; 308 FairyHouseNook; 309 SpiritLanternPlant; 310 WhisperingStone; 311 RuneStoneCircle; 312 Moonwell; 313 SunCrystalBloom; 314 FloatingSeedCluster; 315 WispNest; 316 EnchantedTreeShrine; 317 DruidStoneAltar; 318 HerbalistWildPatch; 319 MagicalPondLilies; 320 PetrifiedMagicTree.
+
+## Reserved fantasy IDs 321–400
+
+These names are canonical reserved content identities. Source implementation may arrive pack-by-pack, but these IDs should not be reused for unrelated concepts.
 
 ### 321–340 — fantasy traps, dungeon mechanisms, puzzles
 
@@ -94,9 +94,9 @@ These names are the next canonical content identities. Source implementation may
 
 381 BrokenPortalFrame; 382 CrackedManaCrystal; 383 ArcaneScorchPatch; 384 CorruptionGrowth; 385 CursedVineCluster; 386 HauntedMirror; 387 SpectralCandleCluster; 388 FloatingDebrisCluster; 389 CursedChainBundle; 390 PetrifiedAdventurer; 391 PetrifiedMonster; 392 AbandonedRitualCircle; 393 BrokenRunePillar; 394 ShatteredMagicStatue; 395 CollapsedSpellShelf; 396 PossessedFurniture; 397 ShadowNest; 398 EctoplasmPool; 399 SealedCursedChest; 400 AncientMagicSeal.
 
-## Scene roadmap tied to the 301–400 block
+## Scene roadmap tied to the 321–400 block
 
-Enchanted grove, fairy clearing, druid shrine, trap corridor, puzzle chamber, treasure vault, village shrine, grand temple, magical school classroom, wizard library, forbidden archive, cursed laboratory, haunted manor room, corrupted ruin chamber.
+Trap corridor, puzzle chamber, treasure vault, village shrine, grand temple, magical school classroom, wizard library, forbidden archive, cursed laboratory, haunted manor room, corrupted ruin chamber.
 
 ## Rendering maturity policy
 
