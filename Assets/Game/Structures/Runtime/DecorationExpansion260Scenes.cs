@@ -4,7 +4,7 @@ namespace Game.Structures.Runtime
 {
     public enum DecorationExpansion260SceneKind : byte
     {
-        JewelerShop, GeneralStore, ArmoryShop, TrainingYard, WarRoom, NobleSalon, MusicRoom, PrivateChamber,
+        JewelerShop, GeneralStore, ArmoryShop, EnchantersWorkshop, FamiliarRoom, ArcaneGallery, NobleSalon, MusicRoom, PrivateChamber,
     }
 
     public struct DecorationExpansion260SceneSlot
@@ -33,11 +33,13 @@ namespace Game.Structures.Runtime
                 case DecorationExpansion260SceneKind.GeneralStore:
                     return new[] { S(1,DecorationExpansion260Kind.GeneralStoreCounter,F,true,6), S(2,DecorationExpansion260Kind.SackDisplay,F,true,5), S(3,DecorationExpansion260Kind.ProduceBasketStand,F,false,4), S(4,DecorationExpansion260Kind.HerbDrawerCabinet,W,false,4), S(5,DecorationExpansion260Kind.AwningStriped,C,false,2) };
                 case DecorationExpansion260SceneKind.ArmoryShop:
-                    return new[] { S(1,DecorationExpansion260Kind.ArmorMerchantStand,F,true,6), S(2,DecorationExpansion260Kind.WeaponMerchantRack,W,true,5), S(3,DecorationExpansion260Kind.ShieldRack,W,false,4), S(4,DecorationExpansion260Kind.SwordRack,W,false,4), S(5,DecorationExpansion260Kind.SpearRack,W,false,3) };
-                case DecorationExpansion260SceneKind.TrainingYard:
-                    return new[] { S(1,DecorationExpansion260Kind.TrainingDummy,F,true,6), S(2,DecorationExpansion260Kind.ArcheryTarget,F,true,5), S(3,DecorationExpansion260Kind.PracticeRingMarker,F,true,4), S(4,DecorationExpansion260Kind.ArrowBarrel,F,false,4), S(5,DecorationExpansion260Kind.Barricade,F,false,3), S(6,DecorationExpansion260Kind.WatchBrazier,F,false,2) };
-                case DecorationExpansion260SceneKind.WarRoom:
-                    return new[] { S(1,DecorationExpansion260Kind.SandTable,F,true,6), S(2,DecorationExpansion260Kind.CommandDesk,F,true,5), S(3,DecorationExpansion260Kind.WarMapBoard,W,true,5), S(4,DecorationExpansion260Kind.SignalHornRack,W,false,3), S(5,DecorationExpansion260Kind.WeaponStand,F,false,3) };
+                    return new[] { S(1,DecorationExpansion260Kind.ArmorMerchantStand,F,true,6), S(2,DecorationExpansion260Kind.WeaponMerchantRack,W,true,5), S(3,DecorationExpansion260Kind.EnchantedWeaponStand,F,false,4), S(4,DecorationExpansion260Kind.EnchantedArmorStand,F,false,4), S(5,DecorationExpansion260Kind.StaffmakersRack,W,false,3) };
+                case DecorationExpansion260SceneKind.EnchantersWorkshop:
+                    return new[] { S(1,DecorationExpansion260Kind.EnchantersWorkbench,F,true,6), S(2,DecorationExpansion260Kind.RuneCarvingTable,F,true,5), S(3,DecorationExpansion260Kind.CrystalCabinet,F,true,4), S(4,DecorationExpansion260Kind.WandmakersBench,F,false,4), S(5,DecorationExpansion260Kind.SpellScrollCabinet,W,false,3), S(6,DecorationExpansion260Kind.ElementalBrazier,F,false,3), S(7,DecorationExpansion260Kind.ManaFont,F,false,2) };
+                case DecorationExpansion260SceneKind.FamiliarRoom:
+                    return new[] { S(1,DecorationExpansion260Kind.FamiliarPerch,F,true,6), S(2,DecorationExpansion260Kind.FamiliarNest,F,true,5), S(3,DecorationExpansion260Kind.EnchantedPlantStand,F,false,4), S(4,DecorationExpansion260Kind.FairyLanternCluster,C,false,4), S(5,DecorationExpansion260Kind.MagicMirror,W,false,3) };
+                case DecorationExpansion260SceneKind.ArcaneGallery:
+                    return new[] { S(1,DecorationExpansion260Kind.LevitationPedestal,F,true,6), S(2,DecorationExpansion260Kind.FloatingBookStand,F,true,5), S(3,DecorationExpansion260Kind.PortalKeystone,F,false,4), S(4,DecorationExpansion260Kind.WardTotem,F,false,4), S(5,DecorationExpansion260Kind.DivinationTable,F,false,3), S(6,DecorationExpansion260Kind.FairyLanternCluster,C,false,3) };
                 case DecorationExpansion260SceneKind.NobleSalon:
                     return new[] { S(1,DecorationExpansion260Kind.Settee,F,true,6), S(2,DecorationExpansion260Kind.Chaise,F,true,5), S(3,DecorationExpansion260Kind.SideTable,F,false,4), S(4,DecorationExpansion260Kind.GrandMirror,W,false,4), S(5,DecorationExpansion260Kind.Candelabra,F,false,4), S(6,DecorationExpansion260Kind.WineCabinet,W,false,3) };
                 case DecorationExpansion260SceneKind.MusicRoom:
@@ -51,7 +53,9 @@ namespace Game.Structures.Runtime
         {
             if (context.Condition == DecorationConditionTier.Ruined) return 1;
             int b = 2 + (int)context.Wealth / 2;
-            if (kind == DecorationExpansion260SceneKind.NobleSalon || kind == DecorationExpansion260SceneKind.MusicRoom) b++;
+            if (kind == DecorationExpansion260SceneKind.EnchantersWorkshop ||
+                kind == DecorationExpansion260SceneKind.ArcaneGallery ||
+                kind == DecorationExpansion260SceneKind.NobleSalon || kind == DecorationExpansion260SceneKind.MusicRoom) b++;
             return b;
         }
 
