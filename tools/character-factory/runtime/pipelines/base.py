@@ -45,11 +45,13 @@ class AssetPipeline(ABC):
             runtime_metadata=self._runtime_metadata(spec),
         )
 
-    def build(self, spec: BuildSpec, dry_run: bool = False) -> PipelineResult:
-        result = self.plan(spec)
+    def execute(self, result: PipelineResult, dry_run: bool = False) -> PipelineResult:
         self._run(result.generator_command, dry_run)
         self._run(result.prepare_command, dry_run)
         return result
+
+    def build(self, spec: BuildSpec, dry_run: bool = False) -> PipelineResult:
+        return self.execute(self.plan(spec), dry_run=dry_run)
 
     @abstractmethod
     def _prepare_command(
