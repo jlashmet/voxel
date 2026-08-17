@@ -3,42 +3,6 @@ using Unity.Mathematics;
 
 namespace VoxelEngine.Structures.Api
 {
-    /// <summary>A local interior volume to carve or line inside a structure footprint.</summary>
-    public struct RoomVolumeConfig
-    {
-        public int3 LocalMin;
-        public int3 Size;
-        public int WallThickness;
-        public int FloorThickness;
-        public int CeilingThickness;
-        public StructureMaterialRole WallMaterialRole;
-        public StructureMaterialRole FloorMaterialRole;
-        public StructureMaterialRole CeilingMaterialRole;
-    }
-
-    /// <summary>
-    /// A required navigable connection between two authored room volumes. The opening geometry uses
-    /// the same shared opening contract as exterior doors/windows instead of a separate room system.
-    /// </summary>
-    public struct ConnectiveOpeningConfig
-    {
-        public int FromRoomIndex;
-        public int ToRoomIndex;
-        public Facing Facing;
-        public int LocalOffset;
-        public OpeningConfig Opening;
-    }
-
-    /// <summary>
-    /// Bounded interior layout input. Fixed-capacity lists keep room/connectivity authoring blittable
-    /// and make the maximum composition cost explicit before primitive emission.
-    /// </summary>
-    public struct InteriorLayoutConfig
-    {
-        public FixedList512Bytes<RoomVolumeConfig> Rooms;
-        public FixedList512Bytes<ConnectiveOpeningConfig> Connections;
-    }
-
     /// <summary>Reusable enclosed/open courtyard volume and perimeter treatment.</summary>
     public struct CourtyardConfig
     {
@@ -51,6 +15,21 @@ namespace VoxelEngine.Structures.Api
         public bool PerimeterWallEnabled;
         public WallRunConfig PerimeterWall;
         public StructureMaterialRole FloorMaterialRole;
+
+        public bool IsWellFormed
+        {
+            get
+            {
+                if (Width <= 0 || Depth <= 0)
+                    return false;
+                if (FloorEnabled && FloorThickness <= 0)
+                    return false;
+                if (PerimeterWallEnabled &&
+                    (PerimeterWall.Thickness <= 0 || PerimeterWall.Height <= 0))
+                    return false;
+                return true;
+            }
+        }
     }
 
     /// <summary>
@@ -75,6 +54,11 @@ namespace VoxelEngine.Structures.Api
         public int3 LocalPosition;
         public Facing Facing;
         public bool SnapToGround;
+
+        public bool IsWellFormed =>
+            Facing == Facing.North || Facing == Facing.East ||
+            Facing == Facing.South || Facing == Facing.West ||
+            Facing == Facing.Up || Facing == Facing.Down;
     }
 
     /// <summary>Canonical anchor names for external consumers and existing anchor contracts.</summary>
