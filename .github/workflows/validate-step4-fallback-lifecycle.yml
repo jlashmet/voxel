@@ -9,13 +9,15 @@ on:
       - Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
       - Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Step4FalseEmptyDiagnostics.cs
       - Assets/Tests/PlayMode/LodRenderingTests.cs
-      - Assets/Tests/PlayMode/Step4LifecycleDiagnosticTests.cs
+      - Assets/Tests/PlayMode/Step4FalseEmptyLifecycleTests.cs
 
 permissions:
   contents: read
 
 # Validate the exact triggering commit. Key concurrency by trigger SHA so unrelated later pushes to
 # this busy branch cannot cancel the pinned lifecycle evidence before the self-hosted Mac starts it.
+# The focused gate waits until the step-4 castle frustum is fully adjudicated and reports the exact
+# ownership -> ordinary geometry -> fallback -> publication lifecycle if it settles ready-empty.
 concurrency:
   group: unity-step4-lifecycle-${{ github.sha }}
   cancel-in-progress: false
@@ -68,7 +70,7 @@ jobs:
             -logFile "$ROOT/showcase-bake.log"
           test -s "$GITHUB_WORKSPACE/Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes"
 
-      - name: Run step4 lifecycle diagnostic fixture
+      - name: Run step4 false-empty lifecycle gate
         shell: bash
         run: |
           set -uo pipefail
@@ -79,7 +81,7 @@ jobs:
             -batchmode -job-worker-count 1 \
             -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform PlayMode \
             -assemblyNames VoxelEngine.Tests.PlayMode \
-            -testFilter '^VoxelEngine\.Tests\.PlayMode\.Step4LifecycleDiagnosticTests' \
+            -testFilter '^VoxelEngine\.Tests\.PlayMode\.Step4FalseEmptyLifecycleTests\.Step4CastleFrustumCannotSettleEntirelyAsAuthoritativeEmpty$' \
             -testResults "$ROOT/step4-lifecycle.xml" \
             -logFile "$ROOT/step4-lifecycle.log" || status=$?
           if [[ -s "${TMPDIR:-/tmp}/unity-run-status" ]]; then
