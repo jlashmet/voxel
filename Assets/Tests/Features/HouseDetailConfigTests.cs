@@ -83,10 +83,6 @@ namespace VoxelEngine.Tests.Features
                     PorchMaterialRole = StructureMaterialRole.Floor,
                     StepMaterialRole = StructureMaterialRole.Foundation,
                 },
-                StepsEnabled = true,
-                StepDepth = 3,
-                StepHeight = 1,
-                StepMaterialRole = StructureMaterialRole.Foundation,
             };
 
             var rearDoors = new HouseDoorLayoutConfig
@@ -139,7 +135,8 @@ namespace VoxelEngine.Tests.Features
             };
 
             Assert.IsTrue(frontDoor.IsWellFormed);
-            Assert.IsTrue(frontDoor.StepsEnabled);
+            Assert.AreEqual(1, frontDoor.Opening.FrameThickness);
+            Assert.AreEqual(2, frontDoor.Opening.LintelThickness);
             Assert.IsTrue(frontDoor.EntryTreatment.HasPorch);
             Assert.IsTrue(frontDoor.EntryTreatment.HasSteps);
             Assert.AreEqual(2, rearDoors.Count);
@@ -148,8 +145,45 @@ namespace VoxelEngine.Tests.Features
             Assert.IsTrue(sideDoor.IsWellFormed);
             Assert.IsTrue(sideWindows.IsWellFormed);
             Assert.AreEqual(4, sideWindows.Count);
+            Assert.AreEqual(9, sideWindows.SillHeight);
+            Assert.AreEqual(17, sideWindows.HeadHeight);
             Assert.AreEqual(1, sideWindows.Opening.WidthVariation);
             Assert.AreEqual(2, sideWindows.Opening.HeightVariation);
+        }
+
+        [Test]
+        public void InvalidFacadeDetailsAreRejectedRatherThanSilentlyAccepted()
+        {
+            var door = new HouseDoorLayoutConfig
+            {
+                Facade = HouseFacade.Front,
+                Placement = HouseFacadePlacementMode.ExplicitOffsets,
+                Count = 1,
+                Opening = new OpeningConfig
+                {
+                    Kind = StructureOpeningKind.Door,
+                    Width = 8,
+                    Height = 18,
+                },
+            };
+            door.ExplicitOffsets.Add(-1);
+            Assert.IsFalse(door.IsWellFormed);
+
+            var windows = new HouseWindowLayoutConfig
+            {
+                Facade = HouseFacade.Rear,
+                Placement = HouseFacadePlacementMode.Centered,
+                Count = 1,
+                Opening = new OpeningConfig
+                {
+                    Kind = StructureOpeningKind.Window,
+                    Width = 6,
+                    Height = 8,
+                },
+                ShuttersEnabled = true,
+                ShutterThickness = 0,
+            };
+            Assert.IsFalse(windows.IsWellFormed);
         }
 
         [Test]
@@ -209,6 +243,7 @@ namespace VoxelEngine.Tests.Features
                 CoverRoof = new RoofConfig
                 {
                     Style = RoofStyle.Shed,
+                    RidgeAxis = RoofAxis.X,
                     PitchRise = 1,
                     PitchRun = 3,
                     Thickness = 1,
