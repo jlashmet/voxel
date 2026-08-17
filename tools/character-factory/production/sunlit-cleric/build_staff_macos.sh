@@ -35,11 +35,13 @@ cat > "$SPEC" <<JSON
     {
       "strategy": "python-script",
       "script": "$SCRIPT_DIR/prepare_staff_source.py",
+      "inputs": ["$SOURCE"],
       "arguments": [
         "--input", "$SOURCE",
         "--output", "$FULL_INPUT"
       ],
-      "outputs": ["$FULL_INPUT"]
+      "outputs": ["$FULL_INPUT"],
+      "affects": ["geometry", "details"]
     },
     {
       "strategy": "linear-terminal-detail",
