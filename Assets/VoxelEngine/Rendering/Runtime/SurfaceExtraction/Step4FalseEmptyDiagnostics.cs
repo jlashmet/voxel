@@ -135,9 +135,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
         internal static void RecordFallbackCompleted(bool hasGeometry)
         {
-            Interlocked.Increment(ref hasGeometry
-                ? ref s_FallbackCompletedNonEmpty
-                : ref s_FallbackCompletedEmpty);
+            if (hasGeometry)
+                Interlocked.Increment(ref s_FallbackCompletedNonEmpty);
+            else
+                Interlocked.Increment(ref s_FallbackCompletedEmpty);
         }
 
         internal static void RecordFallbackPublished() =>
