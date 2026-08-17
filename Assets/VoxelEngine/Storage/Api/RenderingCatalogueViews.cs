@@ -211,6 +211,13 @@ namespace VoxelEngine.Storage.Api
                 StableId = SurfaceStyles.Cubic, Reconstruction = SurfaceReconstruction.Cubic,
                 JoinGroup = 2, PreserveSharpFeatures = true,
             };
+            view._styles[SurfaceStyles.ArchitecturalRounded] = new SurfaceStyleReadDefinition
+            {
+                StableId = SurfaceStyles.ArchitecturalRounded,
+                Reconstruction = SurfaceReconstruction.Rounded,
+                Curvature = 224,
+                JoinGroup = 4,
+            };
 
             view.SetJoin(1, 1, new SurfaceJoinReadRule
             {
@@ -230,7 +237,13 @@ namespace VoxelEngine.Storage.Api
                 Continuity = SurfaceContinuity.Discontinuous,
                 PreserveSharpFeature = true,
             });
-            view.Version = 1;
+            view.SetJoin(4, 4, new SurfaceJoinReadRule
+            {
+                Compatibility = SurfaceCompatibility.Join,
+                Continuity = SurfaceContinuity.Smooth,
+                BlendWidth = 4,
+            });
+            view.Version = 2;
             view.CatalogueHash = view.ComputeSemanticHash();
             return view;
         }

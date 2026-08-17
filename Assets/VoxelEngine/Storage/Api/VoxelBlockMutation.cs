@@ -151,6 +151,50 @@ namespace VoxelEngine.Storage.Api
             return true;
         }
 
+        /// <summary>
+        /// Copies one already-normalized Storage mixed-block payload into this mutation using
+        /// contiguous native copies, then rebuilds the eight occupancy words from the material
+        /// bytes. This is intended for trusted Storage-to-Storage transfer paths such as async
+        /// authoring publication; it avoids 512 logical-cell conversions and setter calls while
+        /// preserving the exact authored surface and boundary payload.
+        /// </summary>
+        public bool CopyStoragePayload(
+            NativeArray<byte> materials,
+            NativeArray<ushort> surfaceSemantics,
+            NativeArray<byte> boundarySamples,
+            int sourceOffset)
+        {
+            int count = VoxelReadGrid.VoxelsPerBlock;
+            if (!IsCreated
+                || sourceOffset < 0
+                || !materials.IsCreated
+                || !surfaceSemantics.IsCreated
+                || !boundarySamples.IsCreated
+                || sourceOffset > materials.Length - count
+                || sourceOffset > surfaceSemantics.Length - count
+                || sourceOffset > boundarySamples.Length - count)
+                return false;
+
+            NativeArray<byte>.Copy(materials, sourceOffset, _materials, _voxelOffset, count);
+            NativeArray<ushort>.Copy(
+                surfaceSemantics, sourceOffset, _surfaceSemantics, _voxelOffset, count);
+            NativeArray<byte>.Copy(
+                boundarySamples, sourceOffset, _boundarySamples, _voxelOffset, count);
+
+            for (int word = 0; word < VoxelReadGrid.OccupancyWordsPerBlock; word++)
+            {
+                ulong occupied = 0UL;
+                int firstVoxel = sourceOffset + (word << 6);
+                for (int bit = 0; bit < 64; bit++)
+                {
+                    if (materials[firstVoxel + bit] != VoxelGrid.MaterialEmpty)
+                        occupied |= 1UL << bit;
+                }
+                _occupancy[_occupancyOffset + word] = occupied;
+            }
+            return true;
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void SetOccupancy(int voxelIndex, bool occupied)
         {

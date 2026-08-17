@@ -232,7 +232,7 @@ namespace VoxelEngine.Storage.Runtime
     /// </summary>
     public unsafe struct SurfaceCatalogue : ISurfaceStyleAuthoringCatalogue, ISurfacePresentationCatalogue
     {
-        public const uint BuiltInVersion = 1;
+        public const uint BuiltInVersion = 2;
         public const int MaxStyles = 32;
         public const int MaxJoinGroups = 16;
         private const int JoinRuleStride = 8;
@@ -427,6 +427,13 @@ namespace VoxelEngine.Storage.Runtime
                 Reconstruction = SurfaceReconstruction.Cubic,
                 JoinGroup = 2, PreserveSharpFeatures = true
             });
+            catalogue.Register(new SurfaceStyleDefinition
+            {
+                StableId = SurfaceStyles.ArchitecturalRounded,
+                Reconstruction = SurfaceReconstruction.Rounded,
+                Curvature = 224,
+                JoinGroup = 4
+            });
             catalogue.SetJoin(1, 1, new SurfaceJoinRule
             {
                 Compatibility = SurfaceCompatibility.Join,
@@ -444,6 +451,12 @@ namespace VoxelEngine.Storage.Runtime
                 Compatibility = SurfaceCompatibility.Join,
                 Continuity = SurfaceContinuity.Discontinuous,
                 PreserveSharpFeature = true
+            });
+            catalogue.SetJoin(4, 4, new SurfaceJoinRule
+            {
+                Compatibility = SurfaceCompatibility.Join,
+                Continuity = SurfaceContinuity.Smooth,
+                BlendWidth = 4
             });
             catalogue.Seal(BuiltInVersion, catalogue.ComputeHash());
             return catalogue;

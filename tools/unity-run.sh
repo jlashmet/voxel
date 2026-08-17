@@ -125,6 +125,34 @@ tree_rss_mb() {
   echo $(( total / 1024 ))
 }
 
+# Kill every descendant, deepest-first, before killing Unity itself. A direct `pkill -P`
+# reaches only one generation. Shader/import/licensing helpers can have their own children;
+# if Unity dies first those descendants may be reparented and continue consuming memory after
+# the safety guard reports success.
+kill_tree() {
+  local root=$1
+  local pids=("$root")
+  local found=1
+
+  while (( found )); do
+    found=0
+    for pid in "${pids[@]}"; do
+      while read -r child; do
+        [[ -z "$child" ]] && continue
+        if [[ ! " ${pids[*]} " =~ " ${child} " ]]; then
+          pids+=("$child")
+          found=1
+        fi
+      done < <(pgrep -P "$pid" 2>/dev/null || true)
+    done
+  done
+
+  for (( i=${#pids[@]}-1; i>0; i-- )); do
+    kill -9 "${pids[$i]}" 2>/dev/null || true
+  done
+  kill -9 "$root" 2>/dev/null || true
+}
+
 start=$(date +%s)
 peak=0
 status_file="${TMPDIR:-/tmp}/unity-run-status"
@@ -144,8 +172,7 @@ while kill -0 "$unity_pid" 2>/dev/null; do
 
   if (( swap_growth > MAX_SWAP_GROWTH_MB )); then
     echo "unity-run: KILLING — swap grew ${swap_growth} MB (ceiling ${MAX_SWAP_GROWTH_MB} MB)" >&2
-    pkill -9 -P "$unity_pid" 2>/dev/null
-    kill -9 "$unity_pid" 2>/dev/null
+    kill_tree "$unity_pid"
     wait "$unity_pid" 2>/dev/null
     exit 8
   fi
@@ -153,24 +180,21 @@ while kill -0 "$unity_pid" 2>/dev/null; do
   # The guard that actually matters. RSS missed a 200 GB run entirely; free memory did not.
   if (( system_free < FLOOR_FREE_MB )); then
     echo "unity-run: KILLING — system free memory fell to ${system_free} MB (floor ${FLOOR_FREE_MB} MB)" >&2
-    pkill -9 -P "$unity_pid" 2>/dev/null
-    kill -9 "$unity_pid" 2>/dev/null
+    kill_tree "$unity_pid"
     wait "$unity_pid" 2>/dev/null
     exit 7
   fi
 
   if (( rss > MAX_RSS_MB )); then
     echo "unity-run: KILLING — process tree hit ${rss} MB (ceiling ${MAX_RSS_MB} MB)" >&2
-    pkill -9 -P "$unity_pid" 2>/dev/null
-    kill -9 "$unity_pid" 2>/dev/null
+    kill_tree "$unity_pid"
     wait "$unity_pid" 2>/dev/null
     exit 5
   fi
 
   if (( elapsed > MAX_MINUTES * 60 )); then
     echo "unity-run: KILLING — ran ${elapsed}s (limit $(( MAX_MINUTES * 60 ))s), peak ${peak} MB" >&2
-    pkill -9 -P "$unity_pid" 2>/dev/null
-    kill -9 "$unity_pid" 2>/dev/null
+    kill_tree "$unity_pid"
     wait "$unity_pid" 2>/dev/null
     exit 6
   fi

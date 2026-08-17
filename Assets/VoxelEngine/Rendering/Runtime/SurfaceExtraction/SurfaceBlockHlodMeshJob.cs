@@ -9,8 +9,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 {
     /// <summary>
     /// Greedy faceted mesher for feature-preserving coarse block summaries. The job operates on a
-    /// padded brick grid but emits only the core. Every 8^3 source block contributes a 2^3 grid of
-    /// 4^3-voxel HLOD subcells; large coplanar faces merge while holes remain explicit.
+    /// padded brick grid but emits only the core. Every 8^3 source block contributes a 4^3 grid of
+    /// 2^3-voxel HLOD subcells; large coplanar faces still merge while windows, crenellations and
+    /// tower profiles retain twice the former linear resolution.
     ///
     /// Output capacity is fixed by the caller. Overflow aborts the job and is reported explicitly;
     /// streaming must retry/backpressure rather than allocating on the frame path.
@@ -18,8 +19,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
     [BurstCompile]
     public struct SurfaceBlockHlodMeshJob : IJob
     {
-        public const int SubcellsPerBrickAxis = 2;
-        public const int SubcellVoxelEdge = 4;
+        public const int SubcellsPerBrickAxis = 4;
+        public const int SubcellVoxelEdge = 2;
         private const uint FullyLitOcclusion = 0x0000FF00u;
 
         [ReadOnly] public NativeArray<SurfaceBlockHlodSummary> Summaries;
@@ -199,7 +200,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             int lx = FloorMod(coreSubcell.x, SubcellsPerBrickAxis);
             int ly = FloorMod(coreSubcell.y, SubcellsPerBrickAxis);
             int lz = FloorMod(coreSubcell.z, SubcellsPerBrickAxis);
-            int subcell = lx | (ly << 1) | (lz << 2);
+            int subcell = lx
+                        + ly * SubcellsPerBrickAxis
+                        + lz * SubcellsPerBrickAxis * SubcellsPerBrickAxis;
             int index = brick.x + SummaryGridEdge
                       * (brick.y + SummaryGridEdge * brick.z);
             SurfaceBlockHlodSummary summary = Summaries[index];

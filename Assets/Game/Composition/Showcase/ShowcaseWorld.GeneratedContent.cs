@@ -1,10 +1,43 @@
 using System;
+using Unity.Mathematics;
 using VoxelEngine.Structures.Api;
 
 namespace VoxelEngine.Showcase
 {
     public sealed partial class ShowcaseWorld
     {
+        /// <summary>
+        /// Generates the origin terrain needed to place the player and queue the showcase castle,
+        /// but deliberately does not run the generic feature catalogue in the region the castle
+        /// owns. The normal blocking generator used to queue landmarks at the end of terrain and
+        /// then immediately rasterise the origin's generic features anyway. That made the castle's
+        /// pre-authoring input differ from the other eight castle regions and forced async castle
+        /// authoring to serialize the whole live region just to preserve accidental dressing.
+        ///
+        /// Castle-owned regions are now plain deterministic terrain until the castle commits, which
+        /// matches the streaming path's existing deferred-feature rule and lets the worker recreate
+        /// the exact source from the world seed without touching live storage.
+        /// </summary>
+        public void GenerateCastleOriginBlocking()
+        {
+            int3 regionCoord = int3.zero;
+            if (_generated.Contains(regionCoord)) return;
+            if (_gen.Active) FinishRegionForced();
+
+            BeginRegion(regionCoord);
+            while (!StepRegion()) { }
+            FinishRegion();
+
+            if (!_castleTerrainQueued || !_castleRegions.Contains(regionCoord))
+                throw new InvalidOperationException(
+                    "Origin generation did not establish the showcase castle footprint.");
+
+            // FinishRegion had to make the castle plan first, so it could not know this was a
+            // castle-owned region when it made its feature-queue decision. Remove that one stale
+            // queue entry before the blocking caller can rasterise it.
+            _pendingFeatureRegions.Remove(regionCoord);
+        }
+
         /// <summary>
         /// Replaces the showcase feature catalogue with production-generated gameplay content.
         /// This must happen on a fresh world before any region is generated. Ownership of the

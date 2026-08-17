@@ -1,0 +1,285 @@
+using System;
+using System.Collections.Generic;
+using MountingForce.WorldGen.Architecture;
+using Unity.Mathematics;
+using VoxelEngine.Storage.Api;
+using VoxelEngine.Structures.Api;
+
+namespace MountingForce.WorldGen.Voxel
+{
+    /// <summary>
+    /// Backend-level shape bytecode builder that understands architectural geometry roles.
+    ///
+    /// City grammars call semantic foundation/shell/opening/detail operations instead of manually
+    /// choosing engine primitives or surface-style ids. A StructureGeometryProfile supplies the city
+    /// style defaults, while every semantic primitive can override its own renderer-neutral corner
+    /// radius or surface treatment when local architectural detail requires it.
+    /// </summary>
+    public sealed class ArchitectureShapeProgramBuilder
+    {
+        private readonly List<int> _code = new List<int>();
+        private readonly StructureGeometryProfile _profile;
+        private readonly int _scale;
+
+        public ArchitectureShapeProgramBuilder(
+            StructureGeometryProfile profile,
+            int voxelsPerDecimetre)
+        {
+            if (voxelsPerDecimetre <= 0)
+                throw new ArgumentOutOfRangeException(nameof(voxelsPerDecimetre));
+            _profile = profile;
+            _scale = voxelsPerDecimetre;
+        }
+
+        public void FoundationBox(
+            int x, int y, int z,
+            int sx, int sy, int sz,
+            byte material,
+            PrimitiveMode mode = PrimitiveMode.Fill,
+            int? cornerRadiusDm = null,
+            StructureSurfaceTreatment? surface = null) =>
+            SemanticBox(
+                x, y, z, sx, sy, sz, material, mode,
+                cornerRadiusDm ?? _profile.FoundationCornerRadiusDm,
+                surface ?? _profile.FoundationSurface);
+
+        public void ShellBox(
+            int x, int y, int z,
+            int sx, int sy, int sz,
+            byte material,
+            PrimitiveMode mode = PrimitiveMode.Fill,
+            int? cornerRadiusDm = null,
+            StructureSurfaceTreatment? surface = null) =>
+            SemanticBox(
+                x, y, z, sx, sy, sz, material, mode,
+                cornerRadiusDm ?? _profile.ShellCornerRadiusDm,
+                surface ?? _profile.ShellSurface);
+
+        public void OpeningCarve(
+            int x, int y, int z,
+            int sx, int sy, int sz,
+            int? cornerRadiusDm = null,
+            StructureSurfaceTreatment? surface = null) =>
+            SemanticBox(
+                x, y, z, sx, sy, sz, 0, PrimitiveMode.Carve,
+                cornerRadiusDm ?? _profile.OpeningCornerRadiusDm,
+                surface ?? _profile.OpeningSurface);
+
+        public void DetailBox(
+            int x, int y, int z,
+            int sx, int sy, int sz,
+            byte material,
+            PrimitiveMode mode = PrimitiveMode.Fill,
+            int? cornerRadiusDm = null,
+            StructureSurfaceTreatment? surface = null) =>
+            SemanticBox(
+                x, y, z, sx, sy, sz, material, mode,
+                cornerRadiusDm ?? _profile.DetailCornerRadiusDm,
+                surface ?? _profile.DetailSurface);
+
+        public void FoundationCylinder(
+            int cx, int y, int cz,
+            int radius, int height,
+            byte axis, byte material,
+            PrimitiveMode mode = PrimitiveMode.Fill,
+            StructureSurfaceTreatment? surface = null) =>
+            SemanticCylinder(
+                cx, y, cz, radius, height, axis, material, mode,
+                surface ?? _profile.FoundationSurface);
+
+        public void ShellCylinder(
+            int cx, int y, int cz,
+            int radius, int height,
+            byte axis, byte material,
+            PrimitiveMode mode = PrimitiveMode.Fill,
+            StructureSurfaceTreatment? surface = null) =>
+            SemanticCylinder(
+                cx, y, cz, radius, height, axis, material, mode,
+                surface ?? _profile.ShellSurface);
+
+        public void OpeningCylinderCarve(
+            int cx, int y, int cz,
+            int radius, int height,
+            byte axis,
+            StructureSurfaceTreatment? surface = null) =>
+            SemanticCylinder(
+                cx, y, cz, radius, height, axis, 0, PrimitiveMode.Carve,
+                surface ?? _profile.OpeningSurface);
+
+        public void DetailCylinder(
+            int cx, int y, int cz,
+            int radius, int height,
+            byte axis, byte material,
+            PrimitiveMode mode = PrimitiveMode.Fill,
+            StructureSurfaceTreatment? surface = null) =>
+            SemanticCylinder(
+                cx, y, cz, radius, height, axis, material, mode,
+                surface ?? _profile.DetailSurface);
+
+        /// <summary>
+        /// Broad interior clearance is deliberately sharp by default. It is spatial subtraction,
+        /// not a visible architectural opening, and rounding it can reduce guaranteed walkable room
+        /// corners. Door/window apertures should use <see cref="OpeningCarve"/> instead.
+        /// </summary>
+        public void InteriorCarve(
+            int x, int y, int z,
+            int sx, int sy, int sz)
+        {
+            RawBox(x, y, z, sx, sy, sz, 0, PrimitiveMode.Carve);
+        }
+
+        /// <summary>
+        /// Cylindrical interior clearance follows the same rule as box interior clearance: the
+        /// primitive itself already owns its curved boundary, while the subtraction must not inherit
+        /// a visible opening treatment that could change guaranteed usable space.
+        /// </summary>
+        public void InteriorCylinderCarve(
+            int cx, int y, int cz,
+            int radius, int height,
+            byte axis)
+        {
+            RawCylinder(cx, y, cz, radius, height, axis, 0, PrimitiveMode.Carve);
+        }
+
+        public void RawBox(
+            int x, int y, int z,
+            int sx, int sy, int sz,
+            byte material,
+            PrimitiveMode mode = PrimitiveMode.Fill,
+            ushort surfaceStyle = SurfaceStyles.MaterialDefault,
+            byte coating = Coatings.None)
+        {
+            if (sx <= 0 || sy <= 0 || sz <= 0) return;
+            Op(ShapeOp.EmitBox, x, y, z, sx, sy, sz,
+                material, surfaceStyle, coating, (int)mode);
+        }
+
+        public void RawCylinder(
+            int cx, int y, int cz,
+            int radius, int height,
+            byte axis,
+            byte material,
+            PrimitiveMode mode = PrimitiveMode.Fill,
+            ushort surfaceStyle = SurfaceStyles.MaterialDefault,
+            byte coating = Coatings.None)
+        {
+            if (radius <= 0 || height <= 0) return;
+            Op(ShapeOp.EmitCylinder,
+                cx, y, cz, radius, height, axis,
+                material, surfaceStyle, coating, (int)mode);
+        }
+
+        /// <summary>
+        /// Emits a roof/massing prism. Unless a treatment is supplied explicitly, roof
+        /// reconstruction comes from the structure geometry profile so roofs participate in the
+        /// same city-independent style policy as walls, openings and details.
+        /// </summary>
+        public void Prism(
+            int x, int y, int z,
+            int sx, int sy, int sz,
+            PrismProfile profile,
+            byte material,
+            StructureSurfaceTreatment? surface = null)
+        {
+            if (sx <= 0 || sy <= 0 || sz <= 0) return;
+            StructureSurfaceTreatment treatment = surface ?? _profile.RoofSurface;
+            Op(ShapeOp.EmitPrism, x, y, z, sx, sy, sz,
+                (int)profile,
+                material,
+                ArchitectureVoxelSurfaceStyle.Map(treatment, SurfaceStyles.MaterialDefault),
+                Coatings.None,
+                (int)PrimitiveMode.Fill);
+        }
+
+        public void Anchor(int index, int3 position, Facing facing)
+        {
+            Op(ShapeOp.SetAnchor,
+                index, position.x, position.y, position.z, (int)facing);
+        }
+
+        public int[] Finish()
+        {
+            Op(ShapeOp.End);
+            return _code.ToArray();
+        }
+
+        private void SemanticBox(
+            int x, int y, int z,
+            int sx, int sy, int sz,
+            byte material,
+            PrimitiveMode mode,
+            int radiusDm,
+            StructureSurfaceTreatment surface)
+        {
+            if (sx <= 0 || sy <= 0 || sz <= 0) return;
+            if (radiusDm < 0)
+                throw new ArgumentOutOfRangeException(nameof(radiusDm));
+
+            ushort style = ArchitectureVoxelSurfaceStyle.Map(
+                surface, SurfaceStyles.MaterialDefault);
+            int radius = ClampRadius(radiusDm * _scale, sx, sy, sz);
+            if (radius <= 0)
+            {
+                RawBox(x, y, z, sx, sy, sz, material, mode, style);
+                return;
+            }
+
+            Op(ShapeOp.EmitRoundedBox,
+                x, y, z,
+                sx, sy, sz,
+                radius,
+                material,
+                style,
+                Coatings.None,
+                (int)mode);
+        }
+
+        private void SemanticCylinder(
+            int cx, int y, int cz,
+            int radius, int height,
+            byte axis,
+            byte material,
+            PrimitiveMode mode,
+            StructureSurfaceTreatment surface)
+        {
+            ushort style = ArchitectureVoxelSurfaceStyle.Map(
+                surface, SurfaceStyles.MaterialDefault);
+            RawCylinder(cx, y, cz, radius, height, axis, material, mode, style);
+        }
+
+        private static int ClampRadius(int requested, int sx, int sy, int sz)
+        {
+            if (requested <= 0 || sx <= 2 || sy <= 2 || sz <= 2) return 0;
+            int minExtent = math.min(sx, math.min(sy, sz));
+            return math.clamp(requested, 1, math.max(1, (minExtent - 1) / 2));
+        }
+
+        private void Op(ShapeOp op, params int[] operands)
+        {
+            _code.Add((int)op);
+            _code.Add(0);
+            _code.AddRange(operands);
+        }
+    }
+
+    internal static class ArchitectureVoxelSurfaceStyle
+    {
+        internal static ushort Map(
+            StructureSurfaceTreatment treatment,
+            ushort fallback)
+        {
+            switch (treatment)
+            {
+                case StructureSurfaceTreatment.Smooth: return SurfaceStyles.Smooth;
+                case StructureSurfaceTreatment.Rounded: return SurfaceStyles.Rounded;
+                case StructureSurfaceTreatment.Planar: return SurfaceStyles.Planar;
+                case StructureSurfaceTreatment.Sharp: return SurfaceStyles.Sharp;
+                case StructureSurfaceTreatment.Beveled: return SurfaceStyles.Beveled;
+                case StructureSurfaceTreatment.MasonryJoint: return SurfaceStyles.MasonryJoint;
+                case StructureSurfaceTreatment.ArchitecturalRounded:
+                    return SurfaceStyles.ArchitecturalRounded;
+                default: return fallback;
+            }
+        }
+    }
+}
