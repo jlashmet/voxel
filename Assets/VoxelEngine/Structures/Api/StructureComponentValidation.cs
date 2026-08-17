@@ -62,7 +62,7 @@ namespace VoxelEngine.Structures.Api
                 case RoofStyle.Shed:
                 case RoofStyle.Gable:
                 case RoofStyle.Hip:
-                    return config.PitchRise > 0 && config.PitchRun > 0
+                    return config.PitchRise > 0 && config.PitchRun > 0 && config.ParapetHeight == 0
                         ? StructureComponentValidationIssue.None
                         : StructureComponentValidationIssue.UnsupportedRoofCombination;
 
