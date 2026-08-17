@@ -31,7 +31,6 @@ namespace VoxelEngine.Tests.PlayMode
                 FindObjectsSortMode.None);
             Assert.AreEqual(1, initial.Length,
                 "A freshly loaded showcase must own exactly one far-terrain clipmap.");
-            int originalInstanceId = initial[0].GetInstanceID();
             VoxelFarTerrain original = initial[0];
             FieldInfo materialField = typeof(VoxelFarTerrain).GetField(
                 "m_Material", BindingFlags.NonPublic | BindingFlags.Instance);
@@ -62,7 +61,7 @@ namespace VoxelEngine.Tests.PlayMode
                 FindObjectsSortMode.None);
             Assert.AreEqual(1, reenabled.Length,
                 "Re-enabling the showcase accumulated duplicate far-terrain clipmaps.");
-            Assert.AreNotEqual(originalInstanceId, reenabled[0].GetInstanceID(),
+            Assert.False(object.ReferenceEquals(original, reenabled[0]),
                 "Re-enable did not create a fresh far-terrain owner for the fresh world.");
             Assert.NotNull(reenabled[0].Structures,
                 "The replacement far terrain was not rebound to the fresh world's structures.");
