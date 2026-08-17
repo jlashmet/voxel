@@ -163,7 +163,18 @@ python3 tools/character-factory/character_factory.py build "$SPEC"
 RAW_FBX="$OUT/madeline_body_01.fbx"
 test -s "$RAW_FBX"
 
-printf '%s\n' '[6/9] Project body/hair appearance from the approved turnaround'
+printf '%s\n' '[6/9] Diagnose and project body/hair appearance from the approved turnaround'
+PROJECTION_REPORT="$OUT/madeline_body_01.projection-report.json"
+"$BLENDER_BIN" --background --python-exit-code 1 \
+  --python tools/character-factory/ci/diagnose_multiview_projection.py -- \
+  --input "$RAW_FBX" \
+  --front "$BODY_FRONT" \
+  --back "$BODY_BACK" \
+  --left "$BODY_LEFT" \
+  --right "$BODY_RIGHT" \
+  --output "$PROJECTION_REPORT"
+test -s "$PROJECTION_REPORT"
+
 TEXTURED_FBX="$OUT/madeline_body_01.textured.fbx"
 ATLAS="$OUT/madeline_body_01.body_basecolor.png"
 "$BLENDER_BIN" --background --python-exit-code 1 \
@@ -221,6 +232,7 @@ printf '%s\n' \
   "Madeline base body built and staged." \
   "Body: $RAW_FBX" \
   "Body atlas: $ATLAS" \
+  "Projection diagnostics: $PROJECTION_REPORT" \
   "Preview: $OUT/madeline_body_01.render.png" \
   "Idle: $OUT/madeline_body_01.idle.png" \
   "Reference audit: $OUT/body-only-reference-report.json" \
