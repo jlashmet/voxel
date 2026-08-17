@@ -36,7 +36,22 @@ new_diag = "- [x] Add and wire cache-lifecycle diagnostics for the step-4 fallba
 plan = replace_once(plan, old_diag, new_diag, "plan lifecycle instrumentation wording")
 
 old_open = "- [ ] Run the lifecycle diagnostics on a clean current head and identify the exact ready-empty adjudication cause: distinguish whether production step-4 castle chunks enter the feature-preserving fallback and still finish empty, never enter it because exact ownership is false, or complete non-empty but fail publication. Do not change coarse geometry again until this measurement is recorded."
-new_open = """- [x] Run the frozen compile-fixed step-4 visibility/lifecycle fixture far enough to classify ring ownership. Frozen run 32032548787 (`4ad0df32`) bakes successfully and reports step 4 `known=110/inBand=23/frustum=8/ready=0/empty=8`, with aggregate fallback `scheduled=0/completed=0/nonEmpty=0/published=0`. This proves the disappearing castle chunks are inside the correct ring and camera frustum but are adjudicated authoritative-empty before any feature-preserving fallback is entered; ring-band/frustum ownership is not the defect.\n- [x] Fix the lifecycle validation compile blocker (`CS1654`) by giving the temporary `NativeArray` fixtures explicit writable locals plus `try/finally` disposal; the frozen run above reaches the PlayMode fixture after the repair.\n- [ ] Expose the already-wired `Step4FalseEmptyDiagnostics.Current` snapshot in the step-4 failure output and rerun the frozen fixture to distinguish exact-unowned, profile-suppressed ordinary-empty, and fallback-empty adjudication. Do not change coarse geometry until this final empty-decision measurement is recorded.\n- [ ] Identify the exact ready-empty adjudication cause from that snapshot and fix only that measured branch: exact ownership false, profile suppression, fallback completion empty, or non-empty fallback publication failure."
+new_open = (
+    "- [x] Run the frozen compile-fixed step-4 visibility/lifecycle fixture far enough to classify ring ownership. "
+    "Frozen run 32032548787 (`4ad0df32`) bakes successfully and reports step 4 "
+    "`known=110/inBand=23/frustum=8/ready=0/empty=8`, with aggregate fallback "
+    "`scheduled=0/completed=0/nonEmpty=0/published=0`. This proves the disappearing castle chunks "
+    "are inside the correct ring and camera frustum but are adjudicated authoritative-empty before any "
+    "feature-preserving fallback is entered; ring-band/frustum ownership is not the defect.\n"
+    "- [x] Fix the lifecycle validation compile blocker (`CS1654`) by giving the temporary `NativeArray` "
+    "fixtures explicit writable locals plus `try/finally` disposal; the frozen run above reaches the PlayMode "
+    "fixture after the repair.\n"
+    "- [ ] Expose the already-wired `Step4FalseEmptyDiagnostics.Current` snapshot in the step-4 failure output "
+    "and rerun the frozen fixture to distinguish exact-unowned, profile-suppressed ordinary-empty, and "
+    "fallback-empty adjudication. Do not change coarse geometry until this final empty-decision measurement is recorded.\n"
+    "- [ ] Identify the exact ready-empty adjudication cause from that snapshot and fix only that measured branch: "
+    "exact ownership false, profile suppression, fallback completion empty, or non-empty fallback publication failure."
+)
 plan = replace_once(plan, old_open, new_open, "plan lifecycle diagnosis tasks")
 
 PLAN.write_text(plan)
