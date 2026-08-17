@@ -62,26 +62,39 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void SurfaceDiscoveryDoesNotCreateHaloOnlyStep4ChunksWithNonResidentCore()
+        public void SchedulerSurfaceDiscoveryCanonicalizationAdmitsOnlyOwningStep4Chunk()
         {
-            // Both corners are authoritative bricks owned by the same step-4 chunk. They exercise
-            // both low and high chunk borders. Discovery must learn the owner only; extraction
-            // halo dependency does not create authoritative ownership in any adjacent chunk.
-            // In particular, admitting a low-Y neighbour creates step-4 chunk y=-1 even though
-            // showcase residency deliberately has no y=-1 core region; exact snapshot admission
-            // then retries its required core pin forever. Mutation invalidation may still touch
-            // already-known neighbours because their existing geometry can depend on a border.
+            // Both authoritative bricks belong to step-4 chunk (0,0,0) but sit on opposite
+            // chunk borders. The scheduler must preserve that ownership while moving the solid
+            // discovery feed off the border before it reaches the cache's generic halo-aware
+            // admission path. Water and mutation invalidation continue to receive the original
+            // coordinates.
             using var cache = new CpuTransvoxelChunkCache(sourceStep: 4);
-            int admitted = cache.DiscoverSurfaceBricks(new List<int3>
+            var canonical = new List<int3>
             {
-                int3.zero,
-                new int3(31, 31, 31),
-            });
+                SurfaceDiscoveryChunkOwner.Canonicalize(int3.zero, cache.BricksPerAxis),
+                SurfaceDiscoveryChunkOwner.Canonicalize(
+                    new int3(31, 31, 31), cache.BricksPerAxis),
+            };
 
+            Assert.AreEqual(new int3(16, 16, 16), canonical[0]);
+            Assert.AreEqual(new int3(16, 16, 16), canonical[1]);
+
+            int admitted = cache.DiscoverSurfaceBricks(canonical);
             Assert.AreEqual(1, admitted,
-                "Initial discovery should admit only the chunk that owns authoritative surface bricks; halo-only neighbours must wait for their own core surface content.");
+                "Scheduler discovery should admit only the chunk that owns authoritative surface bricks; halo-only neighbours must wait for their own core content.");
             Assert.AreEqual(1, cache.KnownCount,
-                "Low/high boundary surface bricks must not create halo-only coarse chunks, including the nonresident negative-Y core that caused persistent pin rejection.");
+                "Boundary surface bricks must not create the nonresident negative-Y coarse core that caused persistent exact-metadata pin rejection.");
+        }
+
+        [Test]
+        public void SchedulerSurfaceDiscoveryCanonicalizationPreservesNegativeChunkOwnership()
+        {
+            // Floor semantics matter west/below/north of the origin. A brick at -1 belongs to
+            // chunk -1, not chunk 0; canonicalization must move it to that chunk's interior.
+            int3 canonical = SurfaceDiscoveryChunkOwner.Canonicalize(
+                new int3(-1, -1, -1), 32);
+            Assert.AreEqual(new int3(-16, -16, -16), canonical);
         }
 
         [Test]
