@@ -46,6 +46,15 @@ namespace Game.Structures.Runtime
             a.Connect(keyBase + 0u, WorldObjectSignal.Deactivated, keyBase + 1u, WorldObjectAction.Reset);
         }
 
+        public static void AddTimedResettingTrap(WorldObjectAuthoringSession a, uint keyBase,
+            DecorationBounds trigger, int3 triggerFacing, DecorationBounds trap, int3 trapFacing,
+            WorldObjectKind trapKind = WorldObjectKind.SpikeTrap, int resetTicks = 30)
+        {
+            a.Place(keyBase, WorldObjectKind.Button, trigger, triggerFacing);
+            a.Place(keyBase + 1u, trapKind, trap, trapFacing, parameter0: math.max(1, resetTicks));
+            a.Connect(keyBase, WorldObjectSignal.Activated, keyBase + 1u, WorldObjectAction.Trigger);
+        }
+
         public static void AddPoweredElevator(WorldObjectAuthoringSession a, uint keyBase,
             DecorationBounds generator, int3 generatorFacing, DecorationBounds elevator, int3 elevatorFacing,
             DecorationBounds lowerButton, DecorationBounds upperButton, int stopCount = 2)
