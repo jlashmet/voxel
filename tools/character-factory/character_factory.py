@@ -56,6 +56,12 @@ def _add_catalogue_filters(parser: argparse.ArgumentParser) -> None:
         action="append",
         help="select one asset id; may be repeated",
     )
+    parser.add_argument(
+        "--tag",
+        dest="tags",
+        action="append",
+        help="require this catalogue tag; repeated tags are ANDed",
+    )
 
 
 def parse_args() -> argparse.Namespace:
@@ -317,10 +323,12 @@ def main() -> int:
                 else {AssetType(value) for value in args.asset_types}
             )
             asset_ids = None if not args.asset_ids else set(args.asset_ids)
+            tags = None if not args.tags else set(args.tags)
             selected = select_entries(
                 entries,
                 asset_types=asset_types,
                 asset_ids=asset_ids,
+                tags=tags,
             )
             if not selected:
                 if args.changed_from is not None:
@@ -332,6 +340,8 @@ def main() -> int:
                     filters.append("types=" + ",".join(sorted(item.value for item in asset_types)))
                 if asset_ids:
                     filters.append("ids=" + ",".join(sorted(asset_ids)))
+                if tags:
+                    filters.append("tags=" + ",".join(sorted(tag.lower() for tag in tags)))
                 suffix = " (" + " ".join(filters) + ")" if filters else ""
                 raise CharacterFactoryError(
                     f"No Character Factory production specs selected in {args.directory}{suffix}"
