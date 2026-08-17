@@ -42,6 +42,7 @@ class PreprocessTests(unittest.TestCase):
         self.assertEqual("hunyuan-quality-macos", step.python_profile)
         self.assertIn("prepare_tpose_garment_views.py", step.command[1])
         self.assertIn("--head-cut-fraction", step.command)
+        self.assertEqual(frozenset({"geometry", "appearance"}), step.affects)
         self.assertEqual(
             {"front.png", "back.png", "left.png", "right.png"},
             {path.name for path in step.outputs},
@@ -69,6 +70,22 @@ class PreprocessTests(unittest.TestCase):
                         "strategy": "python-script",
                         "pythonProfile": "triposr-smoke-macos",
                         "script": "asset_local.py",
+                        "inputs": ["source.png"],
+                    }
+                ],
+                base_dir=TOOL_ROOT,
+                tool_root=TOOL_ROOT,
+            )
+
+    def test_python_script_requires_declared_inputs(self) -> None:
+        with self.assertRaisesRegex(PreprocessContractError, "inputs"):
+            resolve_preprocess_steps(
+                [
+                    {
+                        "strategy": "python-script",
+                        "pythonProfile": "triposr-smoke-macos",
+                        "script": "asset_local.py",
+                        "outputs": ["generated.png"],
                     }
                 ],
                 base_dir=TOOL_ROOT,
@@ -105,6 +122,8 @@ class PreprocessTests(unittest.TestCase):
     def test_ordered_python_script_can_feed_terminal_detail(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+            source = root / "source.jpg"
+            source.write_bytes(b"source")
             script = root / "asset_local.py"
             script.write_text("print('fixture')\n", encoding="utf-8")
             spec = root / "asset.json"
@@ -118,8 +137,10 @@ class PreprocessTests(unittest.TestCase):
                             {
                                 "strategy": "python-script",
                                 "script": "asset_local.py",
+                                "inputs": ["source.jpg"],
                                 "arguments": ["--output", "generated/full.png"],
                                 "outputs": ["generated/full.png"],
+                                "affects": ["geometry", "details"],
                             },
                             {
                                 "strategy": "linear-terminal-detail",
@@ -136,6 +157,9 @@ class PreprocessTests(unittest.TestCase):
 
             with patch.dict(os.environ, {"CHARACTER_FACTORY_CACHE_ROOT": str(root / "cache")}):
                 steps = declared_preprocess_steps(spec, TOOL_ROOT)
+                self.assertEqual(frozenset({"geometry", "details"}), steps[0].affects)
+                self.assertIn(source.resolve(), steps[0].inputs)
+                self.assertIn(script.resolve(), steps[0].inputs)
                 python = Path(steps[0].python)
                 python.parent.mkdir(parents=True, exist_ok=True)
                 python.write_bytes(b"python")
