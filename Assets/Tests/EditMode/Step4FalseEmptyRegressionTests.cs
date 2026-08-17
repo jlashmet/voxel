@@ -40,14 +40,16 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.NotNull(fallbackPolicy,
                     "Production has no guard preventing an exact owned step-4 solid with zero ordinary geometry from being published as authoritative empty.");
 
-                Assert.True((bool)fallbackPolicy.Invoke(null, new object[] { 4, true, 0, 0 }),
+                Assert.True((bool)fallbackPolicy.Invoke(null, new object[] { 4, true, false, 0, 0 }),
                     "An exact owned step-4 solid with zero ordinary geometry must enter the feature-preserving fallback before empty publication.");
-                Assert.False((bool)fallbackPolicy.Invoke(null, new object[] { 4, false, 0, 0 }),
+                Assert.False((bool)fallbackPolicy.Invoke(null, new object[] { 4, false, false, 0, 0 }),
                     "A genuinely empty step-4 chunk must remain eligible for normal empty publication.");
-                Assert.False((bool)fallbackPolicy.Invoke(null, new object[] { 2, true, 0, 0 }),
+                Assert.False((bool)fallbackPolicy.Invoke(null, new object[] { 2, true, false, 0, 0 }),
                     "The step-4 repair must not silently change finer LOD behavior.");
-                Assert.False((bool)fallbackPolicy.Invoke(null, new object[] { 4, true, 1, 3 }),
+                Assert.False((bool)fallbackPolicy.Invoke(null, new object[] { 4, true, false, 1, 3 }),
                     "A step-4 build that already produced geometry must not run a redundant fallback.");
+                Assert.False((bool)fallbackPolicy.Invoke(null, new object[] { 4, true, true, 0, 0 }),
+                    "Authored profile geometry is not a false-empty chunk and must not be duplicated by HLOD fallback geometry.");
             }
             finally
             {
