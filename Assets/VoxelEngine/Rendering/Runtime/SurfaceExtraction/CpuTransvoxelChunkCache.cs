@@ -339,6 +339,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         // traversal instead of rescanning every dirty chunk whenever one workspace becomes free.
         private readonly Queue<int3> _dirtyQueue = new();
         private readonly HashSet<int3> _queuedDirty = new();
+        // Missing/stale chunks that are inside the actual camera frustum get a second queue
+        // record. This never changes authoritative dirty membership or the global frame budget;
+        // it only prevents thousands of valid 360-degree prefetch records from delaying a hole
+        // the player can already see. Stale priority records are harmless and self-pruning.
+        private readonly Queue<int3> _visibleDirtyQueue = new();
+        private readonly HashSet<int3> _queuedVisibleDirty = new();
         private const int BuildSelectionCandidatesPerSlice = 64;
         private readonly Dictionary<int3, ulong> _desiredVersions = new();
         // Chunks whose last completed build produced no geometry, and the source version that
@@ -1517,6 +1523,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
             if (!GeometryUtility.TestPlanesAABB(frustumPlanes, bounds)) return;
 
+            // Background prefetch above remains intentionally 360 degrees. Once a chunk is in
+            // the actual camera frustum, however, promote its still-needed generation so build
+            // selection cannot make a visible hole wait behind the entire prefetch shell.
+            if (!currentReady && !currentEmpty && !currentGenerationInFlight)
+                PromoteVisibleDirty(coordinate);
+
             if (ready)
             {
                 // Keep the previous mesh drawable while a newer authoritative generation builds.
@@ -1569,7 +1581,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private bool BeginNearestBuild(Camera camera, float voxelSize,
                                        double deadlineSeconds)
         {
-            if (_dirty.Count == 0 || _dirtyQueue.Count == 0
+            if (_dirty.Count == 0
+                || _dirtyQueue.Count == 0 && _visibleDirtyQueue.Count == 0
                 || Time.realtimeSinceStartupAsDouble >= deadlineSeconds)
                 return false;
 
@@ -1580,49 +1593,93 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             Vector3 cameraWorldPosition = camera.transform.position;
             GeometryUtility.CalculateFrustumPlanes(camera, _frustumPlanes);
 
-            int candidates = math.min(BuildSelectionCandidatesPerSlice, _dirtyQueue.Count);
-            for (int i = 0; i < candidates; i++)
+            // First sample only demand that was actually visible when collected. Camera motion can
+            // stale that classification, so recheck both ring ownership and the current frustum.
+            // A priority record that moved offscreen simply falls back to its existing background
+            // FIFO record; no authoritative work is lost.
+            int visibleCandidates = math.min(
+                BuildSelectionCandidatesPerSlice, _visibleDirtyQueue.Count);
+            for (int i = 0; i < visibleCandidates; i++)
             {
-                int3 candidate = _dirtyQueue.Dequeue();
-                _queuedDirty.Remove(candidate);
-                if (!_dirty.Contains(candidate)) continue; // stale queue record
+                int3 candidate = _visibleDirtyQueue.Dequeue();
+                _queuedVisibleDirty.Remove(candidate);
+                if (!_dirty.Contains(candidate)) continue;
 
                 Bounds bounds = ChunkWorldBounds(candidate, voxelSize);
                 if (!WithinRingBand(bounds, cameraWorldPosition))
                 {
-                    // Discovery is shared across LOD workers, so a worker can learn about chunks
-                    // that currently belong wholly to a finer/coarser ring. Requeueing those
-                    // impossible candidates forever makes the dirty FIFO scale with all streamed
-                    // surface data and starves real visible work. Retain the authoritative desired
-                    // version, but park active build demand until visibility makes it relevant.
                     ParkDirty(candidate);
                     continue;
                 }
+                if (!GeometryUtility.TestPlanesAABB(_frustumPlanes, bounds))
+                    continue;
 
                 Vector3 centre = (new Vector3(candidate.x, candidate.y, candidate.z)
                                 + Vector3.one * 0.5f) * chunkMetres;
-                float distance = (centre - cameraWorldPosition).sqrMagnitude;
-                float score = GeometryUtility.TestPlanesAABB(_frustumPlanes, bounds)
-                    ? distance : distance + 1_000_000_000f;
+                float score = (centre - cameraWorldPosition).sqrMagnitude;
                 if (!hasBest || score < bestScore)
                 {
-                    if (hasBest) RequeueDirty(best);
+                    if (hasBest) RequeueVisibleDirty(best);
                     bestScore = score;
                     best = candidate;
                     hasBest = true;
                 }
                 else
                 {
-                    RequeueDirty(candidate);
+                    RequeueVisibleDirty(candidate);
                 }
 
-                // Score checks are cheap, but a destruction burst can enqueue thousands. The
-                // frame contract wins over exact global nearest ordering; later slices continue
-                // from the queue tail and converge without a scan spike.
                 if (Time.realtimeSinceStartupAsDouble >= deadlineSeconds) break;
             }
 
+            // No currently visible hole was ready for this workspace. Preserve the original
+            // bounded background selection so 360-degree prefetch still converges opportunistically.
+            if (!hasBest)
+            {
+                int candidates = math.min(BuildSelectionCandidatesPerSlice, _dirtyQueue.Count);
+                for (int i = 0; i < candidates; i++)
+                {
+                    int3 candidate = _dirtyQueue.Dequeue();
+                    _queuedDirty.Remove(candidate);
+                    if (!_dirty.Contains(candidate)) continue; // stale queue record
+
+                    Bounds bounds = ChunkWorldBounds(candidate, voxelSize);
+                    if (!WithinRingBand(bounds, cameraWorldPosition))
+                    {
+                        ParkDirty(candidate);
+                        continue;
+                    }
+
+                    Vector3 centre = (new Vector3(candidate.x, candidate.y, candidate.z)
+                                    + Vector3.one * 0.5f) * chunkMetres;
+                    float distance = (centre - cameraWorldPosition).sqrMagnitude;
+                    float score = GeometryUtility.TestPlanesAABB(_frustumPlanes, bounds)
+                        ? distance : distance + 1_000_000_000f;
+                    if (!hasBest || score < bestScore)
+                    {
+                        if (hasBest) RequeueDirty(best);
+                        bestScore = score;
+                        best = candidate;
+                        hasBest = true;
+                    }
+                    else
+                    {
+                        RequeueDirty(candidate);
+                    }
+
+                    // Score checks are cheap, but a destruction burst can enqueue thousands. The
+                    // frame contract wins over exact global nearest ordering; later slices continue
+                    // from the queue tail and converge without a scan spike.
+                    if (Time.realtimeSinceStartupAsDouble >= deadlineSeconds) break;
+                }
+            }
+
             if (!hasBest) return false;
+            // Priority selection leaves the background queue's physical record in place. Clear its
+            // membership bit before admission so a failed slot acquisition can be reactivated on a
+            // later visibility pass; the old physical record will self-prune as stale.
+            _queuedDirty.Remove(best);
+            _queuedVisibleDirty.Remove(best);
             if (!_slotGrid.TryGet(best, out SurfaceChunkSlot buildSlot)
                 && !_slotGrid.TryAcquire(best, out buildSlot))
             {
@@ -1684,10 +1741,23 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _dirtyQueue.Enqueue(chunk);
         }
 
+        private void PromoteVisibleDirty(int3 chunk)
+        {
+            if (!_dirty.Contains(chunk)) MarkDirty(chunk);
+            RequeueVisibleDirty(chunk);
+        }
+
+        private void RequeueVisibleDirty(int3 chunk)
+        {
+            if (!_dirty.Contains(chunk) || !_queuedVisibleDirty.Add(chunk)) return;
+            _visibleDirtyQueue.Enqueue(chunk);
+        }
+
         private void ParkDirty(int3 chunk)
         {
             _dirty.Remove(chunk);
             _queuedDirty.Remove(chunk);
+            _queuedVisibleDirty.Remove(chunk);
             _queuedAtSeconds.Remove(chunk);
             // Intentionally retain _desiredVersions: discovery/edit state remains authoritative,
             // and CollectVisibleCoordinate will reactivate it if this chunk enters the ring.
@@ -3645,6 +3715,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _queuedResidency.Remove(chunk);
             _dirty.Remove(chunk);
             _queuedDirty.Remove(chunk);
+            _queuedVisibleDirty.Remove(chunk);
             _desiredVersions.Remove(chunk);
             _emptyVersions.Remove(chunk);
             _queuedAtSeconds.Remove(chunk);
