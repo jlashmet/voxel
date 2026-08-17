@@ -13,7 +13,7 @@ namespace Game.Structures.Runtime
             IStructureAuthoringSession authoring,
             in CastlePlan plan)
         {
-            CastleComponentConfig config = CastleCompatibilityComponents.Resolve(in plan);
+            CastleConfig config = CastlePresets.Compatibility(in plan);
             AuthorCornerTowers(authoring, in plan, in config.CornerTowers);
         }
 
@@ -58,10 +58,29 @@ namespace Game.Structures.Runtime
             int height,
             bool roof)
         {
+            if (authoring == null) throw new System.ArgumentNullException(nameof(authoring));
+
+            StructureMaterialPalette palette = CastleStructurePalette.Compatibility;
+            var tower = new TowerConfig
+            {
+                Shape = StructureTowerShape.Round,
+                Placement = StructureTowerPlacement.Explicit,
+                TopStyle = roof ? StructureTowerTopStyle.Roof : StructureTowerTopStyle.Parapet,
+                Radius = radius,
+                Height = height,
+                Count = 1,
+                WallMaterialRole = StructureMaterialRole.PrimaryWall,
+                TrimMaterialRole = StructureMaterialRole.Trim,
+            };
+
             authoring.Cylinder(at.x, at.y - 30, at.z,
-                radius + 4, 42, GameMaterialIds.DarkStone);
-            authoring.Cylinder(at.x, at.y, at.z,
-                radius, height, GameMaterialIds.Stone, radius - 12);
+                radius + 4, 42, palette.Resolve(StructureMaterialRole.Foundation));
+            StructureComponentAuthoring.AuthorTowerShell(
+                authoring,
+                at,
+                in tower,
+                in palette,
+                innerRadius: radius - 12);
 
             for (int floor = 1; floor * plan.FloorHeight < height - 20; floor++)
                 authoring.Disc(at.x, at.y + floor * plan.FloorHeight, at.z,
