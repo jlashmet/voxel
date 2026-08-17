@@ -234,6 +234,14 @@ namespace VoxelEngine.Composition
             if (world.Storage == null)
                 throw new ArgumentException("Rendering requires a storage read source.", nameof(world));
 
+            // A persistent renderer feature can outlive many application worlds. If a caller
+            // replaces the authoritative storage binding without an explicit ClearWorld first,
+            // retire scheduler jobs, pins, and derived meshes while the old owner is still live.
+            // Reapplying configuration for the same storage is intentionally cheap and keeps its
+            // warm derived geometry.
+            if (s_hasWorld && !ReferenceEquals(s_world.Storage, world.Storage))
+                VoxelRenderBridge.ReleaseWorldResources();
+
             s_world = world;
             s_terrainSeed = terrainSeed;
             s_hasWorld = true;
