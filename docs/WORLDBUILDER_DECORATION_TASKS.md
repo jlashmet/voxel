@@ -9,11 +9,13 @@ This checklist is the source of truth for implementation progress. Mark each ite
 ## Current implementation notes
 
 - The generic semantic resolver and the first five bedroom prop families are implemented.
+- `DecorationSceneScheduler` now provides deterministic required/optional slot selection, weighted optional priority, dependency closure, and anchor-before-dependent ordering.
 - A castle-bedchamber adapter derives semantic space plus stair/navigation, window, fireplace, sitting-area, and retained wall-hanging exclusions from `CastlePlan` and resolves the generic bedroom scene.
 - The normal castle keep build now routes floor 1 through `CastleProceduralBedroomAuthoring`; floors 0 and 2+ remain on the existing room-authoring path. The old private hand-authored bedchamber remains in `CastleKeepRoomAuthoring` as rollback/reference code but is bypassed by `CastleAuthoringBuild`.
 - The procedural castle bedroom emits the bed, rug, dresser, painting, and wall torch, while retaining the existing ceiling beams, fireplace, sitting cluster, wall hangings, and chandelier until those receive scene recipes.
+- `CastleBedroomDecorationDebugGizmo` provides selected Scene-view look-dev visibility for room bounds, sockets/facings, exclusions, resolved placements, labels, and anchor relationships.
 - A structure-authoring compatibility emitter exists for box-assembly props. Rug/painting thin surfaces currently emit as one-voxel sheets; this does **not** complete the true thin-surface backend task.
-- NUnit regressions are committed, including a 128-seed bedroom stress test, representative castle-adapter tests, and the existing castle build progression test exercises the newly routed floor-1 authoring path. They still require execution in the Unity test environment/CI.
+- NUnit regressions are committed, including scene scheduler dependency/optional tests, a 128-seed bedroom stress test, representative castle-adapter tests, and the existing castle build progression test exercises the newly routed floor-1 authoring path. They still require execution in the Unity test environment/CI.
 
 ## Setup and architecture
 
@@ -64,7 +66,7 @@ This checklist is the source of truth for implementation progress. Mark each ite
 - [x] **DEC052** Place dresser against a compatible secondary wall with standing clearance.
 - [x] **DEC053** Place painting above a compatible wall/furniture region.
 - [x] **DEC054** Place wall torch using wall socket and spacing rules.
-- [ ] **DEC055** Add scene tests for required/optional slot resolution and dependency order.
+- [x] **DEC055** Add scene tests for required/optional slot resolution and dependency order.
 - [x] **DEC056** Verify multiple seeds remain coherent and deterministic without leaving room bounds.
 
 ## Castle integration
@@ -72,7 +74,7 @@ This checklist is the source of truth for implementation progress. Mark each ite
 - [x] **DEC060** Expose one castle bedroom/interior as a semantic `DecorationSpace` rather than hard-coded prop placement.
 - [x] **DEC061** Run the bedroom scene through castle authoring/build output.
 - [x] **DEC062** Add castle integration tests proving the first five props resolve in a representative room.
-- [ ] **DEC063** Add debug/look-dev visibility for decoration sockets, exclusions, anchor relationships, and resolved placements.
+- [x] **DEC063** Add debug/look-dev visibility for decoration sockets, exclusions, anchor relationships, and resolved placements.
 
 ## Style, wealth, and condition
 
