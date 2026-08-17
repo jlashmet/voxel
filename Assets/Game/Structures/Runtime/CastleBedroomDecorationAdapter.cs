@@ -4,9 +4,9 @@ using Unity.Mathematics;
 namespace Game.Structures.Runtime
 {
     /// <summary>
-    /// Adapts the existing second-floor keep bedchamber to the generic decoration model. This is
-    /// intentionally separate from CastleKeepRoomAuthoring so semantic resolution can be proven
-    /// before the legacy hand-authored furniture is removed.
+    /// Adapts the existing second-floor keep bedchamber to the generic decoration model. Legacy
+    /// architectural/detail clusters that remain during migration are exposed as exclusions so
+    /// procedural furniture never intersects them.
     /// </summary>
     public static class CastleBedroomDecorationAdapter
     {
@@ -86,8 +86,10 @@ namespace Game.Structures.Runtime
             int3 keepMin = CastleKeepCoreAuthoring.Minimum(in plan);
             int3 keepSize = CastleKeepCoreAuthoring.Size(in plan);
             int floorY = plan.Centre.y + plan.PlateauHeight + plan.FloorHeight;
+            int cx = keepMin.x + keepSize.x / 2;
+            int cz = keepMin.z + keepSize.z / 2;
 
-            var exclusions = new DecorationExclusion[8];
+            var exclusions = new DecorationExclusion[12];
             exclusions[0] = new DecorationExclusion
             {
                 Kind = DecorationExclusionKind.Stair | DecorationExclusionKind.Navigation,
@@ -120,6 +122,44 @@ namespace Game.Structures.Runtime
                     {
                         Min = new int3(x - 4, floorY + 10, space.Bounds.MaxExclusive.z - 12),
                         MaxExclusive = new int3(x + 20, floorY + 12 + windowHeight, space.Bounds.MaxExclusive.z),
+                    },
+                };
+            }
+
+            // Fireplace and mantel retained from the legacy bedchamber during the first migration.
+            exclusions[8] = new DecorationExclusion
+            {
+                Kind = DecorationExclusionKind.Gameplay,
+                Bounds = new DecorationBounds
+                {
+                    Min = new int3(keepMin.x + 4, space.Bounds.Min.y, cz + 18),
+                    MaxExclusive = new int3(keepMin.x + 28, space.Bounds.MaxExclusive.y, cz + 68),
+                },
+            };
+
+            // Reading/sitting cluster retained until chair/table scene recipes exist.
+            exclusions[9] = new DecorationExclusion
+            {
+                Kind = DecorationExclusionKind.Gameplay | DecorationExclusionKind.Navigation,
+                Bounds = new DecorationBounds
+                {
+                    Min = new int3(keepMin.x + 34, space.Bounds.Min.y, cz - 2),
+                    MaxExclusive = new int3(keepMin.x + 72, space.Bounds.MaxExclusive.y, cz + 56),
+                },
+            };
+
+            // Two existing wall hangings remain as secondary decoration for now.
+            for (int side = -1; side <= 1; side += 2)
+            {
+                int hangingZ = cz + side * 48;
+                int index = side < 0 ? 10 : 11;
+                exclusions[index] = new DecorationExclusion
+                {
+                    Kind = DecorationExclusionKind.Gameplay,
+                    Bounds = new DecorationBounds
+                    {
+                        Min = new int3(space.Bounds.MaxExclusive.x - 12, space.Bounds.Min.y, hangingZ - 15),
+                        MaxExclusive = new int3(space.Bounds.MaxExclusive.x, space.Bounds.MaxExclusive.y, hangingZ + 15),
                     },
                 };
             }
