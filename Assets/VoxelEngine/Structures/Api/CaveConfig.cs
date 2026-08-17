@@ -59,6 +59,14 @@ namespace VoxelEngine.Structures.Api
         public int VerticalChancePercent;
         public int MaxVerticalStepPerSegment;
 
+        /// <summary>
+        /// Surface entries use a deterministic initial descent before ordinary vertical variation.
+        /// Attached/underground entrances ignore these two controls.
+        /// </summary>
+        public int SurfaceDescentSegments;
+        public int SurfaceDescentPerSegment;
+        public int MinimumSurfaceCover;
+
         public int BranchChancePercent;
         public int MaxBranches;
         public int MaxBranchDepth;
@@ -105,6 +113,9 @@ namespace VoxelEngine.Structures.Api
                     return false;
 
                 if (MaxVerticalStepPerSegment < 0 || MaxVerticalStepPerSegment > SegmentLength ||
+                    SurfaceDescentSegments < 0 || SurfaceDescentSegments > MainSegmentCount ||
+                    SurfaceDescentPerSegment < 0 || SurfaceDescentPerSegment > SegmentLength ||
+                    MinimumSurfaceCover < 0 ||
                     MaxBranches < 0 || MaxBranches > 32 ||
                     MaxBranchDepth < 0 || MaxBranchDepth > 8 ||
                     BranchSegmentCount < 1 || BranchSegmentCount > 256 ||
@@ -120,7 +131,9 @@ namespace VoxelEngine.Structures.Api
 
                 if (BoundsHalfExtents.x <= TunnelWidth ||
                     BoundsHalfExtents.y <= TunnelHeight ||
-                    BoundsHalfExtents.z <= TunnelWidth)
+                    BoundsHalfExtents.z <= TunnelWidth ||
+                    MaxChamberRadius + WallRoughness >= BoundsHalfExtents.x ||
+                    MaxChamberRadius + WallRoughness >= BoundsHalfExtents.z)
                     return false;
 
                 if (MinVerticalOffset > MaxVerticalOffset ||
@@ -144,6 +157,9 @@ namespace VoxelEngine.Structures.Api
             TurnChancePercent = 34,
             VerticalChancePercent = 32,
             MaxVerticalStepPerSegment = 4,
+            SurfaceDescentSegments = 5,
+            SurfaceDescentPerSegment = 4,
+            MinimumSurfaceCover = 12,
             BranchChancePercent = 22,
             MaxBranches = 6,
             MaxBranchDepth = 2,
@@ -171,14 +187,37 @@ namespace VoxelEngine.Structures.Api
     public struct CaveGenerationRequest
     {
         public ulong Seed;
+        public uint TerrainSeed;
         public int3 Origin;
         public CaveEntranceConfig Entrance;
 
         public bool IsWellFormed => Seed != 0 && Entrance.IsWellFormed;
         public int3 EntranceWorldPosition => Origin + Entrance.LocalPosition;
 
+        public bool TryGetWorldBounds(in CaveConfig config, out StructureGenerationBounds bounds)
+        {
+            bounds = default;
+            if (!config.IsWellFormed) return false;
+
+            long minX = (long)Origin.x - config.BoundsHalfExtents.x;
+            long minY = (long)Origin.y - config.BoundsHalfExtents.y;
+            long minZ = (long)Origin.z - config.BoundsHalfExtents.z;
+            long sizeX = (long)config.BoundsHalfExtents.x * 2 + 1;
+            long sizeY = (long)config.BoundsHalfExtents.y * 2 + 1;
+            long sizeZ = (long)config.BoundsHalfExtents.z * 2 + 1;
+            if (minX < int.MinValue || minY < int.MinValue || minZ < int.MinValue ||
+                sizeX > int.MaxValue || sizeY > int.MaxValue || sizeZ > int.MaxValue)
+                return false;
+
+            return StructureGenerationBounds.TryCreate(
+                new int3((int)minX, (int)minY, (int)minZ),
+                new int3((int)sizeX, (int)sizeY, (int)sizeZ),
+                out bounds);
+        }
+
         public static CaveGenerationRequest Standalone(
             ulong seed,
+            uint terrainSeed,
             int3 surfaceAnchor,
             Facing facing,
             int width,
@@ -186,6 +225,7 @@ namespace VoxelEngine.Structures.Api
             int clearanceLength) => new CaveGenerationRequest
         {
             Seed = seed,
+            TerrainSeed = terrainSeed,
             Origin = surfaceAnchor,
             Entrance = new CaveEntranceConfig
             {
@@ -207,6 +247,7 @@ namespace VoxelEngine.Structures.Api
             int clearanceLength) => new CaveGenerationRequest
         {
             Seed = seed,
+            TerrainSeed = 0,
             Origin = structureAnchor,
             Entrance = new CaveEntranceConfig
             {
@@ -228,6 +269,7 @@ namespace VoxelEngine.Structures.Api
             int clearanceLength) => new CaveGenerationRequest
         {
             Seed = seed,
+            TerrainSeed = 0,
             Origin = undergroundAnchor,
             Entrance = new CaveEntranceConfig
             {
