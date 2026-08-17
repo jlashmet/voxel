@@ -1,0 +1,1 @@
+Validate the allocation-free step-4 fallback lifecycle counters on PR #88. Record scheduled/completed/non-empty/published counts in voxel-showcase-rendering-repair-v2.md, identify the exact ready-empty cause, then remove this marker.
