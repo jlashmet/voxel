@@ -28,6 +28,9 @@ namespace VoxelEngine.Tests.PlayMode
     {
         private const float k_TickInterval = 1f / 30f; // 30 Hz tick rate
         private const float k_MovementSpeed = 10f; // m/s -- fast sprint
+        private const int k_TestBrickPoolBytes = 1 << 20;
+        private static int TestBrickPoolSlots => math.max(
+            1, k_TestBrickPoolBytes / VoxelDimensions.BytesPerMixedBrick);
 
         // -----------------------------------------------------------------------
         // SC-004 Test 1: continuous kilometre-scale traversal with zero visible gaps.
@@ -45,13 +48,14 @@ namespace VoxelEngine.Tests.PlayMode
         {
             // Arrange: region table and brick pool.
             var table = new RegionTable(1024, Allocator.Persistent);
-            var pool = new BrickPool(1 << 20, Allocator.Persistent); // 1 MB for test.
+            var pool = new BrickPool(TestBrickPoolSlots, Allocator.Persistent); // 1 MiB mixed-brick payload budget.
             var residency = new RegionResidencyStore(in table, in pool);
 
             var playerPos = new float3(0f, 64f, 0f); // start at origin, eye height.
             var velocity = new float3(k_MovementSpeed, 0f, 0f); // straight along +X.
 
             int totalRegionsLoaded = 0;
+            int evictionCursor = 0;
 
             try
             {
@@ -105,15 +109,11 @@ namespace VoxelEngine.Tests.PlayMode
                     Assert.That(mainThreadWorkMs, Is.LessThanOrEqualTo(0.5f),
                         $"Streaming work ({mainThreadWorkMs:F3} ms) exceeded 0.5 ms budget at tick {tickCount}.");
 
-                    // Eviction candidates: regions beyond unload radius.
+                    // Bounded eviction walks actual resident coordinates, including regions
+                    // that have fallen completely behind the player's current unload cube.
                     var unloadRadiusBricks = (int)(ResidencyManager.GetUnloadRadius(DeviceTier.PC) / 0.8f);
-                    var evictCandidates = ResidencyManager.GetEvictionCandidates(playerPos, unloadRadiusBricks, Allocator.Temp);
-
-                    foreach (var rc in evictCandidates)
-                        if (table.IsResident(rc))
-                            table.EvictRegion(rc, ref pool);
-
-                    evictCandidates.Dispose();
+                    ResidencyManager.EvictFarResidents(
+                        playerPos, unloadRadiusBricks, residency, ref evictionCursor, 64);
 
                     // Advance player position.
                     playerPos += velocity * k_TickInterval;
@@ -153,9 +153,10 @@ namespace VoxelEngine.Tests.PlayMode
             foreach (var tier in tiers)
             {
                 var table = new RegionTable(1024, Allocator.Persistent);
-                var pool = new BrickPool(1 << 20, Allocator.Persistent);
+                var pool = new BrickPool(TestBrickPoolSlots, Allocator.Persistent);
                 var residency = new RegionResidencyStore(in table, in pool);
                 float playerPosZ = 0f;
+                int evictionCursor = 0;
 
                 try
                 {
@@ -182,16 +183,11 @@ namespace VoxelEngine.Tests.PlayMode
                         Assert.That(elapsedMs, Is.LessThanOrEqualTo(0.5f),
                             $"Tier {tier}: streaming work ({elapsedMs:F3} ms) exceeded 0.5 ms budget at tick {tick}.");
 
-                        // Eviction.
+                        // Eviction scans actual resident coordinates rather than a shell
+                        // centred only on the current player position.
                         var unloadRadiusBricks = (int)(ResidencyManager.GetUnloadRadius(tier) / 0.8f);
-                        var evictCandidates = ResidencyManager.GetEvictionCandidates(
-                            playerPos, unloadRadiusBricks, Allocator.Temp);
-
-                        foreach (var rc in evictCandidates)
-                            if (table.IsResident(rc))
-                                table.EvictRegion(rc, ref pool);
-
-                        evictCandidates.Dispose();
+                        ResidencyManager.EvictFarResidents(
+                            playerPos, unloadRadiusBricks, residency, ref evictionCursor, 64);
                     }
 
                 }

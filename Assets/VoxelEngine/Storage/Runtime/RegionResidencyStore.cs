@@ -52,5 +52,8 @@ namespace VoxelEngine.Storage.Runtime
             _table.EvictRegion(regionCoord, ref _pool);
             return true;
         }
+
+        public bool TryGetNextResidentCoord(ref int cursor, out int3 regionCoord) =>
+            _table.TryGetNextResidentCoord(ref cursor, out regionCoord);
     }
 }

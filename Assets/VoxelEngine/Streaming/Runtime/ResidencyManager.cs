@@ -21,6 +21,8 @@ namespace VoxelEngine.Streaming.Runtime
         public const int LoadRadiusMetres_MobileHE = 300;
         public const int UnloadRadiusMetres_MobileHE = 420;
 
+        private const int EvictionScanRegionsPerFrame = 64;
+        private static int _evictionScanCursor;
         private static NativeHashMap<int3, uint> _accessTicks =
             new NativeHashMap<int3, uint>(1024, Allocator.Persistent);
 
@@ -118,12 +120,9 @@ namespace VoxelEngine.Streaming.Runtime
             }
 
             int unloadRadiusBlocks = (int)(GetUnloadRadius(DeviceTier.PC) / 0.8f);
-            using (NativeArray<int3> evictionCandidates =
-                   GetEvictionCandidates(playerPosition, unloadRadiusBlocks, Allocator.Temp))
-            {
-                for (int i = 0; i < evictionCandidates.Length; i++)
-                    EvictWithoutWriteBack(evictionCandidates[i], storage);
-            }
+            EvictFarResidents(
+                playerPosition, unloadRadiusBlocks, storage, ref _evictionScanCursor,
+                EvictionScanRegionsPerFrame);
 
             StoragePressure pressure = storage.Pressure;
             if (!pressure.IsUnderPressure) return;
@@ -164,6 +163,45 @@ namespace VoxelEngine.Streaming.Runtime
             return trimmed;
         }
 
+        /// <summary>
+        /// Examines at most <paramref name="maxRegionsToScan"/> actual resident regions and
+        /// evicts those outside the unload sphere. Unlike the legacy geometric shell query this
+        /// eventually reaches regions left far behind the player, while keeping per-frame work
+        /// strictly bounded and allocation-free.
+        /// </summary>
+        public static int EvictFarResidents(float3 playerPosition, int unloadRadiusBlocks,
+                                            IRegionResidencyStore storage, ref int scanCursor,
+                                            int maxRegionsToScan = EvictionScanRegionsPerFrame)
+        {
+            if (storage == null) throw new ArgumentNullException(nameof(storage));
+            if (maxRegionsToScan <= 0)
+                throw new ArgumentOutOfRangeException(nameof(maxRegionsToScan));
+
+            float distanceLimit = unloadRadiusBlocks * 0.8f;
+            float distanceSquaredLimit = distanceLimit * distanceLimit;
+            int evicted = 0;
+            int examined = 0;
+            while (examined < maxRegionsToScan)
+            {
+                if (!storage.TryGetNextResidentCoord(ref scanCursor, out int3 regionCoord))
+                {
+                    scanCursor = 0;
+                    break;
+                }
+
+                examined++;
+                if (math.distancesq(RegionWorldPos(regionCoord), playerPosition)
+                    <= distanceSquaredLimit)
+                    continue;
+
+                if (!storage.EvictRegion(regionCoord)) continue;
+                if (_accessTicks.IsCreated) _accessTicks.Remove(regionCoord);
+                evicted++;
+            }
+            return evicted;
+        }
+
+        [Obsolete("Geometric shell candidates cannot discover historical residents left behind the current player. Use EvictFarResidents with an IRegionResidencyStore.")]
         public static NativeArray<int3> GetEvictionCandidates(float3 playerPosition,
                                                                int unloadRadiusBlocks,
                                                                Allocator allocator)
