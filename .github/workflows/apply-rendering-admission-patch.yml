@@ -1,4 +1,4 @@
-name: Apply rendering admission repair
+name: Apply rendering LOD diagnostic repair
 
 on:
   push:
@@ -18,14 +18,20 @@ jobs:
         with:
           ref: feature/voxel-showcase-rendering-repair-v2
           fetch-depth: 0
-      - name: Apply ring admission repair
+      - name: Apply active-pass diagnostic repair
         run: python3 .github/scripts/apply_rendering_admission_patch.py
       - name: Verify patch
         run: git diff --check
-      - name: Commit repair
+      - name: Commit repair and retire transport
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
-          git commit -m "fix(rendering): park out-of-band ring build work"
+          git add \
+            Assets/VoxelEngine/Rendering/Runtime/RenderFeature/VoxelRenderBridge.cs \
+            Assets/VoxelEngine/Rendering/Runtime/RenderFeature/VoxelRenderPass.cs \
+            Assets/Tests/PlayMode/LodVisualFidelityTests.cs
+          git rm \
+            .github/workflows/apply-rendering-admission-patch.yml \
+            .github/scripts/apply_rendering_admission_patch.py
+          git commit -m "test(rendering): inspect executing LOD render pass"
           git push origin HEAD:feature/voxel-showcase-rendering-repair-v2
