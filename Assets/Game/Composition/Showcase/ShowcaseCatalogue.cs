@@ -34,8 +34,12 @@ namespace VoxelEngine.Showcase
                 voxelsPerDecimetre: 1,
                 materials: materials);
 
-            // Keep worldgen and the detailed shared-house example as separate authoring sources,
-            // then freeze them into the one immutable catalogue consumed by streaming/rendering.
+            // Kentridge is the production mixed-city showcase, not a parallel demo planner. Its
+            // SettlementCompositionPolicy preserves the authored roads/roles/frontages while the
+            // generated residential/market forms select district-weighted shared house presets.
+            // Bespoke civic/working landmarks remain in the same catalogue, so one build visibly
+            // exercises houses, shops, inns, a church, warehouse, mansion, well and open civic space.
+            // The detached detailed-house feature below remains a focused deep-override example.
             FeatureCatalogue kentridge =
                 KentridgeCombinedVoxelCatalogue.Build(seed, settings, Allocator.Temp);
             try
