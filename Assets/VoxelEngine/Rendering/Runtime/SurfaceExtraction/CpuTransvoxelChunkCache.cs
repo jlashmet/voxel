@@ -3608,7 +3608,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 _queuedResidency.Remove(chunk);
                 if (!_known.Contains(chunk)) continue;
 
-                if (WithinClipmapWindow(chunk) && AnyOverlappedRegionResident(source, chunk))
+                if (WithinClipmapWindow(chunk) && AllOwnedCoreRegionsResident(source, chunk))
                 {
                     RequeueResidency(chunk);
                     continue;
@@ -3623,16 +3623,16 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         }
 
         /// <summary>
-        /// Whether any region sampled by the chunk is still resident. The exact snapshot owns a
-        /// one-sample halo, so discovery-admitted neighbour chunks must remain alive while that
-        /// halo reaches resident Storage even when their core lies just outside it. Otherwise
-        /// prune/remove and discovery/readmission can restart the same metadata job every frame.
+        /// Whether every Storage region intersecting the chunk's unpadded owned core is
+        /// currently resident. Exact extraction may optimistically treat an unavailable halo as
+        /// empty, but a missing core region can never satisfy exact-snapshot completeness and
+        /// must not remain active build demand merely because its halo touches resident Storage.
+        /// A later residency publication re-runs surface discovery and readmits the chunk.
         /// </summary>
-        private bool AnyOverlappedRegionResident(IRegionReadSource source, int3 chunk)
+        private bool AllOwnedCoreRegionsResident(IRegionReadSource source, int3 chunk)
         {
-            int halo = Padding * SourceStep;
-            int3 minVoxel = chunk * VoxelsPerAxis - halo;
-            int3 maxVoxel = (chunk + 1) * VoxelsPerAxis + halo - 1;
+            int3 minVoxel = chunk * VoxelsPerAxis;
+            int3 maxVoxel = (chunk + 1) * VoxelsPerAxis - 1;
             int3 minRegion = new(FloorDiv(minVoxel.x, VoxelGrid.RegionVoxelEdge),
                                  FloorDiv(minVoxel.y, VoxelGrid.RegionVoxelEdge),
                                  FloorDiv(minVoxel.z, VoxelGrid.RegionVoxelEdge));
@@ -3643,8 +3643,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             for (int z = minRegion.z; z <= maxRegion.z; z++)
             for (int y = minRegion.y; y <= maxRegion.y; y++)
             for (int x = minRegion.x; x <= maxRegion.x; x++)
-                if (source.IsRegionResident(new int3(x, y, z))) return true;
-            return false;
+                if (!source.IsRegionResident(new int3(x, y, z))) return false;
+            return true;
         }
 
         internal bool TryEvictOneForArenaPressure(Camera camera, float voxelSize)
