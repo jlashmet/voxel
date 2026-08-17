@@ -15,8 +15,8 @@ def replace_once(path: Path, old: str, new: str) -> None:
 
 replace_once(
     LOD,
-    "            yield return WaitForAtomicWorldReady();\n\n            var showcase = Object.FindFirstObjectByType<VoxelShowcase>();",
-    "            yield return WaitForAtomicWorldReady();\n            Step4FalseEmptyDiagnostics.Reset();\n\n            var showcase = Object.FindFirstObjectByType<VoxelShowcase>();",
+    """        public IEnumerator CastleKeepsVoxelGeometryAcrossEveryLodBand()\n        {\n            UnityEditor.SceneManagement.EditorSceneManager.LoadSceneInPlayMode(\n                ScenePath, new LoadSceneParameters(LoadSceneMode.Single));\n            yield return null;\n            yield return WaitForAtomicWorldReady();\n\n            var showcase = Object.FindFirstObjectByType<VoxelShowcase>();\n""",
+    """        public IEnumerator CastleKeepsVoxelGeometryAcrossEveryLodBand()\n        {\n            UnityEditor.SceneManagement.EditorSceneManager.LoadSceneInPlayMode(\n                ScenePath, new LoadSceneParameters(LoadSceneMode.Single));\n            yield return null;\n            yield return WaitForAtomicWorldReady();\n            Step4FalseEmptyDiagnostics.Reset();\n\n            var showcase = Object.FindFirstObjectByType<VoxelShowcase>();\n""",
 )
 
 replace_once(
