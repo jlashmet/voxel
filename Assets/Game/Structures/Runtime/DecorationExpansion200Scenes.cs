@@ -4,14 +4,7 @@ namespace Game.Structures.Runtime
 {
     public enum DecorationExpansion200SceneKind : byte
     {
-        AlchemyLab = 0,
-        RitualChamber = 1,
-        Observatory = 2,
-        Graveyard = 3,
-        Catacomb = 4,
-        Farmyard = 5,
-        GardenCourt = 6,
-        CivicStreet = 7,
+        AlchemyLab, RitualChamber, Observatory, Graveyard, Catacomb, Farmyard, GardenCourt, CivicStreet,
     }
 
     public struct DecorationExpansion200SceneSlot
@@ -24,18 +17,13 @@ namespace Game.Structures.Runtime
 
         public DecorationSceneSlot ToCoreSlot(DecorationPropFamily family) => new DecorationSceneSlot
         {
-            SlotId = SlotId,
-            Family = family,
-            RequestedSocket = Socket,
-            Weight = Weight,
-            Required = Required,
+            SlotId = SlotId, Family = family, RequestedSocket = Socket, Weight = Weight, Required = Required,
         };
     }
 
     public static class DecorationExpansion200SceneCatalog
     {
-        public static uint SceneId(DecorationExpansion200SceneKind kind) =>
-            0xE2000000u | ((uint)kind + 1u);
+        public static uint SceneId(DecorationExpansion200SceneKind kind) => 0xE2000000u | ((uint)kind + 1u);
 
         public static DecorationExpansion200SceneSlot[] Slots(DecorationExpansion200SceneKind kind)
         {
@@ -90,7 +78,7 @@ namespace Game.Structures.Runtime
                     return new[]
                     {
                         S(1, DecorationExpandedContentKind.OssuaryNiche, DecorationSocketKind.Wall, true, 6),
-                        S(2, DecorationExpandedContentKind.CatacombShelf, DecorationSocketKind.Wall, true, 5),
+                        S(2, DecorationExpandedContentKind.CatacombShelf, DecorationSocketKind.Floor, true, 5),
                         S(3, DecorationExpandedContentKind.ReliquaryCasket, DecorationSocketKind.Floor, true, 4),
                         S(4, DecorationExpandedContentKind.BonePile, DecorationSocketKind.Floor, false, 4),
                         S(5, DecorationExpandedContentKind.SkullStack, DecorationSocketKind.Floor, false, 3),
@@ -138,26 +126,20 @@ namespace Game.Structures.Runtime
         {
             if (context.Condition == DecorationConditionTier.Ruined) return 1;
             int budget = 2 + (int)context.Wealth / 2;
-            if (kind == DecorationExpansion200SceneKind.AlchemyLab ||
-                kind == DecorationExpansion200SceneKind.RitualChamber ||
-                kind == DecorationExpansion200SceneKind.Farmyard)
-                budget++;
+            if (kind == DecorationExpansion200SceneKind.AlchemyLab || kind == DecorationExpansion200SceneKind.RitualChamber ||
+                kind == DecorationExpansion200SceneKind.Farmyard) budget++;
             return budget;
         }
 
-        private static DecorationExpansion200SceneSlot S(
-            uint slot, DecorationExpandedContentKind kind, DecorationSocketKind socket, bool required, ushort weight) =>
-            new DecorationExpansion200SceneSlot { SlotId = slot, Kind = kind, Socket = socket, Required = required, Weight = weight };
+        private static DecorationExpansion200SceneSlot S(uint id, DecorationExpandedContentKind kind,
+            DecorationSocketKind socket, bool required, ushort weight) =>
+            new DecorationExpansion200SceneSlot { SlotId = id, Kind = kind, Socket = socket, Required = required, Weight = weight };
     }
 
     public static class DecorationExpansion200SceneResolver
     {
-        public static bool TryResolve(
-            DecorationExpansion200SceneKind kind,
-            in DecorationSpace space,
-            in DecorationContext context,
-            DecorationExclusion[] exclusions,
-            out DecorationPlacement[] placements)
+        public static bool TryResolve(DecorationExpansion200SceneKind kind, in DecorationSpace space,
+            in DecorationContext context, DecorationExclusion[] exclusions, out DecorationPlacement[] placements)
         {
             placements = new DecorationPlacement[0];
             if (!space.IsWellFormed || !context.IsWellFormed || space.SpaceId != context.SpaceId || space.Kind != context.SpaceKind)
@@ -169,14 +151,11 @@ namespace Game.Structures.Runtime
             for (int i = 0; i < slots.Length; i++)
             {
                 DecorationExpandedContentRecipe recipe = DecorationExpansion200Catalog.Recipe(slots[i].Kind);
-                if (!recipe.IsWellFormed) return false;
+                if (!recipe.IsWellFormed || (recipe.AcceptedSockets & slots[i].Socket) == 0) return false;
                 core[i] = slots[i].ToCoreSlot(recipe.ProxyFamily);
             }
-
-            if (!DecorationSceneScheduler.TrySelectAndOrder(
-                    in context, sceneId, core,
-                    DecorationExpansion200SceneCatalog.OptionalBudget(kind, in context),
-                    out DecorationSceneSlot[] ordered))
+            if (!DecorationSceneScheduler.TrySelectAndOrder(in context, sceneId, core,
+                    DecorationExpansion200SceneCatalog.OptionalBudget(kind, in context), out DecorationSceneSlot[] ordered))
                 return false;
 
             DecorationSocket[] sockets = RectangularDecorationSpaceAnalyzer.ExtractSockets(in space);
@@ -185,13 +164,10 @@ namespace Game.Structures.Runtime
             for (int i = 0; i < ordered.Length; i++)
             {
                 DecorationExpansion200SceneSlot slot = Find(slots, ordered[i].SlotId);
-                DecorationPropDescriptor descriptor = DecorationExpansion200Catalog.Describe(
-                    in context, sceneId, slot.SlotId, slot.Kind);
-                if (!descriptor.IsWellFormed || !descriptor.Accepts(slot.Socket)) return false;
-
-                bool placed = DecorationPlacementResolver.TryPlace(
-                    in space, in context, sceneId, slot.SlotId, in descriptor,
-                    sockets, exclusions, resolved, count, out DecorationPlacement placement);
+                DecorationPropDescriptor descriptor = DecorationExpansion200Catalog.Describe(in context, sceneId, slot.SlotId, slot.Kind);
+                if (!descriptor.IsWellFormed) return false;
+                bool placed = DecorationPlacementResolver.TryPlace(in space, in context, sceneId, slot.SlotId,
+                    in descriptor, sockets, exclusions, resolved, count, out DecorationPlacement placement);
                 if (!placed)
                 {
                     if (slot.Required) return false;
@@ -199,7 +175,6 @@ namespace Game.Structures.Runtime
                 }
                 resolved[count++] = placement;
             }
-
             placements = new DecorationPlacement[count];
             for (int i = 0; i < count; i++) placements[i] = resolved[i];
             return true;
