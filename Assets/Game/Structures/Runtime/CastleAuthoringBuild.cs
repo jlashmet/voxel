@@ -13,6 +13,7 @@ namespace Game.Structures.Runtime
     {
         private readonly IStructureAuthoringSession _authoring;
         private readonly CastlePlan _plan;
+        private readonly CastleComponentConfig _components;
         private readonly uint _terrainSeed;
         private CastleSiteAuthoringState _siteState;
         private int _stage;
@@ -26,9 +27,14 @@ namespace Game.Structures.Runtime
             _authoring = authoring
                 ?? throw new System.ArgumentNullException(nameof(authoring));
             _plan = plan;
+            _components = CastleCompatibilityComponents.Resolve(in plan);
             _terrainSeed = terrainSeed;
             _stage = 1;
             _keepStage = 0;
+
+            if (!_components.IsWellFormed)
+                throw new System.InvalidOperationException(
+                    "Castle authoring refused: compatibility component projection is invalid.");
 
             long estimate = CastlePlanner.EstimateWrites(in plan);
             if (estimate > authoring.WriteBudget)
@@ -57,6 +63,7 @@ namespace Game.Structures.Runtime
                     if (!CastleSiteAuthoring.Step(
                             _authoring,
                             in _plan,
+                            in _components,
                             _terrainSeed,
                             ref _siteState))
                     {
@@ -67,17 +74,17 @@ namespace Game.Structures.Runtime
 
                 case 2:
                     stageName = "curtain walls";
-                    CastleCurtainAuthoring.Author(_authoring, in _plan);
+                    CastleCurtainAuthoring.Author(_authoring, in _plan, in _components);
                     break;
 
                 case 3:
                     stageName = "corner towers";
-                    CastleTowerAuthoring.AuthorCornerTowers(_authoring, in _plan);
+                    CastleTowerAuthoring.AuthorCornerTowers(_authoring, in _plan, in _components);
                     break;
 
                 case 4:
                     stageName = "gatehouse";
-                    CastleGatehouseAuthoring.Author(_authoring, in _plan);
+                    CastleGatehouseAuthoring.Author(_authoring, in _plan, in _components);
                     break;
 
                 case 5:
