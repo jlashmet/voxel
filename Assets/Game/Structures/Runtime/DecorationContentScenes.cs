@@ -201,32 +201,84 @@ namespace Game.Structures.Runtime
                 if (!descriptor.IsWellFormed || !descriptor.Accepts(contentSlot.RequestedSocket))
                     return false;
 
-                bool placed = DecorationPlacementResolver.TryPlace(
-                    in space,
-                    in context,
-                    sceneId,
-                    contentSlot.SlotId,
-                    in descriptor,
-                    sockets,
-                    exclusions,
-                    resolved,
-                    count,
-                    out DecorationPlacement placement);
-
-                if (!placed)
+                bool placed;
+                if (kind == DecorationContentSceneKind.Smithy &&
+                    IsSmithyFloorCluster(contentSlot.Kind) &&
+                    TryFindPlacement(resolved, count, 1u, out DecorationPlacement hearth))
                 {
-                    if (contentSlot.Required)
-                        return false;
-                    continue;
+                    placed = DecorationContentRelationalPlacement.TryPlaceFloorNearAnchor(
+                        in space,
+                        in context,
+                        sceneId,
+                        contentSlot.SlotId,
+                        in descriptor,
+                        in hearth,
+                        4,
+                        52,
+                        42,
+                        exclusions,
+                        resolved,
+                        count,
+                        out DecorationPlacement placement);
+                    if (placed)
+                    {
+                        resolved[count++] = placement;
+                        continue;
+                    }
+                }
+                else
+                {
+                    placed = DecorationPlacementResolver.TryPlace(
+                        in space,
+                        in context,
+                        sceneId,
+                        contentSlot.SlotId,
+                        in descriptor,
+                        sockets,
+                        exclusions,
+                        resolved,
+                        count,
+                        out DecorationPlacement placement);
+                    if (placed)
+                    {
+                        resolved[count++] = placement;
+                        continue;
+                    }
                 }
 
-                resolved[count++] = placement;
+                if (contentSlot.Required)
+                    return false;
             }
 
             placements = new DecorationPlacement[count];
             for (int i = 0; i < count; i++)
                 placements[i] = resolved[i];
             return true;
+        }
+
+        private static bool IsSmithyFloorCluster(DecorationContentKind kind) =>
+            kind == DecorationContentKind.Anvil ||
+            kind == DecorationContentKind.Bellows ||
+            kind == DecorationContentKind.QuenchTub ||
+            kind == DecorationContentKind.Grindstone;
+
+        private static bool TryFindPlacement(
+            DecorationPlacement[] placements,
+            int count,
+            uint slotId,
+            out DecorationPlacement placement)
+        {
+            int safeCount = placements == null ? 0 : System.Math.Min(count, placements.Length);
+            for (int i = 0; i < safeCount; i++)
+            {
+                if (placements[i].SlotId == slotId)
+                {
+                    placement = placements[i];
+                    return true;
+                }
+            }
+            placement = default;
+            return false;
         }
 
         private static DecorationContentSceneSlot FindSlot(DecorationContentSceneSlot[] slots, uint slotId)
