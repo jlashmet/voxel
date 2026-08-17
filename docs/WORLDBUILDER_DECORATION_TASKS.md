@@ -18,8 +18,8 @@ This checklist is the source of truth for implementation progress. Mark each ite
 - `CastleBedroomDecorationDebugGizmo` provides selected Scene-view look-dev visibility for room bounds, sockets/facings, exclusions, resolved placements, labels, and anchor relationships.
 - Cave reuse is implemented through an explicit `CaveWalkablePatch` contract. The cave adapter emits walkable-floor/wall/ceiling candidates plus alcove/ledge candidates and navigation/hazard exclusions without guessing private cave-network turn state.
 - `CaveCampScene` resolves campfire, bedroll, and lantern placements through the same `DecorationSceneScheduler` and `DecorationPlacementResolver` used by castle rooms. Cross-adapter tests feed both castle and cave sockets directly to the core resolver.
-- A structure-authoring compatibility emitter exists for box-assembly props. Rug/painting thin surfaces currently emit as one-voxel sheets; this does **not** complete the true thin-surface backend task.
-- NUnit regressions are committed, including scene scheduler dependency/optional tests, style/wealth/condition invariant tests, cave adapter/reuse tests, a 128-seed bedroom stress test, representative castle-adapter tests, and the existing castle build progression test exercises the newly routed floor-1 authoring path. They still require execution in the Unity test environment/CI.
+- Render/build outputs are now separated by intent: box assemblies for voxel furniture, aggregated true thin-surface quads for rugs/wall art, voxel stamps for world-integrated details such as campfires, data-only procedural-mesh requests, and condition-aware light/particle hooks. The old one-voxel thin-surface structure path remains only as a compatibility fallback for the current castle build.
+- NUnit regressions are committed, including scene scheduler dependency/optional tests, style/wealth/condition invariant tests, cave adapter/reuse tests, thin-surface/backend tests, a 128-seed bedroom stress test, representative castle-adapter tests, and the existing castle build progression test exercises the newly routed floor-1 authoring path. They still require execution in the Unity test environment/CI.
 
 ## Setup and architecture
 
@@ -99,10 +99,10 @@ This checklist is the source of truth for implementation progress. Mark each ite
 
 - [x] **DEC090** Define backend dispatch contract between semantic placements and visual/build output.
 - [x] **DEC091** Implement box-assembly backend for furniture-scale props.
-- [ ] **DEC092** Implement true thin-surface backend for rugs, paintings, banners, and maps; current structure-authoring fallback is one voxel thick.
-- [ ] **DEC093** Add voxel/structure stamp backend where world-integrated geometry is appropriate.
-- [ ] **DEC094** Add procedural-mesh hook for detail that should not be voxelized.
-- [ ] **DEC095** Add optional light/emissive/particle hooks for torches, candles, lamps, chandeliers, fires, and magic props.
+- [x] **DEC092** Implement true thin-surface backend for rugs, paintings, banners, and maps; aggregated presentation quads no longer require a full voxel slab.
+- [x] **DEC093** Add voxel/structure stamp backend where world-integrated geometry is appropriate.
+- [x] **DEC094** Add procedural-mesh hook for detail that should not be voxelized.
+- [x] **DEC095** Add optional light/emissive/particle hooks for torches, candles, lamps, chandeliers, fires, and magic props.
 
 ## Runtime scale and persistence
 
