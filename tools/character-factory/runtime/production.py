@@ -6,7 +6,8 @@ import os
 from pathlib import Path
 import subprocess
 
-from api.models import AssetType, BuildSpec, CharacterFactoryError, GeneratorBackend
+from api.models import AssetType, BuildSpec, CharacterFactoryError, GeneratorBackend, ViewSet
+from api.references import audit_references
 from runtime.pipeline import CharacterFactoryRuntime
 
 
@@ -58,8 +59,12 @@ def production_profile_for(asset_type: AssetType) -> ProductionProfile:
         ) from exc
 
 
+def appearance_views_for(spec: BuildSpec) -> ViewSet:
+    return spec.appearance_views or spec.views
+
+
 def has_complete_multiview(spec: BuildSpec) -> bool:
-    return all(path is not None for _name, path in spec.views.items())
+    return all(path is not None for _name, path in appearance_views_for(spec).items())
 
 
 def discover_specs(directory: Path, recursive: bool = True) -> list[Path]:
@@ -99,6 +104,23 @@ class ProductionRunner:
             "previews": {},
         }
 
+        if not dry_run:
+            audit_path = spec.output_dir / "reference-audit.json"
+            audit_payload = audit_references(
+                geometry=dict(spec.views.items()),
+                appearance=(
+                    dict(spec.appearance_views.items())
+                    if spec.appearance_views is not None
+                    else None
+                ),
+                details=spec.detail_references,
+            )
+            audit_path.write_text(
+                json.dumps(audit_payload, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            production_payload["referenceAudit"] = str(audit_path)
+
         if self._should_project_multiview(spec, profile):
             prepared = spec.output_dir / f"{spec.asset_id}.prepared.fbx"
             atlas = spec.output_dir / f"{spec.asset_id}.basecolor.png"
@@ -106,6 +128,9 @@ class ProductionRunner:
             production_commands["appearance"] = command
             production_payload["appearance"] = {
                 "mode": "multiview-project",
+                "referenceSet": (
+                    "appearance" if spec.appearance_views is not None else "geometry"
+                ),
                 "preparedMesh": str(prepared),
                 "atlas": str(atlas),
             }
@@ -128,7 +153,7 @@ class ProductionRunner:
         ):
             production_payload["appearance"] = {
                 "mode": "preserve-generator",
-                "reason": "multiview projection requires front/back/left/right references",
+                "reason": "multiview projection requires front/back/left/right appearance references",
             }
 
         verification_commands: list[list[str]] = []
@@ -211,7 +236,7 @@ class ProductionRunner:
         output_mesh: Path,
         atlas: Path,
     ) -> list[str]:
-        paths = dict(spec.views.items())
+        paths = dict(appearance_views_for(spec).items())
         missing = [name for name in ("front", "back", "left", "right") if paths[name] is None]
         if missing:
             raise CharacterFactoryError(
