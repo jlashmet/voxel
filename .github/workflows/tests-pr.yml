@@ -76,16 +76,19 @@ jobs:
       - name: EditMode (affected)
         if: steps.select.outputs.editmode != ''
         shell: bash
+        env:
+          EDITMODE_ARGS: ${{ steps.select.outputs.editmode }}
         run: |
           set -uo pipefail
           ROOT="$GITHUB_WORKSPACE/Artifacts/PrTests"
           mkdir -p "$ROOT"
+          NAMES="${EDITMODE_ARGS#-assemblyNames }"
           status=0
           UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=30 \
           UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
             -batchmode -nographics -job-worker-count 1 \
             -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform EditMode \
-            ${{ steps.select.outputs.editmode }} \
+            -assemblyNames "$NAMES" \
             -testResults "$ROOT/editmode.xml" -logFile "$ROOT/editmode.log" || status=$?
 
           # unity-run can fail before Unity opens the requested -logFile (for example a launcher
@@ -127,11 +130,13 @@ jobs:
       - name: PlayMode (affected)
         if: steps.select.outputs.playmode != ''
         shell: bash
+        env:
+          PLAYMODE_ARGS: ${{ steps.select.outputs.playmode }}
         run: |
           set -euo pipefail
           ROOT="$GITHUB_WORKSPACE/Artifacts/PrTests"
           mkdir -p "$ROOT"
-          NAMES="$(echo '${{ steps.select.outputs.playmode }}' | sed 's/^-assemblyNames //')"
+          NAMES="${PLAYMODE_ARGS#-assemblyNames }"
           status=0
           IFS=';' read -ra ASSEMBLIES <<< "$NAMES"
           for asm in "${ASSEMBLIES[@]}"; do
