@@ -10,12 +10,11 @@ namespace MountingForce.WorldGen.Voxel
     /// <summary>
     /// Gameplay-building backend for Kentridge's semantic building grammar.
     ///
-    /// Every stable role gets its own deterministic definition. Ordinary houses and shops compile
-    /// from KentridgeBuildingGrammar; the already-distinct church/inn/warehouse/mansion/well programs
-    /// are copied from the legacy catalogue as a temporary source library. This keeps exactly seventeen
-    /// gameplay Structure instances while removing the old "one geometry per archetype" restriction.
-    /// Generated structures author semantic geometry roles directly; only copied legacy programs need
-    /// the compatibility realization pass used by KentridgeSmoothedGrammarVoxelCatalogue.
+    /// Every stable role gets its own deterministic definition. Generated houses and shops compile
+    /// from KentridgeBuildingGrammar; deliberately bespoke landmarks compile from
+    /// KentridgeBespokeVoxelPrograms. Both paths consume the same registered architecture style and
+    /// author foundation/shell/opening/detail/roof roles directly, so the active catalogue never
+    /// reconstructs geometry policy from material ids or primitive dimensions.
     /// </summary>
     public static class KentridgeGrammarVoxelCatalogue
     {
@@ -39,128 +38,118 @@ namespace MountingForce.WorldGen.Voxel
 
             BuildingPlot[] plots = PlotsByRole(plan);
             var programs = new CompiledProgram[DefinitionCount];
-            FeatureCatalogue legacy = KentridgeVoxelCatalogue.Build(
-                seed, settings, Allocator.Temp);
-
-            try
+            int programLength = 0;
+            for (int roleId = 0; roleId < DefinitionCount; roleId++)
             {
-                int programLength = 0;
-                for (int roleId = 0; roleId < DefinitionCount; roleId++)
-                {
-                    BuildingPlot plot = plots[roleId];
-                    KentridgeBuildingForm form = KentridgeBuildingGrammar.Resolve(plot, seed);
-                    programs[roleId] = form.IsGenerated
-                        ? GeneratedHouseProgram(theme, settings, form)
-                        : CopyLegacyProgram(in legacy, plot.Archetype);
-                    programLength += programs[roleId].Code.Length;
-                }
-
-                FeatureCatalogue catalogue = FeatureCatalogueBuilder.Allocate(
-                    definitions: DefinitionCount,
-                    rules: DefinitionCount,
-                    parameters: 0,
-                    anchors: DefinitionCount,
-                    slots: 0,
-                    programLength: programLength,
-                    materials: 0,
-                    explicitPlacements: DefinitionCount,
-                    overrides: 0,
-                    allocator);
-
-                int programOffset = 0;
-                for (int roleId = 0; roleId < DefinitionCount; roleId++)
-                {
-                    BuildingPlot plot = plots[roleId];
-                    CompiledProgram program = programs[roleId];
-                    for (int p = 0; p < program.Code.Length; p++)
-                        catalogue.Program[programOffset + p] = program.Code[p];
-
-                    Int3 footprintDm = KentridgeDefinition.FootprintDm(plot.Archetype);
-                    int3 footprint = new int3(
-                        footprintDm.X * scale,
-                        footprintDm.Y * scale,
-                        footprintDm.Z * scale);
-                    KentridgeRole role = (KentridgeRole)roleId;
-
-                    catalogue.Anchors[roleId] = new AnchorSpec
-                    {
-                        Name = plot.Archetype == StructureArchetype.Well
-                            ? "interaction"
-                            : "door",
-                        LocalPosition = program.Door,
-                        Facing = Facing.South,
-                        SnapToGround = false,
-                    };
-
-                    catalogue.Definitions[roleId] = new FeatureDefinition
-                    {
-                        Name = new FixedString64Bytes(
-                            "kentridge-role-" + role.ToString().ToLowerInvariant()),
-                        Kind = FeatureKind.Structure,
-                        BasePlane = BasePlaneRule.LowestGround,
-                        Footprint = footprint,
-                        MaxSlope = plot.Archetype == StructureArchetype.Well ? 2 : 3,
-                        Precedence = plot.Archetype == StructureArchetype.Mansion ? 130 : 100,
-                        ParameterOffset = 0,
-                        ParameterCount = 0,
-                        AnchorOffset = roleId,
-                        AnchorCount = 1,
-                        SlotOffset = 0,
-                        SlotCount = 0,
-                        ProgramOffset = programOffset,
-                        ProgramLength = program.Code.Length,
-                        MaterialOffset = 0,
-                        MaterialCount = 0,
-                        MaxPrimitives = 256,
-                    };
-
-                    int targetSurface = KentridgeVerticalProfile.PlotSurfaceY(
-                        plot, seed, scale);
-                    catalogue.ExplicitPlacements[roleId] = new ExplicitPlacement
-                    {
-                        Position = new int3(
-                            plot.PositionDm.X * scale,
-                            targetSurface - FoundationSinkDm * scale,
-                            plot.PositionDm.Y * scale),
-                        Orientation = (byte)plot.Frontage,
-                        OverrideOffset = 0,
-                        OverrideCount = 0,
-                    };
-
-                    catalogue.Rules[roleId] = new PlacementRule
-                    {
-                        DefinitionId = roleId,
-                        CellEdge = FeatureBudget.PlacementCellEdgeVoxels,
-                        AttemptsPerCell = 0,
-                        AcceptProbability = 0,
-                        MinAltitude = 0,
-                        MaxAltitude = 1024,
-                        MaxSlope = 3,
-                        MinSpacing = 0,
-                        ClusterMin = 0,
-                        ClusterMax = 0,
-                        ExclusionMask = 0,
-                        ExplicitOffset = roleId,
-                        ExplicitCount = 1,
-                    };
-
-                    programOffset += program.Code.Length;
-                }
-
-                CatalogueLoadResult result = FeatureCatalogueBuilder.Finalise(ref catalogue);
-                if (result != CatalogueLoadResult.Ok)
-                {
-                    catalogue.Dispose();
-                    throw new InvalidOperationException(
-                        "Kentridge grammar catalogue failed validation: " + result);
-                }
-
-                return catalogue;
+                BuildingPlot plot = plots[roleId];
+                KentridgeBuildingForm form = KentridgeBuildingGrammar.Resolve(plot, seed);
+                programs[roleId] = form.IsGenerated
+                    ? GeneratedHouseProgram(theme, settings, form)
+                    : BespokeProgram(theme, settings, form);
+                programLength += programs[roleId].Code.Length;
             }
-            finally
+
+            FeatureCatalogue catalogue = FeatureCatalogueBuilder.Allocate(
+                definitions: DefinitionCount,
+                rules: DefinitionCount,
+                parameters: 0,
+                anchors: DefinitionCount,
+                slots: 0,
+                programLength: programLength,
+                materials: 0,
+                explicitPlacements: DefinitionCount,
+                overrides: 0,
+                allocator);
+
+            int programOffset = 0;
+            for (int roleId = 0; roleId < DefinitionCount; roleId++)
             {
-                legacy.Dispose();
+                BuildingPlot plot = plots[roleId];
+                CompiledProgram program = programs[roleId];
+                for (int p = 0; p < program.Code.Length; p++)
+                    catalogue.Program[programOffset + p] = program.Code[p];
+
+                Int3 footprintDm = KentridgeDefinition.FootprintDm(plot.Archetype);
+                int3 footprint = new int3(
+                    footprintDm.X * scale,
+                    footprintDm.Y * scale,
+                    footprintDm.Z * scale);
+                KentridgeRole role = (KentridgeRole)roleId;
+
+                catalogue.Anchors[roleId] = new AnchorSpec
+                {
+                    Name = plot.Archetype == StructureArchetype.Well
+                        ? "interaction"
+                        : "door",
+                    LocalPosition = program.Door,
+                    Facing = Facing.South,
+                    SnapToGround = false,
+                };
+
+                catalogue.Definitions[roleId] = new FeatureDefinition
+                {
+                    Name = new FixedString64Bytes(
+                        "kentridge-role-" + role.ToString().ToLowerInvariant()),
+                    Kind = FeatureKind.Structure,
+                    BasePlane = BasePlaneRule.LowestGround,
+                    Footprint = footprint,
+                    MaxSlope = plot.Archetype == StructureArchetype.Well ? 2 : 3,
+                    Precedence = plot.Archetype == StructureArchetype.Mansion ? 130 : 100,
+                    ParameterOffset = 0,
+                    ParameterCount = 0,
+                    AnchorOffset = roleId,
+                    AnchorCount = 1,
+                    SlotOffset = 0,
+                    SlotCount = 0,
+                    ProgramOffset = programOffset,
+                    ProgramLength = program.Code.Length,
+                    MaterialOffset = 0,
+                    MaterialCount = 0,
+                    MaxPrimitives = 256,
+                };
+
+                int targetSurface = KentridgeVerticalProfile.PlotSurfaceY(
+                    plot, seed, scale);
+                catalogue.ExplicitPlacements[roleId] = new ExplicitPlacement
+                {
+                    Position = new int3(
+                        plot.PositionDm.X * scale,
+                        targetSurface - FoundationSinkDm * scale,
+                        plot.PositionDm.Y * scale),
+                    Orientation = (byte)plot.Frontage,
+                    OverrideOffset = 0,
+                    OverrideCount = 0,
+                };
+
+                catalogue.Rules[roleId] = new PlacementRule
+                {
+                    DefinitionId = roleId,
+                    CellEdge = FeatureBudget.PlacementCellEdgeVoxels,
+                    AttemptsPerCell = 0,
+                    AcceptProbability = 0,
+                    MinAltitude = 0,
+                    MaxAltitude = 1024,
+                    MaxSlope = 3,
+                    MinSpacing = 0,
+                    ClusterMin = 0,
+                    ClusterMax = 0,
+                    ExclusionMask = 0,
+                    ExplicitOffset = roleId,
+                    ExplicitCount = 1,
+                };
+
+                programOffset += program.Code.Length;
             }
+
+            CatalogueLoadResult result = FeatureCatalogueBuilder.Finalise(ref catalogue);
+            if (result != CatalogueLoadResult.Ok)
+            {
+                catalogue.Dispose();
+                throw new InvalidOperationException(
+                    "Kentridge grammar catalogue failed validation: " + result);
+            }
+
+            return catalogue;
         }
 
         private static BuildingPlot[] PlotsByRole(SettlementPlan plan)
@@ -189,20 +178,21 @@ namespace MountingForce.WorldGen.Voxel
             return plots;
         }
 
-        private static CompiledProgram CopyLegacyProgram(
-            in FeatureCatalogue legacy,
-            StructureArchetype archetype)
+        private static CompiledProgram BespokeProgram(
+            ArchitectureTheme theme,
+            VoxelWorldGenSettings settings,
+            KentridgeBuildingForm form)
         {
-            FeatureDefinition source = legacy.Definitions[(int)archetype];
-            var code = new int[source.ProgramLength];
-            for (int i = 0; i < code.Length; i++)
-                code[i] = legacy.Program[source.ProgramOffset + i];
-
-            AnchorSpec anchor = legacy.Anchors[source.AnchorOffset];
+            KentridgeBespokeVoxelPrograms.Program program =
+                KentridgeBespokeVoxelPrograms.Build(
+                    form.Archetype,
+                    theme,
+                    settings,
+                    ResolveGeometry(form));
             return new CompiledProgram
             {
-                Code = code,
-                Door = anchor.LocalPosition,
+                Code = program.Code,
+                Door = program.Door,
             };
         }
 
@@ -239,10 +229,7 @@ namespace MountingForce.WorldGen.Voxel
                 : settings.Materials.Resolve(theme.Roof);
             byte cloth = settings.Materials.Resolve(MaterialRole.Cloth);
 
-            IArchitectureStyleCompiler style =
-                BuiltInArchitectureStyles.Registry.Require(form.Intent.StyleId);
-            StructureGeometryProfile geometry = style.ResolveGeometry(form.Intent, form.Inner);
-            var b = new ProgramBuilder(geometry, s);
+            var b = new ProgramBuilder(ResolveGeometry(form), s);
 
             b.FoundationBox(x0, 0, z0, w, f, d, foundation);
             EmitShell(b, x0, f, z0, w, floor, d, t, wall);
@@ -359,6 +346,13 @@ namespace MountingForce.WorldGen.Voxel
             int3 door = new int3(doorX + doorW / 2, f, z0);
             b.Anchor(0, door, Facing.South);
             return new CompiledProgram { Code = b.Finish(), Door = door };
+        }
+
+        private static StructureGeometryProfile ResolveGeometry(KentridgeBuildingForm form)
+        {
+            IArchitectureStyleCompiler style =
+                BuiltInArchitectureStyles.Registry.Require(form.Intent.StyleId);
+            return style.ResolveGeometry(form.Intent, form.Inner);
         }
 
         private static void EmitShell(
