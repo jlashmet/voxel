@@ -483,6 +483,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private readonly SurfaceRing[] _rings;
         private readonly CpuTransvoxelChunkCache[] _allWorkers;
         private readonly List<CpuTransvoxelChunkCache.Entry> _visibleSolids = new(256);
+        private readonly SurfaceLodCoverageState _lodCoverageState = new();
+        private readonly SurfaceLodActiveCoverage _activeLodCoverage = new();
+        private readonly HashSet<SurfaceLodNodeKey> _desiredLodNodes = new();
+        private readonly List<SurfaceLodNodeKey> _activeLodScratch = new(512);
         private readonly Plane[] _visibilityFrustumPlanes = new Plane[6];
         private int _lastVisibilityCandidateChecks;
         private readonly CpuWaterSurfaceChunkCache _water = new();
@@ -736,7 +740,14 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 }
 
                 if (clipmapMoved)
+                {
+                    // Active leaves are camera-window local. Rebuild the logical leaf set from
+                    // still-resident cache generations after a clipmap move instead of retaining
+                    // stale off-window ownership indefinitely. Ready entries are not discarded.
+                    _activeLodCoverage.Clear();
+                    _lodCoverageState.Clear();
                     AddImmediateCameraDiscoveryRegions(storage, cameraPosition, voxelSize);
+                }
                 StepClipmapAdmissionDiscovery(storage);
             }
 
@@ -899,30 +910,29 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private void CollectVisibility(Camera camera, float voxelSize, int frame)
         {
             _visibleSolids.Clear();
+            _desiredLodNodes.Clear();
             _lastVisibilityCandidateChecks = 0;
             double visibilityStart = Time.realtimeSinceStartupAsDouble;
             using (s_VisibilityMarker.Auto())
             {
+                for (int i = 0; i < _allWorkers.Length; i++)
+                    _allWorkers[i].BeginVisibilityCollection();
+
                 if (camera != null)
                 {
                     GeometryUtility.CalculateFrustumPlanes(camera, _visibilityFrustumPlanes);
                     Vector3 cameraPosition = camera.transform.position;
+
+                    // Legacy box shells now answer only "what detail do we want here?". They no
+                    // longer decide what may be drawn. The hierarchical active-leaf set below
+                    // owns presentation and may keep a coarser parent inside this desired band.
                     for (int r = 0; r < _rings.Length; r++)
                     {
                         SurfaceRing ring = _rings[r];
-                        for (int w = 0; w < ring.Workers.Length; w++)
-                            ring.Workers[w].BeginVisibilityCollection();
-
                         if (!ring.HasClipmapWindow)
                             ring.UpdateClipmapWindow(cameraPosition, voxelSize);
                         int radius = ring.ClipmapRadius;
                         int3 centre = ring.ClipmapCentre;
-
-                        // The ring's toroidal grid already knows exactly which clipmap cells own
-                        // discovered surface chunks. Walk that dense active list rather than the
-                        // entire (2r+1)^3 coordinate volume. Outgoing slots can remain active for
-                        // a few frames while retirement is sliced; skip them against the current
-                        // window so delayed cleanup never draws stale residency.
                         int activeSlots = ring.ActiveSlotCount;
                         for (int slotIndex = 0; slotIndex < activeSlots; slotIndex++)
                         {
@@ -932,30 +942,168 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
                             int shard = CpuTransvoxelChunkCache.ShardForChunk(
                                 coordinate, ring.Workers.Length);
-                            ring.Workers[shard].CollectVisibleCoordinate(
-                                coordinate, _visibilityFrustumPlanes, cameraPosition,
-                                voxelSize, frame);
+                            CpuTransvoxelChunkCache worker = ring.Workers[shard];
+                            if (worker.IsDesiredVisibleCoordinate(
+                                    coordinate, _visibilityFrustumPlanes, cameraPosition,
+                                    voxelSize))
+                                _desiredLodNodes.Add(new SurfaceLodNodeKey(
+                                    ring.SourceStep, coordinate));
                             _lastVisibilityCandidateChecks++;
                         }
-
-                        for (int w = 0; w < ring.Workers.Length; w++)
-                        {
-                            IReadOnlyList<CpuTransvoxelChunkCache.Entry> visible =
-                                ring.Workers[w].Visible;
-                            for (int i = 0; i < visible.Count; i++)
-                                _visibleSolids.Add(visible[i]);
-                        }
                     }
-                }
-                else
-                {
+
+                    foreach (SurfaceLodNodeKey desired in _desiredLodNodes)
+                    {
+                        if (EnsureDesiredCoverage(desired)) continue;
+                        WorkerFor(desired).RecordHierarchyMissingVisible();
+                    }
+
+                    _activeLodScratch.Clear();
+                    _activeLodCoverage.CopyActiveTo(_activeLodScratch);
+                    for (int i = 0; i < _activeLodScratch.Count; i++)
+                    {
+                        SurfaceLodNodeKey active = _activeLodScratch[i];
+                        RequestAndSync(active);
+                        WorkerFor(active).CollectActiveCoordinate(
+                            active.Coordinate, _visibilityFrustumPlanes, voxelSize, frame);
+                    }
+
                     for (int i = 0; i < _allWorkers.Length; i++)
-                        _allWorkers[i].BeginVisibilityCollection();
+                    {
+                        IReadOnlyList<CpuTransvoxelChunkCache.Entry> visible =
+                            _allWorkers[i].Visible;
+                        for (int v = 0; v < visible.Count; v++)
+                            _visibleSolids.Add(visible[v]);
+                    }
                 }
 
                 _water.CollectVisible(camera, voxelSize);
             }
             _visibilityTiming.Add(ElapsedMs(visibilityStart));
+        }
+
+        private bool EnsureDesiredCoverage(in SurfaceLodNodeKey desired)
+        {
+            // Moving outward: descendants continue to draw until the requested parent is current.
+            if (_activeLodCoverage.HasActiveDescendant(desired))
+            {
+                RequestAndSync(desired);
+                _activeLodCoverage.TryMerge(desired, _lodCoverageState);
+                return true;
+            }
+
+            if (!_activeLodCoverage.TryFindActiveAncestorOrSelf(
+                    desired, out SurfaceLodNodeKey active))
+            {
+                SurfaceLodNodeKey root = CoarsestAncestor(desired);
+                RequestAndSync(root);
+                _activeLodCoverage.TryActivateCompleteNode(root, _lodCoverageState);
+                if (!_activeLodCoverage.TryFindActiveAncestorOrSelf(desired, out active))
+                    return false;
+            }
+
+            RequestAndSync(active);
+
+            // Moving inward: subdivide one level at a time. A parent is removed only after all
+            // eight children have current Ready/KnownEmpty proofs.
+            while (active.SourceStep > desired.SourceStep)
+            {
+                if (!RequestAndSyncChildren(active)) break;
+                if (!_activeLodCoverage.TryRefine(active, _lodCoverageState)) break;
+
+                int childStep = active.SourceStep / 2;
+                active = new SurfaceLodNodeKey(
+                    childStep, AncestorCoordinateAtStep(desired, childStep));
+            }
+            return true;
+        }
+
+        private bool RequestAndSyncChildren(in SurfaceLodNodeKey parent)
+        {
+            if (!SurfaceLodHierarchy.TryGetChildSourceStep(
+                    parent.SourceStep, out int childStep))
+                return false;
+
+            bool allObserved = true;
+            for (int childIndex = 0;
+                 childIndex < SurfaceLodHierarchy.ChildrenPerParent;
+                 childIndex++)
+            {
+                var child = new SurfaceLodNodeKey(
+                    childStep,
+                    SurfaceLodHierarchy.ChildCoordinate(parent.Coordinate, childIndex));
+                allObserved &= RequestAndSync(child);
+            }
+            return allObserved;
+        }
+
+        private bool RequestAndSync(in SurfaceLodNodeKey key)
+        {
+            CpuTransvoxelChunkCache worker = WorkerFor(key);
+            if (!worker.RequestHierarchyCoverage(key.Coordinate)) return false;
+            return SyncLodState(key, worker);
+        }
+
+        private bool SyncLodState(in SurfaceLodNodeKey key, CpuTransvoxelChunkCache worker)
+        {
+            if (!worker.TryGetHierarchyState(
+                    key.Coordinate, out ulong desiredGeneration,
+                    out ulong drawableGeneration, out SurfaceLodCompletionKind drawableKind))
+            {
+                _lodCoverageState.Remove(key);
+                return false;
+            }
+
+            _lodCoverageState.Observe(
+                key, desiredGeneration, drawableGeneration, drawableKind);
+            return true;
+        }
+
+        private CpuTransvoxelChunkCache WorkerFor(in SurfaceLodNodeKey key)
+        {
+            SurfaceRing ring = RingForSourceStep(key.SourceStep);
+            int shard = CpuTransvoxelChunkCache.ShardForChunk(
+                key.Coordinate, ring.Workers.Length);
+            return ring.Workers[shard];
+        }
+
+        private SurfaceRing RingForSourceStep(int sourceStep)
+        {
+            for (int i = 0; i < _rings.Length; i++)
+                if (_rings[i].SourceStep == sourceStep) return _rings[i];
+            throw new ArgumentOutOfRangeException(
+                nameof(sourceStep), sourceStep, "Unknown surface LOD source step.");
+        }
+
+        private static SurfaceLodNodeKey CoarsestAncestor(in SurfaceLodNodeKey node)
+        {
+            int step = node.SourceStep;
+            int3 coordinate = node.Coordinate;
+            while (SurfaceLodHierarchy.TryGetParentSourceStep(step, out int parentStep))
+            {
+                coordinate = SurfaceLodHierarchy.ParentCoordinate(coordinate);
+                step = parentStep;
+            }
+            return new SurfaceLodNodeKey(step, coordinate);
+        }
+
+        private static int3 AncestorCoordinateAtStep(in SurfaceLodNodeKey node, int sourceStep)
+        {
+            if (!SurfaceLodHierarchy.IsSupportedSourceStep(sourceStep)
+                || sourceStep < node.SourceStep)
+                throw new ArgumentOutOfRangeException(nameof(sourceStep));
+
+            int step = node.SourceStep;
+            int3 coordinate = node.Coordinate;
+            while (step < sourceStep)
+            {
+                if (!SurfaceLodHierarchy.TryGetParentSourceStep(step, out int parentStep))
+                    throw new InvalidOperationException(
+                        $"Cannot map {node} to source step {sourceStep}.");
+                coordinate = SurfaceLodHierarchy.ParentCoordinate(coordinate);
+                step = parentStep;
+            }
+            return coordinate;
         }
 
         private static int FloorDiv(int value, int divisor)

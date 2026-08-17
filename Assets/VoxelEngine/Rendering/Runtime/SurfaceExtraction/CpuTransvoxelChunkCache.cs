@@ -345,6 +345,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         // proved it. They hold no Entry and no GPU memory, so they cost a dictionary slot
         // rather than a resident chunk, and they stay out of the dirty set until invalidated.
         private readonly Dictionary<int3, ulong> _emptyVersions = new();
+        // Hierarchical coverage may need a coarse parent inside its nominal inner LOD cut.
+        // These requests are explicit and bounded by scheduler-visible coverage; they do not
+        // make every discovered coarse chunk eligible for eager out-of-band rebuilding.
+        private readonly HashSet<int3> _hierarchyRequested = new();
         private readonly Dictionary<int3, double> _queuedAtSeconds = new();
         private ulong _versionCounter;
         private readonly List<Entry> _visible = new();
@@ -839,6 +843,89 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
         public bool OwnsRenderedChunk(int3 coordinate) =>
             _entries.TryGetValue(coordinate, out Entry entry) && entry.Ready;
+
+        /// <summary>
+        /// Returns the cache's authoritative render-generation observation for one hierarchy
+        /// node. A ready older entry remains a drawable fallback while DesiredGeneration points
+        /// at a newer invalidated generation. Known-empty is a first-class completion proof.
+        /// </summary>
+        internal bool TryGetHierarchyState(int3 coordinate,
+                                           out ulong desiredGeneration,
+                                           out ulong drawableGeneration,
+                                           out SurfaceLodCompletionKind drawableKind)
+        {
+            desiredGeneration = 0;
+            drawableGeneration = 0;
+            drawableKind = SurfaceLodCompletionKind.Incomplete;
+            if (!_known.Contains(coordinate)) return false;
+
+            _desiredVersions.TryGetValue(coordinate, out desiredGeneration);
+            if (_entries.TryGetValue(coordinate, out Entry entry) && entry.Ready)
+            {
+                drawableGeneration = entry.SourceVersion;
+                drawableKind = SurfaceLodCompletionKind.Ready;
+                if (desiredGeneration == 0) desiredGeneration = drawableGeneration;
+                return true;
+            }
+
+            if (_emptyVersions.TryGetValue(coordinate, out ulong emptyGeneration))
+            {
+                drawableGeneration = emptyGeneration;
+                drawableKind = SurfaceLodCompletionKind.KnownEmpty;
+                if (desiredGeneration == 0) desiredGeneration = drawableGeneration;
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// Ensures a hierarchy node has a render-generation proof in flight. Unlike ordinary
+        /// ring admission, an explicit request may build a parent inside the ring's inner cut so
+        /// it can cover missing fine detail. The request is cleared when the generation publishes.
+        /// </summary>
+        internal bool RequestHierarchyCoverage(int3 coordinate)
+        {
+            if (!OwnsShard(coordinate) || !TrackKnown(coordinate)) return false;
+            _hierarchyRequested.Add(coordinate);
+
+            bool hasReady = _entries.TryGetValue(coordinate, out Entry entry) && entry.Ready;
+            bool hasEmpty = _emptyVersions.ContainsKey(coordinate);
+            if (!_desiredVersions.ContainsKey(coordinate) && !hasReady && !hasEmpty)
+                Invalidate(coordinate);
+            else if (_desiredVersions.ContainsKey(coordinate))
+                MarkDirty(coordinate);
+            return true;
+        }
+
+        /// <summary>True when a known node is in its legacy distance shell and camera frustum.
+        /// The scheduler uses this only to choose the desired refinement level; active fallback
+        /// drawing is intentionally independent of the inner shell.</summary>
+        internal bool IsDesiredVisibleCoordinate(int3 coordinate, Plane[] frustumPlanes,
+                                                 Vector3 cameraPosition, float voxelSize)
+        {
+            if (!_known.Contains(coordinate)) return false;
+            Bounds bounds = ChunkWorldBounds(coordinate, voxelSize);
+            return WithinRingBand(bounds, cameraPosition)
+                && GeometryUtility.TestPlanesAABB(frustumPlanes, bounds);
+        }
+
+        /// <summary>
+        /// Adds an active hierarchy leaf to this worker's visible list without applying the
+        /// legacy inner distance cut. Parent fallback must remain drawable while children refine.
+        /// </summary>
+        internal void CollectActiveCoordinate(int3 coordinate, Plane[] frustumPlanes,
+                                              float voxelSize, int frame)
+        {
+            if (!_known.Contains(coordinate)) return;
+            Bounds bounds = ChunkWorldBounds(coordinate, voxelSize);
+            if (!GeometryUtility.TestPlanesAABB(frustumPlanes, bounds)) return;
+            if (!_entries.TryGetValue(coordinate, out Entry entry) || !entry.Ready
+                || entry.IndexCount == 0)
+                return;
+            entry.LastUsedFrame = frame;
+            _visible.Add(entry);
+        }
+
+        internal void RecordHierarchyMissingVisible() => MissingVisibleCount++;
 
         public int IndexedProfileBlockCount(int3 coordinate) =>
             _profileBlocksByChunk.TryGetValue(coordinate, out ProfileBlock[] blocks)
@@ -1553,7 +1640,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 if (!_dirty.Contains(candidate)) continue; // stale queue record
 
                 Bounds bounds = ChunkWorldBounds(candidate, voxelSize);
-                if (!WithinRingBand(bounds, cameraWorldPosition))
+                if (!WithinRingBand(bounds, cameraWorldPosition)
+                    && !_hierarchyRequested.Contains(candidate))
                 {
                     RequeueDirty(candidate);
                     continue;
@@ -3088,6 +3176,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     _entries.Remove(_build.Coordinate);
                 }
                 _emptyVersions[_build.Coordinate] = _build.SourceVersion;
+                _hierarchyRequested.Remove(_build.Coordinate);
                 CompletedBuildCount++;
                 _buildLatencyTiming.Add(ElapsedMs(_build.BuildStartSeconds));
                 _desiredVersions.Remove(_build.Coordinate);
@@ -3153,6 +3242,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             entry.SurfaceCatalogueHash = _build.SurfaceCatalogueHash;
             entry.CoatingCatalogueVersion = _build.CoatingCatalogueVersion;
             entry.CoatingCatalogueHash = _build.CoatingCatalogueHash;
+            _hierarchyRequested.Remove(_build.Coordinate);
             CompletedBuildCount++;
             _buildLatencyTiming.Add(ElapsedMs(_build.BuildStartSeconds));
             _desiredVersions.Remove(_build.Coordinate);
@@ -3586,6 +3676,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _queuedDirty.Remove(chunk);
             _desiredVersions.Remove(chunk);
             _emptyVersions.Remove(chunk);
+            _hierarchyRequested.Remove(chunk);
             _queuedAtSeconds.Remove(chunk);
             if (_entries.TryGetValue(chunk, out Entry entry))
             {
@@ -3745,6 +3836,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _known.Clear();
             _dirty.Clear();
             _desiredVersions.Clear();
+            _hierarchyRequested.Clear();
             _queuedAtSeconds.Clear();
             _visible.Clear();
             _vertices.Clear();

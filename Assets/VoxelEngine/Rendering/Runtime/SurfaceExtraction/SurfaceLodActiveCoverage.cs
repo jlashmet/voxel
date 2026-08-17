@@ -22,6 +22,34 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
         public bool IsActive(in SurfaceLodNodeKey key) => _active.Contains(key);
 
+        public bool TryFindActiveAncestorOrSelf(in SurfaceLodNodeKey key,
+                                                out SurfaceLodNodeKey active)
+        {
+            SurfaceLodNodeKey cursor = key;
+            while (true)
+            {
+                if (_active.Contains(cursor))
+                {
+                    active = cursor;
+                    return true;
+                }
+                if (!SurfaceLodHierarchy.TryGetParentSourceStep(
+                        cursor.SourceStep, out int parentStep))
+                    break;
+                cursor = new SurfaceLodNodeKey(
+                    parentStep, SurfaceLodHierarchy.ParentCoordinate(cursor.Coordinate));
+            }
+            active = default;
+            return false;
+        }
+
+        public bool HasActiveDescendant(in SurfaceLodNodeKey ancestor)
+        {
+            foreach (SurfaceLodNodeKey node in _active)
+                if (IsStrictDescendantOf(node, ancestor)) return true;
+            return false;
+        }
+
         /// <summary>
         /// Seeds an uncovered region once a current-generation completion proof exists.
         /// This is intended for initial/coarse emergency coverage, not arbitrary overlapping

@@ -104,6 +104,31 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _nodes.TryGetValue(key, out state);
 
         /// <summary>
+        /// Mirrors the source cache's complete observation for one node. This is the integration
+        /// path used by the scheduler: an older Ready proof may coexist with a newer desired
+        /// generation, while an observed Incomplete state explicitly clears a proof that was
+        /// evicted or retired from the source cache.
+        /// </summary>
+        public void Observe(in SurfaceLodNodeKey key, ulong desiredGeneration,
+                            ulong drawableGeneration, SurfaceLodCompletionKind drawableKind)
+        {
+            if (_nodes.TryGetValue(key, out SurfaceLodNodeState previous)
+                && desiredGeneration < previous.DesiredGeneration)
+                throw new InvalidOperationException(
+                    $"Cannot move {key} desired generation backward from " +
+                    $"{previous.DesiredGeneration} to {desiredGeneration}.");
+            if (drawableKind == SurfaceLodCompletionKind.Incomplete)
+                drawableGeneration = 0;
+            else if (drawableGeneration > desiredGeneration)
+                throw new InvalidOperationException(
+                    $"{key} drawable generation {drawableGeneration} cannot be newer than " +
+                    $"desired generation {desiredGeneration}.");
+
+            _nodes[key] = new SurfaceLodNodeState(
+                desiredGeneration, drawableGeneration, drawableKind);
+        }
+
+        /// <summary>
         /// Advances the authoritative target generation while preserving any older drawable
         /// proof. Generations are monotonic per node; accepting an older target would permit
         /// stale geometry to become authoritative again.
