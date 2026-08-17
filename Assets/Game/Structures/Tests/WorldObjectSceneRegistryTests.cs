@@ -75,6 +75,53 @@ namespace Game.Structures.Tests
                 () => registry.Restore(parentId, Array.Empty<WorldObjectStateDelta>()));
         }
 
+        [Test]
+        public void RegistryPublishesLoadAndUnloadWithoutTransferringOwnership()
+        {
+            const uint parentId = 93u;
+            var registry = new WorldObjectSceneRegistry();
+            WorldObjectSceneRegistry loadedRegistry = null;
+            WorldObjectGeneratedScene loadedScene = null;
+            WorldObjectSceneRegistry unloadedRegistry = null;
+            uint loadedParent = 0;
+            uint unloadedParent = 0;
+
+            Action<WorldObjectSceneRegistry, uint, WorldObjectGeneratedScene> loaded =
+                (owner, id, scene) =>
+                {
+                    loadedRegistry = owner;
+                    loadedParent = id;
+                    loadedScene = scene;
+                };
+            Action<WorldObjectSceneRegistry, uint> unloaded =
+                (owner, id) =>
+                {
+                    unloadedRegistry = owner;
+                    unloadedParent = id;
+                };
+
+            WorldObjectSceneLifecycle.Loaded += loaded;
+            WorldObjectSceneLifecycle.Unloaded += unloaded;
+            try
+            {
+                WorldObjectGeneratedScene scene = registry.LoadDecorations(parentId, new[] { ChestPlacement() });
+                Assert.AreSame(registry, loadedRegistry);
+                Assert.AreEqual(parentId, loadedParent);
+                Assert.AreSame(scene, loadedScene);
+
+                Assert.IsTrue(registry.Unload(parentId));
+                Assert.AreSame(registry, unloadedRegistry);
+                Assert.AreEqual(parentId, unloadedParent);
+                Assert.AreEqual(1, registry.PersistentSceneCount,
+                    "Presentation lifecycle observation must not take ownership of persistent state.");
+            }
+            finally
+            {
+                WorldObjectSceneLifecycle.Loaded -= loaded;
+                WorldObjectSceneLifecycle.Unloaded -= unloaded;
+            }
+        }
+
         private static DecorationPlacement ChestPlacement() => new DecorationPlacement
         {
             Id = new GeneratedPropId(424242UL),
