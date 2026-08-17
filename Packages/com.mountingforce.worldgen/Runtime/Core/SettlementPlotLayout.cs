@@ -183,10 +183,20 @@ namespace MountingForce.WorldGen
             }
             else
             {
-                int gapStart = Math.Max(start, gapCentreDm - gapWidthDm / 2);
-                int gapEnd = Math.Min(end, gapStart + gapWidthDm);
-                if (gapStart > start) segments.Add((start, gapStart));
-                if (gapEnd < end) segments.Add((gapEnd, end));
+                int requestedGapStart = gapCentreDm - gapWidthDm / 2;
+                int requestedGapEnd = requestedGapStart + gapWidthDm;
+                int gapStart = Math.Max(start, Math.Min(end, requestedGapStart));
+                int gapEnd = Math.Max(start, Math.Min(end, requestedGapEnd));
+
+                if (gapEnd <= gapStart)
+                {
+                    segments.Add((start, end));
+                }
+                else
+                {
+                    if (gapStart > start) segments.Add((start, gapStart));
+                    if (gapEnd < end) segments.Add((gapEnd, end));
+                }
             }
 
             var sites = new List<SettlementFrontageSite>();
@@ -197,10 +207,10 @@ namespace MountingForce.WorldGen
                 int lengthDm = segmentEnd - segmentStart;
                 if (lengthDm <= 0) continue;
 
-                int targetOccupiedDm = lengthDm * coveragePercent / 100;
+                long targetOccupiedDm = (long)lengthDm * coveragePercent / 100;
                 if (targetOccupiedDm <= 0) continue;
                 int count = Math.Max(1,
-                    (targetOccupiedDm + modulePitchDm - 1) / modulePitchDm);
+                    checked((int)((targetOccupiedDm + modulePitchDm - 1) / modulePitchDm)));
 
                 for (int i = 0; i < count; i++)
                 {
