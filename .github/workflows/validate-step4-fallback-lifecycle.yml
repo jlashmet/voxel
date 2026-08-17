@@ -11,9 +11,11 @@ on:
 permissions:
   contents: read
 
+# The lifecycle-clean branch exists solely to preserve one diagnostic tree. Validate the exact
+# triggering SHA and never cancel it because another branch advances while the single Mac is busy.
 concurrency:
-  group: unity-step4-lifecycle-${{ github.ref }}
-  cancel-in-progress: true
+  group: unity-step4-lifecycle-${{ github.ref }}-${{ github.sha }}
+  cancel-in-progress: false
 
 jobs:
   lod-rendering:
@@ -22,6 +24,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.sha }}
           clean: true
           fetch-depth: 1
 
