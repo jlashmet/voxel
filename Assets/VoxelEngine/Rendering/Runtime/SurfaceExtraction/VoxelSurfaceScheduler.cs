@@ -770,8 +770,15 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
             // Discovery is correctness work rather than build admission: every worker must learn
             // about newly surfaced bricks even if this frame has no time left to rebuild them.
+            // CpuTransvoxelChunkCache records authoritative desired generations here but defers
+            // dirty admission until the current ring traversal below establishes ownership.
             for (int i = 0; i < _allWorkers.Length; i++)
                 _allWorkers[i].DiscoverSurfaceBricks(_discoveredSurfaceBricks);
+
+            // Collect the current ring demand before spending the renderer-wide build budget.
+            // The same bounded active-slot traversal also computes draw visibility, so visible
+            // chunks enter the queue in this frame instead of one frame after admission.
+            CollectVisibility(camera, voxelSize, frame);
 
             double workersStart = Time.realtimeSinceStartupAsDouble;
             double solidDeadline = workersStart + Math.Max(0.0, SolidBuildBudgetMs) * 0.001;
@@ -886,7 +893,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             // ScheduleBatchedJobs is non-blocking; readiness is still polled on later frames.
             JobHandle.ScheduleBatchedJobs();
 
-            CollectVisibility(camera, voxelSize, frame);
+            // Visibility was collected before admission so newly discovered in-band demand could
+            // participate in this frame's fixed build budget. Newly published geometry becomes
+            // drawable on the next frame; no second active-slot traversal is spent here.
             _prepareTiming.Add(ElapsedMs(prepareStart));
             _lastFrameManagedAllocationBytes = Math.Max(
                 0L, GC.GetAllocatedBytesForCurrentThread() - managedAllocationStart);

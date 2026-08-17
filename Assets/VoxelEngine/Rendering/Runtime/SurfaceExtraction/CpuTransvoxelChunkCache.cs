@@ -897,7 +897,14 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     int3 chunk = baseChunk + new int3(x, y, z);
                     if (!OwnsShard(chunk) || _known.Contains(chunk)) continue;
                     if (!TrackKnown(chunk)) continue;
-                    Invalidate(chunk);
+
+                    // Discovery establishes authoritative source state, not immediate build
+                    // demand. Every LOD ring learns the same surface summaries, but only the
+                    // ring currently owning this chunk should consume the renderer-wide build
+                    // budget. CollectVisibleCoordinate activates in-band demand before worker
+                    // admission; retaining only the desired generation here prevents thousands
+                    // of finer/coarser off-band chunks from filling the dirty FIFO at startup.
+                    _desiredVersions[chunk] = ++_versionCounter;
                     admitted++;
                 }
             }
@@ -1486,22 +1493,35 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             if (!_known.Contains(coordinate)) return;
 
             Bounds bounds = ChunkWorldBounds(coordinate, voxelSize);
-            if (!WithinRingBand(bounds, cameraPosition)) return;
-            if (!GeometryUtility.TestPlanesAABB(frustumPlanes, bounds)) return;
+            if (!WithinRingBand(bounds, cameraPosition))
+            {
+                // Authoritative discovery is shared across LODs. Keep the known/version state,
+                // but never let a chunk owned wholly by another ring remain active build demand.
+                if (_dirty.Contains(coordinate)) ParkDirty(coordinate);
+                return;
+            }
 
             bool hasDesired = _desiredVersions.TryGetValue(coordinate, out ulong desired);
             bool currentGenerationInFlight = CurrentBuildCoversDesiredGeneration(
                 coordinate, hasDesired, desired);
-            if (_entries.TryGetValue(coordinate, out Entry entry) && entry.Ready)
+            bool ready = _entries.TryGetValue(coordinate, out Entry entry) && entry.Ready;
+            bool currentReady = ready && (!hasDesired || entry.SourceVersion >= desired);
+            bool currentEmpty = _emptyVersions.TryGetValue(coordinate, out ulong emptyVersion)
+                             && (!hasDesired || emptyVersion >= desired);
+
+            // This traversal covers the ring's dense active-slot list. Activate build demand for
+            // every in-band chunk before the frustum test so geometry is prefetched around the
+            // viewer, while still excluding the thousands of known chunks owned by other LODs.
+            if (!currentReady && !currentEmpty && !currentGenerationInFlight)
+                MarkDirty(coordinate);
+
+            if (!GeometryUtility.TestPlanesAABB(frustumPlanes, bounds)) return;
+
+            if (ready)
             {
-                // Keep the previous mesh drawable while a newer authoritative generation waits
-                // for this ring to need it. Parking background work must never turn an edit into
-                // stale visible geometry when the chunk comes back into the active shell. Do not
-                // enqueue the same generation again while its replacement is already building or
-                // awaiting upload; admission removes active builds from _dirty, so visibility
-                // would otherwise recreate a permanent duplicate rebuild loop every frame.
-                if (hasDesired && desired > entry.SourceVersion && !currentGenerationInFlight)
-                    MarkDirty(coordinate);
+                // Keep the previous mesh drawable while a newer authoritative generation builds.
+                // CurrentBuildCoversDesiredGeneration above prevents visibility from recreating a
+                // duplicate dirty record for the exact generation already in flight.
                 if (entry.IndexCount == 0) return;
                 entry.LastUsedFrame = frame;
                 _visible.Add(entry);
@@ -1509,14 +1529,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             }
 
             // A current known-empty result is complete, not a visual hole. Any other in-band
-            // visible coordinate is demand: reactivate work that discovery parked while the
-            // coordinate belonged to another LOD ring (or was evicted under pressure). An active
-            // build/pending upload already satisfies that demand for its exact source generation.
-            if (_emptyVersions.TryGetValue(coordinate, out ulong emptyVersion)
-                && (!hasDesired || emptyVersion >= desired))
-                return;
+            // visible coordinate remains missing until its authoritative generation publishes.
+            if (currentEmpty) return;
 
-            if (!currentGenerationInFlight) MarkDirty(coordinate);
             MissingVisibleCount++;
         }
 

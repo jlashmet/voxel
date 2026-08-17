@@ -36,6 +36,8 @@ namespace VoxelEngine.Tests.EditMode
                 new List<int3> { new int3(1, 1, 1) }
             });
             Assert.AreEqual(1, admitted);
+            Assert.AreEqual(0, cache.DirtyCount,
+                "Authoritative discovery should not consume build admission before ring demand is known.");
 
             var cameraObject = new GameObject("SurfaceRingBuildAdmissionTests.ActiveCamera");
             var camera = cameraObject.AddComponent<Camera>();
@@ -45,6 +47,13 @@ namespace VoxelEngine.Tests.EditMode
                 camera.transform.LookAt(Vector3.zero);
                 camera.nearClipPlane = 0.3f;
                 camera.farClipPlane = 200f;
+
+                Plane[] planes = GeometryUtility.CalculateFrustumPlanes(camera);
+                cache.BeginVisibilityCollection();
+                cache.CollectVisibleCoordinate(int3.zero, planes,
+                    camera.transform.position, 0.1f, 1);
+                Assert.AreEqual(1, cache.DirtyCount,
+                    "Current-ring visibility did not activate the discovered authoritative generation.");
 
                 bool selected = (bool)select.Invoke(cache, new object[]
                 {
@@ -56,10 +65,9 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.AreEqual(1, cache.DirtyCount,
                     "The selected generation should be represented only by the active build.");
 
-                Plane[] planes = GeometryUtility.CalculateFrustumPlanes(camera);
                 cache.BeginVisibilityCollection();
                 cache.CollectVisibleCoordinate(int3.zero, planes,
-                    camera.transform.position, 0.1f, 1);
+                    camera.transform.position, 0.1f, 2);
 
                 Assert.AreEqual(1, cache.MissingVisibleCount);
                 Assert.AreEqual(1, cache.DirtyCount,
@@ -95,8 +103,8 @@ namespace VoxelEngine.Tests.EditMode
                 new List<int3> { int3.zero }
             });
             Assert.Greater(admitted, 0);
-            Assert.Greater(cache.DirtyCount, 0,
-                "Discovery must retain authoritative work/version state before admission is evaluated.");
+            Assert.AreEqual(0, cache.DirtyCount,
+                "Discovery should retain authoritative versions without dirtying an LOD before ring ownership is known.");
 
             var cameraObject = new GameObject("SurfaceRingBuildAdmissionTests.Camera");
             var camera = cameraObject.AddComponent<Camera>();
