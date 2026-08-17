@@ -92,12 +92,14 @@ The existing portal/lattice design from the parent world-feature plan remains th
 - [ ] **WB001** Locate the current house/cottage builder/definition, its public config surface, tests, and showcase usage.
 - [ ] **WB002** Locate the current castle builder/definition, its public config surface, tests, and showcase usage.
 - [ ] **WB003** Locate the current city/settlement builder/definition, its public config surface, tests, and showcase usage.
-- [ ] **WB004** Trace the castle-attached cave end-to-end and determine whether its algorithm is generic, partially reusable, or castle-local.
+- [x] **WB004** Trace the castle-attached cave end-to-end and determine whether its algorithm is generic, partially reusable, or castle-local.
 - [ ] **WB005** Inventory current reusable `FeatureDefinition`, shape-program, primitive, anchor/slot, terrain-adaptation, palette, and composition capabilities relevant to structures.
 - [ ] **WB006** Inventory existing roof, opening, wall, tower, interior, and terrain helper code so the refactor reuses working pieces.
 - [ ] **WB007** Record the current default dimensions/materials/seed behavior of existing house, castle, and city output that should remain compatible.
 - [ ] **WB008** Identify gaps between the desired configuration model and current shape opcodes/contracts; explicitly distinguish required engine extensions from authoring-library work.
-- [ ] **WB009** Record the cave-reuse verdict and the chosen migration path in this document.
+- [x] **WB009** Record the cave-reuse verdict and the chosen migration path in this document.
+
+Phase 0 evidence and open inventory details are recorded in [worldbuilding-inventory.md](./worldbuilding-inventory.md).
 
 ## Phase 1 — Shared deterministic authoring foundation
 
