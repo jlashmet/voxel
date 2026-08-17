@@ -11,6 +11,9 @@ class PreprocessContractError(ValueError):
     pass
 
 
+_ALLOWED_AFFECTS = frozenset({"geometry", "appearance", "details"})
+
+
 @dataclass(frozen=True)
 class PreprocessStep:
     strategy: str
@@ -18,14 +21,18 @@ class PreprocessStep:
     python: str
     bootstrap_script: Path
     command: tuple[str, ...]
+    inputs: tuple[Path, ...]
     outputs: tuple[Path, ...]
+    affects: frozenset[str]
 
     def metadata(self) -> dict[str, object]:
         return {
             "strategy": self.strategy,
             "pythonProfile": self.python_profile,
             "command": list(self.command),
+            "inputs": [str(path) for path in self.inputs],
             "outputs": [str(path) for path in self.outputs],
+            "affects": sorted(self.affects),
         }
 
 
@@ -34,6 +41,26 @@ def _path(value: object, base_dir: Path, label: str) -> Path:
         raise PreprocessContractError(f"{label} is required")
     path = Path(str(value))
     return path.resolve() if path.is_absolute() else (base_dir / path).resolve()
+
+
+def _path_list(value: object, base_dir: Path, label: str) -> tuple[Path, ...]:
+    if not isinstance(value, list) or not value:
+        raise PreprocessContractError(f"{label} must be a non-empty list")
+    return tuple(_path(item, base_dir, f"{label}[]") for item in value)
+
+
+def _affects(value: object, default: tuple[str, ...]) -> frozenset[str]:
+    raw = list(default) if value is None else value
+    if not isinstance(raw, list) or not raw:
+        raise PreprocessContractError("preprocess.affects must be a non-empty list")
+    normalized = frozenset(str(item).strip().lower() for item in raw)
+    unknown = normalized - _ALLOWED_AFFECTS
+    if unknown:
+        raise PreprocessContractError(
+            "preprocess.affects may only contain geometry, appearance, details; got: "
+            + ", ".join(sorted(unknown))
+        )
+    return normalized
 
 
 def _profile_runtime(
@@ -107,7 +134,9 @@ def _tpose_garment_step(
         python=python,
         bootstrap_script=bootstrap,
         command=tuple(command),
+        inputs=(source, script),
         outputs=tuple(output / f"{name}.png" for name in ("front", "back", "left", "right")),
+        affects=_affects(data.get("affects"), ["geometry", "appearance"]),
     )
 
 
@@ -147,7 +176,9 @@ def _linear_terminal_step(
         python=python,
         bootstrap_script=bootstrap,
         command=tuple(command),
+        inputs=(source, script),
         outputs=(output,),
+        affects=_affects(data.get("affects"), ["geometry", "details"]),
     )
 
 
@@ -165,19 +196,19 @@ def _python_script_step(
     )
     script = _path(data.get("script"), base_dir, "preprocess.script")
     arguments = data.get("arguments", [])
-    outputs = data.get("outputs")
+    outputs = _path_list(data.get("outputs"), base_dir, "preprocess.outputs")
+    inputs = _path_list(data.get("inputs"), base_dir, "preprocess.inputs")
     if not isinstance(arguments, list) or any(not isinstance(value, (str, int, float)) for value in arguments):
         raise PreprocessContractError("preprocess.arguments must be a list of scalar values")
-    if not isinstance(outputs, list) or not outputs:
-        raise PreprocessContractError("python-script preprocess step requires a non-empty outputs list")
-    output_paths = tuple(_path(value, base_dir, "preprocess.outputs[]") for value in outputs)
     return PreprocessStep(
         strategy="python-script",
         python_profile=profile,
         python=python,
         bootstrap_script=bootstrap,
         command=tuple([python, str(script), *(str(value) for value in arguments)]),
-        outputs=output_paths,
+        inputs=tuple([*inputs, script]),
+        outputs=outputs,
+        affects=_affects(data.get("affects"), ["geometry"]),
     )
 
 
