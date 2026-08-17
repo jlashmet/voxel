@@ -35,8 +35,8 @@ HUNYUAN_PY="$(
 )"
 test -x "$HUNYUAN_PY"
 
-printf '%s\n' '[2/4] Derive clothing-only four-view references'
-"$HUNYUAN_PY" "$SCRIPT_DIR/prepare_robe_views.py" \
+printf '%s\n' '[2/4] Derive clothing-only four-view references with the generic T-pose garment preprocessor'
+"$HUNYUAN_PY" tools/character-factory/ci/prepare_tpose_garment_views.py \
   --views "$VIEWS" \
   --output "$ROBE_VIEWS"
 for view in front back left right; do
@@ -60,6 +60,7 @@ cat > "$SPEC" <<JSON
 {
   "id": "sunlit_cleric_robe_01",
   "assetType": "clothing",
+  "tags": ["sunlit-cleric", "robe", "clothing"],
   "references": {
     "geometry": {
       "directory": "$ROBE_VIEWS"
@@ -112,5 +113,6 @@ Sunlit Cleric robe production complete.
   Preview: $OUT/sunlit_cleric_robe_01.preview.png
   Slot: Torso / SkinnedToCharacterSkeleton
   Appearance: garment-multiview
+  Preprocessing: generic T-pose garment extraction
   Unity staging root: $UNITY_ASSETS_ROOT
 EOF
