@@ -72,7 +72,12 @@ namespace Game.Structures.Runtime
 
                 case 2:
                     stageName = "curtain walls";
-                    CastleCurtainAuthoring.Author(_authoring, in _plan, in _components);
+                    CastleCurtainAuthoring.Author(
+                        _authoring,
+                        in _plan,
+                        in _components.CurtainWallX,
+                        in _components.CurtainWallZ,
+                        in _components.CurtainBattlements);
                     break;
 
                 case 3:
