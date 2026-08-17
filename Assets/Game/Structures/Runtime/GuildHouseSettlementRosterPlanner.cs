@@ -67,9 +67,10 @@ namespace Game.Structures.Runtime
             for (int i = 0; i < count; i++)
                 result[i] = candidates[i].Kind;
 
-            EnsureCoreInstitution(result, scale, GuildHouseKind.Adventurers);
             if (scale >= GuildSettlementScale.City)
-                EnsureCoreInstitution(result, scale, GuildHouseKind.Clerics);
+                EnsureCoreInstitutions(result, GuildHouseKind.Adventurers, GuildHouseKind.Clerics);
+            else
+                EnsureCoreInstitutions(result, GuildHouseKind.Adventurers);
 
             return new GuildSettlementRoster(region, scale, result);
         }
@@ -87,14 +88,35 @@ namespace Game.Structures.Runtime
             }
         }
 
-        private static void EnsureCoreInstitution(GuildHouseKind[] guilds, GuildSettlementScale scale, GuildHouseKind required)
+        private static void EnsureCoreInstitutions(GuildHouseKind[] guilds, params GuildHouseKind[] required)
         {
-            if (guilds == null || guilds.Length == 0) return;
-            for (int i = 0; i < guilds.Length; i++)
-                if (guilds[i] == required) return;
+            if (guilds == null || guilds.Length == 0 || required == null) return;
 
-            // Preserve the strongest region choices and replace the final slot only.
-            guilds[guilds.Length - 1] = required;
+            int replace = guilds.Length - 1;
+            for (int r = 0; r < required.Length && r < guilds.Length; r++)
+            {
+                GuildHouseKind needed = required[r];
+                bool present = false;
+                for (int i = 0; i < guilds.Length; i++)
+                {
+                    if (guilds[i] != needed) continue;
+                    present = true;
+                    break;
+                }
+                if (present) continue;
+
+                while (replace >= 0 && IsRequired(guilds[replace], required))
+                    replace--;
+                if (replace < 0) return;
+                guilds[replace--] = needed;
+            }
+        }
+
+        private static bool IsRequired(GuildHouseKind kind, GuildHouseKind[] required)
+        {
+            for (int i = 0; i < required.Length; i++)
+                if (required[i] == kind) return true;
+            return false;
         }
 
         private static int Compare(Candidate a, Candidate b)
