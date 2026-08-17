@@ -113,9 +113,9 @@ namespace VoxelEngine.Showcase
         }
 
         /// <summary>
-        /// Compiles the detailed showcase shell through the same deterministic house compiler used by
-        /// the compatibility fixture. Detail hooks remain config data until their shared emitters are
-        /// enabled; no duplicate showcase geometry path is introduced.
+        /// Compiles the detailed showcase shell through the general deterministic house compiler.
+        /// Supported facade and chimney details therefore affect the emitted program while future
+        /// detail hooks remain shared config data; no duplicate showcase geometry path is introduced.
         /// </summary>
         public static int[] BuildDetailedFarmhouseProgram(
             in ShowcaseMaterialSet materials,
@@ -123,7 +123,7 @@ namespace VoxelEngine.Showcase
             int hearthAnchorIndex)
         {
             HouseConfig config = DetailedFarmhouse(in materials);
-            return HouseProgramCompiler.BuildCompatibilityProgram(
+            return HouseProgramCompiler.BuildProgram(
                 in config,
                 mainDoorAnchorIndex,
                 hearthAnchorIndex);
