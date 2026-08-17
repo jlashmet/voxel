@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from .backend_profiles import BackendProfileError, resolve_generator_profile
 from .references import (
     ReferenceContractError,
     resolve_detail_mapping,
@@ -30,9 +31,6 @@ class GeneratorBackend(str, Enum):
 
 
 GENERATOR_PRESETS: dict[str, dict[str, object]] = {
-    # Hunyuan fallback smoke profile. CI currently overrides the backend to the
-    # much faster feed-forward TripoSR MPS adapter so we can prove the whole
-    # asset pipeline without waiting on diffusion quality.
     "smoke": {
         "model": "tencent/Hunyuan3D-2mini",
         "subfolder": "hunyuan3d-dit-v2-mini-turbo",
@@ -123,6 +121,9 @@ class GeneratorConfig:
     enable_flashvdm: bool = True
     mc_resolution: int = 64
     chunk_size: int = 8192
+    profile: str | None = None
+    source_revision: str | None = None
+    bootstrap_script: Path | None = None
 
     @staticmethod
     def from_dict(
@@ -130,20 +131,31 @@ class GeneratorConfig:
         base_dir: Path,
         validate_paths: bool = True,
     ) -> "GeneratorConfig":
-        python_executable = data.get("python") or data.get("executable")
+        tool_root = Path(__file__).resolve().parents[1]
+        try:
+            resolved_data = resolve_generator_profile(data, tool_root=tool_root)
+        except BackendProfileError as exc:
+            raise CharacterFactoryError(str(exc)) from exc
+
+        profile_name = (
+            str(resolved_data.get("profile")).strip()
+            if resolved_data.get("profile") is not None
+            else None
+        )
+        python_executable = resolved_data.get("python") or resolved_data.get("executable")
         if not python_executable:
             raise CharacterFactoryError(
-                "generator.python (or generator.executable) is required"
+                "generator.python (or generator.executable) is required unless generator.profile supplies it"
             )
 
-        preset = str(data.get("preset", "smoke")).strip().lower()
+        preset = str(resolved_data.get("preset", "smoke")).strip().lower()
         defaults = GENERATOR_PRESETS.get(preset)
         if defaults is None:
             allowed = ", ".join(sorted(GENERATOR_PRESETS))
             raise CharacterFactoryError(f"generator.preset must be one of: {allowed}")
 
         raw_backend = str(
-            data.get("backend", GeneratorBackend.HUNYUAN_PYTORCH.value)
+            resolved_data.get("backend", GeneratorBackend.HUNYUAN_PYTORCH.value)
         ).strip().lower()
         try:
             backend = GeneratorBackend(raw_backend)
@@ -157,15 +169,23 @@ class GeneratorConfig:
             path = Path(str(value))
             return path if path.is_absolute() else (base_dir / path).resolve()
 
-        source = resolve_optional(data.get("source"))
-        weights = resolve_optional(data.get("weights"))
+        source = resolve_optional(resolved_data.get("source"))
+        weights = resolve_optional(resolved_data.get("weights"))
+        bootstrap_script = resolve_optional(resolved_data.get("bootstrapScript"))
+
+        if bootstrap_script is not None and validate_paths and not bootstrap_script.is_file():
+            raise CharacterFactoryError(
+                f"generator profile bootstrap script does not exist: {bootstrap_script}"
+            )
 
         if backend == GeneratorBackend.TRIPOSR_MPS:
             if source is None:
                 raise CharacterFactoryError("triposr-mps requires generator.source")
             if weights is None:
                 raise CharacterFactoryError("triposr-mps requires generator.weights")
-            if validate_paths:
+            # Profile-managed paths are intentionally allowed to be absent before
+            # bootstrap; the runtime creates/pins them before generation starts.
+            if validate_paths and profile_name is None:
                 if not source.is_dir():
                     raise CharacterFactoryError(f"generator.source does not exist: {source}")
                 if not weights.is_dir():
@@ -177,21 +197,28 @@ class GeneratorConfig:
             source=source,
             weights=weights,
             preset=preset,
-            model=str(data.get("model", defaults["model"])),
-            subfolder=str(data.get("subfolder", defaults["subfolder"])),
-            device=str(data.get("device", "auto")),
-            seed=int(data.get("seed", 12345)),
-            steps=int(data.get("steps", defaults["steps"])),
+            model=str(resolved_data.get("model", defaults["model"])),
+            subfolder=str(resolved_data.get("subfolder", defaults["subfolder"])),
+            device=str(resolved_data.get("device", "auto")),
+            seed=int(resolved_data.get("seed", 12345)),
+            steps=int(resolved_data.get("steps", defaults["steps"])),
             octree_resolution=int(
-                data.get("octreeResolution", defaults["octreeResolution"])
+                resolved_data.get("octreeResolution", defaults["octreeResolution"])
             ),
-            num_chunks=int(data.get("numChunks", defaults["numChunks"])),
-            remove_background=bool(data.get("removeBackground", False)),
+            num_chunks=int(resolved_data.get("numChunks", defaults["numChunks"])),
+            remove_background=bool(resolved_data.get("removeBackground", False)),
             enable_flashvdm=bool(
-                data.get("enableFlashVdm", defaults["enableFlashVdm"])
+                resolved_data.get("enableFlashVdm", defaults["enableFlashVdm"])
             ),
-            mc_resolution=int(data.get("mcResolution", defaults["mcResolution"])),
-            chunk_size=int(data.get("chunkSize", defaults["chunkSize"])),
+            mc_resolution=int(resolved_data.get("mcResolution", defaults["mcResolution"])),
+            chunk_size=int(resolved_data.get("chunkSize", defaults["chunkSize"])),
+            profile=profile_name,
+            source_revision=(
+                str(resolved_data.get("sourceRevision"))
+                if resolved_data.get("sourceRevision") is not None
+                else None
+            ),
+            bootstrap_script=bootstrap_script,
         )
 
 
