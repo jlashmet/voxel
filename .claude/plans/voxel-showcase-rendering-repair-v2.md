@@ -54,6 +54,8 @@ The original working plan lived in the development conversation rather than a re
 - [x] Reuse invariant ring index topology across camera-origin and structure-only refreshes; rebuild indices only when hole topology changes.
 - [x] Add an isolated regression proving a snapped ring origin updates vertices without rebuilding the index topology.
 - [ ] Validate the isolated far-terrain topology-reuse regression in Unity on the current head.
+- [x] Fix the measured step-8 feature-preserving HLOD overflow by scaling fixed output capacity with the square of the 2-voxel HLOD linear-resolution increase; continue refusing partial coarse geometry.
+- [x] Add a regression tying production HLOD output capacity to the feature-preserving subcell resolution so future fidelity changes cannot retain a stale smaller budget.
 
 ### E. Eliminate runtime castle startup work
 
@@ -78,6 +80,7 @@ The original working plan lived in the development conversation rather than a re
 - [ ] Run/confirm `ShowcaseNoStutterTests.BakedStartup_NeverBuildsCastleDuringPlayAndNeverStallsRendering`.
 - [ ] Run/confirm `ShowcasePerformanceTests.FullShowcaseConvergesWithinTenSecondsWithoutLaterStalls`.
 - [ ] Run/confirm the production LOD rendering/fidelity suite, including LOD 1/2/4/8 image-space fidelity.
+- [ ] Confirm production step-8 HLOD no longer reports output overflow or publishes a coarse coverage hole.
 - [ ] Record the measured frame/render/upload values from the current head against the acceptance limits above.
 - [ ] If a relevant gate still fails, identify the measured bottleneck/fidelity defect and fix that next; otherwise stop optimizing.
 - [ ] Final affected PR validation is complete with every rendering-repair failure resolved or explicitly classified.
@@ -91,5 +94,7 @@ Current continuation work after PR #86:
 - `63813b9c` — mirrored master PlayMode memory sharding.
 - `eb880d82` — isolated far-terrain topology-reuse regression.
 - `5facd3d6` — multi-view LOD gate aligned with baked-startup contract; fidelity thresholds unchanged.
+- `5bd97c37` — production step-8 HLOD output capacity scaled for the 2-voxel feature-preserving representation.
+- `5301daf9` — regression tying HLOD output capacity to feature resolution.
 
 PR #88 is a draft validation vehicle only. Do not merge it merely to obtain a green check; use its Unity results to complete section G and drive the next measured repair.
