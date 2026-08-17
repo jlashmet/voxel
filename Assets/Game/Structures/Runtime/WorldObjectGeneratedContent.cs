@@ -4,6 +4,13 @@ using VoxelEngine.Structures.Api;
 
 namespace Game.Structures.Runtime
 {
+    public enum WorldObjectGeometryEmissionMode : byte
+    {
+        AllVoxel = 0,
+        StaticOnly = 1,
+        None = 2,
+    }
+
     /// <summary>
     /// Dense, deterministic interactable content profiles for generated structures. These profiles deliberately
     /// favor gameplay content volume over bespoke art polish; style-specific decoration can replace or embellish
@@ -12,7 +19,7 @@ namespace Game.Structures.Runtime
     public static class WorldObjectGeneratedContent
     {
         public static void AuthorCastle(IStructureAuthoringSession geometry, WorldObjectAuthoringSession objects,
-            in CastlePlan plan)
+            in CastlePlan plan, WorldObjectGeometryEmissionMode emissionMode = WorldObjectGeometryEmissionMode.AllVoxel)
         {
             if (geometry == null) throw new System.ArgumentNullException(nameof(geometry));
             if (objects == null) throw new System.ArgumentNullException(nameof(objects));
@@ -22,14 +29,12 @@ namespace Game.Structures.Runtime
             int keepMinZ = plan.Centre.z - plan.KeepHalfZ;
             int gateZ = plan.Centre.z - plan.BaileyHalfZ;
 
-            // Main gatehouse: lever-controlled portcullis + winch-controlled drawbridge.
             WorldObjectMechanismPresets.AddGatehouse(objects, 0x1000u,
                 B(plan.Centre.x - 18, baseY + 8, gateZ + 10, 5, 9, 4), new int3(0, 0, 1),
                 B(plan.Centre.x - 14, baseY + 2, gateZ - 2, 28, 32, 4), new int3(0, 0, 1),
                 B(plan.Centre.x - 18, baseY, gateZ - 34, 36, 4, 34),
                 B(plan.Centre.x + 12, baseY + 7, gateZ + 10, 9, 10, 8));
 
-            // Keep entrance and internal controlled door.
             WorldObjectMechanismPresets.AddLeverDoor(objects, 0x1100u,
                 B(keepMinX + 8, baseY + 7, keepMinZ - 2, 4, 8, 3), new int3(0, 0, -1),
                 B(plan.Centre.x - 8, baseY + 2, keepMinZ - 1, 16, 28, 3), new int3(0, 0, -1));
@@ -37,7 +42,6 @@ namespace Game.Structures.Runtime
                 B(keepMinX + 10, baseY + 8, plan.Centre.z, 4, 7, 3), new int3(1, 0, 0),
                 B(plan.Centre.x - 1, baseY + 2, plan.Centre.z - 10, 3, 26, 20), new int3(1, 0, 0));
 
-            // Secret chamber on the upper keep floor.
             int secretY = baseY + math.max(1, plan.FloorHeight);
             WorldObjectMechanismPresets.AddSecretRoom(objects, 0x1200u,
                 B(keepMinX + 4, secretY + 9, plan.Centre.z + 12, 3, 5, 3), new int3(1, 0, 0),
@@ -48,7 +52,6 @@ namespace Game.Structures.Runtime
             objects.Place(0x1211u, WorldObjectKind.WeaponRack,
                 B(keepMinX + 7, secretY + 2, plan.Centre.z + 22, 20, 18, 4), new int3(0, 0, -1));
 
-            // Vertical traversal: powered three-stop keep elevator and call buttons.
             DecorationBounds elevator = B(plan.Centre.x + plan.KeepHalfX - 20, baseY + 2,
                 plan.Centre.z + plan.KeepHalfZ - 20, 14, math.max(30, plan.FloorHeight * math.max(2, plan.Floors)), 14);
             DecorationBounds[] calls = new DecorationBounds[math.max(2, math.min(4, plan.Floors))];
@@ -56,7 +59,6 @@ namespace Game.Structures.Runtime
                 calls[i] = B(elevator.Min.x - 5, baseY + 7 + i * plan.FloorHeight, elevator.Min.z, 4, 6, 3);
             WorldObjectMechanismPresets.AddElevatorCallNetwork(objects, 0x1300u, elevator, new int3(-1, 0, 0), calls);
 
-            // Great-hall and keep utility content.
             objects.Place(0x1400u, WorldObjectKind.Bell,
                 B(plan.Centre.x - 5, baseY + 18, plan.Centre.z - 5, 10, 12, 10), new int3(0, 1, 0));
             objects.Place(0x1401u, WorldObjectKind.Bed,
@@ -68,7 +70,6 @@ namespace Game.Structures.Runtime
             objects.Place(0x1404u, WorldObjectKind.Fireplace,
                 B(plan.Centre.x - 15, baseY + 2, keepMinZ + 4, 30, 24, 8), new int3(0, 0, 1));
 
-            // Dungeon hazards: multiple trap families plus a breakable shortcut.
             int dungeonY = baseY - 24;
             WorldObjectMechanismPresets.AddPressurePlateTrap(objects, 0x1500u,
                 B(plan.Centre.x - 8, dungeonY, plan.Centre.z - 28, 16, 2, 14), new int3(0, 1, 0),
@@ -85,7 +86,6 @@ namespace Game.Structures.Runtime
             objects.Place(0x1522u, WorldObjectKind.BreakableWall,
                 B(plan.Centre.x - 34, dungeonY, plan.Centre.z + 8, 5, 24, 20), new int3(1, 0, 0));
 
-            // Switchable keep lighting.
             var lights = new DecorationBounds[6];
             for (int i = 0; i < lights.Length; i++)
             {
@@ -97,11 +97,11 @@ namespace Game.Structures.Runtime
                 B(keepMinX + 7, baseY + 8, keepMinZ + 7, 4, 6, 3), new int3(0, 0, 1),
                 lights, new int3(0, 0, 1));
 
-            EmitAll(geometry, objects.BuildObjects());
+            EmitAll(geometry, objects.BuildObjects(), null, emissionMode);
         }
 
         public static void AuthorMineCave(IStructureAuthoringSession geometry, WorldObjectAuthoringSession objects,
-            DecorationBounds chamber)
+            DecorationBounds chamber, WorldObjectGeometryEmissionMode emissionMode = WorldObjectGeometryEmissionMode.AllVoxel)
         {
             if (geometry == null) throw new System.ArgumentNullException(nameof(geometry));
             if (objects == null) throw new System.ArgumentNullException(nameof(objects));
@@ -140,15 +140,19 @@ namespace Game.Structures.Runtime
                 B(p.x + 5, y + 7, p.z + 5, 4, 6, 3), new int3(0, 0, 1), lamps, new int3(0, 0, 1),
                 WorldObjectKind.Lantern);
 
-            EmitAll(geometry, objects.BuildObjects());
+            EmitAll(geometry, objects.BuildObjects(), null, emissionMode);
         }
 
         public static void EmitAll(IStructureAuthoringSession geometry, WorldObjectDescriptor[] descriptors,
-            WorldObjectStateStore stateStore = null)
+            WorldObjectStateStore stateStore = null,
+            WorldObjectGeometryEmissionMode emissionMode = WorldObjectGeometryEmissionMode.AllVoxel)
         {
-            if (geometry == null || descriptors == null) return;
+            if (geometry == null || descriptors == null || emissionMode == WorldObjectGeometryEmissionMode.None) return;
             for (int i = 0; i < descriptors.Length; i++)
             {
+                if (emissionMode == WorldObjectGeometryEmissionMode.StaticOnly &&
+                    WorldObjectPresentationPlanner.RequiresDynamicProxy(descriptors[i].Kind))
+                    continue;
                 WorldObjectResolvedState state = WorldObjectStateResolver.Resolve(in descriptors[i], stateStore);
                 WorldObjectGeometryEmitter.Emit(geometry, in state);
             }
