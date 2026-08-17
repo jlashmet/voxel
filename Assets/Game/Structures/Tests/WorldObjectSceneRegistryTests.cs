@@ -1,3 +1,4 @@
+using System;
 using Game.Structures.Api;
 using Game.Structures.Runtime;
 using NUnit.Framework;
@@ -47,6 +48,31 @@ namespace Game.Structures.Tests
             WorldObjectGeneratedScene restoredScene = restoredRegistry.LoadDecorations(parentId, new[] { placement });
             Assert.IsTrue(restoredScene.Runtime.TryResolve(id, out WorldObjectResolvedState restored));
             Assert.IsTrue(restored.IsOpen);
+        }
+
+        [Test]
+        public void DuplicateLoadedParentIsRejectedUntilUnload()
+        {
+            const uint parentId = 91u;
+            var registry = new WorldObjectSceneRegistry();
+            registry.LoadDecorations(parentId, new[] { ChestPlacement() });
+
+            Assert.Throws<InvalidOperationException>(
+                () => registry.LoadDecorations(parentId, new[] { ChestPlacement() }));
+
+            Assert.IsTrue(registry.Unload(parentId));
+            Assert.DoesNotThrow(() => registry.LoadDecorations(parentId, new[] { ChestPlacement() }));
+        }
+
+        [Test]
+        public void RestoreWhileLoadedIsRejected()
+        {
+            const uint parentId = 92u;
+            var registry = new WorldObjectSceneRegistry();
+            registry.LoadDecorations(parentId, new[] { ChestPlacement() });
+
+            Assert.Throws<InvalidOperationException>(
+                () => registry.Restore(parentId, Array.Empty<WorldObjectStateDelta>()));
         }
 
         private static DecorationPlacement ChestPlacement() => new DecorationPlacement
