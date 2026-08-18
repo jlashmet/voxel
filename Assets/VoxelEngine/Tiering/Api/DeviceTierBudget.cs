@@ -48,8 +48,8 @@ namespace VoxelEngine.Tiering.Api
     /// </summary>
     public readonly struct DeviceTierBudget
     {
-        /// <summary>Brick pool capacity in bytes — 2.0 GB on PC, 1.0 GB on Console, 384 MB on Mobile-HE.</summary>
-        public readonly int BrickPoolCapacity;
+        /// <summary>Brick pool capacity in bytes — 5.0 GB on PC, 1.0 GB on Console, 384 MB on Mobile-HE.</summary>
+        public readonly long BrickPoolCapacity;
 
         /// <summary>Full-detail radius (mip-0) in metres — device-matrix.md LOD values.</summary>
         public readonly int DetailRadius;
@@ -74,7 +74,7 @@ namespace VoxelEngine.Tiering.Api
 
         /// <summary>Construct a tier budget with all fields explicitly set.</summary>
         public DeviceTierBudget(
-            int brickPoolCapacity,
+            long brickPoolCapacity,
             int detailRadius,
             float renderScale,
             float probeSpacing,
@@ -100,7 +100,7 @@ namespace VoxelEngine.Tiering.Api
             return tier switch
             {
                 DeviceTier.PC => new DeviceTierBudget(
-                    brickPoolCapacity:  2_000_000_000,    // 2.0 GB
+                    brickPoolCapacity:  5_000_000_000L,   // 5.0 GB
                     detailRadius:       400,               // 400 m full-detail radius
                     renderScale:        1.0f,              // Native resolution
                     probeSpacing:       2f,                // 2 m probe spacing
@@ -111,7 +111,7 @@ namespace VoxelEngine.Tiering.Api
                 ),
 
                 DeviceTier.Console => new DeviceTierBudget(
-                    brickPoolCapacity:  1_073_741_824,     // 1.0 GB
+                    brickPoolCapacity:  1_073_741_824L,    // 1.0 GB
                     detailRadius:       350,               // 350 m full-detail radius
                     renderScale:        1.0f,              // Native resolution
                     probeSpacing:       2f,                // 2 m probe spacing
@@ -122,7 +122,7 @@ namespace VoxelEngine.Tiering.Api
                 ),
 
                 DeviceTier.MobileHE => new DeviceTierBudget(
-                    brickPoolCapacity:  402_653_184,       // 384 MB
+                    brickPoolCapacity:  402_653_184L,      // 384 MB
                     detailRadius:       200,               // 200 m full-detail radius
                     renderScale:        0.75f,             // 0.75 scale + upscale (device-matrix.md)
                     probeSpacing:       4f,                // 4 m probe spacing (half density of PC/Console)
