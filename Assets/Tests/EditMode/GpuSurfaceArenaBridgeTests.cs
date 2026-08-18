@@ -1,3 +1,4 @@
+using System.Linq;
 using NUnit.Framework;
 using Unity.Mathematics;
 using UnityEditor;
@@ -25,6 +26,16 @@ namespace VoxelEngine.Tests.EditMode
 
             _shader = AssetDatabase.LoadAssetAtPath<ComputeShader>(ShaderPath);
             Assert.NotNull(_shader, $"Compute shader missing at {ShaderPath}");
+
+            if (!_shader.HasKernel("CSSampleDensity"))
+            {
+                string compilerMessages = string.Join("\n",
+                    ShaderUtil.GetComputeShaderMessages(_shader).Select(message => message.message));
+                Assert.Fail(
+                    $"Compute shader loaded but CSSampleDensity is unavailable. "
+                  + $"graphicsDevice={SystemInfo.graphicsDeviceType}, graphicsDeviceName='{SystemInfo.graphicsDeviceName}', "
+                  + $"supportsCompute={SystemInfo.supportsComputeShaders}. Compiler messages:\n{compilerMessages}");
+            }
         }
 
         [Test]
