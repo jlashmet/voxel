@@ -86,7 +86,7 @@ Per player, at 64 concurrent players under sustained heavy destruction.
 | **Peak downstream (2 s window)** | ≤ 512 KB/s | ≤ 192 KB/s |
 | Sustained upstream | ≤ 32 KB/s | ≤ 24 KB/s |
 | EVENT channel share | ≥ 60% reserved | ≥ 70% reserved |
-| BULK channel | remainder, yields to EVENT |
+| BULK channel | remainder, yields to EVENT | remainder, yields to EVENT |
 
 **SC-002 check**: a destruction event affecting ≥ 4000 voxels must transmit in ≤ 64 bytes — within 2× the cost of an ordinary player action.
 
