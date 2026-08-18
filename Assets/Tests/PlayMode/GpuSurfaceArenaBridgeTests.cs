@@ -18,6 +18,7 @@ namespace VoxelEngine.Tests.PlayMode
             "Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/Shaders/VoxelBrickMesher.compute";
         private const int CellsPerAxis = 8;
         private const int Padding = 2;
+        private const int ProductionBrickCacheEdge = 4;
 
         private ComputeShader _shader;
 
@@ -41,6 +42,22 @@ namespace VoxelEngine.Tests.PlayMode
                   + $"graphicsDevice={SystemInfo.graphicsDeviceType}, graphicsDeviceName='{SystemInfo.graphicsDeviceName}'. "
                   + $"Compiler messages:\n{compilerMessages}");
             }
+        }
+
+        [Test]
+        public void ProductionFactoryUsesCpuSnapshotBrickCacheEdge()
+        {
+            const int deliberatelyNonDefaultEdge = 5;
+            using GpuSurfaceExtractionContext context = GpuSurfaceExtractionContext.TryCreate(
+                CellsPerAxis, Padding,
+                mirrorBudgetBytes: GpuBrickBufferLayout.BytesPerMixedBrick * 8L,
+                brickCacheEdge: deliberatelyNonDefaultEdge,
+                shader: _shader);
+
+            Assert.NotNull(context);
+            Assert.AreEqual(deliberatelyNonDefaultEdge, context.BrickCacheEdge,
+                "Production must index the dense brick snapshot with the CPU builder's exact edge, "
+              + "not a separately-derived GPU stride that merely covers the same world extent.");
         }
 
         [Test]
@@ -123,8 +140,11 @@ namespace VoxelEngine.Tests.PlayMode
             GpuSurfaceExtractionContext context = GpuSurfaceExtractionContext.TryCreate(
                 CellsPerAxis, Padding,
                 mirrorBudgetBytes: GpuBrickBufferLayout.BytesPerMixedBrick * 8L,
+                brickCacheEdge: ProductionBrickCacheEdge,
                 shader: _shader);
             Assert.NotNull(context, "The graphical CI device must be able to create the GPU extraction context.");
+            Assert.AreEqual(ProductionBrickCacheEdge, context.BrickCacheEdge,
+                "The bridge must consume the same flattened brick-cache dimensions as the CPU snapshot.");
 
             MaterialPaletteView palette = default;
             context.SetCatalogues(SurfaceCatalogueView.CreateBuiltIns(), default, palette);
