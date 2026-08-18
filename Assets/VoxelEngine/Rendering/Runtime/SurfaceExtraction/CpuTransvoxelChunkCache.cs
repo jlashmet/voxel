@@ -1373,7 +1373,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 Bricks = _densityBricks,
                 MixedVoxels = PinnedMixedVoxelsOrFallback(),
                 Summaries = _hlodSummaries,
-            }.Schedule(BrickCacheCount, 256);
+            }.Schedule(BrickCacheCount, ExtractionBatchSize(BrickCacheCount, 256));
             _hlodJobHandle = new SurfaceBlockHlodMeshJob
             {
                 Summaries = _hlodSummaries,
@@ -1416,7 +1416,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 Output = _topologyOutput.AsWriter(),
             };
             _build.TopologyScheduledSeconds = Time.realtimeSinceStartupAsDouble;
-            _topologyJobHandle = job.Schedule(cellCount, 64, dependency);
+            _topologyJobHandle = job.Schedule(
+                cellCount, ExtractionBatchSize(cellCount, 64), dependency);
             _topologyJobScheduled = true;
             ScheduleTopologyCompactJob();
         }
@@ -2252,7 +2253,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     SourceStep = SourceStep
                 };
                 _build.DensityScheduledSeconds = Time.realtimeSinceStartupAsDouble;
-                _densityJobHandle = job.Schedule(GridSampleCount, 64);
+                _densityJobHandle = job.Schedule(
+                    GridSampleCount, ExtractionBatchSize(GridSampleCount, 64));
                 _densityJobScheduled = true;
                 ScheduleTopologyJob(voxelSize, _densityJobHandle);
                 ScheduleFacetedMaskJob(_densityJobHandle);
@@ -2273,7 +2275,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             {
                 Bricks = _densityBricks,
                 MixedFlags = _exactMixedFlags,
-            }.Schedule(BrickCacheCount, 256);
+            }.Schedule(BrickCacheCount, ExtractionBatchSize(BrickCacheCount, 256));
             // Region intersections are disjoint cache ranges. Schedule every copy behind the
             // shared clear only, then combine their handles once before compaction. Chaining each
             // copy behind the previous region serializes phase-0 snapshot work and can starve
@@ -2324,7 +2326,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     BrickCacheEdge = BrickCacheEdge,
                     Bricks = _densityBricks,
                     MixedFlags = _exactMixedFlags,
-                }.Schedule(volume, 128, clearHandle);
+                }.Schedule(volume, ExtractionBatchSize(volume, 128), clearHandle);
                 dependency = JobHandle.CombineDependencies(dependency, regionHandle);
             }
 
@@ -2446,7 +2448,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 GridSize = GridSize,
             };
             _build.DensityScheduledSeconds = Time.realtimeSinceStartupAsDouble;
-            _densityJobHandle = job.Schedule(GridSampleCount, 256);
+            _densityJobHandle = job.Schedule(
+                GridSampleCount, ExtractionBatchSize(GridSampleCount, 256));
             _densityJobScheduled = true;
             ScheduleTopologyJob(voxelSize, _densityJobHandle);
             return true;
@@ -3976,6 +3979,26 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             }
             return true;
         }
+
+
+        /// <summary>
+        /// Batch size that keeps one extraction job inside a bounded slice of the job pool.
+        ///
+        /// These jobs run over a whole 64-cell chunk, so a batch of 64 produces some four thousand
+        /// batches for a single build. Unity has no notion of background work: those batches queue
+        /// ahead of everything the frame itself needs, including URP's culling, so one build is
+        /// enough to make the main thread wait even though nothing ever calls Complete on it. The
+        /// frame cost of extraction is entirely this — a converged view measured 49 ms a frame with
+        /// the scheduler's own timings totalling three.
+        ///
+        /// Splitting into a handful of large batches keeps the same total work and the same
+        /// parallelism across concurrent builds, while leaving workers free for the rest of the
+        /// frame. Concurrency across builds, not within one, is what fills a cold view.
+        /// </summary>
+        private const int ExtractionBatchesPerJob = 4;
+
+        private static int ExtractionBatchSize(int count, int minimumBatch) =>
+            math.max(minimumBatch, (count + ExtractionBatchesPerJob - 1) / ExtractionBatchesPerJob);
 
         private void CompleteJobs()
         {
