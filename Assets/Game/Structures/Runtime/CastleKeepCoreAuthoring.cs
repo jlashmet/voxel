@@ -26,29 +26,81 @@ namespace Game.Structures.Runtime
 
         public static void AuthorShell(IStructureAuthoringSession authoring, in CastlePlan plan)
         {
+            StructureMaterialPalette palette = CastleStructurePalette.Compatibility;
+            CastleComponentConfig components = CastleComponentPresets.Compatibility(in plan, in palette);
+            AuthorShell(
+                authoring,
+                in plan,
+                in components.KeepFoundation,
+                components.KeepFoundationTopOffset,
+                in components.KeepWalls,
+                in components.Palette);
+        }
+
+        public static void AuthorShell(
+            IStructureAuthoringSession authoring,
+            in CastlePlan plan,
+            in StructureFootprintConfig foundation,
+            int foundationTopOffset)
+        {
+            StructureMaterialPalette palette = CastleStructurePalette.Compatibility;
+            CastleComponentConfig components = CastleComponentPresets.Compatibility(in plan, in palette);
+            AuthorShell(
+                authoring,
+                in plan,
+                in foundation,
+                foundationTopOffset,
+                in components.KeepWalls,
+                in components.Palette);
+        }
+
+        public static void AuthorShell(
+            IStructureAuthoringSession authoring,
+            in CastlePlan plan,
+            in StructureFootprintConfig foundation,
+            int foundationTopOffset,
+            in StructureWallRunConfig wall,
+            in StructureMaterialPalette palette)
+        {
             Require(authoring);
+            if (!foundation.IsWellFormed || foundation.FoundationStyle != StructureFoundationStyle.Slab)
+                throw new System.ArgumentException("Castle keep foundation must be a well-formed slab.");
+            if (foundationTopOffset < 0)
+                throw new System.ArgumentOutOfRangeException(nameof(foundationTopOffset));
+            if (!wall.IsWellFormed)
+                throw new System.ArgumentException("Castle keep wall configuration is invalid.");
+
             int baseY = plan.Centre.y + plan.PlateauHeight;
             int3 min = Minimum(in plan);
-            int3 size = Size(in plan);
+            int3 legacySize = Size(in plan);
+            int3 size = new(legacySize.x, wall.Height, legacySize.z);
+            int thickness = wall.Thickness;
 
-            authoring.Box(
-                new int3(min.x - 6, baseY - 26, min.z - 6),
-                new int3(size.x + 12, 30, size.z + 12),
-                GameMaterialIds.DarkStone);
+            // The compatibility footprint is local to the keep minimum, matching the historical
+            // six-voxel apron and four-voxel foundation cap exactly.
+            StructureComponentAuthoring.AuthorSlabFoundation(
+                authoring,
+                new int3(min.x, baseY + foundationTopOffset, min.z),
+                in foundation,
+                in palette);
+
             authoring.HollowBox(
                 min,
                 size,
-                8,
-                GameMaterialIds.Stone,
+                thickness,
+                palette.Resolve(wall.PrimaryMaterial),
                 false,
                 false);
 
             // HollowBox writes only the shell. Preserve the base floor and explicitly clear the
             // occupied volume before floors, partitions, furniture, and circulation are authored.
             authoring.FillBulk(
-                new int3(min.x + 8, baseY + 1, min.z + 8),
-                new int3(size.x - 16, size.y - 1, size.z - 16),
-                GameMaterialIds.Empty);
+                new int3(min.x + thickness, baseY + 1, min.z + thickness),
+                new int3(
+                    size.x - 2 * thickness,
+                    size.y - 1,
+                    size.z - 2 * thickness),
+                palette.Resolve(StructureMaterialRole.Opening));
         }
 
         public static void AuthorCornerTurrets(

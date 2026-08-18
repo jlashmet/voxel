@@ -6,40 +6,88 @@ using Random = Unity.Mathematics.Random;
 
 namespace Game.Structures.Runtime
 {
-    /// <summary>Game-owned courtyard paving, well, and outbuilding authoring.</summary>
+    /// <summary>Game-owned courtyard paving, well, and compatibility outbuilding authoring.</summary>
     public static class CastleCourtyardAuthoring
     {
         public static void Author(IStructureAuthoringSession authoring, in CastlePlan plan)
         {
+            StructureMaterialPalette palette = CastleStructurePalette.Compatibility;
+            CastleComponentConfig components = CastleComponentPresets.Compatibility(in plan, in palette);
+            Author(authoring, in plan, in components.Courtyard, in palette);
+        }
+
+        public static void Author(
+            IStructureAuthoringSession authoring,
+            in CastlePlan plan,
+            in CastleCourtyardConfig courtyard,
+            in StructureMaterialPalette palette)
+        {
             if (authoring == null) throw new System.ArgumentNullException(nameof(authoring));
+            if (!courtyard.IsWellFormed)
+                throw new System.ArgumentException("Castle courtyard configuration is invalid.");
 
             int baseY = plan.Centre.y + plan.PlateauHeight;
             var rng = new Random(plan.Seed ^ 0xC0DEu);
 
-            for (int z = -plan.BaileyHalfZ + 40; z < plan.BaileyHalfZ - 40; z++)
-            for (int x = -plan.BaileyHalfX + 40; x < plan.BaileyHalfX - 40; x++)
+            if (courtyard.OpenSpace.SurfaceMode != OpenSpaceSurfaceMode.None)
             {
-                byte material = rng.NextInt(0, 100) < 82
-                    ? GameMaterialIds.Stone
-                    : GameMaterialIds.Dirt;
-                authoring.FillColumnBulk(
-                    plan.Centre.x + x, baseY, baseY + 1,
-                    plan.Centre.z + z, material);
+                StructureFootprintRect area = courtyard.OpenSpace.Area;
+                int maxX = area.Min.x + area.Size.x;
+                int maxZ = area.Min.y + area.Size.y;
+                int topY = baseY + courtyard.OpenSpace.SurfaceThickness - 1;
+                byte primary = palette.Resolve(courtyard.OpenSpace.SurfaceMaterialRole);
+
+                for (int z = area.Min.y; z < maxZ; z++)
+                for (int x = area.Min.x; x < maxX; x++)
+                {
+                    byte material = rng.NextInt(0, 100) < courtyard.PrimarySurfacePercent
+                        ? primary
+                        : GameMaterialIds.Dirt;
+                    authoring.FillColumnBulk(
+                        plan.Centre.x + x,
+                        baseY,
+                        topY,
+                        plan.Centre.z + z,
+                        material);
+                }
             }
 
-            int wellX = plan.Centre.x - plan.BaileyHalfX / 2;
-            int wellZ = plan.Centre.z + plan.BaileyHalfZ / 3;
-            authoring.Cylinder(wellX, baseY + 1, wellZ,
-                16, 12, GameMaterialIds.DarkStone, 11);
-            authoring.Cylinder(wellX, baseY - 60, wellZ,
-                11, 60, GameMaterialIds.Empty);
-            authoring.Cylinder(wellX, baseY - 60, wellZ,
-                10, 14, GameMaterialIds.Water);
-
-            for (int i = 0; i < 3; i++)
+            if (courtyard.Well.Enabled)
             {
-                int bx = plan.Centre.x - plan.BaileyHalfX + 60 + i * 150;
-                int bz = plan.Centre.z + plan.BaileyHalfZ - 130;
+                int wellX = plan.Centre.x + courtyard.Well.LocalCentre.x;
+                int wellZ = plan.Centre.z + courtyard.Well.LocalCentre.y;
+                authoring.Cylinder(
+                    wellX,
+                    baseY + 1,
+                    wellZ,
+                    courtyard.Well.OuterRadius,
+                    courtyard.Well.WallHeight,
+                    palette.Resolve(StructureMaterialRole.Underground),
+                    courtyard.Well.InnerRadius);
+                authoring.Cylinder(
+                    wellX,
+                    baseY - courtyard.Well.ShaftDepth,
+                    wellZ,
+                    courtyard.Well.InnerRadius,
+                    courtyard.Well.ShaftDepth,
+                    palette.Resolve(StructureMaterialRole.Opening));
+                authoring.Cylinder(
+                    wellX,
+                    baseY - courtyard.Well.ShaftDepth,
+                    wellZ,
+                    courtyard.Well.WaterRadius,
+                    courtyard.Well.WaterDepth,
+                    GameMaterialIds.Water);
+            }
+
+            if (!courtyard.AuthorCompatibilityBuildings)
+                return;
+
+            for (int i = 0; i < courtyard.SecondaryBuildingSlots.Length; i++)
+            {
+                CastleCourtyardBuildingSlotConfig slot = courtyard.SecondaryBuildingSlots[i];
+                int bx = plan.Centre.x + slot.LocalOrigin.x;
+                int bz = plan.Centre.z + slot.LocalOrigin.y;
                 int width = rng.NextInt(70, 100);
                 int depth = rng.NextInt(60, 84);
                 int height = rng.NextInt(56, 76);

@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using Unity.Collections;
 using Unity.Mathematics;
 
 namespace VoxelEngine.Structures.Api
@@ -64,6 +65,25 @@ namespace VoxelEngine.Structures.Api
             h = Mix(h ^ ((ulong)(uint)hi.y * 0xBF58476D1CE4E5B9ul));
             h = Mix(h ^ ((ulong)(uint)hi.z * 0x94D049BB133111EBul));
             return h;
+        }
+
+        /// <summary>
+        /// Derives an independent deterministic stream from a parent instance seed and a stable
+        /// semantic key. Callers should use meaning-based keys such as "roof", "windows.north",
+        /// or "crypt" rather than allocation/order indices so adding an unrelated component does
+        /// not perturb existing generated details.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static ulong Semantic(ulong parentSeed, in FixedString64Bytes semanticKey)
+        {
+            ulong h = Mix(parentSeed ^ 0x53_45_4D_41_4E_54_49_43ul);
+            for (var i = 0; i < semanticKey.Length; i++)
+            {
+                h = Mix(h ^ ((ulong)semanticKey[i] + ((ulong)(uint)i << 32)));
+            }
+
+            // Mix the length separately so a trailing zero byte cannot alias a shorter key.
+            return Mix(h ^ (uint)semanticKey.Length);
         }
 
         /// <summary>Advances a stream, so successive draws from one candidate are independent.</summary>

@@ -3,6 +3,7 @@
   "rootNamespace": "VoxelEngine.Structures.Api",
   "references": [
     "VoxelEngine.Storage.Api",
+    "VoxelEngine.Terrain.Api",
     "Unity.Collections",
     "Unity.Mathematics"
   ],

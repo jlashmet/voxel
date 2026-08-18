@@ -3,6 +3,7 @@ using MountingForce.WorldGen.Voxel;
 using Unity.Collections;
 using VoxelEngine.Composition.Api;
 using VoxelEngine.Structures.Api;
+using VoxelEngine.Structures.Runtime;
 
 namespace VoxelEngine.Showcase
 {
@@ -33,9 +34,32 @@ namespace VoxelEngine.Showcase
                 voxelsPerDecimetre: 1,
                 materials: materials);
 
-            // Public-space cut/fill rules come first, then buildings. The voxel engine still sees
-            // one immutable catalogue, so streaming and renderer code remain unchanged.
-            return KentridgeCombinedVoxelCatalogue.Build(seed, settings, allocator);
+            // Kentridge is the production mixed-city showcase, not a parallel demo planner. Its
+            // SettlementCompositionPolicy preserves the authored roads/roles/frontages while the
+            // generated residential/market forms select district-weighted shared house presets.
+            // Bespoke civic/working landmarks remain in the same catalogue, so one build visibly
+            // exercises houses, shops, inns, a church, warehouse, mansion, well and open civic space.
+            // The detached detailed-house feature below remains a focused deep-override example.
+            FeatureCatalogue kentridge =
+                KentridgeCombinedVoxelCatalogue.Build(seed, settings, Allocator.Temp);
+            try
+            {
+                FeatureCatalogue detailedHouse =
+                    ShowcaseDetailedHouseCatalogue.Build(seed, in materialRoles, Allocator.Temp);
+                try
+                {
+                    return FeatureCatalogueComposer.Combine(
+                        in kentridge, in detailedHouse, allocator);
+                }
+                finally
+                {
+                    detailedHouse.Dispose();
+                }
+            }
+            finally
+            {
+                kentridge.Dispose();
+            }
         }
 
         /// <summary>

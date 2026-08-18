@@ -204,7 +204,7 @@ namespace VoxelEngine.Structures.Runtime
 
                         if (count < 0) count = 0;
                         if (count > FeatureBudget.MaxPrimitivesPerInstance)
-                            count = FeatureBudget.MaxPrimitivesPerInstance;
+                            return EvaluationResult.PrimitiveLimitExceeded;
 
                         for (var i = 0; i < count; i++)
                         {

@@ -8,4 +8,7 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/KentridgePlayableSlice.unity
     guid: d662cae21bdb46b2957b286dbbf3b2d3
+  - enabled: 1
+    path: Assets/Scenes/WorldbuildingGalleryShowcase.unity
+    guid: 4c2c3840e3b24cd199690cf5e286bbd3
   m_configObjects: {}
