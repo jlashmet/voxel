@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using NUnit.Framework;
 using Unity.Mathematics;
 using UnityEditor;
@@ -318,6 +319,131 @@ namespace VoxelEngine.Tests.EditMode
                   + $"vs gpu {(worstIndex >= 0 ? gpuDensity[worstIndex] : 0f):F5}). The GPU port "
                   + "has diverged from TransvoxelDensityJob, so the two meshers would build "
                   + "different surfaces from the same voxels.");
+            }
+            finally
+            {
+                vertices.Release();
+                indices.Release();
+            }
+        }
+
+        [Test]
+        public void GpuTrianglesMatchTheCpuTopologyJob()
+        {
+            // Density agreeing is necessary but not sufficient: the tables, edge decoding,
+            // interpolation and winding all sit between a matching field and matching geometry.
+            // Triangles are compared as a set, because the two meshers allocate vertices in
+            // different orders — the CPU walks cells in sequence, the GPU reserves with atomics —
+            // so comparing index buffers directly would report a difference that is not one.
+            // Winding is still part of the key: a flipped triangle faces away and leaves a hole.
+            const int solidBrickYLimit = 2;
+            const byte material = 1;
+            const float voxelSize = 0.1f;
+
+            using var mirror = new GpuVoxelBrickMirror(slotCapacity: 8);
+            using var tables = GpuTransvoxelTables.CreateDefault();
+            using var extractor = new GpuSurfaceExtractor(_shader, CellsPerAxis, Padding);
+
+            SurfaceCatalogueView surfaces = SurfaceCatalogueView.CreateBuiltIns();
+            CoatingCatalogueView coatings = default;
+            MaterialPaletteView palette = default;
+            var defaultStyles = new uint[256];
+            for (int i = 0; i < 256; i++) defaultStyles[i] = palette.GetDefaultSurfaceStyle((byte)i);
+            extractor.SetCatalogues(surfaces, coatings, defaultStyles);
+
+            int3 brickCacheOrigin = new int3(-1, -1, -1);
+            extractor.ClearBrickCache();
+            for (int z = 0; z < extractor.BrickCacheEdge; z++)
+            for (int y = 0; y < extractor.BrickCacheEdge; y++)
+            for (int x = 0; x < extractor.BrickCacheEdge; x++)
+            {
+                bool solid = y < solidBrickYLimit;
+                extractor.SetBrickCacheEntry(new int3(x, y, z),
+                    GpuSurfaceExtractor.PackBrickCacheEntry(
+                        solid ? VoxelBrickContent.Uniform : VoxelBrickContent.Empty,
+                        solid ? material : (byte)0, -1));
+            }
+
+            const int capacity = 65536;
+            var vertices = new ComputeBuffer(capacity, GpuSurfaceExtractor.ReadbackVertex.Stride,
+                                             ComputeBufferType.Structured);
+            var indices = new ComputeBuffer(capacity, sizeof(uint), ComputeBufferType.Structured);
+            try
+            {
+                GpuExtractionResult result = extractor.Extract(
+                    mirror, tables, int3.zero, brickCacheOrigin, 1, voxelSize,
+                    vertices, indices, capacity, capacity);
+                Assert.IsFalse(result.Overflowed);
+                Assert.Greater(result.IndexCount, 0);
+
+                var gpuVertices = new GpuSurfaceExtractor.ReadbackVertex[result.VertexCount];
+                var gpuIndices = new uint[result.IndexCount];
+                vertices.GetData(gpuVertices, 0, 0, result.VertexCount);
+                indices.GetData(gpuIndices, 0, 0, result.IndexCount);
+
+                var gpuKeys = new Dictionary<string, int>();
+                for (int i = 0; i + 2 < gpuIndices.Length; i += 3)
+                {
+                    var tri = new OracleTriangle(
+                        (float3)(Vector3)gpuVertices[gpuIndices[i]].Position,
+                        (float3)(Vector3)gpuVertices[gpuIndices[i + 1]].Position,
+                        (float3)(Vector3)gpuVertices[gpuIndices[i + 2]].Position);
+                    string key = tri.Key();
+                    gpuKeys[key] = gpuKeys.TryGetValue(key, out int n) ? n + 1 : 1;
+                }
+
+                List<OracleTriangle> cpu = CpuTopologyOracle.MeshUniformNeighbourhood(
+                    int3.zero, brickCacheOrigin, extractor.BrickCacheEdge,
+                    CellsPerAxis, Padding, 1, voxelSize,
+                    material, solidBrickYLimit, surfaces, coatings, palette);
+
+                var cpuKeys = new Dictionary<string, int>();
+                foreach (OracleTriangle tri in cpu)
+                {
+                    string key = tri.Key();
+                    cpuKeys[key] = cpuKeys.TryGetValue(key, out int n) ? n + 1 : 1;
+                }
+
+                Assert.Greater(cpuKeys.Count, 0, "The CPU oracle produced no geometry to compare.");
+
+                int missing = 0, extra = 0;
+                string firstMissing = null;
+                foreach (KeyValuePair<string, int> pair in cpuKeys)
+                {
+                    if (gpuKeys.TryGetValue(pair.Key, out int gpuCount) && gpuCount == pair.Value)
+                        continue;
+                    missing++;
+                    firstMissing ??= pair.Key;
+                }
+                foreach (KeyValuePair<string, int> pair in gpuKeys)
+                    if (!cpuKeys.ContainsKey(pair.Key)) extra++;
+
+                // Separate "wrong shape" from "wrong winding": identical corner sets with
+                // different order means the triangles are in the right place but facing the wrong
+                // way, which is a different bug with a different fix.
+                var cpuUnordered = new HashSet<string>();
+                foreach (OracleTriangle tri in cpu) cpuUnordered.Add(tri.UnorderedKey());
+                var gpuUnordered = new HashSet<string>();
+                for (int i = 0; i + 2 < gpuIndices.Length; i += 3)
+                    gpuUnordered.Add(new OracleTriangle(
+                        (float3)(Vector3)gpuVertices[gpuIndices[i]].Position,
+                        (float3)(Vector3)gpuVertices[gpuIndices[i + 1]].Position,
+                        (float3)(Vector3)gpuVertices[gpuIndices[i + 2]].Position).UnorderedKey());
+                int sharedIgnoringWinding = 0;
+                foreach (string key in cpuUnordered)
+                    if (gpuUnordered.Contains(key)) sharedIgnoringWinding++;
+
+                Assert.AreEqual(0, missing + extra,
+                    $"{missing} CPU triangles absent from the GPU output and {extra} GPU triangles "
+                  + $"the CPU never produced, of {cpuKeys.Count} distinct CPU triangles. "
+                  + $"{sharedIgnoringWinding} of {cpuUnordered.Count} match when winding is "
+                  + $"ignored, so the disagreement is "
+                  + (sharedIgnoringWinding == cpuUnordered.Count
+                        ? "winding only." : "the surface itself.")
+                  + $" First missing: {firstMissing}."
+                  + $" First GPU: {(gpuKeys.Count > 0 ? System.Linq.Enumerable.First(gpuKeys.Keys) : "none")}."
+                  + $" GPU verts {result.VertexCount}, indices {result.IndexCount};"
+                  + $" CPU triangles {cpu.Count}.");
             }
             finally
             {

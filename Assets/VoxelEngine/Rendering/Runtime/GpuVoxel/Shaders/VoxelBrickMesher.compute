@@ -72,9 +72,13 @@ int _IndexCapacity;
 
 int GridIndex(int3 g) { return g.x + _GridSize * (g.y + _GridSize * g.z); }
 
+// Transvoxel corner numbering: x is bit 0, y is bit 2 and z is bit 1. The naive
+// (bit0, bit1, bit2) layout transposes y and z, which still produces a plausible surface — the same
+// quads, split along the opposite diagonal — because it selects a different cell class for the same
+// voxels. Matching the CPU here is the difference between one renderer and two.
 int3 CellCorner(int i)
 {
-    return int3(i & 1, (i >> 1) & 1, (i >> 2) & 1);
+    return int3(i & 1, (i >> 2) & 1, (i >> 1) & 1);
 }
 
 // ---------------------------------------------------------------------------
@@ -181,9 +185,13 @@ float3 DensityNormal(int3 g)
     return len > 1e-6 ? n / len : float3(0, 1, 0);
 }
 
+// Mirrors TransvoxelTopologyJob.Pack: material, coating, style, then the high semantic byte.
 uint PackMaterial(uint material, uint surface)
 {
-    return (material & 0xFFu) | ((surface & 0xFFFFu) << 8) | ((surface & 0xFF0000u) << 8);
+    return (material & 0xFFu)
+         | (((surface >> 16) & 0xFFu) << 8)
+         | ((surface & 0xFFu) << 16)
+         | (((surface >> 24) & 0xFFu) << 24);
 }
 
 [numthreads(64, 1, 1)]

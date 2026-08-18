@@ -271,6 +271,20 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _cellTriangleCounts.GetData(triangleCounts);
         }
 
+        /// <summary>
+        /// One vertex as the shader writes it. Mirrors the SurfaceVertex struct in the compute
+        /// shader; used only to read geometry back for the oracle.
+        /// </summary>
+        public struct ReadbackVertex
+        {
+            public Vector3 Position;
+            public Vector3 Normal;
+            public uint Material;
+            public uint Active;
+
+            public const int Stride = sizeof(float) * 6 + sizeof(uint) * 2;
+        }
+
         /// <summary>Sampled density, for the CPU-vs-GPU oracle. Never called on the frame path.</summary>
         public void ReadDensity(float[] density) => _density.GetData(density);
 
