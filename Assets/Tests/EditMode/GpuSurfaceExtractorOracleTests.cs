@@ -451,5 +451,137 @@ namespace VoxelEngine.Tests.EditMode
                 indices.Release();
             }
         }
+
+        [Test]
+        public void MixedBricksWithAuthoredBoundariesAndCoatingsMatchTheCpu()
+        {
+            // Uniform bricks never exercise the paths spec 003 added: the authored-boundary short
+            // circuit, the coating displacement, and per-voxel surface styles. Those are where the
+            // GPU port is most likely to still disagree, because each is a branch the simple
+            // fixtures never take.
+            const float voxelSize = 0.1f;
+            const int perBrick = 512;
+
+            var voxels = new byte[perBrick];
+            var semantics = new ushort[perBrick];
+            var boundary = new byte[perBrick];
+            for (int z = 0; z < 8; z++)
+            for (int y = 0; y < 8; y++)
+            for (int x = 0; x < 8; x++)
+            {
+                int i = x + 8 * (y + 8 * z);
+                voxels[i] = (byte)(y < 4 ? 1 : 0);
+                // Alternate two styles so the pairwise join rule is consulted rather than skipped.
+                semantics[i] = (ushort)(((x + z) & 1) == 0 ? SurfaceStyles.Smooth
+                                                           : SurfaceStyles.Rounded);
+                // Author a boundary on the surface layer, along a specific axis, so both the
+                // signed-offset decode and the axis test are exercised.
+                boundary[i] = y == 3
+                    ? VoxelBoundarySample.FromSignedQ4(6, extrusionAxis: 1).Packed
+                    : (byte)0;
+            }
+
+            using var mirror = new GpuVoxelBrickMirror(slotCapacity: 8);
+            using var tables = GpuTransvoxelTables.CreateDefault();
+            using var extractor = new GpuSurfaceExtractor(_shader, CellsPerAxis, Padding);
+
+            SurfaceCatalogueView surfaces = SurfaceCatalogueView.CreateBuiltIns();
+            CoatingCatalogueView coatings = default;
+            MaterialPaletteView palette = default;
+            var defaultStyles = new uint[256];
+            for (int i = 0; i < 256; i++) defaultStyles[i] = palette.GetDefaultSurfaceStyle((byte)i);
+            extractor.SetCatalogues(surfaces, coatings, defaultStyles);
+
+            var nativeVoxels = new Unity.Collections.NativeArray<byte>(
+                voxels, Unity.Collections.Allocator.Temp);
+            var nativeSemantics = new Unity.Collections.NativeArray<ushort>(
+                semantics, Unity.Collections.Allocator.Temp);
+            var nativeBoundary = new Unity.Collections.NativeArray<byte>(
+                boundary, Unity.Collections.Allocator.Temp);
+
+            const int capacity = 65536;
+            var vertices = new ComputeBuffer(capacity, GpuSurfaceExtractor.ReadbackVertex.Stride,
+                                             ComputeBufferType.Structured);
+            var indices = new ComputeBuffer(capacity, sizeof(uint), ComputeBufferType.Structured);
+            try
+            {
+                var delta = VoxelBrickDelta.MixedAt(int3.zero, 1, 0);
+                Assert.AreEqual(GpuBrickPublish.Uploaded,
+                    mirror.Publish(delta, nativeVoxels, nativeSemantics, nativeBoundary, 0, true));
+                Assert.IsTrue(mirror.TryGetSlot(int3.zero, out int slot));
+
+                int edge = extractor.BrickCacheEdge;
+                int3 brickCacheOrigin = new int3(-1, -1, -1);
+                var kinds = new byte[edge * edge * edge];
+                var uniforms = new byte[edge * edge * edge];
+
+                extractor.ClearBrickCache();
+                uint mixedEntry = GpuSurfaceExtractor.PackBrickCacheEntry(
+                    VoxelBrickContent.Mixed, 0, slot);
+                for (int z = 0; z < edge; z++)
+                for (int y = 0; y < edge; y++)
+                for (int x = 0; x < edge; x++)
+                {
+                    extractor.SetBrickCacheEntry(new int3(x, y, z), mixedEntry);
+                    kinds[x + edge * (y + edge * z)] = 2;      // mixed
+                    uniforms[x + edge * (y + edge * z)] = 0;
+                }
+
+                GpuExtractionResult result = extractor.Extract(
+                    mirror, tables, int3.zero, brickCacheOrigin, 1, voxelSize,
+                    vertices, indices, capacity, capacity);
+                Assert.IsFalse(result.Overflowed);
+
+                var gpuVertices = new GpuSurfaceExtractor.ReadbackVertex[Mathf.Max(1, result.VertexCount)];
+                var gpuIndices = new uint[Mathf.Max(1, result.IndexCount)];
+                if (result.VertexCount > 0) vertices.GetData(gpuVertices, 0, 0, result.VertexCount);
+                if (result.IndexCount > 0) indices.GetData(gpuIndices, 0, 0, result.IndexCount);
+
+                var gpuKeys = new Dictionary<string, int>();
+                for (int i = 0; i + 2 < result.IndexCount; i += 3)
+                {
+                    string key = new OracleTriangle(
+                        (float3)(Vector3)gpuVertices[gpuIndices[i]].Position,
+                        (float3)(Vector3)gpuVertices[gpuIndices[i + 1]].Position,
+                        (float3)(Vector3)gpuVertices[gpuIndices[i + 2]].Position).Key();
+                    gpuKeys[key] = gpuKeys.TryGetValue(key, out int n) ? n + 1 : 1;
+                }
+
+                List<OracleTriangle> cpu = CpuTopologyOracle.MeshNeighbourhood(
+                    int3.zero, brickCacheOrigin, edge, CellsPerAxis, Padding, 1, voxelSize,
+                    kinds, uniforms, voxels, semantics, boundary,
+                    surfaces, coatings, palette);
+
+                var cpuKeys = new Dictionary<string, int>();
+                foreach (OracleTriangle tri in cpu)
+                {
+                    string key = tri.Key();
+                    cpuKeys[key] = cpuKeys.TryGetValue(key, out int n) ? n + 1 : 1;
+                }
+
+                Assert.Greater(cpuKeys.Count, 0,
+                    "The fixture must produce a surface, or this proves nothing.");
+
+                int missing = 0, extra = 0;
+                foreach (KeyValuePair<string, int> pair in cpuKeys)
+                    if (!gpuKeys.TryGetValue(pair.Key, out int n) || n != pair.Value) missing++;
+                foreach (KeyValuePair<string, int> pair in gpuKeys)
+                    if (!cpuKeys.ContainsKey(pair.Key)) extra++;
+
+                Assert.AreEqual(0, missing + extra,
+                    $"{missing} CPU triangles missing and {extra} GPU triangles unexpected, of "
+                  + $"{cpuKeys.Count}. Mixed bricks carry per-voxel styles, authored boundaries and "
+                  + "coatings, so a divergence here is in the spec-003 surface semantics rather "
+                  + "than in the Transvoxel tables.");
+            }
+            finally
+            {
+                nativeVoxels.Dispose();
+                nativeSemantics.Dispose();
+                nativeBoundary.Dispose();
+                vertices.Release();
+                indices.Release();
+            }
+        }
     }
 }

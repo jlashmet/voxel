@@ -72,6 +72,36 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             in SurfaceCatalogueView surfaces, in CoatingCatalogueView coatings,
             in MaterialPaletteView palette)
         {
+            int uniformCount = brickCacheEdge * brickCacheEdge * brickCacheEdge;
+            var kinds = new byte[uniformCount];
+            var uniforms = new byte[uniformCount];
+            for (int z = 0; z < brickCacheEdge; z++)
+            for (int y = 0; y < brickCacheEdge; y++)
+            for (int x = 0; x < brickCacheEdge; x++)
+            {
+                int i = x + brickCacheEdge * (y + brickCacheEdge * z);
+                bool solid = y < solidBrickYLimit;
+                kinds[i] = (byte)(solid ? 1 : 0);
+                uniforms[i] = solid ? uniformMaterial : (byte)0;
+            }
+            return MeshNeighbourhood(chunkOriginVoxel, brickCacheOrigin, brickCacheEdge,
+                                     cellsPerAxis, padding, sourceStep, voxelSize,
+                                     kinds, uniforms, null, null, null,
+                                     surfaces, coatings, palette);
+        }
+
+        /// <summary>
+        /// Meshes one chunk over an explicitly described brick neighbourhood, so mixed payloads —
+        /// where authored boundaries and coatings actually live — can be compared too.
+        /// </summary>
+        public static List<OracleTriangle> MeshNeighbourhood(
+            int3 chunkOriginVoxel, int3 brickCacheOrigin, int brickCacheEdge,
+            int cellsPerAxis, int padding, int sourceStep, float voxelSize,
+            byte[] brickKinds, byte[] brickUniformMaterials,
+            byte[] mixedVoxels, ushort[] mixedSurfaceSemantics, byte[] mixedBoundarySamples,
+            in SurfaceCatalogueView surfaces, in CoatingCatalogueView coatings,
+            in MaterialPaletteView palette)
+        {
             int gridSize = cellsPerAxis + padding * 2 + 1;
             int samples = gridSize * gridSize * gridSize;
             int cells = cellsPerAxis * cellsPerAxis * cellsPerAxis;
@@ -83,33 +113,43 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             var materials = new NativeArray<byte>(samples, Allocator.TempJob);
             var semantics = new NativeArray<uint>(samples, Allocator.TempJob);
             var boundaries = new NativeArray<byte>(samples, Allocator.TempJob);
-            var emptyVoxels = new NativeArray<byte>(1, Allocator.TempJob);
-            var emptySemantics = new NativeArray<ushort>(1, Allocator.TempJob);
-            var emptyBoundary = new NativeArray<byte>(1, Allocator.TempJob);
+            var payloadVoxels = new NativeArray<byte>(
+                mixedVoxels is { Length: > 0 } ? mixedVoxels.Length : 1, Allocator.TempJob);
+            var payloadSemantics = new NativeArray<ushort>(
+                mixedSurfaceSemantics is { Length: > 0 } ? mixedSurfaceSemantics.Length : 1,
+                Allocator.TempJob);
+            var payloadBoundary = new NativeArray<byte>(
+                mixedBoundarySamples is { Length: > 0 } ? mixedBoundarySamples.Length : 1,
+                Allocator.TempJob);
             var stream = new NativeStream(cells, Allocator.TempJob);
 
             try
             {
-                for (int z = 0; z < brickCacheEdge; z++)
-                for (int y = 0; y < brickCacheEdge; y++)
-                for (int x = 0; x < brickCacheEdge; x++)
+                if (mixedVoxels is { Length: > 0 }) payloadVoxels.CopyFrom(mixedVoxels);
+                if (mixedSurfaceSemantics is { Length: > 0 })
+                    payloadSemantics.CopyFrom(mixedSurfaceSemantics);
+                if (mixedBoundarySamples is { Length: > 0 })
+                    payloadBoundary.CopyFrom(mixedBoundarySamples);
+
+                for (int i = 0; i < brickCount; i++)
                 {
-                    bool solid = y < solidBrickYLimit;
-                    bricks[x + brickCacheEdge * (y + brickCacheEdge * z)] =
-                        new TransvoxelDensityBrick
-                        {
-                            Kind = (byte)(solid ? 1 : 0),
-                            UniformMaterial = solid ? uniformMaterial : (byte)0,
-                            MixedOffset = 0,
-                        };
+                    byte kind = brickKinds[i];
+                    bricks[i] = new TransvoxelDensityBrick
+                    {
+                        Kind = kind,
+                        UniformMaterial = brickUniformMaterials[i],
+                        // Every mixed brick in these fixtures shares one payload, which is enough to
+                        // exercise the boundary and coating paths without building a whole world.
+                        MixedOffset = 0,
+                    };
                 }
 
                 var densityJob = new TransvoxelDensityJob
                 {
                     Bricks = bricks,
-                    MixedVoxels = emptyVoxels,
-                    MixedSurfaceSemantics = emptySemantics,
-                    MixedBoundarySamples = emptyBoundary,
+                    MixedVoxels = payloadVoxels,
+                    MixedSurfaceSemantics = payloadSemantics,
+                    MixedBoundarySamples = payloadBoundary,
                     Palette = palette,
                     Catalogue = surfaces,
                     Coatings = coatings,
@@ -158,9 +198,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 materials.Dispose();
                 semantics.Dispose();
                 boundaries.Dispose();
-                emptyVoxels.Dispose();
-                emptySemantics.Dispose();
-                emptyBoundary.Dispose();
+                payloadVoxels.Dispose();
+                payloadSemantics.Dispose();
+                payloadBoundary.Dispose();
                 tables.Dispose();
             }
         }
