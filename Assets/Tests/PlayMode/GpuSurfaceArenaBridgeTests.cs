@@ -61,6 +61,51 @@ namespace VoxelEngine.Tests.PlayMode
         }
 
         [Test]
+        public void BaseRingProductionDimensionsStageDirectlyIntoTheArena()
+        {
+            const int baseCellsPerAxis = CpuTransvoxelChunkCache.CellsPerAxis;
+            const int basePadding = 1;
+            const int baseBrickCacheEdge = 10; // 64 / 8 core bricks + one snapshot brick per side.
+
+            using GpuSurfaceExtractionContext context = GpuSurfaceExtractionContext.TryCreate(
+                baseCellsPerAxis, basePadding,
+                mirrorBudgetBytes: GpuBrickBufferLayout.BytesPerMixedBrick * 8L,
+                brickCacheEdge: baseBrickCacheEdge,
+                shader: _shader);
+            Assert.NotNull(context);
+            Assert.AreEqual(baseBrickCacheEdge, context.BrickCacheEdge);
+
+            MaterialPaletteView palette = default;
+            context.SetCatalogues(SurfaceCatalogueView.CreateBuiltIns(), default, palette);
+
+            using NativeArray<TransvoxelDensityBrick> bricks =
+                CreateHalfSolidSnapshot(baseBrickCacheEdge);
+            using var arena = new SurfaceGeometryArena(131072, 262144, 4);
+
+            var request = new GpuChunkExtraction(int3.zero, new int3(-1, -1, -1),
+                                                 sourceStep: 1, voxelSize: 0.1f,
+                                                 transitionFaceMask: 0);
+            Assert.AreEqual(GpuStageOutcome.Staged,
+                context.TryStage(bricks, default, default, default, request, generation: 1));
+
+            GpuSurfaceArenaBuild build = GpuSurfaceArenaBridge.Build(context, arena);
+
+            Assert.AreEqual(GpuSurfaceArenaBuildStatus.Ready, build.Status,
+                "The cutover path must work at the base ring's real 64-cell production dimensions, "
+              + "not only the small parity fixture.");
+            Assert.Greater(build.VertexCount, 0);
+            Assert.Greater(build.IndexCount, 0);
+            Assert.AreEqual(0UL, context.Extractor.GeometryReadbacks);
+            Assert.AreEqual(2UL, context.Extractor.CounterReadbacks);
+
+            var args = new uint[SurfaceGeometryArena.ArgsWordsPerDraw];
+            arena.Args.GetData(args, 0, build.Lease.ArgsWordStart, args.Length);
+            Assert.AreEqual((uint)build.IndexCount, args[0]);
+
+            arena.Release(build.Lease);
+        }
+
+        [Test]
         public void CpuSnapshotStagesThroughMirrorDirectlyIntoTheProductionSurfaceArena()
         {
             using GpuSurfaceExtractionContext context = CreateContext();
