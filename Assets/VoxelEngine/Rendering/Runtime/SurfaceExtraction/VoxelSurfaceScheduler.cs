@@ -679,12 +679,20 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private const int SteadyArenaReliefInterval = 8;
 
         /// <summary>
-        /// Chunk builds allowed in flight at once. Converging leaves enough parallelism to fill a
-        /// cold view quickly; converged keeps a little running so prefetch still makes progress
-        /// without taking the job pool away from rendering.
+        /// Chunk builds allowed in flight at once.
+        ///
+        /// Each concurrent build costs roughly 6 ms of main-thread time, measured on a converged
+        /// stationary showcase view:
+        ///
+        ///     builds in flight   0      1-2     10
+        ///     frame median      10.7    16.8    49.4 ms
+        ///
+        /// Converging keeps enough parallelism to fill a cold view in a bounded number of frames.
+        /// Converged drops to one, which still drains the prefetch shell — slowly, since nothing is
+        /// waiting on it — without handing the job pool to work the player cannot see.
         /// </summary>
         private const int MaxConcurrentBuildsWhileConverging = 12;
-        private const int MaxConcurrentBuildsWhenConverged = 2;
+        private const int MaxConcurrentBuildsWhenConverged = 1;
 
         private static int ScaleBudget(int budget, double scale) =>
             (int)Math.Min(int.MaxValue, Math.Max(0L, (long)(budget * scale)));
