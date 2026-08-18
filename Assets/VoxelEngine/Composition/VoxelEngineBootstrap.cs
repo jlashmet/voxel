@@ -91,7 +91,7 @@ namespace VoxelEngine.Composition
         /// </remarks>
         public static int ClampMixedBrickCapacityToBudget(
             int requestedCapacity,
-            int budgetBytes,
+            long budgetBytes,
             int minimumCapacity = 4096)
         {
             if (requestedCapacity <= 0)
@@ -99,9 +99,10 @@ namespace VoxelEngine.Composition
             if (minimumCapacity <= 0)
                 throw new ArgumentOutOfRangeException(nameof(minimumCapacity));
 
-            int budgetCapacity = Math.Max(
-                minimumCapacity,
+            long budgetCapacityLong = Math.Max(
+                (long)minimumCapacity,
                 budgetBytes / VoxelDimensions.BytesPerMixedBrick);
+            int budgetCapacity = (int)Math.Min(int.MaxValue, budgetCapacityLong);
             return Math.Min(Math.Max(requestedCapacity, minimumCapacity), budgetCapacity);
         }
 
@@ -226,7 +227,7 @@ namespace VoxelEngine.Composition
             int expectedResidentRegions,
             int mixedBrickCapacity,
             int changeJournalCapacity = 4096,
-            int maxMixedBrickAllocationBytes = MaximumMixedBrickAllocationBytes)
+            long maxMixedBrickAllocationBytes = MaximumMixedBrickAllocationBytes)
         {
             if (expectedResidentRegions <= 0)
                 throw new ArgumentOutOfRangeException(nameof(expectedResidentRegions));
@@ -263,7 +264,7 @@ namespace VoxelEngine.Composition
                 int expectedResidentRegions,
                 int mixedBrickCapacity,
                 int changeJournalCapacity,
-                int maxMixedBrickAllocationBytes = MaximumMixedBrickAllocationBytes)
+                long maxMixedBrickAllocationBytes = MaximumMixedBrickAllocationBytes)
             {
                 // The ceiling is still applied before the eager BrickPool allocation — that guard
                 // exists to stop a pathological request freezing the machine. What it must not do

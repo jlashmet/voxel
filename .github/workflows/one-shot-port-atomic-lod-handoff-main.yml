@@ -1,0 +1,56 @@
+name: One-shot port atomic LOD handoff main
+
+on:
+  push:
+    branches:
+      - feature/voxel-showcase-rendering-repair-v2
+    paths:
+      - .github/workflows/one-shot-port-atomic-lod-handoff-main.yml
+
+permissions:
+  contents: write
+
+jobs:
+  port:
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/voxel-showcase-rendering-repair-v2
+          fetch-depth: 0
+      - name: Three-way port unique atomic LOD handoff files
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin feature/renderer-lod-hole-regression
+          ref=origin/feature/renderer-lod-hole-regression
+          base="$(git merge-base HEAD "$ref")"
+          files=(
+            Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
+            Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs
+            Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/SmoothSurfaceVertex.cs
+            Assets/VoxelEngine/Rendering/Runtime/Shaders/SmoothSurface.shader
+          )
+          git diff --binary "$base".."$ref" -- "${files[@]}" > /tmp/atomic-lod.patch
+          test -s /tmp/atomic-lod.patch
+          git apply --3way --index /tmp/atomic-lod.patch
+
+          # Fail closed if the older reference branch overwrote any current correctness work.
+          grep -q 'AllOwnedCoreRegionsResident' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
+          grep -q 'ExactSnapshotRegionCoverage' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
+          grep -q 'FeaturePreservingFallbackStep' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
+          grep -q '_activeLodCoverage' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs
+          grep -q 'EnsureDesiredCoverage' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs
+          grep -q '_hierarchyRequestPriorities' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
+          grep -q 'RequestHierarchyCoverage' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
+          git diff --cached --check
+          git diff --cached --stat
+
+          # Temporary workflow must not remain in the PR tree.
+          git rm .github/workflows/one-shot-port-atomic-lod-handoff-main.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Port atomic voxel LOD handoff'
+          git push origin HEAD:feature/voxel-showcase-rendering-repair-v2

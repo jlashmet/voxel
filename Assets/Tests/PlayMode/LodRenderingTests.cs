@@ -91,6 +91,10 @@ namespace VoxelEngine.Tests.PlayMode
 
                 foreach (var band in bands)
                 {
+                    // Keep the lifecycle snapshot specific to the step-4 observation window.
+                    if (band.step == 4)
+                        Step4FalseEmptyDiagnostics.Reset();
+
                     // Fixed orthographic framing means camera distance selects the LOD ring without
                     // shrinking the castle on screen. Loss of openings/architectural edges is now
                     // measurable rather than hidden by perspective.
@@ -173,6 +177,16 @@ namespace VoxelEngine.Tests.PlayMode
                       + $"meta:{metrics.Step4ExactMetadataScheduled}/{metrics.Step4ExactMetadataCompleted}/"
                       + $"revReject:{metrics.Step4ExactMetadataRevisionRejects}/"
                       + $"pinReject:{metrics.Step4ExactMetadataPinRejects} "
+                      + $"visibility:known:{metrics.Step4VisibilityKnown}/inBand:{metrics.Step4VisibilityInBand}/"
+                      + $"frustum:{metrics.Step4VisibilityFrustum}/ready:{metrics.Step4VisibilityReady}/"
+                      + $"empty:{metrics.Step4VisibilityEmpty} "
+                      + $"lifecycle:{Step4FalseEmptyDiagnostics.Current} "
+                      + $"fallback:{metrics.Step4FeatureFallbackScheduled}/{metrics.Step4FeatureFallbackCompleted}/"
+                      + $"nonEmpty:{metrics.Step4FeatureFallbackNonEmpty}/published:{metrics.Step4FeatureFallbackPublished} "
+                      + $"fallback=s:{metrics.Step4FeatureFallbackScheduled}/"
+                      + $"c:{metrics.Step4FeatureFallbackCompleted}/"
+                      + $"n:{metrics.Step4FeatureFallbackNonEmpty}/"
+                      + $"p:{metrics.Step4FeatureFallbackPublished} "
                       + $"globalInvalidations=palette:{metrics.MaterialPaletteInvalidations}/"
                       + $"surface:{metrics.SurfaceCatalogueInvalidations}/"
                       + $"coating:{metrics.CoatingCatalogueInvalidations}/"

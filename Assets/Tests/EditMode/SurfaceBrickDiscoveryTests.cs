@@ -283,17 +283,19 @@ namespace VoxelEngine.Tests.EditMode
             Assert.AreEqual(1, cache.DiscoverSurfaceBricks(new[] { brick }),
                 "The first immutable summary publication must admit the chunk.");
             Assert.AreEqual(1, cache.KnownCount);
-            Assert.AreEqual(1, cache.DirtyCount);
+            Assert.AreEqual(0, cache.DirtyCount,
+                "Immutable discovery should establish authoritative known/version state without "
+              + "creating build demand until the chunk belongs to the active ring traversal.");
 
             Assert.AreEqual(0, cache.DiscoverSurfaceBricks(new[] { brick }),
                 "Later publication slices for the same unchanged region must not create a new "
               + "source generation for an already-known chunk.");
             Assert.AreEqual(1, cache.KnownCount);
-            Assert.AreEqual(1, cache.DirtyCount);
+            Assert.AreEqual(0, cache.DirtyCount,
+                "Repeated immutable discovery must remain passive and must not re-dirty the chunk.");
 
-            // Real edits keep the old semantics: known chunks are explicitly invalidated. The
-            // dirty set coalesces membership, but the call is still routed through the mutation
-            // path rather than discovery admission.
+            // Real edits keep the old semantics: known chunks are explicitly invalidated. Unlike
+            // immutable discovery, the mutation path must activate dirty rebuild demand immediately.
             cache.InvalidateSurfaceBricks(new[] { brick });
             Assert.AreEqual(1, cache.KnownCount);
             Assert.AreEqual(1, cache.DirtyCount);

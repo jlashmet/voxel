@@ -122,10 +122,17 @@ namespace VoxelEngine.Tests.EditMode
                 "Job batches should flush once per world frame, not once per worker/job.");
             int water = scheduler.IndexOf("_water.Prepare(storage, camera, voxelSize, WaterBuildBudgetMs);",
                                           StringComparison.Ordinal);
-            int visibility = scheduler.IndexOf("CollectVisibility(camera, voxelSize, frame);", first,
-                                               StringComparison.Ordinal);
-            Assert.Greater(first, water, "Flush must include water and solid jobs scheduled this frame.");
-            Assert.Greater(visibility, first, "Flush must happen before the frame returns to draw traversal.");
+            int visibility = scheduler.LastIndexOf(
+                "CollectVisibility(camera, voxelSize, frame);", StringComparison.Ordinal);
+            int frameAccounting = scheduler.IndexOf(
+                "_prepareTiming.Add(ElapsedMs(prepareStart));", first, StringComparison.Ordinal);
+            Assert.Greater(first, water,
+                "Flush must include water and solid jobs scheduled this frame.");
+            Assert.Greater(first, visibility,
+                "Current-ring/visible demand must be collected before worker admission and its "
+              + "single non-blocking batch flush.");
+            Assert.Greater(frameAccounting, first,
+                "The non-blocking batch flush must occur before the scheduler returns the frame.");
         }
 
         [Test]
@@ -472,20 +479,22 @@ namespace VoxelEngine.Tests.EditMode
 
 
         [Test]
-        public void GeometryResidencyIncludesTheSnapshotHalo()
+        public void GeometryResidencyRequiresOwnedCoreRegions()
         {
             string cache = ReadRenderingSource(
                 Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"));
-            int start = cache.IndexOf("private bool AnyOverlappedRegionResident",
+            int start = cache.IndexOf("private bool AllOwnedCoreRegionsResident",
                                       StringComparison.Ordinal);
             int end = cache.IndexOf("internal bool TryEvictOneForArenaPressure", start,
                                     StringComparison.Ordinal);
             Assert.GreaterOrEqual(start, 0);
             Assert.Greater(end, start);
             string residency = cache.Substring(start, end - start);
-            StringAssert.Contains("int halo = Padding * SourceStep;", residency);
-            StringAssert.Contains("chunk * VoxelsPerAxis - halo", residency);
-            StringAssert.Contains("(chunk + 1) * VoxelsPerAxis + halo - 1", residency);
+            StringAssert.Contains("int3 minVoxel = chunk * VoxelsPerAxis;", residency);
+            StringAssert.Contains("int3 maxVoxel = (chunk + 1) * VoxelsPerAxis - 1;", residency);
+            StringAssert.Contains(
+                "if (!source.IsRegionResident(new int3(x, y, z))) return false;", residency);
+            StringAssert.DoesNotContain("int halo = Padding * SourceStep;", residency);
         }
 
 

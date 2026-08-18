@@ -49,7 +49,7 @@ namespace VoxelEngine.Showcase
 
         [Tooltip("Mixed-brick pool capacity. Bounded by configuration, never by world size. " +
                  "Each slot currently costs 2112 B; runtime clamps this to the device tier.")]
-        [SerializeField] private int m_BrickPoolCapacity = 262144;
+        [SerializeField] private int m_BrickPoolCapacity = 2367424;
 
         [Header("Streaming")]
         [Tooltip("Regions kept resident around the player. One region is 51.2 m across.")]
@@ -118,7 +118,7 @@ namespace VoxelEngine.Showcase
 
             // Clamp by bytes, not an obsolete slot count. Sidecars change per-slot cost; tier
             // budgets remain the authority and cannot silently be exceeded by an inspector value.
-            int tierBytes = DeviceTierBudget.GetForTier(DeviceTierBudget.Detect()).BrickPoolCapacity;
+            long tierBytes = DeviceTierBudget.GetForTier(DeviceTierBudget.Detect()).BrickPoolCapacity;
             int capacity = VoxelEngineBootstrap.ClampMixedBrickCapacityToBudget(
                 m_BrickPoolCapacity, tierBytes);
 
@@ -180,6 +180,19 @@ namespace VoxelEngine.Showcase
             _tornadoes.Clear();
             if (_tornadoMaterial != null) Destroy(_tornadoMaterial);
             _tornadoMaterial = null;
+
+            // The far field is dynamically created by OnEnable and owns Persistent NativeArrays,
+            // meshes, and a reference to this world's FarFieldStructureStore. Leaving the child
+            // alive across a component disable lets it draw against a disposed world and creates
+            // a second clipmap on the next enable. Sever the world reference before deferred
+            // GameObject destruction, then let VoxelFarTerrain.OnDestroy retire its job/caches.
+            if (_farTerrain != null)
+            {
+                _farTerrain.Structures = null;
+                Destroy(_farTerrain.gameObject);
+                _farTerrain = null;
+            }
+
             _world?.Dispose();
             _world = null;
         }

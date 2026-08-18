@@ -38,24 +38,26 @@ namespace VoxelEngine.Tests.PlayMode
         /// (brick pool + region pointer tables) stays within the tier budget at all times,
         /// with no upward trend exceeding +/-2% over the session.
         /// </summary>
+        // One tier per test/process. Unity's native allocator may retain released pages in
+        // process RSS, so running all three capacities sequentially makes the watchdog measure
+        // allocator history rather than the active tier's world memory.
         [Test]
         [Category("SC_005")]
         [Category("US4")]
-        public void MemoryStaysWithinTierBudgetOverTwoHours()
-        {
-            // Arrange: set up per-tier budgets from device-matrix.md.
-            var tierConfigs = new (DeviceTier Tier, int BrickPoolCapacityBytes, float MaxWorldMemoryMB)[]
-            {
-                (DeviceTier.PC,      1 << 29, 1800f),   // 1.5 GB pool + overhead
-                (DeviceTier.Console, 1 << 30, 1200f),   // 1.0 GB pool + overhead
-                (DeviceTier.MobileHE, 1 << 22, 464f),   // 384 MB pool + overhead
-            };
+        public void PcMemoryStaysWithinTierBudgetOverTwoHours() =>
+            RunOneTierMemoryTest(DeviceTier.PC, 1 << 29, 1800f);
 
-            foreach (var (tier, brickPoolCapacityBytes, maxWorldMemoryMB) in tierConfigs)
-            {
-                RunOneTierMemoryTest(tier, brickPoolCapacityBytes, maxWorldMemoryMB);
-            }
-        }
+        [Test]
+        [Category("SC_005")]
+        [Category("US4")]
+        public void ConsoleMemoryStaysWithinTierBudgetOverTwoHours() =>
+            RunOneTierMemoryTest(DeviceTier.Console, 1 << 30, 1200f);
+
+        [Test]
+        [Category("SC_005")]
+        [Category("US4")]
+        public void MobileHeMemoryStaysWithinTierBudgetOverTwoHours() =>
+            RunOneTierMemoryTest(DeviceTier.MobileHE, 1 << 22, 464f);
 
         private void RunOneTierMemoryTest(DeviceTier tier, int brickPoolCapacityBytes, float maxWorldMemoryMB)
         {
@@ -154,7 +156,7 @@ namespace VoxelEngine.Tests.PlayMode
         public void EvictionReturnsBricksToPool()
         {
             var table = new RegionTable(64, Allocator.Persistent);
-            var pool = new BrickPool(1 << 20, Allocator.Persistent);
+            var pool = new BrickPool(16, Allocator.Persistent);
 
             // Load a region.
             int3 regionCoord = new int3(100, 100, 100);

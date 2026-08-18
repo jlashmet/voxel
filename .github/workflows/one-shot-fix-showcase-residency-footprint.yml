@@ -1,0 +1,70 @@
+name: One-shot fix showcase residency footprint
+
+on:
+  push:
+    branches:
+      - feature/voxel-showcase-rendering-repair-v2
+    paths:
+      - .github/workflows/one-shot-fix-showcase-residency-footprint.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/voxel-showcase-rendering-repair-v2
+          fetch-depth: 0
+      - name: Align showcase residency with camera-centred physical coverage
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('Assets/Game/Composition/Showcase/ShowcaseWorld.cs')
+          text = path.read_text()
+
+          replacements = [
+              (
+                  '            using (s_RefreshPendingMarker.Auto()) RefreshPending(centre);\n',
+                  '            using (s_RefreshPendingMarker.Auto()) RefreshPending(centre, cameraMetres);\n'
+              ),
+              (
+                  '        private void RefreshPending(int3 centre)\n',
+                  '        private void RefreshPending(int3 centre, float3 cameraMetres)\n'
+              ),
+              (
+                  '''            for (int dx = -LoadRadiusRegions; dx <= LoadRadiusRegions; dx++)\n            for (int dz = -LoadRadiusRegions; dz <= LoadRadiusRegions; dz++)\n            {\n                if (dx * dx + dz * dz > LoadRadiusRegions * LoadRadiusRegions) continue;\n\n                int rx = centre.x + dx;\n                int rz = centre.z + dz;\n                SurfaceLayerSpan(rx, rz, out int minLayer, out int maxLayer);\n''',
+                  '''            for (int dx = -LoadRadiusRegions; dx <= LoadRadiusRegions; dx++)\n            for (int dz = -LoadRadiusRegions; dz <= LoadRadiusRegions; dz++)\n            {\n                int rx = centre.x + dx;\n                int rz = centre.z + dz;\n                if (!ShowcaseResidencyFootprint.ColumnIntersectsRadius(\n                        cameraMetres, rx, rz, LoadRadiusRegions * RegionMetres))\n                    continue;\n\n                SurfaceLayerSpan(rx, rz, out int minLayer, out int maxLayer);\n'''
+              ),
+              (
+                  '''                    // Residency is a disc, so corners outside it are never loaded and must not\n                    // be treated as a gap.\n                    if (dx * dx + dz * dz > LoadRadiusRegions * LoadRadiusRegions) continue;\n\n                    int rx = centre.x + dx;\n                    int rz = centre.z + dz;\n                    SurfaceLayerSpan(rx, rz, out int minLayer, out int maxLayer);\n''',
+                  '''                    // The far-terrain hole is centred on the actual camera, not on the integer\n                    // coordinate of its current region. Check the same physical footprint used by\n                    // RefreshPending so a sub-region camera offset cannot classify an unloaded\n                    // fringe column as safely covered near terrain.\n                    int rx = centre.x + dx;\n                    int rz = centre.z + dz;\n                    if (!ShowcaseResidencyFootprint.ColumnIntersectsRadius(\n                            cameraMetres, rx, rz, LoadRadiusRegions * RegionMetres))\n                        continue;\n\n                    SurfaceLayerSpan(rx, rz, out int minLayer, out int maxLayer);\n'''
+              ),
+              (
+                  '            return GuaranteedRadius(cameraMetres, centre, LoadRadiusRegions);\n',
+                  '''            return math.min(LoadRadiusRegions * RegionMetres,\n                            GuaranteedRadius(cameraMetres, centre, LoadRadiusRegions));\n'''
+              ),
+          ]
+
+          for old, new in replacements:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'expected exactly one residency target, found {count}: {old[:100]!r}')
+              text = text.replace(old, new, 1)
+
+          path.write_text(text)
+          PY
+          git diff --check
+          git diff -- Assets/Game/Composition/Showcase/ShowcaseWorld.cs
+          test "$(git diff --name-only | wc -l | tr -d ' ')" = "1"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add Assets/Game/Composition/Showcase/ShowcaseWorld.cs
+          git commit -m 'Align showcase residency with camera coverage'
+          git push origin HEAD:feature/voxel-showcase-rendering-repair-v2

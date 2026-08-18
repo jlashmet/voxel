@@ -117,6 +117,7 @@ namespace VoxelEngine.Showcase
         private CastlePlan _pendingCastlePlan;
         private ICastleBuildSession _castleBuild;
         private readonly List<int3> _castleRegions = new();
+        private readonly HashSet<int3> _castleRegionSet = new();
         private readonly Queue<int3> _deferredFeatureRegions = new();
         private bool _castleTerrainQueued;
 
@@ -174,6 +175,8 @@ namespace VoxelEngine.Showcase
 
         private VoxelChangeJournal _changes => _storage.ChangeJournal;
         private readonly List<int3> _pendingLoads = new();
+        private readonly HashSet<int3> _pendingLoadSet = new();
+        private readonly ShowcasePendingLoadComparer _pendingLoadComparer = new();
 
         public IRegionReadSource ReadStorage
         {
@@ -352,19 +355,17 @@ namespace VoxelEngine.Showcase
         {
             using var streamingScope = s_StreamingMarker.Auto();
             var centre = PositionToRegion(cameraMetres);
-            using (s_RefreshPendingMarker.Auto()) RefreshPending(centre);
-
-            var deadline = Time.realtimeSinceStartupAsDouble + budgetMs * 0.001;
-            var start = Time.realtimeSinceStartupAsDouble;
-            bool didWork = false;
-            bool landmarkStepped = false;
 
             // IncrementalBuild holds handle-like RegionTable/BrickPool snapshots whose scalar
             // allocator bookkeeping is published after each stage. No other world writer may
             // allocate between those stages. Give the castle exclusive mutation ownership until
-            // its atomic commit, one semantic stage per frame.
+            // its atomic commit, one semantic stage per frame. The pending terrain list cannot be
+            // consumed while the castle owns writes, so rebuilding and sorting it here would be
+            // dead work on every castle-build frame.
             if (_castleBuild != null && !_castleBuild.IsComplete)
             {
+                var castleDeadline = Time.realtimeSinceStartupAsDouble + budgetMs * 0.001;
+                var castleStart = Time.realtimeSinceStartupAsDouble;
                 // Spend the frame's budget, rather than taking a single step and returning.
                 //
                 // The site stage sub-steps a fixed four rows per call and the keep sub-steps one
@@ -386,11 +387,18 @@ namespace VoxelEngine.Showcase
                         StepLandmarks();
                     }
                     while (_castleBuild != null && !_castleBuild.IsComplete
-                           && Time.realtimeSinceStartupAsDouble < deadline);
+                           && Time.realtimeSinceStartupAsDouble < castleDeadline);
                 }
-                LastGenerateMs = (Time.realtimeSinceStartupAsDouble - start) * 1000.0;
+                LastGenerateMs = (Time.realtimeSinceStartupAsDouble - castleStart) * 1000.0;
                 return;
             }
+
+            using (s_RefreshPendingMarker.Auto()) RefreshPending(centre);
+
+            var deadline = Time.realtimeSinceStartupAsDouble + budgetMs * 0.001;
+            var start = Time.realtimeSinceStartupAsDouble;
+            bool didWork = false;
+            bool landmarkStepped = false;
 
             // Features belong to regions whose terrain is already committed, so this queue is the
             // only thing between the player and a settlement that is still bare ground. Give it a
@@ -522,12 +530,16 @@ namespace VoxelEngine.Showcase
                 {
                     // Perimeter of this shell only; the interior was cleared by earlier passes.
                     if (math.max(math.abs(dx), math.abs(dz)) != shell) continue;
-                    // Residency is a disc, so corners outside it are never loaded and must not
-                    // be treated as a gap.
-                    if (dx * dx + dz * dz > LoadRadiusRegions * LoadRadiusRegions) continue;
-
+                    // The far-terrain hole is centred on the actual camera, not on the integer
+                    // coordinate of its current region. Check the same physical footprint used by
+                    // RefreshPending so a sub-region camera offset cannot classify an unloaded
+                    // fringe column as safely covered near terrain.
                     int rx = centre.x + dx;
                     int rz = centre.z + dz;
+                    if (!ShowcaseResidencyFootprint.ColumnIntersectsRadius(
+                            cameraMetres, rx, rz, LoadRadiusRegions * RegionMetres))
+                        continue;
+
                     SurfaceLayerSpan(rx, rz, out int minLayer, out int maxLayer);
                     if (maxLayer - minLayer > MaxSurfaceLayersPerColumn)
                         maxLayer = minLayer + MaxSurfaceLayersPerColumn;
@@ -538,7 +550,8 @@ namespace VoxelEngine.Showcase
                 }
             }
 
-            return GuaranteedRadius(cameraMetres, centre, LoadRadiusRegions);
+            return math.min(LoadRadiusRegions * RegionMetres,
+                            GuaranteedRadius(cameraMetres, centre, LoadRadiusRegions));
         }
 
         /// <summary>
@@ -625,13 +638,14 @@ namespace VoxelEngine.Showcase
         {
             if (_generated.Contains(rc)) return;
             if (_gen.Active && _gen.Coord.Equals(rc)) return;
-            if (_pendingLoads.Contains(rc)) return;
+            if (!_pendingLoadSet.Add(rc)) return;
             _pendingLoads.Add(rc);
         }
 
         private void RefreshPending(int3 centre)
         {
             _pendingLoads.Clear();
+            _pendingLoadSet.Clear();
 
             // Residency follows the terrain surface through the vertical region stack rather
             // than pinning a single layer. An empty region still costs 1 MB of brick pointers,
@@ -671,46 +685,29 @@ namespace VoxelEngine.Showcase
             if (_castleTerrainQueued && !_hasCastlePlan)
             {
                 for (int i = 0; i < _castleRegions.Count; i++)
-                {
-                    int3 required = _castleRegions[i];
-                    if (_generated.Contains(required)
-                        || _gen.Active && _gen.Coord.Equals(required)
-                        || _pendingLoads.Contains(required)) continue;
-                    _pendingLoads.Add(required);
-                }
+                    QueueRegion(_castleRegions[i]);
             }
 
             // Landmark dependencies first, then nearest camera residency. Appending castle
             // regions after sorting made a complete landmark wait behind the entire radius and
             // could never meet the startup contract.
-            _pendingLoads.Sort((a, b) =>
-            {
-                bool aCastle = _castleTerrainQueued && !_hasCastlePlan
-                            && _castleRegions.Contains(a);
-                bool bCastle = _castleTerrainQueued && !_hasCastlePlan
-                            && _castleRegions.Contains(b);
-                if (aCastle != bCastle) return aCastle ? -1 : 1;
-                long da = (long)(a.x - centre.x) * (a.x - centre.x)
-                        + (long)(a.z - centre.z) * (a.z - centre.z);
-                long db = (long)(b.x - centre.x) * (b.x - centre.x)
-                        + (long)(b.z - centre.z) * (b.z - centre.z);
-                return da.CompareTo(db);
-            });
+            _pendingLoadComparer.Centre = centre;
+            _pendingLoadComparer.PrioritizeCastle = _castleTerrainQueued && !_hasCastlePlan;
+            _pendingLoadComparer.CastleRegions = _castleRegionSet;
+            _pendingLoads.Sort(_pendingLoadComparer);
         }
 
         private void EvictDistantRegions(int3 centre)
         {
             _residencyStore.Refresh(in _table, in _pool);
-            var resident = _table.GetResidentCoords(Allocator.Temp);
+            int cursor = 0;
 
-            for (int i = 0; i < resident.Length; i++)
+            while (_table.TryGetNextResidentCoord(ref cursor, out int3 rc))
             {
-                var rc = resident[i];
-
                 // The in-flight generator owns this Region value until FinishRegion commits it.
                 // Evicting it here disposes BrickRefs out from under the next StepRegion call.
                 if (_gen.Active && rc.Equals(_gen.Coord)) continue;
-                if (_castleTerrainQueued && !_hasCastlePlan && _castleRegions.Contains(rc))
+                if (_castleTerrainQueued && !_hasCastlePlan && _castleRegionSet.Contains(rc))
                     continue;
 
                 int dx = rc.x - centre.x;
@@ -726,8 +723,6 @@ namespace VoxelEngine.Showcase
                 _changes.PublishRegion(rc, VoxelChangeKind.Residency);
                 RegionsEvicted++;
             }
-
-            resident.Dispose();
         }
 
         // -- terrain generation --------------------------------------------------
@@ -896,7 +891,7 @@ namespace VoxelEngine.Showcase
             // no neighbour is consulted, which is why regions may arrive in any order, and why
             // the work can be queued rather than paid for in the frame the terrain lands.
             bool deferFeatures = _castleTerrainQueued && !_hasCastlePlan
-                              && _castleRegions.Contains(coord);
+                              && _castleRegionSet.Contains(coord);
             if (deferFeatures)
             {
                 _deferredFeatureRegions.Enqueue(coord);
@@ -1114,9 +1109,14 @@ namespace VoxelEngine.Showcase
 
             _pendingCastlePlan = plan;
             _castleRegions.Clear();
+            _castleRegionSet.Clear();
             for (int rz = minRz; rz <= maxRz; rz++)
             for (int rx = minRx; rx <= maxRx; rx++)
-                _castleRegions.Add(new int3(rx, 0, rz));
+            {
+                int3 region = new int3(rx, 0, rz);
+                _castleRegions.Add(region);
+                _castleRegionSet.Add(region);
+            }
             _castleTerrainQueued = true;
         }
 

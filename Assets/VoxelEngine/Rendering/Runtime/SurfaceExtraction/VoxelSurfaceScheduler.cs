@@ -42,6 +42,15 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public readonly ulong Step4ExactMetadataCompleted;
         public readonly ulong Step4ExactMetadataRevisionRejects;
         public readonly ulong Step4ExactMetadataPinRejects;
+        public readonly ulong Step4FeatureFallbackScheduled;
+        public readonly ulong Step4FeatureFallbackCompleted;
+        public readonly ulong Step4FeatureFallbackNonEmpty;
+        public readonly ulong Step4FeatureFallbackPublished;
+        public readonly int Step4VisibilityKnown;
+        public readonly int Step4VisibilityInBand;
+        public readonly int Step4VisibilityFrustum;
+        public readonly int Step4VisibilityReady;
+        public readonly int Step4VisibilityEmpty;
         public readonly ulong MaterialPaletteInvalidations;
         public readonly ulong SurfaceCatalogueInvalidations;
         public readonly ulong CoatingCatalogueInvalidations;
@@ -120,6 +129,19 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             Step4ExactMetadataCompleted = isStep4 ? solids.ExactMetadataCompleteCount : 0UL;
             Step4ExactMetadataRevisionRejects = isStep4 ? solids.ExactMetadataRevisionRejectCount : 0UL;
             Step4ExactMetadataPinRejects = isStep4 ? solids.ExactMetadataPinRejectCount : 0UL;
+            Step4FeatureFallbackScheduled = isStep4
+                ? solids.FeaturePreservingFallbackScheduleCount : 0UL;
+            Step4FeatureFallbackCompleted = isStep4
+                ? solids.FeaturePreservingFallbackCompleteCount : 0UL;
+            Step4FeatureFallbackNonEmpty = isStep4
+                ? solids.FeaturePreservingFallbackNonEmptyCount : 0UL;
+            Step4FeatureFallbackPublished = isStep4
+                ? solids.FeaturePreservingFallbackPublishCount : 0UL;
+            Step4VisibilityKnown = isStep4 ? solids.LastVisibilityKnownCount : 0;
+            Step4VisibilityInBand = isStep4 ? solids.LastVisibilityInBandCount : 0;
+            Step4VisibilityFrustum = isStep4 ? solids.LastVisibilityFrustumCount : 0;
+            Step4VisibilityReady = isStep4 ? solids.LastVisibilityReadyCount : 0;
+            Step4VisibilityEmpty = isStep4 ? solids.LastVisibilityEmptyCount : 0;
             MaterialPaletteInvalidations = solids.MaterialPaletteInvalidationCount;
             SurfaceCatalogueInvalidations = solids.SurfaceCatalogueInvalidationCount;
             CoatingCatalogueInvalidations = solids.CoatingCatalogueInvalidationCount;
@@ -200,6 +222,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             uint step4BuildPhaseMask = 0, step4ActiveJobMask = 0;
             ulong step4MetadataScheduled = 0, step4MetadataCompleted = 0;
             ulong step4MetadataRevisionRejects = 0, step4MetadataPinRejects = 0;
+            ulong step4FallbackScheduled = 0, step4FallbackCompleted = 0;
+            ulong step4FallbackNonEmpty = 0, step4FallbackPublished = 0;
+            int step4VisibilityKnown = 0, step4VisibilityInBand = 0;
+            int step4VisibilityFrustum = 0, step4VisibilityReady = 0, step4VisibilityEmpty = 0;
             ulong materialInvalidations = 0, surfaceInvalidations = 0;
             ulong coatingInvalidations = 0, profileInvalidations = 0;
             long pendingUploadBytes = 0;
@@ -230,6 +256,15 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     step4MetadataCompleted += worker.ExactMetadataCompleteCount;
                     step4MetadataRevisionRejects += worker.ExactMetadataRevisionRejectCount;
                     step4MetadataPinRejects += worker.ExactMetadataPinRejectCount;
+                    step4FallbackScheduled += worker.FeaturePreservingFallbackScheduleCount;
+                    step4FallbackCompleted += worker.FeaturePreservingFallbackCompleteCount;
+                    step4FallbackNonEmpty += worker.FeaturePreservingFallbackNonEmptyCount;
+                    step4FallbackPublished += worker.FeaturePreservingFallbackPublishCount;
+                    step4VisibilityKnown += worker.LastVisibilityKnownCount;
+                    step4VisibilityInBand += worker.LastVisibilityInBandCount;
+                    step4VisibilityFrustum += worker.LastVisibilityFrustumCount;
+                    step4VisibilityReady += worker.LastVisibilityReadyCount;
+                    step4VisibilityEmpty += worker.LastVisibilityEmptyCount;
                 }
                 materialInvalidations += worker.MaterialPaletteInvalidationCount;
                 surfaceInvalidations += worker.SurfaceCatalogueInvalidationCount;
@@ -264,6 +299,15 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             Step4ExactMetadataCompleted = step4MetadataCompleted;
             Step4ExactMetadataRevisionRejects = step4MetadataRevisionRejects;
             Step4ExactMetadataPinRejects = step4MetadataPinRejects;
+            Step4FeatureFallbackScheduled = step4FallbackScheduled;
+            Step4FeatureFallbackCompleted = step4FallbackCompleted;
+            Step4FeatureFallbackNonEmpty = step4FallbackNonEmpty;
+            Step4FeatureFallbackPublished = step4FallbackPublished;
+            Step4VisibilityKnown = step4VisibilityKnown;
+            Step4VisibilityInBand = step4VisibilityInBand;
+            Step4VisibilityFrustum = step4VisibilityFrustum;
+            Step4VisibilityReady = step4VisibilityReady;
+            Step4VisibilityEmpty = step4VisibilityEmpty;
             MaterialPaletteInvalidations = materialInvalidations;
             SurfaceCatalogueInvalidations = surfaceInvalidations;
             CoatingCatalogueInvalidations = coatingInvalidations;
@@ -361,13 +405,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         [Obsolete("Use NearSolidWorkerCount for the base ring or WorkerCountForSourceStep for a specific LOD.")]
         public const int SolidWorkerCount = NearSolidWorkerCount;
 
-        /// <summary>
-        /// Build workspaces are deliberately not uniform across LODs. Exact-sampling snapshot
-        /// storage grows with the cube of SourceStep (step 8 has a 66^3 padded brick cache), while
-        /// the number of chunks needed to cover a coarse ring falls sharply. Keeping eight giant
-        /// caches in the outer ring wastes tens of megabytes of persistent scratch and increases
-        /// memory pressure without increasing the renderer-wide frame budget.
-        /// </summary>
         public static int WorkerCountForSourceStep(int sourceStep) => sourceStep switch
         {
             <= 2 => NearSolidWorkerCount,
@@ -472,8 +509,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         };
 
         public const float MaxVoxelRingRadiusMetres = 409.6f;
-        // Allocated once with the scheduler. Runtime streaming may wait for a free range but
-        // cannot grow these buffers and create a render-thread GPU allocation spike.
         private const int SurfaceArenaVertexCapacity = 2 * 1024 * 1024;
         private const int SurfaceArenaIndexCapacity = 6 * 1024 * 1024;
         public const int SurfaceArenaDrawCapacity = 16 * 1024;
@@ -491,9 +526,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private const int ChangeRecoverySlotsPerFrame = 32;
         private readonly List<VoxelChangeRecord> _changeScratch = new(ChangeReadRecordsPerFrame);
         private NativeArray<int3> _changeRecoveryRegions;
-        // A fresh scheduler must discover already-resident surfaces, but this is not a
-        // mutation signal. Keep startup discovery separate from change-overflow recovery
-        // so current-state enumeration never advances geometry generations.
         private bool _initialSurfaceDiscoveryPending = true;
         private int _initialSurfaceDiscoveryCursor;
         private int _changeRecordIndex;
@@ -514,6 +546,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private readonly List<int3> _changedWaterBricks = new(ChangeBrickExpansionsPerFrame);
         private readonly HashSet<int3> _surfaceDiscoveryRegions = new();
         private readonly List<int3> _discoveredSurfaceBricks = new(512);
+        private readonly List<int3> _ownedDiscoveryBricks = new(512);
         private readonly Queue<int3> _surfaceDiscoveryQueue = new();
         private readonly HashSet<int3> _queuedSurfaceDiscoveryRegions = new();
         private readonly HashSet<int3> _surfaceDiscoveryRescanRegions = new();
@@ -564,24 +597,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private ulong _framePathBlockingCompletionViolations;
         private long _lastFrameManagedAllocationBytes;
 
-        /// <summary>
-        /// Renderer-wide main-thread budget for admitting solid surface work. This is shared by
-        /// every LOD ring and worker; it is not multiplied by worker count.
-        /// </summary>
         public double SolidBuildBudgetMs { get; set; } = 0.20;
-        /// <summary>
-        /// Main-thread budget for snapshotting and publishing full-region surface discovery.
-        /// Classification and compaction themselves run on Burst jobs and never borrow Storage
-        /// memory. Ordinary edits bypass this path through the fine-grained change journal.
-        /// </summary>
         public double SurfaceDiscoveryBudgetMs { get; set; } = 0.10;
-        /// <summary>Maximum solid geometry payload copied to GPU buffers per frame.</summary>
         public int SolidUploadBudgetBytes { get; set; } = 1024 * 1024;
-        /// <summary>Maximum payload slice given to one worker in a frame.</summary>
         public int SolidUploadSliceBytes { get; set; } = 256 * 1024;
-        /// <summary>Caps workers touched by GPU publication, including staging starts.</summary>
         public int SolidUploadWorkerBudget { get; set; } = 4;
-        /// <summary>Wall-clock admission deadline around upload slices.</summary>
         public double SolidUploadBudgetMs { get; set; } = 0.20;
         public int LastFrameSolidUploadedBytes => _lastFrameSolidUploadedBytes;
         public int LastFrameSolidUploadCompletions => _lastFrameSolidUploadCompletions;
@@ -619,9 +639,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             }
         }
         public double WaterBuildBudgetMs { get; set; } = 0.15;
-        /// <summary>Maximum water geometry payload copied into its fixed arena per frame.</summary>
         public int WaterUploadBudgetBytes { get; set; } = 256 * 1024;
-        /// <summary>Wall-clock gate for the single water publication slice.</summary>
         public double WaterUploadBudgetMs { get; set; } = 0.10;
         public int LastFrameWaterUploadedBytes { get; private set; }
         private ulong _observedWaterArenaAllocationFailures;
@@ -687,19 +705,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         {
             if (storage == null) throw new ArgumentNullException(nameof(storage));
 
-            // RenderGraph records this pass once per camera. Geometry derivation is world/frame
-            // work, not camera work: a second camera in the same Unity frame may change only
-            // visibility, never consume another journal/build/upload budget.
             if (_lastAdvancedFrame == frame)
             {
                 CollectVisibility(camera, voxelSize, frame);
                 return;
             }
 
-            // Measure only the once-per-world-frame geometry orchestration path. Secondary
-            // camera visibility collection is intentionally excluded: this counter answers the
-            // merge-gate question "did streaming/geometry allocate after warmup?" without being
-            // polluted by unrelated camera/test-runner allocations.
             long managedAllocationStart = GC.GetAllocatedBytesForCurrentThread();
             _lastAdvancedFrame = frame;
 
@@ -768,18 +779,31 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             }
             _discoveryTiming.Add(ElapsedMs(discoveryStart));
 
-            // Discovery is correctness work rather than build admission: every worker must learn
-            // about newly surfaced bricks even if this frame has no time left to rebuild them.
-            for (int i = 0; i < _allWorkers.Length; i++)
-                _allWorkers[i].DiscoverSurfaceBricks(_discoveredSurfaceBricks);
+            // Solid discovery establishes authoritative chunk ownership, not halo invalidation.
+            // Canonicalize each discovered block into the interior of the same ring-local chunk
+            // before calling the cache's generic border-aware admission path. This prevents
+            // discovery from creating halo-only chunks whose owned core is non-resident (the
+            // production step-4 y=-1 pin-retry case) while preserving original brick coordinates
+            // for water below and for mutation invalidation above.
+            for (int r = 0; r < _rings.Length; r++)
+            {
+                SurfaceRing ring = _rings[r];
+                _ownedDiscoveryBricks.Clear();
+                int bricksPerChunkAxis = ring.Workers[0].BricksPerAxis;
+                for (int i = 0; i < _discoveredSurfaceBricks.Count; i++)
+                    _ownedDiscoveryBricks.Add(SurfaceDiscoveryChunkOwner.Canonicalize(
+                        _discoveredSurfaceBricks[i], bricksPerChunkAxis));
+                for (int w = 0; w < ring.Workers.Length; w++)
+                    ring.Workers[w].DiscoverSurfaceBricks(_ownedDiscoveryBricks);
+            }
+
+            CollectVisibility(camera, voxelSize, frame);
 
             double workersStart = Time.realtimeSinceStartupAsDouble;
             double solidDeadline = workersStart + Math.Max(0.0, SolidBuildBudgetMs) * 0.001;
             int admittedWorkers = 0;
             using var workersScope = s_WorkersMarker.Auto();
 
-            // Start from a different worker after each admission so one expensive ring/shard
-            // cannot permanently starve the rest when the global budget is intentionally tiny.
             int workerCount = _allWorkers.Length;
             for (int offset = 0; offset < workerCount; offset++)
             {
@@ -802,9 +826,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
             double workerPrepareMs = ElapsedMs(workersStart);
 
-            // GPU publication has its own global frame contract. Each worker receives at
-            // most one bounded slice, so a large completed chunk naturally spans frames
-            // while its previous ready geometry remains visible.
             _lastFrameSolidUploadedBytes = 0;
             _lastFrameSolidUploadCompletions = 0;
             int uploadBudget = Math.Max(0, SolidUploadBudgetBytes);
@@ -842,9 +863,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 _uploadAdmissionCursor = (_uploadAdmissionCursor
                                         + Math.Max(1, uploadScanAdvance)) % workerCount;
 
-            // Arena exhaustion is backpressure, never a reason to allocate another GPU
-            // buffer. Reclaim at most one old offscreen lease per frame; the pending build then
-            // retries publication on a later frame while its previous geometry remains visible.
             ulong arenaFailures = _geometryArena.AllocationFailureCount;
             if (arenaFailures > _observedArenaAllocationFailures && workerCount > 0)
             {
@@ -880,22 +898,13 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             }
             _workerPrepareTiming.Add(workerPrepareMs);
 
-            // Geometry jobs are intentionally never completed while unfinished. Explicitly flush
-            // the once-per-world-frame batch after all solid/discovery/water scheduling so jobs
-            // cannot remain buffered waiting for an unrelated Unity subsystem to force dispatch.
-            // ScheduleBatchedJobs is non-blocking; readiness is still polled on later frames.
             JobHandle.ScheduleBatchedJobs();
 
-            CollectVisibility(camera, voxelSize, frame);
             _prepareTiming.Add(ElapsedMs(prepareStart));
             _lastFrameManagedAllocationBytes = Math.Max(
                 0L, GC.GetAllocatedBytesForCurrentThread() - managedAllocationStart);
         }
 
-        /// <summary>
-        /// Camera-specific half of scheduling. This may run multiple times in one Unity
-        /// frame; it never consumes change, extraction, water-build, or GPU-upload budgets.
-        /// </summary>
         private void CollectVisibility(Camera camera, float voxelSize, int frame)
         {
             _visibleSolids.Clear();
@@ -918,11 +927,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                         int radius = ring.ClipmapRadius;
                         int3 centre = ring.ClipmapCentre;
 
-                        // The ring's toroidal grid already knows exactly which clipmap cells own
-                        // discovered surface chunks. Walk that dense active list rather than the
-                        // entire (2r+1)^3 coordinate volume. Outgoing slots can remain active for
-                        // a few frames while retirement is sliced; skip them against the current
-                        // window so delayed cleanup never draws stale residency.
                         int activeSlots = ring.ActiveSlotCount;
                         for (int slotIndex = 0; slotIndex < activeSlots; slotIndex++)
                         {
@@ -1001,8 +1005,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 return;
             }
 
-            // X slabs own the full Y/Z span. Y slabs are restricted to the overlapping X span,
-            // and Z slabs to overlapping X/Y, making the six boxes disjoint.
             EnqueueClipmapRegionBox(
                 newMin, new int3(overlapMin.x, newMaxExclusive.y, newMaxExclusive.z));
             EnqueueClipmapRegionBox(
@@ -1118,10 +1120,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private void ResetChangeFeedState(IVoxelChangeSource journal)
         {
             _journal = journal;
-            // A newly attached journal describes changes relative to the current Storage state.
-            // Replaying retained history from version zero would repeatedly invalidate geometry
-            // that has never been rendered. Baseline at the latest committed version and use
-            // the existing bounded resident-region recovery to reconcile current state once.
             _changeCursor = journal?.CurrentVersion ?? 0;
             _changeScratch.Clear();
             _changeRecordIndex = 0;
@@ -1231,9 +1229,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     continue;
                 }
 
-                // A second full-region publication while this region is already being processed
-                // invalidates the in-flight snapshot. Queued-but-not-started regions need no extra
-                // entry because their snapshot has not been captured yet.
                 if (_hasActiveSurfaceDiscovery && region.Equals(_activeSurfaceDiscoveryRegion))
                     _surfaceDiscoveryRescanRegions.Add(region);
             }
@@ -1257,8 +1252,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     if (!_surfaceDiscoveryJobHandle.IsCompleted)
                         return;
 
-                    // This is an acknowledgement only. The shared guard refuses to wait if a
-                    // future refactor accidentally reaches it before the worker is complete.
                     if (!GeometryFrameJobCompletionGuard.TryCompleteReady(
                             _surfaceDiscoveryJobHandle,
                             ref _framePathBlockingCompletionViolations))
@@ -1323,9 +1316,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     Edge = edge,
                 }.Schedule(classify);
                 _surfaceDiscoveryJobScheduled = true;
-
-                // Never spin on newly scheduled work. It may finish this frame, but publication
-                // happens only when a later Prepare observes IsCompleted.
                 return;
             }
         }
@@ -1345,8 +1335,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
         public void Dispose()
         {
-            // Teardown is allowed to synchronize; the per-frame Prepare path never waits for an
-            // unfinished discovery job.
             if (_surfaceDiscoveryJobScheduled)
             {
                 _surfaceDiscoveryJobHandle.Complete();

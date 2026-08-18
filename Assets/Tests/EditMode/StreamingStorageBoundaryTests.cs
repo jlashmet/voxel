@@ -155,6 +155,19 @@ namespace VoxelEngine.Tests.EditMode
             public bool IsRegionResident(int3 regionCoord) => Ensured.Contains(regionCoord);
             public void EnsureRegionResident(int3 regionCoord) => Ensured.Add(regionCoord);
             public bool EvictRegion(int3 regionCoord) => false;
+
+            public bool TryGetNextResidentCoord(ref int cursor, out int3 regionCoord)
+            {
+                if (cursor < 0) cursor = 0;
+                if (cursor >= Ensured.Count)
+                {
+                    regionCoord = default;
+                    return false;
+                }
+
+                regionCoord = Ensured[cursor++];
+                return true;
+            }
         }
     }
 }

@@ -45,20 +45,37 @@ namespace VoxelEngine.Tests.PlayMode
             Camera camera = Camera.main;
             Assert.NotNull(camera);
 
-            double castleDeadline = Time.realtimeSinceStartupAsDouble + 90.0;
-            while ((world.CastleBuildStage < 9 || world.CastleVoxels <= 100_000)
-                   && Time.realtimeSinceStartupAsDouble < castleDeadline)
-                yield return null;
-            Assert.GreaterOrEqual(world.CastleBuildStage, 9,
-                $"LOD fixture reached capture before castle publication completed; "
-              + $"stage={world.CastleBuildStage}, voxels={world.CastleVoxels}.");
+            // The showcase startup contract changed from live castle publication to a baked
+            // semantic-world restore. LOD validation must inspect that production startup image,
+            // not wait for the runtime authoring stage that is now deliberately forbidden.
             Assert.Greater(world.CastleVoxels, 100_000,
-                "LOD fixture did not build the production-size showcase castle.");
+                "LOD fixture did not restore the production-size baked showcase castle.");
+            Assert.AreEqual(0, world.CastleBuildStage,
+                "LOD fixture started Play-mode castle authoring instead of using the baked world.");
+            Assert.AreEqual(0.0, world.MaxCastleStageMs, 0.0001,
+                "LOD fixture recorded Play-mode castle authoring work after baked startup.");
 
-            VoxelRenderFeature renderFeature = FindActiveVoxelRenderFeature();
-            Assert.NotNull(renderFeature,
-                "Could not inspect the production voxel renderer used by VoxelShowcase.");
-            Assert.NotNull(renderFeature.Pass);
+            // Force one production URP submission before taking the diagnostics handle.
+            // Renderer features are project assets and are not reliably discoverable through
+            // Resources in batchmode; the bridge records the pass URP actually executed.
+            var bootstrapTarget = new RenderTexture(Width, Height, 24,
+                RenderTextureFormat.ARGB32);
+            bootstrapTarget.Create();
+            camera.targetTexture = bootstrapTarget;
+            try
+            {
+                RenderUrpCamera(camera);
+                yield return null;
+            }
+            finally
+            {
+                camera.targetTexture = null;
+                bootstrapTarget.Release();
+                Object.DestroyImmediate(bootstrapTarget);
+            }
+            VoxelRenderPass renderPass = VoxelRenderBridge.ActivePass;
+            Assert.NotNull(renderPass,
+                "Could not inspect the production voxel render pass used by VoxelShowcase.");
 
             typeof(VoxelShowcase)
                 .GetField("m_FlyMode", BindingFlags.NonPublic | BindingFlags.Instance)
@@ -135,7 +152,7 @@ namespace VoxelEngine.Tests.PlayMode
 
                             var metrics = VoxelRenderBridge.SurfaceMetrics;
                             observedStepMask = VisibleSourceStepMaskAt(
-                                renderFeature.Pass, centre, VoxelSize);
+                                renderPass, centre, VoxelSize);
                             VisualSignature candidate = Capture(target, readback);
                             bool exactProductionLod = observedStepMask == step;
                             bool substantial = exactProductionLod
@@ -215,15 +232,6 @@ namespace VoxelEngine.Tests.PlayMode
                 "Showcase world never reached atomic render publication.");
             Assert.True(VoxelRenderBridge.TryGetWorld(out _),
                 "Showcase lost the renderer world binding before LOD validation.");
-        }
-
-        private static VoxelRenderFeature FindActiveVoxelRenderFeature()
-        {
-            VoxelRenderFeature[] features = Resources.FindObjectsOfTypeAll<VoxelRenderFeature>();
-            for (int i = 0; i < features.Length; i++)
-                if (features[i] != null && features[i].Pass != null)
-                    return features[i];
-            return null;
         }
 
         private static int VisibleSourceStepMaskAt(

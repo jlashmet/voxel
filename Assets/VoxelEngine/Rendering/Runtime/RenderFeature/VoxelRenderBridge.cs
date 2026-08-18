@@ -45,6 +45,22 @@ namespace VoxelEngine.Rendering.Runtime
         // backs them. Keep the callback private to Rendering.Runtime; Composition gets only the
         // release operation, not scheduler ownership.
         private static event System.Action s_WorldReleasing;
+        private static VoxelRenderPass s_ActivePass;
+
+        /// <summary>
+        /// The render pass that most recently executed through URP. This is diagnostics-only:
+        /// tests may inspect production-visible entries without trying to discover renderer-data
+        /// assets through Resources, but cannot replace or drive scheduler ownership.
+        /// </summary>
+        internal static VoxelRenderPass ActivePass => s_ActivePass;
+
+        internal static void RegisterActivePass(VoxelRenderPass pass) =>
+            s_ActivePass = pass;
+
+        internal static void UnregisterActivePass(VoxelRenderPass pass)
+        {
+            if (ReferenceEquals(s_ActivePass, pass)) s_ActivePass = null;
+        }
 
         internal static void RegisterWorldReleaseHandler(System.Action handler) =>
             s_WorldReleasing += handler;

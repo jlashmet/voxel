@@ -241,6 +241,22 @@ namespace VoxelEngine.Storage.Runtime
         public NativeArray<int3> GetResidentCoords(Allocator allocator) =>
             _coordToSlot.GetKeyArray(allocator);
 
+        public bool TryGetNextResidentCoord(ref int cursor, out int3 coord)
+        {
+            cursor = math.clamp(cursor, 0, _regions.Length);
+            while (cursor < _regions.Length)
+            {
+                int slot = cursor++;
+                Region region = _regions[slot];
+                if (!region.IsCreated || _retiredSlots[slot] != 0) continue;
+                coord = region.Coord;
+                return true;
+            }
+
+            coord = default;
+            return false;
+        }
+
         public bool CopyResidentCoords(ref int cursor, NativeArray<int3> destination,
                                        out int count)
         {
