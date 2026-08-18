@@ -134,7 +134,9 @@ namespace VoxelEngine.Structures.Api
                 return candidate.Position.x < selected.Position.x;
             if (candidate.Position.y != selected.Position.y)
                 return candidate.Position.y < selected.Position.y;
-            return candidate.Position.z < selected.Position.z;
+            if (candidate.Position.z != selected.Position.z)
+                return candidate.Position.z < selected.Position.z;
+            return (byte)candidate.Flags < (byte)selected.Flags;
         }
     }
 }
