@@ -29,8 +29,9 @@ namespace VoxelEngine.Structures.Api
     }
 
     /// <summary>
-    /// Derives stable semantic hooks from an already-authored cave result. Hooks deliberately live at
-    /// the guaranteed reachable main-path end rather than inventing gameplay-aware placement rules.
+    /// Derives stable semantic hooks from already-authored cave traversal. The compatibility helper
+    /// keeps main-path-end behaviour available, while constrained selection lets downstream systems
+    /// request a progression-aware terminal without reimplementing cave traversal ranking.
     /// Independent semantic salts keep decoration/resource/water consumers from perturbing each other.
     /// </summary>
     public static class CaveHookPlanner
@@ -41,25 +42,49 @@ namespace VoxelEngine.Structures.Api
 
         public static CaveHookSet AtMainPathEnd(
             in CaveGenerationRequest request,
-            int3 mainPathEnd)
+            int3 mainPathEnd) =>
+            AtPosition(in request, mainPathEnd);
+
+        /// <summary>
+        /// Resolves hooks at the deepest terminal satisfying the supplied traversal requirements.
+        /// Returns false instead of silently falling back when hard requirements cannot be met.
+        /// </summary>
+        public static bool TryAtDeepestCandidate(
+            in CaveGenerationRequest request,
+            in CaveTraversalCandidateSet candidates,
+            in CavePlacementRequirements requirements,
+            out CaveHookSet hooks)
+        {
+            hooks = default;
+            if (!CavePlacementResolver.TrySelectDeepest(
+                    in candidates, in requirements, out CaveTraversalCandidate selected))
+                return false;
+
+            hooks = AtPosition(in request, selected.Position);
+            return true;
+        }
+
+        private static CaveHookSet AtPosition(
+            in CaveGenerationRequest request,
+            int3 position)
         {
             var hooks = new CaveHookSet();
             hooks.Items.Add(new CaveResolvedHook
             {
                 Kind = CaveHookKind.Decoration,
-                Position = mainPathEnd,
+                Position = position,
                 Seed = NonZero(FeatureHash.Mix(request.Seed ^ DecorationSalt)),
             });
             hooks.Items.Add(new CaveResolvedHook
             {
                 Kind = CaveHookKind.Resource,
-                Position = mainPathEnd,
+                Position = position,
                 Seed = NonZero(FeatureHash.Mix(request.Seed ^ ResourceSalt)),
             });
             hooks.Items.Add(new CaveResolvedHook
             {
                 Kind = CaveHookKind.Water,
-                Position = mainPathEnd,
+                Position = position,
                 Seed = NonZero(FeatureHash.Mix(request.Seed ^ WaterSalt)),
             });
             return hooks;
