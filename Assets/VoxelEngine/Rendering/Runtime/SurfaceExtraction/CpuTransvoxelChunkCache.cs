@@ -246,14 +246,20 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                                   Vector3.one * (size + SourceStep * voxelSize * 2f));
             }
 
+            /// <summary>
+            /// Binds this chunk's arena offsets and issues its indirect draw.
+            ///
+            /// <paramref name="properties"/> must contain nothing but the two offsets below: the
+            /// block is copied into the command buffer once per draw, so anything constant across
+            /// the pass belongs in global state instead. The vertex and index buffers are the same
+            /// shared arena for every chunk, so they are bound once by the caller rather than here.
+            /// </summary>
             public void Draw(CommandBuffer commandBuffer, Material material,
                              MaterialPropertyBlock properties)
             {
                 if (!Ready || IndexCount == 0 || Vertices == null || Indices == null || Args == null)
                     return;
 
-                properties.SetBuffer(s_SurfaceVertices, _arena.Vertices);
-                properties.SetBuffer(s_SurfaceIndices, _arena.Indices);
                 properties.SetInt(s_SurfaceVertexBase, _liveLease.VertexStart);
                 properties.SetInt(s_SurfaceIndexBase, _liveLease.IndexStart);
                 commandBuffer.DrawProceduralIndirect(Matrix4x4.identity, material, 0,

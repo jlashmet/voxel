@@ -727,6 +727,13 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private ulong _observedWaterArenaAllocationFailures;
 
         public IReadOnlyList<CpuTransvoxelChunkCache.Entry> VisibleSolids => _visibleSolids;
+
+        /// <summary>
+        /// The shared solid geometry buffers. Every visible chunk draws out of these, so the render
+        /// pass binds them once for the whole pass instead of per draw.
+        /// </summary>
+        internal ComputeBuffer SolidGeometryVertices => _geometryArena.Vertices;
+        internal ComputeBuffer SolidGeometryIndices => _geometryArena.Indices;
         public IReadOnlyList<CpuWaterSurfaceChunkCache.Entry> VisibleWater => _water.Visible;
         public VoxelSurfaceMetrics Metrics => new(
             _allWorkers, _water, _lastChangeRecords, _discoveredSurfaceBricks.Count,

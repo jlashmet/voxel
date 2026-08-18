@@ -55,6 +55,8 @@ namespace VoxelEngine.Rendering.Runtime
         private static readonly int s_DebugCoverage = Shader.PropertyToID("_DebugCoverage");
         private static readonly int s_CameraPosition = Shader.PropertyToID("_CameraPosition");
         private static readonly int s_WaterTime = Shader.PropertyToID("_WaterTime");
+        private static readonly int s_SurfaceVertices = Shader.PropertyToID("_SurfaceVertices");
+        private static readonly int s_SurfaceIndices = Shader.PropertyToID("_SurfaceIndices");
 
         private VoxelSurfaceScheduler _scheduler;
         // Draw staging is bounded by the fixed arena args capacities. Allocate once with the
@@ -154,6 +156,8 @@ namespace VoxelEngine.Rendering.Runtime
             public float FlashlightInnerCos;
             public float FlashlightOuterCos;
             public CpuTransvoxelChunkCache.Entry[] TransvoxelEntries;
+            public ComputeBuffer SurfaceVertices;
+            public ComputeBuffer SurfaceIndices;
             public int TransvoxelEntryCount;
             public CpuWaterSurfaceChunkCache.Entry[] WaterEntries;
             public int WaterEntryCount;
@@ -299,6 +303,8 @@ namespace VoxelEngine.Rendering.Runtime
             data.BaseColor = VoxelRenderBridge.SurfaceDebugTint;
             data.VoxelSize = VoxelSize;
             data.TransvoxelEntries = _transvoxelDrawEntries;
+            data.SurfaceVertices = _scheduler.SolidGeometryVertices;
+            data.SurfaceIndices = _scheduler.SolidGeometryIndices;
             data.TransvoxelEntryCount = transvoxelVisible.Count;
             data.WaterEntries = _waterDrawEntries;
             data.WaterEntryCount = waterVisible.Count;
@@ -311,68 +317,81 @@ namespace VoxelEngine.Rendering.Runtime
             {
                 var cmd = CommandBufferHelpers.GetNativeCommandBuffer(ctx.cmd);
 
-                passData.Properties.SetVectorArray(s_MaterialAlbedo,
+                // Per-draw MaterialPropertyBlocks are copied into the command buffer for every
+                // draw. Everything below is identical for the whole pass — ten vector arrays, two
+                // texture arrays and the lighting/cutaway constants — so binding it per chunk meant
+                // re-uploading the entire block ~1,400 times a frame once the arena grew large
+                // enough to actually cover the view. Bind it once as global state; only the two
+                // per-chunk buffer offsets stay in a block, and that block is kept tiny.
+                cmd.SetGlobalVectorArray(s_MaterialAlbedo,
                     VoxelPresentationCatalogue.MaterialAlbedo);
-                passData.Properties.SetVectorArray(s_MaterialSampling,
+                cmd.SetGlobalVectorArray(s_MaterialSampling,
                     VoxelPresentationCatalogue.MaterialSampling);
-                passData.Properties.SetVectorArray(s_MaterialSurface,
+                cmd.SetGlobalVectorArray(s_MaterialSurface,
                     VoxelPresentationCatalogue.MaterialSurface);
-                passData.Properties.SetVectorArray(s_MaterialVariation,
+                cmd.SetGlobalVectorArray(s_MaterialVariation,
                     VoxelPresentationCatalogue.MaterialVariation);
-                passData.Properties.SetVectorArray(s_CoatingTint,
+                cmd.SetGlobalVectorArray(s_CoatingTint,
                     VoxelPresentationCatalogue.CoatingTint);
-                passData.Properties.SetVectorArray(s_CoatingSampling,
+                cmd.SetGlobalVectorArray(s_CoatingSampling,
                     VoxelPresentationCatalogue.CoatingSampling);
-                passData.Properties.SetVectorArray(s_CoatingResponse,
+                cmd.SetGlobalVectorArray(s_CoatingResponse,
                     VoxelPresentationCatalogue.CoatingResponse);
-                passData.Properties.SetVectorArray(s_SurfacePattern,
+                cmd.SetGlobalVectorArray(s_SurfacePattern,
                     VoxelPresentationCatalogue.SurfacePattern);
-                passData.Properties.SetVectorArray(s_SurfaceJointColour,
+                cmd.SetGlobalVectorArray(s_SurfaceJointColour,
                     VoxelPresentationCatalogue.SurfaceJointColour);
-                passData.Properties.SetVectorArray(s_SurfaceDetailResponse,
+                cmd.SetGlobalVectorArray(s_SurfaceDetailResponse,
                     VoxelPresentationCatalogue.SurfaceDetailResponse);
-                passData.Properties.SetTexture(s_AlbedoTextures, passData.AlbedoTextures);
-                passData.Properties.SetTexture(s_NormalTextures, passData.NormalTextures);
-                passData.Properties.SetColor(s_BaseColor, passData.BaseColor);
-                passData.Properties.SetVector(s_SunDirection, passData.SunDirection);
-                passData.Properties.SetVector(s_SkyHorizon, passData.SkyHorizon);
-                passData.Properties.SetVector(s_SkyZenith, passData.SkyZenith);
-                passData.Properties.SetFloat(s_VoxelSize, passData.VoxelSize);
-                passData.Properties.SetFloat(s_DebugCoverage,
+                cmd.SetGlobalTexture(s_AlbedoTextures, passData.AlbedoTextures);
+                cmd.SetGlobalTexture(s_NormalTextures, passData.NormalTextures);
+                cmd.SetGlobalColor(s_BaseColor, passData.BaseColor);
+                cmd.SetGlobalVector(s_SunDirection, passData.SunDirection);
+                cmd.SetGlobalVector(s_SkyHorizon, passData.SkyHorizon);
+                cmd.SetGlobalVector(s_SkyZenith, passData.SkyZenith);
+                cmd.SetGlobalFloat(s_VoxelSize, passData.VoxelSize);
+                cmd.SetGlobalFloat(s_DebugCoverage,
                     passData.BaseColor == Color.white ? 0f : 1f);
-                passData.Properties.SetInt(s_CutawayEnabled, passData.CutawayEnabled ? 1 : 0);
-                passData.Properties.SetVector(s_CutawayMinVoxel, passData.CutawayMinVoxel);
-                passData.Properties.SetVector(s_CutawayMaxVoxel, passData.CutawayMaxVoxel);
-                passData.Properties.SetInt(s_LocalLightCount, passData.LocalLightCount);
+                cmd.SetGlobalInteger(s_CutawayEnabled, passData.CutawayEnabled ? 1 : 0);
+                cmd.SetGlobalVector(s_CutawayMinVoxel, passData.CutawayMinVoxel);
+                cmd.SetGlobalVector(s_CutawayMaxVoxel, passData.CutawayMaxVoxel);
+                cmd.SetGlobalInteger(s_LocalLightCount, passData.LocalLightCount);
                 if (passData.LocalLightCount > 0)
                 {
-                    passData.Properties.SetVectorArray(s_LocalLights, passData.LocalLights);
-                    passData.Properties.SetVectorArray(s_LocalLightColours,
+                    cmd.SetGlobalVectorArray(s_LocalLights, passData.LocalLights);
+                    cmd.SetGlobalVectorArray(s_LocalLightColours,
                                                        passData.LocalLightColours);
                 }
-                passData.Properties.SetInt(s_FlashlightEnabled,
+                cmd.SetGlobalInteger(s_FlashlightEnabled,
                     passData.FlashlightEnabled ? 1 : 0);
-                passData.Properties.SetVector(s_FlashlightPosition, passData.FlashlightPosition);
-                passData.Properties.SetVector(s_FlashlightDirection, passData.FlashlightDirection);
-                passData.Properties.SetVector(s_FlashlightColour, passData.FlashlightColour);
-                passData.Properties.SetFloat(s_FlashlightRange, passData.FlashlightRange);
-                passData.Properties.SetFloat(s_FlashlightInnerCos, passData.FlashlightInnerCos);
-                passData.Properties.SetFloat(s_FlashlightOuterCos, passData.FlashlightOuterCos);
+                cmd.SetGlobalVector(s_FlashlightPosition, passData.FlashlightPosition);
+                cmd.SetGlobalVector(s_FlashlightDirection, passData.FlashlightDirection);
+                cmd.SetGlobalVector(s_FlashlightColour, passData.FlashlightColour);
+                cmd.SetGlobalFloat(s_FlashlightRange, passData.FlashlightRange);
+                cmd.SetGlobalFloat(s_FlashlightInnerCos, passData.FlashlightInnerCos);
+                cmd.SetGlobalFloat(s_FlashlightOuterCos, passData.FlashlightOuterCos);
+
+                // Same arena for every solid chunk, so bind it once rather than in each draw.
+                if (passData.SurfaceVertices != null)
+                    cmd.SetGlobalBuffer(s_SurfaceVertices, passData.SurfaceVertices);
+                if (passData.SurfaceIndices != null)
+                    cmd.SetGlobalBuffer(s_SurfaceIndices, passData.SurfaceIndices);
 
                 ctx.cmd.SetRenderTarget(passData.CameraColor, passData.CameraDepth);
 
+                passData.Properties.Clear();
                 for (int i = 0; i < passData.TransvoxelEntryCount; i++)
                     passData.TransvoxelEntries[i].Draw(cmd, passData.Material,
                                                        passData.Properties);
 
                 if (passData.WaterMaterial != null && passData.WaterEntryCount > 0)
                 {
+                    cmd.SetGlobalVector(s_CameraPosition, passData.CameraPosition);
+                    cmd.SetGlobalVector(s_SunDirection, passData.SunDirection);
+                    cmd.SetGlobalVector(s_SkyHorizon, passData.SkyHorizon);
+                    cmd.SetGlobalVector(s_SkyZenith, passData.SkyZenith);
+                    cmd.SetGlobalFloat(s_WaterTime, passData.WaterTime);
                     passData.WaterProperties.Clear();
-                    passData.WaterProperties.SetVector(s_CameraPosition, passData.CameraPosition);
-                    passData.WaterProperties.SetVector(s_SunDirection, passData.SunDirection);
-                    passData.WaterProperties.SetVector(s_SkyHorizon, passData.SkyHorizon);
-                    passData.WaterProperties.SetVector(s_SkyZenith, passData.SkyZenith);
-                    passData.WaterProperties.SetFloat(s_WaterTime, passData.WaterTime);
                     for (int i = 0; i < passData.WaterEntryCount; i++)
                         passData.WaterEntries[i].Draw(cmd, passData.WaterMaterial,
                                                       passData.WaterProperties);
