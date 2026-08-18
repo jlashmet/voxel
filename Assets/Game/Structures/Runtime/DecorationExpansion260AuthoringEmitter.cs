@@ -50,7 +50,7 @@ namespace Game.Structures.Runtime
             int3 min = bounds.Min;
             int3 size = bounds.Size;
             byte primary = profile.PrimaryMaterial;
-            byte secondary = profile.SecondaryMaterial;
+            byte secondary = profile.SoftMaterial;
             byte accent = profile.AccentMaterial;
             byte magic = profile.EmissiveMaterial;
             int top = math.max(2, size.y / 4);

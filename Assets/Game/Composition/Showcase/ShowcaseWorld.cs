@@ -273,7 +273,7 @@ namespace VoxelEngine.Showcase
 
         public ShowcaseWorld(uint seed, int brickPoolCapacity, int loadRadiusRegions,
                              int unloadRadiusRegions,
-                             int maxMixedBrickAllocationBytes =
+                             long maxMixedBrickAllocationBytes =
                                  VoxelEngineBootstrap.MaximumMixedBrickAllocationBytes)
         {
             Seed = seed;

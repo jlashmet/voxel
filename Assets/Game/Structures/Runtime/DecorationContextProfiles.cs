@@ -136,7 +136,7 @@ namespace Game.Structures.Runtime
         public static DecorationPresentationProfile ResolvePresentation(in DecorationContext context)
         {
             DecorationStyleProfile style = ResolveStyle(context.StyleId);
-            return ResolvePresentation(in style, context.Wealth, context.Condition);
+            return ResolvePresentation(style, context.Wealth, context.Condition);
         }
 
         public static DecorationPresentationProfile Compatibility =>

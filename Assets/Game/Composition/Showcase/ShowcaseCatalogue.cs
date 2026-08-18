@@ -48,7 +48,11 @@ namespace VoxelEngine.Showcase
                     ShowcaseDetailedHouseCatalogue.Build(seed, in materialRoles, Allocator.Temp);
                 try
                 {
-                    return FeatureCatalogueComposer.Combine(
+                    // VoxelEngine.Structures.Api also declares a FeatureCatalogueComposer. The
+                    // Runtime one is named explicitly: it copies each source program blob verbatim
+                    // and rebases the offset, where the Api one repacks per definition and would
+                    // drop or duplicate program bytes that definitions do not own one-to-one.
+                    return VoxelEngine.Structures.Runtime.FeatureCatalogueComposer.Combine(
                         in kentridge, in detailedHouse, allocator);
                 }
                 finally

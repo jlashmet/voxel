@@ -1,4 +1,5 @@
 using Game.Structures.Api;
+using Game.Structures.Runtime;
 using NUnit.Framework;
 
 namespace Game.Structures.Tests

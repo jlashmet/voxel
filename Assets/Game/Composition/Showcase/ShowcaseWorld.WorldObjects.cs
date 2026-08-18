@@ -34,7 +34,9 @@ namespace VoxelEngine.Showcase
                 geometry: null,
                 worldSeed: Seed,
                 parentId: ShowcaseCastleWorldObjectParentId,
-                plan: in _castlePlan,
+                // The showcase wrapper's implicit conversion does not apply to an `in` parameter,
+                // so the game-owned plan it wraps is passed directly.
+                plan: in _castlePlan.Value,
                 emissionMode: WorldObjectGeometryEmissionMode.None);
         }
 

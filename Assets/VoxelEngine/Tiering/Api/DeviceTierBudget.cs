@@ -45,6 +45,7 @@ namespace VoxelEngine.Tiering.Api
     ///   - probeSpacing            (irradiance probe placement spacing in world units)
     ///   - maxDebris               (maximum visual-only debris bodies)
     ///   - maxViewDistance         (farthest distance bricks are rendered)
+    ///   - surfaceGeometryBudget   (GPU bytes for extracted surface geometry)
     /// </summary>
     public readonly struct DeviceTierBudget
     {
@@ -72,6 +73,18 @@ namespace VoxelEngine.Tiering.Api
         /// <summary>Implicit far-field distance — beyond this, only mip textures are used (device-matrix.md).</summary>
         public readonly int FarFieldStart;
 
+        /// <summary>
+        /// GPU bytes for the shared extracted-surface geometry arena — device-matrix.md.
+        ///
+        /// This is derived presentation only: it holds Transvoxel output, never authoritative voxel
+        /// state, so tiering it does not touch the tiering boundary. It has to be sized against the
+        /// full-detail ring rather than guessed. At 0.1 m voxels a 64-cell chunk spans 6.4 m and its
+        /// faceted surface averages ~12.5 K vertices, and the innermost ring alone puts ~1.5 K chunks
+        /// in a production frustum. Undersizing it does not degrade gracefully: publication fails to
+        /// acquire a lease and the view keeps permanent holes where geometry never lands.
+        /// </summary>
+        public readonly long SurfaceGeometryBudget;
+
         /// <summary>Construct a tier budget with all fields explicitly set.</summary>
         public DeviceTierBudget(
             long brickPoolCapacity,
@@ -81,7 +94,8 @@ namespace VoxelEngine.Tiering.Api
             int maxDebris,
             int maxViewDistance,
             int mipTransitionStart,
-            int farFieldStart)
+            int farFieldStart,
+            long surfaceGeometryBudget)
         {
             BrickPoolCapacity = brickPoolCapacity;
             DetailRadius = detailRadius;
@@ -91,6 +105,7 @@ namespace VoxelEngine.Tiering.Api
             MaxViewDistance = maxViewDistance;
             MipTransitionStart = mipTransitionStart;
             FarFieldStart = farFieldStart;
+            SurfaceGeometryBudget = surfaceGeometryBudget;
         }
 
         /// <summary>Get the tier budget for a given device class. Values from device-matrix.md.</summary>
@@ -107,7 +122,8 @@ namespace VoxelEngine.Tiering.Api
                     maxDebris:          2000,              // 2000 visual-only debris bodies
                     maxViewDistance:    10000,             // 10 km
                     mipTransitionStart: 400,               // Start mip transition at 400 m
-                    farFieldStart:      1200               // Implicit far-field beyond 1200 m
+                    farFieldStart:      1200,              // Implicit far-field beyond 1200 m
+                    surfaceGeometryBudget: 1_073_741_824L  // 1.0 GB of extracted surface geometry
                 ),
 
                 DeviceTier.Console => new DeviceTierBudget(
@@ -118,7 +134,8 @@ namespace VoxelEngine.Tiering.Api
                     maxDebris:          1500,              // 1500 visual-only debris bodies
                     maxViewDistance:    10000,             // 10 km
                     mipTransitionStart: 350,               // Start mip transition at 350 m
-                    farFieldStart:      1000               // Implicit far-field beyond 1000 m
+                    farFieldStart:      1000,              // Implicit far-field beyond 1000 m
+                    surfaceGeometryBudget: 536_870_912L  // 512 MB of extracted surface geometry
                 ),
 
                 DeviceTier.MobileHE => new DeviceTierBudget(
@@ -129,7 +146,8 @@ namespace VoxelEngine.Tiering.Api
                     maxDebris:          400,               // 400 visual-only debris bodies (device-matrix.md)
                     maxViewDistance:    6000,              // 6 km max view distance
                     mipTransitionStart: 200,               // Start mip transition at 200 m
-                    farFieldStart:      600                // Implicit far-field beyond 600 m
+                    farFieldStart:      600,               // Implicit far-field beyond 600 m
+                    surfaceGeometryBudget: 268_435_456L  // 256 MB of extracted surface geometry
                 ),
 
                 _ => throw new ArgumentOutOfRangeException(nameof(tier), $"Unknown device tier: {tier}")
@@ -172,6 +190,7 @@ namespace VoxelEngine.Tiering.Api
         /// <summary>String representation for debugging and telemetry.</summary>
         public override string ToString() =>
             $"Budget(cap={BrickPoolCapacity}, detail={DetailRadius}m, scale={RenderScale}, " +
-            $"probes={ProbeSpacing}m, debris={MaxDebris}, view={MaxViewDistance}m)";
+            $"probes={ProbeSpacing}m, debris={MaxDebris}, view={MaxViewDistance}m, " +
+            $"surface={SurfaceGeometryBudget})";
     }
 }

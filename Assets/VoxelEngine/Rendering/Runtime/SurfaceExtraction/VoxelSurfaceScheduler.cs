@@ -6,6 +6,7 @@ using Unity.Mathematics;
 using Unity.Profiling;
 using UnityEngine;
 using VoxelEngine.Storage.Api;
+using VoxelEngine.Tiering.Api;
 
 namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 {
@@ -65,6 +66,23 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public readonly int LastFrameSolidUploadCompletions;
         public readonly long SolidArenaCommittedBytes;
         public readonly long SolidArenaUsedBytes;
+        /// <summary>
+        /// Vertex and index occupancy of the shared solid arena. The two buffers are sized
+        /// independently, so a stall can come from either running out while the other still has
+        /// room; the ratio is the only way to tell those apart.
+        /// </summary>
+        /// <summary>
+        /// Visibility funnel across every ring, not just source step 4. Known -> in band -> in
+        /// frustum shows whether a large missing-chunk count comes from weak culling, from rings
+        /// claiming more chunks than their LOD should, or simply from a large view.
+        /// </summary>
+        public readonly int VisibilityKnownCandidates;
+        public readonly int VisibilityInBandCandidates;
+        public readonly int VisibilityFrustumCandidates;
+        public readonly int SolidArenaUsedVertices;
+        public readonly int SolidArenaVertexCapacity;
+        public readonly int SolidArenaUsedIndices;
+        public readonly int SolidArenaIndexCapacity;
         public readonly int SolidArenaActiveLeases;
         public readonly ulong SolidArenaAllocationFailures;
         public readonly ulong SolidArenaPressureEvictions;
@@ -158,6 +176,13 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             LastFrameSolidUploadCompletions = 0;
             SolidArenaCommittedBytes = 0;
             SolidArenaUsedBytes = 0;
+            VisibilityKnownCandidates = 0;
+            VisibilityInBandCandidates = 0;
+            VisibilityFrustumCandidates = 0;
+            SolidArenaUsedVertices = 0;
+            SolidArenaVertexCapacity = 0;
+            SolidArenaUsedIndices = 0;
+            SolidArenaIndexCapacity = 0;
             SolidArenaActiveLeases = 0;
             SolidArenaAllocationFailures = 0;
             SolidArenaPressureEvictions = 0;
@@ -195,6 +220,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                                      int lastFrameSolidUploadCompletions,
                                      long solidArenaCommittedBytes,
                                      long solidArenaUsedBytes,
+                                     int solidArenaUsedVertices,
+                                     int solidArenaVertexCapacity,
+                                     int solidArenaUsedIndices,
+                                     int solidArenaIndexCapacity,
                                      int solidArenaActiveLeases,
                                      ulong solidArenaAllocationFailures,
                                      ulong solidArenaPressureEvictions,
@@ -224,6 +253,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             ulong step4MetadataRevisionRejects = 0, step4MetadataPinRejects = 0;
             ulong step4FallbackScheduled = 0, step4FallbackCompleted = 0;
             ulong step4FallbackNonEmpty = 0, step4FallbackPublished = 0;
+            int visibilityKnown = 0, visibilityInBand = 0, visibilityFrustum = 0;
             int step4VisibilityKnown = 0, step4VisibilityInBand = 0;
             int step4VisibilityFrustum = 0, step4VisibilityReady = 0, step4VisibilityEmpty = 0;
             ulong materialInvalidations = 0, surfaceInvalidations = 0;
@@ -242,6 +272,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 dirty += worker.DirtyCount;
                 missing += worker.MissingVisibleCount;
                 running += worker.RunningJobCount;
+                visibilityKnown += worker.LastVisibilityKnownCount;
+                visibilityInBand += worker.LastVisibilityInBandCount;
+                visibilityFrustum += worker.LastVisibilityFrustumCount;
                 if (worker.SourceStep == 4)
                 {
                     step4Known += worker.KnownCount;
@@ -323,6 +356,13 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             LastFrameSolidUploadCompletions = lastFrameSolidUploadCompletions;
             SolidArenaCommittedBytes = solidArenaCommittedBytes;
             SolidArenaUsedBytes = solidArenaUsedBytes;
+            VisibilityKnownCandidates = visibilityKnown;
+            VisibilityInBandCandidates = visibilityInBand;
+            VisibilityFrustumCandidates = visibilityFrustum;
+            SolidArenaUsedVertices = solidArenaUsedVertices;
+            SolidArenaVertexCapacity = solidArenaVertexCapacity;
+            SolidArenaUsedIndices = solidArenaUsedIndices;
+            SolidArenaIndexCapacity = solidArenaIndexCapacity;
             SolidArenaActiveLeases = solidArenaActiveLeases;
             SolidArenaAllocationFailures = solidArenaAllocationFailures;
             SolidArenaPressureEvictions = solidArenaPressureEvictions;
@@ -509,8 +549,14 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         };
 
         public const float MaxVoxelRingRadiusMetres = 409.6f;
-        private const int SurfaceArenaVertexCapacity = 2 * 1024 * 1024;
-        private const int SurfaceArenaIndexCapacity = 6 * 1024 * 1024;
+        /// <summary>
+        /// Indices emitted per vertex by the solid extractor. The surface is faceted, so vertices are
+        /// barely shared and production measures a steady 1.51; the arena provisions 1.75 for headroom.
+        /// The previous fixed 3.0 split spent twice the index memory the extractor can ever use, and
+        /// starved the vertex buffer that actually runs out first.
+        /// </summary>
+        private const double SurfaceArenaIndicesPerVertex = 1.75;
+        private const int SurfaceArenaMinVertexCapacity = 256 * 1024;
         public const int SurfaceArenaDrawCapacity = 16 * 1024;
 
         private readonly SurfaceGeometryArena _geometryArena;
@@ -650,7 +696,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _allWorkers, _water, _lastChangeRecords, _discoveredSurfaceBricks.Count,
             _visibleSolids.Count, SolidUploadBudgetBytes, _lastFrameSolidUploadedBytes,
             _lastFrameSolidUploadCompletions, _geometryArena.CommittedGpuBytes,
-            _geometryArena.UsedGpuBytes, _geometryArena.UsedArgsRecords,
+            _geometryArena.UsedGpuBytes,
+            _geometryArena.UsedVertices, _geometryArena.VertexCapacity,
+            _geometryArena.UsedIndices, _geometryArena.IndexCapacity,
+            _geometryArena.UsedArgsRecords,
             _geometryArena.AllocationFailureCount,
             _arenaPressureEvictions, _prepareTiming.Snapshot(), _journalTiming.Snapshot(),
             _invalidationTiming.Snapshot(), _discoveryTiming.Snapshot(),
@@ -659,10 +708,43 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _framePathBlockingCompletionViolations,
             _lastFrameManagedAllocationBytes);
 
-        public VoxelSurfaceScheduler()
+
+        /// <summary>
+        /// Splits a GPU byte budget into vertex and index capacities at the extractor's measured
+        /// emission ratio, so neither buffer runs out while the other still has room.
+        /// </summary>
+        internal static void SplitSurfaceArenaBudget(long budgetBytes,
+                                                     out int vertexCapacity,
+                                                     out int indexCapacity)
         {
-            _geometryArena = new SurfaceGeometryArena(SurfaceArenaVertexCapacity,
-                                                       SurfaceArenaIndexCapacity,
+            double bytesPerVertex = SmoothSurfaceVertex.Stride
+                                  + SurfaceArenaIndicesPerVertex * sizeof(uint);
+            long argsBytes = (long)SurfaceArenaDrawCapacity * ArgsWordsPerDrawBytes;
+            double usable = Math.Max(0, budgetBytes - argsBytes);
+
+            long vertices = (long)(usable / bytesPerVertex);
+            vertices = Math.Max(SurfaceArenaMinVertexCapacity, Math.Min(vertices, int.MaxValue));
+            long indices = (long)(vertices * SurfaceArenaIndicesPerVertex);
+            indices = Math.Max(SurfaceArenaMinVertexCapacity, Math.Min(indices, int.MaxValue));
+
+            vertexCapacity = (int)vertices;
+            indexCapacity = (int)indices;
+        }
+
+        private const int ArgsWordsPerDrawBytes =
+            SurfaceGeometryArena.ArgsWordsPerDraw * sizeof(uint);
+
+        public VoxelSurfaceScheduler()
+            : this(DeviceTierBudget.GetForTier(DeviceTierBudget.Detect()).SurfaceGeometryBudget)
+        {
+        }
+
+        public VoxelSurfaceScheduler(long surfaceGeometryBudgetBytes)
+        {
+            SplitSurfaceArenaBudget(surfaceGeometryBudgetBytes,
+                                    out int vertexCapacity, out int indexCapacity);
+            _geometryArena = new SurfaceGeometryArena(vertexCapacity,
+                                                       indexCapacity,
                                                        SurfaceArenaDrawCapacity);
             _lookupTables = new TransvoxelLookupTables();
             _rings = new SurfaceRing[s_RingLayout.Length];
@@ -867,6 +949,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             if (arenaFailures > _observedArenaAllocationFailures && workerCount > 0)
             {
                 _observedArenaAllocationFailures = arenaFailures;
+                bool evicted = false;
                 for (int offset = 0; offset < workerCount; offset++)
                 {
                     int index = (_arenaPressureCursor + offset) % workerCount;
@@ -874,7 +957,41 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                         continue;
                     _arenaPressureCursor = (index + 1) % workerCount;
                     _arenaPressureEvictions++;
+                    evicted = true;
                     break;
+                }
+
+                // Offscreen geometry is the cheapest thing to give up, but once the whole resident
+                // set is in frustum the pass above can never succeed again. Pending publications
+                // then fail to acquire a lease every frame, builds stop, and the view keeps the
+                // chunks it happens to have — a permanent hole wherever geometry had not landed yet.
+                // Fall back to retiring the farthest published lease that sits behind the nearest
+                // chunk waiting to publish: that always trades a more distant chunk for a nearer one,
+                // so the arena makes progress instead of deadlocking.
+                if (!evicted)
+                {
+                    float nearestPending = float.MaxValue;
+                    for (int i = 0; i < workerCount; i++)
+                    {
+                        if (_allWorkers[i].TryGetPendingPublishDistanceSq(
+                                camera, voxelSize, out float pendingDistance)
+                            && pendingDistance < nearestPending)
+                            nearestPending = pendingDistance;
+                    }
+
+                    if (nearestPending < float.MaxValue)
+                    {
+                        for (int offset = 0; offset < workerCount; offset++)
+                        {
+                            int index = (_arenaPressureCursor + offset) % workerCount;
+                            if (!_allWorkers[index].TryEvictOneBehind(
+                                    camera, voxelSize, nearestPending))
+                                continue;
+                            _arenaPressureCursor = (index + 1) % workerCount;
+                            _arenaPressureEvictions++;
+                            break;
+                        }
+                    }
                 }
             }
 

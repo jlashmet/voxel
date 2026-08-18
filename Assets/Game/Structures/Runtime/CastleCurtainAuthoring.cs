@@ -170,8 +170,17 @@ namespace Game.Structures.Runtime
                 int segmentLength = math.min(curtain.MaximumSegmentLength, wall.Length - offset);
                 StructureWallRunConfig segment = wall;
                 segment.Length = segmentLength;
-                segment.StartInset = offset == 0 ? wall.StartInset : 0;
-                segment.EndInset = offset + segmentLength == wall.Length ? wall.EndInset : 0;
+
+                // Insets are derived from CornerBehavior, so the split carries the run's corner
+                // trimming only at the two ends that are still the whole run's ends. Interior joints
+                // between segments must not inset, or the curtain gains a gap at every seam.
+                bool trimStart = offset == 0 && wall.StartInset != 0;
+                bool trimEnd = offset + segmentLength == wall.Length && wall.EndInset != 0;
+                segment.CornerBehavior =
+                    trimStart && trimEnd ? StructureWallCornerBehavior.TrimBoth :
+                    trimStart ? StructureWallCornerBehavior.TrimStart :
+                    trimEnd ? StructureWallCornerBehavior.TrimEnd :
+                    StructureWallCornerBehavior.Overlap;
 
                 WallRun(
                     authoring,

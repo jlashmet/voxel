@@ -52,7 +52,7 @@ namespace VoxelEngine.Showcase
             if (GetComponent<AudioListener>() == null)
                 gameObject.AddComponent<AudioListener>();
 
-            int tierBytes = DeviceTierBudget.GetForTier(DeviceTierBudget.Detect()).BrickPoolCapacity;
+            long tierBytes = DeviceTierBudget.GetForTier(DeviceTierBudget.Detect()).BrickPoolCapacity;
             int capacity = VoxelEngineBootstrap.ClampMixedBrickCapacityToBudget(
                 m_BrickPoolCapacity,
                 tierBytes);

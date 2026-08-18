@@ -172,7 +172,10 @@ namespace VoxelEngine.Showcase
             root.transform.SetParent(transform, false);
             root.transform.position = new Vector3(0f, 0f, 19f);
 
-            CastlePlan plan = CastlePlanner.Plan(int3.zero, CastleSeed);
+            // The enclosing VoxelEngine.Showcase namespace declares its own CastlePlan wrapper,
+            // which wins over the Game.Structures.Api using. The authorers below take the plan by
+            // `in`, and `in` parameters do not apply the wrapper's implicit conversions.
+            Game.Structures.Api.CastlePlan plan = CastlePlanner.Plan(int3.zero, CastleSeed);
             CastlePresetConfig preset = CastlePresets.WalledCastle(in plan, in palette);
             preset.Stages.Site = false;
             preset.Stages.Landscape = false;
@@ -199,7 +202,10 @@ namespace VoxelEngine.Showcase
 
         private void BuildDecorPavilions()
         {
-            CastlePlan plan = CastlePlanner.Plan(int3.zero, CastleSeed);
+            // The enclosing VoxelEngine.Showcase namespace declares its own CastlePlan wrapper,
+            // which wins over the Game.Structures.Api using. The authorers below take the plan by
+            // `in`, and `in` parameters do not apply the wrapper's implicit conversions.
+            Game.Structures.Api.CastlePlan plan = CastlePlanner.Plan(int3.zero, CastleSeed);
 
             if (CastleBedroomDecorationAdapter.TryResolve(
                     in plan, out DecorationSpace bedroomSpace, out _, out _,

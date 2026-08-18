@@ -62,7 +62,7 @@ namespace Game.Kentridge.PlayableSlice
         {
             if (!Application.isPlaying) return;
 
-            int tierBytes = DeviceTierBudget.GetForTier(DeviceTierBudget.Detect()).BrickPoolCapacity;
+            long tierBytes = DeviceTierBudget.GetForTier(DeviceTierBudget.Detect()).BrickPoolCapacity;
             int capacity = VoxelEngineBootstrap.ClampMixedBrickCapacityToBudget(
                 m_BrickPoolCapacity,
                 tierBytes);

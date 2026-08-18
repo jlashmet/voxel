@@ -20,10 +20,15 @@ namespace VoxelEngine.Showcase.Editor
         private const string OutputAssetPath =
             "Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes";
 
-        // Three 51.2 m region rings give the player a solid startup neighbourhood while keeping
-        // the asset bounded. The complete castle footprint is always included even when it
+        // Five 51.2 m region rings — 256 m — give the player a solid startup neighbourhood while
+        // keeping the asset bounded. The complete castle footprint is always included even when it
         // extends outside this radius. The normal streamer owns everything beyond this disc.
-        private const int StartupRadiusRegions = 3;
+        //
+        // Three rings was not enough to hand over cleanly. Generation is budget-sliced on the main
+        // thread and the queue is ~170 regions deep at spawn, so the streamer needs roughly 18
+        // seconds to reach 200 m in every direction. Anything inside that horizon has to come from
+        // the bake or the player walks into ground that is still being generated.
+        private const int StartupRadiusRegions = 5;
 
         [MenuItem("Tools/Voxel Engine/Bake Showcase World")]
         public static void BakeShowcaseWorld()
@@ -63,7 +68,7 @@ namespace VoxelEngine.Showcase.Editor
             int unloadRadius = RequireProperty(serialized, "m_UnloadRadiusRegions").intValue;
             int startupRadius = Mathf.Clamp(StartupRadiusRegions, 0, loadRadius);
 
-            int tierBytes = DeviceTierBudget.GetForTier(DeviceTierBudget.Detect()).BrickPoolCapacity;
+            long tierBytes = DeviceTierBudget.GetForTier(DeviceTierBudget.Detect()).BrickPoolCapacity;
             int capacity = VoxelEngineBootstrap.ClampMixedBrickCapacityToBudget(
                 requestedCapacity, tierBytes);
 

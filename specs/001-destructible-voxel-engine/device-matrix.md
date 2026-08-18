@@ -52,6 +52,17 @@ Three tiers. Mid-tier and low-tier mobile are **out of scope** (`spec.md` Out of
 | Region pointer tables | 192 MB | 128 MB | 48 MB |
 | Debris and transient | 128 MB | 96 MB | 32 MB |
 | **Total world-attributable** | ~5.3 GB | ~1.2 GB | ~464 MB |
+| Extracted surface geometry (GPU) | 1.0 GB | 512 MB | 256 MB |
+
+Extracted surface geometry is derived presentation, not world state, so it sits outside the
+world-attributable total and is tiered like any other presentation parameter. It is sized against the
+innermost LOD ring rather than chosen freely: at 0.1 m voxels a 64-cell chunk spans 6.4 m, its
+faceted surface averages ~12.5 K vertices at a 32 B stride, and that ring alone puts ~1.5 K chunks in
+a production frustum, and the 360-degree prefetch shell around it is larger still, so the
+budget carries headroom above the frustum's own working set rather than sitting exactly on it. The
+buffer splits into vertices and indices at the extractor's measured 1.51
+indices per vertex (provisioned 1.75). Undersizing it does not degrade gracefully — publication fails
+to acquire an arena lease and the view keeps permanent holes where geometry never lands.
 
 **SC-005 check**: total world-attributable memory must be flat over a two-hour session — no upward trend beyond ±2%.
 

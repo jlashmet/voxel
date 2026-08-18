@@ -1,4 +1,5 @@
 using Game.Structures.Api;
+using Game.Structures.Runtime;
 using NUnit.Framework;
 using Unity.Mathematics;
 
@@ -52,7 +53,7 @@ namespace Game.Structures.Tests
             Assert.Multiple(() =>
             {
                 Assert.AreNotEqual(kentridge.PrimaryMaterial, moordell.PrimaryMaterial);
-                Assert.AreNotEqual(fairy.SecondaryMaterial, orc.SecondaryMaterial);
+                Assert.AreNotEqual(fairy.SoftMaterial, orc.SoftMaterial);
                 Assert.AreNotEqual(moordell.AccentMaterial, orc.AccentMaterial);
                 Assert.Greater(moordell.Ornamentation, kentridge.Ornamentation);
             });

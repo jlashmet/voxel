@@ -9,7 +9,7 @@ namespace Game.Structures.Runtime
     /// components. Game material identity stays in the game layer; reusable components consume
     /// only semantic roles.
     /// </summary>
-    internal static class CastleStructurePalette
+    public static class CastleStructurePalette
     {
         public static StructureMaterialPalette Compatibility => new StructureMaterialPalette
         {

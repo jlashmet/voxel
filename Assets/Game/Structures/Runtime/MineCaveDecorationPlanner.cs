@@ -4,8 +4,9 @@ using Unity.Mathematics;
 namespace Game.Structures.Runtime
 {
     /// <summary>
-    /// Occupied-cave placement over semantic cave surfaces. Route infrastructure follows the
-    /// EntryForward candidate; wall fixtures use wall/alcove candidates; portable storage uses floor/ledges.
+    /// Occupied-cave placement over semantic cave surfaces. Route infrastructure (beams, rail,
+    /// carts) lies along the walkable floor that runs forward from the cave entry; wall fixtures use
+    /// wall/alcove candidates; portable storage uses floor/ledges.
     /// </summary>
     public static class MineCaveDecorationPlanner
     {
@@ -108,7 +109,7 @@ namespace Game.Structures.Runtime
             switch (mount)
             {
                 case MineCaveMountKind.Route:
-                    return kind == CaveDecorationSurfaceKind.EntryForward;
+                    return kind == CaveDecorationSurfaceKind.WalkableFloor;
                 case MineCaveMountKind.Wall:
                     return kind == CaveDecorationSurfaceKind.Wall ||
                            kind == CaveDecorationSurfaceKind.Alcove;

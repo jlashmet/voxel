@@ -1,4 +1,5 @@
 using Game.Structures.Api;
+using Game.Structures.Runtime;
 using NUnit.Framework;
 using Unity.Mathematics;
 
@@ -38,7 +39,8 @@ namespace Game.Structures.Tests
                 {
                     for (uint seed = 1; seed <= 16; seed++)
                     {
-                        DecorationContext context = DecorationRegionProfiles.ApplyDefaults(in Context(seed), regions[r], seed);
+                        DecorationContext seeded = Context(seed);
+                        DecorationContext context = DecorationRegionProfiles.ApplyDefaults(in seeded, regions[r], seed);
                         Assert.IsTrue(DecorationExpansion360SceneResolver.TryResolve(scene, regions[r], in space, in context, null, out DecorationPlacement[] placements));
                         for (int s = 0; s < slots.Length; s++)
                             if (slots[s].Required) Assert.IsTrue(Contains(placements, slots[s].SlotId));

@@ -3681,6 +3681,65 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             return true;
         }
 
+        /// <summary>
+        /// Squared camera distance of the chunk this worker is waiting to publish, if any. The
+        /// scheduler uses the nearest such chunk to decide which resident leases may be retired
+        /// when the arena has no offscreen geometry left to give up.
+        /// </summary>
+        internal bool TryGetPendingPublishDistanceSq(Camera camera, float voxelSize,
+                                                     out float distanceSq)
+        {
+            distanceSq = 0f;
+            if (!_pendingUpload || !_build.Active) return false;
+            distanceSq = ChunkDistanceSq(_build.Coordinate, camera, voxelSize);
+            return true;
+        }
+
+        /// <summary>
+        /// Retires the farthest published lease that sits behind <paramref name="minDistanceSq"/>,
+        /// on screen or not.
+        ///
+        /// <see cref="TryEvictOneForArenaPressure"/> only ever gives up offscreen geometry, which is
+        /// the right first choice but cannot always make progress: once the whole resident set is in
+        /// frustum it returns false forever, the pending publications never acquire an arena lease,
+        /// and the renderer stalls with permanent holes in view. Retiring a chunk that is strictly
+        /// farther than the one waiting to publish always trades a distant chunk for a nearer one, so
+        /// the arena converges on the near field instead of deadlocking. The scheduler rebuilds the
+        /// visible list after arena pressure runs, so a retired lease is never drawn this frame.
+        /// </summary>
+        internal bool TryEvictOneBehind(Camera camera, float voxelSize, float minDistanceSq)
+        {
+            if (_entries.Count == 0) return false;
+
+            int3 victim = default;
+            float farthest = minDistanceSq;
+            foreach (var pair in _entries)
+            {
+                if (_build.Active && pair.Key.Equals(_build.Coordinate)) continue;
+                if (!pair.Value.Ready) continue;
+
+                float distance = ChunkDistanceSq(pair.Key, camera, voxelSize);
+                if (distance <= farthest) continue;
+                farthest = distance;
+                victim = pair.Key;
+            }
+
+            if (farthest <= minDistanceSq) return false;
+            if (_entries.TryGetValue(victim, out Entry entry)) RecycleEntry(entry);
+            _entries.Remove(victim);
+            MarkDirty(victim);
+            return true;
+        }
+
+        private float ChunkDistanceSq(int3 coordinate, Camera camera, float voxelSize)
+        {
+            Vector3 cameraPosition = camera != null ? camera.transform.position : Vector3.zero;
+            float chunkMetres = VoxelsPerAxis * voxelSize;
+            Vector3 centre = (new Vector3(coordinate.x, coordinate.y, coordinate.z)
+                            + Vector3.one * 0.5f) * chunkMetres;
+            return (centre - cameraPosition).sqrMagnitude;
+        }
+
         private void EnforceCapacity(Camera camera, float voxelSize)
         {
             if (_entries.Count < MaxResidentChunks || _dirty.Count == 0) return;

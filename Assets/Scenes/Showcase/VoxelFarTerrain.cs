@@ -113,6 +113,27 @@ namespace VoxelEngine.Showcase
         public ulong TopologyRebuildCount => _topologyRebuildCount;
 
         /// <summary>
+        /// True once every ring carries heights sampled from the terrain height field, so the far
+        /// mesh is the height field at a coarser rate rather than a placeholder.
+        ///
+        /// Until the first asynchronous height job for the outermost ring lands, that ring is the
+        /// flat base-height square published by <see cref="BuildStartupFallback"/>. That square is
+        /// deliberate — it keeps the horizon covered without sampling terrain on the player frame —
+        /// but its vertices do not follow the height field, so anything comparing far vertices with
+        /// <see cref="TerrainSampler.HeightAt"/> has to wait for this rather than for a frame count.
+        /// </summary>
+        public bool HasSampledHeightsForEveryRing
+        {
+            get
+            {
+                if (_ringMeshes.Count == 0 || _startupFallbackRing >= 0) return false;
+                for (int ring = 0; ring < _ringHeightValid.Count; ring++)
+                    if (!_ringHeightValid[ring]) return false;
+                return true;
+            }
+        }
+
+        /// <summary>
         /// Radius of ring 0's actual published hole, in metres.
         ///
         /// Generated Storage residency is only an upper bound. Showcase-created far terrain keeps

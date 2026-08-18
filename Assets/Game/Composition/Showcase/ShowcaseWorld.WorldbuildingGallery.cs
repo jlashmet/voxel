@@ -314,11 +314,10 @@ namespace VoxelEngine.Showcase
 
             return new DecorationPlacement
             {
-                Id = new GeneratedPropId
-                {
-                    High = 0x574F524C44425549ul,
-                    Low = ((ulong)sceneId << 32) | slot,
-                },
+                // Gallery props are authored directly rather than resolved from a DecorationContext,
+                // so the identity is folded here from the same scene/slot pair a resolver would use,
+                // tagged "WORLDBUI" to keep it clear of generated decoration ids.
+                Id = new GeneratedPropId(0x574F524C44425549ul ^ (((ulong)sceneId << 32) | slot)),
                 SceneId = sceneId,
                 SlotId = slot,
                 AnchorSlotId = 0,
@@ -332,9 +331,6 @@ namespace VoxelEngine.Showcase
                 Facing = facing,
                 Backend = DecorationRenderBackend.BoxAssembly,
                 Interaction = interaction,
-                StyleId = 0,
-                Wealth = DecorationWealthTier.Wealthy,
-                Condition = DecorationConditionTier.Pristine,
             };
         }
 

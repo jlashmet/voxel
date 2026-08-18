@@ -80,7 +80,7 @@ namespace Game.Structures.Runtime
             in DecorationPresentationProfile profile)
         {
             int3 min = p.Bounds.Min; int3 size = p.Bounds.Size;
-            byte primary = profile.PrimaryMaterial; byte secondary = profile.SecondaryMaterial;
+            byte primary = profile.PrimaryMaterial; byte secondary = profile.SoftMaterial;
             byte accent = profile.AccentMaterial; byte magic = profile.EmissiveMaterial;
             switch (recipe.Shape)
             {

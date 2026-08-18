@@ -175,6 +175,14 @@ namespace VoxelEngine.Tests.PlayMode
             yield return LoadShowcase();
             var far = Object.FindFirstObjectByType<VoxelFarTerrain>();
 
+            // The outermost ring starts as the flat base-height startup square, which is a
+            // placeholder rather than a claim about the height field. Comparing against it measures
+            // nothing, so wait for real sampled heights on every ring before asserting.
+            for (int frame = 0; frame < 600 && !far.HasSampledHeightsForEveryRing; frame++)
+                yield return null;
+            Assert.IsTrue(far.HasSampledHeightsForEveryRing,
+                "Far terrain never replaced its startup fallback with sampled heights.");
+
             var meshes = (List<Mesh>)typeof(VoxelFarTerrain)
                 .GetField("_ringMeshes", BindingFlags.NonPublic | BindingFlags.Instance)
                 .GetValue(far);
