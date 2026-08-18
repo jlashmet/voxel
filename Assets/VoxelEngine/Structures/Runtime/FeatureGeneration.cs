@@ -81,6 +81,14 @@ namespace VoxelEngine.Structures.Runtime
                 placement.Position, placement.Orientation,
                 seed, instanceSeed, primitives, anchors);
 
+            if (evaluation == EvaluationResult.Ok
+                && !PrimitivesWithinDeclaredFootprint(
+                    primitives.AsArray(), in definition,
+                    placement.Position, placement.Orientation))
+            {
+                evaluation = EvaluationResult.OutsideFootprint;
+            }
+
             report.LastEvaluationResult = evaluation;
 
             if (evaluation != EvaluationResult.Ok)
@@ -141,6 +149,35 @@ namespace VoxelEngine.Structures.Runtime
             }
 
             return set;
+        }
+
+        /// <summary>
+        /// Runtime backstop for the authoring-time footprint proof. An invalid catalogue must fail
+        /// closed before rasterisation instead of clipping escaped geometry into whichever region
+        /// happens to request it. Primitive bounds are inclusive; the declared footprint is the
+        /// half-open volume [origin, origin + orientedFootprint).
+        /// </summary>
+        private static bool PrimitivesWithinDeclaredFootprint(
+            NativeArray<Primitive> primitives,
+            in FeatureDefinition definition,
+            int3 origin,
+            byte orientation)
+        {
+            int3 footprint = definition.Footprint;
+            if ((orientation & 1) != 0)
+                footprint = new int3(footprint.z, footprint.y, footprint.x);
+
+            int3 maxExclusive = origin + footprint;
+
+            for (var i = 0; i < primitives.Length; i++)
+            {
+                primitives[i].Bounds(out int3 min, out int3 max);
+                if (min.x < origin.x || min.y < origin.y || min.z < origin.z
+                    || max.x >= maxExclusive.x || max.y >= maxExclusive.y || max.z >= maxExclusive.z)
+                    return false;
+            }
+
+            return true;
         }
 
         /// <summary>

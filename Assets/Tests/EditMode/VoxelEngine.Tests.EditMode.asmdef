@@ -29,6 +29,7 @@
         "Game.Composition.Kentridge.Runtime",
         "Game.Composition.WorldBuilderWorldGen",
         "Game.Composition.WorldBuilderWorldGen.Runtime",
+        "Game.Composition.WorldObjects.Runtime",
         "Game.Story.Api",
         "Game.Story.Runtime",
         "Unity.Burst",

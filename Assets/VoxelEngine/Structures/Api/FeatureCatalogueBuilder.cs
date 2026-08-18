@@ -11,6 +11,7 @@ namespace VoxelEngine.Structures.Api
         FootprintExceedsBudget = 3,
         SpacingNotEnforceable = 4,
         EmptyCatalogue = 5,
+        PrimitiveBudgetExceeded = 6,
     }
 
     /// <summary>
@@ -47,8 +48,11 @@ namespace VoxelEngine.Structures.Api
 
             for (var i = 0; i < catalogue.DefinitionCount; i++)
             {
-                if (!catalogue.Definitions[i].FootprintWithinBudget)
+                var definition = catalogue.Definitions[i];
+                if (!definition.FootprintWithinBudget)
                     return CatalogueLoadResult.FootprintExceedsBudget;
+                if (definition.MaxPrimitives > FeatureBudget.MaxPrimitivesPerInstance)
+                    return CatalogueLoadResult.PrimitiveBudgetExceeded;
             }
 
             for (var i = 0; i < catalogue.Rules.Length; i++)

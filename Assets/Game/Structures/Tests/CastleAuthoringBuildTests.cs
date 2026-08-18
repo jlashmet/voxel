@@ -66,9 +66,11 @@ namespace Game.Structures.Tests
             PlateauRadius = 2,
             PlateauHeight = 4,
             CliffDrop = 1,
-            BaileyHalfX = 20,
-            BaileyHalfZ = 20,
-            WallHeight = 20,
+            // Keep the expensive site sculpt tiny while satisfying the now-explicit castle
+            // composition invariants for a real gatehouse opening and bounded courtyard.
+            BaileyHalfX = 70,
+            BaileyHalfZ = 70,
+            WallHeight = 48,
             WallThickness = 4,
             TowerRadius = 8,
             TowerHeight = 24,
