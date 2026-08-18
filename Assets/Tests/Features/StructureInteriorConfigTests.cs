@@ -18,7 +18,7 @@ namespace VoxelEngine.Tests.Features
 
             Assert.IsTrue(config.IsWellFormed);
             Assert.IsTrue(config.HasConnectedInteriorGraph());
-            Assert.IsTrue(config.IsNavigable(minimumPassageWidth: 3, minimumPassageHeight: 4));
+            Assert.IsTrue(config.IsNavigable(minimumWidth: 3, minimumHeight: 4));
         }
 
         [Test]
@@ -53,7 +53,7 @@ namespace VoxelEngine.Tests.Features
 
             Assert.IsTrue(config.IsWellFormed);
             Assert.IsTrue(config.HasConnectedInteriorGraph());
-            Assert.IsFalse(config.IsNavigable(minimumPassageWidth: 3, minimumPassageHeight: 4));
+            Assert.IsFalse(config.IsNavigable(minimumWidth: 3, minimumHeight: 4));
         }
 
         private static InteriorVolumeConfig Room(int3 min) => new InteriorVolumeConfig
