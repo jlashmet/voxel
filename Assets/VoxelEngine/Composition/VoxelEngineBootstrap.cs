@@ -76,7 +76,7 @@ namespace VoxelEngine.Composition
         /// A caller that has already sized itself against a tier budget must pass that budget to
         /// <see cref="CreateStorage"/> so this constant does not silently re-clamp it downward.
         /// </summary>
-        public const long MaximumMixedBrickAllocationBytes = 256L * 1024 * 1024;
+        public const int MaximumMixedBrickAllocationBytes = 256 * 1024 * 1024;
 
         /// <summary>
         /// Converts an application memory budget into a mixed-brick capacity without exposing
