@@ -31,7 +31,7 @@ namespace VoxelEngine.Structures.Api
     /// <summary>
     /// Derives stable semantic hooks from already-authored cave traversal. The compatibility helper
     /// keeps main-path-end behaviour available, while constrained selection lets downstream systems
-    /// request a progression-aware terminal without reimplementing cave traversal ranking.
+    /// request progression-aware placement without reimplementing cave traversal ranking.
     /// Independent semantic salts keep decoration/resource/water consumers from perturbing each other.
     /// </summary>
     public static class CaveHookPlanner
@@ -55,9 +55,25 @@ namespace VoxelEngine.Structures.Api
             in CavePlacementRequirements requirements,
             out CaveHookSet hooks)
         {
+            CavePlacementPreferences preferences = CavePlacementPreferences.None;
+            return TryAtBestCandidate(
+                in request, in candidates, in requirements, in preferences, out hooks);
+        }
+
+        /// <summary>
+        /// Resolves hooks at the best hard-valid traversal candidate after applying soft preferences.
+        /// Preferences only rank candidates that already satisfy requirements.
+        /// </summary>
+        public static bool TryAtBestCandidate(
+            in CaveGenerationRequest request,
+            in CaveTraversalCandidateSet candidates,
+            in CavePlacementRequirements requirements,
+            in CavePlacementPreferences preferences,
+            out CaveHookSet hooks)
+        {
             hooks = default;
-            if (!CavePlacementResolver.TrySelectDeepest(
-                    in candidates, in requirements, out CaveTraversalCandidate selected))
+            if (!CavePlacementResolver.TrySelectBest(
+                    in candidates, in requirements, in preferences, out CaveTraversalCandidate selected))
                 return false;
 
             hooks = AtPosition(in request, selected.Position);

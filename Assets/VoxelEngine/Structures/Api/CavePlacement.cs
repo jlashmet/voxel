@@ -100,6 +100,42 @@ namespace VoxelEngine.Structures.Api
             };
     }
 
+    /// <summary>
+    /// Optional soft ranking applied only after hard placement requirements pass. PreferredFlags are a
+    /// conjunction: a candidate carrying every preferred flag outranks a hard-valid candidate that does
+    /// not. If no hard-valid candidate satisfies the preference, selection falls back to the deepest
+    /// hard-valid candidate instead of failing or weakening the hard requirements.
+    /// </summary>
+    public struct CavePlacementPreferences
+    {
+        private const CaveTraversalFlags KnownFlags =
+            CaveTraversalFlags.ReachableFromEntrance |
+            CaveTraversalFlags.MainPath |
+            CaveTraversalFlags.Branch |
+            CaveTraversalFlags.Terminal;
+
+        public CaveTraversalFlags PreferredFlags;
+
+        public bool IsWellFormed
+        {
+            get
+            {
+                if ((PreferredFlags & ~KnownFlags) != 0) return false;
+                bool main = (PreferredFlags & CaveTraversalFlags.MainPath) != 0;
+                bool branch = (PreferredFlags & CaveTraversalFlags.Branch) != 0;
+                return !(main && branch);
+            }
+        }
+
+        public static CavePlacementPreferences None => default;
+
+        public static CavePlacementPreferences PreferBranchTerminal =>
+            new CavePlacementPreferences
+            {
+                PreferredFlags = CaveTraversalFlags.Branch | CaveTraversalFlags.Terminal,
+            };
+    }
+
     public static class CavePlacementResolver
     {
         /// <summary>
@@ -111,8 +147,23 @@ namespace VoxelEngine.Structures.Api
             in CavePlacementRequirements requirements,
             out CaveTraversalCandidate selected)
         {
+            CavePlacementPreferences preferences = CavePlacementPreferences.None;
+            return TrySelectBest(in candidates, in requirements, in preferences, out selected);
+        }
+
+        /// <summary>
+        /// Selects among hard-valid candidates, preferring candidates that satisfy all PreferredFlags.
+        /// Preferences never admit a candidate rejected by requirements. Equal preference state falls
+        /// back to the same deterministic deepest-first ordering as TrySelectDeepest.
+        /// </summary>
+        public static bool TrySelectBest(
+            in CaveTraversalCandidateSet candidates,
+            in CavePlacementRequirements requirements,
+            in CavePlacementPreferences preferences,
+            out CaveTraversalCandidate selected)
+        {
             selected = default;
-            if (!requirements.IsWellFormed) return false;
+            if (!requirements.IsWellFormed || !preferences.IsWellFormed) return false;
 
             bool found = false;
             for (int i = 0; i < candidates.Items.Length; i++)
@@ -120,7 +171,7 @@ namespace VoxelEngine.Structures.Api
                 CaveTraversalCandidate candidate = candidates.Items[i];
                 if (!requirements.Matches(in candidate)) continue;
 
-                if (!found || IsBetter(in candidate, in selected))
+                if (!found || IsBetter(in candidate, in selected, in preferences))
                 {
                     selected = candidate;
                     found = true;
@@ -129,8 +180,16 @@ namespace VoxelEngine.Structures.Api
             return found;
         }
 
-        private static bool IsBetter(in CaveTraversalCandidate candidate, in CaveTraversalCandidate selected)
+        private static bool IsBetter(
+            in CaveTraversalCandidate candidate,
+            in CaveTraversalCandidate selected,
+            in CavePlacementPreferences preferences)
         {
+            bool candidatePreferred = MatchesPreference(in candidate, in preferences);
+            bool selectedPreferred = MatchesPreference(in selected, in preferences);
+            if (candidatePreferred != selectedPreferred)
+                return candidatePreferred;
+
             if (candidate.TraversalDistance != selected.TraversalDistance)
                 return candidate.TraversalDistance > selected.TraversalDistance;
             if (candidate.BranchDepth != selected.BranchDepth)
@@ -143,5 +202,11 @@ namespace VoxelEngine.Structures.Api
                 return candidate.Position.z < selected.Position.z;
             return (byte)candidate.Flags < (byte)selected.Flags;
         }
+
+        private static bool MatchesPreference(
+            in CaveTraversalCandidate candidate,
+            in CavePlacementPreferences preferences) =>
+            preferences.PreferredFlags == CaveTraversalFlags.None ||
+            (candidate.Flags & preferences.PreferredFlags) == preferences.PreferredFlags;
     }
 }
