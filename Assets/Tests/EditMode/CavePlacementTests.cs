@@ -48,12 +48,15 @@ namespace VoxelEngine.Tests.EditMode
                 RequiredFlags = mainTerminal,
                 ForbiddenFlags = CaveTraversalFlags.Branch,
             };
+            CaveTraversalCandidate near = candidates.Items[0];
+            CaveTraversalCandidate deep = candidates.Items[1];
+            CaveTraversalCandidate branch = candidates.Items[2];
 
             Assert.Multiple(() =>
             {
-                Assert.IsFalse(requirements.Matches(in candidates.Items.ElementAt(0)));
-                Assert.IsTrue(requirements.Matches(in candidates.Items.ElementAt(1)));
-                Assert.IsFalse(requirements.Matches(in candidates.Items.ElementAt(2)));
+                Assert.IsFalse(requirements.Matches(in near));
+                Assert.IsTrue(requirements.Matches(in deep));
+                Assert.IsFalse(requirements.Matches(in branch));
                 Assert.IsTrue(CavePlacementResolver.TrySelectDeepest(
                     in candidates, in requirements, out CaveTraversalCandidate selected));
                 Assert.AreEqual(48, selected.TraversalDistance);
