@@ -1,0 +1,142 @@
+name: Tests (single)
+run-name: Single ${{ inputs.platform }} · ${{ inputs.test }} · ${{ inputs.request_id }}
+
+# Fast, explicit validation path for coding agents. This does not replace the
+# affected-test PR workflow or the full master suite; it runs only the requested
+# Unity test against the selected git ref.
+on:
+  workflow_dispatch:
+    inputs:
+      test:
+        description: Fully qualified Unity test name (or exact test filter)
+        required: true
+        type: string
+      platform:
+        description: Unity test platform
+        required: true
+        default: EditMode
+        type: choice
+        options:
+          - EditMode
+          - PlayMode
+      request_id:
+        description: Correlation id supplied by tools/ci-test
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: unity-tests-single-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  single:
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          clean: true
+          fetch-depth: 1
+
+      - name: Resolve Unity
+        id: unity
+        shell: bash
+        run: |
+          set -euo pipefail
+          UNITY_VERSION="$(awk '/m_EditorVersion:/ { print $2 }' ProjectSettings/ProjectVersion.txt)"
+          UNITY_PATH="/Applications/Unity/Hub/Editor/${UNITY_VERSION}/Unity.app/Contents/MacOS/Unity"
+          test -x "$UNITY_PATH"
+          echo "path=$UNITY_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for any running Unity editor
+        shell: bash
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 900))
+          while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
+            if (( SECONDS >= deadline )); then
+              pgrep -alf '/Unity.app/Contents/MacOS/Unity' || true
+              exit 1
+            fi
+            sleep 5
+          done
+
+      # Showcase PlayMode tests depend on the same baked startup world used by
+      # the PR and master workflows. Keep that invariant for single-test runs.
+      - name: Bake Voxel Showcase startup world
+        if: inputs.platform == 'PlayMode' && startsWith(inputs.test, 'VoxelEngine.Tests.PlayMode.')
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/Artifacts/SingleTest"
+          mkdir -p "$ROOT"
+          UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=20 \
+          UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
+            -batchmode -nographics -job-worker-count 1 -quit \
+            -projectPath "$GITHUB_WORKSPACE" \
+            -executeMethod VoxelEngine.Showcase.Editor.ShowcaseWorldBaker.BakeShowcaseWorld \
+            -logFile "$ROOT/showcase-bake.log"
+          test -s "$GITHUB_WORKSPACE/Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes"
+
+      - name: Run requested test
+        shell: bash
+        env:
+          TEST_FILTER: ${{ inputs.test }}
+          TEST_PLATFORM: ${{ inputs.platform }}
+        run: |
+          set -uo pipefail
+          ROOT="$GITHUB_WORKSPACE/Artifacts/SingleTest"
+          mkdir -p "$ROOT"
+
+          EXTRA_ARGS=()
+          if [[ "$TEST_PLATFORM" == "EditMode" ]]; then
+            EXTRA_ARGS+=(-nographics)
+          fi
+
+          echo "Running $TEST_PLATFORM test filter: $TEST_FILTER"
+          status=0
+          UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=30 \
+          UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
+            -batchmode "${EXTRA_ARGS[@]}" -job-worker-count 1 \
+            -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform "$TEST_PLATFORM" \
+            -testFilter "$TEST_FILTER" \
+            -testResults "$ROOT/single.xml" -logFile "$ROOT/single.log" || status=$?
+
+          if [[ ! -s "$ROOT/single.log" && -s "$HOME/Library/Logs/Unity/Editor.log" ]]; then
+            cp "$HOME/Library/Logs/Unity/Editor.log" "$ROOT/single-global.log"
+          fi
+          if [[ -s "${TMPDIR:-/tmp}/unity-run-status" ]]; then
+            cp "${TMPDIR:-/tmp}/unity-run-status" "$ROOT/unity-run-status.txt"
+          fi
+
+          if (( status != 0 )); then
+            exit "$status"
+          fi
+          test -s "$ROOT/single.xml"
+
+          # Unity can return successfully even when a bad filter matches no tests.
+          # Treat that as a CI failure so an agent never validates a typo as green.
+          python3 - "$ROOT/single.xml" <<'PY'
+          import sys
+          import xml.etree.ElementTree as ET
+
+          path = sys.argv[1]
+          root = ET.parse(path).getroot()
+          cases = root.findall('.//test-case')
+          if not cases:
+              print('ERROR: Unity completed but the requested filter matched zero tests.', file=sys.stderr)
+              raise SystemExit(2)
+          print(f'Executed {len(cases)} test case(s).')
+          PY
+
+      - name: Upload result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: single-test-${{ github.run_id }}
+          path: Artifacts/SingleTest/**
+          if-no-files-found: ignore
