@@ -4,6 +4,8 @@ set -euo pipefail
 CONTEXT="${CI_WAIT_CONTEXT:-ci/single-test}"
 INTERVAL="${CI_WAIT_INTERVAL_SECONDS:-5}"
 TIMEOUT="${CI_WAIT_TIMEOUT_SECONDS:-2700}"
+API_MAX_ATTEMPTS="${CI_WAIT_API_MAX_ATTEMPTS:-6}"
+API_BACKOFF_INITIAL="${CI_WAIT_API_BACKOFF_INITIAL_SECONDS:-5}"
 SHA=""
 REPO=""
 DETAILS=1
@@ -22,9 +24,17 @@ Options:
   --no-details         Do not print failed-step logs/artifact metadata on failure
   -h, --help           Show this help
 
+Environment:
+  CI_WAIT_API_MAX_ATTEMPTS              API attempts after transient throttling (default: 6)
+  CI_WAIT_API_BACKOFF_INITIAL_SECONDS   Initial exponential backoff (default: 5)
+
 The push-triggered single-test workflow publishes the ci/single-test commit
 status when the runner starts and updates it when the requested Unity test ends.
 A missing status is treated as queued/not started yet.
+
+Normal polling uses the requested interval. If GitHub replies with HTTP 429 or a
+rate-limit HTTP 403, ci-wait honors Retry-After when present; otherwise it backs
+off exponentially (5, 10, 20, 40, 60... seconds by default) before retrying.
 
 Examples:
   tools/ci-wait
@@ -76,17 +86,17 @@ while (($#)); do
   esac
 done
 
-case "$INTERVAL" in
-  ''|*[!0-9]*) echo "ERROR: --interval must be a positive integer" >&2; exit 2 ;;
-esac
-case "$TIMEOUT" in
-  ''|*[!0-9]*) echo "ERROR: --timeout must be a positive integer" >&2; exit 2 ;;
-esac
-(( INTERVAL > 0 )) || { echo "ERROR: --interval must be > 0" >&2; exit 2; }
-(( TIMEOUT > 0 )) || { echo "ERROR: --timeout must be > 0" >&2; exit 2; }
+for value_name in INTERVAL TIMEOUT API_MAX_ATTEMPTS API_BACKOFF_INITIAL; do
+  value="${!value_name}"
+  case "$value" in
+    ''|*[!0-9]*) echo "ERROR: $value_name must be a positive integer" >&2; exit 2 ;;
+  esac
+  (( value > 0 )) || { echo "ERROR: $value_name must be > 0" >&2; exit 2; }
+done
 
 command -v gh >/dev/null 2>&1 || { echo "ERROR: GitHub CLI (gh) is required" >&2; exit 127; }
 command -v python3 >/dev/null 2>&1 || { echo "ERROR: python3 is required" >&2; exit 127; }
+command -v curl >/dev/null 2>&1 || { echo "ERROR: curl is required" >&2; exit 127; }
 
 gh auth status >/dev/null 2>&1 || {
   echo "ERROR: gh is not authenticated. Run: gh auth login" >&2
@@ -109,9 +119,110 @@ if [[ -z "$SHA" ]]; then
   }
 fi
 
+GH_TOKEN="$(gh auth token 2>/dev/null || true)"
+[[ -n "$GH_TOKEN" ]] || {
+  echo "ERROR: could not read the authenticated GitHub token" >&2
+  exit 1
+}
+
+API_BASE="https://api.github.com"
+TMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/ci-wait.XXXXXX")"
+trap 'rm -rf "$TMP_ROOT"' EXIT
+
+api_get() {
+  local path="$1"
+  local attempt=1
+  local delay="$API_BACKOFF_INITIAL"
+  local headers="$TMP_ROOT/headers"
+  local body="$TMP_ROOT/body"
+  local curl_error="$TMP_ROOT/curl-error"
+  local http_code=""
+  local curl_status=0
+  local retry_after=""
+  local remaining=""
+  local message=""
+  local retryable=0
+  local wait_seconds=0
+
+  while (( attempt <= API_MAX_ATTEMPTS )); do
+    : > "$headers"
+    : > "$body"
+    : > "$curl_error"
+
+    set +e
+    http_code="$(curl --silent --show-error --location \
+      --dump-header "$headers" \
+      --output "$body" \
+      --write-out '%{http_code}' \
+      -H "Authorization: Bearer $GH_TOKEN" \
+      -H 'Accept: application/vnd.github+json' \
+      -H 'X-GitHub-Api-Version: 2022-11-28' \
+      "$API_BASE/${path#/}" 2>"$curl_error")"
+    curl_status=$?
+    set -e
+
+    if (( curl_status == 0 )) && [[ "$http_code" =~ ^2[0-9][0-9]$ ]]; then
+      cat "$body"
+      return 0
+    fi
+
+    retry_after="$(awk 'BEGIN { IGNORECASE=1 } /^retry-after:/ { gsub("\\r", "", $2); print $2; exit }' "$headers")"
+    remaining="$(awk 'BEGIN { IGNORECASE=1 } /^x-ratelimit-remaining:/ { gsub("\\r", "", $2); print $2; exit }' "$headers")"
+    message="$(python3 - "$body" <<'PY' 2>/dev/null || true
+import json
+import sys
+try:
+    with open(sys.argv[1], encoding='utf-8') as handle:
+        print(json.load(handle).get('message', ''))
+except Exception:
+    pass
+PY
+)"
+
+    retryable=0
+    if (( curl_status != 0 )); then
+      retryable=1
+    elif [[ "$http_code" == "429" ]]; then
+      retryable=1
+    elif [[ "$http_code" == "403" ]]; then
+      lower_message="$(printf '%s' "$message" | tr '[:upper:]' '[:lower:]')"
+      if [[ -n "$retry_after" || "$remaining" == "0" || "$lower_message" == *"rate limit"* || "$lower_message" == *"abuse"* ]]; then
+        retryable=1
+      fi
+    fi
+
+    if (( ! retryable )); then
+      echo "ERROR: GitHub API request failed with HTTP ${http_code:-unknown}: $path" >&2
+      [[ -n "$message" ]] && echo "       $message" >&2
+      [[ -s "$curl_error" ]] && cat "$curl_error" >&2
+      return 1
+    fi
+
+    if (( attempt >= API_MAX_ATTEMPTS )); then
+      echo "ERROR: GitHub API remained unavailable/throttled after $attempt attempt(s): $path" >&2
+      [[ -n "$message" ]] && echo "       $message" >&2
+      [[ -s "$curl_error" ]] && cat "$curl_error" >&2
+      return 1
+    fi
+
+    if [[ "$retry_after" =~ ^[0-9]+$ ]] && (( retry_after > 0 )); then
+      wait_seconds="$retry_after"
+    else
+      wait_seconds="$delay"
+      delay=$((delay * 2))
+      (( delay > 60 )) && delay=60
+    fi
+
+    echo "GitHub API throttled/unavailable (HTTP ${http_code:-curl-$curl_status}); retrying in ${wait_seconds}s [$attempt/$API_MAX_ATTEMPTS]..." >&2
+    sleep "$wait_seconds"
+    attempt=$((attempt + 1))
+  done
+}
+
 # Fail immediately for a typo or inaccessible commit rather than reporting
-# "queued" forever for a SHA that GitHub cannot resolve.
-if ! gh api "repos/$REPO/commits/$SHA" --silent >/dev/null 2>&1; then
+# "queued" forever for a SHA that GitHub cannot resolve. Transient API throttling
+# is retried by api_get before this is treated as a real failure.
+if ! api_get "repos/$REPO/commits/$SHA" >/dev/null; then
   echo "ERROR: commit $SHA is not accessible in $REPO" >&2
   exit 1
 fi
@@ -132,9 +243,13 @@ print_failure_details() {
 
   echo >&2
   echo "Artifacts:" >&2
-  gh api "repos/$REPO/actions/runs/$run_id/artifacts" \
-    --jq '.artifacts[] | "  \(.name)  size=\(.size_in_bytes)  expired=\(.expired)  id=\(.id)"' \
-    >&2 2>/dev/null || true
+  api_get "repos/$REPO/actions/runs/$run_id/artifacts" \
+    | python3 -c '
+import json
+import sys
+for artifact in json.load(sys.stdin).get("artifacts", []):
+    print(f"  {artifact.get('name')}  size={artifact.get('size_in_bytes')}  expired={artifact.get('expired')}  id={artifact.get('id')}")
+' >&2 || true
 }
 
 started=$SECONDS
@@ -143,7 +258,7 @@ last_state=""
 last_target=""
 
 while :; do
-  status_json="$(gh api "repos/$REPO/commits/$SHA/status")" || {
+  status_json="$(api_get "repos/$REPO/commits/$SHA/status")" || {
     echo "ERROR: failed to read commit status for $SHA" >&2
     exit 1
   }
