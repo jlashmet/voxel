@@ -30,9 +30,12 @@ namespace VoxelEngine.Structures.Api
             get
             {
                 if (TraversalDistance < 0) return false;
+                if ((Flags & CaveTraversalFlags.ReachableFromEntrance) == 0) return false;
+                if ((Flags & CaveTraversalFlags.Terminal) == 0) return false;
+
                 bool main = (Flags & CaveTraversalFlags.MainPath) != 0;
                 bool branch = (Flags & CaveTraversalFlags.Branch) != 0;
-                if (main && branch) return false;
+                if (main == branch) return false;
                 if (main && BranchDepth != 0) return false;
                 if (branch && BranchDepth == 0) return false;
                 return true;
@@ -43,10 +46,12 @@ namespace VoxelEngine.Structures.Api
     /// <summary>
     /// Terminal traversal candidates for one bounded cave. Cave generation emits at most one main
     /// terminal plus one terminal per authored branch, so this remains bounded by CaveConfig.MaxBranches.
+    /// The 1024-byte list comfortably covers the current 33-candidate hard maximum without making
+    /// CaveAuthoringResult carry a 4KB inline collection.
     /// </summary>
     public struct CaveTraversalCandidateSet
     {
-        public FixedList4096Bytes<CaveTraversalCandidate> Items;
+        public FixedList1024Bytes<CaveTraversalCandidate> Items;
         public int Count => Items.Length;
     }
 
