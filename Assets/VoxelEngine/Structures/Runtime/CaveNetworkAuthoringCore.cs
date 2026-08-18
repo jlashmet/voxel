@@ -128,6 +128,7 @@ namespace VoxelEngine.Structures.Runtime
                         Flags = CaveTraversalFlags.ReachableFromEntrance |
                                 CaveTraversalFlags.Terminal |
                                 (path.Depth == 0 ? CaveTraversalFlags.MainPath : CaveTraversalFlags.Branch),
+                        ExitFacing = FacingFor(direction),
                     });
                 }
             }
@@ -281,6 +282,14 @@ namespace VoxelEngine.Structures.Runtime
                 case Facing.West: return new int2(-1, 0);
                 default: return new int2(0, 1);
             }
+        }
+
+        private static Facing FacingFor(int2 direction)
+        {
+            if (direction.x > 0) return Facing.East;
+            if (direction.x < 0) return Facing.West;
+            if (direction.y < 0) return Facing.South;
+            return Facing.North;
         }
 
         private static int2 Rotate(int2 direction, int turn) => turn < 0

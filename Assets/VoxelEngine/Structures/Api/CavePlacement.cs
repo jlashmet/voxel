@@ -17,6 +17,8 @@ namespace VoxelEngine.Structures.Api
     /// <summary>
     /// A bounded semantic placement point derived from the authored cave traversal tree.
     /// TraversalDistance is cumulative carved path length from the entrance, not Euclidean distance.
+    /// ExitFacing preserves the final authored horizontal direction so downstream composition never
+    /// has to reconstruct private turn state from terminal positions.
     /// </summary>
     public struct CaveTraversalCandidate
     {
@@ -24,6 +26,7 @@ namespace VoxelEngine.Structures.Api
         public int TraversalDistance;
         public byte BranchDepth;
         public CaveTraversalFlags Flags;
+        public Facing ExitFacing;
 
         public bool IsWellFormed
         {
@@ -32,6 +35,7 @@ namespace VoxelEngine.Structures.Api
                 if (TraversalDistance < 0) return false;
                 if ((Flags & CaveTraversalFlags.ReachableFromEntrance) == 0) return false;
                 if ((Flags & CaveTraversalFlags.Terminal) == 0) return false;
+                if (!IsCardinal(ExitFacing)) return false;
 
                 bool main = (Flags & CaveTraversalFlags.MainPath) != 0;
                 bool branch = (Flags & CaveTraversalFlags.Branch) != 0;
@@ -41,6 +45,10 @@ namespace VoxelEngine.Structures.Api
                 return true;
             }
         }
+
+        private static bool IsCardinal(Facing facing) =>
+            facing == Facing.North || facing == Facing.East ||
+            facing == Facing.South || facing == Facing.West;
     }
 
     /// <summary>
@@ -199,6 +207,8 @@ namespace VoxelEngine.Structures.Api
                 return candidate.Position.y < selected.Position.y;
             if (candidate.Position.z != selected.Position.z)
                 return candidate.Position.z < selected.Position.z;
+            if (candidate.ExitFacing != selected.ExitFacing)
+                return (int)candidate.ExitFacing < (int)selected.ExitFacing;
             return (byte)candidate.Flags < (byte)selected.Flags;
         }
 
