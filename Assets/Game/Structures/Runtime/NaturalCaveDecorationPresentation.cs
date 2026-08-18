@@ -1,4 +1,5 @@
 using Game.Materials.Api;
+using Game.Structures.Api;
 using Unity.Mathematics;
 using VoxelEngine.Structures.Api;
 
