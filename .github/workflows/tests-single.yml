@@ -1,9 +1,11 @@
 name: Tests (single)
-run-name: Single ${{ inputs.platform }} · ${{ inputs.test }} · ${{ inputs.request_id }}
+run-name: Single test · ${{ github.ref_name }} · ${{ github.event_name }}
 
 # Fast, explicit validation path for coding agents. This does not replace the
 # affected-test PR workflow or the full master suite; it runs only the requested
-# Unity test against the selected git ref.
+# Unity test against the selected git ref. Local developers can dispatch it via
+# tools/ci-test; agents without workflow-dispatch access can update the committed
+# test-request file and push instead.
 on:
   workflow_dispatch:
     inputs:
@@ -24,9 +26,13 @@ on:
         required: false
         default: ''
         type: string
+  push:
+    paths:
+      - '.github/test-request.json'
 
 permissions:
   contents: read
+  statuses: write
 
 concurrency:
   group: unity-tests-single-${{ github.ref }}
@@ -41,6 +47,81 @@ jobs:
         with:
           clean: true
           fetch-depth: 1
+
+      # Push-triggered runs publish a classic commit status so connector-only
+      # agents can monitor queued/running/pass/fail without workflow discovery.
+      - name: Publish pending commit status
+        if: github.event_name == 'push'
+        uses: actions/github-script@v7
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        with:
+          script: |
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: context.sha,
+              state: 'pending',
+              context: 'ci/single-test',
+              description: 'Requested Unity single test is running',
+              target_url: process.env.RUN_URL,
+            });
+
+      - name: Resolve test request
+        id: request
+        shell: bash
+        env:
+          DISPATCH_TEST: ${{ inputs.test }}
+          DISPATCH_PLATFORM: ${{ inputs.platform }}
+          DISPATCH_REQUEST_ID: ${{ inputs.request_id }}
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            test_name="$DISPATCH_TEST"
+            platform="$DISPATCH_PLATFORM"
+            request_id="${DISPATCH_REQUEST_ID:-${GITHUB_SHA:0:12}}"
+
+            [[ -n "$test_name" ]] || { echo "ERROR: test is required" >&2; exit 2; }
+            case "$platform" in
+              EditMode|PlayMode) ;;
+              *) echo "ERROR: platform must be EditMode or PlayMode" >&2; exit 2 ;;
+            esac
+            [[ "$test_name" != *$'\n'* && "$request_id" != *$'\n'* ]] || {
+              echo "ERROR: request values must be single-line strings" >&2
+              exit 2
+            }
+
+            printf 'test=%s\nplatform=%s\nrequest_id=%s\n' \
+              "$test_name" "$platform" "$request_id" >> "$GITHUB_OUTPUT"
+          else
+            python3 - "$GITHUB_OUTPUT" <<'PY'
+          import json
+          import os
+          import sys
+
+          path = '.github/test-request.json'
+          with open(path, encoding='utf-8') as handle:
+              request = json.load(handle)
+
+          test = request.get('test')
+          platform = request.get('platform', 'EditMode')
+          request_id = request.get('request_id') or os.environ.get('GITHUB_SHA', '')[:12]
+
+          if not isinstance(test, str) or not test:
+              raise SystemExit('ERROR: .github/test-request.json requires a non-empty string "test"')
+          if platform not in ('EditMode', 'PlayMode'):
+              raise SystemExit('ERROR: "platform" must be EditMode or PlayMode')
+          if not isinstance(request_id, str):
+              raise SystemExit('ERROR: "request_id" must be a string when supplied')
+          if any('\n' in value or '\r' in value for value in (test, platform, request_id)):
+              raise SystemExit('ERROR: request values must be single-line strings')
+
+          with open(sys.argv[1], 'a', encoding='utf-8') as output:
+              output.write(f'test={test}\n')
+              output.write(f'platform={platform}\n')
+              output.write(f'request_id={request_id}\n')
+          PY
+          fi
 
       - name: Resolve Unity
         id: unity
@@ -68,7 +149,7 @@ jobs:
       # Showcase PlayMode tests depend on the same baked startup world used by
       # the PR and master workflows. Keep that invariant for single-test runs.
       - name: Bake Voxel Showcase startup world
-        if: inputs.platform == 'PlayMode' && startsWith(inputs.test, 'VoxelEngine.Tests.PlayMode.')
+        if: steps.request.outputs.platform == 'PlayMode' && startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.')
         shell: bash
         run: |
           set -euo pipefail
@@ -85,8 +166,8 @@ jobs:
       - name: Run requested test
         shell: bash
         env:
-          TEST_FILTER: ${{ inputs.test }}
-          TEST_PLATFORM: ${{ inputs.platform }}
+          TEST_FILTER: ${{ steps.request.outputs.test }}
+          TEST_PLATFORM: ${{ steps.request.outputs.platform }}
         run: |
           set -uo pipefail
           ROOT="$GITHUB_WORKSPACE/Artifacts/SingleTest"
@@ -140,3 +221,24 @@ jobs:
           name: single-test-${{ github.run_id }}
           path: Artifacts/SingleTest/**
           if-no-files-found: ignore
+
+      - name: Publish final commit status
+        if: always() && github.event_name == 'push'
+        uses: actions/github-script@v7
+        env:
+          JOB_STATUS: ${{ job.status }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        with:
+          script: |
+            const success = process.env.JOB_STATUS === 'success';
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: context.sha,
+              state: success ? 'success' : 'failure',
+              context: 'ci/single-test',
+              description: success
+                ? 'Requested Unity single test passed'
+                : 'Requested Unity single test failed',
+              target_url: process.env.RUN_URL,
+            });
