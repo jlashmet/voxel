@@ -189,13 +189,31 @@ namespace Game.Structures.Api
 
     public static class WorldObjectIds
     {
-        public static WorldObjectId FromDecoration(GeneratedPropId id) => new WorldObjectId(id.Value);
+        public static WorldObjectId FromDecoration(GeneratedPropId id)
+        {
+            // GeneratedPropId is a 128-bit identity. Fold both halves through the same stable
+            // 64-bit mixer used by native world-object IDs rather than depending on its old Value alias.
+            return new WorldObjectId(Mix64(id.High ^ RotateLeft(id.Low, 29)));
+        }
 
         public static WorldObjectId Create(uint worldSeed, uint parentId, uint localKey)
         {
-            uint low = DecorationSeed.Derive(DecorationSeed.Derive(worldSeed, parentId), localKey);
-            uint high = DecorationSeed.Derive(low, 0x574F424Au); // WOBJ
-            return new WorldObjectId(((ulong)high << 32) | low);
+            ulong packedSeed = ((ulong)worldSeed << 32) | parentId;
+            ulong keyed = packedSeed ^ ((ulong)localKey * 0x9E3779B97F4A7C15UL) ^ 0x574F424A574F424AUL;
+            return new WorldObjectId(Mix64(keyed));
+        }
+
+        private static ulong RotateLeft(ulong value, int count) =>
+            (value << count) | (value >> (64 - count));
+
+        private static ulong Mix64(ulong value)
+        {
+            value ^= value >> 30;
+            value *= 0xBF58476D1CE4E5B9UL;
+            value ^= value >> 27;
+            value *= 0x94D049BB133111EBUL;
+            value ^= value >> 31;
+            return value;
         }
     }
 }
