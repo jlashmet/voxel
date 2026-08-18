@@ -47,8 +47,11 @@ StructuredBuffer<uint> _MaterialDefaultStyle;
 #define COMPATIBILITY_JOIN 0
 #define CONTINUITY_DISCONTINUOUS 0
 
-#define SURFACE_STYLE_MATERIAL_DEFAULT 0xFFFF
-#define SURFACE_STYLE_SMOOTH 0
+// SurfaceStyles: MaterialDefault is 0 and Smooth is 1, not a sentinel and zero. Getting this
+// backwards means the default style is never resolved and every cell reads style 0 instead, which
+// is a planar fallback — so smooth terrain silently meshes as though it were architecture.
+#define SURFACE_STYLE_MATERIAL_DEFAULT 0
+#define SURFACE_STYLE_SMOOTH 1
 
 struct StyleDefinition
 {

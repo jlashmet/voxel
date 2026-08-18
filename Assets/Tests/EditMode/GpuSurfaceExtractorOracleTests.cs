@@ -242,5 +242,88 @@ namespace VoxelEngine.Tests.EditMode
                 indices.Release();
             }
         }
+
+        [Test]
+        public void GpuDensityMatchesTheCpuJobSampleForSample()
+        {
+            // The real comparison. Everything downstream — case codes, which cells emit, where the
+            // surface crosses each edge — is a deterministic function of these numbers and the
+            // shared lookup tables, so agreement here is what makes the two meshers one renderer.
+            // The CPU side runs the actual TransvoxelDensityJob, not a second hand-port of the same
+            // rules: two hand-ports agreeing would only prove the same assumption was made twice.
+            const int solidBrickYLimit = 2;
+            const byte material = 1;
+
+            using var mirror = new GpuVoxelBrickMirror(slotCapacity: 8);
+            using var tables = GpuTransvoxelTables.CreateDefault();
+            using var extractor = new GpuSurfaceExtractor(_shader, CellsPerAxis, Padding);
+
+            SurfaceCatalogueView surfaces = SurfaceCatalogueView.CreateBuiltIns();
+            CoatingCatalogueView coatings = default;
+            MaterialPaletteView palette = default;
+
+            var defaultStyles = new uint[256];
+            for (int i = 0; i < 256; i++) defaultStyles[i] = palette.GetDefaultSurfaceStyle((byte)i);
+            extractor.SetCatalogues(surfaces, coatings, defaultStyles);
+
+            int3 brickCacheOrigin = new int3(-1, -1, -1);
+            extractor.ClearBrickCache();
+            for (int z = 0; z < extractor.BrickCacheEdge; z++)
+            for (int y = 0; y < extractor.BrickCacheEdge; y++)
+            for (int x = 0; x < extractor.BrickCacheEdge; x++)
+            {
+                bool solid = y < solidBrickYLimit;
+                extractor.SetBrickCacheEntry(new int3(x, y, z),
+                    GpuSurfaceExtractor.PackBrickCacheEntry(
+                        solid ? VoxelBrickContent.Uniform : VoxelBrickContent.Empty,
+                        solid ? material : (byte)0, -1));
+            }
+
+            const int capacity = 16384;
+            var vertices = new ComputeBuffer(capacity, sizeof(float) * 6 + sizeof(uint) * 2,
+                                             ComputeBufferType.Structured);
+            var indices = new ComputeBuffer(capacity, sizeof(uint), ComputeBufferType.Structured);
+            try
+            {
+                extractor.Extract(mirror, tables, int3.zero, brickCacheOrigin, 1, 0.1f,
+                                  vertices, indices, capacity, capacity);
+
+                var gpuDensity = new float[extractor.GridSize * extractor.GridSize * extractor.GridSize];
+                extractor.ReadDensity(gpuDensity);
+
+                float[] cpuDensity = CpuDensityOracle.SampleUniformNeighbourhood(
+                    int3.zero, brickCacheOrigin, extractor.BrickCacheEdge,
+                    CellsPerAxis, Padding, sourceStep: 1,
+                    material, solidBelowBrickY: true, solidBrickYLimit,
+                    surfaces, coatings, palette);
+
+                Assert.AreEqual(cpuDensity.Length, gpuDensity.Length);
+
+                int mismatches = 0;
+                float worst = 0f;
+                int worstIndex = -1;
+                for (int i = 0; i < cpuDensity.Length; i++)
+                {
+                    float delta = Mathf.Abs(cpuDensity[i] - gpuDensity[i]);
+                    if (delta <= 1e-4f) continue;
+                    mismatches++;
+                    if (delta <= worst) continue;
+                    worst = delta;
+                    worstIndex = i;
+                }
+
+                Assert.AreEqual(0, mismatches,
+                    $"{mismatches} of {cpuDensity.Length} samples disagree; worst {worst:F5} at "
+                  + $"index {worstIndex} (cpu {(worstIndex >= 0 ? cpuDensity[worstIndex] : 0f):F5} "
+                  + $"vs gpu {(worstIndex >= 0 ? gpuDensity[worstIndex] : 0f):F5}). The GPU port "
+                  + "has diverged from TransvoxelDensityJob, so the two meshers would build "
+                  + "different surfaces from the same voxels.");
+            }
+            finally
+            {
+                vertices.Release();
+                indices.Release();
+            }
+        }
     }
 }
