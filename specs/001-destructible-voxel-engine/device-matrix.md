@@ -47,11 +47,11 @@ Three tiers. Mid-tier and low-tier mobile are **out of scope** (`spec.md` Out of
 
 | Budget | PC | Console | Mobile-HE |
 |---|---|---|---|
-| **Brick pool** | 2.0 GB | 1.0 GB | 384 MB |
-| Approx. unique mixed bricks (2,112 B each) | ~947 K | ~508 K | ~190 K |
+| **Brick pool** | 5.0 GB | 1.0 GB | 384 MB |
+| Approx. unique mixed bricks (2,112 B each) | ~2.37 M | ~508 K | ~190 K |
 | Region pointer tables | 192 MB | 128 MB | 48 MB |
 | Debris and transient | 128 MB | 96 MB | 32 MB |
-| **Total world-attributable** | ~2.3 GB | ~1.2 GB | ~464 MB |
+| **Total world-attributable** | ~5.3 GB | ~1.2 GB | ~464 MB |
 
 **SC-005 check**: total world-attributable memory must be flat over a two-hour session — no upward trend beyond ±2%.
 
@@ -86,7 +86,7 @@ Per player, at 64 concurrent players under sustained heavy destruction.
 | **Peak downstream (2 s window)** | ≤ 512 KB/s | ≤ 192 KB/s |
 | Sustained upstream | ≤ 32 KB/s | ≤ 24 KB/s |
 | EVENT channel share | ≥ 60% reserved | ≥ 70% reserved |
-| BULK channel | remainder, yields to EVENT | remainder, yields to EVENT |
+| BULK channel | remainder, yields to EVENT |
 
 **SC-002 check**: a destruction event affecting ≥ 4000 voxels must transmit in ≤ 64 bytes — within 2× the cost of an ordinary player action.
 
