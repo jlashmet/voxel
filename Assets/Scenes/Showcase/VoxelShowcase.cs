@@ -49,7 +49,7 @@ namespace VoxelEngine.Showcase
 
         [Tooltip("Mixed-brick pool capacity. Bounded by configuration, never by world size. " +
                  "Each slot currently costs 2112 B; runtime clamps this to the device tier.")]
-        [SerializeField] private int m_BrickPoolCapacity = 262144;
+        [SerializeField] private int m_BrickPoolCapacity = 2367424;
 
         [Header("Streaming")]
         [Tooltip("Regions kept resident around the player. One region is 51.2 m across.")]
@@ -118,7 +118,7 @@ namespace VoxelEngine.Showcase
 
             // Clamp by bytes, not an obsolete slot count. Sidecars change per-slot cost; tier
             // budgets remain the authority and cannot silently be exceeded by an inspector value.
-            int tierBytes = DeviceTierBudget.GetForTier(DeviceTierBudget.Detect()).BrickPoolCapacity;
+            long tierBytes = DeviceTierBudget.GetForTier(DeviceTierBudget.Detect()).BrickPoolCapacity;
             int capacity = VoxelEngineBootstrap.ClampMixedBrickCapacityToBudget(
                 m_BrickPoolCapacity, tierBytes);
 
