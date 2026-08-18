@@ -1,0 +1,212 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+CONTEXT="${CI_WAIT_CONTEXT:-ci/single-test}"
+INTERVAL="${CI_WAIT_INTERVAL_SECONDS:-5}"
+TIMEOUT="${CI_WAIT_TIMEOUT_SECONDS:-2700}"
+SHA=""
+REPO=""
+DETAILS=1
+
+usage() {
+  cat <<'EOF'
+Usage:
+  tools/ci-wait [options]
+
+Options:
+  --sha <commit>       Commit to watch (default: current HEAD)
+  --repo <owner/name>  Repository (default: current gh repository)
+  --context <name>     Commit-status context (default: ci/single-test)
+  --interval <seconds> Poll interval (default: 5)
+  --timeout <seconds>  Overall timeout (default: 2700 / 45 minutes)
+  --no-details         Do not print failed-step logs/artifact metadata on failure
+  -h, --help           Show this help
+
+The push-triggered single-test workflow publishes the ci/single-test commit
+status when the runner starts and updates it when the requested Unity test ends.
+A missing status is treated as queued/not started yet.
+
+Examples:
+  tools/ci-wait
+  tools/ci-wait --sha "$(git rev-parse HEAD)"
+  tools/ci-wait --timeout 3600 --interval 10
+EOF
+}
+
+while (($#)); do
+  case "$1" in
+    --sha)
+      [[ $# -ge 2 ]] || { echo "ERROR: --sha requires a value" >&2; exit 2; }
+      SHA="$2"
+      shift 2
+      ;;
+    --repo)
+      [[ $# -ge 2 ]] || { echo "ERROR: --repo requires a value" >&2; exit 2; }
+      REPO="$2"
+      shift 2
+      ;;
+    --context)
+      [[ $# -ge 2 ]] || { echo "ERROR: --context requires a value" >&2; exit 2; }
+      CONTEXT="$2"
+      shift 2
+      ;;
+    --interval)
+      [[ $# -ge 2 ]] || { echo "ERROR: --interval requires a value" >&2; exit 2; }
+      INTERVAL="$2"
+      shift 2
+      ;;
+    --timeout)
+      [[ $# -ge 2 ]] || { echo "ERROR: --timeout requires a value" >&2; exit 2; }
+      TIMEOUT="$2"
+      shift 2
+      ;;
+    --no-details)
+      DETAILS=0
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "ERROR: unknown option: $1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+case "$INTERVAL" in
+  ''|*[!0-9]*) echo "ERROR: --interval must be a positive integer" >&2; exit 2 ;;
+esac
+case "$TIMEOUT" in
+  ''|*[!0-9]*) echo "ERROR: --timeout must be a positive integer" >&2; exit 2 ;;
+esac
+(( INTERVAL > 0 )) || { echo "ERROR: --interval must be > 0" >&2; exit 2; }
+(( TIMEOUT > 0 )) || { echo "ERROR: --timeout must be > 0" >&2; exit 2; }
+
+command -v gh >/dev/null 2>&1 || { echo "ERROR: GitHub CLI (gh) is required" >&2; exit 127; }
+command -v python3 >/dev/null 2>&1 || { echo "ERROR: python3 is required" >&2; exit 127; }
+
+gh auth status >/dev/null 2>&1 || {
+  echo "ERROR: gh is not authenticated. Run: gh auth login" >&2
+  exit 1
+}
+
+if [[ -z "$REPO" ]]; then
+  REPO="$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null || true)"
+  [[ -n "$REPO" ]] || {
+    echo "ERROR: could not determine repository; pass --repo owner/name" >&2
+    exit 1
+  }
+fi
+
+if [[ -z "$SHA" ]]; then
+  SHA="$(git rev-parse HEAD 2>/dev/null || true)"
+  [[ -n "$SHA" ]] || {
+    echo "ERROR: could not determine HEAD; pass --sha <commit>" >&2
+    exit 1
+  }
+fi
+
+# Fail immediately for a typo or inaccessible commit rather than reporting
+# "queued" forever for a SHA that GitHub cannot resolve.
+if ! gh api "repos/$REPO/commits/$SHA" --silent >/dev/null 2>&1; then
+  echo "ERROR: commit $SHA is not accessible in $REPO" >&2
+  exit 1
+fi
+
+print_failure_details() {
+  local target_url="$1"
+  (( DETAILS )) || return 0
+
+  local run_id=""
+  if [[ "$target_url" =~ /actions/runs/([0-9]+) ]]; then
+    run_id="${BASH_REMATCH[1]}"
+  fi
+  [[ -n "$run_id" ]] || return 0
+
+  echo >&2
+  echo "Failed-step log tail (run $run_id):" >&2
+  gh run view "$run_id" --repo "$REPO" --log-failed 2>/dev/null | tail -n 250 >&2 || true
+
+  echo >&2
+  echo "Artifacts:" >&2
+  gh api "repos/$REPO/actions/runs/$run_id/artifacts" \
+    --jq '.artifacts[] | "  \(.name)  size=\(.size_in_bytes)  expired=\(.expired)  id=\(.id)"' \
+    >&2 2>/dev/null || true
+}
+
+started=$SECONDS
+deadline=$((started + TIMEOUT))
+last_state=""
+last_target=""
+
+while :; do
+  status_json="$(gh api "repos/$REPO/commits/$SHA/status")" || {
+    echo "ERROR: failed to read commit status for $SHA" >&2
+    exit 1
+  }
+
+  row="$(
+    printf '%s' "$status_json" | python3 -c '
+import json
+import sys
+
+context = sys.argv[1]
+data = json.load(sys.stdin)
+for status in data.get("statuses", []):
+    if status.get("context") == context:
+        state = status.get("state") or ""
+        target = status.get("target_url") or "-"
+        description = (status.get("description") or "").replace("\t", " ").replace("\n", " ")
+        print("\t".join((state, target, description)))
+        break
+' "$CONTEXT"
+  )"
+
+  state="waiting"
+  target_url="-"
+  description="status has not been published yet"
+  if [[ -n "$row" ]]; then
+    IFS=$'\t' read -r state target_url description <<< "$row"
+    [[ -n "$state" ]] || state="waiting"
+    [[ -n "$target_url" ]] || target_url="-"
+  fi
+
+  if [[ "$state" != "$last_state" || "$target_url" != "$last_target" ]]; then
+    printf '[%s] %s: %s' "$(date '+%H:%M:%S')" "$CONTEXT" "$state"
+    [[ -n "$description" ]] && printf ' — %s' "$description"
+    [[ "$target_url" != "-" ]] && printf ' (%s)' "$target_url"
+    printf '\n'
+    last_state="$state"
+    last_target="$target_url"
+  fi
+
+  case "$state" in
+    success)
+      echo "CI passed for $SHA"
+      exit 0
+      ;;
+    failure|error)
+      echo "CI failed for $SHA" >&2
+      [[ "$target_url" != "-" ]] && echo "Run: $target_url" >&2
+      print_failure_details "$target_url"
+      exit 1
+      ;;
+    waiting|pending)
+      ;;
+    *)
+      echo "ERROR: unexpected commit status state: $state" >&2
+      exit 1
+      ;;
+  esac
+
+  if (( SECONDS >= deadline )); then
+    echo "ERROR: timed out after ${TIMEOUT}s waiting for $CONTEXT on $SHA" >&2
+    [[ "$target_url" != "-" ]] && echo "Last run: $target_url" >&2
+    exit 124
+  fi
+
+  sleep "$INTERVAL"
+done
