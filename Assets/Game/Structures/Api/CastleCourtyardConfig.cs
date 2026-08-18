@@ -56,7 +56,7 @@ namespace Game.Structures.Api
         /// </summary>
         public bool AuthorCompatibilityBuildings;
 
-        public FixedList256Bytes<CastleCourtyardBuildingSlotConfig> SecondaryBuildingSlots;
+        public FixedList512Bytes<CastleCourtyardBuildingSlotConfig> SecondaryBuildingSlots;
 
         public bool IsWellFormed
         {
