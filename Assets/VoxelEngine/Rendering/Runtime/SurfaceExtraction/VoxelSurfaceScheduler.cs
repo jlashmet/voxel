@@ -664,6 +664,20 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private double CurrentBudgetScale =>
             _lastMissingVisibleCount > 0 ? Math.Max(1.0, ConvergenceBudgetScale) : 1.0;
 
+        /// <summary>
+        /// Ceiling on arena evictions per frame. Each one costs a scan of a worker's entry table, so
+        /// this bounds the relief work while still letting it keep pace with a frame's worth of
+        /// failed publications.
+        /// </summary>
+        private const int MaxArenaEvictionsPerFrame = 16;
+
+        /// <summary>
+        /// Frames between arena relief passes once the view is complete. Relief costs a scan of a
+        /// worker's entry table, and outside convergence the only thing waiting is prefetch, so it
+        /// runs rarely enough to be free and often enough that a publication backlog still drains.
+        /// </summary>
+        private const int SteadyArenaReliefInterval = 8;
+
         private static int ScaleBudget(int budget, double scale) =>
             (int)Math.Min(int.MaxValue, Math.Max(0L, (long)(budget * scale)));
         public double SurfaceDiscoveryBudgetMs { get; set; } = 0.10;
@@ -979,54 +993,71 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             // can see, to admit a chunk behind them. Once nothing visible is missing, a prefetch
             // chunk that cannot get a lease simply waits.
             ulong arenaFailures = _geometryArena.AllocationFailureCount;
-            bool needsArenaRelief = _lastMissingVisibleCount > 0
+            int workersAwaitingPublication = 0;
+            for (int i = 0; i < workerCount; i++)
+                if (_allWorkers[i].PendingUploadCount > 0) workersAwaitingPublication++;
+
+            // A build that finished but cannot obtain a lease stays pending forever, so relief has
+            // to consider publication backlog and not only visible holes: gating on holes alone left
+            // completed meshes stranded on a full arena with the view already complete. Outside
+            // convergence that backlog is prefetch the player is not waiting on, so relief runs on a
+            // slow cadence there — enough to drain, too little to cost a scan every frame.
+            bool converging = _lastMissingVisibleCount > 0;
+            bool relievePeriodically = workersAwaitingPublication > 0
+                                    && frame % SteadyArenaReliefInterval == 0;
+            bool needsArenaRelief = (converging || relievePeriodically)
                                  && arenaFailures > _observedArenaAllocationFailures
                                  && workerCount > 0;
             _observedArenaAllocationFailures = arenaFailures;
             if (needsArenaRelief)
             {
-                bool evicted = false;
-                for (int offset = 0; offset < workerCount; offset++)
+                // One eviction a frame cannot reshape an arena holding thousands of leases:
+                // publication fails many times per frame under pressure, so relief that frees a
+                // single chunk falls further behind every frame and the last visible holes never
+                // close. Free as many as there are publications waiting — in one pass per worker,
+                // because a scan per victim is what made this the dominant cost in Prepare.
+                int evictionBudget = Math.Clamp(
+                    workersAwaitingPublication, 1, MaxArenaEvictionsPerFrame);
+
+                float nearestPending = float.MaxValue;
+                for (int i = 0; i < workerCount; i++)
+                {
+                    if (_allWorkers[i].TryGetPendingPublishDistanceSq(
+                            camera, voxelSize, out float pendingDistance)
+                        && pendingDistance < nearestPending)
+                        nearestPending = pendingDistance;
+                }
+
+                int freed = 0;
+                for (int offset = 0; offset < workerCount && freed < evictionBudget; offset++)
                 {
                     int index = (_arenaPressureCursor + offset) % workerCount;
-                    if (!_allWorkers[index].TryEvictOneForArenaPressure(camera, voxelSize))
-                        continue;
+                    int evicted = _allWorkers[index].EvictFarthest(
+                        camera, voxelSize, offscreenOnly: true, 0f, evictionBudget - freed);
+                    if (evicted == 0) continue;
+                    freed += evicted;
+                    _arenaPressureEvictions += (ulong)evicted;
                     _arenaPressureCursor = (index + 1) % workerCount;
-                    _arenaPressureEvictions++;
-                    evicted = true;
-                    break;
                 }
 
                 // Offscreen geometry is the cheapest thing to give up, but once the whole resident
                 // set is in frustum the pass above can never succeed again. Pending publications
                 // then fail to acquire a lease every frame, builds stop, and the view keeps the
-                // chunks it happens to have — a permanent hole wherever geometry had not landed yet.
-                // Fall back to retiring the farthest published lease that sits behind the nearest
-                // chunk waiting to publish: that always trades a more distant chunk for a nearer one,
-                // so the arena makes progress instead of deadlocking.
-                if (!evicted)
+                // chunks it happens to have — a permanent hole wherever geometry had not landed
+                // yet. Fall back to retiring published leases that sit behind the nearest chunk
+                // waiting to publish: that always trades a more distant chunk for a nearer one.
+                if (freed < evictionBudget && nearestPending < float.MaxValue)
                 {
-                    float nearestPending = float.MaxValue;
-                    for (int i = 0; i < workerCount; i++)
+                    for (int offset = 0; offset < workerCount && freed < evictionBudget; offset++)
                     {
-                        if (_allWorkers[i].TryGetPendingPublishDistanceSq(
-                                camera, voxelSize, out float pendingDistance)
-                            && pendingDistance < nearestPending)
-                            nearestPending = pendingDistance;
-                    }
-
-                    if (nearestPending < float.MaxValue)
-                    {
-                        for (int offset = 0; offset < workerCount; offset++)
-                        {
-                            int index = (_arenaPressureCursor + offset) % workerCount;
-                            if (!_allWorkers[index].TryEvictOneBehind(
-                                    camera, voxelSize, nearestPending))
-                                continue;
-                            _arenaPressureCursor = (index + 1) % workerCount;
-                            _arenaPressureEvictions++;
-                            break;
-                        }
+                        int index = (_arenaPressureCursor + offset) % workerCount;
+                        int evicted = _allWorkers[index].EvictFarthest(
+                            camera, voxelSize, offscreenOnly: false, nearestPending,
+                            evictionBudget - freed);
+                        if (evicted == 0) continue;
+                        freed += evicted;
+                        _arenaPressureEvictions += (ulong)evicted;
+                        _arenaPressureCursor = (index + 1) % workerCount;
                     }
                 }
             }

@@ -123,7 +123,7 @@ namespace VoxelEngine.Tiering.Api
                     maxViewDistance:    10000,             // 10 km
                     mipTransitionStart: 400,               // Start mip transition at 400 m
                     farFieldStart:      1200,              // Implicit far-field beyond 1200 m
-                    surfaceGeometryBudget: 1_073_741_824L  // 1.0 GB of extracted surface geometry
+                    surfaceGeometryBudget: 1_342_177_280L  // 1.25 GB of extracted surface geometry
                 ),
 
                 DeviceTier.Console => new DeviceTierBudget(
@@ -135,7 +135,7 @@ namespace VoxelEngine.Tiering.Api
                     maxViewDistance:    10000,             // 10 km
                     mipTransitionStart: 350,               // Start mip transition at 350 m
                     farFieldStart:      1000,              // Implicit far-field beyond 1000 m
-                    surfaceGeometryBudget: 536_870_912L  // 512 MB of extracted surface geometry
+                    surfaceGeometryBudget: 671_088_640L  // 640 MB of extracted surface geometry
                 ),
 
                 DeviceTier.MobileHE => new DeviceTierBudget(
@@ -147,7 +147,7 @@ namespace VoxelEngine.Tiering.Api
                     maxViewDistance:    6000,              // 6 km max view distance
                     mipTransitionStart: 200,               // Start mip transition at 200 m
                     farFieldStart:      600,               // Implicit far-field beyond 600 m
-                    surfaceGeometryBudget: 268_435_456L  // 256 MB of extracted surface geometry
+                    surfaceGeometryBudget: 335_544_320L  // 320 MB of extracted surface geometry
                 ),
 
                 _ => throw new ArgumentOutOfRangeException(nameof(tier), $"Unknown device tier: {tier}")

@@ -3647,6 +3647,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             return true;
         }
 
+
         internal bool TryEvictOneForArenaPressure(Camera camera, float voxelSize)
         {
             if (_entries.Count == 0) return false;
@@ -3696,40 +3697,80 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         }
 
         /// <summary>
-        /// Retires the farthest published lease that sits behind <paramref name="minDistanceSq"/>,
-        /// on screen or not.
+        /// Retires up to <paramref name="maxEvictions"/> of the farthest eligible leases in a single
+        /// pass over the entry table.
         ///
-        /// <see cref="TryEvictOneForArenaPressure"/> only ever gives up offscreen geometry, which is
-        /// the right first choice but cannot always make progress: once the whole resident set is in
-        /// frustum it returns false forever, the pending publications never acquire an arena lease,
-        /// and the renderer stalls with permanent holes in view. Retiring a chunk that is strictly
-        /// farther than the one waiting to publish always trades a distant chunk for a nearer one, so
-        /// the arena converges on the near field instead of deadlocking. The scheduler rebuilds the
-        /// visible list after arena pressure runs, so a retired lease is never drawn this frame.
+        /// Relief used to answer "give me one victim", so freeing N chunks meant N full scans of the
+        /// table with a frustum test per entry every time. Under pressure that is the dominant cost
+        /// in SchedulerPrepare — the same scan repeated, on every frame, over a table holding
+        /// thousands of leases. One pass that selects N victims costs what one old call did.
+        ///
+        /// With <paramref name="offscreenOnly"/> the pass gives up only geometry outside the frustum,
+        /// which is the cheap choice and always the first one tried. Otherwise it retires anything
+        /// published that sits farther than <paramref name="minDistanceSq"/>, which is how a fully
+        /// on-screen resident set still makes room for the chunk nearest the camera.
         /// </summary>
-        internal bool TryEvictOneBehind(Camera camera, float voxelSize, float minDistanceSq)
+        internal int EvictFarthest(Camera camera, float voxelSize, bool offscreenOnly,
+                                   float minDistanceSq, int maxEvictions)
         {
-            if (_entries.Count == 0) return false;
+            if (_entries.Count == 0 || maxEvictions <= 0) return 0;
 
-            int3 victim = default;
-            float farthest = minDistanceSq;
-            foreach (var pair in _entries)
+            int wanted = math.min(maxEvictions, MaxEvictionVictims);
+            if (_evictionVictims == null || _evictionVictims.Length < MaxEvictionVictims)
             {
-                if (_build.Active && pair.Key.Equals(_build.Coordinate)) continue;
-                if (!pair.Value.Ready) continue;
-
-                float distance = ChunkDistanceSq(pair.Key, camera, voxelSize);
-                if (distance <= farthest) continue;
-                farthest = distance;
-                victim = pair.Key;
+                _evictionVictims = new int3[MaxEvictionVictims];
+                _evictionVictimDistances = new float[MaxEvictionVictims];
             }
 
-            if (farthest <= minDistanceSq) return false;
-            if (_entries.TryGetValue(victim, out Entry entry)) RecycleEntry(entry);
-            _entries.Remove(victim);
-            MarkDirty(victim);
-            return true;
+            int found = 0;
+            Vector3 cameraPosition = camera != null ? camera.transform.position : Vector3.zero;
+            if (camera != null) GeometryUtility.CalculateFrustumPlanes(camera, _frustumPlanes);
+
+            foreach (var pair in _entries)
+            {
+                // Keep current replacement geometry alive. Relief may only retire a different,
+                // already-published lease.
+                if (_build.Active && pair.Key.Equals(_build.Coordinate)) continue;
+                if (offscreenOnly)
+                {
+                    Bounds bounds = ChunkWorldBounds(pair.Key, voxelSize);
+                    if (camera != null && GeometryUtility.TestPlanesAABB(_frustumPlanes, bounds))
+                        continue;
+                }
+                else if (!pair.Value.Ready)
+                {
+                    continue;
+                }
+
+                float distance = ChunkDistanceSq(pair.Key, camera, voxelSize);
+                if (!offscreenOnly && distance <= minDistanceSq) continue;
+                if (found == wanted && distance <= _evictionVictimDistances[found - 1]) continue;
+
+                // Keep the running selection ordered farthest-first; it is at most a few entries.
+                int slot = found < wanted ? found++ : wanted - 1;
+                while (slot > 0 && _evictionVictimDistances[slot - 1] < distance)
+                {
+                    _evictionVictimDistances[slot] = _evictionVictimDistances[slot - 1];
+                    _evictionVictims[slot] = _evictionVictims[slot - 1];
+                    slot--;
+                }
+                _evictionVictimDistances[slot] = distance;
+                _evictionVictims[slot] = pair.Key;
+            }
+
+            for (int i = 0; i < found; i++)
+            {
+                int3 victim = _evictionVictims[i];
+                if (_entries.TryGetValue(victim, out Entry entry)) RecycleEntry(entry);
+                _entries.Remove(victim);
+                MarkDirty(victim);
+            }
+            return found;
         }
+
+        private const int MaxEvictionVictims = 16;
+        private int3[] _evictionVictims;
+        private float[] _evictionVictimDistances;
 
         private float ChunkDistanceSq(int3 coordinate, Camera camera, float voxelSize)
         {
