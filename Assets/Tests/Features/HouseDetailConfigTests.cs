@@ -72,17 +72,10 @@ namespace VoxelEngine.Tests.Features
                     FrameThickness = 1,
                     LintelThickness = 2,
                 },
-                EntryTreatment = new HouseEntryTreatmentConfig
-                {
-                    PorchWidth = 20,
-                    PorchDepth = 7,
-                    PorchHeight = 2,
-                    StepCount = 2,
-                    StepDepth = 2,
-                    StepHeight = 1,
-                    PorchMaterialRole = StructureMaterialRole.Floor,
-                    StepMaterialRole = StructureMaterialRole.Foundation,
-                },
+                StepsEnabled = true,
+                StepDepth = 2,
+                StepHeight = 1,
+                StepMaterialRole = StructureMaterialRole.Foundation,
             };
 
             var rearDoors = new HouseDoorLayoutConfig
@@ -137,8 +130,9 @@ namespace VoxelEngine.Tests.Features
             Assert.IsTrue(frontDoor.IsWellFormed);
             Assert.AreEqual(1, frontDoor.Opening.FrameThickness);
             Assert.AreEqual(2, frontDoor.Opening.LintelThickness);
-            Assert.IsTrue(frontDoor.EntryTreatment.HasPorch);
-            Assert.IsTrue(frontDoor.EntryTreatment.HasSteps);
+            Assert.IsTrue(frontDoor.StepsEnabled);
+            Assert.AreEqual(2, frontDoor.StepDepth);
+            Assert.AreEqual(1, frontDoor.StepHeight);
             Assert.AreEqual(2, rearDoors.Count);
             Assert.IsTrue(rearDoors.IsWellFormed);
             Assert.AreEqual(HouseFacade.Right, sideDoor.Facade);
