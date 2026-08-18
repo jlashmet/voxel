@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="1" result="Passed" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-18 13:30:12Z" end-time="2026-08-18 13:30:41Z" duration="29.2635836">
+  <test-suite type="TestSuite" id="1522" name="voxel" fullname="voxel" runstate="Runnable" testcasecount="378" result="Passed" start-time="2026-08-18 13:30:12Z" end-time="2026-08-18 13:30:41Z" duration="29.263584" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="PlayMode" />
+    </properties>
+    <test-suite type="Assembly" id="1518" name="VoxelEngine.Tests.PlayMode.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/VoxelEngine.Tests.PlayMode.dll" runstate="Runnable" testcasecount="145" result="Passed" start-time="2026-08-18 13:30:12Z" end-time="2026-08-18 13:30:41Z" duration="29.257911" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="73359" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="PlayMode" />
+        <property name="EditorOnly" value="False" />
+      </properties>
+      <test-suite type="TestSuite" id="1519" name="VoxelEngine" fullname="VoxelEngine" runstate="Runnable" testcasecount="145" result="Passed" start-time="2026-08-18 13:30:12Z" end-time="2026-08-18 13:30:41Z" duration="29.256866" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="1520" name="Tests" fullname="VoxelEngine.Tests" runstate="Runnable" testcasecount="145" result="Passed" start-time="2026-08-18 13:30:12Z" end-time="2026-08-18 13:30:41Z" duration="29.255874" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="1521" name="PlayMode" fullname="VoxelEngine.Tests.PlayMode" runstate="Runnable" testcasecount="145" result="Passed" start-time="2026-08-18 13:30:12Z" end-time="2026-08-18 13:30:41Z" duration="29.254976" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="1516" name="ZzArenaProbeTests" fullname="VoxelEngine.Tests.PlayMode.ZzArenaProbeTests" classname="VoxelEngine.Tests.PlayMode.ZzArenaProbeTests" runstate="Runnable" testcasecount="1" result="Passed" start-time="2026-08-18 13:30:12Z" end-time="2026-08-18 13:30:41Z" duration="29.252682" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1517" name="ProbeArenaOccupancy" fullname="VoxelEngine.Tests.PlayMode.ZzArenaProbeTests.ProbeArenaOccupancy" methodname="ProbeArenaOccupancy" classname="VoxelEngine.Tests.PlayMode.ZzArenaProbeTests" runstate="Runnable" seed="229759097" result="Passed" start-time="2026-08-18 13:30:12Z" end-time="2026-08-18 13:30:41Z" duration="29.247599" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="Timeout" value="900000" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[[VoxelResidency] residentRegions=32 mixed=233,873/2,367,424 evicted=0 reclaimedMixed=0
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+### ARENA f=0 leases=0 verts=0/2097152 (0.0%) indices=0/6291456 (0.0%) vertsPerChunk=0 indicesPerChunk=0 idxPerVert=0.00 resident=0 visible=0 missing=0 fail=0 visKnown=0 visInBand=0 visFrustum=0 step4InBand=0 step4Frustum=0
+### ARENA f=100 leases=35 verts=408320/2097152 (19.5%) indices=614912/6291456 (9.8%) vertsPerChunk=11666 indicesPerChunk=17568 idxPerVert=1.51 resident=35 visible=11 missing=288 fail=0 visKnown=1785 visInBand=1382 visFrustum=299 step4InBand=11 step4Frustum=7
+### ARENA f=200 leases=61 verts=771584/2097152 (36.8%) indices=1162752/6291456 (18.5%) vertsPerChunk=12648 indicesPerChunk=19061 idxPerVert=1.51 resident=61 visible=34 missing=444 fail=0 visKnown=2599 visInBand=2049 visFrustum=483 step4InBand=13 step4Frustum=9
+[VoxelResidency] residentRegions=48 mixed=270,068/2,367,424 evicted=0 reclaimedMixed=0
+### ARENA f=300 leases=95 verts=1210880/2097152 (57.7%) indices=1826816/6291456 (29.0%) vertsPerChunk=12746 indicesPerChunk=19229 idxPerVert=1.51 resident=95 visible=67 missing=1265 fail=0 visKnown=3989 visInBand=3119 visFrustum=1348 step4InBand=15 step4Frustum=11
+### ARENA f=400 leases=132 verts=1685760/2097152 (80.4%) indices=2543616/6291456 (40.4%) vertsPerChunk=12770 indicesPerChunk=19269 idxPerVert=1.51 resident=132 visible=105 missing=1343 fail=0 visKnown=4444 visInBand=3477 visFrustum=1476 step4InBand=17 step4Frustum=13
+### ARENA f=500 leases=165 verts=2064128/2097152 (98.4%) indices=3115008/6291456 (49.5%) vertsPerChunk=12509 indicesPerChunk=18878 idxPerVert=1.51 resident=165 visible=142 missing=1303 fail=5 visKnown=4491 visInBand=3505 visFrustum=1476 step4InBand=17 step4Frustum=13
+[VoxelResidency] residentRegions=64 mixed=301,351/2,367,424 evicted=0 reclaimedMixed=0
+### ARENA f=600 leases=168 verts=2019584/2097152 (96.3%) indices=3048960/6291456 (48.5%) vertsPerChunk=12021 indicesPerChunk=18148 idxPerVert=1.51 resident=169 visible=165 missing=1278 fail=24 visKnown=4491 visInBand=3505 visFrustum=1476 step4InBand=17 step4Frustum=13
+### ARENA f=699 leases=154 verts=1903360/2097152 (90.8%) indices=2872832/6291456 (45.7%) vertsPerChunk=12359 indicesPerChunk=18654 idxPerVert=1.51 resident=154 visible=153 missing=1293 fail=108 visKnown=4501 visInBand=3512 visFrustum=1482 step4InBand=17 step4Frustum=13
+<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

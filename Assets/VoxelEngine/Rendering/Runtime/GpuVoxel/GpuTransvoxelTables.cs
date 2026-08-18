@@ -25,12 +25,24 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private readonly ComputeBuffer _geometryCounts;
         private readonly ComputeBuffer _cellIndices;
         private readonly ComputeBuffer _edgeCodes;
+        private readonly ComputeBuffer _transitionCellClass;
+        private readonly ComputeBuffer _transitionGeometryCounts;
+        private readonly ComputeBuffer _transitionCellIndices;
+        private readonly ComputeBuffer _transitionVertexData;
         private bool _disposed;
+
+        /// <summary>Row strides of the transition tables, which are not a fixed 15 like the regular ones.</summary>
+        public int TransitionVertexStride { get; }
+        public int TransitionIndexStride { get; }
 
         public ComputeBuffer CellClass => _cellClass;
         public ComputeBuffer GeometryCounts => _geometryCounts;
         public ComputeBuffer CellIndices => _cellIndices;
         public ComputeBuffer EdgeCodes => _edgeCodes;
+        public ComputeBuffer TransitionCellClass => _transitionCellClass;
+        public ComputeBuffer TransitionGeometryCounts => _transitionGeometryCounts;
+        public ComputeBuffer TransitionCellIndices => _transitionCellIndices;
+        public ComputeBuffer TransitionVertexData => _transitionVertexData;
 
         /// <summary>
         /// Builds the GPU tables from the same source the CPU mesher uses.
@@ -60,6 +72,13 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _geometryCounts = Widen(source.RegularGeometryCounts.ToArray());
             _cellIndices = Widen(source.RegularCellVertexIndices.ToArray());
             _edgeCodes = Widen(source.RegularEdgeCodes.ToArray());
+
+            _transitionCellClass = Widen(source.TransitionCellClass.ToArray());
+            _transitionGeometryCounts = Widen(source.TransitionGeometryCounts.ToArray());
+            _transitionCellIndices = Widen(source.TransitionCellIndices.ToArray());
+            _transitionVertexData = Widen(source.TransitionVertexData.ToArray());
+            TransitionVertexStride = source.TransitionVertexStride;
+            TransitionIndexStride = source.TransitionIndexStride;
         }
 
         private static ComputeBuffer Widen(byte[] source)
@@ -92,6 +111,10 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _geometryCounts?.Release();
             _cellIndices?.Release();
             _edgeCodes?.Release();
+            _transitionCellClass?.Release();
+            _transitionGeometryCounts?.Release();
+            _transitionCellIndices?.Release();
+            _transitionVertexData?.Release();
         }
     }
 }

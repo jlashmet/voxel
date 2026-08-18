@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="1" result="Passed" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-18 17:26:07Z" end-time="2026-08-18 17:29:14Z" duration="186.8304299">
+  <test-suite type="TestSuite" id="1522" name="voxel" fullname="voxel" runstate="Runnable" testcasecount="378" result="Passed" start-time="2026-08-18 17:26:07Z" end-time="2026-08-18 17:29:14Z" duration="186.830430" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="PlayMode" />
+    </properties>
+    <test-suite type="Assembly" id="1518" name="VoxelEngine.Tests.PlayMode.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/VoxelEngine.Tests.PlayMode.dll" runstate="Runnable" testcasecount="145" result="Passed" start-time="2026-08-18 17:26:07Z" end-time="2026-08-18 17:29:14Z" duration="186.824701" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="33090" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="PlayMode" />
+        <property name="EditorOnly" value="False" />
+      </properties>
+      <test-suite type="TestSuite" id="1519" name="VoxelEngine" fullname="VoxelEngine" runstate="Runnable" testcasecount="145" result="Passed" start-time="2026-08-18 17:26:07Z" end-time="2026-08-18 17:29:14Z" duration="186.823677" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="1520" name="Tests" fullname="VoxelEngine.Tests" runstate="Runnable" testcasecount="145" result="Passed" start-time="2026-08-18 17:26:07Z" end-time="2026-08-18 17:29:14Z" duration="186.822741" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="1521" name="PlayMode" fullname="VoxelEngine.Tests.PlayMode" runstate="Runnable" testcasecount="145" result="Passed" start-time="2026-08-18 17:26:07Z" end-time="2026-08-18 17:29:14Z" duration="186.821757" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="1516" name="ZzMarkerProbeTests" fullname="VoxelEngine.Tests.PlayMode.ZzMarkerProbeTests" classname="VoxelEngine.Tests.PlayMode.ZzMarkerProbeTests" runstate="Runnable" testcasecount="1" result="Passed" start-time="2026-08-18 17:26:07Z" end-time="2026-08-18 17:29:14Z" duration="186.819524" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1517" name="AttributeMovingFrameByMarker" fullname="VoxelEngine.Tests.PlayMode.ZzMarkerProbeTests.AttributeMovingFrameByMarker" methodname="AttributeMovingFrameByMarker" classname="VoxelEngine.Tests.PlayMode.ZzMarkerProbeTests" runstate="Runnable" seed="436232683" result="Passed" start-time="2026-08-18 17:26:07Z" end-time="2026-08-18 17:29:14Z" duration="186.813780" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="Timeout" value="1800000" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[[VoxelResidency] residentRegions=84 mixed=507,084/2,367,424 evicted=0 reclaimedMixed=0
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+[VoxelResidency] residentRegions=96 mixed=563,901/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=112 mixed=639,612/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=128 mixed=714,941/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=144 mixed=790,710/2,367,424 evicted=0 reclaimedMixed=0
+### MARK far clip -> 60 m at frame 210
+[VoxelResidency] residentRegions=160 mixed=866,572/2,367,424 evicted=0 reclaimedMixed=0
+### MARK sampled 420 moving frames
+### MARK halves: firstHalfPlayerLoopMean=137.9ms secondHalfPlayerLoopMean=109.5ms
+### MARK PlayerLoop                             mean=  123.69ms worst=  409.91ms
+### MARK Camera.Render                          mean=    0.00ms worst=    0.00ms
+### MARK BehaviourUpdate                        mean=    3.47ms worst=    5.04ms
+### MARK Voxel.Streaming.ShowcaseStep           mean=    3.41ms worst=    4.94ms
+### MARK Voxel.Streaming.RefreshWantedSet       mean=    0.03ms worst=    0.16ms
+### MARK Voxel.Streaming.TerrainSlice           mean=    3.32ms worst=    4.86ms
+### MARK Voxel.Streaming.RegionCommit           mean=    0.00ms worst=    0.01ms
+### MARK Voxel.Streaming.FeatureGeneration      mean=    0.03ms worst=    1.12ms
+### MARK Voxel.Streaming.CastleStage            mean=    0.00ms worst=    0.00ms
+### MARK Voxel.Streaming.Eviction               mean=    0.01ms worst=    0.22ms
+### MARK Voxel.Surface.SchedulerPrepare         mean=   21.92ms worst=   48.87ms
+### MARK Voxel.Surface.WorkerAdmission          mean=   15.55ms worst=   36.67ms
+### MARK Voxel.Surface.Visibility               mean=    1.86ms worst=    2.86ms
+### MARK Voxel.Surface.Discovery                mean=    0.05ms worst=    0.12ms
+### MARK Voxel.Surface.ChangeJournal            mean=    0.00ms worst=    0.01ms
+### MARK Voxel.Surface.Invalidation             mean=    0.04ms worst=    0.11ms
+### MARK RenderPipelineManager.DoRenderLoop_Internal (recorder unavailable)
+### MARK Inl_RenderCameraStack                  mean=   24.71ms worst=   53.58ms
+### MARK Gfx.WaitForPresentOnGfxThread          mean=    0.00ms worst=    0.00ms
+### MARK Gfx.PresentFrame                       mean=    0.00ms worst=    0.00ms
+### MARK Gfx.ProcessCommands                    (recorder unavailable)
+### MARK Semaphore.WaitForSignal                mean=  321.32ms worst= 1494.94ms
+### MARK WaitForTargetFPS                       mean=    0.00ms worst=    0.00ms
+### MARK Application.WaitForLastPresentationAndUpdateTime (recorder unavailable)
+### MARK Physics.Processing                     (recorder unavailable)
+### MARK GC.Collect                             mean=    0.00ms worst=    0.00ms
+### MARK JobHandle.Complete                     mean=    0.00ms worst=    0.01ms
+### MARK FinishFrameRendering                   (recorder unavailable)
+### MARK Camera.AwakeFromLoad                   (recorder unavailable)
+### MARK Shadows.Draw                           mean=    0.00ms worst=    0.00ms
+### MARK Drawing                                mean=    0.00ms worst=    0.00ms
+### MARK RenderLoop.Draw                        mean=    0.03ms worst=    0.17ms
+### MARK FixedBehaviourUpdate                   mean=    0.03ms worst=    0.15ms
+### MARK FixedUpdate.PhysicsFixedUpdate         mean=    0.01ms worst=    0.02ms
+### MARK Physics.Simulate                       mean=    0.00ms worst=    0.01ms
+### MARK Physics.BakeMesh                       (recorder unavailable)
+### MARK MeshCollider.CreateMesh                (recorder unavailable)
+### MARK Physics.UpdateBodies                   (recorder unavailable)
+### MARK EarlyUpdate                            (recorder unavailable)
+### MARK PreLateUpdate                          (recorder unavailable)
+### MARK PostLateUpdate                         (recorder unavailable)
+### MARK FixedUpdate                            (recorder unavailable)
+### MARK Update                                 (recorder unavailable)
+### MARK Initialization                         (recorder unavailable)
+### MARK DelayedCallUtility.Tick                (recorder unavailable)
+### MARK Coroutines.Update                      (recorder unavailable)
+<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

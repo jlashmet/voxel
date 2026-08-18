@@ -11,6 +11,8 @@
 #pragma kernel CSSampleDensity
 #pragma kernel CSCountCells
 #pragma kernel CSWriteCells
+#pragma kernel CSSampleFace
+#pragma kernel CSTransitionCells
 
 #include "VoxelBrickDensity.hlsl"
 
@@ -66,9 +68,55 @@ struct SurfaceVertex
 
 RWStructuredBuffer<SurfaceVertex> _Vertices;
 RWStructuredBuffer<uint> _Indices;
-RWStructuredBuffer<uint> _Counters;   // 0: vertices written, 1: indices written
+// 0,1: vertices/indices written this pass. 2,3: vertices/indices the count pass says are coming,
+// which is what the caller reserves against before any of them are written.
+RWStructuredBuffer<uint> _Counters;
 int _VertexCapacity;
 int _IndexCapacity;
+
+// -- page indirection ---------------------------------------------------------
+//
+// A chunk's geometry does not live in one contiguous run. The arena hands out fixed-size pages and
+// never coalesces them, because one chunk's geometry moving must never force repacking everything
+// else; so a chunk holds a page *list* and pays an indirection instead of a compaction pass.
+//
+// Both kinds of storage ride the same page list: page k holds _VerticesPerPage vertices and
+// _IndicesPerPage indices, the latter sized so the index side never needs a page the vertex side
+// did not already reserve.
+//
+// Callers writing into a plain buffer pass a single page {0} sized to the whole buffer, which makes
+// the mapping an identity and leaves one code path here rather than two.
+
+StructuredBuffer<uint> _ChunkPages;
+int _VerticesPerPage;
+int _IndicesPerPage;
+
+// Where this chunk's storage starts in the shared buffer, for a caller that hands out plain
+// contiguous ranges rather than pages. Applied to *where* a vertex is stored, never to the index
+// values written — those stay in the chunk's own numbering, because the draw shader already adds
+// the chunk's base when it dereferences them. Zero for the paged path, which resolves the whole
+// address itself.
+int _VertexWriteBase;
+int _IndexWriteBase;
+
+// 1 while counting: emit nothing, just accumulate what would be emitted.
+int _TransitionCountOnly;
+
+// The vertex number this chunk's local vertex is known by. With one page covering the whole
+// buffer this is the identity, which is what makes the lease path's index values chunk-local.
+uint ArenaVertex(uint local)
+{
+    uint page = _ChunkPages[local / (uint)_VerticesPerPage];
+    return page * (uint)_VerticesPerPage + local % (uint)_VerticesPerPage;
+}
+
+uint VertexSlot(uint local) { return (uint)_VertexWriteBase + ArenaVertex(local); }
+
+uint ArenaIndexSlot(uint local)
+{
+    uint page = _ChunkPages[local / (uint)_IndicesPerPage];
+    return (uint)_IndexWriteBase + page * (uint)_IndicesPerPage + local % (uint)_IndicesPerPage;
+}
 
 int GridIndex(int3 g) { return g.x + _GridSize * (g.y + _GridSize * g.z); }
 
@@ -164,6 +212,12 @@ void CSCountCells(uint3 id : SV_DispatchThreadID)
 
     _CellVertexCountsWrite[cellIndex] = outputVertexCount;
     _CellTriangleCountsWrite[cellIndex] = indexCount / 3u;
+
+    // Totals for the caller's reservation. Summed here rather than read back per cell so sizing
+    // costs two integers instead of one per cell.
+    uint ignored;
+    InterlockedAdd(_Counters[2], outputVertexCount, ignored);
+    InterlockedAdd(_Counters[3], indexCount, ignored);
 }
 
 // ---------------------------------------------------------------------------
@@ -311,17 +365,255 @@ void CSWriteCells(uint3 id : SV_DispatchThreadID)
             if (dot(face, expected) < 0.0) face = -face;
             a.normal = face; b.normal = face; c.normal = face;
 
-            _Vertices[vertexBase + t] = a;
-            _Vertices[vertexBase + t + 1u] = b;
-            _Vertices[vertexBase + t + 2u] = c;
+            _Vertices[VertexSlot(vertexBase + t)] = a;
+            _Vertices[VertexSlot(vertexBase + t + 1u)] = b;
+            _Vertices[VertexSlot(vertexBase + t + 2u)] = c;
         }
-        for (uint i2 = 0u; i2 < indexCount; i2++) _Indices[indexBase + i2] = vertexBase + i2;
+        for (uint i2 = 0u; i2 < indexCount; i2++)
+            _Indices[ArenaIndexSlot(indexBase + i2)] = ArenaVertex(vertexBase + i2);
     }
     else
     {
         for (uint v2 = 0u; v2 < sourceVertexCount; v2++)
-            _Vertices[vertexBase + v2] = cellVertices[v2];
+            _Vertices[VertexSlot(vertexBase + v2)] = cellVertices[v2];
         for (uint i3 = 0u; i3 < indexCount; i3++)
-            _Indices[indexBase + i3] = vertexBase + _RegularCellIndices[tableBase + i3];
+            _Indices[ArenaIndexSlot(indexBase + i3)] =
+                ArenaVertex(vertexBase + _RegularCellIndices[tableBase + i3]);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 4. Transition cells.
+//
+// Where two rings of different resolution meet, the finer side's surface does not line up with the
+// coarser side's, and the gap between them is a crack you can see the sky through. Transvoxel closes
+// it with a slab of transition cells along the seam: nine samples at half the coarse stride on the
+// face itself, plus four coarse corners pushed one cell inward, meshed with their own tables.
+//
+// The face lattice is plain occupancy rather than the smooth field — the CPU samples it that way and
+// the two must agree — and its sign convention is inverted relative to the regular cells: here a
+// positive sample means solid.
+// ---------------------------------------------------------------------------
+
+StructuredBuffer<uint> _TransitionCellClass;
+StructuredBuffer<uint> _TransitionGeometryCounts;
+StructuredBuffer<uint> _TransitionCellIndices;
+StructuredBuffer<uint> _TransitionVertexData;
+int _TransitionVertexStride;
+int _TransitionIndexStride;
+
+RWStructuredBuffer<float> _FaceDensityWrite;
+RWStructuredBuffer<uint> _FaceMaterialWrite;
+RWStructuredBuffer<uint> _FaceSurfaceWrite;
+
+StructuredBuffer<float> _FaceDensity;
+StructuredBuffer<uint> _FaceMaterial;
+StructuredBuffer<uint> _FaceSurface;
+
+int _Face;                 // 0=-X, 1=+X, 2=-Y, 3=+Y, 4=-Z, 5=+Z
+int _FaceSamplesPerAxis;   // 2 * _CellsPerAxis + 1
+
+void FaceAxes(int face, out int3 uAxis, out int3 vAxis, out int3 wAxis)
+{
+    int axis = face >> 1;
+    bool positive = (face & 1) != 0;
+    if (axis == 0)
+    {
+        uAxis = int3(0, 1, 0); vAxis = int3(0, 0, 1);
+        wAxis = int3(positive ? -1 : 1, 0, 0);
+    }
+    else if (axis == 1)
+    {
+        uAxis = int3(0, 0, 1); vAxis = int3(1, 0, 0);
+        wAxis = int3(0, positive ? -1 : 1, 0);
+    }
+    else
+    {
+        uAxis = int3(1, 0, 0); vAxis = int3(0, 1, 0);
+        wAxis = int3(0, 0, positive ? -1 : 1);
+    }
+}
+
+int FaceIndex(int u, int v)
+{
+    int cu = clamp(u, 0, _FaceSamplesPerAxis - 1);
+    int cv = clamp(v, 0, _FaceSamplesPerAxis - 1);
+    return cu + _FaceSamplesPerAxis * cv;
+}
+
+[numthreads(64, 1, 1)]
+void CSSampleFace(uint3 id : SV_DispatchThreadID)
+{
+    int index = (int)id.x;
+    int total = _FaceSamplesPerAxis * _FaceSamplesPerAxis;
+    if (index >= total) return;
+
+    int3 uAxis, vAxis, wAxis;
+    FaceAxes(_Face, uAxis, vAxis, wAxis);
+
+    int axis = _Face >> 1;
+    bool positive = (_Face & 1) != 0;
+
+    // The CPU writes faceOrigin[axis] directly; Metal will not take a dynamically indexed vector
+    // component as an l-value, so the same offset is applied as a mask.
+    int3 axisMask = int3(axis == 0 ? 1 : 0, axis == 1 ? 1 : 0, axis == 2 ? 1 : 0);
+    int3 faceOrigin = _ChunkOriginVoxel
+                    + (positive ? axisMask * (_CellsPerAxis * _SourceStep) : int3(0, 0, 0));
+
+    int halfStep = max(1, _SourceStep / 2);
+    int u = index % _FaceSamplesPerAxis;
+    int v = index / _FaceSamplesPerAxis;
+    int3 voxel = faceOrigin + uAxis * (u * halfStep) + vAxis * (v * halfStep);
+
+    uint surface, boundary;
+    uint material = ReadMaterial(voxel, surface, boundary);
+    bool occupied = IsSolidSample(material);
+
+    _FaceDensityWrite[index] = occupied ? 0.5 : -0.5;
+    _FaceMaterialWrite[index] = occupied ? material : 0u;
+    _FaceSurfaceWrite[index] = occupied ? _MaterialDefaultStyle[material & 0xFFu] : 0u;
+}
+
+// Chunk-local voxel position of a transition sample. Samples 0-8 sit on the face plane; 9-12 are
+// pushed one coarse cell inward, which is what gives the slab the depth that joins it to the
+// regular cells behind it.
+float3 TransitionSamplePosition(int sample, int cellU, int cellV,
+                                int3 uAxis, int3 vAxis, int3 wAxis,
+                                float3 facePlane, float slabDepth)
+{
+    int du, dv;
+    bool coarse = sample >= 9;
+    if (coarse)
+    {
+        int corner = sample - 9;
+        du = (corner & 1) * 2;
+        dv = ((corner >> 1) & 1) * 2;
+    }
+    else
+    {
+        du = sample % 3;
+        dv = sample / 3;
+    }
+
+    float half = _SourceStep * 0.5;
+    float3 onFace = facePlane
+                  + (float3)uAxis * ((cellU * 2 + du) * half)
+                  + (float3)vAxis * ((cellV * 2 + dv) * half);
+    return coarse ? onFace + (float3)wAxis * slabDepth : onFace;
+}
+
+[numthreads(64, 1, 1)]
+void CSTransitionCells(uint3 id : SV_DispatchThreadID)
+{
+    int cellIndex = (int)id.x;
+    int cellTotal = _CellsPerAxis * _CellsPerAxis;
+    if (cellIndex >= cellTotal) return;
+
+    int cellU = cellIndex % _CellsPerAxis;
+    int cellV = cellIndex / _CellsPerAxis;
+
+    int3 uAxis, vAxis, wAxis;
+    FaceAxes(_Face, uAxis, vAxis, wAxis);
+    bool positive = (_Face & 1) != 0;
+    float3 facePlane = positive
+        ? -(float3)wAxis * (_CellsPerAxis * _SourceStep)
+        : float3(0, 0, 0);
+
+    float densities[13];
+    uint materials[13];
+    uint surfaces[13];
+
+    // Samples 0-8: the half-stride grid over this coarse cell. Solid is positive here.
+    uint caseCode = 0u;
+    for (int i = 0; i < 9; i++)
+    {
+        int index = FaceIndex(cellU * 2 + (i % 3), cellV * 2 + (i / 3));
+        densities[i] = _FaceDensity[index];
+        materials[i] = _FaceMaterial[index];
+        surfaces[i] = _FaceSurface[index];
+        if (densities[i] > 0.0) caseCode |= 1u << (uint)i;
+    }
+
+    // Samples 9-12: the coarse corners, spatially coincident with 0, 2, 6, 8. They read the same
+    // field so both sides agree where the surface crosses; only their placement differs.
+    int coarseDu[4] = { 0, 2, 0, 2 };
+    int coarseDv[4] = { 0, 0, 2, 2 };
+    for (int c = 0; c < 4; c++)
+    {
+        int index = FaceIndex(cellU * 2 + coarseDu[c], cellV * 2 + coarseDv[c]);
+        densities[9 + c] = _FaceDensity[index];
+        materials[9 + c] = _FaceMaterial[index];
+        surfaces[9 + c] = _FaceSurface[index];
+    }
+
+    uint cellClass = _TransitionCellClass[caseCode];
+    uint classIndex = cellClass & 0x7Fu;
+    bool reversed = (cellClass & 0x80u) != 0u;
+
+    uint counts = _TransitionGeometryCounts[classIndex];
+    uint vertexCount = counts >> 4;
+    uint triangleCount = counts & 0x0Fu;
+    if (triangleCount == 0u || vertexCount == 0u) return;
+
+    // The tables place samples 9-12 at w = 2, two half-cells — one whole coarse cell inward.
+    float slabDepth = _SourceStep;
+
+    if (_TransitionCountOnly != 0)
+    {
+        // Counting takes the same early exits and the same table lookups as writing, so the
+        // reservation cannot be smaller than the geometry it is reserved for.
+        uint ignored;
+        InterlockedAdd(_Counters[2], vertexCount, ignored);
+        InterlockedAdd(_Counters[3], triangleCount * 3u, ignored);
+        return;
+    }
+
+    uint vertexBase, indexBase;
+    InterlockedAdd(_Counters[0], vertexCount, vertexBase);
+    InterlockedAdd(_Counters[1], triangleCount * 3u, indexBase);
+    if ((int)(vertexBase + vertexCount) > _VertexCapacity) return;
+    if ((int)(indexBase + triangleCount * 3u) > _IndexCapacity) return;
+
+    float3 faceNormal = normalize(-(float3)wAxis);
+    for (uint v2 = 0u; v2 < vertexCount; v2++)
+    {
+        uint descriptor = _TransitionVertexData[caseCode * (uint)_TransitionVertexStride + v2];
+        int c0 = (int)((descriptor >> 4) & 0x0Fu);
+        int c1 = (int)(descriptor & 0x0Fu);
+
+        float d0 = densities[c0];
+        float d1 = densities[c1];
+        float t0 = abs(d1 - d0) > 1e-7 ? d1 / (d1 - d0) : 0.5;
+        float t1 = 1.0 - t0;
+
+        float3 p0 = TransitionSamplePosition(c0, cellU, cellV, uAxis, vAxis, wAxis,
+                                             facePlane, slabDepth);
+        float3 p1 = TransitionSamplePosition(c1, cellU, cellV, uAxis, vAxis, wAxis,
+                                             facePlane, slabDepth);
+        float3 local = p0 * t0 + p1 * t1;
+
+        int selected = d0 > d1 ? c0 : c1;
+
+        SurfaceVertex vertex;
+        vertex.position = ((float3)_ChunkOriginVoxel + local + 0.5) * _VoxelSize;
+        vertex.normal = faceNormal;
+        vertex.material = PackMaterial(materials[selected], surfaces[selected]);
+        vertex.active = 0x0000FF00u;
+        _Vertices[VertexSlot(vertexBase + v2)] = vertex;
+    }
+
+    for (uint t = 0u; t < triangleCount; t++)
+    {
+        uint tableBase = classIndex * (uint)_TransitionIndexStride + t * 3u;
+        uint a = _TransitionCellIndices[tableBase + 0u];
+        uint b = _TransitionCellIndices[tableBase + 1u];
+        uint c = _TransitionCellIndices[tableBase + 2u];
+        if (a >= vertexCount || b >= vertexCount || c >= vertexCount) continue;
+
+        _Indices[ArenaIndexSlot(indexBase + t * 3u + 0u)] = ArenaVertex(vertexBase + a);
+        _Indices[ArenaIndexSlot(indexBase + t * 3u + 1u)] =
+            ArenaVertex(vertexBase + (reversed ? c : b));
+        _Indices[ArenaIndexSlot(indexBase + t * 3u + 2u)] =
+            ArenaVertex(vertexBase + (reversed ? b : c));
     }
 }

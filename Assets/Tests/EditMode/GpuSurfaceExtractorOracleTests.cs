@@ -28,6 +28,17 @@ namespace VoxelEngine.Tests.EditMode
         private const int CellsPerAxis = 8;
         private const int Padding = 2;
 
+        /// <summary>
+        /// Sample spacing for the transition tests.
+        ///
+        /// Not 1. A face snapshot is 2*CellsPerAxis+1 samples at half this stride, which only spans
+        /// the chunk when the stride is even; at 1 the half-stride degenerates to 1 and the snapshot
+        /// covers twice the chunk. That is harmless in production because stride 1 is the innermost
+        /// ring, which has no finer neighbour and so is never stitched — but it would make this test
+        /// compare two meshers over voxels no seam ever touches.
+        /// </summary>
+        private const int SeamSourceStep = 2;
+
         private ComputeShader _shader;
 
         [SetUp]
@@ -582,6 +593,233 @@ namespace VoxelEngine.Tests.EditMode
                 vertices.Release();
                 indices.Release();
             }
+        }
+
+        /// <summary>
+        /// Fills the extractor's brick cache with a world that is solid below a plane of bricks,
+        /// and returns the world-voxel occupancy function describing the same world.
+        /// </summary>
+        private static Func<int3, byte> FillHalfSolidUniformCache(
+            GpuSurfaceExtractor extractor, int solidBrickYLimit, byte material)
+        {
+            extractor.ClearBrickCache();
+            for (int z = 0; z < extractor.BrickCacheEdge; z++)
+            for (int y = 0; y < extractor.BrickCacheEdge; y++)
+            for (int x = 0; x < extractor.BrickCacheEdge; x++)
+            {
+                bool solid = y < solidBrickYLimit;
+                extractor.SetBrickCacheEntry(new int3(x, y, z),
+                    GpuSurfaceExtractor.PackBrickCacheEntry(
+                        solid ? VoxelBrickContent.Uniform : VoxelBrickContent.Empty,
+                        solid ? material : (byte)0, -1));
+            }
+
+            // The cache origin is one brick below the chunk, so cache brick row y covers world
+            // voxel rows [(y - 1) * 8, y * 8).
+            int solidBelowVoxelY = (solidBrickYLimit - 1) * VoxelReadGrid.BlockEdge;
+            return voxel => voxel.y < solidBelowVoxelY ? material : (byte)0;
+        }
+
+        [Test]
+        public void GpuTransitionFaceSnapshotMatchesTheCpuSampling()
+        {
+            // Transition cells read the face at the *finer* neighbour's spacing, which is not a
+            // position the chunk lattice contains at all. If the GPU samples that lattice at the
+            // wrong stride or maps (u, v) onto the wrong axes, every seam is stitched from the
+            // wrong voxels — and it would still look like a plausible surface.
+            const int solidBrickYLimit = 2;
+            const byte material = 1;
+            const int face = 4;   // -Z, so the face plane is the chunk origin itself
+
+            using var mirror = new GpuVoxelBrickMirror(slotCapacity: 8);
+            using var tables = GpuTransvoxelTables.CreateDefault();
+            using var extractor = new GpuSurfaceExtractor(_shader, CellsPerAxis, Padding);
+
+            SurfaceCatalogueView surfaces = SurfaceCatalogueView.CreateBuiltIns();
+            MaterialPaletteView palette = default;
+            var defaultStyles = new uint[256];
+            for (int i = 0; i < 256; i++) defaultStyles[i] = palette.GetDefaultSurfaceStyle((byte)i);
+            extractor.SetCatalogues(surfaces, default, defaultStyles);
+
+            Func<int3, byte> world = FillHalfSolidUniformCache(extractor, solidBrickYLimit, material);
+
+            const int capacity = 65536;
+            var vertices = new ComputeBuffer(capacity, GpuSurfaceExtractor.ReadbackVertex.Stride,
+                                             ComputeBufferType.Structured);
+            var indices = new ComputeBuffer(capacity, sizeof(uint), ComputeBufferType.Structured);
+            try
+            {
+                extractor.Extract(mirror, tables, int3.zero, new int3(-1, -1, -1),
+                                  SeamSourceStep, 0.1f, vertices, indices, capacity, capacity);
+                extractor.ExtractTransitionFace(mirror, tables, face, int3.zero,
+                                                new int3(-1, -1, -1), SeamSourceStep, 0.1f,
+                                                vertices, indices, capacity, capacity);
+
+                int samples = extractor.FaceSamplesPerAxis * extractor.FaceSamplesPerAxis;
+                var gpuFace = new float[samples];
+                extractor.ReadFaceDensity(gpuFace);
+
+                var cpuFace = new float[samples];
+                var cpuMaterials = new byte[samples];
+                var cpuSurfaces = new uint[samples];
+                CpuTransitionOracle.SampleFace(int3.zero, CellsPerAxis, SeamSourceStep,
+                                               face, world, palette,
+                                               cpuFace, cpuMaterials, cpuSurfaces);
+
+                int solidSamples = 0;
+                foreach (float d in cpuFace) if (d > 0f) solidSamples++;
+                Assert.Greater(solidSamples, 0, "The fixture must put solid voxels on this face.");
+                Assert.Less(solidSamples, samples, "and air, or there is no transition to mesh.");
+
+                for (int i = 0; i < samples; i++)
+                    Assert.AreEqual(cpuFace[i], gpuFace[i], 1e-4f,
+                        $"Face sample {i} disagrees. The snapshot is the input to every transition "
+                      + "cell on this face, so a difference here is a seam built from the wrong "
+                      + "voxels rather than a meshing bug.");
+            }
+            finally
+            {
+                vertices.Release();
+                indices.Release();
+            }
+        }
+
+        [Test]
+        public void GpuTransitionCellsMatchTheCpuTransitionMeshJob()
+        {
+            // The seam itself. Wrong axis frame, wrong sign convention or wrong winding here all
+            // produce a slab that is present but does not weld, which reads as the LOD popping the
+            // transition cells exist to hide. Every face is checked, because the canonical table is
+            // mapped onto six different frames and five of them could be wrong on their own.
+            const int solidBrickYLimit = 2;
+            const byte material = 1;
+            const float voxelSize = 0.1f;
+
+            using var mirror = new GpuVoxelBrickMirror(slotCapacity: 8);
+            using var tables = GpuTransvoxelTables.CreateDefault();
+            using var extractor = new GpuSurfaceExtractor(_shader, CellsPerAxis, Padding);
+
+            SurfaceCatalogueView surfaces = SurfaceCatalogueView.CreateBuiltIns();
+            MaterialPaletteView palette = default;
+            var defaultStyles = new uint[256];
+            for (int i = 0; i < 256; i++) defaultStyles[i] = palette.GetDefaultSurfaceStyle((byte)i);
+            extractor.SetCatalogues(surfaces, default, defaultStyles);
+
+            Func<int3, byte> world = FillHalfSolidUniformCache(extractor, solidBrickYLimit, material);
+
+            const int capacity = 65536;
+            int comparedFaces = 0;
+            int gpuTransitionTriangles = 0;
+
+            for (int face = 0; face < 6; face++)
+            {
+                var vertices = new ComputeBuffer(capacity, GpuSurfaceExtractor.ReadbackVertex.Stride,
+                                                 ComputeBufferType.Structured);
+                var indices = new ComputeBuffer(capacity, sizeof(uint), ComputeBufferType.Structured);
+                try
+                {
+                    // Extract first only to zero the counters; its regular geometry is then
+                    // subtracted off so this compares transition output alone.
+                    GpuExtractionResult regular = extractor.Extract(
+                        mirror, tables, int3.zero, new int3(-1, -1, -1), SeamSourceStep,
+                        voxelSize, vertices, indices, capacity, capacity);
+
+                    GpuExtractionResult total = extractor.ExtractTransitionFace(
+                        mirror, tables, face, int3.zero, new int3(-1, -1, -1), SeamSourceStep,
+                        voxelSize, vertices, indices, capacity, capacity);
+                    Assert.IsFalse(total.Overflowed, $"Face {face} overflowed.");
+
+                    int transitionIndexCount = total.IndexCount - regular.IndexCount;
+                    Assert.GreaterOrEqual(transitionIndexCount, 0,
+                        $"Face {face}: the transition pass must append, never rewind.");
+
+                    var gpuVertices = new GpuSurfaceExtractor.ReadbackVertex[
+                        Mathf.Max(1, total.VertexCount)];
+                    var gpuIndices = new uint[Mathf.Max(1, total.IndexCount)];
+                    if (total.VertexCount > 0)
+                        vertices.GetData(gpuVertices, 0, 0, total.VertexCount);
+                    if (total.IndexCount > 0) indices.GetData(gpuIndices, 0, 0, total.IndexCount);
+
+                    var gpuKeys = new Dictionary<string, int>();
+                    for (int i = regular.IndexCount; i + 2 < total.IndexCount; i += 3)
+                    {
+                        string key = new OracleTriangle(
+                            (float3)(Vector3)gpuVertices[gpuIndices[i]].Position,
+                            (float3)(Vector3)gpuVertices[gpuIndices[i + 1]].Position,
+                            (float3)(Vector3)gpuVertices[gpuIndices[i + 2]].Position).Key();
+                        gpuKeys[key] = gpuKeys.TryGetValue(key, out int n) ? n + 1 : 1;
+                    }
+
+                    int samples = extractor.FaceSamplesPerAxis * extractor.FaceSamplesPerAxis;
+                    var cpuFace = new float[samples];
+                    var cpuMaterials = new byte[samples];
+                    var cpuSurfaces = new uint[samples];
+                    CpuTransitionOracle.SampleFace(int3.zero, CellsPerAxis, SeamSourceStep,
+                                                   face, world, palette,
+                                                   cpuFace, cpuMaterials, cpuSurfaces);
+
+                    List<OracleTriangle> cpu = CpuTransitionOracle.MeshFace(
+                        int3.zero, CellsPerAxis, SeamSourceStep, voxelSize, face,
+                        cpuFace, cpuMaterials, cpuSurfaces);
+
+                    var cpuKeys = new Dictionary<string, int>();
+                    foreach (OracleTriangle tri in cpu)
+                    {
+                        string key = tri.Key();
+                        cpuKeys[key] = cpuKeys.TryGetValue(key, out int n) ? n + 1 : 1;
+                    }
+
+                    if (cpuKeys.Count > 0) comparedFaces++;
+                    gpuTransitionTriangles += transitionIndexCount / 3;
+
+                    int missing = 0, extra = 0;
+                    string firstMissing = null;
+                    foreach (KeyValuePair<string, int> pair in cpuKeys)
+                    {
+                        if (gpuKeys.TryGetValue(pair.Key, out int n) && n == pair.Value) continue;
+                        missing++;
+                        firstMissing ??= pair.Key;
+                    }
+                    foreach (KeyValuePair<string, int> pair in gpuKeys)
+                        if (!cpuKeys.ContainsKey(pair.Key)) extra++;
+
+                    // Separate "wrong place" from "wrong way round": both are defects, but a
+                    // flipped slab and a misplaced one have different causes.
+                    var cpuUnordered = new HashSet<string>();
+                    foreach (OracleTriangle tri in cpu) cpuUnordered.Add(tri.UnorderedKey());
+                    var gpuUnordered = new HashSet<string>();
+                    for (int i = regular.IndexCount; i + 2 < total.IndexCount; i += 3)
+                        gpuUnordered.Add(new OracleTriangle(
+                            (float3)(Vector3)gpuVertices[gpuIndices[i]].Position,
+                            (float3)(Vector3)gpuVertices[gpuIndices[i + 1]].Position,
+                            (float3)(Vector3)gpuVertices[gpuIndices[i + 2]].Position).UnorderedKey());
+                    int sharedIgnoringWinding = 0;
+                    foreach (string key in cpuUnordered)
+                        if (gpuUnordered.Contains(key)) sharedIgnoringWinding++;
+
+                    Assert.AreEqual(0, missing + extra,
+                        $"Face {face}: {missing} CPU transition triangles absent from the GPU output "
+                      + $"and {extra} GPU triangles the CPU never produced, of {cpuKeys.Count} "
+                      + $"distinct CPU triangles ({cpu.Count} total, GPU {transitionIndexCount / 3}). "
+                      + $"{sharedIgnoringWinding} of {cpuUnordered.Count} match ignoring winding, so "
+                      + "the disagreement is "
+                      + (cpuUnordered.Count > 0 && sharedIgnoringWinding == cpuUnordered.Count
+                            ? "winding only." : "the slab's position or shape.")
+                      + $" First missing: {firstMissing}.");
+                }
+                finally
+                {
+                    vertices.Release();
+                    indices.Release();
+                }
+            }
+
+            Assert.Greater(comparedFaces, 0,
+                "No face produced transition geometry, so this asserted nothing. The fixture must "
+              + "cross the surface on at least one face.");
+            Assert.Greater(gpuTransitionTriangles, 0,
+                "The GPU emitted no transition geometry on any face. Matching the CPU by both "
+              + "producing nothing would prove only that the kernel never ran.");
         }
     }
 }

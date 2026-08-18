@@ -1,0 +1,10 @@
+subject=ambient-life
+foreground_pixels=38963
+bounds=1059x222
+occupied_tiles=14/32
+max_tile_concentration=0.2023
+hue_buckets=10/12
+quantized_colours=35/64
+detail_edge_pixels=14415
+detail_edge_ratio=0.3700
+luminance_stddev=0.1887

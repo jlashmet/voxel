@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="12" result="Passed" total="12" passed="12" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-18 19:44:05Z" end-time="2026-08-18 19:44:05Z" duration="0.0282275">
+  <test-suite type="TestSuite" id="1000" name="voxel" fullname="voxel" runstate="Runnable" testcasecount="994" result="Passed" start-time="2026-08-18 19:44:05Z" end-time="2026-08-18 19:44:05Z" duration="0.028228" total="12" passed="12" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <test-suite type="Assembly" id="2275" name="VoxelEngine.Tests.EditMode.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/VoxelEngine.Tests.EditMode.dll" runstate="Runnable" testcasecount="677" result="Passed" start-time="2026-08-18 19:44:05Z" end-time="2026-08-18 19:44:05Z" duration="0.023148" total="12" passed="12" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="79260" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <test-suite type="TestSuite" id="2276" name="VoxelEngine" fullname="VoxelEngine" runstate="Runnable" testcasecount="677" result="Passed" start-time="2026-08-18 19:44:05Z" end-time="2026-08-18 19:44:05Z" duration="0.022206" total="12" passed="12" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="2277" name="Tests" fullname="VoxelEngine.Tests" runstate="Runnable" testcasecount="677" result="Passed" start-time="2026-08-18 19:44:05Z" end-time="2026-08-18 19:44:05Z" duration="0.021348" total="12" passed="12" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="2278" name="EditMode" fullname="VoxelEngine.Tests.EditMode" runstate="Runnable" testcasecount="677" result="Passed" start-time="2026-08-18 19:44:05Z" end-time="2026-08-18 19:44:05Z" duration="0.020499" total="12" passed="12" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="1683" name="GpuBrickSlotTableTests" fullname="VoxelEngine.Tests.EditMode.GpuBrickSlotTableTests" classname="VoxelEngine.Tests.EditMode.GpuBrickSlotTableTests" runstate="Runnable" testcasecount="12" result="Passed" start-time="2026-08-18 19:44:05Z" end-time="2026-08-18 19:44:05Z" duration="0.015016" total="12" passed="12" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1692" name="ABrickEmptiedByDestructionReleasesItsSlot" fullname="VoxelEngine.Tests.EditMode.GpuBrickSlotTableTests.ABrickEmptiedByDestructionReleasesItsSlot" methodname="ABrickEmptiedByDestructionReleasesItsSlot" classname="VoxelEngine.Tests.EditMode.GpuBrickSlotTableTests" runstate="Runnable" seed="1268679470" result="Passed" start-time="2026-08-18 19:44:05Z" end-time="2026-08-18 19:44:05Z" duration="0.006379" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1689" name="AFullTableEvictsTheColdestUnpinnedBrick" fullname="VoxelEngine.Tests.EditMode.GpuBrickSlotTableTests.AFullTableEvictsTheColdestUnpinnedBrick" methodname="AFullTableEvictsTheColdestUnpinnedBrick" classname="VoxelEngine.Tests.EditMode.GpuBrickSlotTableTests" runstate="Runnable" seed="1213892306" result="Passed" start-time="2026-08-18 19:44:05Z" end-time="2026-08-18 19:44:05Z" duration="0.000804" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1695" name="ClearReturnsEverySlotIncludingPinnedOnes" fullname="VoxelEngine.Tests.EditMode.GpuBrickSlotTableTests.ClearReturnsEverySlotIncludingPinnedOnes" methodname="ClearReturnsEverySlotIncludingPinnedOnes" classname="VoxelEngine.Tests.EditMode.GpuBrickSlotTableTests" runstate="Runnable" seed="624602730" result="Passed" start-time="2026-08-18 19:44:05Z" end-time="2026-08-18 19:44:05Z" duration="0.000199" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1685" name="EmptyAndUniformBricksNeverConsumeASlot" fullname="VoxelEngine.Tests.EditMode.GpuBrickSlotTableTests.EmptyAndUniformBricksNeverConsumeASlot" methodname="EmptyAndUniformBricksNeverConsumeASlot" classname="VoxelEngine.Tests.EditMode.GpuBrickSlotTableTests" runstate="Runnable" seed="2074209901" result="Passed" start-time="2026-08-18 19:44:05Z" end-time="2026-08-18 19:44:05Z" duration="0.000138" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1693" name="MaterialMaskRoundTripsAcrossAllFourWords" fullname="VoxelEngine.Tests.EditMode.GpuBrickSlotTableTests.MaterialMaskRoundTripsAcrossAllFourWords" methodname="MaterialMaskRoundTripsAcrossAllFourWords" classname="VoxelEngine.Tests.EditMode.GpuBrickSlotTableTests" runstate="Runnable" seed="16859067" result="Passed" start-time="2026-08-18 19:44:05Z" end-time="2026-08-18 19:44:05Z" duration="0.000149" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1684" name="MixedBrickTakesASlotAndIsFoundByCoordinate" fullname="VoxelEngine.Tests.EditMode.GpuBrickSlotTableTests.MixedBrickTakesASlotAndIsFoundByCoordinate" methodname="MixedBrickTakesASlotAndIsFoundByCoordinate" classname="VoxelEngine.Tests.EditMode.GpuBrickSlotTableTests" runstate="Runnable" seed="1446444830" result="Passed" start-time="2026-08-18 19:44:05Z" end-time="2026-08-18 19:44:05Z" duration="0.001106" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1687" name="NewerGenerationReplacesInPlace" fullname="VoxelEngine.Tests.EditMode.GpuBrickSlotTableTests.NewerGenerationReplacesInPlace" methodname="NewerGenerationReplacesInPlace" classname="VoxelEngine.Tests.EditMode.GpuBrickSlotTableTests" runstate="Runnable" seed="353569432" result="Passed" start-time="2026-08-18 19:44:05Z" end-time="2026-08-18 19:44:05Z" duration="0.000119" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1688" name="OlderGenerationArrivingLateIsRejected" fullname="VoxelEngine.Tests.EditMode.GpuBrickSlotTableTests.OlderGenerationArrivingLateIsRejected" methodname="OlderGenerationArrivingLateIsRejected" classname="VoxelEngine.Tests.EditMode.GpuBrickSlotTableTests" runstate="Runnable" seed="108673398" result="Passed" start-time="2026-08-18 19:44:05Z" end-time="2026-08-18 19:44:05Z" duration="0.000088" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1690" name="PinnedBricksAreNeverEvicted" fullname="VoxelEngine.Tests.EditMode.GpuBrickSlotTableTests.PinnedBricksAreNeverEvicted" methodname="PinnedBricksAreNeverEvicted" classname="VoxelEngine.Tests.EditMode.GpuBrickSlotTableTests" runstate="Runnable" seed="1370614751" result="Passed" start-time="2026-08-18 19:44:05Z" end-time="2026-08-18 19:44:05Z" duration="0.000107" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1686" name="RepublishingTheSameGenerationKeepsTheSameSlot" fullname="VoxelEngine.Tests.EditMode.GpuBrickSlotTableTests.RepublishingTheSameGenerationKeepsTheSameSlot" methodname="RepublishingTheSameGenerationKeepsTheSameSlot" classname="VoxelEngine.Tests.EditMode.GpuBrickSlotTableTests" runstate="Runnable" seed="248476414" result="Passed" start-time="2026-08-18 19:44:05Z" end-time="2026-08-18 19:44:05Z" duration="0.000066" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1694" name="UniformBrickOfEmptyMaterialIsNotSolid" fullname="VoxelEngine.Tests.EditMode.GpuBrickSlotTableTests.UniformBrickOfEmptyMaterialIsNotSolid" methodname="UniformBrickOfEmptyMaterialIsNotSolid" classname="VoxelEngine.Tests.EditMode.GpuBrickSlotTableTests" runstate="Runnable" seed="1746646906" result="Passed" start-time="2026-08-18 19:44:05Z" end-time="2026-08-18 19:44:05Z" duration="0.000056" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1691" name="UnpinningMakesASlotAvailableAgain" fullname="VoxelEngine.Tests.EditMode.GpuBrickSlotTableTests.UnpinningMakesASlotAvailableAgain" methodname="UnpinningMakesASlotAvailableAgain" classname="VoxelEngine.Tests.EditMode.GpuBrickSlotTableTests" runstate="Runnable" seed="756083722" result="Passed" start-time="2026-08-18 19:44:05Z" end-time="2026-08-18 19:44:05Z" duration="0.000109" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

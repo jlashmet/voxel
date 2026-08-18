@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="1" result="Passed" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-18 05:41:17Z" end-time="2026-08-18 05:41:50Z" duration="33.254129">
+  <test-suite type="TestSuite" id="1522" name="voxel" fullname="voxel" runstate="Runnable" testcasecount="378" result="Passed" start-time="2026-08-18 05:41:17Z" end-time="2026-08-18 05:41:50Z" duration="33.254129" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="PlayMode" />
+    </properties>
+    <test-suite type="Assembly" id="1518" name="VoxelEngine.Tests.PlayMode.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/VoxelEngine.Tests.PlayMode.dll" runstate="Runnable" testcasecount="145" result="Passed" start-time="2026-08-18 05:41:17Z" end-time="2026-08-18 05:41:50Z" duration="33.249045" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="82594" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="PlayMode" />
+        <property name="EditorOnly" value="False" />
+      </properties>
+      <test-suite type="TestSuite" id="1519" name="VoxelEngine" fullname="VoxelEngine" runstate="Runnable" testcasecount="145" result="Passed" start-time="2026-08-18 05:41:17Z" end-time="2026-08-18 05:41:50Z" duration="33.248145" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="1520" name="Tests" fullname="VoxelEngine.Tests" runstate="Runnable" testcasecount="145" result="Passed" start-time="2026-08-18 05:41:17Z" end-time="2026-08-18 05:41:50Z" duration="33.247349" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="1521" name="PlayMode" fullname="VoxelEngine.Tests.PlayMode" runstate="Runnable" testcasecount="145" result="Passed" start-time="2026-08-18 05:41:17Z" end-time="2026-08-18 05:41:50Z" duration="33.246532" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="1516" name="ZzSurfaceProbeTests" fullname="VoxelEngine.Tests.PlayMode.ZzSurfaceProbeTests" classname="VoxelEngine.Tests.PlayMode.ZzSurfaceProbeTests" runstate="Runnable" testcasecount="1" result="Passed" start-time="2026-08-18 05:41:17Z" end-time="2026-08-18 05:41:50Z" duration="33.244581" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1517" name="ProbeSurfaceConvergence" fullname="VoxelEngine.Tests.PlayMode.ZzSurfaceProbeTests.ProbeSurfaceConvergence" methodname="ProbeSurfaceConvergence" classname="VoxelEngine.Tests.PlayMode.ZzSurfaceProbeTests" runstate="Runnable" seed="1586229617" result="Passed" start-time="2026-08-18 05:41:17Z" end-time="2026-08-18 05:41:50Z" duration="33.239798" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="Timeout" value="900000" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[[VoxelResidency] residentRegions=32 mixed=233,873/2,367,424 evicted=0 reclaimedMixed=0
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+### PROBE camPos=(107.60, 52.80, -44.40) centre=(25.60, 23.80, 37.60) ground=205 planCentre=int3(256, 205, 376) plateau=33
+### PROBE f=0 known=0 resident=0 dirty=0 visible=0 missingVisible=0 jobs=0 discoveredBricks=0 changeRecords=0 awaitingUpload=0 residentBytes=0 completedBuilds=0 arenaCommitted=92536832 arenaUsed=0 arenaLeases=0 arenaFail=0 arenaEvictions=0
+### PROBE f=50 known=1010 resident=17 dirty=752 visible=0 missingVisible=61 jobs=19 discoveredBricks=0 changeRecords=0 awaitingUpload=1 residentBytes=8548608 completedBuilds=16 arenaCommitted=92536832 arenaUsed=9453840 arenaLeases=17 arenaFail=0 arenaEvictions=0
+### PROBE f=100 known=1465 resident=27 dirty=1119 visible=3 missingVisible=61 jobs=14 discoveredBricks=0 changeRecords=0 awaitingUpload=0 residentBytes=14700976 completedBuilds=27 arenaCommitted=92536832 arenaUsed=14700976 arenaLeases=27 arenaFail=0 arenaEvictions=0
+### PROBE f=150 known=2599 resident=65 dirty=1983 visible=36 missingVisible=444 jobs=14 discoveredBricks=0 changeRecords=0 awaitingUpload=2 residentBytes=28627968 completedBuilds=66 arenaCommitted=92536832 arenaUsed=30417936 arenaLeases=65 arenaFail=0 arenaEvictions=0
+### PROBE f=200 known=4110 resident=91 dirty=3100 visible=63 missingVisible=1314 jobs=15 discoveredBricks=12800 changeRecords=0 awaitingUpload=1 residentBytes=44373440 completedBuilds=105 arenaCommitted=92536832 arenaUsed=45229488 arenaLeases=91 arenaFail=0 arenaEvictions=0
+[VoxelResidency] residentRegions=48 mixed=270,068/2,367,424 evicted=0 reclaimedMixed=0
+### PROBE f=250 known=4205 resident=104 dirty=3158 visible=77 missingVisible=1372 jobs=19 discoveredBricks=0 changeRecords=0 awaitingUpload=0 residentBytes=50792096 completedBuilds=126 arenaCommitted=92536832 arenaUsed=50771584 arenaLeases=104 arenaFail=0 arenaEvictions=0
+### PROBE f=300 known=4205 resident=117 dirty=3141 visible=90 missingVisible=1355 jobs=18 discoveredBricks=0 changeRecords=0 awaitingUpload=0 residentBytes=57075568 completedBuilds=143 arenaCommitted=92536832 arenaUsed=57055056 arenaLeases=117 arenaFail=0 arenaEvictions=0
+### PROBE f=350 known=4435 resident=131 dirty=3315 visible=102 missingVisible=1341 jobs=13 discoveredBricks=0 changeRecords=0 awaitingUpload=2 residentBytes=65067056 completedBuilds=157 arenaCommitted=92536832 arenaUsed=66857008 arenaLeases=131 arenaFail=0 arenaEvictions=0
+### PROBE f=400 known=4491 resident=159 dirty=3318 visible=133 missingVisible=1313 jobs=14 discoveredBricks=0 changeRecords=0 awaitingUpload=2 residentBytes=76663296 completedBuilds=190 arenaCommitted=92536832 arenaUsed=77597152 arenaLeases=158 arenaFail=3 arenaEvictions=3
+### PROBE f=450 known=4491 resident=160 dirty=3315 visible=150 missingVisible=1295 jobs=14 discoveredBricks=0 changeRecords=0 awaitingUpload=1 residentBytes=76655136 completedBuilds=208 arenaCommitted=92536832 arenaUsed=76624368 arenaLeases=159 arenaFail=20 arenaEvictions=18
+### PROBE f=500 known=4491 resident=168 dirty=3304 visible=162 missingVisible=1281 jobs=16 discoveredBricks=0 changeRecords=0 awaitingUpload=0 residentBytes=77935280 completedBuilds=222 arenaCommitted=92536832 arenaUsed=77904512 arenaLeases=168 arenaFail=23 arenaEvictions=21
+[VoxelResidency] residentRegions=64 mixed=301,351/2,367,424 evicted=0 reclaimedMixed=0
+### PROBE f=550 known=4491 resident=176 dirty=3296 visible=174 missingVisible=1268 jobs=19 discoveredBricks=0 changeRecords=0 awaitingUpload=1 residentBytes=76317472 completedBuilds=244 arenaCommitted=92536832 arenaUsed=77095680 arenaLeases=176 arenaFail=37 arenaEvictions=35
+### PROBE f=600 known=4491 resident=178 dirty=3295 visible=175 missingVisible=1266 jobs=16 discoveredBricks=0 changeRecords=0 awaitingUpload=3 residentBytes=76694304 completedBuilds=255 arenaCommitted=92536832 arenaUsed=77480704 arenaLeases=176 arenaFail=49 arenaEvictions=45
+### PROBE f=650 known=4491 resident=154 dirty=3315 visible=153 missingVisible=1286 jobs=18 discoveredBricks=0 changeRecords=0 awaitingUpload=1 residentBytes=69812672 completedBuilds=275 arenaCommitted=92536832 arenaUsed=69781904 arenaLeases=153 arenaFail=113 arenaEvictions=85
+### PROBE f=700 known=4501 resident=149 dirty=3328 visible=148 missingVisible=1297 jobs=19 discoveredBricks=0 changeRecords=0 awaitingUpload=1 residentBytes=68737392 completedBuilds=303 arenaCommitted=92536832 arenaUsed=69591376 arenaLeases=149 arenaFail=163 arenaEvictions=118
+### PROBE f=750 known=4501 resident=162 dirty=3316 visible=156 missingVisible=1286 jobs=14 discoveredBricks=0 changeRecords=0 awaitingUpload=6 residentBytes=70078960 completedBuilds=321 arenaCommitted=92536832 arenaUsed=71791072 arenaLeases=158 arenaFail=171 arenaEvictions=125
+### PROBE f=800 known=4505 resident=128 dirty=3348 visible=126 missingVisible=1316 jobs=17 discoveredBricks=0 changeRecords=2 awaitingUpload=2 residentBytes=63453200 completedBuilds=339 arenaCommitted=92536832 arenaUsed=64335856 arenaLeases=127 arenaFail=302 arenaEvictions=173
+### PROBE f=850 known=4505 resident=138 dirty=3334 visible=138 missingVisible=1302 jobs=19 discoveredBricks=0 changeRecords=0 awaitingUpload=0 residentBytes=66404560 completedBuilds=356 arenaCommitted=92536832 arenaUsed=66373792 arenaLeases=138 arenaFail=305 arenaEvictions=176
+[VoxelResidency] residentRegions=80 mixed=336,398/2,367,424 evicted=0 reclaimedMixed=0
+### PROBE f=899 known=4512 resident=141 dirty=3336 visible=140 missingVisible=1303 jobs=15 discoveredBricks=0 changeRecords=0 awaitingUpload=1 residentBytes=68673776 completedBuilds=376 arenaCommitted=92536832 arenaUsed=69402832 arenaLeases=141 arenaFail=334 arenaEvictions=193
+### PROBE wrote Artifacts/LocalTests/showcase-view.png
+<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

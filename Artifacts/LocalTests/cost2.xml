@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="1" result="Passed" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-18 16:34:17Z" end-time="2026-08-18 16:37:35Z" duration="197.4042633">
+  <test-suite type="TestSuite" id="1522" name="voxel" fullname="voxel" runstate="Runnable" testcasecount="378" result="Passed" start-time="2026-08-18 16:34:17Z" end-time="2026-08-18 16:37:35Z" duration="197.404263" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="PlayMode" />
+    </properties>
+    <test-suite type="Assembly" id="1518" name="VoxelEngine.Tests.PlayMode.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/VoxelEngine.Tests.PlayMode.dll" runstate="Runnable" testcasecount="145" result="Passed" start-time="2026-08-18 16:34:17Z" end-time="2026-08-18 16:37:35Z" duration="197.398549" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="57846" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="PlayMode" />
+        <property name="EditorOnly" value="False" />
+      </properties>
+      <test-suite type="TestSuite" id="1519" name="VoxelEngine" fullname="VoxelEngine" runstate="Runnable" testcasecount="145" result="Passed" start-time="2026-08-18 16:34:17Z" end-time="2026-08-18 16:37:35Z" duration="197.397490" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="1520" name="Tests" fullname="VoxelEngine.Tests" runstate="Runnable" testcasecount="145" result="Passed" start-time="2026-08-18 16:34:17Z" end-time="2026-08-18 16:37:35Z" duration="197.396617" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="1521" name="PlayMode" fullname="VoxelEngine.Tests.PlayMode" runstate="Runnable" testcasecount="145" result="Passed" start-time="2026-08-18 16:34:17Z" end-time="2026-08-18 16:37:35Z" duration="197.395684" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="1516" name="ZzFrameCostTests" fullname="VoxelEngine.Tests.PlayMode.ZzFrameCostTests" classname="VoxelEngine.Tests.PlayMode.ZzFrameCostTests" runstate="Runnable" testcasecount="1" result="Passed" start-time="2026-08-18 16:34:17Z" end-time="2026-08-18 16:37:35Z" duration="197.393617" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1517" name="AttributeMovingFrameCost" fullname="VoxelEngine.Tests.PlayMode.ZzFrameCostTests.AttributeMovingFrameCost" methodname="AttributeMovingFrameCost" classname="VoxelEngine.Tests.PlayMode.ZzFrameCostTests" runstate="Runnable" seed="780631811" result="Passed" start-time="2026-08-18 16:34:17Z" end-time="2026-08-18 16:37:35Z" duration="197.388596" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="Timeout" value="1800000" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[[VoxelResidency] residentRegions=84 mixed=507,084/2,367,424 evicted=0 reclaimedMixed=0
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+[VoxelResidency] residentRegions=96 mixed=563,669/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=112 mixed=639,452/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=128 mixed=715,104/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=144 mixed=790,760/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=160 mixed=866,630/2,367,424 evicted=0 reclaimedMixed=0
+### COST worst 12 moving frames (ms)
+### COST frame=459.4 loop=450.7 render=8.8 prepareP95=42.0 visibilityP95=1.6 workerP95=4.1 missing=615 visible=478
+### COST frame=387.3 loop=378.7 render=8.6 prepareP95=42.0 visibilityP95=1.6 workerP95=4.1 missing=624 visible=495
+### COST frame=370.3 loop=360.3 render=10.0 prepareP95=42.6 visibilityP95=2.1 workerP95=4.0 missing=583 visible=782
+### COST frame=351.6 loop=343.0 render=8.6 prepareP95=42.0 visibilityP95=1.9 workerP95=4.0 missing=438 visible=512
+### COST frame=342.6 loop=297.3 render=45.3 prepareP95=42.5 visibilityP95=2.0 workerP95=4.0 missing=785 visible=815
+### COST frame=332.4 loop=301.2 render=31.2 prepareP95=42.5 visibilityP95=2.0 workerP95=4.0 missing=778 visible=756
+### COST frame=332.3 loop=299.8 render=32.6 prepareP95=42.3 visibilityP95=2.1 workerP95=4.0 missing=343 visible=770
+### COST frame=325.5 loop=314.7 render=10.7 prepareP95=42.6 visibilityP95=2.1 workerP95=4.0 missing=607 visible=789
+### COST frame=321.5 loop=283.8 render=37.6 prepareP95=42.0 visibilityP95=1.7 workerP95=4.0 missing=736 visible=608
+### COST frame=318.6 loop=268.8 render=49.8 prepareP95=27.6 visibilityP95=2.6 workerP95=4.0 missing=102 visible=1215
+### COST frame=316.6 loop=271.6 render=45.0 prepareP95=42.3 visibilityP95=2.3 workerP95=4.0 missing=430 visible=1249
+### COST frame=315.4 loop=302.3 render=13.1 prepareP95=40.9 visibilityP95=2.6 workerP95=4.0 missing=149 visible=1315
+### COST mean=139.3ms over 420 frames
+### COST breakdown prepare=41.79 journal=0.00 invalidation=0.05 discovery=0.10 worker=4.05 visibility=1.54 snapshot=1.33 compact=0.92 merge=0.06 upload=0.31 ruleSync=0.00 residencyPrune=0.03 capacity=0.00 buildSelect=0.03 profileEmit=0.00
+<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

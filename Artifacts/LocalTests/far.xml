@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="2" result="Failed(Child)" total="2" passed="1" failed="1" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-18 14:39:54Z" end-time="2026-08-18 14:40:19Z" duration="24.6709819">
+  <test-suite type="TestSuite" id="1520" name="voxel" fullname="voxel" runstate="Runnable" testcasecount="377" result="Failed" site="Child" start-time="2026-08-18 14:39:54Z" end-time="2026-08-18 14:40:19Z" duration="24.670982" total="2" passed="1" failed="1" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="PlayMode" />
+    </properties>
+    <failure>
+      <message><![CDATA[One or more child tests had errors]]></message>
+    </failure>
+    <test-suite type="Assembly" id="1516" name="VoxelEngine.Tests.PlayMode.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/VoxelEngine.Tests.PlayMode.dll" runstate="Runnable" testcasecount="144" result="Failed" site="Child" start-time="2026-08-18 14:39:54Z" end-time="2026-08-18 14:40:19Z" duration="24.664698" total="2" passed="1" failed="1" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="21535" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="PlayMode" />
+        <property name="EditorOnly" value="False" />
+      </properties>
+      <failure>
+        <message><![CDATA[One or more child tests had errors]]></message>
+      </failure>
+      <test-suite type="TestSuite" id="1517" name="VoxelEngine" fullname="VoxelEngine" runstate="Runnable" testcasecount="144" result="Failed" site="Child" start-time="2026-08-18 14:39:54Z" end-time="2026-08-18 14:40:19Z" duration="24.663632" total="2" passed="1" failed="1" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <failure>
+          <message><![CDATA[One or more child tests had errors]]></message>
+        </failure>
+        <test-suite type="TestSuite" id="1518" name="Tests" fullname="VoxelEngine.Tests" runstate="Runnable" testcasecount="144" result="Failed" site="Child" start-time="2026-08-18 14:39:54Z" end-time="2026-08-18 14:40:19Z" duration="24.662644" total="2" passed="1" failed="1" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <failure>
+            <message><![CDATA[One or more child tests had errors]]></message>
+          </failure>
+          <test-suite type="TestSuite" id="1519" name="PlayMode" fullname="VoxelEngine.Tests.PlayMode" runstate="Runnable" testcasecount="144" result="Failed" site="Child" start-time="2026-08-18 14:39:54Z" end-time="2026-08-18 14:40:19Z" duration="24.661612" total="2" passed="1" failed="1" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <failure>
+              <message><![CDATA[One or more child tests had errors]]></message>
+            </failure>
+            <test-suite type="TestFixture" id="1457" name="ShowcaseSkyAndFarTerrainTests" fullname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests" classname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests" runstate="Runnable" testcasecount="23" result="Failed" site="Child" start-time="2026-08-18 14:39:54Z" end-time="2026-08-18 14:40:19Z" duration="24.658989" total="2" passed="1" failed="1" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <failure>
+                <message><![CDATA[One or more child tests had errors]]></message>
+              </failure>
+              <test-case id="1465" name="FarTerrainHeightsMatchTheHeightField" fullname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests.FarTerrainHeightsMatchTheHeightField" methodname="FarTerrainHeightsMatchTheHeightField" classname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests" runstate="Runnable" seed="2085972801" result="Passed" start-time="2026-08-18 14:39:54Z" end-time="2026-08-18 14:40:02Z" duration="7.753163" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[[VoxelResidency] residentRegions=32 mixed=233,873/2,367,424 evicted=0 reclaimedMixed=0
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+]]></output>
+              </test-case>
+              <test-case id="1474" name="GroundIsResidentAheadOfThePlayerNotUnderneath" fullname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests.GroundIsResidentAheadOfThePlayerNotUnderneath" methodname="GroundIsResidentAheadOfThePlayerNotUnderneath" classname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests" runstate="Runnable" seed="446806042" result="Failed" start-time="2026-08-18 14:40:02Z" end-time="2026-08-18 14:40:19Z" duration="16.899881" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <failure>
+                  <message><![CDATA[  Only 0 of 8 directions have ground resident 200 m out. The player will walk into unbuilt terrain.
+  Expected: greater than 4
+  But was:  0
+]]></message>
+                  <stack-trace><![CDATA[at VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests+<GroundIsResidentAheadOfThePlayerNotUnderneath>d__21.MoveNext () [0x0010d] in /Users/jlashmet/code/voxel/Assets/Tests/PlayMode/ShowcaseSkyAndFarTerrainTests.cs:454
+at UnityEngine.TestTools.TestEnumerator+<Execute>d__7.MoveNext () [0x0003a] in ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEngine.TestRunner/NUnitExtensions/Attributes/TestEnumerator.cs:44
+]]></stack-trace>
+                </failure>
+                <output><![CDATA[[VoxelResidency] residentRegions=32 mixed=233,927/2,367,424 evicted=0 reclaimedMixed=0
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

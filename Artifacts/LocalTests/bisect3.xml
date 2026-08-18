@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="1" result="Passed" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-18 17:48:47Z" end-time="2026-08-18 17:50:36Z" duration="109.8111372">
+  <test-suite type="TestSuite" id="1522" name="voxel" fullname="voxel" runstate="Runnable" testcasecount="378" result="Passed" start-time="2026-08-18 17:48:47Z" end-time="2026-08-18 17:50:36Z" duration="109.811137" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="PlayMode" />
+    </properties>
+    <test-suite type="Assembly" id="1518" name="VoxelEngine.Tests.PlayMode.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/VoxelEngine.Tests.PlayMode.dll" runstate="Runnable" testcasecount="145" result="Passed" start-time="2026-08-18 17:48:47Z" end-time="2026-08-18 17:50:36Z" duration="109.805185" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="88275" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="PlayMode" />
+        <property name="EditorOnly" value="False" />
+      </properties>
+      <test-suite type="TestSuite" id="1519" name="VoxelEngine" fullname="VoxelEngine" runstate="Runnable" testcasecount="145" result="Passed" start-time="2026-08-18 17:48:47Z" end-time="2026-08-18 17:50:36Z" duration="109.804032" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="1520" name="Tests" fullname="VoxelEngine.Tests" runstate="Runnable" testcasecount="145" result="Passed" start-time="2026-08-18 17:48:47Z" end-time="2026-08-18 17:50:36Z" duration="109.803070" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="1521" name="PlayMode" fullname="VoxelEngine.Tests.PlayMode" runstate="Runnable" testcasecount="145" result="Passed" start-time="2026-08-18 17:48:47Z" end-time="2026-08-18 17:50:36Z" duration="109.802162" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="1516" name="ZzBisectTests" fullname="VoxelEngine.Tests.PlayMode.ZzBisectTests" classname="VoxelEngine.Tests.PlayMode.ZzBisectTests" runstate="Runnable" testcasecount="1" result="Passed" start-time="2026-08-18 17:48:47Z" end-time="2026-08-18 17:50:36Z" duration="109.799789" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1517" name="BisectStationaryFrameCost" fullname="VoxelEngine.Tests.PlayMode.ZzBisectTests.BisectStationaryFrameCost" methodname="BisectStationaryFrameCost" classname="VoxelEngine.Tests.PlayMode.ZzBisectTests" runstate="Runnable" seed="1690921541" result="Passed" start-time="2026-08-18 17:48:47Z" end-time="2026-08-18 17:50:36Z" duration="109.794754" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="Timeout" value="1800000" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[[VoxelResidency] residentRegions=84 mixed=507,084/2,367,424 evicted=0 reclaimedMixed=0
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+[VoxelResidency] residentRegions=96 mixed=563,669/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=112 mixed=639,452/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=128 mixed=715,050/2,367,424 evicted=0 reclaimedMixed=0
+### BISECT settled streak=4 visible=1419 missing=0
+[VoxelResidency] residentRegions=144 mixed=790,533/2,367,424 evicted=0 reclaimedMixed=0
+### BISECT A converged, everything on                 median=   16.8ms p95=   45.1ms visible=1419 resident=1860 dirty=2912 jobs=1
+### BISECT A converged, everything on                 prepare=3.03 ruleSync=0.00 residencyPrune=0.01 capacity=0.00 buildSelect=0.03 snapshot=1.84 compact=0.97 merge=0.09 profileEmit=0.00 upload=0.33 worker=0.52 visibility=2.38 discovery=0.01
+### BISECT B extraction off (still drawing)           median=    3.9ms p95=    4.2ms visible=1419 resident=1860 dirty=2912 jobs=1
+### BISECT B extraction off (still drawing)           prepare=3.03 ruleSync=0.00 residencyPrune=0.01 capacity=0.00 buildSelect=0.03 snapshot=1.84 compact=0.97 merge=0.09 profileEmit=0.00 upload=0.33 worker=0.52 visibility=2.38 discovery=0.01
+[VoxelResidency] residentRegions=160 mixed=866,681/2,367,424 evicted=0 reclaimedMixed=0
+### BISECT C + far terrain and vegetation off         median=    3.9ms p95=    4.2ms visible=1419 resident=1860 dirty=2912 jobs=1
+### BISECT C + far terrain and vegetation off         prepare=3.03 ruleSync=0.00 residencyPrune=0.01 capacity=0.00 buildSelect=0.03 snapshot=1.84 compact=0.97 merge=0.09 profileEmit=0.00 upload=0.33 worker=0.52 visibility=2.38 discovery=0.01
+### BISECT D + voxel world unbound (no voxel draws)   median=    3.9ms p95=    4.1ms visible=0 resident=0 dirty=0 jobs=0
+### BISECT D + voxel world unbound (no voxel draws)   prepare=0.00 ruleSync=0.00 residencyPrune=0.00 capacity=0.00 buildSelect=0.00 snapshot=0.00 compact=0.00 merge=0.00 profileEmit=0.00 upload=0.00 worker=0.00 visibility=0.00 discovery=0.00
+### BISECT E + showcase component disabled            median=    0.4ms p95=    0.5ms visible=0 resident=0 dirty=0 jobs=0
+### BISECT E + showcase component disabled            prepare=0.00 ruleSync=0.00 residencyPrune=0.00 capacity=0.00 buildSelect=0.00 snapshot=0.00 compact=0.00 merge=0.00 profileEmit=0.00 upload=0.00 worker=0.00 visibility=0.00 discovery=0.00
+<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

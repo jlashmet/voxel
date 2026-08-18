@@ -1,0 +1,8 @@
+agent_count=111
+foreground_pixels=29899
+readable_components=65
+separated_agent_ratio=0.5856
+wide_components=19
+tall_components=10
+largest_component_pixels=1636
+largest_component_ratio=0.0547

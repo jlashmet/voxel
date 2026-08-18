@@ -1,0 +1,348 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="19" result="Failed(Child)" total="19" passed="16" failed="3" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-17 00:59:50Z" end-time="2026-08-17 01:04:05Z" duration="254.1946102">
+  <test-suite type="TestSuite" id="1326" name="voxel" fullname="voxel" runstate="Runnable" testcasecount="233" result="Failed" site="Child" start-time="2026-08-17 00:59:50Z" end-time="2026-08-17 01:04:05Z" duration="254.194610" total="19" passed="16" failed="3" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="PlayMode" />
+    </properties>
+    <failure>
+      <message><![CDATA[One or more child tests had errors]]></message>
+    </failure>
+    <test-suite type="Assembly" id="1100" name="VoxelEngine.CI.PlayMode.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/VoxelEngine.CI.PlayMode.dll" runstate="Runnable" testcasecount="19" result="Failed" site="Child" start-time="2026-08-17 00:59:50Z" end-time="2026-08-17 01:04:05Z" duration="254.187432" total="19" passed="16" failed="3" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="38664" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="PlayMode" />
+        <property name="EditorOnly" value="False" />
+      </properties>
+      <failure>
+        <message><![CDATA[One or more child tests had errors]]></message>
+      </failure>
+      <test-suite type="TestSuite" id="1101" name="VoxelEngine" fullname="VoxelEngine" runstate="Runnable" testcasecount="19" result="Failed" site="Child" start-time="2026-08-17 00:59:50Z" end-time="2026-08-17 01:04:05Z" duration="254.186995" total="19" passed="16" failed="3" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <failure>
+          <message><![CDATA[One or more child tests had errors]]></message>
+        </failure>
+        <test-suite type="TestSuite" id="1102" name="CI" fullname="VoxelEngine.CI" runstate="Runnable" testcasecount="19" result="Failed" site="Child" start-time="2026-08-17 00:59:50Z" end-time="2026-08-17 01:04:05Z" duration="254.186651" total="19" passed="16" failed="3" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <failure>
+            <message><![CDATA[One or more child tests had errors]]></message>
+          </failure>
+          <test-suite type="TestFixture" id="1065" name="AmbientLifeArticulationVisualTests" fullname="VoxelEngine.CI.AmbientLifeArticulationVisualTests" classname="VoxelEngine.CI.AmbientLifeArticulationVisualTests" runstate="Explicit" testcasecount="1" result="Passed" start-time="2026-08-17 00:59:50Z" end-time="2026-08-17 00:59:53Z" duration="2.601871" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties>
+              <property name="_SKIPREASON" value="Fixed-position shader articulation validation; run by animation CI." />
+            </properties>
+            <test-case id="1066" name="AllVisualShapeFamilies_HaveExpectedArticulationWithoutLocomotion" fullname="VoxelEngine.CI.AmbientLifeArticulationVisualTests.AllVisualShapeFamilies_HaveExpectedArticulationWithoutLocomotion" methodname="AllVisualShapeFamilies_HaveExpectedArticulationWithoutLocomotion" classname="VoxelEngine.CI.AmbientLifeArticulationVisualTests" runstate="Runnable" seed="111508621" result="Passed" start-time="2026-08-17 00:59:50Z" end-time="2026-08-17 00:59:53Z" duration="2.593061" asserts="0">
+              <properties>
+                <property name="_JOINTYPE" value="UnityCombinatorial" />
+                <property name="retryIteration" value="0" />
+                <property name="repeatIteration" value="0" />
+              </properties>
+            </test-case>
+          </test-suite>
+          <test-suite type="TestFixture" id="1067" name="AmbientLifeMotionTests" fullname="VoxelEngine.CI.AmbientLifeMotionTests" classname="VoxelEngine.CI.AmbientLifeMotionTests" runstate="Runnable" testcasecount="3" result="Passed" start-time="2026-08-17 00:59:53Z" end-time="2026-08-17 00:59:53Z" duration="0.104184" total="3" passed="3" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-case id="1068" name="AllMovementForms_AreDeterministicBoundedAndActuallyMove" fullname="VoxelEngine.CI.AmbientLifeMotionTests.AllMovementForms_AreDeterministicBoundedAndActuallyMove" methodname="AllMovementForms_AreDeterministicBoundedAndActuallyMove" classname="VoxelEngine.CI.AmbientLifeMotionTests" runstate="Runnable" seed="2057627749" result="Passed" start-time="2026-08-17 00:59:53Z" end-time="2026-08-17 00:59:53Z" duration="0.006671" asserts="0">
+              <properties>
+                <property name="retryIteration" value="0" />
+                <property name="repeatIteration" value="0" />
+              </properties>
+            </test-case>
+            <test-case id="1069" name="Showcase_ReconstructedAgentsMoveOverTime_WithoutChangingAuthority" fullname="VoxelEngine.CI.AmbientLifeMotionTests.Showcase_ReconstructedAgentsMoveOverTime_WithoutChangingAuthority" methodname="Showcase_ReconstructedAgentsMoveOverTime_WithoutChangingAuthority" classname="VoxelEngine.CI.AmbientLifeMotionTests" runstate="Runnable" seed="1849744739" result="Passed" start-time="2026-08-17 00:59:53Z" end-time="2026-08-17 00:59:53Z" duration="0.014757" asserts="0">
+              <properties>
+                <property name="_JOINTYPE" value="UnityCombinatorial" />
+                <property name="retryIteration" value="0" />
+                <property name="repeatIteration" value="0" />
+              </properties>
+            </test-case>
+            <test-case id="1070" name="Showcase_RenderedFrameChangesSubstantiallyAcrossTime" fullname="VoxelEngine.CI.AmbientLifeMotionTests.Showcase_RenderedFrameChangesSubstantiallyAcrossTime" methodname="Showcase_RenderedFrameChangesSubstantiallyAcrossTime" classname="VoxelEngine.CI.AmbientLifeMotionTests" runstate="Explicit" seed="1553991013" result="Passed" start-time="2026-08-17 00:59:53Z" end-time="2026-08-17 00:59:53Z" duration="0.081409" asserts="0">
+              <properties>
+                <property name="_JOINTYPE" value="UnityCombinatorial" />
+                <property name="_SKIPREASON" value="Two-frame visual motion capture; run by rendering CI." />
+                <property name="retryIteration" value="0" />
+                <property name="repeatIteration" value="0" />
+              </properties>
+            </test-case>
+          </test-suite>
+          <test-suite type="TestFixture" id="1093" name="AmbientLifeRenderingTests" fullname="VoxelEngine.CI.AmbientLifeRenderingTests" classname="VoxelEngine.CI.AmbientLifeRenderingTests" runstate="Runnable" testcasecount="1" result="Passed" start-time="2026-08-17 00:59:53Z" end-time="2026-08-17 00:59:53Z" duration="0.004038" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-case id="1094" name="StandaloneShowcase_CoversCatalogue_AndReconstructsAllAgents" fullname="VoxelEngine.CI.AmbientLifeRenderingTests.StandaloneShowcase_CoversCatalogue_AndReconstructsAllAgents" methodname="StandaloneShowcase_CoversCatalogue_AndReconstructsAllAgents" classname="VoxelEngine.CI.AmbientLifeRenderingTests" runstate="Runnable" seed="1917181607" result="Passed" start-time="2026-08-17 00:59:53Z" end-time="2026-08-17 00:59:53Z" duration="0.002960" asserts="0">
+              <properties>
+                <property name="_JOINTYPE" value="UnityCombinatorial" />
+                <property name="retryIteration" value="0" />
+                <property name="repeatIteration" value="0" />
+              </properties>
+            </test-case>
+          </test-suite>
+          <test-suite type="TestFixture" id="1098" name="AmbientLifeSilhouetteQualityTests" fullname="VoxelEngine.CI.AmbientLifeSilhouetteQualityTests" classname="VoxelEngine.CI.AmbientLifeSilhouetteQualityTests" runstate="Explicit" testcasecount="1" result="Passed" start-time="2026-08-17 00:59:53Z" end-time="2026-08-17 00:59:53Z" duration="0.078174" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties>
+              <property name="_SKIPREASON" value="Ambient-life silhouette quality and artefact capture; run by rendering CI." />
+            </properties>
+            <test-case id="1099" name="AmbientLifeShowcase_PreservesDistinctReadableAgentSilhouettes" fullname="VoxelEngine.CI.AmbientLifeSilhouetteQualityTests.AmbientLifeShowcase_PreservesDistinctReadableAgentSilhouettes" methodname="AmbientLifeShowcase_PreservesDistinctReadableAgentSilhouettes" classname="VoxelEngine.CI.AmbientLifeSilhouetteQualityTests" runstate="Runnable" seed="1622084413" result="Passed" start-time="2026-08-17 00:59:53Z" end-time="2026-08-17 00:59:53Z" duration="0.077645" asserts="0">
+              <properties>
+                <property name="_JOINTYPE" value="UnityCombinatorial" />
+                <property name="retryIteration" value="0" />
+                <property name="repeatIteration" value="0" />
+              </properties>
+            </test-case>
+          </test-suite>
+          <test-suite type="TestFixture" id="1071" name="AnimationSemanticQualityTests" fullname="VoxelEngine.CI.AnimationSemanticQualityTests" classname="VoxelEngine.CI.AnimationSemanticQualityTests" runstate="Runnable" testcasecount="1" result="Passed" start-time="2026-08-17 00:59:53Z" end-time="2026-08-17 00:59:53Z" duration="0.016123" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-case id="1072" name="SemanticAnimationQuality_AllMovementFormsAndVegetationPolicies" fullname="VoxelEngine.CI.AnimationSemanticQualityTests.SemanticAnimationQuality_AllMovementFormsAndVegetationPolicies" methodname="SemanticAnimationQuality_AllMovementFormsAndVegetationPolicies" classname="VoxelEngine.CI.AnimationSemanticQualityTests" runstate="Runnable" seed="1960285213" result="Passed" start-time="2026-08-17 00:59:53Z" end-time="2026-08-17 00:59:53Z" duration="0.014864" asserts="0">
+              <properties>
+                <property name="retryIteration" value="0" />
+                <property name="repeatIteration" value="0" />
+              </properties>
+            </test-case>
+          </test-suite>
+          <test-suite type="TestFixture" id="1073" name="DeterministicVegetationAnimationVisualTests" fullname="VoxelEngine.CI.DeterministicVegetationAnimationVisualTests" classname="VoxelEngine.CI.DeterministicVegetationAnimationVisualTests" runstate="Explicit" testcasecount="1" result="Passed" start-time="2026-08-17 00:59:53Z" end-time="2026-08-17 00:59:54Z" duration="1.335826" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties>
+              <property name="_SKIPREASON" value="Deterministic shader-time vegetation animation validation; run by animation CI." />
+            </properties>
+            <test-case id="1074" name="VegetationAnimation_UsesAnchoredWindAndDeterministicSurfaceShimmer" fullname="VoxelEngine.CI.DeterministicVegetationAnimationVisualTests.VegetationAnimation_UsesAnchoredWindAndDeterministicSurfaceShimmer" methodname="VegetationAnimation_UsesAnchoredWindAndDeterministicSurfaceShimmer" classname="VoxelEngine.CI.DeterministicVegetationAnimationVisualTests" runstate="Runnable" seed="1451704617" result="Passed" start-time="2026-08-17 00:59:53Z" end-time="2026-08-17 00:59:54Z" duration="1.334989" asserts="0">
+              <properties>
+                <property name="_JOINTYPE" value="UnityCombinatorial" />
+                <property name="retryIteration" value="0" />
+                <property name="repeatIteration" value="0" />
+              </properties>
+            </test-case>
+          </test-suite>
+          <test-suite type="TestFixture" id="1075" name="RegistryTreeVisualTests" fullname="VoxelEngine.CI.RegistryTreeVisualTests" classname="VoxelEngine.CI.RegistryTreeVisualTests" runstate="Explicit" testcasecount="1" result="Passed" start-time="2026-08-17 00:59:54Z" end-time="2026-08-17 00:59:55Z" duration="0.123664" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties>
+              <property name="_SKIPREASON" value="Artefact capture for human review; run by name." />
+            </properties>
+            <test-case id="1076" name="RegistryRenderer_RendersExactlyOneUprightTree" fullname="VoxelEngine.CI.RegistryTreeVisualTests.RegistryRenderer_RendersExactlyOneUprightTree" methodname="RegistryRenderer_RendersExactlyOneUprightTree" classname="VoxelEngine.CI.RegistryTreeVisualTests" runstate="Runnable" seed="466658628" result="Passed" start-time="2026-08-17 00:59:54Z" end-time="2026-08-17 00:59:55Z" duration="0.122496" asserts="0">
+              <properties>
+                <property name="_JOINTYPE" value="UnityCombinatorial" />
+                <property name="retryIteration" value="0" />
+                <property name="repeatIteration" value="0" />
+              </properties>
+              <output><![CDATA[CI registry-tree capture written to /Users/jlashmet/code/voxel/Artifacts/RegistryTree
+registryInstances=1
+rendererInstances=1
+semanticPresentations=1
+batchCount=1
+batchedTrees=1
+dynamicPresentations=0
+batchRootName=Tree Batch 0,0
+batchRootActive=True
+batchRootPosition=(0.000, 0.000, 0.000)
+batchRootLocalRotation=(0.000, 0.000, 0.000)
+lodGroups=1
+lodMeshes=4
+totalVertices=23828
+barkTrianglesAllLods=11244
+leafTrianglesAllLods=6292
+boundsCenter=(0.424, 9.864, -0.913)
+boundsSize=(16.512, 20.700, 16.658)
+boundsMinY=-0.486
+renderChangedPixels=94862
+
+]]></output>
+            </test-case>
+          </test-suite>
+          <test-suite type="TestFixture" id="1077" name="ShowcaseTreeDestructionVisualTests" fullname="VoxelEngine.CI.ShowcaseTreeDestructionVisualTests" classname="VoxelEngine.CI.ShowcaseTreeDestructionVisualTests" runstate="Explicit" testcasecount="1" result="Failed" site="Child" start-time="2026-08-17 00:59:55Z" end-time="2026-08-17 00:59:55Z" duration="0.007883" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+            <properties>
+              <property name="_SKIPREASON" value="Artefact capture for human review; run by name." />
+            </properties>
+            <failure>
+              <message><![CDATA[One or more child tests had errors]]></message>
+            </failure>
+            <test-case id="1078" name="ShowcaseTornado_BreaksBranchAndSeversTreeVisibly" fullname="VoxelEngine.CI.ShowcaseTreeDestructionVisualTests.ShowcaseTornado_BreaksBranchAndSeversTreeVisibly" methodname="ShowcaseTornado_BreaksBranchAndSeversTreeVisibly" classname="VoxelEngine.CI.ShowcaseTreeDestructionVisualTests" runstate="Runnable" seed="1602647246" result="Failed" start-time="2026-08-17 00:59:55Z" end-time="2026-08-17 00:59:55Z" duration="0.006606" asserts="0">
+              <properties>
+                <property name="_JOINTYPE" value="UnityCombinatorial" />
+                <property name="retryIteration" value="0" />
+                <property name="repeatIteration" value="0" />
+              </properties>
+              <failure>
+                <message><![CDATA[Unhandled log message: '[Error] Scene 'VoxelShowcase' couldn't be loaded because it has not been added to the active build profile or shared scene list or the AssetBundle has not been loaded.
+To add a scene to the active build profile or shared scene list use the menu File->Build Profiles'. Use UnityEngine.TestTools.LogAssert.Expect]]></message>
+                <stack-trace><![CDATA[UnityEngine.SceneManagement.SceneManager:LoadSceneAsync (string,UnityEngine.SceneManagement.LoadSceneMode)
+VoxelEngine.CI.ShowcaseTreeDestructionVisualTests/<ShowcaseTornado_BreaksBranchAndSeversTreeVisibly>d__5:MoveNext () (at Assets/VoxelEngine/CI/PlayMode/ShowcaseTreeDestructionVisualTests.cs:50)
+UnityEngine.SetupCoroutine:InvokeMoveNext (System.Collections.IEnumerator,intptr)
+
+]]></stack-trace>
+              </failure>
+              <output><![CDATA[Scene 'VoxelShowcase' couldn't be loaded because it has not been added to the active build profile or shared scene list or the AssetBundle has not been loaded.
+To add a scene to the active build profile or shared scene list use the menu File->Build Profiles
+]]></output>
+            </test-case>
+          </test-suite>
+          <test-suite type="TestFixture" id="1079" name="ShowcaseTreeVisualTests" fullname="VoxelEngine.CI.ShowcaseTreeVisualTests" classname="VoxelEngine.CI.ShowcaseTreeVisualTests" runstate="Explicit" testcasecount="1" result="Failed" site="Child" start-time="2026-08-17 00:59:55Z" end-time="2026-08-17 00:59:55Z" duration="0.003259" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+            <properties>
+              <property name="_SKIPREASON" value="Artefact capture for human review; run by name." />
+            </properties>
+            <failure>
+              <message><![CDATA[One or more child tests had errors]]></message>
+            </failure>
+            <test-case id="1080" name="ShowcaseStartup_HasOneUprightUndamagedSemanticTreePresentation" fullname="VoxelEngine.CI.ShowcaseTreeVisualTests.ShowcaseStartup_HasOneUprightUndamagedSemanticTreePresentation" methodname="ShowcaseStartup_HasOneUprightUndamagedSemanticTreePresentation" classname="VoxelEngine.CI.ShowcaseTreeVisualTests" runstate="Runnable" seed="863280002" result="Failed" start-time="2026-08-17 00:59:55Z" end-time="2026-08-17 00:59:55Z" duration="0.002587" asserts="0">
+              <properties>
+                <property name="_JOINTYPE" value="UnityCombinatorial" />
+                <property name="retryIteration" value="0" />
+                <property name="repeatIteration" value="0" />
+              </properties>
+              <failure>
+                <message><![CDATA[Unhandled log message: '[Error] Scene 'VoxelShowcase' couldn't be loaded because it has not been added to the active build profile or shared scene list or the AssetBundle has not been loaded.
+To add a scene to the active build profile or shared scene list use the menu File->Build Profiles'. Use UnityEngine.TestTools.LogAssert.Expect]]></message>
+                <stack-trace><![CDATA[UnityEngine.SceneManagement.SceneManager:LoadSceneAsync (string,UnityEngine.SceneManagement.LoadSceneMode)
+VoxelEngine.CI.ShowcaseTreeVisualTests/<ShowcaseStartup_HasOneUprightUndamagedSemanticTreePresentation>d__3:MoveNext () (at Assets/VoxelEngine/CI/PlayMode/ShowcaseTreeVisualTests.cs:47)
+UnityEngine.SetupCoroutine:InvokeMoveNext (System.Collections.IEnumerator,intptr)
+
+]]></stack-trace>
+              </failure>
+              <output><![CDATA[Scene 'VoxelShowcase' couldn't be loaded because it has not been added to the active build profile or shared scene list or the AssetBundle has not been loaded.
+To add a scene to the active build profile or shared scene list use the menu File->Build Profiles
+]]></output>
+            </test-case>
+          </test-suite>
+          <test-suite type="TestFixture" id="1081" name="TemporalAnimationVisualTests" fullname="VoxelEngine.CI.TemporalAnimationVisualTests" classname="VoxelEngine.CI.TemporalAnimationVisualTests" runstate="Explicit" testcasecount="1" result="Failed" site="Child" start-time="2026-08-17 00:59:55Z" end-time="2026-08-17 00:59:57Z" duration="2.776769" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+            <properties>
+              <property name="_SKIPREASON" value="Temporal animation capture and image-space motion validation; run by rendering CI." />
+            </properties>
+            <failure>
+              <message><![CDATA[One or more child tests had errors]]></message>
+            </failure>
+            <test-case id="1082" name="AmbientAndVegetationAnimationSequences_AreContinuousAndReadable" fullname="VoxelEngine.CI.TemporalAnimationVisualTests.AmbientAndVegetationAnimationSequences_AreContinuousAndReadable" methodname="AmbientAndVegetationAnimationSequences_AreContinuousAndReadable" classname="VoxelEngine.CI.TemporalAnimationVisualTests" runstate="Runnable" seed="1569800922" result="Failed" start-time="2026-08-17 00:59:55Z" end-time="2026-08-17 00:59:57Z" duration="2.776132" asserts="0">
+              <properties>
+                <property name="_JOINTYPE" value="UnityCombinatorial" />
+                <property name="retryIteration" value="0" />
+                <property name="repeatIteration" value="0" />
+              </properties>
+              <failure>
+                <message><![CDATA[  Vine free end is not visibly swaying.
+  Expected: greater than 0.0500000007f
+  But was:  0.0173256844f
+]]></message>
+                <stack-trace><![CDATA[at VoxelEngine.CI.TemporalAnimationVisualTests+<ValidateVine>d__3.MoveNext () [0x0028b] in /Users/jlashmet/code/voxel/Assets/VoxelEngine/CI/PlayMode/TemporalAnimationVisualTests.cs:182
+at UnityEngine.TestTools.TestEnumerator+<Execute>d__7.MoveNext () [0x0003a] in ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEngine.TestRunner/NUnitExtensions/Attributes/TestEnumerator.cs:44
+]]></stack-trace>
+              </failure>
+            </test-case>
+          </test-suite>
+          <test-suite type="TestFixture" id="1083" name="TreeBatchRenderingTests" fullname="VoxelEngine.CI.TreeBatchRenderingTests" classname="VoxelEngine.CI.TreeBatchRenderingTests" runstate="Runnable" testcasecount="1" result="Passed" start-time="2026-08-17 00:59:57Z" end-time="2026-08-17 01:00:03Z" duration="5.904165" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-case id="1084" name="HealthyForest_BatchesVisibly_AndDamageReleasesOneTree" fullname="VoxelEngine.CI.TreeBatchRenderingTests.HealthyForest_BatchesVisibly_AndDamageReleasesOneTree" methodname="HealthyForest_BatchesVisibly_AndDamageReleasesOneTree" classname="VoxelEngine.CI.TreeBatchRenderingTests" runstate="Runnable" seed="1725761566" result="Passed" start-time="2026-08-17 00:59:57Z" end-time="2026-08-17 01:00:03Z" duration="5.903429" asserts="0">
+              <properties>
+                <property name="_JOINTYPE" value="UnityCombinatorial" />
+                <property name="retryIteration" value="0" />
+                <property name="repeatIteration" value="0" />
+              </properties>
+            </test-case>
+          </test-suite>
+          <test-suite type="TestFixture" id="1085" name="TreeDestructionVisualTests" fullname="VoxelEngine.CI.TreeDestructionVisualTests" classname="VoxelEngine.CI.TreeDestructionVisualTests" runstate="Explicit" testcasecount="1" result="Passed" start-time="2026-08-17 01:00:03Z" end-time="2026-08-17 01:00:04Z" duration="1.023595" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties>
+              <property name="_SKIPREASON" value="Artefact capture for human review; run by name." />
+            </properties>
+            <test-case id="1086" name="SemanticTree_BranchDetachesAndTrunkLeavesFallingCrown" fullname="VoxelEngine.CI.TreeDestructionVisualTests.SemanticTree_BranchDetachesAndTrunkLeavesFallingCrown" methodname="SemanticTree_BranchDetachesAndTrunkLeavesFallingCrown" classname="VoxelEngine.CI.TreeDestructionVisualTests" runstate="Runnable" seed="801717788" result="Passed" start-time="2026-08-17 01:00:03Z" end-time="2026-08-17 01:00:04Z" duration="1.022830" asserts="0">
+              <properties>
+                <property name="_JOINTYPE" value="UnityCombinatorial" />
+                <property name="retryIteration" value="0" />
+                <property name="repeatIteration" value="0" />
+              </properties>
+              <output><![CDATA[CI tree destruction capture written to /Users/jlashmet/code/voxel/Artifacts/TreeDestruction
+registryInstances=1
+semanticPresentations=1
+beganBatched=True
+dynamicAfterDamage=1
+branchTarget=248
+branchCollision=True
+barkTrianglesBefore=5888
+barkTrianglesAfterBranch=3936
+leafTrianglesBefore=3872
+leafTrianglesAfterBranch=2524
+detachedAfterBranch=4
+trunkTarget=1
+trunkCollision=True
+severedAfterTrunk=True
+barkTrianglesAfterTrunk=16
+breakCaps=2
+detachedAfterTrunk=5
+crownTravelMetres=5.913
+
+]]></output>
+            </test-case>
+          </test-suite>
+          <test-suite type="TestFixture" id="1087" name="TreeFarLodVisualTests" fullname="VoxelEngine.CI.TreeFarLodVisualTests" classname="VoxelEngine.CI.TreeFarLodVisualTests" runstate="Runnable" testcasecount="1" result="Passed" start-time="2026-08-17 01:00:04Z" end-time="2026-08-17 01:00:04Z" duration="0.167464" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-case id="1088" name="UltraFarImpostor_IsFourthLodAndMatchesTreeSilhouette" fullname="VoxelEngine.CI.TreeFarLodVisualTests.UltraFarImpostor_IsFourthLodAndMatchesTreeSilhouette" methodname="UltraFarImpostor_IsFourthLodAndMatchesTreeSilhouette" classname="VoxelEngine.CI.TreeFarLodVisualTests" runstate="Runnable" seed="2121495948" result="Passed" start-time="2026-08-17 01:00:04Z" end-time="2026-08-17 01:00:04Z" duration="0.166703" asserts="0">
+              <properties>
+                <property name="_JOINTYPE" value="UnityCombinatorial" />
+                <property name="retryIteration" value="0" />
+                <property name="repeatIteration" value="0" />
+              </properties>
+            </test-case>
+          </test-suite>
+          <test-suite type="TestFixture" id="1089" name="TreePerformanceBenchmarkTests" fullname="VoxelEngine.CI.TreePerformanceBenchmarkTests" classname="VoxelEngine.CI.TreePerformanceBenchmarkTests" runstate="Runnable" testcasecount="1" result="Passed" start-time="2026-08-17 01:00:04Z" end-time="2026-08-17 01:04:04Z" duration="239.918756" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-case id="1090" name="TreeScaling_ProducesBenchmarkArtifact" fullname="VoxelEngine.CI.TreePerformanceBenchmarkTests.TreeScaling_ProducesBenchmarkArtifact" methodname="TreeScaling_ProducesBenchmarkArtifact" classname="VoxelEngine.CI.TreePerformanceBenchmarkTests" runstate="Runnable" seed="976455711" result="Passed" start-time="2026-08-17 01:00:04Z" end-time="2026-08-17 01:04:04Z" duration="239.917465" asserts="0">
+              <properties>
+                <property name="_JOINTYPE" value="UnityCombinatorial" />
+                <property name="Timeout" value="600000" />
+                <property name="retryIteration" value="0" />
+                <property name="repeatIteration" value="0" />
+              </properties>
+              <output><![CDATA[Tree performance benchmark:
+unity=6000.5.6f1
+platform=OSXEditor
+device=Mac16,5
+graphics=Apple M4 Max
+batchSizeMetres=32.0
+minimumTreesPerBatch=2
+note=large counts are domain/far-mesh measurements; full renderer is bounded to keep CI responsive
+note=healthy batched trees retain no per-tree GameObjects or meshes; batch construction currently uses temporary source Mesh objects that are destroyed after CombineMeshes
+core 10: 395.90 ms, branches=2,758, leaves=6,683, transientDelta=2,084,864 B
+core 100: 4437.58 ms, branches=28,426, leaves=70,961, transientDelta=22,315,008 B
+core 500: 17479.30 ms, branches=142,198, leaves=354,863, transientDelta=115,859,456 B
+core 1000: 32604.85 ms, branches=284,694, leaves=711,282, transientDelta=68,313,088 B
+core 5000: 129395.09 ms, branches=1,422,826, leaves=3,552,761, transientDelta=180,781,056 B
+far mesh 10: 250.76 ms, LOD2 triangles=13,636
+far mesh 100: 2719.63 ms, LOD2 triangles=140,500
+far mesh 500: 13145.50 ms, LOD2 triangles=703,390
+far mesh 1000: 26302.01 ms, LOD2 triangles=1,410,564
+runtime 10: rebuild=265.34 ms, semanticPresentations=10, residentMeshes=8, batches=2, batchMeshes=8, batchedTrees=10, dynamicTrees=0, visibleDraws≈4 vs perTree=20, semanticTriangles(all LODs)=125,528, residentTriangleStorage≈125,528, renderObjects=10, allocatedDelta=11,098,966 B, avgFrame=17.92 ms, maxFrame=266.67 ms
+runtime 50: rebuild=1477.53 ms, semanticPresentations=50, residentMeshes=28, batches=7, batchMeshes=28, batchedTrees=50, dynamicTrees=0, visibleDraws≈14 vs perTree=100, semanticTriangles(all LODs)=657,178, residentTriangleStorage≈657,178, renderObjects=35, allocatedDelta=58,733,481 B, avgFrame=98.72 ms, maxFrame=1478.32 ms
+runtime 100: rebuild=2930.39 ms, semanticPresentations=100, residentMeshes=36, batches=9, batchMeshes=36, batchedTrees=100, dynamicTrees=0, visibleDraws≈18 vs perTree=200, semanticTriangles(all LODs)=1,306,200, residentTriangleStorage≈1,306,200, renderObjects=45, allocatedDelta=118,817,831 B, avgFrame=195.56 ms, maxFrame=2930.94 ms
+runtime 250: rebuild=7478.44 ms, semanticPresentations=250, residentMeshes=36, batches=9, batchMeshes=36, batchedTrees=250, dynamicTrees=0, visibleDraws≈18 vs perTree=500, semanticTriangles(all LODs)=3,270,178, residentTriangleStorage≈3,270,178, renderObjects=45, allocatedDelta=296,393,895 B, avgFrame=498.78 ms, maxFrame=7479.09 ms
+projection 500: batches≈9, batchedTrees≈500, dynamicTrees≈0, renderObjects≈45, residentMeshes≈36, batchMeshes≈36, visibleDraws≈18 (per-tree path=1,000), semanticTriangles≈6,540,356, residentTriangleStorage≈6,540,356
+projection 1000: batches≈24, batchedTrees≈1,000, dynamicTrees≈0, renderObjects≈120, residentMeshes≈96, batchMeshes≈96, visibleDraws≈48 (per-tree path=2,000), semanticTriangles≈13,080,712, residentTriangleStorage≈13,080,712
+projection 5000: batches≈99, batchedTrees≈5,000, dynamicTrees≈0, renderObjects≈495, residentMeshes≈396, batchMeshes≈396, visibleDraws≈198 (per-tree path=10,000), semanticTriangles≈65,403,560, residentTriangleStorage≈65,403,560
+recommendation=healthy tree residency duplication is removed; next scaling target is direct batch-buffer construction so rebuilds stop creating temporary per-tree Unity Mesh objects before CombineMeshes
+]]></output>
+            </test-case>
+          </test-suite>
+          <test-suite type="TestFixture" id="1095" name="VegetationLifeRenderingVisualTests" fullname="VoxelEngine.CI.VegetationLifeRenderingVisualTests" classname="VoxelEngine.CI.VegetationLifeRenderingVisualTests" runstate="Explicit" testcasecount="2" result="Passed" start-time="2026-08-17 01:04:04Z" end-time="2026-08-17 01:04:05Z" duration="0.116877" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties>
+              <property name="_SKIPREASON" value="Visual-quality metrics and artefact capture; run by rendering CI." />
+            </properties>
+            <test-case id="1097" name="AmbientLifeShowcase_RendersDistributedDistinctVisibleAgents" fullname="VoxelEngine.CI.VegetationLifeRenderingVisualTests.AmbientLifeShowcase_RendersDistributedDistinctVisibleAgents" methodname="AmbientLifeShowcase_RendersDistributedDistinctVisibleAgents" classname="VoxelEngine.CI.VegetationLifeRenderingVisualTests" runstate="Runnable" seed="1184915659" result="Passed" start-time="2026-08-17 01:04:04Z" end-time="2026-08-17 01:04:04Z" duration="0.061103" asserts="0">
+              <properties>
+                <property name="_JOINTYPE" value="UnityCombinatorial" />
+                <property name="retryIteration" value="0" />
+                <property name="repeatIteration" value="0" />
+              </properties>
+            </test-case>
+            <test-case id="1096" name="VegetationShowcase_RendersReadableDiverseFullFrameComposition" fullname="VoxelEngine.CI.VegetationLifeRenderingVisualTests.VegetationShowcase_RendersReadableDiverseFullFrameComposition" methodname="VegetationShowcase_RendersReadableDiverseFullFrameComposition" classname="VoxelEngine.CI.VegetationLifeRenderingVisualTests" runstate="Runnable" seed="1334861299" result="Passed" start-time="2026-08-17 01:04:04Z" end-time="2026-08-17 01:04:05Z" duration="0.055105" asserts="0">
+              <properties>
+                <property name="_JOINTYPE" value="UnityCombinatorial" />
+                <property name="retryIteration" value="0" />
+                <property name="repeatIteration" value="0" />
+              </properties>
+            </test-case>
+          </test-suite>
+          <test-suite type="TestFixture" id="1091" name="VegetationRenderingTests" fullname="VoxelEngine.CI.VegetationRenderingTests" classname="VoxelEngine.CI.VegetationRenderingTests" runstate="Runnable" testcasecount="1" result="Passed" start-time="2026-08-17 01:04:05Z" end-time="2026-08-17 01:04:05Z" duration="0.002406" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-case id="1092" name="StandaloneShowcase_CoversCatalogue_AndDrawsThroughInstancedRenderer" fullname="VoxelEngine.CI.VegetationRenderingTests.StandaloneShowcase_CoversCatalogue_AndDrawsThroughInstancedRenderer" methodname="StandaloneShowcase_CoversCatalogue_AndDrawsThroughInstancedRenderer" classname="VoxelEngine.CI.VegetationRenderingTests" runstate="Runnable" seed="2008623542" result="Passed" start-time="2026-08-17 01:04:05Z" end-time="2026-08-17 01:04:05Z" duration="0.001641" asserts="0">
+              <properties>
+                <property name="_JOINTYPE" value="UnityCombinatorial" />
+                <property name="retryIteration" value="0" />
+                <property name="repeatIteration" value="0" />
+              </properties>
+              <output><![CDATA[<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+]]></output>
+            </test-case>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

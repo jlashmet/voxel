@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="4" result="Passed" total="4" passed="4" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-18 20:20:48Z" end-time="2026-08-18 20:20:49Z" duration="1.0310825">
+  <test-suite type="TestSuite" id="1000" name="voxel" fullname="voxel" runstate="Runnable" testcasecount="1032" result="Passed" start-time="2026-08-18 20:20:48Z" end-time="2026-08-18 20:20:49Z" duration="1.031083" total="4" passed="4" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <test-suite type="Assembly" id="2318" name="VoxelEngine.Tests.EditMode.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/VoxelEngine.Tests.EditMode.dll" runstate="Runnable" testcasecount="715" result="Passed" start-time="2026-08-18 20:20:48Z" end-time="2026-08-18 20:20:49Z" duration="1.025808" total="4" passed="4" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="36900" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <test-suite type="TestSuite" id="2319" name="VoxelEngine" fullname="VoxelEngine" runstate="Runnable" testcasecount="715" result="Passed" start-time="2026-08-18 20:20:48Z" end-time="2026-08-18 20:20:49Z" duration="1.024618" total="4" passed="4" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="2320" name="Tests" fullname="VoxelEngine.Tests" runstate="Runnable" testcasecount="715" result="Passed" start-time="2026-08-18 20:20:48Z" end-time="2026-08-18 20:20:49Z" duration="1.023511" total="4" passed="4" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="2321" name="EditMode" fullname="VoxelEngine.Tests.EditMode" runstate="Runnable" testcasecount="715" result="Passed" start-time="2026-08-18 20:20:48Z" end-time="2026-08-18 20:20:49Z" duration="1.022386" total="4" passed="4" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="1734" name="GpuSurfaceExtractorOracleTests" fullname="VoxelEngine.Tests.EditMode.GpuSurfaceExtractorOracleTests" classname="VoxelEngine.Tests.EditMode.GpuSurfaceExtractorOracleTests" runstate="Runnable" testcasecount="4" result="Passed" start-time="2026-08-18 20:20:48Z" end-time="2026-08-18 20:20:49Z" duration="1.016576" total="4" passed="4" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1736" name="AnEmptyNeighbourhoodProducesNoGeometry" fullname="VoxelEngine.Tests.EditMode.GpuSurfaceExtractorOracleTests.AnEmptyNeighbourhoodProducesNoGeometry" methodname="AnEmptyNeighbourhoodProducesNoGeometry" classname="VoxelEngine.Tests.EditMode.GpuSurfaceExtractorOracleTests" runstate="Runnable" seed="1603556452" result="Passed" start-time="2026-08-18 20:20:48Z" end-time="2026-08-18 20:20:49Z" duration="1.004407" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (LoadJoin) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/Shaders/VoxelBrickDensity.hlsl(89) (on metal)
+Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (CurvatureFactor) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/Shaders/VoxelBrickDensity.hlsl(117) (on metal)
+Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (ReadMaterial) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/Shaders/VoxelBrickDensity.hlsl(142) (on metal)
+Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (AddTap) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/Shaders/VoxelBrickDensity.hlsl(203) (on metal)
+Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (dominantMaterial) use of potentially uninitialized variable (dominantSurface) use of potentially uninitialized variable (SampleField) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/Shaders/VoxelBrickDensity.hlsl(239) (on metal)
+Shader warning in 'VoxelBrickMesher': integer modulus may be much slower, try using uints if possible. at kernel CSSampleDensity at VoxelBrickMesher.compute(92) (on metal)
+Shader warning in 'VoxelBrickMesher': integer divides may be much slower, try using uints if possible. at kernel CSSampleDensity at VoxelBrickMesher.compute(93) (on metal)
+Shader warning in 'VoxelBrickMesher': integer modulus may be much slower, try using uints if possible. at kernel CSSampleDensity at VoxelBrickMesher.compute(94) (on metal)
+Shader warning in 'VoxelBrickMesher': integer divides may be much slower, try using uints if possible. at kernel CSSampleDensity at VoxelBrickMesher.compute(95) (on metal)
+Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (LoadJoin) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/Shaders/VoxelBrickDensity.hlsl(89) (on metal)
+Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (CurvatureFactor) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/Shaders/VoxelBrickDensity.hlsl(117) (on metal)
+Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (ReadMaterial) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/Shaders/VoxelBrickDensity.hlsl(142) (on metal)
+Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (AddTap) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/Shaders/VoxelBrickDensity.hlsl(203) (on metal)
+Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (dominantMaterial) use of potentially uninitialized variable (dominantSurface) use of potentially uninitialized variable (SampleField) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/Shaders/VoxelBrickDensity.hlsl(239) (on metal)
+Shader warning in 'VoxelBrickMesher': integer modulus may be much slower, try using uints if possible. at kernel CSSampleDensity at VoxelBrickMesher.compute(92) (on metal)
+Shader warning in 'VoxelBrickMesher': integer divides may be much slower, try using uints if possible. at kernel CSSampleDensity at VoxelBrickMesher.compute(93) (on metal)
+Shader warning in 'VoxelBrickMesher': integer modulus may be much slower, try using uints if possible. at kernel CSSampleDensity at VoxelBrickMesher.compute(94) (on metal)
+Shader warning in 'VoxelBrickMesher': integer divides may be much slower, try using uints if possible. at kernel CSSampleDensity at VoxelBrickMesher.compute(95) (on metal)
+Shader warning in 'VoxelBrickMesher': integer modulus may be much slower, try using uints if possible. at kernel CSCountCells at VoxelBrickMesher.compute(119) (on metal)
+Shader warning in 'VoxelBrickMesher': integer divides may be much slower, try using uints if possible. at kernel CSCountCells at VoxelBrickMesher.compute(120) (on metal)
+Shader warning in 'VoxelBrickMesher': integer modulus may be much slower, try using uints if possible. at kernel CSCountCells at VoxelBrickMesher.compute(120) (on metal)
+Shader warning in 'VoxelBrickMesher': integer divides may be much slower, try using uints if possible. at kernel CSCountCells at VoxelBrickMesher.compute(121) (on metal)
+Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (LoadJoin) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/Shaders/VoxelBrickDensity.hlsl(89) (on metal)
+Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (CurvatureFactor) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/Shaders/VoxelBrickDensity.hlsl(117) (on metal)
+Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (ReadMaterial) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/Shaders/VoxelBrickDensity.hlsl(142) (on metal)
+Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (AddTap) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/Shaders/VoxelBrickDensity.hlsl(203) (on metal)
+Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (dominantMaterial) use of potentially uninitialized variable (dominantSurface) use of potentially uninitialized variable (SampleField) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/Shaders/VoxelBrickDensity.hlsl(239) (on metal)
+Shader warning in 'VoxelBrickMesher': integer modulus may be much slower, try using uints if possible. at kernel CSSampleDensity at VoxelBrickMesher.compute(92) (on metal)
+Shader warning in 'VoxelBrickMesher': integer divides may be much slower, try using uints if possible. at kernel CSSampleDensity at VoxelBrickMesher.compute(93) (on metal)
+Shader warning in 'VoxelBrickMesher': integer modulus may be much slower, try using uints if possible. at kernel CSSampleDensity at VoxelBrickMesher.compute(94) (on metal)
+Shader warning in 'VoxelBrickMesher': integer divides may be much slower, try using uints if possible. at kernel CSSampleDensity at VoxelBrickMesher.compute(95) (on metal)
+Shader warning in 'VoxelBrickMesher': integer modulus may be much slower, try using uints if possible. at kernel CSCountCells at VoxelBrickMesher.compute(119) (on metal)
+Shader warning in 'VoxelBrickMesher': integer divides may be much slower, try using uints if possible. at kernel CSCountCells at VoxelBrickMesher.compute(120) (on metal)
+Shader warning in 'VoxelBrickMesher': integer modulus may be much slower, try using uints if possible. at kernel CSCountCells at VoxelBrickMesher.compute(120) (on metal)
+Shader warning in 'VoxelBrickMesher': integer divides may be much slower, try using uints if possible. at kernel CSCountCells at VoxelBrickMesher.compute(121) (on metal)
+Shader warning in 'VoxelBrickMesher': integer modulus may be much slower, try using uints if possible. at kernel CSWriteCells at VoxelBrickMesher.compute(203) (on metal)
+Shader warning in 'VoxelBrickMesher': integer divides may be much slower, try using uints if possible. at kernel CSWriteCells at VoxelBrickMesher.compute(204) (on metal)
+Shader warning in 'VoxelBrickMesher': integer modulus may be much slower, try using uints if possible. at kernel CSWriteCells at VoxelBrickMesher.compute(204) (on metal)
+Shader warning in 'VoxelBrickMesher': integer divides may be much slower, try using uints if possible. at kernel CSWriteCells at VoxelBrickMesher.compute(205) (on metal)
+]]></output>
+              </test-case>
+              <test-case id="1737" name="SolidEverywhereProducesNoGeometry" fullname="VoxelEngine.Tests.EditMode.GpuSurfaceExtractorOracleTests.SolidEverywhereProducesNoGeometry" methodname="SolidEverywhereProducesNoGeometry" classname="VoxelEngine.Tests.EditMode.GpuSurfaceExtractorOracleTests" runstate="Runnable" seed="854988515" result="Passed" start-time="2026-08-18 20:20:49Z" end-time="2026-08-18 20:20:49Z" duration="0.001172" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1735" name="TheMesherRunsAndProducesGeometryForASurfaceCrossingChunk" fullname="VoxelEngine.Tests.EditMode.GpuSurfaceExtractorOracleTests.TheMesherRunsAndProducesGeometryForASurfaceCrossingChunk" methodname="TheMesherRunsAndProducesGeometryForASurfaceCrossingChunk" classname="VoxelEngine.Tests.EditMode.GpuSurfaceExtractorOracleTests" runstate="Runnable" seed="2062562854" result="Passed" start-time="2026-08-18 20:20:49Z" end-time="2026-08-18 20:20:49Z" duration="0.004900" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1738" name="UniformBricksAreReadWithoutASlot" fullname="VoxelEngine.Tests.EditMode.GpuSurfaceExtractorOracleTests.UniformBricksAreReadWithoutASlot" methodname="UniformBricksAreReadWithoutASlot" classname="VoxelEngine.Tests.EditMode.GpuSurfaceExtractorOracleTests" runstate="Runnable" seed="1650965044" result="Passed" start-time="2026-08-18 20:20:49Z" end-time="2026-08-18 20:20:49Z" duration="0.000947" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

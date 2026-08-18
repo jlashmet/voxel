@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="1" result="Passed" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-18 13:37:05Z" end-time="2026-08-18 13:39:31Z" duration="145.7623119">
+  <test-suite type="TestSuite" id="1522" name="voxel" fullname="voxel" runstate="Runnable" testcasecount="378" result="Passed" start-time="2026-08-18 13:37:05Z" end-time="2026-08-18 13:39:31Z" duration="145.762312" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="PlayMode" />
+    </properties>
+    <test-suite type="Assembly" id="1518" name="VoxelEngine.Tests.PlayMode.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/VoxelEngine.Tests.PlayMode.dll" runstate="Runnable" testcasecount="145" result="Passed" start-time="2026-08-18 13:37:05Z" end-time="2026-08-18 13:39:31Z" duration="145.756780" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="54162" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="PlayMode" />
+        <property name="EditorOnly" value="False" />
+      </properties>
+      <test-suite type="TestSuite" id="1519" name="VoxelEngine" fullname="VoxelEngine" runstate="Runnable" testcasecount="145" result="Passed" start-time="2026-08-18 13:37:05Z" end-time="2026-08-18 13:39:31Z" duration="145.755849" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="1520" name="Tests" fullname="VoxelEngine.Tests" runstate="Runnable" testcasecount="145" result="Passed" start-time="2026-08-18 13:37:05Z" end-time="2026-08-18 13:39:31Z" duration="145.754957" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="1521" name="PlayMode" fullname="VoxelEngine.Tests.PlayMode" runstate="Runnable" testcasecount="145" result="Passed" start-time="2026-08-18 13:37:05Z" end-time="2026-08-18 13:39:31Z" duration="145.754027" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="1516" name="ZzArenaProbeTests" fullname="VoxelEngine.Tests.PlayMode.ZzArenaProbeTests" classname="VoxelEngine.Tests.PlayMode.ZzArenaProbeTests" runstate="Runnable" testcasecount="1" result="Passed" start-time="2026-08-18 13:37:05Z" end-time="2026-08-18 13:39:31Z" duration="145.751830" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1517" name="ProbeArenaOccupancy" fullname="VoxelEngine.Tests.PlayMode.ZzArenaProbeTests.ProbeArenaOccupancy" methodname="ProbeArenaOccupancy" classname="VoxelEngine.Tests.PlayMode.ZzArenaProbeTests" runstate="Runnable" seed="1045958465" result="Passed" start-time="2026-08-18 13:37:05Z" end-time="2026-08-18 13:39:31Z" duration="145.746337" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="Timeout" value="900000" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[[VoxelResidency] residentRegions=32 mixed=233,873/2,367,424 evicted=0 reclaimedMixed=0
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+### ARENA f=0 leases=0 verts=0/20642159 (0.0%) indices=0/36123778 (0.0%) vertsPerChunk=0 indicesPerChunk=0 idxPerVert=0.00 resident=0 visible=0 missing=0 fail=0 visKnown=0 visInBand=0 visFrustum=0 step4InBand=0 step4Frustum=0
+[VoxelResidency] residentRegions=48 mixed=270,068/2,367,424 evicted=0 reclaimedMixed=0
+### ARENA f=250 leases=178 verts=2021632/20642159 (9.8%) indices=3052544/36123778 (8.5%) vertsPerChunk=11357 indicesPerChunk=17149 idxPerVert=1.51 resident=178 visible=150 missing=1294 fail=0 visKnown=4491 visInBand=3505 visFrustum=1476 step4InBand=17 step4Frustum=13
+[VoxelResidency] residentRegions=64 mixed=301,351/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=80 mixed=336,398/2,367,424 evicted=0 reclaimedMixed=0
+### ARENA f=500 leases=368 verts=4438016/20642159 (21.5%) indices=6703616/36123778 (18.6%) vertsPerChunk=12059 indicesPerChunk=18216 idxPerVert=1.51 resident=369 visible=341 missing=1088 fail=0 visKnown=4514 visInBand=3519 visFrustum=1487 step4InBand=17 step4Frustum=13
+[VoxelResidency] residentRegions=96 mixed=370,388/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=112 mixed=403,458/2,367,424 evicted=0 reclaimedMixed=0
+### ARENA f=750 leases=551 verts=7035136/20642159 (34.1%) indices=10626560/36123778 (29.4%) vertsPerChunk=12767 indicesPerChunk=19285 idxPerVert=1.51 resident=551 visible=524 missing=872 fail=0 visKnown=4514 visInBand=3519 visFrustum=1487 step4InBand=17 step4Frustum=13
+[VoxelResidency] residentRegions=128 mixed=431,884/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=144 mixed=465,089/2,367,424 evicted=0 reclaimedMixed=0
+### ARENA f=1000 leases=687 verts=9243136/20642159 (44.8%) indices=13949440/36123778 (38.6%) vertsPerChunk=13454 indicesPerChunk=20304 idxPerVert=1.51 resident=688 visible=660 missing=726 fail=0 visKnown=4514 visInBand=3519 visFrustum=1487 step4InBand=17 step4Frustum=13
+[VoxelResidency] residentRegions=160 mixed=512,421/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=176 mixed=540,962/2,367,424 evicted=0 reclaimedMixed=0
+### ARENA f=1250 leases=839 verts=11320576/20642159 (54.8%) indices=17078272/36123778 (47.3%) vertsPerChunk=13492 indicesPerChunk=20355 idxPerVert=1.51 resident=839 visible=808 missing=557 fail=0 visKnown=4514 visInBand=3519 visFrustum=1487 step4InBand=17 step4Frustum=13
+[VoxelResidency] residentRegions=192 mixed=578,656/2,367,424 evicted=0 reclaimedMixed=0
+### ARENA f=1500 leases=934 verts=12258816/20642159 (59.4%) indices=18495488/36123778 (51.2%) vertsPerChunk=13125 indicesPerChunk=19802 idxPerVert=1.51 resident=934 visible=874 missing=478 fail=0 visKnown=4514 visInBand=3519 visFrustum=1487 step4InBand=17 step4Frustum=13
+[VoxelResidency] residentRegions=208 mixed=616,623/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=224 mixed=654,021/2,367,424 evicted=0 reclaimedMixed=0
+### ARENA f=1750 leases=1109 verts=14495488/20642159 (70.2%) indices=21864960/36123778 (60.5%) vertsPerChunk=13070 indicesPerChunk=19715 idxPerVert=1.51 resident=1110 visible=968 missing=363 fail=0 visKnown=4514 visInBand=3519 visFrustum=1487 step4InBand=17 step4Frustum=13
+[VoxelResidency] residentRegions=240 mixed=692,108/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=256 mixed=725,234/2,367,424 evicted=0 reclaimedMixed=0
+### ARENA f=2000 leases=1339 verts=17680384/20642159 (85.7%) indices=26646016/36123778 (73.8%) vertsPerChunk=13204 indicesPerChunk=19899 idxPerVert=1.51 resident=1339 visible=1104 missing=180 fail=0 visKnown=4514 visInBand=3519 visFrustum=1487 step4InBand=17 step4Frustum=13
+[VoxelResidency] residentRegions=272 mixed=762,977/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=288 mixed=800,979/2,367,424 evicted=0 reclaimedMixed=0
+### ARENA f=2250 leases=1515 verts=20131840/20642159 (97.5%) indices=30328832/36123778 (84.0%) vertsPerChunk=13288 indicesPerChunk=20019 idxPerVert=1.51 resident=1515 visible=1239 missing=0 fail=0 visKnown=4514 visInBand=3519 visFrustum=1487 step4InBand=17 step4Frustum=13
+[VoxelResidency] residentRegions=304 mixed=843,438/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=320 mixed=881,247/2,367,424 evicted=0 reclaimedMixed=0
+### ARENA f=2500 leases=1525 verts=20544000/20642159 (99.5%) indices=30947328/36123778 (85.7%) vertsPerChunk=13471 indicesPerChunk=20293 idxPerVert=1.51 resident=1527 visible=1239 missing=0 fail=310 visKnown=4514 visInBand=3519 visFrustum=1487 step4InBand=17 step4Frustum=13
+[VoxelResidency] residentRegions=336 mixed=919,182/2,367,424 evicted=0 reclaimedMixed=0
+### ARENA f=2750 leases=1526 verts=20468224/20642159 (99.2%) indices=30834688/36123778 (85.4%) vertsPerChunk=13412 indicesPerChunk=20206 idxPerVert=1.51 resident=1527 visible=1239 missing=0 fail=608 visKnown=4514 visInBand=3519 visFrustum=1487 step4InBand=17 step4Frustum=13
+[VoxelResidency] residentRegions=352 mixed=957,338/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=368 mixed=990,436/2,367,424 evicted=0 reclaimedMixed=0
+### ARENA f=2999 leases=1526 verts=20511488/20642159 (99.4%) indices=30899200/36123778 (85.5%) vertsPerChunk=13441 indicesPerChunk=20248 idxPerVert=1.51 resident=1528 visible=1239 missing=0 fail=918 visKnown=4514 visInBand=3519 visFrustum=1487 step4InBand=17 step4Frustum=13
+<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

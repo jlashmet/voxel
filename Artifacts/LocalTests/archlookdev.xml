@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="1" result="Failed(Child)" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-17 01:58:38Z" end-time="2026-08-17 01:58:39Z" duration="0.6828235">
+  <test-suite type="TestSuite" id="1326" name="voxel" fullname="voxel" runstate="Runnable" testcasecount="233" result="Failed" site="Child" start-time="2026-08-17 01:58:38Z" end-time="2026-08-17 01:58:39Z" duration="0.682824" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="PlayMode" />
+    </properties>
+    <failure>
+      <message><![CDATA[One or more child tests had errors]]></message>
+    </failure>
+    <test-suite type="Assembly" id="1322" name="VoxelEngine.Tests.PlayMode.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/VoxelEngine.Tests.PlayMode.dll" runstate="Runnable" testcasecount="116" result="Failed" site="Child" start-time="2026-08-17 01:58:38Z" end-time="2026-08-17 01:58:39Z" duration="0.678161" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="44509" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="PlayMode" />
+        <property name="EditorOnly" value="False" />
+      </properties>
+      <failure>
+        <message><![CDATA[One or more child tests had errors]]></message>
+      </failure>
+      <test-suite type="TestSuite" id="1323" name="VoxelEngine" fullname="VoxelEngine" runstate="Runnable" testcasecount="116" result="Failed" site="Child" start-time="2026-08-17 01:58:38Z" end-time="2026-08-17 01:58:39Z" duration="0.677893" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <failure>
+          <message><![CDATA[One or more child tests had errors]]></message>
+        </failure>
+        <test-suite type="TestSuite" id="1324" name="Tests" fullname="VoxelEngine.Tests" runstate="Runnable" testcasecount="116" result="Failed" site="Child" start-time="2026-08-17 01:58:38Z" end-time="2026-08-17 01:58:39Z" duration="0.677701" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <failure>
+            <message><![CDATA[One or more child tests had errors]]></message>
+          </failure>
+          <test-suite type="TestSuite" id="1325" name="PlayMode" fullname="VoxelEngine.Tests.PlayMode" runstate="Runnable" testcasecount="116" result="Failed" site="Child" start-time="2026-08-17 01:58:38Z" end-time="2026-08-17 01:58:39Z" duration="0.677462" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <failure>
+              <message><![CDATA[One or more child tests had errors]]></message>
+            </failure>
+            <test-suite type="TestFixture" id="1176" name="ArchLookdevSceneTests" fullname="VoxelEngine.Tests.PlayMode.ArchLookdevSceneTests" classname="VoxelEngine.Tests.PlayMode.ArchLookdevSceneTests" runstate="Explicit" testcasecount="1" result="Failed" site="Child" start-time="2026-08-17 01:58:38Z" end-time="2026-08-17 01:58:39Z" duration="0.675403" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+              <properties>
+                <property name="_SKIPREASON" value="Artefact capture for human review; run by name." />
+              </properties>
+              <failure>
+                <message><![CDATA[One or more child tests had errors]]></message>
+              </failure>
+              <test-case id="1177" name="SceneBuildsHeroThroughProductionSurfacePath" fullname="VoxelEngine.Tests.PlayMode.ArchLookdevSceneTests.SceneBuildsHeroThroughProductionSurfacePath" methodname="SceneBuildsHeroThroughProductionSurfacePath" classname="VoxelEngine.Tests.PlayMode.ArchLookdevSceneTests" runstate="Runnable" seed="933575852" result="Failed" start-time="2026-08-17 01:58:38Z" end-time="2026-08-17 01:58:39Z" duration="0.670449" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="Timeout" value="120000" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <failure>
+                  <message><![CDATA[Arch lookdev production surface did not converge: known=36, resident=3, dirty=26.]]></message>
+                  <stack-trace><![CDATA[at VoxelEngine.Tests.PlayMode.ArchLookdevSceneTests+<SceneBuildsHeroThroughProductionSurfacePath>d__0.MoveNext () [0x00225] in /Users/jlashmet/code/voxel/Assets/Tests/PlayMode/ArchLookdevSceneTests.cs:72
+at UnityEngine.TestTools.TestEnumerator+<Execute>d__7.MoveNext () [0x0003a] in ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEngine.TestRunner/NUnitExtensions/Attributes/TestEnumerator.cs:44
+]]></stack-trace>
+                </failure>
+                <output><![CDATA[<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

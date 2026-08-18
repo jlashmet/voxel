@@ -1,0 +1,3 @@
+max_centroid_travel=1.1968
+max_relative_distortion=0.2001
+min_pairwise_distance=1.4473
