@@ -678,6 +678,14 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         /// </summary>
         private const int SteadyArenaReliefInterval = 8;
 
+        /// <summary>
+        /// Chunk builds allowed in flight at once. Converging leaves enough parallelism to fill a
+        /// cold view quickly; converged keeps a little running so prefetch still makes progress
+        /// without taking the job pool away from rendering.
+        /// </summary>
+        private const int MaxConcurrentBuildsWhileConverging = 12;
+        private const int MaxConcurrentBuildsWhenConverged = 2;
+
         private static int ScaleBudget(int budget, double scale) =>
             (int)Math.Min(int.MaxValue, Math.Max(0L, (long)(budget * scale)));
         public double SurfaceDiscoveryBudgetMs { get; set; } = 0.10;
@@ -932,6 +940,22 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             using var workersScope = s_WorkersMarker.Auto();
 
             int workerCount = _allWorkers.Length;
+
+            // Extraction is Burst work, so its cost lands on the job workers rather than in this
+            // loop's own budget: a converged view still measured tens of milliseconds a frame with
+            // the scheduler itself accounting for three, because ten builds were permanently in
+            // flight and the main thread spent the difference waiting on a saturated job pool.
+            // Prefetch reaches 360 degrees and never runs out of chunks, so the only thing that
+            // bounds it is a ceiling on how many builds may be running at once. While the player can
+            // see a hole that ceiling is high; once the view is complete the remaining work is
+            // prefetch nobody is waiting on, and it gets a much smaller share of the machine.
+            int buildCeiling = _lastMissingVisibleCount > 0
+                ? MaxConcurrentBuildsWhileConverging
+                : MaxConcurrentBuildsWhenConverged;
+            int activeBuilds = 0;
+            for (int i = 0; i < workerCount; i++)
+                if (_allWorkers[i].HasActiveBuild) activeBuilds++;
+
             for (int offset = 0; offset < workerCount; offset++)
             {
                 double now = Time.realtimeSinceStartupAsDouble;
@@ -940,9 +964,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
                 int index = (_workerAdmissionCursor + offset) % workerCount;
                 CpuTransvoxelChunkCache worker = _allWorkers[index];
+                bool wasBuilding = worker.HasActiveBuild;
+                worker.CanStartNewBuild = wasBuilding || activeBuilds < buildCeiling;
                 worker.Prepare(storage, in palette, in surfaceCatalogue,
                                in coatingCatalogue, profileBlocks, camera, voxelSize, frame,
                                remainingMs);
+                if (!wasBuilding && worker.HasActiveBuild) activeBuilds++;
                 admittedWorkers++;
             }
             if (workerCount > 0)

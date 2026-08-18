@@ -760,6 +760,20 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         }
 
         public int MaxResidentChunks { get; set; } = 4096;
+
+        /// <summary>
+        /// Whether this worker may begin a new chunk build this frame. A build already in flight
+        /// always runs to completion; this only gates starting another one.
+        ///
+        /// Extraction runs as Burst jobs, so its cost does not appear in this worker's own timings —
+        /// it appears as the main thread waiting on a saturated job pool. Prefetch is 360 degrees and
+        /// never runs out of work, so without a ceiling the extractor keeps every job worker busy
+        /// forever, including on a view that is already complete.
+        /// </summary>
+        public bool CanStartNewBuild { get; set; } = true;
+
+        /// <summary>True while this worker is part way through building a chunk.</summary>
+        public bool HasActiveBuild => _build.Active;
         /// <summary>
         /// Outer edge of this ring's band. Beyond it the next coarser ring takes over.
         /// </summary>
@@ -1121,6 +1135,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             {
                 if (!_build.Active)
                 {
+                    if (!CanStartNewBuild) break;
                     double selectionStart = Time.realtimeSinceStartupAsDouble;
                     bool selected = BeginNearestBuild(camera, voxelSize, deadline);
                     _buildSelectionTiming.Add(ElapsedMs(selectionStart));
