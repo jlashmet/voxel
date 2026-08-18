@@ -36,20 +36,39 @@ namespace Game.Structures.Runtime
     /// Physical proof produced only after a solid-rock preflight succeeds. Barrier is intentionally
     /// retained; Connector and Pocket are the only carved volumes. The one-voxel solid envelope around
     /// the future hidden volume proves there was no pre-existing side route before authoring.
+    ///
+    /// Construction is internal on purpose: geometry-shaped data is not itself proof. Only
+    /// CaveSecretPocketAuthoring may mint a verified pocket after completing the physical preflight.
     /// </summary>
-    public struct CaveSecretPocket
+    public readonly struct CaveSecretPocket
     {
-        public CaveTraversalCandidate Terminal;
-        public DecorationBounds Barrier;
-        public DecorationBounds Connector;
-        public DecorationBounds Pocket;
+        private readonly bool _verified;
+
+        public CaveTraversalCandidate Terminal { get; }
+        public DecorationBounds Barrier { get; }
+        public DecorationBounds Connector { get; }
+        public DecorationBounds Pocket { get; }
+
+        internal CaveSecretPocket(
+            in CaveTraversalCandidate terminal,
+            in DecorationBounds barrier,
+            in DecorationBounds connector,
+            in DecorationBounds pocket)
+        {
+            Terminal = terminal;
+            Barrier = barrier;
+            Connector = connector;
+            Pocket = pocket;
+            _verified = true;
+        }
 
         public bool IsWellFormed =>
-            Terminal.IsWellFormed && Barrier.IsWellFormed && Connector.IsWellFormed && Pocket.IsWellFormed &&
+            _verified && Terminal.IsWellFormed && Barrier.IsWellFormed &&
+            Connector.IsWellFormed && Pocket.IsWellFormed &&
             !Barrier.Overlaps(in Connector) && !Barrier.Overlaps(in Pocket);
 
         // These mirror the existing WorldBuilder secret-topology proofs without creating a competing
-        // entrance taxonomy. A later adapter can expose this as DestroyableFalseWall.
+        // entrance taxonomy. A composition adapter may expose a verified pocket as DestroyableFalseWall.
         public bool SeparatesHiddenSpaceBeforeOpen => IsWellFormed;
         public bool GrantsNormalTraversalAfterOpen => IsWellFormed;
         public bool SupportsDestruction => IsWellFormed;
@@ -98,15 +117,11 @@ namespace Game.Structures.Runtime
 
             authoring.Carve(connector.Min, connector.Size);
             authoring.Carve(pocket.Min, pocket.Size);
+            if (authoring.BudgetExceeded)
+                return false;
 
-            secret = new CaveSecretPocket
-            {
-                Terminal = terminal,
-                Barrier = barrier,
-                Connector = connector,
-                Pocket = pocket,
-            };
-            return secret.IsWellFormed && !authoring.BudgetExceeded;
+            secret = new CaveSecretPocket(in terminal, in barrier, in connector, in pocket);
+            return secret.IsWellFormed;
         }
 
         private static DecorationBounds OrientedBounds(
