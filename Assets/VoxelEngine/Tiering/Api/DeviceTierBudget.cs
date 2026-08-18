@@ -48,7 +48,7 @@ namespace VoxelEngine.Tiering.Api
     /// </summary>
     public readonly struct DeviceTierBudget
     {
-        /// <summary>Brick pool capacity in bytes — 1.5 GB on PC, 1.0 GB on Console, 384 MB on Mobile-HE.</summary>
+        /// <summary>Brick pool capacity in bytes — 2.0 GB on PC, 1.0 GB on Console, 384 MB on Mobile-HE.</summary>
         public readonly int BrickPoolCapacity;
 
         /// <summary>Full-detail radius (mip-0) in metres — device-matrix.md LOD values.</summary>
@@ -100,7 +100,7 @@ namespace VoxelEngine.Tiering.Api
             return tier switch
             {
                 DeviceTier.PC => new DeviceTierBudget(
-                    brickPoolCapacity:  1_536_000_000,    // 1.5 GB
+                    brickPoolCapacity:  2_000_000_000,    // 2.0 GB
                     detailRadius:       400,               // 400 m full-detail radius
                     renderScale:        1.0f,              // Native resolution
                     probeSpacing:       2f,                // 2 m probe spacing
