@@ -15,6 +15,16 @@ namespace VoxelEngine.Tests.EditMode
     public sealed class ProductionArchitectureClosureTests
     {
         private const string CompositionAssemblyName = "VoxelEngine.Composition";
+
+        /// <summary>
+        /// The composition layer is allowed to wire concrete Runtime assemblies; everything else
+        /// must go through Api. It is no longer a single assembly: application-side composition
+        /// moved to Assets/Game/Composition and is split per area (Showcase, Materials, Campaign,
+        /// CombatEnvironment...), so membership is decided by location as well as by name.
+        /// </summary>
+        private static bool IsCompositionLayer(string assemblyName, string asmdefPath) =>
+            string.Equals(assemblyName, CompositionAssemblyName, StringComparison.Ordinal)
+            || asmdefPath.Replace('\\', '/').Contains("/Assets/Game/Composition/", StringComparison.Ordinal);
         private const string DeletedCoreNamespace = "VoxelEngine.Core";
 
         private static readonly Regex NameRegex = new Regex(
@@ -70,7 +80,7 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.IsTrue(nameMatch.Success, "Could not parse assembly name from " + asmdefPath);
 
                 string assemblyName = nameMatch.Groups["value"].Value;
-                if (string.Equals(assemblyName, CompositionAssemblyName, StringComparison.Ordinal))
+                if (IsCompositionLayer(assemblyName, asmdefPath))
                     continue;
 
                 Match referencesMatch = ReferencesRegex.Match(json);
@@ -123,7 +133,7 @@ namespace VoxelEngine.Tests.EditMode
         {
             string sceneRoot = Path.Combine(RepoRoot, "Assets", "Scenes", "Showcase");
             string compositionRoot = Path.Combine(
-                RepoRoot, "Assets", "VoxelEngine", "Composition", "Showcase");
+                RepoRoot, "Assets", "Game", "Composition", "Showcase");
             string[] ownedFiles =
             {
                 "ShowcaseWorld.cs",
@@ -162,7 +172,7 @@ namespace VoxelEngine.Tests.EditMode
         public void ShowcaseWorldDoesNotOwnStructuresRuntimeDetails()
         {
             string path = Path.Combine(
-                RepoRoot, "Assets", "VoxelEngine", "Composition", "Showcase", "ShowcaseWorld.cs");
+                RepoRoot, "Assets", "Game", "Composition", "Showcase", "ShowcaseWorld.cs");
             Assert.IsTrue(File.Exists(path), "Missing Composition-owned ShowcaseWorld.cs");
 
             string source = File.ReadAllText(path);
@@ -188,7 +198,7 @@ namespace VoxelEngine.Tests.EditMode
         public void ShowcaseWorldDoesNotAllocateOrDisposePhysicalStorage()
         {
             string path = Path.Combine(
-                RepoRoot, "Assets", "VoxelEngine", "Composition", "Showcase", "ShowcaseWorld.cs");
+                RepoRoot, "Assets", "Game", "Composition", "Showcase", "ShowcaseWorld.cs");
             Assert.IsTrue(File.Exists(path), "Missing Composition-owned ShowcaseWorld: " + path);
 
             string source = File.ReadAllText(path);

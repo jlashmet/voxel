@@ -6,6 +6,9 @@ using VoxelEngine.Terrain.Api;
 using VoxelEngine.Vegetation.Api;
 using TreeInstance = VoxelEngine.Vegetation.Api.TreeInstance;
 using VoxelEngine.Structures.Api;
+// Material identity is game-owned now; the old engine-side Mat constants were removed
+// with the game-owned-materials refactor. Aliased so call sites read unchanged.
+using Mat = Game.Materials.Api.GameMaterialIds;
 
 namespace MountingForce.WorldGen.Voxel
 {

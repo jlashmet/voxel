@@ -48,7 +48,8 @@ namespace VoxelEngine.Tests.EditMode
         [Test]
         public void CompositionIsTheOnlyProductionLayerAllowedToReferenceGameRuntimes()
         {
-            foreach (string path in GameAsmdefs().Where(path => !IsCompositionAssemblyPath(path)))
+            foreach (string path in GameAsmdefs().Where(path =>
+                         !IsCompositionAssemblyPath(path) && !IsTestAssemblyPath(path)))
             {
                 foreach (string reference in References(path).Where(value =>
                              value.StartsWith("Game.", StringComparison.Ordinal)
@@ -80,7 +81,8 @@ namespace VoxelEngine.Tests.EditMode
             foreach (string path in GameAsmdefs().Where(path =>
                          !IsApiAssemblyPath(path)
                          && !IsRuntimeAssemblyPath(path)
-                         && !IsCompositionAssemblyPath(path)))
+                         && !IsCompositionAssemblyPath(path)
+                         && !IsTestAssemblyPath(path)))
             {
                 foreach (string reference in References(path))
                 {
@@ -124,6 +126,15 @@ namespace VoxelEngine.Tests.EditMode
 
         private static bool IsCompositionAssemblyPath(string path) =>
             Normalize(path).Contains("/Assets/Game/Composition/", StringComparison.Ordinal);
+
+        /// <summary>
+        /// Test assemblies are not production content. A test necessarily wires the concrete
+        /// Runtime it exercises, so applying the production layering rule to it forbids testing
+        /// Runtime at all.
+        /// </summary>
+        private static bool IsTestAssemblyPath(string path) =>
+            Normalize(path).Contains("/Tests/", StringComparison.Ordinal)
+            || Normalize(path).EndsWith(".Tests.asmdef", StringComparison.Ordinal);
 
         private static string Normalize(string path) => path.Replace('\\', '/');
 

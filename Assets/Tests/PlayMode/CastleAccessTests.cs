@@ -11,6 +11,7 @@ using VoxelEngine.Storage.Api;
 using VoxelEngine.Showcase;
 using VoxelEngine.Structures.Runtime;
 using VoxelEngine.Structures.Api;
+using Mat = Game.Materials.Api.GameMaterialIds;   // engine-side Mat constants were removed
 
 namespace VoxelEngine.Tests.PlayMode
 {
@@ -64,7 +65,7 @@ namespace VoxelEngine.Tests.PlayMode
             const int cx = ShowcaseWorld.RegionVoxelEdge / 2;
             const int cz = ShowcaseWorld.RegionVoxelEdge / 2 + 120;
             int ground = world.SurfaceHeight(cx, cz);
-            var plan = CastleBuilder.Plan(new int3(cx, ground, cz), world.Seed);
+            var plan = StructuresComposition.PlanCastle(new int3(cx, ground, cz), world.Seed);
             int3 hatch = CastleLayout.TrapdoorCentre(in plan);
 
             Assert.AreEqual(Mat.Wood, Get(world, hatch.x, hatch.y, hatch.z),
@@ -95,7 +96,7 @@ namespace VoxelEngine.Tests.PlayMode
             const int cx = ShowcaseWorld.RegionVoxelEdge / 2;
             const int cz = ShowcaseWorld.RegionVoxelEdge / 2 + 120;
             int ground = world.SurfaceHeight(cx, cz);
-            CastlePlan plan = CastleBuilder.Plan(new int3(cx, ground, cz), world.Seed);
+            CastlePlan plan = StructuresComposition.PlanCastle(new int3(cx, ground, cz), world.Seed);
             int3 min = CastleLayout.FrontGateMinimum(in plan);
 
             Assert.AreEqual(Mat.Wood,
@@ -137,7 +138,7 @@ namespace VoxelEngine.Tests.PlayMode
             const int cx = ShowcaseWorld.RegionVoxelEdge / 2;
             const int cz = ShowcaseWorld.RegionVoxelEdge / 2 + 120;
             int ground = world.SurfaceHeight(cx, cz);
-            CastlePlan plan = CastleBuilder.Plan(new int3(cx, ground, cz), world.Seed);
+            CastlePlan plan = StructuresComposition.PlanCastle(new int3(cx, ground, cz), world.Seed);
             int top = plan.Centre.y + plan.PlateauHeight;
             int gateZ = plan.Centre.z - plan.BaileyHalfZ;
             int riverZ = gateZ - plan.WallThickness - 92;
@@ -255,7 +256,7 @@ namespace VoxelEngine.Tests.PlayMode
             const int cx = ShowcaseWorld.RegionVoxelEdge / 2;
             const int cz = ShowcaseWorld.RegionVoxelEdge / 2 + 120;
             int ground = world.SurfaceHeight(cx, cz);
-            var plan = CastleBuilder.Plan(new int3(cx, ground, cz), world.Seed);
+            var plan = StructuresComposition.PlanCastle(new int3(cx, ground, cz), world.Seed);
 
             int baseY = plan.Centre.y + plan.PlateauHeight;
             var keepMin = new int3(plan.Centre.x - plan.KeepHalfX, baseY,

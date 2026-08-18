@@ -43,9 +43,9 @@ namespace VoxelEngine.Tests.Parity
             var regionB = new Region(int3.zero, Allocator.Temp);
 
             VoxelEngine.Terrain.Runtime.TerrainGenerator.Generate(
-                new StandaloneRegionGenerationStore(in regionA), regionA.Coord, terrainSeed);
+                new StandaloneRegionGenerationStore(in regionA), regionA.Coord, terrainSeed, ParityTerrain.Materials);
             VoxelEngine.Terrain.Runtime.TerrainGenerator.Generate(
-                new StandaloneRegionGenerationStore(in regionB), regionB.Coord, terrainSeed);
+                new StandaloneRegionGenerationStore(in regionB), regionB.Coord, terrainSeed, ParityTerrain.Materials);
 
             var tableA = new RegionTable(1, Allocator.Persistent);
             var tableB = new RegionTable(1, Allocator.Persistent);
@@ -90,9 +90,9 @@ namespace VoxelEngine.Tests.Parity
             var regionB = new Region(int3.zero, Allocator.Temp);
 
             VoxelEngine.Terrain.Runtime.TerrainGenerator.Generate(
-                new StandaloneRegionGenerationStore(in regionA), regionA.Coord, 42u);
+                new StandaloneRegionGenerationStore(in regionA), regionA.Coord, 42u, ParityTerrain.Materials);
             VoxelEngine.Terrain.Runtime.TerrainGenerator.Generate(
-                new StandaloneRegionGenerationStore(in regionB), regionB.Coord, 42u);
+                new StandaloneRegionGenerationStore(in regionB), regionB.Coord, 42u, ParityTerrain.Materials);
 
             var tableA = new RegionTable(1, Allocator.Persistent);
             var tableB = new RegionTable(1, Allocator.Persistent);
@@ -132,9 +132,9 @@ namespace VoxelEngine.Tests.Parity
             var regionB = new Region(int3.zero, Allocator.Temp);
 
             VoxelEngine.Terrain.Runtime.TerrainGenerator.Generate(
-                new StandaloneRegionGenerationStore(in regionA), regionA.Coord, 42u);
+                new StandaloneRegionGenerationStore(in regionA), regionA.Coord, 42u, ParityTerrain.Materials);
             VoxelEngine.Terrain.Runtime.TerrainGenerator.Generate(
-                new StandaloneRegionGenerationStore(in regionB), regionB.Coord, 42u);
+                new StandaloneRegionGenerationStore(in regionB), regionB.Coord, 42u, ParityTerrain.Materials);
 
             const int eventCount = 1000;
             var events = LossConvergenceHarness.GenerateEvents(eventCount, 42u);
@@ -175,24 +175,69 @@ namespace VoxelEngine.Tests.Parity
             var events = new AlterationEvent[count];
             var rng = new DeterministicRandom(seed);
 
+            // Events must satisfy AlterationEvent.Validate or the applier skips them without a
+            // sound, and every convergence assertion here then compares two worlds that were
+            // never edited. Brush extents live in the packed shapeKind; tick is 1-based and
+            // playerId is never 0.
             for (int i = 0; i < count; i++)
             {
-                int type = rng.NextRange(0, 3);
-                events[i] = new AlterationEvent
+                int type = rng.NextRange(0, 2); // 0=explosion, 1=brush, 2=raw batch
+                uint tick = (uint)(i / 30) + 1u;
+                var origin = new int3(
+                    rng.NextRange(200, 300),
+                    rng.NextRange(100, 400),
+                    rng.NextRange(200, 300));
+                byte material = (byte)rng.NextRange(1, 8);
+                uint evtSeed = rng.NextUint();
+                ushort playerId = (ushort)rng.NextRange(1, 32);
+                ushort sequence = (ushort)(i % 30 + 1);
+
+                switch (type)
                 {
-                    kind = (byte)(type + 1),
-                    tick = (uint)(i / 30),
-                    origin = new int3(
-                        rng.NextRange(200, 300),
-                        rng.NextRange(100, 400),
-                        rng.NextRange(200, 300)),
-                    shapeData = (ushort)rng.NextRange(3, 16),
-                    material = (byte)rng.NextRange(1, 8),
-                    seed = (uint)rng.NextInt(),
-                    playerId = (ushort)rng.NextRange(0, 32),
-                    sequence = (ushort)(i % 30 + 1)
-                };
+                    case 1:
+                        events[i] = AlterationEvent.CreateCubeBrush(
+                            tick, origin,
+                            (byte)rng.NextRange(1, 4),
+                            (byte)rng.NextRange(1, 4),
+                            (byte)rng.NextRange(1, 4),
+                            material, evtSeed, playerId, sequence);
+                        break;
+
+                    case 2:
+                        events[i] = new AlterationEvent
+                        {
+                            kind = AlterationEvent.KindRawBatch,
+                            tick = tick,
+                            origin = origin,
+                            shapeKind = (uint)rng.NextRange(1, 16),
+                            shapeData = (uint)rng.NextRange(1, 16),
+                            material = material,
+                            seed = evtSeed,
+                            playerId = playerId,
+                            sequence = sequence,
+                        };
+                        break;
+
+                    default:
+                        events[i] = new AlterationEvent
+                        {
+                            kind = AlterationEvent.KindExplosion,
+                            tick = tick,
+                            origin = origin,
+                            shapeData = (uint)rng.NextRange(3, 15),
+                            material = material,
+                            seed = evtSeed,
+                            playerId = playerId,
+                            sequence = sequence,
+                        };
+                        break;
+                }
             }
+
+            for (int i = 0; i < count; i++)
+                Assert.IsTrue(events[i].Validate(),
+                    "Generated event {0} does not validate; the applier would skip it silently.",
+                    i);
 
             return events;
         }
@@ -269,29 +314,44 @@ namespace VoxelEngine.Tests.Parity
 
         /// <summary>
         /// Filter events based on loss conditions. Returns only delivered events.
+        ///
+        /// The draw is unsigned on purpose. DeterministicRandom.NextInt reinterprets the same
+        /// bits as a signed int, so half its values are negative; dividing that by uint.MaxValue
+        /// and testing "> lossRate" discarded every negative draw and produced roughly 50% loss
+        /// whatever the configured rate. Comparing the raw uint against a scaled threshold keeps
+        /// the model on the [0, 1) interval the rate is expressed in.
+        ///
+        /// Retransmission means a lost event is resent until it arrives, so with it enabled
+        /// every event is delivered exactly once. Retransmitted events are appended after the
+        /// first-pass traffic rather than in place: that is what a resend looks like from the
+        /// receiver, and it keeps the "possibly out of order" the callers assert against.
         /// </summary>
         public AlterationEvent[] Filter(AlterationEvent[] events)
         {
             if (_lossRate <= 0f) return events; // No loss.
 
             var delivered = new NativeList<AlterationEvent>(events.Length, Allocator.Temp);
+            var resent = new NativeList<AlterationEvent>(events.Length, Allocator.Temp);
             var rng = new DeterministicRandom((uint)_rttMs);
+            uint lossThreshold = (uint)(math.saturate(_lossRate) * uint.MaxValue);
 
             for (int i = 0; i < events.Length; i++)
             {
-                // Each event has a probability of being lost.
-                if ((float)rng.NextInt() / uint.MaxValue > _lossRate)
+                if (rng.NextUint() >= lossThreshold)
                     delivered.Add(events[i]);
-
-                // With retransmission, all lost events get a second chance.
-                if (_retransmissionEnabled && i % 10 == 0)
-                    delivered.Add(events[i]); // Resend every 10th event.
+                else if (_retransmissionEnabled)
+                    resent.Add(events[i]);
             }
+
+            for (int i = 0; i < resent.Length; i++)
+                delivered.Add(resent[i]);
 
             var result = new AlterationEvent[delivered.Length];
             for (int i = 0; i < delivered.Length; i++)
                 result[i] = delivered[i];
 
+            delivered.Dispose();
+            resent.Dispose();
             return result;
         }
 

@@ -86,6 +86,10 @@ namespace VoxelEngine.Composition
         /// <summary>Disconnects the application world from Rendering.Runtime.</summary>
         public static void ClearWorld()
         {
+            // Renderer-derived caches may still own immutable Storage pins. Release them while
+            // the application world is alive; clearing the binding and disposing Storage first
+            // would leave the persistent URP feature holding dead NativeArray safety handles.
+            VoxelRenderBridge.ReleaseWorldResources();
             s_hasWorld = false;
             s_world = default;
             s_terrainSeed = 0;
@@ -176,6 +180,15 @@ namespace VoxelEngine.Composition
             VoxelRenderBridge.SkyZenith = zenith;
         }
 
+        /// <summary>
+        /// Sets the key-light direction without disturbing sky or debug tint. Look-development
+        /// benches drive this continuously from sun azimuth/elevation controls, for which
+        /// <see cref="ConfigureEnvironment"/> is too coarse: it would clobber the surface debug
+        /// tint and both sky colours on every frame.
+        /// </summary>
+        public static void SetSunDirection(Vector3 sunDirection) =>
+            VoxelRenderBridge.SunDirection = sunDirection;
+
         public static bool TryGetSurfaceBuildStatus(
             out int knownChunks,
             out int dirtyChunks,
@@ -190,6 +203,28 @@ namespace VoxelEngine.Composition
             return knownChunks > 0;
         }
 
+        /// <summary>
+        /// Conservative handoff signal for application-owned far-field presentation.
+        ///
+        /// Generated Storage residency is not enough to open a hole in fallback terrain: the
+        /// asynchronous renderer can still be dirty, building, awaiting upload, or explicitly
+        /// missing visible chunks. Until those publication states are quiescent the far field
+        /// must remain available underneath the voxel renderer. This is intentionally stricter
+        /// than ordinary draw readiness; stale ready geometry may still be drawable while a
+        /// replacement is pending, but keeping fallback coverage during that interval is safe.
+        /// </summary>
+        public static bool HasCompletePublishedNearSurfaceCoverage()
+        {
+            var metrics = VoxelRenderBridge.SurfaceMetrics;
+            return metrics.SolidKnownChunks > 0
+                && metrics.SolidResidentChunks > 0
+                && metrics.SolidDirtyChunks == 0
+                && metrics.RunningSolidJobs == 0
+                && metrics.SolidMeshesAwaitingUpload == 0
+                && metrics.SolidPendingUploadBytes == 0
+                && metrics.MissingVisibleSolidChunks == 0;
+        }
+
         private static void BindWorld(
             in RenderingWorldBinding world,
             IVoxelChangeSource changes,
@@ -198,6 +233,17 @@ namespace VoxelEngine.Composition
         {
             if (world.Storage == null)
                 throw new ArgumentException("Rendering requires a storage read source.", nameof(world));
+
+            // A persistent renderer feature can outlive many application worlds. If a caller
+            // replaces the authoritative storage binding without an explicit ClearWorld first,
+            // retire scheduler jobs, pins, derived meshes, and old-world transient presentation
+            // while the old owner is still live. Reapplying configuration for the same storage is
+            // intentionally cheap and keeps both its warm derived geometry and presentation state.
+            if (s_hasWorld && !ReferenceEquals(s_world.Storage, world.Storage))
+            {
+                VoxelRenderBridge.ReleaseWorldResources();
+                ResetTransientPresentation();
+            }
 
             s_world = world;
             s_terrainSeed = terrainSeed;

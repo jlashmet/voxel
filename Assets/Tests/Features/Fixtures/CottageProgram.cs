@@ -55,11 +55,9 @@ namespace VoxelEngine.Tests.Features.Fixtures
     }
 
     /// <summary>
-    /// A cottage: foundation, four walls, a hollow interior, a door, and a gable roof.
-    ///
-    /// Written against the *default* parameters rather than reading registers, because US1's
-    /// tests are about the evaluator and the rasteriser rather than about parameter plumbing.
-    /// Register-driven dimensions arrive when the compiler does.
+    /// Compatibility fixture for the original cottage. Defaults now enter through the production
+    /// house authoring config/compiler while this fixture retains the historical anchor indices and
+    /// material ids used by the world-feature tests.
     /// </summary>
     public static class CottageProgram
     {
@@ -69,40 +67,13 @@ namespace VoxelEngine.Tests.Features.Fixtures
         /// <summary>Matches CottageFixture's declared footprint of 96 x 80 x 96 voxels.</summary>
         public static int[] Build()
         {
-            const int width = 64;
-            const int depth = 64;
-            const int wallHeight = 32;
-            const int wallThickness = 4;
-            const int roofHeight = 16;
-
-            const byte stone = CottageFixture.MaterialStone;
-            const byte wood = CottageFixture.MaterialWood;
-
-            var b = new ProgramBuilder();
-
-            // Foundation, sunk so the walls have something to stand on.
-            b.Box(0, 0, 0, width, 8, depth, stone, PrimitiveMode.Fill);
-
-            // Solid block of wall, then the interior carved out of it. Cheaper to express and
-            // impossible to leave a gap in a corner, which four separate walls invite.
-            b.Box(0, 8, 0, width, wallHeight, depth, stone, PrimitiveMode.Fill);
-            b.Box(wallThickness, 8, wallThickness,
-                  width - 2 * wallThickness, wallHeight, depth - 2 * wallThickness,
-                  0, PrimitiveMode.Carve);
-
-            // Doorway through the south wall.
-            b.Box(width / 2 - 6, 8, 0, 12, 20, wallThickness, 0, PrimitiveMode.Carve);
-
-            // Gable roof sitting on the walls.
-            b.Prism(0, 8 + wallHeight, 0, width, roofHeight, depth,
-                    PrismProfile.Gable, wood, PrimitiveMode.Fill);
-
-            b.Anchor(AnchorDoor, width / 2, 8, 0, Facing.South);
-            b.Anchor(AnchorHearth, width / 2, 8, depth / 2, Facing.Up);
-
-            b.End();
-
-            return b.Build();
+            HouseConfig config = HousePresets.CottageCompatibility(
+                CottageFixture.MaterialStone,
+                CottageFixture.MaterialWood);
+            return HouseProgramCompiler.BuildCompatibilityProgram(
+                in config,
+                AnchorDoor,
+                AnchorHearth);
         }
     }
 }

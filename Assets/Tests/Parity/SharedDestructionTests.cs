@@ -31,9 +31,12 @@ namespace VoxelEngine.Tests.Parity
             var tableA = new RegionTable(1, Allocator.Persistent);
             var tableB = new RegionTable(1, Allocator.Persistent);
 
-            // Build a wall at Z=256 spanning X: 200–300, Y: 100–400.
-            BuildWall(ref poolA, ref tableA, new int3(200, 100, 256), 100, 300);
-            BuildWall(ref poolB, ref tableB, new int3(200, 100, 256), 100, 300);
+            // Build a wall at Z=256 spanning X: 200–300, Y: 100–400. The upper bound has to
+            // match the solidity assertion below: built to 300 while asserted to 400, the wall
+            // is simply absent above y≈304 (brick-granular fill carries it a little past the
+            // build bound) and the test fails before reaching the destruction it exists to test.
+            BuildWall(ref poolA, ref tableA, new int3(200, 100, 256), 100, 400);
+            BuildWall(ref poolB, ref tableB, new int3(200, 100, 256), 100, 400);
             var storageA = new RegionMutationStore(in tableA, in poolA);
             var storageB = new RegionMutationStore(in tableB, in poolB);
 

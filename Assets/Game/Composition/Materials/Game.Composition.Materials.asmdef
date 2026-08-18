@@ -1,0 +1,21 @@
+{
+    "name": "Game.Composition.Materials",
+    "rootNamespace": "Game.Composition.Materials",
+    "references": [
+        "Game.Materials.Runtime",
+        "VoxelEngine.Composition",
+        "VoxelEngine.Rendering.Api",
+        "VoxelEngine.Composition.Api",
+        "VoxelEngine.Storage.Api",
+        "Unity.Mathematics"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

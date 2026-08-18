@@ -36,10 +36,11 @@ namespace Game.Composition.Campaign.Content
     }
 
     /// <summary>
-    /// Production authoring for the opening story facts that are currently known. The first
-    /// destination deliberately remains a constraint-matched region site, and the destination cutscene
-    /// definition is supplied by the caller because its choreography/dialogue has not been recovered.
-    /// No placeholder dialogue, destination archetype, NPC name, or world coordinate is invented here.
+    /// Production authoring for the opening story facts that are currently known. The recovered world
+    /// catalog remains the source of semantic ids, but this opening blueprint intentionally authors only
+    /// the Kentridge overworld + Kentridge settlement because the current production generator is a
+    /// single-region/single-settlement vertical-slice generator. The first destination deliberately
+    /// remains a constraint-matched Kentridge-overworld site until its recovered semantic role is resolved.
     /// </summary>
     public sealed class KnownOpeningCampaignContent
     {
@@ -85,17 +86,22 @@ namespace Game.Composition.Campaign.Content
 
             var game = Game.WorldBuilder.Api.Campaign.Create("main-campaign");
 
-            RegionHandle kentridgeRegion = game.World.Region("kentridge-region");
-            SettlementHandle kentridge = kentridgeRegion.Town("kentridge");
+            RecoveredOverworldRegionDefinition recoveredKentridge =
+                RecoveredMountingForceWorldCatalog.Kentridge;
+            RegionHandle kentridgeOverworld = game.World.Region(recoveredKentridge.RegionId);
+            SettlementHandle kentridge = kentridgeOverworld.Settlement(
+                recoveredKentridge.SettlementId,
+                recoveredKentridge.SettlementArchetype);
 
             SiteHandle startingPub = kentridge.Pub(
-                "starting-pub",
-                site => site.RequireCapability(SiteCapability.PlayerSpawn(4)));
+                    "starting-pub",
+                    site => site.RequireCapability(SiteCapability.PlayerSpawn(4)))
+                .LegacyMap("mounting-force", "kentridge-pub");
 
             // The known story says only that the party goes somewhere else in the surrounding region.
             // The generator remains free to choose the concrete site as long as the hard
             // traversal/content needs are met; it is not forced into the starting settlement.
-            SiteHandle firstDestination = kentridgeRegion.Site(
+            SiteHandle firstDestination = kentridgeOverworld.Site(
                 "first-destination",
                 site => site
                     .DifferentSiteFrom(startingPub)

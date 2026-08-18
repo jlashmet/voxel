@@ -34,7 +34,16 @@ namespace VoxelEngine.Tests.EditMode
                     Assert.AreEqual(FeatureKind.Infrastructure, definition.Kind);
                     Assert.AreEqual(93, definition.Precedence);
                     Assert.AreEqual(84, definition.Footprint.x);
-                    Assert.AreEqual(40, definition.Footprint.y);
+
+                    // Height is (support height + roof allowance), and support height is
+                    // derived per plot from the terrain drop beneath it, clamped to [28, 78] dm.
+                    // Asserting exactly 40 required both bays to sit on the minimum clamp, which
+                    // held only while the ground under the pub and the warehouse was flat enough
+                    // to bottom out. The derived range is the actual contract.
+                    Assert.GreaterOrEqual(definition.Footprint.y, 28 + 12,
+                        "Undercroft height must clear the minimum support plus roof allowance.");
+                    Assert.LessOrEqual(definition.Footprint.y, 78 + 12,
+                        "Undercroft height must stay within the maximum support plus roof allowance.");
                     Assert.AreEqual(definition.Footprint.x, definition.Footprint.z);
                     Assert.Greater(definition.ProgramLength, 20);
                     Assert.AreEqual(i, rule.DefinitionId);

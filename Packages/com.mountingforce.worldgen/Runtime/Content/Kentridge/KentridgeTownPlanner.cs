@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace MountingForce.WorldGen.Content.Kentridge
@@ -6,9 +7,9 @@ namespace MountingForce.WorldGen.Content.Kentridge
     /// First semantic town-layout pass for Kentridge.
     ///
     /// The topology is authored as relationships (main spine, market crossing, residential street,
-    /// east service lane) while individual plots are derived from street frontage. Ordinary houses
-    /// may slide a few decimetres along their street from a stable per-role hash; they never drift
-    /// away from their district or rotate away from their frontage.
+    /// east service lane) while individual plots are derived from reusable Core frontage placement.
+    /// Ordinary houses may slide a few decimetres along their street from a stable per-role hash;
+    /// they never drift away from their district or rotate away from their frontage.
     /// </summary>
     public static class KentridgeTownPlanner
     {
@@ -17,6 +18,13 @@ namespace MountingForce.WorldGen.Content.Kentridge
         public const string ResidentialStreetId = "residential-street";
         public const string EastServiceLaneId = "east-service-lane";
         public const string MarketSquareId = "market-square";
+
+        // Core deliberately treats preset IDs as opaque strings so it never depends on a game or
+        // voxel structure assembly. These values follow the shared <archetype>.<variant>.vN convention.
+        public const string CompactHousePresetId = "house.compact-cabin.v1";
+        public const string FarmhousePresetId = "house.farmhouse.v1";
+        public const string TallTownhousePresetId = "house.tall-townhouse.v1";
+        public const string ParishChurchPresetId = "church.parish.v1";
 
         public const int MainSpineXDm = 1170;
         public const int MarketStreetZDm = 520;
@@ -28,8 +36,15 @@ namespace MountingForce.WorldGen.Content.Kentridge
         public const int ResidentialRoadWidthDm = 44;
         public const int ServiceRoadWidthDm = 36;
 
+        private static readonly SettlementCompositionPolicy Policy = BuildCompositionPolicy();
+        public static SettlementCompositionPolicy CompositionPolicy => Policy;
+
         public static SettlementPlan Build(uint seed)
         {
+            // Keep the bound check at the production entry point as well as policy construction so a
+            // future editable policy cannot silently turn Kentridge into an unbounded global planner.
+            Policy.ValidateBounded();
+
             var streets = new List<PlannedStreet>(4)
             {
                 new PlannedStreet(
@@ -133,6 +148,7 @@ namespace MountingForce.WorldGen.Content.Kentridge
                     EastServiceLaneId, EastLaneXDm, 250, FrontageDirection.West, ServiceRoadWidthDm, 22, 0),
 
                 CentrePlot(
+                    seed,
                     KentridgeRole.Well,
                     StructureArchetype.Well,
                     DistrictKind.Market,
@@ -156,29 +172,22 @@ namespace MountingForce.WorldGen.Content.Kentridge
             FrontageDirection frontage, int roadWidthDm, int setbackDm, int jitterDm)
         {
             Int3 footprint = KentridgeDefinition.FootprintDm(archetype);
-            int along = frontageXDm + SignedJitter(seed, salt, jitterDm);
-            int x = along - footprint.X / 2;
-            int z;
-
-            switch (frontage)
-            {
-                case FrontageDirection.South:
-                    z = streetZDm + roadWidthDm / 2 + setbackDm;
-                    break;
-                case FrontageDirection.North:
-                    z = streetZDm - roadWidthDm / 2 - setbackDm - footprint.Z;
-                    break;
-                default:
-                    throw new System.ArgumentException(
-                        "Horizontal street plots must face north or south.", nameof(frontage));
-            }
-
-            var access = new PlannedSiteAccess(
-                SiteAccessKind.Street,
+            SettlementLotConfig lot = LotFor(footprint, frontage, setbackDm, jitterDm, district);
+            return SettlementRoadFacingPlacement.AlongHorizontalStreet(
+                seed,
+                salt,
+                (int)role,
+                archetype,
+                district,
                 streetId,
-                new Int2(along, streetZDm));
-            return new BuildingPlot(
-                (int)role, archetype, district, new Int2(x, z), frontage, access);
+                frontageXDm,
+                streetZDm,
+                frontage,
+                roadWidthDm,
+                setbackDm,
+                jitterDm,
+                footprint,
+                in lot);
         }
 
         private static BuildingPlot AlongVerticalStreet(
@@ -187,62 +196,163 @@ namespace MountingForce.WorldGen.Content.Kentridge
             FrontageDirection frontage, int roadWidthDm, int setbackDm, int jitterDm)
         {
             Int3 footprint = KentridgeDefinition.FootprintDm(archetype);
-            int along = frontageZDm + SignedJitter(seed, salt, jitterDm);
-            int z = along - footprint.Z / 2;
-            int x;
-
-            switch (frontage)
-            {
-                case FrontageDirection.West:
-                    x = streetXDm + roadWidthDm / 2 + setbackDm;
-                    break;
-                case FrontageDirection.East:
-                    x = streetXDm - roadWidthDm / 2 - setbackDm - footprint.X;
-                    break;
-                default:
-                    throw new System.ArgumentException(
-                        "Vertical street plots must face east or west.", nameof(frontage));
-            }
-
-            var access = new PlannedSiteAccess(
-                SiteAccessKind.Street,
+            SettlementLotConfig lot = LotFor(footprint, frontage, setbackDm, jitterDm, district);
+            return SettlementRoadFacingPlacement.AlongVerticalStreet(
+                seed,
+                salt,
+                (int)role,
+                archetype,
+                district,
                 streetId,
-                new Int2(streetXDm, along));
-            return new BuildingPlot(
-                (int)role, archetype, district, new Int2(x, z), frontage, access);
+                streetXDm,
+                frontageZDm,
+                frontage,
+                roadWidthDm,
+                setbackDm,
+                jitterDm,
+                footprint,
+                in lot);
         }
 
         private static BuildingPlot CentrePlot(
+            uint seed,
             KentridgeRole role, StructureArchetype archetype, DistrictKind district,
             string plazaId, Int2 centreDm)
         {
             Int3 footprint = KentridgeDefinition.FootprintDm(archetype);
-            var access = new PlannedSiteAccess(
-                SiteAccessKind.Plaza,
-                plazaId,
-                centreDm);
-            return new BuildingPlot(
+            int width = Math.Max(footprint.X, footprint.Z);
+            var plazaLot = new SettlementLotConfig(
+                new SettlementIntRange(width, width),
+                new SettlementIntRange(width, width),
+                0,
+                0,
+                0,
+                0,
+                SettlementFrontageMask.Cardinal,
+                false,
+                100);
+            return SettlementRoadFacingPlacement.CentreOnPlaza(
+                seed,
                 (int)role,
                 archetype,
                 district,
-                new Int2(centreDm.X - footprint.X / 2, centreDm.Y - footprint.Z / 2),
-                FrontageDirection.South,
-                access);
+                plazaId,
+                centreDm,
+                footprint,
+                in plazaLot);
         }
 
-        private static int SignedJitter(uint seed, uint salt, int magnitude)
+        private static SettlementLotConfig LotFor(
+            Int3 footprint,
+            FrontageDirection frontage,
+            int frontSetbackDm,
+            int jitterDm,
+            DistrictKind district)
         {
-            if (magnitude <= 0) return 0;
+            bool northSouth = frontage == FrontageDirection.North || frontage == FrontageDirection.South;
+            int structureWidth = northSouth ? footprint.X : footprint.Z;
+            int structureDepth = northSouth ? footprint.Z : footprint.X;
+            int side = district == DistrictKind.Market ? 4 : 6;
+            int rear = district == DistrictKind.Working ? 6 : 10;
+            int variation = Math.Max(0, jitterDm);
+            int minSpacing = district == DistrictKind.Market ? 8 : 12;
 
-            uint x = seed ^ (salt * 0x9E3779B9u);
-            x ^= x >> 16;
-            x *= 0x7FEB352Du;
-            x ^= x >> 15;
-            x *= 0x846CA68Bu;
-            x ^= x >> 16;
+            return new SettlementLotConfig(
+                new SettlementIntRange(
+                    structureWidth + 2 * side,
+                    structureWidth + 2 * side + 2 * variation),
+                new SettlementIntRange(
+                    structureDepth + frontSetbackDm + rear,
+                    structureDepth + frontSetbackDm + rear + variation),
+                frontSetbackDm,
+                rear,
+                side,
+                minSpacing,
+                SettlementFrontageMask.Cardinal,
+                true,
+                100);
+        }
 
-            int span = magnitude * 2 + 1;
-            return (int)(x % (uint)span) - magnitude;
+        private static SettlementCompositionPolicy BuildCompositionPolicy()
+        {
+            const SettlementArchetypeMask generatedHouses =
+                SettlementArchetypeMask.Townhouse |
+                SettlementArchetypeMask.WideHouse |
+                SettlementArchetypeMask.Shop |
+                SettlementArchetypeMask.Inn;
+
+            // Entry ordering intentionally preserves the historical Kentridge modulus buckets while
+            // moving the weights out of voxel geometry code and into settlement composition policy.
+            var palette = new SettlementStructurePalette(
+                new SettlementPaletteEntry(
+                    TallTownhousePresetId, generatedHouses, SettlementDistrictMask.Noble, 1),
+                new SettlementPaletteEntry(
+                    FarmhousePresetId, generatedHouses, SettlementDistrictMask.Noble, 4),
+
+                new SettlementPaletteEntry(
+                    CompactHousePresetId, generatedHouses,
+                    SettlementDistrictMask.Market | SettlementDistrictMask.Working, 3),
+                new SettlementPaletteEntry(
+                    TallTownhousePresetId, generatedHouses,
+                    SettlementDistrictMask.Market | SettlementDistrictMask.Working, 2),
+
+                new SettlementPaletteEntry(
+                    CompactHousePresetId, generatedHouses, SettlementDistrictMask.Civic, 1),
+                new SettlementPaletteEntry(
+                    TallTownhousePresetId, generatedHouses, SettlementDistrictMask.Civic, 3),
+
+                new SettlementPaletteEntry(
+                    CompactHousePresetId, generatedHouses, SettlementDistrictMask.Residential, 2),
+                new SettlementPaletteEntry(
+                    FarmhousePresetId, generatedHouses, SettlementDistrictMask.Residential, 3),
+                new SettlementPaletteEntry(
+                    TallTownhousePresetId, generatedHouses, SettlementDistrictMask.Residential, 3));
+
+            var defaultLot = new SettlementLotConfig(
+                new SettlementIntRange(72, 240),
+                new SettlementIntRange(72, 240),
+                16,
+                10,
+                6,
+                12,
+                SettlementFrontageMask.Cardinal,
+                true,
+                100);
+
+            var density = new SettlementDensityPolicy(
+                occupancyPercent: 78,
+                minSpacingDm: 12,
+                maxCandidatesPerRegion: 256,
+                maxPlanningSpanDm: 2400,
+                planningScope: SettlementPlanningScope.RegionLocal);
+
+            var landmarks = new[]
+            {
+                new SettlementLandmarkRule(
+                    SettlementLandmarkKind.Church,
+                    ParishChurchPresetId,
+                    SettlementDistrictMask.Civic,
+                    rarityDenominator: 1,
+                    maxPerPlan: 1,
+                    minSpacingDm: 300,
+                    preferOpenSpace: true),
+            };
+
+            var openSpaces = new[]
+            {
+                new SettlementOpenSpaceRule(
+                    MarketSquareId,
+                    KentridgeDefinition.TownCentreDm,
+                    new Int2(220, 140),
+                    clearanceDm: 12),
+            };
+
+            return new SettlementCompositionPolicy(
+                defaultLot,
+                palette,
+                density,
+                landmarks,
+                openSpaces);
         }
     }
 }

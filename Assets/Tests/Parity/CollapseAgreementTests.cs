@@ -1,3 +1,4 @@
+using System;
 using VoxelEngine.Edits.Api;
 using NUnit.Framework;
 using Unity.Collections;
@@ -94,60 +95,105 @@ namespace VoxelEngine.Tests.Parity
             var poolB = new BrickPool(4096, Allocator.Persistent);
 
             int3 regionCoord = int3.zero;
-            int3 otherRegion = new int3(VoxelDimensions.RegionEdge, 0, 0);
+            // Region coordinates are counted in regions, so the neighbour on +X is (1,0,0).
+            // RegionEdge (64) named a region sixty-four regions away, which nothing ever built.
+            int3 otherRegion = new int3(1, 0, 0);
 
             var tableA = new RegionTable(4, Allocator.Persistent);
             var tableB = new RegionTable(4, Allocator.Persistent);
 
-            // Build a horizontal wall spanning both regions at Y=10.
+            // Build a horizontal wall at brick Y=10, brick Z=WallBrickZ, running up to the +X
+            // edge of region (0,0,0) and continuing from the -X edge of region (1,0,0) so the
+            // span crosses the boundary. Brick Z was 512 before, which is outside a 64-brick
+            // region entirely.
             var r1A = tableA.LoadRegion(regionCoord);
             var r2A = tableA.LoadRegion(otherRegion);
-            FillBrickRange(ref poolA, ref r1A, VoxelDimensions.RegionEdge - 32, VoxelDimensions.RegionEdge - 1, 10, 10, 512);
-            FillBrickRange(ref poolA, ref r2A, 0, 31, 10, 10, 512);
+            FillBrickRange(ref poolA, ref r1A, VoxelDimensions.RegionEdge - 32, VoxelDimensions.RegionEdge - 1, WallBrickY, WallBrickY, WallBrickZ);
+            FillBrickRange(ref poolA, ref r2A, 0, 31, WallBrickY, WallBrickY, WallBrickZ);
             tableA.CommitRegion(r1A);
             tableA.CommitRegion(r2A);
 
             var r1B = tableB.LoadRegion(regionCoord);
             var r2B = tableB.LoadRegion(otherRegion);
-            FillBrickRange(ref poolB, ref r1B, VoxelDimensions.RegionEdge - 32, VoxelDimensions.RegionEdge - 1, 10, 10, 512);
-            FillBrickRange(ref poolB, ref r2B, 0, 31, 10, 10, 512);
+            FillBrickRange(ref poolB, ref r1B, VoxelDimensions.RegionEdge - 32, VoxelDimensions.RegionEdge - 1, WallBrickY, WallBrickY, WallBrickZ);
+            FillBrickRange(ref poolB, ref r2B, 0, 31, WallBrickY, WallBrickY, WallBrickZ);
             tableB.CommitRegion(r1B);
             tableB.CommitRegion(r2B);
 
-            // Destroy the support underneath both regions.
+            // A wall that reaches a region border is supported *by that border*: ComputeSupport
+            // seeds every border-touching occupied block with NBrickReach and decays outward,
+            // which is how a structure continuing into the neighbour is modelled. The spanning
+            // wall therefore never collapses, and cannot be what this test detects.
+            //
+            // What it can test — and what "collapse agrees" means in a parity suite — is that
+            // two independent clients reach identical conclusions on both sides of the boundary.
+            // Each region gets an interior island, clear of every border, so each side has
+            // something genuinely unsupported to agree about.
+            FillIsland(ref poolA, ref tableA, regionCoord);
+            FillIsland(ref poolA, ref tableA, otherRegion);
+            FillIsland(ref poolB, ref tableB, regionCoord);
+            FillIsland(ref poolB, ref tableB, otherRegion);
+
             int3 destroyOrigin = new int3(200, 0, 256);
-            byte radius = 16;
+            int3 otherRegionVoxel = new int3(VoxelDimensions.RegionVoxelEdge + 200, 0, 256);
 
-            var evtA = BuildExplosionEvent(destroyOrigin, radius);
-            var evtB = BuildExplosionEvent(destroyOrigin, radius);
+            // Verify bridge was solid before collapse. The sample must land inside a brick the
+            // wall actually filled: brick (62, WallBrickY, WallBrickZ) of region (0,0,0). The
+            // previous sample used y=10 as a voxel, which is brick 1 — eight bricks below the
+            // wall, and empty even once the wall exists.
+            AssertBridgeExists(ref tableA, in poolA, new int3(
+                62 * VoxelDimensions.BrickEdge,
+                WallBrickY * VoxelDimensions.BrickEdge,
+                WallBrickZ * VoxelDimensions.BrickEdge));
 
-            // Verify bridge was solid before collapse.
-            AssertBridgeExists(ref tableA, in poolA, new int3(VoxelDimensions.RegionEdge * VoxelDimensions.BrickEdge - 16, 10, 256));
+            // Run collapse detection on both worlds, on each side of the boundary. Support is
+            // computed per region, so each side is asked separately.
+            var nearA = CollapseTargetsFor(ref tableA, in poolA, destroyOrigin);
+            var nearB = CollapseTargetsFor(ref tableB, in poolB, destroyOrigin);
+            var farA = CollapseTargetsFor(ref tableA, in poolA, otherRegionVoxel);
+            var farB = CollapseTargetsFor(ref tableB, in poolB, otherRegionVoxel);
 
-            // Run collapse detection on both worlds across the region boundary.
-            var targetsA = CollapseTargetsFor(ref tableA, in poolA, destroyOrigin);
-            var targetsB = CollapseTargetsFor(ref tableB, in poolB, destroyOrigin);
+            Assert.Greater(nearA.Length, 0, "Region {0} must produce collapse targets.", regionCoord);
+            Assert.Greater(farA.Length, 0, "Region {0} must produce collapse targets.", otherRegion);
 
-            // The collapse must affect BOTH regions.
-            bool affectsBothRegionsA = false;
-            bool affectsBothRegionsB = false;
-            for (int i = 0; i < targetsA.Length && !affectsBothRegionsA; i++)
-            {
-                var c = GetRegion(targetsA[i].x, targetsA[i].y, targetsA[i].z);
-                if (math.all(c == regionCoord) || math.all(c == otherRegion))
-                    affectsBothRegionsA = true;
-            }
-            for (int i = 0; i < targetsB.Length && !affectsBothRegionsB; i++)
-            {
-                var c = GetRegion(targetsB[i].x, targetsB[i].y, targetsB[i].z);
-                if (math.all(c == regionCoord) || math.all(c == otherRegion))
-                    affectsBothRegionsB = true;
-            }
+            AssertTargetsAgree(nearA, nearB, regionCoord);
+            AssertTargetsAgree(farA, farB, otherRegion);
 
-            Assert.IsTrue(affectsBothRegionsA, "Collapse on client A must span both regions.");
-            Assert.IsTrue(affectsBothRegionsB, "Collapse on client B must span both regions.");
-
+            // The spanning wall is border-supported and must survive on both clients.
+            int3 wallSample = new int3(
+                62 * VoxelDimensions.BrickEdge,
+                WallBrickY * VoxelDimensions.BrickEdge,
+                WallBrickZ * VoxelDimensions.BrickEdge);
             ApplyCollapse(ref tableA, ref poolA, default(NativeArray<byte>), destroyOrigin);
+            ApplyCollapse(ref tableB, ref poolB, default(NativeArray<byte>), destroyOrigin);
+            Assert.AreEqual(GetVoxel(ref tableA, in poolA, wallSample),
+                            GetVoxel(ref tableB, in poolB, wallSample),
+                            "Clients disagree about the border-supported wall after collapse.");
+
+            nearA.Dispose(); nearB.Dispose(); farA.Dispose(); farB.Dispose();
+        }
+
+        /// <summary>Two clients must produce byte-identical collapse targets, in the same order.</summary>
+        private static void AssertTargetsAgree(
+            in NativeList<int3> a, in NativeList<int3> b, int3 regionCoord)
+        {
+            Assert.AreEqual(a.Length, b.Length,
+                "Clients disagree on collapse target count in region {0}.", regionCoord);
+            for (int i = 0; i < a.Length; i++)
+                Assert.AreEqual(a[i], b[i],
+                    "Clients disagree on collapse target {0} in region {1}.", i, regionCoord);
+        }
+
+        /// <summary>
+        /// A small floating block group clear of every region border, so ComputeSupport leaves it
+        /// at zero reach and collapse detection treats it as unsupported.
+        /// </summary>
+        private static void FillIsland(ref BrickPool pool, ref RegionTable table, int3 regionCoord)
+        {
+            var region = table.LoadRegion(regionCoord);
+            FillBrickRange(ref pool, ref region, IslandBrickX, IslandBrickX + 2,
+                           IslandBrickY, IslandBrickY, IslandBrickZ);
+            table.CommitRegion(region);
         }
 
         [Test]
@@ -181,108 +227,56 @@ namespace VoxelEngine.Tests.Parity
         [Category("US2")]
         public void UnsupportedBuildsCollapseImmediately()
         {
-            // Build a floating platform (no support at Y < 1). Place one brick above it.
+            // A build with nothing beneath it and no reach to a region border is unsupported
+            // and must be found immediately, with no destruction event needed.
+            //
+            // Written in brick units throughout. The previous version stepped voxel-shaped loop
+            // bounds by 8 and then shifted them down by BrickEdgeLog2, which built an 8x8 corner
+            // where it meant a ground plane and left the "floating" platform resting on it two
+            // bricks up. No ground is built at all now: ComputeSupport seeds only the y=0 layer
+            // and region borders, so a lone interior island is exactly the unsupported case.
             var pool = new BrickPool(4096, Allocator.Persistent);
-
             int3 regionCoord = int3.zero;
             var table = new RegionTable(1, Allocator.Persistent);
 
-            // Build ground at Z=0 (all bricks in bottom layer are filled).
             var region = table.LoadRegion(regionCoord);
-            for (int z = 0; z < VoxelDimensions.BrickEdge; z++)
-            {
-                for (int y = 0; y < VoxelDimensions.RegionEdge; y += 8)
-                {
-                    for (int x = 0; x < VoxelDimensions.RegionEdge; x += 8)
-                    {
-                        int brickIdx = Region.BrickIndex(
-                            x >> VoxelDimensions.BrickEdgeLog2,
-                            y >> VoxelDimensions.BrickEdgeLog2,
-                            z);
-                        if (brickIdx < pool.Capacity)
-                        {
-                            var filled = pool.Allocate();
-                            pool.FillBrick(filled, 3);
-                            region.BrickRefs[brickIdx] = BrickRef.FromPoolIndex(filled);
-                        }
-                    }
-                }
-            }
-
-            // Build the floating platform.
-            for (int z = VoxelDimensions.RegionEdge - 8; z < VoxelDimensions.RegionEdge; z++)
-            {
-                for (int y = 10; y < 20; y++)
-                {
-                    for (int x = 20; x < 60; x += 8)
-                    {
-                        int brickIdx = Region.BrickIndex(x >> VoxelDimensions.BrickEdgeLog2,
-                                                          y >> VoxelDimensions.BrickEdgeLog2, z);
-                        if (brickIdx < region.BrickRefs.Length)
-                        {
-                            var filled = pool.Allocate();
-                            pool.FillBrick(filled, 5);
-                            region.BrickRefs[brickIdx] = BrickRef.FromPoolIndex(filled);
-                        }
-                    }
-                }
-            }
-
+            int filled = FillBrickRange(ref pool, ref region,
+                IslandBrickX, IslandBrickX + 2, IslandBrickY, IslandBrickY, IslandBrickZ);
             table.CommitRegion(region);
+            Assert.Greater(filled, 0, "The floating platform must actually be built.");
 
-            // Verify: the platform is supported by ground bricks.
-            // Now remove all ground bricks below the platform.
-            for (int z = 0; z < VoxelDimensions.BrickEdge; z++)
-            {
-                for (int y = 0; y < VoxelDimensions.RegionEdge; y += 8)
-                {
-                    for (int x = 20; x < 60; x += 8)
-                    {
-                        int brickIdx = Region.BrickIndex(
-                            x >> VoxelDimensions.BrickEdgeLog2,
-                            y >> VoxelDimensions.BrickEdgeLog2, z);
-                        if (brickIdx >= 0 && brickIdx < region.BrickRefs.Length)
-                            region.BrickRefs[brickIdx] = BrickRef.Empty; // Remove ground support.
-                    }
-                }
-            }
-
-            table.CommitRegion(region);
-
-            // Check for unsupported bricks using SupportField with threshold=1.
             var support = new NativeArray<byte>(VoxelDimensions.BricksPerRegion, Allocator.Temp);
-            SupportField.ComputeSupport(new RegionReadSource(in table, in pool), regionCoord, support, Allocator.Temp);
+            SupportField.ComputeSupport(
+                new RegionReadSource(in table, in pool), regionCoord, support, Allocator.Temp);
 
             bool hasUnsupported = false;
-            for (int y = 10; y < 20 && !hasUnsupported; y++)
+            for (int bx = IslandBrickX; bx <= IslandBrickX + 2 && !hasUnsupported; bx++)
             {
-                int brickIdx = Region.BrickIndex(40 >> VoxelDimensions.BrickEdgeLog2,
-                                                  y >> VoxelDimensions.BrickEdgeLog2,
-                                                  63);
-                if (brickIdx >= 0 && brickIdx < VoxelDimensions.BricksPerRegion)
-                {
-                    if (support[brickIdx] <= 1)
-                        hasUnsupported = true;
-                }
+                int brickIdx = Region.BrickIndex(bx, IslandBrickY, IslandBrickZ);
+                if (support[brickIdx] <= 1)
+                    hasUnsupported = true;
             }
 
             Assert.IsTrue(hasUnsupported, "Platform with no ground support should have unsupported bricks.");
 
-            var targets = CollapseDetection.FindUnsupportedBuilds(new RegionReadSource(in table, in pool), regionCoord, in support);
+            var targets = CollapseDetection.FindUnsupportedBuilds(
+                new RegionReadSource(in table, in pool), regionCoord, in support);
             Assert.Greater(targets.Length, 0, "Unsupported builds must produce collapse targets.");
 
-            // Apply the collapse.
-            ApplyCollapse(ref table, ref pool, support, new int3(128, 5, 128));
+            int3 platformVoxel = new int3(
+                IslandBrickX * VoxelDimensions.BrickEdge,
+                IslandBrickY * VoxelDimensions.BrickEdge,
+                IslandBrickZ * VoxelDimensions.BrickEdge);
+            Assert.AreEqual(StoneMaterial, GetVoxel(ref table, in pool, platformVoxel),
+                "The platform must be solid before the collapse is applied.");
 
-            // Verify platform bricks are now empty.
-            var platformBrick = new int3(40 * VoxelDimensions.BrickEdge + VoxelDimensions.BrickEdge / 2,
-                                         15 * VoxelDimensions.BrickEdge + VoxelDimensions.BrickEdge / 2,
-                                         63 * (VoxelDimensions.RegionEdge * VoxelDimensions.BrickEdge) + (VoxelDimensions.RegionEdge * VoxelDimensions.BrickEdge) / 2);
+            ApplyCollapse(ref table, ref pool, support, platformVoxel);
 
-            int material = GetVoxel(ref table, in pool, platformBrick);
-            Assert.AreEqual(VoxelDimensions.MaterialEmpty, material,
+            Assert.AreEqual(VoxelDimensions.MaterialEmpty,
+                GetVoxel(ref table, in pool, platformVoxel),
                 "Unsupported build must collapse to empty.");
 
+            targets.Dispose();
             support.Dispose();
         }
 
@@ -341,6 +335,16 @@ namespace VoxelEngine.Tests.Parity
                 VoxelAccess.SetVoxel(ref table, ref pool, new int3(x, bridgeY, z), StoneMaterial);
         }
 
+        // Cross-region wall geometry, in bricks.
+        private const int WallBrickY = 10;
+        private const int WallBrickZ = 32;
+
+        // Interior island, in bricks. Every coordinate stays in 1..RegionEdge-2 so no block
+        // touches a region border and picks up border support.
+        private const int IslandBrickX = 10;
+        private const int IslandBrickY = 20;
+        private const int IslandBrickZ = 20;
+
         // Cantilever geometry, in voxels.
         private const byte StoneMaterial = 1;
         private const int PillarMinX = 50;
@@ -379,11 +383,15 @@ namespace VoxelEngine.Tests.Parity
             {
                 var targets = CollapseTargetsFor(ref table, in pool, origin);
 
+                // CollapseDetection.FindCollapseTargets already yields region-local *block*
+                // coordinates, not voxels. Shifting them down by BrickEdgeLog2 divided every
+                // coordinate by eight again and cleared unrelated bricks near the region origin,
+                // leaving the actual unsupported span standing.
                 foreach (var brick in targets)
                 {
-                    int bx = (brick.x >> VoxelDimensions.BrickEdgeLog2) & VoxelDimensions.RegionEdgeMask;
-                    int by = (brick.y >> VoxelDimensions.BrickEdgeLog2) & VoxelDimensions.RegionEdgeMask;
-                    int bz = (brick.z >> VoxelDimensions.BrickEdgeLog2) & VoxelDimensions.RegionEdgeMask;
+                    int bx = brick.x & VoxelDimensions.RegionEdgeMask;
+                    int by = brick.y & VoxelDimensions.RegionEdgeMask;
+                    int bz = brick.z & VoxelDimensions.RegionEdgeMask;
 
                     int brickIdx = Region.BrickIndex(bx, by, bz);
                     if (brickIdx >= 0 && brickIdx < region.BrickRefs.Length)
@@ -399,16 +407,56 @@ namespace VoxelEngine.Tests.Parity
             }
         }
 
+        /// <summary>
+        /// World voxel to region coordinate, matching VoxelAccess.Decompose.
+        ///
+        /// A region is RegionEdge bricks of BrickEdge voxels, so the shift is
+        /// RegionVoxelEdgeLog2 (9), not RegionEdgeLog2 (6). Shifting by 6 divides by 64 instead
+        /// of 512 and names a different region for any coordinate at or above 64: the cantilever
+        /// at z=100 resolved to region (0,0,1), which holds no geometry. Support then came back
+        /// all zeros, "at least one unsupported brick" passed against an empty region, and the
+        /// collapse was applied somewhere the bridge does not live.
+        /// </summary>
         private static int3 GetRegion(int x, int y, int z) =>
             new(
-                x >> VoxelDimensions.RegionEdgeLog2,
-                y >> VoxelDimensions.RegionEdgeLog2,
-                z >> VoxelDimensions.RegionEdgeLog2);
+                x >> VoxelDimensions.RegionVoxelEdgeLog2,
+                y >> VoxelDimensions.RegionVoxelEdgeLog2,
+                z >> VoxelDimensions.RegionVoxelEdgeLog2);
 
+        /// <summary>
+        /// Fills an inclusive range of bricks in one region with stone, returning how many were
+        /// filled. Coordinates are brick indices within the region, not world voxels — the
+        /// callers' x range of RegionEdge-32 .. RegionEdge-1 only fits a 64-brick region read
+        /// that way.
+        ///
+        /// Mixed bricks are allocated rather than uniform ones on purpose:
+        /// CollapseDetection.FindCollapseTargets skips any block whose Kind is not Mixed, so a
+        /// uniform fill would build a wall that collapse detection cannot see.
+        /// </summary>
         private static int FillBrickRange(ref BrickPool pool, ref Region region, int startX, int endX, int startY, int endY, int startZ)
         {
-            // Stub — actual implementation fills bricks in a range.
-            return 0;
+            if ((uint)startZ >= VoxelDimensions.RegionEdge)
+                throw new ArgumentOutOfRangeException(nameof(startZ),
+                    $"brick z {startZ} is outside a {VoxelDimensions.RegionEdge}-brick region.");
+
+            int filledCount = 0;
+            for (int bx = math.max(startX, 0); bx <= math.min(endX, VoxelDimensions.RegionEdge - 1); bx++)
+            for (int by = math.max(startY, 0); by <= math.min(endY, VoxelDimensions.RegionEdge - 1); by++)
+            {
+                int brickIdx = Region.BrickIndex(bx, by, startZ);
+                if (brickIdx < 0 || brickIdx >= region.BrickRefs.Length)
+                    continue;
+                if (region.BrickRefs[brickIdx].IsMixed)
+                    continue; // already built; re-allocating would leak the existing brick
+
+                var filled = pool.Allocate();
+                pool.FillBrick(filled, StoneMaterial);
+                region.BrickRefs[brickIdx] = BrickRef.FromPoolIndex(filled);
+                filledCount++;
+            }
+
+            region.Dirty = true;
+            return filledCount;
         }
 
         private static int GetVoxel(ref RegionTable table, in BrickPool pool, int3 worldVoxel) =>

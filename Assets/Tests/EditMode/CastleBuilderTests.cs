@@ -4,6 +4,9 @@ using Unity.Mathematics;
 using VoxelEngine.Storage.Runtime;
 using VoxelEngine.Structures.Runtime;
 using VoxelEngine.Structures.Api;
+using Game.Structures.Runtime;   // CastleBuilder became CastlePlanner in the game layer
+using Game.Structures.Api;
+using Mat = Game.Materials.Api.GameMaterialIds;   // engine-side Mat constants were removed
 
 namespace VoxelEngine.Tests.EditMode
 {
@@ -14,7 +17,7 @@ namespace VoxelEngine.Tests.EditMode
         {
             for (uint seed = 1; seed <= 64; seed++)
             {
-                var plan = CastleBuilder.Plan(int3.zero, seed);
+                var plan = CastlePlanner.Plan(int3.zero, seed);
                 Assert.AreEqual(plan.Floors * plan.FloorHeight, plan.KeepHeight,
                     $"Seed {seed} produced a keep shell that disagrees with its floors.");
             }
@@ -25,7 +28,7 @@ namespace VoxelEngine.Tests.EditMode
         {
             for (uint seed = 1; seed <= 64; seed++)
             {
-                var plan = CastleBuilder.Plan(int3.zero, seed);
+                var plan = CastlePlanner.Plan(int3.zero, seed);
 
                 // The former minimum bailey was 300 x 300 voxels. A 440 x 440 minimum is 2.15
                 // times that area while retaining the same 10 cm voxel/player scale.
@@ -33,7 +36,7 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.GreaterOrEqual(plan.BaileyHalfZ * 2, 440, $"seed {seed}: bailey depth");
                 Assert.GreaterOrEqual(plan.KeepHalfX * 2, 184, $"seed {seed}: keep width");
                 Assert.GreaterOrEqual(plan.Floors, 5, $"seed {seed}: floor count");
-                Assert.LessOrEqual(CastleBuilder.EstimateWrites(in plan),
+                Assert.LessOrEqual(CastlePlanner.EstimateWrites(in plan),
                     VoxelBrush.DefaultWriteBudget,
                     $"seed {seed} would be rejected before construction");
             }

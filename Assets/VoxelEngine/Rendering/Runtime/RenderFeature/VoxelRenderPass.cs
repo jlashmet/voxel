@@ -55,12 +55,16 @@ namespace VoxelEngine.Rendering.Runtime
         private static readonly int s_DebugCoverage = Shader.PropertyToID("_DebugCoverage");
         private static readonly int s_CameraPosition = Shader.PropertyToID("_CameraPosition");
         private static readonly int s_WaterTime = Shader.PropertyToID("_WaterTime");
+        private static readonly int s_SurfaceVertices = Shader.PropertyToID("_SurfaceVertices");
+        private static readonly int s_SurfaceIndices = Shader.PropertyToID("_SurfaceIndices");
 
-        private readonly VoxelSurfaceScheduler _scheduler = new();
-        private CpuTransvoxelChunkCache.Entry[] _transvoxelDrawEntries =
-            Array.Empty<CpuTransvoxelChunkCache.Entry>();
-        private CpuWaterSurfaceChunkCache.Entry[] _waterDrawEntries =
-            Array.Empty<CpuWaterSurfaceChunkCache.Entry>();
+        private VoxelSurfaceScheduler _scheduler;
+        // Draw staging is bounded by the fixed arena args capacities. Allocate once with the
+        // render pass; camera motion may change counts but can never resize managed arrays.
+        private readonly CpuTransvoxelChunkCache.Entry[] _transvoxelDrawEntries =
+            new CpuTransvoxelChunkCache.Entry[VoxelSurfaceScheduler.SurfaceArenaDrawCapacity];
+        private readonly CpuWaterSurfaceChunkCache.Entry[] _waterDrawEntries =
+            new CpuWaterSurfaceChunkCache.Entry[CpuWaterSurfaceChunkCache.ArenaDrawCapacity];
 
         private Material _surfaceMaterial;
         private Material _waterMaterial;
@@ -73,7 +77,12 @@ namespace VoxelEngine.Rendering.Runtime
         public float RenderScale { get; set; } = 1f;
         public float VoxelSize { get; set; } = 0.1f;
         public bool Enabled { get; set; } = true;
-        public VoxelSurfaceMetrics Metrics => _scheduler.Metrics;
+        public VoxelSurfaceMetrics Metrics => _scheduler != null ? _scheduler.Metrics : default;
+
+        public VoxelRenderPass()
+        {
+            VoxelRenderBridge.RegisterWorldReleaseHandler(ReleaseWorldResources);
+        }
 
         public void Setup(Shader surfaceShader = null,
                           Shader waterShader = null,
@@ -147,6 +156,8 @@ namespace VoxelEngine.Rendering.Runtime
             public float FlashlightInnerCos;
             public float FlashlightOuterCos;
             public CpuTransvoxelChunkCache.Entry[] TransvoxelEntries;
+            public ComputeBuffer SurfaceVertices;
+            public ComputeBuffer SurfaceIndices;
             public int TransvoxelEntryCount;
             public CpuWaterSurfaceChunkCache.Entry[] WaterEntries;
             public int WaterEntryCount;
@@ -154,6 +165,9 @@ namespace VoxelEngine.Rendering.Runtime
 
         public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
         {
+            // Register on actual execution, not feature construction. Projects can contain several
+            // renderer-data assets; the fidelity gate must inspect the pass URP really invoked.
+            VoxelRenderBridge.RegisterActivePass(this);
             VoxelRenderBridge.SurfacePassRecordCount++;
             if (!Enabled)
             {
@@ -185,12 +199,27 @@ namespace VoxelEngine.Rendering.Runtime
                 VoxelRenderBridge.LastSurfacePassState = "waiting-for-atomic-world";
                 return;
             }
-            VoxelRenderBridge.LastSurfacePassState = $"preparing-{camera.cameraType}";
+
+            // World teardown deliberately leaves the large native/GPU scheduler fully released.
+            // Recreate it only once a valid world is actually ready to render, so Metal never has
+            // to retire one arena while teardown eagerly allocates the next world's replacement.
+            _scheduler ??= new VoxelSurfaceScheduler();
+
+            VoxelRenderBridge.LastSurfacePassState = VoxelRenderBridge.VerboseSurfaceDiagnostics
+                ? $"preparing-{camera.cameraType}" : "preparing";
             IReadOnlyList<CpuTransvoxelChunkCache.Entry> transvoxelVisible =
                 Array.Empty<CpuTransvoxelChunkCache.Entry>();
             IReadOnlyList<CpuWaterSurfaceChunkCache.Entry> waterVisible =
                 Array.Empty<CpuWaterSurfaceChunkCache.Entry>();
             _scheduler.SolidBuildBudgetMs = Math.Max(0.0, VoxelRenderBridge.SolidBuildBudgetMs);
+            _scheduler.SolidUploadBudgetBytes = Math.Max(0, VoxelRenderBridge.SolidUploadBudgetBytes);
+            _scheduler.SolidUploadSliceBytes = Math.Max(0, VoxelRenderBridge.SolidUploadSliceBytes);
+            _scheduler.SolidUploadWorkerBudget = Math.Max(0, VoxelRenderBridge.SolidUploadWorkerBudget);
+            _scheduler.SolidUploadBudgetMs = Math.Max(0.0, VoxelRenderBridge.SolidUploadBudgetMs);
+            _scheduler.ConvergenceBudgetScale = Math.Max(
+                1.0, VoxelRenderBridge.SurfaceConvergenceBudgetScale);
+            _scheduler.SolidArenaMaxActiveLeases = Math.Max(
+                1, VoxelRenderBridge.SolidArenaMaxActiveLeases);
             _scheduler.WaterBuildBudgetMs = Math.Max(0.0, VoxelRenderBridge.WaterBuildBudgetMs);
             _scheduler.Prepare(world.Storage, in world.Palette,
                                in world.SurfaceCatalogueView, in world.CoatingCatalogueView,
@@ -199,29 +228,40 @@ namespace VoxelEngine.Rendering.Runtime
             VoxelRenderBridge.SurfaceMetrics = _scheduler.Metrics;
             transvoxelVisible = _scheduler.VisibleSolids;
             waterVisible = _scheduler.VisibleWater;
-            VoxelRenderBridge.LastSurfacePassState =
-                $"feature-aware resident={VoxelRenderBridge.SurfaceMetrics.SolidResidentChunks}/"
-              + $"{VoxelRenderBridge.SurfaceMetrics.SolidKnownChunks} "
-              + $"dirty={VoxelRenderBridge.SurfaceMetrics.SolidDirtyChunks} "
-              + $"visible={VoxelRenderBridge.SurfaceMetrics.VisibleSolidChunks} "
-              + $"missingVisible={VoxelRenderBridge.SurfaceMetrics.MissingVisibleSolidChunks} "
-              + $"jobs={VoxelRenderBridge.SurfaceMetrics.RunningSolidJobs} "
-              + $"prepare.p95={VoxelRenderBridge.SurfaceMetrics.SchedulerPrepareTiming.P95Ms:0.00}ms "
-              + $"discover.p95={VoxelRenderBridge.SurfaceMetrics.SurfaceDiscoveryTiming.P95Ms:0.00}ms "
-              + $"select.p95={VoxelRenderBridge.SurfaceMetrics.BuildSelectionTiming.P95Ms:0.00}ms "
-              + $"visibility.p95={VoxelRenderBridge.SurfaceMetrics.VisibilityTiming.P95Ms:0.00}ms "
-              + $"queue.p95={VoxelRenderBridge.SurfaceMetrics.QueueLatencyTiming.P95Ms:0.0}ms "
-              + $"build.p95={VoxelRenderBridge.SurfaceMetrics.BuildLatencyTiming.P95Ms:0.0}ms "
-              + $"snapshot.p95={VoxelRenderBridge.SurfaceMetrics.SnapshotTiming.P95Ms:0.00}ms "
-              + $"compact.p95={VoxelRenderBridge.SurfaceMetrics.TopologyCompactTiming.P95Ms:0.00}ms "
-              + $"merge.p95={VoxelRenderBridge.SurfaceMetrics.FacetedMergeTiming.P95Ms:0.00}ms "
-              + $"upload.p95={VoxelRenderBridge.SurfaceMetrics.UploadTiming.P95Ms:0.00}ms";
+            if (VoxelRenderBridge.VerboseSurfaceDiagnostics)
+            {
+                VoxelRenderBridge.LastSurfacePassState =
+                    $"feature-aware resident={VoxelRenderBridge.SurfaceMetrics.SolidResidentChunks}/"
+                  + $"{VoxelRenderBridge.SurfaceMetrics.SolidKnownChunks} "
+                  + $"dirty={VoxelRenderBridge.SurfaceMetrics.SolidDirtyChunks} "
+                  + $"visible={VoxelRenderBridge.SurfaceMetrics.VisibleSolidChunks} "
+                  + $"missingVisible={VoxelRenderBridge.SurfaceMetrics.MissingVisibleSolidChunks} "
+                  + $"jobs={VoxelRenderBridge.SurfaceMetrics.RunningSolidJobs} "
+                  + $"prepare.p95={VoxelRenderBridge.SurfaceMetrics.SchedulerPrepareTiming.P95Ms:0.00}ms "
+                  + $"discover.p95={VoxelRenderBridge.SurfaceMetrics.SurfaceDiscoveryTiming.P95Ms:0.00}ms "
+                  + $"select.p95={VoxelRenderBridge.SurfaceMetrics.BuildSelectionTiming.P95Ms:0.00}ms "
+                  + $"visibility.p95={VoxelRenderBridge.SurfaceMetrics.VisibilityTiming.P95Ms:0.00}ms "
+                  + $"queue.p95={VoxelRenderBridge.SurfaceMetrics.QueueLatencyTiming.P95Ms:0.0}ms "
+                  + $"build.p95={VoxelRenderBridge.SurfaceMetrics.BuildLatencyTiming.P95Ms:0.0}ms "
+                  + $"snapshot.p95={VoxelRenderBridge.SurfaceMetrics.SnapshotTiming.P95Ms:0.00}ms "
+                  + $"compact.p95={VoxelRenderBridge.SurfaceMetrics.TopologyCompactTiming.P95Ms:0.00}ms "
+                  + $"merge.p95={VoxelRenderBridge.SurfaceMetrics.FacetedMergeTiming.P95Ms:0.00}ms "
+                  + $"upload.p95={VoxelRenderBridge.SurfaceMetrics.UploadTiming.P95Ms:0.00}ms";
+            }
+            else
+            {
+                VoxelRenderBridge.LastSurfacePassState = "feature-aware";
+            }
 
-            EnsureCapacity(ref _transvoxelDrawEntries, transvoxelVisible.Count);
+            if (transvoxelVisible.Count > _transvoxelDrawEntries.Length)
+                throw new InvalidOperationException(
+                    "Visible solid draw count exceeded the fixed arena draw capacity.");
             for (int i = 0; i < transvoxelVisible.Count; i++)
                 _transvoxelDrawEntries[i] = transvoxelVisible[i];
 
-            EnsureCapacity(ref _waterDrawEntries, waterVisible.Count);
+            if (waterVisible.Count > _waterDrawEntries.Length)
+                throw new InvalidOperationException(
+                    "Visible water draw count exceeded the fixed arena draw capacity.");
             for (int i = 0; i < waterVisible.Count; i++)
                 _waterDrawEntries[i] = waterVisible[i];
 
@@ -263,6 +303,8 @@ namespace VoxelEngine.Rendering.Runtime
             data.BaseColor = VoxelRenderBridge.SurfaceDebugTint;
             data.VoxelSize = VoxelSize;
             data.TransvoxelEntries = _transvoxelDrawEntries;
+            data.SurfaceVertices = _scheduler.SolidGeometryVertices;
+            data.SurfaceIndices = _scheduler.SolidGeometryIndices;
             data.TransvoxelEntryCount = transvoxelVisible.Count;
             data.WaterEntries = _waterDrawEntries;
             data.WaterEntryCount = waterVisible.Count;
@@ -275,68 +317,81 @@ namespace VoxelEngine.Rendering.Runtime
             {
                 var cmd = CommandBufferHelpers.GetNativeCommandBuffer(ctx.cmd);
 
-                passData.Properties.SetVectorArray(s_MaterialAlbedo,
+                // Per-draw MaterialPropertyBlocks are copied into the command buffer for every
+                // draw. Everything below is identical for the whole pass — ten vector arrays, two
+                // texture arrays and the lighting/cutaway constants — so binding it per chunk meant
+                // re-uploading the entire block ~1,400 times a frame once the arena grew large
+                // enough to actually cover the view. Bind it once as global state; only the two
+                // per-chunk buffer offsets stay in a block, and that block is kept tiny.
+                cmd.SetGlobalVectorArray(s_MaterialAlbedo,
                     VoxelPresentationCatalogue.MaterialAlbedo);
-                passData.Properties.SetVectorArray(s_MaterialSampling,
+                cmd.SetGlobalVectorArray(s_MaterialSampling,
                     VoxelPresentationCatalogue.MaterialSampling);
-                passData.Properties.SetVectorArray(s_MaterialSurface,
+                cmd.SetGlobalVectorArray(s_MaterialSurface,
                     VoxelPresentationCatalogue.MaterialSurface);
-                passData.Properties.SetVectorArray(s_MaterialVariation,
+                cmd.SetGlobalVectorArray(s_MaterialVariation,
                     VoxelPresentationCatalogue.MaterialVariation);
-                passData.Properties.SetVectorArray(s_CoatingTint,
+                cmd.SetGlobalVectorArray(s_CoatingTint,
                     VoxelPresentationCatalogue.CoatingTint);
-                passData.Properties.SetVectorArray(s_CoatingSampling,
+                cmd.SetGlobalVectorArray(s_CoatingSampling,
                     VoxelPresentationCatalogue.CoatingSampling);
-                passData.Properties.SetVectorArray(s_CoatingResponse,
+                cmd.SetGlobalVectorArray(s_CoatingResponse,
                     VoxelPresentationCatalogue.CoatingResponse);
-                passData.Properties.SetVectorArray(s_SurfacePattern,
+                cmd.SetGlobalVectorArray(s_SurfacePattern,
                     VoxelPresentationCatalogue.SurfacePattern);
-                passData.Properties.SetVectorArray(s_SurfaceJointColour,
+                cmd.SetGlobalVectorArray(s_SurfaceJointColour,
                     VoxelPresentationCatalogue.SurfaceJointColour);
-                passData.Properties.SetVectorArray(s_SurfaceDetailResponse,
+                cmd.SetGlobalVectorArray(s_SurfaceDetailResponse,
                     VoxelPresentationCatalogue.SurfaceDetailResponse);
-                passData.Properties.SetTexture(s_AlbedoTextures, passData.AlbedoTextures);
-                passData.Properties.SetTexture(s_NormalTextures, passData.NormalTextures);
-                passData.Properties.SetColor(s_BaseColor, passData.BaseColor);
-                passData.Properties.SetVector(s_SunDirection, passData.SunDirection);
-                passData.Properties.SetVector(s_SkyHorizon, passData.SkyHorizon);
-                passData.Properties.SetVector(s_SkyZenith, passData.SkyZenith);
-                passData.Properties.SetFloat(s_VoxelSize, passData.VoxelSize);
-                passData.Properties.SetFloat(s_DebugCoverage,
+                cmd.SetGlobalTexture(s_AlbedoTextures, passData.AlbedoTextures);
+                cmd.SetGlobalTexture(s_NormalTextures, passData.NormalTextures);
+                cmd.SetGlobalColor(s_BaseColor, passData.BaseColor);
+                cmd.SetGlobalVector(s_SunDirection, passData.SunDirection);
+                cmd.SetGlobalVector(s_SkyHorizon, passData.SkyHorizon);
+                cmd.SetGlobalVector(s_SkyZenith, passData.SkyZenith);
+                cmd.SetGlobalFloat(s_VoxelSize, passData.VoxelSize);
+                cmd.SetGlobalFloat(s_DebugCoverage,
                     passData.BaseColor == Color.white ? 0f : 1f);
-                passData.Properties.SetInt(s_CutawayEnabled, passData.CutawayEnabled ? 1 : 0);
-                passData.Properties.SetVector(s_CutawayMinVoxel, passData.CutawayMinVoxel);
-                passData.Properties.SetVector(s_CutawayMaxVoxel, passData.CutawayMaxVoxel);
-                passData.Properties.SetInt(s_LocalLightCount, passData.LocalLightCount);
+                cmd.SetGlobalInteger(s_CutawayEnabled, passData.CutawayEnabled ? 1 : 0);
+                cmd.SetGlobalVector(s_CutawayMinVoxel, passData.CutawayMinVoxel);
+                cmd.SetGlobalVector(s_CutawayMaxVoxel, passData.CutawayMaxVoxel);
+                cmd.SetGlobalInteger(s_LocalLightCount, passData.LocalLightCount);
                 if (passData.LocalLightCount > 0)
                 {
-                    passData.Properties.SetVectorArray(s_LocalLights, passData.LocalLights);
-                    passData.Properties.SetVectorArray(s_LocalLightColours,
+                    cmd.SetGlobalVectorArray(s_LocalLights, passData.LocalLights);
+                    cmd.SetGlobalVectorArray(s_LocalLightColours,
                                                        passData.LocalLightColours);
                 }
-                passData.Properties.SetInt(s_FlashlightEnabled,
+                cmd.SetGlobalInteger(s_FlashlightEnabled,
                     passData.FlashlightEnabled ? 1 : 0);
-                passData.Properties.SetVector(s_FlashlightPosition, passData.FlashlightPosition);
-                passData.Properties.SetVector(s_FlashlightDirection, passData.FlashlightDirection);
-                passData.Properties.SetVector(s_FlashlightColour, passData.FlashlightColour);
-                passData.Properties.SetFloat(s_FlashlightRange, passData.FlashlightRange);
-                passData.Properties.SetFloat(s_FlashlightInnerCos, passData.FlashlightInnerCos);
-                passData.Properties.SetFloat(s_FlashlightOuterCos, passData.FlashlightOuterCos);
+                cmd.SetGlobalVector(s_FlashlightPosition, passData.FlashlightPosition);
+                cmd.SetGlobalVector(s_FlashlightDirection, passData.FlashlightDirection);
+                cmd.SetGlobalVector(s_FlashlightColour, passData.FlashlightColour);
+                cmd.SetGlobalFloat(s_FlashlightRange, passData.FlashlightRange);
+                cmd.SetGlobalFloat(s_FlashlightInnerCos, passData.FlashlightInnerCos);
+                cmd.SetGlobalFloat(s_FlashlightOuterCos, passData.FlashlightOuterCos);
+
+                // Same arena for every solid chunk, so bind it once rather than in each draw.
+                if (passData.SurfaceVertices != null)
+                    cmd.SetGlobalBuffer(s_SurfaceVertices, passData.SurfaceVertices);
+                if (passData.SurfaceIndices != null)
+                    cmd.SetGlobalBuffer(s_SurfaceIndices, passData.SurfaceIndices);
 
                 ctx.cmd.SetRenderTarget(passData.CameraColor, passData.CameraDepth);
 
+                passData.Properties.Clear();
                 for (int i = 0; i < passData.TransvoxelEntryCount; i++)
                     passData.TransvoxelEntries[i].Draw(cmd, passData.Material,
                                                        passData.Properties);
 
                 if (passData.WaterMaterial != null && passData.WaterEntryCount > 0)
                 {
+                    cmd.SetGlobalVector(s_CameraPosition, passData.CameraPosition);
+                    cmd.SetGlobalVector(s_SunDirection, passData.SunDirection);
+                    cmd.SetGlobalVector(s_SkyHorizon, passData.SkyHorizon);
+                    cmd.SetGlobalVector(s_SkyZenith, passData.SkyZenith);
+                    cmd.SetGlobalFloat(s_WaterTime, passData.WaterTime);
                     passData.WaterProperties.Clear();
-                    passData.WaterProperties.SetVector(s_CameraPosition, passData.CameraPosition);
-                    passData.WaterProperties.SetVector(s_SunDirection, passData.SunDirection);
-                    passData.WaterProperties.SetVector(s_SkyHorizon, passData.SkyHorizon);
-                    passData.WaterProperties.SetVector(s_SkyZenith, passData.SkyZenith);
-                    passData.WaterProperties.SetFloat(s_WaterTime, passData.WaterTime);
                     for (int i = 0; i < passData.WaterEntryCount; i++)
                         passData.WaterEntries[i].Draw(cmd, passData.WaterMaterial,
                                                       passData.WaterProperties);
@@ -344,9 +399,28 @@ namespace VoxelEngine.Rendering.Runtime
             });
         }
 
+        private void ReleaseWorldResources()
+        {
+            if (_scheduler == null) return;
+
+            // Dispose is deliberately synchronous here: world teardown is a lifecycle boundary,
+            // not the frame path. Completing ready/running jobs and releasing every Storage pin
+            // before the application disposes its Storage backing is the ownership contract.
+            // Leave the scheduler null after disposal. Reallocating its persistent native buffers
+            // and shared ComputeBuffers here overlaps the old Metal resources' deferred retirement
+            // with the next arena and turns repeated scene loads into process-wide memory growth.
+            _scheduler.Dispose();
+            _scheduler = null;
+            Array.Clear(_transvoxelDrawEntries, 0, _transvoxelDrawEntries.Length);
+            Array.Clear(_waterDrawEntries, 0, _waterDrawEntries.Length);
+        }
+
         public void Dispose()
         {
-            _scheduler.Dispose();
+            VoxelRenderBridge.UnregisterActivePass(this);
+            VoxelRenderBridge.UnregisterWorldReleaseHandler(ReleaseWorldResources);
+            _scheduler?.Dispose();
+            _scheduler = null;
             CoreUtils.Destroy(_surfaceMaterial);
             CoreUtils.Destroy(_waterMaterial);
             CoreUtils.Destroy(_albedoTextures);
@@ -357,10 +431,5 @@ namespace VoxelEngine.Rendering.Runtime
             _normalTextures = null;
         }
 
-        private static void EnsureCapacity<T>(ref T[] array, int required)
-        {
-            if (array.Length >= required) return;
-            Array.Resize(ref array, math.max(16, math.ceilpow2(required)));
-        }
     }
 }

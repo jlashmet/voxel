@@ -290,7 +290,7 @@ namespace VoxelEngine.CI
             for (int rx = minRegionX; rx <= maxRegionX; rx++)
             {
                 int3 regionCoord = new int3(rx, 0, rz);
-                TerrainGenerator.Generate(generation, regionCoord, Seed);
+                TerrainGenerator.Generate(generation, regionCoord, Seed, CaptureTerrainMaterials.Default);
             }
         }
 

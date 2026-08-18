@@ -69,24 +69,42 @@ namespace MountingForce.WorldGen.Architecture
 
     /// <summary>
     /// Public handoff from high-level settlement intent to lower-level architectural detail.
-    /// The settlement chooses a style; style-specific compilers remain private to this assembly.
+    /// The settlement chooses a style; a registry supplies the style-specific compiler.
     /// </summary>
     public static class ArchitectureCompiler
     {
-        public static StructureForm Resolve(StructureIntent intent, ArchitectureTheme theme, uint seed)
-        {
-            if (intent.StyleId == KentridgeDefinition.Id)
-                return KentridgeStructureCompiler.Resolve(intent, theme, seed);
+        public static StructureForm Resolve(
+            StructureIntent intent,
+            ArchitectureTheme theme,
+            uint seed) =>
+            Resolve(intent, theme, seed, BuiltInArchitectureStyles.Registry);
 
-            throw new ArgumentException(
-                "No architecture compiler is registered for style '" + intent.StyleId + "'.",
-                nameof(intent));
+        public static StructureForm Resolve(
+            StructureIntent intent,
+            ArchitectureTheme theme,
+            uint seed,
+            ArchitectureStyleRegistry styles)
+        {
+            if (styles == null) throw new ArgumentNullException(nameof(styles));
+            IArchitectureStyleCompiler compiler = styles.Require(intent.StyleId);
+            StructureForm form = compiler.ResolveStructure(intent, theme, seed);
+            ValidateGenerated(intent, theme, form, styles);
+            return form;
         }
 
         public static void ValidateGenerated(
-            StructureIntent intent, ArchitectureTheme theme, StructureForm form)
+            StructureIntent intent,
+            ArchitectureTheme theme,
+            StructureForm form) =>
+            ValidateGenerated(intent, theme, form, BuiltInArchitectureStyles.Registry);
+
+        public static void ValidateGenerated(
+            StructureIntent intent,
+            ArchitectureTheme theme,
+            StructureForm form,
+            ArchitectureStyleRegistry styles)
         {
-            if (!form.IsGenerated) return;
+            if (styles == null) throw new ArgumentNullException(nameof(styles));
 
             if (form.RoleId != intent.RoleId
                 || form.Archetype != intent.Archetype
@@ -94,32 +112,37 @@ namespace MountingForce.WorldGen.Architecture
                 throw new InvalidOperationException(
                     "Architecture compiler changed high-level structure identity.");
 
-            if (form.Storeys < 1)
-                throw new InvalidOperationException(
-                    "Generated architecture must contain at least one storey.");
-            if (form.WidthDm <= 0 || form.DepthDm <= 0 || form.RoofHeightDm <= 0)
-                throw new InvalidOperationException(
-                    "Generated architecture contains non-positive dimensions.");
+            if (form.IsGenerated)
+            {
+                if (form.Storeys < 1)
+                    throw new InvalidOperationException(
+                        "Generated architecture must contain at least one storey.");
+                if (form.WidthDm <= 0 || form.DepthDm <= 0 || form.RoofHeightDm <= 0)
+                    throw new InvalidOperationException(
+                        "Generated architecture contains non-positive dimensions.");
 
-            int lateralExtent = form.WidthDm
-                              + 2 * form.UpperOverhangDm
-                              + 2 * theme.RoofOverhangDm;
-            int depthExtent = form.DepthDm
-                            + form.UpperOverhangDm
-                            + 2 * theme.RoofOverhangDm;
-            if (lateralExtent > intent.EnvelopeDm.X - 12
-                || depthExtent > intent.EnvelopeDm.Z - 12)
-                throw new InvalidOperationException(
-                    "Generated architecture escaped its high-level structure envelope.");
+                int lateralExtent = form.WidthDm
+                                  + 2 * form.UpperOverhangDm
+                                  + 2 * theme.RoofOverhangDm;
+                int depthExtent = form.DepthDm
+                                + form.UpperOverhangDm
+                                + 2 * theme.RoofOverhangDm;
+                if (lateralExtent > intent.EnvelopeDm.X - 12
+                    || depthExtent > intent.EnvelopeDm.Z - 12)
+                    throw new InvalidOperationException(
+                        "Generated architecture escaped its high-level structure envelope.");
 
-            if (form.Footprint == FootprintForm.RearWing && form.WingDepthDm <= 0)
-                throw new InvalidOperationException("Rear-wing form is missing its wing.");
-            if (form.Footprint == FootprintForm.SideWing && form.WingWidthDm <= 0)
-                throw new InvalidOperationException("Side-wing form is missing its wing.");
+                if (form.Footprint == FootprintForm.RearWing && form.WingDepthDm <= 0)
+                    throw new InvalidOperationException("Rear-wing form is missing its wing.");
+                if (form.Footprint == FootprintForm.SideWing && form.WingWidthDm <= 0)
+                    throw new InvalidOperationException("Side-wing form is missing its wing.");
+            }
+
+            styles.Require(intent.StyleId).ValidateStructure(intent, theme, form);
         }
     }
 
-    /// <summary>Kentridge style implementation hidden behind ArchitectureCompiler.</summary>
+    /// <summary>Kentridge style implementation hidden behind the registered style compiler.</summary>
     internal static class KentridgeStructureCompiler
     {
         public static StructureForm Resolve(
@@ -129,37 +152,37 @@ namespace MountingForce.WorldGen.Architecture
             switch (role)
             {
                 case KentridgeRole.Inn:
-                    return Generated(intent, theme, FootprintForm.RearWing,
+                    return Generated(intent, FootprintForm.RearWing,
                         RoofForm.TwinGable, FrontageRhythm.ThreeBay,
                         WindowTreatment.Warm, 132, 104, 3, 0, 4, 30,
                         40, 36, true, true);
                 case KentridgeRole.Pub:
-                    return Generated(intent, theme, FootprintForm.SideWing,
+                    return Generated(intent, FootprintForm.SideWing,
                         RoofForm.GableWithLeanTo, FrontageRhythm.Asymmetric,
                         WindowTreatment.Warm, 112, 92, 2, -12, 2, 24,
                         28, 42, false, false);
                 case KentridgeRole.WeaponShop:
-                    return Generated(intent, theme, FootprintForm.RearWing,
+                    return Generated(intent, FootprintForm.RearWing,
                         RoofForm.GableWithLeanTo, FrontageRhythm.ThreeBay,
                         WindowTreatment.Glass, 94, 70, 2, -10, 0, 20,
                         30, 26, false, true);
                 case KentridgeRole.ArmorShop:
-                    return Generated(intent, theme, FootprintForm.SideWing,
+                    return Generated(intent, FootprintForm.SideWing,
                         RoofForm.TwinGable, FrontageRhythm.TwoBay,
                         WindowTreatment.Glass, 84, 72, 2, 10, 2, 24,
                         22, 32, true, false);
                 case KentridgeRole.MagicShop:
-                    return Generated(intent, theme, FootprintForm.SteppedUpper,
+                    return Generated(intent, FootprintForm.SteppedUpper,
                         RoofForm.SteepGable, FrontageRhythm.Asymmetric,
                         WindowTreatment.Warm, 72, 68, 3, -8, 5, 32,
                         0, 0, false, true);
                 case KentridgeRole.MayorHouse:
-                    return Generated(intent, theme, FootprintForm.RearWing,
+                    return Generated(intent, FootprintForm.RearWing,
                         RoofForm.TwinGable, FrontageRhythm.ThreeBay,
                         WindowTreatment.Warm, 90, 78, 3, 0, 4, 30,
                         28, 28, true, false);
                 case KentridgeRole.AbandonedHouse:
-                    return Generated(intent, theme, FootprintForm.SideWing,
+                    return Generated(intent, FootprintForm.SideWing,
                         RoofForm.GableWithLeanTo, FrontageRhythm.Asymmetric,
                         WindowTreatment.Open, 66, 66, 2, -10, 0, 20,
                         18, 28, false, false);
@@ -203,7 +226,7 @@ namespace MountingForce.WorldGen.Architecture
                 : 21 + (int)((h >> 23) % 6u);
             int doorOffset = ((int)((h >> 26) % 3u) - 1) * 8;
 
-            return Generated(intent, theme, footprint, roof, rhythm, WindowTreatment.Glass,
+            return Generated(intent, footprint, roof, rhythm, WindowTreatment.Glass,
                 width, depth, storeys, doorOffset, overhang, roofHeight,
                 wingWidth, wingDepth, ((h >> 28) & 1u) != 0, ((h >> 29) & 1u) != 0);
         }
@@ -217,18 +240,16 @@ namespace MountingForce.WorldGen.Architecture
         }
 
         private static StructureForm Generated(
-            StructureIntent intent, ArchitectureTheme theme,
+            StructureIntent intent,
             FootprintForm footprint, RoofForm roof,
             FrontageRhythm rhythm, WindowTreatment windows,
             int width, int depth, int storeys, int doorOffset, int overhang,
             int roofHeight, int wingWidth, int wingDepth, bool wingRight, bool chimneyRight)
         {
-            var form = new StructureForm(
+            return new StructureForm(
                 intent.RoleId, intent.Archetype, intent.District, StructureGenerationMode.Generated,
                 footprint, roof, rhythm, windows, width, depth, storeys, doorOffset,
                 overhang, roofHeight, wingWidth, wingDepth, wingRight, chimneyRight);
-            ArchitectureCompiler.ValidateGenerated(intent, theme, form);
-            return form;
         }
 
         private static StructureForm Bespoke(StructureIntent intent)

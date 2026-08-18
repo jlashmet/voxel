@@ -1,0 +1,22 @@
+{
+    "name": "Game.Structures.Runtime",
+    "rootNamespace": "Game.Structures.Runtime",
+    "references": [
+        "Game.Structures.Api",
+        "Game.Materials.Api",
+        "VoxelEngine.Structures.Api",
+        "VoxelEngine.Structures.Runtime",
+        "VoxelEngine.Terrain.Api",
+        "Unity.Mathematics",
+        "Unity.Collections"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

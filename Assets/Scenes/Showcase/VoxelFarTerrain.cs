@@ -5,8 +5,8 @@ using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
 using VoxelEngine.Composition;
+using VoxelEngine.Composition.Api;
 using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
-using VoxelEngine.Structures.Api;
 
 namespace VoxelEngine.Showcase
 {
@@ -56,31 +56,116 @@ namespace VoxelEngine.Showcase
         /// </summary>
         public FarFieldStructureStore Structures { get; set; }
 
+        /// <summary>
+        /// Opaque application-owned material roles shared with the near-field showcase world.
+        /// The far renderer decides only whether a sample is terrain or built structure.
+        /// </summary>
+        public ShowcaseMaterialSet MaterialRoles { get; set; }
+
         private readonly List<Mesh> _ringMeshes = new();
         private readonly List<int> _ringSpacing = new();
         private readonly List<int2> _ringOrigin = new();
+        private readonly List<NativeArray<int>> _ringHeights = new();
+        private readonly List<bool> _ringHeightValid = new();
+        private readonly List<int> _ringBuiltStructureVersion = new();
+        private readonly List<float> _ringBuiltTopologyHoleMetres = new();
+        private readonly List<int> _indicesScratch = new();
+        private Vector3[] _positionsScratch;
+        private Color[] _coloursScratch;
         private MeshRenderer _renderer;
         private Camera _camera;
-        private int _structureVersion = -1;
+        private bool _ownsMaterial;
+
+        // Height sampling is deliberately single-flight. The old implementation scheduled a Burst
+        // job and immediately Complete()d it in LateUpdate, then could repeat that for every ring
+        // in the same frame. One worker job at a time is enough for a visual far field, and the
+        // previous mesh remains valid while a snapped replacement is being sampled.
+        private JobHandle _heightJobHandle;
+        private bool _heightJobScheduled;
+        private int _heightJobRing = -1;
+        private int2 _heightJobOrigin;
+        private int _ringWorkCursor;
+        private ulong _topologyRebuildCount;
+
+        // A newly-created clipmap has no completed height cache to draw. Keep one zero-sampling
+        // emergency mesh in the outer-ring slot until that ring receives its first authoritative
+        // async sample. It is deliberately not marked height-valid: normal single-flight admission
+        // still visits every ring in order, while DrawMesh can provide continuous fallback coverage
+        // from the first rendered frame. The real outer ring replaces this mesh on publication.
+        private bool _startupFallbackInitialized;
+        private int _startupFallbackRing = -1;
+
+        // Showcase-created far terrain uses the renderer's publication state as part of the
+        // near/far ownership contract. Isolated clipmap instances (tests/lookdev) keep direct
+        // control of HoleRadiusMetres so topology can still be exercised without a live renderer.
+        private bool _requirePublishedNearCoverage;
 
         public float InnerRadiusMetres => m_InnerRadiusMetres;
         public float OuterRadiusMetres => m_OuterRadiusMetres;
         public uint Seed { get => m_Seed; set => m_Seed = value; }
 
         /// <summary>
-        /// Radius of ring 0's hole, in metres — the disc the voxel world is currently covering.
+        /// Diagnostic count of clipmap index-buffer rebuilds. Camera movement and structure-only
+        /// presentation refreshes must not advance this once a ring topology has been established.
+        /// Correctness-driven ring-0 fallback closure is intentionally counted because it really
+        /// does replace the index topology and therefore remains visible to performance tests.
+        /// </summary>
+        public ulong TopologyRebuildCount => _topologyRebuildCount;
+
+        /// <summary>
+        /// True once every ring carries heights sampled from the terrain height field, so the far
+        /// mesh is the height field at a coarser rate rather than a placeholder.
         ///
-        /// Driven every frame from <c>ShowcaseWorld.ResidentGroundRadiusMetres</c> rather than
-        /// from <see cref="InnerRadiusMetres"/>, which is only the configured ceiling. A hole
-        /// sized from configuration is blind to streaming: it opens at full width on the first
-        /// frame, before any region exists to fill it, and the player watches terrain appear
-        /// inside it. Starting closed and opening as regions land means something is always
-        /// drawn.
+        /// Until the first asynchronous height job for the outermost ring lands, that ring is the
+        /// flat base-height square published by <see cref="BuildStartupFallback"/>. That square is
+        /// deliberate — it keeps the horizon covered without sampling terrain on the player frame —
+        /// but its vertices do not follow the height field, so anything comparing far vertices with
+        /// <see cref="TerrainSampler.HeightAt"/> has to wait for this rather than for a frame count.
+        /// </summary>
+        public bool HasSampledHeightsForEveryRing
+        {
+            get
+            {
+                if (_ringMeshes.Count == 0 || _startupFallbackRing >= 0) return false;
+                for (int ring = 0; ring < _ringHeightValid.Count; ring++)
+                    if (!_ringHeightValid[ring]) return false;
+                return true;
+            }
+        }
+
+        /// <summary>
+        /// Radius of ring 0's actual published hole, in metres.
+        ///
+        /// Generated Storage residency is only an upper bound. Showcase-created far terrain keeps
+        /// the hole closed while the asynchronous near renderer is dirty, building, awaiting
+        /// publication, or still reports visible holes. Once near coverage is complete, the hole
+        /// remains one maximum ring-0 snap diagonal smaller than that coverage. The near renderer
+        /// follows the player continuously while the far lattice is floor-snapped, so using the
+        /// full near radius would let the snapped hole protrude outside near coverage near a cell
+        /// corner even though both renderers were individually healthy.
         /// </summary>
         public float HoleRadiusMetres
         {
             get => _holeRadiusMetres;
-            set => _holeRadiusMetres = Mathf.Clamp(value, 0f, m_InnerRadiusMetres);
+            set
+            {
+                float requested = Mathf.Clamp(value, 0f, m_InnerRadiusMetres);
+                if (_requirePublishedNearCoverage)
+                {
+                    if (!RenderingComposition.HasCompletePublishedNearSurfaceCoverage())
+                    {
+                        _holeRadiusMetres = 0f;
+                        return;
+                    }
+
+                    float snapCellMetres = SpacingForRing(0) * 0.1f;
+                    float snapDiagonalGuard = snapCellMetres * Mathf.Sqrt(2f);
+                    _holeRadiusMetres = Mathf.Max(0f, requested - snapDiagonalGuard);
+                    return;
+                }
+
+                _holeRadiusMetres = requested;
+            }
         }
 
         private float _holeRadiusMetres;
@@ -104,6 +189,9 @@ namespace VoxelEngine.Showcase
             // The mesh is drawn with Graphics.DrawMesh, not through this renderer; the
             // component is required only so the object carries sane bounds in the editor.
             if (_renderer != null) _renderer.enabled = false;
+            // The global ShowcaseMaterialComposition binding was removed: material
+            // identity is application-owned and supplied explicitly now.
+            MaterialRoles = Game.Composition.Materials.GameMaterialComposition.ShowcaseMaterials;
             EnsureMaterial();
         }
 
@@ -127,6 +215,7 @@ namespace VoxelEngine.Showcase
             }
             if (shader == null) return;
             m_Material = new Material(shader) { name = "FarTerrainDefault" };
+            _ownsMaterial = true;
             if (m_Material.HasProperty("_Smoothness"))
                 m_Material.SetFloat("_Smoothness", 0.05f);
         }
@@ -144,14 +233,36 @@ namespace VoxelEngine.Showcase
             far.m_Seed = seed;
             far.m_InnerRadiusMetres = innerRadiusMetres;
             far.m_OuterRadiusMetres = outerRadiusMetres;
+            far._requirePublishedNearCoverage = true;
             return far;
         }
 
         private void OnDestroy()
         {
+            // Teardown is a lifecycle boundary, so it is the one place where joining an in-flight
+            // far-terrain job is correct: its Persistent target must not be disposed underneath it.
+            if (_heightJobScheduled)
+            {
+                _heightJobHandle.Complete();
+                _heightJobScheduled = false;
+            }
+
+            for (int i = 0; i < _ringHeights.Count; i++)
+                if (_ringHeights[i].IsCreated) _ringHeights[i].Dispose();
+            _ringHeights.Clear();
+
             for (int i = 0; i < _ringMeshes.Count; i++)
                 if (_ringMeshes[i] != null) Destroy(_ringMeshes[i]);
             _ringMeshes.Clear();
+            _ringBuiltTopologyHoleMetres.Clear();
+
+            // A serialized/shared material is owned by its asset or caller. Only release the
+            // runtime fallback allocated by EnsureMaterial; otherwise destroying this component
+            // could invalidate another renderer's shared presentation asset.
+            if (_ownsMaterial && m_Material != null)
+                Destroy(m_Material);
+            if (_ownsMaterial) m_Material = null;
+            _ownsMaterial = false;
         }
 
         /// <summary>
@@ -174,44 +285,174 @@ namespace VoxelEngine.Showcase
 
             EnsureRings();
             Vector3 cameraPosition = _camera.transform.position;
+            int structureVersion = Structures?.Version ?? 0;
+            bool rebuiltThisFrame = false;
 
-            // Structures are captured as their regions generate, long after the rings first
-            // build. Without this the castle would never appear in the far mesh at all.
-            int version = Structures?.Version ?? 0;
-            bool structuresChanged = version != _structureVersion;
-            _structureVersion = version;
+            // Poll only. Never call Complete() for unfinished far-terrain work from the player
+            // frame. Once IsCompleted is true, ownership transfer is non-blocking and we publish
+            // at most one mesh this frame while every other ring keeps drawing its old mesh.
+            if (_heightJobScheduled && _heightJobHandle.IsCompleted)
+            {
+                _heightJobHandle.Complete();
+                int ring = _heightJobRing;
+                _heightJobScheduled = false;
+                _heightJobRing = -1;
+                _ringHeightValid[ring] = true;
+                _ringOrigin[ring] = _heightJobOrigin;
 
-            // The hole tracks streaming, so it changes without the camera moving. Quantised to a
-            // metre so a radius that creeps outward region by region does not rebuild ring 0
-            // every single frame.
-            bool holeChanged = Mathf.Abs(_holeRadiusMetres - _builtHoleRadiusMetres) >= 1f;
-            if (holeChanged) _builtHoleRadiusMetres = _holeRadiusMetres;
+                // The player can cross another snap while this single-flight job is running. If
+                // the completed ring-0 sample is already stale, publish it as full fallback rather
+                // than briefly reopening a hole around the old lattice point before scheduling the
+                // next sample. Height data are still useful; only the stale ownership hole closes.
+                float requestedHole = _holeRadiusMetres;
+                bool staleCriticalPublication = ring == 0
+                    && !OriginFor(cameraPosition, _ringSpacing[0]).Equals(_heightJobOrigin);
+                if (staleCriticalPublication) _holeRadiusMetres = 0f;
+                RebuildRingFromCachedHeights(ring, _ringOrigin[ring], _ringSpacing[ring]);
+                if (staleCriticalPublication) _holeRadiusMetres = requestedHole;
+
+                if (ring == _startupFallbackRing) _startupFallbackRing = -1;
+                _ringBuiltStructureVersion[ring] = structureVersion;
+                if (ring == 0)
+                    _builtHoleRadiusMetres = staleCriticalPublication ? 0f : _holeRadiusMetres;
+                _ringWorkCursor = (ring + 1) % _ringMeshes.Count;
+                rebuiltThisFrame = true;
+            }
+
+            // A published ring can lag the camera while its replacement sample is still queued or
+            // running. Its old vertex heights remain valid fallback terrain, but an open hole at
+            // the old snap centre does not. Close only the index hole immediately; do not touch the
+            // NativeArray height cache that a worker may be writing and do not recalculate vertices
+            // or normals on this correctness path.
+            int criticalSpacing = _ringSpacing[0];
+            int2 criticalOrigin = OriginFor(cameraPosition, criticalSpacing);
+            bool criticalOriginStale = _ringHeightValid[0]
+                && !criticalOrigin.Equals(_ringOrigin[0]);
+            if (criticalOriginStale
+                && _ringBuiltTopologyHoleMetres[0] > 0.05f)
+            {
+                CloseRingZeroHoleTopology();
+                _builtHoleRadiusMetres = 0f;
+                rebuiltThisFrame = true;
+            }
+
+            // Hole changes and new far-field structures do not require resampling the terrain.
+            // Re-use the persistent height cache and refresh only one mesh per frame. Ring 0 gets
+            // first refusal because a stale residency hole is the only update that can expose a
+            // near/far coverage mismatch directly around the player.
+            if (!rebuiltThisFrame && RingNeedsPresentationRefresh(0, cameraPosition, structureVersion))
+            {
+                RebuildRingFromCachedHeights(0, _ringOrigin[0], _ringSpacing[0]);
+                _ringBuiltStructureVersion[0] = structureVersion;
+                _builtHoleRadiusMetres = _holeRadiusMetres;
+                _ringWorkCursor = _ringMeshes.Count > 1 ? 1 : 0;
+                rebuiltThisFrame = true;
+            }
+
+            if (!rebuiltThisFrame)
+            {
+                for (int offset = 0; offset < _ringMeshes.Count; offset++)
+                {
+                    int ring = (_ringWorkCursor + offset) % _ringMeshes.Count;
+                    if (ring == 0 || !RingNeedsPresentationRefresh(
+                            ring, cameraPosition, structureVersion))
+                        continue;
+
+                    RebuildRingFromCachedHeights(
+                        ring, _ringOrigin[ring], _ringSpacing[ring]);
+                    _ringBuiltStructureVersion[ring] = structureVersion;
+                    _ringWorkCursor = (ring + 1) % _ringMeshes.Count;
+                    rebuiltThisFrame = true;
+                    break;
+                }
+            }
+
+            // One single-flight height job updates a moved ring. Ring 0 owns the correctness
+            // boundary around the camera, so a moved/invalid ring 0 always gets first refusal.
+            // Once it is current, the remaining rings retain round-robin admission so ordinary
+            // movement does not abandon outer coverage work.
+            if (!_heightJobScheduled)
+            {
+                bool criticalNeedsSample = !_ringHeightValid[0]
+                    || !criticalOrigin.Equals(_ringOrigin[0]);
+                if (criticalNeedsSample)
+                {
+                    ScheduleHeightJob(0, criticalOrigin, criticalSpacing);
+                    _ringWorkCursor = _ringMeshes.Count > 1 ? 1 : 0;
+                }
+                else
+                {
+                    for (int offset = 0; offset < _ringMeshes.Count; offset++)
+                    {
+                        int ring = (_ringWorkCursor + offset) % _ringMeshes.Count;
+                        if (ring == 0) continue;
+                        int spacing = _ringSpacing[ring];
+                        int2 targetOrigin = OriginFor(cameraPosition, spacing);
+                        if (_ringHeightValid[ring] && targetOrigin.Equals(_ringOrigin[ring]))
+                            continue;
+
+                        ScheduleHeightJob(ring, targetOrigin, spacing);
+                        _ringWorkCursor = (ring + 1) % _ringMeshes.Count;
+                        break;
+                    }
+                }
+            }
 
             for (int ring = 0; ring < _ringMeshes.Count; ring++)
             {
-                int spacing = _ringSpacing[ring];
-                // Snap the ring's origin to its own sample spacing. Without this the lattice
-                // slides continuously under the camera and every distant edge crawls.
-                int centreX = Mathf.FloorToInt(cameraPosition.x / 0.1f);
-                int centreZ = Mathf.FloorToInt(cameraPosition.z / 0.1f);
-                int half = spacing * m_Resolution / 2;
-                // Floor, not truncate. Integer division rounds toward zero, so west or north
-                // of the origin the snap would jump the wrong way and the ring would jitter by
-                // a full sample every time the camera crossed an axis.
-                var origin = new int2(FloorTo(centreX, spacing) - half,
-                                      FloorTo(centreZ, spacing) - half);
-
-                // Only ring 0 owns the residency hole, so only ring 0 rebuilds when it moves.
-                if (!origin.Equals(_ringOrigin[ring]) || structuresChanged
-                    || (holeChanged && ring == 0))
-                {
-                    RebuildRing(ring, origin, spacing);
-                    _ringOrigin[ring] = origin;
-                }
-
+                // The startup fallback deliberately has no valid height cache. It is a published
+                // emergency mesh only, so allow that one slot to draw while ordinary rings still
+                // require an authoritative completed sample.
+                if (!_ringHeightValid[ring] && ring != _startupFallbackRing) continue;
                 Graphics.DrawMesh(_ringMeshes[ring], Matrix4x4.identity, m_Material,
                                   gameObject.layer, _camera);
             }
+        }
+
+        private bool RingNeedsPresentationRefresh(
+            int ring, Vector3 cameraPosition, int structureVersion)
+        {
+            if (ring < 0 || ring >= _ringMeshes.Count || !_ringHeightValid[ring])
+                return false;
+
+            // A scheduled height job owns this ring's persistent cache until Complete() transfers
+            // ownership back to the main thread. Keep drawing the existing mesh, but never rebuild
+            // presentation from a NativeArray while the worker may still be writing it.
+            if (_heightJobScheduled && _heightJobRing == ring)
+                return false;
+
+            int2 targetOrigin = OriginFor(cameraPosition, _ringSpacing[ring]);
+            if (!targetOrigin.Equals(_ringOrigin[ring])) return false;
+            if (_ringBuiltStructureVersion[ring] != structureVersion) return true;
+            return ring == 0 && Mathf.Abs(_holeRadiusMetres - _builtHoleRadiusMetres) >= 1f;
+        }
+
+        private int2 OriginFor(Vector3 cameraPosition, int spacing)
+        {
+            // Snap the ring's origin to its own sample spacing. Floor, not truncate: integer
+            // division rounds toward zero, which otherwise makes west/north axis crossings jump.
+            int centreX = Mathf.FloorToInt(cameraPosition.x / 0.1f);
+            int centreZ = Mathf.FloorToInt(cameraPosition.z / 0.1f);
+            int half = spacing * m_Resolution / 2;
+            return new int2(FloorTo(centreX, spacing) - half,
+                            FloorTo(centreZ, spacing) - half);
+        }
+
+        private void ScheduleHeightJob(int ring, int2 origin, int spacing)
+        {
+            int verts = m_Resolution + 1;
+            NativeArray<int> heights = _ringHeights[ring];
+            _heightJobHandle = new FarTerrainHeightJob
+            {
+                Origin = origin,
+                Spacing = spacing,
+                VertsPerAxis = verts,
+                Seed = m_Seed,
+                Heights = heights,
+            }.Schedule(verts * verts, 64);
+            _heightJobRing = ring;
+            _heightJobOrigin = origin;
+            _heightJobScheduled = true;
         }
 
         /// <summary>Floor division onto a positive lattice step, correct for negatives.</summary>
@@ -225,39 +466,120 @@ namespace VoxelEngine.Showcase
         private void EnsureRings()
         {
             int wanted = RingCount;
+            int verts = m_Resolution + 1;
+            int sampleCount = verts * verts;
+            if (_positionsScratch == null || _positionsScratch.Length != sampleCount)
+            {
+                _positionsScratch = new Vector3[sampleCount];
+                _coloursScratch = new Color[sampleCount];
+                _indicesScratch.Clear();
+                _indicesScratch.Capacity = Math.Max(
+                    _indicesScratch.Capacity, m_Resolution * m_Resolution * 6);
+            }
+
             while (_ringMeshes.Count < wanted)
             {
-                var mesh = new Mesh { name = $"FarTerrainRing{_ringMeshes.Count}" };
+                int ring = _ringMeshes.Count;
+                var mesh = new Mesh { name = $"FarTerrainRing{ring}" };
                 mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
+                mesh.MarkDynamic();
                 // The clipmap is re-centred every time the camera crosses a sample, so Unity
                 // must not cull it against a stale bound.
                 mesh.bounds = new Bounds(Vector3.zero, Vector3.one * (m_OuterRadiusMetres * 4f));
                 _ringMeshes.Add(mesh);
-                _ringSpacing.Add(SpacingForRing(_ringMeshes.Count - 1));
+                _ringSpacing.Add(SpacingForRing(ring));
                 _ringOrigin.Add(new int2(int.MinValue, int.MinValue));
+                _ringHeights.Add(new NativeArray<int>(
+                    sampleCount, Allocator.Persistent, NativeArrayOptions.UninitializedMemory));
+                _ringHeightValid.Add(false);
+                _ringBuiltStructureVersion.Add(int.MinValue);
+                _ringBuiltTopologyHoleMetres.Add(float.NaN);
+            }
+
+            if (!_startupFallbackInitialized && _ringMeshes.Count > 0)
+            {
+                _startupFallbackInitialized = true;
+                _startupFallbackRing = _ringMeshes.Count - 1;
+                BuildStartupFallback(_ringMeshes[_startupFallbackRing]);
             }
         }
 
         /// <summary>
-        /// Rebuilds one ring's mesh. The height sampling runs as a Burst job because a ring is
-        /// tens of thousands of columns and this happens whenever the camera crosses a sample.
+        /// Publishes a zero-sampling full-square fallback before any asynchronous far height cache
+        /// has completed. It intentionally uses the showcase base height rather than touching the
+        /// terrain sampler on the player frame. The normal outer-ring height job later overwrites
+        /// this mesh atomically through <see cref="RebuildRingFromCachedHeights"/>.
         /// </summary>
-        private void RebuildRing(int ring, int2 origin, int spacing)
+        private void BuildStartupFallback(Mesh mesh)
+        {
+            Vector3 cameraPosition = _camera != null ? _camera.transform.position : transform.position;
+            float radius = Mathf.Max(m_OuterRadiusMetres, m_InnerRadiusMetres);
+            float y = ShowcaseWorld.BaseHeightVoxels * 0.1f;
+            float minX = cameraPosition.x - radius;
+            float maxX = cameraPosition.x + radius;
+            float minZ = cameraPosition.z - radius;
+            float maxZ = cameraPosition.z + radius;
+
+            mesh.vertices = new[]
+            {
+                new Vector3(minX, y, minZ),
+                new Vector3(minX, y, maxZ),
+                new Vector3(maxX, y, minZ),
+                new Vector3(maxX, y, maxZ),
+            };
+
+            byte material = MaterialRoles.SurfaceAt(
+                ShowcaseWorld.BaseHeightVoxels, ShowcaseWorld.BaseHeightVoxels);
+            Vector4 albedo = RenderingComposition.GetMaterialAlbedo(material);
+            Color colour = new(albedo.x, albedo.y, albedo.z, 1f);
+            mesh.colors = new[] { colour, colour, colour, colour };
+            mesh.SetTriangles(new[] { 0, 1, 2, 2, 1, 3 }, 0, false);
+            mesh.RecalculateNormals();
+            mesh.bounds = new Bounds(
+                new Vector3(cameraPosition.x, y, cameraPosition.z),
+                new Vector3(radius * 2f, 2f, radius * 2f));
+        }
+
+        /// <summary>
+        /// Replaces ring 0's annulus with the full square using only its already-published vertex
+        /// buffer. This is the fallback transition used while the ring's snapped height sample is
+        /// stale. It deliberately does not read the persistent height cache, so it is safe even
+        /// when the single-flight worker is currently writing ring 0.
+        /// </summary>
+        private void CloseRingZeroHoleTopology()
+        {
+            const int ring = 0;
+            int verts = m_Resolution + 1;
+            _indicesScratch.Clear();
+            for (int z = 0; z < m_Resolution; z++)
+            for (int x = 0; x < m_Resolution; x++)
+            {
+                int i = x + z * verts;
+                _indicesScratch.Add(i);
+                _indicesScratch.Add(i + verts);
+                _indicesScratch.Add(i + 1);
+                _indicesScratch.Add(i + 1);
+                _indicesScratch.Add(i + verts);
+                _indicesScratch.Add(i + verts + 1);
+            }
+
+            _ringMeshes[ring].SetTriangles(_indicesScratch, 0, false);
+            _ringBuiltTopologyHoleMetres[ring] = 0f;
+            _topologyRebuildCount++;
+        }
+
+        /// <summary>
+        /// Rebuilds one ring from its already-completed persistent height cache. This method does
+        /// no job waiting and reuses managed scratch buffers. Ring topology is retained across
+        /// camera moves and structure-only presentation refreshes, avoiding a full index rebuild,
+        /// mesh clear, and index-buffer upload on the ordinary frame path.
+        /// </summary>
+        private void RebuildRingFromCachedHeights(int ring, int2 origin, int spacing)
         {
             int verts = m_Resolution + 1;
-            var heights = new NativeArray<int>(verts * verts, Allocator.TempJob,
-                                               NativeArrayOptions.UninitializedMemory);
-            new FarTerrainHeightJob
-            {
-                Origin = origin,
-                Spacing = spacing,
-                VertsPerAxis = verts,
-                Seed = m_Seed,
-                Heights = heights,
-            }.Schedule(verts * verts, 64).Complete();
-
-            var positions = new Vector3[verts * verts];
-            var colours = new Color[verts * verts];
+            NativeArray<int> heights = _ringHeights[ring];
+            Vector3[] positions = _positionsScratch;
+            Color[] colours = _coloursScratch;
             for (int z = 0; z < verts; z++)
             for (int x = 0; x < verts; x++)
             {
@@ -278,72 +600,82 @@ namespace VoxelEngine.Showcase
 
                 positions[i] = new Vector3(voxelX * 0.1f, height * 0.1f, voxelZ * 0.1f);
 
-                // Material, from the same two tables the near field uses: ShowcaseWorld decides
-                // what the surface voxel is, VoxelPresentationCatalogue decides what colour that
-                // material is. Going through both is the point — a colour invented here would be
-                // a second source of truth and the ground would change hue at the handover.
+                // Material identity comes from the same application-owned role set as the near
+                // world. Rendering only resolves the opaque index to the installed presentation.
                 byte material = isStructure
-                    ? Mat.Stone
-                    : ShowcaseWorld.SurfaceMaterialAt(height);
+                    ? MaterialRoles.FarStructure
+                    : MaterialRoles.SurfaceAt(height, ShowcaseWorld.BaseHeightVoxels);
                 Vector4 albedo = RenderingComposition.GetMaterialAlbedo(material);
                 colours[i] = new Color(albedo.x, albedo.y, albedo.z, 1f);
             }
 
-            // Every ring is a full square centred on the camera, so without a hole each one
-            // redraws all the ground the rings inside it already cover. Six rings then stack
-            // six coincident surfaces over the voxel world and z-fight across the whole view.
-            // A clipmap ring must be an annulus: hollow out everything the next finer ring
-            // owns. Ring 0's hole is the voxel world's own radius.
-            // Ring 0's hole is the voxel world's actual footprint, so it is a Euclidean disc:
-            // residency in ShowcaseWorld.RefreshPending rejects on dx*dx + dz*dz > r*r. Testing
-            // it as a square left the hole reaching inner * sqrt(2) at its diagonals — 41%
-            // further than the voxels ever load — so four wedges of nothing sat on the diagonals
-            // permanently, not just while streaming.
-            //
-            // Rings further out are still square, because those nest against the square extent
-            // of the ring inside them rather than against the voxel world.
+            // Every ring is a full square centred on its independently snapped sample lattice.
+            // Ring 0's hole is the voxel world's actual Euclidean footprint. Outer rings reserve
+            // one parent-cell guard band inside the finer ring's nominal half-extent: without it,
+            // two valid published snap states can meet at only an edge (or leave a narrow strip)
+            // even though both rings individually have correct topology.
             bool circularHole = ring == 0;
-            float holeMetres = circularHole
-                ? _holeRadiusMetres
-                : SpacingForRing(ring - 1) * m_Resolution / 2f * 0.1f;
+            float holeMetres;
+            if (circularHole)
+            {
+                holeMetres = _holeRadiusMetres;
+            }
+            else
+            {
+                float childHalfExtent = SpacingForRing(ring - 1)
+                                      * m_Resolution * 0.5f * 0.1f;
+                float parentCellGuard = spacing * 0.1f;
+                holeMetres = Mathf.Max(0f, childHalfExtent - parentCellGuard);
+            }
 
             Vector3 centre = new((origin.x + spacing * m_Resolution / 2) * 0.1f, 0f,
                                  (origin.y + spacing * m_Resolution / 2) * 0.1f);
 
-            var indices = new List<int>(m_Resolution * m_Resolution * 6);
-            for (int z = 0; z < m_Resolution; z++)
-            for (int x = 0; x < m_Resolution; x++)
+            float builtTopologyHole = _ringBuiltTopologyHoleMetres[ring];
+            bool topologyDirty = float.IsNaN(builtTopologyHole)
+                              || !Mathf.Approximately(builtTopologyHole, holeMetres);
+            if (topologyDirty)
             {
-                int i = x + z * verts;
-                // Test the quad's far corner against the hole so the ring's inner edge closes
-                // over the finer ring's outer edge rather than leaving a gap between them.
-                float dx = Mathf.Max(Mathf.Abs(positions[i].x - centre.x),
-                                     Mathf.Abs(positions[i + verts + 1].x - centre.x));
-                float dz = Mathf.Max(Mathf.Abs(positions[i].z - centre.z),
-                                     Mathf.Abs(positions[i + verts + 1].z - centre.z));
-                bool inHole = circularHole
-                    ? Mathf.Sqrt(dx * dx + dz * dz) < holeMetres
-                    : Mathf.Max(dx, dz) < holeMetres;
-                if (inHole) continue;
+                _indicesScratch.Clear();
+                for (int z = 0; z < m_Resolution; z++)
+                for (int x = 0; x < m_Resolution; x++)
+                {
+                    int i = x + z * verts;
+                    // Test the quad's far corner against the hole so the ring's inner edge closes
+                    // over the finer ring's outer edge rather than leaving a gap between them.
+                    float dx = Mathf.Max(Mathf.Abs(positions[i].x - centre.x),
+                                         Mathf.Abs(positions[i + verts + 1].x - centre.x));
+                    float dz = Mathf.Max(Mathf.Abs(positions[i].z - centre.z),
+                                         Mathf.Abs(positions[i + verts + 1].z - centre.z));
+                    bool inHole = circularHole
+                        ? dx * dx + dz * dz < holeMetres * holeMetres
+                        : Mathf.Max(dx, dz) < holeMetres;
+                    if (inHole) continue;
 
-                indices.Add(i);
-                indices.Add(i + verts);
-                indices.Add(i + 1);
-                indices.Add(i + 1);
-                indices.Add(i + verts);
-                indices.Add(i + verts + 1);
+                    _indicesScratch.Add(i);
+                    _indicesScratch.Add(i + verts);
+                    _indicesScratch.Add(i + 1);
+                    _indicesScratch.Add(i + 1);
+                    _indicesScratch.Add(i + verts);
+                    _indicesScratch.Add(i + verts + 1);
+                }
             }
 
             Mesh mesh = _ringMeshes[ring];
-            mesh.Clear();
+            // Do not Clear(): vertex count is invariant for a ring and clearing also invalidates
+            // the index buffer we deliberately retain between presentation refreshes.
             mesh.vertices = positions;
             mesh.colors = colours;
-            mesh.SetTriangles(indices, 0, false);
+            if (topologyDirty)
+            {
+                mesh.SetTriangles(_indicesScratch, 0, false);
+                _ringBuiltTopologyHoleMetres[ring] = holeMetres;
+                _topologyRebuildCount++;
+            }
             mesh.RecalculateNormals();
             mesh.bounds = new Bounds(centre,
-                new Vector3(spacing * m_Resolution * 0.1f, 20000f, spacing * m_Resolution * 0.1f));
-
-            heights.Dispose();
+                new Vector3(spacing * m_Resolution * 0.1f, 20000f,
+                            spacing * m_Resolution * 0.1f));
         }
     }
 }

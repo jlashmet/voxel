@@ -142,6 +142,16 @@ namespace VoxelEngine.Storage.Runtime
             return true;
         }
 
+        /// <summary>
+        /// Returns the exact number of mixed BrickPool payloads represented by a valid region
+        /// snapshot. Callers that create isolated Storage lifetimes can size their pool from the
+        /// encoded source state instead of guessing from region area or terrain shape.
+        /// </summary>
+        public static bool TryGetMixedBrickCount(
+            ReadOnlySpan<byte> snapshot,
+            out int mixedCount) =>
+            TryValidate(snapshot, VoxelDimensions.BricksPerRegion, out mixedCount);
+
         public static bool TryApply(
             ref RegionTable table,
             ref BrickPool pool,

@@ -23,8 +23,8 @@ namespace VoxelEngine.Structures.Api
         public uint Version;
 
         /// <summary>
-        /// Covers definitions, programs, and rules. Part of world identity alongside the seed:
-        /// compared at join, and a mismatch is refused.
+        /// Covers every generation-affecting pool, including material assignments. Part of world
+        /// identity alongside the seed: compared at join, and a mismatch is refused.
         /// </summary>
         public ulong Hash;
 

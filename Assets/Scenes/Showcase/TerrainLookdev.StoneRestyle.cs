@@ -1,6 +1,7 @@
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Structures.Api;
+using Mat = Game.Materials.Api.GameMaterialIds;   // engine-side Mat constants were removed
 
 namespace VoxelEngine.Showcase
 {

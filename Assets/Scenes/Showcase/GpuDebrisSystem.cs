@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
+using Game.Composition.Materials;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -36,8 +37,9 @@ namespace VoxelEngine.Showcase
             public Vector4 Colour;
         }
 
-        private sealed class ChunkRecord
+        private struct ChunkRecord
         {
+            public bool Active;
             public int VoxelCount;
             public float ExpireAt;
         }
@@ -46,6 +48,7 @@ namespace VoxelEngine.Showcase
         private readonly GpuInstance[] _instances =
             new GpuInstance[MaxChunks * RenderInstancesPerChunk];
         private readonly ChunkRecord[] _records = new ChunkRecord[MaxChunks];
+        private readonly uint[] _drawArguments = new uint[5];
         private readonly ComputeShader _compute;
         private readonly int _integrateKernel;
         private readonly ComputeBuffer _stateBuffer;
@@ -81,11 +84,7 @@ namespace VoxelEngine.Showcase
 
             _stateBuffer.SetData(_states);
             _instanceBuffer.SetData(_instances);
-            _argumentsBuffer.SetData(new uint[]
-            {
-                _cube.GetIndexCount(0), 0,
-                _cube.GetIndexStart(0), (uint)_cube.GetBaseVertex(0), 0,
-            });
+            UpdateDrawArguments();
             _compute.SetBuffer(_integrateKernel, "_States", _stateBuffer);
             _material.SetBuffer("_States", _stateBuffer);
             _material.SetBuffer("_Instances", _instanceBuffer);
@@ -115,7 +114,6 @@ namespace VoxelEngine.Showcase
                     _cube, 0, _material, _drawBounds, _argumentsBuffer, 0, null,
                     ShadowCastingMode.Off, false, 0, null, LightProbeUsage.Off);
             }
-
         }
 
         private void SubmitPending(ShowcaseWorld world)
@@ -191,14 +189,8 @@ namespace VoxelEngine.Showcase
                 float jitterX = Signed(hash);
                 float jitterZ = Signed(Hash(hash + 17u));
                 float force = math.lerp(2.5f, 7.5f, Unit(Hash(hash + 31u)));
-                float materialScale = chunk.Materials[firstVisibleSource] switch
-                {
-                    ShowcaseWorld.MatWood => 0.58f,
-                    9 => 0.50f,  // cloth
-                    10 => 0.38f, // foliage/grass
-                    14 => 0.45f, // moss
-                    _ => 1f,
-                };
+                float materialScale = GameMaterialComposition.DebrisImpulseScale(
+                    chunk.Materials[firstVisibleSource]);
                 float massScale = math.clamp(math.rsqrt(math.max(1f, representedSourceVoxels / 8f)),
                                              0.45f, 1f);
                 float impulseScale = materialScale * massScale;
@@ -229,6 +221,7 @@ namespace VoxelEngine.Showcase
                 };
                 _records[slot] = new ChunkRecord
                 {
+                    Active = true,
                     VoxelCount = representedSourceVoxels,
                     ExpireAt = Time.unscaledTime + settleLifetime,
                 };
@@ -255,12 +248,12 @@ namespace VoxelEngine.Showcase
             int maxSlot = -1;
             for (int slot = 0; slot < MaxChunks; slot++)
             {
-                var record = _records[slot];
-                if (record == null || record.ExpireAt > now) continue;
+                ChunkRecord record = _records[slot];
+                if (!record.Active || record.ExpireAt > now) continue;
 
                 ActiveChunks--;
                 ActiveVoxels -= record.VoxelCount;
-                _records[slot] = null;
+                _records[slot] = default;
                 _states[slot] = default;
                 minSlot = math.min(minSlot, slot);
                 maxSlot = math.max(maxSlot, slot);
@@ -269,7 +262,7 @@ namespace VoxelEngine.Showcase
             if (maxSlot >= minSlot)
             {
                 _stateBuffer.SetData(_states, minSlot, minSlot, maxSlot - minSlot + 1);
-                while (_highestActiveSlot >= 0 && _records[_highestActiveSlot] == null)
+                while (_highestActiveSlot >= 0 && !_records[_highestActiveSlot].Active)
                     _highestActiveSlot--;
                 UpdateDrawArguments();
             }
@@ -277,18 +270,18 @@ namespace VoxelEngine.Showcase
 
         private void UpdateDrawArguments()
         {
-            _argumentsBuffer.SetData(new uint[]
-            {
-                _cube.GetIndexCount(0),
-                (uint)((_highestActiveSlot + 1) * RenderInstancesPerChunk),
-                _cube.GetIndexStart(0), (uint)_cube.GetBaseVertex(0), 0,
-            });
+            _drawArguments[0] = _cube.GetIndexCount(0);
+            _drawArguments[1] = (uint)((_highestActiveSlot + 1) * RenderInstancesPerChunk);
+            _drawArguments[2] = _cube.GetIndexStart(0);
+            _drawArguments[3] = (uint)_cube.GetBaseVertex(0);
+            _drawArguments[4] = 0;
+            _argumentsBuffer.SetData(_drawArguments);
         }
 
         private int FindFreeSlot()
         {
             for (int i = 0; i < _records.Length; i++)
-                if (_records[i] == null) return i;
+                if (!_records[i].Active) return i;
             return -1;
         }
 
@@ -308,24 +301,8 @@ namespace VoxelEngine.Showcase
 
         private static Vector4 MaterialColour(byte material, byte coating, float scale)
         {
-            Vector4 colour = material switch
-            {
-                ShowcaseWorld.MatWood => new Vector4(0.43f, 0.25f, 0.12f, scale),
-                ShowcaseWorld.MatSand => new Vector4(0.72f, 0.64f, 0.42f, scale),
-                ShowcaseWorld.MatGlass => new Vector4(0.52f, 0.78f, 0.88f, scale),
-                7 => new Vector4(0.20f, 0.24f, 0.30f, scale),
-                8 => new Vector4(0.42f, 0.18f, 0.12f, scale),
-                10 => new Vector4(0.25f, 0.46f, 0.15f, scale),
-                13 => new Vector4(0.32f, 0.22f, 0.13f, scale),
-                14 => new Vector4(0.22f, 0.38f, 0.18f, scale),
-                15 => new Vector4(0.18f, 0.20f, 0.19f, scale),
-                16 => new Vector4(0.22f, 0.62f, 0.78f, scale),
-                17 => new Vector4(0.08f, 0.56f, 0.82f, scale),
-                18 => new Vector4(0.65f, 0.56f, 0.41f, scale),
-                19 => new Vector4(0.68f, 0.58f, 0.42f, scale),
-                20 => new Vector4(0.63f, 0.54f, 0.40f, scale),
-                _ => new Vector4(0.48f, 0.50f, 0.54f, scale),
-            };
+            float4 baseColour = GameMaterialComposition.DebrisColour(material, scale);
+            Vector4 colour = new(baseColour.x, baseColour.y, baseColour.z, baseColour.w);
 
             Vector3 overlay = coating switch
             {

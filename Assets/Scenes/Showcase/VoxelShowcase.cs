@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Game.Composition.Materials;
 using Unity.Mathematics;
 using UnityEngine;
 using VoxelEngine.Vegetation.Api;
@@ -48,7 +49,7 @@ namespace VoxelEngine.Showcase
 
         [Tooltip("Mixed-brick pool capacity. Bounded by configuration, never by world size. " +
                  "Each slot currently costs 2112 B; runtime clamps this to the device tier.")]
-        [SerializeField] private int m_BrickPoolCapacity = 262144;
+        [SerializeField] private int m_BrickPoolCapacity = 2367424;
 
         [Header("Streaming")]
         [Tooltip("Regions kept resident around the player. One region is 51.2 m across.")]
@@ -117,19 +118,26 @@ namespace VoxelEngine.Showcase
 
             // Clamp by bytes, not an obsolete slot count. Sidecars change per-slot cost; tier
             // budgets remain the authority and cannot silently be exceeded by an inspector value.
-            int tierBytes = DeviceTierBudget.GetForTier(DeviceTierBudget.Detect()).BrickPoolCapacity;
+            long tierBytes = DeviceTierBudget.GetForTier(DeviceTierBudget.Detect()).BrickPoolCapacity;
             int capacity = VoxelEngineBootstrap.ClampMixedBrickCapacityToBudget(
                 m_BrickPoolCapacity, tierBytes);
 
-            _world = new ShowcaseWorld(m_Seed, capacity,
-                                       m_LoadRadiusRegions, m_UnloadRadiusRegions);
+            // Pass the tier budget down as well as the capacity it produced. Storage applies its
+            // own ceiling before the eager BrickPool allocation; without the tier budget it would
+            // fall back to the conservative backstop and halve a pool this scene already sized.
+            _world = new ShowcaseWorld(
+                m_Seed, capacity, m_LoadRadiusRegions, m_UnloadRadiusRegions,
+                GameMaterialComposition.SimulationDefinitions(), tierBytes);
             _gpuDebris = new GpuDebrisSystem();
             _motor = new CharacterMotor { WalkSpeed = m_WalkSpeed };
 
-            // Hand stable world capabilities to Composition; URP still owns the concrete render
-            // feature, but the showcase no longer reaches into Rendering.Runtime globals.
+            // Keep the production surface scheduler live from the first rendered frame. The
+            // castle is published incrementally, and ready chunk geometry already remains visible
+            // until replacements upload. Disabling this pass used to accumulate all terrain and
+            // castle work, then dump the entire backlog into the renderer when the landmark
+            // finished — producing the exact castle-arrival cliff this showcase is meant to avoid.
             RenderingComposition.ResetSurfacePassDiagnostics("showcase-enabled");
-            RenderingComposition.SetSurfaceBuildEnabled(false);
+            RenderingComposition.SetSurfaceBuildEnabled(true);
             RenderingComposition.SetFarBaseHeight(ShowcaseWorld.BaseHeightVoxels);
 
             // Terrain past the streaming radius. The voxel world only makes a few hundred
@@ -156,6 +164,11 @@ namespace VoxelEngine.Showcase
 
         private void OnDisable()
         {
+            // The castle worker borrows this world's read-only material catalogue even though its
+            // heavy mutation target is private. Cancel/join it while this world is still alive;
+            // a global render clear must never be responsible for another world's task lifetime.
+            _world?.StopBackgroundWork();
+
             RenderingComposition.ResetTransientPresentation();
             RenderingComposition.ClearWorld();
             RenderingComposition.SetSurfaceBuildEnabled(true);
@@ -167,6 +180,19 @@ namespace VoxelEngine.Showcase
             _tornadoes.Clear();
             if (_tornadoMaterial != null) Destroy(_tornadoMaterial);
             _tornadoMaterial = null;
+
+            // The far field is dynamically created by OnEnable and owns Persistent NativeArrays,
+            // meshes, and a reference to this world's FarFieldStructureStore. Leaving the child
+            // alive across a component disable lets it draw against a disposed world and creates
+            // a second clipmap on the next enable. Sever the world reference before deferred
+            // GameObject destruction, then let VoxelFarTerrain.OnDestroy retire its job/caches.
+            if (_farTerrain != null)
+            {
+                _farTerrain.Structures = null;
+                Destroy(_farTerrain.gameObject);
+                _farTerrain = null;
+            }
+
             _world?.Dispose();
             _world = null;
         }
@@ -191,7 +217,7 @@ namespace VoxelEngine.Showcase
             // The landmark is owned by the origin region. Build it first even though the safe
             // approach spawn is just south of that region; landmark construction also preloads
             // every neighbouring region its terrain sculpt can touch.
-            _world.GenerateRegionBlocking(int3.zero);
+            _world.GenerateCastleOriginBlocking();
 
             var spawn = _world.SpawnPosition();
 
@@ -228,12 +254,10 @@ namespace VoxelEngine.Showcase
                 StepTornadoes(Time.deltaTime);
                 _gpuDebris?.Step(_world, Time.deltaTime);
 
-                // Startup may spend a loading budget until the atomic landmark is committed.
-                // Afterwards streaming returns to the interactive 3 ms slice.
-                double streamingBudget = _world.CastleVoxels == 0
-                    ? Mathf.Max(m_GenerateBudgetMs, 12f) : m_GenerateBudgetMs;
-                _world.StepStreaming(transform.position, streamingBudget);
-                if (_world.CastleVoxels > 0) RenderingComposition.SetSurfaceBuildEnabled(true);
+                // This is an interactive showcase even while the landmark worker is active.
+                // Never switch into the old 12 ms "loading" slice: castle authoring, voxel
+                // streaming and surface extraction must share the frame without a startup cliff.
+                _world.StepStreaming(transform.position, m_GenerateBudgetMs);
 
                 // The far field's hole has to follow what streaming has actually finished, not
                 // the radius it was configured with. Set after StepStreaming so a region that

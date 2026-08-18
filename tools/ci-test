@@ -1,0 +1,172 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+WORKFLOW="tests-single.yml"
+PLATFORM="EditMode"
+PUSH=0
+TEST_NAME=""
+
+usage() {
+  cat <<'EOF'
+Usage:
+  tools/ci-test [--edit|--play|--platform EditMode|PlayMode] [--push] <fully-qualified-test-name>
+
+Examples:
+  tools/ci-test VoxelEngine.Tests.EditMode.Rendering.BrickPoolTests.EvictsUnusedBricks
+  tools/ci-test --play VoxelEngine.Tests.PlayMode.Rendering.FarFieldTests.StreamsContinuously
+  tools/ci-test --push --play VoxelEngine.Tests.PlayMode.Rendering.FarFieldTests.StreamsContinuously
+
+The command triggers .github/workflows/tests-single.yml for the current branch,
+waits for GitHub Actions to finish, and exits with the workflow status.
+
+By default the current commit must already be pushed. Use --push to push the
+current clean branch to origin first.
+EOF
+}
+
+while (($#)); do
+  case "$1" in
+    --edit)
+      PLATFORM="EditMode"
+      shift
+      ;;
+    --play)
+      PLATFORM="PlayMode"
+      shift
+      ;;
+    --platform)
+      [[ $# -ge 2 ]] || { echo "ERROR: --platform requires a value" >&2; exit 2; }
+      PLATFORM="$2"
+      shift 2
+      ;;
+    --push)
+      PUSH=1
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --*)
+      echo "ERROR: unknown option: $1" >&2
+      usage >&2
+      exit 2
+      ;;
+    *)
+      if [[ -n "$TEST_NAME" ]]; then
+        echo "ERROR: only one test name may be supplied" >&2
+        usage >&2
+        exit 2
+      fi
+      TEST_NAME="$1"
+      shift
+      ;;
+  esac
+done
+
+[[ -n "$TEST_NAME" ]] || { usage >&2; exit 2; }
+case "$PLATFORM" in
+  EditMode|PlayMode) ;;
+  *)
+    echo "ERROR: platform must be EditMode or PlayMode (got: $PLATFORM)" >&2
+    exit 2
+    ;;
+esac
+
+command -v git >/dev/null 2>&1 || { echo "ERROR: git is required" >&2; exit 127; }
+command -v gh >/dev/null 2>&1 || { echo "ERROR: GitHub CLI (gh) is required" >&2; exit 127; }
+
+gh auth status >/dev/null 2>&1 || {
+  echo "ERROR: gh is not authenticated. Run: gh auth login" >&2
+  exit 1
+}
+
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || {
+  echo "ERROR: run this from inside the voxel git checkout" >&2
+  exit 1
+}
+cd "$ROOT"
+
+if [[ -n "$(git status --porcelain)" ]]; then
+  echo "ERROR: working tree is dirty. Commit the agent's changes before running CI." >&2
+  git status --short >&2
+  exit 1
+fi
+
+BRANCH="$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
+if [[ -z "$BRANCH" ]]; then
+  echo "ERROR: detached HEAD; checkout a branch before running CI" >&2
+  exit 1
+fi
+
+HEAD_SHA="$(git rev-parse HEAD)"
+
+if (( PUSH )); then
+  echo "Pushing $BRANCH ($HEAD_SHA) to origin..."
+  git push -u origin "HEAD:refs/heads/$BRANCH"
+else
+  REMOTE_SHA="$(git ls-remote --heads origin "refs/heads/$BRANCH" | awk 'NR == 1 { print $1 }')"
+  if [[ -z "$REMOTE_SHA" ]]; then
+    echo "ERROR: origin/$BRANCH does not exist. Re-run with --push or push the branch first." >&2
+    exit 1
+  fi
+  if [[ "$REMOTE_SHA" != "$HEAD_SHA" ]]; then
+    echo "ERROR: local HEAD is not the commit currently on origin/$BRANCH." >&2
+    echo "       local : $HEAD_SHA" >&2
+    echo "       remote: $REMOTE_SHA" >&2
+    echo "       Push it first, or re-run with --push." >&2
+    exit 1
+  fi
+fi
+
+REQUEST_ID="ci-test-$(date +%s)-$$"
+
+echo "Triggering $PLATFORM test on $BRANCH:"
+echo "  $TEST_NAME"
+
+gh workflow run "$WORKFLOW" \
+  --ref "$BRANCH" \
+  -f "test=$TEST_NAME" \
+  -f "platform=$PLATFORM" \
+  -f "request_id=$REQUEST_ID"
+
+# The dispatch API is asynchronous. Find our run by the unique request id that
+# is included in the workflow's run-name, and also require the exact HEAD SHA.
+RUN_ID=""
+for _ in {1..60}; do
+  RUN_ID="$(
+    gh run list \
+      --workflow "$WORKFLOW" \
+      --branch "$BRANCH" \
+      --event workflow_dispatch \
+      --limit 30 \
+      --json databaseId,displayTitle,headSha \
+      --jq ".[] | select(.headSha == \"$HEAD_SHA\") | select(.displayTitle | contains(\"$REQUEST_ID\")) | .databaseId" \
+      | head -n 1
+  )"
+  [[ -n "$RUN_ID" ]] && break
+  sleep 2
+done
+
+if [[ -z "$RUN_ID" ]]; then
+  echo "ERROR: workflow was dispatched but its run could not be located." >&2
+  echo "       request id: $REQUEST_ID" >&2
+  exit 1
+fi
+
+RUN_URL="$(gh run view "$RUN_ID" --json url --jq .url 2>/dev/null || true)"
+echo "Watching run $RUN_ID${RUN_URL:+ ($RUN_URL)}"
+
+set +e
+gh run watch "$RUN_ID" --exit-status
+STATUS=$?
+set -e
+
+if (( STATUS != 0 )); then
+  echo >&2
+  echo "Single-test CI failed. Failed-step log tail:" >&2
+  gh run view "$RUN_ID" --log-failed 2>/dev/null | tail -n 200 >&2 || true
+  exit "$STATUS"
+fi
+
+echo "Single-test CI passed: $TEST_NAME"

@@ -42,40 +42,102 @@ OUT="$(mktemp -d)"
 trap 'rm -rf "$OUT"' EXIT
 FILTER="${1:-}"
 
-# Assemblies built from source here. Their prebuilt copies in Library/ScriptAssemblies are
-# excluded from the reference set so a stale DLL can never shadow the sources under test.
-# Keep Api assemblies before their Runtime/Editor implementations so filtered subsystem checks can
-# compile without relying on stale Unity-generated DLLs.
-ASSEMBLIES=(
-    "VoxelEngine.Foundation:Assets/VoxelEngine/Foundation"
-    "VoxelEngine.Storage.Api:Assets/VoxelEngine/Storage/Api"
-    "VoxelEngine.Storage.Runtime:Assets/VoxelEngine/Storage/Runtime"
-    "VoxelEngine.Characters.Api:Assets/VoxelEngine/Characters/Api"
-    "VoxelEngine.Characters.Runtime:Assets/VoxelEngine/Characters/Runtime"
-    "VoxelEngine.Characters.Editor:Assets/VoxelEngine/Characters/Editor"
-    "VoxelEngine.Core:Assets/VoxelEngine/Core"
-    "VoxelEngine.Vegetation:Assets/VoxelEngine/Vegetation"
-    "VoxelEngine.Tiering:Assets/VoxelEngine/Tiering"
-    "VoxelEngine.Collision:Assets/VoxelEngine/Collision"
-    "VoxelEngine.Structures:Assets/VoxelEngine/Structures"
-    "VoxelEngine.Streaming:Assets/VoxelEngine/Streaming"
-    "VoxelEngine.Rendering:Assets/VoxelEngine/Rendering"
-    "VoxelEngine.Net:Assets/VoxelEngine/Net"
-    "VoxelEngine.Showcase:Assets/Scenes/Showcase"
-    "VoxelEngine.CI.Editor:Assets/VoxelEngine/CI/Editor"
-    "VoxelEngine.CI.PlayMode:Assets/VoxelEngine/CI/PlayMode"
-    "VoxelEngine.Tests.EditMode:Assets/Tests/EditMode"
-    "VoxelEngine.Tests.PlayMode:Assets/Tests/PlayMode"
-)
+# Assemblies built from source here, discovered from the .asmdef files themselves rather than
+# listed by hand: the layout is split into Api/Runtime pairs that move around, and a hand-kept
+# list silently rots into nonsense — a stale entry globs two assemblies' sources into one and
+# every shared type then reports CS0433 against its own prebuilt DLL.
+#
+# Each assembly owns the .cs files under its directory that no nearer .asmdef claims, and they
+# are emitted in dependency order so each one compiles against outputs built earlier this run.
+# Their prebuilt copies in Library/ScriptAssemblies are excluded from the reference set so a
+# stale DLL can never shadow the sources under test.
+MANIFEST="$OUT/assemblies.tsv"
+python3 - "$PROJECT" "$MANIFEST" <<'PY' || exit 2
+import json, os, re, sys
 
-rebuilt_names() { for entry in "${ASSEMBLIES[@]}"; do echo "${entry%%:*}"; done; }
+project, manifest = sys.argv[1], sys.argv[2]
+
+defs = []
+for root in ("Assets", "Packages"):
+    for dirpath, _, filenames in os.walk(os.path.join(project, root)):
+        for f in filenames:
+            if f.endswith(".asmdef"):
+                defs.append(os.path.join(dirpath, f))
+
+by_dir, info, guids = {}, {}, {}
+for path in sorted(defs):
+    with open(path) as fh:
+        data = json.load(fh)
+    name = data["name"]
+    d = os.path.dirname(path)
+    by_dir[d] = name
+    info[name] = {
+        "dir": d,
+        "refs": data.get("references") or [],
+        "editor": "Editor" in (data.get("includePlatforms") or []),
+        "sources": [],
+    }
+    meta = path + ".meta"
+    if os.path.exists(meta):
+        m = re.search(r"^guid:\s*(\w+)", open(meta).read(), re.M)
+        if m:
+            guids[m.group(1)] = name
+
+# Nearest enclosing .asmdef owns the file.
+for name in info:
+    for dirpath, _, filenames in os.walk(info[name]["dir"]):
+        owner = dirpath
+        while owner not in by_dir:
+            owner = os.path.dirname(owner)
+        if by_dir[owner] != name:
+            continue
+        for f in filenames:
+            if f.endswith(".cs"):
+                info[name]["sources"].append(os.path.join(dirpath, f))
+
+def resolve(ref):
+    if ref.startswith("GUID:"):
+        return guids.get(ref[5:])
+    return ref if ref in info else None
+
+order, state = [], {}
+def visit(name):
+    if state.get(name) == "done":
+        return
+    if state.get(name) == "active":   # a reference cycle Unity would reject anyway
+        return
+    state[name] = "active"
+    for ref in info[name]["refs"]:
+        target = resolve(ref)
+        if target:
+            visit(target)
+    state[name] = "done"
+    order.append(name)
+
+for name in sorted(info):
+    visit(name)
+
+with open(manifest, "w") as out:
+    for name in order:
+        a = info[name]
+        out.write("\t".join([name, "editor" if a["editor"] else "runtime",
+                             os.path.relpath(a["dir"], project),
+                             *sorted(a["sources"])]) + "\n")
+PY
+
+# Only the assemblies this run actually rebuilds are shadowed. A filtered run leans on the
+# prebuilt DLLs of everything it skipped, which is the point of filtering — but those DLLs are
+# whatever the editor last managed to emit, so an unfiltered run is the only trustworthy verdict.
+rebuilt_names() { cut -f1 "$MANIFEST" | { [ -n "$FILTER" ] && grep -F "$FILTER" || cat; }; }
 
 failed=0
-for entry in "${ASSEMBLIES[@]}"; do
-    name="${entry%%:*}"
-    src="${entry##*:}"
+while IFS=$'\t' read -r -a fields; do
+    name="${fields[0]}"
+    kind="${fields[1]}"
+    src="${fields[2]}"
+    sources=("${fields[@]:3}")
     [ -n "$FILTER" ] && [[ "$name" != *"$FILTER"* ]] && continue
-    [ -d "$src" ] || { echo "### $name  SKIPPED (no $src)"; continue; }
+    [ ${#sources[@]} -eq 0 ] && { echo "### $name  SKIPPED (no sources under $src)"; continue; }
 
     rsp="$OUT/$name.rsp"
     {
@@ -89,9 +151,9 @@ for entry in "${ASSEMBLIES[@]}"; do
             echo "-r:$dll"
         done
         for dll in "$MANAGED"/*.dll; do echo "-r:$dll"; done
-        # Editor assemblies need the modular UnityEditor reference. Do not also reference
+        # Editor-only assemblies need the modular UnityEditor reference. Do not also reference
         # the legacy monolithic UnityEditor.dll; doing both duplicates editor types.
-        if [[ "$name" == *.Editor ]] && [ -n "$EDITOR_CORE" ]; then
+        if [ "$kind" = editor ] && [ -n "$EDITOR_CORE" ]; then
             echo "-r:$EDITOR_CORE"
         fi
         [ -n "$NUNIT" ] && echo "-r:$NUNIT"
@@ -110,7 +172,7 @@ for entry in "${ASSEMBLIES[@]}"; do
             echo "-r:$dll"
         done
 
-        find "$src" -name "*.cs" | sed "s|^|$PROJECT/|"
+        printf '%s\n' "${sources[@]}"
     } > "$rsp"
 
     errors="$("$DOTNET" "$CSC" "@$rsp" 2>&1 | grep -E "error CS" | head -25)"
@@ -121,6 +183,6 @@ for entry in "${ASSEMBLIES[@]}"; do
     else
         echo "### $name  OK"
     fi
-done
+done < "$MANIFEST"
 
 exit $failed

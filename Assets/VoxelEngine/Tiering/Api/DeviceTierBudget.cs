@@ -45,11 +45,12 @@ namespace VoxelEngine.Tiering.Api
     ///   - probeSpacing            (irradiance probe placement spacing in world units)
     ///   - maxDebris               (maximum visual-only debris bodies)
     ///   - maxViewDistance         (farthest distance bricks are rendered)
+    ///   - surfaceGeometryBudget   (GPU bytes for extracted surface geometry)
     /// </summary>
     public readonly struct DeviceTierBudget
     {
-        /// <summary>Brick pool capacity in bytes — 1.5 GB on PC, 1.0 GB on Console, 384 MB on Mobile-HE.</summary>
-        public readonly int BrickPoolCapacity;
+        /// <summary>Brick pool capacity in bytes — 5.0 GB on PC, 1.0 GB on Console, 384 MB on Mobile-HE.</summary>
+        public readonly long BrickPoolCapacity;
 
         /// <summary>Full-detail radius (mip-0) in metres — device-matrix.md LOD values.</summary>
         public readonly int DetailRadius;
@@ -72,16 +73,29 @@ namespace VoxelEngine.Tiering.Api
         /// <summary>Implicit far-field distance — beyond this, only mip textures are used (device-matrix.md).</summary>
         public readonly int FarFieldStart;
 
+        /// <summary>
+        /// GPU bytes for the shared extracted-surface geometry arena — device-matrix.md.
+        ///
+        /// This is derived presentation only: it holds Transvoxel output, never authoritative voxel
+        /// state, so tiering it does not touch the tiering boundary. It has to be sized against the
+        /// full-detail ring rather than guessed. At 0.1 m voxels a 64-cell chunk spans 6.4 m and its
+        /// faceted surface averages ~12.5 K vertices, and the innermost ring alone puts ~1.5 K chunks
+        /// in a production frustum. Undersizing it does not degrade gracefully: publication fails to
+        /// acquire a lease and the view keeps permanent holes where geometry never lands.
+        /// </summary>
+        public readonly long SurfaceGeometryBudget;
+
         /// <summary>Construct a tier budget with all fields explicitly set.</summary>
         public DeviceTierBudget(
-            int brickPoolCapacity,
+            long brickPoolCapacity,
             int detailRadius,
             float renderScale,
             float probeSpacing,
             int maxDebris,
             int maxViewDistance,
             int mipTransitionStart,
-            int farFieldStart)
+            int farFieldStart,
+            long surfaceGeometryBudget)
         {
             BrickPoolCapacity = brickPoolCapacity;
             DetailRadius = detailRadius;
@@ -91,6 +105,7 @@ namespace VoxelEngine.Tiering.Api
             MaxViewDistance = maxViewDistance;
             MipTransitionStart = mipTransitionStart;
             FarFieldStart = farFieldStart;
+            SurfaceGeometryBudget = surfaceGeometryBudget;
         }
 
         /// <summary>Get the tier budget for a given device class. Values from device-matrix.md.</summary>
@@ -100,36 +115,39 @@ namespace VoxelEngine.Tiering.Api
             return tier switch
             {
                 DeviceTier.PC => new DeviceTierBudget(
-                    brickPoolCapacity:  1_536_000_000,    // 1.5 GB
+                    brickPoolCapacity:  5_000_000_000L,   // 5.0 GB
                     detailRadius:       400,               // 400 m full-detail radius
                     renderScale:        1.0f,              // Native resolution
                     probeSpacing:       2f,                // 2 m probe spacing
                     maxDebris:          2000,              // 2000 visual-only debris bodies
                     maxViewDistance:    10000,             // 10 km
                     mipTransitionStart: 400,               // Start mip transition at 400 m
-                    farFieldStart:      1200               // Implicit far-field beyond 1200 m
+                    farFieldStart:      1200,              // Implicit far-field beyond 1200 m
+                    surfaceGeometryBudget: 1_342_177_280L  // 1.25 GB of extracted surface geometry
                 ),
 
                 DeviceTier.Console => new DeviceTierBudget(
-                    brickPoolCapacity:  1_073_741_824,     // 1.0 GB
+                    brickPoolCapacity:  1_073_741_824L,    // 1.0 GB
                     detailRadius:       350,               // 350 m full-detail radius
                     renderScale:        1.0f,              // Native resolution
                     probeSpacing:       2f,                // 2 m probe spacing
                     maxDebris:          1500,              // 1500 visual-only debris bodies
                     maxViewDistance:    10000,             // 10 km
                     mipTransitionStart: 350,               // Start mip transition at 350 m
-                    farFieldStart:      1000               // Implicit far-field beyond 1000 m
+                    farFieldStart:      1000,              // Implicit far-field beyond 1000 m
+                    surfaceGeometryBudget: 671_088_640L  // 640 MB of extracted surface geometry
                 ),
 
                 DeviceTier.MobileHE => new DeviceTierBudget(
-                    brickPoolCapacity:  402_653_184,       // 384 MB
+                    brickPoolCapacity:  402_653_184L,      // 384 MB
                     detailRadius:       200,               // 200 m full-detail radius
                     renderScale:        0.75f,             // 0.75 scale + upscale (device-matrix.md)
                     probeSpacing:       4f,                // 4 m probe spacing (half density of PC/Console)
                     maxDebris:          400,               // 400 visual-only debris bodies (device-matrix.md)
                     maxViewDistance:    6000,              // 6 km max view distance
                     mipTransitionStart: 200,               // Start mip transition at 200 m
-                    farFieldStart:      600                // Implicit far-field beyond 600 m
+                    farFieldStart:      600,               // Implicit far-field beyond 600 m
+                    surfaceGeometryBudget: 335_544_320L  // 320 MB of extracted surface geometry
                 ),
 
                 _ => throw new ArgumentOutOfRangeException(nameof(tier), $"Unknown device tier: {tier}")
@@ -172,6 +190,7 @@ namespace VoxelEngine.Tiering.Api
         /// <summary>String representation for debugging and telemetry.</summary>
         public override string ToString() =>
             $"Budget(cap={BrickPoolCapacity}, detail={DetailRadius}m, scale={RenderScale}, " +
-            $"probes={ProbeSpacing}m, debris={MaxDebris}, view={MaxViewDistance}m)";
+            $"probes={ProbeSpacing}m, debris={MaxDebris}, view={MaxViewDistance}m, " +
+            $"surface={SurfaceGeometryBudget})";
     }
 }

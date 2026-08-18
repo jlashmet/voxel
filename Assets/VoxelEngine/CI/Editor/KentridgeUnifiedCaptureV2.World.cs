@@ -50,7 +50,7 @@ namespace VoxelEngine.CI
             for (int rx = minRX; rx <= maxRX; rx++)
             {
                 int3 regionCoord = new int3(rx, 0, rz);
-                TerrainGenerator.Generate(generation, regionCoord, Seed);
+                TerrainGenerator.Generate(generation, regionCoord, Seed, CaptureTerrainMaterials.Default);
             }
         }
 
@@ -119,5 +119,23 @@ namespace VoxelEngine.CI
             int quotient = value / divisor;
             return value % divisor < 0 ? quotient - 1 : quotient;
         }
+    }
+}
+
+namespace VoxelEngine.CI
+{
+    /// <summary>
+    /// Terrain material slots for the capture tools.
+    ///
+    /// TerrainGenerator takes the material set explicitly now: the engine generates from opaque
+    /// indices and the game owns their meaning. These captures render the game world, so the
+    /// indices match Game.Materials.Runtime's GameTerrainMaterials.Default. They are duplicated
+    /// rather than referenced because VoxelEngine.CI.Editor is an engine assembly and
+    /// EngineGameDependencyBoundaryTests forbids a dependency on the game layer.
+    /// </summary>
+    internal static class CaptureTerrainMaterials
+    {
+        internal static readonly VoxelEngine.Terrain.Api.TerrainMaterialSet Default =
+            new VoxelEngine.Terrain.Api.TerrainMaterialSet(5, 1, 3); // Bedrock, Stone, Sand
     }
 }

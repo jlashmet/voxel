@@ -79,7 +79,7 @@ namespace VoxelEngine.Tests.PlayMode
             // Derive framing from the generated plan. The castle family now varies around a
             // 50-60 m footprint, so hard-coding the former 35 m camera orbit clips valid seeds.
             int groundVoxels = world.SurfaceHeight(256, 376);
-            var plan = CastleBuilder.Plan(new int3(256, groundVoxels, 376), world.Seed);
+            var plan = StructuresComposition.PlanCastle(new int3(256, groundVoxels, 376), world.Seed);
             int baseY = plan.Centre.y + plan.PlateauHeight;
             var keepMin = new int3(plan.Centre.x - plan.KeepHalfX, baseY,
                                    plan.Centre.z - plan.KeepHalfZ + 60);

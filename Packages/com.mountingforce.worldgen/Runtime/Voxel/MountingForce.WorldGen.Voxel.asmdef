@@ -1,23 +1,26 @@
 {
-  "name": "MountingForce.WorldGen.Voxel",
-  "rootNamespace": "MountingForce.WorldGen.Voxel",
-  "references": [
-    "MountingForce.WorldGen.Core",
-    "MountingForce.WorldGen.Architecture",
-    "VoxelEngine.Storage.Api",
-    "VoxelEngine.Terrain.Api",
-    "VoxelEngine.Vegetation.Api",
-    "Unity.Collections",
-    "Unity.Mathematics",
-    "VoxelEngine.Structures.Api"
-  ],
-  "includePlatforms": [],
-  "excludePlatforms": [],
-  "allowUnsafeCode": false,
-  "overrideReferences": false,
-  "precompiledReferences": [],
-  "autoReferenced": false,
-  "defineConstraints": [],
-  "versionDefines": [],
-  "noEngineReferences": false
+    "name": "MountingForce.WorldGen.Voxel",
+    "rootNamespace": "MountingForce.WorldGen.Voxel",
+    "references": [
+        "MountingForce.WorldGen.Core",
+        "MountingForce.WorldGen.Architecture",
+        "VoxelEngine.Storage.Api",
+        "VoxelEngine.Terrain.Api",
+        "VoxelEngine.Vegetation.Api",
+        "Unity.Collections",
+        "Unity.Mathematics",
+        "VoxelEngine.Structures.Api",
+        "VoxelEngine.Structures.Runtime",
+        "Game.Structures.Api",
+        "Game.Materials.Api"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
 }

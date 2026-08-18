@@ -133,7 +133,7 @@ namespace VoxelEngine.Tests.PlayMode
         private static Vector3 CastleCentre(ShowcaseWorld world)
         {
             int ground = world.SurfaceHeight(256, 376);
-            CastlePlan plan = CastleBuilder.Plan(new int3(256, ground, 376), world.Seed);
+            CastlePlan plan = StructuresComposition.PlanCastle(new int3(256, ground, 376), world.Seed);
             return new Vector3(plan.Centre.x, plan.Centre.y + plan.PlateauHeight,
                                plan.Centre.z) * 0.1f;
         }
@@ -151,7 +151,7 @@ namespace VoxelEngine.Tests.PlayMode
             Camera camera = _camera;
 
             int ground = world.SurfaceHeight(256, 376);
-            CastlePlan plan = CastleBuilder.Plan(new int3(256, ground, 376), world.Seed);
+            CastlePlan plan = StructuresComposition.PlanCastle(new int3(256, ground, 376), world.Seed);
             int baseY = plan.Centre.y + plan.PlateauHeight;
             Vector3 centre = new Vector3(plan.Centre.x, baseY, plan.Centre.z) * 0.1f;
             Vector3 waterfall = new Vector3(CastleLayout.WaterfallStreamX(in plan),

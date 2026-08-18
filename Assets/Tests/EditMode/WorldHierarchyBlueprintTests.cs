@@ -145,9 +145,9 @@ namespace VoxelEngine.Tests.EditMode
                 .Where(method => method.Name == "Bind")
                 .Select(method => method.GetParameters()[1].ParameterType)
                 .ToArray();
-            Assert.That(cutsceneBindTargets, Does.Contain(typeof(NpcHandle)));
-            Assert.That(cutsceneBindTargets, Does.Contain(typeof(PlayerSlot)));
-            Assert.That(cutsceneBindTargets, Has.None.EqualTo(typeof(CutsceneActorTargetSpec)));
+            Assert.That(cutsceneBindTargets, Has.Member(typeof(NpcHandle)));
+            Assert.That(cutsceneBindTargets, Has.Member(typeof(PlayerSlot)));
+            Assert.That(cutsceneBindTargets, Has.No.Member(typeof(CutsceneActorTargetSpec)));
         }
 
         [Test]

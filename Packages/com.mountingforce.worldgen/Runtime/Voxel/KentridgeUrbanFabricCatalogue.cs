@@ -1,57 +1,48 @@
 using System;
 using System.Collections.Generic;
+using MountingForce.WorldGen.Architecture;
 using MountingForce.WorldGen.Content.Kentridge;
+using ContentKentridgeFrontageRhythm = MountingForce.WorldGen.Content.Kentridge.KentridgeFrontageRhythm;
+using ContentKentridgeRoofForm = MountingForce.WorldGen.Content.Kentridge.KentridgeRoofForm;
+using ContentKentridgeUrbanFabricForm = MountingForce.WorldGen.Content.Kentridge.KentridgeUrbanFabricForm;
+using ContentKentridgeWindowStyle = MountingForce.WorldGen.Content.Kentridge.KentridgeWindowStyle;
 using Unity.Collections;
 using Unity.Mathematics;
-
 using VoxelEngine.Structures.Api;
 
 namespace MountingForce.WorldGen.Voxel
 {
     /// <summary>
     /// Realises KentridgeUrbanMassingPlan as varied anonymous buildings instead of silhouette boxes.
-    /// Every site gets a deterministic form and definition, while remaining Infrastructure so named
-    /// gameplay roles and the seventeen-Structure invariant are untouched.
+    /// Every site gets a deterministic architectural form and low-level geometry profile, while
+    /// remaining Infrastructure so named gameplay roles and the seventeen-Structure invariant are
+    /// untouched. City-independent construction vocabulary comes from ArchitectureVoxelPatterns;
+    /// Kentridge owns only its frontage rhythm, dimensions, materials and local style choices.
     /// </summary>
     public static class KentridgeUrbanFabricCatalogue
     {
+        // Density policy remains a Kentridge choice. Segment splitting, site counts and stable centre
+        // placement are city-independent and live in SettlementPlotLayout.PackFrontage.
         private const int ModulePitchDm = 80;
 
         private readonly struct FabricSite
         {
             public readonly KentridgeFrontageRun Run;
-            public readonly KentridgeUrbanFabricForm Form;
+            public readonly ContentKentridgeUrbanFabricForm Form;
+            public readonly StructureGeometryProfile Geometry;
             public readonly Int2 PositionDm;
-            public readonly int RunIndex;
-            public readonly int SiteIndex;
 
             public FabricSite(
                 KentridgeFrontageRun run,
-                KentridgeUrbanFabricForm form,
-                Int2 positionDm,
-                int runIndex,
-                int siteIndex)
+                ContentKentridgeUrbanFabricForm form,
+                StructureGeometryProfile geometry,
+                Int2 positionDm)
             {
                 Run = run;
                 Form = form;
+                Geometry = geometry;
                 PositionDm = positionDm;
-                RunIndex = runIndex;
-                SiteIndex = siteIndex;
             }
-        }
-
-        private readonly struct RunSegment
-        {
-            public readonly int StartDm;
-            public readonly int EndDm;
-
-            public RunSegment(int startDm, int endDm)
-            {
-                StartDm = startDm;
-                EndDm = endDm;
-            }
-
-            public int LengthDm => EndDm - StartDm;
         }
 
         public static FeatureCatalogue Build(
@@ -172,55 +163,38 @@ namespace MountingForce.WorldGen.Voxel
             int runIndex,
             List<FabricSite> sites)
         {
-            RunSegment[] segments = Segments(run);
-            int siteIndex = 0;
-
-            for (int segmentIndex = 0; segmentIndex < segments.Length; segmentIndex++)
-            {
-                RunSegment segment = segments[segmentIndex];
-                if (segment.LengthDm <= 0) continue;
-
-                int effectiveCoverage = Math.Min(94, run.CoveragePercent + 14);
-                int targetOccupiedDm = segment.LengthDm * effectiveCoverage / 100;
-                int count = Math.Max(1,
-                    (targetOccupiedDm + ModulePitchDm - 1) / ModulePitchDm);
-
-                for (int i = 0; i < count; i++)
-                {
-                    int centreAlong = segment.StartDm
-                        + segment.LengthDm * (2 * i + 1) / (2 * count);
-                    KentridgeUrbanFabricForm form = KentridgeUrbanFabricGrammar.Resolve(
-                        run, seed, runIndex, siteIndex);
-                    sites.Add(new FabricSite(
-                        run,
-                        form,
-                        SiteOrigin(run, centreAlong),
-                        runIndex,
-                        siteIndex));
-                    siteIndex++;
-                }
-            }
-        }
-
-        private static RunSegment[] Segments(KentridgeFrontageRun run)
-        {
             int start = run.IsHorizontal
                 ? Math.Min(run.StartDm.X, run.EndDm.X)
                 : Math.Min(run.StartDm.Y, run.EndDm.Y);
             int end = run.IsHorizontal
                 ? Math.Max(run.StartDm.X, run.EndDm.X)
                 : Math.Max(run.StartDm.Y, run.EndDm.Y);
+            int effectiveCoverage = Math.Min(94, run.CoveragePercent + 14);
+            SettlementFrontageSite[] packed = SettlementPlotLayout.PackFrontage(
+                start,
+                end,
+                effectiveCoverage,
+                ModulePitchDm,
+                run.HasGap,
+                run.GapCentreDm,
+                run.GapWidthDm);
+            UrbanFabricIntent intent = KentridgeDefinition.UrbanFabricIntent(run);
 
-            if (!run.HasGap)
-                return new[] { new RunSegment(start, end) };
-
-            int gapStart = Math.Max(start, run.GapCentreDm - run.GapWidthDm / 2);
-            int gapEnd = Math.Min(end, gapStart + run.GapWidthDm);
-            return new[]
+            for (int i = 0; i < packed.Length; i++)
             {
-                new RunSegment(start, gapStart),
-                new RunSegment(gapEnd, end),
-            };
+                SettlementFrontageSite slot = packed[i];
+                ContentKentridgeUrbanFabricForm form = KentridgeUrbanFabricGrammar.Resolve(
+                    run, seed, runIndex, slot.SiteIndex);
+                StructureGeometryProfile geometry = UrbanFabricGeometryProfiles.Resolve(
+                    intent,
+                    form.Inner,
+                    BuiltInArchitectureStyles.Registry);
+                sites.Add(new FabricSite(
+                    run,
+                    form,
+                    geometry,
+                    SiteOrigin(run, slot.CentreAlongDm)));
+            }
         }
 
         private static Int2 SiteOrigin(KentridgeFrontageRun run, int centreAlongDm)
@@ -242,7 +216,7 @@ namespace MountingForce.WorldGen.Voxel
             return new Int2(x, centreAlongDm - half);
         }
 
-        private static int HeightDm(KentridgeUrbanFabricForm form)
+        private static int HeightDm(ContentKentridgeUrbanFabricForm form)
         {
             ArchitectureTheme theme = KentridgeDefinition.Theme;
             return theme.FoundationHeightDm
@@ -255,7 +229,7 @@ namespace MountingForce.WorldGen.Voxel
             FabricSite site,
             VoxelWorldGenSettings settings)
         {
-            KentridgeUrbanFabricForm form = site.Form;
+            ContentKentridgeUrbanFabricForm form = site.Form;
             KentridgeUrbanFabricGrammar.Validate(site.Run, form);
 
             int s = settings.VoxelsPerDecimetre;
@@ -276,7 +250,7 @@ namespace MountingForce.WorldGen.Voxel
             byte foundation = settings.Materials.Resolve(theme.Foundation);
             byte wall = settings.Materials.Resolve(theme.Wall);
             byte timber = settings.Materials.Resolve(theme.Frame);
-            byte glass = form.WindowStyle == KentridgeWindowStyle.Warm
+            byte glass = form.WindowStyle == ContentKentridgeWindowStyle.Warm
                 ? settings.Materials.Resolve(MaterialRole.WarmWindow)
                 : settings.Materials.Resolve(theme.Window);
             byte roof = site.Run.District == DistrictKind.Civic
@@ -285,8 +259,8 @@ namespace MountingForce.WorldGen.Voxel
                 : settings.Materials.Resolve(theme.Roof);
             byte cloth = settings.Materials.Resolve(MaterialRole.Cloth);
 
-            var b = new ProgramBuilder();
-            b.Box(x0, 0, z0, w, f, d, foundation);
+            var b = new ProgramBuilder(site.Geometry, s);
+            b.FoundationBox(x0, 0, z0, w, f, d, foundation);
             EmitShell(b, x0, f, z0, w, floor, d, t, wall);
 
             int upperX = x0 - overhang;
@@ -299,7 +273,7 @@ namespace MountingForce.WorldGen.Voxel
                     upperW, upperH, upperD, t, wall);
 
             int doorW = 11 * s;
-            int doorOffset = form.FrontageRhythm == KentridgeFrontageRhythm.Asymmetric
+            int doorOffset = form.FrontageRhythm == ContentKentridgeFrontageRhythm.Asymmetric
                 ? (form.AnnexOnRight ? -8 : 8) * s
                 : 0;
             int doorX = x0 + w / 2 - doorW / 2 + doorOffset;
@@ -335,7 +309,7 @@ namespace MountingForce.WorldGen.Voxel
                     w - 2 * awningInset, 3 * s, 12 * s, cloth);
             }
 
-            if (form.Roof == KentridgeRoofForm.GableWithLeanTo)
+            if (form.Roof == ContentKentridgeRoofForm.GableWithLeanTo)
                 AddLeanToAnnex(b, form, envelope, x0, z0, w, d,
                     f, floor, t, wall, timber, roof, s);
 
@@ -368,15 +342,13 @@ namespace MountingForce.WorldGen.Voxel
             int x, int y, int z,
             int w, int h, int d,
             int t,
-            byte wall)
-        {
-            b.Box(x, y, z, w, h, d, wall);
-            b.Carve(x + t, y, z + t, w - 2 * t, h, d - 2 * t);
-        }
+            byte wall) =>
+            ArchitectureVoxelPatterns.HollowShell(
+                b.Inner, x, y, z, w, h, d, t, wall);
 
         private static void AddFrontWindows(
             ProgramBuilder b,
-            KentridgeUrbanFabricForm form,
+            ContentKentridgeUrbanFabricForm form,
             int x0, int z0, int w,
             int y, int t,
             byte glass,
@@ -389,10 +361,10 @@ namespace MountingForce.WorldGen.Voxel
             int[] centres;
             switch (form.FrontageRhythm)
             {
-                case KentridgeFrontageRhythm.ThreeBay:
+                case ContentKentridgeFrontageRhythm.ThreeBay:
                     centres = new[] { x0 + w / 5, x0 + w / 2, x0 + 4 * w / 5 };
                     break;
-                case KentridgeFrontageRhythm.Asymmetric:
+                case ContentKentridgeFrontageRhythm.Asymmetric:
                     centres = new[] { x0 + w / 4, x0 + 2 * w / 3 };
                     break;
                 default:
@@ -407,13 +379,13 @@ namespace MountingForce.WorldGen.Voxel
                     && wx < doorX + doorW + 2 * s
                     && wx + windowW > doorX - 2 * s)
                     continue;
-                AddWindowZ(b, wx, y, z0, windowW, windowH, t + s, glass);
+                AddWindow(b, wx, y, z0, windowW, windowH, t + s, glass);
             }
         }
 
         private static void AddRearAndSideWindows(
             ProgramBuilder b,
-            KentridgeUrbanFabricForm form,
+            ContentKentridgeUrbanFabricForm form,
             int x0, int z0, int w, int d,
             int upperX, int upperZ, int upperW, int upperD,
             int f, int t, int floor,
@@ -432,20 +404,20 @@ namespace MountingForce.WorldGen.Voxel
                 int rightX = bx + bw - (t + s);
                 int windowW = 10 * s;
 
-                AddWindowZ(b, bx + bw / 3 - windowW / 2, y, rearZ,
+                AddWindow(b, bx + bw / 3 - windowW / 2, y, rearZ,
                     windowW, windowH, t + s, glass);
-                AddWindowZ(b, bx + 2 * bw / 3 - windowW / 2, y, rearZ,
+                AddWindow(b, bx + 2 * bw / 3 - windowW / 2, y, rearZ,
                     windowW, windowH, t + s, glass);
 
                 int sideZ = bz + bd / 2 - windowW / 2;
-                AddWindowX(b, bx, y, sideZ, t + s, windowH, windowW, glass);
-                AddWindowX(b, rightX, y, sideZ, t + s, windowH, windowW, glass);
+                AddWindow(b, bx, y, sideZ, t + s, windowH, windowW, glass);
+                AddWindow(b, rightX, y, sideZ, t + s, windowH, windowW, glass);
             }
         }
 
         private static void AddLeanToAnnex(
             ProgramBuilder b,
-            KentridgeUrbanFabricForm form,
+            ContentKentridgeUrbanFabricForm form,
             int envelope,
             int x0, int z0, int w, int d,
             int f, int floor, int t,
@@ -471,122 +443,78 @@ namespace MountingForce.WorldGen.Voxel
 
         private static void EmitRoof(
             ProgramBuilder b,
-            KentridgeRoofForm form,
+            ContentKentridgeRoofForm form,
             int x, int y, int z,
             int w, int h, int d,
             byte material,
             int s)
         {
-            if (form != KentridgeRoofForm.TwinGable)
+            if (form != ContentKentridgeRoofForm.TwinGable)
             {
-                b.Prism(x, y, z, w, h, d, PrismProfile.Gable, material);
+                ArchitectureVoxelPatterns.GableRoof(
+                    b.Inner, x, y, z, w, h, d, material);
                 return;
             }
 
-            int overlap = 3 * s;
-            int half = w / 2 + overlap;
-            b.Prism(x, y, z, half, h, d, PrismProfile.Gable, material);
-            b.Prism(x + w / 2 - overlap, y, z,
-                half, h, d, PrismProfile.Gable, material);
+            ArchitectureVoxelPatterns.TwinGableRoof(
+                b.Inner, x, y, z, w, h, d, overlap: 3 * s, material);
         }
 
-        private static void AddWindowZ(
+        private static void AddWindow(
             ProgramBuilder b,
             int x, int y, int z,
             int width, int height, int depth,
-            byte material)
-        {
-            b.Carve(x, y, z, width, height, depth);
-            b.Box(x, y, z, width, height, depth, material);
-        }
-
-        private static void AddWindowX(
-            ProgramBuilder b,
-            int x, int y, int z,
-            int depth, int height, int width,
-            byte material)
-        {
-            b.Carve(x, y, z, depth, height, width);
-            b.Box(x, y, z, depth, height, width, material);
-        }
+            byte material) =>
+            ArchitectureVoxelPatterns.GlazedOpening(
+                b.Inner, x, y, z, width, height, depth, material);
 
         private static void AddTimberFrame(
             ProgramBuilder b,
             int x0, int z0, int width, int depth,
             int baseY, int wallHeight, int beam,
-            byte timber)
-        {
-            b.Box(x0, baseY, z0, beam, wallHeight, 2 * beam, timber);
-            b.Box(x0 + width - beam, baseY, z0,
-                beam, wallHeight, 2 * beam, timber);
-            b.Box(x0, baseY, z0 + depth - 2 * beam,
-                beam, wallHeight, 2 * beam, timber);
-            b.Box(x0 + width - beam, baseY, z0 + depth - 2 * beam,
-                beam, wallHeight, 2 * beam, timber);
-
-            int[] levels =
-            {
-                baseY,
-                baseY + wallHeight / 2,
-                baseY + wallHeight - beam,
-            };
-            for (int i = 0; i < levels.Length; i++)
-            {
-                int y = levels[i];
-                b.Box(x0, y, z0, width, beam, 2 * beam, timber);
-                b.Box(x0, y, z0 + depth - 2 * beam,
-                    width, beam, 2 * beam, timber);
-                b.Box(x0, y, z0, 2 * beam, beam, depth, timber);
-                b.Box(x0 + width - 2 * beam, y, z0,
-                    2 * beam, beam, depth, timber);
-            }
-        }
+            byte timber) =>
+            ArchitectureVoxelPatterns.TimberFrame(
+                b.Inner,
+                x0, z0, width, depth,
+                baseY, wallHeight, beam, timber);
 
         private sealed class ProgramBuilder
         {
-            private readonly List<int> _code = new List<int>();
+            private readonly ArchitectureShapeProgramBuilder _inner;
+
+            public ProgramBuilder(StructureGeometryProfile profile, int voxelsPerDecimetre)
+            {
+                _inner = new ArchitectureShapeProgramBuilder(profile, voxelsPerDecimetre);
+            }
+
+            public ArchitectureShapeProgramBuilder Inner => _inner;
+
+            public void FoundationBox(
+                int x, int y, int z,
+                int sx, int sy, int sz,
+                byte material) =>
+                _inner.FoundationBox(x, y, z, sx, sy, sz, material);
 
             public void Box(
                 int x, int y, int z,
                 int sx, int sy, int sz,
                 byte material,
-                PrimitiveMode mode = PrimitiveMode.Fill)
-            {
-                if (sx <= 0 || sy <= 0 || sz <= 0) return;
-                Op(ShapeOp.EmitBox, x, y, z, sx, sy, sz,
-                    material, 0, 0, (int)mode);
-            }
+                PrimitiveMode mode = PrimitiveMode.Fill) =>
+                _inner.DetailBox(x, y, z, sx, sy, sz, material, mode);
 
             public void Carve(
                 int x, int y, int z,
-                int sx, int sy, int sz)
-            {
-                Box(x, y, z, sx, sy, sz, 0, PrimitiveMode.Carve);
-            }
+                int sx, int sy, int sz) =>
+                _inner.OpeningCarve(x, y, z, sx, sy, sz);
 
             public void Prism(
                 int x, int y, int z,
                 int sx, int sy, int sz,
                 PrismProfile profile,
-                byte material)
-            {
-                if (sx <= 0 || sy <= 0 || sz <= 0) return;
-                Op(ShapeOp.EmitPrism, x, y, z, sx, sy, sz,
-                    (int)profile, material, 0, 0, (int)PrimitiveMode.Fill);
-            }
+                byte material) =>
+                _inner.Prism(x, y, z, sx, sy, sz, profile, material);
 
-            public int[] Finish()
-            {
-                Op(ShapeOp.End);
-                return _code.ToArray();
-            }
-
-            private void Op(ShapeOp op, params int[] operands)
-            {
-                _code.Add((int)op);
-                _code.Add(0);
-                _code.AddRange(operands);
-            }
+            public int[] Finish() => _inner.Finish();
         }
     }
 }

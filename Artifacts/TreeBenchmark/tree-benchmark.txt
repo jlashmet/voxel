@@ -6,20 +6,20 @@ batchSizeMetres=32.0
 minimumTreesPerBatch=2
 note=large counts are domain/far-mesh measurements; full renderer is bounded to keep CI responsive
 note=healthy batched trees retain no per-tree GameObjects or meshes; batch construction currently uses temporary source Mesh objects that are destroyed after CombineMeshes
-core 10: 211.37 ms, branches=2,758, leaves=6,683, transientDelta=1,073,152 B
-core 100: 2317.86 ms, branches=28,426, leaves=70,961, transientDelta=11,509,760 B
-core 500: 11612.44 ms, branches=142,198, leaves=354,863, transientDelta=60,977,152 B
-core 1000: 23374.63 ms, branches=284,694, leaves=711,282, transientDelta=124,153,856 B
-core 5000: 118952.16 ms, branches=1,422,826, leaves=3,552,761, transientDelta=142,622,720 B
-far mesh 10: 234.88 ms, LOD2 triangles=13,636
-far mesh 100: 2488.35 ms, LOD2 triangles=140,500
-far mesh 500: 12331.79 ms, LOD2 triangles=703,390
-far mesh 1000: 24761.89 ms, LOD2 triangles=1,410,564
-runtime 10: rebuild=250.14 ms, semanticPresentations=10, residentMeshes=6, batches=2, batchMeshes=6, batchedTrees=10, dynamicTrees=0, visibleDraws≈4 vs perTree=20, semanticTriangles(all LODs)=125,448, residentTriangleStorage≈125,448, renderObjects=8, allocatedDelta=11,089,870 B, avgFrame=16.93 ms, maxFrame=251.52 ms
-runtime 50: rebuild=1382.18 ms, semanticPresentations=50, residentMeshes=21, batches=7, batchMeshes=21, batchedTrees=50, dynamicTrees=0, visibleDraws≈14 vs perTree=100, semanticTriangles(all LODs)=656,778, residentTriangleStorage≈656,778, renderObjects=28, allocatedDelta=58,649,633 B, avgFrame=92.32 ms, maxFrame=1382.79 ms
-runtime 100: rebuild=2729.75 ms, semanticPresentations=100, residentMeshes=27, batches=9, batchMeshes=27, batchedTrees=100, dynamicTrees=0, visibleDraws≈18 vs perTree=200, semanticTriangles(all LODs)=1,305,400, residentTriangleStorage≈1,305,400, renderObjects=36, allocatedDelta=118,754,879 B, avgFrame=182.20 ms, maxFrame=2730.34 ms
-runtime 250: rebuild=6989.34 ms, semanticPresentations=250, residentMeshes=27, batches=9, batchMeshes=27, batchedTrees=250, dynamicTrees=0, visibleDraws≈18 vs perTree=500, semanticTriangles(all LODs)=3,268,178, residentTriangleStorage≈3,268,178, renderObjects=36, allocatedDelta=297,035,911 B, avgFrame=466.15 ms, maxFrame=6989.94 ms
-projection 500: batches≈9, batchedTrees≈500, dynamicTrees≈0, renderObjects≈36, residentMeshes≈27, batchMeshes≈27, visibleDraws≈18 (per-tree path=1,000), semanticTriangles≈6,536,356, residentTriangleStorage≈6,536,356
-projection 1000: batches≈24, batchedTrees≈1,000, dynamicTrees≈0, renderObjects≈96, residentMeshes≈72, batchMeshes≈72, visibleDraws≈48 (per-tree path=2,000), semanticTriangles≈13,072,712, residentTriangleStorage≈13,072,712
-projection 5000: batches≈99, batchedTrees≈5,000, dynamicTrees≈0, renderObjects≈396, residentMeshes≈297, batchMeshes≈297, visibleDraws≈198 (per-tree path=10,000), semanticTriangles≈65,363,560, residentTriangleStorage≈65,363,560
+core 10: 236.13 ms, branches=2,758, leaves=6,683, transientDelta=2,084,864 B
+core 100: 2568.61 ms, branches=28,426, leaves=70,961, transientDelta=22,339,584 B
+core 500: 12852.72 ms, branches=142,198, leaves=354,863, transientDelta=115,982,336 B
+core 1000: 26050.32 ms, branches=284,694, leaves=711,282, transientDelta=68,972,544 B
+core 5000: 131896.89 ms, branches=1,422,826, leaves=3,552,761, transientDelta=20,500,480 B
+far mesh 10: 238.72 ms, LOD2 triangles=13,636
+far mesh 100: 2601.86 ms, LOD2 triangles=140,500
+far mesh 500: 13092.45 ms, LOD2 triangles=703,390
+far mesh 1000: 26323.51 ms, LOD2 triangles=1,410,564
+runtime 10: rebuild=268.06 ms, semanticPresentations=10, residentMeshes=8, batches=2, batchMeshes=8, batchedTrees=10, dynamicTrees=0, visibleDraws≈4 vs perTree=20, semanticTriangles(all LODs)=125,528, residentTriangleStorage≈125,528, renderObjects=10, allocatedDelta=11,106,910 B, avgFrame=18.12 ms, maxFrame=269.38 ms
+runtime 50: rebuild=1479.54 ms, semanticPresentations=50, residentMeshes=28, batches=7, batchMeshes=28, batchedTrees=50, dynamicTrees=0, visibleDraws≈14 vs perTree=100, semanticTriangles(all LODs)=657,178, residentTriangleStorage≈657,178, renderObjects=35, allocatedDelta=58,724,593 B, avgFrame=98.82 ms, maxFrame=1480.23 ms
+runtime 100: rebuild=2895.08 ms, semanticPresentations=100, residentMeshes=36, batches=9, batchMeshes=36, batchedTrees=100, dynamicTrees=0, visibleDraws≈18 vs perTree=200, semanticTriangles(all LODs)=1,306,200, residentTriangleStorage≈1,306,200, renderObjects=45, allocatedDelta=118,874,455 B, avgFrame=193.21 ms, maxFrame=2895.72 ms
+runtime 250: rebuild=7274.55 ms, semanticPresentations=250, residentMeshes=36, batches=9, batchMeshes=36, batchedTrees=250, dynamicTrees=0, visibleDraws≈18 vs perTree=500, semanticTriangles(all LODs)=3,270,178, residentTriangleStorage≈3,270,178, renderObjects=45, allocatedDelta=297,198,079 B, avgFrame=488.21 ms, maxFrame=7278.18 ms
+projection 500: batches≈9, batchedTrees≈500, dynamicTrees≈0, renderObjects≈45, residentMeshes≈36, batchMeshes≈36, visibleDraws≈18 (per-tree path=1,000), semanticTriangles≈6,540,356, residentTriangleStorage≈6,540,356
+projection 1000: batches≈24, batchedTrees≈1,000, dynamicTrees≈0, renderObjects≈120, residentMeshes≈96, batchMeshes≈96, visibleDraws≈48 (per-tree path=2,000), semanticTriangles≈13,080,712, residentTriangleStorage≈13,080,712
+projection 5000: batches≈99, batchedTrees≈5,000, dynamicTrees≈0, renderObjects≈495, residentMeshes≈396, batchMeshes≈396, visibleDraws≈198 (per-tree path=10,000), semanticTriangles≈65,403,560, residentTriangleStorage≈65,403,560
 recommendation=healthy tree residency duplication is removed; next scaling target is direct batch-buffer construction so rebuilds stop creating temporary per-tree Unity Mesh objects before CombineMeshes
