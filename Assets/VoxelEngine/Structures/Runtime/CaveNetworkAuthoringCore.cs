@@ -21,6 +21,7 @@ namespace VoxelEngine.Structures.Runtime
             public int2 Direction;
             public int SegmentCount;
             public int Depth;
+            public int TraversalDistance;
             public ulong Seed;
         }
 
@@ -43,6 +44,7 @@ namespace VoxelEngine.Structures.Runtime
                 Direction = entranceDirection,
                 SegmentCount = config.MainSegmentCount,
                 Depth = 0,
+                TraversalDistance = 0,
                 Seed = StructureSeed.Child(request.Seed, in mainKey),
             });
 
@@ -53,6 +55,8 @@ namespace VoxelEngine.Structures.Runtime
                 PathState path = queue[pathIndex];
                 int3 current = path.Position;
                 int2 direction = path.Direction;
+                int traversalDistance = path.TraversalDistance;
+                int pathSegmentsAuthored = 0;
                 for (int segmentIndex = 0; segmentIndex < path.SegmentCount; segmentIndex++)
                 {
                     ulong segmentSeed = FeatureHash.Mix(path.Seed ^ ((ulong)(uint)(segmentIndex + 1) * SegmentSalt));
@@ -80,8 +84,14 @@ namespace VoxelEngine.Structures.Runtime
                         direction, segmentSeed, request.Entrance.Mode == CaveEntranceMode.Surface &&
                         (path.Depth > 0 || segmentIndex >= config.SurfaceDescentSegments));
                     current = candidate;
+                    traversalDistance += config.SegmentLength;
+                    pathSegmentsAuthored++;
                     result.SegmentsAuthored++;
-                    if (pathIndex == 0) result.MainPathEnd = current;
+                    if (pathIndex == 0)
+                    {
+                        result.MainPathEnd = current;
+                        result.MainPathTraversalDistance = traversalDistance;
+                    }
 
                     if (ChancePercent(segmentSeed ^ ChamberSalt, config.ChamberChancePercent))
                     {
@@ -99,12 +109,26 @@ namespace VoxelEngine.Structures.Runtime
                             Direction = Rotate(direction, FeatureHash.Range(ref branchState, 0, 1) == 0 ? -1 : 1),
                             SegmentCount = config.BranchSegmentCount,
                             Depth = path.Depth + 1,
+                            TraversalDistance = traversalDistance,
                             Seed = FeatureHash.Mix(segmentSeed ^ BranchSalt ^ (ulong)(uint)branchesCreated),
                         });
                         branchOrigins.Add(current);
                         branchesCreated++;
                         result.BranchesAuthored++;
                     }
+                }
+
+                if (pathSegmentsAuthored > 0)
+                {
+                    result.TraversalCandidates.Items.Add(new CaveTraversalCandidate
+                    {
+                        Position = current,
+                        TraversalDistance = traversalDistance,
+                        BranchDepth = (byte)path.Depth,
+                        Flags = CaveTraversalFlags.ReachableFromEntrance |
+                                CaveTraversalFlags.Terminal |
+                                (path.Depth == 0 ? CaveTraversalFlags.MainPath : CaveTraversalFlags.Branch),
+                    });
                 }
             }
             return result;
