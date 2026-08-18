@@ -46,12 +46,11 @@ namespace VoxelEngine.Structures.Api
     /// <summary>
     /// Terminal traversal candidates for one bounded cave. Cave generation emits at most one main
     /// terminal plus one terminal per authored branch, so this remains bounded by CaveConfig.MaxBranches.
-    /// The 1024-byte list comfortably covers the current 33-candidate hard maximum without making
-    /// CaveAuthoringResult carry a 4KB inline collection.
+    /// The 4096-byte fixed list covers the configured 33-candidate maximum without allocation.
     /// </summary>
     public struct CaveTraversalCandidateSet
     {
-        public FixedList1024Bytes<CaveTraversalCandidate> Items;
+        public FixedList4096Bytes<CaveTraversalCandidate> Items;
         public int Count => Items.Length;
     }
 
