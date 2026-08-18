@@ -39,6 +39,7 @@ namespace VoxelEngine.Showcase
         private bool _mouseLook;
         private float _yaw;
         private float _pitch;
+        private int _tourStopIndex = -1;
 
         private void OnEnable()
         {
@@ -93,6 +94,7 @@ namespace VoxelEngine.Showcase
             _worldObjects = _worldObjectHost.AddComponent<WorldObjectRuntimeComposition>();
 
             _world.GenerateWorldbuildingGalleryBlocking(_worldObjects);
+            _world.GenerateWorldbuildingGalleryTourExpansionBlocking();
             Spawn();
             SetCursorLocked(true);
         }
@@ -117,6 +119,7 @@ namespace VoxelEngine.Showcase
             _world?.Dispose();
             _world = null;
             _motor = null;
+            _tourStopIndex = -1;
 
             SetCursorLocked(false);
         }
@@ -127,20 +130,62 @@ namespace VoxelEngine.Showcase
 
             float3 spawn = _world.WorldbuildingGallerySpawnPosition();
             _world.GenerateRegionBlocking(ShowcaseWorld.RegionAt(spawn));
+            m_FlyMode = false;
             _motor.SnapToGround(_world, spawn);
+            _motor.Velocity = Vector3.zero;
             transform.position = _motor.EyePosition;
+            _tourStopIndex = -1;
 
-            Vector3 target = _world.WorldbuildingGalleryLookTarget();
+            AimAt(_world.WorldbuildingGalleryLookTarget());
+
+            RenderingComposition.SetLocalLights(
+                _world.CastlePresentationLights,
+                _world.CastlePresentationLightColours);
+        }
+
+        private void JumpToTourStop(int index)
+        {
+            if (_world == null || _motor == null) return;
+
+            int count = _world.WorldbuildingGalleryTourStopCount;
+            if (count <= 0) return;
+
+            index %= count;
+            if (index < 0) index += count;
+
+            float3 spawn = _world.WorldbuildingGalleryTourSpawnPosition(index);
+            _world.GenerateRegionBlocking(ShowcaseWorld.RegionAt(spawn));
+
+            m_FlyMode = false;
+            _motor.SnapToGround(_world, spawn);
+            _motor.Velocity = Vector3.zero;
+            transform.position = _motor.EyePosition;
+            _tourStopIndex = index;
+
+            AimAt(_world.WorldbuildingGalleryTourLookTarget(index));
+        }
+
+        private void CycleTour(int direction)
+        {
+            if (_world == null) return;
+
+            int count = _world.WorldbuildingGalleryTourStopCount;
+            if (count <= 0) return;
+
+            int next = _tourStopIndex < 0
+                ? (direction >= 0 ? 0 : count - 1)
+                : _tourStopIndex + direction;
+            JumpToTourStop(next);
+        }
+
+        private void AimAt(Vector3 target)
+        {
             Vector3 toTarget = target - transform.position;
             _yaw = Mathf.Atan2(toTarget.x, toTarget.z) * Mathf.Rad2Deg;
             _pitch = -Mathf.Atan2(
                 toTarget.y,
                 new Vector2(toTarget.x, toTarget.z).magnitude) * Mathf.Rad2Deg;
             transform.rotation = Quaternion.Euler(_pitch, _yaw, 0f);
-
-            RenderingComposition.SetLocalLights(
-                _world.CastlePresentationLights,
-                _world.CastlePresentationLightColours);
         }
 
         private void Update()
@@ -172,8 +217,18 @@ namespace VoxelEngine.Showcase
                 }
             }
 
-            if (Input.GetKeyDown(KeyCode.R))
+            if (Input.GetKeyDown(KeyCode.R) || Input.GetKeyDown(KeyCode.G))
                 Spawn();
+
+            if (Input.GetKeyDown(KeyCode.T))
+            {
+                bool reverse = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
+                CycleTour(reverse ? -1 : 1);
+            }
+
+            int tourHotkey = TourHotkeyIndex();
+            if (tourHotkey >= 0 && tourHotkey < _world.WorldbuildingGalleryTourStopCount)
+                JumpToTourStop(tourHotkey);
 
             if (Input.GetKeyDown(KeyCode.E))
             {
@@ -183,6 +238,20 @@ namespace VoxelEngine.Showcase
                 if (!_world.TryOpenCastleFrontGate(_motor.Position))
                     _world.TryOpenCastleTrapdoor(_motor.Position);
             }
+        }
+
+        private static int TourHotkeyIndex()
+        {
+            if (Input.GetKeyDown(KeyCode.Alpha1)) return 0;
+            if (Input.GetKeyDown(KeyCode.Alpha2)) return 1;
+            if (Input.GetKeyDown(KeyCode.Alpha3)) return 2;
+            if (Input.GetKeyDown(KeyCode.Alpha4)) return 3;
+            if (Input.GetKeyDown(KeyCode.Alpha5)) return 4;
+            if (Input.GetKeyDown(KeyCode.Alpha6)) return 5;
+            if (Input.GetKeyDown(KeyCode.Alpha7)) return 6;
+            if (Input.GetKeyDown(KeyCode.Alpha8)) return 7;
+            if (Input.GetKeyDown(KeyCode.Alpha9)) return 8;
+            return -1;
         }
 
         private void HandleLook()
@@ -251,13 +320,24 @@ namespace VoxelEngine.Showcase
         {
             if (!Application.isPlaying) return;
 
-            const int width = 520;
-            GUILayout.BeginArea(new Rect(18, 18, width, 160), GUI.skin.box);
+            const int width = 560;
+            GUILayout.BeginArea(new Rect(18, 18, width, 205), GUI.skin.box);
             GUILayout.Label("WORLD BUILDING GALLERY");
-            GUILayout.Label("Structures • Decorations • Interactables • Cave • Castle");
+            GUILayout.Label("Structures • Decorations • Interactables • Cave • Castle • Guild houses");
             GUILayout.Space(4);
-            GUILayout.Label("WASD move   Shift sprint   Space jump   F fly   R respawn   E interact");
+            GUILayout.Label("WASD move   Shift sprint   Space jump   F fly   E interact");
+            GUILayout.Label("1-9 jump to exhibit   T / Shift+T next/previous   G or R overview");
             GUILayout.Label("Fly: Space up / Ctrl down   Esc releases mouse");
+
+            if (_world != null)
+            {
+                string stop = _tourStopIndex >= 0
+                    ? $"{_tourStopIndex + 1}/{_world.WorldbuildingGalleryTourStopCount}  " +
+                      _world.WorldbuildingGalleryTourStopName(_tourStopIndex)
+                    : "Overview promenade";
+                GUILayout.Label($"Tour: {stop}");
+            }
+
             if (_worldObjects != null)
                 GUILayout.Label($"World-object scenes: {_worldObjects.LoadedSceneCount}   presented: {_worldObjects.PresentedSceneCount}");
             if (_world != null)
