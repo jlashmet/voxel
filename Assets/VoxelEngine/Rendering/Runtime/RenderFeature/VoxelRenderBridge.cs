@@ -105,19 +105,32 @@ namespace VoxelEngine.Rendering.Runtime
         // Renderer-wide admission/publication controls. These are shared across every
         // LOD ring and worker; adding workers must never multiply the frame budget.
         //
-        // The millisecond deadlines are the frame-time guard: extraction and publication both stop
-        // the moment their slice is spent, however much work is outstanding. The byte counters only
-        // bound how much a frame may attempt inside that slice, and the old 1 MiB / 256 KiB pair was
-        // far below what the deadline actually permits. A production chunk publishes ~476 KB, so a
-        // 1 MiB frame budget admitted about two chunks and a 256 KiB slice split each one across two
-        // frames; filling a view of ~1.5 K chunks then took thousands of frames and the showcase was
-        // still visibly converging long after it should have settled. Sizing the byte counters to the
-        // deadline instead lets a frame publish whole chunks and stop on time.
-        public static double SolidBuildBudgetMs = 4.0;
-        public static int SolidUploadBudgetBytes = 16 * 1024 * 1024;
+        // These are the steady-state numbers, spent every frame once the view is complete. They are
+        // deliberately small: with the view converged there is nothing on screen waiting on them, so
+        // anything spent here is taken straight out of the frame for no visible gain.
+        //
+        // The millisecond deadlines are the frame-time guard — extraction and publication both stop
+        // the moment their slice is spent, however much work is outstanding. The byte counters bound
+        // how much a frame may attempt inside that slice, and want to be large enough to publish a
+        // whole chunk (~476 KB in production) rather than splitting one across frames.
+        public static double SolidBuildBudgetMs = 0.50;
+        public static int SolidUploadBudgetBytes = 2 * 1024 * 1024;
         public static int SolidUploadSliceBytes = 1024 * 1024;
-        public static int SolidUploadWorkerBudget = 16;
-        public static double SolidUploadBudgetMs = 2.0;
+        public static int SolidUploadWorkerBudget = 4;
+        public static double SolidUploadBudgetMs = 0.25;
+
+        /// <summary>
+        /// Multiplier applied to the budgets above while chunks inside the frustum still have no
+        /// geometry — that is, while the player can see a hole.
+        ///
+        /// Convergence and steady-state framerate pull in opposite directions on a single budget.
+        /// Sized for a converged view, filling a cold ~1.5 K chunk view takes thousands of frames and
+        /// the world visibly assembles itself around the player. Sized for convergence, the scheduler
+        /// keeps spending milliseconds of main-thread time every frame long after there is anything
+        /// left to publish, which is what turns up in a profile as SchedulerPrepare/WorkerAdmission.
+        /// Scaling by visible incompleteness pays the cost exactly while it buys something.
+        /// </summary>
+        public static double SurfaceConvergenceBudgetScale = 8.0;
         /// <summary>
         /// Soft cap for active solid arena leases. The default does not constrain the fixed
         /// arena; tests/debugging may lower it to exercise real backpressure without reallocating

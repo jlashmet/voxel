@@ -644,6 +644,28 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private long _lastFrameManagedAllocationBytes;
 
         public double SolidBuildBudgetMs { get; set; } = 0.20;
+
+        /// <summary>
+        /// Multiplier applied to the solid build/upload budgets while the frustum still contains
+        /// chunks without geometry. One means "spend the steady-state budget"; see
+        /// <see cref="VoxelRenderBridge.SurfaceConvergenceBudgetScale"/> for why this is not a single
+        /// fixed number.
+        /// </summary>
+        public double ConvergenceBudgetScale { get; set; } = 1.0;
+
+        /// <summary>
+        /// Missing visible chunks observed by the previous frame's visibility pass. Visibility runs
+        /// after admission, so the budget for this frame is chosen from the last completed answer;
+        /// coverage does not change fast enough for the one-frame lag to matter.
+        /// </summary>
+        private int _lastMissingVisibleCount;
+
+        /// <summary>True while the player can see somewhere geometry has not landed yet.</summary>
+        private double CurrentBudgetScale =>
+            _lastMissingVisibleCount > 0 ? Math.Max(1.0, ConvergenceBudgetScale) : 1.0;
+
+        private static int ScaleBudget(int budget, double scale) =>
+            (int)Math.Min(int.MaxValue, Math.Max(0L, (long)(budget * scale)));
         public double SurfaceDiscoveryBudgetMs { get; set; } = 0.10;
         public int SolidUploadBudgetBytes { get; set; } = 1024 * 1024;
         public int SolidUploadSliceBytes { get; set; } = 256 * 1024;
@@ -882,7 +904,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             CollectVisibility(camera, voxelSize, frame);
 
             double workersStart = Time.realtimeSinceStartupAsDouble;
-            double solidDeadline = workersStart + Math.Max(0.0, SolidBuildBudgetMs) * 0.001;
+            double budgetScale = CurrentBudgetScale;
+            double solidDeadline = workersStart
+                                 + Math.Max(0.0, SolidBuildBudgetMs * budgetScale) * 0.001;
             int admittedWorkers = 0;
             using var workersScope = s_WorkersMarker.Auto();
 
@@ -910,11 +934,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
             _lastFrameSolidUploadedBytes = 0;
             _lastFrameSolidUploadCompletions = 0;
-            int uploadBudget = Math.Max(0, SolidUploadBudgetBytes);
+            int uploadBudget = ScaleBudget(Math.Max(0, SolidUploadBudgetBytes), budgetScale);
             int uploadSlice = Math.Max(0, SolidUploadSliceBytes);
-            int uploadWorkerBudget = Math.Max(0, SolidUploadWorkerBudget);
+            int uploadWorkerBudget = ScaleBudget(Math.Max(0, SolidUploadWorkerBudget), budgetScale);
             double uploadDeadline = Time.realtimeSinceStartupAsDouble
-                                  + Math.Max(0.0, SolidUploadBudgetMs) * 0.001;
+                                  + Math.Max(0.0, SolidUploadBudgetMs * budgetScale) * 0.001;
             int uploadWorkersVisited = 0;
             int uploadScanAdvance = 0;
             if (uploadBudget > 0 && uploadSlice > 0 && uploadWorkerBudget > 0)
@@ -945,10 +969,22 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 _uploadAdmissionCursor = (_uploadAdmissionCursor
                                         + Math.Max(1, uploadScanAdvance)) % workerCount;
 
+            // Arena pressure exists so geometry the player is waiting on can publish. Both passes
+            // below scan a worker's whole entry table and frustum-test every entry, which is far too
+            // much to spend on a frame that has nothing to gain from it.
+            //
+            // A converged view keeps failing allocations indefinitely: prefetch reaches 360 degrees
+            // around the camera and always wants more than the arena holds, so the failure counter
+            // rises every frame forever. Evicting for that only churns published geometry the player
+            // can see, to admit a chunk behind them. Once nothing visible is missing, a prefetch
+            // chunk that cannot get a lease simply waits.
             ulong arenaFailures = _geometryArena.AllocationFailureCount;
-            if (arenaFailures > _observedArenaAllocationFailures && workerCount > 0)
+            bool needsArenaRelief = _lastMissingVisibleCount > 0
+                                 && arenaFailures > _observedArenaAllocationFailures
+                                 && workerCount > 0;
+            _observedArenaAllocationFailures = arenaFailures;
+            if (needsArenaRelief)
             {
-                _observedArenaAllocationFailures = arenaFailures;
                 bool evicted = false;
                 for (int offset = 0; offset < workerCount; offset++)
                 {
@@ -1076,6 +1112,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
                 _water.CollectVisible(camera, voxelSize);
             }
+
+            int missingVisible = 0;
+            for (int i = 0; i < _allWorkers.Length; i++)
+                missingVisible += _allWorkers[i].MissingVisibleCount;
+            _lastMissingVisibleCount = missingVisible;
+
             _visibilityTiming.Add(ElapsedMs(visibilityStart));
         }
 
