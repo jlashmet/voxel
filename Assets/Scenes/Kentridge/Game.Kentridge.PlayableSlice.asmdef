@@ -4,6 +4,7 @@
     "references": [
         "VoxelEngine.Showcase",
         "VoxelEngine.Composition",
+        "VoxelEngine.Composition.Api",
         "VoxelEngine.Rendering.Api",
         "VoxelEngine.Storage.Api",
         "VoxelEngine.Structures.Api",
