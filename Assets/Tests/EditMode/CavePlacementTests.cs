@@ -65,6 +65,75 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void DeepestSelectionIsIndependentOfCandidateEnumerationOrder()
+        {
+            CaveTraversalFlags terminal = CaveTraversalFlags.ReachableFromEntrance |
+                                          CaveTraversalFlags.Terminal;
+            var left = new CaveTraversalCandidate
+            {
+                Position = new int3(-3, -2, 8),
+                TraversalDistance = 42,
+                BranchDepth = 1,
+                Flags = terminal | CaveTraversalFlags.Branch,
+            };
+            var right = new CaveTraversalCandidate
+            {
+                Position = new int3(4, -2, 8),
+                TraversalDistance = 42,
+                BranchDepth = 1,
+                Flags = terminal | CaveTraversalFlags.Branch,
+            };
+            var forward = new CaveTraversalCandidateSet();
+            forward.Items.Add(right);
+            forward.Items.Add(left);
+            var reverse = new CaveTraversalCandidateSet();
+            reverse.Items.Add(left);
+            reverse.Items.Add(right);
+            CavePlacementRequirements requirements = CavePlacementRequirements.AnyReachableTerminal();
+
+            Assert.Multiple(() =>
+            {
+                Assert.IsTrue(CavePlacementResolver.TrySelectDeepest(
+                    in forward, in requirements, out CaveTraversalCandidate selectedForward));
+                Assert.IsTrue(CavePlacementResolver.TrySelectDeepest(
+                    in reverse, in requirements, out CaveTraversalCandidate selectedReverse));
+                Assert.AreEqual(left.Position, selectedForward.Position);
+                Assert.AreEqual(left.Position, selectedReverse.Position);
+            });
+        }
+
+        [Test]
+        public void HookPlannerUsesTraversalSelectionInsteadOfWorldSpaceDistance()
+        {
+            CaveGenerationRequest request = CaveGenerationRequest.Attached(
+                0x123456ul, int3.zero, Facing.North, 7, 9, 4);
+            CaveTraversalFlags terminal = CaveTraversalFlags.ReachableFromEntrance |
+                                          CaveTraversalFlags.Terminal;
+            var candidates = new CaveTraversalCandidateSet();
+            candidates.Items.Add(new CaveTraversalCandidate
+            {
+                Position = new int3(0, 0, 80),
+                TraversalDistance = 12,
+                BranchDepth = 0,
+                Flags = terminal | CaveTraversalFlags.MainPath,
+            });
+            candidates.Items.Add(new CaveTraversalCandidate
+            {
+                Position = new int3(1, -3, 2),
+                TraversalDistance = 60,
+                BranchDepth = 1,
+                Flags = terminal | CaveTraversalFlags.Branch,
+            });
+            CavePlacementRequirements requirements = CavePlacementRequirements.AnyReachableTerminal(24);
+
+            Assert.IsTrue(CaveHookPlanner.TryAtDeepestCandidate(
+                in request, in candidates, in requirements, out CaveHookSet hooks));
+            Assert.AreEqual(3, hooks.Count);
+            for (int i = 0; i < hooks.Items.Length; i++)
+                Assert.AreEqual(new int3(1, -3, 2), hooks.Items[i].Position);
+        }
+
+        [Test]
         public void GeneratedBranchTerminalInheritsCumulativeTraversalDistance()
         {
             CaveConfig config = CaveConfig.Default;
