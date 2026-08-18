@@ -4,8 +4,9 @@ run-name: Single test · ${{ github.ref_name }} · ${{ github.event_name }}
 # Fast, explicit validation path for coding agents. This does not replace the
 # affected-test PR workflow or the full master suite; it runs only the requested
 # Unity test against the selected git ref. Local developers can dispatch it via
-# tools/ci-test; agents without workflow-dispatch access can update the committed
-# test-request file and push instead.
+# tools/ci-test. Agents without workflow-dispatch access use a dedicated ci-test/*
+# branch based on the exact source commit, then update .github/test-request.json
+# there. Keeping request commits off the PR branch prevents normal PR CI fanout.
 on:
   workflow_dispatch:
     inputs:
@@ -27,6 +28,8 @@ on:
         default: ''
         type: string
   push:
+    branches:
+      - 'ci-test/**'
     paths:
       - '.github/test-request.json'
 
