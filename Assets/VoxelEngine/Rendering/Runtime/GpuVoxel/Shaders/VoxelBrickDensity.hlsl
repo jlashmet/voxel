@@ -174,11 +174,25 @@ bool HasOppositeOccupancyNeighbour(int3 p, bool centreSolid)
         || IsSolidSample(ReadMaterial(p + int3( 0, 0,-1), s, b)) != centreSolid;
 }
 
-// SignedQ3 of a packed boundary sample: low 4 bits, sign-extended from 4 bits.
+// Matches VoxelBoundarySample. The sample is authored whenever any bit is set; the offset is a
+// 6-bit field biased by 32, and the top two bits carry the extrusion axis (0 meaning "all axes").
+bool BoundaryIsAuthored(uint packed) { return packed != 0u; }
+
 int BoundarySignedQ3(uint packed)
 {
-    int q = (int)(packed & 0xFu);
-    return q >= 8 ? q - 16 : q;
+    return BoundaryIsAuthored(packed) ? (int)(packed & 0x3Fu) - 32 : 0;
+}
+
+int BoundaryExtrusionAxis(uint packed)
+{
+    uint code = packed >> 6;
+    return code == 0u ? 3 : (int)code - 1;
+}
+
+bool BoundaryAppliesAlong(uint packed, int edgeAxis)
+{
+    int axis = BoundaryExtrusionAxis(packed);
+    return BoundaryIsAuthored(packed) && (axis == 3 || edgeAxis != axis);
 }
 
 float AddTap(int3 p, float weight, bool centreSolid, StyleDefinition centreStyle,

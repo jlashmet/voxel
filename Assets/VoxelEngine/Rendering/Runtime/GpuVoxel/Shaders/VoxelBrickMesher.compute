@@ -117,31 +117,59 @@ void CSCountCells(uint3 id : SV_DispatchThreadID)
     // proportional to surface area rather than volume.
     if (caseCode == 0u || caseCode == 255u) return;
 
-    uint cellClass = _RegularCellClass[caseCode] & 0x7Fu;
+    // Style flags decide whether this cell is meshed at all, and whether its vertices are shared
+    // or split per triangle. A cell with no continuous style is owned by the faceted path.
+    bool continuous = false, planar = false, rounded = false;
+    for (int c = 0; c < 8; c++)
+    {
+        int3 g = cell + _Padding + CellCorner(c);
+        int sample = GridIndex(g);
+        if (!IsSolidSample(_SampleMaterial[sample])) continue;
+        StyleDefinition style = LoadStyle(_SampleSurface[sample] & 0xFFFFu);
+        if (style.reconstruction == RECONSTRUCTION_CUBIC) continue;
+        continuous = true;
+        if (style.reconstruction == RECONSTRUCTION_PLANAR
+         || style.reconstruction == RECONSTRUCTION_SHARP) planar = true;
+        else rounded = true;
+    }
+    if (!continuous) return;
+
+    // GeometryCounts packs vertices in the high nibble and triangles in the low one.
+    uint cellClass = _RegularCellClass[caseCode];
     uint counts = _RegularGeometryCounts[cellClass];
-    _CellVertexCounts[cellIndex] = counts & 0xFFu;
-    _CellTriangleCounts[cellIndex] = (counts >> 8) & 0xFFu;
+    uint sourceVertexCount = counts >> 4;
+    uint indexCount = (counts & 0x0Fu) * 3u;
+
+    // The planar path splits vertices per triangle so each face can carry its own normal.
+    uint outputVertexCount = (planar && !rounded) ? indexCount : sourceVertexCount;
+    if (outputVertexCount > 15u || indexCount > 15u) return;
+
+    _CellVertexCounts[cellIndex] = outputVertexCount;
+    _CellTriangleCounts[cellIndex] = indexCount / 3u;
 }
 
 // ---------------------------------------------------------------------------
 // 3. Write geometry into reserved space.
 // ---------------------------------------------------------------------------
 
-float3 CornerPosition(int3 cell, int corner)
+// Central difference over the sampled field, clamped at the grid edge exactly as the CPU does.
+float3 DensityNormal(int3 g)
 {
-    int3 g = cell + CellCorner(corner);
-    return (float3)(_ChunkOriginVoxel + g * _SourceStep) * _VoxelSize;
-}
-
-// Central difference over the sampled field, matching the CPU normal.
-float3 SampleNormal(int3 g)
-{
-    float dx = _Density[GridIndex(g - int3(1, 0, 0))] - _Density[GridIndex(g + int3(1, 0, 0))];
-    float dy = _Density[GridIndex(g - int3(0, 1, 0))] - _Density[GridIndex(g + int3(0, 1, 0))];
-    float dz = _Density[GridIndex(g - int3(0, 0, 1))] - _Density[GridIndex(g + int3(0, 0, 1))];
-    float3 n = float3(dx, dy, dz);
+    int hi = _GridSize - 1;
+    float x = _Density[GridIndex(clamp(g - int3(1, 0, 0), 0, hi))]
+            - _Density[GridIndex(clamp(g + int3(1, 0, 0), 0, hi))];
+    float y = _Density[GridIndex(clamp(g - int3(0, 1, 0), 0, hi))]
+            - _Density[GridIndex(clamp(g + int3(0, 1, 0), 0, hi))];
+    float z = _Density[GridIndex(clamp(g - int3(0, 0, 1), 0, hi))]
+            - _Density[GridIndex(clamp(g + int3(0, 0, 1), 0, hi))];
+    float3 n = float3(x, y, z);
     float len = length(n);
     return len > 1e-6 ? n / len : float3(0, 1, 0);
+}
+
+uint PackMaterial(uint material, uint surface)
+{
+    return (material & 0xFFu) | ((surface & 0xFFFFu) << 8) | ((surface & 0xFF0000u) << 8);
 }
 
 [numthreads(64, 1, 1)]
@@ -151,9 +179,10 @@ void CSWriteCells(uint3 id : SV_DispatchThreadID)
     int cellTotal = _CellsPerAxis * _CellsPerAxis * _CellsPerAxis;
     if (cellIndex >= cellTotal) return;
 
-    uint vertexCount = _CellVertexCounts[cellIndex];
+    uint outputVertexCount = _CellVertexCounts[cellIndex];
     uint triangleCount = _CellTriangleCounts[cellIndex];
-    if (vertexCount == 0u || triangleCount == 0u) return;
+    if (outputVertexCount == 0u || triangleCount == 0u) return;
+    uint indexCount = triangleCount * 3u;
 
     int x = cellIndex % _CellsPerAxis;
     int y = (cellIndex / _CellsPerAxis) % _CellsPerAxis;
@@ -163,57 +192,114 @@ void CSWriteCells(uint3 id : SV_DispatchThreadID)
     uint caseCode = 0u;
     float density[8];
     uint material[8];
+    uint surface[8];
+    uint boundary[8];
     for (int i = 0; i < 8; i++)
     {
-        int3 g = cell + _Padding + CellCorner(i);
-        int sample = GridIndex(g);
+        int sample = GridIndex(cell + _Padding + CellCorner(i));
         density[i] = _Density[sample];
         material[i] = _SampleMaterial[sample];
+        surface[i] = _SampleSurface[sample];
+        boundary[i] = _SampleBoundary[sample];
         if (density[i] < 0.0) caseCode |= 1u << (uint)i;
     }
     if (caseCode == 0u || caseCode == 255u) return;
 
-    // Reserve this cell's span in one atomic each, so cells never interleave their output.
-    uint vertexBase, indexBase;
-    InterlockedAdd(_Counters[0], vertexCount, vertexBase);
-    InterlockedAdd(_Counters[1], triangleCount * 3u, indexBase);
+    uint cellClass = _RegularCellClass[caseCode];
+    uint sourceVertexCount = _RegularGeometryCounts[cellClass] >> 4;
 
-    // Overflow is refused rather than clamped: a partially written cell is corrupt geometry, and
-    // the reservation pass exists precisely so this should not happen.
-    if ((int)(vertexBase + vertexCount) > _VertexCapacity) return;
-    if ((int)(indexBase + triangleCount * 3u) > _IndexCapacity) return;
-
-    uint localVertex[12];
-    for (uint v = 0u; v < vertexCount; v++)
+    // Build the cell's shared vertices first; the planar path re-emits them per triangle below.
+    SurfaceVertex cellVertices[15];
+    for (uint v = 0u; v < sourceVertexCount; v++)
     {
-        uint edgeCode = _RegularEdgeCodes[caseCode * 12u + v];
-        uint cornerA = edgeCode & 0xFu;
-        uint cornerB = (edgeCode >> 4) & 0xFu;
+        uint edge = _RegularEdgeCodes[caseCode * 12u + v];
+        int c0 = (int)((edge >> 4) & 0x0Fu);
+        int c1 = (int)(edge & 0x0Fu);
 
-        float da = density[cornerA];
-        float db = density[cornerB];
-        float t = abs(da - db) > 1e-6 ? da / (da - db) : 0.5;
+        float d0 = density[c0];
+        float d1 = density[c1];
+        int3 o0 = CellCorner(c0);
+        int3 o1 = CellCorner(c1);
+        int3 delta = abs(o1 - o0);
+        int axis = delta.x != 0 ? 0 : (delta.y != 0 ? 1 : 2);
 
-        float3 pa = CornerPosition(cell + _Padding, (int)cornerA);
-        float3 pb = CornerPosition(cell + _Padding, (int)cornerB);
+        // An authored boundary that does not apply along this edge's axis is ignored, and the edge
+        // reverts to a plain occupancy crossing.
+        // An authored sample that does not apply along this edge's axis is ignored, and the edge
+        // reverts to a plain occupancy crossing, so an authored bevel does not bend an edge it says
+        // nothing about.
+        if ((BoundaryIsAuthored(boundary[c0]) && !BoundaryAppliesAlong(boundary[c0], axis))
+         || (BoundaryIsAuthored(boundary[c1]) && !BoundaryAppliesAlong(boundary[c1], axis)))
+        {
+            d0 = IsSolidSample(material[c0]) ? 0.5 : -0.5;
+            d1 = IsSolidSample(material[c1]) ? 0.5 : -0.5;
+        }
+
+        float t0 = abs(d1 - d0) > 1e-7 ? d1 / (d1 - d0) : 0.5;
+        float t1 = 1.0 - t0;
+        float3 local = ((float3)(cell + o0) * t0 + (float3)(cell + o1) * t1) * _SourceStep;
 
         SurfaceVertex vertex;
-        vertex.position = lerp(pa, pb, t);
-        vertex.normal = normalize(lerp(
-            SampleNormal(cell + _Padding + CellCorner((int)cornerA)),
-            SampleNormal(cell + _Padding + CellCorner((int)cornerB)), t));
-        // The solid side owns the surface's material; an empty corner has none to give.
-        vertex.material = density[cornerA] < 0.0 ? material[cornerA] : material[cornerB];
-        vertex.active = 1u;
+        vertex.position = ((float3)_ChunkOriginVoxel + local + 0.5) * _VoxelSize;
+        vertex.normal = normalize(DensityNormal(cell + _Padding + o0) * t0
+                                + DensityNormal(cell + _Padding + o1) * t1);
 
-        _Vertices[vertexBase + v] = vertex;
-        localVertex[v] = vertexBase + v;
+        // The denser corner owns the surface; if neither is solid, fall back to any solid corner so
+        // a vertex never carries the empty material.
+        int selected = d0 > d1 ? c0 : c1;
+        uint chosenMaterial = material[selected];
+        uint chosenSurface = surface[selected];
+        if (!IsSolidSample(chosenMaterial))
+        {
+            for (int corner = 0; corner < 8; corner++)
+            {
+                if (!IsSolidSample(material[corner])) continue;
+                chosenMaterial = material[corner];
+                chosenSurface = surface[corner];
+                break;
+            }
+        }
+        vertex.material = PackMaterial(chosenMaterial, chosenSurface);
+        vertex.active = 0x0000FF00u;
+        cellVertices[v] = vertex;
     }
 
-    uint cellClass = _RegularCellClass[caseCode] & 0x7Fu;
-    for (uint t2 = 0u; t2 < triangleCount * 3u; t2++)
+    uint vertexBase, indexBase;
+    InterlockedAdd(_Counters[0], outputVertexCount, vertexBase);
+    InterlockedAdd(_Counters[1], indexCount, indexBase);
+
+    // Overflow is refused rather than clamped: a half-written cell is corrupt geometry, and the
+    // reservation pass exists so this should not be reachable in production.
+    if ((int)(vertexBase + outputVertexCount) > _VertexCapacity) return;
+    if ((int)(indexBase + indexCount) > _IndexCapacity) return;
+
+    uint tableBase = cellClass * 15u;
+    if (outputVertexCount == indexCount)
     {
-        uint corner = _RegularCellIndices[cellClass * 15u + t2];
-        _Indices[indexBase + t2] = localVertex[min(corner, vertexCount - 1u)];
+        // Planar: one vertex per corner of each triangle, all three sharing the face normal, so a
+        // flat surface reads flat instead of being rounded off by shared smooth normals.
+        for (uint t = 0u; t < indexCount; t += 3u)
+        {
+            SurfaceVertex a = cellVertices[_RegularCellIndices[tableBase + t]];
+            SurfaceVertex b = cellVertices[_RegularCellIndices[tableBase + t + 1u]];
+            SurfaceVertex c = cellVertices[_RegularCellIndices[tableBase + t + 2u]];
+
+            float3 face = normalize(cross(b.position - a.position, c.position - a.position));
+            float3 expected = a.normal + b.normal + c.normal;
+            if (dot(face, expected) < 0.0) face = -face;
+            a.normal = face; b.normal = face; c.normal = face;
+
+            _Vertices[vertexBase + t] = a;
+            _Vertices[vertexBase + t + 1u] = b;
+            _Vertices[vertexBase + t + 2u] = c;
+        }
+        for (uint i2 = 0u; i2 < indexCount; i2++) _Indices[indexBase + i2] = vertexBase + i2;
+    }
+    else
+    {
+        for (uint v2 = 0u; v2 < sourceVertexCount; v2++)
+            _Vertices[vertexBase + v2] = cellVertices[v2];
+        for (uint i3 = 0u; i3 < indexCount; i3++)
+            _Indices[indexBase + i3] = vertexBase + _RegularCellIndices[tableBase + i3];
     }
 }
