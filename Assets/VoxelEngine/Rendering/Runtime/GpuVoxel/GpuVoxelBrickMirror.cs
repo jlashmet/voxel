@@ -128,6 +128,26 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         /// </summary>
         public GpuBrickPublish Publish(in VoxelBrickDelta delta, in PinnedVoxelReadBlock payload)
         {
+            bool hasPayload = payload.Kind == VoxelReadBlockKind.Mixed
+                           && payload.MixedVoxels.IsCreated
+                           && payload.MixedSurfaceSemantics.IsCreated
+                           && payload.MixedBoundarySamples.IsCreated;
+            return Publish(delta,
+                           payload.MixedVoxels, payload.MixedSurfaceSemantics,
+                           payload.MixedBoundarySamples, payload.MixedOffset, hasPayload);
+        }
+
+        /// <summary>
+        /// Publishes from raw channel arrays rather than a pinned block, for callers that hold
+        /// storage directly. The pinned overload delegates here; the two must not diverge.
+        /// </summary>
+        public GpuBrickPublish Publish(in VoxelBrickDelta delta,
+                                       NativeArray<byte> voxels,
+                                       NativeArray<ushort> surfaceSemantics,
+                                       NativeArray<byte> boundarySamples,
+                                       int elementOffset,
+                                       bool hasPayload)
+        {
             ThrowIfDisposed();
 
             GpuBrickAdmission admission = _slots.TryAdmit(in delta, out int slot);
@@ -145,10 +165,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                     return GpuBrickPublish.AlreadyResident;
             }
 
-            if (payload.Kind != VoxelReadBlockKind.Mixed
-                || !payload.MixedVoxels.IsCreated
-                || !payload.MixedSurfaceSemantics.IsCreated
-                || !payload.MixedBoundarySamples.IsCreated)
+            if (!hasPayload)
             {
                 // The slot was admitted on the delta's word; without the payload it would hold
                 // whatever the previous tenant left. Release it rather than publish a lie.
@@ -156,13 +173,13 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 return GpuBrickPublish.PayloadMissing;
             }
 
-            UploadChannel(_materials, payload.MixedVoxels, payload.MixedOffset,
+            UploadChannel(_materials, voxels, elementOffset,
                           GpuBrickBufferLayout.VoxelsPerBrick,
                           GpuBrickBufferLayout.MaterialWordOffset(slot));
-            UploadChannel(_surfaceSemantics, payload.MixedSurfaceSemantics, payload.MixedOffset,
+            UploadChannel(_surfaceSemantics, surfaceSemantics, elementOffset,
                           GpuBrickBufferLayout.VoxelsPerBrick,
                           GpuBrickBufferLayout.SurfaceWordOffset(slot));
-            UploadChannel(_boundarySamples, payload.MixedBoundarySamples, payload.MixedOffset,
+            UploadChannel(_boundarySamples, boundarySamples, elementOffset,
                           GpuBrickBufferLayout.VoxelsPerBrick,
                           GpuBrickBufferLayout.BoundaryWordOffset(slot));
 

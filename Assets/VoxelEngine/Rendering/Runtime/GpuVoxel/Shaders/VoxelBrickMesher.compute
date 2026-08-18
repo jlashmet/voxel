@@ -23,12 +23,23 @@ int _Padding;
 int _SourceStep;
 float _VoxelSize;
 
-// -- sampled field (kernel 1 out, kernels 2/3 in) ----------------------------
+// -- sampled field -----------------------------------------------------------
+//
+// The same buffers are bound twice, once writable for the sampling kernel and once read-only for
+// the kernels that consume them. A UAV is a scarcer resource than it looks — the floor across
+// supported hardware is eight per kernel, and binding every buffer writable everywhere overran that
+// on the write kernel. Reading through an SRV also lets the driver assume the data is immutable for
+// the dispatch, which is true here and worth telling it.
 
-RWStructuredBuffer<float> _Density;
-RWStructuredBuffer<uint> _SampleMaterial;
-RWStructuredBuffer<uint> _SampleSurface;
-RWStructuredBuffer<uint> _SampleBoundary;
+RWStructuredBuffer<float> _DensityWrite;
+RWStructuredBuffer<uint> _SampleMaterialWrite;
+RWStructuredBuffer<uint> _SampleSurfaceWrite;
+RWStructuredBuffer<uint> _SampleBoundaryWrite;
+
+StructuredBuffer<float> _Density;
+StructuredBuffer<uint> _SampleMaterial;
+StructuredBuffer<uint> _SampleSurface;
+StructuredBuffer<uint> _SampleBoundary;
 
 // -- Transvoxel regular tables ----------------------------------------------
 
@@ -39,8 +50,11 @@ StructuredBuffer<uint> _RegularEdgeCodes;        // per case: 12 edge codes
 
 // -- output ------------------------------------------------------------------
 
-RWStructuredBuffer<uint> _CellVertexCounts;
-RWStructuredBuffer<uint> _CellTriangleCounts;
+RWStructuredBuffer<uint> _CellVertexCountsWrite;
+RWStructuredBuffer<uint> _CellTriangleCountsWrite;
+
+StructuredBuffer<uint> _CellVertexCounts;
+StructuredBuffer<uint> _CellTriangleCounts;
 
 struct SurfaceVertex
 {
@@ -81,10 +95,10 @@ void CSSampleDensity(uint3 id : SV_DispatchThreadID)
     int3 p = _ChunkOriginVoxel + (int3(gx, gy, gz) - _Padding) * _SourceStep;
 
     uint material, surface, boundary;
-    _Density[index] = SampleField(p, material, surface, boundary);
-    _SampleMaterial[index] = material;
-    _SampleSurface[index] = surface;
-    _SampleBoundary[index] = boundary;
+    _DensityWrite[index] = SampleField(p, material, surface, boundary);
+    _SampleMaterialWrite[index] = material;
+    _SampleSurfaceWrite[index] = surface;
+    _SampleBoundaryWrite[index] = boundary;
 }
 
 // ---------------------------------------------------------------------------
@@ -97,8 +111,8 @@ void CSCountCells(uint3 id : SV_DispatchThreadID)
     int cellTotal = _CellsPerAxis * _CellsPerAxis * _CellsPerAxis;
     if (cellIndex >= cellTotal) return;
 
-    _CellVertexCounts[cellIndex] = 0u;
-    _CellTriangleCounts[cellIndex] = 0u;
+    _CellVertexCountsWrite[cellIndex] = 0u;
+    _CellTriangleCountsWrite[cellIndex] = 0u;
 
     int x = cellIndex % _CellsPerAxis;
     int y = (cellIndex / _CellsPerAxis) % _CellsPerAxis;
@@ -144,8 +158,8 @@ void CSCountCells(uint3 id : SV_DispatchThreadID)
     uint outputVertexCount = (planar && !rounded) ? indexCount : sourceVertexCount;
     if (outputVertexCount > 15u || indexCount > 15u) return;
 
-    _CellVertexCounts[cellIndex] = outputVertexCount;
-    _CellTriangleCounts[cellIndex] = indexCount / 3u;
+    _CellVertexCountsWrite[cellIndex] = outputVertexCount;
+    _CellTriangleCountsWrite[cellIndex] = indexCount / 3u;
 }
 
 // ---------------------------------------------------------------------------
