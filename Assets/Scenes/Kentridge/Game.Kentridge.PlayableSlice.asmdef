@@ -13,6 +13,7 @@
         "Game.Composition.Campaign.Runtime",
         "Game.Composition.Kentridge.Api",
         "Game.Composition.Kentridge.Runtime",
+        "Game.Composition.Materials",
         "Game.Composition.WorldBuilderWorldGen",
         "Game.Composition.WorldBuilderWorldGen.Runtime",
         "Game.Cutscenes.Api",
