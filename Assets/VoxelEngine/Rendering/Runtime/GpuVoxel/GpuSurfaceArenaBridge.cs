@@ -36,61 +36,63 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
     }
 
     /// <summary>
-    /// Cutover seam between the compute Transvoxel mesher and the arena/draw path already used by
-    /// the CPU renderer.
+    /// Cutover seam between the production GPU extraction context and the arena/draw path already
+    /// used by the CPU renderer.
     ///
-    /// Count first, acquire a *staging* lease without disturbing the old published lease, then
-    /// write geometry directly into the arena's GPU buffers. The indirect args record is written
-    /// only after count and write agree exactly. Any failure releases the staging lease, so a
-    /// failed GPU build cannot turn previously covered terrain into a hole.
+    /// The context has already consumed the CPU builder's exact brick snapshot, mirrored mixed
+    /// payloads, pinned every GPU brick the dispatch depends on, and counted the output. This bridge
+    /// acquires a *staging* lease without disturbing the old published lease, writes geometry
+    /// directly into the arena's GPU buffers, then writes the indirect args record last. Any
+    /// failure releases only the staging lease. The staged mirror pins are released on every exit.
     /// </summary>
     internal static class GpuSurfaceArenaBridge
     {
-        public static GpuSurfaceArenaBuild Build(GpuSurfaceExtractor extractor,
-                                                 GpuVoxelBrickMirror mirror,
-                                                 GpuTransvoxelTables tables,
-                                                 in GpuChunkExtraction request,
+        /// <summary>
+        /// Consumes the chunk currently staged in <paramref name="context"/>. A Ready result owns
+        /// the returned arena lease; every other result owns nothing. The context is always released
+        /// before this method returns, so mirror eviction cannot be blocked by an abandoned build.
+        /// </summary>
+        public static GpuSurfaceArenaBuild Build(GpuSurfaceExtractionContext context,
                                                  SurfaceGeometryArena arena)
         {
-            GpuExtractionCounts counts = extractor.Count(mirror, tables, request);
-            if (counts.VertexCount == 0 || counts.IndexCount == 0)
+            GpuExtractionCounts counts = context.StagedCounts;
+            try
             {
-                return new GpuSurfaceArenaBuild(GpuSurfaceArenaBuildStatus.Empty, default,
-                                                counts.VertexCount, counts.IndexCount);
-            }
+                if (counts.IsEmpty)
+                {
+                    return new GpuSurfaceArenaBuild(GpuSurfaceArenaBuildStatus.Empty, default,
+                                                    counts.VertexCount, counts.IndexCount);
+                }
 
-            if (!arena.TryAcquire(counts.VertexCount, counts.IndexCount,
-                                  out SurfaceGeometryLease lease))
+                if (!arena.TryAcquire(counts.VertexCount, counts.IndexCount,
+                                      out SurfaceGeometryLease lease))
+                {
+                    return new GpuSurfaceArenaBuild(GpuSurfaceArenaBuildStatus.ArenaFull, default,
+                                                    counts.VertexCount, counts.IndexCount);
+                }
+
+                if (!context.TryWriteRange(
+                        arena.Vertices, arena.Indices,
+                        lease.VertexStart, lease.VertexCapacity,
+                        lease.IndexStart, lease.IndexCapacity,
+                        out int indexCount))
+                {
+                    arena.Release(lease);
+                    return new GpuSurfaceArenaBuild(GpuSurfaceArenaBuildStatus.CountWriteMismatch,
+                                                    default,
+                                                    counts.VertexCount, counts.IndexCount);
+                }
+
+                // Args are the publication record the draw path consumes. Writing them last makes
+                // the staging lease invisible as drawable geometry until the payload is complete.
+                arena.UploadArgs((uint)indexCount, lease);
+                return new GpuSurfaceArenaBuild(GpuSurfaceArenaBuildStatus.Ready, lease,
+                                                counts.VertexCount, indexCount);
+            }
+            finally
             {
-                return new GpuSurfaceArenaBuild(GpuSurfaceArenaBuildStatus.ArenaFull, default,
-                                                counts.VertexCount, counts.IndexCount);
+                context.Release();
             }
-
-            GpuExtractionResult written = extractor.WriteRange(
-                mirror, tables, request,
-                arena.Vertices, arena.Indices,
-                lease.VertexStart, lease.VertexCapacity,
-                lease.IndexStart, lease.IndexCapacity);
-
-            // Alignment slack in SurfaceGeometryArena means a broken count pass can sometimes emit
-            // more than it counted without tripping the raw buffer-capacity overflow check. Treat
-            // any count/write disagreement as a failed build; publishing it would make reservation
-            // correctness depend on accidental alignment headroom.
-            if (written.Overflowed
-                || written.VertexCount != counts.VertexCount
-                || written.IndexCount != counts.IndexCount)
-            {
-                arena.Release(lease);
-                return new GpuSurfaceArenaBuild(GpuSurfaceArenaBuildStatus.CountWriteMismatch,
-                                                default,
-                                                written.VertexCount, written.IndexCount);
-            }
-
-            // Args are the publication record the draw path consumes. Writing them last makes the
-            // staging lease invisible as drawable geometry until the payload is complete.
-            arena.UploadArgs((uint)written.IndexCount, lease);
-            return new GpuSurfaceArenaBuild(GpuSurfaceArenaBuildStatus.Ready, lease,
-                                            written.VertexCount, written.IndexCount);
         }
     }
 }
