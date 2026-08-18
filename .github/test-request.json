@@ -1,0 +1,5 @@
+{
+  "platform": "EditMode",
+  "test": "VoxelEngine.Tests.EditMode.ArchitectureShapeProgramBuilderTests.PrimitiveOverridesRejectNegativeCornerRadius",
+  "request_id": "connector-smoke-current-master"
+}
