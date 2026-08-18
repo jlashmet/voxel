@@ -1,5 +1,6 @@
 name: Worldbuilding Visuals
 
+# Keep this branch-local visual gate push-triggered while the showcase is actively iterated.
 on:
   workflow_dispatch:
   push:
