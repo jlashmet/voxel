@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Game.Composition.Campaign.Content;
 using Game.Composition.Kentridge.Api;
 using Game.Composition.Kentridge.Runtime;
+using Game.Composition.Materials;
 using Game.Composition.WorldBuilderWorldGen;
 using Game.Composition.WorldBuilderWorldGen.Runtime;
 using Game.Cutscenes.Api;
@@ -90,6 +91,7 @@ namespace Game.Kentridge.PlayableSlice
                     capacity,
                     m_LoadRadiusRegions,
                     m_UnloadRadiusRegions,
+                    GameMaterialComposition.SimulationDefinitions(),
                     tierBytes);
                 catalogue = KentridgeCombinedVoxelCatalogue.Build(
                     settlement,
