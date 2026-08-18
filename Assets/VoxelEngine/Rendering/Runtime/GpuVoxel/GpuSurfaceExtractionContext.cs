@@ -66,11 +66,11 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         public long MirrorCommittedBytes => _mirror.CommittedBytes;
 
         private GpuSurfaceExtractionContext(ComputeShader shader, int cellsPerAxis, int padding,
-                                            int mirrorSlots)
+                                            int mirrorSlots, int brickCacheEdge)
         {
             _mirror = new GpuVoxelBrickMirror(mirrorSlots);
             _tables = GpuTransvoxelTables.CreateDefault();
-            _extractor = new GpuSurfaceExtractor(shader, cellsPerAxis, padding);
+            _extractor = new GpuSurfaceExtractor(shader, cellsPerAxis, padding, brickCacheEdge);
             _brickCacheEdge = _extractor.BrickCacheEdge;
         }
 
@@ -85,7 +85,21 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                                                             long mirrorBudgetBytes,
                                                             ComputeShader shader = null)
         {
+            return TryCreate(cellsPerAxis, padding, mirrorBudgetBytes, brickCacheEdge: 0, shader);
+        }
+
+        /// <summary>
+        /// Builds a context whose dense brick cache uses the exact edge of the CPU snapshot it will
+        /// consume. Production must use this overload: a merely-large-enough derived cache can index
+        /// the same flattened snapshot with a different stride and silently sample the wrong bricks.
+        /// </summary>
+        public static GpuSurfaceExtractionContext TryCreate(int cellsPerAxis, int padding,
+                                                            long mirrorBudgetBytes,
+                                                            int brickCacheEdge,
+                                                            ComputeShader shader = null)
+        {
             if (!SystemInfo.supportsComputeShaders) return null;
+            if (brickCacheEdge < 0) throw new ArgumentOutOfRangeException(nameof(brickCacheEdge));
 
             shader ??= Resources.Load<ComputeShader>(ShaderResourcePath);
             if (shader == null) return null;
@@ -95,7 +109,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
             try
             {
-                return new GpuSurfaceExtractionContext(shader, cellsPerAxis, padding, slots);
+                return new GpuSurfaceExtractionContext(
+                    shader, cellsPerAxis, padding, slots, brickCacheEdge);
             }
             catch (Exception e)
             {
