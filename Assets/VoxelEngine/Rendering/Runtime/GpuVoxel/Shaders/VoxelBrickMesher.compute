@@ -1,0 +1,219 @@
+// GPU surface extraction for the voxel mirror.
+//
+// Three kernels in the order the plan's sizing strategy requires: sample the density field, count
+// what each cell will emit, then write geometry into space reserved from those counts. Counting
+// before writing is what lets a compute mesher bound its output at all — a shader cannot grow a
+// buffer, and a partially written chunk is a hole rather than a saving.
+//
+// Nothing here reads back. The counts stay on the GPU for the prefix pass, and the geometry stays
+// on the GPU through drawing, per the plan's no-readback invariant.
+
+#pragma kernel CSSampleDensity
+#pragma kernel CSCountCells
+#pragma kernel CSWriteCells
+
+#include "VoxelBrickDensity.hlsl"
+
+// -- meshed chunk ------------------------------------------------------------
+
+int3 _ChunkOriginVoxel;
+int _CellsPerAxis;
+int _GridSize;
+int _Padding;
+int _SourceStep;
+float _VoxelSize;
+
+// -- sampled field (kernel 1 out, kernels 2/3 in) ----------------------------
+
+RWStructuredBuffer<float> _Density;
+RWStructuredBuffer<uint> _SampleMaterial;
+RWStructuredBuffer<uint> _SampleSurface;
+RWStructuredBuffer<uint> _SampleBoundary;
+
+// -- Transvoxel regular tables ----------------------------------------------
+
+StructuredBuffer<uint> _RegularCellClass;        // 256 case codes -> class
+StructuredBuffer<uint> _RegularGeometryCounts;   // per class: vertex/triangle counts
+StructuredBuffer<uint> _RegularCellIndices;      // per class: 15 corner indices
+StructuredBuffer<uint> _RegularEdgeCodes;        // per case: 12 edge codes
+
+// -- output ------------------------------------------------------------------
+
+RWStructuredBuffer<uint> _CellVertexCounts;
+RWStructuredBuffer<uint> _CellTriangleCounts;
+
+struct SurfaceVertex
+{
+    float3 position;
+    float3 normal;
+    uint material;
+    uint active;
+};
+
+RWStructuredBuffer<SurfaceVertex> _Vertices;
+RWStructuredBuffer<uint> _Indices;
+RWStructuredBuffer<uint> _Counters;   // 0: vertices written, 1: indices written
+int _VertexCapacity;
+int _IndexCapacity;
+
+int GridIndex(int3 g) { return g.x + _GridSize * (g.y + _GridSize * g.z); }
+
+int3 CellCorner(int i)
+{
+    return int3(i & 1, (i >> 1) & 1, (i >> 2) & 1);
+}
+
+// ---------------------------------------------------------------------------
+// 1. Sample the density field over the padded grid.
+// ---------------------------------------------------------------------------
+[numthreads(64, 1, 1)]
+void CSSampleDensity(uint3 id : SV_DispatchThreadID)
+{
+    int index = (int)id.x;
+    int total = _GridSize * _GridSize * _GridSize;
+    if (index >= total) return;
+
+    int gx = index % _GridSize;
+    int yz = index / _GridSize;
+    int gy = yz % _GridSize;
+    int gz = yz / _GridSize;
+
+    int3 p = _ChunkOriginVoxel + (int3(gx, gy, gz) - _Padding) * _SourceStep;
+
+    uint material, surface, boundary;
+    _Density[index] = SampleField(p, material, surface, boundary);
+    _SampleMaterial[index] = material;
+    _SampleSurface[index] = surface;
+    _SampleBoundary[index] = boundary;
+}
+
+// ---------------------------------------------------------------------------
+// 2. Count what each cell emits, without emitting it.
+// ---------------------------------------------------------------------------
+[numthreads(64, 1, 1)]
+void CSCountCells(uint3 id : SV_DispatchThreadID)
+{
+    int cellIndex = (int)id.x;
+    int cellTotal = _CellsPerAxis * _CellsPerAxis * _CellsPerAxis;
+    if (cellIndex >= cellTotal) return;
+
+    _CellVertexCounts[cellIndex] = 0u;
+    _CellTriangleCounts[cellIndex] = 0u;
+
+    int x = cellIndex % _CellsPerAxis;
+    int y = (cellIndex / _CellsPerAxis) % _CellsPerAxis;
+    int z = cellIndex / (_CellsPerAxis * _CellsPerAxis);
+    int3 cell = int3(x, y, z);
+
+    uint caseCode = 0u;
+    for (int i = 0; i < 8; i++)
+    {
+        int3 g = cell + _Padding + CellCorner(i);
+        if (_Density[GridIndex(g)] < 0.0) caseCode |= 1u << (uint)i;
+    }
+
+    // A cell entirely inside or entirely outside the surface contributes nothing. This is the
+    // overwhelming majority of a voxel world, and rejecting it here is what keeps the write pass
+    // proportional to surface area rather than volume.
+    if (caseCode == 0u || caseCode == 255u) return;
+
+    uint cellClass = _RegularCellClass[caseCode] & 0x7Fu;
+    uint counts = _RegularGeometryCounts[cellClass];
+    _CellVertexCounts[cellIndex] = counts & 0xFFu;
+    _CellTriangleCounts[cellIndex] = (counts >> 8) & 0xFFu;
+}
+
+// ---------------------------------------------------------------------------
+// 3. Write geometry into reserved space.
+// ---------------------------------------------------------------------------
+
+float3 CornerPosition(int3 cell, int corner)
+{
+    int3 g = cell + CellCorner(corner);
+    return (float3)(_ChunkOriginVoxel + g * _SourceStep) * _VoxelSize;
+}
+
+// Central difference over the sampled field, matching the CPU normal.
+float3 SampleNormal(int3 g)
+{
+    float dx = _Density[GridIndex(g - int3(1, 0, 0))] - _Density[GridIndex(g + int3(1, 0, 0))];
+    float dy = _Density[GridIndex(g - int3(0, 1, 0))] - _Density[GridIndex(g + int3(0, 1, 0))];
+    float dz = _Density[GridIndex(g - int3(0, 0, 1))] - _Density[GridIndex(g + int3(0, 0, 1))];
+    float3 n = float3(dx, dy, dz);
+    float len = length(n);
+    return len > 1e-6 ? n / len : float3(0, 1, 0);
+}
+
+[numthreads(64, 1, 1)]
+void CSWriteCells(uint3 id : SV_DispatchThreadID)
+{
+    int cellIndex = (int)id.x;
+    int cellTotal = _CellsPerAxis * _CellsPerAxis * _CellsPerAxis;
+    if (cellIndex >= cellTotal) return;
+
+    uint vertexCount = _CellVertexCounts[cellIndex];
+    uint triangleCount = _CellTriangleCounts[cellIndex];
+    if (vertexCount == 0u || triangleCount == 0u) return;
+
+    int x = cellIndex % _CellsPerAxis;
+    int y = (cellIndex / _CellsPerAxis) % _CellsPerAxis;
+    int z = cellIndex / (_CellsPerAxis * _CellsPerAxis);
+    int3 cell = int3(x, y, z);
+
+    uint caseCode = 0u;
+    float density[8];
+    uint material[8];
+    for (int i = 0; i < 8; i++)
+    {
+        int3 g = cell + _Padding + CellCorner(i);
+        int sample = GridIndex(g);
+        density[i] = _Density[sample];
+        material[i] = _SampleMaterial[sample];
+        if (density[i] < 0.0) caseCode |= 1u << (uint)i;
+    }
+    if (caseCode == 0u || caseCode == 255u) return;
+
+    // Reserve this cell's span in one atomic each, so cells never interleave their output.
+    uint vertexBase, indexBase;
+    InterlockedAdd(_Counters[0], vertexCount, vertexBase);
+    InterlockedAdd(_Counters[1], triangleCount * 3u, indexBase);
+
+    // Overflow is refused rather than clamped: a partially written cell is corrupt geometry, and
+    // the reservation pass exists precisely so this should not happen.
+    if ((int)(vertexBase + vertexCount) > _VertexCapacity) return;
+    if ((int)(indexBase + triangleCount * 3u) > _IndexCapacity) return;
+
+    uint localVertex[12];
+    for (uint v = 0u; v < vertexCount; v++)
+    {
+        uint edgeCode = _RegularEdgeCodes[caseCode * 12u + v];
+        uint cornerA = edgeCode & 0xFu;
+        uint cornerB = (edgeCode >> 4) & 0xFu;
+
+        float da = density[cornerA];
+        float db = density[cornerB];
+        float t = abs(da - db) > 1e-6 ? da / (da - db) : 0.5;
+
+        float3 pa = CornerPosition(cell + _Padding, (int)cornerA);
+        float3 pb = CornerPosition(cell + _Padding, (int)cornerB);
+
+        SurfaceVertex vertex;
+        vertex.position = lerp(pa, pb, t);
+        vertex.normal = normalize(lerp(
+            SampleNormal(cell + _Padding + CellCorner((int)cornerA)),
+            SampleNormal(cell + _Padding + CellCorner((int)cornerB)), t));
+        // The solid side owns the surface's material; an empty corner has none to give.
+        vertex.material = density[cornerA] < 0.0 ? material[cornerA] : material[cornerB];
+        vertex.active = 1u;
+
+        _Vertices[vertexBase + v] = vertex;
+        localVertex[v] = vertexBase + v;
+    }
+
+    uint cellClass = _RegularCellClass[caseCode] & 0x7Fu;
+    for (uint t2 = 0u; t2 < triangleCount * 3u; t2++)
+    {
+        uint corner = _RegularCellIndices[cellClass * 15u + t2];
+        _Indices[indexBase + t2] = localVertex[min(corner, vertexCount - 1u)];
+    }
+}
