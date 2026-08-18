@@ -34,7 +34,7 @@ namespace VoxelEngine.Showcase
         public ShowcaseWorld(uint seed, int brickPoolCapacity, int loadRadiusRegions,
                              int unloadRadiusRegions, MaterialDefinition[] materialDefinitions,
                              ShowcaseMaterialSet materialRoles,
-                             int maxMixedBrickAllocationBytes =
+                             long maxMixedBrickAllocationBytes =
                                  VoxelEngineBootstrap.MaximumMixedBrickAllocationBytes)
         {
             if (materialDefinitions == null)
@@ -63,7 +63,7 @@ namespace VoxelEngine.Showcase
         /// </summary>
         public ShowcaseWorld(uint seed, int brickPoolCapacity, int loadRadiusRegions,
                              int unloadRadiusRegions, MaterialDefinition[] materialDefinitions,
-                             int maxMixedBrickAllocationBytes =
+                             long maxMixedBrickAllocationBytes =
                                  VoxelEngineBootstrap.MaximumMixedBrickAllocationBytes)
             : this(seed, brickPoolCapacity, loadRadiusRegions, unloadRadiusRegions,
                    materialDefinitions, GameShowcaseMaterials.Default,
