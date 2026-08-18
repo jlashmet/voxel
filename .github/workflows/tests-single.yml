@@ -176,7 +176,9 @@ jobs:
           ROOT="$GITHUB_WORKSPACE/Artifacts/SingleTest"
           mkdir -p "$ROOT"
 
-          EXTRA_ARGS=()
+          # Keep the array non-empty under macOS's Bash 3.2. With set -u, expanding an empty
+          # array is treated as an unbound variable and PlayMode never reaches Unity.
+          EXTRA_ARGS=(-batchmode)
           if [[ "$TEST_PLATFORM" == "EditMode" ]]; then
             EXTRA_ARGS+=(-nographics)
           fi
@@ -185,7 +187,7 @@ jobs:
           status=0
           UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=30 \
           UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
-            -batchmode "${EXTRA_ARGS[@]}" -job-worker-count 1 \
+            "${EXTRA_ARGS[@]}" -job-worker-count 1 \
             -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform "$TEST_PLATFORM" \
             -testFilter "$TEST_FILTER" \
             -testResults "$ROOT/single.xml" -logFile "$ROOT/single.log" || status=$?
