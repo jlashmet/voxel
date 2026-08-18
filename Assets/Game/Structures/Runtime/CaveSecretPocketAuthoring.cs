@@ -44,10 +44,10 @@ namespace Game.Structures.Runtime
     {
         private readonly bool _verified;
 
-        public CaveTraversalCandidate Terminal { get; }
-        public DecorationBounds Barrier { get; }
-        public DecorationBounds Connector { get; }
-        public DecorationBounds Pocket { get; }
+        public readonly CaveTraversalCandidate Terminal;
+        public readonly DecorationBounds Barrier;
+        public readonly DecorationBounds Connector;
+        public readonly DecorationBounds Pocket;
 
         internal CaveSecretPocket(
             in CaveTraversalCandidate terminal,
