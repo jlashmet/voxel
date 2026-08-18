@@ -226,10 +226,13 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 _mirror, _tables, _staged, vertices, indices,
                 vertexStart, vertexCapacity, indexStart, indexCapacity);
 
-            if (result.Overflowed)
+            // SurfaceGeometryArena rounds reservations up for alignment, so capacity overflow alone
+            // is not enough to prove count/write agreement. A bad count can over-emit into alignment
+            // slack and still fit the raw range. Refuse any disagreement before publication.
+            if (result.Overflowed
+                || result.VertexCount != _stagedCounts.VertexCount
+                || result.IndexCount != _stagedCounts.IndexCount)
             {
-                // The reservation was made from this chunk's own count, so overflow means the two
-                // passes disagreed. Refusing leaves the previous geometry standing.
                 ChunksOverflowed++;
                 return false;
             }
