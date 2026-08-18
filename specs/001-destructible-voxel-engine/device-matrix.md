@@ -47,11 +47,11 @@ Three tiers. Mid-tier and low-tier mobile are **out of scope** (`spec.md` Out of
 
 | Budget | PC | Console | Mobile-HE |
 |---|---|---|---|
-| **Brick pool** | 1.5 GB | 1.0 GB | 384 MB |
-| Approx. unique mixed bricks (2,112 B each) | ~727 K | ~508 K | ~190 K |
+| **Brick pool** | 2.0 GB | 1.0 GB | 384 MB |
+| Approx. unique mixed bricks (2,112 B each) | ~947 K | ~508 K | ~190 K |
 | Region pointer tables | 192 MB | 128 MB | 48 MB |
 | Debris and transient | 128 MB | 96 MB | 32 MB |
-| **Total world-attributable** | ~1.8 GB | ~1.2 GB | ~464 MB |
+| **Total world-attributable** | ~2.3 GB | ~1.2 GB | ~464 MB |
 
 **SC-005 check**: total world-attributable memory must be flat over a two-hour session — no upward trend beyond ±2%.
 
