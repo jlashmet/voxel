@@ -12,16 +12,19 @@ namespace VoxelEngine.Storage.Runtime
     {
         private RegionTable _table;
         private BrickPool _pool;
-        private int _regionsLoaded;
+        private int _ensureLoads;
         private int _regionsEvicted;
         private long _mixedBricksReclaimed;
         private int _evictionsWithoutImmediateReclaim;
         private int _lastPressureBucket = -1;
+        private int _nextResidentLogThreshold = 16;
 
         public RegionResidencyStore(in RegionTable table, in BrickPool pool)
         {
             _table = table;
             _pool = pool;
+            while (_nextResidentLogThreshold <= _table.ResidentCount)
+                _nextResidentLogThreshold += 16;
         }
 
         /// <summary>
@@ -32,6 +35,21 @@ namespace VoxelEngine.Storage.Runtime
         {
             _table = table;
             _pool = pool;
+
+            // Terrain generation currently loads through RegionTable directly, while other callers
+            // use EnsureRegionResident. Observe the authoritative table itself so diagnostics do not
+            // accidentally under-count the dominant load path. Report each 16-region high-water
+            // crossing with the mixed-pool occupancy at that moment.
+            int resident = _table.ResidentCount;
+            if (resident >= _nextResidentLogThreshold)
+            {
+                Debug.Log(
+                    $"[VoxelResidency] residentRegions={resident:N0} " +
+                    $"mixed={_pool.AllocatedCount:N0}/{_pool.Capacity:N0} " +
+                    $"evicted={_regionsEvicted:N0} reclaimedMixed={_mixedBricksReclaimed:N0}");
+                while (_nextResidentLogThreshold <= resident)
+                    _nextResidentLogThreshold += 16;
+            }
         }
 
         public StoragePressure Pressure
@@ -56,7 +74,7 @@ namespace VoxelEngine.Storage.Runtime
                         $"[VoxelResidency] pressure={pressureBucket * 10}% " +
                         $"mixed={allocatedBlocks:N0}/{capacityBlocks:N0} " +
                         $"residentRegions={_table.ResidentCount:N0} " +
-                        $"loaded={_regionsLoaded:N0} evicted={_regionsEvicted:N0} " +
+                        $"ensureLoads={_ensureLoads:N0} evicted={_regionsEvicted:N0} " +
                         $"reclaimedMixed={_mixedBricksReclaimed:N0} " +
                         $"zeroImmediateReclaim={_evictionsWithoutImmediateReclaim:N0}");
                 }
@@ -77,14 +95,8 @@ namespace VoxelEngine.Storage.Runtime
             _table.LoadRegion(regionCoord);
             if (alreadyResident) return;
 
-            _regionsLoaded++;
-            if ((_regionsLoaded & 31) == 0)
-            {
-                Debug.Log(
-                    $"[VoxelResidency] loads={_regionsLoaded:N0} " +
-                    $"residentRegions={_table.ResidentCount:N0} " +
-                    $"mixed={_pool.AllocatedCount:N0}/{_pool.Capacity:N0}");
-            }
+            _ensureLoads++;
+            Refresh(in _table, in _pool);
         }
 
         public bool EvictRegion(int3 regionCoord)
