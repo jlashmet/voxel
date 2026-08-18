@@ -17,10 +17,19 @@ Use the repository's push-triggered targeted-test mechanism.
 For each iteration:
 
 1. Make the code/test changes.
-2. Configure the repository's CI test-request file to identify the smallest relevant test.
+2. Update **`.github/test-request.json`** with the smallest relevant Unity test:
+   - `platform`: `EditMode` or `PlayMode`
+   - `test`: the fully qualified test name or exact filter
+   - `request_id`: a new unique string for every requested run so the file changes and a push is generated
 3. Commit and push the changes.
-4. Monitor the resulting GitHub Actions run.
-5. If it fails, inspect the logs/artifacts, determine the cause, modify the code, commit, and push again.
+4. Monitor commit status **`ci/single-test`** on the pushed commit until it reaches a terminal state.
+   - A missing status means the self-hosted job is queued/not started yet.
+   - `pending` means the workflow has started.
+   - `success` means the requested test actually passed.
+   - `failure`/`error` means the requested test or its setup failed.
+   - If a shell with authenticated `gh` is available, `tools/ci-wait` polls this status continuously (5 seconds by default).
+   - Connector-only agents should poll the same commit-status context through the GitHub connector/API.
+5. On failure, follow the status target URL and inspect the failed-step logs and uploaded `single-test-*` artifact. Determine the cause, modify the code, update the request id, commit, and push again.
 6. Continue this loop until the target behavior is proven and CI is green.
 
 Do not stop after implementing a plausible fix. Continue iterating through CI until the goal is complete or a concrete blocker remains.
