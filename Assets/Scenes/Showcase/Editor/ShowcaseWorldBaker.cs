@@ -63,7 +63,7 @@ namespace VoxelEngine.Showcase.Editor
             int unloadRadius = RequireProperty(serialized, "m_UnloadRadiusRegions").intValue;
             int startupRadius = Mathf.Clamp(StartupRadiusRegions, 0, loadRadius);
 
-            int tierBytes = DeviceTierBudget.GetForTier(DeviceTierBudget.Detect()).BrickPoolCapacity;
+            long tierBytes = DeviceTierBudget.GetForTier(DeviceTierBudget.Detect()).BrickPoolCapacity;
             int capacity = VoxelEngineBootstrap.ClampMixedBrickCapacityToBudget(
                 requestedCapacity, tierBytes);
 
