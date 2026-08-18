@@ -250,9 +250,9 @@ namespace Game.Structures.Runtime
             GuildHouseRoomRole role,
             bool required,
             byte weight,
-            ushort[] required,
-            ushort[] optional)
-            => new GuildHouseRoomProgram(role, required, weight, required, optional);
+            ushort[] requiredArchetypes,
+            ushort[] optionalArchetypes)
+            => new GuildHouseRoomProgram(role, required, weight, requiredArchetypes, optionalArchetypes);
 
         private static ushort[] A(params ushort[] ids) => ids;
     }
