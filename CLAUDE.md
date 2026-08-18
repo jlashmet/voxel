@@ -2,6 +2,11 @@
 
 A destructible and buildable multiplayer voxel world, built in Unity.
 
+`AGENTS.md` targets a different agent tool and does not apply to Claude Code. Ignore it — this
+file, the specs it references, and the constitution are authoritative. In particular its
+validation loop, which assumes Unity cannot be run locally and drives everything through
+push-triggered CI, is not the workflow here: use `tools/unity-run.sh` as described below.
+
 ## Active feature
 
 <!-- SPECKIT START -->
