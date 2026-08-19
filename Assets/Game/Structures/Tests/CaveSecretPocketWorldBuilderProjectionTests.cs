@@ -1,9 +1,12 @@
 using System;
 using System.Collections.Generic;
 using Game.Composition.CaveWorldBuilder;
+using Game.Composition.WorldBuilderWorldGen;
+using Game.Structures.Api;
 using Game.Structures.Runtime;
 using Game.WorldBuilder.Api;
 using Game.WorldBuilder.Runtime;
+using MountingForce.WorldGen;
 using NUnit.Framework;
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
@@ -24,7 +27,7 @@ namespace Game.Structures.Tests
 
             var primarySite = new SiteRef("cave.primary");
             var aliasSite = new SiteRef("cave.alias");
-            var provider = new CaveSecretPocketSecretCandidateProvider(new[]
+            var provider = new CaveSecretPocketSecretCandidateProvider(1, new[]
             {
                 new CaveSecretPocketProjection(primarySite, in pocket, 8750),
                 new CaveSecretPocketProjection(aliasSite, in pocket, 8750),
@@ -71,14 +74,54 @@ namespace Game.Structures.Tests
 
             IReadOnlyList<ResolvedSecretPlan> resolved = SecretPlanner.ResolveForSite(
                 blueprint.SecretPolicies[0], primarySite, provider, 0x12345678u);
+            Assert.AreEqual(1, resolved.Count,
+                "The existing WorldBuilder planner must accept the verified cave topology.");
+
+            ResolvedSecretWorldGeometry geometry = SecretWorldGeometryResolver.Resolve(
+                resolved[0], provider);
             Assert.Multiple(() =>
             {
-                Assert.AreEqual(1, resolved.Count,
-                    "The existing WorldBuilder planner must accept the verified cave topology.");
                 Assert.AreEqual(candidate.Id, resolved[0].Candidate);
                 Assert.AreEqual(entrance.Id, resolved[0].EntranceId);
                 Assert.AreEqual(ContainerArchetype.TreasureChest, resolved[0].Container);
                 Assert.AreEqual(reward, resolved[0].Reward);
+                AssertBounds(in pocket.Pocket, geometry.HiddenSpaceBounds, 1);
+                AssertBounds(in pocket.Barrier, geometry.EntranceBounds, 1);
+                Assert.AreEqual(1, geometry.ContainerFloorPoint.UnitsPerDecimetre);
+                Assert.AreEqual(pocket.Pocket.Min.y, geometry.ContainerFloorPoint.Position.Y);
+                Assert.AreEqual(
+                    pocket.Pocket.Min.x + (pocket.Pocket.Size.x - 1) / 2,
+                    geometry.ContainerFloorPoint.Position.X);
+                Assert.AreEqual(
+                    pocket.Pocket.Min.z + (pocket.Pocket.Size.z - 1) / 2,
+                    geometry.ContainerFloorPoint.Position.Z);
+            });
+        }
+
+        [Test]
+        public void RealizationFactsPreserveExplicitVoxelScale()
+        {
+            var world = new SolidWorldSession();
+            CaveTraversalCandidate terminal = Branch(new int3(-12, 4, 8), 40, Facing.West);
+            CaveSecretPocketConfig config = PocketConfig();
+            Assert.IsTrue(CaveSecretPocketAuthoring.TryAuthor(
+                world, in terminal, in config, out CaveSecretPocket pocket));
+
+            var site = new SiteRef("cave.scaled");
+            var provider = new CaveSecretPocketSecretCandidateProvider(2, new[]
+            {
+                new CaveSecretPocketProjection(site, in pocket, 5000),
+            });
+            SecretCandidate candidate = provider.GetCandidates(site)[0];
+
+            Assert.IsTrue(provider.TryGetCandidateBounds(
+                candidate.Id.Id, out RealizedWorldBounds candidateBounds));
+            Assert.IsTrue(provider.TryGetEntranceBounds(
+                candidate.Entrances[0].Id, out RealizedWorldBounds entranceBounds));
+            Assert.Multiple(() =>
+            {
+                AssertBounds(in pocket.Pocket, candidateBounds, 2);
+                AssertBounds(in pocket.Barrier, entranceBounds, 2);
             });
         }
 
@@ -88,6 +131,20 @@ namespace Game.Structures.Tests
             var site = new SiteRef("cave.site");
             Assert.Throws<ArgumentException>(() =>
                 new CaveSecretPocketProjection(site, default, 5000));
+        }
+
+        private static void AssertBounds(
+            in DecorationBounds expected,
+            RealizedWorldBounds actual,
+            int unitsPerDecimetre)
+        {
+            Assert.AreEqual(unitsPerDecimetre, actual.UnitsPerDecimetre);
+            Assert.AreEqual(expected.Min.x, actual.MinInclusive.X);
+            Assert.AreEqual(expected.Min.y, actual.MinInclusive.Y);
+            Assert.AreEqual(expected.Min.z, actual.MinInclusive.Z);
+            Assert.AreEqual(expected.MaxExclusive.x - 1, actual.MaxInclusive.X);
+            Assert.AreEqual(expected.MaxExclusive.y - 1, actual.MaxInclusive.Y);
+            Assert.AreEqual(expected.MaxExclusive.z - 1, actual.MaxInclusive.Z);
         }
 
         private static CaveTraversalCandidate Branch(int3 position, int distance, Facing facing) =>
