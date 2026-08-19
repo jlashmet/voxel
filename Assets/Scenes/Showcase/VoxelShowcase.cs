@@ -184,8 +184,10 @@ namespace VoxelEngine.Showcase
             RenderingComposition.SetVoxelRingRadiusMetres(streamedMetres);
             RenderingComposition.SetVoxelLodEnabled(!m_DisableLod);
 
-            _farTerrain = VoxelFarTerrain.Create(transform, m_Seed,
-                                                 streamedMetres * 0.85f, 12000f);
+            // The far field begins where the voxel rings end. It used to start inside them, so
+            // the two overlapped by design — which is only harmless if one of them is not drawn,
+            // and both are.
+            _farTerrain = VoxelFarTerrain.Create(transform, m_Seed, streamedMetres, 12000f);
             _farTerrain.Structures = _world.FarField;
             var renderingWorld = new RenderingWorldBinding(
                 _world.ReadStorage,
@@ -388,8 +390,17 @@ namespace VoxelEngine.Showcase
                 // the radius it was configured with. Set after StepStreaming so a region that
                 // completed this frame closes the gap on this frame rather than the next.
                 if (_farTerrain != null)
-                    _farTerrain.HoleRadiusMetres =
-                        _world.ResidentGroundRadiusMetres(transform.position);
+                {
+                    // Open the hole to where voxel terrain actually reaches, not to the last
+                    // fully-generated region shell. That shell collapses to the camera's own
+                    // region whenever any column in the next one is still filling, which left the
+                    // clipmap drawing from a few metres out — over the near ground and through
+                    // whatever was standing on it. The hole setter refuses to open at all until
+                    // near coverage is complete, so this cannot uncover a genuine hole.
+                    float streamed = m_LoadRadiusRegions * ShowcaseWorld.RegionMetres;
+                    _farTerrain.HoleRadiusMetres = Mathf.Max(
+                        _world.ResidentGroundRadiusMetres(transform.position), streamed);
+                }
             }
 
         }

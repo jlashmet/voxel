@@ -170,13 +170,20 @@ namespace VoxelEngine.Tests.PlayMode
                                 + $"compact={m.TopologyCompactTiming.P50Ms:0.00}/{m.TopologyCompactTiming.P95Ms:0.00} "
                                 + $"upload={m.UploadTiming.P50Ms:0.00}/{m.UploadTiming.P95Ms:0.00} "
                                 + $"visibility={m.VisibilityTiming.P50Ms:0.00}/{m.VisibilityTiming.P95Ms:0.00} "
+                                + $"densityTurn={m.DensityJobTurnaroundTiming.P50Ms:0.0}/{m.DensityJobTurnaroundTiming.P95Ms:0.0} "
+                                + $"topologyTurn={m.TopologyJobTurnaroundTiming.P50Ms:0.0}/{m.TopologyJobTurnaroundTiming.P95Ms:0.0} "
+                                + $"facetedTurn={m.FacetedJobTurnaroundTiming.P50Ms:0.0}/{m.FacetedJobTurnaroundTiming.P95Ms:0.0} "
+                                + $"facetedMerge={m.FacetedMergeTiming.P50Ms:0.00}/{m.FacetedMergeTiming.P95Ms:0.00} "
                                 + $"buildLatency={m.BuildLatencyTiming.P50Ms:0.0}/{m.BuildLatencyTiming.P95Ms:0.0} "
                                 + $"queueLatency={m.QueueLatencyTiming.P50Ms:0.0}");
 
                     if (preloadFrames % 300 == 0)
                         Debug.Log($"RATE frame={preloadFrames} t={preload.Elapsed.TotalSeconds:0.0}s "
                                 + $"completed={m.CompletedSolidBuilds} "
-                                + $"known={m.SolidKnownChunks} resident={m.SolidResidentChunks} "
+                                + $"gpuAvail={m.GpuCutoverAvailable} gpuBackends={m.GpuResidentBackends} "
+                        + $"gpuReady={m.GpuCompletedSolidBuilds} gpuFallback={m.GpuFallbackSolidBuilds} "
+                        + $"completed={m.CompletedSolidBuilds} "
+                        + $"known={m.SolidKnownChunks} resident={m.SolidResidentChunks} "
                                 + $"dirty={m.SolidDirtyChunks} jobs={m.RunningSolidJobs} "
                                 + $"perFrame={(preloadFrames > 0 ? m.CompletedSolidBuilds / (double)preloadFrames : 0):0.00}");
 
@@ -217,6 +224,7 @@ namespace VoxelEngine.Tests.PlayMode
                         + $"storageRegions={storageRegions} "
                         + $"residentCap={VoxelRenderBridge.SurfaceMaxResidentChunksPerRing} "
                         + $"surfaceBricks={m.DiscoveredSurfaceBricks} changes={m.ChangeRecords} "
+                        + $"gpuAvail={m.GpuCutoverAvailable} gpuBackends={m.GpuResidentBackends} gpuReady={m.GpuCompletedSolidBuilds} gpuFallback={m.GpuFallbackSolidBuilds} completed={m.CompletedSolidBuilds} "
                         + $"known={m.SolidKnownChunks} resident={m.SolidResidentChunks} "
                         + $"dirty={m.SolidDirtyChunks} visible={m.VisibleSolidChunks} "
                         + $"missing={m.MissingVisibleSolidChunks} jobs={m.RunningSolidJobs} "
