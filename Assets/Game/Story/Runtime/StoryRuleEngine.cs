@@ -71,6 +71,10 @@ namespace Game.Story.Runtime
                 return storyEvent.Kind == StoryEventKind.CutsceneCompleted
                     && completed.Cutscene.Equals(storyEvent.Cutscene);
 
+            if (trigger is QuestCompletedTriggerSpec questCompleted)
+                return storyEvent.Kind == StoryEventKind.QuestCompleted
+                    && questCompleted.Quest.Equals(storyEvent.Quest);
+
             throw new InvalidOperationException(
                 "Unsupported story trigger type: " + (trigger?.GetType().FullName ?? "<null>") + ".");
         }
@@ -85,6 +89,13 @@ namespace Game.Story.Runtime
                 if (condition is ObjectiveActiveConditionSpec active)
                 {
                     if (!state.IsObjectiveActive(active.Objective))
+                        return false;
+                    continue;
+                }
+
+                if (condition is QuestActiveConditionSpec questActive)
+                {
+                    if (!state.IsQuestActive(questActive.Quest))
                         return false;
                     continue;
                 }
@@ -109,6 +120,12 @@ namespace Game.Story.Runtime
             if (effect is StartObjectiveEffectSpec start)
             {
                 sink.StartObjective(start.Objective);
+                return;
+            }
+
+            if (effect is StartQuestEffectSpec startQuest)
+            {
+                sink.StartQuest(startQuest.Quest);
                 return;
             }
 
