@@ -1,0 +1,16 @@
+{
+  "name": "Game.Quests.Runtime",
+  "rootNamespace": "Game.Quests.Runtime",
+  "references": [
+    "Game.Quests.Api"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}
