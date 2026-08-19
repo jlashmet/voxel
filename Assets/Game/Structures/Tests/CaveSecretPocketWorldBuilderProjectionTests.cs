@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Game.Composition.CaveWorldBuilder;
 using Game.Structures.Runtime;
 using Game.WorldBuilder.Api;
+using Game.WorldBuilder.Runtime;
 using NUnit.Framework;
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
@@ -52,6 +53,32 @@ namespace Game.Structures.Tests
                 Assert.AreEqual(candidate.Id, alias[0].Id,
                     "Site-role aliases of one physical cave pocket must share reservation identity.");
                 Assert.AreEqual(aliasSite, alias[0].Site);
+            });
+
+            CampaignBuilder campaign = Campaign.Create("cave-secret-projection-test");
+            LootTableRef reward = campaign.Loot.Table(
+                "cave-secret-loot",
+                loot => loot.RollCount(1, 1).Guaranteed(LootCategory.Currency));
+            campaign.World.Secrets.Policy(
+                "cave-secret-policy",
+                policy => policy
+                    .Entrance(SecretEntranceType.DestroyableFalseWall)
+                    .Distribution(new SecretDistribution(1, 1, 10000))
+                    .RequireHiddenSpace()
+                    .Container(ContainerArchetype.TreasureChest)
+                    .RewardWith(reward));
+            CampaignBlueprint blueprint = campaign.Build();
+
+            IReadOnlyList<ResolvedSecretPlan> resolved = SecretPlanner.ResolveForSite(
+                blueprint.SecretPolicies[0], primarySite, provider, 0x12345678u);
+            Assert.Multiple(() =>
+            {
+                Assert.AreEqual(1, resolved.Count,
+                    "The existing WorldBuilder planner must accept the verified cave topology.");
+                Assert.AreEqual(candidate.Id, resolved[0].Candidate);
+                Assert.AreEqual(entrance.Id, resolved[0].EntranceId);
+                Assert.AreEqual(ContainerArchetype.TreasureChest, resolved[0].Container);
+                Assert.AreEqual(reward, resolved[0].Reward);
             });
         }
 
