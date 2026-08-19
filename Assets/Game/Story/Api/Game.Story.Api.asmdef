@@ -2,7 +2,8 @@
   "name": "Game.Story.Api",
   "rootNamespace": "Game.Story.Api",
   "references": [
-    "Game.WorldBuilder.Api"
+    "Game.WorldBuilder.Api",
+    "Game.Quests.Api"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
