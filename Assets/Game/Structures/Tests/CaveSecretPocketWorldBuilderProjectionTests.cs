@@ -25,8 +25,10 @@ namespace Game.Structures.Tests
             Assert.IsTrue(CaveSecretPocketAuthoring.TryAuthor(
                 world, in terminal, in config, out CaveSecretPocket pocket));
 
-            var primarySite = new SiteRef("cave.primary");
-            var aliasSite = new SiteRef("cave.alias");
+            CampaignBuilder campaign = Campaign.Create("cave-secret-projection-test");
+            RegionHandle region = campaign.World.Region("test-region");
+            SiteRef primarySite = region.Site("cave.primary").Ref;
+            SiteRef aliasSite = region.Site("cave.alias").Ref;
             var provider = new CaveSecretPocketSecretCandidateProvider(1, new[]
             {
                 new CaveSecretPocketProjection(primarySite, in pocket, 8750),
@@ -58,7 +60,6 @@ namespace Game.Structures.Tests
                 Assert.AreEqual(aliasSite, alias[0].Site);
             });
 
-            CampaignBuilder campaign = Campaign.Create("cave-secret-projection-test");
             LootTableRef reward = campaign.Loot.Table(
                 "cave-secret-loot",
                 loot => loot.RollCount(1, 1).Guaranteed(LootCategory.Currency));
@@ -107,7 +108,9 @@ namespace Game.Structures.Tests
             Assert.IsTrue(CaveSecretPocketAuthoring.TryAuthor(
                 world, in terminal, in config, out CaveSecretPocket pocket));
 
-            var site = new SiteRef("cave.scaled");
+            CampaignBuilder campaign = Campaign.Create("cave-secret-scale-test");
+            RegionHandle region = campaign.World.Region("test-region");
+            SiteRef site = region.Site("cave.scaled").Ref;
             var provider = new CaveSecretPocketSecretCandidateProvider(2, new[]
             {
                 new CaveSecretPocketProjection(site, in pocket, 5000),
@@ -128,7 +131,9 @@ namespace Game.Structures.Tests
         [Test]
         public void UnverifiedPocketCannotBeProjectedIntoWorldBuilder()
         {
-            var site = new SiteRef("cave.site");
+            CampaignBuilder campaign = Campaign.Create("cave-secret-unverified-test");
+            RegionHandle region = campaign.World.Region("test-region");
+            SiteRef site = region.Site("cave.site").Ref;
             Assert.Throws<ArgumentException>(() =>
                 new CaveSecretPocketProjection(site, default, 5000));
         }
