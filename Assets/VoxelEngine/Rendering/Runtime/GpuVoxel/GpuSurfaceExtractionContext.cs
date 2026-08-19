@@ -47,6 +47,13 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private readonly GpuTransvoxelTables _tables;
         private readonly GpuSurfaceExtractor _extractor;
         private readonly int _brickCacheEdge;
+        private readonly uint[] _materialDefaultStyles = new uint[256];
+        private bool _cataloguesUploaded;
+        private uint _uploadedPaletteVersion;
+        private uint _uploadedSurfaceVersion;
+        private ulong _uploadedSurfaceHash;
+        private uint _uploadedCoatingVersion;
+        private ulong _uploadedCoatingHash;
         private bool _disposed;
 
         private GpuChunkExtraction _staged;
@@ -123,9 +130,23 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         public void SetCatalogues(in SurfaceCatalogueView surfaces, in CoatingCatalogueView coatings,
                                   in MaterialPaletteView palette)
         {
-            var defaults = new uint[256];
-            for (int i = 0; i < 256; i++) defaults[i] = palette.GetDefaultSurfaceStyle((byte)i);
-            _extractor.SetCatalogues(surfaces, coatings, defaults);
+            if (_cataloguesUploaded
+                && _uploadedPaletteVersion == palette.Version
+                && _uploadedSurfaceVersion == surfaces.Version
+                && _uploadedSurfaceHash == surfaces.CatalogueHash
+                && _uploadedCoatingVersion == coatings.Version
+                && _uploadedCoatingHash == coatings.CatalogueHash)
+                return;
+
+            for (int i = 0; i < 256; i++)
+                _materialDefaultStyles[i] = palette.GetDefaultSurfaceStyle((byte)i);
+            _extractor.SetCatalogues(surfaces, coatings, _materialDefaultStyles);
+            _uploadedPaletteVersion = palette.Version;
+            _uploadedSurfaceVersion = surfaces.Version;
+            _uploadedSurfaceHash = surfaces.CatalogueHash;
+            _uploadedCoatingVersion = coatings.Version;
+            _uploadedCoatingHash = coatings.CatalogueHash;
+            _cataloguesUploaded = true;
         }
 
         /// <summary>

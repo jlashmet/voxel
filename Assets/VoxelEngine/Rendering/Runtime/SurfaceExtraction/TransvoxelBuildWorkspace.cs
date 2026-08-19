@@ -146,7 +146,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 ExactMixedBrickIndices = new NativeList<int>(brickCacheCount, Allocator.Persistent);
                 SnapshotClassificationFlags = usesBlockHlod
                     ? default
-                    : new NativeArray<byte>(2, Allocator.Persistent,
+                    : new NativeArray<byte>(3, Allocator.Persistent,
                                             NativeArrayOptions.ClearMemory);
             }
             else

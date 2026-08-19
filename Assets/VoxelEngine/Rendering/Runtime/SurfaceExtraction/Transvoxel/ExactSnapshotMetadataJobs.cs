@@ -106,9 +106,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
     }
 
     /// <summary>
-    /// Derives the two build-routing facts previously discovered by a main-thread 287k-brick scan:
-    /// whether the chunk owns any solid geometry and whether any material/surface semantics require
-    /// the continuous Transvoxel path. Mixed payloads are immutable COW-pinned Storage versions.
+    /// Derives build-routing facts previously discovered by a main-thread 287k-brick scan:
+    /// whether the chunk owns solid geometry, whether it needs continuous topology, and whether
+    /// it contains geometry the GPU cutover does not yet represent. Mixed payloads are immutable
+    /// COW-pinned Storage versions.
     /// </summary>
     [BurstCompile]
     internal struct ExactSnapshotClassificationJob : IJob
@@ -127,12 +128,13 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
         public int BricksPerAxis;
         public int BrickCachePadding;
         public bool HasProfiles;
-        public NativeArray<byte> Flags; // 0 = owns solid, 1 = continuous topology
+        public NativeArray<byte> Flags; // 0 = owns solid, 1 = continuous, 2 = GPU unsupported
 
         public void Execute()
         {
             bool hasOwnedSolid = false;
             bool requiresContinuous = HasProfiles;
+            bool gpuUnsupported = HasProfiles;
             int plane = BrickCacheEdge * BrickCacheEdge;
 
             for (int index = 0; index < Bricks.Length; index++)
@@ -155,14 +157,13 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
                     byte material = brick.UniformMaterial;
                     if (!IsSolid(material)) continue;
                     hasOwnedSolid |= ownsCore;
-                    if (!requiresContinuous)
-                    {
-                        SurfaceStyleReadDefinition style = Catalogue.Get(
-                            Palette.GetDefaultSurfaceStyle(material));
-                        requiresContinuous = style.Reconstruction == SurfaceReconstruction.Smooth
-                                          || style.Reconstruction == SurfaceReconstruction.Rounded;
-                    }
-                    if (hasOwnedSolid && requiresContinuous) break;
+                    SurfaceStyleReadDefinition style = Catalogue.Get(
+                        Palette.GetDefaultSurfaceStyle(material));
+                    bool continuous = style.Reconstruction == SurfaceReconstruction.Smooth
+                                   || style.Reconstruction == SurfaceReconstruction.Rounded;
+                    requiresContinuous |= continuous;
+                    gpuUnsupported |= !continuous;
+                    if (hasOwnedSolid && requiresContinuous && gpuUnsupported) break;
                     continue;
                 }
 
@@ -172,27 +173,30 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
                     byte material = MixedVoxels[voxel];
                     if (!IsSolid(material)) continue;
                     hasOwnedSolid |= ownsCore;
-                    if (!requiresContinuous)
-                    {
-                        uint surface = VoxelSurfaceSemantics.FromStorage(
-                            MixedSurfaceSemantics[voxel]).Packed;
-                        ushort styleId = (ushort)surface;
-                        if (styleId == SurfaceStyles.MaterialDefault)
-                            styleId = Palette.GetDefaultSurfaceStyle(material);
-                        SurfaceStyleReadDefinition style = Catalogue.Get(styleId);
-                        byte coating = (byte)(surface >> 16);
-                        requiresContinuous = MixedBoundarySamples[voxel] != 0
-                                          || Coatings.Get(coating).Displacement != 0
-                                          || style.Reconstruction == SurfaceReconstruction.Smooth
-                                          || style.Reconstruction == SurfaceReconstruction.Rounded;
-                    }
-                    if (hasOwnedSolid && requiresContinuous) break;
+                    uint surface = VoxelSurfaceSemantics.FromStorage(
+                        MixedSurfaceSemantics[voxel]).Packed;
+                    ushort styleId = (ushort)surface;
+                    if (styleId == SurfaceStyles.MaterialDefault)
+                        styleId = Palette.GetDefaultSurfaceStyle(material);
+                    SurfaceStyleReadDefinition style = Catalogue.Get(styleId);
+                    bool continuous = style.Reconstruction == SurfaceReconstruction.Smooth
+                                   || style.Reconstruction == SurfaceReconstruction.Rounded;
+                    byte coating = (byte)(surface >> 16);
+                    CoatingReadDefinition coatingDefinition = Coatings.Get(coating);
+                    bool decorated = coatingDefinition.DecorationShape != SurfaceDecorationShape.None
+                                  && coatingDefinition.DecorationDensity != 0;
+                    requiresContinuous |= MixedBoundarySamples[voxel] != 0
+                                       || coatingDefinition.Displacement != 0
+                                       || continuous;
+                    gpuUnsupported |= !continuous || decorated;
+                    if (hasOwnedSolid && requiresContinuous && gpuUnsupported) break;
                 }
-                if (hasOwnedSolid && requiresContinuous) break;
+                if (hasOwnedSolid && requiresContinuous && gpuUnsupported) break;
             }
 
             Flags[0] = hasOwnedSolid ? (byte)1 : (byte)0;
             Flags[1] = requiresContinuous ? (byte)1 : (byte)0;
+            Flags[2] = gpuUnsupported ? (byte)1 : (byte)0;
         }
 
         private static bool IsSolid(byte material) =>

@@ -25,6 +25,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public readonly int VisibleWaterChunks;
         public readonly ulong CompletedSolidBuilds;
         public readonly ulong RejectedStaleSolidBuilds;
+        public readonly bool GpuCutoverAvailable;
+        public readonly ulong GpuCompletedSolidBuilds;
+        public readonly ulong GpuFallbackSolidBuilds;
         public readonly ulong CompletedWaterBuilds;
         public readonly ulong RejectedStaleWaterBuilds;
         public readonly long ResidentGeometryBytes;
@@ -127,6 +130,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             VisibleWaterChunks = water.Visible.Count;
             CompletedSolidBuilds = solids.CompletedBuildCount;
             RejectedStaleSolidBuilds = solids.StaleBuildCount;
+            GpuCutoverAvailable = solids.GpuCutoverAvailable;
+            GpuCompletedSolidBuilds = solids.GpuCompletedBuildCount;
+            GpuFallbackSolidBuilds = solids.GpuFallbackBuildCount;
             CompletedWaterBuilds = water.CompletedBuildCount;
             RejectedStaleWaterBuilds = water.StaleBuildCount;
             ResidentGeometryBytes = solids.ResidentGpuBytes + water.ResidentGpuBytes;
@@ -260,6 +266,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             ulong coatingInvalidations = 0, profileInvalidations = 0;
             long pendingUploadBytes = 0;
             ulong completed = 0, stale = 0, uploadedBytes = water.UploadedGeometryBytes;
+            ulong gpuCompleted = 0, gpuFallback = 0;
+            bool gpuAvailable = false;
             ulong decorations = 0, pressure = 0;
             ulong completionViolations = water.FramePathBlockingCompletionViolations;
             long geometryBytes = water.ResidentGpuBytes;
@@ -307,6 +315,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 pendingUploadBytes += worker.PendingUploadBytes;
                 completed += worker.CompletedBuildCount;
                 stale += worker.StaleBuildCount;
+                gpuAvailable |= worker.GpuCutoverAvailable;
+                gpuCompleted += worker.GpuCompletedBuildCount;
+                gpuFallback += worker.GpuFallbackBuildCount;
                 uploadedBytes += worker.UploadedGeometryBytes;
                 decorations += worker.CompletedDecorationClumps;
                 pressure += worker.CapacityPressureCount;
@@ -368,6 +379,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             SolidArenaPressureEvictions = solidArenaPressureEvictions;
             CompletedSolidBuilds = completed;
             RejectedStaleSolidBuilds = stale;
+            GpuCutoverAvailable = gpuAvailable;
+            GpuCompletedSolidBuilds = gpuCompleted;
+            GpuFallbackSolidBuilds = gpuFallback;
             UploadedGeometryBytes = uploadedBytes;
             SolidDecorationClumps = decorations;
             SolidCapacityPressureEvents = pressure;

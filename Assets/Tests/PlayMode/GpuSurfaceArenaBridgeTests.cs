@@ -15,7 +15,7 @@ namespace VoxelEngine.Tests.PlayMode
     public sealed class GpuSurfaceArenaBridgeTests
     {
         private const string ShaderPath =
-            "Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/Shaders/VoxelBrickMesher.compute";
+            "Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute";
         private const int CellsPerAxis = 8;
         private const int Padding = 2;
         private const int ProductionBrickCacheEdge = 4;

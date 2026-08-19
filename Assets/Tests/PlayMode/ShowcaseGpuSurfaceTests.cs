@@ -69,6 +69,9 @@ namespace VoxelEngine.Tests.PlayMode
                                 + $"visible={metrics.VisibleSolidChunks}, "
                                 + $"missing={metrics.MissingVisibleSolidChunks}, "
                                 + $"jobs={metrics.RunningSolidJobs}, "
+                                + $"gpuAvailable={metrics.GpuCutoverAvailable}, "
+                                + $"gpuReady={metrics.GpuCompletedSolidBuilds}, "
+                                + $"gpuFallback={metrics.GpuFallbackSolidBuilds}, "
                                 + $"snapshot={metrics.LastSolidSnapshotMs:0.00}ms, "
                                 + $"compact={metrics.LastSolidTopologyCompactMs:0.00}ms, "
                                 + $"upload={metrics.LastSolidUploadMs:0.00}ms, "
@@ -82,7 +85,8 @@ namespace VoxelEngine.Tests.PlayMode
                         // Keep rendering until the throughput assertion itself is satisfiable.
                         // A frame-count settle condition becomes meaningless when world
                         // transactions are deliberately split across many inexpensive frames.
-                        if (metrics.SolidResidentChunks >= 24) break;
+                        if (metrics.SolidResidentChunks >= 24
+                            && metrics.GpuCompletedSolidBuilds > 0) break;
                     }
                     frame++;
                 }
@@ -95,6 +99,10 @@ namespace VoxelEngine.Tests.PlayMode
                   + $"visible={finalMetrics.VisibleSolidChunks}.");
                 Assert.Greater(finalMetrics.UploadedGeometryBytes, 0ul,
                     "The authoritative extractor did not publish any complete geometry.");
+                Assert.IsTrue(finalMetrics.GpuCutoverAvailable,
+                    "The showcase base ring could not create the production GPU extraction backend.");
+                Assert.Greater(finalMetrics.GpuCompletedSolidBuilds, 0ul,
+                    "No production base-ring chunk was published through the compute mesher.");
                 Assert.LessOrEqual(finalMetrics.RejectedStaleSolidBuilds,
                                    finalMetrics.CompletedSolidBuilds
                                  + (ulong)finalMetrics.RunningSolidJobs + 64ul,
