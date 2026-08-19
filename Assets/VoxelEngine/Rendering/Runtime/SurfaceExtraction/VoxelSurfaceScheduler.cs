@@ -576,7 +576,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
         private static readonly (int SourceStep, float Inner, float Outer)[] s_RingLayout =
         {
-            (1, 0f, MaxVoxelRingRadiusMetresDefault),
+            (1, 0f, 96f),
+            (2, 96f, 192f),
+            (4, 192f, 288f),
+            (8, 288f, MaxVoxelRingRadiusMetresDefault),
         };
 
         public const float MaxVoxelRingRadiusMetresDefault = 409.6f;
