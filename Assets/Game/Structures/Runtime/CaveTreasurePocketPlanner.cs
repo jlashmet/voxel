@@ -5,8 +5,8 @@ namespace Game.Structures.Runtime
     /// <summary>
     /// Composes semantic treasure ranking with physical hidden-pocket validation. A terminal that is
     /// semantically ideal can still be physically unsuitable because a chamber or another cave volume
-    /// already occupies the rock beyond it. Failed pocket preflights are atomic, so the planner removes
-    /// that terminal and deterministically retries the next hard-valid candidate.
+    /// already occupies the rock beyond it. Only a mutation-free PhysicalConflict is retryable; storage
+    /// or budget failures abort so the planner never continues after uncertain/partially mutated geometry.
     /// </summary>
     public static class CaveTreasurePocketPlanner
     {
@@ -33,15 +33,17 @@ namespace Game.Structures.Runtime
                     return false;
 
                 CaveTraversalCandidate terminal = selected.Terminal;
+                CaveSecretPocketAuthoringFailure failure;
                 if (CaveSecretPocketAuthoring.TryAuthor(
-                        authoring, in terminal, in pocketConfig, out CaveSecretPocket authored))
+                        authoring, in terminal, in pocketConfig,
+                        out CaveSecretPocket authored, out failure))
                 {
                     placement = selected;
                     pocket = authored;
                     return true;
                 }
 
-                if (authoring.BudgetExceeded)
+                if (failure != CaveSecretPocketAuthoringFailure.PhysicalConflict)
                     return false;
 
                 remaining = Without(in remaining, in terminal);
