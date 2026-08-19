@@ -55,6 +55,9 @@ namespace Game.Structures.Tests
             cave.MainSegmentCount = 3;
             cave.TurnChancePercent = 0;
             cave.VerticalChancePercent = 0;
+            cave.SurfaceDescentSegments = 0;
+            cave.SurfaceDescentPerSegment = 0;
+            cave.MinimumSurfaceCover = 0;
             cave.ChamberChancePercent = 0;
             cave.BranchChancePercent = 100;
             cave.MaxBranches = 1;
