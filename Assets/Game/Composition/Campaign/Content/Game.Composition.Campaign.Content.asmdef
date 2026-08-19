@@ -4,7 +4,8 @@
   "references": [
     "Game.WorldBuilder.Api",
     "Game.Cutscenes.Api",
-    "Game.Cutscenes.Content"
+    "Game.Cutscenes.Content",
+    "Game.Quests.Api"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
