@@ -48,6 +48,9 @@ Server/Soak/results/
 # Character factory generated meshes/manifests
 tools/character-factory/build/
 
+# Player builds, profiler captures and measurement logs
+Artifacts/*
+
 # Temporary placeholder Character Factory outputs are derived from the committed
 # Rocketbox FBXs + .characterfactory.json descriptors and regenerate on Unity import.
 /Assets/ThirdParty/PlaceholderHumanoids/Models/placeholder_male.prefab

@@ -133,15 +133,59 @@ namespace VoxelEngine.Tests.PlayMode
                     VoxelRenderBridge.SolidUploadWorkerBudget = 64;
                 }
 
+                if (System.Environment.GetEnvironmentVariable("VOXEL_SYNC_JOBS") == "1")
+                    CpuTransvoxelChunkCache.MeasureJobCostSynchronously = true;
+
                 var preload = Stopwatch.StartNew();
                 VoxelSurfaceMetrics m = default;
                 int quietFrames = 0;
                 int lastKnownChunks = -1;
                 int preloadFrames = 0;
+                var preloadRenderMs = new List<double>(8192);
+                var preloadYieldMs = new List<double>(8192);
+                var preloadClock = Stopwatch.StartNew();
+                int spikeReports = 0;
+                ulong lastCompleted = 0;
                 while (preload.Elapsed.TotalSeconds < PreloadSeconds)
                 {
+                    // Split the preload frame into the explicit render and everything Unity does
+                    // between frames. The scheduler, the jobs and the draw together account for
+                    // under a tenth of it, so the remainder has to be attributed rather than
+                    // assumed.
+                    preloadClock.Restart();
                     camera.Render();
+                    preloadRenderMs.Add(preloadClock.Elapsed.TotalMilliseconds);
+                    preloadClock.Restart();
                     yield return null;
+                    // Profile a bounded window in the middle of preload, where the spikes live.
+                    // A capture spanning the whole build is enormous and unnecessary.
+                    if (captureBinaryLog)
+                    {
+                        if (preloadFrames == 200) Profiler.enabled = true;
+                        if (preloadFrames == 400) Profiler.enabled = false;
+                    }
+
+                    double yieldMs = preloadClock.Elapsed.TotalMilliseconds;
+                    preloadYieldMs.Add(yieldMs);
+
+                    // The median preload frame is fine; a minority cost twenty times that and
+                    // dominate the total. Catch one in the act with the state that produced it.
+                    VoxelSurfaceMetrics spike = VoxelRenderBridge.SurfaceMetrics;
+                    if (yieldMs > 50.0 && spikeReports < 8)
+                    {
+                        spikeReports++;
+                        Debug.Log($"SPIKE yield={yieldMs:0.0}ms "
+                                + $"completedDelta={spike.CompletedSolidBuilds - lastCompleted} "
+                                + $"jobs={spike.RunningSolidJobs} geomJobs={spike.RunningGeometryJobs} "
+                                + $"dirty={spike.SolidDirtyChunks} "
+                                + $"awaitingUpload={spike.SolidMeshesAwaitingUpload} "
+                                + $"pendingUploadBytes={spike.SolidPendingUploadBytes} "
+                                + $"uploadedBytes={spike.UploadedGeometryBytes} "
+                                + $"allocBytes={spike.LastFrameManagedAllocationBytes} "
+                                + $"arenaEvict={spike.SolidArenaPressureEvictions} "
+                                + $"stale={spike.RejectedStaleSolidBuilds}");
+                    }
+                    lastCompleted = spike.CompletedSolidBuilds;
                     m = VoxelRenderBridge.SurfaceMetrics;
 
                     // Meshing going quiet does not mean the world is built: region generation
@@ -170,6 +214,8 @@ namespace VoxelEngine.Tests.PlayMode
                                 + $"compact={m.TopologyCompactTiming.P50Ms:0.00}/{m.TopologyCompactTiming.P95Ms:0.00} "
                                 + $"upload={m.UploadTiming.P50Ms:0.00}/{m.UploadTiming.P95Ms:0.00} "
                                 + $"visibility={m.VisibilityTiming.P50Ms:0.00}/{m.VisibilityTiming.P95Ms:0.00} "
+                                + $"densityCost={m.DensityCostTiming.P50Ms:0.0}/{m.DensityCostTiming.P95Ms:0.0} "
+                                + $"topoChainCost={m.TopologyCostTiming.P50Ms:0.0}/{m.TopologyCostTiming.P95Ms:0.0} "
                                 + $"densityTurn={m.DensityJobTurnaroundTiming.P50Ms:0.0}/{m.DensityJobTurnaroundTiming.P95Ms:0.0} "
                                 + $"topologyTurn={m.TopologyJobTurnaroundTiming.P50Ms:0.0}/{m.TopologyJobTurnaroundTiming.P95Ms:0.0} "
                                 + $"facetedTurn={m.FacetedJobTurnaroundTiming.P50Ms:0.0}/{m.FacetedJobTurnaroundTiming.P95Ms:0.0} "
@@ -201,6 +247,14 @@ namespace VoxelEngine.Tests.PlayMode
                 foreach (VoxelFarTerrain far in Object.FindObjectsByType<VoxelFarTerrain>(
                              FindObjectsSortMode.None))
                     holeMetres = far.HoleRadiusMetres;
+                preloadRenderMs.Sort();
+                preloadYieldMs.Sort();
+                Debug.Log($"FRAME preload frames={preloadRenderMs.Count} "
+                        + $"renderP50={P(preloadRenderMs, 0.50):0.00}ms "
+                        + $"renderP95={P(preloadRenderMs, 0.95):0.00}ms "
+                        + $"yieldP50={P(preloadYieldMs, 0.50):0.00}ms "
+                        + $"yieldP95={P(preloadYieldMs, 0.95):0.00}ms");
+
                 Debug.Log($"PHASE preload "
                         + $"schedPrep={m.SchedulerPrepareTiming.P50Ms:0.00}/{m.SchedulerPrepareTiming.P95Ms:0.00} "
                         + $"workerPrep={m.WorkerPrepareTiming.P50Ms:0.00}/{m.WorkerPrepareTiming.P95Ms:0.00} "

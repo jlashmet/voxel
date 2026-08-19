@@ -9,6 +9,7 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
         private static Material s_Leaves;
         private static Material s_Impostor;
         private static Material[] s_Shared;
+        private static bool s_ReportedMissing;
 
         public static Material Bark
         {
@@ -39,11 +40,22 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
             Shader impostor = Shader.Find("VoxelEngine/ProceduralTreeImpostor");
             if (bark == null || leaves == null || impostor == null)
             {
-                if (bark == null) Debug.LogError("Procedural tree bark shader was not found.");
-                if (leaves == null) Debug.LogError("Procedural tree leaf shader was not found.");
-                if (impostor == null) Debug.LogError("Procedural tree impostor shader was not found.");
+                // Report once. Ensure() runs from a per-frame lighting update and from every
+                // vegetation spawn, so logging on each failure cost 33,717 stack-traced errors in
+                // twenty seconds of a player build and took the frame rate from 688 to 30 — the
+                // diagnostic was an order of magnitude more expensive than the thing it described.
+                if (!s_ReportedMissing)
+                {
+                    s_ReportedMissing = true;
+                    if (bark == null) Debug.LogError("Procedural tree bark shader was not found.");
+                    if (leaves == null) Debug.LogError("Procedural tree leaf shader was not found.");
+                    if (impostor == null)
+                        Debug.LogError("Procedural tree impostor shader was not found.");
+                }
                 return false;
             }
+
+            s_ReportedMissing = false;
 
             s_Bark = new Material(bark)
             {

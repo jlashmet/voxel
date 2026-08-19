@@ -106,6 +106,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public readonly VoxelTimingSummary VisibilityTiming;
         public readonly VoxelTimingSummary SnapshotTiming;
         public readonly VoxelTimingSummary DensityJobTurnaroundTiming;
+        public readonly VoxelTimingSummary DensityOnlyTiming;
+        public readonly VoxelTimingSummary DensityCostTiming;
+        public readonly VoxelTimingSummary TopologyCostTiming;
         public readonly VoxelTimingSummary TopologyJobTurnaroundTiming;
         public readonly VoxelTimingSummary TopologyCompactTiming;
         public readonly VoxelTimingSummary FacetedJobTurnaroundTiming;
@@ -212,6 +215,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             VisibilityTiming = default;
             SnapshotTiming = solids.SnapshotTiming;
             DensityJobTurnaroundTiming = solids.DensityTurnaroundTiming;
+            DensityOnlyTiming = solids.DensityOnlyTiming;
+            DensityCostTiming = solids.DensityCostTiming;
+            TopologyCostTiming = solids.TopologyCostTiming;
             TopologyJobTurnaroundTiming = solids.TopologyJobTurnaroundTiming;
             TopologyCompactTiming = solids.TopologyCompactTiming;
             FacetedJobTurnaroundTiming = solids.FacetedJobTurnaroundTiming;
@@ -415,6 +421,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             VisibilityTiming = visibility;
             SnapshotTiming = default;
             DensityJobTurnaroundTiming = default;
+            DensityOnlyTiming = default;
+            DensityCostTiming = default;
+            TopologyCostTiming = default;
             TopologyJobTurnaroundTiming = default;
             TopologyCompactTiming = default;
             FacetedJobTurnaroundTiming = default;
@@ -434,6 +443,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 SnapshotTiming = VoxelTimingSummary.WorstOf(SnapshotTiming, worker.SnapshotTiming);
                 DensityJobTurnaroundTiming = VoxelTimingSummary.WorstOf(
                     DensityJobTurnaroundTiming, worker.DensityTurnaroundTiming);
+                DensityOnlyTiming = VoxelTimingSummary.WorstOf(
+                    DensityOnlyTiming, worker.DensityOnlyTiming);
+                DensityCostTiming = VoxelTimingSummary.WorstOf(
+                    DensityCostTiming, worker.DensityCostTiming);
+                TopologyCostTiming = VoxelTimingSummary.WorstOf(
+                    TopologyCostTiming, worker.TopologyCostTiming);
                 TopologyJobTurnaroundTiming = VoxelTimingSummary.WorstOf(
                     TopologyJobTurnaroundTiming, worker.TopologyJobTurnaroundTiming);
                 TopologyCompactTiming = VoxelTimingSummary.WorstOf(

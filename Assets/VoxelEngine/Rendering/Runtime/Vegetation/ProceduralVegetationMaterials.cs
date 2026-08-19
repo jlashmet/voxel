@@ -53,6 +53,7 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
         private static Material s_Foliage;
         private static Material s_Surface;
         private static Material s_Vine;
+        private static bool s_ReportedMissing;
 
         public static bool Ensure()
         {
@@ -64,11 +65,19 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
             Shader vine = Shader.Find(VineShaderName);
             if (foliage == null || surface == null || vine == null)
             {
-                if (foliage == null) Debug.LogError($"Vegetation shader was not found: {FoliageShaderName}");
-                if (surface == null) Debug.LogError($"Vegetation shader was not found: {SurfaceShaderName}");
-                if (vine == null) Debug.LogError($"Vegetation shader was not found: {VineShaderName}");
+                // Once, not per call: see ProceduralTreeMaterials.Ensure for what per-call
+                // logging costs when a spawn path retries this every frame.
+                if (!s_ReportedMissing)
+                {
+                    s_ReportedMissing = true;
+                    if (foliage == null) Debug.LogError($"Vegetation shader was not found: {FoliageShaderName}");
+                    if (surface == null) Debug.LogError($"Vegetation shader was not found: {SurfaceShaderName}");
+                    if (vine == null) Debug.LogError($"Vegetation shader was not found: {VineShaderName}");
+                }
                 return false;
             }
+
+            s_ReportedMissing = false;
 
             s_Foliage = Create(foliage, "Procedural Vegetation Foliage (Shared Runtime)");
             s_Surface = Create(surface, "Procedural Vegetation Surface (Shared Runtime)");

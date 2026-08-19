@@ -55,6 +55,7 @@ namespace VoxelEngine.Rendering.Runtime.AmbientLife
     {
         public const string ShaderName = "VoxelEngine/ProceduralAmbientLife";
         private static Material s_Shared;
+        private static bool s_ReportedMissing;
 
         public static Material Shared
         {
@@ -67,9 +68,16 @@ namespace VoxelEngine.Rendering.Runtime.AmbientLife
             Shader shader = Shader.Find(ShaderName);
             if (shader == null)
             {
-                Debug.LogError($"Ambient-life shader was not found: {ShaderName}");
+                // Once, not per call: see ProceduralTreeMaterials.Ensure.
+                if (!s_ReportedMissing)
+                {
+                    s_ReportedMissing = true;
+                    Debug.LogError($"Ambient-life shader was not found: {ShaderName}");
+                }
                 return false;
             }
+
+            s_ReportedMissing = false;
 
             s_Shared = new Material(shader)
             {

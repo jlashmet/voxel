@@ -324,6 +324,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             public bool UsedFeaturePreservingFallback;
             public double BuildStartSeconds;
             public double DensityScheduledSeconds;
+            public bool DensityCompletionRecorded;
             public double TopologyScheduledSeconds;
             public double FacetedScheduledSeconds;
         }
@@ -535,6 +536,15 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private uint _profileBlockVersion;
         private readonly VoxelTimingWindow _snapshotTiming = new();
         private readonly VoxelTimingWindow _densityTurnaroundTiming = new();
+        private readonly VoxelTimingWindow _densityOnlyTiming = new();
+        private readonly VoxelTimingWindow _densityCostTiming = new();
+        private readonly VoxelTimingWindow _topologyCostTiming = new();
+
+        /// <summary>
+        /// Diagnostic only: completes extraction jobs immediately so their cost can be measured
+        /// rather than inferred from polling intervals. Blocks the frame path by design.
+        /// </summary>
+        public static bool MeasureJobCostSynchronously;
         private readonly VoxelTimingWindow _topologyTurnaroundTiming = new();
         private readonly VoxelTimingWindow _topologyCompactTiming = new();
         private readonly VoxelTimingWindow _facetedTurnaroundTiming = new();
@@ -967,6 +977,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public double LastUploadMs { get; private set; }
         public VoxelTimingSummary SnapshotTiming => _snapshotTiming.Snapshot();
         public VoxelTimingSummary DensityTurnaroundTiming => _densityTurnaroundTiming.Snapshot();
+        /// <summary>Density job alone, observed when its own handle completes.</summary>
+        public VoxelTimingSummary DensityOnlyTiming => _densityOnlyTiming.Snapshot();
+        public VoxelTimingSummary DensityCostTiming => _densityCostTiming.Snapshot();
+        public VoxelTimingSummary TopologyCostTiming => _topologyCostTiming.Snapshot();
         public VoxelTimingSummary TopologyJobTurnaroundTiming => _topologyTurnaroundTiming.Snapshot();
         public VoxelTimingSummary TopologyCompactTiming => _topologyCompactTiming.Snapshot();
         public VoxelTimingSummary FacetedJobTurnaroundTiming => _facetedTurnaroundTiming.Snapshot();
@@ -1381,6 +1395,16 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
                 if (_build.Phase == 1)
                 {
+                    // Density finishes before the chain behind it, so its own handle has to be
+                    // observed separately. Recording both at the chain's completion made the two
+                    // turnarounds identical and hid which of the reconstruction pass and the
+                    // marching pass actually costs the build.
+                    if (!_build.DensityCompletionRecorded && _densityJobHandle.IsCompleted)
+                    {
+                        _densityOnlyTiming.Add(ElapsedMs(_build.DensityScheduledSeconds));
+                        _build.DensityCompletionRecorded = true;
+                    }
+
                     if (!_topologyCompactJobHandle.IsCompleted
                         || !_facetedMergeJobHandle.IsCompleted) break;
                     if (!GeometryFrameJobCompletionGuard.TryCompleteReady(
@@ -2506,9 +2530,30 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _densityJobHandle = job.Schedule(
                 GridSampleCount, ExtractionBatchSize(GridSampleCount, 64));
             _densityJobScheduled = true;
+
+            // Diagnostic: block on the density job to price it on its own. Turnaround timers
+            // cannot, because a worker only polls its handles on a later frame and by then the
+            // whole chain has finished — every one of them reads the polling interval instead of
+            // the work. Blocking is exactly what the frame path must never do, which is why this
+            // is opt-in and off.
+            if (MeasureJobCostSynchronously)
+            {
+                double densityStart = Time.realtimeSinceStartupAsDouble;
+                _densityJobHandle.Complete();
+                _densityCostTiming.Add(ElapsedMs(densityStart));
+            }
+
+            double chainStart = Time.realtimeSinceStartupAsDouble;
             ScheduleTopologyJob(voxelSize, _densityJobHandle);
             ScheduleFacetedMaskJob(_densityJobHandle);
             ScheduleFacetedMergeJob(voxelSize);
+
+            if (MeasureJobCostSynchronously)
+            {
+                _topologyCompactJobHandle.Complete();
+                _facetedMergeJobHandle.Complete();
+                _topologyCostTiming.Add(ElapsedMs(chainStart));
+            }
         }
 
         private void ScheduleExactMetadataSnapshot(IRegionReadSource source, int3 cacheOrigin)

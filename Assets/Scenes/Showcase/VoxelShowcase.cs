@@ -407,10 +407,37 @@ namespace VoxelEngine.Showcase
 
         // -- movement ------------------------------------------------------------
 
+        /// <summary>
+        /// Walks the player on a scripted loop instead of from the keyboard.
+        ///
+        /// Frame cost while moving is the number that matters and it was previously produced by a
+        /// human driving a window, which is neither repeatable nor separable from the stationary
+        /// measurement in the same log. This substitutes synthetic input at the top of the
+        /// existing movement path — the same wish vector, the same motor step, the same streaming
+        /// — rather than teleporting the transform, because a teleport helper skips exactly the
+        /// per-frame work being measured.
+        /// </summary>
+        public bool AutoWalk { get; set; }
+
+        private float _autoWalkElapsed;
+
         private void HandleLook()
         {
             _yaw += Input.GetAxisRaw("Mouse X") * m_LookSensitivity;
             _pitch = Mathf.Clamp(_pitch - Input.GetAxisRaw("Mouse Y") * m_LookSensitivity, -89f, 89f);
+            transform.rotation = Quaternion.Euler(_pitch, _yaw, 0f);
+        }
+
+        /// <summary>
+        /// Turns steadily while walking forward, so the path is a wide circle. Straight-line
+        /// travel leaves the small map; a circle keeps streaming and surface extraction working
+        /// continuously without the run degenerating into a teleport back to the middle.
+        /// </summary>
+        private void StepAutoWalk()
+        {
+            const float DegreesPerSecond = 24f;
+            _autoWalkElapsed += Time.deltaTime;
+            _yaw += DegreesPerSecond * Time.deltaTime;
             transform.rotation = Quaternion.Euler(_pitch, _yaw, 0f);
         }
 
@@ -419,6 +446,13 @@ namespace VoxelEngine.Showcase
             float forward = (Input.GetKey(KeyCode.W) ? 1f : 0f) - (Input.GetKey(KeyCode.S) ? 1f : 0f);
             float strafe = (Input.GetKey(KeyCode.D) ? 1f : 0f) - (Input.GetKey(KeyCode.A) ? 1f : 0f);
             bool sprint = Input.GetKey(KeyCode.LeftShift);
+
+            if (AutoWalk)
+            {
+                StepAutoWalk();
+                forward = 1f;
+                strafe = 0f;
+            }
 
             if (m_FlyMode)
             {
