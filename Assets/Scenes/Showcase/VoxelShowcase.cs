@@ -70,6 +70,10 @@ namespace VoxelEngine.Showcase
                + "scene on the ordinary per-frame budget, which only suits a small radius.")]
         [SerializeField] private ShowcaseStartupSource m_Startup = ShowcaseStartupSource.Bake;
 
+        [Tooltip("Mesh everything at the finest step instead of using coarse LOD rings. Only "
+               + "viable for a small streamed radius; it removes the seam where bands meet.")]
+        [SerializeField] private bool m_DisableLod;
+
         /// <summary>Which authored content this scene builds. Content keyed to the castle — its
         /// vegetation, for one — must not be published into a scene that has no castle.</summary>
         public ShowcaseFeatureContent Features => m_Features;
@@ -178,6 +182,7 @@ namespace VoxelEngine.Showcase
             // default they cover 410 m regardless, so a scene with a smaller load radius meshed
             // bands with no resident regions and the far field broke into floating slabs.
             RenderingComposition.SetVoxelRingRadiusMetres(streamedMetres);
+            RenderingComposition.SetVoxelLodEnabled(!m_DisableLod);
 
             _farTerrain = VoxelFarTerrain.Create(transform, m_Seed,
                                                  streamedMetres * 0.85f, 12000f);

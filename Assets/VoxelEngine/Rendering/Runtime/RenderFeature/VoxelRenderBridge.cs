@@ -130,6 +130,13 @@ namespace VoxelEngine.Rendering.Runtime
         /// left to publish, which is what turns up in a profile as SchedulerPrepare/WorkerAdmission.
         /// Scaling by visible incompleteness pays the cost exactly while it buys something.
         /// </summary>
+        /// <summary>
+        /// Per-frame budget for turning resident regions into known surface chunks. Unlike the
+        /// build and upload budgets this had no channel at all, so it could not be raised for a
+        /// world small enough to discover in one go.
+        /// </summary>
+        public static double SurfaceDiscoveryBudgetMs = 0.10;
+
         public static double SurfaceConvergenceBudgetScale = 8.0;
 
         /// <summary>
@@ -142,6 +149,10 @@ namespace VoxelEngine.Rendering.Runtime
         public static float SurfaceMaxVoxelRingRadiusMetres =
             VoxelEngine.Rendering.Runtime.SurfaceExtraction.VoxelSurfaceScheduler
                        .MaxVoxelRingRadiusMetresDefault;
+
+        /// <summary>Whether coarse voxel LOD rings are used. False meshes everything at the
+        /// finest step, which only suits a world small enough to afford it.</summary>
+        public static bool SurfaceLodEnabled = true;
 
         public static int SurfaceMaxResidentChunksPerRing = 4096;
 

@@ -6,6 +6,7 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
 using VoxelEngine.Rendering.Runtime;
+using VoxelEngine.Composition;
 using VoxelEngine.Showcase;
 using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 using Unity.Profiling;
@@ -102,6 +103,26 @@ namespace VoxelEngine.Tests.PlayMode
                 if (int.TryParse(capOverride, out int cap) && cap > 0)
                     VoxelRenderBridge.SurfaceMaxResidentChunksPerRing = cap;
 
+                // Convergence budgets are sized for a 410 m world on a frame budget. A small map
+                // can afford far more, and preload time is explicitly not what is being measured.
+                if (double.TryParse(System.Environment.GetEnvironmentVariable("VOXEL_BUILD_MS"),
+                                    out double buildMs) && buildMs > 0)
+                    VoxelRenderBridge.SolidBuildBudgetMs = buildMs;
+                if (double.TryParse(System.Environment.GetEnvironmentVariable("VOXEL_DISCOVERY_MS"),
+                                    out double discoveryMs) && discoveryMs > 0)
+                    VoxelRenderBridge.SurfaceDiscoveryBudgetMs = discoveryMs;
+
+                // Builds in flight, applied before preload. Each build spans many frames, so the
+                // world fills at concurrency divided by build latency — a per-frame millisecond
+                // budget cannot speed it up, and raising those did nothing at all.
+                if (int.TryParse(
+                        System.Environment.GetEnvironmentVariable("VOXEL_PRELOAD_BUILD_CAP"),
+                        out int preloadCap) && preloadCap > 0)
+                {
+                    VoxelRenderBridge.SurfaceMaxConcurrentBuildsConverging = preloadCap;
+                    VoxelRenderBridge.SurfaceMaxConcurrentBuildsConverged = preloadCap;
+                }
+
                 var preload = Stopwatch.StartNew();
                 VoxelSurfaceMetrics m = default;
                 int quietFrames = 0;
@@ -132,6 +153,16 @@ namespace VoxelEngine.Tests.PlayMode
                 if (VoxelRenderBridge.TryGetWorld(out VoxelWorldView view))
                     using (var resident = view.Storage.GetResidentRegionCoords(Allocator.Temp))
                         storageRegions = resident.Length;
+
+                // The far field draws through Graphics.DrawMesh, which a manual camera.Render()
+                // capture cannot see — so its state has to be asserted numerically rather than
+                // looked at. A zero hole means the clipmap is covering the near field.
+                float holeMetres = -1f;
+                foreach (VoxelFarTerrain far in Object.FindObjectsByType<VoxelFarTerrain>(
+                             FindObjectsSortMode.None))
+                    holeMetres = far.HoleRadiusMetres;
+                Debug.Log($"DIAG farfield hole={holeMetres:0.0}m "
+                        + $"coverage={RenderingComposition.HasCompletePublishedNearSurfaceCoverage()}");
 
                 Debug.Log($"DIAG preload {preload.Elapsed.TotalSeconds:0.0}s "
                         + $"storageRegions={storageRegions} "
@@ -282,15 +313,29 @@ namespace VoxelEngine.Tests.PlayMode
                         + $"visible={m.VisibleSolidChunks} missing={m.MissingVisibleSolidChunks} "
                         + $"dirty={m.SolidDirtyChunks} jobs={m.RunningSolidJobs} "
                         + $"known={m.SolidKnownChunks}");
-                Capture(camera, name);
+                yield return CaptureEndOfFrame(camera, name);
             }
         }
 
-        /// <summary>Writes what the camera currently sees, for eyeballing rendering faults.</summary>
-        private static void Capture(Camera camera, string label)
+        /// <summary>
+        /// Writes what Unity actually renders, at end of frame.
+        ///
+        /// An explicit camera.Render() draws only what the render pipeline submits for that call.
+        /// Anything registered for the ordinary loop — Graphics.DrawMesh far terrain, instanced
+        /// vegetation, ambient life — is simply absent, so a capture taken that way can show a
+        /// clean scene while the real frame has a clipmap drawn across it. Waiting for the end of
+        /// a real frame captures the composited result instead.
+        /// </summary>
+        private static IEnumerator CaptureEndOfFrame(Camera camera, string label)
         {
+            // Two ordinary frames rather than WaitForEndOfFrame, which does not fire in batch
+            // mode. A camera with a target texture is rendered by the loop anyway, and letting it
+            // do so is the whole point: that pass includes the DrawMesh submissions an explicit
+            // Render() call leaves out.
+            yield return null;
+            yield return null;
+
             RenderTexture target = camera.targetTexture;
-            camera.Render();
             RenderTexture previous = RenderTexture.active;
             RenderTexture.active = target;
             var image = new Texture2D(target.width, target.height, TextureFormat.RGB24, false);
@@ -379,7 +424,7 @@ namespace VoxelEngine.Tests.PlayMode
                     + $"prunP95={m.ResidencyPruneTiming.P95Ms:0.00} "
                     + $"selectP95={m.BuildSelectionTiming.P95Ms:0.00}");
             Profiler.enabled = false;
-            Capture(camera, label);
+            yield return CaptureEndOfFrame(camera, label);
         }
 
         private static IEnumerator Measure(Camera camera, string label, float moveMetresPerFrame)
@@ -436,7 +481,7 @@ namespace VoxelEngine.Tests.PlayMode
                     + $"arenaEvictions={m.SolidArenaPressureEvictions} "
                     + $"uploadBytes={m.UploadedGeometryBytes}");
             Debug.Log($"PROBE {label} {probes.Summarise()}");
-            Capture(camera, label);
+            yield return CaptureEndOfFrame(camera, label);
             Profiler.enabled = false;
         }
 

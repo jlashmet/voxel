@@ -220,6 +220,9 @@ namespace VoxelEngine.Rendering.Runtime
                 1.0, VoxelRenderBridge.SurfaceConvergenceBudgetScale);
             _scheduler.MaxVoxelRingRadiusMetres = Math.Max(
                 0f, VoxelRenderBridge.SurfaceMaxVoxelRingRadiusMetres);
+            _scheduler.SurfaceDiscoveryBudgetMs = Math.Max(
+                0.0, VoxelRenderBridge.SurfaceDiscoveryBudgetMs);
+            _scheduler.LodEnabled = VoxelRenderBridge.SurfaceLodEnabled;
             _scheduler.MaxResidentChunksPerRing = Math.Max(
                 1, VoxelRenderBridge.SurfaceMaxResidentChunksPerRing);
             _scheduler.MaxConcurrentBuildsConverging = Math.Max(

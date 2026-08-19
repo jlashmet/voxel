@@ -111,6 +111,10 @@ namespace VoxelEngine.Composition
         /// Limits voxel-meshed rings to the radius the world actually streams. Rings beyond it
         /// have no resident regions to mesh and render as holes rather than terrain.
         /// </summary>
+        /// <summary>Turns coarse voxel LOD rings on or off.</summary>
+        public static void SetVoxelLodEnabled(bool enabled) =>
+            VoxelRenderBridge.SurfaceLodEnabled = enabled;
+
         public static void SetVoxelRingRadiusMetres(float metres) =>
             VoxelRenderBridge.SurfaceMaxVoxelRingRadiusMetres = Mathf.Max(0f, metres);
 
@@ -222,13 +226,14 @@ namespace VoxelEngine.Composition
         /// </summary>
         public static bool HasCompletePublishedNearSurfaceCoverage()
         {
+            // Coverage is about what the camera can see, not about the world being idle. Dirty
+            // chunks, running jobs and pending uploads all include the 360-degree prefetch shell,
+            // which never empties while the player moves — so requiring them left the far field's
+            // hole permanently shut and the clipmap drawn straight over the near terrain, double
+            // shading the ground the player is standing on.
             var metrics = VoxelRenderBridge.SurfaceMetrics;
             return metrics.SolidKnownChunks > 0
                 && metrics.SolidResidentChunks > 0
-                && metrics.SolidDirtyChunks == 0
-                && metrics.RunningSolidJobs == 0
-                && metrics.SolidMeshesAwaitingUpload == 0
-                && metrics.SolidPendingUploadBytes == 0
                 && metrics.MissingVisibleSolidChunks == 0;
         }
 

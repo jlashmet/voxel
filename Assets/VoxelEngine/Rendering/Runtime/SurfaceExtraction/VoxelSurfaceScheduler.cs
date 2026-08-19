@@ -742,6 +742,15 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         /// </summary>
         public float MaxVoxelRingRadiusMetres { get; set; } = MaxVoxelRingRadiusMetresDefault;
 
+        /// <summary>
+        /// Whether coarse LOD rings are used at all.
+        ///
+        /// False gives the finest ring the entire streamed radius and collapses the rest. A world
+        /// small enough that the coarse rings cover only a sliver gains nothing from them but
+        /// still pays for the resolution seam where the bands meet.
+        /// </summary>
+        public bool LodEnabled { get; set; } = true;
+
         public int MaxResidentChunksPerRing { get; set; } = 4096;
 
         public int MaxConcurrentBuildsConverging { get; set; } = 12;
@@ -995,20 +1004,25 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
             double workersStart = Time.realtimeSinceStartupAsDouble;
             float ringCap = Math.Max(0f, MaxVoxelRingRadiusMetres);
-            float ringExtent = _rings.Length > 0 ? _rings[_rings.Length - 1].OuterRadiusMetres : 0f;
-            float ringScale = ringExtent > 0f ? Math.Min(1f, ringCap / ringExtent) : 1f;
             for (int r = 0; r < _rings.Length; r++)
             {
                 SurfaceRing ring = _rings[r];
                 CpuTransvoxelChunkCache[] ringWorkers = ring.Workers;
                 int perWorker = Math.Max(1, MaxResidentChunksPerRing / ringWorkers.Length);
-                // Rings are rescaled into the streamed radius rather than truncated against it.
-                // Clamping each band independently collapsed every coarse ring into a sliver at
-                // the edge and left the whole world meshed at the finest step — hundreds of extra
-                // chunk draws for terrain far enough away to be drawn coarsely. Scaling preserves
-                // the LOD structure at whatever radius the world actually streams.
-                float outer = ring.OuterRadiusMetres * ringScale;
-                float inner = ring.InnerRadiusMetres * ringScale;
+                // Bands are truncated against the streamed radius, never rescaled into it.
+                // Rescaling cut chunk counts sharply but dragged the fine ring inward — at a
+                // 102 m streaming radius the finest step only reached 24 m, so a building 38 m
+                // away was meshed at half resolution or worse and rendered as a grey blob.
+                // A coarse ring collapsing to a sliver is the correct outcome: there is no
+                // terrain out there to mesh, and the analytic far field already covers it.
+                float outer = Math.Min(ring.OuterRadiusMetres, ringCap);
+                float inner = Math.Min(ring.InnerRadiusMetres, outer);
+                if (!LodEnabled)
+                {
+                    // Finest ring takes everything; the rest collapse to empty bands.
+                    outer = r == 0 ? ringCap : ringCap;
+                    inner = r == 0 ? 0f : ringCap;
+                }
                 for (int i = 0; i < ringWorkers.Length; i++)
                 {
                     ringWorkers[i].MaxResidentChunks = perWorker;
