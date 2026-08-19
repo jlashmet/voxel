@@ -1,0 +1,189 @@
+name: Showcase Performance
+
+# Frame cost is only meaningful in a player build. The batchmode diagnostic renders to a
+# RenderTexture and never presents, so it cannot see a presentation stall; the editor adds its
+# own render loop to whatever the game costs. This builds the small showcase as a standalone
+# player, drives it on a scripted path, and publishes both the frame statistics and screenshots.
+#
+# The screenshots are not decoration. Holes, doubled terrain, sunken landmarks and missing
+# distant ground have all passed timing checks in this project. A run that reports frame cost
+# without publishing pictures is reporting half the result.
+
+on:
+  workflow_dispatch:
+    inputs:
+      run-seconds:
+        description: Total player run length in seconds
+        default: '150'
+      autowalk-after:
+        description: Seconds of stationary measurement before the scripted walk starts
+        default: '60'
+  push:
+    branches:
+      - master
+    paths:
+      - 'Assets/Scenes/SmallVoxelShowcase.unity'
+      - 'Assets/Scenes/Showcase/**'
+      - 'Assets/Game/Composition/Showcase/**'
+      - 'Assets/VoxelEngine/Rendering/**'
+      - 'ProjectSettings/GraphicsSettings.asset'
+      - '.github/workflows/showcase-performance.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: showcase-performance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  measure:
+    name: Build and measure the small showcase player
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 45
+
+    env:
+      RUN_SECONDS: ${{ github.event.inputs.run-seconds || '150' }}
+      AUTOWALK_AFTER: ${{ github.event.inputs.autowalk-after || '60' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          clean: true
+
+      - name: Resolve Unity
+        id: unity
+        shell: bash
+        run: |
+          set -euo pipefail
+          UNITY_VERSION="$(awk '/m_EditorVersion:/ { print $2 }' ProjectSettings/ProjectVersion.txt)"
+          UNITY_PATH="/Applications/Unity/Hub/Editor/${UNITY_VERSION}/Unity.app/Contents/MacOS/Unity"
+          test -x "$UNITY_PATH"
+          echo "path=$UNITY_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for any running Unity editor
+        shell: bash
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 900))
+          while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
+            if (( SECONDS >= deadline )); then
+              pgrep -alf '/Unity.app/Contents/MacOS/Unity' || true
+              exit 1
+            fi
+            sleep 5
+          done
+
+      - name: Build the player
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/Artifacts"
+          UNITY_MAX_RSS_MB=12288 UNITY_MAX_MINUTES=25 \
+          UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
+            -batchmode -nographics -quit \
+            -projectPath "$GITHUB_WORKSPACE" \
+            -executeMethod VoxelEngine.Showcase.Editor.ShowcasePlayerBuild.Build \
+            -voxelScene Assets/Scenes/SmallVoxelShowcase.unity \
+            -voxelBuildOutput "$GITHUB_WORKSPACE/Artifacts/Player" \
+            -logFile "$GITHUB_WORKSPACE/Artifacts/player-build.log"
+
+          test -d "$GITHUB_WORKSPACE/Artifacts/Player/SmallVoxelShowcase.app"
+
+      - name: Run the player
+        shell: bash
+        run: |
+          set -uo pipefail
+          ROOT="$GITHUB_WORKSPACE/Artifacts"
+          SHOTS="$ROOT/Screenshots"
+          LOG="$ROOT/player-run.log"
+          mkdir -p "$SHOTS"
+
+          APP="$ROOT/Player/SmallVoxelShowcase.app/Contents/MacOS"
+          BIN="$APP/$(ls "$APP" | head -1)"
+
+          # The player needs a window server session. A runner with no logged-in desktop will
+          # start the process and render nothing, which shows up as an empty screenshot
+          # directory rather than a crash — hence the explicit check after the run.
+          "$BIN" -logFile "$LOG" \
+            -screen-width 1600 -screen-height 900 -screen-fullscreen 0 \
+            -voxel-uncapped -voxel-fps-log \
+            -voxel-autowalk-after "$AUTOWALK_AFTER" \
+            -voxel-run-seconds "$RUN_SECONDS" \
+            -voxel-screenshot-dir "$SHOTS" \
+            -voxel-screenshot-every 10 &
+          PID=$!
+
+          # The harness quits itself; this only covers a player that hangs before it can.
+          ( sleep $(( RUN_SECONDS + 120 )); kill -9 $PID 2>/dev/null ) &
+          WATCHDOG=$!
+          wait $PID
+          status=$?
+          kill $WATCHDOG 2>/dev/null
+
+          echo "player exit status: $status"
+          exit "$status"
+
+      - name: Summarise frame cost
+        if: always()
+        shell: bash
+        run: |
+          set -uo pipefail
+          ROOT="$GITHUB_WORKSPACE/Artifacts"
+          LOG="$ROOT/player-run.log"
+          status=0
+
+          if [[ ! -s "$LOG" ]]; then
+            echo "No player log at $LOG" >&2
+            exit 1
+          fi
+
+          grep 'FPSLOG' "$LOG" > "$ROOT/fps.txt" || true
+          shots="$(find "$ROOT/Screenshots" -name '*.png' -size +1k | wc -l | tr -d ' ')"
+
+          {
+            echo "## Showcase player performance"
+            echo
+            echo "Screenshots captured: $shots"
+            echo
+            echo '```'
+            tail -40 "$ROOT/fps.txt"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if (( shots < 2 )); then
+            echo "Expected at least 2 screenshots, found $shots." >&2
+            echo "A runner without a logged-in window server renders nothing." >&2
+            status=1
+          fi
+
+          # Only the settled tail is asserted on. Terrain generation and the first traversal of
+          # ground the camera has never faced both cost hundreds of milliseconds a frame by
+          # design — surfaces are built for what is visible — so asserting across the whole run
+          # would fail every time. The last twenty seconds are warm, walking, and steady.
+          #
+          # A floor, not a target: the scene measures ~1.6 ms while walking on this hardware, so
+          # failing over 16.7 ms catches a collapse without flaking on a shared runner.
+          tail -20 "$ROOT/fps.txt" > "$ROOT/fps-tail.txt"
+          worst="$(awk -F'p50=' '{ split($2, f, " "); if (f[1] > worst) worst = f[1] } END { print worst + 0 }' "$ROOT/fps-tail.txt")"
+          echo "worst p50 frame over the settled tail: ${worst} ms"
+          if awk "BEGIN { exit !(${worst:-9999} > 16.7) }"; then
+            echo "Worst settled p50 frame ${worst} ms is over the 16.7 ms floor." >&2
+            status=1
+          fi
+
+          exit "$status"
+
+      - name: Upload screenshots and measurements
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: showcase-performance-${{ github.sha }}
+          path: |
+            Artifacts/Screenshots/*.png
+            Artifacts/fps.txt
+            Artifacts/player-run.log
+            Artifacts/player-build.log
+          if-no-files-found: warn
+          retention-days: 14

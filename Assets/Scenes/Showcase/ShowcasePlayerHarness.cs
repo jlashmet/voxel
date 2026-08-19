@@ -1,5 +1,6 @@
 using System;
 using System.Globalization;
+using System.IO;
 using UnityEngine;
 
 namespace VoxelEngine.Showcase
@@ -15,10 +16,12 @@ namespace VoxelEngine.Showcase
     ///
     /// All of it is opt-in from the command line, so a player launched normally behaves normally.
     ///
-    ///   -voxel-uncapped         disable VSync and any target frame rate
-    ///   -voxel-fps-log          write one line per second of frame statistics to the player log
-    ///   -voxel-run-seconds N    quit after N seconds
-    ///   -voxel-autowalk-after N start walking a scripted loop N seconds in
+    ///   -voxel-uncapped          disable VSync and any target frame rate
+    ///   -voxel-fps-log           write one line per second of frame statistics to the player log
+    ///   -voxel-run-seconds N     quit after N seconds
+    ///   -voxel-autowalk-after N  start walking a scripted loop N seconds in
+    ///   -voxel-screenshot-dir D  write periodic screenshots to D
+    ///   -voxel-screenshot-every N  seconds between screenshots, default 10
     /// </summary>
     public static class ShowcasePlayerHarness
     {
@@ -39,7 +42,8 @@ namespace VoxelEngine.Showcase
             bool log = HasFlag("-voxel-fps-log");
             double runSeconds = Value("-voxel-run-seconds", 0.0);
             double autoWalkAfter = Value("-voxel-autowalk-after", 0.0);
-            if (!log && runSeconds <= 0.0 && autoWalkAfter <= 0.0) return;
+            string screenshotDir = Argument("-voxel-screenshot-dir");
+            if (!log && runSeconds <= 0.0 && autoWalkAfter <= 0.0 && screenshotDir == null) return;
 
             var root = new GameObject("Showcase Player Harness")
             {
@@ -49,7 +53,17 @@ namespace VoxelEngine.Showcase
             reporter.Logging = log;
             reporter.RunSeconds = runSeconds;
             reporter.AutoWalkAfter = autoWalkAfter;
+            reporter.ScreenshotDirectory = screenshotDir;
+            reporter.ScreenshotEvery = Value("-voxel-screenshot-every", 10.0);
             UnityEngine.Object.DontDestroyOnLoad(root);
+        }
+
+        private static string Argument(string name)
+        {
+            string[] args = Environment.GetCommandLineArgs();
+            for (int i = 0; i < args.Length - 1; i++)
+                if (string.Equals(args[i], name, StringComparison.Ordinal)) return args[i + 1];
+            return null;
         }
 
         private static bool HasFlag(string name)
@@ -85,8 +99,13 @@ namespace VoxelEngine.Showcase
             internal bool Logging;
             internal double RunSeconds;
             internal double AutoWalkAfter;
+            internal string ScreenshotDirectory;
+            internal double ScreenshotEvery;
 
             private bool _walking;
+            private double _nextShot;
+            private int _shotIndex;
+            private bool _shotThisFrame;
 
             private readonly float[] _intervals = new float[Capacity];
             private int _count;
@@ -99,7 +118,15 @@ namespace VoxelEngine.Showcase
                 float dt = Time.unscaledDeltaTime;
                 _totalElapsed += dt;
                 _windowElapsed += dt;
-                if (_count < Capacity) _intervals[_count++] = dt;
+
+                // The frame after a capture carries the cost of encoding and writing a PNG, which
+                // is tens of milliseconds and nothing to do with the renderer. Counting it would
+                // put a spike in every percentile at exactly the screenshot interval and invite
+                // the conclusion that something periodic is wrong.
+                if (_shotThisFrame) _shotThisFrame = false;
+                else if (_count < Capacity) _intervals[_count++] = dt;
+
+                CaptureIfDue();
 
                 if (!_walking && AutoWalkAfter > 0.0 && _totalElapsed >= AutoWalkAfter)
                 {
@@ -125,6 +152,42 @@ namespace VoxelEngine.Showcase
                     Debug.Log($"HARNESS done after {_totalElapsed:0.0}s");
                     Application.Quit();
                 }
+            }
+
+            /// <summary>
+            /// Writes a screenshot on a fixed interval, tagged with the phase it was taken in.
+            ///
+            /// A frame-rate number says the renderer is fast; it does not say the world looks
+            /// right. Holes, doubled terrain and missing landmarks have all passed timing checks
+            /// in this project, so a CI run that reports frame cost without publishing pictures
+            /// is reporting half the result.
+            /// </summary>
+            private void CaptureIfDue()
+            {
+                if (string.IsNullOrEmpty(ScreenshotDirectory)) return;
+                if (_totalElapsed < _nextShot) return;
+
+                _nextShot = _totalElapsed + Math.Max(1.0, ScreenshotEvery);
+
+                try
+                {
+                    Directory.CreateDirectory(ScreenshotDirectory);
+                }
+                catch (Exception error)
+                {
+                    Debug.LogError($"HARNESS screenshot directory failed: {error.Message}");
+                    ScreenshotDirectory = null;
+                    return;
+                }
+
+                string phase = _walking ? "walking" : "stationary";
+                string file = string.Format(CultureInfo.InvariantCulture,
+                    "showcase-{0:D3}-t{1:000.0}s-{2}.png", _shotIndex++, _totalElapsed, phase);
+                string path = Path.Combine(ScreenshotDirectory, file);
+
+                ScreenCapture.CaptureScreenshot(path);
+                _shotThisFrame = true;
+                Debug.Log($"HARNESS screenshot {path}");
             }
 
             private void Report()
