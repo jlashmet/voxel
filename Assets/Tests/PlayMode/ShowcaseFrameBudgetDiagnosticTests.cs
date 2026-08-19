@@ -123,10 +123,21 @@ namespace VoxelEngine.Tests.PlayMode
                     VoxelRenderBridge.SurfaceMaxConcurrentBuildsConverged = preloadCap;
                 }
 
+                // Upload is the remaining rate limit that has not been tested: geometry reaches
+                // the arena through a byte and millisecond budget of its own.
+                if (double.TryParse(System.Environment.GetEnvironmentVariable("VOXEL_UPLOAD_MS"),
+                                    out double uploadMs) && uploadMs > 0)
+                {
+                    VoxelRenderBridge.SolidUploadBudgetMs = uploadMs;
+                    VoxelRenderBridge.SolidUploadBudgetBytes = 64 * 1024 * 1024;
+                    VoxelRenderBridge.SolidUploadWorkerBudget = 64;
+                }
+
                 var preload = Stopwatch.StartNew();
                 VoxelSurfaceMetrics m = default;
                 int quietFrames = 0;
                 int lastKnownChunks = -1;
+                int preloadFrames = 0;
                 while (preload.Elapsed.TotalSeconds < PreloadSeconds)
                 {
                     camera.Render();
@@ -147,6 +158,28 @@ namespace VoxelEngine.Tests.PlayMode
                               && m.SolidKnownChunks == lastKnownChunks;
                     lastKnownChunks = m.SolidKnownChunks;
                     quietFrames = quiet ? quietFrames + 1 : 0;
+
+                    // Fill rate in builds per frame. Every millisecond budget, the concurrency cap
+                    // and the worker count have all been raised with no effect on total time, so
+                    // the question is whether the rate is fixed per frame rather than per second.
+                    if (++preloadFrames % 300 == 0)
+                        Debug.Log($"BUSY frame={preloadFrames} "
+                                + $"schedPrep={m.SchedulerPrepareTiming.P50Ms:0.00}/{m.SchedulerPrepareTiming.P95Ms:0.00} "
+                                + $"workerPrep={m.WorkerPrepareTiming.P50Ms:0.00}/{m.WorkerPrepareTiming.P95Ms:0.00} "
+                                + $"snapshot={m.SnapshotTiming.P50Ms:0.00}/{m.SnapshotTiming.P95Ms:0.00} "
+                                + $"compact={m.TopologyCompactTiming.P50Ms:0.00}/{m.TopologyCompactTiming.P95Ms:0.00} "
+                                + $"upload={m.UploadTiming.P50Ms:0.00}/{m.UploadTiming.P95Ms:0.00} "
+                                + $"visibility={m.VisibilityTiming.P50Ms:0.00}/{m.VisibilityTiming.P95Ms:0.00} "
+                                + $"buildLatency={m.BuildLatencyTiming.P50Ms:0.0}/{m.BuildLatencyTiming.P95Ms:0.0} "
+                                + $"queueLatency={m.QueueLatencyTiming.P50Ms:0.0}");
+
+                    if (preloadFrames % 300 == 0)
+                        Debug.Log($"RATE frame={preloadFrames} t={preload.Elapsed.TotalSeconds:0.0}s "
+                                + $"completed={m.CompletedSolidBuilds} "
+                                + $"known={m.SolidKnownChunks} resident={m.SolidResidentChunks} "
+                                + $"dirty={m.SolidDirtyChunks} jobs={m.RunningSolidJobs} "
+                                + $"perFrame={(preloadFrames > 0 ? m.CompletedSolidBuilds / (double)preloadFrames : 0):0.00}");
+
                     if (quietFrames >= QuietFramesForConvergence) break;
                 }
                 int storageRegions = -1;
@@ -161,6 +194,22 @@ namespace VoxelEngine.Tests.PlayMode
                 foreach (VoxelFarTerrain far in Object.FindObjectsByType<VoxelFarTerrain>(
                              FindObjectsSortMode.None))
                     holeMetres = far.HoleRadiusMetres;
+                Debug.Log($"PHASE preload "
+                        + $"schedPrep={m.SchedulerPrepareTiming.P50Ms:0.00}/{m.SchedulerPrepareTiming.P95Ms:0.00} "
+                        + $"workerPrep={m.WorkerPrepareTiming.P50Ms:0.00}/{m.WorkerPrepareTiming.P95Ms:0.00} "
+                        + $"snapshot={m.SnapshotTiming.P50Ms:0.00}/{m.SnapshotTiming.P95Ms:0.00} "
+                        + $"compact={m.TopologyCompactTiming.P50Ms:0.00}/{m.TopologyCompactTiming.P95Ms:0.00} "
+                        + $"facetedMerge={m.FacetedMergeTiming.P50Ms:0.00}/{m.FacetedMergeTiming.P95Ms:0.00} "
+                        + $"profileEmit={m.ProfileEmitTiming.P50Ms:0.00}/{m.ProfileEmitTiming.P95Ms:0.00} "
+                        + $"upload={m.UploadTiming.P50Ms:0.00}/{m.UploadTiming.P95Ms:0.00} "
+                        + $"discovery={m.SurfaceDiscoveryTiming.P50Ms:0.00}/{m.SurfaceDiscoveryTiming.P95Ms:0.00} "
+                        + $"visibility={m.VisibilityTiming.P50Ms:0.00}/{m.VisibilityTiming.P95Ms:0.00} "
+                        + $"invalidation={m.InvalidationTiming.P50Ms:0.00}/{m.InvalidationTiming.P95Ms:0.00} "
+                        + $"journal={m.ChangeJournalTiming.P50Ms:0.00}/{m.ChangeJournalTiming.P95Ms:0.00} "
+                        + $"capacity={m.CapacityTiming.P50Ms:0.00}/{m.CapacityTiming.P95Ms:0.00} "
+                        + $"prune={m.ResidencyPruneTiming.P50Ms:0.00}/{m.ResidencyPruneTiming.P95Ms:0.00} "
+                        + $"ruleSync={m.RuleSyncTiming.P50Ms:0.00}/{m.RuleSyncTiming.P95Ms:0.00}");
+
                 Debug.Log($"DIAG farfield hole={holeMetres:0.0}m "
                         + $"coverage={RenderingComposition.HasCompletePublishedNearSurfaceCoverage()}");
 

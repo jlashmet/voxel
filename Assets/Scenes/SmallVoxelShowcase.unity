@@ -226,8 +226,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_Seed: 1592594996
   m_BrickPoolCapacity: 2367424
-  m_LoadRadiusRegions: 2
-  m_UnloadRadiusRegions: 4
+  m_LoadRadiusRegions: 1
+  m_UnloadRadiusRegions: 3
   m_GenerateBudgetMs: 12
   m_Features: 2
   m_Startup: 1
