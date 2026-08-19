@@ -45,6 +45,35 @@ namespace Game.Structures.Tests
         }
 
         [Test]
+        public void MutationFailureDoesNotRetryAnotherTerminal()
+        {
+            CaveTraversalCandidate preferred = Branch(new int3(0, -4, 0), 90, Facing.North);
+            CaveTraversalCandidate fallback = Branch(new int3(30, -4, 0), 60, Facing.North);
+            var candidates = new CaveTraversalCandidateSet();
+            candidates.Items.Add(fallback);
+            candidates.Items.Add(preferred);
+
+            var world = new SolidWorldSession { DropCarveCall = 2 };
+            CaveSecretPocketConfig config = PocketConfig();
+
+            Assert.IsFalse(CaveTreasurePocketPlanner.TryAuthorBest(
+                world,
+                in candidates,
+                24,
+                in config,
+                out _,
+                out CaveSecretPocket pocket));
+
+            Assert.Multiple(() =>
+            {
+                Assert.IsFalse(pocket.IsWellFormed,
+                    "A pocket must not become semantic proof when read-back shows an incomplete carve.");
+                Assert.AreEqual(2, world.CarveCalls,
+                    "A storage/mutation failure may have changed geometry, so fallback must abort instead of carving another terminal.");
+            });
+        }
+
+        [Test]
         public void AuthoredCaveTerminalLeavesVerifiedRockForTreasurePocket()
         {
             var world = new SolidWorldSession();
@@ -145,6 +174,7 @@ namespace Game.Structures.Tests
             private readonly HashSet<int3> _empty = new HashSet<int3>();
 
             public int CarveCalls { get; private set; }
+            public int DropCarveCall { get; set; }
             public bool BudgetExceeded => false;
             public int WriteBudget => int.MaxValue;
             public long TotalVoxelsWritten => _empty.Count;
@@ -189,6 +219,7 @@ namespace Game.Structures.Tests
             public void Carve(int3 min, int3 size)
             {
                 CarveCalls++;
+                if (DropCarveCall == CarveCalls) return;
                 FillBulk(min, size, 0);
             }
             public void Weather(int3 min, int3 size, byte coating, uint seed, int chanceOutOf100) { }
