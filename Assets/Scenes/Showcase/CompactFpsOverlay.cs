@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEngine.SceneManagement;
 using VoxelEngine.Composition;
 using VoxelEngine.Rendering.Api;
 
@@ -28,7 +27,10 @@ namespace VoxelEngine.Showcase
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void InstallForShowcase()
         {
-            if (SceneManager.GetActiveScene().name != "VoxelShowcase") return;
+            // Keyed on the showcase component rather than one hard-coded scene name. The name
+            // check silently skipped SmallVoxelShowcase, which is the same showcase with less
+            // world in it and is precisely where a frame-rate readout is wanted.
+            if (Object.FindFirstObjectByType<VoxelShowcase>() == null) return;
             if (Object.FindFirstObjectByType<CompactFpsOverlay>() != null) return;
 
             var root = new GameObject("Compact FPS Overlay")

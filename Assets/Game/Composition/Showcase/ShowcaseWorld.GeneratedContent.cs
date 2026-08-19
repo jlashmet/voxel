@@ -18,6 +18,18 @@ namespace VoxelEngine.Showcase
         /// </summary>
         public void GenerateCastleOriginBlocking()
         {
+            // A scene configured to generate never consults the bake, and must run before the
+            // guard below: the caller polls this every frame until the player is placed, so by the
+            // second call the origin region already exists and the guard would reject it. Castle
+            // authoring is asynchronous, so the plan — and the WorldObject scene that needs it —
+            // arrive some frames later.
+            if (_startupSource == ShowcaseStartupSource.Generate)
+            {
+                GenerateCastleOriginForBakeBlocking();
+                if (_hasCastlePlan) EnsureCastleWorldObjectSceneLoaded();
+                return;
+            }
+
             // Respawn/re-entry after the startup image has already been installed is free, but the
             // gameplay scene may have deliberately unloaded presentation/runtime state. Re-establish
             // the authoritative WorldObject scene before returning.
@@ -73,6 +85,10 @@ namespace VoxelEngine.Showcase
             BeginRegion(regionCoord);
             while (!StepRegion()) { }
             FinishRegion();
+
+            // With no castle there is no footprint to establish, and the origin's ordinary feature
+            // queue entry is wanted rather than stale — it is what places the house.
+            if (!_includeCastle) return;
 
             if (!_castleTerrainQueued || !_castleRegions.Contains(regionCoord))
                 throw new InvalidOperationException(

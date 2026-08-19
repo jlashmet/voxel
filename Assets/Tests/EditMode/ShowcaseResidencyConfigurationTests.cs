@@ -26,12 +26,12 @@ namespace VoxelEngine.Tests.EditMode
             Assert.Greater(unloadRadius, loadRadius,
                 "Showcase streaming needs unload hysteresis beyond the load window.");
             Assert.LessOrEqual(
-                VoxelSurfaceScheduler.MaxVoxelRingRadiusMetres,
+                VoxelSurfaceScheduler.MaxVoxelRingRadiusMetresDefault,
                 loadRadius * RegionMetres + 1f,
                 "The scene's load radius must cover every voxel LOD ring; otherwise newly "
               + "visible coarse chunks can request authoritative regions that were never loaded.");
             Assert.LessOrEqual(
-                VoxelSurfaceScheduler.MaxVoxelRingRadiusMetres,
+                VoxelSurfaceScheduler.MaxVoxelRingRadiusMetresDefault,
                 unloadRadius * RegionMetres + 1f,
                 "The scene's unload radius must keep already-authored landmarks resident while "
               + "the camera views them through the outer voxel LOD rings.");

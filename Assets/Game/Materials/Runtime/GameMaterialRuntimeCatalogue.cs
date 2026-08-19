@@ -74,7 +74,10 @@ namespace Game.Materials.Runtime
 
             Row(GameMaterialIds.Glass, true,
                 Sim(GameMaterialIds.Glass, 10, DestructionClass.Powder, SurfaceStyles.Sharp, 1u << Coatings.Wet),
-                Solid(GameMaterialIds.Glass, 0.78f, 0.48f, 0.18f, roughness: 0.24f)),
+                // Pale and glossy, so a glazed opening reads as glass. It was an opaque
+                // orange-brown at the same value as the surrounding masonry, which made every
+                // window in every authored house disappear into its wall.
+                Solid(GameMaterialIds.Glass, 0.55f, 0.69f, 0.76f, roughness: 0.06f)),
 
             Row(GameMaterialIds.Bedrock, true,
                 Sim(GameMaterialIds.Bedrock, 255, DestructionClass.None, SurfaceStyles.Planar, 0u),

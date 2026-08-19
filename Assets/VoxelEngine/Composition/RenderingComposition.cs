@@ -107,6 +107,13 @@ namespace VoxelEngine.Composition
         public static void SetFarBaseHeight(uint baseHeight) =>
             VoxelRenderBridge.FarBaseHeight = baseHeight;
 
+        /// <summary>
+        /// Limits voxel-meshed rings to the radius the world actually streams. Rings beyond it
+        /// have no resident regions to mesh and render as holes rather than terrain.
+        /// </summary>
+        public static void SetVoxelRingRadiusMetres(float metres) =>
+            VoxelRenderBridge.SurfaceMaxVoxelRingRadiusMetres = Mathf.Max(0f, metres);
+
         public static void SetLocalLights(Vector4[] lights, Vector4[] colours)
         {
             VoxelRenderBridge.LocalLights = lights ?? Array.Empty<Vector4>();

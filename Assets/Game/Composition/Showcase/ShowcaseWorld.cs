@@ -103,6 +103,12 @@ namespace VoxelEngine.Showcase
         private bool _hasCachedReadView;
 
         private FeatureCatalogue _catalogue;
+        private ShowcaseStartupSource _startupSource = ShowcaseStartupSource.Bake;
+        private bool _includeCastle = true;
+
+        /// <summary>Where the showcase's landmark sits. The spawn camera is aimed here.</summary>
+        public const int LandmarkCentreX = RegionVoxelEdge / 2;
+        public const int LandmarkCentreZ = RegionVoxelEdge / 2 + 120;
         private ref MaterialPalette _palette => ref _storage.Materials;
         private MaterialSimulationView _materialSimulation;
         private ref SurfaceCatalogue _surfaceCatalogue => ref _storage.Surfaces;
@@ -878,6 +884,12 @@ namespace VoxelEngine.Showcase
         {
             var coord = _gen.Coord;
 
+            // Generation fills the region's bricks directly, which does not maintain the block
+            // occupancy summary that surface discovery reads. Without this the terrain exists in
+            // storage and renders as nothing at all.
+            _mutationStore.Refresh(in _table, in _pool);
+            _mutationStore.RefreshRegionSummary(ref _gen.Region);
+
             _table.CommitRegion(_gen.Region);
 
             _generated.Add(coord);
@@ -1086,9 +1098,10 @@ namespace VoxelEngine.Showcase
         /// </summary>
         private void QueueLandmarks()
         {
+            if (!_includeCastle) return;
             if (_castleTerrainQueued || _hasCastlePlan) return;
-            int cx = RegionVoxelEdge / 2;
-            int cz = RegionVoxelEdge / 2 + 120;
+            int cx = LandmarkCentreX;
+            int cz = LandmarkCentreZ;
             int ground = SurfaceHeight(cx, cz);
 
             var plan = StructuresComposition.PlanCastle(new int3(cx, ground, cz), Seed);
@@ -1157,6 +1170,12 @@ namespace VoxelEngine.Showcase
             _castleTrapdoorOpen = false;
             _castleFrontGateOpen = false;
             BuildCastlePresentationLights(in plan);
+
+            // The bake path loads this at startup because the plan is already complete there. When
+            // the world generates during the scene the plan only exists now, and the spawn that
+            // would have loaded it has long since run, so it has to be loaded here instead.
+            if (_startupSource == ShowcaseStartupSource.Generate)
+                EnsureCastleWorldObjectSceneLoaded();
 
             CastleVoxels = _castleBuild.TotalVoxelsWritten + referenceArchVoxels;
             // These regions were intentionally kept free of generic features while the castle

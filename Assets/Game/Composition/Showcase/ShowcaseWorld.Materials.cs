@@ -35,7 +35,9 @@ namespace VoxelEngine.Showcase
                              int unloadRadiusRegions, MaterialDefinition[] materialDefinitions,
                              ShowcaseMaterialSet materialRoles,
                              long maxMixedBrickAllocationBytes =
-                                 VoxelEngineBootstrap.MaximumMixedBrickAllocationBytes)
+                                 VoxelEngineBootstrap.MaximumMixedBrickAllocationBytes,
+                             ShowcaseFeatureContent features = ShowcaseFeatureContent.Full,
+                             ShowcaseStartupSource startup = ShowcaseStartupSource.Bake)
         {
             if (materialDefinitions == null)
                 throw new ArgumentNullException(nameof(materialDefinitions));
@@ -44,6 +46,7 @@ namespace VoxelEngine.Showcase
             LoadRadiusRegions = math.max(1, loadRadiusRegions);
             UnloadRadiusRegions = math.max(LoadRadiusRegions + 1, unloadRadiusRegions);
             _materials = materialRoles;
+            _startupSource = startup;
 
             _storage = new VoxelEngineBootstrap.StorageRuntimeLifetime(
                 64, brickPoolCapacity, 4096, maxMixedBrickAllocationBytes);
@@ -53,7 +56,19 @@ namespace VoxelEngine.Showcase
             _materialSimulation = _palette.SimulationView;
             _materialAdjacencyCatalogue = default;
 
-            _catalogue = ShowcaseCatalogue.Build(seed, in materialRoles, Allocator.Persistent);
+            // CastleOnly leaves the catalogue uncreated on purpose: ShowcaseWorld already treats
+            // that as "no settlement content" and skips feature placement wholesale, so there is
+            // no second code path to keep in step with this one.
+            _includeCastle = features != ShowcaseFeatureContent.HouseOnly;
+            _catalogue = features switch
+            {
+                ShowcaseFeatureContent.CastleOnly => default,
+                // Sited where the castle would have stood, which is where the spawn camera aims.
+                ShowcaseFeatureContent.HouseOnly => ShowcaseDetailedHouseCatalogue.Build(
+                    seed, in materialRoles, Allocator.Persistent,
+                    LandmarkCentreX, LandmarkCentreZ),
+                _ => ShowcaseCatalogue.Build(seed, in materialRoles, Allocator.Persistent),
+            };
         }
 
         /// <summary>
@@ -64,10 +79,12 @@ namespace VoxelEngine.Showcase
         public ShowcaseWorld(uint seed, int brickPoolCapacity, int loadRadiusRegions,
                              int unloadRadiusRegions, MaterialDefinition[] materialDefinitions,
                              long maxMixedBrickAllocationBytes =
-                                 VoxelEngineBootstrap.MaximumMixedBrickAllocationBytes)
+                                 VoxelEngineBootstrap.MaximumMixedBrickAllocationBytes,
+                             ShowcaseFeatureContent features = ShowcaseFeatureContent.Full,
+                             ShowcaseStartupSource startup = ShowcaseStartupSource.Bake)
             : this(seed, brickPoolCapacity, loadRadiusRegions, unloadRadiusRegions,
                    materialDefinitions, GameShowcaseMaterials.Default,
-                   maxMixedBrickAllocationBytes)
+                   maxMixedBrickAllocationBytes, features, startup)
         {
         }
     }

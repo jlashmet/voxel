@@ -1,6 +1,8 @@
 using System;
+using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
+using UnityEngine.Rendering;
 using VoxelEngine.Storage.Api;
 
 namespace VoxelEngine.Rendering.Runtime.GpuVoxel
@@ -454,6 +456,29 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         public GpuExtractionCounts Count(GpuVoxelBrickMirror mirror, GpuTransvoxelTables tables,
                                          in GpuChunkExtraction request)
         {
+            DispatchCount(mirror, tables, request);
+            CounterReadbacks++;
+            _counters.GetData(_counterStaging);
+            return new GpuExtractionCounts((int)_counterStaging[2], (int)_counterStaging[3]);
+        }
+
+        /// <summary>
+        /// Runs the counting pass and asks for the counters without waiting for them.
+        ///
+        /// <see cref="Count"/> blocks the calling thread until the GPU drains, which on a frame path
+        /// costs far more than the meshing it is waiting for. Poll <see cref="TryCompleteCount"/>
+        /// on later frames instead; the build that needs the answer is already sliced across frames.
+        /// </summary>
+        public void BeginCount(GpuVoxelBrickMirror mirror, GpuTransvoxelTables tables,
+                               in GpuChunkExtraction request)
+        {
+            DispatchCount(mirror, tables, request);
+            RequestCounters();
+        }
+
+        private void DispatchCount(GpuVoxelBrickMirror mirror, GpuTransvoxelTables tables,
+                                   in GpuChunkExtraction request)
+        {
             ThrowIfDisposed();
             if (mirror == null) throw new ArgumentNullException(nameof(mirror));
             if (tables == null) throw new ArgumentNullException(nameof(tables));
@@ -481,10 +506,6 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _shader.Dispatch(_countKernel, Groups(cells), 1, 1);
 
             DispatchTransitionFaces(mirror, tables, request, countOnly: true);
-
-            CounterReadbacks++;
-            _counters.GetData(_counterStaging);
-            return new GpuExtractionCounts((int)_counterStaging[2], (int)_counterStaging[3]);
         }
 
         /// <summary>
@@ -562,6 +583,33 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                                               int vertexStart, int vertexCapacity,
                                               int indexStart, int indexCapacity)
         {
+            DispatchWriteRange(mirror, tables, request, vertices, indices,
+                               vertexStart, vertexCapacity, indexStart, indexCapacity);
+            return ReadCounters(vertexCapacity, indexCapacity);
+        }
+
+        /// <summary>
+        /// Writes the staged chunk into an arena range and asks for the verification counters
+        /// without waiting. The non-blocking counterpart of <see cref="WriteRange"/>; complete it
+        /// with <see cref="TryCompleteWriteRange"/>.
+        /// </summary>
+        public void BeginWriteRange(GpuVoxelBrickMirror mirror, GpuTransvoxelTables tables,
+                                    in GpuChunkExtraction request,
+                                    ComputeBuffer vertices, ComputeBuffer indices,
+                                    int vertexStart, int vertexCapacity,
+                                    int indexStart, int indexCapacity)
+        {
+            DispatchWriteRange(mirror, tables, request, vertices, indices,
+                               vertexStart, vertexCapacity, indexStart, indexCapacity);
+            RequestCounters();
+        }
+
+        private void DispatchWriteRange(GpuVoxelBrickMirror mirror, GpuTransvoxelTables tables,
+                                        in GpuChunkExtraction request,
+                                        ComputeBuffer vertices, ComputeBuffer indices,
+                                        int vertexStart, int vertexCapacity,
+                                        int indexStart, int indexCapacity)
+        {
             ThrowIfDisposed();
             if (mirror == null) throw new ArgumentNullException(nameof(mirror));
             if (tables == null) throw new ArgumentNullException(nameof(tables));
@@ -583,8 +631,6 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _shader.Dispatch(_writeKernel, Groups(cells), 1, 1);
 
             DispatchTransitionFaces(mirror, tables, request, countOnly: false, vertices, indices);
-
-            return ReadCounters(vertexCapacity, indexCapacity);
         }
 
         private void DispatchTransitionFaces(GpuVoxelBrickMirror mirror, GpuTransvoxelTables tables,
@@ -662,15 +708,88 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _shader.SetInt(IdIndexCapacity, indexCapacity);
         }
 
-        private GpuExtractionResult ReadCounters(int vertexCapacity, int indexCapacity)
+        /// <summary>Whether a pass dispatched with a Begin* call has produced its counters yet.</summary>
+        public enum GpuCounterPoll
         {
+            /// <summary>The GPU has not finished. Ask again on a later frame.</summary>
+            Pending = 0,
+            /// <summary>Counters are in <see cref="_counterStaging"/>.</summary>
+            Ready = 1,
+            /// <summary>The readback failed, or none was outstanding. Abandon the attempt.</summary>
+            Failed = 2,
+        }
+
+        /// <summary>
+        /// Whether counters can be fetched without stalling. A device without async readback keeps
+        /// the blocking path, which is correct but costs a pipeline flush per pass.
+        /// </summary>
+        public static bool SupportsAsyncCounters => SystemInfo.supportsAsyncGPUReadback;
+
+        private AsyncGPUReadbackRequest _counterRequest;
+        private bool _counterRequestPending;
+
+        private void RequestCounters()
+        {
+            _counterRequest = AsyncGPUReadback.Request(_counters);
+            _counterRequestPending = true;
+        }
+
+        private GpuCounterPoll PollCounters()
+        {
+            if (!_counterRequestPending) return GpuCounterPoll.Failed;
+            if (_counterRequest.hasError)
+            {
+                _counterRequestPending = false;
+                return GpuCounterPoll.Failed;
+            }
+            if (!_counterRequest.done) return GpuCounterPoll.Pending;
+
+            _counterRequestPending = false;
+            NativeArray<uint> data = _counterRequest.GetData<uint>();
+            int count = Math.Min(_counterStaging.Length, data.Length);
+            for (int i = 0; i < count; i++) _counterStaging[i] = data[i];
             CounterReadbacks++;
-            _counters.GetData(_counterStaging);
+            return GpuCounterPoll.Ready;
+        }
+
+        /// <summary>Completes a <see cref="BeginCount"/> without blocking.</summary>
+        public GpuCounterPoll TryCompleteCount(out GpuExtractionCounts counts)
+        {
+            counts = default;
+            GpuCounterPoll poll = PollCounters();
+            if (poll != GpuCounterPoll.Ready) return poll;
+            counts = new GpuExtractionCounts((int)_counterStaging[2], (int)_counterStaging[3]);
+            return GpuCounterPoll.Ready;
+        }
+
+        /// <summary>Completes a <see cref="BeginWriteRange"/> without blocking.</summary>
+        public GpuCounterPoll TryCompleteWriteRange(int vertexCapacity, int indexCapacity,
+                                                    out GpuExtractionResult result)
+        {
+            result = default;
+            GpuCounterPoll poll = PollCounters();
+            if (poll != GpuCounterPoll.Ready) return poll;
+            result = BuildResult(vertexCapacity, indexCapacity);
+            return GpuCounterPoll.Ready;
+        }
+
+        /// <summary>Drops any outstanding readback so an abandoned build cannot complete into the next.</summary>
+        public void CancelPendingCounters() => _counterRequestPending = false;
+
+        private GpuExtractionResult BuildResult(int vertexCapacity, int indexCapacity)
+        {
             int vertexCount = (int)_counterStaging[0];
             int indexCount = (int)_counterStaging[1];
             bool overflowed = vertexCount > vertexCapacity || indexCount > indexCapacity;
             return new GpuExtractionResult(Math.Min(vertexCount, vertexCapacity),
                                            Math.Min(indexCount, indexCapacity), overflowed);
+        }
+
+        private GpuExtractionResult ReadCounters(int vertexCapacity, int indexCapacity)
+        {
+            CounterReadbacks++;
+            _counters.GetData(_counterStaging);
+            return BuildResult(vertexCapacity, indexCapacity);
         }
 
         /// <summary>

@@ -43,6 +43,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private const int VertexAlignment = 256;
         private const int IndexAlignment = 512;
 
+
         private readonly RangeAllocator _vertexRanges;
         private readonly RangeAllocator _indexRanges;
         private readonly RangeAllocator _argsRanges;
@@ -174,6 +175,14 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             Indices.SetData(source, sourceStart, lease.IndexStart + sourceStart, count);
         }
 
+        /// <summary>
+        /// Publishes a lease's draw record.
+        ///
+        /// The record carries the chunk's index base as the draw's start-vertex, and the page table
+        /// carries its vertex base. Between them the draw needs no per-chunk material state, which
+        /// is what lets the pass submit every visible chunk without copying a property block each
+        /// time — the cost that dominated the frame when it did.
+        /// </summary>
         public void UploadArgs(uint indexCount, in SurfaceGeometryLease lease)
         {
             _argsScratch[0] = indexCount;

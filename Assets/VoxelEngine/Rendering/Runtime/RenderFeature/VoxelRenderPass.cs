@@ -218,6 +218,14 @@ namespace VoxelEngine.Rendering.Runtime
             _scheduler.SolidUploadBudgetMs = Math.Max(0.0, VoxelRenderBridge.SolidUploadBudgetMs);
             _scheduler.ConvergenceBudgetScale = Math.Max(
                 1.0, VoxelRenderBridge.SurfaceConvergenceBudgetScale);
+            _scheduler.MaxVoxelRingRadiusMetres = Math.Max(
+                0f, VoxelRenderBridge.SurfaceMaxVoxelRingRadiusMetres);
+            _scheduler.MaxResidentChunksPerRing = Math.Max(
+                1, VoxelRenderBridge.SurfaceMaxResidentChunksPerRing);
+            _scheduler.MaxConcurrentBuildsConverging = Math.Max(
+                1, VoxelRenderBridge.SurfaceMaxConcurrentBuildsConverging);
+            _scheduler.MaxConcurrentBuildsConverged = Math.Max(
+                1, VoxelRenderBridge.SurfaceMaxConcurrentBuildsConverged);
             _scheduler.SolidArenaMaxActiveLeases = Math.Max(
                 1, VoxelRenderBridge.SolidArenaMaxActiveLeases);
             _scheduler.WaterBuildBudgetMs = Math.Max(0.0, VoxelRenderBridge.WaterBuildBudgetMs);

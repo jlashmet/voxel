@@ -250,6 +250,21 @@ namespace VoxelEngine.Storage.Runtime
                 metadataChanged);
         }
 
+        /// <summary>
+        /// Rebuilds a whole region's occupancy summary from its brick contents.
+        ///
+        /// The per-block refresh below runs as a side effect of mutating through this store. A
+        /// bulk writer that fills a region and commits it wholesale — terrain generation does
+        /// exactly that — never touches it, leaving the summary at its initial all-empty state.
+        /// Surface discovery reads only the summary, so such a region reads as air and is never
+        /// meshed no matter how much solid voxel data it holds.
+        /// </summary>
+        public void RefreshRegionSummary(ref Region region)
+        {
+            for (int blockIndex = 0; blockIndex < VoxelDimensions.BricksPerRegion; blockIndex++)
+                RefreshBlockSummary(ref region, blockIndex);
+        }
+
         private void RefreshBlockSummary(ref Region region, int blockIndex)
         {
             BrickRef block = region.BrickRefs[blockIndex];

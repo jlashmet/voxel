@@ -6,6 +6,10 @@ namespace VoxelEngine.Tests.EditMode
 {
     public sealed class ExactSnapshotClassificationTests
     {
+        /// <summary>Owned solid, continuous topology, and GPU-unsupported content. The job writes
+        /// every one of them, so a caller that sizes this array to the flags it happens to read
+        /// indexes past the end.</summary>
+        private const int ClassificationFlagCount = 3;
         private const int BrickEdge = 3;
         private const int CoreBrickIndex = 1 + BrickEdge * (1 + BrickEdge);
         private const int OffLatticeVoxelIndex = 1 | (1 << 3) | (1 << 6);
@@ -22,7 +26,7 @@ namespace VoxelEngine.Tests.EditMode
                 NativeArrayOptions.ClearMemory);
             var boundaries = new NativeArray<byte>(512, Allocator.Temp,
                 NativeArrayOptions.ClearMemory);
-            var flags = new NativeArray<byte>(2, Allocator.Temp,
+            var flags = new NativeArray<byte>(ClassificationFlagCount, Allocator.Temp,
                 NativeArrayOptions.ClearMemory);
             try
             {
@@ -40,6 +44,9 @@ namespace VoxelEngine.Tests.EditMode
 
                 Assert.AreEqual(1, flags[0],
                     "An off-lattice solid inside the owned core was lost before step-4 geometry.");
+                Assert.AreEqual(1, flags[2],
+                    "Authored profile blocks are not represented by the compute mesher, so a chunk "
+                  + "carrying them must stay on the CPU path.");
             }
             finally
             {
@@ -63,7 +70,7 @@ namespace VoxelEngine.Tests.EditMode
                 NativeArrayOptions.ClearMemory);
             var boundaries = new NativeArray<byte>(512, Allocator.Temp,
                 NativeArrayOptions.ClearMemory);
-            var flags = new NativeArray<byte>(2, Allocator.Temp,
+            var flags = new NativeArray<byte>(ClassificationFlagCount, Allocator.Temp,
                 NativeArrayOptions.ClearMemory);
             try
             {
@@ -97,9 +104,9 @@ namespace VoxelEngine.Tests.EditMode
             NativeArray<byte> boundaries,
             NativeArray<byte> flags)
         {
-            // HasProfiles=true deliberately bypasses surface-style lookup so this regression is
-            // isolated to core ownership. The profile bit affects only continuous-topology routing;
-            // it must not manufacture or suppress the owned-solid flag.
+            // HasProfiles=true pre-sets the continuous-topology and GPU-unsupported bits, so this
+            // regression stays isolated to core ownership. The profile bit must not manufacture or
+            // suppress the owned-solid flag.
             var job = new ExactSnapshotClassificationJob
             {
                 Bricks = bricks,

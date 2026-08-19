@@ -26,8 +26,14 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public readonly ulong CompletedSolidBuilds;
         public readonly ulong RejectedStaleSolidBuilds;
         public readonly bool GpuCutoverAvailable;
+        /// <summary>Shards whose GPU extraction buffers are currently allocated. The backend is
+        /// built on a shard's first eligible chunk, so this trails the shard count until the
+        /// cutover has actually claimed work on each one.</summary>
+        public readonly int GpuResidentBackends;
         public readonly ulong GpuCompletedSolidBuilds;
         public readonly ulong GpuFallbackSolidBuilds;
+        public readonly ulong GpuReadbackWaitSlices;
+        public readonly VoxelTimingSummary GpuBuildLatencyTiming;
         public readonly ulong CompletedWaterBuilds;
         public readonly ulong RejectedStaleWaterBuilds;
         public readonly long ResidentGeometryBytes;
@@ -131,8 +137,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             CompletedSolidBuilds = solids.CompletedBuildCount;
             RejectedStaleSolidBuilds = solids.StaleBuildCount;
             GpuCutoverAvailable = solids.GpuCutoverAvailable;
+            GpuResidentBackends = solids.GpuBackendResident ? 1 : 0;
             GpuCompletedSolidBuilds = solids.GpuCompletedBuildCount;
             GpuFallbackSolidBuilds = solids.GpuFallbackBuildCount;
+            GpuReadbackWaitSlices = solids.GpuReadbackWaitSlices;
+            GpuBuildLatencyTiming = solids.GpuBuildLatencyTiming;
             CompletedWaterBuilds = water.CompletedBuildCount;
             RejectedStaleWaterBuilds = water.StaleBuildCount;
             ResidentGeometryBytes = solids.ResidentGpuBytes + water.ResidentGpuBytes;
@@ -268,6 +277,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             ulong completed = 0, stale = 0, uploadedBytes = water.UploadedGeometryBytes;
             ulong gpuCompleted = 0, gpuFallback = 0;
             bool gpuAvailable = false;
+            int gpuResidentBackends = 0;
+            ulong gpuWaitSlices = 0;
+            VoxelTimingSummary gpuBuildLatency = default;
             ulong decorations = 0, pressure = 0;
             ulong completionViolations = water.FramePathBlockingCompletionViolations;
             long geometryBytes = water.ResidentGpuBytes;
@@ -316,8 +328,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 completed += worker.CompletedBuildCount;
                 stale += worker.StaleBuildCount;
                 gpuAvailable |= worker.GpuCutoverAvailable;
+                if (worker.GpuBackendResident) gpuResidentBackends++;
                 gpuCompleted += worker.GpuCompletedBuildCount;
                 gpuFallback += worker.GpuFallbackBuildCount;
+                gpuWaitSlices += worker.GpuReadbackWaitSlices;
+                gpuBuildLatency = VoxelTimingSummary.WorstOf(gpuBuildLatency, worker.GpuBuildLatencyTiming);
                 uploadedBytes += worker.UploadedGeometryBytes;
                 decorations += worker.CompletedDecorationClumps;
                 pressure += worker.CapacityPressureCount;
@@ -380,8 +395,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             CompletedSolidBuilds = completed;
             RejectedStaleSolidBuilds = stale;
             GpuCutoverAvailable = gpuAvailable;
+            GpuResidentBackends = gpuResidentBackends;
             GpuCompletedSolidBuilds = gpuCompleted;
             GpuFallbackSolidBuilds = gpuFallback;
+            GpuReadbackWaitSlices = gpuWaitSlices;
+            GpuBuildLatencyTiming = gpuBuildLatency;
             UploadedGeometryBytes = uploadedBytes;
             SolidDecorationClumps = decorations;
             SolidCapacityPressureEvents = pressure;
@@ -405,6 +423,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             UploadTiming = default;
             QueueLatencyTiming = default;
             BuildLatencyTiming = default;
+            GpuBuildLatencyTiming = default;
             RuleSyncTiming = default;
             ResidencyPruneTiming = default;
             CapacityTiming = default;
@@ -472,6 +491,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             public readonly float InnerRadiusMetres;
             public readonly float OuterRadiusMetres;
             public readonly CpuTransvoxelChunkCache[] Workers;
+
             private readonly SurfaceChunkSlotGrid _slotGrid = new();
             public int3 ClipmapCentre { get; private set; }
             public int ClipmapRadius { get; private set; }
@@ -559,10 +579,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             (1, 0f, 96f),
             (2, 96f, 192f),
             (4, 192f, 288f),
-            (8, 288f, MaxVoxelRingRadiusMetres),
+            (8, 288f, MaxVoxelRingRadiusMetresDefault),
         };
 
-        public const float MaxVoxelRingRadiusMetres = 409.6f;
+        public const float MaxVoxelRingRadiusMetresDefault = 409.6f;
         /// <summary>
         /// Indices emitted per vertex by the solid extractor. The surface is faceted, so vertices are
         /// barely shared and production measures a steady 1.51; the arena provisions 1.75 for headroom.
@@ -586,7 +606,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private const int ChangeRecoverySlotsPerFrame = 32;
         private readonly List<VoxelChangeRecord> _changeScratch = new(ChangeReadRecordsPerFrame);
         private NativeArray<int3> _changeRecoveryRegions;
-        private bool _initialSurfaceDiscoveryPending = true;
+        // Regions whose surface has already been handed to discovery. Rebuilt each full sweep so
+        // an evicted-then-regenerated region is discovered again rather than skipped forever.
+        private readonly HashSet<int3> _sweptResidentRegions = new();
         private int _initialSurfaceDiscoveryCursor;
         private int _changeRecordIndex;
         private bool _changeFeedHasMore;
@@ -705,8 +727,28 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         /// Converged drops to one, which still drains the prefetch shell — slowly, since nothing is
         /// waiting on it — without handing the job pool to work the player cannot see.
         /// </summary>
-        private const int MaxConcurrentBuildsWhileConverging = 12;
-        private const int MaxConcurrentBuildsWhenConverged = 1;
+        /// <summary>
+        /// Chunks each ring may keep resident.
+        ///
+        /// This has to be reconcilable with what the shared arena can actually hold. Allowing more
+        /// than fits does not buy coverage — the arena refuses the overflow and evicts to make room,
+        /// the evicted chunk goes dirty, and the extractor rebuilds it forever. Residency that
+        /// exceeds arena capacity converts spare prefetch into permanent churn.
+        /// </summary>
+        /// <summary>
+        /// Outer limit of voxel-meshed rings, in metres.
+        ///
+        /// A ring can only mesh chunks whose regions are resident, so this has to track the world's
+        /// actual streaming radius rather than a constant sized for one scene. Set too wide, the
+        /// outer rings claim a band they have no voxels for and the far field is left as holes and
+        /// floating slabs instead of being handed to the analytic clipmap.
+        /// </summary>
+        public float MaxVoxelRingRadiusMetres { get; set; } = MaxVoxelRingRadiusMetresDefault;
+
+        public int MaxResidentChunksPerRing { get; set; } = 4096;
+
+        public int MaxConcurrentBuildsConverging { get; set; } = 12;
+        public int MaxConcurrentBuildsConverged { get; set; } = 1;
 
         private static int ScaleBudget(int budget, double scale) =>
             (int)Math.Min(int.MaxValue, Math.Max(0L, (long)(budget * scale)));
@@ -955,6 +997,29 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             CollectVisibility(camera, voxelSize, frame);
 
             double workersStart = Time.realtimeSinceStartupAsDouble;
+            float ringCap = Math.Max(0f, MaxVoxelRingRadiusMetres);
+            float ringExtent = _rings.Length > 0 ? _rings[_rings.Length - 1].OuterRadiusMetres : 0f;
+            float ringScale = ringExtent > 0f ? Math.Min(1f, ringCap / ringExtent) : 1f;
+            for (int r = 0; r < _rings.Length; r++)
+            {
+                SurfaceRing ring = _rings[r];
+                CpuTransvoxelChunkCache[] ringWorkers = ring.Workers;
+                int perWorker = Math.Max(1, MaxResidentChunksPerRing / ringWorkers.Length);
+                // Rings are rescaled into the streamed radius rather than truncated against it.
+                // Clamping each band independently collapsed every coarse ring into a sliver at
+                // the edge and left the whole world meshed at the finest step — hundreds of extra
+                // chunk draws for terrain far enough away to be drawn coarsely. Scaling preserves
+                // the LOD structure at whatever radius the world actually streams.
+                float outer = ring.OuterRadiusMetres * ringScale;
+                float inner = ring.InnerRadiusMetres * ringScale;
+                for (int i = 0; i < ringWorkers.Length; i++)
+                {
+                    ringWorkers[i].MaxResidentChunks = perWorker;
+                    ringWorkers[i].MinViewDistanceMetres = inner;
+                    ringWorkers[i].MaxViewDistanceMetres = outer;
+                }
+            }
+
             double budgetScale = CurrentBudgetScale;
             double solidDeadline = workersStart
                                  + Math.Max(0.0, SolidBuildBudgetMs * budgetScale) * 0.001;
@@ -972,8 +1037,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             // see a hole that ceiling is high; once the view is complete the remaining work is
             // prefetch nobody is waiting on, and it gets a much smaller share of the machine.
             int buildCeiling = _lastMissingVisibleCount > 0
-                ? MaxConcurrentBuildsWhileConverging
-                : MaxConcurrentBuildsWhenConverged;
+                ? MaxConcurrentBuildsConverging
+                : MaxConcurrentBuildsConverged;
             int activeBuilds = 0;
             for (int i = 0; i < workerCount; i++)
                 if (_allWorkers[i].HasActiveBuild) activeBuilds++;
@@ -986,6 +1051,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
                 int index = (_workerAdmissionCursor + offset) % workerCount;
                 CpuTransvoxelChunkCache worker = _allWorkers[index];
+
                 bool wasBuilding = worker.HasActiveBuild;
                 worker.CanStartNewBuild = wasBuilding || activeBuilds < buildCeiling;
                 worker.Prepare(storage, in palette, in surfaceCatalogue,
@@ -1309,15 +1375,37 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             }
         }
 
+        /// <summary>
+        /// Hands newly resident regions to surface discovery.
+        ///
+        /// This used to run once and latch off, which is correct only when residency is complete on
+        /// the first frame — the baked startup path. A world that generates during play becomes
+        /// resident a region at a time, so a single sweep discovered whatever existed on frame one
+        /// and silently left every later region unmeshed: terrain generated, and nothing drew it.
+        ///
+        /// The sweep is cursor-batched, so restarting it costs a bounded copy per frame, and only
+        /// regions not already seen are enqueued.
+        /// </summary>
         private void StepInitialSurfaceDiscovery(IRegionReadSource storage)
         {
-            if (!_initialSurfaceDiscoveryPending) return;
             bool complete = storage.CopyResidentRegionCoords(
                 ref _initialSurfaceDiscoveryCursor, _changeRecoveryRegions, out int count);
             for (int i = 0; i < count; i++)
-                _surfaceDiscoveryRegions.Add(_changeRecoveryRegions[i]);
+            {
+                // Additive: a region is handed to discovery once. Re-enqueueing one that is
+                // already queued marks it for rescan, and a sweep that re-offered everything every
+                // frame kept discovery restarting forever without ever publishing a result.
+                int3 region = _changeRecoveryRegions[i];
+                if (_sweptResidentRegions.Add(region))
+                    _surfaceDiscoveryRegions.Add(region);
+            }
             if (!complete) return;
-            _initialSurfaceDiscoveryPending = false;
+
+            // The record is additive. Rebuilding it each sweep looked tidier but residency changes
+            // while a cursor-batched sweep is in flight, so a region that simply was not reached
+            // this pass dropped out and was rediscovered — re-admitting chunks that were already
+            // built and keeping a third of the world permanently dirty. Regions that genuinely
+            // change publish a change record, which enqueues discovery on its own.
             _initialSurfaceDiscoveryCursor = 0;
         }
 

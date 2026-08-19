@@ -59,6 +59,18 @@ namespace VoxelEngine.Showcase
             if (_done) return;
             if (!RenderingComposition.TryGetWorld(out RenderingWorldBinding world, out uint worldSeed)) return;
 
+            // These trees are sited against the castle plan, which sculpts the outcrop they stand
+            // on. A scene that builds no castle never sculpts it, so publishing them anyway leaves
+            // a wood hanging in the air above untouched ground.
+            var showcase = FindFirstObjectByType<VoxelShowcase>();
+            if (showcase != null && showcase.Features != ShowcaseFeatureContent.Full)
+            {
+                _done = true;
+                Completed = true;
+                enabled = false;
+                return;
+            }
+
             int cx = ShowcaseWorld.RegionVoxelEdge / 2;
             int cz = ShowcaseWorld.RegionVoxelEdge / 2 + 120;
             int ground = TerrainSampler.HeightAt(cx, cz, worldSeed);

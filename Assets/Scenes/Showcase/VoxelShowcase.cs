@@ -62,6 +62,28 @@ namespace VoxelEngine.Showcase
         [Tooltip("Milliseconds per frame spent generating terrain. Work resumes mid-region.")]
         [SerializeField] private float m_GenerateBudgetMs = 3f;
 
+        [Tooltip("Full builds terrain, castle and the Kentridge town. CastleOnly builds terrain "
+               + "and the castle, for a scene whose geometry is one landmark rather than a town.")]
+        [SerializeField] private ShowcaseFeatureContent m_Features = ShowcaseFeatureContent.Full;
+
+        [Tooltip("Bake restores the offline startup image. Generate builds the world during the "
+               + "scene on the ordinary per-frame budget, which only suits a small radius.")]
+        [SerializeField] private ShowcaseStartupSource m_Startup = ShowcaseStartupSource.Bake;
+
+        /// <summary>Which authored content this scene builds. Content keyed to the castle — its
+        /// vegetation, for one — must not be published into a scene that has no castle.</summary>
+        public ShowcaseFeatureContent Features => m_Features;
+
+        /// <summary>
+        /// Whether the world keeps streaming new regions as the player moves.
+        ///
+        /// A bounded showcase can be built in full up front, after which movement needs no new
+        /// terrain at all. Freezing streaming then measures what moving through finished world
+        /// actually costs, instead of measuring first-time generation of ground the player has
+        /// just walked into.
+        /// </summary>
+        public bool StreamingEnabled { get; set; } = true;
+
         [Header("Character")]
         [SerializeField] private bool m_FlyMode;
         [SerializeField] private float m_WalkSpeed = 5.5f;
@@ -77,6 +99,12 @@ namespace VoxelEngine.Showcase
         private GpuDebrisSystem _gpuDebris;
         private CharacterMotor _motor;
         private bool _spawned;
+        private bool _castleLightsPublished;
+        private int _loggedCastleStage = -1;
+        private bool _loggedCastleComplete;
+        private int _loggedFeatureInstances;
+        private int _loggedRegions = -1;
+        private int _lastStreamingLogFrame;
 
         private bool _mouseLook = true;
         private bool _flashlightEnabled;
@@ -127,7 +155,7 @@ namespace VoxelEngine.Showcase
             // fall back to the conservative backstop and halve a pool this scene already sized.
             _world = new ShowcaseWorld(
                 m_Seed, capacity, m_LoadRadiusRegions, m_UnloadRadiusRegions,
-                GameMaterialComposition.SimulationDefinitions(), tierBytes);
+                GameMaterialComposition.SimulationDefinitions(), tierBytes, m_Features, m_Startup);
             _gpuDebris = new GpuDebrisSystem();
             _motor = new CharacterMotor { WalkSpeed = m_WalkSpeed };
 
@@ -145,6 +173,12 @@ namespace VoxelEngine.Showcase
             // seen. Inner radius sits just inside the loaded region ring so the two overlap
             // rather than leaving a gap at the handover.
             float streamedMetres = m_LoadRadiusRegions * ShowcaseWorld.RegionMetres;
+
+            // Voxel rings may not claim further than the world actually streams. Left at the
+            // default they cover 410 m regardless, so a scene with a smaller load radius meshed
+            // bands with no resident regions and the far field broke into floating slabs.
+            RenderingComposition.SetVoxelRingRadiusMetres(streamedMetres);
+
             _farTerrain = VoxelFarTerrain.Create(transform, m_Seed,
                                                  streamedMetres * 0.85f, 12000f);
             _farTerrain.Structures = _world.FarField;
@@ -212,6 +246,19 @@ namespace VoxelEngine.Showcase
         /// generation is deliberately blocking: a non-resident region reads as empty, so
         /// spawning before it exists drops the character through the world.
         /// </summary>
+        /// <summary>
+        /// Moves the player, and therefore streaming, to a new place in the world.
+        ///
+        /// Streaming and residency follow this component's transform, not the camera's, so a
+        /// caller that only moves the camera views a world that is still streamed around the
+        /// spawn — every distant chunk reads as missing because it was never requested.
+        /// </summary>
+        public void TeleportTo(Vector3 metres)
+        {
+            _motor.SnapToGround(_world, metres);
+            transform.position = _motor.EyePosition;
+        }
+
         private void Spawn()
         {
             // The landmark is owned by the origin region. Build it first even though the safe
@@ -239,12 +286,84 @@ namespace VoxelEngine.Showcase
             _spawned = true;
         }
 
+        /// <summary>
+        /// Reports castle authoring as it happens.
+        ///
+        /// The world tracks stage and timing but never said anything, which is invisible in the
+        /// baked scene — the castle is already finished on frame one — and leaves a generated
+        /// world looking hung while it authors tens of millions of voxels. Logged on transitions
+        /// only, so a multi-minute build costs a handful of lines.
+        /// </summary>
+        private void ReportCastleProgress()
+        {
+            int stage = _world.CastleBuildStage;
+            if (stage != _loggedCastleStage)
+            {
+                _loggedCastleStage = stage;
+                if (stage != 0)
+                    Debug.Log($"Showcase castle: stage {stage} started "
+                            + $"(previous stage {_world.LastCastleStage} took "
+                            + $"{_world.LastCastleStageMs:0.0} ms; worst "
+                            + $"{_world.MaxCastleStageMs:0.0} ms at stage {_world.MaxCastleStage}); "
+                            + $"regions generated {_world.RegionsGenerated}, "
+                            + $"terrain {_world.GenerationProgress * 100f:0}%");
+            }
+
+            // A house-only showcase never builds a castle, so without this the scene would report
+            // nothing at all while its landmark went up — the same blind spot the castle logging
+            // above exists to close.
+            // Streaming state, periodically, while the world is still filling in. Region
+            // generation is the slowest stage and reported nothing at all, so an unfinished world
+            // was indistinguishable from a broken one.
+            if (_world.PendingRegionLoads > 0 || _world.RegionsGenerated != _loggedRegions)
+            {
+                if (Time.frameCount - _lastStreamingLogFrame >= 120)
+                {
+                    _lastStreamingLogFrame = Time.frameCount;
+                    _loggedRegions = _world.RegionsGenerated;
+                    Debug.Log($"Showcase streaming: {_loggedRegions} regions generated, "
+                            + $"{_world.PendingRegionLoads} pending, "
+                            + $"terrain {_world.GenerationProgress * 100f:0}%");
+                }
+            }
+
+            if (_world.FeatureInstancesBuilt != _loggedFeatureInstances)
+            {
+                _loggedFeatureInstances = _world.FeatureInstancesBuilt;
+                Debug.Log($"Showcase features: {_loggedFeatureInstances} instance(s), "
+                        + $"{_world.FeatureVoxelsBuilt:N0} voxels; "
+                        + $"regions generated {_world.RegionsGenerated}, "
+                        + $"terrain {_world.GenerationProgress * 100f:0}%");
+            }
+
+            if (!_loggedCastleComplete && _world.CastleVoxels > 0)
+            {
+                _loggedCastleComplete = true;
+                Debug.Log($"Showcase castle complete: {_world.CastleVoxels:N0} voxels in "
+                        + $"{Time.realtimeSinceStartup:0.0} s since load; worst stage "
+                        + $"{_world.MaxCastleStage} at {_world.MaxCastleStageMs:0.0} ms; "
+                        + $"regions generated {_world.RegionsGenerated}, "
+                        + $"terrain {_world.GenerationProgress * 100f:0}%");
+            }
+        }
+
         private void Update()
         {
             if (!Application.isPlaying || _world == null) return;
 
             {
                 if (!_spawned) Spawn();
+
+                // Spawn publishes the castle's lights, but a generated world has no castle yet at
+                // that point. Publish once more when the landmark actually lands.
+                if (!_castleLightsPublished && _world.CastleVoxels > 0)
+                {
+                    RenderingComposition.SetLocalLights(
+                        _world.CastlePresentationLights, _world.CastlePresentationLightColours);
+                    _castleLightsPublished = true;
+                }
+
+                ReportCastleProgress();
 
                 HandleKeys();
                 if (_mouseLook) HandleLook();
@@ -257,7 +376,8 @@ namespace VoxelEngine.Showcase
                 // This is an interactive showcase even while the landmark worker is active.
                 // Never switch into the old 12 ms "loading" slice: castle authoring, voxel
                 // streaming and surface extraction must share the frame without a startup cliff.
-                _world.StepStreaming(transform.position, m_GenerateBudgetMs);
+                if (StreamingEnabled)
+                    _world.StepStreaming(transform.position, m_GenerateBudgetMs);
 
                 // The far field's hole has to follow what streaming has actually finished, not
                 // the radius it was configured with. Set after StepStreaming so a region that

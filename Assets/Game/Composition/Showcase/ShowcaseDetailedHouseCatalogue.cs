@@ -20,10 +20,15 @@ namespace VoxelEngine.Showcase
         private const int PlacementX = 1540;
         private const int PlacementZ = 560;
 
+        /// <param name="placementX">World voxel X of the authored placement. Defaults to the
+        /// Kentridge-adjacent site; a showcase with no town places it wherever it can be seen.</param>
+        /// <param name="placementZ">World voxel Z of the authored placement.</param>
         public static FeatureCatalogue Build(
             uint seed,
             in ShowcaseMaterialSet materials,
-            Allocator allocator)
+            Allocator allocator,
+            int placementX = PlacementX,
+            int placementZ = PlacementZ)
         {
             HouseConfig config = ShowcaseHouseComposition.DetailedFarmhouse(in materials);
             int[] program = HouseProgramCompiler.BuildProgram(in config, 0, 1);
@@ -82,10 +87,10 @@ namespace VoxelEngine.Showcase
                 MaxPrimitives = 256,
             };
 
-            int surfaceY = LowestGround(seed, PlacementX, PlacementZ, config.Width, config.Depth);
+            int surfaceY = HighestGround(seed, placementX, placementZ, config.Width, config.Depth);
             catalogue.ExplicitPlacements[0] = new ExplicitPlacement
             {
-                Position = new int3(PlacementX, surfaceY - config.FoundationDepth, PlacementZ),
+                Position = new int3(placementX, surfaceY - config.FoundationDepth, placementZ),
                 Orientation = 0,
                 OverrideOffset = 0,
                 OverrideCount = 0,
@@ -138,25 +143,38 @@ namespace VoxelEngine.Showcase
             return maxY + 1;
         }
 
-        private static int LowestGround(
+        /// <summary>
+        /// Highest terrain height across the footprint.
+        ///
+        /// Siting on the lowest sample put the sill line below the surrounding ground: the walls
+        /// stood in a trench and the door and windows were underground, which is why the facade
+        /// read as a blank box. The highest sample keeps the openings above grade.
+        /// </summary>
+        private static int HighestGround(
             uint seed,
             int originX,
             int originZ,
             int width,
             int depth)
         {
-            const int samplesPerAxis = 5;
-            int lowest = int.MaxValue;
+            // Sample past the walls, not just inside them. Taking the highest ground within the
+            // footprint still left the sill below the bank immediately outside it, so the door and
+            // windows opened into earth. The margin is what the viewer actually stands on.
+            const int samplesPerAxis = 9;
+            const int marginVoxels = 24;
+            int highest = int.MinValue;
             for (int iz = 0; iz < samplesPerAxis; iz++)
             for (int ix = 0; ix < samplesPerAxis; ix++)
             {
-                int x = originX + (width - 1) * ix / (samplesPerAxis - 1);
-                int z = originZ + (depth - 1) * iz / (samplesPerAxis - 1);
+                int x = originX - marginVoxels
+                      + (width - 1 + 2 * marginVoxels) * ix / (samplesPerAxis - 1);
+                int z = originZ - marginVoxels
+                      + (depth - 1 + 2 * marginVoxels) * iz / (samplesPerAxis - 1);
                 int sample = TerrainQuery.HeightAt(x, z, seed);
-                if (sample < lowest) lowest = sample;
+                if (sample > highest) highest = sample;
             }
 
-            return lowest;
+            return highest;
         }
     }
 }

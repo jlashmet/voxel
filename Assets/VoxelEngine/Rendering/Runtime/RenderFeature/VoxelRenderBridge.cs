@@ -131,6 +131,30 @@ namespace VoxelEngine.Rendering.Runtime
         /// Scaling by visible incompleteness pays the cost exactly while it buys something.
         /// </summary>
         public static double SurfaceConvergenceBudgetScale = 8.0;
+
+        /// <summary>
+        /// Chunk builds allowed in flight while the frustum still contains geometry-less chunks.
+        /// </summary>
+        /// <summary>
+        /// Outer limit of voxel-meshed rings, in metres. Worlds set this from the radius they
+        /// actually stream; rings beyond it have no resident regions and would render holes.
+        /// </summary>
+        public static float SurfaceMaxVoxelRingRadiusMetres =
+            VoxelEngine.Rendering.Runtime.SurfaceExtraction.VoxelSurfaceScheduler
+                       .MaxVoxelRingRadiusMetresDefault;
+
+        public static int SurfaceMaxResidentChunksPerRing = 4096;
+
+        public static int SurfaceMaxConcurrentBuildsConverging = 12;
+
+        /// <summary>
+        /// Chunk builds allowed in flight once the view is complete.
+        ///
+        /// This bounds prefetch, which is the work that keeps a moving player from walking into
+        /// unmeshed ground. Set low it protects a stationary frame; set low for too long it starves
+        /// the shell, and the cost reappears as a stall the moment the player moves.
+        /// </summary>
+        public static int SurfaceMaxConcurrentBuildsConverged = 1;
         /// <summary>
         /// Soft cap for active solid arena leases. The default does not constrain the fixed
         /// arena; tests/debugging may lower it to exercise real backpressure without reallocating

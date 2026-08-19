@@ -106,6 +106,7 @@ namespace VoxelEngine.Structures.Runtime
             byte roofMaterial = config.Palette.Resolve(config.Roof.MaterialRole);
 
             var writer = new Writer();
+
             writer.Box(0, 0, 0, width, foundationHeight, depth,
                 foundationMaterial, PrimitiveMode.Fill);
             writer.Box(0, wallBaseY, 0, width, wallHeight, depth,

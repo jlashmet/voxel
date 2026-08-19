@@ -140,9 +140,9 @@ namespace VoxelEngine.Tests.EditMode
             // scratch. Distance past this point belongs to the analytic far terrain, which
             // needs no regions.
             const float showcaseStreamingRadiusMetres = 8 * 51.2f;   // LoadRadiusRegions = 8
-            Assert.LessOrEqual(VoxelSurfaceScheduler.MaxVoxelRingRadiusMetres,
+            Assert.LessOrEqual(VoxelSurfaceScheduler.MaxVoxelRingRadiusMetresDefault,
                                showcaseStreamingRadiusMetres + 1f,
-                $"Voxel rings reach {VoxelSurfaceScheduler.MaxVoxelRingRadiusMetres} m but only "
+                $"Voxel rings reach {VoxelSurfaceScheduler.MaxVoxelRingRadiusMetresDefault} m but only "
               + $"{showcaseStreamingRadiusMetres} m of regions are ever resident.");
         }
 
@@ -156,7 +156,7 @@ namespace VoxelEngine.Tests.EditMode
                 (step: 1, inner: 0f, outer: 96f),
                 (step: 2, inner: 96f, outer: 192f),
                 (step: 4, inner: 192f, outer: 288f),
-                (step: 8, inner: 288f, outer: VoxelSurfaceScheduler.MaxVoxelRingRadiusMetres),
+                (step: 8, inner: 288f, outer: VoxelSurfaceScheduler.MaxVoxelRingRadiusMetresDefault),
             };
 
             for (int i = 1; i < layout.Length; i++)
@@ -175,7 +175,7 @@ namespace VoxelEngine.Tests.EditMode
                 (step: 1, inner: 0f, outer: 96f),
                 (step: 2, inner: 96f, outer: 192f),
                 (step: 4, inner: 192f, outer: 288f),
-                (step: 8, inner: 288f, outer: VoxelSurfaceScheduler.MaxVoxelRingRadiusMetres),
+                (step: 8, inner: 288f, outer: VoxelSurfaceScheduler.MaxVoxelRingRadiusMetresDefault),
             };
             const float voxelSize = 0.1f;
 

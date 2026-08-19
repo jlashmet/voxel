@@ -59,6 +59,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private GpuChunkExtraction _staged;
         private GpuExtractionCounts _stagedCounts;
         private bool _hasStaged;
+        private int _writeVertexCapacity;
+        private int _writeIndexCapacity;
 
         public GpuVoxelBrickMirror Mirror => _mirror;
         public GpuTransvoxelTables Tables => _tables;
@@ -167,6 +169,125 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                                           in GpuChunkExtraction request,
                                           ulong generation)
         {
+            if (!TryPin(bricks, mixedVoxels, mixedSurfaceSemantics, mixedBoundarySamples,
+                        request, generation))
+                return GpuStageOutcome.NoSlot;
+
+            _stagedCounts = _extractor.Count(_mirror, _tables, request);
+            _staged = request;
+            _hasStaged = true;
+            ChunksStaged++;
+
+            if (_stagedCounts.IsEmpty)
+            {
+                Release();
+                ChunksEmpty++;
+                return GpuStageOutcome.Empty;
+            }
+
+            return GpuStageOutcome.Staged;
+        }
+
+        /// <summary>
+        /// Pins the neighbourhood and starts the counting pass without waiting for its result.
+        ///
+        /// The synchronous <see cref="TryStage"/> blocks on a GPU flush, which measured an order of
+        /// magnitude more than the meshing it waits for and starved every other worker sharing the
+        /// frame's build budget. This variant leaves the chunk mid-count: the neighbourhood stays
+        /// pinned, and <see cref="TryCompleteStage"/> finishes it on a later frame.
+        /// </summary>
+        internal GpuStageOutcome TryBeginStage(NativeArray<TransvoxelDensityBrick> bricks,
+                                               NativeArray<byte> mixedVoxels,
+                                               NativeArray<ushort> mixedSurfaceSemantics,
+                                               NativeArray<byte> mixedBoundarySamples,
+                                               in GpuChunkExtraction request,
+                                               ulong generation)
+        {
+            if (!TryPin(bricks, mixedVoxels, mixedSurfaceSemantics, mixedBoundarySamples,
+                        request, generation))
+                return GpuStageOutcome.NoSlot;
+
+            _staged = request;
+            _hasStaged = true;
+            _extractor.BeginCount(_mirror, _tables, request);
+            return GpuStageOutcome.Staged;
+        }
+
+        /// <summary>
+        /// Finishes a <see cref="TryBeginStage"/>. Ready means the counts are known and the
+        /// neighbourhood is still pinned for the write; Failed and an empty count both release it.
+        /// </summary>
+        internal GpuSurfaceExtractor.GpuCounterPoll TryCompleteStage(
+            out GpuExtractionCounts counts)
+        {
+            ThrowIfDisposed();
+            counts = default;
+            if (!_hasStaged) return GpuSurfaceExtractor.GpuCounterPoll.Failed;
+
+            GpuSurfaceExtractor.GpuCounterPoll poll = _extractor.TryCompleteCount(out counts);
+            if (poll == GpuSurfaceExtractor.GpuCounterPoll.Pending) return poll;
+            if (poll == GpuSurfaceExtractor.GpuCounterPoll.Failed)
+            {
+                Release();
+                return poll;
+            }
+
+            _stagedCounts = counts;
+            ChunksStaged++;
+            if (counts.IsEmpty)
+            {
+                Release();
+                ChunksEmpty++;
+            }
+            return poll;
+        }
+
+        /// <summary>Starts the write pass into an already-reserved arena range.</summary>
+        public void BeginWriteRange(ComputeBuffer vertices, ComputeBuffer indices,
+                                    int vertexStart, int vertexCapacity,
+                                    int indexStart, int indexCapacity)
+        {
+            ThrowIfDisposed();
+            _writeVertexCapacity = vertexCapacity;
+            _writeIndexCapacity = indexCapacity;
+            _extractor.BeginWriteRange(_mirror, _tables, _staged, vertices, indices,
+                                       vertexStart, vertexCapacity, indexStart, indexCapacity);
+        }
+
+        /// <summary>
+        /// Finishes a <see cref="BeginWriteRange"/>, applying the same count/write agreement check
+        /// the blocking path makes before anything is published.
+        /// </summary>
+        public GpuSurfaceExtractor.GpuCounterPoll TryCompleteWriteRange(out int indexCount)
+        {
+            ThrowIfDisposed();
+            indexCount = 0;
+            if (!_hasStaged) return GpuSurfaceExtractor.GpuCounterPoll.Failed;
+
+            GpuSurfaceExtractor.GpuCounterPoll poll = _extractor.TryCompleteWriteRange(
+                _writeVertexCapacity, _writeIndexCapacity, out GpuExtractionResult result);
+            if (poll != GpuSurfaceExtractor.GpuCounterPoll.Ready) return poll;
+
+            if (result.Overflowed
+                || result.VertexCount != _stagedCounts.VertexCount
+                || result.IndexCount != _stagedCounts.IndexCount)
+            {
+                ChunksOverflowed++;
+                return GpuSurfaceExtractor.GpuCounterPoll.Failed;
+            }
+
+            indexCount = result.IndexCount;
+            ChunksWritten++;
+            return GpuSurfaceExtractor.GpuCounterPoll.Ready;
+        }
+
+        private bool TryPin(NativeArray<TransvoxelDensityBrick> bricks,
+                            NativeArray<byte> mixedVoxels,
+                            NativeArray<ushort> mixedSurfaceSemantics,
+                            NativeArray<byte> mixedBoundarySamples,
+                            in GpuChunkExtraction request,
+                            ulong generation)
+        {
             ThrowIfDisposed();
             _hasStaged = false;
 
@@ -206,14 +327,14 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 {
                     UnpinStaged(bricks, request.BrickCacheOrigin, pinned);
                     ChunksRefusedNoSlot++;
-                    return GpuStageOutcome.NoSlot;
+                    return false;
                 }
 
                 if (!_mirror.TryGetSlot(coordinate, out int slot))
                 {
                     UnpinStaged(bricks, request.BrickCacheOrigin, pinned);
                     ChunksRefusedNoSlot++;
-                    return GpuStageOutcome.NoSlot;
+                    return false;
                 }
 
                 // Pinned for the duration of the build so eviction cannot pull a brick out from
@@ -225,19 +346,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                     GpuSurfaceExtractor.PackBrickCacheEntry(VoxelBrickContent.Mixed, 0, slot));
             }
 
-            _stagedCounts = _extractor.Count(_mirror, _tables, request);
-            _staged = request;
-            _hasStaged = true;
-            ChunksStaged++;
-
-            if (_stagedCounts.IsEmpty)
-            {
-                Release();
-                ChunksEmpty++;
-                return GpuStageOutcome.Empty;
-            }
-
-            return GpuStageOutcome.Staged;
+            return true;
         }
 
         /// <summary>What the staged chunk will emit. Valid only between a stage and its release.</summary>
@@ -283,6 +392,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         {
             if (!_hasStaged) return;
             _hasStaged = false;
+            // An abandoned build must not leave a readback outstanding: the next Begin* would poll
+            // it and read the previous chunk's counters.
+            _extractor.CancelPendingCounters();
             for (int z = 0; z < _brickCacheEdge; z++)
             for (int y = 0; y < _brickCacheEdge; y++)
             for (int x = 0; x < _brickCacheEdge; x++)
