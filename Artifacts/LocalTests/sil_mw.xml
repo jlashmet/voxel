@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="1" result="Failed(Child)" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-18 15:42:33Z" end-time="2026-08-18 15:45:50Z" duration="196.5824696">
+  <test-suite type="TestSuite" id="1520" name="voxel" fullname="voxel" runstate="Runnable" testcasecount="377" result="Failed" site="Child" start-time="2026-08-18 15:42:33Z" end-time="2026-08-18 15:45:50Z" duration="196.582470" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="PlayMode" />
+    </properties>
+    <failure>
+      <message><![CDATA[One or more child tests had errors]]></message>
+    </failure>
+    <test-suite type="Assembly" id="1516" name="VoxelEngine.Tests.PlayMode.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/VoxelEngine.Tests.PlayMode.dll" runstate="Runnable" testcasecount="144" result="Failed" site="Child" start-time="2026-08-18 15:42:33Z" end-time="2026-08-18 15:45:50Z" duration="196.576806" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="95379" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="PlayMode" />
+        <property name="EditorOnly" value="False" />
+      </properties>
+      <failure>
+        <message><![CDATA[One or more child tests had errors]]></message>
+      </failure>
+      <test-suite type="TestSuite" id="1517" name="VoxelEngine" fullname="VoxelEngine" runstate="Runnable" testcasecount="144" result="Failed" site="Child" start-time="2026-08-18 15:42:33Z" end-time="2026-08-18 15:45:50Z" duration="196.575822" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <failure>
+          <message><![CDATA[One or more child tests had errors]]></message>
+        </failure>
+        <test-suite type="TestSuite" id="1518" name="Tests" fullname="VoxelEngine.Tests" runstate="Runnable" testcasecount="144" result="Failed" site="Child" start-time="2026-08-18 15:42:33Z" end-time="2026-08-18 15:45:50Z" duration="196.574949" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <failure>
+            <message><![CDATA[One or more child tests had errors]]></message>
+          </failure>
+          <test-suite type="TestSuite" id="1519" name="PlayMode" fullname="VoxelEngine.Tests.PlayMode" runstate="Runnable" testcasecount="144" result="Failed" site="Child" start-time="2026-08-18 15:42:33Z" end-time="2026-08-18 15:45:50Z" duration="196.574131" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <failure>
+              <message><![CDATA[One or more child tests had errors]]></message>
+            </failure>
+            <test-suite type="TestFixture" id="1489" name="SilhouetteHoleRegressionTests" fullname="VoxelEngine.Tests.PlayMode.SilhouetteHoleRegressionTests" classname="VoxelEngine.Tests.PlayMode.SilhouetteHoleRegressionTests" runstate="Runnable" testcasecount="1" result="Failed" site="Child" start-time="2026-08-18 15:42:33Z" end-time="2026-08-18 15:45:50Z" duration="196.572057" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <failure>
+                <message><![CDATA[One or more child tests had errors]]></message>
+              </failure>
+              <test-case id="1490" name="ProductionSilhouetteHasZeroMissingVisibleSolidChunks" fullname="VoxelEngine.Tests.PlayMode.SilhouetteHoleRegressionTests.ProductionSilhouetteHasZeroMissingVisibleSolidChunks" methodname="ProductionSilhouetteHasZeroMissingVisibleSolidChunks" classname="VoxelEngine.Tests.PlayMode.SilhouetteHoleRegressionTests" runstate="Runnable" seed="897951835" result="Failed" start-time="2026-08-18 15:42:33Z" end-time="2026-08-18 15:45:50Z" duration="196.566629" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="Timeout" value="900000" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <failure>
+                  <message><![CDATA[  The production silhouette view contains coarse chunks inside the frustum without drawable geometry. Rectangular rendering holes are release-blocking.
+  Expected: 0
+  But was:  14
+]]></message>
+                  <stack-trace><![CDATA[at VoxelEngine.Tests.PlayMode.SilhouetteHoleRegressionTests+<ProductionSilhouetteHasZeroMissingVisibleSolidChunks>d__1.MoveNext () [0x004a0] in /Users/jlashmet/code/voxel/Assets/Tests/PlayMode/SilhouetteHoleRegressionTests.cs:118
+at UnityEngine.TestTools.TestEnumerator+<Execute>d__7.MoveNext () [0x0003a] in ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEngine.TestRunner/NUnitExtensions/Attributes/TestEnumerator.cs:44
+]]></stack-trace>
+                </failure>
+                <output><![CDATA[[VoxelResidency] residentRegions=84 mixed=507,084/2,367,424 evicted=0 reclaimedMixed=0
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+[VoxelResidency] residentRegions=96 mixed=512,055/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=112 mixed=512,055/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=128 mixed=526,242/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=144 mixed=540,442/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=160 mixed=568,815/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=176 mixed=597,197/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=192 mixed=620,914/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=208 mixed=649,436/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=224 mixed=677,749/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=240 mixed=710,663/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=256 mixed=739,116/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=272 mixed=772,189/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=288 mixed=805,570/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=304 mixed=843,438/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=320 mixed=876,695/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=336 mixed=919,182/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=352 mixed=957,338/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=368 mixed=990,549/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=384 mixed=1,032,981/2,367,424 evicted=0 reclaimedMixed=0
+### SILHOUETTE_HOLE_GATE holes=14 visible=1408 resident=1965 convergedFrame=-1 arenaVerts=26830592/27525120 arenaIndices=40429056/48168960 arenaFail=35242 step4Missing=0 step4Known=377 step4Resident=137 pinReject=0
+<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

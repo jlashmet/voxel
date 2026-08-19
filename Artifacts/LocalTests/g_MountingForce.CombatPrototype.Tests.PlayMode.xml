@@ -1,0 +1,384 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="45" result="Passed" total="45" passed="45" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.6235355">
+  <test-suite type="TestSuite" id="1326" name="voxel" fullname="voxel" runstate="Runnable" testcasecount="233" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.623536" total="45" passed="45" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="PlayMode" />
+    </properties>
+    <test-suite type="Assembly" id="1059" name="MountingForce.CombatPrototype.Tests.PlayMode.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/MountingForce.CombatPrototype.Tests.PlayMode.dll" runstate="Runnable" testcasecount="45" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.619574" total="45" passed="45" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="18862" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="PlayMode" />
+        <property name="EditorOnly" value="False" />
+      </properties>
+      <test-suite type="TestSuite" id="1060" name="VoxelEngine" fullname="VoxelEngine" runstate="Runnable" testcasecount="45" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.619300" total="45" passed="45" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="1061" name="Tests" fullname="VoxelEngine.Tests" runstate="Runnable" testcasecount="45" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.619122" total="45" passed="45" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="1062" name="PlayMode" fullname="VoxelEngine.Tests.PlayMode" runstate="Runnable" testcasecount="45" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.618831" total="45" passed="45" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="1001" name="ChainCombatActivationV5Tests" fullname="VoxelEngine.Tests.PlayMode.ChainCombatActivationV5Tests" classname="VoxelEngine.Tests.PlayMode.ChainCombatActivationV5Tests" runstate="Runnable" testcasecount="4" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.016498" total="4" passed="4" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1002" name="ActiveRecruitGetsMoveAndActionInEitherOrder" fullname="VoxelEngine.Tests.PlayMode.ChainCombatActivationV5Tests.ActiveRecruitGetsMoveAndActionInEitherOrder" methodname="ActiveRecruitGetsMoveAndActionInEitherOrder" classname="VoxelEngine.Tests.PlayMode.ChainCombatActivationV5Tests" runstate="Runnable" seed="1469434674" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.007886" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1003" name="BenchRecruitStillClaimsReactionAfterAnotherRecruitActivated" fullname="VoxelEngine.Tests.PlayMode.ChainCombatActivationV5Tests.BenchRecruitStillClaimsReactionAfterAnotherRecruitActivated" methodname="BenchRecruitStillClaimsReactionAfterAnotherRecruitActivated" classname="VoxelEngine.Tests.PlayMode.ChainCombatActivationV5Tests" runstate="Runnable" seed="319582015" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.001050" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1004" name="DifferentRecruitInSamePlayerGroupIsRejectedForProactivePlay" fullname="VoxelEngine.Tests.PlayMode.ChainCombatActivationV5Tests.DifferentRecruitInSamePlayerGroupIsRejectedForProactivePlay" methodname="DifferentRecruitInSamePlayerGroupIsRejectedForProactivePlay" classname="VoxelEngine.Tests.PlayMode.ChainCombatActivationV5Tests" runstate="Runnable" seed="415487949" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.001577" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1005" name="FailedAttemptDoesNotCommitActivationAndNewRoundClearsIt" fullname="VoxelEngine.Tests.PlayMode.ChainCombatActivationV5Tests.FailedAttemptDoesNotCommitActivationAndNewRoundClearsIt" methodname="FailedAttemptDoesNotCommitActivationAndNewRoundClearsIt" classname="VoxelEngine.Tests.PlayMode.ChainCombatActivationV5Tests" runstate="Runnable" seed="1109764072" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.001256" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1006" name="ChainCombatDemoV10Tests" fullname="VoxelEngine.Tests.PlayMode.ChainCombatDemoV10Tests" classname="VoxelEngine.Tests.PlayMode.ChainCombatDemoV10Tests" runstate="Runnable" testcasecount="2" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.381956" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1007" name="GuidedShowcaseProducesFourPlayerEnvironmentalCascade" fullname="VoxelEngine.Tests.PlayMode.ChainCombatDemoV10Tests.GuidedShowcaseProducesFourPlayerEnvironmentalCascade" methodname="GuidedShowcaseProducesFourPlayerEnvironmentalCascade" classname="VoxelEngine.Tests.PlayMode.ChainCombatDemoV10Tests" runstate="Runnable" seed="337344268" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.006242" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1008" name="PlayableDemoRuntimeStackExecutesGuidedCascadeEndToEnd" fullname="VoxelEngine.Tests.PlayMode.ChainCombatDemoV10Tests.PlayableDemoRuntimeStackExecutesGuidedCascadeEndToEnd" methodname="PlayableDemoRuntimeStackExecutesGuidedCascadeEndToEnd" classname="VoxelEngine.Tests.PlayMode.ChainCombatDemoV10Tests" runstate="Runnable" seed="1984693670" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.375301" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1009" name="ChainCombatEnemyAIV8Tests" fullname="VoxelEngine.Tests.PlayMode.ChainCombatEnemyAIV8Tests" classname="VoxelEngine.Tests.PlayMode.ChainCombatEnemyAIV8Tests" runstate="Runnable" testcasecount="5" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.009272" total="5" passed="5" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1012" name="CommittedEnemyAttackCanBeDodgedAndDoesNotOmniscientlyRetarget" fullname="VoxelEngine.Tests.PlayMode.ChainCombatEnemyAIV8Tests.CommittedEnemyAttackCanBeDodgedAndDoesNotOmniscientlyRetarget" methodname="CommittedEnemyAttackCanBeDodgedAndDoesNotOmniscientlyRetarget" classname="VoxelEngine.Tests.PlayMode.ChainCombatEnemyAIV8Tests" runstate="Runnable" seed="1416763904" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.001760" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1010" name="CurrentCascadeLabBootsWithEnemyAIStack" fullname="VoxelEngine.Tests.PlayMode.ChainCombatEnemyAIV8Tests.CurrentCascadeLabBootsWithEnemyAIStack" methodname="CurrentCascadeLabBootsWithEnemyAIStack" classname="VoxelEngine.Tests.PlayMode.ChainCombatEnemyAIV8Tests" runstate="Runnable" seed="824400396" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.003883" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1011" name="EnemyAIPlansFromBoardStateInsteadOfUsingAFixedScript" fullname="VoxelEngine.Tests.PlayMode.ChainCombatEnemyAIV8Tests.EnemyAIPlansFromBoardStateInsteadOfUsingAFixedScript" methodname="EnemyAIPlansFromBoardStateInsteadOfUsingAFixedScript" classname="VoxelEngine.Tests.PlayMode.ChainCombatEnemyAIV8Tests" runstate="Runnable" seed="704457741" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.000824" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1014" name="GoblinPrefersShoveIntoTreeAndReadyGromCanTurnItIntoTimber" fullname="VoxelEngine.Tests.PlayMode.ChainCombatEnemyAIV8Tests.GoblinPrefersShoveIntoTreeAndReadyGromCanTurnItIntoTimber" methodname="GoblinPrefersShoveIntoTreeAndReadyGromCanTurnItIntoTimber" classname="VoxelEngine.Tests.PlayMode.ChainCombatEnemyAIV8Tests" runstate="Runnable" seed="1347372271" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.001275" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1013" name="OgreChargeUsesNormalPhysicsAndPausesEnemyPhaseForPlayerReaction" fullname="VoxelEngine.Tests.PlayMode.ChainCombatEnemyAIV8Tests.OgreChargeUsesNormalPhysicsAndPausesEnemyPhaseForPlayerReaction" methodname="OgreChargeUsesNormalPhysicsAndPausesEnemyPhaseForPlayerReaction" classname="VoxelEngine.Tests.PlayMode.ChainCombatEnemyAIV8Tests" runstate="Runnable" seed="106636023" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.000851" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1015" name="ChainCombatExecutionPlanV9Tests" fullname="VoxelEngine.Tests.PlayMode.ChainCombatExecutionPlanV9Tests" classname="VoxelEngine.Tests.PlayMode.ChainCombatExecutionPlanV9Tests" runstate="Runnable" testcasecount="7" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.016799" total="7" passed="7" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1022" name="BattleResetClearsSharedPlanHistoryAndGhostBackToStart" fullname="VoxelEngine.Tests.PlayMode.ChainCombatExecutionPlanV9Tests.BattleResetClearsSharedPlanHistoryAndGhostBackToStart" methodname="BattleResetClearsSharedPlanHistoryAndGhostBackToStart" classname="VoxelEngine.Tests.PlayMode.ChainCombatExecutionPlanV9Tests" runstate="Runnable" seed="810179986" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.005097" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1019" name="CompoundDragIsOneUndoableEdit" fullname="VoxelEngine.Tests.PlayMode.ChainCombatExecutionPlanV9Tests.CompoundDragIsOneUndoableEdit" methodname="CompoundDragIsOneUndoableEdit" classname="VoxelEngine.Tests.PlayMode.ChainCombatExecutionPlanV9Tests" runstate="Runnable" seed="766216877" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.001139" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1017" name="DraggingRootKeepsItsReactionContinuationAttached" fullname="VoxelEngine.Tests.PlayMode.ChainCombatExecutionPlanV9Tests.DraggingRootKeepsItsReactionContinuationAttached" methodname="DraggingRootKeepsItsReactionContinuationAttached" classname="VoxelEngine.Tests.PlayMode.ChainCombatExecutionPlanV9Tests" runstate="Runnable" seed="1318119442" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.000751" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1018" name="GhostCanPreviewFourPlayerAuthoredReactionChain" fullname="VoxelEngine.Tests.PlayMode.ChainCombatExecutionPlanV9Tests.GhostCanPreviewFourPlayerAuthoredReactionChain" methodname="GhostCanPreviewFourPlayerAuthoredReactionChain" classname="VoxelEngine.Tests.PlayMode.ChainCombatExecutionPlanV9Tests" runstate="Runnable" seed="773512511" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.000939" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1020" name="PlannerBootsWithGhostBoardAndVisualLayer" fullname="VoxelEngine.Tests.PlayMode.ChainCombatExecutionPlanV9Tests.PlannerBootsWithGhostBoardAndVisualLayer" methodname="PlannerBootsWithGhostBoardAndVisualLayer" classname="VoxelEngine.Tests.PlayMode.ChainCombatExecutionPlanV9Tests" runstate="Runnable" seed="940854209" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.003378" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1016" name="ReorderingSetupAfterChainStarterMakesGhostStopOnOrderingConflict" fullname="VoxelEngine.Tests.PlayMode.ChainCombatExecutionPlanV9Tests.ReorderingSetupAfterChainStarterMakesGhostStopOnOrderingConflict" methodname="ReorderingSetupAfterChainStarterMakesGhostStopOnOrderingConflict" classname="VoxelEngine.Tests.PlayMode.ChainCombatExecutionPlanV9Tests" runstate="Runnable" seed="258324134" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.001154" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1021" name="SharedPlanExecutionRequiresEveryLivingPlayerReady" fullname="VoxelEngine.Tests.PlayMode.ChainCombatExecutionPlanV9Tests.SharedPlanExecutionRequiresEveryLivingPlayerReady" methodname="SharedPlanExecutionRequiresEveryLivingPlayerReady" classname="VoxelEngine.Tests.PlayMode.ChainCombatExecutionPlanV9Tests" runstate="Runnable" seed="1866006272" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.003586" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1023" name="ChainCombatImpactV3Tests" fullname="VoxelEngine.Tests.PlayMode.ChainCombatImpactV3Tests" classname="VoxelEngine.Tests.PlayMode.ChainCombatImpactV3Tests" runstate="Runnable" testcasecount="3" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.002886" total="3" passed="3" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1024" name="ClaimedEventCannotBePassedUntilReleased" fullname="VoxelEngine.Tests.PlayMode.ChainCombatImpactV3Tests.ClaimedEventCannotBePassedUntilReleased" methodname="ClaimedEventCannotBePassedUntilReleased" classname="VoxelEngine.Tests.PlayMode.ChainCombatImpactV3Tests" runstate="Runnable" seed="301960190" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.000970" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1025" name="ForceMultiplierTurnsSameLaunchIntoHarderImpact" fullname="VoxelEngine.Tests.PlayMode.ChainCombatImpactV3Tests.ForceMultiplierTurnsSameLaunchIntoHarderImpact" methodname="ForceMultiplierTurnsSameLaunchIntoHarderImpact" classname="VoxelEngine.Tests.PlayMode.ChainCombatImpactV3Tests" runstate="Runnable" seed="1170805200" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.000745" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1026" name="FourPlayerRouteRecordsThreeActualHandoffs" fullname="VoxelEngine.Tests.PlayMode.ChainCombatImpactV3Tests.FourPlayerRouteRecordsThreeActualHandoffs" methodname="FourPlayerRouteRecordsThreeActualHandoffs" classname="VoxelEngine.Tests.PlayMode.ChainCombatImpactV3Tests" runstate="Runnable" seed="189387631" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.000669" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1027" name="ChainCombatMechanicsV2Tests" fullname="VoxelEngine.Tests.PlayMode.ChainCombatMechanicsV2Tests" classname="VoxelEngine.Tests.PlayMode.ChainCombatMechanicsV2Tests" runstate="Runnable" testcasecount="4" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.006696" total="4" passed="4" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1029" name="AirborneEventHasCompetingClaimsAndFirstValidClaimOwnsIt" fullname="VoxelEngine.Tests.PlayMode.ChainCombatMechanicsV2Tests.AirborneEventHasCompetingClaimsAndFirstValidClaimOwnsIt" methodname="AirborneEventHasCompetingClaimsAndFirstValidClaimOwnsIt" classname="VoxelEngine.Tests.PlayMode.ChainCombatMechanicsV2Tests" runstate="Runnable" seed="309893304" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.001085" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1028" name="CascadeLabControllerBootsFourPlayerBattle" fullname="VoxelEngine.Tests.PlayMode.ChainCombatMechanicsV2Tests.CascadeLabControllerBootsFourPlayerBattle" methodname="CascadeLabControllerBootsFourPlayerBattle" classname="VoxelEngine.Tests.PlayMode.ChainCombatMechanicsV2Tests" runstate="Runnable" seed="1589531295" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.003375" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1031" name="ClaimMustMatchCapabilityRangeAndExecutor" fullname="VoxelEngine.Tests.PlayMode.ChainCombatMechanicsV2Tests.ClaimMustMatchCapabilityRangeAndExecutor" methodname="ClaimMustMatchCapabilityRangeAndExecutor" classname="VoxelEngine.Tests.PlayMode.ChainCombatMechanicsV2Tests" runstate="Runnable" seed="83656103" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.000758" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1030" name="CollisionAndTreeEventsBranchBeforeFourPlayerCascadeFinishes" fullname="VoxelEngine.Tests.PlayMode.ChainCombatMechanicsV2Tests.CollisionAndTreeEventsBranchBeforeFourPlayerCascadeFinishes" methodname="CollisionAndTreeEventsBranchBeforeFourPlayerCascadeFinishes" classname="VoxelEngine.Tests.PlayMode.ChainCombatMechanicsV2Tests" runstate="Runnable" seed="2031343993" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.000964" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1032" name="ChainCombatPlanApprovalV9Tests" fullname="VoxelEngine.Tests.PlayMode.ChainCombatPlanApprovalV9Tests" classname="VoxelEngine.Tests.PlayMode.ChainCombatPlanApprovalV9Tests" runstate="Runnable" testcasecount="2" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.008131" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1034" name="CommittingApprovedPlanPreservesReadyForEnemyHandoff" fullname="VoxelEngine.Tests.PlayMode.ChainCombatPlanApprovalV9Tests.CommittingApprovedPlanPreservesReadyForEnemyHandoff" methodname="CommittingApprovedPlanPreservesReadyForEnemyHandoff" classname="VoxelEngine.Tests.PlayMode.ChainCombatPlanApprovalV9Tests" runstate="Runnable" seed="218733348" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.003802" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1033" name="EditingAnApprovedPlanRevokesEveryReadyApproval" fullname="VoxelEngine.Tests.PlayMode.ChainCombatPlanApprovalV9Tests.EditingAnApprovedPlanRevokesEveryReadyApproval" methodname="EditingAnApprovedPlanRevokesEveryReadyApproval" classname="VoxelEngine.Tests.PlayMode.ChainCombatPlanApprovalV9Tests" runstate="Runnable" seed="737627036" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.003847" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[Chain plan revision changed 1 -> 2; cleared 4 stale player approval(s).
+]]></output>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1035" name="ChainCombatProductionVegetationV12Tests" fullname="VoxelEngine.Tests.PlayMode.ChainCombatProductionVegetationV12Tests" classname="VoxelEngine.Tests.PlayMode.ChainCombatProductionVegetationV12Tests" runstate="Runnable" testcasecount="1" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.151371" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1036" name="PlayableCascadeMutatesRealProceduralTreeRuntime" fullname="VoxelEngine.Tests.PlayMode.ChainCombatProductionVegetationV12Tests.PlayableCascadeMutatesRealProceduralTreeRuntime" methodname="PlayableCascadeMutatesRealProceduralTreeRuntime" classname="VoxelEngine.Tests.PlayMode.ChainCombatProductionVegetationV12Tests" runstate="Runnable" seed="1864740568" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.150878" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1037" name="ChainCombatPrototypeTests" fullname="VoxelEngine.Tests.PlayMode.ChainCombatPrototypeTests" classname="VoxelEngine.Tests.PlayMode.ChainCombatPrototypeTests" runstate="Runnable" testcasecount="4" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.012356" total="4" passed="4" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1038" name="ControllerBootsPlayableBattlePresentation" fullname="VoxelEngine.Tests.PlayMode.ChainCombatPrototypeTests.ControllerBootsPlayableBattlePresentation" methodname="ControllerBootsPlayableBattlePresentation" classname="VoxelEngine.Tests.PlayMode.ChainCombatPrototypeTests" runstate="Runnable" seed="1869550390" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.005374" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1041" name="NormalActionsActionBudgetAndResetWork" fullname="VoxelEngine.Tests.PlayMode.ChainCombatPrototypeTests.NormalActionsActionBudgetAndResetWork" methodname="NormalActionsActionBudgetAndResetWork" classname="VoxelEngine.Tests.PlayMode.ChainCombatPrototypeTests" runstate="Runnable" seed="405583367" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.002043" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1040" name="PortalsPreserveMotionAndForceMultiplierExtendsMotion" fullname="VoxelEngine.Tests.PlayMode.ChainCombatPrototypeTests.PortalsPreserveMotionAndForceMultiplierExtendsMotion" methodname="PortalsPreserveMotionAndForceMultiplierExtendsMotion" classname="VoxelEngine.Tests.PlayMode.ChainCombatPrototypeTests" runstate="Runnable" seed="504459640" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.002325" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1039" name="ReactionChainRunsLaunchRedirectCollisionRepulseAndTreeFall" fullname="VoxelEngine.Tests.PlayMode.ChainCombatPrototypeTests.ReactionChainRunsLaunchRedirectCollisionRepulseAndTreeFall" methodname="ReactionChainRunsLaunchRedirectCollisionRepulseAndTreeFall" classname="VoxelEngine.Tests.PlayMode.ChainCombatPrototypeTests" runstate="Runnable" seed="1234467967" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.001963" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1042" name="ChainCombatReadinessV7Tests" fullname="VoxelEngine.Tests.PlayMode.ChainCombatReadinessV7Tests" classname="VoxelEngine.Tests.PlayMode.ChainCombatReadinessV7Tests" runstate="Runnable" testcasecount="4" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.003439" total="4" passed="4" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1044" name="EnemyPhaseRequiresEveryLivingPlayerAndNoPendingEvent" fullname="VoxelEngine.Tests.PlayMode.ChainCombatReadinessV7Tests.EnemyPhaseRequiresEveryLivingPlayerAndNoPendingEvent" methodname="EnemyPhaseRequiresEveryLivingPlayerAndNoPendingEvent" classname="VoxelEngine.Tests.PlayMode.ChainCombatReadinessV7Tests" runstate="Runnable" seed="1821207257" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.001302" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1045" name="PlayerMayReadyWithoutActivatingAndMayUnreadyBeforeEnemyPhase" fullname="VoxelEngine.Tests.PlayMode.ChainCombatReadinessV7Tests.PlayerMayReadyWithoutActivatingAndMayUnreadyBeforeEnemyPhase" methodname="PlayerMayReadyWithoutActivatingAndMayUnreadyBeforeEnemyPhase" classname="VoxelEngine.Tests.PlayMode.ChainCombatReadinessV7Tests" runstate="Runnable" seed="457961164" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.000544" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1043" name="ReadyBlocksProactivePlayButNotReactions" fullname="VoxelEngine.Tests.PlayMode.ChainCombatReadinessV7Tests.ReadyBlocksProactivePlayButNotReactions" methodname="ReadyBlocksProactivePlayButNotReactions" classname="VoxelEngine.Tests.PlayMode.ChainCombatReadinessV7Tests" runstate="Runnable" seed="1406766586" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.000567" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1046" name="ReadyPlayersCanStillOwnLaterReactionDecisions" fullname="VoxelEngine.Tests.PlayMode.ChainCombatReadinessV7Tests.ReadyPlayersCanStillOwnLaterReactionDecisions" methodname="ReadyPlayersCanStillOwnLaterReactionDecisions" classname="VoxelEngine.Tests.PlayMode.ChainCombatReadinessV7Tests" runstate="Runnable" seed="1017455039" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.000573" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1047" name="ChainCombatReservationV6Tests" fullname="VoxelEngine.Tests.PlayMode.ChainCombatReservationV6Tests" classname="VoxelEngine.Tests.PlayMode.ChainCombatReservationV6Tests" runstate="Runnable" testcasecount="5" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.004056" total="5" passed="5" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1050" name="ExecutingReservedReactionHandsNextEventBackToWholeParty" fullname="VoxelEngine.Tests.PlayMode.ChainCombatReservationV6Tests.ExecutingReservedReactionHandsNextEventBackToWholeParty" methodname="ExecutingReservedReactionHandsNextEventBackToWholeParty" classname="VoxelEngine.Tests.PlayMode.ChainCombatReservationV6Tests" runstate="Runnable" seed="1410580707" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.000681" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1052" name="FailedRoundAdvanceCannotEraseReservation" fullname="VoxelEngine.Tests.PlayMode.ChainCombatReservationV6Tests.FailedRoundAdvanceCannotEraseReservation" methodname="FailedRoundAdvanceCannotEraseReservation" classname="VoxelEngine.Tests.PlayMode.ChainCombatReservationV6Tests" runstate="Runnable" seed="1597670690" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.000574" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1051" name="GroupPassCannotEraseAPlayersReservation" fullname="VoxelEngine.Tests.PlayMode.ChainCombatReservationV6Tests.GroupPassCannotEraseAPlayersReservation" methodname="GroupPassCannotEraseAPlayersReservation" classname="VoxelEngine.Tests.PlayMode.ChainCombatReservationV6Tests" runstate="Runnable" seed="1049513975" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.001092" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1048" name="PlayerCanReserveBeforeKnowingWhetherTheirRosterHasAnAnswer" fullname="VoxelEngine.Tests.PlayMode.ChainCombatReservationV6Tests.PlayerCanReserveBeforeKnowingWhetherTheirRosterHasAnAnswer" methodname="PlayerCanReserveBeforeKnowingWhetherTheirRosterHasAnAnswer" classname="VoxelEngine.Tests.PlayMode.ChainCombatReservationV6Tests" runstate="Runnable" seed="1336866520" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.000554" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1049" name="ReleasingConcreteChoiceKeepsPlayerReservation" fullname="VoxelEngine.Tests.PlayMode.ChainCombatReservationV6Tests.ReleasingConcreteChoiceKeepsPlayerReservation" methodname="ReleasingConcreteChoiceKeepsPlayerReservation" classname="VoxelEngine.Tests.PlayMode.ChainCombatReservationV6Tests" runstate="Runnable" seed="97740793" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.000674" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1053" name="ChainCombatSetupV4Tests" fullname="VoxelEngine.Tests.PlayMode.ChainCombatSetupV4Tests" classname="VoxelEngine.Tests.PlayMode.ChainCombatSetupV4Tests" runstate="Runnable" testcasecount="3" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.003210" total="3" passed="3" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1055" name="ConvergeActivelyBuildsFutureCollisionGeometry" fullname="VoxelEngine.Tests.PlayMode.ChainCombatSetupV4Tests.ConvergeActivelyBuildsFutureCollisionGeometry" methodname="ConvergeActivelyBuildsFutureCollisionGeometry" classname="VoxelEngine.Tests.PlayMode.ChainCombatSetupV4Tests" runstate="Runnable" seed="2038447324" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.000573" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1056" name="CorrectlyUsingGromsNotchMakesTheLaterTreePayoffStronger" fullname="VoxelEngine.Tests.PlayMode.ChainCombatSetupV4Tests.CorrectlyUsingGromsNotchMakesTheLaterTreePayoffStronger" methodname="CorrectlyUsingGromsNotchMakesTheLaterTreePayoffStronger" classname="VoxelEngine.Tests.PlayMode.ChainCombatSetupV4Tests" runstate="Runnable" seed="1750538215" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.001183" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1054" name="SkitterCanStartAChainForAnotherPlayersReaction" fullname="VoxelEngine.Tests.PlayMode.ChainCombatSetupV4Tests.SkitterCanStartAChainForAnotherPlayersReaction" methodname="SkitterCanStartAChainForAnotherPlayersReaction" classname="VoxelEngine.Tests.PlayMode.ChainCombatSetupV4Tests" runstate="Runnable" seed="1270001654" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.000997" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1057" name="ChainCombatVegetationV11Tests" fullname="VoxelEngine.Tests.PlayMode.ChainCombatVegetationV11Tests" classname="VoxelEngine.Tests.PlayMode.ChainCombatVegetationV11Tests" runstate="Runnable" testcasecount="1" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.001122" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1058" name="GuidedCascadeCrossesProductionVegetationApiBoundary" fullname="VoxelEngine.Tests.PlayMode.ChainCombatVegetationV11Tests.GuidedCascadeCrossesProductionVegetationApiBoundary" methodname="GuidedCascadeCrossesProductionVegetationApiBoundary" classname="VoxelEngine.Tests.PlayMode.ChainCombatVegetationV11Tests" runstate="Runnable" seed="797926547" result="Passed" start-time="2026-08-17 03:37:28Z" end-time="2026-08-17 03:37:28Z" duration="0.000875" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

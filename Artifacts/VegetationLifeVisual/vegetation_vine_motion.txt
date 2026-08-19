@@ -1,0 +1,7 @@
+sample_a=0 sample_b=4 spacing=0.37s
+free_end_pixels=27758
+free_end_changed=4325
+free_end_changed_rate=0.1558
+attachment_pixels=9190
+attachment_changed=80
+attachment_changed_rate=0.0087

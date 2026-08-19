@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="1" result="Passed" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-17 02:28:45Z" end-time="2026-08-17 02:28:48Z" duration="2.854576">
+  <test-suite type="TestSuite" id="1326" name="voxel" fullname="voxel" runstate="Runnable" testcasecount="233" result="Passed" start-time="2026-08-17 02:28:45Z" end-time="2026-08-17 02:28:48Z" duration="2.854576" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="PlayMode" />
+    </properties>
+    <test-suite type="Assembly" id="1100" name="VoxelEngine.CI.PlayMode.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/VoxelEngine.CI.PlayMode.dll" runstate="Runnable" testcasecount="19" result="Passed" start-time="2026-08-17 02:28:45Z" end-time="2026-08-17 02:28:48Z" duration="2.849277" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="78518" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="PlayMode" />
+        <property name="EditorOnly" value="False" />
+      </properties>
+      <test-suite type="TestSuite" id="1101" name="VoxelEngine" fullname="VoxelEngine" runstate="Runnable" testcasecount="19" result="Passed" start-time="2026-08-17 02:28:45Z" end-time="2026-08-17 02:28:48Z" duration="2.848841" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="1102" name="CI" fullname="VoxelEngine.CI" runstate="Runnable" testcasecount="19" result="Passed" start-time="2026-08-17 02:28:45Z" end-time="2026-08-17 02:28:48Z" duration="2.848533" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestFixture" id="1079" name="ShowcaseTreeVisualTests" fullname="VoxelEngine.CI.ShowcaseTreeVisualTests" classname="VoxelEngine.CI.ShowcaseTreeVisualTests" runstate="Explicit" testcasecount="1" result="Passed" start-time="2026-08-17 02:28:45Z" end-time="2026-08-17 02:28:48Z" duration="2.847488" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties>
+              <property name="_SKIPREASON" value="Artefact capture for human review; run by name." />
+            </properties>
+            <test-case id="1080" name="ShowcaseStartup_HasOneUprightUndamagedSemanticTreePresentation" fullname="VoxelEngine.CI.ShowcaseTreeVisualTests.ShowcaseStartup_HasOneUprightUndamagedSemanticTreePresentation" methodname="ShowcaseStartup_HasOneUprightUndamagedSemanticTreePresentation" classname="VoxelEngine.CI.ShowcaseTreeVisualTests" runstate="Runnable" seed="1436589461" result="Passed" start-time="2026-08-17 02:28:45Z" end-time="2026-08-17 02:28:48Z" duration="2.842848" asserts="0">
+              <properties>
+                <property name="_JOINTYPE" value="UnityCombinatorial" />
+                <property name="retryIteration" value="0" />
+                <property name="repeatIteration" value="0" />
+              </properties>
+              <output><![CDATA[Procedural vegetation: worldgen published 30 semantic Showcase trees.
+CI showcase-tree capture written to /Users/jlashmet/code/voxel/Artifacts/ShowcaseTree
+populationComplete=True
+registryInstances=30
+damageStates=30
+rendererInstances=1
+semanticPresentations=30
+rendererChildren=7
+treeBatches=7
+batchedTrees=30
+dynamicPresentations=0
+dynamicMeshes=0
+residentRenderObjects=35
+estimatedVisibleTreeDraws=14
+severedAtStartup=0
+foliageDamagedAtStartup=0
+sidewaysSkeletonsAtStartup=0
+rotatedDynamicRootsAtStartup=0
+selectedTreeIndex=0
+selectedSpecies=Oak
+selectedPosition=(56.600, 23.900, 35.300)
+selectedBoundsCenter=(56.722, 26.684, 35.510)
+selectedBoundsSize=(4.780, 6.012, 4.614)
+renderChangedPixels=172671
+
+<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+]]></output>
+            </test-case>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

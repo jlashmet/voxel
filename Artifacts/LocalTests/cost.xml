@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="1" result="Passed" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-18 16:30:04Z" end-time="2026-08-18 16:33:21Z" duration="196.9994435">
+  <test-suite type="TestSuite" id="1522" name="voxel" fullname="voxel" runstate="Runnable" testcasecount="378" result="Passed" start-time="2026-08-18 16:30:04Z" end-time="2026-08-18 16:33:21Z" duration="196.999444" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="PlayMode" />
+    </properties>
+    <test-suite type="Assembly" id="1518" name="VoxelEngine.Tests.PlayMode.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/VoxelEngine.Tests.PlayMode.dll" runstate="Runnable" testcasecount="145" result="Passed" start-time="2026-08-18 16:30:04Z" end-time="2026-08-18 16:33:21Z" duration="196.993705" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="15664" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="PlayMode" />
+        <property name="EditorOnly" value="False" />
+      </properties>
+      <test-suite type="TestSuite" id="1519" name="VoxelEngine" fullname="VoxelEngine" runstate="Runnable" testcasecount="145" result="Passed" start-time="2026-08-18 16:30:04Z" end-time="2026-08-18 16:33:21Z" duration="196.992601" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="1520" name="Tests" fullname="VoxelEngine.Tests" runstate="Runnable" testcasecount="145" result="Passed" start-time="2026-08-18 16:30:04Z" end-time="2026-08-18 16:33:21Z" duration="196.991626" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="1521" name="PlayMode" fullname="VoxelEngine.Tests.PlayMode" runstate="Runnable" testcasecount="145" result="Passed" start-time="2026-08-18 16:30:04Z" end-time="2026-08-18 16:33:21Z" duration="196.990592" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="1516" name="ZzFrameCostTests" fullname="VoxelEngine.Tests.PlayMode.ZzFrameCostTests" classname="VoxelEngine.Tests.PlayMode.ZzFrameCostTests" runstate="Runnable" testcasecount="1" result="Passed" start-time="2026-08-18 16:30:04Z" end-time="2026-08-18 16:33:21Z" duration="196.988486" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1517" name="AttributeMovingFrameCost" fullname="VoxelEngine.Tests.PlayMode.ZzFrameCostTests.AttributeMovingFrameCost" methodname="AttributeMovingFrameCost" classname="VoxelEngine.Tests.PlayMode.ZzFrameCostTests" runstate="Runnable" seed="576942597" result="Passed" start-time="2026-08-18 16:30:04Z" end-time="2026-08-18 16:33:21Z" duration="196.983170" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="Timeout" value="1800000" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[[VoxelResidency] residentRegions=84 mixed=507,084/2,367,424 evicted=0 reclaimedMixed=0
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+[VoxelResidency] residentRegions=96 mixed=563,843/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=112 mixed=639,399/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=128 mixed=715,050/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=144 mixed=790,587/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=160 mixed=866,527/2,367,424 evicted=0 reclaimedMixed=0
+### COST worst 12 moving frames (ms)
+### COST frame=401.9 generate=3.2 prepareP95=42.5 visibilityP95=2.0 workerP95=4.0 missing=769 pending=1
+### COST frame=356.3 generate=3.5 prepareP95=42.7 visibilityP95=2.1 workerP95=4.0 missing=323 pending=0
+### COST frame=355.8 generate=3.5 prepareP95=33.2 visibilityP95=2.4 workerP95=4.0 missing=103 pending=0
+### COST frame=351.1 generate=3.5 prepareP95=42.4 visibilityP95=1.6 workerP95=4.1 missing=517 pending=2
+### COST frame=348.3 generate=3.1 prepareP95=42.3 visibilityP95=2.3 workerP95=4.0 missing=419 pending=0
+### COST frame=332.3 generate=3.4 prepareP95=42.5 visibilityP95=1.9 workerP95=4.0 missing=540 pending=0
+### COST frame=327.9 generate=3.3 prepareP95=42.5 visibilityP95=2.0 workerP95=4.0 missing=779 pending=2
+### COST frame=321.7 generate=3.0 prepareP95=42.5 visibilityP95=2.0 workerP95=4.0 missing=722 pending=0
+### COST frame=319.9 generate=3.3 prepareP95=42.0 visibilityP95=1.9 workerP95=4.0 missing=493 pending=0
+### COST frame=319.6 generate=3.1 prepareP95=42.6 visibilityP95=2.0 workerP95=4.0 missing=786 pending=0
+### COST frame=316.8 generate=3.0 prepareP95=42.5 visibilityP95=1.8 workerP95=4.0 missing=725 pending=0
+### COST frame=315.5 generate=3.5 prepareP95=42.5 visibilityP95=1.8 workerP95=4.0 missing=721 pending=0
+### COST mean=141.7ms over 420 frames
+<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

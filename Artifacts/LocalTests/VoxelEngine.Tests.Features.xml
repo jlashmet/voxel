@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="22" result="Passed" total="22" passed="22" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-17 00:59:30Z" end-time="2026-08-17 00:59:33Z" duration="2.4425246">
+  <test-suite type="TestSuite" id="1326" name="voxel" fullname="voxel" runstate="Runnable" testcasecount="233" result="Passed" start-time="2026-08-17 00:59:30Z" end-time="2026-08-17 00:59:33Z" duration="2.442525" total="22" passed="22" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="PlayMode" />
+    </properties>
+    <test-suite type="Assembly" id="1129" name="VoxelEngine.Tests.Features.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/VoxelEngine.Tests.Features.dll" runstate="Runnable" testcasecount="22" result="Passed" start-time="2026-08-17 00:59:30Z" end-time="2026-08-17 00:59:33Z" duration="2.437599" total="22" passed="22" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="35906" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="PlayMode" />
+        <property name="EditorOnly" value="False" />
+      </properties>
+      <test-suite type="TestSuite" id="1130" name="VoxelEngine" fullname="VoxelEngine" runstate="Runnable" testcasecount="22" result="Passed" start-time="2026-08-17 00:59:30Z" end-time="2026-08-17 00:59:33Z" duration="2.437155" total="22" passed="22" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="1131" name="Tests" fullname="VoxelEngine.Tests" runstate="Runnable" testcasecount="22" result="Passed" start-time="2026-08-17 00:59:30Z" end-time="2026-08-17 00:59:33Z" duration="2.436868" total="22" passed="22" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="1132" name="Features" fullname="VoxelEngine.Tests.Features" runstate="Runnable" testcasecount="22" result="Passed" start-time="2026-08-17 00:59:30Z" end-time="2026-08-17 00:59:33Z" duration="2.436639" total="22" passed="22" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="1103" name="CatalogueStructureTests" fullname="VoxelEngine.Tests.Features.CatalogueStructureTests" classname="VoxelEngine.Tests.Features.CatalogueStructureTests" runstate="Runnable" testcasecount="6" result="Passed" start-time="2026-08-17 00:59:30Z" end-time="2026-08-17 00:59:30Z" duration="0.019782" total="6" passed="6" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1104" name="FixtureCatalogueLoads" fullname="VoxelEngine.Tests.Features.CatalogueStructureTests.FixtureCatalogueLoads" methodname="FixtureCatalogueLoads" classname="VoxelEngine.Tests.Features.CatalogueStructureTests" runstate="Runnable" seed="2008315293" result="Passed" start-time="2026-08-17 00:59:30Z" end-time="2026-08-17 00:59:30Z" duration="0.011574" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1108" name="HashCoversTheProgramBody" fullname="VoxelEngine.Tests.Features.CatalogueStructureTests.HashCoversTheProgramBody" methodname="HashCoversTheProgramBody" classname="VoxelEngine.Tests.Features.CatalogueStructureTests" runstate="Runnable" seed="1078815920" result="Passed" start-time="2026-08-17 00:59:30Z" end-time="2026-08-17 00:59:30Z" duration="0.000387" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1105" name="OversizedFootprintIsRefused" fullname="VoxelEngine.Tests.Features.CatalogueStructureTests.OversizedFootprintIsRefused" methodname="OversizedFootprintIsRefused" classname="VoxelEngine.Tests.Features.CatalogueStructureTests" runstate="Runnable" seed="186557236" result="Passed" start-time="2026-08-17 00:59:30Z" end-time="2026-08-17 00:59:30Z" duration="0.000145" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1109" name="ParameterClampSnapsInsideTheDeclaredRange" fullname="VoxelEngine.Tests.Features.CatalogueStructureTests.ParameterClampSnapsInsideTheDeclaredRange" methodname="ParameterClampSnapsInsideTheDeclaredRange" classname="VoxelEngine.Tests.Features.CatalogueStructureTests" runstate="Runnable" seed="1350333281" result="Passed" start-time="2026-08-17 00:59:30Z" end-time="2026-08-17 00:59:30Z" duration="0.001634" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1106" name="SpacingLargerThanTheScannedNeighbourhoodIsRefused" fullname="VoxelEngine.Tests.Features.CatalogueStructureTests.SpacingLargerThanTheScannedNeighbourhoodIsRefused" methodname="SpacingLargerThanTheScannedNeighbourhoodIsRefused" classname="VoxelEngine.Tests.Features.CatalogueStructureTests" runstate="Runnable" seed="1115569376" result="Passed" start-time="2026-08-17 00:59:30Z" end-time="2026-08-17 00:59:30Z" duration="0.000174" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1107" name="UnsupportedVersionIsRefused" fullname="VoxelEngine.Tests.Features.CatalogueStructureTests.UnsupportedVersionIsRefused" methodname="UnsupportedVersionIsRefused" classname="VoxelEngine.Tests.Features.CatalogueStructureTests" runstate="Runnable" seed="5284594" result="Passed" start-time="2026-08-17 00:59:30Z" end-time="2026-08-17 00:59:30Z" duration="0.000062" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1110" name="FeatureHashTests" fullname="VoxelEngine.Tests.Features.FeatureHashTests" classname="VoxelEngine.Tests.Features.FeatureHashTests" runstate="Runnable" testcasecount="4" result="Passed" start-time="2026-08-17 00:59:30Z" end-time="2026-08-17 00:59:30Z" duration="0.002717" total="4" passed="4" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1111" name="CellHashIsPureAndSeparatesNeighbours" fullname="VoxelEngine.Tests.Features.FeatureHashTests.CellHashIsPureAndSeparatesNeighbours" methodname="CellHashIsPureAndSeparatesNeighbours" classname="VoxelEngine.Tests.Features.FeatureHashTests" runstate="Runnable" seed="461373712" result="Passed" start-time="2026-08-17 00:59:30Z" end-time="2026-08-17 00:59:30Z" duration="0.000333" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1112" name="CellPairHashIsOrderIndependent" fullname="VoxelEngine.Tests.Features.FeatureHashTests.CellPairHashIsOrderIndependent" methodname="CellPairHashIsOrderIndependent" classname="VoxelEngine.Tests.Features.FeatureHashTests" runstate="Runnable" seed="1724286265" result="Passed" start-time="2026-08-17 00:59:30Z" end-time="2026-08-17 00:59:30Z" duration="0.000341" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1114" name="ChanceHonoursItsBounds" fullname="VoxelEngine.Tests.Features.FeatureHashTests.ChanceHonoursItsBounds" methodname="ChanceHonoursItsBounds" classname="VoxelEngine.Tests.Features.FeatureHashTests" runstate="Runnable" seed="1288409881" result="Passed" start-time="2026-08-17 00:59:30Z" end-time="2026-08-17 00:59:30Z" duration="0.000380" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1113" name="RangeStaysInBoundsAndUsesTheWholeRange" fullname="VoxelEngine.Tests.Features.FeatureHashTests.RangeStaysInBoundsAndUsesTheWholeRange" methodname="RangeStaysInBoundsAndUsesTheWholeRange" classname="VoxelEngine.Tests.Features.FeatureHashTests" runstate="Runnable" seed="503843390" result="Passed" start-time="2026-08-17 00:59:30Z" end-time="2026-08-17 00:59:30Z" duration="0.000969" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1115" name="FeatureRegionBuildTests" fullname="VoxelEngine.Tests.Features.FeatureRegionBuildTests" classname="VoxelEngine.Tests.Features.FeatureRegionBuildTests" runstate="Runnable" testcasecount="5" result="Passed" start-time="2026-08-17 00:59:30Z" end-time="2026-08-17 00:59:32Z" duration="2.060787" total="5" passed="5" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1118" name="BuildCompletesImmediatelyWithoutACatalogue" fullname="VoxelEngine.Tests.Features.FeatureRegionBuildTests.BuildCompletesImmediatelyWithoutACatalogue" methodname="BuildCompletesImmediatelyWithoutACatalogue" classname="VoxelEngine.Tests.Features.FeatureRegionBuildTests" runstate="Runnable" seed="1366654136" result="Passed" start-time="2026-08-17 00:59:30Z" end-time="2026-08-17 00:59:30Z" duration="0.000672" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1119" name="CompletedBuildStaysCompleteAndWritesNothingFurther" fullname="VoxelEngine.Tests.Features.FeatureRegionBuildTests.CompletedBuildStaysCompleteAndWritesNothingFurther" methodname="CompletedBuildStaysCompleteAndWritesNothingFurther" classname="VoxelEngine.Tests.Features.FeatureRegionBuildTests" runstate="Runnable" seed="1521965988" result="Passed" start-time="2026-08-17 00:59:30Z" end-time="2026-08-17 00:59:30Z" duration="0.114348" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1120" name="RegionWithNoOverlappingPlacementsBuildsNothing" fullname="VoxelEngine.Tests.Features.FeatureRegionBuildTests.RegionWithNoOverlappingPlacementsBuildsNothing" methodname="RegionWithNoOverlappingPlacementsBuildsNothing" classname="VoxelEngine.Tests.Features.FeatureRegionBuildTests" runstate="Runnable" seed="453853574" result="Passed" start-time="2026-08-17 00:59:30Z" end-time="2026-08-17 00:59:30Z" duration="0.000300" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1116" name="SlicedBuildWritesTheSameVoxelsAsAnUnslicedOne" fullname="VoxelEngine.Tests.Features.FeatureRegionBuildTests.SlicedBuildWritesTheSameVoxelsAsAnUnslicedOne" methodname="SlicedBuildWritesTheSameVoxelsAsAnUnslicedOne" classname="VoxelEngine.Tests.Features.FeatureRegionBuildTests" runstate="Runnable" seed="1543839957" result="Passed" start-time="2026-08-17 00:59:30Z" end-time="2026-08-17 00:59:31Z" duration="0.888133" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1117" name="WholeRegionEntryPointMatchesTheSlicedBuild" fullname="VoxelEngine.Tests.Features.FeatureRegionBuildTests.WholeRegionEntryPointMatchesTheSlicedBuild" methodname="WholeRegionEntryPointMatchesTheSlicedBuild" classname="VoxelEngine.Tests.Features.FeatureRegionBuildTests" runstate="Runnable" seed="526916921" result="Passed" start-time="2026-08-17 00:59:31Z" end-time="2026-08-17 00:59:32Z" duration="1.056314" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1121" name="ShapeProgramTests" fullname="VoxelEngine.Tests.Features.ShapeProgramTests" classname="VoxelEngine.Tests.Features.ShapeProgramTests" runstate="Runnable" testcasecount="7" result="Passed" start-time="2026-08-17 00:59:32Z" end-time="2026-08-17 00:59:33Z" duration="0.352475" total="7" passed="7" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1127" name="CarveRemovesWhatFillPlaced" fullname="VoxelEngine.Tests.Features.ShapeProgramTests.CarveRemovesWhatFillPlaced" methodname="CarveRemovesWhatFillPlaced" classname="VoxelEngine.Tests.Features.ShapeProgramTests" runstate="Runnable" seed="2043260239" result="Passed" start-time="2026-08-17 00:59:32Z" end-time="2026-08-17 00:59:32Z" duration="0.001880" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1126" name="ClippingNeverWritesOutsideTheSubVolume" fullname="VoxelEngine.Tests.Features.ShapeProgramTests.ClippingNeverWritesOutsideTheSubVolume" methodname="ClippingNeverWritesOutsideTheSubVolume" classname="VoxelEngine.Tests.Features.ShapeProgramTests" runstate="Runnable" seed="872928174" result="Passed" start-time="2026-08-17 00:59:32Z" end-time="2026-08-17 00:59:32Z" duration="0.003723" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1122" name="CottageProgramEmitsPrimitives" fullname="VoxelEngine.Tests.Features.ShapeProgramTests.CottageProgramEmitsPrimitives" methodname="CottageProgramEmitsPrimitives" classname="VoxelEngine.Tests.Features.ShapeProgramTests" runstate="Runnable" seed="1364449750" result="Passed" start-time="2026-08-17 00:59:32Z" end-time="2026-08-17 00:59:32Z" duration="0.000387" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1123" name="EvaluationIsDeterministic" fullname="VoxelEngine.Tests.Features.ShapeProgramTests.EvaluationIsDeterministic" methodname="EvaluationIsDeterministic" classname="VoxelEngine.Tests.Features.ShapeProgramTests" runstate="Runnable" seed="1864914600" result="Passed" start-time="2026-08-17 00:59:32Z" end-time="2026-08-17 00:59:32Z" duration="0.001365" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1124" name="EveryPrimitiveLiesInsideTheDeclaredFootprint" fullname="VoxelEngine.Tests.Features.ShapeProgramTests.EveryPrimitiveLiesInsideTheDeclaredFootprint" methodname="EveryPrimitiveLiesInsideTheDeclaredFootprint" classname="VoxelEngine.Tests.Features.ShapeProgramTests" runstate="Runnable" seed="1097370000" result="Passed" start-time="2026-08-17 00:59:32Z" end-time="2026-08-17 00:59:32Z" duration="0.000874" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1128" name="PrimitiveBudgetIsReportedNotTruncated" fullname="VoxelEngine.Tests.Features.ShapeProgramTests.PrimitiveBudgetIsReportedNotTruncated" methodname="PrimitiveBudgetIsReportedNotTruncated" classname="VoxelEngine.Tests.Features.ShapeProgramTests" runstate="Runnable" seed="1623640802" result="Passed" start-time="2026-08-17 00:59:32Z" end-time="2026-08-17 00:59:32Z" duration="0.000237" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1125" name="RasterisingInPiecesEqualsRasterisingWhole" fullname="VoxelEngine.Tests.Features.ShapeProgramTests.RasterisingInPiecesEqualsRasterisingWhole" methodname="RasterisingInPiecesEqualsRasterisingWhole" classname="VoxelEngine.Tests.Features.ShapeProgramTests" runstate="Runnable" seed="1976993737" result="Passed" start-time="2026-08-17 00:59:32Z" end-time="2026-08-17 00:59:33Z" duration="0.342290" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

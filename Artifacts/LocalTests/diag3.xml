@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="1" result="Failed(Child)" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-18 05:25:44Z" end-time="2026-08-18 05:25:44Z" duration="0.0334889">
+  <test-suite type="TestSuite" id="1000" name="voxel" fullname="voxel" runstate="Runnable" testcasecount="983" result="Failed" site="Child" start-time="2026-08-18 05:25:44Z" end-time="2026-08-18 05:25:44Z" duration="0.033489" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <failure>
+      <message><![CDATA[One or more child tests had errors]]></message>
+    </failure>
+    <test-suite type="Assembly" id="1412" name="Game.Structures.Tests.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/Game.Structures.Tests.dll" runstate="Runnable" testcasecount="270" result="Failed" site="Child" start-time="2026-08-18 05:25:44Z" end-time="2026-08-18 05:25:44Z" duration="0.026079" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="19655" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <failure>
+        <message><![CDATA[One or more child tests had errors]]></message>
+      </failure>
+      <test-suite type="TestSuite" id="1413" name="Game" fullname="Game" runstate="Runnable" testcasecount="270" result="Failed" site="Child" start-time="2026-08-18 05:25:44Z" end-time="2026-08-18 05:25:44Z" duration="0.024725" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <failure>
+          <message><![CDATA[One or more child tests had errors]]></message>
+        </failure>
+        <test-suite type="TestSuite" id="1414" name="Structures" fullname="Game.Structures" runstate="Runnable" testcasecount="270" result="Failed" site="Child" start-time="2026-08-18 05:25:44Z" end-time="2026-08-18 05:25:44Z" duration="0.023438" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <failure>
+            <message><![CDATA[One or more child tests had errors]]></message>
+          </failure>
+          <test-suite type="TestSuite" id="1415" name="Tests" fullname="Game.Structures.Tests" runstate="Runnable" testcasecount="270" result="Failed" site="Child" start-time="2026-08-18 05:25:44Z" end-time="2026-08-18 05:25:44Z" duration="0.022128" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <failure>
+              <message><![CDATA[One or more child tests had errors]]></message>
+            </failure>
+            <test-suite type="TestFixture" id="1410" name="ZzDiagnosticTests" fullname="Game.Structures.Tests.ZzDiagnosticTests" classname="Game.Structures.Tests.ZzDiagnosticTests" runstate="Runnable" testcasecount="1" result="Failed" site="Child" start-time="2026-08-18 05:25:44Z" end-time="2026-08-18 05:25:44Z" duration="0.019352" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <failure>
+                <message><![CDATA[One or more child tests had errors]]></message>
+              </failure>
+              <test-case id="1411" name="DiagnoseCastleBedchamber" fullname="Game.Structures.Tests.ZzDiagnosticTests.DiagnoseCastleBedchamber" methodname="DiagnoseCastleBedchamber" classname="Game.Structures.Tests.ZzDiagnosticTests" runstate="Runnable" seed="1412167575" result="Failed" start-time="2026-08-18 05:25:44Z" end-time="2026-08-18 05:25:44Z" duration="0.014183" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <failure>
+                  <message><![CDATA[bed placement failed]]></message>
+                  <stack-trace><![CDATA[at Game.Structures.Tests.ZzDiagnosticTests.DiagnoseCastleBedchamber () [0x0035d] in /Users/jlashmet/code/voxel/Assets/Game/Structures/Tests/ZzDiagnosticTests.cs:48
+]]></stack-trace>
+                </failure>
+                <output><![CDATA[### PLAN floors=5 floorHeight=46 keepHalf=102,94 keepHeight=230
+### SPACE id=3952648526 kind=Bedroom wellFormed=True min=int3(-314, 94, 284) max=int3(-126, 129, 456) size=int3(188, 35, 172)
+### CONTEXT wellFormed=True style=41830265 structKind=Castle spaceKind=Bedroom
+### EXCL[0] kind=Stair, Navigation wellFormed=True min=int3(-292, 94, 300) max=int3(-266, 129, 381)
+### EXCL[1] kind=Stair, Navigation wellFormed=True min=int3(-315, 94, 283) max=int3(-260, 129, 338)
+### EXCL[2] kind=Gameplay wellFormed=True min=int3(-283, 101, 284) max=int3(-259, 135, 296)
+### EXCL[3] kind=Gameplay wellFormed=True min=int3(-283, 101, 444) max=int3(-259, 135, 456)
+### EXCL[4] kind=Gameplay wellFormed=True min=int3(-232, 101, 284) max=int3(-208, 135, 296)
+### EXCL[5] kind=Gameplay wellFormed=True min=int3(-232, 101, 444) max=int3(-208, 135, 456)
+### EXCL[6] kind=Gameplay wellFormed=True min=int3(-181, 101, 284) max=int3(-157, 135, 296)
+### EXCL[7] kind=Gameplay wellFormed=True min=int3(-181, 101, 444) max=int3(-157, 135, 456)
+### EXCL[8] kind=Gameplay wellFormed=True min=int3(-318, 94, 388) max=int3(-294, 129, 438)
+### EXCL[9] kind=Navigation, Gameplay wellFormed=True min=int3(-288, 94, 368) max=int3(-250, 129, 426)
+### EXCL[10] kind=Gameplay wellFormed=True min=int3(-138, 94, 307) max=int3(-126, 129, 337)
+### EXCL[11] kind=Gameplay wellFormed=True min=int3(-138, 94, 403) max=int3(-126, 129, 433)
+### SCENE valid=True badSlot=0 slotCount=5
+### SOCKETS count=10
+### SOCKET[0] id=1 kind=Floor wellFormed=True min=int3(-314, 94, 284) max=int3(-126, 95, 456)
+### SOCKET[1] id=2 kind=Wall wellFormed=True min=int3(-314, 94, 284) max=int3(-313, 129, 456)
+### SOCKET[2] id=3 kind=Wall wellFormed=True min=int3(-127, 94, 284) max=int3(-126, 129, 456)
+### SOCKET[3] id=4 kind=Wall wellFormed=True min=int3(-314, 94, 284) max=int3(-126, 129, 285)
+### SOCKET[4] id=5 kind=Wall wellFormed=True min=int3(-314, 94, 455) max=int3(-126, 129, 456)
+### SOCKET[5] id=6 kind=Corner wellFormed=True min=int3(-314, 94, 284) max=int3(-313, 129, 285)
+### SOCKET[6] id=7 kind=Corner wellFormed=True min=int3(-127, 94, 284) max=int3(-126, 129, 285)
+### SOCKET[7] id=8 kind=Corner wellFormed=True min=int3(-314, 94, 455) max=int3(-313, 129, 456)
+### SOCKET[8] id=9 kind=Corner wellFormed=True min=int3(-127, 94, 455) max=int3(-126, 129, 456)
+### SOCKET[9] id=10 kind=Ceiling wellFormed=True min=int3(-314, 128, 284) max=int3(-126, 129, 456)
+### BED descriptor wellFormed=True size=int3(24, 12, 28) family=Bed
+### STEP bed=False
+<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

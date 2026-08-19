@@ -159,7 +159,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
                 math.saturate(join.BlendWidth * 0.5f));
         }
 
-        private static bool IsSolidSample(byte material) =>
+        /// <summary>
+        /// Whether a material contributes solid surface. Internal rather than private so the GPU
+        /// oracle can compare against this predicate instead of restating it — the two excluded
+        /// materials are presentation-only and easy to forget.
+        /// </summary>
+        internal static bool IsSolidSample(byte material) =>
             material != 0 && material != 11 && material != 16;
 
         private static float CurvatureFactor(in SurfaceStyleReadDefinition definition)

@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="10" result="Passed" total="10" passed="10" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-18 20:07:01Z" end-time="2026-08-18 20:07:01Z" duration="0.0288151">
+  <test-suite type="TestSuite" id="1000" name="voxel" fullname="voxel" runstate="Runnable" testcasecount="1028" result="Passed" start-time="2026-08-18 20:07:01Z" end-time="2026-08-18 20:07:01Z" duration="0.028815" total="10" passed="10" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <test-suite type="Assembly" id="2313" name="VoxelEngine.Tests.EditMode.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/VoxelEngine.Tests.EditMode.dll" runstate="Runnable" testcasecount="711" result="Passed" start-time="2026-08-18 20:07:01Z" end-time="2026-08-18 20:07:01Z" duration="0.023182" total="10" passed="10" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="89036" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <test-suite type="TestSuite" id="2314" name="VoxelEngine" fullname="VoxelEngine" runstate="Runnable" testcasecount="711" result="Passed" start-time="2026-08-18 20:07:01Z" end-time="2026-08-18 20:07:01Z" duration="0.022052" total="10" passed="10" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="2315" name="Tests" fullname="VoxelEngine.Tests" runstate="Runnable" testcasecount="711" result="Passed" start-time="2026-08-18 20:07:01Z" end-time="2026-08-18 20:07:01Z" duration="0.020927" total="10" passed="10" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="2316" name="EditMode" fullname="VoxelEngine.Tests.EditMode" runstate="Runnable" testcasecount="711" result="Passed" start-time="2026-08-18 20:07:01Z" end-time="2026-08-18 20:07:01Z" duration="0.019802" total="10" passed="10" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="1714" name="GpuMeshletPageArenaTests" fullname="VoxelEngine.Tests.EditMode.GpuMeshletPageArenaTests" classname="VoxelEngine.Tests.EditMode.GpuMeshletPageArenaTests" runstate="Runnable" testcasecount="10" result="Passed" start-time="2026-08-18 20:07:01Z" end-time="2026-08-18 20:07:01Z" duration="0.013947" total="10" passed="10" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1717" name="AFailedReservationLeavesThePreviousGeometryStanding" fullname="VoxelEngine.Tests.EditMode.GpuMeshletPageArenaTests.AFailedReservationLeavesThePreviousGeometryStanding" methodname="AFailedReservationLeavesThePreviousGeometryStanding" classname="VoxelEngine.Tests.EditMode.GpuMeshletPageArenaTests" runstate="Runnable" seed="1069128894" result="Passed" start-time="2026-08-18 20:07:01Z" end-time="2026-08-18 20:07:01Z" duration="0.006577" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1724" name="ClearReturnsEveryPage" fullname="VoxelEngine.Tests.EditMode.GpuMeshletPageArenaTests.ClearReturnsEveryPage" methodname="ClearReturnsEveryPage" classname="VoxelEngine.Tests.EditMode.GpuMeshletPageArenaTests" runstate="Runnable" seed="987933931" result="Passed" start-time="2026-08-18 20:07:01Z" end-time="2026-08-18 20:07:01Z" duration="0.000373" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1720" name="EmptyingAChunkReleasesEverythingItHeld" fullname="VoxelEngine.Tests.EditMode.GpuMeshletPageArenaTests.EmptyingAChunkReleasesEverythingItHeld" methodname="EmptyingAChunkReleasesEverythingItHeld" classname="VoxelEngine.Tests.EditMode.GpuMeshletPageArenaTests" runstate="Runnable" seed="1271184671" result="Passed" start-time="2026-08-18 20:07:01Z" end-time="2026-08-18 20:07:01Z" duration="0.000315" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1721" name="OneChunkCannotConsumeTheWholeArena" fullname="VoxelEngine.Tests.EditMode.GpuMeshletPageArenaTests.OneChunkCannotConsumeTheWholeArena" methodname="OneChunkCannotConsumeTheWholeArena" classname="VoxelEngine.Tests.EditMode.GpuMeshletPageArenaTests" runstate="Runnable" seed="1479797451" result="Passed" start-time="2026-08-18 20:07:01Z" end-time="2026-08-18 20:07:01Z" duration="0.000072" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1715" name="PageCountRoundsUpAndZeroNeedsNone" fullname="VoxelEngine.Tests.EditMode.GpuMeshletPageArenaTests.PageCountRoundsUpAndZeroNeedsNone" methodname="PageCountRoundsUpAndZeroNeedsNone" classname="VoxelEngine.Tests.EditMode.GpuMeshletPageArenaTests" runstate="Runnable" seed="2071163011" result="Passed" start-time="2026-08-18 20:07:01Z" end-time="2026-08-18 20:07:01Z" duration="0.000058" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1723" name="PageOffsetsDoNotOverlap" fullname="VoxelEngine.Tests.EditMode.GpuMeshletPageArenaTests.PageOffsetsDoNotOverlap" methodname="PageOffsetsDoNotOverlap" classname="VoxelEngine.Tests.EditMode.GpuMeshletPageArenaTests" runstate="Runnable" seed="1225279" result="Passed" start-time="2026-08-18 20:07:01Z" end-time="2026-08-18 20:07:01Z" duration="0.000071" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1718" name="RegrowingAChunkKeepsThePagesItAlreadyHeld" fullname="VoxelEngine.Tests.EditMode.GpuMeshletPageArenaTests.RegrowingAChunkKeepsThePagesItAlreadyHeld" methodname="RegrowingAChunkKeepsThePagesItAlreadyHeld" classname="VoxelEngine.Tests.EditMode.GpuMeshletPageArenaTests" runstate="Runnable" seed="856753590" result="Passed" start-time="2026-08-18 20:07:01Z" end-time="2026-08-18 20:07:01Z" duration="0.000310" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1722" name="ReleasedPagesAreHandedOutAgain" fullname="VoxelEngine.Tests.EditMode.GpuMeshletPageArenaTests.ReleasedPagesAreHandedOutAgain" methodname="ReleasedPagesAreHandedOutAgain" classname="VoxelEngine.Tests.EditMode.GpuMeshletPageArenaTests" runstate="Runnable" seed="7235435" result="Passed" start-time="2026-08-18 20:07:01Z" end-time="2026-08-18 20:07:01Z" duration="0.000052" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1716" name="ReservingGivesDistinctPages" fullname="VoxelEngine.Tests.EditMode.GpuMeshletPageArenaTests.ReservingGivesDistinctPages" methodname="ReservingGivesDistinctPages" classname="VoxelEngine.Tests.EditMode.GpuMeshletPageArenaTests" runstate="Runnable" seed="1162424455" result="Passed" start-time="2026-08-18 20:07:01Z" end-time="2026-08-18 20:07:01Z" duration="0.000280" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1719" name="ShrinkingAChunkReturnsTheDifference" fullname="VoxelEngine.Tests.EditMode.GpuMeshletPageArenaTests.ShrinkingAChunkReturnsTheDifference" methodname="ShrinkingAChunkReturnsTheDifference" classname="VoxelEngine.Tests.EditMode.GpuMeshletPageArenaTests" runstate="Runnable" seed="1202932300" result="Passed" start-time="2026-08-18 20:07:01Z" end-time="2026-08-18 20:07:01Z" duration="0.000102" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

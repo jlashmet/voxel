@@ -1,0 +1,6 @@
+base_pixels=21116
+base_changed=309
+base_changed_rate=0.0146
+tip_pixels=25264
+tip_changed=10271
+tip_changed_rate=0.4065

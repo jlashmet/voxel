@@ -1,0 +1,363 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="25" result="Failed(Child)" total="25" passed="20" failed="5" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-18 14:03:22Z" end-time="2026-08-18 14:08:25Z" duration="303.4115202">
+  <test-suite type="TestSuite" id="1520" name="voxel" fullname="voxel" runstate="Runnable" testcasecount="377" result="Failed" site="Child" start-time="2026-08-18 14:03:22Z" end-time="2026-08-18 14:08:25Z" duration="303.411520" total="25" passed="20" failed="5" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="PlayMode" />
+    </properties>
+    <failure>
+      <message><![CDATA[One or more child tests had errors]]></message>
+    </failure>
+    <test-suite type="Assembly" id="1516" name="VoxelEngine.Tests.PlayMode.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/VoxelEngine.Tests.PlayMode.dll" runstate="Runnable" testcasecount="144" result="Failed" site="Child" start-time="2026-08-18 14:03:22Z" end-time="2026-08-18 14:08:25Z" duration="303.405785" total="25" passed="20" failed="5" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="71396" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="PlayMode" />
+        <property name="EditorOnly" value="False" />
+      </properties>
+      <failure>
+        <message><![CDATA[One or more child tests had errors]]></message>
+      </failure>
+      <test-suite type="TestSuite" id="1517" name="VoxelEngine" fullname="VoxelEngine" runstate="Runnable" testcasecount="144" result="Failed" site="Child" start-time="2026-08-18 14:03:22Z" end-time="2026-08-18 14:08:25Z" duration="303.404757" total="25" passed="20" failed="5" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <failure>
+          <message><![CDATA[One or more child tests had errors]]></message>
+        </failure>
+        <test-suite type="TestSuite" id="1518" name="Tests" fullname="VoxelEngine.Tests" runstate="Runnable" testcasecount="144" result="Failed" site="Child" start-time="2026-08-18 14:03:22Z" end-time="2026-08-18 14:08:25Z" duration="303.403998" total="25" passed="20" failed="5" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <failure>
+            <message><![CDATA[One or more child tests had errors]]></message>
+          </failure>
+          <test-suite type="TestSuite" id="1519" name="PlayMode" fullname="VoxelEngine.Tests.PlayMode" runstate="Runnable" testcasecount="144" result="Failed" site="Child" start-time="2026-08-18 14:03:22Z" end-time="2026-08-18 14:08:25Z" duration="303.403154" total="25" passed="20" failed="5" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <failure>
+              <message><![CDATA[One or more child tests had errors]]></message>
+            </failure>
+            <test-suite type="TestFixture" id="1457" name="ShowcaseSkyAndFarTerrainTests" fullname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests" classname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests" runstate="Runnable" testcasecount="23" result="Failed" site="Child" start-time="2026-08-18 14:03:22Z" end-time="2026-08-18 14:08:03Z" duration="281.425218" total="23" passed="19" failed="4" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <failure>
+                <message><![CDATA[One or more child tests had errors]]></message>
+              </failure>
+              <test-case id="1475" name="BuiltContentIsRecordedForTheFarField" fullname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests.BuiltContentIsRecordedForTheFarField" methodname="BuiltContentIsRecordedForTheFarField" classname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests" runstate="Runnable" seed="1174297223" result="Passed" start-time="2026-08-18 14:03:22Z" end-time="2026-08-18 14:03:46Z" duration="24.013107" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[[VoxelResidency] residentRegions=32 mixed=233,873/2,367,424 evicted=0 reclaimedMixed=0
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+[VoxelResidency] residentRegions=48 mixed=335,291/2,367,424 evicted=0 reclaimedMixed=0
+]]></output>
+              </test-case>
+              <test-case id="1480" name="CameraMovementDoesNotStallOnClipmapRebuilds" fullname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests.CameraMovementDoesNotStallOnClipmapRebuilds" methodname="CameraMovementDoesNotStallOnClipmapRebuilds" classname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests" runstate="Runnable" seed="1417065589" result="Failed" start-time="2026-08-18 14:03:46Z" end-time="2026-08-18 14:04:04Z" duration="18.063793" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <failure>
+                  <message><![CDATA[  A 5722.3 ms frame while moving points at a synchronous clipmap or residency rebuild on the main thread.
+  Expected: less than 500.0f
+  But was:  5722.31689f
+]]></message>
+                  <stack-trace><![CDATA[at VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests+<CameraMovementDoesNotStallOnClipmapRebuilds>d__27.MoveNext () [0x00183] in /Users/jlashmet/code/voxel/Assets/Tests/PlayMode/ShowcaseSkyAndFarTerrainTests.cs:603
+at UnityEngine.TestTools.TestEnumerator+<Execute>d__7.MoveNext () [0x0003a] in ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEngine.TestRunner/NUnitExtensions/Attributes/TestEnumerator.cs:44
+]]></stack-trace>
+                </failure>
+                <output><![CDATA[[VoxelResidency] residentRegions=32 mixed=233,927/2,367,424 evicted=0 reclaimedMixed=0
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+moving-camera frame cost: p95=91.84ms max=5722.32ms
+]]></output>
+              </test-case>
+              <test-case id="1459" name="CameraPositionStaysFinite" fullname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests.CameraPositionStaysFinite" methodname="CameraPositionStaysFinite" classname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests" runstate="Runnable" seed="1641347042" result="Passed" start-time="2026-08-18 14:04:04Z" end-time="2026-08-18 14:04:12Z" duration="7.919588" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[[VoxelResidency] residentRegions=32 mixed=233,927/2,367,424 evicted=0 reclaimedMixed=0
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+]]></output>
+              </test-case>
+              <test-case id="1467" name="ClipmapRingsAreHollowAndDoNotOverlap" fullname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests.ClipmapRingsAreHollowAndDoNotOverlap" methodname="ClipmapRingsAreHollowAndDoNotOverlap" classname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests" runstate="Runnable" seed="353988320" result="Passed" start-time="2026-08-18 14:04:12Z" end-time="2026-08-18 14:04:20Z" duration="7.698200" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[[VoxelResidency] residentRegions=32 mixed=233,927/2,367,424 evicted=0 reclaimedMixed=0
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+]]></output>
+              </test-case>
+              <test-case id="1468" name="ClipmapSnapIsStableWestAndNorthOfTheOrigin" fullname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests.ClipmapSnapIsStableWestAndNorthOfTheOrigin" methodname="ClipmapSnapIsStableWestAndNorthOfTheOrigin" classname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests" runstate="Runnable" seed="210629471" result="Passed" start-time="2026-08-18 14:04:20Z" end-time="2026-08-18 14:04:27Z" duration="7.643781" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[[VoxelResidency] residentRegions=32 mixed=233,927/2,367,424 evicted=0 reclaimedMixed=0
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+]]></output>
+              </test-case>
+              <test-case id="1477" name="FarMeshRisesOverBuiltContent" fullname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests.FarMeshRisesOverBuiltContent" methodname="FarMeshRisesOverBuiltContent" classname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests" runstate="Runnable" seed="1402545176" result="Passed" start-time="2026-08-18 14:04:27Z" end-time="2026-08-18 14:04:51Z" duration="23.927458" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[[VoxelResidency] residentRegions=32 mixed=233,927/2,367,424 evicted=0 reclaimedMixed=0
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+[VoxelResidency] residentRegions=48 mixed=335,338/2,367,424 evicted=0 reclaimedMixed=0
+]]></output>
+              </test-case>
+              <test-case id="1466" name="FarTerrainCoversDistanceBeyondTheVoxelRadius" fullname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests.FarTerrainCoversDistanceBeyondTheVoxelRadius" methodname="FarTerrainCoversDistanceBeyondTheVoxelRadius" classname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests" runstate="Runnable" seed="522000893" result="Passed" start-time="2026-08-18 14:04:51Z" end-time="2026-08-18 14:04:59Z" duration="7.754262" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[[VoxelResidency] residentRegions=32 mixed=233,927/2,367,424 evicted=0 reclaimedMixed=0
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+]]></output>
+              </test-case>
+              <test-case id="1465" name="FarTerrainHeightsMatchTheHeightField" fullname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests.FarTerrainHeightsMatchTheHeightField" methodname="FarTerrainHeightsMatchTheHeightField" classname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests" runstate="Runnable" seed="561888006" result="Failed" start-time="2026-08-18 14:04:59Z" end-time="2026-08-18 14:05:07Z" duration="7.610641" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <failure>
+                  <message><![CDATA[  Far terrain vertex at (-11955.4, -12022.0) is 22.0 m but the height field says 626.2 m.
+  Expected: 626.20000933110714d +/- 0.05000000074505806d
+  But was:  22.0d
+]]></message>
+                  <stack-trace><![CDATA[at VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests+<FarTerrainHeightsMatchTheHeightField>d__11.MoveNext () [0x000d9] in /Users/jlashmet/code/voxel/Assets/Tests/PlayMode/ShowcaseSkyAndFarTerrainTests.cs:193
+at UnityEngine.TestTools.TestEnumerator+<Execute>d__7.MoveNext () [0x0003a] in ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEngine.TestRunner/NUnitExtensions/Attributes/TestEnumerator.cs:44
+]]></stack-trace>
+                </failure>
+                <output><![CDATA[[VoxelResidency] residentRegions=32 mixed=233,927/2,367,424 evicted=0 reclaimedMixed=0
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+]]></output>
+              </test-case>
+              <test-case id="1461" name="FarTerrainIsCreatedAutomatically" fullname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests.FarTerrainIsCreatedAutomatically" methodname="FarTerrainIsCreatedAutomatically" classname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests" runstate="Runnable" seed="1363836088" result="Passed" start-time="2026-08-18 14:05:07Z" end-time="2026-08-18 14:05:14Z" duration="7.606062" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[[VoxelResidency] residentRegions=32 mixed=233,927/2,367,424 evicted=0 reclaimedMixed=0
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+]]></output>
+              </test-case>
+              <test-case id="1473" name="FarTerrainMeshCarriesVisibleRelief" fullname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests.FarTerrainMeshCarriesVisibleRelief" methodname="FarTerrainMeshCarriesVisibleRelief" classname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests" runstate="Runnable" seed="98015901" result="Passed" start-time="2026-08-18 14:05:14Z" end-time="2026-08-18 14:05:22Z" duration="7.605601" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[[VoxelResidency] residentRegions=32 mixed=233,927/2,367,424 evicted=0 reclaimedMixed=0
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+]]></output>
+              </test-case>
+              <test-case id="1463" name="FarTerrainRingsBuildRealGeometry" fullname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests.FarTerrainRingsBuildRealGeometry" methodname="FarTerrainRingsBuildRealGeometry" classname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests" runstate="Runnable" seed="878431065" result="Passed" start-time="2026-08-18 14:05:22Z" end-time="2026-08-18 14:05:29Z" duration="7.599392" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[[VoxelResidency] residentRegions=32 mixed=233,927/2,367,424 evicted=0 reclaimedMixed=0
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+]]></output>
+              </test-case>
+              <test-case id="1464" name="FarTerrainRingSpacingsDoubleOutward" fullname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests.FarTerrainRingSpacingsDoubleOutward" methodname="FarTerrainRingSpacingsDoubleOutward" classname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests" runstate="Runnable" seed="1912057062" result="Passed" start-time="2026-08-18 14:05:29Z" end-time="2026-08-18 14:05:37Z" duration="7.595860" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[[VoxelResidency] residentRegions=32 mixed=233,927/2,367,424 evicted=0 reclaimedMixed=0
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+]]></output>
+              </test-case>
+              <test-case id="1462" name="FarTerrainSeedMatchesTheVoxelWorld" fullname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests.FarTerrainSeedMatchesTheVoxelWorld" methodname="FarTerrainSeedMatchesTheVoxelWorld" classname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests" runstate="Runnable" seed="711047862" result="Passed" start-time="2026-08-18 14:05:37Z" end-time="2026-08-18 14:05:45Z" duration="7.769821" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[[VoxelResidency] residentRegions=32 mixed=233,927/2,367,424 evicted=0 reclaimedMixed=0
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+]]></output>
+              </test-case>
+              <test-case id="1474" name="GroundIsResidentAheadOfThePlayerNotUnderneath" fullname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests.GroundIsResidentAheadOfThePlayerNotUnderneath" methodname="GroundIsResidentAheadOfThePlayerNotUnderneath" classname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests" runstate="Runnable" seed="2057167827" result="Failed" start-time="2026-08-18 14:05:45Z" end-time="2026-08-18 14:06:02Z" duration="16.871084" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <failure>
+                  <message><![CDATA[  Only 0 of 8 directions have ground resident 200 m out. The player will walk into unbuilt terrain.
+  Expected: greater than 4
+  But was:  0
+]]></message>
+                  <stack-trace><![CDATA[at VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests+<GroundIsResidentAheadOfThePlayerNotUnderneath>d__21.MoveNext () [0x0010d] in /Users/jlashmet/code/voxel/Assets/Tests/PlayMode/ShowcaseSkyAndFarTerrainTests.cs:446
+at UnityEngine.TestTools.TestEnumerator+<Execute>d__7.MoveNext () [0x0003a] in ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEngine.TestRunner/NUnitExtensions/Attributes/TestEnumerator.cs:44
+]]></stack-trace>
+                </failure>
+                <output><![CDATA[[VoxelResidency] residentRegions=32 mixed=233,927/2,367,424 evicted=0 reclaimedMixed=0
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+]]></output>
+              </test-case>
+              <test-case id="1472" name="MountainReliefExistsWithinTheFarTerrainsReach" fullname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests.MountainReliefExistsWithinTheFarTerrainsReach" methodname="MountainReliefExistsWithinTheFarTerrainsReach" classname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests" runstate="Runnable" seed="740573985" result="Passed" start-time="2026-08-18 14:06:02Z" end-time="2026-08-18 14:06:09Z" duration="7.604873" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[[VoxelResidency] residentRegions=32 mixed=233,927/2,367,424 evicted=0 reclaimedMixed=0
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+]]></output>
+              </test-case>
+              <test-case id="1460" name="PlayerDoesNotFallThroughTheWorld" fullname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests.PlayerDoesNotFallThroughTheWorld" methodname="PlayerDoesNotFallThroughTheWorld" classname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests" runstate="Runnable" seed="348839934" result="Passed" start-time="2026-08-18 14:06:09Z" end-time="2026-08-18 14:06:26Z" duration="16.770248" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[[VoxelResidency] residentRegions=32 mixed=233,927/2,367,424 evicted=0 reclaimedMixed=0
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+]]></output>
+              </test-case>
+              <test-case id="1458" name="ShowcaseStartsWithoutErrors" fullname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests.ShowcaseStartsWithoutErrors" methodname="ShowcaseStartsWithoutErrors" classname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests" runstate="Runnable" seed="833528610" result="Passed" start-time="2026-08-18 14:06:26Z" end-time="2026-08-18 14:06:34Z" duration="7.719926" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[[VoxelResidency] residentRegions=32 mixed=233,927/2,367,424 evicted=0 reclaimedMixed=0
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+]]></output>
+              </test-case>
+              <test-case id="1470" name="SkyIsBlueNotGreyWellAboveTheHorizon" fullname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests.SkyIsBlueNotGreyWellAboveTheHorizon" methodname="SkyIsBlueNotGreyWellAboveTheHorizon" classname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests" runstate="Runnable" seed="329941858" result="Passed" start-time="2026-08-18 14:06:34Z" end-time="2026-08-18 14:06:42Z" duration="7.837888" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[[VoxelResidency] residentRegions=32 mixed=233,927/2,367,424 evicted=0 reclaimedMixed=0
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+]]></output>
+              </test-case>
+              <test-case id="1471" name="SkyNearZenithIsDeeperThanNearTheHorizon" fullname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests.SkyNearZenithIsDeeperThanNearTheHorizon" methodname="SkyNearZenithIsDeeperThanNearTheHorizon" classname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests" runstate="Runnable" seed="1744560084" result="Failed" start-time="2026-08-18 14:06:42Z" end-time="2026-08-18 14:06:49Z" duration="7.685148" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <failure>
+                  <message><![CDATA[  Zenith RGBA(0.439, 0.549, 0.788, 1.000) is no bluer than the horizon RGBA(0.220, 0.388, 0.749, 1.000); the gradient is flat.
+  Expected: greater than 0.529411793f
+  But was:  0.349019617f
+]]></message>
+                  <stack-trace><![CDATA[at VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests+<SkyNearZenithIsDeeperThanNearTheHorizon>d__18.MoveNext () [0x0014b] in /Users/jlashmet/code/voxel/Assets/Tests/PlayMode/ShowcaseSkyAndFarTerrainTests.cs:367
+at UnityEngine.TestTools.TestEnumerator+<Execute>d__7.MoveNext () [0x0003a] in ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEngine.TestRunner/NUnitExtensions/Attributes/TestEnumerator.cs:44
+]]></stack-trace>
+                </failure>
+                <output><![CDATA[[VoxelResidency] residentRegions=32 mixed=233,927/2,367,424 evicted=0 reclaimedMixed=0
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+]]></output>
+              </test-case>
+              <test-case id="1469" name="SpawnGroundIsWalkableNotAMountainside" fullname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests.SpawnGroundIsWalkableNotAMountainside" methodname="SpawnGroundIsWalkableNotAMountainside" classname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests" runstate="Runnable" seed="741695490" result="Passed" start-time="2026-08-18 14:06:49Z" end-time="2026-08-18 14:06:57Z" duration="7.746685" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[[VoxelResidency] residentRegions=32 mixed=233,927/2,367,424 evicted=0 reclaimedMixed=0
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+]]></output>
+              </test-case>
+              <test-case id="1479" name="SteadyStateFrameCostIsReasonable" fullname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests.SteadyStateFrameCostIsReasonable" methodname="SteadyStateFrameCostIsReasonable" classname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests" runstate="Runnable" seed="1479568268" result="Passed" start-time="2026-08-18 14:06:57Z" end-time="2026-08-18 14:07:15Z" duration="18.108876" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[[VoxelResidency] residentRegions=32 mixed=233,927/2,367,424 evicted=0 reclaimedMixed=0
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+showcase frame cost: median=3.66ms p95=92.56ms max=5717.90ms
+]]></output>
+              </test-case>
+              <test-case id="1478" name="StructureRecordSurvivesRegionEviction" fullname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests.StructureRecordSurvivesRegionEviction" methodname="StructureRecordSurvivesRegionEviction" classname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests" runstate="Runnable" seed="1522441342" result="Passed" start-time="2026-08-18 14:07:15Z" end-time="2026-08-18 14:07:39Z" duration="24.351715" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[[VoxelResidency] residentRegions=32 mixed=233,927/2,367,424 evicted=0 reclaimedMixed=0
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+[VoxelResidency] residentRegions=48 mixed=335,291/2,367,424 evicted=0 reclaimedMixed=0
+]]></output>
+              </test-case>
+              <test-case id="1476" name="TheStoreStaysSparse" fullname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests.TheStoreStaysSparse" methodname="TheStoreStaysSparse" classname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests" runstate="Runnable" seed="1250296501" result="Passed" start-time="2026-08-18 14:07:39Z" end-time="2026-08-18 14:08:03Z" duration="23.913492" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[[VoxelResidency] residentRegions=32 mixed=233,927/2,367,424 evicted=0 reclaimedMixed=0
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+[VoxelResidency] residentRegions=48 mixed=335,291/2,367,424 evicted=0 reclaimedMixed=0
+]]></output>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1481" name="ShowcaseSkyAndFarTerrainTestsLifecycle" fullname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTestsLifecycle" classname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTestsLifecycle" runstate="Runnable" testcasecount="1" result="Passed" start-time="2026-08-18 14:08:03Z" end-time="2026-08-18 14:08:17Z" duration="14.003388" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1482" name="ReenablingShowcaseReplacesFarTerrainWithoutDuplicates" fullname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTestsLifecycle.ReenablingShowcaseReplacesFarTerrainWithoutDuplicates" methodname="ReenablingShowcaseReplacesFarTerrainWithoutDuplicates" classname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTestsLifecycle" runstate="Runnable" seed="827119111" result="Passed" start-time="2026-08-18 14:08:03Z" end-time="2026-08-18 14:08:17Z" duration="13.999652" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="Timeout" value="900000" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[[VoxelResidency] residentRegions=32 mixed=233,927/2,367,424 evicted=0 reclaimedMixed=0
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+[VoxelResidency] residentRegions=32 mixed=233,927/2,367,424 evicted=0 reclaimedMixed=0
+]]></output>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1489" name="SilhouetteHoleRegressionTests" fullname="VoxelEngine.Tests.PlayMode.SilhouetteHoleRegressionTests" classname="VoxelEngine.Tests.PlayMode.SilhouetteHoleRegressionTests" runstate="Runnable" testcasecount="1" result="Failed" site="Child" start-time="2026-08-18 14:08:17Z" end-time="2026-08-18 14:08:25Z" duration="7.972163" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <failure>
+                <message><![CDATA[One or more child tests had errors]]></message>
+              </failure>
+              <test-case id="1490" name="ProductionSilhouetteHasZeroMissingVisibleSolidChunks" fullname="VoxelEngine.Tests.PlayMode.SilhouetteHoleRegressionTests.ProductionSilhouetteHasZeroMissingVisibleSolidChunks" methodname="ProductionSilhouetteHasZeroMissingVisibleSolidChunks" classname="VoxelEngine.Tests.PlayMode.SilhouetteHoleRegressionTests" runstate="Runnable" seed="63824140" result="Failed" start-time="2026-08-18 14:08:17Z" end-time="2026-08-18 14:08:25Z" duration="7.968047" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="Timeout" value="900000" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <failure>
+                  <message><![CDATA[  The gate did not exercise the authoritative voxel surface renderer.
+  Expected: greater than 0
+  But was:  0
+]]></message>
+                  <stack-trace><![CDATA[at VoxelEngine.Tests.PlayMode.SilhouetteHoleRegressionTests+<ProductionSilhouetteHasZeroMissingVisibleSolidChunks>d__1.MoveNext () [0x0038e] in /Users/jlashmet/code/voxel/Assets/Tests/PlayMode/SilhouetteHoleRegressionTests.cs:93
+at UnityEngine.TestTools.TestEnumerator+<Execute>d__7.MoveNext () [0x0003a] in ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEngine.TestRunner/NUnitExtensions/Attributes/TestEnumerator.cs:44
+]]></stack-trace>
+                </failure>
+                <output><![CDATA[[VoxelResidency] residentRegions=32 mixed=233,979/2,367,424 evicted=0 reclaimedMixed=0
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+### SILHOUETTE_HOLE_GATE holes=0 visible=0 step4Missing=0 step4Known=9 step4Resident=0 pinReject=0
+<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

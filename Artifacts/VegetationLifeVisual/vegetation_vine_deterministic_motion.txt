@@ -1,0 +1,8 @@
+time_a=0.833
+time_b=3.333
+free_end_pixels=28058
+free_end_changed=4790
+free_end_changed_rate=0.1707
+attachment_pixels=9211
+attachment_changed=106
+attachment_changed_rate=0.0115

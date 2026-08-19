@@ -103,8 +103,15 @@ namespace VoxelEngine.Tests.EditMode
             string cacheSource = ReadRenderingSource(
                 Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"));
             StringAssert.Contains("JobHandle clearHandle = new ExactBrickMetadataClearJob", cacheSource);
-            StringAssert.Contains(".Schedule(volume, 128, clearHandle);", cacheSource);
+            // The batch size is a function of the volume now, so that a small copy stops paying for
+            // job-system fan-out it cannot use. What this guards is the dependency shape: every
+            // region copy hangs off the one clear.
+            StringAssert.Contains(".Schedule(volume, ExtractionBatchSize(volume, 128), clearHandle);",
+                                  cacheSource);
             StringAssert.Contains("JobHandle.CombineDependencies(dependency, regionHandle)", cacheSource);
+            StringAssert.DoesNotContain(
+                ".Schedule(volume, ExtractionBatchSize(volume, 128), dependency);", cacheSource,
+                "Exact metadata region copies must not form a serial dependency ladder.");
             StringAssert.DoesNotContain(".Schedule(volume, 128, dependency);", cacheSource,
                 "Exact metadata region copies must not form a serial dependency ladder.");
         }

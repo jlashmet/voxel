@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="2" result="Passed" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-18 14:45:35Z" end-time="2026-08-18 14:46:05Z" duration="29.8737311">
+  <test-suite type="TestSuite" id="1522" name="voxel" fullname="voxel" runstate="Runnable" testcasecount="378" result="Passed" start-time="2026-08-18 14:45:35Z" end-time="2026-08-18 14:46:05Z" duration="29.873731" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="PlayMode" />
+    </properties>
+    <test-suite type="Assembly" id="1518" name="VoxelEngine.Tests.PlayMode.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/VoxelEngine.Tests.PlayMode.dll" runstate="Runnable" testcasecount="145" result="Passed" start-time="2026-08-18 14:45:35Z" end-time="2026-08-18 14:46:05Z" duration="29.867738" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="62805" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="PlayMode" />
+        <property name="EditorOnly" value="False" />
+      </properties>
+      <test-suite type="TestSuite" id="1519" name="VoxelEngine" fullname="VoxelEngine" runstate="Runnable" testcasecount="145" result="Passed" start-time="2026-08-18 14:45:35Z" end-time="2026-08-18 14:46:05Z" duration="29.866685" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="1520" name="Tests" fullname="VoxelEngine.Tests" runstate="Runnable" testcasecount="145" result="Passed" start-time="2026-08-18 14:45:35Z" end-time="2026-08-18 14:46:05Z" duration="29.865702" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="1521" name="PlayMode" fullname="VoxelEngine.Tests.PlayMode" runstate="Runnable" testcasecount="145" result="Passed" start-time="2026-08-18 14:45:35Z" end-time="2026-08-18 14:46:05Z" duration="29.864802" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="1457" name="ShowcaseSkyAndFarTerrainTests" fullname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests" classname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests" runstate="Runnable" testcasecount="23" result="Passed" start-time="2026-08-18 14:45:35Z" end-time="2026-08-18 14:45:50Z" duration="15.214621" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1474" name="GroundIsResidentAheadOfThePlayerNotUnderneath" fullname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests.GroundIsResidentAheadOfThePlayerNotUnderneath" methodname="GroundIsResidentAheadOfThePlayerNotUnderneath" classname="VoxelEngine.Tests.PlayMode.ShowcaseSkyAndFarTerrainTests" runstate="Runnable" seed="1580369713" result="Passed" start-time="2026-08-18 14:45:35Z" end-time="2026-08-18 14:45:50Z" duration="15.209334" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[[VoxelResidency] residentRegions=84 mixed=507,084/2,367,424 evicted=0 reclaimedMixed=0
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+]]></output>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1516" name="ZzStreamProbeTests" fullname="VoxelEngine.Tests.PlayMode.ZzStreamProbeTests" classname="VoxelEngine.Tests.PlayMode.ZzStreamProbeTests" runstate="Runnable" testcasecount="1" result="Passed" start-time="2026-08-18 14:45:50Z" end-time="2026-08-18 14:46:05Z" duration="14.647710" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1517" name="ProbeStreamingReach" fullname="VoxelEngine.Tests.PlayMode.ZzStreamProbeTests.ProbeStreamingReach" methodname="ProbeStreamingReach" classname="VoxelEngine.Tests.PlayMode.ZzStreamProbeTests" runstate="Runnable" seed="1835597465" result="Passed" start-time="2026-08-18 14:45:50Z" end-time="2026-08-18 14:46:05Z" duration="14.643676" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="Timeout" value="1800000" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[[VoxelResidency] residentRegions=84 mixed=507,136/2,367,424 evicted=0 reclaimedMixed=0
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+### STREAM f=0 t=1.0s ahead200m=8/8 pendingLoads=115 lastGenerateMs=3.35
+<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

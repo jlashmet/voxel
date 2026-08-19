@@ -1,0 +1,2 @@
+changed_pixels=19968
+changed_ratio=0.0217

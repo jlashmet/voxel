@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="1" result="Passed" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-18 16:38:49Z" end-time="2026-08-18 16:42:05Z" duration="195.4828583">
+  <test-suite type="TestSuite" id="1522" name="voxel" fullname="voxel" runstate="Runnable" testcasecount="378" result="Passed" start-time="2026-08-18 16:38:49Z" end-time="2026-08-18 16:42:05Z" duration="195.482858" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="PlayMode" />
+    </properties>
+    <test-suite type="Assembly" id="1518" name="VoxelEngine.Tests.PlayMode.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/VoxelEngine.Tests.PlayMode.dll" runstate="Runnable" testcasecount="145" result="Passed" start-time="2026-08-18 16:38:49Z" end-time="2026-08-18 16:42:05Z" duration="195.477546" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="94006" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="PlayMode" />
+        <property name="EditorOnly" value="False" />
+      </properties>
+      <test-suite type="TestSuite" id="1519" name="VoxelEngine" fullname="VoxelEngine" runstate="Runnable" testcasecount="145" result="Passed" start-time="2026-08-18 16:38:49Z" end-time="2026-08-18 16:42:05Z" duration="195.476544" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="1520" name="Tests" fullname="VoxelEngine.Tests" runstate="Runnable" testcasecount="145" result="Passed" start-time="2026-08-18 16:38:49Z" end-time="2026-08-18 16:42:05Z" duration="195.475655" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="1521" name="PlayMode" fullname="VoxelEngine.Tests.PlayMode" runstate="Runnable" testcasecount="145" result="Passed" start-time="2026-08-18 16:38:49Z" end-time="2026-08-18 16:42:05Z" duration="195.474727" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="1516" name="ZzFrameCostTests" fullname="VoxelEngine.Tests.PlayMode.ZzFrameCostTests" classname="VoxelEngine.Tests.PlayMode.ZzFrameCostTests" runstate="Runnable" testcasecount="1" result="Passed" start-time="2026-08-18 16:38:49Z" end-time="2026-08-18 16:42:05Z" duration="195.472624" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1517" name="AttributeMovingFrameCost" fullname="VoxelEngine.Tests.PlayMode.ZzFrameCostTests.AttributeMovingFrameCost" methodname="AttributeMovingFrameCost" classname="VoxelEngine.Tests.PlayMode.ZzFrameCostTests" runstate="Runnable" seed="1755906960" result="Passed" start-time="2026-08-18 16:38:49Z" end-time="2026-08-18 16:42:05Z" duration="195.467339" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="Timeout" value="1800000" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[[VoxelResidency] residentRegions=84 mixed=507,084/2,367,424 evicted=0 reclaimedMixed=0
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+[VoxelResidency] residentRegions=96 mixed=563,843/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=112 mixed=639,612/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=128 mixed=714,941/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=144 mixed=790,760/2,367,424 evicted=0 reclaimedMixed=0
+### COST disabled far terrain + tree population at frame 210
+[VoxelResidency] residentRegions=160 mixed=866,527/2,367,424 evicted=0 reclaimedMixed=0
+### COST A/B withFar=143.6ms withoutFar=136.2ms
+### COST worst 12 moving frames (ms)
+### COST frame=416.1 loop=404.6 render=11.5 prepareP95=42.1 visibilityP95=2.3 workerP95=4.0 missing=519 visible=1109
+### COST frame=359.8 loop=322.6 render=37.2 prepareP95=40.9 visibilityP95=2.3 workerP95=4.0 missing=335 visible=1235
+### COST frame=356.9 loop=344.6 render=12.3 prepareP95=5.8 visibilityP95=2.4 workerP95=3.5 missing=118 visible=1291
+### COST frame=348.7 loop=338.6 render=10.1 prepareP95=42.3 visibilityP95=2.1 workerP95=4.0 missing=492 visible=769
+### COST frame=343.7 loop=330.5 render=13.2 prepareP95=40.5 visibilityP95=2.4 workerP95=4.0 missing=131 visible=1287
+### COST frame=339.4 loop=293.0 render=46.4 prepareP95=40.9 visibilityP95=2.3 workerP95=4.0 missing=273 visible=1233
+### COST frame=333.9 loop=324.8 render=9.1 prepareP95=42.0 visibilityP95=1.6 workerP95=4.0 missing=536 visible=472
+### COST frame=331.9 loop=292.3 render=39.6 prepareP95=42.7 visibilityP95=2.0 workerP95=4.0 missing=728 visible=834
+### COST frame=326.7 loop=317.9 render=8.8 prepareP95=42.2 visibilityP95=1.6 workerP95=4.0 missing=651 visible=496
+### COST frame=326.1 loop=283.6 render=42.5 prepareP95=40.9 visibilityP95=2.3 workerP95=4.0 missing=388 visible=1226
+### COST frame=322.0 loop=276.1 render=46.0 prepareP95=42.3 visibilityP95=2.5 workerP95=4.0 missing=301 visible=758
+### COST frame=311.4 loop=303.0 render=8.4 prepareP95=42.2 visibilityP95=1.6 workerP95=4.0 missing=664 visible=496
+### COST mean=139.9ms over 420 frames
+### COST breakdown prepare=42.03 journal=0.00 invalidation=0.05 discovery=0.10 worker=4.03 visibility=1.57 snapshot=1.33 compact=0.99 merge=0.06 upload=0.38 ruleSync=0.00 residencyPrune=0.03 capacity=0.00 buildSelect=0.03 profileEmit=0.00
+<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

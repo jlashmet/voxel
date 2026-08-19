@@ -1,0 +1,3 @@
+foreground=23462
+changed_pixels=0
+changed_rate=0.0000

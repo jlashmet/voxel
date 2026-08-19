@@ -1,0 +1,6 @@
+luminous_foreground=143968
+luminous_changed=143968
+luminous_changed_rate=1.0000
+mundane_foreground=143968
+mundane_changed=0
+mundane_changed_rate=0.0000

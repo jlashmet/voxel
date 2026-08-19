@@ -1,0 +1,268 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="31" result="Passed" total="31" passed="31" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-17 02:22:39Z" end-time="2026-08-17 02:23:00Z" duration="21.9194139">
+  <test-suite type="TestSuite" id="1326" name="voxel" fullname="voxel" runstate="Runnable" testcasecount="233" result="Passed" start-time="2026-08-17 02:22:39Z" end-time="2026-08-17 02:23:00Z" duration="21.919414" total="31" passed="31" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="PlayMode" />
+    </properties>
+    <test-suite type="Assembly" id="1172" name="VoxelEngine.Tests.Parity.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/VoxelEngine.Tests.Parity.dll" runstate="Runnable" testcasecount="31" result="Passed" start-time="2026-08-17 02:22:39Z" end-time="2026-08-17 02:23:00Z" duration="21.915263" total="31" passed="31" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="14418" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="PlayMode" />
+        <property name="EditorOnly" value="False" />
+      </properties>
+      <test-suite type="TestSuite" id="1173" name="VoxelEngine" fullname="VoxelEngine" runstate="Runnable" testcasecount="31" result="Passed" start-time="2026-08-17 02:22:39Z" end-time="2026-08-17 02:23:00Z" duration="21.915038" total="31" passed="31" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="1174" name="Tests" fullname="VoxelEngine.Tests" runstate="Runnable" testcasecount="31" result="Passed" start-time="2026-08-17 02:22:39Z" end-time="2026-08-17 02:23:00Z" duration="21.914860" total="31" passed="31" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="1175" name="Parity" fullname="VoxelEngine.Tests.Parity" runstate="Runnable" testcasecount="31" result="Passed" start-time="2026-08-17 02:22:39Z" end-time="2026-08-17 02:23:00Z" duration="21.914598" total="31" passed="31" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="1133" name="CollapseAgreementTests" fullname="VoxelEngine.Tests.Parity.CollapseAgreementTests" classname="VoxelEngine.Tests.Parity.CollapseAgreementTests" runstate="Runnable" testcasecount="4" result="Passed" start-time="2026-08-17 02:22:39Z" end-time="2026-08-17 02:22:39Z" duration="0.259257" total="4" passed="4" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1136" name="ChainReactionCollapseIsDeterministic" fullname="VoxelEngine.Tests.Parity.CollapseAgreementTests.ChainReactionCollapseIsDeterministic" methodname="ChainReactionCollapseIsDeterministic" classname="VoxelEngine.Tests.Parity.CollapseAgreementTests" runstate="Runnable" seed="1914533011" result="Passed" start-time="2026-08-17 02:22:39Z" end-time="2026-08-17 02:22:39Z" duration="0.025601" asserts="0">
+                <properties>
+                  <property name="Category" value="SC_008" />
+                  <property name="Category" value="US2" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1135" name="CrossRegionBoundaryCollapseAgrees" fullname="VoxelEngine.Tests.Parity.CollapseAgreementTests.CrossRegionBoundaryCollapseAgrees" methodname="CrossRegionBoundaryCollapseAgrees" classname="VoxelEngine.Tests.Parity.CollapseAgreementTests" runstate="Runnable" seed="734854251" result="Passed" start-time="2026-08-17 02:22:39Z" end-time="2026-08-17 02:22:39Z" duration="0.106722" asserts="0">
+                <properties>
+                  <property name="Category" value="SC_008" />
+                  <property name="Category" value="US2" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1134" name="SameDestructionProducesSameCollapseAcrossClients" fullname="VoxelEngine.Tests.Parity.CollapseAgreementTests.SameDestructionProducesSameCollapseAcrossClients" methodname="SameDestructionProducesSameCollapseAcrossClients" classname="VoxelEngine.Tests.Parity.CollapseAgreementTests" runstate="Runnable" seed="1660440906" result="Passed" start-time="2026-08-17 02:22:39Z" end-time="2026-08-17 02:22:39Z" duration="0.088774" asserts="0">
+                <properties>
+                  <property name="Category" value="SC_008" />
+                  <property name="Category" value="US2" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1137" name="UnsupportedBuildsCollapseImmediately" fullname="VoxelEngine.Tests.Parity.CollapseAgreementTests.UnsupportedBuildsCollapseImmediately" methodname="UnsupportedBuildsCollapseImmediately" classname="VoxelEngine.Tests.Parity.CollapseAgreementTests" runstate="Runnable" seed="308397018" result="Passed" start-time="2026-08-17 02:22:39Z" end-time="2026-08-17 02:22:39Z" duration="0.033111" asserts="0">
+                <properties>
+                  <property name="Category" value="SC_008" />
+                  <property name="Category" value="US2" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1138" name="ConcurrentEditArbitrationTests" fullname="VoxelEngine.Tests.Parity.ConcurrentEditArbitrationTests" classname="VoxelEngine.Tests.Parity.ConcurrentEditArbitrationTests" runstate="Runnable" testcasecount="4" result="Passed" start-time="2026-08-17 02:22:39Z" end-time="2026-08-17 02:22:39Z" duration="0.003363" total="4" passed="4" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1139" name="CompetingAlterationsConvergeRegardlessOfDeliveryOrder" fullname="VoxelEngine.Tests.Parity.ConcurrentEditArbitrationTests.CompetingAlterationsConvergeRegardlessOfDeliveryOrder" methodname="CompetingAlterationsConvergeRegardlessOfDeliveryOrder" classname="VoxelEngine.Tests.Parity.ConcurrentEditArbitrationTests" runstate="Runnable" seed="263180953" result="Passed" start-time="2026-08-17 02:22:39Z" end-time="2026-08-17 02:22:39Z" duration="0.000376" asserts="0">
+                <properties>
+                  <property name="Category" value="SC_017" />
+                  <property name="Category" value="US3" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1140" name="MaterialPriorityBreaksSameTickTie" fullname="VoxelEngine.Tests.Parity.ConcurrentEditArbitrationTests.MaterialPriorityBreaksSameTickTie" methodname="MaterialPriorityBreaksSameTickTie" classname="VoxelEngine.Tests.Parity.ConcurrentEditArbitrationTests" runstate="Runnable" seed="832499155" result="Passed" start-time="2026-08-17 02:22:39Z" end-time="2026-08-17 02:22:39Z" duration="0.000239" asserts="0">
+                <properties>
+                  <property name="Category" value="SC_017" />
+                  <property name="Category" value="US3" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1142" name="ThreeWayConflictProducesIdenticalResult" fullname="VoxelEngine.Tests.Parity.ConcurrentEditArbitrationTests.ThreeWayConflictProducesIdenticalResult" methodname="ThreeWayConflictProducesIdenticalResult" classname="VoxelEngine.Tests.Parity.ConcurrentEditArbitrationTests" runstate="Runnable" seed="1420014574" result="Passed" start-time="2026-08-17 02:22:39Z" end-time="2026-08-17 02:22:39Z" duration="0.001643" asserts="0">
+                <properties>
+                  <property name="Category" value="SC_017" />
+                  <property name="Category" value="US3" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1141" name="TotalOrderPreservesPlayerSequenceIntegrity" fullname="VoxelEngine.Tests.Parity.ConcurrentEditArbitrationTests.TotalOrderPreservesPlayerSequenceIntegrity" methodname="TotalOrderPreservesPlayerSequenceIntegrity" classname="VoxelEngine.Tests.Parity.ConcurrentEditArbitrationTests" runstate="Runnable" seed="1365455086" result="Passed" start-time="2026-08-17 02:22:39Z" end-time="2026-08-17 02:22:39Z" duration="0.000252" asserts="0">
+                <properties>
+                  <property name="Category" value="SC_017" />
+                  <property name="Category" value="US3" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1143" name="LossConvergenceTests" fullname="VoxelEngine.Tests.Parity.LossConvergenceTests" classname="VoxelEngine.Tests.Parity.LossConvergenceTests" runstate="Runnable" testcasecount="3" result="Passed" start-time="2026-08-17 02:22:39Z" end-time="2026-08-17 02:22:39Z" duration="0.042247" total="3" passed="3" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1144" name="ConvergesUnderCellularLossAndLatency" fullname="VoxelEngine.Tests.Parity.LossConvergenceTests.ConvergesUnderCellularLossAndLatency" methodname="ConvergesUnderCellularLossAndLatency" classname="VoxelEngine.Tests.Parity.LossConvergenceTests" runstate="Runnable" seed="1770252982" result="Passed" start-time="2026-08-17 02:22:39Z" end-time="2026-08-17 02:22:39Z" duration="0.016085" asserts="0">
+                <properties>
+                  <property name="Category" value="Network" />
+                  <property name="Category" value="SC_016" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1145" name="ReconnectAfterBriefOutageConverges" fullname="VoxelEngine.Tests.Parity.LossConvergenceTests.ReconnectAfterBriefOutageConverges" methodname="ReconnectAfterBriefOutageConverges" classname="VoxelEngine.Tests.Parity.LossConvergenceTests" runstate="Runnable" seed="1363484429" result="Passed" start-time="2026-08-17 02:22:39Z" end-time="2026-08-17 02:22:39Z" duration="0.012427" asserts="0">
+                <properties>
+                  <property name="Category" value="Network" />
+                  <property name="Category" value="SC_016" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1146" name="RetransmissionPreventsPermanentDivergence" fullname="VoxelEngine.Tests.Parity.LossConvergenceTests.RetransmissionPreventsPermanentDivergence" methodname="RetransmissionPreventsPermanentDivergence" classname="VoxelEngine.Tests.Parity.LossConvergenceTests" runstate="Runnable" seed="1650478746" result="Passed" start-time="2026-08-17 02:22:39Z" end-time="2026-08-17 02:22:39Z" duration="0.013194" asserts="0">
+                <properties>
+                  <property name="Category" value="Network" />
+                  <property name="Category" value="SC_016" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1147" name="ParameterDrawParityTests" fullname="VoxelEngine.Tests.Parity.ParameterDrawParityTests" classname="VoxelEngine.Tests.Parity.ParameterDrawParityTests" runstate="Runnable" testcasecount="4" result="Passed" start-time="2026-08-17 02:22:39Z" end-time="2026-08-17 02:22:39Z" duration="0.006999" total="4" passed="4" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1148" name="DrawsDependOnlyOnSeedDefinitionAndPosition" fullname="VoxelEngine.Tests.Parity.ParameterDrawParityTests.DrawsDependOnlyOnSeedDefinitionAndPosition" methodname="DrawsDependOnlyOnSeedDefinitionAndPosition" classname="VoxelEngine.Tests.Parity.ParameterDrawParityTests" runstate="Runnable" seed="942407477" result="Passed" start-time="2026-08-17 02:22:39Z" end-time="2026-08-17 02:22:39Z" duration="0.000491" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1150" name="DrawsStayInsideTheAuthoredRange" fullname="VoxelEngine.Tests.Parity.ParameterDrawParityTests.DrawsStayInsideTheAuthoredRange" methodname="DrawsStayInsideTheAuthoredRange" classname="VoxelEngine.Tests.Parity.ParameterDrawParityTests" runstate="Runnable" seed="312771207" result="Passed" start-time="2026-08-17 02:22:39Z" end-time="2026-08-17 02:22:39Z" duration="0.005389" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1151" name="NeighbouringPositionsDoNotProduceCorrelatedDraws" fullname="VoxelEngine.Tests.Parity.ParameterDrawParityTests.NeighbouringPositionsDoNotProduceCorrelatedDraws" methodname="NeighbouringPositionsDoNotProduceCorrelatedDraws" classname="VoxelEngine.Tests.Parity.ParameterDrawParityTests" runstate="Runnable" seed="840621256" result="Passed" start-time="2026-08-17 02:22:39Z" end-time="2026-08-17 02:22:39Z" duration="0.000156" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1149" name="RepeatedDrawsFromTheSameSeedMatch" fullname="VoxelEngine.Tests.Parity.ParameterDrawParityTests.RepeatedDrawsFromTheSameSeedMatch" methodname="RepeatedDrawsFromTheSameSeedMatch" classname="VoxelEngine.Tests.Parity.ParameterDrawParityTests" runstate="Runnable" seed="2085945340" result="Passed" start-time="2026-08-17 02:22:39Z" end-time="2026-08-17 02:22:39Z" duration="0.000391" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1152" name="SharedDestructionTests" fullname="VoxelEngine.Tests.Parity.SharedDestructionTests" classname="VoxelEngine.Tests.Parity.SharedDestructionTests" runstate="Runnable" testcasecount="2" result="Passed" start-time="2026-08-17 02:22:39Z" end-time="2026-08-17 02:22:39Z" duration="0.488573" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1154" name="HoleSizeMatchesExplosionRadius" fullname="VoxelEngine.Tests.Parity.SharedDestructionTests.HoleSizeMatchesExplosionRadius" methodname="HoleSizeMatchesExplosionRadius" classname="VoxelEngine.Tests.Parity.SharedDestructionTests" runstate="Runnable" seed="1278370335" result="Passed" start-time="2026-08-17 02:22:39Z" end-time="2026-08-17 02:22:39Z" duration="0.011569" asserts="0">
+                <properties>
+                  <property name="Category" value="US1" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1153" name="IdenticalWallProducesIdenticalHoleAcrossTwoClients" fullname="VoxelEngine.Tests.Parity.SharedDestructionTests.IdenticalWallProducesIdenticalHoleAcrossTwoClients" methodname="IdenticalWallProducesIdenticalHoleAcrossTwoClients" classname="VoxelEngine.Tests.Parity.SharedDestructionTests" runstate="Runnable" seed="513465119" result="Passed" start-time="2026-08-17 02:22:39Z" end-time="2026-08-17 02:22:39Z" duration="0.476487" asserts="0">
+                <properties>
+                  <property name="Category" value="US1" />
+                  <property name="Category" value="Scenario 1" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1155" name="TenThousandEventParityTests" fullname="VoxelEngine.Tests.Parity.TenThousandEventParityTests" classname="VoxelEngine.Tests.Parity.TenThousandEventParityTests" runstate="Runnable" testcasecount="3" result="Passed" start-time="2026-08-17 02:22:39Z" end-time="2026-08-17 02:22:59Z" duration="19.752259" total="3" passed="3" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1158" name="LargeExplosionEventIsDeterministic" fullname="VoxelEngine.Tests.Parity.TenThousandEventParityTests.LargeExplosionEventIsDeterministic" methodname="LargeExplosionEventIsDeterministic" classname="VoxelEngine.Tests.Parity.TenThousandEventParityTests" runstate="Runnable" seed="1371326187" result="Passed" start-time="2026-08-17 02:22:39Z" end-time="2026-08-17 02:22:39Z" duration="0.013248" asserts="0">
+                <properties>
+                  <property name="Category" value="Determinism" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1157" name="ShuffledOrderConvergesToSameState" fullname="VoxelEngine.Tests.Parity.TenThousandEventParityTests.ShuffledOrderConvergesToSameState" methodname="ShuffledOrderConvergesToSameState" classname="VoxelEngine.Tests.Parity.TenThousandEventParityTests" runstate="Runnable" seed="354249380" result="Passed" start-time="2026-08-17 02:22:39Z" end-time="2026-08-17 02:22:40Z" duration="0.491342" asserts="0">
+                <properties>
+                  <property name="Category" value="Determinism" />
+                  <property name="Category" value="SC_003" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1156" name="TenThousandEventsReplayToIdenticalState" fullname="VoxelEngine.Tests.Parity.TenThousandEventParityTests.TenThousandEventsReplayToIdenticalState" methodname="TenThousandEventsReplayToIdenticalState" classname="VoxelEngine.Tests.Parity.TenThousandEventParityTests" runstate="Runnable" seed="2123338619" result="Passed" start-time="2026-08-17 02:22:40Z" end-time="2026-08-17 02:22:59Z" duration="19.246647" asserts="0">
+                <properties>
+                  <property name="Category" value="Determinism" />
+                  <property name="Category" value="SC_003" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1159" name="TerrainContinuityTests" fullname="VoxelEngine.Tests.Parity.TerrainContinuityTests" classname="VoxelEngine.Tests.Parity.TerrainContinuityTests" runstate="Runnable" testcasecount="7" result="Passed" start-time="2026-08-17 02:22:59Z" end-time="2026-08-17 02:23:00Z" duration="0.947941" total="7" passed="7" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1161" name="HeightIsContinuousAcrossARegionBorder" fullname="VoxelEngine.Tests.Parity.TerrainContinuityTests.HeightIsContinuousAcrossARegionBorder" methodname="HeightIsContinuousAcrossARegionBorder" classname="VoxelEngine.Tests.Parity.TerrainContinuityTests" runstate="Runnable" seed="1295969225" result="Passed" start-time="2026-08-17 02:22:59Z" end-time="2026-08-17 02:22:59Z" duration="0.000896" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1160" name="HeightIsIdenticalWhenSampledFromEitherSideOfARegionBorder" fullname="VoxelEngine.Tests.Parity.TerrainContinuityTests.HeightIsIdenticalWhenSampledFromEitherSideOfARegionBorder" methodname="HeightIsIdenticalWhenSampledFromEitherSideOfARegionBorder" classname="VoxelEngine.Tests.Parity.TerrainContinuityTests" runstate="Runnable" seed="1079350207" result="Passed" start-time="2026-08-17 02:22:59Z" end-time="2026-08-17 02:22:59Z" duration="0.000753" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1164" name="HeightStaysWithinDeclaredBounds" fullname="VoxelEngine.Tests.Parity.TerrainContinuityTests.HeightStaysWithinDeclaredBounds" methodname="HeightStaysWithinDeclaredBounds" classname="VoxelEngine.Tests.Parity.TerrainContinuityTests" runstate="Runnable" seed="23612440" result="Passed" start-time="2026-08-17 02:22:59Z" end-time="2026-08-17 02:22:59Z" duration="0.001214" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1165" name="NegativeCoordinatesDoNotMirrorTheWorld" fullname="VoxelEngine.Tests.Parity.TerrainContinuityTests.NegativeCoordinatesDoNotMirrorTheWorld" methodname="NegativeCoordinatesDoNotMirrorTheWorld" classname="VoxelEngine.Tests.Parity.TerrainContinuityTests" runstate="Runnable" seed="1682341029" result="Passed" start-time="2026-08-17 02:22:59Z" end-time="2026-08-17 02:22:59Z" duration="0.000694" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1166" name="RegionGenerationIsIndependentOfOrder" fullname="VoxelEngine.Tests.Parity.TerrainContinuityTests.RegionGenerationIsIndependentOfOrder" methodname="RegionGenerationIsIndependentOfOrder" classname="VoxelEngine.Tests.Parity.TerrainContinuityTests" runstate="Runnable" seed="288923251" result="Passed" start-time="2026-08-17 02:22:59Z" end-time="2026-08-17 02:23:00Z" duration="0.939252" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1163" name="SlopeIsSymmetric" fullname="VoxelEngine.Tests.Parity.TerrainContinuityTests.SlopeIsSymmetric" methodname="SlopeIsSymmetric" classname="VoxelEngine.Tests.Parity.TerrainContinuityTests" runstate="Runnable" seed="1019383666" result="Passed" start-time="2026-08-17 02:23:00Z" end-time="2026-08-17 02:23:00Z" duration="0.003102" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1162" name="TerrainDoesNotRepeatBetweenRegions" fullname="VoxelEngine.Tests.Parity.TerrainContinuityTests.TerrainDoesNotRepeatBetweenRegions" methodname="TerrainDoesNotRepeatBetweenRegions" classname="VoxelEngine.Tests.Parity.TerrainContinuityTests" runstate="Runnable" seed="1752323947" result="Passed" start-time="2026-08-17 02:23:00Z" end-time="2026-08-17 02:23:00Z" duration="0.000749" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1167" name="TerrainDeterminismTests" fullname="VoxelEngine.Tests.Parity.TerrainDeterminismTests" classname="VoxelEngine.Tests.Parity.TerrainDeterminismTests" runstate="Runnable" testcasecount="4" result="Passed" start-time="2026-08-17 02:23:00Z" end-time="2026-08-17 02:23:00Z" duration="0.413087" total="4" passed="4" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1171" name="DeepGroundIsBedrock" fullname="VoxelEngine.Tests.Parity.TerrainDeterminismTests.DeepGroundIsBedrock" methodname="DeepGroundIsBedrock" classname="VoxelEngine.Tests.Parity.TerrainDeterminismTests" runstate="Runnable" seed="804514796" result="Passed" start-time="2026-08-17 02:23:00Z" end-time="2026-08-17 02:23:00Z" duration="0.005667" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1169" name="DifferentSeedsProduceDifferentTerrain" fullname="VoxelEngine.Tests.Parity.TerrainDeterminismTests.DifferentSeedsProduceDifferentTerrain" methodname="DifferentSeedsProduceDifferentTerrain" classname="VoxelEngine.Tests.Parity.TerrainDeterminismTests" runstate="Runnable" seed="218085852" result="Passed" start-time="2026-08-17 02:23:00Z" end-time="2026-08-17 02:23:00Z" duration="0.010706" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1168" name="IdenticalSeedsProduceIdenticalTerrain" fullname="VoxelEngine.Tests.Parity.TerrainDeterminismTests.IdenticalSeedsProduceIdenticalTerrain" methodname="IdenticalSeedsProduceIdenticalTerrain" classname="VoxelEngine.Tests.Parity.TerrainDeterminismTests" runstate="Runnable" seed="223540191" result="Passed" start-time="2026-08-17 02:23:00Z" end-time="2026-08-17 02:23:00Z" duration="0.389609" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1170" name="TerrainHasSolidGroundBelowTheSurface" fullname="VoxelEngine.Tests.Parity.TerrainDeterminismTests.TerrainHasSolidGroundBelowTheSurface" methodname="TerrainHasSolidGroundBelowTheSurface" classname="VoxelEngine.Tests.Parity.TerrainDeterminismTests" runstate="Runnable" seed="428268391" result="Passed" start-time="2026-08-17 02:23:00Z" end-time="2026-08-17 02:23:00Z" duration="0.006223" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

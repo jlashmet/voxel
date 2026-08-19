@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="1" result="Passed" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-18 05:33:29Z" end-time="2026-08-18 05:33:38Z" duration="9.0590485">
+  <test-suite type="TestSuite" id="1522" name="voxel" fullname="voxel" runstate="Runnable" testcasecount="378" result="Passed" start-time="2026-08-18 05:33:29Z" end-time="2026-08-18 05:33:38Z" duration="9.059049" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="PlayMode" />
+    </properties>
+    <test-suite type="Assembly" id="1518" name="VoxelEngine.Tests.PlayMode.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/VoxelEngine.Tests.PlayMode.dll" runstate="Runnable" testcasecount="145" result="Passed" start-time="2026-08-18 05:33:29Z" end-time="2026-08-18 05:33:38Z" duration="9.053444" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="48143" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="PlayMode" />
+        <property name="EditorOnly" value="False" />
+      </properties>
+      <test-suite type="TestSuite" id="1519" name="VoxelEngine" fullname="VoxelEngine" runstate="Runnable" testcasecount="145" result="Passed" start-time="2026-08-18 05:33:29Z" end-time="2026-08-18 05:33:38Z" duration="9.052458" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="1520" name="Tests" fullname="VoxelEngine.Tests" runstate="Runnable" testcasecount="145" result="Passed" start-time="2026-08-18 05:33:29Z" end-time="2026-08-18 05:33:38Z" duration="9.051584" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="1521" name="PlayMode" fullname="VoxelEngine.Tests.PlayMode" runstate="Runnable" testcasecount="145" result="Passed" start-time="2026-08-18 05:33:29Z" end-time="2026-08-18 05:33:38Z" duration="9.050586" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="1516" name="ZzSurfaceProbeTests" fullname="VoxelEngine.Tests.PlayMode.ZzSurfaceProbeTests" classname="VoxelEngine.Tests.PlayMode.ZzSurfaceProbeTests" runstate="Runnable" testcasecount="1" result="Passed" start-time="2026-08-18 05:33:29Z" end-time="2026-08-18 05:33:38Z" duration="9.048387" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1517" name="ProbeSurfaceConvergence" fullname="VoxelEngine.Tests.PlayMode.ZzSurfaceProbeTests.ProbeSurfaceConvergence" methodname="ProbeSurfaceConvergence" classname="VoxelEngine.Tests.PlayMode.ZzSurfaceProbeTests" runstate="Runnable" seed="996479605" result="Passed" start-time="2026-08-18 05:33:29Z" end-time="2026-08-18 05:33:38Z" duration="9.043158" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="Timeout" value="900000" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[[VoxelResidency] residentRegions=32 mixed=233,873/2,367,424 evicted=0 reclaimedMixed=0
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+### PROBE camPos=(107.60, 52.80, -44.40) centre=(25.60, 23.80, 37.60) ground=205 planCentre=int3(256, 205, 376) plateau=33
+### PROBE f=0 known=0 resident=0 dirty=0 visible=0 missingVisible=0 jobs=0 discoveredBricks=0 changeRecords=0 awaitingUpload=0 residentBytes=0 completedBuilds=0
+### PROBE f=10 known=439 resident=1 dirty=322 visible=0 missingVisible=0 jobs=15 discoveredBricks=13312 changeRecords=0 awaitingUpload=0 residentBytes=10256 completedBuilds=1
+### PROBE f=20 known=761 resident=7 dirty=572 visible=0 missingVisible=18 jobs=16 discoveredBricks=12288 changeRecords=2 awaitingUpload=0 residentBytes=71792 completedBuilds=8
+### PROBE f=30 known=769 resident=11 dirty=575 visible=0 missingVisible=26 jobs=20 discoveredBricks=0 changeRecords=0 awaitingUpload=0 residentBytes=2857136 completedBuilds=13
+### PROBE f=40 known=769 resident=12 dirty=573 visible=0 missingVisible=26 jobs=20 discoveredBricks=0 changeRecords=0 awaitingUpload=0 residentBytes=2867392 completedBuilds=15
+### PROBE f=50 known=769 resident=12 dirty=572 visible=0 missingVisible=26 jobs=19 discoveredBricks=0 changeRecords=0 awaitingUpload=0 residentBytes=2867392 completedBuilds=16
+### PROBE f=60 known=1239 resident=16 dirty=940 visible=3 missingVisible=61 jobs=11 discoveredBricks=0 changeRecords=0 awaitingUpload=0 residentBytes=3715328 completedBuilds=20
+### PROBE f=70 known=1239 resident=17 dirty=939 visible=3 missingVisible=61 jobs=12 discoveredBricks=0 changeRecords=1 awaitingUpload=0 residentBytes=4464912 completedBuilds=21
+### PROBE f=80 known=1465 resident=18 dirty=1124 visible=3 missingVisible=61 jobs=12 discoveredBricks=0 changeRecords=0 awaitingUpload=0 residentBytes=5155104 completedBuilds=22
+### PROBE f=89 known=1465 resident=21 dirty=1123 visible=3 missingVisible=61 jobs=9 discoveredBricks=0 changeRecords=0 awaitingUpload=2 residentBytes=6039856 completedBuilds=23
+<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

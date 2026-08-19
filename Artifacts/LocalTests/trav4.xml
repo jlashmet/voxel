@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="3" result="Failed(Child)" total="3" passed="0" failed="3" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-18 16:18:13Z" end-time="2026-08-18 16:27:03Z" duration="529.920634">
+  <test-suite type="TestSuite" id="1520" name="voxel" fullname="voxel" runstate="Runnable" testcasecount="377" result="Failed" site="Child" start-time="2026-08-18 16:18:13Z" end-time="2026-08-18 16:27:03Z" duration="529.920634" total="3" passed="0" failed="3" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="PlayMode" />
+    </properties>
+    <failure>
+      <message><![CDATA[One or more child tests had errors]]></message>
+    </failure>
+    <test-suite type="Assembly" id="1516" name="VoxelEngine.Tests.PlayMode.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/VoxelEngine.Tests.PlayMode.dll" runstate="Runnable" testcasecount="144" result="Failed" site="Child" start-time="2026-08-18 16:18:13Z" end-time="2026-08-18 16:27:03Z" duration="529.914875" total="3" passed="0" failed="3" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="21837" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="PlayMode" />
+        <property name="EditorOnly" value="False" />
+      </properties>
+      <failure>
+        <message><![CDATA[One or more child tests had errors]]></message>
+      </failure>
+      <test-suite type="TestSuite" id="1517" name="VoxelEngine" fullname="VoxelEngine" runstate="Runnable" testcasecount="144" result="Failed" site="Child" start-time="2026-08-18 16:18:13Z" end-time="2026-08-18 16:27:03Z" duration="529.913861" total="3" passed="0" failed="3" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <failure>
+          <message><![CDATA[One or more child tests had errors]]></message>
+        </failure>
+        <test-suite type="TestSuite" id="1518" name="Tests" fullname="VoxelEngine.Tests" runstate="Runnable" testcasecount="144" result="Failed" site="Child" start-time="2026-08-18 16:18:13Z" end-time="2026-08-18 16:27:03Z" duration="529.912972" total="3" passed="0" failed="3" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <failure>
+            <message><![CDATA[One or more child tests had errors]]></message>
+          </failure>
+          <test-suite type="TestSuite" id="1519" name="PlayMode" fullname="VoxelEngine.Tests.PlayMode" runstate="Runnable" testcasecount="144" result="Failed" site="Child" start-time="2026-08-18 16:18:13Z" end-time="2026-08-18 16:27:03Z" duration="529.912154" total="3" passed="0" failed="3" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <failure>
+              <message><![CDATA[One or more child tests had errors]]></message>
+            </failure>
+            <test-suite type="TestFixture" id="1485" name="ShowcaseTraversalPerformanceTests" fullname="VoxelEngine.Tests.PlayMode.ShowcaseTraversalPerformanceTests" classname="VoxelEngine.Tests.PlayMode.ShowcaseTraversalPerformanceTests" runstate="Runnable" testcasecount="3" result="Failed" site="Child" start-time="2026-08-18 16:18:13Z" end-time="2026-08-18 16:27:03Z" duration="529.909892" total="3" passed="0" failed="3" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <failure>
+                <message><![CDATA[One or more child tests had errors]]></message>
+              </failure>
+              <test-case id="1486" name="ContinuousPlayerTraversalNeverStuttersOrOpensNearFarGap" fullname="VoxelEngine.Tests.PlayMode.ShowcaseTraversalPerformanceTests.ContinuousPlayerTraversalNeverStuttersOrOpensNearFarGap" methodname="ContinuousPlayerTraversalNeverStuttersOrOpensNearFarGap" classname="VoxelEngine.Tests.PlayMode.ShowcaseTraversalPerformanceTests" runstate="Runnable" seed="1192843520" result="Failed" start-time="2026-08-18 16:18:13Z" end-time="2026-08-18 16:21:19Z" duration="185.859980" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="Timeout" value="900000" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <failure>
+                  <message><![CDATA[  continuous traversal p95 was 284.03 ms (p99=362.24, max=415.37).
+  Expected: less than 18.0d
+  But was:  284.0301d
+]]></message>
+                  <stack-trace><![CDATA[at VoxelEngine.Tests.PlayMode.ShowcaseTraversalPerformanceTests.AssertMovingFrameTimes (System.Collections.Generic.List`1[T] frameTimesMs, System.String phase) [0x00071] in /Users/jlashmet/code/voxel/Assets/Tests/PlayMode/ShowcaseTraversalPerformanceTests.cs:371
+at VoxelEngine.Tests.PlayMode.ShowcaseTraversalPerformanceTests+<ContinuousPlayerTraversalNeverStuttersOrOpensNearFarGap>d__7.MoveNext () [0x00415] in /Users/jlashmet/code/voxel/Assets/Tests/PlayMode/ShowcaseTraversalPerformanceTests.cs:130
+at UnityEngine.TestTools.TestEnumerator+<Execute>d__7.MoveNext () [0x0003a] in ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEngine.TestRunner/NUnitExtensions/Attributes/TestEnumerator.cs:44
+]]></stack-trace>
+                </failure>
+                <output><![CDATA[[VoxelResidency] residentRegions=84 mixed=507,084/2,367,424 evicted=0 reclaimedMixed=0
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+[VoxelResidency] residentRegions=96 mixed=563,843/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=112 mixed=639,612/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=128 mixed=714,887/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=144 mixed=790,730/2,367,424 evicted=0 reclaimedMixed=0
+### SHOWCASE_MOVING_PERF phase=continuous traversal frames=420 p95=284.03ms p99=362.24ms max=415.37ms
+]]></output>
+              </test-case>
+              <test-case id="1488" name="ConvergedTerrainAndCastleRetainHighSteadyStateRenderThroughput" fullname="VoxelEngine.Tests.PlayMode.ShowcaseTraversalPerformanceTests.ConvergedTerrainAndCastleRetainHighSteadyStateRenderThroughput" methodname="ConvergedTerrainAndCastleRetainHighSteadyStateRenderThroughput" classname="VoxelEngine.Tests.PlayMode.ShowcaseTraversalPerformanceTests" runstate="Runnable" seed="800967663" result="Failed" start-time="2026-08-18 16:21:19Z" end-time="2026-08-18 16:24:26Z" duration="187.300623" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="Timeout" value="900000" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <failure>
+                  <message><![CDATA[Showcase did not become idle enough for a steady-throughput measurement; known=6452 resident=2677 dirty=1968 visible=1419 missing=0 jobs=8 uploadMeshes=6 uploadBytes=9415988.]]></message>
+                  <stack-trace><![CDATA[at VoxelEngine.Tests.PlayMode.ShowcaseTraversalPerformanceTests+<WaitForIdleConvergence>d__11.MoveNext () [0x000f2] in /Users/jlashmet/code/voxel/Assets/Tests/PlayMode/ShowcaseTraversalPerformanceTests.cs:344
+at UnityEngine.TestTools.TestEnumerator+<Execute>d__7.MoveNext () [0x0003a] in ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEngine.TestRunner/NUnitExtensions/Attributes/TestEnumerator.cs:44
+]]></stack-trace>
+                </failure>
+                <output><![CDATA[[VoxelResidency] residentRegions=84 mixed=507,298/2,367,424 evicted=0 reclaimedMixed=0
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+[VoxelResidency] residentRegions=96 mixed=563,843/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=112 mixed=639,556/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=128 mixed=714,941/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=144 mixed=790,587/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=160 mixed=866,514/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=176 mixed=942,087/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=192 mixed=1,017,703/2,367,424 evicted=0 reclaimedMixed=0
+]]></output>
+              </test-case>
+              <test-case id="1487" name="RepeatedLodBoundaryCrossingsNeverStutterOrLoseCoverage" fullname="VoxelEngine.Tests.PlayMode.ShowcaseTraversalPerformanceTests.RepeatedLodBoundaryCrossingsNeverStutterOrLoseCoverage" methodname="RepeatedLodBoundaryCrossingsNeverStutterOrLoseCoverage" classname="VoxelEngine.Tests.PlayMode.ShowcaseTraversalPerformanceTests" runstate="Runnable" seed="1620137725" result="Failed" start-time="2026-08-18 16:24:26Z" end-time="2026-08-18 16:27:03Z" duration="156.743587" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="Timeout" value="900000" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <failure>
+                  <message><![CDATA[  LOD sweep frame 167 lost every visible voxel draw at 110.7 m.
+  Expected: greater than 0
+  But was:  0
+]]></message>
+                  <stack-trace><![CDATA[at VoxelEngine.Tests.PlayMode.ShowcaseTraversalPerformanceTests+<RepeatedLodBoundaryCrossingsNeverStutterOrLoseCoverage>d__8.MoveNext () [0x0033e] in /Users/jlashmet/code/voxel/Assets/Tests/PlayMode/ShowcaseTraversalPerformanceTests.cs:205
+at UnityEngine.TestTools.TestEnumerator+<Execute>d__7.MoveNext () [0x0003a] in ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEngine.TestRunner/NUnitExtensions/Attributes/TestEnumerator.cs:44
+]]></stack-trace>
+                </failure>
+                <output><![CDATA[[VoxelResidency] residentRegions=84 mixed=507,354/2,367,424 evicted=0 reclaimedMixed=0
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+[VoxelResidency] residentRegions=96 mixed=563,901/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=112 mixed=639,505/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=128 mixed=714,887/2,367,424 evicted=0 reclaimedMixed=0
+<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

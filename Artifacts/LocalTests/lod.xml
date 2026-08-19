@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="1" result="Passed" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-18 17:33:25Z" end-time="2026-08-18 17:36:03Z" duration="157.9771751">
+  <test-suite type="TestSuite" id="1522" name="voxel" fullname="voxel" runstate="Runnable" testcasecount="378" result="Passed" start-time="2026-08-18 17:33:25Z" end-time="2026-08-18 17:36:03Z" duration="157.977175" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="PlayMode" />
+    </properties>
+    <test-suite type="Assembly" id="1518" name="VoxelEngine.Tests.PlayMode.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/VoxelEngine.Tests.PlayMode.dll" runstate="Runnable" testcasecount="145" result="Passed" start-time="2026-08-18 17:33:25Z" end-time="2026-08-18 17:36:03Z" duration="157.972154" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="47326" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="PlayMode" />
+        <property name="EditorOnly" value="False" />
+      </properties>
+      <test-suite type="TestSuite" id="1519" name="VoxelEngine" fullname="VoxelEngine" runstate="Runnable" testcasecount="145" result="Passed" start-time="2026-08-18 17:33:25Z" end-time="2026-08-18 17:36:03Z" duration="157.971160" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="1520" name="Tests" fullname="VoxelEngine.Tests" runstate="Runnable" testcasecount="145" result="Passed" start-time="2026-08-18 17:33:25Z" end-time="2026-08-18 17:36:03Z" duration="157.970252" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="1521" name="PlayMode" fullname="VoxelEngine.Tests.PlayMode" runstate="Runnable" testcasecount="145" result="Passed" start-time="2026-08-18 17:33:25Z" end-time="2026-08-18 17:36:03Z" duration="157.969460" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="1516" name="ZzLodBlackoutTests" fullname="VoxelEngine.Tests.PlayMode.ZzLodBlackoutTests" classname="VoxelEngine.Tests.PlayMode.ZzLodBlackoutTests" runstate="Runnable" testcasecount="1" result="Passed" start-time="2026-08-18 17:33:25Z" end-time="2026-08-18 17:36:03Z" duration="157.967486" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1517" name="ReproduceLodSweepBlackout" fullname="VoxelEngine.Tests.PlayMode.ZzLodBlackoutTests.ReproduceLodSweepBlackout" methodname="ReproduceLodSweepBlackout" classname="VoxelEngine.Tests.PlayMode.ZzLodBlackoutTests" runstate="Runnable" seed="1254416441" result="Passed" start-time="2026-08-18 17:33:25Z" end-time="2026-08-18 17:36:03Z" duration="157.962537" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="Timeout" value="1800000" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[[VoxelResidency] residentRegions=84 mixed=507,084/2,367,424 evicted=0 reclaimedMixed=0
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+[VoxelResidency] residentRegions=96 mixed=563,843/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=112 mixed=639,612/2,367,424 evicted=0 reclaimedMixed=0
+[VoxelResidency] residentRegions=128 mixed=714,941/2,367,424 evicted=0 reclaimedMixed=0
+### LOD settled streak=4
+### LOD f=158 dist=137.5 visible=11 missing=26 resident=582 known=2430 dirty=1269 visKnown=2176 inBand=1495 frustum=37 step4InBand=79 step4Frustum=30 step4Ready=4 step4Empty=0 arenaFail=0 evict=0 camPos=(37.56, 43.80, -99.91)
+### LOD f=159 dist=134.5 visible=10 missing=26 resident=582 known=2510 dirty=1337 visKnown=2256 inBand=1563 frustum=36 step4InBand=79 step4Frustum=29 step4Ready=3 step4Empty=0 arenaFail=0 evict=0 camPos=(37.42, 43.80, -96.93)
+### LOD f=160 dist=131.6 visible=10 missing=26 resident=568 known=2416 dirty=1326 visKnown=2186 inBand=1563 frustum=36 step4InBand=79 step4Frustum=29 step4Ready=3 step4Empty=0 arenaFail=0 evict=0 camPos=(37.19, 43.80, -93.96)
+### LOD f=161 dist=128.6 visible=9 missing=26 resident=569 known=2428 dirty=1331 visKnown=2198 inBand=1569 frustum=35 step4InBand=79 step4Frustum=28 step4Ready=2 step4Empty=0 arenaFail=0 evict=0 camPos=(36.86, 43.80, -90.98)
+### LOD f=162 dist=125.6 visible=8 missing=9 resident=569 known=2432 dirty=1248 visKnown=2119 inBand=1485 frustum=17 step4InBand=64 step4Frustum=10 step4Ready=1 step4Empty=0 arenaFail=0 evict=0 camPos=(36.44, 43.80, -88.00)
+### LOD f=163 dist=122.6 visible=8 missing=9 resident=565 known=2306 dirty=1267 visKnown=2143 inBand=1509 frustum=17 step4InBand=64 step4Frustum=10 step4Ready=1 step4Empty=0 arenaFail=0 evict=0 camPos=(35.94, 43.80, -85.02)
+### LOD f=164 dist=119.6 visible=1 missing=9 resident=565 known=2314 dirty=1215 visKnown=2088 inBand=1478 frustum=10 step4InBand=64 step4Frustum=10 step4Ready=1 step4Empty=0 arenaFail=0 evict=0 camPos=(35.35, 43.80, -82.04)
+### LOD f=165 dist=116.7 visible=1 missing=23 resident=566 known=2340 dirty=1275 visKnown=2164 inBand=1540 frustum=24 step4InBand=64 step4Frustum=9 step4Ready=1 step4Empty=0 arenaFail=0 evict=0 camPos=(34.68, 43.80, -79.07)
+### LOD f=166 dist=113.7 visible=1 missing=40 resident=568 known=2360 dirty=1230 visKnown=2126 inBand=1496 frustum=41 step4InBand=64 step4Frustum=7 step4Ready=1 step4Empty=0 arenaFail=0 evict=0 camPos=(33.94, 43.80, -76.09)
+### LOD f=167 dist=110.7 visible=0 missing=120 resident=567 known=2482 dirty=1372 visKnown=2293 inBand=1639 frustum=120 step4InBand=64 step4Frustum=6 step4Ready=0 step4Empty=0 arenaFail=0 evict=0 camPos=(33.13, 43.80, -73.11)
+### LOD f=168 dist=107.7 visible=0 missing=156 resident=567 known=2544 dirty=1367 visKnown=2295 inBand=1660 frustum=156 step4InBand=64 step4Frustum=5 step4Ready=0 step4Empty=0 arenaFail=0 evict=0 camPos=(32.26, 43.80, -70.13)
+### LOD f=169 dist=104.8 visible=0 missing=216 resident=556 known=2524 dirty=1500 visKnown=2425 inBand=1795 frustum=216 step4InBand=64 step4Frustum=4 step4Ready=0 step4Empty=0 arenaFail=0 evict=0 camPos=(31.33, 43.80, -67.16)
+### LOD f=170 dist=101.8 visible=0 missing=253 resident=553 known=2576 dirty=1573 visKnown=2505 inBand=1880 frustum=253 step4InBand=78 step4Frustum=4 step4Ready=0 step4Empty=0 arenaFail=0 evict=0 camPos=(30.36, 43.80, -64.18)
+### LOD f=171 dist=98.8 visible=0 missing=253 resident=549 known=2664 dirty=1645 visKnown=2588 inBand=1950 frustum=253 step4InBand=78 step4Frustum=4 step4Ready=0 step4Empty=0 arenaFail=0 evict=0 camPos=(29.35, 43.80, -61.20)
+### LOD f=172 dist=95.8 visible=0 missing=278 resident=549 known=2748 dirty=1719 visKnown=2672 inBand=2024 frustum=278 step4InBand=78 step4Frustum=4 step4Ready=0 step4Empty=0 arenaFail=0 evict=0 camPos=(28.31, 43.80, -58.22)
+### LOD f=173 dist=92.8 visible=0 missing=253 resident=549 known=2853 dirty=1743 visKnown=2735 inBand=2072 frustum=253 step4InBand=78 step4Frustum=3 step4Ready=0 step4Empty=0 arenaFail=0 evict=0 camPos=(27.25, 43.80, -55.24)
+### LOD f=174 dist=89.9 visible=0 missing=207 resident=552 known=2898 dirty=1795 visKnown=2802 inBand=2127 frustum=207 step4InBand=78 step4Frustum=2 step4Ready=0 step4Empty=0 arenaFail=0 evict=0 camPos=(26.18, 43.80, -52.27)
+### LOD f=175 dist=86.9 visible=0 missing=200 resident=552 known=2915 dirty=1642 visKnown=2713 inBand=1972 frustum=200 step4InBand=78 step4Frustum=2 step4Ready=0 step4Empty=0 arenaFail=0 evict=0 camPos=(25.10, 43.80, -49.29)
+### LOD f=176 dist=83.9 visible=0 missing=158 resident=552 known=2888 dirty=1646 visKnown=2721 inBand=1980 frustum=158 step4InBand=78 step4Frustum=2 step4Ready=0 step4Empty=0 arenaFail=0 evict=0 camPos=(24.02, 43.80, -46.31)
+### LOD f=177 dist=80.9 visible=0 missing=137 resident=555 known=2819 dirty=1590 visKnown=2641 inBand=1956 frustum=137 step4InBand=78 step4Frustum=1 step4Ready=0 step4Empty=0 arenaFail=0 evict=0 camPos=(22.96, 43.80, -43.33)
+### LOD f=178 dist=78.0 visible=0 missing=115 resident=555 known=2822 dirty=1591 visKnown=2645 inBand=1958 frustum=115 step4InBand=78 step4Frustum=1 step4Ready=0 step4Empty=0 arenaFail=0 evict=0 camPos=(21.92, 43.80, -40.36)
+### LOD f=179 dist=75.0 visible=0 missing=89 resident=555 known=2820 dirty=1496 visKnown=2545 inBand=1876 frustum=89 step4InBand=94 step4Frustum=1 step4Ready=0 step4Empty=0 arenaFail=0 evict=0 camPos=(20.90, 43.80, -37.38)
+### LOD f=180 dist=72.0 visible=0 missing=76 resident=555 known=2778 dirty=1494 visKnown=2545 inBand=1877 frustum=76 step4InBand=94 step4Frustum=1 step4Ready=0 step4Empty=0 arenaFail=0 evict=0 camPos=(19.93, 43.80, -34.40)
+### LOD f=181 dist=75.0 visible=0 missing=97 resident=555 known=2777 dirty=1467 visKnown=2510 inBand=1856 frustum=97 step4InBand=94 step4Frustum=3 step4Ready=0 step4Empty=0 arenaFail=0 evict=0 camPos=(19.00, 43.80, -37.38)
+### LOD f=182 dist=78.0 visible=0 missing=124 resident=556 known=2712 dirty=1560 visKnown=2600 inBand=1927 frustum=124 step4InBand=82 step4Frustum=7 step4Ready=0 step4Empty=0 arenaFail=0 evict=0 camPos=(18.13, 43.80, -40.36)
+### LOD f=183 dist=80.9 visible=0 missing=151 resident=556 known=2712 dirty=1560 visKnown=2600 inBand=1927 frustum=151 step4InBand=82 step4Frustum=8 step4Ready=0 step4Empty=0 arenaFail=0 evict=0 camPos=(17.32, 43.80, -43.33)
+### LOD f=184 dist=83.9 visible=0 missing=178 resident=556 known=2712 dirty=1611 visKnown=2642 inBand=1951 frustum=178 step4InBand=82 step4Frustum=8 step4Ready=0 step4Empty=0 arenaFail=0 evict=0 camPos=(16.57, 43.80, -46.31)
+### LOD f=185 dist=86.9 visible=0 missing=206 resident=557 known=2712 dirty=1610 visKnown=2642 inBand=1951 frustum=206 step4InBand=82 step4Frustum=8 step4Ready=0 step4Empty=0 arenaFail=0 evict=0 camPos=(15.89, 43.80, -49.29)
+### LOD f=186 dist=89.9 visible=0 missing=241 resident=561 known=2667 dirty=1678 visKnown=2660 inBand=2024 frustum=241 step4InBand=82 step4Frustum=8 step4Ready=0 step4Empty=0 arenaFail=0 evict=0 camPos=(15.30, 43.80, -52.27)
+### LOD f=187 dist=92.8 visible=0 missing=270 resident=561 known=2667 dirty=1678 visKnown=2660 inBand=2024 frustum=270 step4InBand=82 step4Frustum=9 step4Ready=0 step4Empty=0 arenaFail=0 evict=0 camPos=(14.79, 43.80, -55.24)
+### LOD f=188 dist=95.8 visible=0 missing=309 resident=561 known=2667 dirty=1692 visKnown=2660 inBand=2012 frustum=309 step4InBand=80 step4Frustum=7 step4Ready=0 step4Empty=0 arenaFail=0 evict=0 camPos=(14.36, 43.80, -58.22)
+### LOD f=189 dist=98.8 visible=0 missing=336 resident=563 known=2663 dirty=1690 visKnown=2660 inBand=2012 frustum=336 step4InBand=80 step4Frustum=7 step4Ready=0 step4Empty=0 arenaFail=0 evict=0 camPos=(14.03, 43.80, -61.20)
+### LOD f=190 dist=101.8 visible=0 missing=383 resident=563 known=2679 dirty=1699 visKnown=2676 inBand=2020 frustum=383 step4InBand=80 step4Frustum=8 step4Ready=0 step4Empty=0 arenaFail=0 evict=0 camPos=(13.79, 43.80, -64.18)
+<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>
