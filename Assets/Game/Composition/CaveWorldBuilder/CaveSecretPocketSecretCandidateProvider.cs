@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using Game.Structures.Api;
 using Game.Structures.Runtime;
 using Game.WorldBuilder.Api;
+using MountingForce.WorldGen;
 
 namespace Game.Composition.CaveWorldBuilder
 {
@@ -42,18 +44,30 @@ namespace Game.Composition.CaveWorldBuilder
     }
 
     /// <summary>
-    /// WorldBuilder-facing candidate provider backed only by physically verified cave pockets.
-    /// The candidate id is derived from physical voxel geometry and deliberately excludes SiteRef,
-    /// so semantic aliases of one physical cave share the same reservation identity.
+    /// WorldBuilder-facing candidate provider backed only by physically verified cave pockets. The same
+    /// verified pockets also implement IHiddenSpaceRealizationFacts, so downstream gameplay resolves
+    /// container and entrance geometry from the exact candidate/entrance ids selected by SecretPlanner.
+    ///
+    /// Candidate identity is derived from physical voxel geometry and deliberately excludes SiteRef, so
+    /// semantic aliases of one physical cave share one reservation/realization identity.
     /// </summary>
-    public sealed class CaveSecretPocketSecretCandidateProvider : ISecretCandidateProvider
+    public sealed class CaveSecretPocketSecretCandidateProvider :
+        ISecretCandidateProvider,
+        IHiddenSpaceRealizationFacts
     {
         private readonly Dictionary<SiteRef, IReadOnlyList<SecretCandidate>> _candidates =
             new Dictionary<SiteRef, IReadOnlyList<SecretCandidate>>();
+        private readonly Dictionary<string, RealizedWorldBounds> _candidateBounds =
+            new Dictionary<string, RealizedWorldBounds>(StringComparer.Ordinal);
+        private readonly Dictionary<string, RealizedWorldBounds> _entranceBounds =
+            new Dictionary<string, RealizedWorldBounds>(StringComparer.Ordinal);
 
         public CaveSecretPocketSecretCandidateProvider(
+            int voxelsPerDecimetre,
             IReadOnlyList<CaveSecretPocketProjection> projections)
         {
+            if (voxelsPerDecimetre <= 0)
+                throw new ArgumentOutOfRangeException(nameof(voxelsPerDecimetre));
             if (projections == null) throw new ArgumentNullException(nameof(projections));
 
             var mutable = new Dictionary<SiteRef, List<SecretCandidate>>();
@@ -68,10 +82,13 @@ namespace Game.Composition.CaveWorldBuilder
                         "Cave secret projection at index " + i + " is not verified/well formed.",
                         nameof(projections));
 
-                SecretCandidate candidate = ToCandidate(in projection);
+                CaveSecretPocket pocket = projection.Pocket;
+                string candidateId = PhysicalCandidateId(in pocket);
+                string entranceId = EntranceId(candidateId);
+                SecretCandidate candidate = ToCandidate(in projection, candidateId, entranceId);
 
                 int existingQuality;
-                if (qualityByPhysicalId.TryGetValue(candidate.Id.Id, out existingQuality))
+                if (qualityByPhysicalId.TryGetValue(candidateId, out existingQuality))
                 {
                     if (existingQuality != projection.QualityBasisPoints)
                         throw new InvalidOperationException(
@@ -80,8 +97,19 @@ namespace Game.Composition.CaveWorldBuilder
                 }
                 else
                 {
-                    qualityByPhysicalId.Add(candidate.Id.Id, projection.QualityBasisPoints);
+                    qualityByPhysicalId.Add(candidateId, projection.QualityBasisPoints);
                 }
+
+                AddOrVerifyBounds(
+                    _candidateBounds,
+                    candidateId,
+                    RealizedBounds(in pocket.Pocket, voxelsPerDecimetre),
+                    "candidate");
+                AddOrVerifyBounds(
+                    _entranceBounds,
+                    entranceId,
+                    RealizedBounds(in pocket.Barrier, voxelsPerDecimetre),
+                    "entrance");
 
                 HashSet<string> siteIds;
                 if (!idsBySite.TryGetValue(projection.Site, out siteIds))
@@ -89,7 +117,7 @@ namespace Game.Composition.CaveWorldBuilder
                     siteIds = new HashSet<string>(StringComparer.Ordinal);
                     idsBySite.Add(projection.Site, siteIds);
                 }
-                if (!siteIds.Add(candidate.Id.Id))
+                if (!siteIds.Add(candidateId))
                     throw new InvalidOperationException(
                         "Physical cave secret candidate '" + candidate.Id +
                         "' was projected more than once for site '" + projection.Site + "'.");
@@ -119,12 +147,34 @@ namespace Game.Composition.CaveWorldBuilder
                 : Array.Empty<SecretCandidate>();
         }
 
-        private static SecretCandidate ToCandidate(in CaveSecretPocketProjection projection)
+        public bool TryGetCandidateBounds(string candidateId, out RealizedWorldBounds bounds)
+        {
+            if (candidateId == null)
+            {
+                bounds = default(RealizedWorldBounds);
+                return false;
+            }
+            return _candidateBounds.TryGetValue(candidateId, out bounds);
+        }
+
+        public bool TryGetEntranceBounds(string entranceId, out RealizedWorldBounds bounds)
+        {
+            if (entranceId == null)
+            {
+                bounds = default(RealizedWorldBounds);
+                return false;
+            }
+            return _entranceBounds.TryGetValue(entranceId, out bounds);
+        }
+
+        private static SecretCandidate ToCandidate(
+            in CaveSecretPocketProjection projection,
+            string candidateId,
+            string entranceId)
         {
             CaveSecretPocket pocket = projection.Pocket;
-            string candidateId = PhysicalCandidateId(in pocket);
             var entrance = new SecretEntranceCandidate(
-                candidateId + "/barrier",
+                entranceId,
                 SecretEntranceType.DestroyableFalseWall,
                 pocket.SeparatesHiddenSpaceBeforeOpen,
                 pocket.GrantsNormalTraversalAfterOpen,
@@ -141,6 +191,50 @@ namespace Game.Composition.CaveWorldBuilder
                 new[] { entrance });
         }
 
+        private static RealizedWorldBounds RealizedBounds(
+            in DecorationBounds bounds,
+            int voxelsPerDecimetre)
+        {
+            return new RealizedWorldBounds(
+                new Int3(bounds.Min.x, bounds.Min.y, bounds.Min.z),
+                new Int3(
+                    bounds.MaxExclusive.x - 1,
+                    bounds.MaxExclusive.y - 1,
+                    bounds.MaxExclusive.z - 1),
+                voxelsPerDecimetre);
+        }
+
+        private static void AddOrVerifyBounds(
+            Dictionary<string, RealizedWorldBounds> values,
+            string id,
+            RealizedWorldBounds bounds,
+            string kind)
+        {
+            RealizedWorldBounds existing;
+            if (!values.TryGetValue(id, out existing))
+            {
+                values.Add(id, bounds);
+                return;
+            }
+
+            if (!SameBounds(in existing, in bounds))
+                throw new InvalidOperationException(
+                    "Physical cave secret " + kind + " id '" + id +
+                    "' resolved to inconsistent voxel bounds across site aliases.");
+        }
+
+        private static bool SameBounds(
+            in RealizedWorldBounds left,
+            in RealizedWorldBounds right) =>
+            left.UnitsPerDecimetre == right.UnitsPerDecimetre &&
+            SamePoint(left.MinInclusive, right.MinInclusive) &&
+            SamePoint(left.MaxInclusive, right.MaxInclusive);
+
+        private static bool SamePoint(Int3 left, Int3 right) =>
+            left.X == right.X && left.Y == right.Y && left.Z == right.Z;
+
+        private static string EntranceId(string candidateId) => candidateId + "/barrier";
+
         private static string PhysicalCandidateId(in CaveSecretPocket pocket)
         {
             return string.Concat(
@@ -154,7 +248,7 @@ namespace Game.Composition.CaveWorldBuilder
                 "/pocket/", BoundsKey(in pocket.Pocket));
         }
 
-        private static string BoundsKey(in Game.Structures.Api.DecorationBounds bounds) =>
+        private static string BoundsKey(in DecorationBounds bounds) =>
             string.Concat(
                 Integer(bounds.Min.x), ",", Integer(bounds.Min.y), ",", Integer(bounds.Min.z), "-",
                 Integer(bounds.MaxExclusive.x), ",", Integer(bounds.MaxExclusive.y), ",",
