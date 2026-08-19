@@ -6,6 +6,7 @@
         "Game.Structures.Runtime",
         "Game.Materials.Api",
         "Game.WorldBuilder.Api",
+        "Game.WorldBuilder.Runtime",
         "Game.Composition.CaveWorldBuilder",
         "VoxelEngine.Structures.Api",
         "VoxelEngine.Structures.Runtime",
