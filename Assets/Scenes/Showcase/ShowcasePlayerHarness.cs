@@ -65,6 +65,11 @@ namespace VoxelEngine.Showcase
                 Debug.Log($"HARNESS build budget {buildBudget} ms x{scale}");
             }
 
+            // A player pauses when its window loses focus, and an automated run has no reason to
+            // hold focus — the log simply stops, the process stays alive, and the main thread
+            // parks in the event loop. That reads as a hang in the thing being measured.
+            Application.runInBackground = true;
+
             if (HasFlag("-voxel-uncapped"))
             {
                 // Both are needed: vSyncCount overrides targetFrameRate whenever it is non-zero,

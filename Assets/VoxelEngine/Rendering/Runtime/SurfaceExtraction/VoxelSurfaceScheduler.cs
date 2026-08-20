@@ -582,25 +582,17 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         /// <summary>
         /// LOD bands, in metres from the viewer.
         ///
-        /// <para>The innermost band sets the arena's working set and therefore whether the view
-        /// converges at all. Every ring draws from one geometry arena whose PC budget is 1.25 GB
-        /// (device-matrix.md), sized on an assumed ~12.5 K vertices per chunk. The full showcase
-        /// measures 15.4 K — 23% higher — and at a 96 m inner band that put ~2,200 chunks in the
-        /// arena, filling it to 98%. Past that, admitting a chunk evicts one, roughly 200 visible
-        /// chunks never closed, and the scheduler stayed in its converging state at twelve
-        /// concurrent builds forever: a steady 10-17 FPS that never settled. device-matrix.md
-        /// predicts exactly this — "sized flush to the working set the arena thrashes instead of
-        /// converging".</para>
-        ///
-        /// <para>An 80 m inner band holds roughly (80/96)^2 of the step-1 chunks, which drops the
-        /// working set well inside the budget. The ground it gives up is meshed at step 2, whose
-        /// 0.2 m sampling begins at 80 m away.</para>
+        /// <para>The innermost band was briefly narrowed to 80 m on the theory that the arena
+        /// was thrashing — it does fill to 98% in the full showcase. That measured no improvement
+        /// at all, because the arena's cost was never its occupancy but the driver renaming the
+        /// buffer on every partial write (see SurfaceGeometryArena). The band is back at 96 m;
+        /// narrowing it only coarsened ground between 80 m and 96 m for nothing.</para>
         /// </summary>
         private static readonly (int SourceStep, float Inner, float Outer)[] s_RingLayout =
         {
-            (1, 0f, 80f),
-            (2, 80f, 176f),
-            (4, 176f, 288f),
+            (1, 0f, 96f),
+            (2, 96f, 192f),
+            (4, 192f, 288f),
             (8, 288f, MaxVoxelRingRadiusMetresDefault),
         };
 
@@ -1012,6 +1004,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
             long managedAllocationStart = GC.GetAllocatedBytesForCurrentThread();
             _lastAdvancedFrame = frame;
+
+            // Hand back ranges the GPU has finished with, before anything acquires this frame.
+            // Publication releases a chunk's previous range the moment it swaps, but earlier
+            // frames still in flight are drawing from it; the arena quarantines those ranges and
+            // this is where they come back.
+            _geometryArena.RetireExpiredLeases(frame);
 
             double prepareStart = Time.realtimeSinceStartupAsDouble;
             using var prepareScope = s_PrepareMarker.Auto();

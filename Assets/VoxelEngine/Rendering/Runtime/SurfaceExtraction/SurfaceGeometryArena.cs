@@ -44,9 +44,30 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private const int IndexAlignment = 512;
 
 
+        /// <summary>
+        /// Frames a released range is quarantined before it may be handed out again. Unity queues
+        /// at most <c>QualitySettings.maxQueuedFrames</c> frames ahead of the GPU; three covers
+        /// the default of two with a frame in hand.
+        /// </summary>
+        private const int LeaseRetirementFrames = 3;
+
+        private readonly struct PendingRelease
+        {
+            public readonly SurfaceGeometryLease Lease;
+            public readonly int Frame;
+
+            public PendingRelease(in SurfaceGeometryLease lease, int frame)
+            {
+                Lease = lease;
+                Frame = frame;
+            }
+        }
+
         private readonly RangeAllocator _vertexRanges;
         private readonly RangeAllocator _indexRanges;
         private readonly RangeAllocator _argsRanges;
+        private readonly Queue<PendingRelease> _pendingRelease = new();
+        private int _frame;
         private NativeArray<uint> _argsScratch;
         private bool _disposed;
 
@@ -166,9 +187,45 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             return true;
         }
 
+        /// <summary>
+        /// Retires a lease, but not before the GPU can still be reading it.
+        ///
+        /// <para>A chunk publishes by swapping a freshly written staging lease over its live one
+        /// and releasing the old range. The GPU is still rendering earlier frames whose draws
+        /// reference that range, so reusing it immediately would let a new chunk's geometry
+        /// overwrite triangles being read.</para>
+        ///
+        /// <para>This did not matter while uploads went through <c>SetData</c>: writing to a
+        /// buffer the GPU held forced the driver to rename it, and the in-flight read kept the
+        /// old copy. That protection was incidental, and it cost O(buffer size) per upload — the
+        /// reason this arena moved to <see cref="ComputeBufferMode.SubUpdates"/>. Persistently
+        /// mapped writes land in memory the GPU is reading, so the delay has to be explicit.</para>
+        /// </summary>
         public void Release(in SurfaceGeometryLease lease)
         {
             if (!lease.IsValid || _disposed) return;
+            _pendingRelease.Enqueue(new PendingRelease(lease, _frame));
+        }
+
+        /// <summary>
+        /// Returns ranges retired far enough in the past that no in-flight frame can reference
+        /// them. Call once per world frame, before any acquisition.
+        /// </summary>
+        public void RetireExpiredLeases(int frame)
+        {
+            _frame = frame;
+            while (_pendingRelease.Count > 0)
+            {
+                PendingRelease pending = _pendingRelease.Peek();
+                if (frame - pending.Frame < LeaseRetirementFrames) break;
+                _pendingRelease.Dequeue();
+                ReleaseImmediate(in pending.Lease);
+            }
+        }
+
+        private void ReleaseImmediate(in SurfaceGeometryLease lease)
+        {
+            if (!lease.IsValid) return;
             _vertexRanges.Release(lease.VertexStart, lease.VertexCapacity);
             _indexRanges.Release(lease.IndexStart, lease.IndexCapacity);
             _argsRanges.Release(lease.ArgsWordStart, ArgsWordsPerDraw);
@@ -222,6 +279,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         {
             if (_disposed) return;
             _disposed = true;
+            _pendingRelease.Clear();
             Vertices?.Release();
             Indices?.Release();
             Args?.Release();
