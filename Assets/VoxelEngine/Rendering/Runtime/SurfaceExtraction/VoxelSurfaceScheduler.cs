@@ -834,6 +834,15 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         /// <summary>Main-thread milliseconds the last Prepare consumed, whole-frame.</summary>
         public double LastPrepareMainThreadMs { get; private set; }
 
+        /// <summary>
+        /// Whole-frame main-thread milliseconds per Prepare phase. Per-build percentiles cannot
+        /// say which phase owns a frame; these can.
+        /// </summary>
+        public double LastInvalidationMs { get; private set; }
+        public double LastDiscoveryMs { get; private set; }
+        public double LastAdmissionMs { get; private set; }
+        public double LastVisibilityMainThreadMs { get; private set; }
+
         public string DescribeRingResidency()
         {
             var text = new System.Text.StringBuilder("RINGS");
@@ -841,7 +850,13 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                         + $" i={_geometryArena.UsedIndices}/{_geometryArena.IndexCapacity}"
                         + $" draws={_geometryArena.UsedArgsRecords}/{_geometryArena.ArgsRecordCapacity}]");
             text.Append($" missingVisible={_lastMissingVisibleCount}");
-            text.Append($" prepareMs={LastPrepareMainThreadMs:0.00}");
+            text.Append($" prepare[total={LastPrepareMainThreadMs:0.00}"
+                        + $" invalidate={LastInvalidationMs:0.00}"
+                        + $" discover={LastDiscoveryMs:0.00}"
+                        + $" admit={LastAdmissionMs:0.00}"
+                        + $" visible={LastVisibilityMainThreadMs:0.00}"
+                        + $" cand={_lastVisibilityCandidateChecks}"
+                        + $" drawn={_visibleSolids.Count}]");
             for (int r = 0; r < _rings.Length; r++)
             {
                 SurfaceRing ring = _rings[r];
@@ -1065,7 +1080,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     _allWorkers[i].InvalidateSurfaceBricks(_changedBricks);
                 _water.InvalidateSurfaceBricks(storage, _changedWaterBricks);
             }
-            _invalidationTiming.Add(ElapsedMs(invalidationStart));
+            LastInvalidationMs = ElapsedMs(invalidationStart);
+            _invalidationTiming.Add(LastInvalidationMs);
 
             double discoveryStart = Time.realtimeSinceStartupAsDouble;
             using (s_DiscoveryMarker.Auto())
@@ -1074,7 +1090,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 ProcessSurfaceDiscovery(storage, _discoveredSurfaceBricks,
                                         SurfaceDiscoveryBudgetMs);
             }
-            _discoveryTiming.Add(ElapsedMs(discoveryStart));
+            LastDiscoveryMs = ElapsedMs(discoveryStart);
+            _discoveryTiming.Add(LastDiscoveryMs);
 
             // Solid discovery establishes authoritative chunk ownership, not halo invalidation.
             // Canonicalize each discovered block into the interior of the same ring-local chunk
@@ -1125,6 +1142,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             double solidDeadline = workersStart
                                  + Math.Max(0.0, SolidBuildBudgetMs * budgetScale) * 0.001;
             int admittedWorkers = 0;
+            double admissionStart = Time.realtimeSinceStartupAsDouble;
             using var workersScope = s_WorkersMarker.Auto();
 
             int workerCount = _allWorkers.Length;
@@ -1307,6 +1325,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
             JobHandle.ScheduleBatchedJobs();
 
+            LastAdmissionMs = ElapsedMs(admissionStart);
             _prepareTiming.Add(ElapsedMs(prepareStart));
             // Whole-frame main-thread total, not a per-build percentile. Frame cost scales with
             // concurrent builds, so the question is how much of a frame this call consumes
@@ -1378,7 +1397,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 missingVisible += _allWorkers[i].MissingVisibleCount;
             _lastMissingVisibleCount = missingVisible;
 
-            _visibilityTiming.Add(ElapsedMs(visibilityStart));
+            LastVisibilityMainThreadMs = ElapsedMs(visibilityStart);
+            _visibilityTiming.Add(LastVisibilityMainThreadMs);
         }
 
         private static int FloorDiv(int value, int divisor)
