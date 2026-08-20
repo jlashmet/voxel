@@ -1,11 +1,16 @@
 from pathlib import Path
 
 from api.models import AssetType, BuildSpec
-from .base import AssetPipeline
+from .base import AssetPipeline, PipelineResult
+from .rigid_composition import composed_rigid_plan
 
 
 class WeaponPipeline(AssetPipeline):
     asset_type = AssetType.WEAPON
+
+    def plan(self, spec: BuildSpec) -> PipelineResult:
+        composed = composed_rigid_plan(self, spec, part_kind="weapon")
+        return composed if composed is not None else super().plan(spec)
 
     def _prepare_command(
         self,
@@ -15,7 +20,7 @@ class WeaponPipeline(AssetPipeline):
     ) -> list[str]:
         cfg = spec.rigid
         assert cfg is not None
-        return [
+        command = [
             cfg.blender,
             "--background",
             "--python",
@@ -28,3 +33,12 @@ class WeaponPipeline(AssetPipeline):
             "--part-kind",
             "weapon",
         ]
+        if cfg.canonical_axis is not None:
+            command.extend(["--canonical-axis", cfg.canonical_axis])
+        if cfg.target_length is not None:
+            command.extend(["--target-length", str(cfg.target_length)])
+        if cfg.anchor_fraction is not None:
+            command.extend(
+                ["--anchor-fraction", *(str(value) for value in cfg.anchor_fraction)]
+            )
+        return command

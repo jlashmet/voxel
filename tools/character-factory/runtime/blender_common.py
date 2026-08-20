@@ -5,6 +5,10 @@ from pathlib import Path
 import bpy
 
 
+_WEIGHT_EPSILON = 1e-6
+_FALLBACK_MASK_GROUP = "__CanonicalWeightFallbackMask"
+
+
 def clear_scene() -> None:
     bpy.ops.object.select_all(action="SELECT")
     bpy.ops.object.delete(use_global=False)
@@ -49,6 +53,40 @@ def generated_meshes(objects: list[bpy.types.Object], label: str) -> list[bpy.ty
     return meshes
 
 
+def _has_positive_weight(vertex: bpy.types.MeshVertex) -> bool:
+    return any(group.weight > _WEIGHT_EPSILON for group in vertex.groups)
+
+
+def _apply_weight_transfer(
+    mesh: bpy.types.Object,
+    donor_body: bpy.types.Object,
+    *,
+    max_distance: float | None,
+    vertex_group: str | None = None,
+    name: str,
+) -> None:
+    modifier = mesh.modifiers.new(name=name, type="DATA_TRANSFER")
+    modifier.object = donor_body
+    modifier.use_vert_data = True
+    modifier.data_types_verts = {"VGROUP_WEIGHTS"}
+    modifier.vert_mapping = "POLYINTERP_NEAREST"
+    modifier.layers_vgroup_select_src = "ALL"
+    modifier.layers_vgroup_select_dst = "NAME"
+    if vertex_group:
+        modifier.vertex_group = vertex_group
+    if max_distance is None:
+        modifier.use_max_distance = False
+    else:
+        modifier.use_max_distance = True
+        modifier.max_distance = max_distance
+
+    bpy.ops.object.select_all(action="DESELECT")
+    bpy.context.view_layer.objects.active = mesh
+    mesh.select_set(True)
+    bpy.ops.object.modifier_apply(modifier=modifier.name)
+    mesh.select_set(False)
+
+
 def transfer_weights(
     mesh: bpy.types.Object,
     donor_body: bpy.types.Object,
@@ -69,23 +107,48 @@ def transfer_weights(
     for name in donor_groups:
         mesh.vertex_groups.new(name=name)
 
-    modifier = mesh.modifiers.new(name="CanonicalWeightTransfer", type="DATA_TRANSFER")
-    modifier.object = donor_body
-    modifier.use_vert_data = True
-    modifier.data_types_verts = {"VGROUP_WEIGHTS"}
-    modifier.vert_mapping = "POLYINTERP_NEAREST"
-    modifier.layers_vgroup_select_src = "ALL"
-    modifier.layers_vgroup_select_dst = "NAME"
-    modifier.use_max_distance = True
-    modifier.max_distance = max_distance
+    # First preserve the existing bounded nearest-surface transfer. This gives the
+    # highest-confidence correspondence for generated vertices close to the donor.
+    _apply_weight_transfer(
+        mesh,
+        donor_body,
+        max_distance=max_distance,
+        name="CanonicalWeightTransfer",
+    )
 
-    bpy.ops.object.select_all(action="DESELECT")
-    bpy.context.view_layer.objects.active = mesh
-    mesh.select_set(True)
-    bpy.ops.object.modifier_apply(modifier=modifier.name)
-    mesh.select_set(False)
+    primary_weighted = sum(
+        1 for vertex in mesh.data.vertices if _has_positive_weight(vertex)
+    )
+    unweighted = [
+        vertex.index for vertex in mesh.data.vertices if not _has_positive_weight(vertex)
+    ]
 
-    weighted_vertices = sum(1 for vertex in mesh.data.vertices if vertex.groups)
+    # Generated image-to-3D meshes can contain legitimate surface vertices farther
+    # from the low-poly canonical donor than maxTransferDistance. Leaving those
+    # vertices unweighted produces frozen patches when the skeleton animates. Use a
+    # second nearest-surface transfer only on the vertices the bounded pass missed;
+    # the mask means already-good weights are never overwritten by this fallback.
+    fallback_filled = 0
+    if unweighted:
+        mask = mesh.vertex_groups.new(name=_FALLBACK_MASK_GROUP)
+        mask.add(unweighted, 1.0, "REPLACE")
+        _apply_weight_transfer(
+            mesh,
+            donor_body,
+            max_distance=None,
+            vertex_group=mask.name,
+            name="CanonicalWeightFallback",
+        )
+        mesh.vertex_groups.remove(mask)
+        fallback_filled = sum(
+            1
+            for index in unweighted
+            if _has_positive_weight(mesh.data.vertices[index])
+        )
+
+    weighted_vertices = sum(
+        1 for vertex in mesh.data.vertices if _has_positive_weight(vertex)
+    )
     if weighted_vertices == 0:
         raise RuntimeError(
             f"Weight transfer assigned no vertices for mesh '{mesh.name}'"
@@ -97,6 +160,8 @@ def transfer_weights(
 
     print(
         f"canonical weights: mesh={mesh.name} groups={len(mesh.vertex_groups)} "
+        f"primaryWeighted={primary_weighted}/{len(mesh.data.vertices)} "
+        f"fallbackFilled={fallback_filled}/{len(unweighted)} "
         f"weightedVertices={weighted_vertices}/{len(mesh.data.vertices)}",
         flush=True,
     )

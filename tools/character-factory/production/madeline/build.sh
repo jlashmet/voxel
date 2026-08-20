@@ -21,12 +21,8 @@ for name in front back left right; do
   fi
 done
 
-CACHE_ROOT="${CHARACTER_FACTORY_CACHE_ROOT:-$HOME/Library/Caches/voxel-character-factory}"
-HUNYUAN_REV="f8db63096c8282cb27354314d896feba5ba6ff8a"
-HUNYUAN_PY="${HUNYUAN_PY:-$CACHE_ROOT/hunyuan3d-2-$HUNYUAN_REV-venv/bin/python}"
-if [ ! -x "$HUNYUAN_PY" ]; then
-  HUNYUAN_PY="$(bash "$SCRIPT_DIR/bootstrap_hunyuan_quality_macos.sh" | tail -n 1)"
-fi
+HUNYUAN_PY="$(python3 tools/character-factory/character_factory.py \
+  bootstrap-profile hunyuan-quality-macos | tail -n 1)"
 test -x "$HUNYUAN_PY"
 
 OUT="${1:-$REPO_ROOT/Artifacts/MadelineProduction}"
@@ -107,12 +103,7 @@ BODY_BACK="$OUT/reference/body-only/back.jpg"
 BODY_LEFT="$OUT/reference/body-only/left.jpg"
 BODY_RIGHT="$OUT/reference/body-only/right.jpg"
 
-printf '%s\n' '[3/9] Ensure the Hunyuan multiview backend is ready'
-MODEL_ROOT="${HY3DGEN_MODELS:-$CACHE_ROOT/models}"
-export HY3DGEN_MODELS="$MODEL_ROOT"
-if [ ! -s "$MODEL_ROOT/tencent/Hunyuan3D-2mv/hunyuan3d-dit-v2-mv-turbo/model.fp16.safetensors" ]; then
-  bash "$SCRIPT_DIR/bootstrap_hunyuan_quality_macos.sh" >/dev/null
-fi
+printf '%s\n' '[3/9] Hunyuan quality profile is pinned and ready'
 
 printf '%s\n' '[4/9] Create the canonical animation skeleton'
 CANONICAL="$OUT/canonical_female.glb"
@@ -129,26 +120,16 @@ cat > "$SPEC" <<JSON
 {
   "id": "madeline_body_01",
   "assetType": "character",
-  "views": {
-    "front": "$BODY_FRONT",
-    "back": "$BODY_BACK",
-    "left": "$BODY_LEFT",
-    "right": "$BODY_RIGHT"
+  "references": {
+    "geometry": { "directory": "$OUT/reference/body-only" },
+    "appearance": { "directory": "$OUT/reference/body-only" },
+    "details": { "face": "$FACE" }
   },
   "outputDir": "$OUT",
   "generator": {
-    "python": "$HUNYUAN_PY",
-    "backend": "hunyuan-pytorch",
-    "preset": "quality",
-    "model": "tencent/Hunyuan3D-2mv",
-    "subfolder": "hunyuan3d-dit-v2-mv-turbo",
-    "device": "auto",
+    "profile": "hunyuan-quality-macos",
     "seed": 31827,
-    "steps": 5,
-    "octreeResolution": 256,
-    "numChunks": 16000,
-    "removeBackground": true,
-    "enableFlashVdm": false
+    "removeBackground": true
   },
   "rig": {
     "blender": "$BLENDER_BIN",
@@ -163,7 +144,18 @@ python3 tools/character-factory/character_factory.py build "$SPEC"
 RAW_FBX="$OUT/madeline_body_01.fbx"
 test -s "$RAW_FBX"
 
-printf '%s\n' '[6/9] Project body/hair appearance from the approved turnaround'
+printf '%s\n' '[6/9] Diagnose and project body/hair appearance from the approved turnaround'
+PROJECTION_REPORT="$OUT/madeline_body_01.projection-report.json"
+"$BLENDER_BIN" --background --python-exit-code 1 \
+  --python tools/character-factory/ci/diagnose_multiview_projection.py -- \
+  --input "$RAW_FBX" \
+  --front "$BODY_FRONT" \
+  --back "$BODY_BACK" \
+  --left "$BODY_LEFT" \
+  --right "$BODY_RIGHT" \
+  --output "$PROJECTION_REPORT"
+test -s "$PROJECTION_REPORT"
+
 TEXTURED_FBX="$OUT/madeline_body_01.textured.fbx"
 ATLAS="$OUT/madeline_body_01.body_basecolor.png"
 "$BLENDER_BIN" --background --python-exit-code 1 \
@@ -221,8 +213,10 @@ printf '%s\n' \
   "Madeline base body built and staged." \
   "Body: $RAW_FBX" \
   "Body atlas: $ATLAS" \
+  "Projection diagnostics: $PROJECTION_REPORT" \
   "Preview: $OUT/madeline_body_01.render.png" \
   "Idle: $OUT/madeline_body_01.idle.png" \
   "Reference audit: $OUT/body-only-reference-report.json" \
+  "Generator profile: hunyuan-quality-macos" \
   "Alignment blend: $CHARACTER_FACTORY_ALIGNMENT_BLEND" \
   "Unity: $UNITY_ASSETS_ROOT/character/madeline_body_01"

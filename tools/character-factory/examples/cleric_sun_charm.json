@@ -5,6 +5,9 @@
     "front": "views/cleric_sun_charm_front.png",
     "back": "views/cleric_sun_charm_back.png"
   },
+  "appearance": {
+    "strategy": "preserve-generator"
+  },
   "outputDir": "../build/cleric_sun_charm_01",
   "generator": {
     "python": "/path/to/hunyuan-env/bin/python",

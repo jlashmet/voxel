@@ -7,17 +7,16 @@
     "left": "views/cleric_robe_left.png",
     "right": "views/cleric_robe_right.png"
   },
+  "appearance": {
+    "strategy": "garment-multiview"
+  },
   "outputDir": "../build/cleric_robe_01",
   "generator": {
-    "python": "/path/to/hunyuan-env/bin/python",
-    "device": "auto",
+    "profile": "hunyuan-quality-macos",
     "seed": 12345
   },
   "rig": {
-    "blender": "/Applications/Blender.app/Contents/MacOS/Blender",
-    "canonicalBody": "/path/to/canonical_female.glb",
-    "bodyObject": "Body",
-    "armatureObject": "Armature",
+    "profile": "canonical-humanoid-macos",
     "maxTransferDistance": 0.25
   },
   "runtimePart": {

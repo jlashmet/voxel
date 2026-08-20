@@ -18,10 +18,10 @@ SHAFT_X_END = 0.617
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Create a staff-only TripoSR conditioning image from the Sunlit Cleric "
-            "CI crop. Ornate regions are copied from the source; the straight shaft "
-            "is deterministically reconstructed across hand/robe occlusions using "
-            "colors sampled from visible shaft pixels. No generative model is used."
+            "Create the Sunlit Cleric staff-only conditioning image from its source "
+            "artwork. This is intentionally asset-specific: the ornament envelope, "
+            "warm-metal segmentation, and occluded shaft reconstruction are tuned to "
+            "this reference image rather than presented as a generic factory stage."
         )
     )
     parser.add_argument("--input", required=True)
@@ -49,10 +49,6 @@ def build_head_mask(rgb: np.ndarray, hsv: np.ndarray) -> np.ndarray:
     green = rgb[:, :, 1].astype(np.float32)
     blue = rgb[:, :, 2].astype(np.float32)
 
-    # The source crop contains scenery directly behind the ornament. Restrict the
-    # search to the known ornament envelope and use a warm-metal color test that
-    # rejects most stone/foliage pixels. The main staff ornament is one connected
-    # component, so keeping only the largest component preserves its real holes.
     envelope = np.zeros((height, width), dtype=np.uint8)
     points = np.array(
         [
@@ -126,15 +122,10 @@ def build_staff_layer(rgb: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     layer = np.zeros_like(rgb)
     mask = np.zeros((height, width), dtype=np.uint8)
 
-    # Preserve the actual ornate head, including the open spaces inside the ring.
     head = build_head_mask(rgb, hsv)
     layer[head > 0] = rgb[head > 0]
     mask = np.maximum(mask, head)
 
-    # The staff shaft is geometrically simple but the source image has a hand and
-    # robe crossing it. Rebuild only the straight shaft from colors sampled from
-    # unobstructed source pixels. Start below the ornament and never overwrite any
-    # preserved ornament pixels.
     y_start = int(SHAFT_Y_START * height)
     y_end = int(SHAFT_Y_END * height)
     base, highlight = sample_shaft_colors(rgb, hsv)
@@ -154,7 +145,6 @@ def build_staff_layer(rgb: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
             layer[y, highlight_x] = highlight
             mask[y, highlight_x] = 255
 
-    # Preserve the wider gold foot/finial around the known staff endpoint.
     bottom_region = np.zeros_like(mask)
     bottom_region[
         int(0.865 * height) : height,
@@ -192,8 +182,6 @@ def fit_on_gray_canvas(layer: np.ndarray, mask: np.ndarray) -> Image.Image:
     cropped_rgb = layer[y0:y1, x0:x1]
     cropped_mask = mask[y0:y1, x0:x1]
 
-    # Match TripoSR's official preprocessing convention: centered isolated
-    # foreground on neutral gray occupying roughly 85% of a square image.
     canvas_size = 768
     target_extent = int(round(canvas_size * 0.85))
     crop_h, crop_w = cropped_mask.shape
@@ -220,7 +208,7 @@ def main() -> int:
     layer, mask = build_staff_layer(rgb)
     image = fit_on_gray_canvas(layer, mask)
     output.parent.mkdir(parents=True, exist_ok=True)
-    image.save(output)
+    image.save(output, format="PNG", optimize=False, compress_level=9)
     print(output)
     return 0
 

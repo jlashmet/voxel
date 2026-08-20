@@ -7,6 +7,9 @@
     "left": "views/cleric_staff_left.png",
     "right": "views/cleric_staff_right.png"
   },
+  "appearance": {
+    "strategy": "rigid-multiview"
+  },
   "outputDir": "../build/cleric_staff_01",
   "generator": {
     "python": "/path/to/hunyuan-env/bin/python",
