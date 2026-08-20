@@ -14,8 +14,8 @@ namespace MountingForce.WorldGen.Voxel
     ///
     /// Plot altitude comes from <see cref="KentridgeVerticalProfile.PlotSurfaceY"/>, sampled at the
     /// public frontage so the yard meets its authored street elevation. The flat core hugs the real
-    /// building envelope. Three 40 cm local terraces rise away from it, preserving the small parcel
-    /// feathering pass while district-scale verticality remains owned by the shared macro profile.
+    /// building envelope. Twelve voxel-scale terraces rise away from it, preserving the same 1.2 m
+    /// parcel feather while removing the conspicuous 40 cm contour shelves seen in close captures.
     /// </summary>
     public static class KentridgePlotSurfaceCatalogue
     {
@@ -23,8 +23,8 @@ namespace MountingForce.WorldGen.Voxel
         private const int FillDepthDm = 12;
         private const int SurfaceThicknessDm = 1;
         private const int ClearAboveDm = 56;
-        private const int TerraceStepDm = 4;
-        private const int TerraceCount = 3;
+        private const int TerraceStepDm = 1;
+        private const int TerraceCount = 12;
         private const int MaxTerraceRiseDm = TerraceStepDm * TerraceCount;
         private const int FootprintHeightDm =
             FillDepthDm + SurfaceThicknessDm + MaxTerraceRiseDm + ClearAboveDm;
@@ -212,7 +212,7 @@ namespace MountingForce.WorldGen.Voxel
             var b = new ProgramBuilder();
 
             // Work from the outside inward. Every inner terrace carves the previous, higher fill
-            // back down, leaving four nested plateaux only one Transvoxel sample-step apart.
+            // back down, leaving a shallow voxel-scale ramp rather than four visible shelves.
             for (int terrace = TerraceCount; terrace >= 0; terrace--)
             {
                 int expandDm = terrace * TerraceStepDm;

@@ -236,6 +236,64 @@ namespace VoxelEngine.Tests.EditMode
             }
         }
 
+        [Test]
+        public void EveryGeneratedRoleAuthorsAProjectingFacadeSignature()
+        {
+            SettlementPlan plan = KentridgeDefinition.Build(Seed);
+            FeatureCatalogue catalogue = KentridgeGrammarVoxelCatalogue.Build(
+                Seed, BuildSettings(), Allocator.Temp);
+            try
+            {
+                for (int plotIndex = 0; plotIndex < plan.Plots.Count; plotIndex++)
+                {
+                    BuildingPlot plot = plan.Plots[plotIndex];
+                    if (!KentridgeBuildingGrammar.Resolve(plot, Seed).IsGenerated) continue;
+
+                    int roleId = plot.RoleId;
+                    FeatureDefinition definition = catalogue.Definitions[roleId];
+                    int anchorZ = int.MinValue;
+                    int pc = definition.ProgramOffset;
+                    int end = pc + definition.ProgramLength;
+                    while (pc < end)
+                    {
+                        ShapeOp op = (ShapeOp)catalogue.Program[pc];
+                        if (op == ShapeOp.SetAnchor)
+                            anchorZ = catalogue.Program[pc + 5];
+                        pc += ShapeOps.InstructionLength(op);
+                        if (op == ShapeOp.End) break;
+                    }
+
+                    Assert.AreNotEqual(int.MinValue, anchorZ, "Missing public entrance anchor.");
+                    bool projectsFromFacade = false;
+                    pc = definition.ProgramOffset;
+                    while (pc < end)
+                    {
+                        ShapeOp op = (ShapeOp)catalogue.Program[pc];
+                        if ((op == ShapeOp.EmitBox || op == ShapeOp.EmitRoundedBox)
+                            && catalogue.Program[pc + 4] <= anchorZ - 5)
+                        {
+                            if (op == ShapeOp.EmitBox
+                                && (PrimitiveMode)catalogue.Program[pc + 11] == PrimitiveMode.Fill)
+                                projectsFromFacade = true;
+                            if (op == ShapeOp.EmitRoundedBox
+                                && (PrimitiveMode)catalogue.Program[pc + 12] == PrimitiveMode.Fill)
+                                projectsFromFacade = true;
+                        }
+                        pc += ShapeOps.InstructionLength(op);
+                        if (op == ShapeOp.End) break;
+                    }
+
+                    Assert.IsTrue(projectsFromFacade,
+                        ((KentridgeRole)roleId) +
+                        " should project a porch, canopy, sign, pier, or planter from its facade.");
+                }
+            }
+            finally
+            {
+                catalogue.Dispose();
+            }
+        }
+
         private static void AssertFinalBoxMode(
             NativeList<Primitive> primitives,
             int3 point,

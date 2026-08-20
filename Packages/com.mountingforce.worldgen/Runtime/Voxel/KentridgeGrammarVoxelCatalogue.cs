@@ -325,6 +325,12 @@ namespace MountingForce.WorldGen.Voxel
                 2 * s,
                 foundation);
 
+            AddRoleSignature(
+                b, (KentridgeRole)form.RoleId,
+                x0, z0, w, f, floor,
+                doorX, doorW,
+                foundation, timber, cloth, roof, s);
+
             if (hasWing)
             {
                 PrismProfile wingProfile = form.Roof == KentridgeRoofForm.GableWithLeanTo
@@ -362,6 +368,93 @@ namespace MountingForce.WorldGen.Voxel
             int3 door = new int3(doorX + doorW / 2, f, z0);
             b.Anchor(0, door, Facing.South);
             return new CompiledProgram { Code = b.Finish(), Door = door };
+        }
+
+        private static void AddRoleSignature(
+            ProgramBuilder b,
+            KentridgeRole role,
+            int x0, int z0, int width,
+            int foundationY, int floorHeight,
+            int doorX, int doorWidth,
+            byte stone, byte timber, byte cloth, byte roof,
+            int s)
+        {
+            int frontZ = z0 - 5 * s;
+            int centre = doorX + doorWidth / 2;
+            switch (role)
+            {
+                case KentridgeRole.Inn:
+                    // A deep, supported arrival canopy reads from both street level and the survey.
+                    b.Box(centre - 25 * s, foundationY + 27 * s, frontZ - 8 * s,
+                        50 * s, 3 * s, 14 * s, timber);
+                    b.Box(centre - 23 * s, foundationY, frontZ - 7 * s,
+                        4 * s, 29 * s, 4 * s, timber);
+                    b.Box(centre + 19 * s, foundationY, frontZ - 7 * s,
+                        4 * s, 29 * s, 4 * s, timber);
+                    break;
+                case KentridgeRole.Pub:
+                    // Projecting bracket and sign make the hospitality use legible down the lane.
+                    b.Box(doorX + doorWidth + 5 * s, foundationY + 25 * s, frontZ,
+                        18 * s, 3 * s, 3 * s, timber);
+                    b.Box(doorX + doorWidth + 18 * s, foundationY + 15 * s, frontZ,
+                        3 * s, 12 * s, 3 * s, timber);
+                    b.Box(doorX + doorWidth + 11 * s, foundationY + 13 * s, frontZ - 2 * s,
+                        14 * s, 11 * s, 2 * s, cloth);
+                    break;
+                case KentridgeRole.MayorHouse:
+                    // Formal stone portico and balcony separate the civic residence from houses.
+                    b.Box(centre - 24 * s, foundationY + 29 * s, frontZ - 4 * s,
+                        48 * s, 4 * s, 12 * s, stone);
+                    b.Box(centre - 21 * s, foundationY, frontZ,
+                        5 * s, 31 * s, 5 * s, stone);
+                    b.Box(centre + 16 * s, foundationY, frontZ,
+                        5 * s, 31 * s, 5 * s, stone);
+                    break;
+                case KentridgeRole.WeaponShop:
+                    AddShopPiers(b, centre, foundationY, frontZ, stone, 5 * s, 22 * s, s);
+                    b.Box(centre - 19 * s, foundationY + 22 * s, frontZ,
+                        38 * s, 3 * s, 5 * s, timber);
+                    break;
+                case KentridgeRole.ArmorShop:
+                    AddShopPiers(b, centre, foundationY, frontZ, stone, 7 * s, 28 * s, s);
+                    b.Box(centre - 25 * s, foundationY + 27 * s, frontZ,
+                        50 * s, 5 * s, 6 * s, stone);
+                    break;
+                case KentridgeRole.MagicShop:
+                    // Curved hood repeats the portal arch at a larger silhouette scale.
+                    b.Prism(centre - 22 * s, foundationY + 27 * s, frontZ - 6 * s,
+                        44 * s, 12 * s, 12 * s, PrismProfile.Arch, roof);
+                    b.Box(centre - 2 * s, foundationY + floorHeight - 2 * s, frontZ,
+                        4 * s, 18 * s, 4 * s, timber);
+                    break;
+                case KentridgeRole.AbandonedHouse:
+                    // Deliberately incomplete brace lengths retain a readable damaged silhouette.
+                    b.Box(x0 + 8 * s, foundationY + 7 * s, frontZ,
+                        24 * s, 3 * s, 4 * s, timber);
+                    b.Box(x0 + width - 27 * s, foundationY + 18 * s, frontZ,
+                        19 * s, 3 * s, 4 * s, timber);
+                    break;
+                default:
+                    // Named homes get deterministic planter/porch rhythms instead of sharing an
+                    // unmodified grammar façade. Role identity chooses the offset and width.
+                    int variant = ((int)role * 7) % 13;
+                    int planterWidth = (16 + variant) * s;
+                    int planterX = x0 + (8 + variant) * s;
+                    planterX = math.min(planterX, x0 + width - planterWidth - 8 * s);
+                    b.Box(planterX, foundationY + 16 * s, frontZ,
+                        planterWidth, 3 * s, 5 * s, timber);
+                    b.Box(centre - 16 * s, foundationY + 25 * s, frontZ,
+                        32 * s, 3 * s, 8 * s, roof);
+                    break;
+            }
+        }
+
+        private static void AddShopPiers(
+            ProgramBuilder b, int centre, int y, int z,
+            byte material, int width, int height, int s)
+        {
+            b.Box(centre - 24 * s, y, z, width, height, 5 * s, material);
+            b.Box(centre + (24 * s - width), y, z, width, height, 5 * s, material);
         }
 
         private static StructureGeometryProfile ResolveGeometry(KentridgeBuildingForm form)

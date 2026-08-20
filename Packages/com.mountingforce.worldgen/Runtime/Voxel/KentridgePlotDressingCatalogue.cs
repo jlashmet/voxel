@@ -38,8 +38,10 @@ namespace MountingForce.WorldGen.Voxel
         private const int DefinitionCount = 7;
         private const int FenceLengthDm = 32;
         private const int FenceDepthDm = 4;
-        private const int TerraceStepDm = 4;
-        private const int TerraceCount = 3;
+        // Must match KentridgePlotSurfaceCatalogue: the same 1.2 m feather is split into
+        // voxel-scale steps so dressing sits on the softened plot transition.
+        private const int TerraceStepDm = 1;
+        private const int TerraceCount = 12;
 
         private readonly struct DressingPlacement
         {

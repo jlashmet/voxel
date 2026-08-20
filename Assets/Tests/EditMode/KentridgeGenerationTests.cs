@@ -336,6 +336,47 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void PlotSurfaceFeatherUsesVoxelScaleSteps()
+        {
+            FeatureCatalogue plots = KentridgePlotSurfaceCatalogue.Build(
+                Seed, BuildSettings(), Allocator.Temp);
+            try
+            {
+                FeatureDefinition definition = plots.Definitions[0];
+                int surfaceLayers = 0;
+                int previousY = int.MinValue;
+                int pc = definition.ProgramOffset;
+                int end = pc + definition.ProgramLength;
+                while (pc < end)
+                {
+                    ShapeOp op = (ShapeOp)plots.Program[pc];
+                    if (op == ShapeOp.EmitBox
+                        && (byte)plots.Program[pc + 8] == 14
+                        && (PrimitiveMode)plots.Program[pc + 11] == PrimitiveMode.Fill)
+                    {
+                        int y = plots.Program[pc + 3];
+                        if (previousY != int.MinValue)
+                            Assert.AreEqual(1, System.Math.Abs(y - previousY),
+                                "Adjacent plot feather shelves should differ by one voxel.");
+                        previousY = y;
+                        surfaceLayers++;
+                    }
+
+                    pc += ShapeOps.InstructionLength(op);
+                    if (op == ShapeOp.End) break;
+                }
+
+                Assert.AreEqual(13, surfaceLayers,
+                    "The 1.2 m plot feather should resolve into twelve shallow transitions.");
+                Assert.AreEqual(39, definition.MaxPrimitives);
+            }
+            finally
+            {
+                plots.Dispose();
+            }
+        }
+
+        [Test]
         public void PlanIsDeterministicForSameSeed()
         {
             SettlementPlan a = KentridgeDefinition.Build(Seed);
