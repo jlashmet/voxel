@@ -1,0 +1,21 @@
+{
+  "name": "Game.Composition.CaveWorldBuilder",
+  "rootNamespace": "Game.Composition.CaveWorldBuilder",
+  "references": [
+    "Game.WorldBuilder.Api",
+    "Game.Structures.Api",
+    "Game.Structures.Runtime",
+    "VoxelEngine.Structures.Api",
+    "MountingForce.WorldGen.Core",
+    "Unity.Mathematics"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

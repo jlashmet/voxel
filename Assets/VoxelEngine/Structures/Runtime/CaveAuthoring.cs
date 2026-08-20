@@ -10,6 +10,8 @@ namespace VoxelEngine.Structures.Runtime
         public int BranchesAuthored;
         public int ChambersAuthored;
         public int3 MainPathEnd;
+        public int MainPathTraversalDistance;
+        public CaveTraversalCandidateSet TraversalCandidates;
     }
 
     /// <summary>
