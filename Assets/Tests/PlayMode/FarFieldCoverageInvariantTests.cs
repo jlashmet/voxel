@@ -27,6 +27,43 @@ namespace VoxelEngine.Tests.PlayMode
         private const float VoxelSize = 0.1f;
 
         [Test]
+        public void CriticalNearFallbackIsHeightSampledBeforeFirstRenderedFrame()
+        {
+            var go = new GameObject("FarFieldCoverageInvariantTests.CriticalStartupFallback");
+            try
+            {
+                var far = go.AddComponent<VoxelFarTerrain>();
+                far.Seed = 8173;
+                SetField(far, "m_InnerRadiusMetres", 51.2f);
+                SetField(far, "m_OuterRadiusMetres", 12000f);
+
+                Invoke(far, "EnsureRings");
+
+                var valid = GetField<List<bool>>(far, "_ringHeightValid");
+                var heights = GetField<List<NativeArray<int>>>(far, "_ringHeights");
+                var origins = GetField<List<int2>>(far, "_ringOrigin");
+                Assert.True(valid[0],
+                    "Ring zero must be authoritative before the first frame is presented.");
+
+                int spacing = far.SpacingForRing(0);
+                int verts = GetField<int>(far, "m_Resolution") + 1;
+                int x = verts * 3 / 4;
+                int z = verts / 3;
+                int expected = VoxelEngine.Terrain.Api.TerrainQuery.HeightAt(
+                    origins[0].x + x * spacing,
+                    origins[0].y + z * spacing,
+                    far.Seed);
+                Assert.AreEqual(expected, heights[0][x + z * verts],
+                    "The first-frame critical fallback must follow the real terrain heightfield, "
+                  + "not a flat base-height plane that exposes sky through nearby hills.");
+            }
+            finally
+            {
+                Object.DestroyImmediate(go);
+            }
+        }
+
+        [Test]
         public void IncompleteNearCoverageClosesAnAlreadyOpenFarFallbackHole()
         {
             var go = new GameObject("FarFieldCoverageInvariantTests.IncompleteNearCoverage");
@@ -52,6 +89,52 @@ namespace VoxelEngine.Tests.PlayMode
             finally
             {
                 Object.DestroyImmediate(go);
+            }
+        }
+
+        [Test]
+        public void GroundHoleCannotExceedCameraSpaceLodSphereProjection()
+        {
+            var cameraGo = new GameObject("FarFieldCoverageInvariantTests.ProjectionCamera");
+            var farGo = new GameObject("FarFieldCoverageInvariantTests.ProjectionFarTerrain");
+            try
+            {
+                Camera camera = cameraGo.AddComponent<Camera>();
+                var far = farGo.AddComponent<VoxelFarTerrain>();
+                far.Seed = 7283;
+                SetField(far, "_camera", camera);
+
+                camera.transform.position = new Vector3(13.7f, 0f, -21.9f);
+                int voxelX = Mathf.FloorToInt(camera.transform.position.x / VoxelSize);
+                int voxelZ = Mathf.FloorToInt(camera.transform.position.z / VoxelSize);
+                float terrainY = VoxelEngine.Terrain.Api.TerrainQuery.HeightAt(
+                    voxelX, voxelZ, far.Seed) * VoxelSize;
+
+                const float nearRadius = 51.2f;
+                camera.transform.position = new Vector3(
+                    camera.transform.position.x, terrainY + 30f, camera.transform.position.z);
+                MethodInfo projection = typeof(VoxelFarTerrain).GetMethod(
+                    "GroundProjectedNearRadius", BindingFlags.NonPublic | BindingFlags.Instance);
+                Assert.NotNull(projection);
+                float projected = (float)projection.Invoke(far, new object[] { nearRadius });
+                Assert.Greater(projected, 0f);
+                Assert.LessOrEqual(projected,
+                    Mathf.Sqrt(nearRadius * nearRadius - 30f * 30f) + 0.001f,
+                    "Terrain relief may shrink, but never enlarge, the flat-plane projection of "
+                  + "the renderer's spherical LOD band.");
+
+                camera.transform.position = new Vector3(
+                    camera.transform.position.x,
+                    terrainY + nearRadius + 1f,
+                    camera.transform.position.z);
+                projected = (float)projection.Invoke(far, new object[] { nearRadius });
+                Assert.AreEqual(0f, projected, 0.001f,
+                    "Above the near LOD sphere, the far fallback must cover the whole ground.");
+            }
+            finally
+            {
+                Object.DestroyImmediate(farGo);
+                Object.DestroyImmediate(cameraGo);
             }
         }
 

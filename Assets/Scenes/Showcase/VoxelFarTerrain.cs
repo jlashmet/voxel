@@ -87,11 +87,12 @@ namespace VoxelEngine.Showcase
         private int _ringWorkCursor;
         private ulong _topologyRebuildCount;
 
-        // A newly-created clipmap has no completed height cache to draw. Keep one zero-sampling
-        // emergency mesh in the outer-ring slot until that ring receives its first authoritative
-        // async sample. It is deliberately not marked height-valid: normal single-flight admission
-        // still visits every ring in order, while DrawMesh can provide continuous fallback coverage
-        // from the first rendered frame. The real outer ring replaces this mesh on publication.
+        // Ring zero is sampled synchronously once so nearby terrain has the correct silhouette on
+        // the first rendered frame. The remaining clipmap has no completed height cache to draw,
+        // so keep one zero-sampling emergency mesh in the outer-ring slot until that ring receives
+        // its first authoritative async sample. It is deliberately not marked height-valid:
+        // normal single-flight admission still visits every outer ring in order, while DrawMesh
+        // provides continuous horizon coverage. The real outer ring replaces it on publication.
         private bool _startupFallbackInitialized;
         private int _startupFallbackRing = -1;
 
@@ -167,6 +168,13 @@ namespace VoxelEngine.Showcase
                         return;
                     }
 
+                    // Voxel LOD bands are spherical in camera space, while this hole is a circle
+                    // projected onto the ground. Looking down during a descent can therefore have
+                    // a handful of fully built chunks directly below the camera and zero reported
+                    // missing work, even though those chunks cover only a tiny fraction of the
+                    // configured horizontal radius. Project the spherical near radius onto the
+                    // local terrain plane before opening the ground hole.
+                    requested = GroundProjectedNearRadius(requested);
                     float snapCellMetres = SpacingForRing(0) * 0.1f;
                     float snapDiagonalGuard = snapCellMetres * Mathf.Sqrt(2f);
                     _holeRadiusMetres = Mathf.Max(0f, requested - snapDiagonalGuard);
@@ -180,6 +188,54 @@ namespace VoxelEngine.Showcase
         private float _holeRadiusMetres;
         private float _requestedHoleRadiusMetres;
         private float _builtHoleRadiusMetres = -1f;
+        private Vector3 _groundProjectionCameraPosition =
+            new(float.PositiveInfinity, float.PositiveInfinity, float.PositiveInfinity);
+        private float _groundProjectionNearRadius = -1f;
+        private float _cachedGroundProjectedNearRadius;
+
+        private float GroundProjectedNearRadius(float nearRadiusMetres)
+        {
+            if (_camera == null || nearRadiusMetres <= 0f) return nearRadiusMetres;
+
+            Vector3 cameraPosition = _camera.transform.position;
+            if (Mathf.Approximately(nearRadiusMetres, _groundProjectionNearRadius)
+                && (cameraPosition - _groundProjectionCameraPosition).sqrMagnitude < 0.25f)
+                return _cachedGroundProjectedNearRadius;
+
+            // A single height directly below the camera is insufficient on sloped terrain. The
+            // near renderer admits surface chunks inside a 3D camera-space sphere; the far hole is
+            // safe only through the last complete radial shell whose real terrain surface fits in
+            // that sphere in every direction.
+            const int angularSamples = 16;
+            float radialStep = Mathf.Max(SpacingForRing(0) * 0.2f, 1.6f);
+            float nearRadiusSq = nearRadiusMetres * nearRadiusMetres;
+            float safeRadius = 0f;
+            for (float radius = radialStep; radius <= nearRadiusMetres; radius += radialStep)
+            {
+                bool shellFits = true;
+                for (int sample = 0; sample < angularSamples; sample++)
+                {
+                    float angle = sample * (Mathf.PI * 2f / angularSamples);
+                    float worldX = cameraPosition.x + Mathf.Cos(angle) * radius;
+                    float worldZ = cameraPosition.z + Mathf.Sin(angle) * radius;
+                    int voxelX = Mathf.FloorToInt(worldX / 0.1f);
+                    int voxelZ = Mathf.FloorToInt(worldZ / 0.1f);
+                    float terrainY = TerrainSampler.HeightAt(voxelX, voxelZ, m_Seed) * 0.1f;
+                    float vertical = cameraPosition.y - terrainY;
+                    if (radius * radius + vertical * vertical <= nearRadiusSq) continue;
+                    shellFits = false;
+                    break;
+                }
+
+                if (!shellFits) break;
+                safeRadius = radius;
+            }
+
+            _groundProjectionCameraPosition = cameraPosition;
+            _groundProjectionNearRadius = nearRadiusMetres;
+            _cachedGroundProjectedNearRadius = safeRadius;
+            return safeRadius;
+        }
 
         /// <summary>Ring count needed to reach the outer radius by successive doubling.</summary>
         public int RingCount
@@ -509,9 +565,53 @@ namespace VoxelEngine.Showcase
             if (!_startupFallbackInitialized && _ringMeshes.Count > 0)
             {
                 _startupFallbackInitialized = true;
-                _startupFallbackRing = _ringMeshes.Count - 1;
-                BuildStartupFallback(_ringMeshes[_startupFallbackRing]);
+                BuildCriticalStartupFallback();
+
+                // With more than one ring, retain a cheap full-square horizon behind the sampled
+                // critical ring while the outer height jobs publish. A one-ring clipmap is already
+                // completely covered by the synchronously sampled ring zero.
+                if (_ringMeshes.Count > 1)
+                {
+                    _startupFallbackRing = _ringMeshes.Count - 1;
+                    BuildStartupFallback(_ringMeshes[_startupFallbackRing]);
+                }
             }
+        }
+
+        /// <summary>
+        /// Publishes authoritative nearby terrain before the first frame can be presented.
+        ///
+        /// A flat startup plane covers base height but not the silhouette of a hill. While near
+        /// chunks are still publishing, that leaves sky visible through the missing part of the
+        /// hill. Ring zero is only one fixed-size sample lattice, so paying for this one Burst job
+        /// synchronously at creation establishes the visual coverage invariant without turning the
+        /// ordinary moving-camera path back into a blocking one.
+        /// </summary>
+        private void BuildCriticalStartupFallback()
+        {
+            const int ring = 0;
+            int spacing = _ringSpacing[ring];
+            Vector3 cameraPosition = _camera != null
+                ? _camera.transform.position
+                : transform.position;
+            int2 origin = OriginFor(cameraPosition, spacing);
+            int verts = m_Resolution + 1;
+
+            new FarTerrainHeightJob
+            {
+                Origin = origin,
+                Spacing = spacing,
+                VertsPerAxis = verts,
+                Seed = m_Seed,
+                Heights = _ringHeights[ring],
+            }.Run(verts * verts);
+
+            _ringHeightValid[ring] = true;
+            _ringOrigin[ring] = origin;
+            RebuildRingFromCachedHeights(ring, origin, spacing);
+            _ringBuiltStructureVersion[ring] = Structures?.Version ?? 0;
+            _builtHoleRadiusMetres = _holeRadiusMetres;
+            _ringWorkCursor = _ringMeshes.Count > 1 ? 1 : 0;
         }
 
         /// <summary>
