@@ -150,23 +150,20 @@ namespace VoxelEngine.Showcase
             set
             {
                 float requested = Mathf.Clamp(value, 0f, m_InnerRadiusMetres);
+                _requestedHoleRadiusMetres = requested;
                 if (_requirePublishedNearCoverage)
                 {
                     if (!RenderingComposition.HasCompletePublishedNearSurfaceCoverage())
                     {
-                        // Hold the last published radius rather than slamming the hole shut.
-                        //
-                        // Coverage is incomplete on almost every frame the player is moving:
-                        // walking constantly brings chunks into view before they are built, so
-                        // resetting to zero here closed the hole for the entire duration of any
-                        // movement and drew the far mesh — and its smooth structure proxies —
-                        // over the whole near world. That is the doubled terrain and the grey
-                        // patches, and it appeared precisely when the player moved.
-                        //
-                        // Holding is safe in the direction that matters. The hole only ever
-                        // uncovers far terrain that near geometry is already standing in front
-                        // of; a hole that is momentarily too large shows far ground under near
-                        // ground, while a hole of zero guarantees far ground on top of it.
+                        // Near coverage is a per-view fact. A hole that was safe at street level
+                        // is not safe after the camera rises and looks down: the new frustum can
+                        // expose hundreds of chunks which have no published geometry yet. Keeping
+                        // the old hole in that state shows the sky clear colour through the world.
+                        // Close it until the current view is complete. Ring zero suppresses coarse
+                        // structure proxies inside the requested near footprint while closed, so
+                        // fallback terrain fills absent pixels without drawing a smooth castle or
+                        // house over its detailed near-field replacement.
+                        _holeRadiusMetres = 0f;
                         return;
                     }
 
@@ -181,6 +178,7 @@ namespace VoxelEngine.Showcase
         }
 
         private float _holeRadiusMetres;
+        private float _requestedHoleRadiusMetres;
         private float _builtHoleRadiusMetres = -1f;
 
         /// <summary>Ring count needed to reach the outer radius by successive doubling.</summary>
@@ -592,6 +590,10 @@ namespace VoxelEngine.Showcase
             NativeArray<int> heights = _ringHeights[ring];
             Vector3[] positions = _positionsScratch;
             Color[] colours = _coloursScratch;
+            Vector3 centre = new((origin.x + spacing * m_Resolution / 2) * 0.1f, 0f,
+                                 (origin.y + spacing * m_Resolution / 2) * 0.1f);
+            float structureProxyHoleSq = _requestedHoleRadiusMetres
+                                       * _requestedHoleRadiusMetres;
             for (int z = 0; z < verts; z++)
             for (int x = 0; x < verts; x++)
             {
@@ -604,13 +606,19 @@ namespace VoxelEngine.Showcase
                 // horizon instead of having it appear at the streaming radius.
                 int height = heights[i];
                 bool isStructure = false;
-                if (Structures != null)
+                float worldX = voxelX * 0.1f;
+                float worldZ = voxelZ * 0.1f;
+                float proxyDx = worldX - centre.x;
+                float proxyDz = worldZ - centre.z;
+                bool insideRequestedNearFootprint = ring == 0
+                    && proxyDx * proxyDx + proxyDz * proxyDz < structureProxyHoleSq;
+                if (Structures != null && !insideRequestedNearFootprint)
                 {
                     int built = Structures.HeightAt(voxelX, voxelZ);
                     if (built != int.MinValue && built > height) { height = built; isStructure = true; }
                 }
 
-                positions[i] = new Vector3(voxelX * 0.1f, height * 0.1f, voxelZ * 0.1f);
+                positions[i] = new Vector3(worldX, height * 0.1f, worldZ);
 
                 // Material identity comes from the same application-owned role set as the near
                 // world. Rendering only resolves the opaque index to the installed presentation.
@@ -639,9 +647,6 @@ namespace VoxelEngine.Showcase
                 float parentCellGuard = spacing * 0.1f;
                 holeMetres = Mathf.Max(0f, childHalfExtent - parentCellGuard);
             }
-
-            Vector3 centre = new((origin.x + spacing * m_Resolution / 2) * 0.1f, 0f,
-                                 (origin.y + spacing * m_Resolution / 2) * 0.1f);
 
             float builtTopologyHole = _ringBuiltTopologyHoleMetres[ring];
             bool topologyDirty = float.IsNaN(builtTopologyHole)

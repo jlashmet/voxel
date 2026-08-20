@@ -26,6 +26,35 @@ namespace VoxelEngine.Tests.PlayMode
         private const string ScenePath = "Assets/Scenes/VoxelShowcase.unity";
         private const float VoxelSize = 0.1f;
 
+        [Test]
+        public void IncompleteNearCoverageClosesAnAlreadyOpenFarFallbackHole()
+        {
+            var go = new GameObject("FarFieldCoverageInvariantTests.IncompleteNearCoverage");
+            try
+            {
+                var far = go.AddComponent<VoxelFarTerrain>();
+                SetField(far, "m_InnerRadiusMetres", 409.6f);
+                SetField(far, "_requirePublishedNearCoverage", true);
+                SetField(far, "_holeRadiusMetres", 391.5f);
+
+                // No active surface pass means the current view has no proven near coverage.
+                // This is the same transition produced by rising above the showcase and turning
+                // the camera down before the newly visible chunks have published.
+                far.HoleRadiusMetres = 409.6f;
+
+                Assert.AreEqual(0f, far.HoleRadiusMetres,
+                    "An unbacked far-field hole exposes the camera clear/sky through terrain.");
+                Assert.AreEqual(409.6f,
+                    GetField<float>(far, "_requestedHoleRadiusMetres"), 0.001f,
+                    "The desired handoff radius must survive fallback closure so it can reopen "
+                  + "after the current near view completes.");
+            }
+            finally
+            {
+                Object.DestroyImmediate(go);
+            }
+        }
+
         [UnityTest, Timeout(900000)]
         public IEnumerator ColdStartMaintainsContinuousPublishedFallbackCoverage()
         {
