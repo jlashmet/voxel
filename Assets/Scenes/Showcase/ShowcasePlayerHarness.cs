@@ -84,7 +84,8 @@ namespace VoxelEngine.Showcase
             double autoWalkAfter = Value("-voxel-autowalk-after", 0.0);
             string screenshotDir = Argument("-voxel-screenshot-dir");
             if (!log && runSeconds <= 0.0 && autoWalkAfter <= 0.0 && screenshotDir == null
-                && Value("-voxel-freeze-builds-after", 0.0) <= 0.0) return;
+                && Value("-voxel-freeze-builds-after", 0.0) <= 0.0
+                && Value("-voxel-survey-after", 0.0) <= 0.0) return;
 
             var root = new GameObject("Showcase Player Harness")
             {
@@ -98,6 +99,8 @@ namespace VoxelEngine.Showcase
             reporter.ScreenshotEvery = Value("-voxel-screenshot-every", 10.0);
             reporter.FreezeBuildsAfter = Value("-voxel-freeze-builds-after", 0.0);
             reporter.RecedeAfter = Value("-voxel-recede-after", 0.0);
+            reporter.SurveyAfter = Value("-voxel-survey-after", 0.0);
+            reporter.SurveyHeight = (float)Value("-voxel-survey-height", 55.0);
             reporter.RecedeSpeed = (float)Value("-voxel-recede-speed", 8.0);
             reporter.RecedeMaxDistance = (float)Value("-voxel-recede-max", 360.0);
             UnityEngine.Object.DontDestroyOnLoad(root);
@@ -118,6 +121,10 @@ namespace VoxelEngine.Showcase
                     break;
                 case "farterrain":
                     DisableBehavioursNamed("VoxelFarTerrain");
+                    break;
+                case "water":
+                    VoxelEngine.Composition.RenderingComposition.SetWaterRenderEnabled(false);
+                    Debug.Log("HARNESS disabled water surface");
                     break;
                 case "voxels":
                     VoxelEngine.Composition.RenderingComposition.SetSurfaceBuildEnabled(false);
@@ -197,6 +204,10 @@ namespace VoxelEngine.Showcase
             internal double ScreenshotEvery;
             internal double FreezeBuildsAfter;
             internal double RecedeAfter;
+            internal double SurveyAfter;
+            internal float SurveyHeight;
+
+            private bool _surveying;
             internal float RecedeSpeed;
             internal float RecedeMaxDistance;
 
@@ -238,6 +249,18 @@ namespace VoxelEngine.Showcase
                     _frozen = true;
                     VoxelEngine.Composition.RenderingComposition.SetSurfaceBuildEnabled(false);
                     Debug.Log($"HARNESS froze surface builds at t={_totalElapsed:0.0}s");
+                }
+
+                if (!_surveying && SurveyAfter > 0.0 && _totalElapsed >= SurveyAfter)
+                {
+                    var vantage = UnityEngine.Object.FindFirstObjectByType<VoxelShowcase>();
+                    if (vantage != null)
+                    {
+                        vantage.SurveyHeightMetres = SurveyHeight;
+                        vantage.AutoSurvey = true;
+                        _surveying = true;
+                        Debug.Log($"HARNESS survey on at t={_totalElapsed:0.0}s");
+                    }
                 }
 
                 if (!_receding && RecedeAfter > 0.0 && _totalElapsed >= RecedeAfter)
@@ -305,7 +328,9 @@ namespace VoxelEngine.Showcase
                     return;
                 }
 
-                string phase = _receding ? "recede" : _walking ? "walking" : "stationary";
+                string phase = _surveying ? "survey"
+                             : _receding ? "recede"
+                             : _walking ? "walking" : "stationary";
                 string file = string.Format(CultureInfo.InvariantCulture,
                     "showcase-{0:D3}-t{1:000.0}s-{2}.png", _shotIndex++, _totalElapsed, phase);
                 string path = Path.Combine(ScreenshotDirectory, file);

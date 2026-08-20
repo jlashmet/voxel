@@ -477,6 +477,33 @@ namespace VoxelEngine.Showcase
         /// terrain ends up climbing hillsides and looking at the ground, which is a test of the
         /// character motor rather than of the renderer.
         /// </summary>
+        /// <summary>
+        /// Stands on top of the landmark and turns slowly, looking down at the surrounding
+        /// ground.
+        ///
+        /// Holes in terrain are reported from up here and are invisible from the ground, because
+        /// at eye level the near ground occludes everything a missing chunk would expose. The
+        /// vantage has to be high, aimed down, and turning, or the defect cannot be captured.
+        /// </summary>
+        public bool AutoSurvey { get; set; }
+
+        public float SurveyHeightMetres { get; set; } = 55f;
+        public float SurveyPitchDegrees { get; set; } = 28f;
+
+        private void StepAutoSurvey()
+        {
+            const float DegreesPerSecond = 30f;
+            Vector3 landmark = LandmarkWorldPosition();
+            transform.position = new Vector3(landmark.x,
+                                             landmark.y + SurveyHeightMetres,
+                                             landmark.z);
+            _yaw += DegreesPerSecond * Time.deltaTime;
+            _pitch = SurveyPitchDegrees;
+            transform.rotation = Quaternion.Euler(_pitch, _yaw, 0f);
+            _motor.Position = transform.position - Vector3.up * _motor.EyeHeight;
+            _motor.Velocity = Vector3.zero;
+        }
+
         private void StepAutoRecede()
         {
             Vector3 landmark = LandmarkWorldPosition();
@@ -537,6 +564,12 @@ namespace VoxelEngine.Showcase
             float forward = (Input.GetKey(KeyCode.W) ? 1f : 0f) - (Input.GetKey(KeyCode.S) ? 1f : 0f);
             float strafe = (Input.GetKey(KeyCode.D) ? 1f : 0f) - (Input.GetKey(KeyCode.A) ? 1f : 0f);
             bool sprint = Input.GetKey(KeyCode.LeftShift);
+
+            if (AutoSurvey)
+            {
+                StepAutoSurvey();
+                return;
+            }
 
             if (AutoRecede)
             {

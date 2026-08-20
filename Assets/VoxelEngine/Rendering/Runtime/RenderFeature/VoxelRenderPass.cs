@@ -396,7 +396,8 @@ namespace VoxelEngine.Rendering.Runtime
                     passData.TransvoxelEntries[i].Draw(cmd, passData.Material,
                                                        passData.Properties);
 
-                if (passData.WaterMaterial != null && passData.WaterEntryCount > 0)
+                if (VoxelRenderBridge.WaterRenderEnabled
+                    && passData.WaterMaterial != null && passData.WaterEntryCount > 0)
                 {
                     cmd.SetGlobalVector(s_CameraPosition, passData.CameraPosition);
                     cmd.SetGlobalVector(s_SunDirection, passData.SunDirection);

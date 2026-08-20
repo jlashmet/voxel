@@ -848,7 +848,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             var text = new System.Text.StringBuilder("RINGS");
             text.Append($" arena[v={_geometryArena.UsedVertices}/{_geometryArena.VertexCapacity}"
                         + $" i={_geometryArena.UsedIndices}/{_geometryArena.IndexCapacity}"
-                        + $" draws={_geometryArena.UsedArgsRecords}/{_geometryArena.ArgsRecordCapacity}]");
+                        + $" draws={_geometryArena.UsedArgsRecords}/{_geometryArena.ArgsRecordCapacity}"
+                        + $" leaseFail={_geometryArena.AllocationFailureCount}]");
             text.Append($" missingVisible={_lastMissingVisibleCount}");
             text.Append($" prepare[total={LastPrepareMainThreadMs:0.00}"
                         + $" invalidate={LastInvalidationMs:0.00}"
@@ -1321,6 +1322,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 _observedWaterArenaAllocationFailures = waterArenaFailures;
                 _water.TryEvictOneForArenaPressure(camera, voxelSize);
             }
+
             _workerPrepareTiming.Add(workerPrepareMs);
 
             JobHandle.ScheduleBatchedJobs();

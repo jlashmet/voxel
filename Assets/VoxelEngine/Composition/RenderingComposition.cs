@@ -141,6 +141,9 @@ namespace VoxelEngine.Composition
         public static void SetVoxelArenaBudgetBytes(long bytes) =>
             VoxelRenderBridge.SurfaceArenaBudgetBytesOverride = System.Math.Max(0L, bytes);
 
+        public static void SetWaterRenderEnabled(bool enabled) =>
+            VoxelRenderBridge.WaterRenderEnabled = enabled;
+
         public static void SetVoxelBuildBudgetMs(double budgetMs, double convergenceScale)
         {
             VoxelRenderBridge.SolidBuildBudgetMs = System.Math.Max(0.0, budgetMs);

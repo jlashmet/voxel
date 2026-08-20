@@ -163,6 +163,13 @@ namespace VoxelEngine.Rendering.Runtime
         /// finest step, which only suits a world small enough to afford it.</summary>
         public static bool SurfaceLodEnabled = true;
 
+        /// <summary>
+        /// Draws the exposed-water surface. Diagnostic only: turning it off is how a flat sheet
+        /// standing where terrain should be gets attributed to the water cache rather than to a
+        /// hole in the solid surface.
+        /// </summary>
+        public static bool WaterRenderEnabled = true;
+
         public static int SurfaceMaxResidentChunksPerRing = 4096;
 
         public static int SurfaceMaxConcurrentBuildsConverging = 12;
