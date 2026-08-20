@@ -2,7 +2,8 @@
   "name": "Game.WorldBuilder.Api",
   "rootNamespace": "Game.WorldBuilder.Api",
   "references": [
-    "Game.Cutscenes.Api"
+    "Game.Cutscenes.Api",
+    "Game.Quests.Api"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

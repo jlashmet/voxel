@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Game.Cutscenes.Api;
+using Game.Quests.Api;
 
 namespace Game.WorldBuilder.Api
 {
@@ -26,10 +27,22 @@ namespace Game.WorldBuilder.Api
         internal CutsceneCompletedTriggerSpec(CutsceneRef cutscene) => Cutscene = cutscene;
     }
 
+    public sealed class QuestCompletedTriggerSpec : IStoryTriggerSpec
+    {
+        public QuestRef Quest { get; }
+        internal QuestCompletedTriggerSpec(QuestRef quest) => Quest = quest;
+    }
+
     public sealed class ObjectiveActiveConditionSpec : IStoryConditionSpec
     {
         public ObjectiveRef Objective { get; }
         internal ObjectiveActiveConditionSpec(ObjectiveRef objective) => Objective = objective;
+    }
+
+    public sealed class QuestActiveConditionSpec : IStoryConditionSpec
+    {
+        public QuestRef Quest { get; }
+        internal QuestActiveConditionSpec(QuestRef quest) => Quest = quest;
     }
 
     public sealed class CutsceneNotCompletedConditionSpec : IStoryConditionSpec
@@ -44,6 +57,12 @@ namespace Game.WorldBuilder.Api
         internal StartObjectiveEffectSpec(ObjectiveRef objective) => Objective = objective;
     }
 
+    public sealed class StartQuestEffectSpec : IStoryEffectSpec
+    {
+        public QuestRef Quest { get; }
+        internal StartQuestEffectSpec(QuestRef quest) => Quest = quest;
+    }
+
     public sealed class PlayCutsceneEffectSpec : IStoryEffectSpec
     {
         public CutsceneRef Cutscene { get; }
@@ -56,17 +75,21 @@ namespace Game.WorldBuilder.Api
         public static InteractWithNpcTriggerSpec InteractWith(NpcRef npc) => new InteractWithNpcTriggerSpec(npc);
         public static CutsceneCompletedTriggerSpec CutsceneCompleted(CutsceneRef cutscene) =>
             new CutsceneCompletedTriggerSpec(cutscene);
+        public static QuestCompletedTriggerSpec QuestCompleted(QuestRef quest) =>
+            new QuestCompletedTriggerSpec(quest);
     }
 
     public static class StoryCondition
     {
         public static IStoryConditionSpec ObjectiveActive(ObjectiveRef objective) => new ObjectiveActiveConditionSpec(objective);
+        public static IStoryConditionSpec QuestActive(QuestRef quest) => new QuestActiveConditionSpec(quest);
         public static IStoryConditionSpec CutsceneNotCompleted(CutsceneRef cutscene) => new CutsceneNotCompletedConditionSpec(cutscene);
     }
 
     public static class StoryEffect
     {
         public static IStoryEffectSpec StartObjective(ObjectiveRef objective) => new StartObjectiveEffectSpec(objective);
+        public static IStoryEffectSpec StartQuest(QuestRef quest) => new StartQuestEffectSpec(quest);
         public static IStoryEffectSpec PlayCutscene(CutsceneRef cutscene) => new PlayCutsceneEffectSpec(cutscene);
     }
 
@@ -171,6 +194,10 @@ namespace Game.WorldBuilder.Api
         }
     }
 
+    /// <summary>
+    /// Legacy single-objective source representation. CampaignRuntime compiles each instance into a
+    /// one-step QuestDefinition; new authoring should use QuestHandle while this bridge remains.
+    /// </summary>
     public sealed class ObjectiveSpec
     {
         public ObjectiveRef Ref { get; }

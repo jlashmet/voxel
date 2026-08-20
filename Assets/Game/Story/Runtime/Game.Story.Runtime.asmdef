@@ -3,7 +3,8 @@
   "rootNamespace": "Game.Story.Runtime",
   "references": [
     "Game.Story.Api",
-    "Game.WorldBuilder.Api"
+    "Game.WorldBuilder.Api",
+    "Game.Quests.Api"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

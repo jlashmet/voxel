@@ -7,7 +7,9 @@
     "Game.Cutscenes.Runtime",
     "Game.Story.Api",
     "Game.Story.Runtime",
-    "Game.WorldBuilder.Api"
+    "Game.WorldBuilder.Api",
+    "Game.Quests.Api",
+    "Game.Quests.Runtime"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

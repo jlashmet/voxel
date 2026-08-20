@@ -1,4 +1,5 @@
 using System;
+using Game.Quests.Api;
 using Game.WorldBuilder.Api;
 
 namespace Game.Story.Api
@@ -7,7 +8,8 @@ namespace Game.Story.Api
     {
         NewGame = 0,
         NpcInteracted = 1,
-        CutsceneCompleted = 2
+        CutsceneCompleted = 2,
+        QuestCompleted = 3
     }
 
     /// <summary>
@@ -19,22 +21,31 @@ namespace Game.Story.Api
         public StoryEventKind Kind { get; }
         public NpcRef Npc { get; }
         public CutsceneRef Cutscene { get; }
+        public QuestRef Quest { get; }
 
-        private StoryEvent(StoryEventKind kind, NpcRef npc, CutsceneRef cutscene)
+        private StoryEvent(
+            StoryEventKind kind,
+            NpcRef npc,
+            CutsceneRef cutscene,
+            QuestRef quest)
         {
             Kind = kind;
             Npc = npc;
             Cutscene = cutscene;
+            Quest = quest;
         }
 
         public static StoryEvent NewGame() =>
-            new StoryEvent(StoryEventKind.NewGame, default, default);
+            new StoryEvent(StoryEventKind.NewGame, default, default, default);
 
         public static StoryEvent NpcInteracted(NpcRef npc) =>
-            new StoryEvent(StoryEventKind.NpcInteracted, npc, default);
+            new StoryEvent(StoryEventKind.NpcInteracted, npc, default, default);
 
         public static StoryEvent CutsceneCompleted(CutsceneRef cutscene) =>
-            new StoryEvent(StoryEventKind.CutsceneCompleted, default, cutscene);
+            new StoryEvent(StoryEventKind.CutsceneCompleted, default, cutscene, default);
+
+        public static StoryEvent QuestCompleted(QuestRef quest) =>
+            new StoryEvent(StoryEventKind.QuestCompleted, default, default, quest);
     }
 
     /// <summary>
@@ -44,16 +55,19 @@ namespace Game.Story.Api
     public interface IStoryStateView
     {
         bool IsObjectiveActive(ObjectiveRef objective);
+        bool IsQuestActive(QuestRef quest);
+        bool IsQuestCompleted(QuestRef quest);
         bool IsCutsceneCompleted(CutsceneRef cutscene);
     }
 
     /// <summary>
-    /// Runtime integration seam. The story engine decides semantic effects; gameplay systems own how
-    /// objectives and cutscenes are actually started.
+    /// Runtime integration seam. Story decides semantic effects; gameplay systems own how quests,
+    /// legacy objectives, and cutscenes are actually started.
     /// </summary>
     public interface IStoryEffectSink
     {
         void StartObjective(ObjectiveRef objective);
+        void StartQuest(QuestRef quest);
         void PlayCutscene(CutsceneRef cutscene);
     }
 }

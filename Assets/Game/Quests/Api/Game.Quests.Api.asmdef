@@ -1,12 +1,7 @@
 {
-  "name": "Game.Composition.Campaign.Content",
-  "rootNamespace": "Game.Composition.Campaign.Content",
-  "references": [
-    "Game.WorldBuilder.Api",
-    "Game.Cutscenes.Api",
-    "Game.Cutscenes.Content",
-    "Game.Quests.Api"
-  ],
+  "name": "Game.Quests.Api",
+  "rootNamespace": "Game.Quests.Api",
+  "references": [],
   "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": false,
