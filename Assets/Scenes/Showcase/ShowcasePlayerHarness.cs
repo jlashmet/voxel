@@ -101,6 +101,7 @@ namespace VoxelEngine.Showcase
             reporter.RecedeAfter = Value("-voxel-recede-after", 0.0);
             reporter.SurveyAfter = Value("-voxel-survey-after", 0.0);
             reporter.SurveyHeight = (float)Value("-voxel-survey-height", 55.0);
+            reporter.SurveySpin = (float)Value("-voxel-survey-spin", 30.0);
             reporter.RecedeSpeed = (float)Value("-voxel-recede-speed", 8.0);
             reporter.RecedeMaxDistance = (float)Value("-voxel-recede-max", 360.0);
             UnityEngine.Object.DontDestroyOnLoad(root);
@@ -206,6 +207,7 @@ namespace VoxelEngine.Showcase
             internal double RecedeAfter;
             internal double SurveyAfter;
             internal float SurveyHeight;
+            internal float SurveySpin;
 
             private bool _surveying;
             internal float RecedeSpeed;
@@ -257,6 +259,7 @@ namespace VoxelEngine.Showcase
                     if (vantage != null)
                     {
                         vantage.SurveyHeightMetres = SurveyHeight;
+                        vantage.SurveySpinDegreesPerSecond = SurveySpin;
                         vantage.AutoSurvey = true;
                         _surveying = true;
                         Debug.Log($"HARNESS survey on at t={_totalElapsed:0.0}s");

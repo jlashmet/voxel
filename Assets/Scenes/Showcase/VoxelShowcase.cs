@@ -490,14 +490,21 @@ namespace VoxelEngine.Showcase
         public float SurveyHeightMetres { get; set; } = 55f;
         public float SurveyPitchDegrees { get; set; } = 28f;
 
+        /// <summary>
+        /// Degrees a second the survey turns. Zero holds a heading, which separates "this chunk
+        /// has not been built yet" from "this chunk cannot be built": a turning camera
+        /// continuously brings unbuilt ground into view, so a standing backlog under rotation is
+        /// not the same defect as one that persists while still.
+        /// </summary>
+        public float SurveySpinDegreesPerSecond { get; set; } = 30f;
+
         private void StepAutoSurvey()
         {
-            const float DegreesPerSecond = 30f;
             Vector3 landmark = LandmarkWorldPosition();
             transform.position = new Vector3(landmark.x,
                                              landmark.y + SurveyHeightMetres,
                                              landmark.z);
-            _yaw += DegreesPerSecond * Time.deltaTime;
+            _yaw += SurveySpinDegreesPerSecond * Time.deltaTime;
             _pitch = SurveyPitchDegrees;
             transform.rotation = Quaternion.Euler(_pitch, _yaw, 0f);
             _motor.Position = transform.position - Vector3.up * _motor.EyeHeight;
