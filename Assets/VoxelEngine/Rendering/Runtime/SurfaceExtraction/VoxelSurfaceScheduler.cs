@@ -579,11 +579,28 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             }
         }
 
+        /// <summary>
+        /// LOD bands, in metres from the viewer.
+        ///
+        /// <para>The innermost band sets the arena's working set and therefore whether the view
+        /// converges at all. Every ring draws from one geometry arena whose PC budget is 1.25 GB
+        /// (device-matrix.md), sized on an assumed ~12.5 K vertices per chunk. The full showcase
+        /// measures 15.4 K — 23% higher — and at a 96 m inner band that put ~2,200 chunks in the
+        /// arena, filling it to 98%. Past that, admitting a chunk evicts one, roughly 200 visible
+        /// chunks never closed, and the scheduler stayed in its converging state at twelve
+        /// concurrent builds forever: a steady 10-17 FPS that never settled. device-matrix.md
+        /// predicts exactly this — "sized flush to the working set the arena thrashes instead of
+        /// converging".</para>
+        ///
+        /// <para>An 80 m inner band holds roughly (80/96)^2 of the step-1 chunks, which drops the
+        /// working set well inside the budget. The ground it gives up is meshed at step 2, whose
+        /// 0.2 m sampling begins at 80 m away.</para>
+        /// </summary>
         private static readonly (int SourceStep, float Inner, float Outer)[] s_RingLayout =
         {
-            (1, 0f, 96f),
-            (2, 96f, 192f),
-            (4, 192f, 288f),
+            (1, 0f, 80f),
+            (2, 80f, 176f),
+            (4, 176f, 288f),
             (8, 288f, MaxVoxelRingRadiusMetresDefault),
         };
 
@@ -822,9 +839,17 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         /// configured band lies entirely outside that radius is not visible in the static ring
         /// layout — only here.
         /// </summary>
+        /// <summary>Main-thread milliseconds the last Prepare consumed, whole-frame.</summary>
+        public double LastPrepareMainThreadMs { get; private set; }
+
         public string DescribeRingResidency()
         {
             var text = new System.Text.StringBuilder("RINGS");
+            text.Append($" arena[v={_geometryArena.UsedVertices}/{_geometryArena.VertexCapacity}"
+                        + $" i={_geometryArena.UsedIndices}/{_geometryArena.IndexCapacity}"
+                        + $" draws={_geometryArena.UsedArgsRecords}/{_geometryArena.ArgsRecordCapacity}]");
+            text.Append($" missingVisible={_lastMissingVisibleCount}");
+            text.Append($" prepareMs={LastPrepareMainThreadMs:0.00}");
             for (int r = 0; r < _rings.Length; r++)
             {
                 SurfaceRing ring = _rings[r];
@@ -925,7 +950,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             SurfaceGeometryArena.ArgsWordsPerDraw * sizeof(uint);
 
         public VoxelSurfaceScheduler()
-            : this(DeviceTierBudget.GetForTier(DeviceTierBudget.Detect()).SurfaceGeometryBudget)
+            : this(VoxelRenderBridge.SurfaceArenaBudgetBytesOverride > 0
+                       ? VoxelRenderBridge.SurfaceArenaBudgetBytesOverride
+                       : DeviceTierBudget.GetForTier(DeviceTierBudget.Detect()).SurfaceGeometryBudget)
         {
         }
 
@@ -1283,6 +1310,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             JobHandle.ScheduleBatchedJobs();
 
             _prepareTiming.Add(ElapsedMs(prepareStart));
+            // Whole-frame main-thread total, not a per-build percentile. Frame cost scales with
+            // concurrent builds, so the question is how much of a frame this call consumes
+            // outright, which a per-build P95 cannot answer. Measured separately rather than
+            // hoisted into a local because GeometryPipelineArchitectureTests locates the frame
+            // accounting boundary by matching the line above as text.
+            LastPrepareMainThreadMs = ElapsedMs(prepareStart);
             _lastFrameManagedAllocationBytes = Math.Max(
                 0L, GC.GetAllocatedBytesForCurrentThread() - managedAllocationStart);
         }

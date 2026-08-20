@@ -435,6 +435,81 @@ namespace VoxelEngine.Showcase
         /// </summary>
         public bool AutoWalk { get; set; }
 
+        /// <summary>
+        /// Flies straight back from the landmark while keeping it centred, so every LOD ring
+        /// boundary is crossed in view.
+        ///
+        /// Popping is a transition between rings, and a ring boundary is only crossed by changing
+        /// distance to a fixed object. The circular walk keeps distance roughly constant and so
+        /// cannot show it at all; only receding can. Distance is logged with the frame line so a
+        /// visible pop can be matched to the ring cut that produced it.
+        /// </summary>
+        public bool AutoRecede { get; set; }
+
+        public float RecedeSpeedMetresPerSecond { get; set; } = 8f;
+        public float RecedeMaxDistanceMetres { get; set; } = 360f;
+
+        /// <summary>Metres from the player to the landmark this world was built around.</summary>
+        public float DistanceToLandmarkMetres
+        {
+            get
+            {
+                Vector3 landmark = LandmarkWorldPosition();
+                Vector3 delta = transform.position - landmark;
+                delta.y = 0f;
+                return delta.magnitude;
+            }
+        }
+
+        private Vector3 LandmarkWorldPosition()
+        {
+            int groundVoxels = _world.SurfaceHeight(
+                ShowcaseWorld.LandmarkCentreX, ShowcaseWorld.LandmarkCentreZ);
+            return new Vector3(ShowcaseWorld.LandmarkCentreX * 0.1f,
+                               groundVoxels * 0.1f,
+                               ShowcaseWorld.LandmarkCentreZ * 0.1f);
+        }
+
+        /// <summary>
+        /// Backs away from the landmark at a fixed rate, aimed at it throughout.
+        ///
+        /// This flies rather than walks. Walking backwards over hundreds of metres of unsculpted
+        /// terrain ends up climbing hillsides and looking at the ground, which is a test of the
+        /// character motor rather than of the renderer.
+        /// </summary>
+        private void StepAutoRecede()
+        {
+            Vector3 landmark = LandmarkWorldPosition();
+            Vector3 away = transform.position - landmark;
+            away.y = 0f;
+            if (away.sqrMagnitude < 1e-3f) away = Vector3.back;
+            float distance = away.magnitude;
+
+            if (distance < RecedeMaxDistanceMetres)
+            {
+                Vector3 direction = away / distance;
+                float travelled = RecedeSpeedMetresPerSecond * Time.deltaTime;
+                // Rise with distance so the castle stays in frame rather than sinking behind the
+                // terrain between here and it.
+                float height = landmark.y + 12f + distance * 0.16f;
+                Vector3 next = landmark + direction * (distance + travelled);
+                transform.position = new Vector3(next.x, height, next.z);
+            }
+
+            Vector3 toLandmark = landmark - transform.position;
+            if (toLandmark.sqrMagnitude > 1e-4f)
+            {
+                Quaternion look = Quaternion.LookRotation(toLandmark.normalized, Vector3.up);
+                Vector3 euler = look.eulerAngles;
+                _yaw = euler.y;
+                _pitch = euler.x > 180f ? euler.x - 360f : euler.x;
+                transform.rotation = Quaternion.Euler(_pitch, _yaw, 0f);
+            }
+
+            _motor.Position = transform.position - Vector3.up * _motor.EyeHeight;
+            _motor.Velocity = Vector3.zero;
+        }
+
         private float _autoWalkElapsed;
 
         private void HandleLook()
@@ -462,6 +537,12 @@ namespace VoxelEngine.Showcase
             float forward = (Input.GetKey(KeyCode.W) ? 1f : 0f) - (Input.GetKey(KeyCode.S) ? 1f : 0f);
             float strafe = (Input.GetKey(KeyCode.D) ? 1f : 0f) - (Input.GetKey(KeyCode.A) ? 1f : 0f);
             bool sprint = Input.GetKey(KeyCode.LeftShift);
+
+            if (AutoRecede)
+            {
+                StepAutoRecede();
+                return;
+            }
 
             if (AutoWalk)
             {

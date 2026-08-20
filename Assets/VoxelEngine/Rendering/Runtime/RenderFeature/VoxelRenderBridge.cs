@@ -181,6 +181,14 @@ namespace VoxelEngine.Rendering.Runtime
         /// GPU buffers or changing the arena's committed byte size.
         /// </summary>
         public static int SolidArenaMaxActiveLeases = int.MaxValue;
+
+        /// <summary>
+        /// Overrides the surface geometry arena's byte budget when positive. Diagnostic: the
+        /// driver cost of writing into a ComputeBuffer the GPU is reading can scale with the
+        /// buffer's size rather than the bytes written, and that is only visible by changing the
+        /// size while holding everything else fixed.
+        /// </summary>
+        public static long SurfaceArenaBudgetBytesOverride;
         public static double WaterBuildBudgetMs = 0.15;
         public static bool SurfaceBuildEnabled = true;
 

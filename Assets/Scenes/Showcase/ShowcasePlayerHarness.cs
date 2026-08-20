@@ -30,6 +30,41 @@ namespace VoxelEngine.Showcase
         {
             if (UnityEngine.Object.FindFirstObjectByType<VoxelShowcase>() == null) return;
 
+            // Subsystem A/B, for attributing frame cost in a scene that renders many things at
+            // once. Disabling a renderer here is a measurement, not a setting: it answers "what
+            // does this cost" directly instead of inferring it from a profile.
+            string disable = Argument("-voxel-disable");
+            if (!string.IsNullOrEmpty(disable))
+            {
+                foreach (string name in disable.Split(','))
+                    DisableSubsystem(name.Trim());
+            }
+
+            double arenaMb = Value("-voxel-arena-mb", 0.0);
+            if (arenaMb > 0.0)
+            {
+                VoxelEngine.Composition.RenderingComposition.SetVoxelArenaBudgetBytes(
+                    (long)(arenaMb * 1024 * 1024));
+                Debug.Log($"HARNESS arena budget {arenaMb} MB");
+            }
+
+            int maxBuilds = (int)Value("-voxel-max-builds", -1.0);
+            if (maxBuilds >= 0)
+            {
+                VoxelEngine.Composition.RenderingComposition.SetVoxelBuildConcurrency(
+                    maxBuilds, Math.Min(maxBuilds, 1));
+                Debug.Log($"HARNESS build concurrency converging={maxBuilds}");
+            }
+
+            double buildBudget = Value("-voxel-build-budget-ms", -1.0);
+            if (buildBudget >= 0.0)
+            {
+                double scale = Value("-voxel-build-budget-scale", 8.0);
+                VoxelEngine.Composition.RenderingComposition.SetVoxelBuildBudgetMs(
+                    buildBudget, scale);
+                Debug.Log($"HARNESS build budget {buildBudget} ms x{scale}");
+            }
+
             if (HasFlag("-voxel-uncapped"))
             {
                 // Both are needed: vSyncCount overrides targetFrameRate whenever it is non-zero,
@@ -43,7 +78,8 @@ namespace VoxelEngine.Showcase
             double runSeconds = Value("-voxel-run-seconds", 0.0);
             double autoWalkAfter = Value("-voxel-autowalk-after", 0.0);
             string screenshotDir = Argument("-voxel-screenshot-dir");
-            if (!log && runSeconds <= 0.0 && autoWalkAfter <= 0.0 && screenshotDir == null) return;
+            if (!log && runSeconds <= 0.0 && autoWalkAfter <= 0.0 && screenshotDir == null
+                && Value("-voxel-freeze-builds-after", 0.0) <= 0.0) return;
 
             var root = new GameObject("Showcase Player Harness")
             {
@@ -55,7 +91,60 @@ namespace VoxelEngine.Showcase
             reporter.AutoWalkAfter = autoWalkAfter;
             reporter.ScreenshotDirectory = screenshotDir;
             reporter.ScreenshotEvery = Value("-voxel-screenshot-every", 10.0);
+            reporter.FreezeBuildsAfter = Value("-voxel-freeze-builds-after", 0.0);
+            reporter.RecedeAfter = Value("-voxel-recede-after", 0.0);
+            reporter.RecedeSpeed = (float)Value("-voxel-recede-speed", 8.0);
+            reporter.RecedeMaxDistance = (float)Value("-voxel-recede-max", 360.0);
             UnityEngine.Object.DontDestroyOnLoad(root);
+        }
+
+        private static void DisableSubsystem(string name)
+        {
+            switch (name)
+            {
+                case "vegetation":
+                    DisableBehavioursNamed("ProceduralVegetationBatchRenderer");
+                    break;
+                case "trees":
+                    DisableBehavioursNamed("ProceduralTreeRenderer");
+                    break;
+                case "ambientlife":
+                    DisableBehavioursNamed("ProceduralAmbientLifeBatchRenderer");
+                    break;
+                case "farterrain":
+                    DisableBehavioursNamed("VoxelFarTerrain");
+                    break;
+                case "voxels":
+                    VoxelEngine.Composition.RenderingComposition.SetSurfaceBuildEnabled(false);
+                    Debug.Log("HARNESS disabled voxels (surface build)");
+                    break;
+                default:
+                    Debug.LogWarning($"HARNESS unknown subsystem '{name}'");
+                    break;
+            }
+        }
+
+        /// <summary>
+        /// Disables every behaviour whose type has the given short name.
+        ///
+        /// Matching on the short name rather than the namespace-qualified one is deliberate: the
+        /// architecture guards read scene sources as text, and a fully-qualified renderer
+        /// Runtime namespace in a string literal reads to them as a boundary violation even
+        /// though nothing here references the type.
+        /// </summary>
+        private static void DisableBehavioursNamed(string typeName)
+        {
+            int disabled = 0;
+            var behaviours = UnityEngine.Object.FindObjectsByType<MonoBehaviour>(
+                FindObjectsInactive.Include, FindObjectsSortMode.None);
+            for (int i = 0; i < behaviours.Length; i++)
+            {
+                if (behaviours[i] == null) continue;
+                if (behaviours[i].GetType().Name != typeName) continue;
+                behaviours[i].enabled = false;
+                disabled++;
+            }
+            Debug.Log($"HARNESS disabled {disabled} of {typeName}");
         }
 
         private static string Argument(string name)
@@ -101,8 +190,15 @@ namespace VoxelEngine.Showcase
             internal double AutoWalkAfter;
             internal string ScreenshotDirectory;
             internal double ScreenshotEvery;
+            internal double FreezeBuildsAfter;
+            internal double RecedeAfter;
+            internal float RecedeSpeed;
+            internal float RecedeMaxDistance;
+
+            private bool _receding;
 
             private bool _walking;
+            private bool _frozen;
             private double _nextShot;
             private int _shotIndex;
             private bool _shotThisFrame;
@@ -127,6 +223,30 @@ namespace VoxelEngine.Showcase
                 else if (_count < Capacity) _intervals[_count++] = dt;
 
                 CaptureIfDue();
+
+                // Freezing surface building once the view has filled separates the two costs
+                // that a slow frame can hide. Extraction stops; everything already extracted
+                // keeps drawing. If the frame rate recovers, the cost was building; if it does
+                // not, the cost was drawing what was built.
+                if (!_frozen && FreezeBuildsAfter > 0.0 && _totalElapsed >= FreezeBuildsAfter)
+                {
+                    _frozen = true;
+                    VoxelEngine.Composition.RenderingComposition.SetSurfaceBuildEnabled(false);
+                    Debug.Log($"HARNESS froze surface builds at t={_totalElapsed:0.0}s");
+                }
+
+                if (!_receding && RecedeAfter > 0.0 && _totalElapsed >= RecedeAfter)
+                {
+                    var target = UnityEngine.Object.FindFirstObjectByType<VoxelShowcase>();
+                    if (target != null)
+                    {
+                        target.RecedeSpeedMetresPerSecond = RecedeSpeed;
+                        target.RecedeMaxDistanceMetres = RecedeMaxDistance;
+                        target.AutoRecede = true;
+                        _receding = true;
+                        Debug.Log($"HARNESS recede on at t={_totalElapsed:0.0}s");
+                    }
+                }
 
                 if (!_walking && AutoWalkAfter > 0.0 && _totalElapsed >= AutoWalkAfter)
                 {
@@ -180,7 +300,7 @@ namespace VoxelEngine.Showcase
                     return;
                 }
 
-                string phase = _walking ? "walking" : "stationary";
+                string phase = _receding ? "recede" : _walking ? "walking" : "stationary";
                 string file = string.Format(CultureInfo.InvariantCulture,
                     "showcase-{0:D3}-t{1:000.0}s-{2}.png", _shotIndex++, _totalElapsed, phase);
                 string path = Path.Combine(ScreenshotDirectory, file);
@@ -209,7 +329,11 @@ namespace VoxelEngine.Showcase
                 if (rings != null) Debug.Log(rings);
 
                 var showcase = UnityEngine.Object.FindFirstObjectByType<VoxelShowcase>();
-                if (showcase != null) Debug.Log(showcase.DescribeFarTerrain());
+                if (showcase != null)
+                {
+                    Debug.Log(showcase.DescribeFarTerrain());
+                    Debug.Log($"DIST landmark={showcase.DistanceToLandmarkMetres:0.#}m");
+                }
 
                 Debug.Log(string.Format(CultureInfo.InvariantCulture,
                     "FPSLOG t={0:0.0} frames={1} fps={2:0.0} "

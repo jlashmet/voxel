@@ -127,7 +127,7 @@ namespace VoxelEngine.Tests.EditMode
         [Test]
         public void InnermostRingHasNoInnerCut()
         {
-            using var ring = Ring(1, 0f, 96f);
+            using var ring = Ring(1, 0f, 80f);
             Assert.AreEqual(0f, ring.MinViewDistanceMetres,
                 "The innermost ring must render everything up to its outer edge.");
         }
@@ -153,9 +153,9 @@ namespace VoxelEngine.Tests.EditMode
             // must not exceed the outer cut of ring N, or a shell of terrain goes unrendered.
             var layout = new[]
             {
-                (step: 1, inner: 0f, outer: 96f),
-                (step: 2, inner: 96f, outer: 192f),
-                (step: 4, inner: 192f, outer: 288f),
+                (step: 1, inner: 0f, outer: 80f),
+                (step: 2, inner: 80f, outer: 176f),
+                (step: 4, inner: 176f, outer: 288f),
                 (step: 8, inner: 288f, outer: VoxelSurfaceScheduler.MaxVoxelRingRadiusMetresDefault),
             };
 
@@ -172,9 +172,9 @@ namespace VoxelEngine.Tests.EditMode
             // would never render anything while still consuming a build budget.
             var layout = new[]
             {
-                (step: 1, inner: 0f, outer: 96f),
-                (step: 2, inner: 96f, outer: 192f),
-                (step: 4, inner: 192f, outer: 288f),
+                (step: 1, inner: 0f, outer: 80f),
+                (step: 2, inner: 80f, outer: 176f),
+                (step: 4, inner: 176f, outer: 288f),
                 (step: 8, inner: 288f, outer: VoxelSurfaceScheduler.MaxVoxelRingRadiusMetresDefault),
             };
             const float voxelSize = 0.1f;
@@ -211,9 +211,9 @@ namespace VoxelEngine.Tests.EditMode
 
         private static readonly (int Step, float Inner, float Outer)[] s_Layout =
         {
-            (1, 0f, 96f),
-            (2, 96f, 192f),
-            (4, 192f, 288f),
+            (1, 0f, 80f),
+            (2, 80f, 176f),
+            (4, 176f, 288f),
             (8, 288f, VoxelSurfaceScheduler.MaxVoxelRingRadiusMetresDefault),
         };
 
@@ -248,7 +248,7 @@ namespace VoxelEngine.Tests.EditMode
 
                 Assert.IsFalse(suspended, $"The finest ring must stay live at a {cap} m cap.");
                 Assert.AreEqual(0f, inner, "The finest ring has no inner cut.");
-                Assert.AreEqual(Mathf.Min(96f, cap), outer, 0.001f);
+                Assert.AreEqual(Mathf.Min(80f, cap), outer, 0.001f);
             }
         }
 

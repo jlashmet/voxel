@@ -101,12 +101,23 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             ComputeBuffer args = null;
             try
             {
+                // SubUpdates, not the default immutable mode. These buffers are written a chunk
+                // at a time while the GPU is drawing from them, and SetData on a buffer the GPU
+                // holds forces the driver to rename it — to copy the whole allocation so the
+                // write cannot be observed mid-frame. That makes an upload cost O(buffer size)
+                // rather than O(bytes written): at a 1.28 GB arena the full showcase measured
+                // p50 10.4 ms and p95 95.4 ms, and the same work against a 96 MB arena measured
+                // p50 2.9 ms and p95 3.1 ms. SubUpdates gives a persistently mapped range and
+                // BeginWrite/EndWrite write into it directly, with no rename at any size.
                 vertices = new ComputeBuffer(vertexCapacity, SmoothSurfaceVertex.Stride,
-                                             ComputeBufferType.Structured);
+                                             ComputeBufferType.Structured,
+                                             ComputeBufferMode.SubUpdates);
                 indices = new ComputeBuffer(indexCapacity, sizeof(uint),
-                                            ComputeBufferType.Structured);
+                                            ComputeBufferType.Structured,
+                                            ComputeBufferMode.SubUpdates);
                 args = new ComputeBuffer(argsRecordCapacity * ArgsWordsPerDraw, sizeof(uint),
-                                         ComputeBufferType.IndirectArguments);
+                                         ComputeBufferType.IndirectArguments,
+                                         ComputeBufferMode.SubUpdates);
                 Vertices = vertices;
                 Indices = indices;
                 Args = args;
@@ -166,13 +177,21 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public void UploadVertices(NativeArray<SmoothSurfaceVertex> source, int sourceStart,
                                    in SurfaceGeometryLease lease, int count)
         {
-            Vertices.SetData(source, sourceStart, lease.VertexStart + sourceStart, count);
+            if (count <= 0) return;
+            NativeArray<SmoothSurfaceVertex> destination =
+                Vertices.BeginWrite<SmoothSurfaceVertex>(lease.VertexStart + sourceStart, count);
+            NativeArray<SmoothSurfaceVertex>.Copy(source, sourceStart, destination, 0, count);
+            Vertices.EndWrite<SmoothSurfaceVertex>(count);
         }
 
         public void UploadIndices(NativeArray<uint> source, int sourceStart,
                                   in SurfaceGeometryLease lease, int count)
         {
-            Indices.SetData(source, sourceStart, lease.IndexStart + sourceStart, count);
+            if (count <= 0) return;
+            NativeArray<uint> destination =
+                Indices.BeginWrite<uint>(lease.IndexStart + sourceStart, count);
+            NativeArray<uint>.Copy(source, sourceStart, destination, 0, count);
+            Indices.EndWrite<uint>(count);
         }
 
         /// <summary>
@@ -185,11 +204,13 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         /// </summary>
         public void UploadArgs(uint indexCount, in SurfaceGeometryLease lease)
         {
-            _argsScratch[0] = indexCount;
-            _argsScratch[1] = 1u;
-            _argsScratch[2] = 0u;
-            _argsScratch[3] = 0u;
-            Args.SetData(_argsScratch, 0, lease.ArgsWordStart, ArgsWordsPerDraw);
+            NativeArray<uint> destination =
+                Args.BeginWrite<uint>(lease.ArgsWordStart, ArgsWordsPerDraw);
+            destination[0] = indexCount;
+            destination[1] = 1u;
+            destination[2] = 0u;
+            destination[3] = 0u;
+            Args.EndWrite<uint>(ArgsWordsPerDraw);
         }
 
         public long ReservedBytes(in SurfaceGeometryLease lease) => !lease.IsValid ? 0L :

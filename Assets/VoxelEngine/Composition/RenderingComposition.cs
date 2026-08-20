@@ -124,6 +124,29 @@ namespace VoxelEngine.Composition
         /// </summary>
         public static string DescribeVoxelRings() => VoxelRenderBridge.DescribeRings?.Invoke();
 
+        /// <summary>
+        /// How many surface builds may be in flight at once while the view is still filling, and
+        /// once it has caught up. The converging figure is the frame's dominant cost in a large
+        /// scene: freezing builds entirely takes the full showcase from 30 ms a frame to 0.3 ms,
+        /// so what this admits per frame is what the frame costs.
+        /// </summary>
+        public static void SetVoxelBuildConcurrency(int converging, int converged)
+        {
+            VoxelRenderBridge.SurfaceMaxConcurrentBuildsConverging = Mathf.Max(0, converging);
+            VoxelRenderBridge.SurfaceMaxConcurrentBuildsConverged = Mathf.Max(0, converged);
+        }
+
+        /// <summary>Overrides the surface geometry arena budget, in bytes. Must be set before
+        /// the renderer builds its scheduler.</summary>
+        public static void SetVoxelArenaBudgetBytes(long bytes) =>
+            VoxelRenderBridge.SurfaceArenaBudgetBytesOverride = System.Math.Max(0L, bytes);
+
+        public static void SetVoxelBuildBudgetMs(double budgetMs, double convergenceScale)
+        {
+            VoxelRenderBridge.SolidBuildBudgetMs = System.Math.Max(0.0, budgetMs);
+            VoxelRenderBridge.SurfaceConvergenceBudgetScale = System.Math.Max(1.0, convergenceScale);
+        }
+
         public static void SetLocalLights(Vector4[] lights, Vector4[] colours)
         {
             VoxelRenderBridge.LocalLights = lights ?? Array.Empty<Vector4>();
