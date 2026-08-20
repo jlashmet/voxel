@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Game.Composition.Campaign;
 using Game.Cutscenes.Api;
 using Game.Cutscenes.Runtime;
+using Game.Quests.Api;
 using Game.Story.Api;
 using Game.Story.Runtime;
 using Game.WorldBuilder.Api;
@@ -28,6 +29,15 @@ namespace Game.Composition.Campaign.Runtime
         private readonly HashSet<ObjectiveRef> _activeObjectives = new HashSet<ObjectiveRef>();
         private readonly HashSet<ObjectiveRef> _completedObjectives = new HashSet<ObjectiveRef>();
         private readonly HashSet<CutsceneRef> _completedCutscenes = new HashSet<CutsceneRef>();
+
+        // Quests are tracked the way objectives are, by reference, because a CampaignBlueprint does
+        // not carry QuestDefinitions yet. Story can therefore start a quest and ask whether one is
+        // active or complete, which is the whole seam it needs; the richer step/completion machine
+        // in Game.Quests.Runtime stays unwired until blueprints can supply the definitions it takes
+        // in its constructor. Handing it an empty definition list here would make every StartQuest
+        // throw on an unknown quest.
+        private readonly HashSet<QuestRef> _activeQuests = new HashSet<QuestRef>();
+        private readonly HashSet<QuestRef> _completedQuests = new HashSet<QuestRef>();
 
         private CutsceneRunner _activeRunner;
         private CutsceneRef _activeCutscene;
@@ -139,7 +149,29 @@ namespace Game.Composition.Campaign.Runtime
         public bool IsCutsceneCompleted(CutsceneRef cutscene) =>
             _completedCutscenes.Contains(cutscene);
 
+        public bool IsQuestActive(QuestRef quest) => _activeQuests.Contains(quest);
+
+        public bool IsQuestCompleted(QuestRef quest) => _completedQuests.Contains(quest);
+
+        /// <summary>
+        /// Records a quest completion and lets story rules react to it.
+        ///
+        /// Gameplay owns when a quest is finished — unlike an objective, nothing in the blueprint
+        /// describes how a quest completes — so this is the entry point that turns that decision
+        /// into the <see cref="StoryEvent.QuestCompleted"/> the rules can trigger on.
+        /// </summary>
+        public int CompleteQuest(QuestRef quest)
+        {
+            if (!_activeQuests.Remove(quest))
+                throw new InvalidOperationException(
+                    "Cannot complete quest '" + quest + "' because it is not active.");
+
+            _completedQuests.Add(quest);
+            return Dispatch(StoryEvent.QuestCompleted(quest));
+        }
+
         void IStoryEffectSink.StartObjective(ObjectiveRef objective) => StartObjective(objective);
+        void IStoryEffectSink.StartQuest(QuestRef quest) => StartQuest(quest);
         void IStoryEffectSink.PlayCutscene(CutsceneRef cutscene) => PlayCutscene(cutscene);
 
         private int Dispatch(StoryEvent storyEvent) =>
@@ -159,6 +191,17 @@ namespace Game.Composition.Campaign.Runtime
                     "Story attempted to restart completed objective '" + objective + "'.");
 
             _activeObjectives.Add(objective);
+        }
+
+        private void StartQuest(QuestRef quest)
+        {
+            if (_completedQuests.Contains(quest))
+                throw new InvalidOperationException(
+                    "Story attempted to restart completed quest '" + quest + "'.");
+
+            // Deliberately no known-quest check: objectives are validated against the blueprint's
+            // Objectives list, and there is no equivalent list for quests to validate against.
+            _activeQuests.Add(quest);
         }
 
         private void PlayCutscene(CutsceneRef cutscene)

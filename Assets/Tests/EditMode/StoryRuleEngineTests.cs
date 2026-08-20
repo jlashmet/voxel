@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Game.Cutscenes.Api;
+using Game.Quests.Api;
 using Game.Story.Api;
 using Game.Story.Runtime;
 using Game.WorldBuilder.Api;
@@ -14,9 +15,13 @@ namespace VoxelEngine.Tests.EditMode
         {
             public readonly HashSet<ObjectiveRef> ActiveObjectives = new HashSet<ObjectiveRef>();
             public readonly HashSet<CutsceneRef> CompletedCutscenes = new HashSet<CutsceneRef>();
+            public readonly HashSet<QuestRef> ActiveQuests = new HashSet<QuestRef>();
+            public readonly HashSet<QuestRef> CompletedQuests = new HashSet<QuestRef>();
 
             public bool IsObjectiveActive(ObjectiveRef objective) => ActiveObjectives.Contains(objective);
             public bool IsCutsceneCompleted(CutsceneRef cutscene) => CompletedCutscenes.Contains(cutscene);
+            public bool IsQuestActive(QuestRef quest) => ActiveQuests.Contains(quest);
+            public bool IsQuestCompleted(QuestRef quest) => CompletedQuests.Contains(quest);
         }
 
         private sealed class RecordingSink : IStoryEffectSink
@@ -30,6 +35,12 @@ namespace VoxelEngine.Tests.EditMode
             {
                 Effects.Add("start-objective:" + objective.Id);
                 _state.ActiveObjectives.Add(objective);
+            }
+
+            public void StartQuest(QuestRef quest)
+            {
+                Effects.Add("start-quest:" + quest.Id);
+                _state.ActiveQuests.Add(quest);
             }
 
             public void PlayCutscene(CutsceneRef cutscene)
