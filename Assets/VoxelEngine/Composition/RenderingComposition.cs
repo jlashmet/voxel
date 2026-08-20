@@ -125,6 +125,19 @@ namespace VoxelEngine.Composition
         public static string DescribeVoxelRings() => VoxelRenderBridge.DescribeRings?.Invoke();
 
         /// <summary>
+        /// Chunks the surface pass drew, and chunks it wanted and did not have, as of the last
+        /// frame. Allocation-free, so a diagnostic may sample it every frame: a chunk that
+        /// disappears and returns within a few frames is invisible to per-second sampling and is
+        /// exactly what a flicker is.
+        /// </summary>
+        public static void GetVoxelSurfaceCounts(out int visible, out int missing)
+        {
+            var metrics = VoxelRenderBridge.SurfaceMetrics;
+            visible = metrics.VisibleSolidChunks;
+            missing = metrics.MissingVisibleSolidChunks;
+        }
+
+        /// <summary>
         /// How many surface builds may be in flight at once while the view is still filling, and
         /// once it has caught up. The converging figure is the frame's dominant cost in a large
         /// scene: freezing builds entirely takes the full showcase from 30 ms a frame to 0.3 ms,
@@ -140,6 +153,26 @@ namespace VoxelEngine.Composition
         /// the renderer builds its scheduler.</summary>
         public static void SetVoxelArenaBudgetBytes(long bytes) =>
             VoxelRenderBridge.SurfaceArenaBudgetBytesOverride = System.Math.Max(0L, bytes);
+
+        /// <summary>
+        /// Whether arena pressure may retire a chunk that is currently on screen. Doing so
+        /// punches a hole until it rebuilds, which reads as terrain flickering while moving.
+        /// </summary>
+        public static void SetEvictVisibleUnderArenaPressure(bool enabled) =>
+            VoxelRenderBridge.SurfaceEvictVisibleUnderArenaPressure = enabled;
+
+        /// <summary>
+        /// Turns on per-chunk reappearance tracking: geometry that left the drawn set and came
+        /// back within a few frames, which is what a flicker is. Off by default; it keeps a map
+        /// keyed by chunk coordinate.
+        /// </summary>
+        public static void SetTrackSurfaceReappearance(bool enabled) =>
+            VoxelEngine.Rendering.Runtime.SurfaceExtraction.VoxelSurfaceScheduler
+                .TrackSurfaceReappearance = enabled;
+
+        /// <summary>Cumulative reappearances, or zero when tracking is off.</summary>
+        public static ulong GetSurfaceReappearances() =>
+            VoxelRenderBridge.SurfaceReappearances?.Invoke() ?? 0UL;
 
         public static void SetWaterRenderEnabled(bool enabled) =>
             VoxelRenderBridge.WaterRenderEnabled = enabled;

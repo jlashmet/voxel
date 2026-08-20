@@ -28,7 +28,15 @@ namespace VoxelEngine.Showcase.Editor
         // thread and the queue is ~170 regions deep at spawn, so the streamer needs roughly 18
         // seconds to reach 200 m in every direction. Anything inside that horizon has to come from
         // the bake or the player walks into ground that is still being generated.
-        private const int StartupRadiusRegions = 5;
+        //
+        // Five was not enough either, and the handover never completed at all. The showcase
+        // streams to eight regions but generates at 3 ms a frame, so the gap between the baked
+        // disc and the streamed radius is produced at a few seconds of work per real minute: a
+        // 420-second stationary run held resident ground at 262.6 m — the baked radius exactly —
+        // and never advanced. The voxel LOD rings meanwhile claim the full 409.6 m, so they were
+        // asking for terrain that was never going to exist. Baking the whole streamed radius
+        // removes the handover instead of tuning it.
+        private const int StartupRadiusRegions = 8;
 
         [MenuItem("Tools/Voxel Engine/Bake Showcase World")]
         public static void BakeShowcaseWorld()

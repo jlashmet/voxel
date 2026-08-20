@@ -70,6 +70,12 @@ namespace VoxelEngine.Showcase
             // parks in the event loop. That reads as a hang in the thing being measured.
             Application.runInBackground = true;
 
+            if (HasFlag("-voxel-track-flicker"))
+            {
+                VoxelEngine.Composition.RenderingComposition.SetTrackSurfaceReappearance(true);
+                Debug.Log("HARNESS tracking surface reappearance");
+            }
+
             if (HasFlag("-voxel-uncapped"))
             {
                 // Both are needed: vSyncCount overrides targetFrameRate whenever it is non-zero,
@@ -98,6 +104,7 @@ namespace VoxelEngine.Showcase
             reporter.ScreenshotDirectory = screenshotDir;
             reporter.ScreenshotEvery = Value("-voxel-screenshot-every", 10.0);
             reporter.FreezeBuildsAfter = Value("-voxel-freeze-builds-after", 0.0);
+            reporter.AssertFrom = Value("-voxel-assert-from", 0.0);
             reporter.RecedeAfter = Value("-voxel-recede-after", 0.0);
             reporter.SurveyAfter = Value("-voxel-survey-after", 0.0);
             reporter.SurveyHeight = (float)Value("-voxel-survey-height", 55.0);
@@ -122,6 +129,11 @@ namespace VoxelEngine.Showcase
                     break;
                 case "farterrain":
                     DisableBehavioursNamed("VoxelFarTerrain");
+                    break;
+                case "visible-eviction":
+                    VoxelEngine.Composition.RenderingComposition
+                        .SetEvictVisibleUnderArenaPressure(false);
+                    Debug.Log("HARNESS disabled eviction of on-screen chunks");
                     break;
                 case "water":
                     VoxelEngine.Composition.RenderingComposition.SetWaterRenderEnabled(false);
@@ -204,6 +216,15 @@ namespace VoxelEngine.Showcase
             internal string ScreenshotDirectory;
             internal double ScreenshotEvery;
             internal double FreezeBuildsAfter;
+
+            /// <summary>
+            /// Seconds after which the correctness invariants below are enforced. Before it the
+            /// world is still filling and every one of them is legitimately violated, so a check
+            /// that ran from the first frame would only ever assert that startup exists.
+            /// </summary>
+            internal double AssertFrom;
+
+            private int _failures;
             internal double RecedeAfter;
             internal double SurveyAfter;
             internal float SurveyHeight;
@@ -220,6 +241,17 @@ namespace VoxelEngine.Showcase
             private double _nextShot;
             private int _shotIndex;
             private bool _shotThisFrame;
+
+            // Per-frame surface counts. A flicker is geometry that leaves and returns within a
+            // few frames, so it cannot be seen at the one-second cadence the frame line uses:
+            // sampling has to be every frame, and what matters is the excursion, not the mean.
+            private int _lastVisible = -1;
+            private int _visibleMin;
+            private int _visibleMax;
+            private int _visibleDrops;
+            private int _visibleDropWorst;
+            private int _missingMax;
+            private ulong _reappearBase;
 
             private readonly float[] _intervals = new float[Capacity];
             private int _count;
@@ -242,6 +274,26 @@ namespace VoxelEngine.Showcase
 
                 CaptureIfDue();
 
+                VoxelEngine.Composition.RenderingComposition.GetVoxelSurfaceCounts(
+                    out int visibleNow, out int missingNow);
+                if (_lastVisible < 0)
+                {
+                    _visibleMin = _visibleMax = visibleNow;
+                }
+                else
+                {
+                    if (visibleNow < _visibleMin) _visibleMin = visibleNow;
+                    if (visibleNow > _visibleMax) _visibleMax = visibleNow;
+                    int drop = _lastVisible - visibleNow;
+                    if (drop > 0)
+                    {
+                        _visibleDrops++;
+                        if (drop > _visibleDropWorst) _visibleDropWorst = drop;
+                    }
+                }
+                if (missingNow > _missingMax) _missingMax = missingNow;
+                _lastVisible = visibleNow;
+
                 // Freezing surface building once the view has filled separates the two costs
                 // that a slow frame can hide. Extraction stops; everything already extracted
                 // keeps drawing. If the frame rate recovers, the cost was building; if it does
@@ -262,6 +314,7 @@ namespace VoxelEngine.Showcase
                         vantage.SurveySpinDegreesPerSecond = SurveySpin;
                         vantage.AutoSurvey = true;
                         _surveying = true;
+                        ArmCoverageLatch();
                         Debug.Log($"HARNESS survey on at t={_totalElapsed:0.0}s");
                     }
                 }
@@ -275,6 +328,7 @@ namespace VoxelEngine.Showcase
                         target.RecedeMaxDistanceMetres = RecedeMaxDistance;
                         target.AutoRecede = true;
                         _receding = true;
+                        ArmCoverageLatch();
                         Debug.Log($"HARNESS recede on at t={_totalElapsed:0.0}s");
                     }
                 }
@@ -286,6 +340,7 @@ namespace VoxelEngine.Showcase
                     {
                         showcase.AutoWalk = true;
                         _walking = true;
+                        ArmCoverageLatch();
                         Debug.Log($"HARNESS autowalk on at t={_totalElapsed:0.0}s");
                     }
                 }
@@ -298,10 +353,13 @@ namespace VoxelEngine.Showcase
                     _window++;
                 }
 
+                if (AssertFrom > 0.0 && _totalElapsed >= AssertFrom) CheckInvariants();
+
                 if (RunSeconds > 0.0 && _totalElapsed >= RunSeconds)
                 {
-                    Debug.Log($"HARNESS done after {_totalElapsed:0.0}s");
-                    Application.Quit();
+                    Debug.Log($"HARNESS done after {_totalElapsed:0.0}s, "
+                            + $"assertion failures {_failures}");
+                    Application.Quit(_failures == 0 ? 0 : 1);
                 }
             }
 
@@ -343,6 +401,85 @@ namespace VoxelEngine.Showcase
                 Debug.Log($"HARNESS screenshot {path}");
             }
 
+            /// <summary>
+            /// Correctness invariants, checked every frame once the world has settled.
+            ///
+            /// These are the defects this scene actually produced, expressed as assertions so a
+            /// regression is a failed run rather than something a person has to notice in a
+            /// screenshot: geometry must never be given up once drawn, a still camera must have
+            /// no unbuilt chunks in view, and a still camera must draw a stable set.
+            /// </summary>
+            private void CheckInvariants()
+            {
+                VoxelEngine.Composition.RenderingComposition.GetVoxelSurfaceCounts(
+                    out int visible, out int missing);
+
+                // Geometry the renderer had and gave up, at any time, moving or not. Terrain that
+                // leaves the view and returns is never correct.
+                ulong reappeared =
+                    VoxelEngine.Composition.RenderingComposition.GetSurfaceReappearances();
+                if (!_assertBaselineTaken)
+                {
+                    // The counter is cumulative from startup, and startup legitimately churns.
+                    // Only what happens after the world settles is a regression.
+                    _assertBaselineTaken = true;
+                    _assertedReappearances = reappeared;
+                }
+                else if (reappeared > _assertedReappearances)
+                {
+                    Fail($"chunk reappeared after leaving the drawn set "
+                       + $"({reappeared - _assertedReappearances} since last frame)");
+                    _assertedReappearances = reappeared;
+                }
+
+                if (visible <= 0) Fail("no chunks drawn");
+
+                // Only while still: a moving camera legitimately outruns extraction, and holding
+                // it to zero would assert that the machine is fast rather than that it is right.
+                if (_walking || _receding || (_surveying && SurveySpin > 0f)) return;
+
+                // Latch rather than time out. A vantage change has to extract the view behind it
+                // from nothing, and how long that takes is a property of the machine — asserting
+                // a fixed settle window would only measure hardware. What is always true is that
+                // once a still camera has drawn everything it wants, it must keep drawing it.
+                // Surface counts describe the frame that was drawn, which is the one before the
+                // camera moved. Without this the latch re-arms on the teleport frame, sees the
+                // old view's zero, and then fires on the new view's first frame.
+                if (_coverageGraceFrames > 0)
+                {
+                    _coverageGraceFrames--;
+                    return;
+                }
+
+                if (missing == 0)
+                {
+                    _reachedFullCoverage = true;
+                    return;
+                }
+
+                if (_reachedFullCoverage)
+                    Fail($"{missing} chunks wanted and not drawn after the view was complete");
+            }
+
+            private bool _reachedFullCoverage;
+            private int _coverageGraceFrames;
+
+            private void ArmCoverageLatch()
+            {
+                _reachedFullCoverage = false;
+                _coverageGraceFrames = 4;
+            }
+            private ulong _assertedReappearances;
+            private bool _assertBaselineTaken;
+
+            private void Fail(string reason)
+            {
+                _failures++;
+                // One line per distinct failure, not one per frame: a broken invariant is broken
+                // every frame and the log is the artefact a person reads.
+                if (_failures <= 20) Debug.LogError($"ASSERT t={_totalElapsed:0.0} {reason}");
+            }
+
             private void Report()
             {
                 if (_count == 0) return;
@@ -367,6 +504,20 @@ namespace VoxelEngine.Showcase
                     Debug.Log(showcase.DescribeFarTerrain());
                     Debug.Log($"DIST landmark={showcase.DistanceToLandmarkMetres:0.#}m");
                 }
+
+                Debug.Log(string.Format(CultureInfo.InvariantCulture,
+                    "SURFACE t={0:0.0} visible={1} min={2} max={3} swing={4} "
+                    + "drops={5} worstDrop={6} missingMax={7} reappeared={8}",
+                    _totalElapsed, _lastVisible, _visibleMin, _visibleMax,
+                    _visibleMax - _visibleMin, _visibleDrops, _visibleDropWorst, _missingMax,
+                    VoxelEngine.Composition.RenderingComposition.GetSurfaceReappearances()
+                        - _reappearBase));
+                _reappearBase =
+                    VoxelEngine.Composition.RenderingComposition.GetSurfaceReappearances();
+                _visibleMin = _visibleMax = _lastVisible;
+                _visibleDrops = 0;
+                _visibleDropWorst = 0;
+                _missingMax = 0;
 
                 Debug.Log(string.Format(CultureInfo.InvariantCulture,
                     "FPSLOG t={0:0.0} frames={1} fps={2:0.0} "

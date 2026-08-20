@@ -756,6 +756,57 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private const int MaxArenaEvictionsPerFrame = 16;
 
         /// <summary>
+        /// Counts chunks that stop being drawn and start again within a few frames.
+        ///
+        /// A count of drawn chunks cannot detect a flicker while the viewer is moving, because
+        /// chunks legitimately leave the frustum every frame and the two are indistinguishable in
+        /// aggregate. A flicker is specifically a chunk that was on screen, left, and returned —
+        /// geometry the renderer already had and gave up. Tracking identity is the only way to
+        /// see it, so this is opt-in and off unless a diagnostic asks for it.
+        /// </summary>
+        public static bool TrackSurfaceReappearance;
+
+        private const int ReappearanceWindowFrames = 12;
+        private const int ReappearancePruneFrames = 240;
+        private readonly Dictionary<int3, int> _lastDrawnFrame = new();
+        private int _lastPruneFrame;
+
+        /// <summary>Chunks that left the drawn set and returned within a few frames.</summary>
+        public int LastFrameReappearances { get; private set; }
+        public ulong TotalReappearances { get; private set; }
+
+        private void TrackReappearances(int frame)
+        {
+            if (!TrackSurfaceReappearance) return;
+
+            int reappeared = 0;
+            for (int i = 0; i < _visibleSolids.Count; i++)
+            {
+                int3 coordinate = _visibleSolids[i].Coordinate;
+                if (_lastDrawnFrame.TryGetValue(coordinate, out int seen))
+                {
+                    int gap = frame - seen;
+                    if (gap > 1 && gap <= ReappearanceWindowFrames) reappeared++;
+                }
+                _lastDrawnFrame[coordinate] = frame;
+            }
+
+            LastFrameReappearances = reappeared;
+            TotalReappearances += (ulong)reappeared;
+
+            // Bound the map: anything not drawn for a long time is gone, not flickering.
+            if (frame - _lastPruneFrame < ReappearancePruneFrames) return;
+            _lastPruneFrame = frame;
+            _pruneScratch.Clear();
+            foreach (KeyValuePair<int3, int> pair in _lastDrawnFrame)
+                if (frame - pair.Value > ReappearancePruneFrames) _pruneScratch.Add(pair.Key);
+            for (int i = 0; i < _pruneScratch.Count; i++) _lastDrawnFrame.Remove(_pruneScratch[i]);
+        }
+
+        private readonly List<int3> _pruneScratch = new();
+
+
+        /// <summary>
         /// Frames between arena relief passes once the view is complete. Relief costs a scan of a
         /// worker's entry table, and outside convergence the only thing waiting is prefetch, so it
         /// runs rarely enough to be free and often enough that a publication backlog still drains.
@@ -1296,7 +1347,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 // chunks it happens to have — a permanent hole wherever geometry had not landed
                 // yet. Fall back to retiring published leases that sit behind the nearest chunk
                 // waiting to publish: that always trades a more distant chunk for a nearer one.
-                if (freed < evictionBudget && nearestPending < float.MaxValue)
+                if (VoxelRenderBridge.SurfaceEvictVisibleUnderArenaPressure
+                    && freed < evictionBudget && nearestPending < float.MaxValue)
                 {
                     for (int offset = 0; offset < workerCount && freed < evictionBudget; offset++)
                     {
@@ -1407,6 +1459,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 missingVisible += _allWorkers[i].MissingVisibleCount;
             _lastMissingVisibleCount = missingVisible;
 
+            TrackReappearances(frame);
             LastVisibilityMainThreadMs = ElapsedMs(visibilityStart);
             _visibilityTiming.Add(LastVisibilityMainThreadMs);
         }

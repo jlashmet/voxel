@@ -92,6 +92,9 @@ namespace VoxelEngine.Rendering.Runtime
         /// from a diagnostic, never per frame from gameplay.
         /// </summary>
         public static Func<string> DescribeRings { get; internal set; }
+
+        /// <summary>Chunks that left the drawn set and returned within a few frames, cumulative.</summary>
+        public static Func<ulong> SurfaceReappearances { get; internal set; }
         public static string LastSurfacePassState { get; internal set; } = "not-recorded";
         /// <summary>
         /// Full human-readable per-frame diagnostic strings allocate. Keep them disabled in
@@ -169,6 +172,9 @@ namespace VoxelEngine.Rendering.Runtime
         /// hole in the solid surface.
         /// </summary>
         public static bool WaterRenderEnabled = true;
+
+        /// <summary>Lets arena pressure retire on-screen chunks. See VoxelSurfaceScheduler.</summary>
+        public static bool SurfaceEvictVisibleUnderArenaPressure = true;
 
         public static int SurfaceMaxResidentChunksPerRing = 4096;
 

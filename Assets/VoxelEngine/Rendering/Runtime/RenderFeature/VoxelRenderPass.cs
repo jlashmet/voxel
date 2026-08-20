@@ -238,6 +238,7 @@ namespace VoxelEngine.Rendering.Runtime
                                camera, VoxelSize, Time.frameCount);
             VoxelRenderBridge.SurfaceMetrics = _scheduler.Metrics;
             VoxelRenderBridge.DescribeRings = _scheduler.DescribeRingResidency;
+            VoxelRenderBridge.SurfaceReappearances = () => _scheduler.TotalReappearances;
             transvoxelVisible = _scheduler.VisibleSolids;
             waterVisible = _scheduler.VisibleWater;
             if (VoxelRenderBridge.VerboseSurfaceDiagnostics)
