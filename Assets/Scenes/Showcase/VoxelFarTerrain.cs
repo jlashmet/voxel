@@ -154,7 +154,19 @@ namespace VoxelEngine.Showcase
                 {
                     if (!RenderingComposition.HasCompletePublishedNearSurfaceCoverage())
                     {
-                        _holeRadiusMetres = 0f;
+                        // Hold the last published radius rather than slamming the hole shut.
+                        //
+                        // Coverage is incomplete on almost every frame the player is moving:
+                        // walking constantly brings chunks into view before they are built, so
+                        // resetting to zero here closed the hole for the entire duration of any
+                        // movement and drew the far mesh — and its smooth structure proxies —
+                        // over the whole near world. That is the doubled terrain and the grey
+                        // patches, and it appeared precisely when the player moved.
+                        //
+                        // Holding is safe in the direction that matters. The hole only ever
+                        // uncovers far terrain that near geometry is already standing in front
+                        // of; a hole that is momentarily too large shows far ground under near
+                        // ground, while a hole of zero guarantees far ground on top of it.
                         return;
                     }
 

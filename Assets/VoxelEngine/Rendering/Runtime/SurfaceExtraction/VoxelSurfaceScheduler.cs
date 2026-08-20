@@ -107,8 +107,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public readonly VoxelTimingSummary SnapshotTiming;
         public readonly VoxelTimingSummary DensityJobTurnaroundTiming;
         public readonly VoxelTimingSummary DensityOnlyTiming;
-        public readonly VoxelTimingSummary DensityCostTiming;
-        public readonly VoxelTimingSummary TopologyCostTiming;
         public readonly VoxelTimingSummary TopologyJobTurnaroundTiming;
         public readonly VoxelTimingSummary TopologyCompactTiming;
         public readonly VoxelTimingSummary FacetedJobTurnaroundTiming;
@@ -216,8 +214,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             SnapshotTiming = solids.SnapshotTiming;
             DensityJobTurnaroundTiming = solids.DensityTurnaroundTiming;
             DensityOnlyTiming = solids.DensityOnlyTiming;
-            DensityCostTiming = solids.DensityCostTiming;
-            TopologyCostTiming = solids.TopologyCostTiming;
             TopologyJobTurnaroundTiming = solids.TopologyJobTurnaroundTiming;
             TopologyCompactTiming = solids.TopologyCompactTiming;
             FacetedJobTurnaroundTiming = solids.FacetedJobTurnaroundTiming;
@@ -422,8 +418,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             SnapshotTiming = default;
             DensityJobTurnaroundTiming = default;
             DensityOnlyTiming = default;
-            DensityCostTiming = default;
-            TopologyCostTiming = default;
             TopologyJobTurnaroundTiming = default;
             TopologyCompactTiming = default;
             FacetedJobTurnaroundTiming = default;
@@ -445,10 +439,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     DensityJobTurnaroundTiming, worker.DensityTurnaroundTiming);
                 DensityOnlyTiming = VoxelTimingSummary.WorstOf(
                     DensityOnlyTiming, worker.DensityOnlyTiming);
-                DensityCostTiming = VoxelTimingSummary.WorstOf(
-                    DensityCostTiming, worker.DensityCostTiming);
-                TopologyCostTiming = VoxelTimingSummary.WorstOf(
-                    TopologyCostTiming, worker.TopologyCostTiming);
                 TopologyJobTurnaroundTiming = VoxelTimingSummary.WorstOf(
                     TopologyJobTurnaroundTiming, worker.TopologyJobTurnaroundTiming);
                 TopologyCompactTiming = VoxelTimingSummary.WorstOf(
@@ -596,6 +586,40 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             (4, 192f, 288f),
             (8, 288f, MaxVoxelRingRadiusMetresDefault),
         };
+
+        /// <summary>
+        /// Resolves one ring's live band against the radius the world actually streams.
+        ///
+        /// <para>Bands are truncated against that radius, never rescaled into it. Rescaling cut
+        /// chunk counts sharply but dragged the fine ring inward — at a 102 m streaming radius
+        /// the finest step only reached 24 m, so a building 38 m away was meshed at half
+        /// resolution and rendered as a grey blob.</para>
+        ///
+        /// <para>A ring truncated past its own inner radius must be <em>suspended</em>, not
+        /// collapsed to zero width. The band tolerates a chunk straddling either cut, so that
+        /// adjacent rings overlap by one chunk rather than gapping while the viewer moves; with
+        /// inner == outer that tolerance becomes the entire band, and the ring keeps a
+        /// one-chunk-thick shell of its own step just inside the cut, over ground a finer ring
+        /// already covers. SmallVoxelShowcase caps rings at 51.2 m, which left step-2, step-4 and
+        /// step-8 shells drawn on top of the near field at once.</para>
+        ///
+        /// <para>Only a ring with a non-zero inner cut can produce that shell, so the innermost
+        /// ring is never suspended.</para>
+        /// </summary>
+        internal static (float Inner, float Outer, bool Suspended) ResolveRingBand(
+            float configuredInner, float configuredOuter, float ringCap, bool lodEnabled)
+        {
+            if (!lodEnabled)
+            {
+                // Finest ring takes everything; the rest are off, not narrow.
+                bool isFinest = configuredInner <= 0f;
+                return (0f, ringCap, !isFinest);
+            }
+
+            float outer = Math.Min(configuredOuter, ringCap);
+            float inner = Math.Min(configuredInner, outer);
+            return (inner, outer, inner > 0f && inner >= outer);
+        }
 
         public const float MaxVoxelRingRadiusMetresDefault = 409.6f;
         /// <summary>
@@ -792,6 +816,33 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             get => _geometryArena.MaxActiveLeases;
             set => _geometryArena.MaxActiveLeases = value;
         }
+        /// <summary>
+        /// Resident and known chunk counts per LOD step, with each ring's current band, as one
+        /// line. Bands are computed per frame from the streamed radius, so a ring whose
+        /// configured band lies entirely outside that radius is not visible in the static ring
+        /// layout — only here.
+        /// </summary>
+        public string DescribeRingResidency()
+        {
+            var text = new System.Text.StringBuilder("RINGS");
+            for (int r = 0; r < _rings.Length; r++)
+            {
+                SurfaceRing ring = _rings[r];
+                int resident = 0;
+                int known = 0;
+                for (int w = 0; w < ring.Workers.Length; w++)
+                {
+                    resident += ring.Workers[w].ResidentCount;
+                    known += ring.Workers[w].KnownCount;
+                }
+
+                CpuTransvoxelChunkCache first = ring.Workers[0];
+                text.Append($" step{ring.SourceStep}[{first.MinViewDistanceMetres:0.#}"
+                            + $"-{first.MaxViewDistanceMetres:0.#}m res={resident} known={known}]");
+            }
+            return text.ToString();
+        }
+
         internal int KnownChunkCountForSourceStep(int sourceStep)
         {
             int count = 0;
@@ -1033,19 +1084,15 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 // away was meshed at half resolution or worse and rendered as a grey blob.
                 // A coarse ring collapsing to a sliver is the correct outcome: there is no
                 // terrain out there to mesh, and the analytic far field already covers it.
-                float outer = Math.Min(ring.OuterRadiusMetres, ringCap);
-                float inner = Math.Min(ring.InnerRadiusMetres, outer);
-                if (!LodEnabled)
-                {
-                    // Finest ring takes everything; the rest collapse to empty bands.
-                    outer = r == 0 ? ringCap : ringCap;
-                    inner = r == 0 ? 0f : ringCap;
-                }
+                (float inner, float outer, bool suspended) = ResolveRingBand(
+                    ring.InnerRadiusMetres, ring.OuterRadiusMetres, ringCap, LodEnabled);
+
                 for (int i = 0; i < ringWorkers.Length; i++)
                 {
                     ringWorkers[i].MaxResidentChunks = perWorker;
                     ringWorkers[i].MinViewDistanceMetres = inner;
                     ringWorkers[i].MaxViewDistanceMetres = outer;
+                    ringWorkers[i].RingSuspended = suspended;
                 }
             }
 

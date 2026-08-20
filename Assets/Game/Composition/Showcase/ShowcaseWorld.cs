@@ -2279,6 +2279,20 @@ namespace VoxelEngine.Showcase
         /// </summary>
         public Vector3 SpawnPosition()
         {
+            // The castle spawn stands off far enough to take in a landmark hundreds of voxels
+            // across. A world whose only landmark is one house has to spawn beside it instead:
+            // this point is 62.6 m from the house, past a 51.2 m streaming radius, so from
+            // spawn the house was not in the voxel world at all and the far field's smooth
+            // structure proxy stood in for it — which reads as a broken LOD and is not one.
+            if (!_includeCastle)
+            {
+                const int houseViewOffsetVoxels = 180;   // 18 m: the whole house in frame
+                int hx = LandmarkCentreX;
+                int hz = LandmarkCentreZ - houseViewOffsetVoxels;
+                int houseGround = SurfaceHeight(hx, hz);
+                return new Vector3(hx * 0.1f, (houseGround + 40) * 0.1f, hz * 0.1f);
+            }
+
             // Offset east of the bridge axis so the first view layers the eastern tower,
             // gatehouse, keep, and west wing instead of collapsing them into a flat symmetric
             // elevation. This remains beyond the sculpted cliff skirt and bridge footprint.

@@ -118,6 +118,12 @@ namespace VoxelEngine.Composition
         public static void SetVoxelRingRadiusMetres(float metres) =>
             VoxelRenderBridge.SurfaceMaxVoxelRingRadiusMetres = Mathf.Max(0f, metres);
 
+        /// <summary>
+        /// Per-LOD residency and the live ring bands, for diagnostics. Returns null before the
+        /// first surface pass has run. Allocates; never call it per frame from gameplay.
+        /// </summary>
+        public static string DescribeVoxelRings() => VoxelRenderBridge.DescribeRings?.Invoke();
+
         public static void SetLocalLights(Vector4[] lights, Vector4[] colours)
         {
             VoxelRenderBridge.LocalLights = lights ?? Array.Empty<Vector4>();

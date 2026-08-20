@@ -408,6 +408,22 @@ namespace VoxelEngine.Showcase
         // -- movement ------------------------------------------------------------
 
         /// <summary>
+        /// Far-field state, for diagnostics. The far mesh lifts its vertices over built content,
+        /// so a hole that fails to open draws a smooth structure proxy on top of the voxel
+        /// building it is supposed to stand in for — which looks like a LOD bug and is not one.
+        /// </summary>
+        public string DescribeFarTerrain()
+        {
+            if (_farTerrain == null) return "FAR none";
+            float streamed = m_LoadRadiusRegions * ShowcaseWorld.RegionMetres;
+            return $"FAR hole={_farTerrain.HoleRadiusMetres:0.#}m "
+                 + $"inner={_farTerrain.InnerRadiusMetres:0.#}m streamed={streamed:0.#}m "
+                 + $"residentGround={_world.ResidentGroundRadiusMetres(transform.position):0.#}m "
+                 + $"coverage={RenderingComposition.HasCompletePublishedNearSurfaceCoverage()} "
+                 + $"structures={(_farTerrain.Structures != null)}";
+        }
+
+        /// <summary>
         /// Walks the player on a scripted loop instead of from the keyboard.
         ///
         /// Frame cost while moving is the number that matters and it was previously produced by a

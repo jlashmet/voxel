@@ -237,6 +237,7 @@ namespace VoxelEngine.Rendering.Runtime
                                world.ProfileBlocks, VoxelRenderBridge.Changes,
                                camera, VoxelSize, Time.frameCount);
             VoxelRenderBridge.SurfaceMetrics = _scheduler.Metrics;
+            VoxelRenderBridge.DescribeRings = _scheduler.DescribeRingResidency;
             transvoxelVisible = _scheduler.VisibleSolids;
             waterVisible = _scheduler.VisibleWater;
             if (VoxelRenderBridge.VerboseSurfaceDiagnostics)

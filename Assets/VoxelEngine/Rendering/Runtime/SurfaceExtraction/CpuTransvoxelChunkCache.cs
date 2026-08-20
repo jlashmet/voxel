@@ -537,14 +537,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private readonly VoxelTimingWindow _snapshotTiming = new();
         private readonly VoxelTimingWindow _densityTurnaroundTiming = new();
         private readonly VoxelTimingWindow _densityOnlyTiming = new();
-        private readonly VoxelTimingWindow _densityCostTiming = new();
-        private readonly VoxelTimingWindow _topologyCostTiming = new();
-
-        /// <summary>
-        /// Diagnostic only: completes extraction jobs immediately so their cost can be measured
-        /// rather than inferred from polling intervals. Blocks the frame path by design.
-        /// </summary>
-        public static bool MeasureJobCostSynchronously;
         private readonly VoxelTimingWindow _topologyTurnaroundTiming = new();
         private readonly VoxelTimingWindow _topologyCompactTiming = new();
         private readonly VoxelTimingWindow _facetedTurnaroundTiming = new();
@@ -883,6 +875,23 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         /// still drawn here and the seam never opens into a gap.
         /// </summary>
         public float MinViewDistanceMetres { get; set; }
+
+        /// <summary>
+        /// Switches this ring off entirely: it builds nothing and draws nothing.
+        ///
+        /// A band is not turned off by collapsing it to zero width. The inner cut tests a chunk's
+        /// farthest corner and the outer cut its nearest, so that the bands of adjacent rings
+        /// overlap by one chunk instead of gapping while the viewer moves. Set
+        /// <see cref="MinViewDistanceMetres"/> equal to <see cref="MaxViewDistanceMetres"/> and
+        /// that tolerance becomes the whole band — the ring keeps a one-chunk-thick shell just
+        /// inside the cut, meshed at its own step, over ground a finer ring already covers. At
+        /// step 8 the shell is 51.2 m of coarse terrain drawn on top of the near field.
+        ///
+        /// A ring truncated past its inner radius by the streamed world size has to be suspended
+        /// rather than collapsed.
+        /// </summary>
+        public bool RingSuspended { get; set; }
+
         public int ShardIndex { get; set; }
         public int ShardCount { get; set; } = 1;
         public int ResidentCount => _entries.Count;
@@ -979,8 +988,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public VoxelTimingSummary DensityTurnaroundTiming => _densityTurnaroundTiming.Snapshot();
         /// <summary>Density job alone, observed when its own handle completes.</summary>
         public VoxelTimingSummary DensityOnlyTiming => _densityOnlyTiming.Snapshot();
-        public VoxelTimingSummary DensityCostTiming => _densityCostTiming.Snapshot();
-        public VoxelTimingSummary TopologyCostTiming => _topologyCostTiming.Snapshot();
         public VoxelTimingSummary TopologyJobTurnaroundTiming => _topologyTurnaroundTiming.Snapshot();
         public VoxelTimingSummary TopologyCompactTiming => _topologyCompactTiming.Snapshot();
         public VoxelTimingSummary FacetedJobTurnaroundTiming => _facetedTurnaroundTiming.Snapshot();
@@ -2531,29 +2538,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 GridSampleCount, ExtractionBatchSize(GridSampleCount, 64));
             _densityJobScheduled = true;
 
-            // Diagnostic: block on the density job to price it on its own. Turnaround timers
-            // cannot, because a worker only polls its handles on a later frame and by then the
-            // whole chain has finished — every one of them reads the polling interval instead of
-            // the work. Blocking is exactly what the frame path must never do, which is why this
-            // is opt-in and off.
-            if (MeasureJobCostSynchronously)
-            {
-                double densityStart = Time.realtimeSinceStartupAsDouble;
-                _densityJobHandle.Complete();
-                _densityCostTiming.Add(ElapsedMs(densityStart));
-            }
-
-            double chainStart = Time.realtimeSinceStartupAsDouble;
             ScheduleTopologyJob(voxelSize, _densityJobHandle);
             ScheduleFacetedMaskJob(_densityJobHandle);
             ScheduleFacetedMergeJob(voxelSize);
-
-            if (MeasureJobCostSynchronously)
-            {
-                _topologyCompactJobHandle.Complete();
-                _facetedMergeJobHandle.Complete();
-                _topologyCostTiming.Add(ElapsedMs(chainStart));
-            }
         }
 
         private void ScheduleExactMetadataSnapshot(IRegionReadSource source, int3 cacheOrigin)
@@ -4220,6 +4207,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         /// </summary>
         private bool WithinRingBand(Bounds bounds, Vector3 cameraPosition)
         {
+            if (RingSuspended) return false;
+
             Vector3 extents = bounds.extents;
             Vector3 delta = bounds.center - cameraPosition;
             float nearX = Mathf.Max(0f, Mathf.Abs(delta.x) - extents.x);

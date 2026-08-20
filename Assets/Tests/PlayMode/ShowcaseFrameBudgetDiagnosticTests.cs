@@ -133,9 +133,6 @@ namespace VoxelEngine.Tests.PlayMode
                     VoxelRenderBridge.SolidUploadWorkerBudget = 64;
                 }
 
-                if (System.Environment.GetEnvironmentVariable("VOXEL_SYNC_JOBS") == "1")
-                    CpuTransvoxelChunkCache.MeasureJobCostSynchronously = true;
-
                 var preload = Stopwatch.StartNew();
                 VoxelSurfaceMetrics m = default;
                 int quietFrames = 0;
@@ -214,8 +211,6 @@ namespace VoxelEngine.Tests.PlayMode
                                 + $"compact={m.TopologyCompactTiming.P50Ms:0.00}/{m.TopologyCompactTiming.P95Ms:0.00} "
                                 + $"upload={m.UploadTiming.P50Ms:0.00}/{m.UploadTiming.P95Ms:0.00} "
                                 + $"visibility={m.VisibilityTiming.P50Ms:0.00}/{m.VisibilityTiming.P95Ms:0.00} "
-                                + $"densityCost={m.DensityCostTiming.P50Ms:0.0}/{m.DensityCostTiming.P95Ms:0.0} "
-                                + $"topoChainCost={m.TopologyCostTiming.P50Ms:0.0}/{m.TopologyCostTiming.P95Ms:0.0} "
                                 + $"densityTurn={m.DensityJobTurnaroundTiming.P50Ms:0.0}/{m.DensityJobTurnaroundTiming.P95Ms:0.0} "
                                 + $"topologyTurn={m.TopologyJobTurnaroundTiming.P50Ms:0.0}/{m.TopologyJobTurnaroundTiming.P95Ms:0.0} "
                                 + $"facetedTurn={m.FacetedJobTurnaroundTiming.P50Ms:0.0}/{m.FacetedJobTurnaroundTiming.P95Ms:0.0} "

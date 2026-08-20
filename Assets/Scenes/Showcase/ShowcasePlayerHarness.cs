@@ -202,6 +202,15 @@ namespace VoxelEngine.Showcase
                 for (int i = 0; i < _count; i++) mean += sorted[i];
                 mean /= _count;
 
+                // Ring residency alongside the frame line: a LOD ring meshing terrain that a
+                // finer ring also covers is invisible in a frame-time number and shows up in a
+                // screenshot only as patches that look like a shading bug.
+                string rings = VoxelEngine.Composition.RenderingComposition.DescribeVoxelRings();
+                if (rings != null) Debug.Log(rings);
+
+                var showcase = UnityEngine.Object.FindFirstObjectByType<VoxelShowcase>();
+                if (showcase != null) Debug.Log(showcase.DescribeFarTerrain());
+
                 Debug.Log(string.Format(CultureInfo.InvariantCulture,
                     "FPSLOG t={0:0.0} frames={1} fps={2:0.0} "
                     + "ms p50={3:0.00} p95={4:0.00} p99={5:0.00} max={6:0.00} mean={7:0.00}",

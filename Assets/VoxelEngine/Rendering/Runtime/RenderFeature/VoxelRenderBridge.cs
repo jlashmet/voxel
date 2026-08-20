@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 using VoxelEngine.Storage.Api;
@@ -83,6 +84,14 @@ namespace VoxelEngine.Rendering.Runtime
 
         public static int RenderFeatureEnqueueCount { get; internal set; }
         public static int SurfacePassRecordCount { get; internal set; }
+
+        /// <summary>
+        /// Per-LOD residency, on demand. The ring bands are recomputed every frame from the
+        /// streamed radius, so a truncated ring's real band appears nowhere in the static layout
+        /// and cannot be reasoned about from the source alone. Formatting allocates: call this
+        /// from a diagnostic, never per frame from gameplay.
+        /// </summary>
+        public static Func<string> DescribeRings { get; internal set; }
         public static string LastSurfacePassState { get; internal set; } = "not-recorded";
         /// <summary>
         /// Full human-readable per-frame diagnostic strings allocate. Keep them disabled in

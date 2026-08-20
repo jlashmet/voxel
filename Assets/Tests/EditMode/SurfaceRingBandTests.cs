@@ -206,6 +206,115 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         // -------------------------------------------------------------------------
+        // Truncation against the streamed radius
+        // -------------------------------------------------------------------------
+
+        private static readonly (int Step, float Inner, float Outer)[] s_Layout =
+        {
+            (1, 0f, 96f),
+            (2, 96f, 192f),
+            (4, 192f, 288f),
+            (8, 288f, VoxelSurfaceScheduler.MaxVoxelRingRadiusMetresDefault),
+        };
+
+        [Test]
+        public void RingTruncatedPastItsInnerCutIsSuspendedRatherThanCollapsed()
+        {
+            // The band tolerates a chunk straddling either cut so that adjacent rings overlap by
+            // one chunk instead of gapping. Collapsing a band to zero width therefore does not
+            // empty it — it leaves a one-chunk-thick shell of that ring's step just inside the
+            // cut, drawn over ground the finest ring already covers. At step 8 that shell is
+            // 51.2 m of coarse terrain sitting on the near field.
+            const float smallShowcaseCap = 51.2f;   // LoadRadiusRegions = 1
+
+            for (int r = 1; r < s_Layout.Length; r++)
+            {
+                (float inner, float outer, bool suspended) = VoxelSurfaceScheduler.ResolveRingBand(
+                    s_Layout[r].Inner, s_Layout[r].Outer, smallShowcaseCap, lodEnabled: true);
+
+                Assert.IsTrue(suspended,
+                    $"Step {s_Layout[r].Step} is truncated to [{inner}, {outer}] by a "
+                  + $"{smallShowcaseCap} m cap and must be suspended, not left as a shell.");
+            }
+        }
+
+        [Test]
+        public void FinestRingCoversEverythingInsideTheCapAndIsNeverSuspended()
+        {
+            foreach (float cap in new[] { 25.6f, 51.2f, 150f, 409.6f })
+            {
+                (float inner, float outer, bool suspended) = VoxelSurfaceScheduler.ResolveRingBand(
+                    s_Layout[0].Inner, s_Layout[0].Outer, cap, lodEnabled: true);
+
+                Assert.IsFalse(suspended, $"The finest ring must stay live at a {cap} m cap.");
+                Assert.AreEqual(0f, inner, "The finest ring has no inner cut.");
+                Assert.AreEqual(Mathf.Min(96f, cap), outer, 0.001f);
+            }
+        }
+
+        [Test]
+        public void NoLiveRingEverHasAZeroWidthBand()
+        {
+            // The shell artefact is exactly "live ring with inner == outer". Sweep the caps a
+            // world might stream and assert the combination cannot arise.
+            for (float cap = 0f; cap <= 512f; cap += 6.4f)
+            {
+                foreach (var configured in s_Layout)
+                {
+                    (float inner, float outer, bool suspended) =
+                        VoxelSurfaceScheduler.ResolveRingBand(
+                            configured.Inner, configured.Outer, cap, lodEnabled: true);
+
+                    if (suspended) continue;
+                    Assert.IsTrue(inner < outer || inner == 0f,
+                        $"Step {configured.Step} is live at cap {cap} with band "
+                      + $"[{inner}, {outer}], which renders a one-chunk shell.");
+                }
+            }
+        }
+
+        [Test]
+        public void TruncationPreservesTheConfiguredBandsWhenTheWorldStreamsFarEnough()
+        {
+            // The full showcase streams past the outermost ring, so nothing should move.
+            const float fullShowcaseCap = VoxelSurfaceScheduler.MaxVoxelRingRadiusMetresDefault;
+
+            foreach (var configured in s_Layout)
+            {
+                (float inner, float outer, bool suspended) =
+                    VoxelSurfaceScheduler.ResolveRingBand(
+                        configured.Inner, configured.Outer, fullShowcaseCap, lodEnabled: true);
+
+                Assert.IsFalse(suspended, $"Step {configured.Step} must stay live.");
+                Assert.AreEqual(configured.Inner, inner, 0.001f);
+                Assert.AreEqual(configured.Outer, outer, 0.001f);
+            }
+        }
+
+        [Test]
+        public void DisablingLodLeavesOnlyTheFinestRingLive()
+        {
+            // m_DisableLod on the showcase used to collapse the coarse bands to zero width,
+            // which is the same shell bug by another route: LOD looked disabled while step-2,
+            // step-4 and step-8 shells were still being drawn near the player.
+            const float cap = 51.2f;
+
+            (float inner, float outer, bool suspended) = VoxelSurfaceScheduler.ResolveRingBand(
+                s_Layout[0].Inner, s_Layout[0].Outer, cap, lodEnabled: false);
+            Assert.IsFalse(suspended, "The finest ring stays live with LOD off.");
+            Assert.AreEqual(0f, inner);
+            Assert.AreEqual(cap, outer, 0.001f);
+
+            for (int r = 1; r < s_Layout.Length; r++)
+            {
+                (_, _, bool coarseSuspended) = VoxelSurfaceScheduler.ResolveRingBand(
+                    s_Layout[r].Inner, s_Layout[r].Outer, cap, lodEnabled: false);
+                Assert.IsTrue(coarseSuspended,
+                    $"Step {s_Layout[r].Step} must be off, not narrow, when LOD is disabled.");
+            }
+        }
+
+        // -------------------------------------------------------------------------
         // Mip level agreement
         // -------------------------------------------------------------------------
 
