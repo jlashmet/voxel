@@ -858,6 +858,14 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                         + $" visible={LastVisibilityMainThreadMs:0.00}"
                         + $" cand={_lastVisibilityCandidateChecks}"
                         + $" drawn={_visibleSolids.Count}]");
+            int knownExits = 0, inBand = 0, inFrustum = 0;
+            for (int i = 0; i < _allWorkers.Length; i++)
+            {
+                knownExits += _allWorkers[i].LastVisibilityKnownCount;
+                inBand += _allWorkers[i].LastVisibilityInBandCount;
+                inFrustum += _allWorkers[i].LastVisibilityFrustumCount;
+            }
+            text.Append($" exits[known={knownExits} inBand={inBand} frustum={inFrustum}]");
             for (int r = 0; r < _rings.Length; r++)
             {
                 SurfaceRing ring = _rings[r];
