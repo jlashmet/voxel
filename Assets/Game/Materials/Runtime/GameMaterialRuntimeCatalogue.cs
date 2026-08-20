@@ -70,7 +70,7 @@ namespace Game.Materials.Runtime
             Row(GameMaterialIds.Sand, true,
                 Sim(GameMaterialIds.Sand, 20, DestructionClass.Powder, SurfaceStyles.Smooth,
                     1u << Coatings.Wet, placementSurfaceStyle: SurfaceStyles.MaterialDefault),
-                Textured(GameMaterialIds.Sand, 0.82f, 0.72f, 0.46f, SandTexture, true, 0.16f)),
+                StylizedTerrain(GameMaterialIds.Sand, 0.66f, 0.57f, 0.39f, SandTexture)),
 
             Row(GameMaterialIds.Glass, true,
                 Sim(GameMaterialIds.Glass, 10, DestructionClass.Powder, SurfaceStyles.Sharp, 1u << Coatings.Wet),
@@ -107,7 +107,7 @@ namespace Game.Materials.Runtime
             Row(GameMaterialIds.Grass, true,
                 Sim(GameMaterialIds.Grass, 25, DestructionClass.Powder, SurfaceStyles.Smooth,
                     WeatherCoatings, placementSurfaceStyle: SurfaceStyles.MaterialDefault),
-                Textured(GameMaterialIds.Grass, 0.31f, 0.44f, 0.20f, GrassTexture, true, 0.16f)),
+                StylizedTerrain(GameMaterialIds.Grass, 0.28f, 0.46f, 0.20f, GrassTexture)),
 
             Row(GameMaterialIds.Water, true,
                 Sim(GameMaterialIds.Water, 5, DestructionClass.Spreading, SurfaceStyles.Smooth, 0u,
@@ -121,7 +121,7 @@ namespace Game.Materials.Runtime
             Row(GameMaterialIds.Dirt, true,
                 Sim(GameMaterialIds.Dirt, 30, DestructionClass.Powder, SurfaceStyles.Smooth,
                     WeatherCoatings, placementSurfaceStyle: SurfaceStyles.MaterialDefault),
-                Textured(GameMaterialIds.Dirt, 0.38f, 0.31f, 0.24f, DirtTexture, true, 0.16f)),
+                StylizedTerrain(GameMaterialIds.Dirt, 0.36f, 0.27f, 0.18f, DirtTexture)),
 
             Row(GameMaterialIds.Moss, true,
                 Sim(GameMaterialIds.Moss, 40, DestructionClass.Powder, SurfaceStyles.Smooth,
@@ -132,7 +132,10 @@ namespace Game.Materials.Runtime
 
             Row(GameMaterialIds.LitWindow, true,
                 Sim(GameMaterialIds.LitWindow, 18, DestructionClass.Powder, SurfaceStyles.Sharp, 1u << Coatings.Wet),
-                Solid(GameMaterialIds.LitWindow, 0.16f, 0.19f, 0.18f, roughness: 0.24f)),
+                // Kept below HDR emission, but intentionally much warmer and brighter than glass:
+                // the authored "warm window" role was previously a charcoal swatch and could not
+                // read as inhabited at any time of day.
+                Solid(GameMaterialIds.LitWindow, 0.96f, 0.52f, 0.16f, roughness: 0.18f)),
 
             // These rows were historically unregistered in the simulation palette. They are now
             // explicit but intentionally inert so ownership migration does not change gameplay.
@@ -229,6 +232,30 @@ namespace Game.Materials.Runtime
                 detailStrength: detailStrength,
                 chromaStrength: chromaStrength,
                 macroVariation: macroVariation);
+
+        /// <summary>
+        /// Low-frequency, colour-led terrain treatment. The old rows let a high-contrast source
+        /// texture and normal map dominate every metre of ground, producing the repeated embossed
+        /// pattern visible from town streets. This keeps enough luminance variation to avoid a flat
+        /// colour field while making the authored palette and terrain silhouette lead the image.
+        /// </summary>
+        private static MaterialPresentationDefinition StylizedTerrain(
+            byte materialIndex,
+            float r,
+            float g,
+            float b,
+            int layer) =>
+            new(materialIndex, new float4(r, g, b, 1f), layer, layer,
+                MaterialTextureProjection.Triplanar,
+                textureBlend: 0.16f,
+                uvScale: 1f / 52f,
+                normalStrength: 0.035f,
+                roughness: 0.90f,
+                luminanceOnly: true,
+                luminancePivot: 0.66f,
+                detailStrength: 0.20f,
+                chromaStrength: 0.015f,
+                macroVariation: 0.07f);
 
         private static MaterialPresentationDefinition Masonry(
             byte materialIndex,

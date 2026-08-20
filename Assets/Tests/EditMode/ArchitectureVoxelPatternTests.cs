@@ -87,5 +87,81 @@ namespace VoxelEngine.Tests.EditMode
             Assert.AreEqual(ShapeOp.EmitPrism, (ShapeOp)code[second]);
             Assert.AreEqual(SurfaceStyles.Smooth, (ushort)code[second + 10]);
         }
+
+        [Test]
+        public void FramedArchedOpeningKeepsBodyClearanceAndCurvesTheHead()
+        {
+            var builder = new ArchitectureShapeProgramBuilder(
+                StructureGeometryProfile.Sharp, 1);
+
+            ArchitectureVoxelPatterns.FramedArchedOpening(
+                builder,
+                10, 4, 0,
+                width: 13,
+                clearHeight: 24,
+                archRise: 7,
+                depth: 5,
+                frameThickness: 2,
+                frameMaterial: 6);
+            int[] code = builder.Finish();
+
+            Assert.AreEqual(ShapeOp.EmitPrism, (ShapeOp)code[0]);
+            Assert.AreEqual(PrismProfile.Arch, (PrismProfile)code[8]);
+            Assert.AreEqual(PrimitiveMode.Fill, (PrimitiveMode)code[12]);
+
+            int body = ShapeOps.InstructionLength(ShapeOp.EmitPrism);
+            Assert.AreEqual(PrimitiveMode.Carve, (PrimitiveMode)code[body + 11]);
+            Assert.AreEqual(24, code[body + 6]);
+
+            int head = body + ShapeOps.InstructionLength((ShapeOp)code[body]);
+            Assert.AreEqual(ShapeOp.EmitPrism, (ShapeOp)code[head]);
+            Assert.AreEqual(PrismProfile.Arch, (PrismProfile)code[head + 8]);
+            Assert.AreEqual(PrimitiveMode.Carve, (PrimitiveMode)code[head + 12]);
+        }
+
+        [Test]
+        public void ArchedGlazingRestoresPlanarPaneAfterCurvedCarve()
+        {
+            var builder = new ArchitectureShapeProgramBuilder(
+                StructureGeometryProfile.Sharp, 1);
+
+            ArchitectureVoxelPatterns.FramedArchedGlazedOpening(
+                builder,
+                4, 10, 0,
+                15, 17, 7, 5,
+                2, 6, 15);
+            int[] code = builder.Finish();
+
+            bool carvedArch = false;
+            bool planarGlassBody = false;
+            bool planarGlassHead = false;
+            for (int pc = 0; pc < code.Length;)
+            {
+                ShapeOp op = (ShapeOp)code[pc];
+                if (op == ShapeOp.EmitPrism
+                    && (PrismProfile)code[pc + 8] == PrismProfile.Arch)
+                {
+                    PrimitiveMode mode = (PrimitiveMode)code[pc + 12];
+                    if (mode == PrimitiveMode.Carve) carvedArch = true;
+                    if (mode == PrimitiveMode.Fill
+                        && (byte)code[pc + 9] == 15
+                        && (ushort)code[pc + 10] == SurfaceStyles.Planar)
+                        planarGlassHead = true;
+                }
+                else if (op == ShapeOp.EmitBox
+                         && (byte)code[pc + 8] == 15
+                         && (ushort)code[pc + 9] == SurfaceStyles.Planar)
+                    planarGlassBody = true;
+
+                int length = ShapeOps.InstructionLength(op);
+                Assert.GreaterOrEqual(length, 2);
+                pc += length;
+                if (op == ShapeOp.End) break;
+            }
+
+            Assert.IsTrue(carvedArch);
+            Assert.IsTrue(planarGlassBody);
+            Assert.IsTrue(planarGlassHead);
+        }
     }
 }

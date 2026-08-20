@@ -110,6 +110,51 @@ namespace VoxelEngine.Tests.Parity
         }
 
         [Test]
+        public void SettlementValleyHasNoPlayerScaleCorrugation()
+        {
+            // Kentridge and Hightown both sit inside this lowland. Across a two-metre walking
+            // footprint, authored terrain may slope but should not oscillate up and down like the
+            // former 1.6 m noise octave did.
+            for (int z = 0; z <= 6_000; z += 137)
+            for (int x = 400; x <= 2_000; x += 113)
+            {
+                int reversals = 0;
+                int previousSign = 0;
+                int previous = TerrainQuery.HeightAt(x, z, Seed);
+                for (int step = 1; step <= 20; step++)
+                {
+                    int next = TerrainQuery.HeightAt(x + step, z, Seed);
+                    int delta = next - previous;
+                    int sign = delta == 0 ? previousSign : (delta > 0 ? 1 : -1);
+                    if (previousSign != 0 && sign != 0 && sign != previousSign) reversals++;
+                    previousSign = sign;
+                    previous = next;
+                }
+
+                Assert.LessOrEqual(reversals, 2,
+                    $"Terrain chatters {reversals} times across 2 m near ({x},{z}).");
+            }
+        }
+
+        [Test]
+        public void SettlementValleyReliefStaysBroadAndWalkable()
+        {
+            int lowest = int.MaxValue;
+            int highest = int.MinValue;
+            for (int z = 0; z <= 6_000; z += 61)
+            for (int x = 400; x <= 2_000; x += 53)
+            {
+                int height = TerrainQuery.HeightAt(x, z, Seed);
+                lowest = math.min(lowest, height);
+                highest = math.max(highest, height);
+            }
+
+            Assert.LessOrEqual(highest - lowest, 18,
+                "The inhabited valley should read as one broad landform; local settlements own "
+              + "their terraces, river banks, and other meaningful elevation changes.");
+        }
+
+        [Test]
         public void RegionGenerationIsIndependentOfOrder()
         {
             var size = new int3(3, 1, 3);

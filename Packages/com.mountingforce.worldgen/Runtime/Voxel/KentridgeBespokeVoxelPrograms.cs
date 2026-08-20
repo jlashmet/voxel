@@ -172,6 +172,10 @@ namespace MountingForce.WorldGen.Voxel
             b.Prism(x0 - 5 * s, f + wallH, z0 - 5 * s,
                 w + 10 * s, 32 * s, d + 10 * s, PrismProfile.Gable, roof);
 
+            ArchitectureVoxelPatterns.FramedArchedOpening(
+                b.Inner, doorX, f, z0 - 2 * s,
+                doorW, 38 * s, 9 * s, t + 3 * s, 3 * s, stone);
+
             int3 door = new int3(doorX + doorW / 2, f, z0);
             b.Anchor(0, door, Facing.South);
             return new Program(b.Finish(), door);
@@ -245,6 +249,10 @@ namespace MountingForce.WorldGen.Voxel
                 w + 12 * s, theme.GrandRoofHeightDm * s, d + 12 * s,
                 PrismProfile.Gable, roof);
 
+            ArchitectureVoxelPatterns.FramedArchedOpening(
+                b.Inner, doorX, f, z0 - 2 * s,
+                doorW, 30 * s, 9 * s, t + 3 * s, 3 * s, stone);
+
             int3 door = new int3(doorX + doorW / 2, f, z0);
             b.Anchor(0, door, Facing.South);
             return new Program(b.Finish(), door);
@@ -272,10 +280,14 @@ namespace MountingForce.WorldGen.Voxel
             b.ShellBox(x0, f, z0, w, naveH, d, wall);
             b.InteriorCarve(x0 + t, f, z0 + t, w - 2 * t, naveH, d - 2 * t);
             b.Carve(doorX, f, z0, doorW, 30 * s, t + s);
-            AddWindowZ(b, x0 + 16 * s, f + 27 * s, z0,
-                14 * s, 23 * s, t + s, glass);
-            AddWindowZ(b, x0 + w - 30 * s, f + 27 * s, z0,
-                14 * s, 23 * s, t + s, glass);
+            ArchitectureVoxelPatterns.FramedArchedGlazedOpening(
+                b.Inner, x0 + 16 * s, f + 27 * s, z0 - s,
+                14 * s, 16 * s, 7 * s, t + 2 * s,
+                2 * s, stone, glass);
+            ArchitectureVoxelPatterns.FramedArchedGlazedOpening(
+                b.Inner, x0 + w - 30 * s, f + 27 * s, z0 - s,
+                14 * s, 16 * s, 7 * s, t + 2 * s,
+                2 * s, stone, glass);
 
             for (int bay = 0; bay < 3; bay++)
             {
@@ -284,10 +296,41 @@ namespace MountingForce.WorldGen.Voxel
                 AddWindowX(b, sideRightX, f + 25 * s, z, t + s, 25 * s, 12 * s, glass);
             }
 
-            AddWindowZ(b, x0 + 30 * s, f + 30 * s, rearZ,
-                15 * s, 24 * s, t + s, glass);
-            AddWindowZ(b, x0 + w - 45 * s, f + 30 * s, rearZ,
-                15 * s, 24 * s, t + s, glass);
+            ArchitectureVoxelPatterns.FramedArchedGlazedOpening(
+                b.Inner, x0 + 30 * s, f + 30 * s, rearZ,
+                15 * s, 17 * s, 7 * s, t + s,
+                2 * s, stone, glass);
+            ArchitectureVoxelPatterns.FramedArchedGlazedOpening(
+                b.Inner, x0 + w - 45 * s, f + 30 * s, rearZ,
+                15 * s, 17 * s, 7 * s, t + s,
+                2 * s, stone, glass);
+
+            // A cruciform plan and repeated side buttresses give the landmark a readable sacred
+            // silhouette from the street and from above; the old program was one uninterrupted
+            // rectangular nave with a taller box at its door.
+            int transeptX = 6 * s;
+            int transeptZ = z0 + 68 * s;
+            int transeptW = 152 * s;
+            int transeptD = 34 * s;
+            int transeptH = 46 * s;
+            b.ShellBox(transeptX, f, transeptZ,
+                transeptW, transeptH, transeptD, wall);
+            b.InteriorCarve(
+                transeptX + t, f, transeptZ + t,
+                transeptW - 2 * t, transeptH, transeptD - 2 * t);
+            b.Prism(
+                transeptX - 3 * s, f + transeptH, transeptZ - 3 * s,
+                transeptW + 6 * s, 28 * s, transeptD + 6 * s,
+                PrismProfile.Gable, roof);
+
+            for (int bay = 0; bay < 3; bay++)
+            {
+                int buttressZ = z0 + (50 + bay * 32) * s;
+                b.Box(x0 - 7 * s, f, buttressZ,
+                    9 * s, 44 * s, 8 * s, stone);
+                b.Box(x0 + w - 2 * s, f, buttressZ,
+                    9 * s, 44 * s, 8 * s, stone);
+            }
 
             b.Prism(x0 - 5 * s, f + naveH, z0 - 5 * s,
                 w + 10 * s, 38 * s, d + 10 * s, PrismProfile.Gable, roof);
@@ -300,6 +343,27 @@ namespace MountingForce.WorldGen.Voxel
             b.Carve(doorX, f, z0, doorW, 30 * s, 12 * s);
             b.Prism(towerX - 4 * s, f + 112 * s, z0 + s,
                 towerW + 8 * s, 36 * s, 50 * s, PrismProfile.Gable, roof);
+
+            // Circular west light: the same integer cylinder primitive used by towers and wells,
+            // extruded through the façade and restored with a thin planar pane.
+            int roseX = towerX + towerW / 2;
+            int roseY = f + 72 * s;
+            b.Inner.DetailCylinder(
+                roseX, roseY, z0 - 2 * s,
+                12 * s, 10 * s, 2, stone,
+                surface: StructureSurfaceTreatment.Beveled);
+            b.Inner.OpeningCylinderCarve(
+                roseX, roseY, z0 - 2 * s,
+                8 * s, 12 * s, 2,
+                StructureSurfaceTreatment.ArchitecturalRounded);
+            b.Inner.DetailCylinder(
+                roseX, roseY, z0 - 2 * s,
+                7 * s, 2 * s, 2, glass,
+                surface: StructureSurfaceTreatment.Planar);
+
+            ArchitectureVoxelPatterns.FramedArchedOpening(
+                b.Inner, doorX, f, z0 - 2 * s,
+                doorW, 30 * s, 11 * s, 12 * s, 3 * s, stone);
 
             int3 door = new int3(doorX + doorW / 2, f, z0);
             b.Anchor(0, door, Facing.South);

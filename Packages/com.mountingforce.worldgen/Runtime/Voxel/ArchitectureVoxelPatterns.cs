@@ -132,6 +132,72 @@ namespace MountingForce.WorldGen.Voxel
                 material);
         }
 
+        /// <summary>
+        /// Builds a structural surround and a genuinely curved opening while preserving a full
+        /// rectangular body-clearance zone below the spring line. The surround is authored first,
+        /// then the two opening primitives are authored last so later façade decoration cannot
+        /// refill the public entrance.
+        /// </summary>
+        public static void FramedArchedOpening(
+            ArchitectureShapeProgramBuilder builder,
+            int x, int y, int z,
+            int width, int clearHeight, int archRise, int depth,
+            int frameThickness,
+            byte frameMaterial)
+        {
+            if (builder == null) throw new ArgumentNullException(nameof(builder));
+            if (width <= 0 || clearHeight <= 0 || archRise <= 0 || depth <= 0) return;
+            if (frameThickness <= 0)
+                throw new ArgumentOutOfRangeException(nameof(frameThickness));
+
+            int outerX = x - frameThickness;
+            int outerZ = z - frameThickness;
+            int outerWidth = width + 2 * frameThickness;
+            int outerHeight = clearHeight + archRise + frameThickness;
+            int outerDepth = depth + frameThickness;
+
+            builder.Prism(
+                outerX, y, outerZ,
+                outerWidth, outerHeight, outerDepth,
+                PrismProfile.Arch,
+                frameMaterial,
+                StructureSurfaceTreatment.Beveled);
+
+            builder.OpeningCarve(x, y, z, width, clearHeight, depth);
+            builder.OpeningArchCarve(
+                x, y + clearHeight, z,
+                width, archRise, depth);
+        }
+
+        /// <summary>An arched opening with planar glazing restored after the structural carve.</summary>
+        public static void FramedArchedGlazedOpening(
+            ArchitectureShapeProgramBuilder builder,
+            int x, int y, int z,
+            int width, int straightHeight, int archRise, int depth,
+            int frameThickness,
+            byte frameMaterial,
+            byte glazingMaterial)
+        {
+            FramedArchedOpening(
+                builder, x, y, z,
+                width, straightHeight, archRise, depth,
+                frameThickness, frameMaterial);
+
+            int paneDepth = Math.Max(1, Math.Min(depth, frameThickness));
+            builder.DetailBox(
+                x, y, z,
+                width, straightHeight, paneDepth,
+                glazingMaterial,
+                cornerRadiusDm: 0,
+                surface: StructureSurfaceTreatment.Planar);
+            builder.Prism(
+                x, y + straightHeight, z,
+                width, archRise, paneDepth,
+                PrismProfile.Arch,
+                glazingMaterial,
+                StructureSurfaceTreatment.Planar);
+        }
+
         private static void EmitFrameLevel(
             ArchitectureShapeProgramBuilder builder,
             int x, int z,

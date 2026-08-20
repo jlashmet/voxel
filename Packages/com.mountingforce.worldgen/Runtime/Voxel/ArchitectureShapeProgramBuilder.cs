@@ -191,6 +191,26 @@ namespace MountingForce.WorldGen.Voxel
                 (int)PrimitiveMode.Fill);
         }
 
+        /// <summary>
+        /// Emits the half-ellipse profile used by a visible arched opening. Unlike a roof prism,
+        /// this carries opening treatment and subtracts occupancy, so town grammars do not have to
+        /// encode a raw <see cref="ShapeOp.EmitPrism"/> instruction to use the engine's arch.
+        /// </summary>
+        public void OpeningArchCarve(
+            int x, int y, int z,
+            int sx, int sy, int sz,
+            StructureSurfaceTreatment? surface = null)
+        {
+            if (sx <= 0 || sy <= 0 || sz <= 0) return;
+            StructureSurfaceTreatment treatment = surface ?? _profile.OpeningSurface;
+            Op(ShapeOp.EmitPrism, x, y, z, sx, sy, sz,
+                (int)PrismProfile.Arch,
+                0,
+                ArchitectureVoxelSurfaceStyle.Map(treatment, SurfaceStyles.MaterialDefault),
+                Coatings.None,
+                (int)PrimitiveMode.Carve);
+        }
+
         public void Anchor(int index, int3 position, Facing facing)
         {
             Op(ShapeOp.SetAnchor,

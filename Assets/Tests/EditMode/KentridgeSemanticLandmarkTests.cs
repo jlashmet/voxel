@@ -1,4 +1,5 @@
 using MountingForce.WorldGen;
+using MountingForce.WorldGen.Architecture;
 using MountingForce.WorldGen.Content.Kentridge;
 using MountingForce.WorldGen.Voxel;
 using NUnit.Framework;
@@ -24,7 +25,11 @@ namespace VoxelEngine.Tests.EditMode
                 for (int i = 0; i < plan.Plots.Count; i++)
                 {
                     BuildingPlot plot = plan.Plots[i];
-                    if (!IsBespokeArchetype(plot.Archetype))
+                    StructureForm form = ArchitectureCompiler.Resolve(
+                        KentridgeDefinition.StructureIntent(plot),
+                        KentridgeDefinition.Theme,
+                        Seed);
+                    if (form.IsGenerated)
                         continue;
 
                     FeatureDefinition definition = FindRoleDefinition(
@@ -36,8 +41,8 @@ namespace VoxelEngine.Tests.EditMode
                     checkedRoles++;
                 }
 
-                Assert.GreaterOrEqual(checkedRoles, 5,
-                    "The active Kentridge plan should exercise every bespoke landmark archetype.");
+                Assert.AreEqual(4, checkedRoles,
+                    "The active Kentridge plan should exercise the four bespoke landmark programs.");
             }
             finally
             {
@@ -138,15 +143,6 @@ namespace VoxelEngine.Tests.EditMode
 
             Assert.Fail("Missing active Kentridge definition: " + expected);
             return default;
-        }
-
-        private static bool IsBespokeArchetype(StructureArchetype archetype)
-        {
-            return archetype == StructureArchetype.Inn
-                || archetype == StructureArchetype.Warehouse
-                || archetype == StructureArchetype.Mansion
-                || archetype == StructureArchetype.Church
-                || archetype == StructureArchetype.Well;
         }
 
         private static VoxelWorldGenSettings BuildSettings()

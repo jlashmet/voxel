@@ -48,5 +48,32 @@ namespace Game.Materials.Tests
             Assert.That(flower.Albedo.y, Is.EqualTo(1f));
             Assert.That(flower.Albedo.z, Is.EqualTo(1f));
         }
+
+        [Test]
+        public void TerrainRowsAreColourLedAndWarmWindowsReadAsLit()
+        {
+            MaterialPresentationDefinition[] definitions = GameMaterialRenderingDefinitions.Create();
+
+            foreach (byte terrain in new[]
+                     {
+                         GameMaterialIds.Sand,
+                         GameMaterialIds.Grass,
+                         GameMaterialIds.Dirt,
+                     })
+            {
+                MaterialPresentationDefinition row = definitions[terrain];
+                Assert.That(row.Sampling.z,
+                    Is.EqualTo((float)MaterialTextureProjection.Triplanar));
+                Assert.That(row.Sampling.w, Is.LessThanOrEqualTo(0.16f));
+                Assert.That(row.Surface.y, Is.LessThanOrEqualTo(0.04f));
+                Assert.That(row.Surface.w, Is.EqualTo(1f),
+                    "Terrain detail should modulate luminance without importing source hue.");
+            }
+
+            MaterialPresentationDefinition window = definitions[GameMaterialIds.LitWindow];
+            Assert.That(window.Albedo.x, Is.GreaterThan(0.9f));
+            Assert.That(window.Albedo.y, Is.GreaterThan(0.45f));
+            Assert.That(window.Albedo.z, Is.LessThan(0.25f));
+        }
     }
 }

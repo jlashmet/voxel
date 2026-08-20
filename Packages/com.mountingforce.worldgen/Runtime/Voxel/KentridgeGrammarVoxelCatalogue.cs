@@ -309,6 +309,22 @@ namespace MountingForce.WorldGen.Voxel
                 doorH,
                 doorExteriorClearance + doorFacadeDepth);
 
+            // The engine has always supported an integer half-ellipse prism, but the town grammar
+            // stopped at rectangular box carves. Put the curved head above the full gameplay
+            // clearance so every role gets an architectural entrance without narrowing the
+            // CharacterMotor corridor that the access contract guarantees.
+            ArchitectureVoxelPatterns.FramedArchedOpening(
+                b.Inner,
+                doorX,
+                f,
+                z0 - 2 * s,
+                doorW,
+                doorH,
+                7 * s,
+                doorFacadeDepth + 2 * s,
+                2 * s,
+                foundation);
+
             if (hasWing)
             {
                 PrismProfile wingProfile = form.Roof == KentridgeRoofForm.GableWithLeanTo

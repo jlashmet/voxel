@@ -180,6 +180,62 @@ namespace VoxelEngine.Tests.EditMode
             }
         }
 
+        [Test]
+        public void EveryAccessibleRoleUsesAFramedArchAtItsPublicEntrance()
+        {
+            FeatureCatalogue catalogue = KentridgeGrammarVoxelCatalogue.Build(
+                Seed, BuildSettings(), Allocator.Temp);
+            var primitives = new NativeList<Primitive>(Allocator.Temp);
+            var anchors = new NativeList<ResolvedAnchor>(Allocator.Temp);
+
+            try
+            {
+                for (int roleId = 0; roleId < 17; roleId++)
+                {
+                    if (roleId == (int)KentridgeRole.Well) continue;
+
+                    primitives.Clear();
+                    anchors.Clear();
+                    ExplicitPlacement placement = catalogue.ExplicitPlacements[roleId];
+                    ParameterSet parameters = default;
+                    EvaluationResult evaluation = ShapeProgram.Evaluate(
+                        in catalogue,
+                        roleId,
+                        in parameters,
+                        placement.Position,
+                        placement.Orientation,
+                        Seed,
+                        FeatureGeneration.InstanceSeed(Seed, roleId, placement.Position),
+                        primitives,
+                        anchors);
+                    Assert.AreEqual(EvaluationResult.Ok, evaluation);
+
+                    bool hasArchSurround = false;
+                    bool hasArchOpening = false;
+                    for (int i = 0; i < primitives.Length; i++)
+                    {
+                        Primitive primitive = primitives[i];
+                        if (primitive.Shape != PrimitiveShape.Prism
+                            || primitive.Profile != PrismProfile.Arch)
+                            continue;
+                        if (primitive.Mode == PrimitiveMode.Carve) hasArchOpening = true;
+                        if (primitive.Mode == PrimitiveMode.Fill) hasArchSurround = true;
+                    }
+
+                    Assert.IsTrue(hasArchSurround,
+                        ((KentridgeRole)roleId) + " is missing its structural arch surround.");
+                    Assert.IsTrue(hasArchOpening,
+                        ((KentridgeRole)roleId) + " is missing its curved entrance head.");
+                }
+            }
+            finally
+            {
+                anchors.Dispose();
+                primitives.Dispose();
+                catalogue.Dispose();
+            }
+        }
+
         private static void AssertFinalBoxMode(
             NativeList<Primitive> primitives,
             int3 point,

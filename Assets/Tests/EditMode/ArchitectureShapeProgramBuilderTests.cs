@@ -59,5 +59,23 @@ namespace VoxelEngine.Tests.EditMode
                     material: 1,
                     cornerRadiusDm: -1));
         }
+
+        [Test]
+        public void OpeningArchUsesIntegerArchPrismInCarveMode()
+        {
+            var profile = new StructureGeometryProfile(
+                0, 0, 0, 0,
+                openingSurface: StructureSurfaceTreatment.ArchitecturalRounded);
+            var builder = new ArchitectureShapeProgramBuilder(profile, 1);
+
+            builder.OpeningArchCarve(2, 18, 0, 13, 7, 5);
+            int[] code = builder.Finish();
+
+            Assert.AreEqual(ShapeOp.EmitPrism, (ShapeOp)code[0]);
+            Assert.AreEqual(PrismProfile.Arch, (PrismProfile)code[8]);
+            Assert.AreEqual((byte)0, (byte)code[9]);
+            Assert.AreEqual(SurfaceStyles.ArchitecturalRounded, (ushort)code[10]);
+            Assert.AreEqual(PrimitiveMode.Carve, (PrimitiveMode)code[12]);
+        }
     }
 }
