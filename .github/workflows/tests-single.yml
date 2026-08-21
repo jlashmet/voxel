@@ -7,6 +7,11 @@ run-name: Single test · ${{ github.ref_name }} · ${{ github.event_name }}
 # tools/ci-test. Agents without workflow-dispatch access use a dedicated ci-test/*
 # branch based on the exact source commit, then update .github/test-request.json
 # there. Keeping request commits off the PR branch prevents normal PR CI fanout.
+#
+# Visual screenshot suites are still selected exactly like any other test. After
+# the Unity assertion phase, the shared player-capture utility maps those known
+# filters to their real scene, builds a standalone app, and captures presented
+# frames every ten seconds under Artifacts/SingleTest/RealPlayer.
 on:
   workflow_dispatch:
     inputs:
@@ -150,14 +155,18 @@ jobs:
           done
 
       # Showcase PlayMode tests depend on the same baked startup world used by
-      # the PR and master workflows. The standalone Kentridge scenes compose
-      # their own worlds and must not pay for or depend on that unrelated bake.
+      # the PR and master workflows. The standalone Kentridge and self-contained
+      # Arch/Terrain lookdev scenes compose their own worlds and do not need it.
       - name: Bake Voxel Showcase startup world
         if: >-
           steps.request.outputs.platform == 'PlayMode' &&
           startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.') &&
           !startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.KentridgeStructureComparisonSceneTests.') &&
-          !startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests.')
+          !startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests.') &&
+          !startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.ArchLookdevSceneTests.') &&
+          steps.request.outputs.test != 'VoxelEngine.Tests.PlayMode.ArchLookdevSceneTests' &&
+          !startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.TerrainLookdevScreenshotTests.') &&
+          steps.request.outputs.test != 'VoxelEngine.Tests.PlayMode.TerrainLookdevScreenshotTests'
         shell: bash
         run: |
           set -euo pipefail
@@ -227,6 +236,19 @@ jobs:
               raise SystemExit(2)
           print(f'Executed {len(cases)} test case(s).')
           PY
+
+      - name: Capture visual test from real player
+        if: always() && steps.request.outputs.platform == 'PlayMode'
+        shell: bash
+        env:
+          TEST_FILTER: ${{ steps.request.outputs.test }}
+        run: |
+          set -euo pipefail
+          bash tools/showcase-player-capture.sh \
+            --unity "${{ steps.unity.outputs.path }}" \
+            --output "$GITHUB_WORKSPACE/Artifacts/SingleTest/RealPlayer" \
+            --test-filter "$TEST_FILTER" \
+            --if-configured
 
       - name: Upload result
         if: always()
