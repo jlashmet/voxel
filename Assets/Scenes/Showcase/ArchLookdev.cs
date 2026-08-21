@@ -137,10 +137,13 @@ namespace VoxelEngine.Showcase
                     out int residentChunks,
                     out long residentGeometryBytes))
             {
-                bool converged = dirtyChunks == 0 && residentChunks >= knownChunks;
+                // The scheduler may deliberately keep discovered off-camera/prefetch chunks
+                // non-resident. Readiness is therefore the renderer's published visible-coverage
+                // invariant, not global known/resident equality or an empty dirty queue.
+                bool converged = RenderingComposition.HasCompletePublishedNearSurfaceCoverage();
                 _status = converged
                     ? $"READY  {residentGeometryBytes / (1024f * 1024f):0.0} MB  ·  {_lastBuildMs:0} ms authoring"
-                    : $"MESHING  {residentChunks}/{knownChunks} chunks";
+                    : $"MESHING  {residentChunks}/{knownChunks} chunks  ·  {dirtyChunks} dirty";
             }
         }
 
@@ -565,10 +568,7 @@ namespace VoxelEngine.Showcase
             int stable = 0;
             for (int frame = 0; frame < 512 && stable < 3; frame++)
             {
-                bool ready = RenderingComposition.TryGetSurfaceBuildStatus(
-                        out int knownChunks, out int dirtyChunks, out int residentChunks, out _)
-                    && dirtyChunks == 0
-                    && residentChunks >= knownChunks;
+                bool ready = RenderingComposition.HasCompletePublishedNearSurfaceCoverage();
                 stable = ready ? stable + 1 : 0;
                 yield return null;
             }
@@ -576,11 +576,12 @@ namespace VoxelEngine.Showcase
             {
                 RenderingComposition.TryGetSurfaceBuildStatus(
                     out int knownChunks, out int dirtyChunks, out int residentChunks, out _);
+                RenderingComposition.GetVoxelSurfaceCounts(out int visibleChunks, out int missingChunks);
                 _exchangeStatus = "CAPTURE FAILED · SURFACE DID NOT CONVERGE";
                 PublishState();
                 throw new InvalidOperationException(
-                    $"Surface did not converge: known={knownChunks}, "
-                  + $"resident={residentChunks}, dirty={dirtyChunks}.");
+                    $"Surface did not converge: known={knownChunks}, resident={residentChunks}, "
+                  + $"dirty={dirtyChunks}, visible={visibleChunks}, missing={missingChunks}.");
             }
         }
 
