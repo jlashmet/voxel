@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using Unity.Mathematics;
 
 namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
@@ -20,10 +22,52 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         {
             int edge = math.max(1, bricksPerChunkAxis);
             int interior = edge / 2;
+            int3 chunk = OwningChunk(worldBrick, edge);
+            return chunk * edge + interior;
+        }
+
+        public static int3 OwningChunk(int3 worldBrick, int bricksPerChunkAxis)
+        {
+            int edge = math.max(1, bricksPerChunkAxis);
             return new int3(
-                FloorDiv(worldBrick.x, edge) * edge + interior,
-                FloorDiv(worldBrick.y, edge) * edge + interior,
-                FloorDiv(worldBrick.z, edge) * edge + interior);
+                FloorDiv(worldBrick.x, edge),
+                FloorDiv(worldBrick.y, edge),
+                FloorDiv(worldBrick.z, edge));
+        }
+
+        /// <summary>
+        /// Canonicalizes one discovery publication batch and partitions it by the exact renderer
+        /// shard that owns each resulting chunk. The scheduler can then call each shard only with
+        /// work it can admit instead of making every shard rescan the entire batch.
+        /// </summary>
+        public static void PartitionByOwningShard(
+            IReadOnlyList<int3> worldBricks,
+            int bricksPerChunkAxis,
+            int shardCount,
+            List<int3>[] shardBricks)
+        {
+            int count = math.max(1, shardCount);
+            if (shardBricks == null || shardBricks.Length < count)
+                throw new ArgumentException("Discovery shard buckets must cover every shard.",
+                                            nameof(shardBricks));
+
+            for (int shard = 0; shard < count; shard++)
+            {
+                if (shardBricks[shard] == null)
+                    throw new ArgumentException("Discovery shard buckets must be initialized.",
+                                                nameof(shardBricks));
+                shardBricks[shard].Clear();
+            }
+
+            if (worldBricks == null) return;
+
+            for (int i = 0; i < worldBricks.Count; i++)
+            {
+                int3 canonical = Canonicalize(worldBricks[i], bricksPerChunkAxis);
+                int3 chunk = OwningChunk(canonical, bricksPerChunkAxis);
+                int shard = CpuTransvoxelChunkCache.ShardForChunk(chunk, count);
+                shardBricks[shard].Add(canonical);
+            }
         }
 
         private static int FloorDiv(int value, int divisor)
