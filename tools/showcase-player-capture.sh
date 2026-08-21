@@ -100,6 +100,14 @@ BUILD_LOG="$OUTPUT_ROOT/player-build.log"
 PLAYER_LOG="$OUTPUT_ROOT/player-run.log"
 FPS_LOG="$OUTPUT_ROOT/fps.txt"
 
+cleanup() {
+  # The .app is an execution intermediate, not a useful CI artifact. In particular the single-test
+  # workflow uploads its artifact root recursively, so retaining the bundle would turn a handful of
+  # screenshots into a hundreds-of-megabytes artifact.
+  rm -rf "$BUILD_DIR"
+}
+trap cleanup EXIT
+
 rm -rf "$BUILD_DIR" "$SHOTS_DIR"
 mkdir -p "$OUTPUT_ROOT" "$BUILD_DIR" "$SHOTS_DIR"
 
