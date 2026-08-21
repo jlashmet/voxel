@@ -29,8 +29,8 @@ This is a focused continuation of `voxel-showcase-rendering-repair-v2.md` for th
 ### C. Isolate the indexed-multidraw regression
 
 - [x] Run the direct-parent (`a9aa6c5707decc7faa3f718eaa1216aebe2ca6b1`) standalone-player baseline through `CastleScreenshotTests` in run `32496458837`.
-- [x] Inspect all five direct-parent PNGs: castle and terrain geometry are coherent and the giant slabs/cross-world triangles are absent. Existing coarse/far-field holes remain and stay owned by the parent plan's D2/D3 work.
-- [x] Pin `fbaf77b8d210cc5e5f98bd99c0bf50e8640a7ac2` as the garbling regression boundary: its direct parent is clean and `109dc042…`, which contains it, reproduces the corruption.
+- [x] Inspect all five direct-parent PNGs: the multidraw survey corruption is absent. Existing startup incompleteness and coarse/far-field holes remain and stay owned by the parent plan's D2/D3 work.
+- [x] Pin `fbaf77b8d210cc5e5f98bd99c0bf50e8640a7ac2` as the garbling regression boundary: its direct parent is clean of the cross-world survey corruption and `109dc042…`, which contains it, reproduces that corruption.
 - [x] Build controlled source `20b200cad353f5971024729db12b34ab1f21bb73` by retaining the current real-player harness and restoring the 15 files changed by the indexed-multidraw commit to their direct-parent versions.
 - [x] Run the same real-player `CastleScreenshotTests` capture against that controlled current-harness/pre-multidraw source in run `32497237439`; PlayMode and standalone-player capture both pass, the survey frames contain no giant slabs/cross-world triangles, and the Metal player log has no `SmoothSurface` shader-support error.
 - [x] Restore the Metal-validated bucketed solid submission path from the clean parent on `rendering-garbled` (`075d672337e236642c729025bfa89248ccc18081`), including its architecture regression; do not retain the unvalidated indexed-multidraw path or unsupported `SV_DrawID` experiment.
@@ -38,8 +38,17 @@ This is a focused continuation of `voxel-showcase-rendering-repair-v2.md` for th
 ### D. Validate the repair
 
 - [x] Run the smallest focused EditMode regression for the restored bucketed submission path and require green CI (`GeometryPipelineArchitectureTests.SolidSurfaceDrawsAreBucketedInsteadOfSubmittedPerChunk`, run `32497707003`).
-- [ ] Run `VoxelEngine.Tests.PlayMode.CastleScreenshotTests` on the fixed `rendering-garbled` branch through the real standalone-player capture path.
-- [ ] Inspect all captured PNGs and verify the giant slabs/triangles and disconnected geometry are gone.
-- [ ] Inspect player logs for shader support/errors and require `Hidden/VoxelEngine/SmoothSurface` to remain supported on Metal.
-- [ ] Compare `rendering-garbled` with its master base and confirm only the intended renderer/test/plan changes remain.
-- [ ] Mark this repair complete only after the real-player images are clean; do not close the parent plan's independent D2/D3 tasks unless separately validated.
+- [x] Run `VoxelEngine.Tests.PlayMode.CastleScreenshotTests` on the fixed `rendering-garbled` branch through the real standalone-player capture path (run `32498578646`, request commit `32f846b32cd0c1d9fdde996fc1f29c11d9dbdead`); PlayMode and real-player capture both pass.
+- [x] Inspect all five final captured PNGs. The four survey frames no longer contain the indexed-multidraw giant slabs/cross-world triangles or disconnected cross-world geometry. The 14.5 s stationary frame still contains the pre-existing incomplete startup presentation, but it is byte-identical (`sha256 b0d484b9d7bc383e847a3902d97c05e4e30540e14d7be772087d8f76609ea263`) to the clean direct-parent baseline and is not part of this regression.
+- [x] Inspect the final player log: no `SmoothSurface` shader-support error, no `SV_DrawID`/indexed-indirect shader failure, and the harness finishes after 60 s with `assertion failures 0` (run `32498578646`).
+- [x] Compare `rendering-garbled` with base `109dc042cf8079b0c582d4b1f5196a09cf367bc6`: the branch contains this focused plan plus the exact 15 renderer/test files reverted from `fbaf77b8…`; there are no unrelated production edits or leftover `SV_DrawID` experiment.
+- [x] Mark this focused garbled-rendering repair complete: the real-player indexed-multidraw corruption is removed and validated on Metal. Do not close the parent plan's independent D2/D3 startup/coarse/far-field coverage tasks; those remain separately open.
+
+## Completion evidence
+
+- Original corrupted real-player run: `32494256445`.
+- Rejected `SV_DrawID` real-player run: `32495744003`.
+- Clean direct-parent baseline: `32496458837`.
+- Clean current-harness/pre-multidraw confirmation: `32497237439`.
+- Focused bucketed-submission EditMode guard: `32497707003`.
+- Final fixed-branch standalone-player validation: `32498578646`.
