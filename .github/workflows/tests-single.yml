@@ -42,9 +42,9 @@ permissions:
   contents: read
   statuses: write
 
-concurrency:
-  group: unity-tests-single-${{ github.ref }}
-  cancel-in-progress: false
+# Do not add an Actions concurrency group here. This repository has one self-hosted
+# macOS runner, and that runner is the queue. GitHub concurrency groups retain only
+# one pending run and can replace an older pending request when a newer one arrives.
 
 jobs:
   single:
