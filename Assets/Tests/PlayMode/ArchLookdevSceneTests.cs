@@ -39,7 +39,7 @@ namespace VoxelEngine.Tests.PlayMode
             // Batch PlayMode does not submit the Game view automatically. Keep explicit camera
             // submissions so surface extraction advances, but do not read these pixels back or
             // persist an editor screenshot. Human-review images come only from the standalone app.
-            Camera camera = lookdev.SceneCamera;
+            Camera camera = lookdev.GetComponent<Camera>();
             Assert.NotNull(camera);
             var target = new RenderTexture(640, 360, 24, RenderTextureFormat.ARGB32);
             target.Create();
