@@ -40,8 +40,11 @@ namespace VoxelEngine.Tests.EditMode
                 "Chunk-local index values must receive the arena vertex base exactly once in the indirect command.");
             StringAssert.Contains("Graphics.RenderPrimitivesIndexedIndirect", renderPass);
             StringAssert.Contains("InitIndirectDrawArgs(0)", shader,
-                "Use Unity's supported multi-command indirect shader contract.");
-            StringAssert.Contains("GetIndirectVertexID(vertexID)", shader);
+                "Use Unity's indirect setup without requiring the Metal-incompatible SV_DrawID semantic.");
+            StringAssert.Contains("GetIndirectVertexID_Base(vertexID)", shader,
+                "The vertex buffer is one shared arena, so the shader must consume the base/absolute indexed vertex ID rather than rebase it relative to a command.");
+            StringAssert.DoesNotContain("GetIndirectVertexID(vertexID)", shader,
+                "The command-relative helper was used by the visually corrupt implementation with non-zero startIndex/baseVertexIndex.");
             StringAssert.DoesNotContain("SV_DrawID", shader,
                 "SV_DrawID made Hidden/VoxelEngine/SmoothSurface unsupported on the Metal validation player.");
             StringAssert.DoesNotContain("_SurfaceIndices", shader,
