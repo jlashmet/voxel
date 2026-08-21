@@ -81,7 +81,7 @@ Shader "Hidden/VoxelEngine/SmoothSurface"
             {
                 InitIndirectDrawArgs(0);
                 Varyings output;
-                SurfaceVertex vertex = _SurfaceVertices[GetIndirectVertexID(vertexID)];
+                SurfaceVertex vertex = _SurfaceVertices[GetIndirectVertexID_Base(vertexID)];
                 output.positionCS = TransformWorldToHClip(vertex.position);
                 output.positionWS = vertex.position;
                 output.normalNS = normalize(vertex.normal);
