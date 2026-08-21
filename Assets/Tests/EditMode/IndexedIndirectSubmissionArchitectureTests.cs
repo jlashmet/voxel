@@ -44,12 +44,14 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("baseVertexIndex = metadata.VertexStart", renderPass,
                 "Chunk-local index values must receive the arena vertex base exactly once in the indirect command.");
             StringAssert.Contains("Graphics.RenderPrimitivesIndexedIndirect", renderPass);
-            StringAssert.Contains("InitIndirectDrawArgs(0)", shader,
-                "Use Unity's indirect setup without requiring the Metal-incompatible SV_DrawID semantic.");
-            StringAssert.Contains("GetIndirectVertexID_Base(vertexID)", shader,
-                "The vertex buffer is one shared arena, so the shader must consume the base/absolute indexed vertex ID rather than rebase it relative to a command.");
-            StringAssert.DoesNotContain("GetIndirectVertexID(vertexID)", shader,
-                "The command-relative helper was used by the visually corrupt implementation with non-zero startIndex/baseVertexIndex.");
+            StringAssert.Contains("_SurfaceVertices[vertexID]", shader,
+                "Hardware indexed SV_VertexID already contains startIndex/baseVertex addressing, so the shared vertex arena must consume it directly.");
+            StringAssert.DoesNotContain("UnityIndirect.cginc", shader,
+                "The surface vertex path does not consume indirect argument metadata; command-zero fixup must not participate in multi-command addressing.");
+            StringAssert.DoesNotContain("InitIndirectDrawArgs", shader,
+                "The visually corrupt candidate initialized UnityIndirect from command zero for every command.");
+            StringAssert.DoesNotContain("GetIndirectVertexID", shader,
+                "Hardware indexing owns the indexed vertex lookup in the optimized path.");
             StringAssert.DoesNotContain("SV_DrawID", shader,
                 "SV_DrawID made Hidden/VoxelEngine/SmoothSurface unsupported on the Metal validation player.");
             StringAssert.DoesNotContain("_SurfaceIndices", shader,
