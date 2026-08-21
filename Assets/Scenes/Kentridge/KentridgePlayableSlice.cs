@@ -35,10 +35,9 @@ namespace Game.Kentridge.PlayableSlice
         [Header("World")]
         [SerializeField] private uint m_Seed = 0x4B454E54u;
 
-        [Tooltip("Emit Hightown's buildings as voxels. Off by default: the town voxel pass is " +
-                 "Kentridge content in several stages and rejects a second settlement. Hightown's " +
-                 "plan, theme and position are still used for the corridor, the road and the " +
-                 "themed country between the towns.")]
+        [Tooltip("Emit Hightown's buildings as voxels. On by default: the slice intentionally " +
+                 "exercises two generated settlements in one world. Disable only when isolating " +
+                 "the corridor, road and themed country between Kentridge and Hightown.")]
         [SerializeField] private bool m_RealizeHightownBuildings = true;
         [SerializeField] private int m_BrickPoolCapacity = 262144;
 
@@ -301,7 +300,7 @@ namespace Game.Kentridge.PlayableSlice
 
             bool hasActiveCutscene = _session.Runtime.HasActiveCutscene;
             if (_cutsceneOwnedControl && !hasActiveCutscene)
-                ReleasePlayerAtPubExit();
+                ReleasePlayerForGameplay();
             _cutsceneOwnedControl = hasActiveCutscene;
 
             // Scripted measurement modes deliberately take camera control even if the authored
@@ -367,21 +366,21 @@ namespace Game.Kentridge.PlayableSlice
             if (Input.GetKeyDown(KeyCode.F10)) RescuePlayerToY100();
         }
 
-        private void ReleasePlayerAtPubExit()
+        private void ReleasePlayerForGameplay()
         {
-            // A cutscene stage point is a performance mark, not a gameplay-safe spawn. The final
-            // mark can be off the doorway centreline (and revisions to the generated pub can put
-            // its capsule against new trim), which made ordinary WASD appear completely stuck.
-            // Hand control back at the architecture-owned exterior approach, then resolve its Y
-            // against the complete capsule footprint. Access points express authored intent, but
-            // the composed terrain is authoritative; assigning the point's raw height can embed
-            // the capsule when the surrounding hillside rises by even one voxel.
+            // Cutscene marks are performance positions, not gameplay-safe spawns. Hand control back
+            // at the architecture-owned interior doorway approach instead. Snap that authored point
+            // to the composed voxel floor so the full capsule is safe, then face the public exit.
+            // The player must cross the generated doorway under normal CharacterMotor collision;
+            // composition is not allowed to teleport across the world/gameplay boundary it claims
+            // to integrate.
+            Vector3 interior = ToMetres(_pubAccess.InteriorApproach);
             Vector3 exterior = ToMetres(_pubAccess.ExteriorApproach);
-            Vector3 entrance = ToMetres(_pubAccess.Entrance);
-            Vector3 facing = exterior - entrance;
+            Vector3 facing = exterior - interior;
             facing.y = 0f;
 
-            _motor.SnapToGround(_world, exterior);
+            _motor.SnapToGround(_world, interior);
+            _hasExitedPub = false;
             if (facing.sqrMagnitude > 1e-6f)
             {
                 transform.rotation = Quaternion.LookRotation(facing.normalized, Vector3.up);
@@ -742,7 +741,7 @@ namespace Game.Kentridge.PlayableSlice
             _session.Runtime.Tick(0);
             if (_session.Runtime.HasActiveCutscene) return;
 
-            ReleasePlayerAtPubExit();
+            ReleasePlayerForGameplay();
             _cutsceneOwnedControl = false;
         }
 
