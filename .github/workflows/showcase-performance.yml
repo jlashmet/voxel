@@ -18,6 +18,9 @@ on:
       autowalk-after:
         description: Seconds of stationary measurement before the scripted walk starts
         default: '60'
+  pull_request:
+    branches:
+      - master
   push:
     branches:
       - master
