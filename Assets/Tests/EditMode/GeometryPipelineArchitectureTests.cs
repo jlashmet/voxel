@@ -349,25 +349,19 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void SolidSurfaceDrawsUseExactMultiCommandSubmission()
+        public void SolidSurfaceDrawsAreBucketedInsteadOfSubmittedPerChunk()
         {
             string renderPass = ReadRenderingSource(
                 Path.Combine("RenderFeature", "VoxelRenderPass.cs"));
             string shader = File.ReadAllText(
                 "Assets/VoxelEngine/Rendering/Runtime/Shaders/SmoothSurface.shader");
 
-            StringAssert.Contains("PrepareSolidMultiDraw(transvoxelVisible, camera)", renderPass);
-            StringAssert.Contains("Graphics.RenderPrimitivesIndexedIndirect", renderPass);
-            StringAssert.Contains("GraphicsBuffer.IndirectDrawIndexedArgs", renderPass);
-            StringAssert.Contains("InitIndirectDrawArgs(0)", shader);
-            StringAssert.Contains("GetIndirectVertexID(vertexID)", shader);
-            StringAssert.DoesNotContain("_SurfaceIndices", shader,
-                "hardware indexing must replace one structured index load per emitted vertex");
-            StringAssert.DoesNotContain("_SurfaceDrawMetadata", shader);
+            StringAssert.Contains("PrepareSolidDrawBatches(transvoxelVisible)", renderPass);
+            StringAssert.Contains("SolidDrawBucketCount", renderPass);
+            StringAssert.Contains("SV_InstanceID", shader);
+            StringAssert.Contains("_SurfaceDrawMetadata", shader);
             StringAssert.DoesNotContain(
                 "passData.TransvoxelEntries[i].Draw(cmd, passData.Material)", renderPass);
-            StringAssert.DoesNotContain("vertexID >= draw.indexCount", shader,
-                "exact per-command counts must not pad and discard vertex work");
         }
 
 

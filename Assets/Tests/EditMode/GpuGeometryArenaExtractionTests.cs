@@ -240,9 +240,7 @@ namespace VoxelEngine.Tests.EditMode
 
             var vertices = new ComputeBuffer(capacity, GpuSurfaceExtractor.ReadbackVertex.Stride,
                                              ComputeBufferType.Structured);
-            var indices = new GraphicsBuffer(
-                GraphicsBuffer.Target.Raw | GraphicsBuffer.Target.Index,
-                capacity, sizeof(uint));
+            var indices = new ComputeBuffer(capacity, sizeof(uint), ComputeBufferType.Structured);
             try
             {
                 var poison = new uint[capacity];
