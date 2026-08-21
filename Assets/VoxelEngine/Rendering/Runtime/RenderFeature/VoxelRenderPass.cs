@@ -178,6 +178,8 @@ namespace VoxelEngine.Rendering.Runtime
             public int[] SolidDrawBucketStarts;
             public int[] SolidDrawBucketVertexCounts;
             public int TransvoxelEntryCount;
+            public double SolidStagingMs;
+            public int VisibleSolidCount;
             public CpuWaterSurfaceChunkCache.Entry[] WaterEntries;
             public int WaterEntryCount;
         }
@@ -288,9 +290,12 @@ namespace VoxelEngine.Rendering.Runtime
             if (transvoxelVisible.Count > _transvoxelDrawEntries.Length)
                 throw new InvalidOperationException(
                     "Visible solid draw count exceeded the fixed arena draw capacity.");
+            long solidStagingStart = VoxelSolidRenderTelemetry.Timestamp();
             for (int i = 0; i < transvoxelVisible.Count; i++)
                 _transvoxelDrawEntries[i] = transvoxelVisible[i];
             int solidDrawCount = PrepareSolidDrawBatches(transvoxelVisible);
+            double solidStagingMs =
+                VoxelSolidRenderTelemetry.ElapsedMilliseconds(solidStagingStart);
 
             if (waterVisible.Count > _waterDrawEntries.Length)
                 throw new InvalidOperationException(
@@ -343,6 +348,8 @@ namespace VoxelEngine.Rendering.Runtime
             data.SolidDrawBucketStarts = _solidDrawBucketStarts;
             data.SolidDrawBucketVertexCounts = _solidDrawBucketVertexCounts;
             data.TransvoxelEntryCount = solidDrawCount;
+            data.SolidStagingMs = solidStagingMs;
+            data.VisibleSolidCount = transvoxelVisible.Count;
             data.WaterEntries = _waterDrawEntries;
             data.WaterEntryCount = waterVisible.Count;
 
@@ -408,6 +415,8 @@ namespace VoxelEngine.Rendering.Runtime
                 cmd.SetGlobalFloat(s_FlashlightInnerCos, passData.FlashlightInnerCos);
                 cmd.SetGlobalFloat(s_FlashlightOuterCos, passData.FlashlightOuterCos);
 
+                long solidSubmissionStart = VoxelSolidRenderTelemetry.Timestamp();
+
                 // Same arena for every solid chunk, so bind it once rather than in each draw.
                 if (passData.SurfaceVertices != null)
                     cmd.SetGlobalBuffer(s_SurfaceVertices, passData.SurfaceVertices);
@@ -418,6 +427,7 @@ namespace VoxelEngine.Rendering.Runtime
 
                 ctx.cmd.SetRenderTarget(passData.CameraColor, passData.CameraDepth);
 
+                int solidSubmissionCalls = 0;
                 for (int bucket = 0; bucket < SolidDrawBucketCount; bucket++)
                 {
                     int instanceCount = passData.SolidDrawBucketCounts[bucket];
@@ -427,7 +437,12 @@ namespace VoxelEngine.Rendering.Runtime
                     cmd.DrawProcedural(Matrix4x4.identity, passData.Material, 0,
                         MeshTopology.Triangles,
                         passData.SolidDrawBucketVertexCounts[bucket], instanceCount);
+                    solidSubmissionCalls++;
                 }
+                VoxelSolidRenderTelemetry.Record(
+                    passData.SolidStagingMs,
+                    VoxelSolidRenderTelemetry.ElapsedMilliseconds(solidSubmissionStart),
+                    passData.VisibleSolidCount, solidSubmissionCalls);
 
                 if (VoxelRenderBridge.WaterRenderEnabled
                     && passData.WaterMaterial != null && passData.WaterEntryCount > 0)
@@ -522,6 +537,7 @@ namespace VoxelEngine.Rendering.Runtime
 
         private void ReleaseWorldResources()
         {
+            VoxelSolidRenderTelemetry.Reset();
             if (_scheduler == null) return;
 
             // Dispose is deliberately synchronous here: world teardown is a lifecycle boundary,
