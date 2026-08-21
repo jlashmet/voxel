@@ -243,7 +243,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         }
 
         /// <summary>Starts the write pass into an already-reserved arena range.</summary>
-        public void BeginWriteRange(ComputeBuffer vertices, ComputeBuffer indices,
+        public void BeginWriteRange(ComputeBuffer vertices, GraphicsBuffer indices,
                                     int vertexStart, int vertexCapacity,
                                     int indexStart, int indexCapacity)
         {
@@ -358,7 +358,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         /// Index values stay in the chunk's own numbering, exactly as the CPU mesher produces them,
         /// so the draw path cannot tell which mesher filled the range.
         /// </summary>
-        public bool TryWriteRange(ComputeBuffer vertices, ComputeBuffer indices,
+        public bool TryWriteRange(ComputeBuffer vertices, GraphicsBuffer indices,
                                   int vertexStart, int vertexCapacity,
                                   int indexStart, int indexCapacity,
                                   out int indexCount)

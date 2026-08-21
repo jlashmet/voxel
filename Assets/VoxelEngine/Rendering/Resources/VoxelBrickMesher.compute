@@ -67,7 +67,7 @@ struct SurfaceVertex
 };
 
 RWStructuredBuffer<SurfaceVertex> _Vertices;
-RWStructuredBuffer<uint> _Indices;
+RWByteAddressBuffer _Indices;
 // 0,1: vertices/indices written this pass. 2,3: vertices/indices the count pass says are coming,
 // which is what the caller reserves against before any of them are written.
 RWStructuredBuffer<uint> _Counters;
@@ -92,18 +92,17 @@ int _VerticesPerPage;
 int _IndicesPerPage;
 
 // Where this chunk's storage starts in the shared buffer, for a caller that hands out plain
-// contiguous ranges rather than pages. Applied to *where* a vertex is stored, never to the index
-// values written — those stay in the chunk's own numbering, because the draw shader already adds
-// the chunk's base when it dereferences them. Zero for the paged path, which resolves the whole
-// address itself.
+// contiguous ranges rather than pages. VertexSlot applies this base both to vertex writes and to
+// index values, so every native index stored for the contiguous arena is already arena-global.
+// Zero for the paged path, which resolves the whole address itself.
 int _VertexWriteBase;
 int _IndexWriteBase;
 
 // 1 while counting: emit nothing, just accumulate what would be emitted.
 int _TransitionCountOnly;
 
-// The vertex number this chunk's local vertex is known by. With one page covering the whole
-// buffer this is the identity, which is what makes the lease path's index values chunk-local.
+// Resolve a chunk-local vertex through the page table. The final shared-buffer vertex id is
+// VertexSlot(local), which additionally applies _VertexWriteBase for contiguous arena leases.
 uint ArenaVertex(uint local)
 {
     uint page = _ChunkPages[local / (uint)_VerticesPerPage];
@@ -370,15 +369,16 @@ void CSWriteCells(uint3 id : SV_DispatchThreadID)
             _Vertices[VertexSlot(vertexBase + t + 2u)] = c;
         }
         for (uint i2 = 0u; i2 < indexCount; i2++)
-            _Indices[ArenaIndexSlot(indexBase + i2)] = ArenaVertex(vertexBase + i2);
+            _Indices.Store(ArenaIndexSlot(indexBase + i2) * 4u,
+                           VertexSlot(vertexBase + i2));
     }
     else
     {
         for (uint v2 = 0u; v2 < sourceVertexCount; v2++)
             _Vertices[VertexSlot(vertexBase + v2)] = cellVertices[v2];
         for (uint i3 = 0u; i3 < indexCount; i3++)
-            _Indices[ArenaIndexSlot(indexBase + i3)] =
-                ArenaVertex(vertexBase + _RegularCellIndices[tableBase + i3]);
+            _Indices.Store(ArenaIndexSlot(indexBase + i3) * 4u,
+                VertexSlot(vertexBase + _RegularCellIndices[tableBase + i3]));
     }
 }
 
@@ -610,10 +610,11 @@ void CSTransitionCells(uint3 id : SV_DispatchThreadID)
         uint c = _TransitionCellIndices[tableBase + 2u];
         if (a >= vertexCount || b >= vertexCount || c >= vertexCount) continue;
 
-        _Indices[ArenaIndexSlot(indexBase + t * 3u + 0u)] = ArenaVertex(vertexBase + a);
-        _Indices[ArenaIndexSlot(indexBase + t * 3u + 1u)] =
-            ArenaVertex(vertexBase + (reversed ? c : b));
-        _Indices[ArenaIndexSlot(indexBase + t * 3u + 2u)] =
-            ArenaVertex(vertexBase + (reversed ? b : c));
+        _Indices.Store(ArenaIndexSlot(indexBase + t * 3u + 0u) * 4u,
+                       VertexSlot(vertexBase + a));
+        _Indices.Store(ArenaIndexSlot(indexBase + t * 3u + 1u) * 4u,
+                       VertexSlot(vertexBase + (reversed ? c : b)));
+        _Indices.Store(ArenaIndexSlot(indexBase + t * 3u + 2u) * 4u,
+                       VertexSlot(vertexBase + (reversed ? b : c)));
     }
 }

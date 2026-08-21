@@ -106,7 +106,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             private SurfaceGeometryLease _liveLease;
             private SurfaceGeometryLease _stagingLease;
             public ComputeBuffer Vertices => _arena.Vertices;
-            public ComputeBuffer Indices => _arena.Indices;
+            public GraphicsBuffer Indices => _arena.Indices;
             public ComputeBuffer Args => _arena.Args;
             public bool Ready;
             public int IndexCount;
