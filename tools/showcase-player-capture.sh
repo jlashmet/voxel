@@ -18,6 +18,7 @@ Options:
   --test-filter FILTER     Resolve a known screenshot test to its real scene
   --if-configured          Exit successfully when FILTER is not a screenshot test
   --run-seconds N          Player run duration (default: profile-specific or 30)
+  --auto-dialogue N        Auto-advance scene dialogue every N seconds
   --autowalk-after N       Enable the showcase scripted walk after N seconds
   --survey-after N         Enable showcase survey camera after N seconds
   --survey-height N        Survey camera height
@@ -30,6 +31,7 @@ OUTPUT_ROOT=""
 SCENE=""
 TEST_FILTER=""
 RUN_SECONDS=""
+AUTO_DIALOGUE=""
 AUTOWALK_AFTER=""
 SURVEY_AFTER=""
 SURVEY_HEIGHT=""
@@ -44,6 +46,7 @@ while (( $# > 0 )); do
     --test-filter) TEST_FILTER="$2"; shift 2 ;;
     --if-configured) IF_CONFIGURED=1; shift ;;
     --run-seconds) RUN_SECONDS="$2"; shift 2 ;;
+    --auto-dialogue) AUTO_DIALOGUE="$2"; shift 2 ;;
     --autowalk-after) AUTOWALK_AFTER="$2"; shift 2 ;;
     --survey-after) SURVEY_AFTER="$2"; shift 2 ;;
     --survey-height) SURVEY_HEIGHT="$2"; shift 2 ;;
@@ -70,14 +73,17 @@ if [[ -n "$TEST_FILTER" ]]; then
       ;;
     VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests|VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests.*)
       # Kentridge is an integration scene, so its visual proof must come from the same standalone
-      # player path as the showcase benchmarks rather than a PlayMode RenderTexture. Let the real
-      # opening render first, then switch to the scene's own survey driver so later ten-second
-      # frames prove Kentridge, Hightown, corridor life, near terrain and far terrain together.
+      # player path as the showcase benchmarks rather than a PlayMode RenderTexture. Exercise the
+      # real opening first, advancing dialogue the way a player click would, then move once to a
+      # fixed overview and let the near renderer converge. A continuously spinning survey keeps
+      # exposing unpublished chunks, which correctly closes the far-field hole forever and turns
+      # every later screenshot into fallback terrain rather than evidence of the settled scene.
       SCENE="Assets/Scenes/KentridgePlayableSlice.unity"
-      : "${RUN_SECONDS:=60}"
-      : "${SURVEY_AFTER:=10}"
+      : "${RUN_SECONDS:=90}"
+      : "${AUTO_DIALOGUE:=1.5}"
+      : "${SURVEY_AFTER:=30}"
       : "${SURVEY_HEIGHT:=55}"
-      : "${SURVEY_SPIN:=30}"
+      : "${SURVEY_SPIN:=0}"
       ;;
     VoxelEngine.Tests.PlayMode.CastleScreenshotTests|VoxelEngine.Tests.PlayMode.CastleScreenshotTests.*|\
     VoxelEngine.Tests.PlayMode.CastleExteriorLookdevTests|VoxelEngine.Tests.PlayMode.CastleExteriorLookdevTests.*)
@@ -172,6 +178,9 @@ PLAYER_ARGS=(
   -voxel-screenshot-every 10
 )
 
+if [[ -n "$AUTO_DIALOGUE" ]]; then
+  PLAYER_ARGS+=( -voxel-auto-dialogue "$AUTO_DIALOGUE" )
+fi
 if [[ -n "$AUTOWALK_AFTER" ]]; then
   PLAYER_ARGS+=( -voxel-autowalk-after "$AUTOWALK_AFTER" )
 fi
