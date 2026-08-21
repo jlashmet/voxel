@@ -48,9 +48,9 @@ This is a focused continuation of `voxel-showcase-rendering-repair-v2.md` for th
 
 - [x] Establish the clean bucketed standalone-player performance/correctness baseline from run `32498578646`: over the stable 35-60 s survey window excluding screenshot stalls, mean FPS is 307.16 and mean frame time is 3.28 ms. Preserve its five screenshots as the comparison reference.
 - [x] Quantify the intended upside from the original but visually invalid indexed-multidraw run `32494256445`: over the same stable window excluding screenshot stalls it averaged 390.66 FPS / 2.56 ms, so the submission collapse is worth recovering if correctness is retained.
-- [ ] Add a focused regression for the actual indexed-draw addressing contract before changing production: every hardware index stored in the shared contiguous surface arena must remain chunk-local, and each indirect command must provide that chunk's `startIndex` plus `baseVertexIndex` exactly once.
+- [x] Add a focused regression for the actual indexed-draw addressing contract before changing production (`IndexedIndirectSubmissionArchitectureTests.IndexedIndirectSubmissionAppliesArenaOffsetsExactlyOnce`). The pre-optimization red gate fails as expected in run `32500993168`, while the existing GPU `WritingIntoAnOffsetRangeMatchesWritingAtZeroAndTouchesNothingElse` regression already proves contiguous arena index values remain chunk-local.
 - [ ] Reintroduce a Metal-compatible indexed-indirect arena representation without changing geometry ownership, publication, LOD, or frame budgets. Keep the contiguous `SurfaceGeometryArena` index payload chunk-local; do not apply the vertex base both in the stored index and in the indirect command.
-- [ ] Reimplement the one-call solid submission using Unity's supported indirect shader contract (`InitIndirectDrawArgs(0)`/`GetIndirectVertexID`) without `SV_DrawID`, while preserving the bucketed path as the non-game/editor fallback until the optimized path is proven across the real player.
+- [ ] Reimplement the one-call solid submission without `SV_DrawID`. The first controlled retry must consume the hardware-indexed vertex in base/absolute form (`GetIndirectVertexID_Base`) rather than the command-relative `GetIndirectVertexID` used by the visually corrupt implementation; keep the bucketed path as the non-game/editor fallback until the optimized path is proven across the real player.
 - [ ] Validate the smallest focused EditMode architecture/addressing regressions on the exact optimization head.
 - [ ] Run `VoxelEngine.Tests.PlayMode.CastleScreenshotTests` through the standalone-player capture path on the optimized head; inspect all five PNGs against run `32498578646`, not just the PlayMode assertion.
 - [ ] Inspect the optimized Metal player log for shader support/errors and require `assertion failures 0`; reject the optimization if the renderer becomes unsupported or produces cross-world geometry.
@@ -65,3 +65,4 @@ This is a focused continuation of `voxel-showcase-rendering-repair-v2.md` for th
 - Clean current-harness/pre-multidraw confirmation: `32497237439`.
 - Focused bucketed-submission EditMode guard: `32497707003`.
 - Final fixed-branch standalone-player validation / optimization baseline: `32498578646`.
+- Indexed-indirect addressing red gate: `32500993168`.
