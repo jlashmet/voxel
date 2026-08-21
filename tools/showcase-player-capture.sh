@@ -146,11 +146,14 @@ if [[ -z "$STATIONARY_SAMPLE" ]]; then mkdir -p "$SHOTS_DIR"; fi
 # capture utility sequencing-safe instead of racing the previous Unity invocation.
 wait_for_unity_quiet
 
+BUILD_ARGS=(-batchmode -nographics -quit)
+if [[ -n "$STATIONARY_SAMPLE" ]]; then BUILD_ARGS+=(-voxelFrameTimingStats); fi
+
 echo "Building real player for $SCENE"
 UNITY_MAX_RSS_MB="${UNITY_MAX_RSS_MB:-12288}" \
 UNITY_MAX_MINUTES="${UNITY_MAX_MINUTES:-25}" \
 UNITY_BIN="$UNITY_PATH" tools/unity-run.sh \
-  -batchmode -nographics -quit \
+  "${BUILD_ARGS[@]}" \
   -projectPath "$PWD" \
   -executeMethod VoxelEngine.Showcase.Editor.ShowcasePlayerBuild.Build \
   -voxelScene "$SCENE" \
