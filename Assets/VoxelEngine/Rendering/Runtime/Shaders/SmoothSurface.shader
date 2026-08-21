@@ -22,8 +22,6 @@ Shader "Hidden/VoxelEngine/SmoothSurface"
             #pragma vertex Vert
             #pragma fragment Frag
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
-            #define UNITY_INDIRECT_DRAW_ARGS IndirectDrawIndexedArgs
-            #include "UnityIndirect.cginc"
 
             struct SurfaceVertex
             {
@@ -79,9 +77,8 @@ Shader "Hidden/VoxelEngine/SmoothSurface"
 
             Varyings Vert(uint vertexID : SV_VertexID)
             {
-                InitIndirectDrawArgs(0);
                 Varyings output;
-                SurfaceVertex vertex = _SurfaceVertices[GetIndirectVertexID_Base(vertexID)];
+                SurfaceVertex vertex = _SurfaceVertices[vertexID];
                 output.positionCS = TransformWorldToHClip(vertex.position);
                 output.positionWS = vertex.position;
                 output.normalNS = normalize(vertex.normal);
