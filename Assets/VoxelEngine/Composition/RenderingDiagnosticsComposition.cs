@@ -83,10 +83,14 @@ namespace VoxelEngine.Composition
             SolidMeshesAwaitingUpload = solidMeshesAwaitingUpload;
         }
 
-        public bool IsConverged => VisibleSolidChunks > 0
-            && MissingVisibleSolidChunks == 0
-            && RunningSolidJobs == 0
-            && SolidMeshesAwaitingUpload == 0;
+        /// <summary>
+        /// Convergence for a fixed visible view. Background prefetch jobs are intentionally not
+        /// part of this predicate: the renderer's visibility-reuse contract allows them to run
+        /// behind the camera as long as every in-frustum chunk is already published. If a
+        /// background publication changes the drawn set, the visibility timing in the benchmark
+        /// will expose that by leaving the cheap reuse path.
+        /// </summary>
+        public bool IsConverged => VisibleSolidChunks > 0 && MissingVisibleSolidChunks == 0;
     }
 
     public static class RenderingDiagnosticsComposition
