@@ -68,6 +68,17 @@ if [[ -n "$TEST_FILTER" ]]; then
       SCENE="Assets/Scenes/TerrainLookdev.unity"
       : "${RUN_SECONDS:=30}"
       ;;
+    VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests|VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests.*)
+      # Kentridge is an integration scene, so its visual proof must come from the same standalone
+      # player path as the showcase benchmarks rather than a PlayMode RenderTexture. Let the real
+      # opening render first, then switch to the scene's own survey driver so later ten-second
+      # frames prove Kentridge, Hightown, corridor life, near terrain and far terrain together.
+      SCENE="Assets/Scenes/KentridgePlayableSlice.unity"
+      : "${RUN_SECONDS:=60}"
+      : "${SURVEY_AFTER:=10}"
+      : "${SURVEY_HEIGHT:=55}"
+      : "${SURVEY_SPIN:=30}"
+      ;;
     VoxelEngine.Tests.PlayMode.CastleScreenshotTests|VoxelEngine.Tests.PlayMode.CastleScreenshotTests.*|\
     VoxelEngine.Tests.PlayMode.CastleExteriorLookdevTests|VoxelEngine.Tests.PlayMode.CastleExteriorLookdevTests.*)
       SCENE="Assets/Scenes/VoxelShowcase.unity"
