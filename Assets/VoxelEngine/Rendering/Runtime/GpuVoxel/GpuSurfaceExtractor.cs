@@ -175,7 +175,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         // but an unbound UAV is undefined behaviour rather than a no-op, so it gets somewhere
         // harmless to point at.
         private readonly ComputeBuffer _transitionSink;
-        private readonly GraphicsBuffer _transitionIndexSink;
+        private readonly ComputeBuffer _transitionIndexSink;
 
         private readonly ComputeBuffer _styleWords;
         private readonly ComputeBuffer _joinWords;
@@ -268,7 +268,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _pageStaging = new uint[MaxPagesPerChunk];
             _transitionSink = new ComputeBuffer(1, ReadbackVertex.Stride,
                                                 ComputeBufferType.Structured);
-            _transitionIndexSink = new GraphicsBuffer(GraphicsBuffer.Target.Raw, 1, sizeof(uint));
+            _transitionIndexSink = new ComputeBuffer(1, sizeof(uint), ComputeBufferType.Structured);
             _faceDensity = new ComputeBuffer(faceSamples, sizeof(float), ComputeBufferType.Structured);
             _faceMaterial = new ComputeBuffer(faceSamples, sizeof(uint), ComputeBufferType.Structured);
             _faceSurface = new ComputeBuffer(faceSamples, sizeof(uint), ComputeBufferType.Structured);
@@ -351,7 +351,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         public GpuExtractionResult Extract(GpuVoxelBrickMirror mirror, GpuTransvoxelTables tables,
                                            int3 chunkOriginVoxel, int3 brickCacheOrigin,
                                            int sourceStep, float voxelSize,
-                                           ComputeBuffer vertices, GraphicsBuffer indices,
+                                           ComputeBuffer vertices, ComputeBuffer indices,
                                            int vertexCapacity, int indexCapacity)
         {
             ThrowIfDisposed();
@@ -405,7 +405,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             GpuVoxelBrickMirror mirror, GpuTransvoxelTables tables,
             int face, int3 chunkOriginVoxel, int3 brickCacheOrigin,
             int sourceStep, float voxelSize,
-            ComputeBuffer vertices, GraphicsBuffer indices,
+            ComputeBuffer vertices, ComputeBuffer indices,
             int vertexCapacity, int indexCapacity)
         {
             ThrowIfDisposed();
@@ -521,7 +521,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         /// </summary>
         public GpuExtractionResult Write(GpuVoxelBrickMirror mirror, GpuTransvoxelTables tables,
                                          in GpuChunkExtraction request,
-                                         ComputeBuffer vertices, GraphicsBuffer indices,
+                                         ComputeBuffer vertices, ComputeBuffer indices,
                                          System.Collections.Generic.IReadOnlyList<int> pages,
                                          int verticesPerPage, int indicesPerPage)
         {
@@ -579,7 +579,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         /// </summary>
         public GpuExtractionResult WriteRange(GpuVoxelBrickMirror mirror, GpuTransvoxelTables tables,
                                               in GpuChunkExtraction request,
-                                              ComputeBuffer vertices, GraphicsBuffer indices,
+                                              ComputeBuffer vertices, ComputeBuffer indices,
                                               int vertexStart, int vertexCapacity,
                                               int indexStart, int indexCapacity)
         {
@@ -595,7 +595,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         /// </summary>
         public void BeginWriteRange(GpuVoxelBrickMirror mirror, GpuTransvoxelTables tables,
                                     in GpuChunkExtraction request,
-                                    ComputeBuffer vertices, GraphicsBuffer indices,
+                                    ComputeBuffer vertices, ComputeBuffer indices,
                                     int vertexStart, int vertexCapacity,
                                     int indexStart, int indexCapacity)
         {
@@ -606,7 +606,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         private void DispatchWriteRange(GpuVoxelBrickMirror mirror, GpuTransvoxelTables tables,
                                         in GpuChunkExtraction request,
-                                        ComputeBuffer vertices, GraphicsBuffer indices,
+                                        ComputeBuffer vertices, ComputeBuffer indices,
                                         int vertexStart, int vertexCapacity,
                                         int indexStart, int indexCapacity)
         {
@@ -630,14 +630,13 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             int cells = CellsPerAxis * CellsPerAxis * CellsPerAxis;
             _shader.Dispatch(_writeKernel, Groups(cells), 1, 1);
 
-            DispatchTransitionFaces(mirror, tables, request, countOnly: false,
-                                    vertices, indices);
+            DispatchTransitionFaces(mirror, tables, request, countOnly: false, vertices, indices);
         }
 
         private void DispatchTransitionFaces(GpuVoxelBrickMirror mirror, GpuTransvoxelTables tables,
                                              in GpuChunkExtraction request, bool countOnly,
                                              ComputeBuffer vertices = null,
-                                             GraphicsBuffer indices = null)
+                                             ComputeBuffer indices = null)
         {
             if (request.TransitionFaceMask == 0) return;
 

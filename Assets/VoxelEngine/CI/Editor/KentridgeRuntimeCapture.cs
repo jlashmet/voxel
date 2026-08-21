@@ -512,7 +512,7 @@ namespace VoxelEngine.CI
                 $"CI Kentridge Smooth {entry.Coordinate}", out triangleCount);
         }
 
-        private static Mesh MeshFromBuffers(ComputeBuffer vertexBuffer, GraphicsBuffer indexBuffer,
+        private static Mesh MeshFromBuffers(ComputeBuffer vertexBuffer, ComputeBuffer indexBuffer,
                                             int indexCount, string name,
                                             out int triangleCount)
         {
