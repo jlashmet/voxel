@@ -9,6 +9,10 @@ namespace VoxelEngine.Composition
     public readonly struct SolidRenderBenchmarkSnapshot
     {
         public readonly ulong SampleCount;
+        public readonly double SchedulerPrepareP50Ms;
+        public readonly double SchedulerPrepareP95Ms;
+        public readonly double SchedulerPrepareP99Ms;
+        public readonly double SchedulerPrepareMaxMs;
         public readonly double StagingP50Ms;
         public readonly double StagingP95Ms;
         public readonly double StagingP99Ms;
@@ -28,6 +32,8 @@ namespace VoxelEngine.Composition
 
         internal SolidRenderBenchmarkSnapshot(
             ulong sampleCount,
+            double schedulerPrepareP50Ms, double schedulerPrepareP95Ms,
+            double schedulerPrepareP99Ms, double schedulerPrepareMaxMs,
             double stagingP50Ms, double stagingP95Ms, double stagingP99Ms, double stagingMaxMs,
             double submissionP50Ms, double submissionP95Ms, double submissionP99Ms,
             double submissionMaxMs,
@@ -37,6 +43,10 @@ namespace VoxelEngine.Composition
             double meanVisibleSolidCount, double meanUnitySubmissionCalls)
         {
             SampleCount = sampleCount;
+            SchedulerPrepareP50Ms = schedulerPrepareP50Ms;
+            SchedulerPrepareP95Ms = schedulerPrepareP95Ms;
+            SchedulerPrepareP99Ms = schedulerPrepareP99Ms;
+            SchedulerPrepareMaxMs = schedulerPrepareMaxMs;
             StagingP50Ms = stagingP50Ms;
             StagingP95Ms = stagingP95Ms;
             StagingP99Ms = stagingP99Ms;
@@ -82,8 +92,8 @@ namespace VoxelEngine.Composition
     public static class RenderingDiagnosticsComposition
     {
         /// <summary>
-        /// Starts a fresh solid staging/submission window. Scheduler visibility is already a
-        /// fixed 128-frame rolling window; after 128 stationary frames its contents are entirely
+        /// Starts a fresh solid staging/submission window. Scheduler prepare/visibility are fixed
+        /// 128-frame rolling windows; after 128 stationary frames their contents are entirely
         /// inside the benchmark interval as well.
         /// </summary>
         public static void ResetSolidRenderBenchmark() => VoxelSolidRenderTelemetry.Reset();
@@ -95,9 +105,12 @@ namespace VoxelEngine.Composition
         public static SolidRenderBenchmarkSnapshot GetSolidRenderBenchmark()
         {
             VoxelSolidRenderDiagnostics solid = VoxelSolidRenderTelemetry.Snapshot;
-            var visibility = VoxelRenderBridge.SurfaceMetrics.VisibilityTiming;
+            var metrics = VoxelRenderBridge.SurfaceMetrics;
+            var prepare = metrics.SchedulerPrepareTiming;
+            var visibility = metrics.VisibilityTiming;
             return new SolidRenderBenchmarkSnapshot(
                 solid.SampleCount,
+                prepare.P50Ms, prepare.P95Ms, prepare.P99Ms, prepare.MaxMs,
                 solid.StagingTiming.P50Ms, solid.StagingTiming.P95Ms,
                 solid.StagingTiming.P99Ms, solid.StagingTiming.MaxMs,
                 solid.SubmissionTiming.P50Ms, solid.SubmissionTiming.P95Ms,
