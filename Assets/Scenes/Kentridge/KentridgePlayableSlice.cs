@@ -58,6 +58,7 @@ namespace Game.Kentridge.PlayableSlice
         [Header("Player")]
         [SerializeField] private float m_WalkSpeed = 5.5f;
         [SerializeField] private float m_LookSensitivity = 2.5f;
+        [SerializeField] private float m_InteractionRangeMetres = 2.5f;
 
         private ShowcaseWorld _world;
         private CharacterMotor _motor;
@@ -72,9 +73,14 @@ namespace Game.Kentridge.PlayableSlice
         private SettlementPlan _hightownPlan;
         private KentridgeRegionLife _life;
         private GameObject _lifeHost;
+        private ObjectiveRef _travelObjective;
+        private NpcRef _destinationNpc;
+        private CutsceneRef _introCutscene;
+        private CutsceneRef _destinationCutscene;
         private bool _spawned;
         private bool _hasExitedPub;
         private bool _cutsceneOwnedControl;
+        private bool _openingGameplayReleased;
         private bool _mouseLook = true;
         private float _yaw;
         private float _pitch;
@@ -83,6 +89,14 @@ namespace Game.Kentridge.PlayableSlice
 
         public bool GameplayControlEnabled => _session != null && !_session.Runtime.HasActiveCutscene;
         public bool HasExitedPub => _hasExitedPub;
+        public bool TravelObjectiveActive =>
+            _session != null && _session.Runtime.IsObjectiveActive(_travelObjective);
+        public bool TravelObjectiveCompleted =>
+            _session != null && _session.Runtime.IsObjectiveCompleted(_travelObjective);
+        public bool DestinationCutsceneActive =>
+            _session != null
+            && _session.Runtime.HasActiveCutscene
+            && _session.Runtime.ActiveCutscene.Equals(_destinationCutscene);
 
         private void OnEnable()
         {
@@ -96,8 +110,15 @@ namespace Game.Kentridge.PlayableSlice
             FeatureCatalogue catalogue = default(FeatureCatalogue);
             try
             {
+                var destinationSpeaker = new CutsceneActorId("destination-npc");
                 KnownOpeningCampaignContent content = KnownOpeningCampaignContent.Build(
-                    DialogueOnly("destination-conversation"));
+                    DialogueOnly("destination-conversation", destinationSpeaker),
+                    (scene, roles) => scene.Bind(destinationSpeaker, roles.DestinationNpc));
+                _travelObjective = content.TravelObjective;
+                _destinationNpc = content.DestinationNpc;
+                _introCutscene = content.IntroCutscene;
+                _destinationCutscene = content.DestinationCutscene;
+
                 SettlementPlan settlement = KentridgeDefinition.Build(m_Seed);
                 SettlementPlan hightown = HightownDefinition.Build(m_Seed);
                 _kentridgePlan = settlement;
@@ -242,6 +263,7 @@ namespace Game.Kentridge.PlayableSlice
                 transform.position = _motor.EyePosition;
                 _spawned = true;
                 _cutsceneOwnedControl = true;
+                _openingGameplayReleased = false;
                 SetCursorLocked(true);
             }
             catch
@@ -283,9 +305,14 @@ namespace Game.Kentridge.PlayableSlice
             _kentridgePlan = null;
             _hightownPlan = null;
             _motor = null;
+            _travelObjective = default;
+            _destinationNpc = default;
+            _introCutscene = default;
+            _destinationCutscene = default;
             _spawned = false;
             _hasExitedPub = false;
             _cutsceneOwnedControl = false;
+            _openingGameplayReleased = false;
             _surveyCycleStartedAt = -1f;
             _loggedSurveyRole = -1;
         }
@@ -299,8 +326,17 @@ namespace Game.Kentridge.PlayableSlice
             _session.Runtime.Tick(Mathf.Max(0, Mathf.RoundToInt(dt * 1000f)));
 
             bool hasActiveCutscene = _session.Runtime.HasActiveCutscene;
-            if (_cutsceneOwnedControl && !hasActiveCutscene)
+            if (_cutsceneOwnedControl
+                && !hasActiveCutscene
+                && !_openingGameplayReleased
+                && _session.Runtime.IsCutsceneCompleted(_introCutscene))
+            {
+                // Only the opening owns a special gameplay spawn. Later cutscenes must return
+                // control in-place; reusing this handoff for every cutscene teleports the player
+                // all the way back inside the pub after a destination conversation.
                 ReleasePlayerForGameplay();
+                _openingGameplayReleased = true;
+            }
             _cutsceneOwnedControl = hasActiveCutscene;
 
             // Scripted measurement modes deliberately take camera control even if the authored
@@ -335,9 +371,19 @@ namespace Game.Kentridge.PlayableSlice
             else
             {
                 HandleKeys();
-                if (_mouseLook) HandleLook();
-                MovePlayer(dt);
-                UpdateExitedPub();
+                if (_session.Runtime.HasActiveCutscene)
+                {
+                    // An E interaction can start a cutscene in this very frame. Transfer control
+                    // immediately instead of allowing one extra frame of player look/movement.
+                    _cutsceneOwnedControl = true;
+                    ApplyPlayerCameraFacing();
+                }
+                else
+                {
+                    if (_mouseLook) HandleLook();
+                    MovePlayer(dt);
+                    UpdateExitedPub();
+                }
             }
 
             transform.position = _motor.EyePosition;
@@ -364,6 +410,66 @@ namespace Game.Kentridge.PlayableSlice
         {
             if (Input.GetKeyDown(KeyCode.Escape)) SetCursorLocked(!_mouseLook);
             if (Input.GetKeyDown(KeyCode.F10)) RescuePlayerToY100();
+            if (Input.GetKeyDown(KeyCode.E)) TryInteractWithNearbyNpc();
+        }
+
+        /// <summary>
+        /// Performs the same semantic NPC interaction used by the player-facing E key. Eligibility
+        /// comes from the campaign blueprint's RequiresConversation flag; distance comes from the
+        /// authoritative spawned actor position; story/objective consequences stay in CampaignRuntime.
+        /// </summary>
+        public bool TryInteractWithNearbyNpc()
+        {
+            if (_session == null || _actors == null || _motor == null) return false;
+            if (_session.Runtime.HasActiveCutscene) return false;
+            if (!TryFindNearbyConversationNpc(out NpcRef npc, out _)) return false;
+
+            _session.Runtime.InteractWithNpc(npc);
+            if (_session.Runtime.HasActiveCutscene)
+                _cutsceneOwnedControl = true;
+            return true;
+        }
+
+        /// <summary>
+        /// Exposes the currently realized destination actor position for navigation/objective-marker
+        /// consumers without leaking the actor GameObject or making authored coordinates authoritative.
+        /// </summary>
+        public bool TryGetDestinationNpcWorldPosition(out Vector3 position)
+        {
+            if (_actors != null && _actors.TryGetNpcPosition(_destinationNpc, out position))
+                return true;
+            position = default;
+            return false;
+        }
+
+        private bool TryFindNearbyConversationNpc(out NpcRef npc, out Vector3 position)
+        {
+            npc = default;
+            position = default;
+            if (_session == null || _actors == null || _motor == null) return false;
+
+            float maxDistance = Mathf.Max(0f, m_InteractionRangeMetres);
+            float bestDistanceSquared = maxDistance * maxDistance;
+            bool found = false;
+
+            // Blueprint order is deterministic and is the semantic source of which NPCs are
+            // conversational. The actor host contributes only current physical positions.
+            for (int i = 0; i < _session.Blueprint.Npcs.Count; i++)
+            {
+                NpcSpec candidate = _session.Blueprint.Npcs[i];
+                if (!candidate.RequiresConversation) continue;
+                if (!_actors.TryGetNpcPosition(candidate.Ref, out Vector3 candidatePosition)) continue;
+
+                float distanceSquared = (candidatePosition - _motor.Position).sqrMagnitude;
+                if (distanceSquared > bestDistanceSquared) continue;
+
+                bestDistanceSquared = distanceSquared;
+                npc = candidate.Ref;
+                position = candidatePosition;
+                found = true;
+            }
+
+            return found;
         }
 
         private void ReleasePlayerForGameplay()
@@ -741,7 +847,11 @@ namespace Game.Kentridge.PlayableSlice
             _session.Runtime.Tick(0);
             if (_session.Runtime.HasActiveCutscene) return;
 
-            ReleasePlayerForGameplay();
+            if (!_openingGameplayReleased)
+            {
+                ReleasePlayerForGameplay();
+                _openingGameplayReleased = true;
+            }
             _cutsceneOwnedControl = false;
         }
 
@@ -866,7 +976,7 @@ namespace Game.Kentridge.PlayableSlice
             DrawDialogue();
 
             string state = _session.Runtime.HasActiveCutscene
-                ? "Opening cutscene"
+                ? DestinationCutsceneActive ? "Destination conversation" : "Opening cutscene"
                 : _hasExitedPub
                     ? "Kentridge town"
                     : "Player control — walk out through the pub door";
@@ -874,10 +984,14 @@ namespace Game.Kentridge.PlayableSlice
             GUI.Label(new Rect(30f, 44f, 390f, 24f),
                 _session.Runtime.HasActiveCutscene
                     ? _presentation.LastCue
-                    : "WASD move • mouse look • Shift sprint • Space jump");
+                    : "WASD move • mouse look • E interact • Shift sprint • Space jump");
 
             if (!_session.Runtime.HasActiveCutscene)
             {
+                if (TryFindNearbyConversationNpc(out NpcRef nearbyNpc, out _))
+                    GUI.Label(new Rect(30f, 70f, 390f, 24f),
+                              "E talk to " + nearbyNpc.ToString());
+
                 if (GUI.Button(new Rect(16f, 106f, 235f, 34f),
                                "Rescue: move to Y = 100 m"))
                     RescuePlayerToY100();
@@ -929,11 +1043,11 @@ namespace Game.Kentridge.PlayableSlice
             return new VoxelWorldGenSettings(1, materials);
         }
 
-        private static CutsceneDefinition DialogueOnly(string id) =>
+        private static CutsceneDefinition DialogueOnly(string id, CutsceneActorId speaker) =>
             new CutsceneDefinition(
                 id,
                 CutsceneStageSetupDefinition.Empty,
-                new[] { CutsceneStep.Dialogue(new CutsceneCueId(id + ".dialogue")) });
+                new[] { CutsceneStep.Dialogue(speaker, new CutsceneCueId(id + ".dialogue")) });
 
         private sealed class PlayerActor : ICutsceneActorRuntime
         {
@@ -1155,6 +1269,18 @@ namespace Game.Kentridge.PlayableSlice
                 bool found = _npcs.TryGetValue(npc, out value);
                 actor = value;
                 return found;
+            }
+
+            public bool TryGetNpcPosition(NpcRef npc, out Vector3 position)
+            {
+                if (_npcs.TryGetValue(npc, out NpcActor actor))
+                {
+                    position = ToMetres(actor.Position);
+                    return true;
+                }
+
+                position = default;
+                return false;
             }
 
             public bool TryResolvePlayer(int playerSlot, out ICutsceneActorRuntime actor)
