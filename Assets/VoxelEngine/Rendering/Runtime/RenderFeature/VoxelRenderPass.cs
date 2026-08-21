@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using Unity.Collections;
-using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
@@ -56,19 +54,31 @@ namespace VoxelEngine.Rendering.Runtime
         private static readonly int s_CameraPosition = Shader.PropertyToID("_CameraPosition");
         private static readonly int s_WaterTime = Shader.PropertyToID("_WaterTime");
         private static readonly int s_SurfaceVertices = Shader.PropertyToID("_SurfaceVertices");
-        private static readonly int s_SurfaceIndices = Shader.PropertyToID("_SurfaceIndices");
+        private const int SolidDrawBufferCount = 3;
 
         private VoxelSurfaceScheduler _scheduler;
         // Draw staging is bounded by the fixed arena args capacities. Allocate once with the
         // render pass; camera motion may change counts but can never resize managed arrays.
-        private readonly CpuTransvoxelChunkCache.Entry[] _transvoxelDrawEntries =
-            new CpuTransvoxelChunkCache.Entry[VoxelSurfaceScheduler.SurfaceArenaDrawCapacity];
         private readonly CpuWaterSurfaceChunkCache.Entry[] _waterDrawEntries =
             new CpuWaterSurfaceChunkCache.Entry[CpuWaterSurfaceChunkCache.ArenaDrawCapacity];
+        private readonly GraphicsBuffer[] _solidDrawCommands =
+            new GraphicsBuffer[SolidDrawBufferCount];
+        private readonly SurfaceDrawMetadata[] _solidDrawMetadataData =
+            new SurfaceDrawMetadata[VoxelSurfaceScheduler.SurfaceArenaDrawCapacity];
+        private readonly GraphicsBuffer.IndirectDrawIndexedArgs[] _solidDrawCommandData =
+            new GraphicsBuffer.IndirectDrawIndexedArgs[VoxelSurfaceScheduler.SurfaceArenaDrawCapacity];
+        private readonly SurfaceDrawMetadata[] _publishedSolidDrawMetadataData =
+            new SurfaceDrawMetadata[VoxelSurfaceScheduler.SurfaceArenaDrawCapacity];
+        private readonly MaterialPropertyBlock[] _solidDrawProperties =
+            new MaterialPropertyBlock[SolidDrawBufferCount];
+        private GraphicsBuffer _preparedSolidDrawCommands;
+        private MaterialPropertyBlock _preparedSolidDrawProperties;
+        private Camera _preparedSolidDrawCamera;
+        private int _preparedSolidDrawCount;
+        private int _publishedSolidDrawCount;
 
         private Material _surfaceMaterial;
         private Material _waterMaterial;
-        private readonly MaterialPropertyBlock _surfaceProperties = new();
         private readonly MaterialPropertyBlock _waterProperties = new();
         private Texture2DArray _albedoTextures;
         private Texture2DArray _normalTextures;
@@ -81,7 +91,10 @@ namespace VoxelEngine.Rendering.Runtime
 
         public VoxelRenderPass()
         {
+            for (int i = 0; i < SolidDrawBufferCount; i++)
+                _solidDrawProperties[i] = new MaterialPropertyBlock();
             VoxelRenderBridge.RegisterWorldReleaseHandler(ReleaseWorldResources);
+            RenderPipelineManager.beginCameraRendering += OnBeginCameraRendering;
         }
 
         public void Setup(Shader surfaceShader = null,
@@ -132,7 +145,6 @@ namespace VoxelEngine.Rendering.Runtime
             public float VoxelSize;
             public Material Material;
             public Material WaterMaterial;
-            public MaterialPropertyBlock Properties;
             public MaterialPropertyBlock WaterProperties;
             public Texture2DArray AlbedoTextures;
             public Texture2DArray NormalTextures;
@@ -155,10 +167,6 @@ namespace VoxelEngine.Rendering.Runtime
             public float FlashlightRange;
             public float FlashlightInnerCos;
             public float FlashlightOuterCos;
-            public CpuTransvoxelChunkCache.Entry[] TransvoxelEntries;
-            public ComputeBuffer SurfaceVertices;
-            public ComputeBuffer SurfaceIndices;
-            public int TransvoxelEntryCount;
             public CpuWaterSurfaceChunkCache.Entry[] WaterEntries;
             public int WaterEntryCount;
         }
@@ -171,11 +179,13 @@ namespace VoxelEngine.Rendering.Runtime
             VoxelRenderBridge.SurfacePassRecordCount++;
             if (!Enabled)
             {
+                _preparedSolidDrawCount = 0;
                 VoxelRenderBridge.LastSurfacePassState = "disabled";
                 return;
             }
             if (!VoxelRenderBridge.TryGetWorld(out var world))
             {
+                _preparedSolidDrawCount = 0;
                 VoxelRenderBridge.LastSurfacePassState = "invalid-world";
                 return;
             }
@@ -191,11 +201,13 @@ namespace VoxelEngine.Rendering.Runtime
 
             if (_surfaceMaterial == null)
             {
+                _preparedSolidDrawCount = 0;
                 VoxelRenderBridge.LastSurfacePassState = "missing-material";
                 return;
             }
             if (!VoxelRenderBridge.SurfaceBuildEnabled)
             {
+                _preparedSolidDrawCount = 0;
                 VoxelRenderBridge.LastSurfacePassState = "waiting-for-atomic-world";
                 return;
             }
@@ -266,11 +278,10 @@ namespace VoxelEngine.Rendering.Runtime
                 VoxelRenderBridge.LastSurfacePassState = "feature-aware";
             }
 
-            if (transvoxelVisible.Count > _transvoxelDrawEntries.Length)
+            if (transvoxelVisible.Count > VoxelSurfaceScheduler.SurfaceArenaDrawCapacity)
                 throw new InvalidOperationException(
                     "Visible solid draw count exceeded the fixed arena draw capacity.");
-            for (int i = 0; i < transvoxelVisible.Count; i++)
-                _transvoxelDrawEntries[i] = transvoxelVisible[i];
+            PrepareSolidMultiDraw(transvoxelVisible, camera);
 
             if (waterVisible.Count > _waterDrawEntries.Length)
                 throw new InvalidOperationException(
@@ -282,7 +293,6 @@ namespace VoxelEngine.Rendering.Runtime
 
             data.Material = _surfaceMaterial;
             data.WaterMaterial = _waterMaterial;
-            data.Properties = _surfaceProperties;
             data.WaterProperties = _waterProperties;
             data.CameraColor = resourceData.activeColorTexture;
             data.CameraDepth = resourceData.activeDepthTexture;
@@ -315,10 +325,6 @@ namespace VoxelEngine.Rendering.Runtime
             data.FlashlightOuterCos = VoxelRenderBridge.FlashlightOuterCos;
             data.BaseColor = VoxelRenderBridge.SurfaceDebugTint;
             data.VoxelSize = VoxelSize;
-            data.TransvoxelEntries = _transvoxelDrawEntries;
-            data.SurfaceVertices = _scheduler.SolidGeometryVertices;
-            data.SurfaceIndices = _scheduler.SolidGeometryIndices;
-            data.TransvoxelEntryCount = transvoxelVisible.Count;
             data.WaterEntries = _waterDrawEntries;
             data.WaterEntryCount = waterVisible.Count;
 
@@ -330,70 +336,7 @@ namespace VoxelEngine.Rendering.Runtime
             {
                 var cmd = CommandBufferHelpers.GetNativeCommandBuffer(ctx.cmd);
 
-                // Per-draw MaterialPropertyBlocks are copied into the command buffer for every
-                // draw. Everything below is identical for the whole pass — ten vector arrays, two
-                // texture arrays and the lighting/cutaway constants — so binding it per chunk meant
-                // re-uploading the entire block ~1,400 times a frame once the arena grew large
-                // enough to actually cover the view. Bind it once as global state; only the two
-                // per-chunk buffer offsets stay in a block, and that block is kept tiny.
-                cmd.SetGlobalVectorArray(s_MaterialAlbedo,
-                    VoxelPresentationCatalogue.MaterialAlbedo);
-                cmd.SetGlobalVectorArray(s_MaterialSampling,
-                    VoxelPresentationCatalogue.MaterialSampling);
-                cmd.SetGlobalVectorArray(s_MaterialSurface,
-                    VoxelPresentationCatalogue.MaterialSurface);
-                cmd.SetGlobalVectorArray(s_MaterialVariation,
-                    VoxelPresentationCatalogue.MaterialVariation);
-                cmd.SetGlobalVectorArray(s_CoatingTint,
-                    VoxelPresentationCatalogue.CoatingTint);
-                cmd.SetGlobalVectorArray(s_CoatingSampling,
-                    VoxelPresentationCatalogue.CoatingSampling);
-                cmd.SetGlobalVectorArray(s_CoatingResponse,
-                    VoxelPresentationCatalogue.CoatingResponse);
-                cmd.SetGlobalVectorArray(s_SurfacePattern,
-                    VoxelPresentationCatalogue.SurfacePattern);
-                cmd.SetGlobalVectorArray(s_SurfaceJointColour,
-                    VoxelPresentationCatalogue.SurfaceJointColour);
-                cmd.SetGlobalVectorArray(s_SurfaceDetailResponse,
-                    VoxelPresentationCatalogue.SurfaceDetailResponse);
-                cmd.SetGlobalTexture(s_AlbedoTextures, passData.AlbedoTextures);
-                cmd.SetGlobalTexture(s_NormalTextures, passData.NormalTextures);
-                cmd.SetGlobalColor(s_BaseColor, passData.BaseColor);
-                cmd.SetGlobalVector(s_SunDirection, passData.SunDirection);
-                cmd.SetGlobalVector(s_SkyHorizon, passData.SkyHorizon);
-                cmd.SetGlobalVector(s_SkyZenith, passData.SkyZenith);
-                cmd.SetGlobalFloat(s_VoxelSize, passData.VoxelSize);
-                cmd.SetGlobalFloat(s_DebugCoverage,
-                    passData.BaseColor == Color.white ? 0f : 1f);
-                cmd.SetGlobalInteger(s_CutawayEnabled, passData.CutawayEnabled ? 1 : 0);
-                cmd.SetGlobalVector(s_CutawayMinVoxel, passData.CutawayMinVoxel);
-                cmd.SetGlobalVector(s_CutawayMaxVoxel, passData.CutawayMaxVoxel);
-                cmd.SetGlobalInteger(s_LocalLightCount, passData.LocalLightCount);
-                if (passData.LocalLightCount > 0)
-                {
-                    cmd.SetGlobalVectorArray(s_LocalLights, passData.LocalLights);
-                    cmd.SetGlobalVectorArray(s_LocalLightColours,
-                                                       passData.LocalLightColours);
-                }
-                cmd.SetGlobalInteger(s_FlashlightEnabled,
-                    passData.FlashlightEnabled ? 1 : 0);
-                cmd.SetGlobalVector(s_FlashlightPosition, passData.FlashlightPosition);
-                cmd.SetGlobalVector(s_FlashlightDirection, passData.FlashlightDirection);
-                cmd.SetGlobalVector(s_FlashlightColour, passData.FlashlightColour);
-                cmd.SetGlobalFloat(s_FlashlightRange, passData.FlashlightRange);
-                cmd.SetGlobalFloat(s_FlashlightInnerCos, passData.FlashlightInnerCos);
-                cmd.SetGlobalFloat(s_FlashlightOuterCos, passData.FlashlightOuterCos);
-
-                // Same arena for every solid chunk, so bind it once rather than in each draw.
-                if (passData.SurfaceVertices != null)
-                    cmd.SetGlobalBuffer(s_SurfaceVertices, passData.SurfaceVertices);
-                if (passData.SurfaceIndices != null)
-                    cmd.SetGlobalBuffer(s_SurfaceIndices, passData.SurfaceIndices);
-
                 ctx.cmd.SetRenderTarget(passData.CameraColor, passData.CameraDepth);
-
-                for (int i = 0; i < passData.TransvoxelEntryCount; i++)
-                    passData.TransvoxelEntries[i].Draw(cmd, passData.Material);
 
                 if (VoxelRenderBridge.WaterRenderEnabled
                     && passData.WaterMaterial != null && passData.WaterEntryCount > 0)
@@ -411,6 +354,183 @@ namespace VoxelEngine.Rendering.Runtime
             });
         }
 
+        private void PrepareSolidMultiDraw(
+            IReadOnlyList<CpuTransvoxelChunkCache.Entry> visible, Camera camera)
+        {
+            EnsureSolidDrawBuffers();
+            int slot = Time.frameCount % SolidDrawBufferCount;
+            GraphicsBuffer commandBuffer = _solidDrawCommands[slot];
+            MaterialPropertyBlock properties = _solidDrawProperties[slot];
+
+            int drawCount = 0;
+            bool unchanged = true;
+            for (int i = 0; i < visible.Count; i++)
+            {
+                if (!visible[i].TryGetDrawMetadata(out SurfaceDrawMetadata metadata))
+                    continue;
+                if (drawCount >= _publishedSolidDrawCount
+                    || !SameDrawMetadata(metadata,
+                        _publishedSolidDrawMetadataData[drawCount]))
+                    unchanged = false;
+                _solidDrawMetadataData[drawCount] = metadata;
+                _solidDrawCommandData[drawCount] = new GraphicsBuffer.IndirectDrawIndexedArgs
+                {
+                    indexCountPerInstance = metadata.IndexCount,
+                    instanceCount = 1u,
+                    startIndex = metadata.IndexStart,
+                    baseVertexIndex = metadata.VertexStart,
+                    startInstance = 0u,
+                };
+                drawCount++;
+            }
+            unchanged &= drawCount == _publishedSolidDrawCount;
+
+            if (drawCount == 0)
+            {
+                _publishedSolidDrawCount = 0;
+                _preparedSolidDrawCamera = camera;
+                _preparedSolidDrawCount = 0;
+                return;
+            }
+
+            if (!unchanged)
+            {
+                commandBuffer.SetData(_solidDrawCommandData, 0, 0, drawCount);
+                Array.Copy(_solidDrawMetadataData,
+                    _publishedSolidDrawMetadataData, drawCount);
+                _publishedSolidDrawCount = drawCount;
+                _preparedSolidDrawCommands = commandBuffer;
+            }
+
+            PopulateSolidProperties(properties);
+            _preparedSolidDrawProperties = properties;
+            _preparedSolidDrawCamera = camera;
+            _preparedSolidDrawCount = drawCount;
+        }
+
+        private static bool SameDrawMetadata(
+            SurfaceDrawMetadata left, SurfaceDrawMetadata right) =>
+            left.IndexStart == right.IndexStart
+            && left.VertexStart == right.VertexStart
+            && left.IndexCount == right.IndexCount;
+
+        private void PopulateSolidProperties(MaterialPropertyBlock properties)
+        {
+            properties.Clear();
+            properties.SetVectorArray(s_MaterialAlbedo,
+                VoxelPresentationCatalogue.MaterialAlbedo);
+            properties.SetVectorArray(s_MaterialSampling,
+                VoxelPresentationCatalogue.MaterialSampling);
+            properties.SetVectorArray(s_MaterialSurface,
+                VoxelPresentationCatalogue.MaterialSurface);
+            properties.SetVectorArray(s_MaterialVariation,
+                VoxelPresentationCatalogue.MaterialVariation);
+            properties.SetVectorArray(s_CoatingTint,
+                VoxelPresentationCatalogue.CoatingTint);
+            properties.SetVectorArray(s_CoatingSampling,
+                VoxelPresentationCatalogue.CoatingSampling);
+            properties.SetVectorArray(s_CoatingResponse,
+                VoxelPresentationCatalogue.CoatingResponse);
+            properties.SetVectorArray(s_SurfacePattern,
+                VoxelPresentationCatalogue.SurfacePattern);
+            properties.SetVectorArray(s_SurfaceJointColour,
+                VoxelPresentationCatalogue.SurfaceJointColour);
+            properties.SetVectorArray(s_SurfaceDetailResponse,
+                VoxelPresentationCatalogue.SurfaceDetailResponse);
+            properties.SetTexture(s_AlbedoTextures, _albedoTextures);
+            properties.SetTexture(s_NormalTextures, _normalTextures);
+            properties.SetColor(s_BaseColor, VoxelRenderBridge.SurfaceDebugTint);
+            properties.SetVector(s_SunDirection, VoxelRenderBridge.SunDirection);
+            properties.SetVector(s_SkyHorizon, VoxelRenderBridge.SkyHorizon);
+            properties.SetVector(s_SkyZenith, VoxelRenderBridge.SkyZenith);
+            properties.SetFloat(s_VoxelSize, VoxelSize);
+            properties.SetFloat(s_DebugCoverage,
+                VoxelRenderBridge.SurfaceDebugTint == Color.white ? 0f : 1f);
+            properties.SetInt(s_CutawayEnabled,
+                VoxelRenderBridge.CutawayEnabled ? 1 : 0);
+            properties.SetVector(s_CutawayMinVoxel,
+                VoxelRenderBridge.CutawayMinVoxel);
+            properties.SetVector(s_CutawayMaxVoxel,
+                VoxelRenderBridge.CutawayMaxVoxel);
+            int localLightCount = Mathf.Min(20,
+                VoxelRenderBridge.LocalLights?.Length ?? 0,
+                VoxelRenderBridge.LocalLightColours?.Length ?? 0);
+            properties.SetInt(s_LocalLightCount, localLightCount);
+            if (localLightCount > 0)
+            {
+                properties.SetVectorArray(s_LocalLights,
+                    VoxelRenderBridge.LocalLights);
+                properties.SetVectorArray(s_LocalLightColours,
+                    VoxelRenderBridge.LocalLightColours);
+            }
+            properties.SetInt(s_FlashlightEnabled,
+                VoxelRenderBridge.FlashlightEnabled ? 1 : 0);
+            properties.SetVector(s_FlashlightPosition,
+                VoxelRenderBridge.FlashlightPosition);
+            properties.SetVector(s_FlashlightDirection,
+                VoxelRenderBridge.FlashlightDirection.normalized);
+            Color flashlight = VoxelRenderBridge.FlashlightColour.linear;
+            properties.SetVector(s_FlashlightColour,
+                new Vector4(flashlight.r, flashlight.g, flashlight.b,
+                    VoxelRenderBridge.FlashlightIntensity));
+            properties.SetFloat(s_FlashlightRange,
+                VoxelRenderBridge.FlashlightRange);
+            properties.SetFloat(s_FlashlightInnerCos,
+                VoxelRenderBridge.FlashlightInnerCos);
+            properties.SetFloat(s_FlashlightOuterCos,
+                VoxelRenderBridge.FlashlightOuterCos);
+            properties.SetBuffer(s_SurfaceVertices,
+                _scheduler.SolidGeometryVertices);
+        }
+
+        private void OnBeginCameraRendering(ScriptableRenderContext context, Camera camera)
+        {
+            if (!Enabled || _surfaceMaterial == null || _preparedSolidDrawCount <= 0
+                || camera != _preparedSolidDrawCamera
+                || _preparedSolidDrawCommands == null)
+                return;
+
+            float diameter = VoxelSurfaceScheduler.MaxVoxelRingRadiusMetresDefault * 2f + 256f;
+            var renderParams = new RenderParams(_surfaceMaterial)
+            {
+                camera = camera,
+                worldBounds = new Bounds(camera.transform.position,
+                    Vector3.one * diameter),
+                matProps = _preparedSolidDrawProperties,
+                shadowCastingMode = ShadowCastingMode.Off,
+                receiveShadows = false,
+            };
+            Graphics.RenderPrimitivesIndexedIndirect(renderParams, MeshTopology.Triangles,
+                _scheduler.SolidGeometryIndices, _preparedSolidDrawCommands,
+                _preparedSolidDrawCount);
+        }
+
+        private void EnsureSolidDrawBuffers()
+        {
+            if (_solidDrawCommands[0] != null) return;
+            for (int i = 0; i < SolidDrawBufferCount; i++)
+            {
+                _solidDrawCommands[i] = new GraphicsBuffer(
+                    GraphicsBuffer.Target.IndirectArguments,
+                    VoxelSurfaceScheduler.SurfaceArenaDrawCapacity,
+                    GraphicsBuffer.IndirectDrawIndexedArgs.size);
+            }
+        }
+
+        private void ReleaseSolidDrawMetadata()
+        {
+            for (int i = 0; i < SolidDrawBufferCount; i++)
+            {
+                _solidDrawCommands[i]?.Release();
+                _solidDrawCommands[i] = null;
+            }
+            _preparedSolidDrawCommands = null;
+            _preparedSolidDrawProperties = null;
+            _preparedSolidDrawCamera = null;
+            _preparedSolidDrawCount = 0;
+            _publishedSolidDrawCount = 0;
+        }
+
         private void ReleaseWorldResources()
         {
             if (_scheduler == null) return;
@@ -423,7 +543,7 @@ namespace VoxelEngine.Rendering.Runtime
             // with the next arena and turns repeated scene loads into process-wide memory growth.
             _scheduler.Dispose();
             _scheduler = null;
-            Array.Clear(_transvoxelDrawEntries, 0, _transvoxelDrawEntries.Length);
+            ReleaseSolidDrawMetadata();
             Array.Clear(_waterDrawEntries, 0, _waterDrawEntries.Length);
         }
 
@@ -431,8 +551,10 @@ namespace VoxelEngine.Rendering.Runtime
         {
             VoxelRenderBridge.UnregisterActivePass(this);
             VoxelRenderBridge.UnregisterWorldReleaseHandler(ReleaseWorldResources);
+            RenderPipelineManager.beginCameraRendering -= OnBeginCameraRendering;
             _scheduler?.Dispose();
             _scheduler = null;
+            ReleaseSolidDrawMetadata();
             CoreUtils.Destroy(_surfaceMaterial);
             CoreUtils.Destroy(_waterMaterial);
             CoreUtils.Destroy(_albedoTextures);

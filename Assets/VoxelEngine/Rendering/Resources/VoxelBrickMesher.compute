@@ -67,7 +67,7 @@ struct SurfaceVertex
 };
 
 RWStructuredBuffer<SurfaceVertex> _Vertices;
-RWStructuredBuffer<uint> _Indices;
+RWByteAddressBuffer _Indices;
 // 0,1: vertices/indices written this pass. 2,3: vertices/indices the count pass says are coming,
 // which is what the caller reserves against before any of them are written.
 RWStructuredBuffer<uint> _Counters;
@@ -370,15 +370,16 @@ void CSWriteCells(uint3 id : SV_DispatchThreadID)
             _Vertices[VertexSlot(vertexBase + t + 2u)] = c;
         }
         for (uint i2 = 0u; i2 < indexCount; i2++)
-            _Indices[ArenaIndexSlot(indexBase + i2)] = ArenaVertex(vertexBase + i2);
+            _Indices.Store(ArenaIndexSlot(indexBase + i2) * 4u,
+                           ArenaVertex(vertexBase + i2));
     }
     else
     {
         for (uint v2 = 0u; v2 < sourceVertexCount; v2++)
             _Vertices[VertexSlot(vertexBase + v2)] = cellVertices[v2];
         for (uint i3 = 0u; i3 < indexCount; i3++)
-            _Indices[ArenaIndexSlot(indexBase + i3)] =
-                ArenaVertex(vertexBase + _RegularCellIndices[tableBase + i3]);
+            _Indices.Store(ArenaIndexSlot(indexBase + i3) * 4u,
+                ArenaVertex(vertexBase + _RegularCellIndices[tableBase + i3]));
     }
 }
 
@@ -610,10 +611,11 @@ void CSTransitionCells(uint3 id : SV_DispatchThreadID)
         uint c = _TransitionCellIndices[tableBase + 2u];
         if (a >= vertexCount || b >= vertexCount || c >= vertexCount) continue;
 
-        _Indices[ArenaIndexSlot(indexBase + t * 3u + 0u)] = ArenaVertex(vertexBase + a);
-        _Indices[ArenaIndexSlot(indexBase + t * 3u + 1u)] =
-            ArenaVertex(vertexBase + (reversed ? c : b));
-        _Indices[ArenaIndexSlot(indexBase + t * 3u + 2u)] =
-            ArenaVertex(vertexBase + (reversed ? b : c));
+        _Indices.Store(ArenaIndexSlot(indexBase + t * 3u + 0u) * 4u,
+                       ArenaVertex(vertexBase + a));
+        _Indices.Store(ArenaIndexSlot(indexBase + t * 3u + 1u) * 4u,
+                       ArenaVertex(vertexBase + (reversed ? c : b)));
+        _Indices.Store(ArenaIndexSlot(indexBase + t * 3u + 2u) * 4u,
+                       ArenaVertex(vertexBase + (reversed ? b : c)));
     }
 }

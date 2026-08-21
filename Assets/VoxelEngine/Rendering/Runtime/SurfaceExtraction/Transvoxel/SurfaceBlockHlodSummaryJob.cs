@@ -109,23 +109,56 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
                 int subcell = sx
                             + sy * SubcellsPerAxis
                             + sz * SubcellsPerAxis * SubcellsPerAxis;
-                byte representative = 0;
                 int minX = sx * SubcellEdge;
                 int minY = sy * SubcellEdge;
                 int minZ = sz * SubcellEdge;
 
-                // Deterministic first-solid representative. Material choice is presentation-only;
-                // occupancy preservation is the load-bearing part of this summary.
-                for (int z = minZ; z < minZ + SubcellEdge && representative == 0; z++)
-                for (int y = minY; y < minY + SubcellEdge && representative == 0; y++)
+                // Vote among the exposed solid in each X/Z column. A terrain slope can have one
+                // high stone edge beside three slightly lower grass caps; choosing the globally
+                // highest voxel lets that one edge paint the whole HLOD patch gray. Column voting
+                // keeps buried material out and rejects that spatial outlier without changing
+                // occupancy or geometric resolution.
+                byte material0 = 0, material1 = 0, material2 = 0, material3 = 0;
+                int count0 = 0, count1 = 0, count2 = 0, count3 = 0;
+                for (int z = minZ; z < minZ + SubcellEdge; z++)
                 for (int x = minX; x < minX + SubcellEdge; x++)
                 {
-                    byte material = voxels[offset + VoxelIndex(x, y, z)];
-                    if (!IsSolid(material)) continue;
-                    representative = material;
-                    break;
+                    byte exposed = 0;
+                    for (int y = minY + SubcellEdge - 1; y >= minY; y--)
+                    {
+                        byte candidate = voxels[offset + VoxelIndex(x, y, z)];
+                        if (!IsSolid(candidate)) continue;
+                        exposed = candidate;
+                        break;
+                    }
+                    if (exposed == 0) continue;
+                    if (material0 == 0 || material0 == exposed)
+                    {
+                        material0 = exposed;
+                        count0++;
+                    }
+                    else if (material1 == 0 || material1 == exposed)
+                    {
+                        material1 = exposed;
+                        count1++;
+                    }
+                    else if (material2 == 0 || material2 == exposed)
+                    {
+                        material2 = exposed;
+                        count2++;
+                    }
+                    else
+                    {
+                        material3 = exposed;
+                        count3++;
+                    }
                 }
 
+                byte representative = material0;
+                int bestCount = count0;
+                if (count1 > bestCount) { representative = material1; bestCount = count1; }
+                if (count2 > bestCount) { representative = material2; bestCount = count2; }
+                if (count3 > bestCount) representative = material3;
                 summary.Set(subcell, representative);
             }
             return summary;
