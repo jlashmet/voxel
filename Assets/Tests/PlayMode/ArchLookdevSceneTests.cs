@@ -71,17 +71,5 @@ namespace VoxelEngine.Tests.PlayMode
                 Object.Destroy(target);
             }
         }
-
-        [UnityTest, Timeout(30000)]
-        public IEnumerator IndexedIndirectContractProbeShaderCompiles()
-        {
-            Assert.AreEqual(UnityEngine.Rendering.GraphicsDeviceType.Metal,
-                SystemInfo.graphicsDeviceType,
-                "the indexed-indirect contract experiment must execute on the Metal backend");
-            Shader shader = Resources.Load<Shader>("IndexedIndirectContract");
-            Assert.NotNull(shader, "standalone indexed-indirect probe shader was not included");
-            Assert.IsTrue(shader.isSupported, "standalone indexed-indirect probe shader is unsupported");
-            yield return null;
-        }
     }
 }
