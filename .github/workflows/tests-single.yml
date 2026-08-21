@@ -180,6 +180,22 @@ jobs:
             -logFile "$ROOT/showcase-bake.log"
           test -s "$GITHUB_WORKSPACE/Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes"
 
+      # tools/unity-run.sh deliberately refuses to start while another Unity editor is visible.
+      # A successful bake can return a moment before its macOS process disappears, so serialize
+      # adjacent Unity invocations instead of racing that shutdown.
+      - name: Wait for Unity between invocations
+        shell: bash
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 900))
+          while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
+            if (( SECONDS >= deadline )); then
+              pgrep -alf '/Unity.app/Contents/MacOS/Unity' || true
+              exit 1
+            fi
+            sleep 5
+          done
+
       - name: Run requested test
         shell: bash
         env:
