@@ -150,9 +150,14 @@ jobs:
           done
 
       # Showcase PlayMode tests depend on the same baked startup world used by
-      # the PR and master workflows. Keep that invariant for single-test runs.
+      # the PR and master workflows. The standalone Kentridge scenes compose
+      # their own worlds and must not pay for or depend on that unrelated bake.
       - name: Bake Voxel Showcase startup world
-        if: steps.request.outputs.platform == 'PlayMode' && startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.')
+        if: >-
+          steps.request.outputs.platform == 'PlayMode' &&
+          startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.') &&
+          !startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.KentridgeStructureComparisonSceneTests.') &&
+          !startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests.')
         shell: bash
         run: |
           set -euo pipefail
