@@ -2,6 +2,7 @@ using System;
 using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Structures.Api;
+using VoxelEngine.Structures.Runtime;
 
 namespace MountingForce.WorldGen.Voxel
 {
@@ -16,6 +17,7 @@ namespace MountingForce.WorldGen.Voxel
         public const int StageAltitudeVoxels = 32;
         public const int StageMarginVoxels = 20;
         public const int PairGapVoxels = 40;
+        public const int StructureInsetVoxels = 32;
 
         public static FeatureCatalogue Build(
             uint seed,
@@ -33,8 +35,9 @@ namespace MountingForce.WorldGen.Voxel
             try
             {
                 FeatureDefinition legacyDefinition = legacy.Definitions[roleId];
-                FeatureDefinition currentDefinition = current.Definitions[roleId];
-                int programLength = legacyDefinition.ProgramLength + currentDefinition.ProgramLength;
+                int[] legacyProgram = InsetProgram(in legacy, roleId);
+                int[] currentProgram = InsetProgram(in current, roleId);
+                int programLength = legacyProgram.Length + currentProgram.Length;
 
                 FeatureCatalogue pair = FeatureCatalogueBuilder.Allocate(
                     definitions: 2,
@@ -48,10 +51,11 @@ namespace MountingForce.WorldGen.Voxel
                     overrides: 0,
                     allocator);
 
-                int currentX = StageMarginVoxels + legacyDefinition.Footprint.x + PairGapVoxels;
-                CopyDefinition(in legacy, roleId, "original", 0, 0, ref pair);
-                CopyDefinition(in current, roleId, "modified", 1,
-                    legacyDefinition.ProgramLength, ref pair);
+                int comparisonWidth = legacyDefinition.Footprint.x + 2 * StructureInsetVoxels;
+                int currentX = StageMarginVoxels + comparisonWidth + PairGapVoxels;
+                CopyDefinition(in legacy, roleId, legacyProgram, "original", 0, 0, ref pair);
+                CopyDefinition(in current, roleId, currentProgram, "modified", 1,
+                    legacyProgram.Length, ref pair);
 
                 pair.ExplicitPlacements[0] = new ExplicitPlacement
                 {
@@ -117,17 +121,18 @@ namespace MountingForce.WorldGen.Voxel
         private static void CopyDefinition(
             in FeatureCatalogue source,
             int sourceDefinitionId,
+            int[] program,
             string suffix,
             int targetDefinitionId,
             int targetProgramOffset,
             ref FeatureCatalogue target)
         {
             FeatureDefinition definition = source.Definitions[sourceDefinitionId];
-            for (int i = 0; i < definition.ProgramLength; i++)
-                target.Program[targetProgramOffset + i] =
-                    source.Program[definition.ProgramOffset + i];
+            for (int i = 0; i < program.Length; i++)
+                target.Program[targetProgramOffset + i] = program[i];
 
             AnchorSpec anchor = source.Anchors[definition.AnchorOffset];
+            anchor.LocalPosition += new int3(StructureInsetVoxels, 0, StructureInsetVoxels);
             target.Anchors[targetDefinitionId] = anchor;
 
             definition.Name = new FixedString64Bytes(
@@ -135,7 +140,10 @@ namespace MountingForce.WorldGen.Voxel
                     .ToLowerInvariant().Replace(" ", "-") + "-" + suffix);
             definition.BasePlane = BasePlaneRule.FixedAltitude;
             definition.FixedAltitude = StageAltitudeVoxels;
+            definition.Footprint += new int3(
+                2 * StructureInsetVoxels, 0, 2 * StructureInsetVoxels);
             definition.ProgramOffset = targetProgramOffset;
+            definition.ProgramLength = program.Length;
             definition.ParameterOffset = 0;
             definition.ParameterCount = 0;
             definition.AnchorOffset = targetDefinitionId;
@@ -145,6 +153,16 @@ namespace MountingForce.WorldGen.Voxel
             definition.MaterialOffset = 0;
             definition.MaterialCount = 0;
             target.Definitions[targetDefinitionId] = definition;
+        }
+
+        private static int[] InsetProgram(in FeatureCatalogue source, int definitionId)
+        {
+            FeatureDefinition definition = source.Definitions[definitionId];
+            var program = new int[definition.ProgramLength];
+            for (int i = 0; i < program.Length; i++)
+                program[i] = source.Program[definition.ProgramOffset + i];
+            return ShapeProgramComposition.Translate(
+                program, new int3(StructureInsetVoxels, 0, StructureInsetVoxels));
         }
     }
 }

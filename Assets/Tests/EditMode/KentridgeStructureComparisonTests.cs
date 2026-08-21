@@ -2,6 +2,7 @@ using Game.Materials.Api;
 using MountingForce.WorldGen.Voxel;
 using NUnit.Framework;
 using Unity.Collections;
+using Unity.Mathematics;
 using VoxelEngine.Structures.Api;
 using VoxelEngine.Structures.Runtime;
 
@@ -64,6 +65,18 @@ namespace VoxelEngine.Tests.EditMode
                         "Comparison definition " + definition.Name +
                         " must evaluate into rasterizable production primitives.");
                     Assert.That(primitives.Length, Is.GreaterThan(0));
+                    int3 maxExclusive = placement.Position + definition.Footprint;
+                    for (int primitiveIndex = 0; primitiveIndex < primitives.Length; primitiveIndex++)
+                    {
+                        primitives[primitiveIndex].Bounds(out int3 min, out int3 max);
+                        Assert.That(math.all(min >= placement.Position)
+                                    && math.all(max < maxExclusive), Is.True,
+                            "Comparison definition " + definition.Name +
+                            " primitive " + primitiveIndex +
+                            " escaped its declared footprint: min=" + min +
+                            ", max=" + max +
+                            ", footprint=[" + placement.Position + ", " + maxExclusive + ").");
+                    }
                     primitives.Clear();
                     anchors.Clear();
                 }
