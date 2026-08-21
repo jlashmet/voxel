@@ -34,6 +34,10 @@ namespace Game.Cutscenes.Content.Kentridge
                 "The bridge still stands, but nobody's crossed it in a week. Whatever's on the " +
                 "far bank, it came from Hightown."
             },
+            {
+                "destination-conversation.dialogue",
+                "You made it. Tell me what you found on the road."
+            },
         };
 
         /// <summary>
