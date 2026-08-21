@@ -3,6 +3,7 @@ using MountingForce.WorldGen.Voxel;
 using NUnit.Framework;
 using Unity.Collections;
 using VoxelEngine.Structures.Api;
+using VoxelEngine.Structures.Runtime;
 
 namespace VoxelEngine.Tests.EditMode
 {
