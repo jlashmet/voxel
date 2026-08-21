@@ -108,8 +108,25 @@ cleanup() {
 }
 trap cleanup EXIT
 
+wait_for_unity_quiet() {
+  local deadline=$((SECONDS + 900))
+  while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
+    if (( SECONDS >= deadline )); then
+      echo "ERROR: Unity did not become idle before real-player build." >&2
+      pgrep -alf '/Unity.app/Contents/MacOS/Unity' >&2 || true
+      return 1
+    fi
+    sleep 5
+  done
+}
+
 rm -rf "$BUILD_DIR" "$SHOTS_DIR"
 mkdir -p "$OUTPUT_ROOT" "$BUILD_DIR" "$SHOTS_DIR"
+
+# A preceding bake or PlayMode run can return before the macOS Unity process disappears from the
+# process table. tools/unity-run.sh intentionally refuses concurrent editors, so make the shared
+# capture utility sequencing-safe instead of racing the previous Unity invocation.
+wait_for_unity_quiet
 
 echo "Building real player for $SCENE"
 UNITY_MAX_RSS_MB="${UNITY_MAX_RSS_MB:-12288}" \
