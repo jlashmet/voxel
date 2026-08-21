@@ -100,6 +100,49 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void SchedulerSurfaceDiscoveryPartitionRoutesCanonicalChunksToOwningShard()
+        {
+            const int bricksPerChunk = 32;
+            var buckets = new List<int3>[4];
+            for (int i = 0; i < buckets.Length; i++)
+                buckets[i] = new List<int3> { new int3(999, 999, 999) };
+
+            var discovered = new List<int3>
+            {
+                int3.zero,
+                new int3(31, 31, 31),
+                new int3(32, 0, 0),
+                new int3(-1, 0, 0),
+                new int3(0, -1, 0),
+                new int3(0, 0, -1),
+                new int3(-33, 65, 97),
+            };
+
+            SurfaceDiscoveryChunkOwner.PartitionByOwningShard(
+                discovered, bricksPerChunk, buckets.Length, buckets);
+
+            int routed = 0;
+            for (int shard = 0; shard < buckets.Length; shard++)
+            {
+                Assert.False(buckets[shard].Contains(new int3(999, 999, 999)),
+                    "Partitioning must reuse and clear scheduler-owned buckets rather than accumulating prior-frame discovery.");
+                for (int i = 0; i < buckets[shard].Count; i++)
+                {
+                    int3 canonical = buckets[shard][i];
+                    int3 chunk = SurfaceDiscoveryChunkOwner.OwningChunk(
+                        canonical, bricksPerChunk);
+                    Assert.AreEqual(shard,
+                        CpuTransvoxelChunkCache.ShardForChunk(chunk, buckets.Length),
+                        $"Canonical chunk {chunk} was routed to a shard that cannot admit it.");
+                    routed++;
+                }
+            }
+
+            Assert.AreEqual(discovered.Count, routed,
+                "Partitioning must route every discovery record exactly once.");
+        }
+
+        [Test]
         public void CompleteRequiredCoreRegionSetMayProceedToExactClassification()
         {
             ExactSnapshotRegionCoverage coverage = default;
