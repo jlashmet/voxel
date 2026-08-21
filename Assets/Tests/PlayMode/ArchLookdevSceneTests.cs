@@ -3,6 +3,7 @@ using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
+using VoxelEngine.Composition;
 using VoxelEngine.Rendering.Runtime;
 using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 using VoxelEngine.Showcase;
@@ -48,10 +49,10 @@ namespace VoxelEngine.Tests.PlayMode
                 int stableFrames = 0;
                 for (int frame = 0; frame < 240; frame++)
                 {
-                    VoxelSurfaceMetrics metrics = VoxelRenderBridge.SurfaceMetrics;
-                    bool converged = metrics.SolidKnownChunks > 0
-                        && metrics.SolidDirtyChunks == 0
-                        && metrics.SolidResidentChunks >= metrics.SolidKnownChunks;
+                    // The scheduler deliberately retains discovered off-camera candidates without
+                    // requiring them all to be resident. Use the same visible-coverage contract as
+                    // the production handoff/capture path rather than waiting for global idleness.
+                    bool converged = RenderingComposition.HasCompletePublishedNearSurfaceCoverage();
                     stableFrames = converged ? stableFrames + 1 : 0;
                     if (stableFrames >= 3)
                         yield break;
@@ -59,10 +60,12 @@ namespace VoxelEngine.Tests.PlayMode
                 }
 
                 VoxelSurfaceMetrics finalMetrics = VoxelRenderBridge.SurfaceMetrics;
-                Assert.Fail($"Arch lookdev production surface did not converge: "
+                Assert.Fail($"Arch lookdev production surface did not reach complete visible coverage: "
                           + $"known={finalMetrics.SolidKnownChunks}, "
                           + $"resident={finalMetrics.SolidResidentChunks}, "
-                          + $"dirty={finalMetrics.SolidDirtyChunks}.");
+                          + $"dirty={finalMetrics.SolidDirtyChunks}, "
+                          + $"visible={finalMetrics.VisibleSolidChunks}, "
+                          + $"missing={finalMetrics.MissingVisibleSolidChunks}.");
             }
             finally
             {
