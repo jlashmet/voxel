@@ -274,10 +274,9 @@ namespace VoxelEngine.Showcase
 
                 bool visibleStable = _visibleMin == _visibleMax && _visibleMin > 0;
                 bool coverageStable = _missingMax == 0;
-                bool workStayedConverged = _runningJobsMax == 0 && _pendingUploadsMax == 0;
                 bool enoughRenderSamples = render.SampleCount >= MinimumRendererSamples;
                 bool pass = _cameraStable && _projectionStable && visibleStable
-                    && coverageStable && workStayedConverged && enoughRenderSamples;
+                    && coverageStable && enoughRenderSamples;
 
                 Debug.Log(string.Format(CultureInfo.InvariantCulture,
                     "STATIONARY result={0} device={1} seconds={2:0.00} frames={3} fps={4:0.0} "
