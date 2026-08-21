@@ -7,22 +7,23 @@ Usage:
   bash tools/showcase-player-capture.sh --unity <Unity binary> --output <artifact dir> \
     [--scene <scene.unity> | --test-filter <Unity test filter>] [options]
 
-Builds the selected Unity scene as a real macOS player, launches that player, and captures
-actual presented frames every 10 seconds. Visual Unity tests can be supplied by test filter;
-known screenshot suites are mapped to their production scene automatically.
+Builds the selected Unity scene as a real macOS player. Normal visual capture records actual
+presented frames every 10 seconds. Stationary benchmark mode instead holds the production scene
+still after convergence, measures without screenshots, then captures one presented frame afterward.
 
 Options:
   --unity PATH             Unity executable (required)
   --output DIR             Artifact root (required)
   --scene PATH             Scene to build
-  --test-filter FILTER     Resolve a known screenshot test to its real scene
-  --if-configured          Exit successfully when FILTER is not a screenshot test
-  --run-seconds N          Player run duration (default: profile-specific or 30)
+  --test-filter FILTER     Resolve a known screenshot/benchmark test to its real scene
+  --if-configured          Exit successfully when FILTER is not a configured real-player test
+  --run-seconds N          Player run duration / stationary timeout
   --auto-dialogue N        Auto-advance scene dialogue every N seconds
   --autowalk-after N       Enable the showcase scripted walk after N seconds
   --survey-after N         Enable showcase survey camera after N seconds
   --survey-height N        Survey camera height
   --survey-spin N          Survey spin degrees/second
+  --stationary-sample N    Measure N settled seconds with no motion or screenshots
 EOF
 }
 
@@ -36,6 +37,7 @@ AUTOWALK_AFTER=""
 SURVEY_AFTER=""
 SURVEY_HEIGHT=""
 SURVEY_SPIN=""
+STATIONARY_SAMPLE=""
 IF_CONFIGURED=0
 
 while (( $# > 0 )); do
@@ -51,6 +53,7 @@ while (( $# > 0 )); do
     --survey-after) SURVEY_AFTER="$2"; shift 2 ;;
     --survey-height) SURVEY_HEIGHT="$2"; shift 2 ;;
     --survey-spin) SURVEY_SPIN="$2"; shift 2 ;;
+    --stationary-sample) STATIONARY_SAMPLE="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "ERROR: unknown argument '$1'" >&2; usage >&2; exit 2 ;;
   esac
@@ -85,6 +88,11 @@ if [[ -n "$TEST_FILTER" ]]; then
       : "${SURVEY_HEIGHT:=55}"
       : "${SURVEY_SPIN:=0}"
       ;;
+    VoxelEngine.Tests.PlayMode.StationaryRenderBenchmarkTests|VoxelEngine.Tests.PlayMode.StationaryRenderBenchmarkTests.*)
+      SCENE="Assets/Scenes/VoxelShowcase.unity"
+      : "${RUN_SECONDS:=120}"
+      : "${STATIONARY_SAMPLE:=10}"
+      ;;
     VoxelEngine.Tests.PlayMode.CastleScreenshotTests|VoxelEngine.Tests.PlayMode.CastleScreenshotTests.*|\
     VoxelEngine.Tests.PlayMode.CastleExteriorLookdevTests|VoxelEngine.Tests.PlayMode.CastleExteriorLookdevTests.*)
       SCENE="Assets/Scenes/VoxelShowcase.unity"
@@ -95,10 +103,10 @@ if [[ -n "$TEST_FILTER" ]]; then
       ;;
     *)
       if (( IF_CONFIGURED )); then
-        echo "No real-player screenshot profile for '$TEST_FILTER'; skipping capture."
+        echo "No real-player screenshot/benchmark profile for '$TEST_FILTER'; skipping capture."
         exit 0
       fi
-      echo "ERROR: no real-player screenshot profile for '$TEST_FILTER'." >&2
+      echo "ERROR: no real-player screenshot/benchmark profile for '$TEST_FILTER'." >&2
       exit 2
       ;;
   esac
@@ -109,13 +117,22 @@ fi
 [[ -n "$OUTPUT_ROOT" ]] || { echo "ERROR: --output is required." >&2; exit 2; }
 [[ -n "$SCENE" ]] || { echo "ERROR: --scene or --test-filter is required." >&2; exit 2; }
 [[ -f "$SCENE" ]] || { echo "ERROR: scene does not exist: $SCENE" >&2; exit 2; }
-: "${RUN_SECONDS:=30}"
+if [[ -n "$STATIONARY_SAMPLE" ]]; then
+  : "${RUN_SECONDS:=120}"
+  if [[ -n "$AUTOWALK_AFTER" || -n "$SURVEY_AFTER" ]]; then
+    echo "ERROR: stationary sampling cannot be combined with autowalk or survey motion." >&2
+    exit 2
+  fi
+else
+  : "${RUN_SECONDS:=30}"
+fi
 
 BUILD_DIR="$OUTPUT_ROOT/Player"
 SHOTS_DIR="$OUTPUT_ROOT/Screenshots"
 BUILD_LOG="$OUTPUT_ROOT/player-build.log"
 PLAYER_LOG="$OUTPUT_ROOT/player-run.log"
 FPS_LOG="$OUTPUT_ROOT/fps.txt"
+STATIONARY_LOG="$OUTPUT_ROOT/stationary.txt"
 
 cleanup() {
   # The .app is an execution intermediate, not a useful CI artifact. In particular the single-test
@@ -138,18 +155,22 @@ wait_for_unity_quiet() {
 }
 
 rm -rf "$BUILD_DIR" "$SHOTS_DIR"
-mkdir -p "$OUTPUT_ROOT" "$BUILD_DIR" "$SHOTS_DIR"
+mkdir -p "$OUTPUT_ROOT" "$BUILD_DIR"
+if [[ -z "$STATIONARY_SAMPLE" ]]; then mkdir -p "$SHOTS_DIR"; fi
 
 # A preceding bake or PlayMode run can return before the macOS Unity process disappears from the
 # process table. tools/unity-run.sh intentionally refuses concurrent editors, so make the shared
 # capture utility sequencing-safe instead of racing the previous Unity invocation.
 wait_for_unity_quiet
 
+BUILD_ARGS=(-batchmode -nographics -quit)
+if [[ -n "$STATIONARY_SAMPLE" ]]; then BUILD_ARGS+=(-voxelFrameTimingStats); fi
+
 echo "Building real player for $SCENE"
 UNITY_MAX_RSS_MB="${UNITY_MAX_RSS_MB:-12288}" \
 UNITY_MAX_MINUTES="${UNITY_MAX_MINUTES:-25}" \
 UNITY_BIN="$UNITY_PATH" tools/unity-run.sh \
-  -batchmode -nographics -quit \
+  "${BUILD_ARGS[@]}" \
   -projectPath "$PWD" \
   -executeMethod VoxelEngine.Showcase.Editor.ShowcasePlayerBuild.Build \
   -voxelScene "$SCENE" \
@@ -172,29 +193,42 @@ BIN="$(find "$APP_BIN_DIR" -maxdepth 1 -type f -perm -111 -print -quit)"
 PLAYER_ARGS=(
   -logFile "$PLAYER_LOG"
   -screen-width 1600 -screen-height 900 -screen-fullscreen 0
-  -voxel-uncapped -voxel-fps-log
-  -voxel-run-seconds "$RUN_SECONDS"
-  -voxel-screenshot-dir "$SHOTS_DIR"
-  -voxel-screenshot-every 10
+  -voxel-uncapped
 )
 
-if [[ -n "$AUTO_DIALOGUE" ]]; then
-  PLAYER_ARGS+=( -voxel-auto-dialogue "$AUTO_DIALOGUE" )
-fi
-if [[ -n "$AUTOWALK_AFTER" ]]; then
-  PLAYER_ARGS+=( -voxel-autowalk-after "$AUTOWALK_AFTER" )
-fi
-if [[ -n "$SURVEY_AFTER" ]]; then
-  PLAYER_ARGS+=( -voxel-survey-after "$SURVEY_AFTER" )
-fi
-if [[ -n "$SURVEY_HEIGHT" ]]; then
-  PLAYER_ARGS+=( -voxel-survey-height "$SURVEY_HEIGHT" )
-fi
-if [[ -n "$SURVEY_SPIN" ]]; then
-  PLAYER_ARGS+=( -voxel-survey-spin "$SURVEY_SPIN" )
+if [[ -n "$STATIONARY_SAMPLE" ]]; then
+  PLAYER_ARGS+=(
+    -voxel-stationary-sample-seconds "$STATIONARY_SAMPLE"
+    -voxel-stationary-timeout-seconds "$RUN_SECONDS"
+    -voxel-stationary-screenshot-dir "$SHOTS_DIR"
+  )
+  echo "Running stationary benchmark for ${STATIONARY_SAMPLE}s after convergence; screenshot after measurement"
+else
+  PLAYER_ARGS+=(
+    -voxel-fps-log
+    -voxel-run-seconds "$RUN_SECONDS"
+    -voxel-screenshot-dir "$SHOTS_DIR"
+    -voxel-screenshot-every 10
+  )
+
+  if [[ -n "$AUTO_DIALOGUE" ]]; then
+    PLAYER_ARGS+=( -voxel-auto-dialogue "$AUTO_DIALOGUE" )
+  fi
+  if [[ -n "$AUTOWALK_AFTER" ]]; then
+    PLAYER_ARGS+=( -voxel-autowalk-after "$AUTOWALK_AFTER" )
+  fi
+  if [[ -n "$SURVEY_AFTER" ]]; then
+    PLAYER_ARGS+=( -voxel-survey-after "$SURVEY_AFTER" )
+  fi
+  if [[ -n "$SURVEY_HEIGHT" ]]; then
+    PLAYER_ARGS+=( -voxel-survey-height "$SURVEY_HEIGHT" )
+  fi
+  if [[ -n "$SURVEY_SPIN" ]]; then
+    PLAYER_ARGS+=( -voxel-survey-spin "$SURVEY_SPIN" )
+  fi
+  echo "Running real player for ${RUN_SECONDS}s; screenshots every 10s"
 fi
 
-echo "Running real player for ${RUN_SECONDS}s; screenshots every 10s"
 "$BIN" "${PLAYER_ARGS[@]}" &
 PID=$!
 
@@ -208,6 +242,25 @@ wait "$WATCHDOG" 2>/dev/null || true
 echo "player exit status: $status"
 if (( status != 0 )); then
   exit "$status"
+fi
+
+if [[ -n "$STATIONARY_SAMPLE" ]]; then
+  if [[ -s "$PLAYER_LOG" ]]; then
+    grep 'STATIONARY result=' "$PLAYER_LOG" > "$STATIONARY_LOG" || true
+  fi
+  if ! grep -q 'STATIONARY result=PASS' "$STATIONARY_LOG" 2>/dev/null; then
+    echo "ERROR: stationary benchmark did not publish a passing result." >&2
+    tail -80 "$PLAYER_LOG" >&2 || true
+    exit 1
+  fi
+  if [[ ! -s "$SHOTS_DIR/stationary-final.png" ]]; then
+    echo "ERROR: stationary benchmark produced no post-measurement screenshot." >&2
+    tail -80 "$PLAYER_LOG" >&2 || true
+    exit 1
+  fi
+  cat "$STATIONARY_LOG"
+  echo "stationary post-measurement screenshot: $SHOTS_DIR/stationary-final.png"
+  exit 0
 fi
 
 if [[ -s "$PLAYER_LOG" ]]; then
