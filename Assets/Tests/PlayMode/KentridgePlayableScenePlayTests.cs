@@ -13,7 +13,7 @@ namespace VoxelEngine.Tests.PlayMode
     /// Scene-level acceptance for the actual player launch path. Unlike the lower-level pub-exit
     /// collision test, this test loads the same scene a player launches, lets its real campaign
     /// runtime own the opening, waits for gameplay control to return, then drives the scene's real
-    /// character motor through the generated pub doorway and observes the scene report Kentridge.
+    /// character motor farther into town and observes the scene report Kentridge.
     /// </summary>
     public sealed class KentridgePlayableScenePlayTests
     {
