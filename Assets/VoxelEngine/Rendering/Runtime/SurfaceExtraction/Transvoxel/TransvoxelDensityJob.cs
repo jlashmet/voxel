@@ -73,8 +73,13 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
             dominantBoundary = packedBoundary;
             bool centreSolid = IsSolidSample(centre);
             centreSurface = ResolveSurface(centre, centreSurface);
-            if (packedBoundary != 0 && HasOppositeOccupancyNeighbour(p, centreSolid))
+            if (packedBoundary != 0)
             {
+                // Authored boundaries are already sign-checked against authoritative occupancy by
+                // the structure rasteriser and deliberately persist on empty halo cells. Gating
+                // them again on a six-neighbour occupancy transition discards valid diagonal SDF
+                // samples on curved surfaces and falls back to the voxel-weighted field, which
+                // reintroduces isolated voxel-scale bulges on otherwise analytic curves.
                 dominantMaterial = centreSolid ? centre : (byte)0;
                 dominantSurface = centreSolid ? centreSurface : 0u;
                 var boundary = new VoxelBoundarySample { Packed = packedBoundary };
@@ -118,16 +123,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
         {
             byte coating = (byte)(surface >> 16);
             return Coatings.Get(coating).Displacement * (1f / 64f);
-        }
-
-        private bool HasOppositeOccupancyNeighbour(int3 p, bool centreSolid)
-        {
-            return IsSolidSample(ReadMaterial(p + new int3(1, 0, 0), out _, out _)) != centreSolid
-                || IsSolidSample(ReadMaterial(p + new int3(-1, 0, 0), out _, out _)) != centreSolid
-                || IsSolidSample(ReadMaterial(p + new int3(0, 1, 0), out _, out _)) != centreSolid
-                || IsSolidSample(ReadMaterial(p + new int3(0, -1, 0), out _, out _)) != centreSolid
-                || IsSolidSample(ReadMaterial(p + new int3(0, 0, 1), out _, out _)) != centreSolid
-                || IsSolidSample(ReadMaterial(p + new int3(0, 0, -1), out _, out _)) != centreSolid;
         }
 
         private float Add(int3 p, float weight, bool centreSolid,
