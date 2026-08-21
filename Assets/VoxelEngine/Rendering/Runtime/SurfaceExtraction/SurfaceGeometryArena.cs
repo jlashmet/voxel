@@ -72,7 +72,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private bool _disposed;
 
         public ComputeBuffer Vertices { get; }
-        public ComputeBuffer Indices { get; }
+        public GraphicsBuffer Indices { get; }
         public ComputeBuffer Args { get; }
         public int VertexCapacity { get; }
         public int IndexCapacity { get; }
@@ -118,7 +118,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                                                  NativeArrayOptions.UninitializedMemory);
 
             ComputeBuffer vertices = null;
-            ComputeBuffer indices = null;
+            GraphicsBuffer indices = null;
             ComputeBuffer args = null;
             try
             {
@@ -133,9 +133,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 vertices = new ComputeBuffer(vertexCapacity, SmoothSurfaceVertex.Stride,
                                              ComputeBufferType.Structured,
                                              ComputeBufferMode.SubUpdates);
-                indices = new ComputeBuffer(indexCapacity, sizeof(uint),
-                                            ComputeBufferType.Structured,
-                                            ComputeBufferMode.SubUpdates);
+                indices = new GraphicsBuffer(
+                    // Raw keeps the same allocation writable from compute while remaining a
+                    // native index buffer on DirectX 11, which forbids Structured | Index.
+                    GraphicsBuffer.Target.Raw | GraphicsBuffer.Target.Index,
+                    GraphicsBuffer.UsageFlags.LockBufferForWrite,
+                    indexCapacity, sizeof(uint));
                 args = new ComputeBuffer(argsRecordCapacity * ArgsWordsPerDraw, sizeof(uint),
                                          ComputeBufferType.IndirectArguments,
                                          ComputeBufferMode.SubUpdates);
@@ -246,9 +249,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         {
             if (count <= 0) return;
             NativeArray<uint> destination =
-                Indices.BeginWrite<uint>(lease.IndexStart + sourceStart, count);
+                Indices.LockBufferForWrite<uint>(lease.IndexStart + sourceStart, count);
             NativeArray<uint>.Copy(source, sourceStart, destination, 0, count);
-            Indices.EndWrite<uint>(count);
+            Indices.UnlockBufferAfterWrite<uint>(count);
         }
 
         /// <summary>
