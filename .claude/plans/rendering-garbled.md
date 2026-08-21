@@ -125,3 +125,16 @@ This section records documentation/source research plus microscopic Metal experi
 - Global-index clean performance repeat: `32515547726`.
 - Final restored bucketed architecture guard: `32516308639`.
 - Final restored bucketed standalone-player validation: `32516473072` (artifact `9459129800`).
+
+### G. Isolate solid submission cost and find the actual FPS bottleneck
+
+- [ ] Add low-overhead diagnostics for the solid rendering path: bucket/indexed staging time, solid command-encoding/submission CPU time, visible-solid count, and number of Unity solid submission calls. Aggregate results instead of logging every frame.
+- [ ] Add or reuse a converged stationary-camera measurement window and prove scheduler visibility reuse is active during it: camera pose/projection unchanged, visible-solid count stable, and current-frame visibility work effectively zero. Keep screenshots outside the measured interval.
+- [ ] Run a real Metal stationary bucketed baseline and record whole-frame CPU/GPU timing where available, scheduler Prepare/visibility, solid staging, solid command encoding/submission, visible solids, and solid submission-call count.
+- [ ] Reintroduce only the already-proven global-index / zero-base-vertex indexed-indirect representation with equivalent diagnostics; do not change geometry ownership, publication, LOD, water, or frame budgets.
+- [ ] Run the same real Metal stationary benchmark on the indexed path, inspect its presented frames/logs, and quantify both the local solid-path saving and any end-to-end saving with visibility naturally reused.
+- [ ] Decide from the stationary A/B whether indexed submission is locally more efficient even if the normal moving survey masks it. Restore bucketed production unless the complete evidence justifies retaining indexed submission.
+- [ ] Profile the normal moving-survey frame into named CPU/GPU phases and rank the actual limiting phase(s), including scheduler Prepare/visibility, solid staging/submission, water submission, main/render-thread frame time, and GPU frame time where the platform exposes them.
+- [ ] Subdivide the largest measured phase enough to identify its internal hotspot rather than optimizing the phase as a black box.
+- [ ] Build the smallest controlled optimization for that proven hotspot and run focused correctness plus real-player performance acceptance; keep only a repeatable improvement.
+- [ ] Remove experiment-only diagnostics/hooks, review the final diff, record all run IDs/results here, and mark this section complete. Parent D2/D3 remain independent and open.
