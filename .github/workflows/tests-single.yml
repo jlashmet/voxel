@@ -183,8 +183,12 @@ jobs:
 
           # Keep the array non-empty under macOS's Bash 3.2. With set -u, expanding an empty
           # array is treated as an unbound variable and PlayMode never reaches Unity.
+          # The standalone Kentridge acceptances inspect composed world state and movement, not
+          # framebuffer pixels; null graphics keeps those real PlayMode paths within runner memory.
           EXTRA_ARGS=(-batchmode)
-          if [[ "$TEST_PLATFORM" == "EditMode" ]]; then
+          if [[ "$TEST_PLATFORM" == "EditMode" ||
+                "$TEST_FILTER" == VoxelEngine.Tests.PlayMode.KentridgeStructureComparisonSceneTests.* ||
+                "$TEST_FILTER" == VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests.* ]]; then
             EXTRA_ARGS+=(-nographics)
           fi
 
