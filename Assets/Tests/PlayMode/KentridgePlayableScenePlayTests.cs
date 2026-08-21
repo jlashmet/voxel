@@ -13,7 +13,8 @@ namespace VoxelEngine.Tests.PlayMode
     /// Scene-level acceptance for the actual player launch path. Unlike the lower-level pub-exit
     /// collision test, this test loads the same scene a player launches, lets its real campaign
     /// runtime own the opening, waits for gameplay control to return, then drives the scene's real
-    /// character motor through the generated pub doorway and observes the scene report Kentridge.
+    /// character motor through the generated pub doorway and into the authored destination
+    /// interaction that completes the travel objective and starts the next cutscene.
     /// </summary>
     public sealed class KentridgePlayableScenePlayTests
     {
@@ -67,6 +68,10 @@ namespace VoxelEngine.Tests.PlayMode
 
             Assert.That(ReadBoolProperty(driver, "GameplayControlEnabled"), Is.True,
                 "The actual launch scene never returned gameplay control after the opening cutscene.");
+            Assert.That(ReadBoolProperty(driver, "TravelObjectiveActive"), Is.True,
+                "Completing the authored opening must activate the main-story travel objective.");
+            Assert.That(ReadBoolProperty(driver, "TravelObjectiveCompleted"), Is.False,
+                "The travel objective must remain incomplete until the destination NPC is actually interacted with.");
 
             CharacterMotor motor = ReadPrivateField<CharacterMotor>(driver, "_motor");
             ShowcaseWorld world = ReadPrivateField<ShowcaseWorld>(driver, "_world");
@@ -133,6 +138,58 @@ namespace VoxelEngine.Tests.PlayMode
                 freeMovementTarget,
                 "free town-side movement after crossing the generated pub doorway");
             Time.captureDeltaTime = 0f;
+
+            // The destination is selected by WorldBuilder and physically materialized by the actor
+            // host. The acceptance may relocate near it to keep the test bounded, but it does not
+            // invoke CampaignRuntime directly: the same range-gated scene interaction used by E
+            // must be what advances the story.
+            Vector3 destinationNpc = ReadDestinationNpcPosition(driver);
+            MethodInfo interact = driver.GetType().GetMethod(
+                "TryInteractWithNearbyNpc",
+                BindingFlags.Instance | BindingFlags.Public);
+            Assert.That(interact, Is.Not.Null,
+                "The playable slice must expose the same range-gated NPC interaction action used by gameplay input.");
+
+            motor.Position = destinationNpc + Vector3.right * 4f;
+            motor.Velocity = Vector3.zero;
+            bool interactedOutOfRange = (bool)interact.Invoke(driver, null);
+            Assert.That(interactedOutOfRange, Is.False,
+                "A story NPC must not be interactable from outside the configured physical interaction range.");
+            Assert.That(ReadBoolProperty(driver, "TravelObjectiveActive"), Is.True);
+            Assert.That(ReadBoolProperty(driver, "TravelObjectiveCompleted"), Is.False);
+            Assert.That(ReadBoolProperty(driver, "DestinationCutsceneActive"), Is.False);
+
+            motor.Position = destinationNpc;
+            motor.Velocity = Vector3.zero;
+            Vector3 interactionPosition = motor.Position;
+            bool interacted = (bool)interact.Invoke(driver, null);
+            Assert.That(interacted, Is.True,
+                "The physically nearby generated destination NPC must accept the gameplay interaction.");
+            Assert.That(ReadBoolProperty(driver, "TravelObjectiveActive"), Is.False,
+                "The destination interaction must retire the active main-story objective.");
+            Assert.That(ReadBoolProperty(driver, "TravelObjectiveCompleted"), Is.True,
+                "The same destination interaction must complete the authored travel objective.");
+            Assert.That(ReadBoolProperty(driver, "DestinationCutsceneActive"), Is.True,
+                "The authored story rule must start the destination cutscene from that interaction.");
+            Assert.That(ReadBoolProperty(driver, "GameplayControlEnabled"), Is.False,
+                "The destination cutscene must take player control immediately.");
+
+            Time.captureDeltaTime = 0.1f;
+            for (var frame = 0; frame < 60 && !ReadBoolProperty(driver, "GameplayControlEnabled"); frame++)
+            {
+                DismissPendingDialogue(driver);
+                yield return null;
+            }
+            Time.captureDeltaTime = 0f;
+
+            Assert.That(ReadBoolProperty(driver, "GameplayControlEnabled"), Is.True,
+                "Gameplay control must return after the destination conversation completes.");
+            Assert.That(ReadBoolProperty(driver, "DestinationCutsceneActive"), Is.False);
+            Assert.That(ReadBoolProperty(driver, "TravelObjectiveCompleted"), Is.True,
+                "Completing the cutscene must not reopen or erase the completed story objective.");
+            Assert.That(HorizontalDistance(motor.Position, interactionPosition), Is.LessThanOrEqualTo(0.05f),
+                "A later cutscene must return control at the destination; only the opening is allowed " +
+                "to use the special pub-interior gameplay handoff.");
 
             Vector3 beforeRescue = motor.Position;
             MethodInfo rescue = driver.GetType().GetMethod(
@@ -201,6 +258,21 @@ namespace VoxelEngine.Tests.PlayMode
             delta.y = 0f;
             Vector3 wish = delta.sqrMagnitude <= 1e-6f ? Vector3.zero : delta.normalized;
             motor.Step(world, wish, sprint: false, jumpHeld: false, dt: WalkDeltaTime);
+        }
+
+        private static Vector3 ReadDestinationNpcPosition(Component driver)
+        {
+            MethodInfo method = driver.GetType().GetMethod(
+                "TryGetDestinationNpcWorldPosition",
+                BindingFlags.Instance | BindingFlags.Public);
+            Assert.That(method, Is.Not.Null,
+                "The playable slice must expose the realized destination actor position for navigation consumers.");
+
+            object[] arguments = { default(Vector3) };
+            bool found = (bool)method.Invoke(driver, arguments);
+            Assert.That(found, Is.True,
+                "The generated destination NPC must have an authoritative actor position.");
+            return (Vector3)arguments[0];
         }
 
         private static void DismissPendingDialogue(Component driver)
