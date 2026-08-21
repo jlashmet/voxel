@@ -24,6 +24,10 @@ namespace VoxelEngine.Tests.EditMode
         private static string ReadRenderingResource(string relativePath) => File.ReadAllText(
             Path.Combine(RepoRoot, "Assets", "VoxelEngine", "Rendering", "Resources", relativePath));
 
+        private static string ReadSmoothShader() => File.ReadAllText(Path.Combine(
+            RepoRoot, "Assets", "VoxelEngine", "Rendering", "Runtime", "Shaders",
+            "SmoothSurface.shader"));
+
         [Test]
         public void IndexedIndirectSubmissionAppliesArenaOffsetsExactlyOnce()
         {
@@ -31,9 +35,7 @@ namespace VoxelEngine.Tests.EditMode
                 Path.Combine("RenderFeature", "VoxelRenderPass.cs"));
             string arena = ReadRenderingSource(
                 Path.Combine("SurfaceExtraction", "SurfaceGeometryArena.cs"));
-            string shader = File.ReadAllText(Path.Combine(
-                RepoRoot, "Assets", "VoxelEngine", "Rendering", "Runtime", "Shaders",
-                "SmoothSurface.shader"));
+            string shader = ReadSmoothShader();
 
             StringAssert.Contains("GraphicsBuffer.Target.Raw | GraphicsBuffer.Target.Index", arena,
                 "The shared contiguous index payload must be a native index buffer while remaining compute-writable.");
@@ -67,6 +69,21 @@ namespace VoxelEngine.Tests.EditMode
                 "Production GPU extraction writes the shared index arena from compute.");
             StringAssert.DoesNotContain("GraphicsBuffer.UsageFlags.LockBufferForWrite", arena,
                 "LockBufferForWrite makes a GraphicsBuffer GPU-read-only and is invalid for the RWByteAddressBuffer index arena.");
+        }
+
+        [Test]
+        public void IndexedMultiCommandVertexPathUsesHardwareVertexIdWithoutCommandZeroFixup()
+        {
+            string shader = ReadSmoothShader();
+
+            StringAssert.Contains("_SurfaceVertices[vertexID]", shader,
+                "Hardware indexing already applies startIndex/baseVertex before SV_VertexID reaches this shader; the vertex arena lookup should consume that ID directly.");
+            StringAssert.DoesNotContain("InitIndirectDrawArgs(0)", shader,
+                "The surface shader does not consume command or instance args, so command-zero fixup must not participate in multi-command vertex addressing.");
+            StringAssert.DoesNotContain("GetIndirectVertexID", shader,
+                "Candidate 1 remained visually corrupt while routing indexed SV_VertexID through UnityIndirect helpers initialized from command zero.");
+            StringAssert.DoesNotContain("SV_DrawID", shader,
+                "SV_DrawID is not Metal-supported by this shader path.");
         }
     }
 }
