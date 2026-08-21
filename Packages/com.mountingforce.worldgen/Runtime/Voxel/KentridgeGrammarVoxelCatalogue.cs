@@ -8,6 +8,17 @@ using VoxelEngine.Structures.Api;
 namespace MountingForce.WorldGen.Voxel
 {
     /// <summary>
+    /// Selects the architectural presentation compiled by the Kentridge grammar. The legacy
+    /// baseline is retained only for visual regression and side-by-side comparison; gameplay
+    /// should use <see cref="Current"/>.
+    /// </summary>
+    public enum KentridgeArchitectureVariant : byte
+    {
+        LegacyBaseline = 0,
+        Current = 1,
+    }
+
+    /// <summary>
     /// Gameplay-building backend for Kentridge's semantic building grammar.
     ///
     /// Every stable role gets its own deterministic definition. Generated houses and shops compile
@@ -30,6 +41,13 @@ namespace MountingForce.WorldGen.Voxel
         public static FeatureCatalogue Build(
             uint seed,
             VoxelWorldGenSettings settings,
+            Allocator allocator) =>
+            Build(seed, settings, KentridgeArchitectureVariant.Current, allocator);
+
+        public static FeatureCatalogue Build(
+            uint seed,
+            VoxelWorldGenSettings settings,
+            KentridgeArchitectureVariant variant,
             Allocator allocator)
         {
             SettlementPlan plan = KentridgeDefinition.Build(seed);
@@ -44,8 +62,8 @@ namespace MountingForce.WorldGen.Voxel
                 BuildingPlot plot = plots[roleId];
                 KentridgeBuildingForm form = KentridgeBuildingGrammar.Resolve(plot, seed);
                 programs[roleId] = form.IsGenerated
-                    ? GeneratedHouseProgram(theme, settings, form)
-                    : BespokeProgram(theme, settings, form);
+                    ? GeneratedHouseProgram(theme, settings, form, variant)
+                    : BespokeProgram(theme, settings, form, variant);
                 programLength += programs[roleId].Code.Length;
             }
 
@@ -181,14 +199,16 @@ namespace MountingForce.WorldGen.Voxel
         private static CompiledProgram BespokeProgram(
             ArchitectureTheme theme,
             VoxelWorldGenSettings settings,
-            KentridgeBuildingForm form)
+            KentridgeBuildingForm form,
+            KentridgeArchitectureVariant variant)
         {
             KentridgeBespokeVoxelPrograms.Program program =
                 KentridgeBespokeVoxelPrograms.Build(
                     form.Archetype,
                     theme,
                     settings,
-                    ResolveGeometry(form));
+                    ResolveGeometry(form),
+                    variant);
             return new CompiledProgram
             {
                 Code = program.Code,
@@ -199,7 +219,8 @@ namespace MountingForce.WorldGen.Voxel
         private static CompiledProgram GeneratedHouseProgram(
             ArchitectureTheme theme,
             VoxelWorldGenSettings settings,
-            KentridgeBuildingForm form)
+            KentridgeBuildingForm form,
+            KentridgeArchitectureVariant variant)
         {
             KentridgeBuildingGrammar.ValidateGenerated(form);
 
@@ -313,23 +334,26 @@ namespace MountingForce.WorldGen.Voxel
             // stopped at rectangular box carves. Put the curved head above the full gameplay
             // clearance so every role gets an architectural entrance without narrowing the
             // CharacterMotor corridor that the access contract guarantees.
-            ArchitectureVoxelPatterns.FramedArchedOpening(
-                b.Inner,
-                doorX,
-                f,
-                z0 - 2 * s,
-                doorW,
-                doorH,
-                7 * s,
-                doorFacadeDepth + 2 * s,
-                2 * s,
-                foundation);
+            if (variant == KentridgeArchitectureVariant.Current)
+            {
+                ArchitectureVoxelPatterns.FramedArchedOpening(
+                    b.Inner,
+                    doorX,
+                    f,
+                    z0 - 2 * s,
+                    doorW,
+                    doorH,
+                    7 * s,
+                    doorFacadeDepth + 2 * s,
+                    2 * s,
+                    foundation);
 
-            AddRoleSignature(
-                b, (KentridgeRole)form.RoleId,
-                x0, z0, w, f, floor,
-                doorX, doorW,
-                foundation, timber, cloth, roof, s);
+                AddRoleSignature(
+                    b, (KentridgeRole)form.RoleId,
+                    x0, z0, w, f, floor,
+                    doorX, doorW,
+                    foundation, timber, cloth, roof, s);
+            }
 
             if (hasWing)
             {

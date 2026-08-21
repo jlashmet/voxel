@@ -118,6 +118,14 @@ namespace VoxelEngine.Showcase
         public static VoxelEngine.Composition.IStructureProfileStore CreateProfileStore() =>
             EngineStructuresComposition.CreateProfileStore();
 
+        public static VoxelEngine.Composition.FeatureCatalogueBuildResult
+            BuildExplicitFeatureCatalogue(
+                IVoxelStorageRuntime storage,
+                in FeatureCatalogue catalogue,
+                uint seed) =>
+            EngineStructuresComposition.BuildExplicitFeatureCatalogue(
+                storage, in catalogue, seed);
+
         public static IStructureAuthoringSession CreateAuthoringSession(
             IRegionReadSource reads,
             IRegionMutationStore mutations,

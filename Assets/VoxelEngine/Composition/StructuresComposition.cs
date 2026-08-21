@@ -75,6 +75,24 @@ namespace VoxelEngine.Composition
         }
     }
 
+    /// <summary>Totals from rasterising an explicit feature catalogue into voxel storage.</summary>
+    public readonly struct FeatureCatalogueBuildResult
+    {
+        public readonly int RegionsVisited;
+        public readonly int InstancesRasterised;
+        public readonly int VoxelsWritten;
+
+        public FeatureCatalogueBuildResult(
+            int regionsVisited,
+            int instancesRasterised,
+            int voxelsWritten)
+        {
+            RegionsVisited = regionsVisited;
+            InstancesRasterised = instancesRasterised;
+            VoxelsWritten = voxelsWritten;
+        }
+    }
+
     /// <summary>Application wiring for generic structure authoring.</summary>
     public static class StructuresComposition
     {
@@ -124,6 +142,71 @@ namespace VoxelEngine.Composition
         }
 
         public static IStructureProfileStore CreateProfileStore() => new StructureProfileStore();
+
+        /// <summary>
+        /// Rasterises the explicit placements in a catalogue through the production feature
+        /// evaluator, then publishes the touched storage. This is intended for bounded lookdev and
+        /// capture scenes; streamed gameplay should continue to generate one region at a time.
+        /// </summary>
+        public static FeatureCatalogueBuildResult BuildExplicitFeatureCatalogue(
+            IVoxelStorageRuntime storage,
+            in FeatureCatalogue catalogue,
+            uint seed)
+        {
+            if (storage == null) throw new ArgumentNullException(nameof(storage));
+            if (!catalogue.IsCreated)
+                throw new ArgumentException("A created catalogue is required.", nameof(catalogue));
+
+            bool hasPlacement = false;
+            int3 min = new int3(int.MaxValue);
+            int3 max = new int3(int.MinValue);
+            for (int ruleIndex = 0; ruleIndex < catalogue.Rules.Length; ruleIndex++)
+            {
+                PlacementRule rule = catalogue.Rules[ruleIndex];
+                if ((uint)rule.DefinitionId >= (uint)catalogue.Definitions.Length) continue;
+                FeatureDefinition definition = catalogue.Definitions[rule.DefinitionId];
+                for (int i = 0; i < rule.ExplicitCount; i++)
+                {
+                    int placementIndex = rule.ExplicitOffset + i;
+                    if ((uint)placementIndex >= (uint)catalogue.ExplicitPlacements.Length) continue;
+                    ExplicitPlacement placement = catalogue.ExplicitPlacements[placementIndex];
+                    int3 footprint = definition.Footprint;
+                    if ((placement.Orientation & 1) != 0)
+                        footprint = new int3(footprint.z, footprint.y, footprint.x);
+                    int baseY = definition.BasePlane == BasePlaneRule.FixedAltitude
+                        ? definition.FixedAltitude
+                        : placement.Position.y;
+                    int3 origin = new int3(placement.Position.x, baseY, placement.Position.z);
+                    min = math.min(min, origin);
+                    max = math.max(max, origin + footprint);
+                    hasPlacement = true;
+                }
+            }
+
+            if (!hasPlacement)
+                return new FeatureCatalogueBuildResult(0, 0, 0);
+
+            int edge = VoxelGrid.RegionVoxelEdge;
+            int3 firstRegion = (int3)math.floor((float3)min / edge);
+            int3 lastRegion = (int3)math.floor((float3)(max - 1) / edge);
+            int regions = 0, instances = 0, voxels = 0;
+            for (int y = firstRegion.y; y <= lastRegion.y; y++)
+            for (int z = firstRegion.z; z <= lastRegion.z; z++)
+            for (int x = firstRegion.x; x <= lastRegion.x; x++)
+            {
+                FeatureGenerationReport report = FeatureGeneration.GenerateRegion(
+                    in catalogue, seed, new int3(x, y, z), storage.Reads, storage.Mutations);
+                if (report.BudgetExceeded)
+                    throw new InvalidOperationException(
+                        "Feature comparison rasterisation exceeded its primitive or voxel budget.");
+                regions++;
+                instances += report.InstancesRasterised;
+                voxels += report.VoxelsWritten;
+            }
+
+            storage.PublishAllResidentRegions();
+            return new FeatureCatalogueBuildResult(regions, instances, voxels);
+        }
 
         /// <summary>
         /// Creates the generic structure-authoring capability backed by the engine's optimized
