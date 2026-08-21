@@ -50,9 +50,14 @@ namespace VoxelEngine.Tests.PlayMode
                 for (int frame = 0; frame < 240; frame++)
                 {
                     // The scheduler deliberately retains discovered off-camera candidates without
-                    // requiring them all to be resident. Use the same visible-coverage contract as
-                    // the production handoff/capture path rather than waiting for global idleness.
-                    bool converged = RenderingComposition.HasCompletePublishedNearSurfaceCoverage();
+                    // requiring them all to be resident. The shared coverage contract is therefore
+                    // the right base gate, but this visual test is stricter than near/far handoff:
+                    // the Arch camera must actually be drawing at least one solid chunk too.
+                    RenderingComposition.GetVoxelSurfaceCounts(
+                        out int visibleChunks, out int missingVisibleChunks);
+                    bool converged = visibleChunks > 0
+                        && missingVisibleChunks == 0
+                        && RenderingComposition.HasCompletePublishedNearSurfaceCoverage();
                     stableFrames = converged ? stableFrames + 1 : 0;
                     if (stableFrames >= 3)
                         yield break;
