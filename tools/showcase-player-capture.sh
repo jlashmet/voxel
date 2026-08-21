@@ -9,7 +9,7 @@ Usage:
 
 Builds the selected Unity scene as a real macOS player. Normal visual capture records actual
 presented frames every 10 seconds. Stationary benchmark mode instead holds the production scene
-still after convergence and records a screenshot-free main-thread timing window.
+still after convergence, measures without screenshots, then captures one presented frame afterward.
 
 Options:
   --unity PATH             Unity executable (required)
@@ -183,8 +183,9 @@ if [[ -n "$STATIONARY_SAMPLE" ]]; then
   PLAYER_ARGS+=(
     -voxel-stationary-sample-seconds "$STATIONARY_SAMPLE"
     -voxel-stationary-timeout-seconds "$RUN_SECONDS"
+    -voxel-stationary-screenshot-dir "$SHOTS_DIR"
   )
-  echo "Running stationary benchmark for ${STATIONARY_SAMPLE}s after convergence; no screenshots"
+  echo "Running stationary benchmark for ${STATIONARY_SAMPLE}s after convergence; screenshot after measurement"
 else
   PLAYER_ARGS+=(
     -voxel-fps-log
@@ -232,7 +233,13 @@ if [[ -n "$STATIONARY_SAMPLE" ]]; then
     tail -80 "$PLAYER_LOG" >&2 || true
     exit 1
   fi
+  if [[ ! -s "$SHOTS_DIR/stationary-final.png" ]]; then
+    echo "ERROR: stationary benchmark produced no post-measurement screenshot." >&2
+    tail -80 "$PLAYER_LOG" >&2 || true
+    exit 1
+  fi
   cat "$STATIONARY_LOG"
+  echo "stationary post-measurement screenshot: $SHOTS_DIR/stationary-final.png"
   exit 0
 fi
 
