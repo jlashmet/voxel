@@ -39,13 +39,18 @@ permissions:
 
 jobs:
   measure:
-    name: Build and measure the small showcase player
+    name: Build and measure showcase (max builds ${{ matrix.max-builds }})
     runs-on: [self-hosted, macOS]
     timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        max-builds: [12, 3]
 
     env:
       RUN_SECONDS: ${{ github.event.inputs.run-seconds || '150' }}
       AUTOWALK_AFTER: ${{ github.event.inputs.autowalk-after || '60' }}
+      VOXEL_MAX_BUILDS: ${{ matrix.max-builds }}
 
     steps:
       - name: Checkout
@@ -76,10 +81,26 @@ jobs:
             sleep 5
           done
 
+      - name: Inject experiment-only build ceiling
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('tools/showcase-player-capture.sh')
+          text = path.read_text()
+          needle = 'if [[ -n "$AUTOWALK_AFTER" ]]; then\n'
+          replacement = 'PLAYER_ARGS+=( -voxel-max-builds "$VOXEL_MAX_BUILDS" )\n\n' + needle
+          if needle not in text:
+              raise SystemExit('capture script injection point not found')
+          path.write_text(text.replace(needle, replacement, 1))
+          PY
+
       - name: Build and capture the real player
         shell: bash
         run: |
           set -euo pipefail
+          echo "Experiment max concurrent builds: $VOXEL_MAX_BUILDS"
           bash tools/showcase-player-capture.sh \
             --unity "${{ steps.unity.outputs.path }}" \
             --scene Assets/Scenes/SmallVoxelShowcase.unity \
@@ -108,12 +129,17 @@ jobs:
           shots="$(find "$ROOT/Screenshots" -name '*.png' -size +1k | wc -l | tr -d ' ')"
 
           {
-            echo "## Showcase player performance"
+            echo "## Showcase player performance — max builds $VOXEL_MAX_BUILDS"
             echo
             echo "Screenshots captured: $shots"
             echo
             echo '```'
             tail -40 "$ROOT/fps.txt"
+            echo '```'
+            echo
+            echo '### Surface convergence tail'
+            echo '```'
+            grep 'SURFACE' "$LOG" | tail -40 || true
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -132,7 +158,7 @@ jobs:
           # failing over 16.7 ms catches a collapse without flaking on a shared runner.
           tail -20 "$ROOT/fps.txt" > "$ROOT/fps-tail.txt"
           worst="$(awk -F'p50=' '{ split($2, f, " "); if (f[1] > worst) worst = f[1] } END { print worst + 0 }' "$ROOT/fps-tail.txt")"
-          echo "worst p50 frame over the settled tail: ${worst} ms"
+          echo "max-builds=$VOXEL_MAX_BUILDS worst p50 frame over the settled tail: ${worst} ms"
           if awk "BEGIN { exit !(${worst:-9999} > 16.7) }"; then
             echo "Worst settled p50 frame ${worst} ms is over the 16.7 ms floor." >&2
             status=1
@@ -144,7 +170,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: showcase-performance-${{ github.sha }}
+          name: showcase-performance-max-builds-${{ matrix.max-builds }}-${{ github.sha }}
           path: |
             Artifacts/Screenshots/*.png
             Artifacts/fps.txt
