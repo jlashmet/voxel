@@ -693,7 +693,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private readonly List<int3> _changedWaterBricks = new(ChangeBrickExpansionsPerFrame);
         private readonly HashSet<int3> _surfaceDiscoveryRegions = new();
         private readonly List<int3> _discoveredSurfaceBricks = new(512);
-        private readonly List<int3> _ownedDiscoveryBricks = new(512);
+        private readonly List<int3>[] _ownedDiscoveryShardBuckets =
+            new List<int3>[NearSolidWorkerCount];
         private readonly Queue<int3> _surfaceDiscoveryQueue = new();
         private readonly HashSet<int3> _queuedSurfaceDiscoveryRegions = new();
         private readonly HashSet<int3> _surfaceDiscoveryRescanRegions = new();
@@ -1031,7 +1032,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         /// pass binds them once for the whole pass instead of per draw.
         /// </summary>
         internal ComputeBuffer SolidGeometryVertices => _geometryArena.Vertices;
-        internal ComputeBuffer SolidGeometryIndices => _geometryArena.Indices;
+        internal GraphicsBuffer SolidGeometryIndices => _geometryArena.Indices;
         public IReadOnlyList<CpuWaterSurfaceChunkCache.Entry> VisibleWater => _water.Visible;
         public VoxelSurfaceMetrics Metrics => new(
             _allWorkers, _water, _lastChangeRecords, _discoveredSurfaceBricks.Count,
@@ -1105,6 +1106,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 for (int worker = 0; worker < ring.Workers.Length; worker++)
                     _allWorkers[workerIndex++] = ring.Workers[worker];
             }
+
+            for (int shard = 0; shard < _ownedDiscoveryShardBuckets.Length; shard++)
+                _ownedDiscoveryShardBuckets[shard] =
+                    new List<int3>(SurfaceDiscoveryPublishBatch);
 
             _surfaceDiscoveryOccupiedWords = new NativeArray<ulong>(
                 VoxelReadGrid.BlockSummaryWordCount, Allocator.Persistent,
@@ -1213,21 +1218,21 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _discoveryTiming.Add(LastDiscoveryMs);
 
             // Solid discovery establishes authoritative chunk ownership, not halo invalidation.
-            // Canonicalize each discovered block into the interior of the same ring-local chunk
-            // before calling the cache's generic border-aware admission path. This prevents
-            // discovery from creating halo-only chunks whose owned core is non-resident (the
-            // production step-4 y=-1 pin-retry case) while preserving original brick coordinates
-            // for water below and for mutation invalidation above.
+            // Canonicalize each discovered block into the interior of the same ring-local chunk,
+            // then route it directly to the shard that owns that chunk. Previously every shard
+            // rescanned the same publication batch even though all but one rejected each chunk by
+            // hash ownership. With 22 workers that multiplied this main-thread admission work for
+            // no semantic gain. Water and mutation invalidation keep the original coordinates.
             for (int r = 0; r < _rings.Length; r++)
             {
                 SurfaceRing ring = _rings[r];
-                _ownedDiscoveryBricks.Clear();
                 int bricksPerChunkAxis = ring.Workers[0].BricksPerAxis;
-                for (int i = 0; i < _discoveredSurfaceBricks.Count; i++)
-                    _ownedDiscoveryBricks.Add(SurfaceDiscoveryChunkOwner.Canonicalize(
-                        _discoveredSurfaceBricks[i], bricksPerChunkAxis));
+                SurfaceDiscoveryChunkOwner.PartitionByOwningShard(
+                    _discoveredSurfaceBricks, bricksPerChunkAxis,
+                    ring.Workers.Length, _ownedDiscoveryShardBuckets);
                 for (int w = 0; w < ring.Workers.Length; w++)
-                    ring.Workers[w].DiscoverSurfaceBricks(_ownedDiscoveryBricks);
+                    ring.Workers[w].DiscoverSurfaceBricks(
+                        _ownedDiscoveryShardBuckets[w]);
             }
 
             CollectVisibility(camera, voxelSize, frame);
