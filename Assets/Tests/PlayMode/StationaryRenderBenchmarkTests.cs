@@ -34,9 +34,21 @@ namespace VoxelEngine.Tests.PlayMode
             StringAssert.Contains("cpuMainThreadFrameTime", harness);
             StringAssert.Contains("cpuRenderThreadFrameTime", harness);
             StringAssert.Contains("gpuFrameTime", harness);
-            StringAssert.DoesNotContain("ScreenCapture", harness);
+            StringAssert.Contains("StartCoroutine(CaptureAndQuit(pass))", harness);
+            StringAssert.Contains("ScreenCapture.CaptureScreenshot(path)", harness);
             StringAssert.DoesNotContain("AutoSurvey", harness);
             StringAssert.DoesNotContain("AutoWalk", harness);
+
+            int sampleStart = harness.IndexOf("private void SampleFrame", System.StringComparison.Ordinal);
+            int sampleEnd = harness.IndexOf("private void CaptureUnityFrameTiming", sampleStart,
+                                            System.StringComparison.Ordinal);
+            Assert.GreaterOrEqual(sampleStart, 0);
+            Assert.Greater(sampleEnd, sampleStart);
+            string measuredFramePath = harness.Substring(sampleStart, sampleEnd - sampleStart);
+            StringAssert.DoesNotContain("ScreenCapture", measuredFramePath,
+                "screenshots must stay outside the measured stationary interval");
+            StringAssert.DoesNotContain("Debug.Log", measuredFramePath,
+                "per-frame logging would perturb the measured stationary interval");
 
             StringAssert.Contains("VoxelSolidRenderTelemetry.Snapshot", composition);
             StringAssert.Contains("metrics.SchedulerPrepareTiming", composition);
@@ -53,7 +65,8 @@ namespace VoxelEngine.Tests.PlayMode
             StringAssert.Contains("BUILD_ARGS+=(-voxelFrameTimingStats)", capture);
             StringAssert.Contains("-voxel-stationary-sample-seconds", capture);
             StringAssert.Contains("-voxel-stationary-timeout-seconds", capture);
-            StringAssert.Contains("no screenshots", capture);
+            StringAssert.Contains("-voxel-stationary-screenshot-dir", capture);
+            StringAssert.Contains("post-measurement screenshot", capture);
             StringAssert.Contains("stationary benchmark did not publish a passing result", capture);
 
             // The existing visual profile remains a distinct moving/screenshot run.
