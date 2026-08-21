@@ -28,16 +28,17 @@ This is a focused continuation of `voxel-showcase-rendering-repair-v2.md` for th
 
 ### C. Isolate the indexed-multidraw regression
 
+- [x] Run the direct-parent (`a9aa6c5707decc7faa3f718eaa1216aebe2ca6b1`) standalone-player baseline through `CastleScreenshotTests` in run `32496458837`.
+- [x] Inspect all five direct-parent PNGs: castle and terrain geometry are coherent and the giant slabs/cross-world triangles are absent. Existing coarse/far-field holes remain and stay owned by the parent plan's D2/D3 work.
+- [x] Pin `fbaf77b8d210cc5e5f98bd99c0bf50e8640a7ac2` as the garbling regression boundary: its direct parent is clean and `109dc042…`, which contains it, reproduces the corruption.
 - [x] Build controlled source `20b200cad353f5971024729db12b34ab1f21bb73` by retaining the current real-player harness and restoring the 15 files changed by the indexed-multidraw commit to their direct-parent versions.
-- [ ] Run the same real-player `CastleScreenshotTests` capture against that controlled pre-multidraw source.
-- [ ] Inspect every baseline PNG and record whether corruption is absent or already present.
-- [ ] If the controlled baseline is clean, add a focused regression for the first proven index/base-vertex invariant in the multidraw path before changing production code.
-- [ ] Fix the proven index/addressing defect without introducing unsupported shader semantics or restoring per-chunk frame garbage.
+- [ ] Run the same real-player `CastleScreenshotTests` capture against that controlled current-harness/pre-multidraw source as confirmation.
+- [ ] Restore the Metal-validated bucketed solid submission path from the clean parent and keep its architecture regression, rather than retaining the unvalidated indexed-multidraw path or the unsupported `SV_DrawID` experiment.
 
 ### D. Validate the repair
 
-- [ ] Run the smallest focused EditMode regression for the production fix and require green CI.
-- [ ] Run `VoxelEngine.Tests.PlayMode.CastleScreenshotTests` on the fixed branch through the real standalone-player capture path.
+- [ ] Run the smallest focused EditMode regression for the restored bucketed submission path and require green CI.
+- [ ] Run `VoxelEngine.Tests.PlayMode.CastleScreenshotTests` on the fixed `rendering-garbled` branch through the real standalone-player capture path.
 - [ ] Inspect all captured PNGs and verify the giant slabs/triangles and disconnected geometry are gone.
 - [ ] Inspect player logs for shader support/errors and require `Hidden/VoxelEngine/SmoothSurface` to remain supported on Metal.
 - [ ] Compare `rendering-garbled` with its master base and confirm only the intended renderer/test/plan changes remain.
