@@ -21,8 +21,12 @@ namespace Game.Materials.Runtime
 
         public static readonly ShowcaseMaterialSet Default = new(
             terrainDeep: GameMaterialIds.Bedrock,
-            terrainSubsurface: GameMaterialIds.Stone,
-            terrainLowSurface: GameMaterialIds.Sand,
+            terrainSubsurface: GameMaterialIds.Dirt,
+            // Must stay identical to GameTerrainMaterials.Default. The distant analytic mesh and
+            // the near voxel surface derive their ground cover independently, so any disagreement
+            // between these two sets draws itself as a hard material seam at the streaming radius —
+            // which is exactly what a sand low surface here and a sand-and-stone one there did.
+            terrainLowSurface: GameMaterialIds.Dirt,
             terrainHighSurface: GameMaterialIds.Grass,
             gate: GameMaterialIds.Wood,
             referenceArch: GameMaterialIds.DarkStone,

@@ -71,14 +71,14 @@ namespace MountingForce.WorldGen.Voxel
             VoxelWorldGenSettings settings,
             Allocator allocator)
         {
-            SettlementPlan plan = KentridgeDefinition.Build(seed);
+            SettlementPlan plan = SettlementVoxelPlan.Resolve(seed, in settings);
             BuildingPlot pubPlot = FindPlot(plan, KentridgeRole.Pub);
             BuildingPlot warehousePlot = FindPlot(plan, KentridgeRole.Warehouse);
             int s = settings.VoxelsPerDecimetre;
 
-            int hospitalityHeightDm = SupportHeightDm(pubPlot, seed, s);
-            int workingHeightDm = SupportHeightDm(warehousePlot, seed, s);
-            List<Site> sites = BuildSites(pubPlot, warehousePlot);
+            int hospitalityHeightDm = SupportHeightDm(plan, pubPlot, seed, s);
+            int workingHeightDm = SupportHeightDm(plan, warehousePlot, seed, s);
+            List<Site> sites = BuildSites(plan, pubPlot, warehousePlot);
             int[] hospitalityProgram = HospitalityProgram(settings, hospitalityHeightDm);
             int[] workingProgram = WorkingProgram(settings, workingHeightDm);
             int programLength = hospitalityProgram.Length + workingProgram.Length;
@@ -117,10 +117,10 @@ namespace MountingForce.WorldGen.Voxel
                 s);
 
             int placement = 0;
-            WriteSites(sites, HospitalityDefinition, hospitalityHeightDm,
+            WriteSites(plan, sites, HospitalityDefinition, hospitalityHeightDm,
                 seed, s, ref catalogue, ref placement);
             int workingOffset = placement;
-            WriteSites(sites, WorkingDefinition, workingHeightDm,
+            WriteSites(plan, sites, WorkingDefinition, workingHeightDm,
                 seed, s, ref catalogue, ref placement);
 
             catalogue.Rules[HospitalityDefinition] = ExplicitRule(
@@ -140,6 +140,7 @@ namespace MountingForce.WorldGen.Voxel
         }
 
         private static List<Site> BuildSites(
+            SettlementPlan plan,
             BuildingPlot pubPlot,
             BuildingPlot warehousePlot)
         {
@@ -155,7 +156,7 @@ namespace MountingForce.WorldGen.Voxel
             {
                 RoleSpec spec = specs[i];
                 BuildingPlot plot = plots[i];
-                Int3 footprint = KentridgeDefinition.FootprintDm(plot.Archetype);
+                Int3 footprint = SettlementFootprints.For(plan, plot.Archetype);
                 int available = footprint.X
                               - EdgeMarginDm * 2
                               - BayGapDm * (spec.BayCount - 1);
@@ -197,12 +198,12 @@ namespace MountingForce.WorldGen.Voxel
             throw new InvalidOperationException("Missing Kentridge anchor role: " + role);
         }
 
-        private static int SupportHeightDm(BuildingPlot plot, uint seed, int scale)
+        private static int SupportHeightDm(SettlementPlan plan, BuildingPlot plot, uint seed, int scale)
         {
-            Int3 footprint = KentridgeDefinition.FootprintDm(plot.Archetype);
+            Int3 footprint = SettlementFootprints.For(plan, plot.Archetype);
             int centreXDm = plot.PositionDm.X + footprint.X / 2;
             int downhillZDm = plot.PositionDm.Y + footprint.Z + NaturalSampleBeyondEdgeDm;
-            int shelfSurface = KentridgeVerticalProfile.PlotSurfaceY(plot, seed, scale);
+            int shelfSurface = KentridgeVerticalProfile.PlotSurfaceY(plan, plot, seed, scale);
             int naturalSurface = TerrainQuery.HeightAt(
                 centreXDm * scale,
                 downhillZDm * scale,
@@ -251,6 +252,7 @@ namespace MountingForce.WorldGen.Voxel
         }
 
         private static void WriteSites(
+            SettlementPlan plan,
             List<Site> sites,
             int definitionId,
             int supportHeightDm,
@@ -264,7 +266,7 @@ namespace MountingForce.WorldGen.Voxel
                 Site site = sites[i];
                 if (site.DefinitionId != definitionId) continue;
 
-                int shelfSurface = KentridgeVerticalProfile.PlotSurfaceY(
+                int shelfSurface = KentridgeVerticalProfile.PlotSurfaceY(plan,
                     site.Plot, seed, scale);
                 catalogue.ExplicitPlacements[placement++] = new ExplicitPlacement
                 {

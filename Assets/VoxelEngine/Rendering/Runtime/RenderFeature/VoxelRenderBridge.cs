@@ -83,6 +83,20 @@ namespace VoxelEngine.Rendering.Runtime
         public static VoxelSurfaceMetrics SurfaceMetrics { get; internal set; }
 
         public static int RenderFeatureEnqueueCount { get; internal set; }
+
+        /// <summary>
+        /// Times the render feature has rebuilt its passes, and times the sky pass has been asked
+        /// to draw without a material.
+        ///
+        /// <c>Create</c> destroys and recreates every pass material. Any frame that lands between
+        /// the destroy and the next successful draw has no sky to put behind the world, so the
+        /// camera's clear shows through as a black screen for a frame or two while the geometry
+        /// keeps drawing normally. These counters exist to tell that apart from a renderer fault:
+        /// if the black flicker has a cadence, so will one of them.
+        /// </summary>
+        public static ulong RenderFeatureCreateCount { get; internal set; }
+
+        public static ulong SkyPassMissingMaterialCount { get; internal set; }
         public static int SurfacePassRecordCount { get; internal set; }
 
         /// <summary>
@@ -174,7 +188,7 @@ namespace VoxelEngine.Rendering.Runtime
         public static bool WaterRenderEnabled = true;
 
         /// <summary>Lets arena pressure retire on-screen chunks. See VoxelSurfaceScheduler.</summary>
-        public static bool SurfaceEvictVisibleUnderArenaPressure = true;
+        public static bool SurfaceEvictVisibleUnderArenaPressure = false;
 
         public static int SurfaceMaxResidentChunksPerRing = 4096;
 
@@ -183,11 +197,11 @@ namespace VoxelEngine.Rendering.Runtime
         /// <summary>
         /// Chunk builds allowed in flight once the view is complete.
         ///
-        /// This bounds prefetch, which is the work that keeps a moving player from walking into
-        /// unmeshed ground. Set low it protects a stationary frame; set low for too long it starves
-        /// the shell, and the cost reappears as a stall the moment the player moves.
+        /// Zero stops 360-degree prefetch once the current view is complete. A camera change that
+        /// exposes a missing chunk immediately selects the converging ceiling again, so visible
+        /// work resumes without permanently filling the arena with geometry nobody can see.
         /// </summary>
-        public static int SurfaceMaxConcurrentBuildsConverged = 1;
+        public static int SurfaceMaxConcurrentBuildsConverged = 0;
         /// <summary>
         /// Soft cap for active solid arena leases. The default does not constrain the fixed
         /// arena; tests/debugging may lower it to exercise real backpressure without reallocating

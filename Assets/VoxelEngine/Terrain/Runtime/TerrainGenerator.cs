@@ -18,7 +18,14 @@ namespace VoxelEngine.Terrain.Runtime
     public static class TerrainGenerator
     {
         private const int BedrockDepth = 40;
-        private const int SandBelowHeight = TerrainQuery.BaseHeight;
+        /// <summary>
+        /// Height that separates hollow ground cover from raised ground cover, in voxels.
+        ///
+        /// The valley's own relief straddles the base height, so this splits it into low and high
+        /// ground rather than marking anything unusual — which is the point: it gives the basin two
+        /// materials that follow drainage instead of one flat colour.
+        /// </summary>
+        private const int SurfaceSplitHeight = TerrainQuery.BaseHeight;
 
         /// <summary>
         /// Fills every logical 8^3 block in a region through Storage.Api using opaque material
@@ -63,8 +70,13 @@ namespace VoxelEngine.Terrain.Runtime
         {
             if (voxelY <= surfaceVoxel - BedrockDepth) return materials.Deep;
 
+            // The top band is ground cover; everything between it and bedrock is subsoil. This
+            // previously returned the subsurface material for any column at or above the split
+            // height, which meant the higher half of the inhabited valley was surfaced in raw
+            // subsoil and the lower half in the single surface material — a stone-and-sand basin
+            // with no ground cover anywhere in it.
             if (voxelY > surfaceVoxel - VoxelReadGrid.BlockEdge)
-                return surfaceVoxel < SandBelowHeight ? materials.Surface : materials.Subsurface;
+                return materials.SurfaceAt(surfaceVoxel, SurfaceSplitHeight);
 
             return materials.Subsurface;
         }

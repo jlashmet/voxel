@@ -33,11 +33,23 @@ namespace MountingForce.WorldGen.Voxel
                 KentridgeFrontageAlignedUrbanFabricCatalogue.Build(seed, settings, Allocator.Temp),
                 KentridgeVerticalGalleryCatalogue.Build(seed, settings, Allocator.Temp),
                 KentridgeUpperSkybridgeCatalogue.Build(seed, settings, Allocator.Temp),
-                KentridgeAnchorUndercroftCatalogue.Build(seed, settings, Allocator.Temp),
                 KentridgeUrbanAccessCatalogue.Build(seed, settings, Allocator.Temp),
                 KentridgeHillsideArchitectureCatalogue.Build(seed, settings, Allocator.Temp),
                 KentridgeSharedStructureVoxelCatalogue.Build(seed, settings, Allocator.Temp),
             };
+
+            // The undercroft stage is authored around Kentridge's named pub and warehouse, and
+            // throws when they are absent. It is Kentridge content rather than part of the generic
+            // town pass, so a settlement without those roles simply does not get it.
+            if (SettlementVoxelPlan.Resolve(seed, in settings).Theme.Id
+                == Content.Kentridge.KentridgeDefinition.Id)
+            {
+                var withUndercrofts = new FeatureCatalogue[stages.Length + 1];
+                Array.Copy(stages, withUndercrofts, stages.Length);
+                withUndercrofts[stages.Length] =
+                    KentridgeAnchorUndercroftCatalogue.Build(seed, settings, Allocator.Temp);
+                stages = withUndercrofts;
+            }
 
             try
             {

@@ -19,7 +19,7 @@ namespace MountingForce.WorldGen.Voxel
             if (requests.Count == 0)
                 return Build(seed, settings, allocator);
 
-            SettlementPlan plan = KentridgeDefinition.Build(seed);
+            SettlementPlan plan = SettlementVoxelPlan.Resolve(seed, in settings);
             IReadOnlyList<KentridgeHiddenSpaceGeometry> geometries =
                 KentridgeHiddenSpaceBatchPlanner.Resolve(plan, requests);
             return BuildWithHiddenSpaceGeometry(plan, settings, geometries, allocator);
@@ -37,10 +37,16 @@ namespace MountingForce.WorldGen.Voxel
                 throw new ArgumentException(
                     "Hidden-space voxel emission requires a Kentridge settlement plan.",
                     nameof(plan));
-            if (geometries.Count == 0)
-                return Build(plan.Seed, settings, allocator);
+            // Bind the plan onto the settings rather than passing only its seed. Passing the seed
+            // alone meant the town underneath the hidden spaces was rebuilt from the Kentridge
+            // definition whatever plan was handed in — harmless while Kentridge was the only
+            // settlement, and wrong the moment there are two.
+            VoxelWorldGenSettings planned = settings.For(plan);
 
-            FeatureCatalogue baseCatalogue = Build(plan.Seed, settings, Allocator.Temp);
+            if (geometries.Count == 0)
+                return Build(plan.Seed, planned, allocator);
+
+            FeatureCatalogue baseCatalogue = Build(plan.Seed, planned, Allocator.Temp);
             FeatureCatalogue hiddenCatalogue = KentridgeHiddenSpaceVoxelCatalogue.Build(
                 plan,
                 settings,

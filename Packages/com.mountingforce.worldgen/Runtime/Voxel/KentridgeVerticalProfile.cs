@@ -113,15 +113,15 @@ namespace MountingForce.WorldGen.Voxel
         /// the prepared yard meet the street at the same authored height and leaves the existing
         /// frontage pass free to paint the connector without hiding a surprise vertical step.
         /// </summary>
-        public static int PlotSurfaceY(BuildingPlot plot, uint seed, int scale)
+        public static int PlotSurfaceY(SettlementPlan plan, BuildingPlot plot, uint seed, int scale)
         {
-            Int2 frontage = FrontagePointDm(plot);
+            Int2 frontage = FrontagePointDm(plan, plot);
             return SurfaceYAtDm(frontage.X, frontage.Y, seed, scale);
         }
 
-        public static Int2 FrontagePointDm(BuildingPlot plot)
+        public static Int2 FrontagePointDm(SettlementPlan plan, BuildingPlot plot)
         {
-            Int3 footprint = KentridgeDefinition.FootprintDm(plot.Archetype);
+            Int3 footprint = SettlementFootprints.For(plan, plot.Archetype);
             int centreX = plot.PositionDm.X + footprint.X / 2;
             int centreZ = plot.PositionDm.Y + footprint.Z / 2;
 
@@ -141,9 +141,9 @@ namespace MountingForce.WorldGen.Voxel
         }
 
         /// <summary>Lowest natural column under a plot, used only to size hidden terrace support.</summary>
-        public static int NaturalLowestUnderPlot(BuildingPlot plot, uint seed, int scale)
+        public static int NaturalLowestUnderPlot(SettlementPlan plan, BuildingPlot plot, uint seed, int scale)
         {
-            Int3 footprintDm = KentridgeDefinition.FootprintDm(plot.Archetype);
+            Int3 footprintDm = SettlementFootprints.For(plan, plot.Archetype);
             int ox = plot.PositionDm.X * scale;
             int oz = plot.PositionDm.Y * scale;
             int width = footprintDm.X * scale;

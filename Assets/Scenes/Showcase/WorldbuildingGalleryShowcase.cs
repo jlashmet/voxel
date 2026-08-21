@@ -16,7 +16,7 @@ namespace VoxelEngine.Showcase
     [DisallowMultipleComponent]
     [RequireComponent(typeof(Camera))]
     [AddComponentMenu("VoxelEngine/Worldbuilding Gallery Showcase")]
-    public sealed class WorldbuildingGalleryShowcase : MonoBehaviour
+    public sealed class WorldbuildingGalleryShowcase : MonoBehaviour, IShowcaseMeasurementDriver
     {
         [Header("World")]
         [SerializeField] private uint m_Seed = 0x5EED1234u;
@@ -24,6 +24,16 @@ namespace VoxelEngine.Showcase
         [SerializeField] private int m_LoadRadiusRegions = 8;
         [SerializeField] private int m_UnloadRadiusRegions = 11;
         [SerializeField] private float m_GenerateBudgetMs = 4f;
+
+        [Tooltip("Scales the LOD hand-over distances. 1 keeps the finest step out to 96 m; lower "
+               + "draws far fewer chunks and meshes more of the mid distance at half resolution. "
+               + "This is the only lever that materially reduces draw submission.")]
+        [SerializeField] private float m_DetailBandScale = 0.6f;
+
+        [Tooltip("Bake restores the offline startup image. Generate authors the castle, exhibits, "
+               + "promenade, cave and guild houses during the scene, which is what the bake exists "
+               + "to avoid — use it only to produce a new bake.")]
+        [SerializeField] private ShowcaseStartupSource m_Startup = ShowcaseStartupSource.Bake;
 
         [Header("Movement")]
         [SerializeField] private float m_WalkSpeed = 5.5f;
@@ -36,6 +46,7 @@ namespace VoxelEngine.Showcase
         private VoxelFarTerrain _farTerrain;
         private WorldObjectRuntimeComposition _worldObjects;
         private GameObject _worldObjectHost;
+        private GalleryLifePopulation _life;
         private bool _mouseLook;
         private float _yaw;
         private float _pitch;
@@ -63,7 +74,9 @@ namespace VoxelEngine.Showcase
                 m_LoadRadiusRegions,
                 m_UnloadRadiusRegions,
                 GameMaterialComposition.SimulationDefinitions(),
-                tierBytes);
+                tierBytes,
+                ShowcaseFeatureContent.Full,
+                m_Startup);
             _motor = new CharacterMotor { WalkSpeed = m_WalkSpeed };
 
             RenderingComposition.ResetSurfacePassDiagnostics("worldbuilding-gallery-enabled");
@@ -71,10 +84,27 @@ namespace VoxelEngine.Showcase
             RenderingComposition.SetFarBaseHeight(ShowcaseWorld.BaseHeightVoxels);
 
             float streamedMetres = m_LoadRadiusRegions * ShowcaseWorld.RegionMetres;
+
+            // The voxel LOD rings default to 409.6 m regardless of what the world streams. This
+            // scene streams less than that, so without this the renderer spent every frame
+            // considering thousands of chunks over ground no region will ever exist for: the
+            // arena filled with geometry for terrain that was never coming, leases started
+            // failing, and several hundred chunks the camera could actually see were left
+            // undrawn. That is the hole in the terrain, and it is a renderer configuration
+            // mistake rather than a streaming one.
+            RenderingComposition.SetVoxelRingRadiusMetres(streamedMetres);
+
+            // Set explicitly rather than inherited. This is a static on the scheduler, so a scene
+            // that leaves it alone runs with whatever the previously loaded scene chose.
+            RenderingComposition.SetVoxelDetailBandScale(m_DetailBandScale);
+
+            // The far field begins where the voxel rings end, not inside them. At 0.85 the two
+            // overlapped by nearly forty metres, which is only harmless if one of them is not
+            // drawn — and both are.
             _farTerrain = VoxelFarTerrain.Create(
                 transform,
                 m_Seed,
-                streamedMetres * 0.85f,
+                streamedMetres,
                 12000f);
             _farTerrain.Structures = _world.FarField;
 
@@ -93,8 +123,14 @@ namespace VoxelEngine.Showcase
             _worldObjectHost = new GameObject("Worldbuilding Gallery World Objects");
             _worldObjects = _worldObjectHost.AddComponent<WorldObjectRuntimeComposition>();
 
-            _world.GenerateWorldbuildingGalleryBlocking(_worldObjects);
-            _world.GenerateWorldbuildingGalleryTourExpansionBlocking();
+            _world.StartWorldbuildingGalleryBlocking(_worldObjects);
+
+            // Scatter after the world is populated and before the player is placed. Both systems
+            // read the built surface to decide where not to go, so running them against a world
+            // that is still filling would put grass through the promenade.
+            _life = _worldObjectHost.AddComponent<GalleryLifePopulation>();
+            _life.Populate(_world, _world.WorldbuildingGalleryCentreMetres());
+
             Spawn();
             SetCursorLocked(true);
         }
@@ -111,6 +147,7 @@ namespace VoxelEngine.Showcase
                 Destroy(_worldObjectHost);
             _worldObjectHost = null;
             _worldObjects = null;
+            _life = null;
 
             if (_farTerrain != null)
                 Destroy(_farTerrain.gameObject);
@@ -135,6 +172,16 @@ namespace VoxelEngine.Showcase
             _motor.Velocity = Vector3.zero;
             transform.position = _motor.EyePosition;
             _tourStopIndex = -1;
+
+            // The opening frame is the one every viewer sees, and it came up inside solid masonry.
+            // Report what the placement actually resolved to, so a buried spawn is a number in the
+            // log rather than something to reverse-engineer from a screenshot.
+            int spawnX = (int)math.floor(spawn.x / ShowcaseWorld.VoxelSize);
+            int spawnZ = (int)math.floor(spawn.z / ShowcaseWorld.VoxelSize);
+            Debug.Log($"Gallery spawn: eye={transform.position} feet={_motor.Position} "
+                    + $"terrain={_world.SurfaceHeight(spawnX, spawnZ)}v "
+                    + $"occupied={_world.OccupiedSurfaceHeight(spawnX, spawnZ)}v "
+                    + $"built={_world.HasBuiltContentAbove(spawnX, spawnZ)}");
 
             AimAt(_world.WorldbuildingGalleryLookTarget());
 
@@ -264,6 +311,111 @@ namespace VoxelEngine.Showcase
             transform.rotation = Quaternion.Euler(_pitch, _yaw, 0f);
         }
 
+        // -- scripted measurement camera -----------------------------------------
+
+        /// <inheritdoc />
+        public bool AutoWalk { get; set; }
+
+        /// <inheritdoc />
+        public bool AutoSurvey { get; set; }
+
+        /// <inheritdoc />
+        public bool AutoRecede { get; set; }
+
+        public float SurveyHeightMetres { get; set; } = 55f;
+        public float SurveySpinDegreesPerSecond { get; set; } = 30f;
+        public float SurveyPitchDegrees { get; set; } = 28f;
+        public float RecedeSpeedMetresPerSecond { get; set; } = 8f;
+        public float RecedeMaxDistanceMetres { get; set; } = 360f;
+
+        /// <inheritdoc />
+        public float DistanceToLandmarkMetres
+        {
+            get
+            {
+                Vector3 delta = transform.position - LandmarkWorldPosition();
+                delta.y = 0f;
+                return delta.magnitude;
+            }
+        }
+
+        /// <inheritdoc />
+        public string DescribeFarTerrain()
+        {
+            if (_farTerrain == null || _world == null) return "FAR none";
+            float streamed = m_LoadRadiusRegions * ShowcaseWorld.RegionMetres;
+            return $"FAR hole={_farTerrain.HoleRadiusMetres:0.#}m "
+                 + $"inner={_farTerrain.InnerRadiusMetres:0.#}m streamed={streamed:0.#}m "
+                 + $"residentGround={_world.ResidentGroundRadiusMetres(transform.position):0.#}m "
+                 + $"coverage={RenderingComposition.HasCompletePublishedNearSurfaceCoverage()} "
+                 + $"structures={(_farTerrain.Structures != null)}";
+        }
+
+        private Vector3 LandmarkWorldPosition()
+        {
+            float3 centre = _world.WorldbuildingGalleryCentreMetres();
+            return new Vector3(centre.x, centre.y, centre.z);
+        }
+
+        /// <summary>
+        /// Turns steadily while walking forward, so the path is a wide circle around the gallery
+        /// rather than a straight line out of it. The exhibits span barely a hundred metres, so a
+        /// straight walk leaves the authored district within seconds and spends the rest of the
+        /// run measuring empty procedural terrain.
+        /// </summary>
+        private void StepAutoWalk()
+        {
+            const float DegreesPerSecond = 24f;
+            _yaw += DegreesPerSecond * Time.deltaTime;
+            transform.rotation = Quaternion.Euler(_pitch, _yaw, 0f);
+        }
+
+        private void StepAutoSurvey()
+        {
+            Vector3 landmark = LandmarkWorldPosition();
+            transform.position = new Vector3(landmark.x,
+                                             landmark.y + SurveyHeightMetres,
+                                             landmark.z);
+            _yaw += SurveySpinDegreesPerSecond * Time.deltaTime;
+            _pitch = SurveyPitchDegrees;
+            transform.rotation = Quaternion.Euler(_pitch, _yaw, 0f);
+            _motor.Position = transform.position - Vector3.up * _motor.EyeHeight;
+            _motor.Velocity = Vector3.zero;
+        }
+
+        private void StepAutoRecede()
+        {
+            Vector3 landmark = LandmarkWorldPosition();
+            Vector3 away = transform.position - landmark;
+            away.y = 0f;
+            if (away.sqrMagnitude < 1e-3f) away = Vector3.back;
+            float distance = away.magnitude;
+
+            if (distance < RecedeMaxDistanceMetres)
+            {
+                Vector3 direction = away / distance;
+                float travelled = RecedeSpeedMetresPerSecond * Time.deltaTime;
+                // Rise with distance so the district stays in frame rather than sinking behind
+                // whatever terrain lies between here and it.
+                float height = landmark.y + 12f + distance * 0.16f;
+                Vector3 next = landmark + direction * (distance + travelled);
+                transform.position = new Vector3(next.x, height, next.z);
+            }
+
+            Vector3 toLandmark = landmark - transform.position;
+            if (toLandmark.sqrMagnitude > 1e-4f)
+            {
+                Quaternion look = Quaternion.LookRotation(toLandmark.normalized, Vector3.up);
+                Vector3 euler = look.eulerAngles;
+                _yaw = euler.y;
+                _pitch = euler.x > 180f ? euler.x - 360f : euler.x;
+                transform.rotation = Quaternion.Euler(_pitch, _yaw, 0f);
+            }
+
+            _motor.Position = transform.position - Vector3.up * _motor.EyeHeight;
+            _motor.Velocity = Vector3.zero;
+        }
+
         private void MovePlayer()
         {
             float forward = (Input.GetKey(KeyCode.W) ? 1f : 0f) -
@@ -271,6 +423,28 @@ namespace VoxelEngine.Showcase
             float strafe = (Input.GetKey(KeyCode.D) ? 1f : 0f) -
                            (Input.GetKey(KeyCode.A) ? 1f : 0f);
             bool sprint = Input.GetKey(KeyCode.LeftShift);
+
+            // Scripted modes substitute input at the top of the ordinary movement path rather than
+            // driving the transform directly, so a measured run exercises the same motor step and
+            // the same streaming work a played one does.
+            if (AutoSurvey)
+            {
+                StepAutoSurvey();
+                return;
+            }
+
+            if (AutoRecede)
+            {
+                StepAutoRecede();
+                return;
+            }
+
+            if (AutoWalk)
+            {
+                StepAutoWalk();
+                forward = 1f;
+                strafe = 0f;
+            }
 
             if (m_FlyMode)
             {

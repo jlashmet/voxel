@@ -22,7 +22,12 @@
         "MountingForce.WorldGen.Architecture",
         "MountingForce.WorldGen.Voxel",
         "Unity.Collections",
-        "Game.Composition.Showcase"
+        "Game.Composition.Showcase",
+        "VoxelEngine.Vegetation.Api",
+        "VoxelEngine.AmbientLife.Api",
+        "VoxelEngine.Terrain.Api",
+        "Unity.Mathematics",
+        "VoxelEngine.Characters.Runtime"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

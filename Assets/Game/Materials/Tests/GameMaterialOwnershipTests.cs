@@ -120,8 +120,9 @@ namespace Game.Materials.Tests
         public void DefaultTerrainMaterials_MapGameSemanticsToOpaqueEngineSlots()
         {
             Assert.That(GameTerrainMaterials.Default.Deep, Is.EqualTo(GameMaterialIds.Bedrock));
-            Assert.That(GameTerrainMaterials.Default.Subsurface, Is.EqualTo(GameMaterialIds.Stone));
-            Assert.That(GameTerrainMaterials.Default.Surface, Is.EqualTo(GameMaterialIds.Sand));
+            Assert.That(GameTerrainMaterials.Default.Subsurface, Is.EqualTo(GameMaterialIds.Dirt));
+            Assert.That(GameTerrainMaterials.Default.LowSurface, Is.EqualTo(GameMaterialIds.Dirt));
+            Assert.That(GameTerrainMaterials.Default.Surface, Is.EqualTo(GameMaterialIds.Grass));
         }
     }
 }

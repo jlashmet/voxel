@@ -130,7 +130,12 @@ namespace MountingForce.WorldGen.Architecture
                 if (lateralExtent > intent.EnvelopeDm.X - 12
                     || depthExtent > intent.EnvelopeDm.Z - 12)
                     throw new InvalidOperationException(
-                        "Generated architecture escaped its high-level structure envelope.");
+                        "Generated architecture escaped its high-level structure envelope: " +
+                        "lateral " + lateralExtent + " vs " + (intent.EnvelopeDm.X - 12) +
+                        ", depth " + depthExtent + " vs " + (intent.EnvelopeDm.Z - 12) +
+                        " (width " + form.WidthDm + ", depth " + form.DepthDm +
+                        ", upperOverhang " + form.UpperOverhangDm +
+                        ", roofOverhang " + theme.RoofOverhangDm + ").");
 
                 if (form.Footprint == FootprintForm.RearWing && form.WingDepthDm <= 0)
                     throw new InvalidOperationException("Rear-wing form is missing its wing.");

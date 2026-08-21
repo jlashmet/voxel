@@ -25,7 +25,7 @@ namespace MountingForce.WorldGen.Voxel
             VoxelWorldGenSettings settings,
             Allocator allocator)
         {
-            SettlementPlan settlement = KentridgeDefinition.Build(seed);
+            SettlementPlan settlement = SettlementVoxelPlan.Resolve(seed, in settings);
             PlannedPlaza plaza = settlement.Plaza;
             int s = settings.VoxelsPerDecimetre;
             int width = plaza.SizeDm.X * s;

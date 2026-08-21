@@ -92,7 +92,7 @@ namespace MountingForce.WorldGen.Voxel
                 for (var p = 0; p < item.Program.Length; p++)
                     catalogue.Program[programOffset + p] = item.Program[p];
 
-                Int3 footprintDm = KentridgeDefinition.FootprintDm(item.Plot.Archetype);
+                Int3 footprintDm = SettlementFootprints.For(plan, item.Plot.Archetype);
                 catalogue.Definitions[i] = new FeatureDefinition
                 {
                     Name = new FixedString64Bytes(
@@ -110,7 +110,7 @@ namespace MountingForce.WorldGen.Voxel
                     MaxPrimitives = 8,
                 };
 
-                int targetSurface = KentridgeVerticalProfile.PlotSurfaceY(
+                int targetSurface = KentridgeVerticalProfile.PlotSurfaceY(plan,
                     item.Plot,
                     plan.Seed,
                     s);

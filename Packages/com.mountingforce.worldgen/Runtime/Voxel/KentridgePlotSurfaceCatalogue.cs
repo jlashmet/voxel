@@ -48,7 +48,7 @@ namespace MountingForce.WorldGen.Voxel
         public static FeatureCatalogue Build(uint seed, VoxelWorldGenSettings settings,
                                              Allocator allocator)
         {
-            SettlementPlan plan = KentridgeDefinition.Build(seed);
+            SettlementPlan plan = SettlementVoxelPlan.Resolve(seed, in settings);
             int scale = settings.VoxelsPerDecimetre;
 
             var byArchetype = new List<BuildingPlot>[ArchetypeCount];
@@ -67,7 +67,7 @@ namespace MountingForce.WorldGen.Voxel
             int programLength = 0;
             for (int i = 0; i < ArchetypeCount; i++)
             {
-                programs[i] = PadProgram((StructureArchetype)i, settings);
+                programs[i] = PadProgram(plan, (StructureArchetype)i, settings);
                 programLength += programs[i].Length;
             }
 
@@ -89,7 +89,7 @@ namespace MountingForce.WorldGen.Voxel
             for (int id = 0; id < ArchetypeCount; id++)
             {
                 StructureArchetype archetype = (StructureArchetype)id;
-                Int3 footprintDm = KentridgeDefinition.FootprintDm(archetype);
+                Int3 footprintDm = SettlementFootprints.For(plan, archetype);
                 int[] program = programs[id];
                 CopyProgram(ref catalogue, programOffset, program);
 
@@ -122,7 +122,7 @@ namespace MountingForce.WorldGen.Voxel
                 List<BuildingPlot> plots = byArchetype[id];
                 for (int i = 0; i < plots.Count; i++)
                     catalogue.ExplicitPlacements[placementOffset + i] =
-                        ResolvePlacement(plots[i], seed, scale);
+                        ResolvePlacement(plan, plots[i], seed, scale);
 
                 catalogue.Rules[id] = ExplicitRule(id, placementOffset, plots.Count);
                 programOffset += program.Length;
@@ -140,9 +140,9 @@ namespace MountingForce.WorldGen.Voxel
             return catalogue;
         }
 
-        private static ExplicitPlacement ResolvePlacement(BuildingPlot plot, uint seed, int scale)
+        private static ExplicitPlacement ResolvePlacement(SettlementPlan plan, BuildingPlot plot, uint seed, int scale)
         {
-            int targetSurface = KentridgeVerticalProfile.PlotSurfaceY(plot, seed, scale);
+            int targetSurface = KentridgeVerticalProfile.PlotSurfaceY(plan, plot, seed, scale);
             return new ExplicitPlacement
             {
                 Position = new int3(
@@ -200,11 +200,11 @@ namespace MountingForce.WorldGen.Voxel
             return new PadRect(x0, z0, math.max(1, x1 - x0), math.max(1, z1 - z0));
         }
 
-        private static int[] PadProgram(StructureArchetype archetype,
+        private static int[] PadProgram(SettlementPlan plan, StructureArchetype archetype,
                                         VoxelWorldGenSettings settings)
         {
             int s = settings.VoxelsPerDecimetre;
-            Int3 footprint = KentridgeDefinition.FootprintDm(archetype);
+            Int3 footprint = SettlementFootprints.For(plan, archetype);
             PadRect core = PadFor(archetype);
             byte dirt = settings.Materials.Resolve(MaterialRole.RoadSurface);
             byte groundCover = settings.Materials.Resolve(MaterialRole.Moss);

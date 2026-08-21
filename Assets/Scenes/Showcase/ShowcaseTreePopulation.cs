@@ -71,6 +71,17 @@ namespace VoxelEngine.Showcase
                 return;
             }
 
+            // The tree world is replaced wholesale rather than appended to, so exactly one
+            // component may publish it. A scene that scatters its own trees publishes the castle's
+            // as well; if this ran too it would delete them a frame later.
+            if (FindFirstObjectByType<GalleryLifePopulation>() != null)
+            {
+                _done = true;
+                Completed = true;
+                enabled = false;
+                return;
+            }
+
             int cx = ShowcaseWorld.RegionVoxelEdge / 2;
             int cz = ShowcaseWorld.RegionVoxelEdge / 2 + 120;
             int ground = TerrainSampler.HeightAt(cx, cz, worldSeed);

@@ -46,29 +46,41 @@ namespace VoxelEngine.Showcase
                 throw new InvalidOperationException(
                     "The baked showcase world must be loaded before runtime world generation starts.");
 
-            TextAsset asset = Resources.Load<TextAsset>(ShowcaseWorldBakeCodec.ResourcePath);
+            LoadBake(LoadBakeResource(
+                ShowcaseWorldBakeCodec.ResourcePath, "Voxel Showcase", "Bake Showcase World"));
+            EnsureCastleWorldObjectSceneLoaded();
+        }
+
+        /// <summary>
+        /// Reads and decodes one baked startup image from Resources, or explains what to run.
+        ///
+        /// A missing or stale bake is a build-step problem, not a world-generation problem, and
+        /// the two are worth keeping distinguishable: the startup path deliberately refuses to
+        /// fall back to procedural generation, so without this the failure surfaces as an
+        /// unrelated null or a decode error far from its cause.
+        /// </summary>
+        private static ShowcaseWorldBake LoadBakeResource(
+            string resourcePath, string sceneLabel, string bakeCommand)
+        {
+            TextAsset asset = Resources.Load<TextAsset>(resourcePath);
             if (asset == null)
                 throw new InvalidOperationException(
-                    "The Voxel Showcase startup bake is missing. Run " +
-                    "Tools > Voxel Engine > Bake Showcase World before entering Play mode. " +
-                    "Runtime generation is deliberately disabled for the showcase startup path.");
+                    $"The {sceneLabel} startup bake is missing. Run " +
+                    $"Tools > Voxel Engine > {bakeCommand} before entering Play mode. " +
+                    "Runtime generation is deliberately disabled for this startup path.");
 
-            ShowcaseWorldBake bake;
             try
             {
-                bake = ShowcaseWorldBakeCodec.Deserialize(asset.bytes);
+                return ShowcaseWorldBakeCodec.Deserialize(asset.bytes);
             }
             catch (Exception ex) when (ex is InvalidDataException
                                        || ex is EndOfStreamException
                                        || ex is ArgumentException)
             {
                 throw new InvalidOperationException(
-                    "The Voxel Showcase startup bake is invalid or stale. Re-run " +
-                    "Tools > Voxel Engine > Bake Showcase World.", ex);
+                    $"The {sceneLabel} startup bake is invalid or stale. Re-run " +
+                    $"Tools > Voxel Engine > {bakeCommand}.", ex);
             }
-
-            LoadBake(bake);
-            EnsureCastleWorldObjectSceneLoaded();
         }
 
         /// <summary>

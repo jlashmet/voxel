@@ -31,7 +31,7 @@ namespace MountingForce.WorldGen.Voxel
             VoxelWorldGenSettings settings,
             Allocator allocator)
         {
-            SettlementPlan plan = KentridgeDefinition.Build(seed);
+            SettlementPlan plan = SettlementVoxelPlan.Resolve(seed, in settings);
             ArchitectureTheme theme = plan.Theme;
             int scale = settings.VoxelsPerDecimetre;
             BuildingPlot[] plots = PlotsByRole(plan);
@@ -72,7 +72,7 @@ namespace MountingForce.WorldGen.Voxel
                 for (int p = 0; p < program.Code.Length; p++)
                     catalogue.Program[programOffset + p] = program.Code[p];
 
-                Int3 footprintDm = KentridgeDefinition.FootprintDm(plot.Archetype);
+                Int3 footprintDm = SettlementFootprints.For(plan, plot.Archetype);
                 int3 footprint = new int3(
                     footprintDm.X * scale,
                     footprintDm.Y * scale,
@@ -119,7 +119,7 @@ namespace MountingForce.WorldGen.Voxel
                     MaxPrimitives = 256,
                 };
 
-                int targetSurface = KentridgeVerticalProfile.PlotSurfaceY(plot, seed, scale);
+                int targetSurface = KentridgeVerticalProfile.PlotSurfaceY(plan, plot, seed, scale);
                 catalogue.ExplicitPlacements[roleId] = new ExplicitPlacement
                 {
                     Position = new int3(

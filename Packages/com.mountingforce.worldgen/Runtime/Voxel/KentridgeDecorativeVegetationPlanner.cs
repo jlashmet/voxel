@@ -19,6 +19,8 @@ namespace MountingForce.WorldGen.Voxel
             int voxelsPerDecimetre = 1,
             float density = 0.72f)
         {
+            // Editor-preview overload: no VoxelWorldGenSettings here, so this path stays
+            // Kentridge-specific rather than inventing a settlement to preview.
             SettlementPlan plan = KentridgeDefinition.Build(seed);
             List<VegetationSurfaceSample> samples = BuildSurfaceSamples(
                 plan, seed, math.max(1, voxelsPerDecimetre));
@@ -49,7 +51,7 @@ namespace MountingForce.WorldGen.Voxel
             for (int i = 0; i < plan.Plots.Count; i++)
             {
                 BuildingPlot plot = plan.Plots[i];
-                Int3 footprint = KentridgeDefinition.FootprintDm(plot.Archetype);
+                Int3 footprint = SettlementFootprints.For(plan, plot.Archetype);
                 AddGardenSamples(samples, plot, footprint, seed, scale);
                 AddWallSamples(samples, plot, footprint, seed, scale);
             }

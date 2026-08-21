@@ -75,10 +75,35 @@ namespace MountingForce.WorldGen.Voxel
         public readonly int VoxelsPerDecimetre;
         public readonly VoxelMaterialMap Materials;
 
+        /// <summary>
+        /// Which settlement the voxel pass is realizing. Null means Kentridge.
+        ///
+        /// Every catalogue in the pass used to call <c>KentridgeDefinition.Build(seed)</c> for
+        /// itself, which quietly made "the town" a compile-time constant: two settlements could be
+        /// planned but only one could ever be turned into voxels. Carrying the plan on the settings
+        /// that already reach every catalogue makes the pass settlement-generic without threading a
+        /// new argument through twenty call sites, and it stops the same plan being rebuilt once
+        /// per catalogue.
+        /// </summary>
+        public readonly SettlementPlan Settlement;
+
         public VoxelWorldGenSettings(int voxelsPerDecimetre, VoxelMaterialMap materials)
+            : this(voxelsPerDecimetre, materials, null)
+        {
+        }
+
+        public VoxelWorldGenSettings(
+            int voxelsPerDecimetre,
+            VoxelMaterialMap materials,
+            SettlementPlan settlement)
         {
             VoxelsPerDecimetre = voxelsPerDecimetre < 1 ? 1 : voxelsPerDecimetre;
             Materials = materials;
+            Settlement = settlement;
         }
+
+        /// <summary>Returns these settings bound to a specific settlement plan.</summary>
+        public VoxelWorldGenSettings For(SettlementPlan settlement) =>
+            new VoxelWorldGenSettings(VoxelsPerDecimetre, Materials, settlement);
     }
 }

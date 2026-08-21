@@ -28,7 +28,7 @@ namespace VoxelEngine.Showcase
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Install()
         {
-            if (UnityEngine.Object.FindFirstObjectByType<VoxelShowcase>() == null) return;
+            if (FindDriver() == null) return;
 
             // Subsystem A/B, for attributing frame cost in a scene that renders many things at
             // once. Disabling a renderer here is a measurement, not a setting: it answers "what
@@ -76,6 +76,26 @@ namespace VoxelEngine.Showcase
                 Debug.Log("HARNESS tracking surface reappearance");
             }
 
+            // Shadow distance is a draw-submission dial, not a shading one. Every chunk inside it
+            // is submitted a second time for the shadow pass, and this project's frame cost is
+            // dominated by per-chunk CPU submission rather than by pixels — the frame rate does
+            // not change between 800x450 and 1600x900. Making it measurable is the only way to
+            // know what the shadow pass is actually worth here.
+            double detailScale = Value("-voxel-detail-band-scale", -1.0);
+            if (detailScale > 0.0)
+            {
+                VoxelEngine.Composition.RenderingComposition.SetVoxelDetailBandScale(
+                    (float)detailScale);
+                Debug.Log($"HARNESS detail band scale {detailScale}");
+            }
+
+            double shadowDistance = Value("-voxel-shadow-distance", -1.0);
+            if (shadowDistance >= 0.0)
+            {
+                QualitySettings.shadowDistance = (float)shadowDistance;
+                Debug.Log($"HARNESS shadow distance {shadowDistance} m");
+            }
+
             if (HasFlag("-voxel-uncapped"))
             {
                 // Both are needed: vSyncCount overrides targetFrameRate whenever it is non-zero,
@@ -114,6 +134,23 @@ namespace VoxelEngine.Showcase
             UnityEngine.Object.DontDestroyOnLoad(root);
         }
 
+        /// <summary>
+        /// Finds the scene's measurable driver.
+        ///
+        /// Searching by interface rather than by concrete type is what lets any showcase scene be
+        /// measured. Looking for <see cref="VoxelShowcase"/> specifically meant a player built from
+        /// the gallery scene installed no harness at all: no frame log, no screenshots, and no
+        /// self-quit, so the run had to be killed by the watchdog and produced nothing.
+        /// </summary>
+        private static IShowcaseMeasurementDriver FindDriver()
+        {
+            var behaviours = UnityEngine.Object.FindObjectsByType<MonoBehaviour>(
+                FindObjectsInactive.Include, FindObjectsSortMode.None);
+            for (int i = 0; i < behaviours.Length; i++)
+                if (behaviours[i] is IShowcaseMeasurementDriver driver) return driver;
+            return null;
+        }
+
         private static void DisableSubsystem(string name)
         {
             switch (name)
@@ -129,6 +166,11 @@ namespace VoxelEngine.Showcase
                     break;
                 case "farterrain":
                     DisableBehavioursNamed("VoxelFarTerrain");
+                    break;
+                case "visibility-reuse":
+                    VoxelEngine.Composition.RenderingComposition
+                        .SetVisibilityReuseEnabled(false);
+                    Debug.Log("HARNESS disabled settled-frame visibility reuse");
                     break;
                 case "visible-eviction":
                     VoxelEngine.Composition.RenderingComposition
@@ -307,7 +349,7 @@ namespace VoxelEngine.Showcase
 
                 if (!_surveying && SurveyAfter > 0.0 && _totalElapsed >= SurveyAfter)
                 {
-                    var vantage = UnityEngine.Object.FindFirstObjectByType<VoxelShowcase>();
+                    IShowcaseMeasurementDriver vantage = FindDriver();
                     if (vantage != null)
                     {
                         vantage.SurveyHeightMetres = SurveyHeight;
@@ -321,7 +363,7 @@ namespace VoxelEngine.Showcase
 
                 if (!_receding && RecedeAfter > 0.0 && _totalElapsed >= RecedeAfter)
                 {
-                    var target = UnityEngine.Object.FindFirstObjectByType<VoxelShowcase>();
+                    IShowcaseMeasurementDriver target = FindDriver();
                     if (target != null)
                     {
                         target.RecedeSpeedMetresPerSecond = RecedeSpeed;
@@ -335,7 +377,7 @@ namespace VoxelEngine.Showcase
 
                 if (!_walking && AutoWalkAfter > 0.0 && _totalElapsed >= AutoWalkAfter)
                 {
-                    var showcase = UnityEngine.Object.FindFirstObjectByType<VoxelShowcase>();
+                    IShowcaseMeasurementDriver showcase = FindDriver();
                     if (showcase != null)
                     {
                         showcase.AutoWalk = true;
@@ -498,7 +540,7 @@ namespace VoxelEngine.Showcase
                 string rings = VoxelEngine.Composition.RenderingComposition.DescribeVoxelRings();
                 if (rings != null) Debug.Log(rings);
 
-                var showcase = UnityEngine.Object.FindFirstObjectByType<VoxelShowcase>();
+                IShowcaseMeasurementDriver showcase = FindDriver();
                 if (showcase != null)
                 {
                     Debug.Log(showcase.DescribeFarTerrain());
@@ -518,6 +560,15 @@ namespace VoxelEngine.Showcase
                 _visibleDrops = 0;
                 _visibleDropWorst = 0;
                 _missingMax = 0;
+
+                // Whole-screen black frames leave the chunk counts untouched, so they are invisible
+                // to the SURFACE line. These two are the ways the background can go missing.
+                Debug.Log(string.Format(CultureInfo.InvariantCulture,
+                    "PASSES t={0:0.0} featureCreates={1} skyNoMaterial={2}",
+                    _totalElapsed,
+                    VoxelEngine.Composition.RenderingComposition.GetRenderFeatureCreateCount(),
+                    VoxelEngine.Composition.RenderingComposition
+                        .GetSkyPassMissingMaterialCount()));
 
                 Debug.Log(string.Format(CultureInfo.InvariantCulture,
                     "FPSLOG t={0:0.0} frames={1} fps={2:0.0} "

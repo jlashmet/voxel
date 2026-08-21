@@ -34,6 +34,54 @@ namespace VoxelEngine.Showcase
             // worker. In gameplay its session is polled once per frame; the baker has no player
             // loop, so block here while still yielding CPU time to that worker. A tight million-
             // iteration poll could hit its guard before a perfectly healthy build completed.
+            WaitForCastleDuringBake();
+
+            MaterialiseStartupDisc(RegionAt(SpawnPosition()), radius);
+
+            if (_pendingFeatureRegions.Count != 0 || _featureBuild != null)
+                throw new InvalidOperationException(
+                    "Offline showcase bake ended with unfinished generic feature work.");
+        }
+
+        /// <summary>
+        /// Produces the finished worldbuilding gallery world for the offline baker.
+        ///
+        /// The gallery is the more expensive of the two showcases to start: it pays the castle,
+        /// then a 48-million-voxel authoring pass over seven exhibits, a promenade, a cave walk,
+        /// and two furnished guild houses — every time the scene is entered. None of that is
+        /// per-session state, so all of it belongs in an image.
+        /// </summary>
+        public void GenerateGalleryForBakeBlocking(int startupRadiusRegions)
+        {
+            EnsureFreshForBake();
+            int radius = math.clamp(startupRadiusRegions, 0, LoadRadiusRegions);
+
+            // The castle is authored on a worker and is part of this world too, so it has to be
+            // complete before the gallery writes anything: a castle region finishing later would
+            // overwrite gallery voxels wholesale, which is the same failure terrain generation
+            // causes when it runs after a landmark rather than before it.
+            GenerateCastleOriginForBakeBlocking();
+            for (int i = 0; i < _castleRegions.Count; i++)
+                GenerateRegionBlocking(_castleRegions[i]);
+            WaitForCastleDuringBake();
+
+            GenerateWorldbuildingGalleryBlocking(null);
+            GenerateWorldbuildingGalleryTourExpansionBlocking();
+
+            // Fill the whole streamed radius around the gallery spawn, not a smaller startup disc.
+            // The original showcase learned this the hard way: a bake smaller than the streamed
+            // radius leaves a gap the budget-sliced streamer produces at a few seconds of work per
+            // real minute, so the ground simply never arrives while the LOD rings keep asking for
+            // it. Baking the whole radius removes the handover rather than tuning it.
+            MaterialiseStartupDisc(RegionAt(WorldbuildingGallerySpawnPosition()), radius);
+
+            if (_pendingFeatureRegions.Count != 0 || _featureBuild != null)
+                throw new InvalidOperationException(
+                    "Offline gallery bake ended with unfinished generic feature work.");
+        }
+
+        private void WaitForCastleDuringBake()
+        {
             DateTime castleDeadline = DateTime.UtcNow + BakeCastleTimeout;
             while (!_hasCastlePlan)
             {
@@ -47,12 +95,10 @@ namespace VoxelEngine.Showcase
                 if (_castleBuild != null && _castleBuild.StageNumber == 2)
                     Thread.Sleep(1);
             }
+        }
 
-            // Bake a compact startup neighbourhood rather than the entire streaming radius. The
-            // castle is complete on the first gameplay frame and terrain around the player is
-            // already solid; ordinary streaming can fill the outer rings afterwards without a
-            // giant hundreds-of-megabytes startup asset.
-            int3 centre = RegionAt(SpawnPosition());
+        private void MaterialiseStartupDisc(int3 centre, int radius)
+        {
             for (int dx = -radius; dx <= radius; dx++)
             for (int dz = -radius; dz <= radius; dz++)
             {
@@ -70,10 +116,6 @@ namespace VoxelEngine.Showcase
                 if (centre.y < minLayer || centre.y > maxLayer)
                     GenerateRegionBlocking(new int3(rx, centre.y, rz));
             }
-
-            if (_pendingFeatureRegions.Count != 0 || _featureBuild != null)
-                throw new InvalidOperationException(
-                    "Offline showcase bake ended with unfinished generic feature work.");
         }
 
         /// <summary>Captures every resident region produced by <see cref="GenerateForBakeBlocking"/>.</summary>
@@ -126,7 +168,9 @@ namespace VoxelEngine.Showcase
                 FeatureInstancesBuilt,
                 ReferenceArchMin,
                 ReferenceArchMax,
-                regions);
+                regions,
+                HasGalleryContent,
+                GalleryCavePathEnd);
         }
 
         /// <summary>
@@ -190,6 +234,7 @@ namespace VoxelEngine.Showcase
             CastleVoxels = bake.CastleVoxels;
             FeatureVoxelsBuilt = bake.FeatureVoxels;
             FeatureInstancesBuilt = bake.FeatureInstances;
+            RestoreGalleryMetadata(bake);
             ReferenceArchMin = bake.ReferenceArchMin;
             ReferenceArchMax = bake.ReferenceArchMax;
             RegionsGenerated = _generated.Count;

@@ -60,7 +60,7 @@ namespace MountingForce.WorldGen.Voxel
         public static FeatureCatalogue Build(uint seed, VoxelWorldGenSettings settings,
                                              Allocator allocator)
         {
-            SettlementPlan plan = KentridgeDefinition.Build(seed);
+            SettlementPlan plan = SettlementVoxelPlan.Resolve(seed, in settings);
             KentridgeUrbanSkeletonPlan skeleton = KentridgeUrbanSkeleton.Build(seed);
             var strips = new List<Strip>(8);
 

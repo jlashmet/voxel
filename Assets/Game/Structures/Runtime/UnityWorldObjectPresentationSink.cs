@@ -70,6 +70,7 @@ namespace Game.Structures.Runtime
             GameObject root = GameObject.CreatePrimitive(PrimitiveType.Cube);
             root.name = $"WorldObject_{plan.Kind}_{plan.Id}";
             root.transform.SetParent(transform, false);
+            ApplyProxyMaterial(root);
 
             int3 size = plan.BaselineBounds.Size;
             root.transform.localScale = new Vector3(
@@ -85,6 +86,72 @@ namespace Game.Structures.Runtime
             _proxies.Add(plan.Id, proxy);
             return proxy;
         }
+
+        /// <summary>
+        /// Replaces the primitive's built-in material with one the render pipeline can actually
+        /// draw.
+        ///
+        /// <see cref="GameObject.CreatePrimitive"/> assigns Unity's default material, which uses
+        /// the built-in Standard shader. This project renders through URP, where that shader does
+        /// not exist — so every proxy drew as solid magenta in a player build. It was visible in
+        /// the gallery as a bright pink slab standing in the middle of the district.
+        /// </summary>
+        private static void ApplyProxyMaterial(GameObject root)
+        {
+            var renderer = root.GetComponent<MeshRenderer>();
+            if (renderer == null) return;
+
+            if (s_ProxyMaterial == null)
+            {
+                Shader shader = Shader.Find("Universal Render Pipeline/Lit")
+                                ?? Shader.Find("Universal Render Pipeline/Unlit");
+                if (shader == null)
+                {
+                    // Better a proxy nobody can see than a magenta one: an invisible interactable
+                    // is a missing feature, a magenta box reads as a broken world.
+                    renderer.enabled = false;
+                    return;
+                }
+
+                s_ProxyMaterial = new Material(shader)
+                {
+                    name = "World Object Proxy (Shared Runtime)",
+                    hideFlags = HideFlags.HideAndDontSave,
+                    color = new Color(0.32f, 0.30f, 0.27f, 1f),
+                };
+            }
+
+            renderer.sharedMaterial = s_ProxyMaterial;
+        }
+
+        private static void ApplyParticleMaterial(ParticleSystem particles)
+        {
+            var renderer = particles.GetComponent<ParticleSystemRenderer>();
+            if (renderer == null) return;
+
+            if (s_ParticleMaterial == null)
+            {
+                Shader shader = Shader.Find("Universal Render Pipeline/Particles/Unlit")
+                                ?? Shader.Find("Universal Render Pipeline/Unlit");
+                if (shader == null)
+                {
+                    renderer.enabled = false;
+                    return;
+                }
+
+                s_ParticleMaterial = new Material(shader)
+                {
+                    name = "World Object Particles (Shared Runtime)",
+                    hideFlags = HideFlags.HideAndDontSave,
+                    color = new Color(1f, 0.72f, 0.35f, 1f),
+                };
+            }
+
+            renderer.sharedMaterial = s_ParticleMaterial;
+        }
+
+        private static Material s_ProxyMaterial;
+        private static Material s_ParticleMaterial;
 
         private void ApplyTarget(Proxy proxy, in WorldObjectPresentationPlan plan)
         {
@@ -136,6 +203,11 @@ namespace Game.Structures.Runtime
                 main.startLifetime = 0.5f;
                 main.startSpeed = 0.5f;
                 main.startSize = 0.08f;
+
+                // A ParticleSystem added at runtime comes up with the built-in default particle
+                // material, which URP cannot draw — the campfire in the gallery rendered as a
+                // magenta smear. Same story as the proxy cube, different default.
+                ApplyParticleMaterial(proxy.Particles);
             }
 
             if (proxy.Particles == null) return;

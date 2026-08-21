@@ -29,6 +29,8 @@ namespace MountingForce.WorldGen.Voxel
                                     IVoxelSurfaceQuery surfaceQuery,
                                     out List<TreeInstance> instances)
         {
+            // Editor-preview overload: no VoxelWorldGenSettings here, so this path stays
+            // Kentridge-specific rather than inventing a settlement to preview.
             SettlementPlan plan = KentridgeDefinition.Build(seed);
             List<VegetationCandidate> candidates =
                 KentridgeVegetationLayoutPlanner.Build(plan);
@@ -65,6 +67,8 @@ namespace MountingForce.WorldGen.Voxel
         /// </summary>
         public static List<TreeInstance> BuildAnalytic(uint seed, int voxelsPerDecimetre = 1)
         {
+            // Editor-preview overload: no VoxelWorldGenSettings here, so this path stays
+            // Kentridge-specific rather than inventing a settlement to preview.
             SettlementPlan plan = KentridgeDefinition.Build(seed);
             List<VegetationCandidate> candidates =
                 KentridgeVegetationLayoutPlanner.Build(plan);

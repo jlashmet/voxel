@@ -65,6 +65,7 @@ namespace VoxelEngine.Rendering.Runtime
         /// </summary>
         public override void Create()
         {
+            VoxelRenderBridge.RenderFeatureCreateCount++;
             m_SkyPass?.Dispose();
             m_Pass?.Dispose();
 

@@ -220,13 +220,13 @@ MonoBehaviour:
   m_GameObject: {fileID: 100000}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d7070b59e7d64ea3a57ce9ed08dd29a1, type: 3}
+  m_Script: {fileID: 11500000, guid: 66d1b9e059b064886ab4dd457c98a4b2, type: 3}
   m_Name:
   m_EditorClassIdentifier:
   m_Seed: 1592594996
-  m_BrickPoolCapacity: 262144
-  m_LoadRadiusRegions: 8
-  m_UnloadRadiusRegions: 11
+  m_BrickPoolCapacity: 800000
+  m_LoadRadiusRegions: 4
+  m_UnloadRadiusRegions: 6
   m_GenerateBudgetMs: 4
   m_WalkSpeed: 5.5
   m_FlySpeed: 18

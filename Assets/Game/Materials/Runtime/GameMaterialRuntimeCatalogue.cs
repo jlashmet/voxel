@@ -247,15 +247,27 @@ namespace Game.Materials.Runtime
             int layer) =>
             new(materialIndex, new float4(r, g, b, 1f), layer, layer,
                 MaterialTextureProjection.Triplanar,
+                // Deliberately low, and deliberately not the lever that was wrong. Terrain is
+                // luminance-only, and the shader takes the luminance path wholesale when it is —
+                // the blended-texture path is discarded — so this value never reached a terrain
+                // pixel either way. Raising it would have looked like a fix and changed nothing.
                 textureBlend: 0.16f,
-                uvScale: 1f / 52f,
-                normalStrength: 0.035f,
-                roughness: 0.90f,
+                // This is what made ground look untextured. A 52 m tile stretches the source over
+                // eight buildings' worth of frontage, so nothing survives at eye level and the
+                // luminance detail below had no structure left to modulate. Triplanar projection
+                // and the macro variation keep a tile this size from reading as a repeating grid.
+                uvScale: 1f / 7f,
+                // Ground with no normal relief lights like sheet plastic. Still gentle: this is
+                // stylized terrain, not a photoscan.
+                normalStrength: 0.24f,
+                roughness: 0.88f,
                 luminanceOnly: true,
                 luminancePivot: 0.66f,
-                detailStrength: 0.20f,
-                chromaStrength: 0.015f,
-                macroVariation: 0.07f);
+                // The authored colour keeps deciding hue; these decide how much shape and how much
+                // of the source's own colour drift is allowed to show through it.
+                detailStrength: 0.58f,
+                chromaStrength: 0.10f,
+                macroVariation: 0.22f);
 
         private static MaterialPresentationDefinition Masonry(
             byte materialIndex,

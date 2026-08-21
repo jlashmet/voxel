@@ -228,7 +228,7 @@ namespace VoxelEngine.Rendering.Runtime
             _scheduler.MaxConcurrentBuildsConverging = Math.Max(
                 1, VoxelRenderBridge.SurfaceMaxConcurrentBuildsConverging);
             _scheduler.MaxConcurrentBuildsConverged = Math.Max(
-                1, VoxelRenderBridge.SurfaceMaxConcurrentBuildsConverged);
+                0, VoxelRenderBridge.SurfaceMaxConcurrentBuildsConverged);
             _scheduler.SolidArenaMaxActiveLeases = Math.Max(
                 1, VoxelRenderBridge.SolidArenaMaxActiveLeases);
             _scheduler.WaterBuildBudgetMs = Math.Max(0.0, VoxelRenderBridge.WaterBuildBudgetMs);
@@ -392,10 +392,8 @@ namespace VoxelEngine.Rendering.Runtime
 
                 ctx.cmd.SetRenderTarget(passData.CameraColor, passData.CameraDepth);
 
-                passData.Properties.Clear();
                 for (int i = 0; i < passData.TransvoxelEntryCount; i++)
-                    passData.TransvoxelEntries[i].Draw(cmd, passData.Material,
-                                                       passData.Properties);
+                    passData.TransvoxelEntries[i].Draw(cmd, passData.Material);
 
                 if (VoxelRenderBridge.WaterRenderEnabled
                     && passData.WaterMaterial != null && passData.WaterEntryCount > 0)

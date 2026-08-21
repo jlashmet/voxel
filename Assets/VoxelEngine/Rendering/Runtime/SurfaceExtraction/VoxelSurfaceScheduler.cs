@@ -845,6 +845,26 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public float MaxVoxelRingRadiusMetres { get; set; } = MaxVoxelRingRadiusMetresDefault;
 
         /// <summary>
+        /// Scales where each LOD step hands over to the next. 1 keeps the shipped layout, in which
+        /// the finest step reaches 96 m.
+        ///
+        /// This is a presentation parameter and it is a real trade, not a free win: the drawn set
+        /// is dominated by the finest ring, so pulling it in is the only lever that meaningfully
+        /// reduces draw submission — and everything past the new boundary is meshed at half
+        /// resolution. <see cref="ResolveRingBand"/> documents what that looks like when it goes
+        /// too far: a building beyond the fine band renders as a grey blob. Scale the whole layout
+        /// rather than only the first band so the coarser rings close ranks behind it instead of
+        /// leaving a gap.
+        /// </summary>
+        public static float DetailBandScale
+        {
+            get => s_DetailBandScale;
+            set => s_DetailBandScale = Math.Max(0.05f, value);
+        }
+
+        private static float s_DetailBandScale = 1f;
+
+        /// <summary>
         /// Whether coarse LOD rings are used at all.
         ///
         /// False gives the finest ring the entire streamed radius and collapses the rest. A world
@@ -856,7 +876,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public int MaxResidentChunksPerRing { get; set; } = 4096;
 
         public int MaxConcurrentBuildsConverging { get; set; } = 12;
-        public int MaxConcurrentBuildsConverged { get; set; } = 1;
+        public int MaxConcurrentBuildsConverged { get; set; } = 0;
 
         private static int ScaleBudget(int budget, double scale) =>
             (int)Math.Min(int.MaxValue, Math.Max(0L, (long)(budget * scale)));
@@ -1187,7 +1207,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 // A coarse ring collapsing to a sliver is the correct outcome: there is no
                 // terrain out there to mesh, and the analytic far field already covers it.
                 (float inner, float outer, bool suspended) = ResolveRingBand(
-                    ring.InnerRadiusMetres, ring.OuterRadiusMetres, ringCap, LodEnabled);
+                    ring.InnerRadiusMetres * DetailBandScale,
+                    ring.OuterRadiusMetres * DetailBandScale,
+                    ringCap, LodEnabled);
 
                 for (int i = 0; i < ringWorkers.Length; i++)
                 {
@@ -1215,9 +1237,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             // bounds it is a ceiling on how many builds may be running at once. While the player can
             // see a hole that ceiling is high; once the view is complete the remaining work is
             // prefetch nobody is waiting on, and it gets a much smaller share of the machine.
-            int buildCeiling = _lastMissingVisibleCount > 0
-                ? MaxConcurrentBuildsConverging
-                : MaxConcurrentBuildsConverged;
+            int buildCeiling = ResolveBuildCeiling(
+                _lastMissingVisibleCount,
+                MaxConcurrentBuildsConverging,
+                MaxConcurrentBuildsConverged);
             int activeBuilds = 0;
             for (int i = 0; i < workerCount; i++)
                 if (_allWorkers[i].HasActiveBuild) activeBuilds++;
@@ -1399,8 +1422,89 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 0L, GC.GetAllocatedBytesForCurrentThread() - managedAllocationStart);
         }
 
+        /// <summary>
+        /// Chooses visible convergence over background prefetch. Zero is a valid settled ceiling:
+        /// the next frame that observes a visible hole switches straight back to the converging
+        /// value, while a complete view stops consuming job workers and arena leases off screen.
+        /// </summary>
+        internal static int ResolveBuildCeiling(
+            int missingVisibleCount, int convergingCeiling, int convergedCeiling) =>
+            Math.Max(0, missingVisibleCount > 0 ? convergingCeiling : convergedCeiling);
+
+        private Vector3 _lastVisibilityCameraPosition;
+        private Quaternion _lastVisibilityCameraRotation;
+        private ulong _lastVisibilityDemandVersion;
+        private bool _hasVisibilityCache;
+
+        /// <summary>
+        /// Reuses the previous frame's drawn set when nothing it depends on has moved.
+        ///
+        /// The traversal below costs roughly two milliseconds of main thread on a settled world:
+        /// several thousand candidates a frame, each paying four hash lookups and a managed
+        /// frustum test to re-derive an answer that is bit-for-bit the answer it gave last frame.
+        /// That is most of the frame budget of a stationary camera.
+        ///
+        /// The reuse condition is deliberately conservative rather than clever. A shard is taken
+        /// on trust only when it wants nothing (<c>MissingVisibleCount</c>), is building nothing
+        /// and uploading nothing — so no chunk can turn ready and need to enter the set — and when
+        /// its admission/invalidation counter is unchanged, which covers every authoritative voxel
+        /// edit and every newly streamed region. Any of those, or a camera that moved at all, and
+        /// the full pass runs. A chunk rebuilt in place needs no help from here: the drawn set
+        /// holds entry references and each draw reads the entry's live arena lease.
+        /// </summary>
+        public static bool VisibilityReuseEnabled { get; set; } = true;
+
+        private bool TryReuseVisibility(Camera camera, float voxelSize, int frame)
+        {
+            if (camera == null || !VisibilityReuseEnabled) return false;
+
+            ulong demand = 0;
+            for (int i = 0; i < _allWorkers.Length; i++)
+            {
+                CpuTransvoxelChunkCache worker = _allWorkers[i];
+                // Background prefetch is deliberately 360 degrees, so some shard is almost always
+                // building something out of shot. Waiting for that to go quiet meant this never
+                // engaged. What matters is narrower: nothing the camera can see is waiting. With
+                // MissingVisibleCount at zero, every in-frustum chunk that wants to be drawn is
+                // drawn, so a prefetch build landing behind the viewer cannot change the set.
+                if (worker.MissingVisibleCount != 0) return false;
+                demand += worker.DemandVersion + worker.ReadySetVersion;
+            }
+
+            Transform cameraTransform = camera.transform;
+            Vector3 position = cameraTransform.position;
+            Quaternion rotation = cameraTransform.rotation;
+
+            if (!_hasVisibilityCache
+                || demand != _lastVisibilityDemandVersion
+                || position != _lastVisibilityCameraPosition
+                || rotation != _lastVisibilityCameraRotation)
+            {
+                _hasVisibilityCache = true;
+                _lastVisibilityDemandVersion = demand;
+                _lastVisibilityCameraPosition = position;
+                _lastVisibilityCameraRotation = rotation;
+                return false;
+            }
+
+            // Eviction ages a chunk by the frame it was last drawn. Skipping the traversal must
+            // not make geometry that is on screen every frame look untouched, or the arena will
+            // eventually evict exactly what the camera is looking at.
+            for (int i = 0; i < _visibleSolids.Count; i++)
+                _visibleSolids[i].LastUsedFrame = frame;
+
+            double reuseStart = Time.realtimeSinceStartupAsDouble;
+            _water.CollectVisible(camera, voxelSize);
+            TrackReappearances(frame);
+            LastVisibilityMainThreadMs = ElapsedMs(reuseStart);
+            _visibilityTiming.Add(LastVisibilityMainThreadMs);
+            return true;
+        }
+
         private void CollectVisibility(Camera camera, float voxelSize, int frame)
         {
+            if (TryReuseVisibility(camera, voxelSize, frame)) return;
+
             _visibleSolids.Clear();
             _lastVisibilityCandidateChecks = 0;
             double visibilityStart = Time.realtimeSinceStartupAsDouble;

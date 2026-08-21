@@ -67,14 +67,23 @@ namespace VoxelEngine.Structures.Api
 
         private static bool Percent(int value) => value >= 0 && value <= 100;
 
+        /// <summary>
+        /// Walkable defaults.
+        ///
+        /// A voxel is 10 cm and the character is 1.8 m tall and 0.6 m across, so the previous
+        /// 11x13 tunnel was 1.1 m wide and 1.3 m high: a crawlspace no player could enter, in every
+        /// cave in the project including the castle dungeon. Tunnels are now 2.4 m wide and 2.6 m
+        /// high, and the smallest chamber is tall enough to stand up in, which is the least a space
+        /// has to be to be worth generating.
+        /// </summary>
         public static CaveConfig Default => new CaveConfig
         {
-            TunnelWidth = 11, TunnelHeight = 13, SegmentLength = 18, MainSegmentCount = 18,
+            TunnelWidth = 24, TunnelHeight = 26, SegmentLength = 18, MainSegmentCount = 18,
             TurnChancePercent = 34, VerticalChancePercent = 32, MaxVerticalStepPerSegment = 4,
             SurfaceDescentSegments = 5, SurfaceDescentPerSegment = 4, MinimumSurfaceCover = 12,
             BranchChancePercent = 22, MaxBranches = 6, MaxBranchDepth = 2, BranchSegmentCount = 6, MinBranchSeparation = 24,
             ChamberChancePercent = 28, ChamberShape = CaveChamberShape.Round,
-            MinChamberRadius = 10, MaxChamberRadius = 24, MinChamberHeight = 10, MaxChamberHeight = 24,
+            MinChamberRadius = 16, MaxChamberRadius = 34, MinChamberHeight = 28, MaxChamberHeight = 46,
             FloorRoughness = 2, CeilingRoughness = 3, WallRoughness = 2,
             BoundsHalfExtents = new int3(320, 120, 320), MinVerticalOffset = -96, MaxVerticalOffset = 24,
             EnableLoops = false,

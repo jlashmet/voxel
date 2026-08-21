@@ -58,7 +58,14 @@ namespace VoxelEngine.Rendering.Runtime
 
         public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
         {
-            if (!Enabled || _material == null) return;
+            if (!Enabled) return;
+            if (_material == null)
+            {
+                // No sky this frame means the camera clear shows through. Count it so a black
+                // frame can be attributed instead of guessed at.
+                VoxelRenderBridge.SkyPassMissingMaterialCount++;
+                return;
+            }
 
             var cameraData = frameData.Get<UniversalCameraData>();
             var camera = cameraData.camera;

@@ -20,6 +20,17 @@ namespace VoxelEngine.Showcase
         public int FeatureInstances { get; }
         public int3 ReferenceArchMin { get; }
         public int3 ReferenceArchMax { get; }
+
+        /// <summary>
+        /// Whether this image contains the curated worldbuilding gallery district, and where its
+        /// cave chamber sits. Cave generation is a walk, not a closed form, so the chamber anchor
+        /// cannot be recovered from the seed without re-running the authoring the bake exists to
+        /// skip. Everything else about the gallery is either voxels (already captured) or a pure
+        /// function of the terrain height under a fixed centre (recomputed on load).
+        /// </summary>
+        public bool HasGallery { get; }
+        public int3 GalleryCavePathEnd { get; }
+
         public IReadOnlyList<ShowcaseWorldBakedRegion> Regions { get; }
 
         public ShowcaseWorldBake(
@@ -30,7 +41,9 @@ namespace VoxelEngine.Showcase
             int featureInstances,
             int3 referenceArchMin,
             int3 referenceArchMax,
-            IReadOnlyList<ShowcaseWorldBakedRegion> regions)
+            IReadOnlyList<ShowcaseWorldBakedRegion> regions,
+            bool hasGallery = false,
+            int3 galleryCavePathEnd = default)
         {
             Seed = seed;
             StartupRadiusRegions = startupRadiusRegions;
@@ -39,6 +52,8 @@ namespace VoxelEngine.Showcase
             FeatureInstances = featureInstances;
             ReferenceArchMin = referenceArchMin;
             ReferenceArchMax = referenceArchMax;
+            HasGallery = hasGallery;
+            GalleryCavePathEnd = galleryCavePathEnd;
             Regions = regions ?? throw new ArgumentNullException(nameof(regions));
         }
     }
@@ -87,7 +102,14 @@ namespace VoxelEngine.Showcase
     public static class ShowcaseWorldBakeCodec
     {
         public const string ResourcePath = "VoxelShowcase/ShowcaseWorld";
-        public const int CurrentVersion = 2;
+        public const string GalleryResourcePath = "WorldbuildingGallery/GalleryWorld";
+
+        // Version 3 adds the gallery section. Version 2 is still read, because the showcase image
+        // on disk is a v2 file and there is nothing wrong with it: it simply predates the gallery
+        // and restores with no district. Refusing it would force a ten-minute re-bake to gain a
+        // field that world does not use.
+        public const int CurrentVersion = 3;
+        private const int MinimumSupportedVersion = 2;
 
         // A fully mixed region is a little over 512 MiB in the semantic network representation.
         // This is a validation ceiling, not an expected asset size: the stored form is compressed.
@@ -118,6 +140,8 @@ namespace VoxelEngine.Showcase
             writer.Write(bake.FeatureInstances);
             WriteInt3(writer, bake.ReferenceArchMin);
             WriteInt3(writer, bake.ReferenceArchMax);
+            writer.Write(bake.HasGallery);
+            WriteInt3(writer, bake.GalleryCavePathEnd);
             writer.Write(bake.Regions.Count);
 
             long rawBytes = 0;
@@ -172,9 +196,10 @@ namespace VoxelEngine.Showcase
                 throw new InvalidDataException("Not a Voxel Showcase baked world file.");
 
             int version = reader.ReadInt32();
-            if (version != CurrentVersion)
+            if (version < MinimumSupportedVersion || version > CurrentVersion)
                 throw new InvalidDataException(
-                    $"Showcase bake version {version} is not supported; expected {CurrentVersion}. Re-bake the world.");
+                    $"Showcase bake version {version} is not supported; expected " +
+                    $"{MinimumSupportedVersion}-{CurrentVersion}. Re-bake the world.");
 
             RequireRemaining(stream, sizeof(uint) + sizeof(int) + sizeof(long) + sizeof(int) * 8);
             uint seed = reader.ReadUInt32();
@@ -184,6 +209,17 @@ namespace VoxelEngine.Showcase
             int featureInstances = reader.ReadInt32();
             int3 referenceArchMin = ReadInt3(reader);
             int3 referenceArchMax = ReadInt3(reader);
+
+            bool hasGallery = false;
+            int3 galleryCavePathEnd = default;
+            if (version >= 3)
+            {
+                RequireRemaining(stream, sizeof(bool) + sizeof(int) * 3);
+                hasGallery = reader.ReadBoolean();
+                galleryCavePathEnd = ReadInt3(reader);
+            }
+
+            RequireRemaining(stream, sizeof(int));
             int regionCount = reader.ReadInt32();
             if (regionCount < 0 || regionCount > MaxRegions)
                 throw new InvalidDataException($"Invalid baked region count {regionCount}.");
@@ -232,7 +268,7 @@ namespace VoxelEngine.Showcase
 
             return new ShowcaseWorldBake(
                 seed, startupRadius, castleVoxels, featureVoxels, featureInstances,
-                referenceArchMin, referenceArchMax, regions);
+                referenceArchMin, referenceArchMax, regions, hasGallery, galleryCavePathEnd);
         }
 
         public static byte[] DecodeRegionPayload(ShowcaseWorldBakedRegion region)

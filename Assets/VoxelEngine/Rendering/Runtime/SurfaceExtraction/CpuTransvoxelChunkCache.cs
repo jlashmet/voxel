@@ -275,17 +275,22 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             /// the pass belongs in global state instead. The vertex and index buffers are the same
             /// shared arena for every chunk, so they are bound once by the caller rather than here.
             /// </summary>
-            public void Draw(CommandBuffer commandBuffer, Material material,
-                             MaterialPropertyBlock properties)
+            public void Draw(CommandBuffer commandBuffer, Material material)
             {
                 if (!Ready || IndexCount == 0 || Vertices == null || Indices == null || Args == null)
                     return;
 
-                properties.SetInt(s_SurfaceVertexBase, _liveLease.VertexStart);
-                properties.SetInt(s_SurfaceIndexBase, _liveLease.IndexStart);
+                // Two globals rather than a MaterialPropertyBlock. The block is serialized into
+                // the command buffer once per draw, and at over a thousand chunks a frame that
+                // copy was the single largest remaining cost in the frame. The shader declares
+                // both as plain uniforms rather than inside a per-material CBUFFER, so a global
+                // reaches them, and command-buffer state applies in record order — each draw sees
+                // the values written immediately before it.
+                commandBuffer.SetGlobalInt(s_SurfaceVertexBase, _liveLease.VertexStart);
+                commandBuffer.SetGlobalInt(s_SurfaceIndexBase, _liveLease.IndexStart);
                 commandBuffer.DrawProceduralIndirect(Matrix4x4.identity, material, 0,
                     MeshTopology.Triangles, _arena.Args,
-                    _liveLease.ArgsWordStart * sizeof(uint), properties);
+                    _liveLease.ArgsWordStart * sizeof(uint));
             }
 
             public void Dispose()
@@ -896,6 +901,36 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public int ShardCount { get; set; } = 1;
         public int ResidentCount => _entries.Count;
         public int KnownCount => _known.Count;
+
+        /// <summary>
+        /// Counts every admission and invalidation this shard has recorded.
+        ///
+        /// Monotonic, so an authoritative voxel change or a newly admitted chunk permanently moves
+        /// it. That is what lets the scheduler prove that nothing which could alter this shard's
+        /// visible set has happened since the previous frame.
+        /// </summary>
+        public ulong DemandVersion => _versionCounter;
+
+        /// <summary>
+        /// Counts every time drawable geometry has been taken away from this shard — an eviction
+        /// under arena pressure, a cancelled build, a retired entry.
+        ///
+        /// Demand alone cannot see any of that: a chunk evicted to free arena space stops being
+        /// ready without anything being admitted or invalidated, so a caller trusting
+        /// <see cref="DemandVersion"/> by itself would keep drawing a set that has quietly lost
+        /// members and would never mark them dirty again. That is geometry disappearing while the
+        /// camera stands still, which is the exact failure the surface coverage assertions exist
+        /// to catch.
+        /// </summary>
+        public ulong ReadySetVersion => _readySetVersion;
+
+        private ulong _readySetVersion;
+
+        /// <summary>Single funnel for entry retirement, so no removal can skip the signal.</summary>
+        private void RemoveEntry(int3 coordinate)
+        {
+            if (_entries.Remove(coordinate)) _readySetVersion++;
+        }
         public int SlotCount => _known.Count;
         /// <summary>Number of exact-snapshot brick records reserved by this build workspace.</summary>
         public int SnapshotBrickCapacity => BrickCacheCount;
@@ -3602,6 +3637,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private void RecycleEntry(Entry entry)
         {
             if (entry == null) return;
+            // Dispose is the one place Ready goes false, so it is a drawable-set change even when
+            // the dictionary removal happened somewhere else.
+            _readySetVersion++;
             entry.Dispose();
             _entryPool.Push(entry);
         }
@@ -3675,7 +3713,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 if (_entries.TryGetValue(_build.Coordinate, out Entry stale))
                 {
                     RecycleEntry(stale);
-                    _entries.Remove(_build.Coordinate);
+                    RemoveEntry(_build.Coordinate);
                 }
                 _emptyVersions[_build.Coordinate] = _build.SourceVersion;
                 if (SourceStep == FeaturePreservingFallbackStep)
@@ -3769,7 +3807,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 if (!entry.Ready)
                 {
                     RecycleEntry(entry);
-                    _entries.Remove(_build.Coordinate);
+                    RemoveEntry(_build.Coordinate);
                 }
             }
             if (stale) StaleBuildCount++;
@@ -4050,7 +4088,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
             if (farthest < 0f) return false;
             if (_entries.TryGetValue(victim, out Entry entry)) RecycleEntry(entry);
-            _entries.Remove(victim);
+            RemoveEntry(victim);
             MarkDirty(victim);
             return true;
         }
@@ -4135,7 +4173,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             {
                 int3 victim = _evictionVictims[i];
                 if (_entries.TryGetValue(victim, out Entry entry)) RecycleEntry(entry);
-                _entries.Remove(victim);
+                RemoveEntry(victim);
                 MarkDirty(victim);
             }
             return found;
@@ -4186,7 +4224,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 return;
             }
             if (_entries.TryGetValue(victim, out Entry entry)) RecycleEntry(entry);
-            _entries.Remove(victim);
+            RemoveEntry(victim);
             MarkDirty(victim);
         }
 
@@ -4314,7 +4352,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             if (_entries.TryGetValue(chunk, out Entry entry))
             {
                 RecycleEntry(entry);
-                _entries.Remove(chunk);
+                RemoveEntry(chunk);
             }
             if (_build.Active && _build.Coordinate.Equals(chunk))
             {

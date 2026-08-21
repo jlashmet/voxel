@@ -80,8 +80,12 @@ namespace Game.Structures.Api
             c.CourtyardEnabled = true;
             c.CourtyardWidth = 92;
             c.CourtyardDepth = 112;
-            c.CourtyardWallHeight = 24;
-            c.CourtyardGate = Door(18, 20, 2);
+            // The wall has to outrun its own gate: validity requires the opening to end below the
+            // wall top, so a 2.6 m gate needs more than the 2.4 m wall this used to have.
+            c.CourtyardWallHeight = 32;
+            // 2.6 m of headroom. At the previous 2.0 m the gate cleared a 1.8 m character by two
+            // voxels, which reads as a crawl-under rather than a way in.
+            c.CourtyardGate = Door(22, 26, 2);
             c.ColonnadeEnabled = true;
             c.Columns = Columns(4, 28, 16);
             c.ColumnInset = 12;

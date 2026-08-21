@@ -54,7 +54,7 @@ namespace MountingForce.WorldGen.Voxel
         public static FeatureCatalogue Build(uint seed, VoxelWorldGenSettings settings,
                                              Allocator allocator)
         {
-            SettlementPlan plan = KentridgeDefinition.Build(seed);
+            SettlementPlan plan = SettlementVoxelPlan.Resolve(seed, in settings);
             int scale = settings.VoxelsPerDecimetre;
             TownEnvelope(plan, out int minXdm, out int maxXdm,
                          out int minZdm, out int maxZdm);
@@ -268,7 +268,7 @@ namespace MountingForce.WorldGen.Voxel
             for (int i = 0; i < plan.Plots.Count; i++)
             {
                 BuildingPlot plot = plan.Plots[i];
-                Int3 footprint = KentridgeDefinition.FootprintDm(plot.Archetype);
+                Int3 footprint = SettlementFootprints.For(plan, plot.Archetype);
                 minX = Math.Min(minX, plot.PositionDm.X);
                 maxX = Math.Max(maxX, plot.PositionDm.X + footprint.X);
                 minZ = Math.Min(minZ, plot.PositionDm.Y);

@@ -54,7 +54,7 @@ namespace MountingForce.WorldGen.Voxel
         public static FeatureCatalogue Build(uint seed, VoxelWorldGenSettings settings,
                                              Allocator allocator)
         {
-            SettlementPlan plan = KentridgeDefinition.Build(seed);
+            SettlementPlan plan = SettlementVoxelPlan.Resolve(seed, in settings);
             int scale = settings.VoxelsPerDecimetre;
             List<RoadSegmentBuild> roads = BuildRoadSegments(plan, seed, scale);
             int roadCount = roads.Count;

@@ -42,9 +42,25 @@ namespace VoxelEngine.Structures.Runtime
         public FeatureGenerationReport Report => _report;
 
         /// <summary>
+        /// Placements a single slice may reject before yielding.
+        ///
+        /// Rejecting one placement is only an integer footprint comparison, and while a world held
+        /// a single settlement that made scanning effectively free. It stopped being free when one
+        /// catalogue began describing two towns and the country between them: most regions in that
+        /// world intersect nothing, and every one of them walked every placement of both towns
+        /// before reporting that it had no work. The caller's frame budget cannot interrupt that,
+        /// because it is only checked between slices, so the cost landed whole in one frame.
+        ///
+        /// Yielding on the scan is what puts those regions back under the caller's budget. It does
+        /// not make the total work smaller — it makes it interruptible.
+        /// </summary>
+        private const int MaxPlacementsScannedPerSlice = 2048;
+
+        /// <summary>
         /// Rasterises at most <paramref name="maxTiles"/> storage-block-sized pieces, preserving
-        /// placement and primitive order. Catalogue entries outside this region remain free to
-        /// scan because rejecting them is only an integer footprint comparison.
+        /// placement and primitive order. Rejecting catalogue entries that lie outside this region
+        /// is charged against <see cref="MaxPlacementsScannedPerSlice"/> so a region that
+        /// intersects nothing still returns to the caller promptly.
         /// </summary>
         public bool Step(
             in FeatureCatalogue catalogue,
@@ -63,15 +79,21 @@ namespace VoxelEngine.Structures.Runtime
             }
 
             int tilesRasterised = 0;
+            int scanBudget = MaxPlacementsScannedPerSlice;
             while (tilesRasterised < maxTiles)
             {
                 if (!_activeInstance)
                 {
-                    if (!TryBeginNextInstance(in catalogue, seed))
+                    if (!TryBeginNextInstance(in catalogue, seed, ref scanBudget))
                     {
                         IsComplete = true;
                         return true;
                     }
+
+                    // Out of scan budget rather than out of catalogue: the cursor is parked mid-scan
+                    // and the next slice resumes from it. Reported as incomplete so the caller keeps
+                    // this region queued.
+                    if (scanBudget <= 0 && !_activeInstance) return false;
 
                     // Invalid programs are reported but have no voxel work to charge.
                     if (!_activeInstance) continue;
@@ -105,7 +127,8 @@ namespace VoxelEngine.Structures.Runtime
             return false;
         }
 
-        private bool TryBeginNextInstance(in FeatureCatalogue catalogue, uint seed)
+        private bool TryBeginNextInstance(
+            in FeatureCatalogue catalogue, uint seed, ref int scanBudget)
         {
             while (_ruleIndex < catalogue.Rules.Length)
             {
@@ -119,11 +142,16 @@ namespace VoxelEngine.Structures.Runtime
                 FeatureDefinition definition = catalogue.Definitions[rule.DefinitionId];
                 while (_explicitIndex < rule.ExplicitCount)
                 {
+                    // Yield with the cursor parked. Returning true without an active instance is
+                    // what tells the caller there is more catalogue left to walk.
+                    if (scanBudget <= 0) return true;
+
                     int index = rule.ExplicitOffset + _explicitIndex++;
                     if ((uint)index >= (uint)catalogue.ExplicitPlacements.Length) continue;
 
                     ExplicitPlacement placement = catalogue.ExplicitPlacements[index];
                     _report.InstancesConsidered++;
+                    scanBudget--;
                     if (!FeatureGeneration.FootprintIntersects(
                             placement.Position, definition.Footprint, _regionMin, _regionMax))
                         continue;

@@ -166,9 +166,33 @@ namespace VoxelEngine.Composition
         /// back within a few frames, which is what a flicker is. Off by default; it keeps a map
         /// keyed by chunk coordinate.
         /// </summary>
+        /// <summary>
+        /// Turns the settled-frame visibility reuse on or off. Off restores the unconditional
+        /// per-frame traversal, which exists so a correctness question can be answered by A/B
+        /// against the identical binary rather than by rebuilding and hoping nothing else moved.
+        /// </summary>
+        /// <summary>
+        /// Scales the LOD hand-over distances. 1 is the shipped layout (finest step to 96 m);
+        /// smaller draws fewer chunks and meshes more of the mid distance at half resolution.
+        /// </summary>
+        public static void SetVoxelDetailBandScale(float scale) =>
+            VoxelEngine.Rendering.Runtime.SurfaceExtraction.VoxelSurfaceScheduler
+                .DetailBandScale = scale;
+
+        public static void SetVisibilityReuseEnabled(bool enabled) =>
+            VoxelEngine.Rendering.Runtime.SurfaceExtraction.VoxelSurfaceScheduler
+                .VisibilityReuseEnabled = enabled;
+
         public static void SetTrackSurfaceReappearance(bool enabled) =>
             VoxelEngine.Rendering.Runtime.SurfaceExtraction.VoxelSurfaceScheduler
                 .TrackSurfaceReappearance = enabled;
+
+        /// <summary>Render-feature pass rebuilds, and frames the sky pass had no material.</summary>
+        public static ulong GetRenderFeatureCreateCount() =>
+            VoxelRenderBridge.RenderFeatureCreateCount;
+
+        public static ulong GetSkyPassMissingMaterialCount() =>
+            VoxelRenderBridge.SkyPassMissingMaterialCount;
 
         /// <summary>Cumulative reappearances, or zero when tracking is off.</summary>
         public static ulong GetSurfaceReappearances() =>

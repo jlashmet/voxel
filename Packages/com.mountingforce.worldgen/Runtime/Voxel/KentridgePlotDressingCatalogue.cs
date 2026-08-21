@@ -78,7 +78,7 @@ namespace MountingForce.WorldGen.Voxel
         public static FeatureCatalogue Build(uint seed, VoxelWorldGenSettings settings,
                                              Allocator allocator)
         {
-            SettlementPlan plan = KentridgeDefinition.Build(seed);
+            SettlementPlan plan = SettlementVoxelPlan.Resolve(seed, in settings);
             int scale = settings.VoxelsPerDecimetre;
             List<DressingPlacement> placements = BuildPlacements(plan, seed, scale);
 
@@ -207,8 +207,8 @@ namespace MountingForce.WorldGen.Voxel
                 BuildingPlot plot = plan.Plots[i];
                 if (plot.Archetype == StructureArchetype.Well) continue;
 
-                Int3 footprint = KentridgeDefinition.FootprintDm(plot.Archetype);
-                int baseSurfaceY = PlotSurfaceY(plot, seed, scale) + scale;
+                Int3 footprint = SettlementFootprints.For(plan, plot.Archetype);
+                int baseSurfaceY = PlotSurfaceY(plan, plot, seed, scale) + scale;
 
                 switch (plot.District)
                 {
@@ -230,9 +230,15 @@ namespace MountingForce.WorldGen.Voxel
                 }
             }
 
-            if (result.Count < 40)
+            // Scaled to the settlement being dressed rather than fixed at Kentridge's size. The
+            // guard exists to catch a dressing pass that silently produced nothing; a smaller town
+            // legitimately produces fewer placements, and a constant floor turned that into a
+            // crash the moment a second settlement was generated.
+            int minimumPlacements = Math.Max(8, plan.Plots.Count * 2);
+            if (result.Count < minimumPlacements)
                 throw new InvalidOperationException(
-                    "Kentridge plot dressing produced implausibly few placements: " + result.Count);
+                    "Plot dressing for '" + plan.Id + "' produced implausibly few placements: " +
+                    result.Count + " for " + plan.Plots.Count + " plots.");
 
             return result;
         }
@@ -468,9 +474,9 @@ namespace MountingForce.WorldGen.Voxel
             }
         }
 
-        private static int PlotSurfaceY(BuildingPlot plot, uint seed, int scale)
+        private static int PlotSurfaceY(SettlementPlan plan, BuildingPlot plot, uint seed, int scale)
         {
-            Int3 footprintDm = KentridgeDefinition.FootprintDm(plot.Archetype);
+            Int3 footprintDm = SettlementFootprints.For(plan, plot.Archetype);
             int ox = plot.PositionDm.X * scale;
             int oz = plot.PositionDm.Y * scale;
             int width = footprintDm.X * scale;

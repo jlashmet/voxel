@@ -41,7 +41,7 @@ namespace VoxelEngine.Showcase
     /// is gone. Nothing in this component may allocate or generate outside play mode.
     /// </remarks>
     [AddComponentMenu("VoxelEngine/Voxel Showcase")]
-    public sealed class VoxelShowcase : MonoBehaviour
+    public sealed class VoxelShowcase : MonoBehaviour, IShowcaseMeasurementDriver
     {
         [Header("World")]
         [Tooltip("Deterministic world seed. The same seed produces the same world everywhere.")]
@@ -69,6 +69,11 @@ namespace VoxelEngine.Showcase
         [Tooltip("Bake restores the offline startup image. Generate builds the world during the "
                + "scene on the ordinary per-frame budget, which only suits a small radius.")]
         [SerializeField] private ShowcaseStartupSource m_Startup = ShowcaseStartupSource.Bake;
+
+        [Tooltip("Scales the LOD hand-over distances. 1 keeps the shipped layout (finest step to "
+               + "96 m). Lower values draw far fewer chunks and stop the arena being permanently "
+               + "oversubscribed, at the cost of coarser mid-distance terrain.")]
+        [SerializeField] private float m_DetailBandScale = 0.6f;
 
         [Tooltip("Mesh everything at the finest step instead of using coarse LOD rings. Only "
                + "viable for a small streamed radius; it removes the seam where bands meet.")]
@@ -111,6 +116,8 @@ namespace VoxelEngine.Showcase
         private int _lastStreamingLogFrame;
 
         private bool _mouseLook = true;
+        private bool _hadFocus = true;
+        private int _relockFrames;
         private bool _flashlightEnabled;
         private float _yaw, _pitch;
         private double _lastEditMs;
@@ -183,6 +190,9 @@ namespace VoxelEngine.Showcase
             // bands with no resident regions and the far field broke into floating slabs.
             RenderingComposition.SetVoxelRingRadiusMetres(streamedMetres);
             RenderingComposition.SetVoxelLodEnabled(!m_DisableLod);
+            // Explicit, because the scheduler holds this statically: without it this scene would
+            // inherit whatever band scale the previously loaded scene happened to set.
+            RenderingComposition.SetVoxelDetailBandScale(m_DetailBandScale);
 
             // The far field begins where the voxel rings end. It used to start inside them, so
             // the two overlapped by design — which is only harmless if one of them is not drawn,
@@ -201,6 +211,7 @@ namespace VoxelEngine.Showcase
 
             Spawn();
             SetCursorLocked(true);
+            _hadFocus = Application.isFocused;
         }
 
         private void OnDisable()
@@ -373,7 +384,7 @@ namespace VoxelEngine.Showcase
                 ReportCastleProgress();
 
                 HandleKeys();
-                if (_mouseLook) HandleLook();
+                if (_mouseLook && _relockFrames == 0) HandleLook();
                 MovePlayer();
                 UpdateFlashlight();
                 HandleEdits();
@@ -629,14 +640,58 @@ namespace VoxelEngine.Showcase
         private void SetCursorLocked(bool locked)
         {
             _mouseLook = locked;
+            _relockFrames = 0;
             Cursor.lockState = locked ? CursorLockMode.Locked : CursorLockMode.None;
             Cursor.visible = !locked;
+        }
+
+        /// <summary>
+        /// Reacquires mouse capture after focus comes back, which the editor otherwise never does.
+        ///
+        /// Losing focus releases the mouse — alt-tab, a click into the Inspector, any dialog —
+        /// but leaves <see cref="Cursor.lockState"/> reading <c>Locked</c>. So the state this
+        /// component believes in and the state the editor is actually enforcing disagree, and
+        /// because assigning a property its current value does nothing, no amount of setting
+        /// <c>Locked</c> on the way back re-captures anything. The result is a live pointer over
+        /// a character that will not turn.
+        ///
+        /// The transition is what the editor acts on, so this drives one: release on the frame
+        /// focus returns, capture on the next. Both halves have to be real assignments, and they
+        /// have to land in different frames — collapsed into one frame the editor coalesces them
+        /// back into the no-op this exists to avoid.
+        /// </summary>
+        private void SyncCursorLock()
+        {
+            bool focused = Application.isFocused;
+            bool regained = focused && !_hadFocus;
+            _hadFocus = focused;
+
+            // `_mouseLook` is the intent, so a cursor deliberately released with Escape stays
+            // released, and an unfocused editor never has the mouse snatched back out from under
+            // whatever window the developer is actually working in.
+            if (regained && _mouseLook) _relockFrames = 2;
+            if (_relockFrames == 0 || !focused || !_mouseLook) return;
+
+            if (--_relockFrames > 0)
+            {
+                Cursor.lockState = CursorLockMode.None;
+                return;
+            }
+
+            Cursor.lockState = CursorLockMode.Locked;
+            Cursor.visible = false;
+
+            // The pointer was free for a frame and travelled. Left in the axes, that distance
+            // arrives as one enormous delta and snaps the view the instant capture resumes.
+            Input.ResetInputAxes();
         }
 
         // -- input ---------------------------------------------------------------
 
         private void HandleKeys()
         {
+            SyncCursorLock();
+
             if (Input.GetKeyDown(KeyCode.Escape)) SetCursorLocked(!_mouseLook);
 
             if (Input.GetKeyDown(KeyCode.F))

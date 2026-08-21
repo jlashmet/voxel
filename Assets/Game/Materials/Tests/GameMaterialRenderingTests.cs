@@ -65,9 +65,18 @@ namespace Game.Materials.Tests
                 Assert.That(row.Sampling.z,
                     Is.EqualTo((float)MaterialTextureProjection.Triplanar));
                 Assert.That(row.Sampling.w, Is.LessThanOrEqualTo(0.16f));
-                Assert.That(row.Surface.y, Is.LessThanOrEqualTo(0.04f));
+                // Enough relief for ground to catch light, well short of a photoscan. It was
+                // capped at 0.04, which is close enough to zero that terrain lit like sheet
+                // plastic — the flatness read as missing textures rather than as a stylised look.
+                Assert.That(row.Surface.y, Is.InRange(0.12f, 0.35f));
                 Assert.That(row.Surface.w, Is.EqualTo(1f),
                     "Terrain detail should modulate luminance without importing source hue.");
+
+                // The cap above is only meaningful while the source is resolvable. A tile stretched
+                // across tens of metres leaves the luminance detail nothing to modulate, which is
+                // how ground ended up looking untextured despite every row here being correct.
+                Assert.That(row.Surface.x, Is.GreaterThan(1f / 16f),
+                    "Ground texture is tiled too large to resolve at eye level.");
             }
 
             MaterialPresentationDefinition window = definitions[GameMaterialIds.LitWindow];

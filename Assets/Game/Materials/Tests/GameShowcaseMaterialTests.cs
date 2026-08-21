@@ -13,8 +13,8 @@ namespace Game.Materials.Tests
             ShowcaseMaterialSet roles = GameShowcaseMaterials.Default;
 
             Assert.That(roles.TerrainDeep, Is.EqualTo(GameMaterialIds.Bedrock));
-            Assert.That(roles.TerrainSubsurface, Is.EqualTo(GameMaterialIds.Stone));
-            Assert.That(roles.TerrainLowSurface, Is.EqualTo(GameMaterialIds.Sand));
+            Assert.That(roles.TerrainSubsurface, Is.EqualTo(GameMaterialIds.Dirt));
+            Assert.That(roles.TerrainLowSurface, Is.EqualTo(GameMaterialIds.Dirt));
             Assert.That(roles.TerrainHighSurface, Is.EqualTo(GameMaterialIds.Grass));
             Assert.That(roles.Gate, Is.EqualTo(GameMaterialIds.Wood));
             Assert.That(roles.ReferenceArch, Is.EqualTo(GameMaterialIds.DarkStone));
@@ -40,9 +40,34 @@ namespace Game.Materials.Tests
             ShowcaseMaterialSet roles = GameShowcaseMaterials.Default;
             const int split = 220;
 
-            Assert.That(roles.SurfaceAt(split - 1, split), Is.EqualTo(GameMaterialIds.Sand));
+            Assert.That(roles.SurfaceAt(split - 1, split), Is.EqualTo(GameMaterialIds.Dirt));
             Assert.That(roles.SurfaceAt(split, split), Is.EqualTo(GameMaterialIds.Grass));
             Assert.That(roles.SurfaceAt(split + 1, split), Is.EqualTo(GameMaterialIds.Grass));
+        }
+
+        /// <summary>
+        /// The distant analytic mesh and the near voxel surface pick ground cover independently,
+        /// from two separately authored material sets. Nothing forces them to agree, and when they
+        /// disagreed the world drew a hard material seam in a ring at the streaming radius — near
+        /// ground in sand and stone, horizon in grass. Neither set is wrong on its own, which is
+        /// why this has to be asserted across both rather than inside either.
+        /// </summary>
+        [Test]
+        public void NearAndFarTerrainAgreeOnGroundCover()
+        {
+            ShowcaseMaterialSet far = GameShowcaseMaterials.Default;
+            VoxelEngine.Terrain.Api.TerrainMaterialSet near = GameTerrainMaterials.Default;
+            const int split = 220;
+
+            Assert.That(near.Deep, Is.EqualTo(far.TerrainDeep));
+            Assert.That(near.Subsurface, Is.EqualTo(far.TerrainSubsurface));
+
+            for (int height = split - 24; height <= split + 24; height++)
+                Assert.That(
+                    near.SurfaceAt(height, split),
+                    Is.EqualTo(far.SurfaceAt(height, split)),
+                    "Ground at height " + height + " is one material up close and another at " +
+                    "distance, so the two representations meet at a visible seam.");
         }
 
         [Test]

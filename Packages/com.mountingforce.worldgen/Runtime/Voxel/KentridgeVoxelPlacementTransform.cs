@@ -18,7 +18,7 @@ namespace MountingForce.WorldGen.Voxel
             int unitsPerDecimetre)
         {
             RequireScale(unitsPerDecimetre);
-            int surfaceY = KentridgeVerticalProfile.PlotSurfaceY(
+            int surfaceY = KentridgeVerticalProfile.PlotSurfaceY(plan,
                 plot,
                 plan.Seed,
                 unitsPerDecimetre);
@@ -35,7 +35,7 @@ namespace MountingForce.WorldGen.Voxel
             int unitsPerDecimetre)
         {
             RequireScale(unitsPerDecimetre);
-            Int3 footprintDm = KentridgeDefinition.FootprintDm(plot.Archetype);
+            Int3 footprintDm = SettlementFootprints.For(plan, plot.Archetype);
             var footprintUnits = new Int3(
                 footprintDm.X * unitsPerDecimetre,
                 footprintDm.Y * unitsPerDecimetre,
@@ -61,7 +61,7 @@ namespace MountingForce.WorldGen.Voxel
                 localMin.Y + localBoundsDm.SizeY * unitsPerDecimetre - 1,
                 localMin.Z + localBoundsDm.SizeZ * unitsPerDecimetre - 1);
 
-            Int3 footprintDm = KentridgeDefinition.FootprintDm(plot.Archetype);
+            Int3 footprintDm = SettlementFootprints.For(plan, plot.Archetype);
             var footprintUnits = new Int3(
                 footprintDm.X * unitsPerDecimetre,
                 footprintDm.Y * unitsPerDecimetre,

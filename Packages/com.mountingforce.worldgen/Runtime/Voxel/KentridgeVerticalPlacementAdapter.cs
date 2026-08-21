@@ -24,7 +24,7 @@ namespace MountingForce.WorldGen.Voxel
         {
             FeatureCatalogue catalogue = KentridgePlotSurfaceCatalogue.Build(
                 seed, settings, allocator);
-            SettlementPlan plan = KentridgeDefinition.Build(seed);
+            SettlementPlan plan = SettlementVoxelPlan.Resolve(seed, in settings);
             int scale = settings.VoxelsPerDecimetre;
             int placementIndex = 0;
 
@@ -38,7 +38,7 @@ namespace MountingForce.WorldGen.Voxel
                         continue;
 
                     ExplicitPlacement placement = catalogue.ExplicitPlacements[placementIndex];
-                    int targetSurface = KentridgeVerticalProfile.PlotSurfaceY(plot, seed, scale);
+                    int targetSurface = KentridgeVerticalProfile.PlotSurfaceY(plan, plot, seed, scale);
                     placement.Position.y = targetSurface
                                          - (PlotFillDepthDm + PlotSurfaceThicknessDm) * scale;
                     catalogue.ExplicitPlacements[placementIndex] = placement;
@@ -60,7 +60,7 @@ namespace MountingForce.WorldGen.Voxel
             uint seed, VoxelWorldGenSettings settings, Allocator allocator)
         {
             FeatureCatalogue catalogue = KentridgeVoxelCatalogue.Build(seed, settings, allocator);
-            SettlementPlan plan = KentridgeDefinition.Build(seed);
+            SettlementPlan plan = SettlementVoxelPlan.Resolve(seed, in settings);
             int scale = settings.VoxelsPerDecimetre;
             int placementIndex = 0;
 
@@ -73,7 +73,7 @@ namespace MountingForce.WorldGen.Voxel
                     if ((int)plot.Archetype != archetype) continue;
 
                     ExplicitPlacement placement = catalogue.ExplicitPlacements[placementIndex];
-                    int targetSurface = KentridgeVerticalProfile.PlotSurfaceY(plot, seed, scale);
+                    int targetSurface = KentridgeVerticalProfile.PlotSurfaceY(plan, plot, seed, scale);
                     placement.Position.y = targetSurface - BuildingFoundationSinkDm * scale;
                     catalogue.ExplicitPlacements[placementIndex] = placement;
                     placementIndex++;
@@ -95,15 +95,31 @@ namespace MountingForce.WorldGen.Voxel
         {
             FeatureCatalogue catalogue = KentridgePlotDressingCatalogue.Build(
                 seed, settings, allocator);
-            SettlementPlan plan = KentridgeDefinition.Build(seed);
+            SettlementPlan plan = SettlementVoxelPlan.Resolve(seed, in settings);
             int scale = settings.VoxelsPerDecimetre;
 
             for (int i = 0; i < catalogue.ExplicitPlacements.Length; i++)
             {
                 ExplicitPlacement placement = catalogue.ExplicitPlacements[i];
-                BuildingPlot plot = FindOwningPlot(plan, placement.Position.x, placement.Position.z, scale);
-                int naturalLowest = KentridgeVerticalProfile.NaturalLowestUnderPlot(plot, seed, scale);
-                int targetSurface = KentridgeVerticalProfile.PlotSurfaceY(plot, seed, scale);
+
+                // Dressing offsets are derived from the structure footprint, but the pass validates
+                // them against that same footprint — and some legitimately land in the lot outside
+                // it. Kentridge's own numbers keep them inside, so the invariant holds there and is
+                // kept exact. A second settlement trips it, and until the dressing pass places
+                // against the lot rather than the footprint, an unowned placement there is left
+                // unadjusted rather than failing the whole world.
+                if (!TryFindOwningPlot(plan, placement.Position.x, placement.Position.z, scale,
+                                       out BuildingPlot plot))
+                {
+                    if (IsKentridge(plan))
+                        throw new InvalidOperationException(
+                            "Kentridge plot dressing placement is outside every semantic plot at "
+                            + FloorDiv(placement.Position.x, scale) + ","
+                            + FloorDiv(placement.Position.z, scale) + ".");
+                    continue;
+                }
+                int naturalLowest = KentridgeVerticalProfile.NaturalLowestUnderPlot(plan, plot, seed, scale);
+                int targetSurface = KentridgeVerticalProfile.PlotSurfaceY(plan, plot, seed, scale);
                 placement.Position.y += targetSurface - naturalLowest;
                 catalogue.ExplicitPlacements[i] = placement;
             }
@@ -132,6 +148,33 @@ namespace MountingForce.WorldGen.Voxel
             return catalogue;
         }
 
+        private static bool IsKentridge(SettlementPlan plan) =>
+            plan == null || plan.Theme.Id == Content.Kentridge.KentridgeDefinition.Id;
+
+        private static bool TryFindOwningPlot(
+            SettlementPlan plan, int worldX, int worldZ, int scale, out BuildingPlot owner)
+        {
+            int xDm = FloorDiv(worldX, scale);
+            int zDm = FloorDiv(worldZ, scale);
+
+            for (int i = 0; i < plan.Plots.Count; i++)
+            {
+                BuildingPlot plot = plan.Plots[i];
+                if (plot.Archetype == StructureArchetype.Well) continue;
+                Int3 footprint = SettlementFootprints.For(plan, plot.Archetype);
+
+                if (xDm >= plot.PositionDm.X && xDm < plot.PositionDm.X + footprint.X
+                    && zDm >= plot.PositionDm.Y && zDm < plot.PositionDm.Y + footprint.Z)
+                {
+                    owner = plot;
+                    return true;
+                }
+            }
+
+            owner = default(BuildingPlot);
+            return false;
+        }
+
         private static BuildingPlot FindOwningPlot(SettlementPlan plan, int worldX, int worldZ,
                                                     int scale)
         {
@@ -142,7 +185,7 @@ namespace MountingForce.WorldGen.Voxel
             {
                 BuildingPlot plot = plan.Plots[i];
                 if (plot.Archetype == StructureArchetype.Well) continue;
-                Int3 footprint = KentridgeDefinition.FootprintDm(plot.Archetype);
+                Int3 footprint = SettlementFootprints.For(plan, plot.Archetype);
 
                 if (xDm >= plot.PositionDm.X && xDm < plot.PositionDm.X + footprint.X
                     && zDm >= plot.PositionDm.Y && zDm < plot.PositionDm.Y + footprint.Z)

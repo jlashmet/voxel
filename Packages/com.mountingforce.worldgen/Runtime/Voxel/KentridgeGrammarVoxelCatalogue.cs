@@ -50,7 +50,7 @@ namespace MountingForce.WorldGen.Voxel
             KentridgeArchitectureVariant variant,
             Allocator allocator)
         {
-            SettlementPlan plan = KentridgeDefinition.Build(seed);
+            SettlementPlan plan = SettlementVoxelPlan.Resolve(seed, in settings);
             ArchitectureTheme theme = plan.Theme;
             int scale = settings.VoxelsPerDecimetre;
 
@@ -62,7 +62,7 @@ namespace MountingForce.WorldGen.Voxel
                 BuildingPlot plot = plots[roleId];
                 KentridgeBuildingForm form = KentridgeBuildingGrammar.Resolve(plot, seed);
                 programs[roleId] = form.IsGenerated
-                    ? GeneratedHouseProgram(theme, settings, form, variant)
+                    ? GeneratedHouseProgram(plan, theme, settings, form, variant)
                     : BespokeProgram(theme, settings, form, variant);
                 programLength += programs[roleId].Code.Length;
             }
@@ -87,7 +87,7 @@ namespace MountingForce.WorldGen.Voxel
                 for (int p = 0; p < program.Code.Length; p++)
                     catalogue.Program[programOffset + p] = program.Code[p];
 
-                Int3 footprintDm = KentridgeDefinition.FootprintDm(plot.Archetype);
+                Int3 footprintDm = SettlementFootprints.For(plan, plot.Archetype);
                 int3 footprint = new int3(
                     footprintDm.X * scale,
                     footprintDm.Y * scale,
@@ -126,7 +126,7 @@ namespace MountingForce.WorldGen.Voxel
                     MaxPrimitives = 256,
                 };
 
-                int targetSurface = KentridgeVerticalProfile.PlotSurfaceY(
+                int targetSurface = KentridgeVerticalProfile.PlotSurfaceY(plan,
                     plot, seed, scale);
                 catalogue.ExplicitPlacements[roleId] = new ExplicitPlacement
                 {
@@ -217,6 +217,7 @@ namespace MountingForce.WorldGen.Voxel
         }
 
         private static CompiledProgram GeneratedHouseProgram(
+            SettlementPlan plan,
             ArchitectureTheme theme,
             VoxelWorldGenSettings settings,
             KentridgeBuildingForm form,
@@ -225,7 +226,7 @@ namespace MountingForce.WorldGen.Voxel
             KentridgeBuildingGrammar.ValidateGenerated(form);
 
             int s = settings.VoxelsPerDecimetre;
-            Int3 envelopeDm = KentridgeDefinition.FootprintDm(form.Archetype);
+            Int3 envelopeDm = SettlementFootprints.For(plan, form.Archetype);
             int envelopeW = envelopeDm.X * s;
             int envelopeD = envelopeDm.Z * s;
             int w = form.WidthDm * s;
@@ -249,6 +250,8 @@ namespace MountingForce.WorldGen.Voxel
                 ? settings.Materials.Resolve(MaterialRole.Slate)
                 : settings.Materials.Resolve(theme.Roof);
             byte cloth = settings.Materials.Resolve(MaterialRole.Cloth);
+            bool ashlarTown = !string.Equals(
+                plan.Theme.Id, KentridgeDefinition.Id, StringComparison.Ordinal);
 
             var b = new ProgramBuilder(ResolveGeometry(form), s);
 
@@ -273,7 +276,9 @@ namespace MountingForce.WorldGen.Voxel
                     out wingX, out wingZ, out wingW, out wingD);
                 b.FoundationBox(wingX, 0, wingZ, wingW, f, wingD, foundation);
                 EmitShell(b, wingX, f, wingZ, wingW, floor, wingD, t, wall);
-                AddTimberFrame(b, wingX, wingZ, wingW, wingD, f, floor, beam, timber);
+                AddStructuralFrame(
+                    b, wingX, wingZ, wingW, wingD, f, floor,
+                    beam, timber, ashlarTown, s);
             }
 
             int doorW = (form.IsShop ? 17 : 13) * s;
@@ -309,10 +314,13 @@ namespace MountingForce.WorldGen.Voxel
                 theme.WindowHeightDm * s,
                 glass, s);
 
-            AddTimberFrame(b, x0, z0, w, d, f, floor, beam, timber);
+            AddStructuralFrame(
+                b, x0, z0, w, d, f, floor,
+                beam, timber, ashlarTown, s);
             if (upperH > 0)
-                AddTimberFrame(b, upperX, upperZ, upperW, upperD,
-                    f + floor, upperH, beam, timber);
+                AddStructuralFrame(
+                    b, upperX, upperZ, upperW, upperD,
+                    f + floor, upperH, beam, timber, ashlarTown, s);
 
             // A public entrance owns the whole gameplay approach corridor, not just the wall
             // aperture. Keep this tied to the access resolver contract: if gameplay is asked to reach
@@ -763,6 +771,52 @@ namespace MountingForce.WorldGen.Voxel
                 b.Box(x0, y, z0, 2 * beam, beam, depth, timber);
                 b.Box(x0 + width - 2 * beam, y, z0,
                     2 * beam, beam, depth, timber);
+            }
+        }
+
+        private static void AddStructuralFrame(
+            ProgramBuilder b,
+            int x0, int z0, int width, int depth,
+            int baseY, int wallHeight, int beam,
+            byte material,
+            bool ashlarTown,
+            int s)
+        {
+            if (!ashlarTown)
+            {
+                AddTimberFrame(
+                    b, x0, z0, width, depth,
+                    baseY, wallHeight, beam, material);
+                return;
+            }
+
+            // Hightown is a planned stone town, not Kentridge's timber frame recoloured charcoal.
+            // Broad corner piers and projecting string courses give it a vertical ashlar rhythm,
+            // while leaving the wall planes and windows readable between them.
+            int pier = beam + 2 * s;
+            int projection = 2 * s;
+            b.Box(x0 - projection, baseY, z0 - projection,
+                pier, wallHeight, pier, material);
+            b.Box(x0 + width - pier + projection, baseY, z0 - projection,
+                pier, wallHeight, pier, material);
+            b.Box(x0 - projection, baseY, z0 + depth - pier + projection,
+                pier, wallHeight, pier, material);
+            b.Box(x0 + width - pier + projection, baseY, z0 + depth - pier + projection,
+                pier, wallHeight, pier, material);
+
+            int course = 3 * s;
+            int[] levels = { baseY, baseY + wallHeight - course };
+            for (int i = 0; i < levels.Length; i++)
+            {
+                int y = levels[i];
+                b.Box(x0 - projection, y, z0 - projection,
+                    width + 2 * projection, course, beam + projection, material);
+                b.Box(x0 - projection, y, z0 + depth - beam,
+                    width + 2 * projection, course, beam + projection, material);
+                b.Box(x0 - projection, y, z0,
+                    beam + projection, course, depth, material);
+                b.Box(x0 + width - beam, y, z0,
+                    beam + projection, course, depth, material);
             }
         }
 

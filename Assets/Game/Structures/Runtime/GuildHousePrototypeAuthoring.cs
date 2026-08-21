@@ -112,8 +112,12 @@ namespace Game.Structures.Runtime
                 return;
             }
 
-            int doorWidth = 10;
-            int doorHeight = math.min(18, wallH - 2);
+            // The character is 1.8 m tall and 0.6 m wide, and a voxel is 10 cm. A door of exactly
+            // 18 was therefore exactly head height — no clearance at all, and the collision test
+            // samples the capsule's top voxel, so walking in depended on standing on the right
+            // side of a rounding boundary. 24 x 12 is a door with room to walk through.
+            int doorWidth = 12;
+            int doorHeight = math.min(24, wallH - 2);
             int leftWidth = (width - doorWidth) / 2;
             authoring.Box(new int3(x, wallY, z), new int3(leftWidth, wallH, 3), material);
             authoring.Box(new int3(x + leftWidth + doorWidth, wallY, z),

@@ -35,6 +35,92 @@ namespace VoxelEngine.Showcase
         };
 
         /// <summary>
+        /// Voxel coordinate the gallery cave's main path ends at, which is where its chamber — and
+        /// therefore its world-object scene — sits. Authoring produces this; a bake carries it so a
+        /// restored gallery can bind the same chamber without re-running cave generation.
+        /// </summary>
+        public int3 GalleryCavePathEnd { get; private set; }
+
+        /// <summary>True once this world holds gallery content, whether authored or restored.</summary>
+        public bool HasGalleryContent { get; private set; }
+
+        /// <summary>Adopts the gallery identity carried by a restored bake.</summary>
+        private void RestoreGalleryMetadata(ShowcaseWorldBake bake)
+        {
+            HasGalleryContent = bake.HasGallery;
+            GalleryCavePathEnd = bake.GalleryCavePathEnd;
+        }
+
+        /// <summary>
+        /// Brings the gallery world up, from the baked image when there is one.
+        ///
+        /// This is the only startup entry the gallery scene needs. Authoring the district during
+        /// play costs a castle plus a 48-million-voxel structure pass before the first frame; the
+        /// baked path installs the same voxels from storage snapshots and binds presentation.
+        /// </summary>
+        public void StartWorldbuildingGalleryBlocking(WorldObjectRuntimeComposition worldObjects)
+        {
+            if (_startupSource == ShowcaseStartupSource.Generate)
+            {
+                GenerateWorldbuildingGalleryBlocking(worldObjects);
+                GenerateWorldbuildingGalleryTourExpansionBlocking();
+                return;
+            }
+
+            LoadBake(LoadBakeResource(
+                ShowcaseWorldBakeCodec.GalleryResourcePath,
+                "Worldbuilding Gallery",
+                "Bake Worldbuilding Gallery World"));
+
+            if (!HasGalleryContent)
+                throw new System.InvalidOperationException(
+                    "The Worldbuilding Gallery bake carries no gallery district. It was probably " +
+                    "produced by the Voxel Showcase baker. Re-run " +
+                    "Tools > Voxel Engine > Bake Worldbuilding Gallery World.");
+
+            EnsureCastleWorldObjectSceneLoaded();
+            RestoreWorldbuildingGalleryFromBake(worldObjects);
+        }
+
+        /// <summary>
+        /// Binds the gallery's world-object scenes to an already-populated world.
+        ///
+        /// Voxels come from the bake, so nothing here may emit geometry. Decoration placements are
+        /// recomputed rather than stored: they are a pure function of the gallery centre and the
+        /// terrain height under it, so carrying them in the bake would duplicate state that is
+        /// cheaper to derive than to serialize.
+        /// </summary>
+        public void RestoreWorldbuildingGalleryFromBake(WorldObjectRuntimeComposition worldObjects)
+        {
+            if (!HasGalleryContent)
+                throw new System.InvalidOperationException(
+                    "The gallery bake must be loaded before its world objects can be restored.");
+            if (worldObjects == null) return;
+
+            worldObjects.LoadDecorations(
+                GalleryDecorationParent,
+                BuildGalleryDecorationPlacements());
+
+            IStructureAuthoringSession authoring = StructuresComposition.CreateAuthoringSession(
+                ReadStorage,
+                MutationStorage,
+                _palette,
+                writeBudget: 1);
+
+            worldObjects.LoadMineCaveWithoutGeometry(
+                authoring,
+                Seed,
+                GalleryCaveParent,
+                GalleryCaveChamber(GalleryCavePathEnd));
+        }
+
+        private static DecorationBounds GalleryCaveChamber(int3 mainPathEnd) => new DecorationBounds
+        {
+            Min = mainPathEnd + new int3(-18, 0, -18),
+            MaxExclusive = mainPathEnd + new int3(19, 18, 19),
+        };
+
+        /// <summary>
         /// Builds the entire gallery synchronously once at scene startup. This is deliberately a
         /// showcase bootstrap operation: all normal frame-to-frame terrain streaming remains budgeted.
         /// </summary>
@@ -84,6 +170,8 @@ namespace VoxelEngine.Showcase
 
             AuthorGalleryPromenade(authoring);
             CaveAuthoringResult caveResult = AuthorGalleryCave(authoring);
+            GalleryCavePathEnd = caveResult.MainPathEnd;
+            HasGalleryContent = true;
 
             if (worldObjects != null)
             {
@@ -91,24 +179,41 @@ namespace VoxelEngine.Showcase
                     GalleryDecorationParent,
                     BuildGalleryDecorationPlacements());
 
-                DecorationBounds caveChamber = new DecorationBounds
-                {
-                    Min = caveResult.MainPathEnd + new int3(-18, 0, -18),
-                    MaxExclusive = caveResult.MainPathEnd + new int3(19, 18, 19),
-                };
                 worldObjects.LoadMineCave(
                     authoring,
                     Seed,
                     GalleryCaveParent,
-                    caveChamber);
+                    GalleryCaveChamber(caveResult.MainPathEnd));
             }
         }
 
-        /// <summary>Player start for the gallery, in metres.</summary>
+        /// <summary>
+        /// Player start for the gallery, in metres.
+        ///
+        /// Beside the promenade rather than on it. The promenade is a slab poured at one altitude
+        /// taken from the district centre, and the terrain falls away toward its southern end, so
+        /// the old start — dead centre on the axis — resolved onto the underside of an overhanging
+        /// masonry deck and opened the scene looking into solid stone. Standing clear of the slab
+        /// on natural ground gives the same view up the axis with nothing between the camera and
+        /// the exhibits.
+        /// </summary>
         public float3 WorldbuildingGallerySpawnPosition()
         {
-            int y = TerrainQuery.HeightAt(GalleryCentreX, GalleryCentreZ - 310, Seed) + 5;
-            return new float3(GalleryCentreX, y, GalleryCentreZ - 310) * VoxelSize;
+            const int SpawnX = GalleryCentreX - 60;
+            const int SpawnZ = GalleryCentreZ - 300;
+            int y = TerrainQuery.HeightAt(SpawnX, SpawnZ, Seed) + 5;
+            return new float3(SpawnX, y, SpawnZ) * VoxelSize;
+        }
+
+        /// <summary>
+        /// Ground-level centre of the gallery district, in metres. This is the gallery's landmark:
+        /// the fixed point scripted survey and recede runs orbit and back away from, the way the
+        /// original showcase uses its castle.
+        /// </summary>
+        public float3 WorldbuildingGalleryCentreMetres()
+        {
+            int y = TerrainQuery.HeightAt(GalleryCentreX, GalleryCentreZ, Seed);
+            return new float3(GalleryCentreX, y, GalleryCentreZ) * VoxelSize;
         }
 
         /// <summary>Initial camera target for a broad view down the gallery promenade.</summary>
@@ -196,13 +301,16 @@ namespace VoxelEngine.Showcase
             config.ChamberChancePercent = 42;
             config.BoundsHalfExtents = new int3(240, 112, 240);
 
+            // The mouth matches the tunnel behind it: 2.4 m across and 2.6 m high. It used to be
+            // 1.1 m by 1.3 m, which is an opening the player cannot fit through, so the cave
+            // exhibit could be looked at but never entered.
             CaveGenerationRequest request = CaveGenerationRequest.Standalone(
                 0x5742474341564501ul,
                 Seed,
                 entrance,
                 Facing.North,
-                11,
-                13,
+                24,
+                26,
                 8);
 
             CaveMaterialPalette palette = new CaveMaterialPalette

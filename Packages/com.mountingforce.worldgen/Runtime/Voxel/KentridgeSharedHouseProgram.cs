@@ -96,7 +96,8 @@ namespace MountingForce.WorldGen.Voxel
             // The shared compiler deliberately emits two semantic anchors: public entrance and
             // hearth. Kentridge preserves both rather than mutating compiled bytecode to hide one.
             int[] compiled = HouseProgramCompiler.BuildProgram(in config, 0, 1);
-            Int3 envelopeDm = KentridgeDefinition.FootprintDm(form.Archetype);
+            // settings carries the settlement being realized; the envelope belongs to it.
+            Int3 envelopeDm = SettlementFootprints.For(settings.Settlement, form.Archetype);
             int envelopeWidth = envelopeDm.X * scale;
             int x0 = (envelopeWidth - width) / 2;
             int z0 = 10 * scale;

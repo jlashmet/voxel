@@ -44,7 +44,7 @@ namespace MountingForce.WorldGen.Voxel
         public static FeatureCatalogue Build(uint seed, VoxelWorldGenSettings settings,
                                              Allocator allocator)
         {
-            SettlementPlan plan = KentridgeDefinition.Build(seed);
+            SettlementPlan plan = SettlementVoxelPlan.Resolve(seed, in settings);
             int scale = settings.VoxelsPerDecimetre;
             var supports = new List<SupportBuild>(plan.Plots.Count - 1);
 
@@ -53,10 +53,10 @@ namespace MountingForce.WorldGen.Voxel
                 BuildingPlot plot = plan.Plots[i];
                 if (plot.Archetype == StructureArchetype.Well) continue;
 
-                Int3 footprint = KentridgeDefinition.FootprintDm(plot.Archetype);
+                Int3 footprint = SettlementFootprints.For(plan, plot.Archetype);
                 int width = Math.Max(1, (footprint.X - InsetDm * 2) * scale);
                 int depth = Math.Max(1, (footprint.Z - InsetDm * 2) * scale);
-                int targetSurface = KentridgeVerticalProfile.PlotSurfaceY(plot, seed, scale);
+                int targetSurface = KentridgeVerticalProfile.PlotSurfaceY(plan, plot, seed, scale);
                 int height = FoundationSkirtDm * scale;
 
                 supports.Add(new SupportBuild(

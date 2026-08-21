@@ -104,6 +104,19 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void CompleteViewStopsBackgroundBuildsAndVisibleHoleRestartsConvergence()
+        {
+            Assert.AreEqual(0,
+                VoxelSurfaceScheduler.ResolveBuildCeiling(
+                    missingVisibleCount: 0, convergingCeiling: 12, convergedCeiling: 0),
+                "A complete view must not keep filling the fixed arena with invisible prefetch.");
+            Assert.AreEqual(12,
+                VoxelSurfaceScheduler.ResolveBuildCeiling(
+                    missingVisibleCount: 1, convergingCeiling: 12, convergedCeiling: 0),
+                "The first visible hole must restore full convergence immediately.");
+        }
+
+        [Test]
         public void CoarseRingChunksAlignToTheBrickGrid()
         {
             // A ring's chunk must be a whole number of bricks or its mip samples straddle cells.

@@ -45,8 +45,15 @@ namespace VoxelEngine.Structures.Api
         /// <summary>Placement lattice cell edge in voxels (64 m).</summary>
         public const int PlacementCellEdgeVoxels = 640;
 
-        /// <summary>Definitions one catalogue may hold. Definition index is its identity.</summary>
-        public const int MaxDefinitions = 256;
+        /// <summary>
+        /// Definitions one catalogue may hold. Definition index is its identity.
+        ///
+        /// Raised from 256 when the world first held two settlements: one town's voxel pass alone
+        /// produces most of that budget, so a second pushed the combined catalogue over and
+        /// generation failed validation. The index is stored as an int throughout, so the ceiling
+        /// is about how much a single world may describe rather than about packing.
+        /// </summary>
+        public const int MaxDefinitions = 1024;
 
         /// <summary>Bytes of stored state per instance a player has touched.</summary>
         public const int BytesPerTouchedInstance = 64;

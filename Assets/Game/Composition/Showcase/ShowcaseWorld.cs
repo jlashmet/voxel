@@ -11,6 +11,7 @@ using VoxelEngine.Composition;
 using VoxelEngine.Storage.Runtime.Occupancy;
 using VoxelEngine.Storage.Runtime;
 using VoxelEngine.Storage.Api;
+using Game.Materials.Runtime;
 using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
 
 using VoxelEngine.Structures.Api;
@@ -848,7 +849,9 @@ namespace VoxelEngine.Showcase
                 if (brickTopY <= minH)
                 {
                     _gen.Region.BrickRefs[idx] = BrickRef.Uniform(
-                        brickTopY < minH - DeepDepth ? MatBedrock : MatStone);
+                        brickTopY < minH - DeepDepth
+                            ? GameTerrainMaterials.Default.Deep
+                            : GameTerrainMaterials.Default.Subsurface);
                     continue;
                 }
 
@@ -1061,8 +1064,10 @@ namespace VoxelEngine.Showcase
         {
             if (y > surface) return VoxelDimensions.MaterialEmpty;
             if (y == surface) return SurfaceMaterialAt(surface);
-            if (y > surface - DeepDepth) return MatStone;
-            return MatBedrock;
+            // Subsoil, not bare rock. A stone layer one voxel under the turf shows through
+            // everywhere the ground is cut, terraced or built on, which is most of a town.
+            if (y > surface - DeepDepth) return GameTerrainMaterials.Default.Subsurface;
+            return GameTerrainMaterials.Default.Deep;
         }
 
         /// <summary>
@@ -1074,8 +1079,15 @@ namespace VoxelEngine.Showcase
         /// the far field shipped with: it had no material channel at all and drew every distant
         /// mountain in one flat grey.
         /// </summary>
+        /// <remarks>
+        /// Answers from the game's terrain material set rather than from literals here. The comment
+        /// above is right that two implementations drift — this was the third, and the one that
+        /// actually decided what the player stood on. It surfaced the whole lower half of the
+        /// inhabited valley in sand, because the split is the valley's own mean height rather than
+        /// a shoreline, so the basin came out as a beige plain meeting a green horizon.
+        /// </remarks>
         public static byte SurfaceMaterialAt(int surface) =>
-            surface < BaseHeight ? MatSand : Mat.Grass;
+            GameTerrainMaterials.Default.SurfaceAt(surface, BaseHeight);
 
         /// <summary>
         /// Surface height in voxels, from the engine's canonical sampler.
@@ -2313,6 +2325,33 @@ namespace VoxelEngine.Showcase
         /// and respawn must use the world that collision actually reads, not the terrain that
         /// existed before the castle sculpted it.
         /// </summary>
+        /// <summary>
+        /// Whether anything is built on the natural terrain at this column, within a margin above
+        /// it.
+        ///
+        /// This exists to keep scattered presentation — grass, ambient life — off authored
+        /// content: a tuft of grass growing out of a cathedral roof or a promenade slab reads as a
+        /// placement bug, and scattering is otherwise blind to everything structures added after
+        /// terrain. It deliberately does not use <see cref="OccupiedSurfaceHeight"/>, which walks
+        /// all 512 voxels of a column from the top down. The question here is only whether
+        /// something stands just above the ground, and asking it that way is an order of magnitude
+        /// cheaper across the thousands of samples a scatter pass takes.
+        /// </summary>
+        /// <remarks>
+        /// The margin has to clear a raised platform, not just a wall standing on the ground. The
+        /// gallery promenade is authored at a fixed altitude taken from the district centre, so at
+        /// the low end of the district it floats nearly three metres over the terrain beneath it —
+        /// far enough that a 24-voxel margin reported open ground under a masonry slab.
+        /// </remarks>
+        public bool HasBuiltContentAbove(int wx, int wz, int marginVoxels = 64)
+        {
+            int terrain = SurfaceHeight(wx, wz);
+            int top = math.min(RegionVoxelEdge - 1, terrain + math.max(1, marginVoxels));
+            for (int y = terrain + 1; y <= top; y++)
+                if (ReadMaterialApi(new int3(wx, y, wz)) != VoxelGrid.MaterialEmpty) return true;
+            return false;
+        }
+
         public int OccupiedSurfaceHeight(int wx, int wz)
         {
             for (int y = RegionVoxelEdge - 1; y >= 0; y--)

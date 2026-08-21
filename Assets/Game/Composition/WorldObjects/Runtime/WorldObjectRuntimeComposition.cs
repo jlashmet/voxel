@@ -52,6 +52,18 @@ namespace Game.Composition.WorldObjects.Runtime
             uint worldSeed, uint parentId, DecorationBounds chamber) =>
             _registry.LoadMineCaveForUnityDynamicPresentation(geometry, worldSeed, parentId, chamber);
 
+        /// <summary>
+        /// Loads a mine cave whose static geometry is already present in voxel storage — restored
+        /// from a world bake rather than authored this session. Emission mode None is the whole
+        /// point: the default presentation load re-emits static geometry, which on a baked world
+        /// rewrites voxels that already exist and pays the authoring cost the bake was made to
+        /// avoid. Dynamic state (colliders, lights, particles) is still bound normally.
+        /// </summary>
+        public WorldObjectGeneratedScene LoadMineCaveWithoutGeometry(IStructureAuthoringSession geometry,
+            uint worldSeed, uint parentId, DecorationBounds chamber) =>
+            _registry.LoadMineCave(geometry, worldSeed, parentId, chamber,
+                WorldObjectGeometryEmissionMode.None);
+
         public WorldObjectGeneratedScene LoadDecorations(uint parentId, DecorationPlacement[] placements) =>
             _registry.LoadDecorations(parentId, placements);
 
