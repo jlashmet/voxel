@@ -44,6 +44,19 @@ This is a focused continuation of `voxel-showcase-rendering-repair-v2.md` for th
 - [x] Compare `rendering-garbled` with base `109dc042cf8079b0c582d4b1f5196a09cf367bc6`: the branch contains this focused plan plus the exact 15 renderer/test files reverted from `fbaf77b8…`; there are no unrelated production edits or leftover `SV_DrawID` experiment.
 - [x] Mark this focused garbled-rendering repair complete: the real-player indexed-multidraw corruption is removed and validated on Metal. Do not close the parent plan's independent D2/D3 startup/coarse/far-field coverage tasks; those remain separately open.
 
+### E. Reimplement the FPS optimization without reopening the corruption
+
+- [x] Establish the clean bucketed standalone-player performance/correctness baseline from run `32498578646`: over the stable 35-60 s survey window excluding screenshot stalls, mean FPS is 307.16 and mean frame time is 3.28 ms. Preserve its five screenshots as the comparison reference.
+- [x] Quantify the intended upside from the original but visually invalid indexed-multidraw run `32494256445`: over the same stable window excluding screenshot stalls it averaged 390.66 FPS / 2.56 ms, so the submission collapse is worth recovering if correctness is retained.
+- [ ] Add a focused regression for the actual indexed-draw addressing contract before changing production: every hardware index stored in the shared contiguous surface arena must remain chunk-local, and each indirect command must provide that chunk's `startIndex` plus `baseVertexIndex` exactly once.
+- [ ] Reintroduce a Metal-compatible indexed-indirect arena representation without changing geometry ownership, publication, LOD, or frame budgets. Keep the contiguous `SurfaceGeometryArena` index payload chunk-local; do not apply the vertex base both in the stored index and in the indirect command.
+- [ ] Reimplement the one-call solid submission using Unity's supported indirect shader contract (`InitIndirectDrawArgs(0)`/`GetIndirectVertexID`) without `SV_DrawID`, while preserving the bucketed path as the non-game/editor fallback until the optimized path is proven across the real player.
+- [ ] Validate the smallest focused EditMode architecture/addressing regressions on the exact optimization head.
+- [ ] Run `VoxelEngine.Tests.PlayMode.CastleScreenshotTests` through the standalone-player capture path on the optimized head; inspect all five PNGs against run `32498578646`, not just the PlayMode assertion.
+- [ ] Inspect the optimized Metal player log for shader support/errors and require `assertion failures 0`; reject the optimization if the renderer becomes unsupported or produces cross-world geometry.
+- [ ] Compare the stable 35-60 s FPS/frame-time window against the clean bucketed baseline. Keep the optimization only if it produces a repeatable frame-time improvement without reducing rendered coverage or fidelity; otherwise retain the bucketed renderer and identify the next measured submission hotspot.
+- [ ] Review the final diff and mark this optimization follow-up complete only when the visual comparison, focused regressions, Metal log, and measured FPS comparison all pass. Parent D2/D3 remain independent.
+
 ## Completion evidence
 
 - Original corrupted real-player run: `32494256445`.
@@ -51,4 +64,4 @@ This is a focused continuation of `voxel-showcase-rendering-repair-v2.md` for th
 - Clean direct-parent baseline: `32496458837`.
 - Clean current-harness/pre-multidraw confirmation: `32497237439`.
 - Focused bucketed-submission EditMode guard: `32497707003`.
-- Final fixed-branch standalone-player validation: `32498578646`.
+- Final fixed-branch standalone-player validation / optimization baseline: `32498578646`.
