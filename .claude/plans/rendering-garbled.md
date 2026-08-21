@@ -28,9 +28,10 @@ This is a focused continuation of `voxel-showcase-rendering-repair-v2.md` for th
 
 ### C. Isolate the indexed-multidraw regression
 
-- [ ] Run the exact same real-player capture on `a9aa6c5707decc7faa3f718eaa1216aebe2ca6b1`, the direct parent of the indexed-multidraw commit.
+- [x] Build controlled source `20b200cad353f5971024729db12b34ab1f21bb73` by retaining the current real-player harness and restoring the 15 files changed by the indexed-multidraw commit to their direct-parent versions.
+- [ ] Run the same real-player `CastleScreenshotTests` capture against that controlled pre-multidraw source.
 - [ ] Inspect every baseline PNG and record whether corruption is absent or already present.
-- [ ] If the parent is clean, add a focused regression for the first proven index/base-vertex invariant in the multidraw path before changing production code.
+- [ ] If the controlled baseline is clean, add a focused regression for the first proven index/base-vertex invariant in the multidraw path before changing production code.
 - [ ] Fix the proven index/addressing defect without introducing unsupported shader semantics or restoring per-chunk frame garbage.
 
 ### D. Validate the repair
