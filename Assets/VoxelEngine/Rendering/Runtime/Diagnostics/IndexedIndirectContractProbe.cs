@@ -138,7 +138,7 @@ namespace VoxelEngine.Rendering.Runtime
                 shadowCastingMode = ShadowCastingMode.Off,
                 receiveShadows = false,
             };
-            Graphics.RenderPrimitivesIndexedIndirect(ref multi, MeshTopology.Triangles,
+            Graphics.RenderPrimitivesIndexedIndirect(multi, MeshTopology.Triangles,
                 _indices, _commands, CommandCount, 0);
 
             var single = new RenderParams(_material)
@@ -151,7 +151,7 @@ namespace VoxelEngine.Rendering.Runtime
             };
             for (int command = 0; command < CommandCount; command++)
             {
-                Graphics.RenderPrimitivesIndexedIndirect(ref single, MeshTopology.Triangles,
+                Graphics.RenderPrimitivesIndexedIndirect(single, MeshTopology.Triangles,
                     _indices, _commands, 1, command);
             }
         }
