@@ -21,6 +21,7 @@ on:
   push:
     branches:
       - master
+      - agent/render-concurrency-experiment
     paths:
       - 'Assets/Scenes/SmallVoxelShowcase.unity'
       - 'Assets/Scenes/Showcase/**'
