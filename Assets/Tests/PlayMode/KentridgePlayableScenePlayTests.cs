@@ -13,7 +13,7 @@ namespace VoxelEngine.Tests.PlayMode
     /// Scene-level acceptance for the actual player launch path. Unlike the lower-level pub-exit
     /// collision test, this test loads the same scene a player launches, lets its real campaign
     /// runtime own the opening, waits for gameplay control to return, then drives the scene's real
-    /// character motor farther into town and observes the scene report Kentridge.
+    /// character motor through the generated pub doorway and observes the scene report Kentridge.
     /// </summary>
     public sealed class KentridgePlayableScenePlayTests
     {
@@ -66,32 +66,66 @@ namespace VoxelEngine.Tests.PlayMode
             ShowcaseWorld world = ReadPrivateField<ShowcaseWorld>(driver, "_world");
             object pubAccess = ReadPrivateField<object>(driver, "_pubAccess");
 
+            Assert.That(ReadPrivateField<object>(driver, "_farTerrain"), Is.Not.Null,
+                "The playable integration scene must install the far-terrain handoff.");
+            Assert.That(ReadPrivateField<object>(driver, "_themes"), Is.Not.Null,
+                "The playable integration scene must retain the generated region theme map.");
+            Assert.That(ReadPrivateField<object>(driver, "_corridorPlan"), Is.Not.Null,
+                "The playable integration scene must retain the generated inter-town corridor plan.");
+            Assert.That(ReadPrivateField<object>(driver, "_hightownPlan"), Is.Not.Null,
+                "The playable integration scene must compose Hightown with Kentridge.");
+            Assert.That(ReadPrivateField<object>(driver, "_actors"), Is.Not.Null,
+                "The playable integration scene must install the campaign actor host.");
+
+            object life = ReadPrivateField<object>(driver, "_life");
+            Assert.That(life, Is.Not.Null,
+                "The playable integration scene must realize vegetation and ambient life.");
+            Assert.That(ReadIntProperty(life, "TreeCount"), Is.LessThanOrEqualTo(900));
+            Assert.That(ReadIntProperty(life, "UndergrowthCount"), Is.LessThanOrEqualTo(12000));
+            Assert.That(ReadIntProperty(life, "ClusterCount"), Is.LessThanOrEqualTo(110));
+
             Vector3 entrance = ReadRealizedPoint(pubAccess, "Entrance");
+            Vector3 interiorApproach = ReadRealizedPoint(pubAccess, "InteriorApproach");
             Vector3 exteriorTarget = ReadRealizedPoint(pubAccess, "ExteriorApproach");
             Vector3 inward = ReadInt2Direction(pubAccess, "Inward");
 
-            Assert.That(HorizontalDistance(motor.Position, exteriorTarget),
+            Assert.That(HorizontalDistance(motor.Position, interiorApproach),
                 Is.LessThanOrEqualTo(0.05f),
-                "Gameplay control must be handed back on the architecture-owned exterior " +
-                "approach, not embedded in a cutscene mark, building, or terrain. " +
-                PositionDiagnostic(motor.Position, exteriorTarget, entrance, inward));
+                "Gameplay control must be handed back on the architecture-owned interior " +
+                "approach, not teleported across the generated doorway. " +
+                PositionDiagnostic(motor.Position, interiorApproach, entrance, inward));
 
             float initialDepth = Vector3.Dot(motor.Position - entrance, inward);
-            Assert.That(initialDepth, Is.LessThanOrEqualTo(-0.75f),
-                "When gameplay control returns, the player must already be on the town side of the pub entrance.");
+            Assert.That(initialDepth, Is.GreaterThan(0.5f),
+                "When gameplay control returns, the player must still be physically inside the generated pub.");
+            Assert.That(ReadBoolProperty(driver, "HasExitedPub"), Is.False,
+                "The scene must not report Kentridge town before the player crosses the public entrance.");
 
+            // This is the integration invariant: the production scene-owned CharacterMotor, not a
+            // teleport or semantic location mutation, must physically cross the generated doorway.
+            Time.captureDeltaTime = WalkDeltaTime;
+            yield return WalkMotorTo(
+                motor,
+                world,
+                exteriorTarget,
+                "generated pub exterior approach through the public doorway");
+            Time.captureDeltaTime = 0f;
+
+            float exteriorDepth = Vector3.Dot(motor.Position - entrance, inward);
+            Assert.That(exteriorDepth, Is.LessThanOrEqualTo(-0.75f),
+                "The production motor did not cross onto the town side of the generated pub entrance. " +
+                PositionDiagnostic(motor.Position, exteriorTarget, entrance, inward));
             Assert.That(ReadBoolProperty(driver, "HasExitedPub"), Is.True,
-                "The launch scene must recognize the exterior release as Kentridge town.");
+                "The launch scene must report Kentridge only after physical doorway traversal.");
 
-            // Prove the fix is more than a teleport: the production motor must be able to walk
-            // another two metres into town immediately after control returns.
+            // Prove the player remains free after the seam itself is crossed.
             Vector3 freeMovementTarget = exteriorTarget - inward * 2f;
             Time.captureDeltaTime = WalkDeltaTime;
             yield return WalkMotorTo(
                 motor,
                 world,
                 freeMovementTarget,
-                "free town-side movement after the opening cutscene");
+                "free town-side movement after crossing the generated pub doorway");
             Time.captureDeltaTime = 0f;
 
             Vector3 beforeRescue = motor.Position;
@@ -221,6 +255,16 @@ namespace VoxelEngine.Tests.PlayMode
                 BindingFlags.Instance | BindingFlags.NonPublic);
             Assert.That(field, Is.Not.Null, "Playable scene driver is missing runtime field '" + name + "'.");
             return (T)field.GetValue(driver);
+        }
+
+        private static int ReadIntProperty(object owner, string name)
+        {
+            PropertyInfo property = owner.GetType().GetProperty(
+                name,
+                BindingFlags.Instance | BindingFlags.Public);
+            Assert.That(property, Is.Not.Null,
+                owner.GetType().FullName + " is missing property '" + name + "'.");
+            return (int)property.GetValue(owner);
         }
 
         private static Vector3 ReadRealizedPoint(object owner, string propertyName)
