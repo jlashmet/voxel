@@ -1,5 +1,7 @@
 using System;
+using System.Collections;
 using System.Globalization;
+using System.IO;
 using UnityEngine;
 using VoxelEngine.Composition;
 
@@ -14,11 +16,13 @@ namespace VoxelEngine.Showcase
     ///
     ///   -voxel-stationary-sample-seconds N   measured interval after convergence
     ///   -voxel-stationary-timeout-seconds N  fail if convergence/sample does not finish by N
+    ///   -voxel-stationary-screenshot-dir D   capture one presented frame after measurement
     /// </summary>
     public static class StationaryRenderBenchmarkHarness
     {
         private const string SampleArgument = "-voxel-stationary-sample-seconds";
         private const string TimeoutArgument = "-voxel-stationary-timeout-seconds";
+        private const string ScreenshotArgument = "-voxel-stationary-screenshot-dir";
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Install()
@@ -39,23 +43,28 @@ namespace VoxelEngine.Showcase
             reporter.TimeoutSeconds = Math.Max(
                 reporter.SampleSeconds + 5.0,
                 Value(TimeoutArgument, Math.Max(120.0, reporter.SampleSeconds + 60.0)));
+            reporter.ScreenshotDirectory = Argument(ScreenshotArgument);
             UnityEngine.Object.DontDestroyOnLoad(root);
             Debug.Log(string.Format(CultureInfo.InvariantCulture,
                 "STATIONARY armed sample={0:0.0}s timeout={1:0.0}s device={2}",
                 reporter.SampleSeconds, reporter.TimeoutSeconds, SystemInfo.graphicsDeviceType));
         }
 
-        private static double Value(string name, double fallback)
+        private static string Argument(string name)
         {
             string[] args = Environment.GetCommandLineArgs();
             for (int i = 0; i < args.Length - 1; i++)
-            {
-                if (!string.Equals(args[i], name, StringComparison.Ordinal)) continue;
-                if (double.TryParse(args[i + 1], NumberStyles.Float,
-                                    CultureInfo.InvariantCulture, out double parsed))
-                    return parsed;
-            }
-            return fallback;
+                if (string.Equals(args[i], name, StringComparison.Ordinal)) return args[i + 1];
+            return null;
+        }
+
+        private static double Value(string name, double fallback)
+        {
+            string value = Argument(name);
+            return value != null
+                && double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture,
+                                   out double parsed)
+                ? parsed : fallback;
         }
 
         private sealed class Reporter : MonoBehaviour
@@ -69,6 +78,7 @@ namespace VoxelEngine.Showcase
 
             internal double SampleSeconds;
             internal double TimeoutSeconds;
+            internal string ScreenshotDirectory;
 
             // Allocated once when the harness object is created. The measured interval only writes
             // into this fixed storage; sorting and string formatting happen after sampling ends.
@@ -314,6 +324,45 @@ namespace VoxelEngine.Showcase
                     render.SubmissionP99Ms, render.SubmissionMaxMs,
                     render.MeanVisibleSolidCount, render.LastVisibleSolidCount,
                     render.MeanUnitySubmissionCalls, render.LastUnitySubmissionCalls));
+
+                if (string.IsNullOrEmpty(ScreenshotDirectory))
+                {
+                    Application.Quit(pass ? 0 : 1);
+                    return;
+                }
+                StartCoroutine(CaptureAndQuit(pass));
+            }
+
+            private IEnumerator CaptureAndQuit(bool pass)
+            {
+                string path = null;
+                try
+                {
+                    Directory.CreateDirectory(ScreenshotDirectory);
+                    path = Path.Combine(ScreenshotDirectory, "stationary-final.png");
+                    ScreenCapture.CaptureScreenshot(path);
+                    Debug.Log($"STATIONARY post-measurement screenshot {path}");
+                }
+                catch (Exception error)
+                {
+                    Debug.LogError($"STATIONARY screenshot failed: {error.Message}");
+                    pass = false;
+                }
+
+                // CaptureScreenshot is completed after the current frame. Wait for the file rather
+                // than imposing a fixed sleep; this runs after all benchmark numbers were frozen.
+                double deadline = Time.realtimeSinceStartupAsDouble + 5.0;
+                while (pass && path != null && Time.realtimeSinceStartupAsDouble < deadline)
+                {
+                    if (File.Exists(path) && new FileInfo(path).Length > 1024) break;
+                    yield return null;
+                }
+                if (pass && path != null
+                    && (!File.Exists(path) || new FileInfo(path).Length <= 1024))
+                {
+                    Debug.LogError("STATIONARY post-measurement screenshot was not written");
+                    pass = false;
+                }
 
                 Application.Quit(pass ? 0 : 1);
             }
