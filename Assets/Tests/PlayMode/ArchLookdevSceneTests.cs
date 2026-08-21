@@ -36,39 +36,40 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.NotNull(world.ProfileBlocks);
             Assert.Greater(world.ProfileBlocks.Count, 0);
 
-            // Batch PlayMode does not submit the Game view automatically. Keep explicit camera
-            // submissions so surface extraction advances, but do not read these pixels back or
-            // persist an editor screenshot. Human-review images come only from the standalone app.
+            // Preserve the original visual acceptance's render-driving behavior: assigning the
+            // target lets Unity's normal frame loop submit the camera. Do not read pixels back or
+            // persist an editor screenshot; review images come only from the standalone app.
             Camera camera = lookdev.GetComponent<Camera>();
-            Assert.NotNull(camera);
-            var target = new RenderTexture(640, 360, 24, RenderTextureFormat.ARGB32);
+            var target = new RenderTexture(512, 512, 24, RenderTextureFormat.ARGB32);
             target.Create();
-            RenderTexture previousTarget = camera.targetTexture;
             camera.targetTexture = target;
-
-            int stableFrames = 0;
-            for (int frame = 0; frame < 240 && stableFrames < 3; frame++)
+            try
             {
-                camera.Render();
-                yield return null;
+                int stableFrames = 0;
+                for (int frame = 0; frame < 240; frame++)
+                {
+                    VoxelSurfaceMetrics metrics = VoxelRenderBridge.SurfaceMetrics;
+                    bool converged = metrics.SolidKnownChunks > 0
+                        && metrics.SolidDirtyChunks == 0
+                        && metrics.SolidResidentChunks >= metrics.SolidKnownChunks;
+                    stableFrames = converged ? stableFrames + 1 : 0;
+                    if (stableFrames >= 3)
+                        yield break;
+                    yield return null;
+                }
 
-                VoxelSurfaceMetrics metrics = VoxelRenderBridge.SurfaceMetrics;
-                bool converged = metrics.SolidKnownChunks > 0
-                    && metrics.SolidDirtyChunks == 0
-                    && metrics.SolidResidentChunks >= metrics.SolidKnownChunks;
-                stableFrames = converged ? stableFrames + 1 : 0;
+                VoxelSurfaceMetrics finalMetrics = VoxelRenderBridge.SurfaceMetrics;
+                Assert.Fail($"Arch lookdev production surface did not converge: "
+                          + $"known={finalMetrics.SolidKnownChunks}, "
+                          + $"resident={finalMetrics.SolidResidentChunks}, "
+                          + $"dirty={finalMetrics.SolidDirtyChunks}.");
             }
-
-            camera.targetTexture = previousTarget;
-            target.Release();
-            Object.DestroyImmediate(target);
-
-            VoxelSurfaceMetrics finalMetrics = VoxelRenderBridge.SurfaceMetrics;
-            Assert.GreaterOrEqual(stableFrames, 3,
-                $"Arch lookdev production surface did not converge: "
-              + $"known={finalMetrics.SolidKnownChunks}, "
-              + $"resident={finalMetrics.SolidResidentChunks}, "
-              + $"dirty={finalMetrics.SolidDirtyChunks}.");
+            finally
+            {
+                camera.targetTexture = null;
+                target.Release();
+                Object.Destroy(target);
+            }
         }
     }
 }
