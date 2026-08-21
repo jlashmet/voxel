@@ -148,7 +148,6 @@ namespace VoxelEngine.Structures.Runtime
             if (PrimitiveCount > FeatureBudget.MaxPrimitivesPerInstance) errors |= ArchValidationError.PrimitiveBudgetExceeded;
             if (!palette.IsRegistered(StoneMaterial)) errors |= ArchValidationError.UnknownStoneMaterial;
             if (!surfaces.IsRegistered(PierStyle)) errors |= ArchValidationError.UnknownPierStyle;
-            if (!surfaces.IsRegistered(RingStyle)) errors |= ArchValidationError.UnknownRingStyle;
             if (!coatings.IsRegistered(Coating)) errors |= ArchValidationError.UnknownCoating;
             if (Coating != Coatings.None && palette.IsRegistered(StoneMaterial)
                 && (!palette.AllowsCoating(StoneMaterial, Coating)
@@ -473,7 +472,10 @@ namespace VoxelEngine.Structures.Runtime
             output.Add(CurvedPrimitiveEmitter.Annulus(
                 faceOpeningCentre, Arch.OuterRadius, 0, 2, 2, true,
                 Arch.StoneMaterial, wallStyle, PrimitiveMode.Carve, order++));
-            int clearWidth = math.max(1, Arch.ClearSpan - 1);
+            // The curved opening uses an integer radius and therefore includes both endpoints.
+            // Match that 2r + 1 footprint below the springline or the two radius-endpoint columns
+            // survive as detached one-voxel strips inside the opening.
+            int clearWidth = math.max(1, Arch.ClearSpan + 1);
             output.Add(BoxEmitter.Box(
                 new int3(openingCentre.x - clearWidth / 2, origin.y, backingZ),
                 new int3(clearWidth, Arch.PierHeight + 1, backingDepth),
