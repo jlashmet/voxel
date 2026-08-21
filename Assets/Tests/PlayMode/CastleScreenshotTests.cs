@@ -1,5 +1,4 @@
 using System.Collections;
-using System.IO;
 using System.Reflection;
 using NUnit.Framework;
 using Unity.Mathematics;
@@ -14,35 +13,24 @@ using VoxelEngine.Structures.Api;
 namespace VoxelEngine.Tests.PlayMode
 {
     /// <summary>
-    /// Renders the castle from a set of fixed viewpoints and writes PNGs to disk.
+    /// Exercises the castle from a fixed set of acceptance viewpoints.
     ///
-    /// This exists because the cottage was written blind. Nobody — including whoever authored it —
-    /// looked at the output until it was shown to someone else, and "it looks like programmer art"
-    /// was the first feedback the work ever received. Generated content cannot be iterated on
-    /// without seeing it, and a passing test says nothing about whether a castle looks like a
-    /// castle.
-    ///
-    /// The viewpoints are fixed rather than orbiting so successive runs are comparable: the point
-    /// is to see whether a change improved the silhouette, not to take pretty pictures.
+    /// Generated content cannot be iterated on without seeing it, but editor RenderTexture captures
+    /// are not the player's framebuffer. This test retains the deterministic viewpoints and their
+    /// production rendering assertions; selecting it through the single-test workflow additionally
+    /// builds VoxelShowcase as a standalone app and publishes actual presented-frame screenshots
+    /// every ten seconds through the shared real-player capture utility.
     /// </summary>
     /// <remarks>
-    /// <see cref="NUnit.Framework.ExplicitAttribute"/>: this captures images for a human to
-    /// look at rather than asserting behaviour, and it is one of the slowest things in the
-    /// suite. Run it by name when you want the artefacts:
-    /// <c>tools/unity-run.sh ... -testFilter CastleScreenshotTests</c>
+    /// <see cref="NUnit.Framework.ExplicitAttribute"/>: visual acceptance for human review; run by
+    /// name when you want the real-player artifacts.
     /// </remarks>
-    [NUnit.Framework.Explicit("Artefact capture for human review; run by name.")]
+    [NUnit.Framework.Explicit("Visual acceptance for human review; run by name.")]
     public sealed class CastleScreenshotTests
     {
-        private const string OutputDirectory = "/tmp/castle_shots";
-        private const int Width = 1280;
-        private const int Height = 720;
-
         [UnityTest]
         public IEnumerator CaptureCastleViews()
         {
-            Directory.CreateDirectory(OutputDirectory);
-
             UnityEditor.SceneManagement.EditorSceneManager.LoadSceneInPlayMode(
                 "Assets/Scenes/VoxelShowcase.unity", new LoadSceneParameters(LoadSceneMode.Single));
 
@@ -118,31 +106,17 @@ namespace VoxelEngine.Tests.PlayMode
                                     centre + new Vector3(0f, 11f, 0f)),
                 ("06_wall_detail", centre + new Vector3(-32f, 8f, -22f),
                                     centre + new Vector3(-23f, 8f, -12f)),
-
-                // East shoulder: verifies the ravine, cascade, pool, hall balcony, and tree belt
-                // as a composition rather than only asserting that their voxels were written.
                 ("08_waterfall",   waterfallPool + new Vector3(17f, 10f, 10f),
                                     waterfallPool + new Vector3(-6f, 2f, 0f)),
-
-                // The reference treats rooms and underground spaces as first-class generated
-                // content. These cameras sit inside the authoritative voxel volume—no cutaway
-                // mesh or separate presentation model is involved.
                 ("09_great_hall",  centre + new Vector3(0f, 2.2f, 2f),
                                     centre + new Vector3(7f, 2.0f, 8f)),
                 ("10_dungeon",     centre + new Vector3(-4f, -15.2f, 9f),
                                     centre + new Vector3(6f, -15.0f, 13f)),
                 ("11_cave",        centre + new Vector3(0f, -15.0f, -31f),
                                     centre + new Vector3(5f, -14.5f, -27f)),
-
-                // Presentation-only section through the southern half of the keep. The renderer
-                // skips the clip volume; RegionTable and BrickPool are never modified.
                 ("12_cutaway",     centre + new Vector3(0f, 25f, -56f),
                                     centre + new Vector3(0f, 11f, 7f)),
-
-                // From just inside the open front doors, explicitly proves that the grand stair
-                // is visible and reads as the route to the occupied upper floor.
                 ("13_stair_hall",  stairCamera, stairLook),
-
                 ("14_trapdoor",    new Vector3(trapdoor.x, trapdoor.y + 18, trapdoor.z - 24) * 0.1f,
                                     new Vector3(trapdoor.x, trapdoor.y + 1, trapdoor.z) * 0.1f),
                 ("15_secret_archive",
@@ -184,7 +158,6 @@ namespace VoxelEngine.Tests.PlayMode
                                     new Vector3(plan.Centre.x - 35,
                                                 baseY + plan.FloorHeight * 3 + 15,
                                                 keepMin.z + keepSize.z / 2 - 35) * 0.1f),
-
                 ("24_bell_tower", new Vector3(bellTower.x - 160,
                                                 baseY + 180,
                                                 bellTower.z - 220) * 0.1f,
@@ -197,19 +170,11 @@ namespace VoxelEngine.Tests.PlayMode
                                     new Vector3(bellTower.x - 18,
                                                 baseY + plan.FloorHeight * 2 + 14,
                                                 bellTower.z - 7) * 0.1f),
-
-                // Primary acceptance fixture for curved reconstruction, radial voussoir seams,
-                // pier transitions, and moss-as-coating.
                 ("26_reference_arch", archCentre + new Vector3(0f, 1.5f, -14f),
                                       archCentre + new Vector3(0f, 0.5f, 0f)),
-
-                // The actual first-person reveal is part of the authored presentation. Keep it
-                // under visual regression alongside the diagnostic orbit views.
                 ("22_player_reveal", playerRevealPosition, playerRevealLook),
-
-                // Terrain far from the castle, to tell whether the terracing is the castle's
-                // sculpting or the terrain generator's own stepping.
-                ("07_terrain",     centre + new Vector3(260f, 22f, 260f), centre + new Vector3(360f, 12f, 360f)),
+                ("07_terrain",     centre + new Vector3(260f, 22f, 260f),
+                                    centre + new Vector3(360f, 12f, 360f)),
             };
 
             foreach (var view in views)
@@ -217,7 +182,7 @@ namespace VoxelEngine.Tests.PlayMode
                 if (view.name == "15_secret_archive")
                 {
                     Assert.That(world.TryOpenCastleTrapdoor(world.CastleTrapdoorPosition + Vector3.up),
-                                Is.True, "secret-room capture requires the hatch to open first");
+                                Is.True, "secret-room view requires the hatch to open first");
                 }
 
                 bool cutaway = view.name == "12_cutaway";
@@ -234,46 +199,41 @@ namespace VoxelEngine.Tests.PlayMode
                 cam.transform.LookAt(view.lookAt);
 
                 // The arch spans several extraction chunks; give its acceptance view enough
-                // budgeted frames to converge before capture. Ordinary views retain the fast
-                // two-frame cadence.
+                // budgeted frames to converge. Ordinary views retain the fast two-frame cadence.
                 int settleFrames = view.name == "26_reference_arch" ? 24 : 2;
                 for (int frame = 0; frame < settleFrames; frame++) yield return null;
 
-                long usedBytesBeforeCapture = world.StoragePressure.UsedBytes;
-                Capture(cam, Path.Combine(OutputDirectory, view.name + ".png"));
+                long usedBytesBeforeRender = world.StoragePressure.UsedBytes;
+                RenderView(cam, 1280, 720);
                 if (cutaway)
                 {
-                    Assert.AreEqual(usedBytesBeforeCapture, world.StoragePressure.UsedBytes,
+                    Assert.AreEqual(usedBytesBeforeRender, world.StoragePressure.UsedBytes,
                         "Rendering a cutaway must not allocate, free, or carve authoritative storage.");
                 }
-                Debug.Log($"### SHOT {view.name} from {view.position}");
+                Debug.Log($"### VIEW {view.name} from {view.position}");
             }
 
             showcase.SetCutawayPresentation(false);
 
-            Debug.Log($"### DONE wrote {views.Length} views to {OutputDirectory}");
+            Debug.Log($"### DONE exercised {views.Length} castle views");
             Assert.Greater(world.CastleVoxels, 100000, "the castle wrote almost nothing");
         }
 
-        private static void Capture(Camera cam, string path)
+        private static void RenderView(Camera cam, int width, int height)
         {
-            var rt = new RenderTexture(Width, Height, 24, RenderTextureFormat.ARGB32);
-            var previous = cam.targetTexture;
-
-            cam.targetTexture = rt;
-            cam.Render();
-
-            RenderTexture.active = rt;
-            var texture = new Texture2D(Width, Height, TextureFormat.RGB24, false);
-            texture.ReadPixels(new Rect(0, 0, Width, Height), 0, 0);
-            texture.Apply();
-            RenderTexture.active = null;
-
-            File.WriteAllBytes(path, texture.EncodeToPNG());
-
-            cam.targetTexture = previous;
-            Object.DestroyImmediate(texture);
-            rt.Release();
+            var target = new RenderTexture(width, height, 24, RenderTextureFormat.ARGB32);
+            RenderTexture previous = cam.targetTexture;
+            try
+            {
+                cam.targetTexture = target;
+                cam.Render();
+            }
+            finally
+            {
+                cam.targetTexture = previous;
+                target.Release();
+                Object.DestroyImmediate(target);
+            }
         }
     }
 }
