@@ -1,6 +1,5 @@
 using System.Collections;
 using System.Diagnostics;
-using System.IO;
 using System.Reflection;
 using NUnit.Framework;
 using Unity.Mathematics;
@@ -17,20 +16,21 @@ namespace VoxelEngine.Tests.PlayMode
 {
     /// <summary>
     /// Fast visual iteration loop for exterior art direction. It deliberately omits interiors,
-    /// cutaways, traversal, and gameplay checks; those remain in the full screenshot suite.
+    /// cutaways, traversal, and gameplay checks; those remain in the full visual suite.
+    ///
+    /// The PlayMode phase keeps the renderer/coverage assertions and exercises the same camera
+    /// transitions, but it no longer writes editor RenderTexture pixels to disk. Selecting either
+    /// test through the single-test workflow automatically builds VoxelShowcase as a real player
+    /// and publishes presented-frame screenshots every ten seconds through the shared capture
+    /// utility.
     /// </summary>
     /// <remarks>
-    /// <see cref="NUnit.Framework.ExplicitAttribute"/>: this captures images for a human to
-    /// look at rather than asserting behaviour, and it is one of the slowest things in the
-    /// suite. Run it by name when you want the artefacts:
-    /// <c>tools/unity-run.sh ... -testFilter CastleExteriorLookdevTests</c>
+    /// <see cref="NUnit.Framework.ExplicitAttribute"/>: visual acceptance for human review; run it
+    /// by name when you want the real-player artifacts.
     /// </remarks>
-    [NUnit.Framework.Explicit("Artefact capture for human review; run by name.")]
+    [NUnit.Framework.Explicit("Visual acceptance for human review; run by name.")]
     public sealed class CastleExteriorLookdevTests
     {
-        private const string OutputDirectory = "/tmp/castle_lookdev";
-        private const string MotionDirectory = "/tmp/castle_lookdev/motion";
-
         private ShowcaseWorld _world;
         private Camera _camera;
 
@@ -55,7 +55,7 @@ namespace VoxelEngine.Tests.PlayMode
             var uploadTarget = new RenderTexture(32, 32, 24, RenderTextureFormat.ARGB32);
             _camera.targetTexture = uploadTarget;
             // Surface extraction is incremental; give its bounded queue several render
-            // frames before judging pixels.
+            // frames before judging the surface state.
             for (int densityDrainFrame = 0; densityDrainFrame < 8; densityDrainFrame++)
             {
                 _camera.Render();
@@ -72,32 +72,27 @@ namespace VoxelEngine.Tests.PlayMode
         }
 
         /// <summary>
-        /// Flies the camera along a continuous path, rendering every frame and capturing at a
-        /// fixed stride.
+        /// Flies the camera along a continuous path and renders every frame.
         ///
-        /// The fixed views cannot see any of this. They teleport, render once, and judge the
-        /// result, which hides everything the incremental surface cache does over time: chunks
-        /// arriving behind the camera, the coarse level retiring before the fine level has filled
-        /// in, geometry from the previous viewpoint still resident. Those are the artefacts that
-        /// only appear in motion, and they need a moving camera to reproduce.
+        /// Fixed teleported views hide everything the incremental surface cache does over time:
+        /// chunks arriving behind the camera, the coarse level retiring before the fine level has
+        /// filled in, and geometry from the previous viewpoint still resident. This keeps that
+        /// motion exercise as a renderer assertion; persisted imagery comes from the real player.
         /// </summary>
         [UnityTest, Timeout(900000)]
         public IEnumerator CaptureMovingCameraSequence()
         {
-            Directory.CreateDirectory(MotionDirectory);
             IEnumerator setup = PrepareShowcase();
             while (setup.MoveNext()) yield return setup.Current;
 
             Vector3 centre = CastleCentre(_world);
-            // A long approach that also strafes, so both radial and lateral streaming are
-            // exercised: distance drives LOD selection, lateral motion drives residency churn.
             Vector3 start = centre + new Vector3(-58f, 20f, -104f);
             Vector3 end = centre + new Vector3(34f, 12f, -30f);
             Vector3 lookAt = centre + new Vector3(0f, 6f, 0f);
 
             const int frames = 96;
-            const int captureStride = 8;
-            int captureIndex = 0;
+            const int sampleStride = 8;
+            int sampleCount = 0;
             var motionTarget = new RenderTexture(1280, 720, 24, RenderTextureFormat.ARGB32);
             try
             {
@@ -107,7 +102,7 @@ namespace VoxelEngine.Tests.PlayMode
                     _camera.transform.position = Vector3.Lerp(start, end, t);
                     _camera.transform.LookAt(lookAt);
 
-                    // Render every frame, never only the captured ones. The cache advances by a
+                    // Render every frame, never only the sampled ones. The cache advances by a
                     // bounded number of builds per frame, so skipping frames would hand it a
                     // budget no player ever gives it.
                     _camera.targetTexture = motionTarget;
@@ -115,10 +110,10 @@ namespace VoxelEngine.Tests.PlayMode
                     _camera.targetTexture = null;
                     yield return null;
 
-                    if (frame % captureStride != 0) continue;
-                    Capture(_camera, Path.Combine(MotionDirectory,
-                        $"motion_{captureIndex:D2}.png"));
-                    captureIndex++;
+                    if (frame % sampleStride != 0) continue;
+                    sampleCount++;
+                    UnityEngine.Debug.Log($"### MOTION_SAMPLE {sampleCount:D2}: "
+                                          + VoxelRenderBridge.LastSurfacePassState);
                 }
             }
             finally
@@ -127,7 +122,7 @@ namespace VoxelEngine.Tests.PlayMode
                 Object.DestroyImmediate(motionTarget);
             }
 
-            Assert.Greater(captureIndex, 4, "The motion sequence needs enough frames to compare.");
+            Assert.Greater(sampleCount, 4, "The motion sequence needs enough sampled frames to compare.");
         }
 
         private static Vector3 CastleCentre(ShowcaseWorld world)
@@ -138,12 +133,11 @@ namespace VoxelEngine.Tests.PlayMode
                                plan.Centre.z) * 0.1f;
         }
 
-        // Generating the castle and capturing every view exceeds the 180 s default. Set
-        // VOXEL_LOOKDEV_FILTER to capture a single view when iterating on look.
+        // Generating the castle and exercising every view exceeds the 180 s default. Set
+        // VOXEL_LOOKDEV_FILTER to exercise a single view when iterating on look.
         [UnityTest, Timeout(900000)]
         public IEnumerator CaptureExteriorLookdevViews()
         {
-            Directory.CreateDirectory(OutputDirectory);
             var timer = Stopwatch.StartNew();
             IEnumerator prepare = PrepareShowcase();
             while (prepare.MoveNext()) yield return prepare.Current;
@@ -218,14 +212,12 @@ namespace VoxelEngine.Tests.PlayMode
                     && views[i].name.IndexOf(viewFilter,
                         System.StringComparison.OrdinalIgnoreCase) < 0)
                     continue;
+
                 camera.transform.position = views[i].position;
                 camera.transform.LookAt(views[i].target);
                 // A teleported lookdev camera has none of the approach time a player supplies.
                 // Optional tiny-target warmup renders let the incremental GPU surface cache
-                // converge around that viewpoint before the expensive full-resolution capture.
-                // Keep the capture aspect ratio. A square warmup hides chunks at the horizontal
-                // edges, then the first 16:9 capture exposes them before the bounded cache has
-                // had enough frames to build their geometry.
+                // converge around that viewpoint before judging the full-resolution render.
                 var warmupTarget = new RenderTexture(64, 36, 24, RenderTextureFormat.ARGB32);
                 camera.targetTexture = warmupTarget;
                 for (int warmup = 0; warmup < warmupFrames; warmup++)
@@ -236,7 +228,8 @@ namespace VoxelEngine.Tests.PlayMode
                 camera.targetTexture = null;
                 warmupTarget.Release();
                 Object.DestroyImmediate(warmupTarget);
-                Capture(camera, Path.Combine(OutputDirectory, views[i].name + ".png"));
+
+                RenderView(camera, 1280, 720);
                 UnityEngine.Debug.Log($"### VIEW_METRICS {views[i].name}: "
                                     + VoxelRenderBridge.LastSurfacePassState);
                 VoxelSurfaceMetrics metrics = VoxelRenderBridge.SurfaceMetrics;
@@ -254,22 +247,21 @@ namespace VoxelEngine.Tests.PlayMode
                                   $"voxels={world.CastleVoxels:N0}");
         }
 
-        private static void Capture(Camera camera, string path)
+        private static void RenderView(Camera camera, int width, int height)
         {
-            var target = new RenderTexture(1280, 720, 24, RenderTextureFormat.ARGB32);
-            camera.targetTexture = target;
-            camera.Render();
-            RenderTexture.active = target;
-            var texture = new Texture2D(1280, 720, TextureFormat.RGB24, false);
-            texture.ReadPixels(new Rect(0, 0, 1280, 720), 0, 0);
-            texture.Apply();
-            File.WriteAllBytes(path, texture.EncodeToPNG());
-            RenderTexture.active = null;
-            camera.targetTexture = null;
-            Object.DestroyImmediate(texture);
-            target.Release();
-            Object.DestroyImmediate(target);
-            Assert.True(File.Exists(path));
+            var target = new RenderTexture(width, height, 24, RenderTextureFormat.ARGB32);
+            RenderTexture previous = camera.targetTexture;
+            try
+            {
+                camera.targetTexture = target;
+                camera.Render();
+            }
+            finally
+            {
+                camera.targetTexture = previous;
+                target.Release();
+                Object.DestroyImmediate(target);
+            }
         }
     }
 }

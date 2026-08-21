@@ -7,9 +7,6 @@ name: Animation Quality Validation
 # happens to live. Retained as manually dispatchable.
 on:
   workflow_dispatch:
-concurrency:
-  group: animation-quality-${{ github.head_ref || github.ref_name }}
-  cancel-in-progress: true
 
 jobs:
   animation-quality:

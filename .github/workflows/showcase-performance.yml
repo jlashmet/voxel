@@ -2,8 +2,8 @@ name: Showcase Performance
 
 # Frame cost is only meaningful in a player build. The batchmode diagnostic renders to a
 # RenderTexture and never presents, so it cannot see a presentation stall; the editor adds its
-# own render loop to whatever the game costs. This builds the small showcase as a standalone
-# player, drives it on a scripted path, and publishes both the frame statistics and screenshots.
+# own render loop to whatever the game costs. The shared real-player capture utility owns the
+# build, launch and ten-second screenshot cadence used here and by visual single-test runs.
 #
 # The screenshots are not decoration. Holes, doubled terrain, sunken landmarks and missing
 # distant ground have all passed timing checks in this project. A run that reports frame cost
@@ -27,14 +27,11 @@ on:
       - 'Assets/Game/Composition/Showcase/**'
       - 'Assets/VoxelEngine/Rendering/**'
       - 'ProjectSettings/GraphicsSettings.asset'
+      - 'tools/showcase-player-capture.sh'
       - '.github/workflows/showcase-performance.yml'
 
 permissions:
   contents: read
-
-concurrency:
-  group: showcase-performance-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   measure:
@@ -75,55 +72,16 @@ jobs:
             sleep 5
           done
 
-      - name: Build the player
+      - name: Build and capture the real player
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p "$GITHUB_WORKSPACE/Artifacts"
-          UNITY_MAX_RSS_MB=12288 UNITY_MAX_MINUTES=25 \
-          UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
-            -batchmode -nographics -quit \
-            -projectPath "$GITHUB_WORKSPACE" \
-            -executeMethod VoxelEngine.Showcase.Editor.ShowcasePlayerBuild.Build \
-            -voxelScene Assets/Scenes/SmallVoxelShowcase.unity \
-            -voxelBuildOutput "$GITHUB_WORKSPACE/Artifacts/Player" \
-            -logFile "$GITHUB_WORKSPACE/Artifacts/player-build.log"
-
-          test -d "$GITHUB_WORKSPACE/Artifacts/Player/SmallVoxelShowcase.app"
-
-      - name: Run the player
-        shell: bash
-        run: |
-          set -uo pipefail
-          ROOT="$GITHUB_WORKSPACE/Artifacts"
-          SHOTS="$ROOT/Screenshots"
-          LOG="$ROOT/player-run.log"
-          mkdir -p "$SHOTS"
-
-          APP="$ROOT/Player/SmallVoxelShowcase.app/Contents/MacOS"
-          BIN="$APP/$(ls "$APP" | head -1)"
-
-          # The player needs a window server session. A runner with no logged-in desktop will
-          # start the process and render nothing, which shows up as an empty screenshot
-          # directory rather than a crash — hence the explicit check after the run.
-          "$BIN" -logFile "$LOG" \
-            -screen-width 1600 -screen-height 900 -screen-fullscreen 0 \
-            -voxel-uncapped -voxel-fps-log \
-            -voxel-autowalk-after "$AUTOWALK_AFTER" \
-            -voxel-run-seconds "$RUN_SECONDS" \
-            -voxel-screenshot-dir "$SHOTS" \
-            -voxel-screenshot-every 10 &
-          PID=$!
-
-          # The harness quits itself; this only covers a player that hangs before it can.
-          ( sleep $(( RUN_SECONDS + 120 )); kill -9 $PID 2>/dev/null ) &
-          WATCHDOG=$!
-          wait $PID
-          status=$?
-          kill $WATCHDOG 2>/dev/null
-
-          echo "player exit status: $status"
-          exit "$status"
+          bash tools/showcase-player-capture.sh \
+            --unity "${{ steps.unity.outputs.path }}" \
+            --scene Assets/Scenes/SmallVoxelShowcase.unity \
+            --output "$GITHUB_WORKSPACE/Artifacts" \
+            --run-seconds "$RUN_SECONDS" \
+            --autowalk-after "$AUTOWALK_AFTER"
 
       - name: Summarise frame cost
         if: always()
@@ -139,7 +97,10 @@ jobs:
             exit 1
           fi
 
-          grep 'FPSLOG' "$LOG" > "$ROOT/fps.txt" || true
+          # The shared capture utility emits fps.txt from the same real-player log.
+          if [[ ! -s "$ROOT/fps.txt" ]]; then
+            grep 'FPSLOG' "$LOG" > "$ROOT/fps.txt" || true
+          fi
           shots="$(find "$ROOT/Screenshots" -name '*.png' -size +1k | wc -l | tr -d ' ')"
 
           {

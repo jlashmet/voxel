@@ -12,10 +12,6 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: unity-tests-master
-  cancel-in-progress: false
-
 jobs:
   editmode:
     runs-on: [self-hosted, macOS]

@@ -7,6 +7,11 @@ run-name: Single test · ${{ github.ref_name }} · ${{ github.event_name }}
 # tools/ci-test. Agents without workflow-dispatch access use a dedicated ci-test/*
 # branch based on the exact source commit, then update .github/test-request.json
 # there. Keeping request commits off the PR branch prevents normal PR CI fanout.
+#
+# Visual screenshot suites are still selected exactly like any other test. After
+# the Unity assertion phase, the shared player-capture utility maps those known
+# filters to their real scene, builds a standalone app, and captures presented
+# frames every ten seconds under Artifacts/SingleTest/RealPlayer.
 on:
   workflow_dispatch:
     inputs:
@@ -37,9 +42,9 @@ permissions:
   contents: read
   statuses: write
 
-concurrency:
-  group: unity-tests-single-${{ github.ref }}
-  cancel-in-progress: false
+# Do not add an Actions concurrency group here. This repository has one self-hosted
+# macOS runner, and that runner is the queue. GitHub concurrency groups retain only
+# one pending run and can replace an older pending request when a newer one arrives.
 
 jobs:
   single:
@@ -150,14 +155,18 @@ jobs:
           done
 
       # Showcase PlayMode tests depend on the same baked startup world used by
-      # the PR and master workflows. The standalone Kentridge scenes compose
-      # their own worlds and must not pay for or depend on that unrelated bake.
+      # the PR and master workflows. The standalone Kentridge and self-contained
+      # Arch/Terrain lookdev scenes compose their own worlds and do not need it.
       - name: Bake Voxel Showcase startup world
         if: >-
           steps.request.outputs.platform == 'PlayMode' &&
           startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.') &&
           !startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.KentridgeStructureComparisonSceneTests.') &&
-          !startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests.')
+          !startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests.') &&
+          !startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.ArchLookdevSceneTests.') &&
+          steps.request.outputs.test != 'VoxelEngine.Tests.PlayMode.ArchLookdevSceneTests' &&
+          !startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.TerrainLookdevScreenshotTests.') &&
+          steps.request.outputs.test != 'VoxelEngine.Tests.PlayMode.TerrainLookdevScreenshotTests'
         shell: bash
         run: |
           set -euo pipefail
@@ -170,6 +179,22 @@ jobs:
             -executeMethod VoxelEngine.Showcase.Editor.ShowcaseWorldBaker.BakeShowcaseWorld \
             -logFile "$ROOT/showcase-bake.log"
           test -s "$GITHUB_WORKSPACE/Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes"
+
+      # tools/unity-run.sh deliberately refuses to start while another Unity editor is visible.
+      # A successful bake can return a moment before its macOS process disappears, so serialize
+      # adjacent Unity invocations instead of racing that shutdown.
+      - name: Wait for Unity between invocations
+        shell: bash
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 900))
+          while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
+            if (( SECONDS >= deadline )); then
+              pgrep -alf '/Unity.app/Contents/MacOS/Unity' || true
+              exit 1
+            fi
+            sleep 5
+          done
 
       - name: Run requested test
         shell: bash
@@ -227,6 +252,19 @@ jobs:
               raise SystemExit(2)
           print(f'Executed {len(cases)} test case(s).')
           PY
+
+      - name: Capture visual test from real player
+        if: always() && steps.request.outputs.platform == 'PlayMode'
+        shell: bash
+        env:
+          TEST_FILTER: ${{ steps.request.outputs.test }}
+        run: |
+          set -euo pipefail
+          bash tools/showcase-player-capture.sh \
+            --unity "${{ steps.unity.outputs.path }}" \
+            --output "$GITHUB_WORKSPACE/Artifacts/SingleTest/RealPlayer" \
+            --test-filter "$TEST_FILTER" \
+            --if-configured
 
       - name: Upload result
         if: always()

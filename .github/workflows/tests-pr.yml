@@ -16,11 +16,9 @@ on:
 permissions:
   contents: read
 
-# One self-hosted macOS runner, and two Unity editors on one machine is what
-# tools/unity-run.sh exists to refuse. Serialise instead of queueing refusals.
-concurrency:
-  group: unity-tests-${{ github.ref }}
-  cancel-in-progress: true
+# The single self-hosted macOS runner is the queue. Do not use Actions concurrency
+# here: GitHub keeps only one pending member of a concurrency group and can replace
+# an older pending run when another arrives. Every submitted Unity job should stay queued.
 
 jobs:
   affected:
