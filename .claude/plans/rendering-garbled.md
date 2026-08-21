@@ -37,7 +37,7 @@ This is a focused continuation of `voxel-showcase-rendering-repair-v2.md` for th
 
 ### D. Validate the repair
 
-- [ ] Run the smallest focused EditMode regression for the restored bucketed submission path and require green CI.
+- [x] Run the smallest focused EditMode regression for the restored bucketed submission path and require green CI (`GeometryPipelineArchitectureTests.SolidSurfaceDrawsAreBucketedInsteadOfSubmittedPerChunk`, run `32497707003`).
 - [ ] Run `VoxelEngine.Tests.PlayMode.CastleScreenshotTests` on the fixed `rendering-garbled` branch through the real standalone-player capture path.
 - [ ] Inspect all captured PNGs and verify the giant slabs/triangles and disconnected geometry are gone.
 - [ ] Inspect player logs for shader support/errors and require `Hidden/VoxelEngine/SmoothSurface` to remain supported on Metal.
