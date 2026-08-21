@@ -32,7 +32,7 @@ Shader "Hidden/VoxelEngine/WaterSurface"
             };
 
             StructuredBuffer<SurfaceVertex> _SurfaceVertices;
-            ByteAddressBuffer _SurfaceIndices;
+            StructuredBuffer<uint> _SurfaceIndices;
             uint _SurfaceIndexBase;
 
             TEXTURE2D(_SkyTexture);
@@ -54,8 +54,7 @@ Shader "Hidden/VoxelEngine/WaterSurface"
 
             Varyings Vert(uint vertexID : SV_VertexID)
             {
-                uint surfaceIndex = _SurfaceIndices.Load((_SurfaceIndexBase + vertexID) * 4u);
-                SurfaceVertex vertex = _SurfaceVertices[surfaceIndex];
+                SurfaceVertex vertex = _SurfaceVertices[_SurfaceIndices[_SurfaceIndexBase + vertexID]];
                 Varyings output;
                 output.positionCS = TransformWorldToHClip(vertex.position);
                 output.positionWS = vertex.position;

@@ -32,6 +32,18 @@ Shader "Hidden/VoxelEngine/SmoothSurface"
             };
 
             StructuredBuffer<SurfaceVertex> _SurfaceVertices;
+            StructuredBuffer<uint> _SurfaceIndices;
+            struct SurfaceDrawMetadata
+            {
+                uint indexStart;
+                uint vertexStart;
+                uint indexCount;
+                uint padding;
+            };
+            StructuredBuffer<SurfaceDrawMetadata> _SurfaceDrawMetadata;
+            uint _SurfaceDrawBase;
+            uint _SurfaceIndexBase;
+            uint _SurfaceVertexBase;
             float4 _BaseColor;
             float4 _MaterialAlbedo[32];
             float4 _MaterialSampling[32];
@@ -75,10 +87,20 @@ Shader "Hidden/VoxelEngine/SmoothSurface"
                 float occlusion : TEXCOORD3;
             };
 
-            Varyings Vert(uint vertexID : SV_VertexID)
+            Varyings Vert(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
             {
+                SurfaceDrawMetadata draw = _SurfaceDrawMetadata[_SurfaceDrawBase + instanceID];
                 Varyings output;
-                SurfaceVertex vertex = _SurfaceVertices[vertexID];
+                if (vertexID >= draw.indexCount)
+                {
+                    output.positionCS = float4(0.0, 0.0, 0.0, 0.0);
+                    output.positionWS = 0.0;
+                    output.normalNS = float3(0.0, 1.0, 0.0);
+                    output.material = 0u;
+                    output.occlusion = 0.0;
+                    return output;
+                }
+                SurfaceVertex vertex = _SurfaceVertices[draw.vertexStart + _SurfaceIndices[draw.indexStart + vertexID]];
                 output.positionCS = TransformWorldToHClip(vertex.position);
                 output.positionWS = vertex.position;
                 output.normalNS = normalize(vertex.normal);
