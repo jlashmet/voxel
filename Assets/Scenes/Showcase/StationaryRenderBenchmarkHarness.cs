@@ -41,8 +41,8 @@ namespace VoxelEngine.Showcase
                 Value(TimeoutArgument, Math.Max(120.0, reporter.SampleSeconds + 60.0)));
             UnityEngine.Object.DontDestroyOnLoad(root);
             Debug.Log(string.Format(CultureInfo.InvariantCulture,
-                "STATIONARY armed sample={0:0.0}s timeout={1:0.0}s",
-                reporter.SampleSeconds, reporter.TimeoutSeconds));
+                "STATIONARY armed sample={0:0.0}s timeout={1:0.0}s device={2}",
+                reporter.SampleSeconds, reporter.TimeoutSeconds, SystemInfo.graphicsDeviceType));
         }
 
         private static double Value(string name, double fallback)
@@ -73,7 +73,18 @@ namespace VoxelEngine.Showcase
             // Allocated once when the harness object is created. The measured interval only writes
             // into this fixed storage; sorting and string formatting happen after sampling ends.
             private readonly float[] _frameMilliseconds = new float[FrameCapacity];
+            private readonly FrameTiming[] _latestFrameTiming = new FrameTiming[1];
+            private readonly double[] _cpuFrameMilliseconds = new double[FrameCapacity];
+            private readonly double[] _cpuMainMilliseconds = new double[FrameCapacity];
+            private readonly double[] _cpuRenderMilliseconds = new double[FrameCapacity];
+            private readonly double[] _cpuPresentWaitMilliseconds = new double[FrameCapacity];
+            private readonly double[] _gpuFrameMilliseconds = new double[FrameCapacity];
             private int _frameCount;
+            private int _cpuFrameCount;
+            private int _cpuMainCount;
+            private int _cpuRenderCount;
+            private int _cpuPresentWaitCount;
+            private int _gpuFrameCount;
             private double _sampleElapsed;
             private double _totalElapsed;
             private int _convergedFrames;
@@ -135,9 +146,9 @@ namespace VoxelEngine.Showcase
                 SampleFrame(dt, in state);
                 if (_sampleElapsed < SampleSeconds) return;
 
-                // VoxelSurfaceScheduler.VisibilityTiming is a 128-frame rolling window rather than
-                // a resettable benchmark counter. Requiring at least 128 stationary frames means
-                // its final window contains no startup/convergence frames.
+                // Scheduler prepare/visibility are 128-frame rolling windows rather than resettable
+                // benchmark counters. Requiring at least 128 stationary frames means their final
+                // windows contain no startup/convergence frames.
                 if (_frameCount < MinimumRendererSamples) return;
                 Finish();
             }
@@ -163,6 +174,11 @@ namespace VoxelEngine.Showcase
                 _sampling = true;
                 _sampleElapsed = 0.0;
                 _frameCount = 0;
+                _cpuFrameCount = 0;
+                _cpuMainCount = 0;
+                _cpuRenderCount = 0;
+                _cpuPresentWaitCount = 0;
+                _gpuFrameCount = 0;
                 _samplePosition = _camera.transform.position;
                 _sampleRotation = _camera.transform.rotation;
                 _sampleProjection = _camera.projectionMatrix;
@@ -174,6 +190,10 @@ namespace VoxelEngine.Showcase
                 _pendingUploadsMax = state.SolidMeshesAwaitingUpload;
                 RenderingDiagnosticsComposition.ResetSolidRenderBenchmark();
 
+                // CaptureFrameTimings is intentionally armed only after convergence. The first
+                // GetLatestTimings calls may return no sample; they are skipped rather than pulling
+                // a startup frame into the stationary distribution.
+                FrameTimingManager.CaptureFrameTimings();
                 Debug.Log(string.Format(CultureInfo.InvariantCulture,
                     "STATIONARY begin t={0:0.0}s visible={1}",
                     _totalElapsed, state.VisibleSolidChunks));
@@ -184,6 +204,8 @@ namespace VoxelEngine.Showcase
                 _sampleElapsed += dt;
                 if (_frameCount < FrameCapacity)
                     _frameMilliseconds[_frameCount++] = dt * 1000f;
+
+                CaptureUnityFrameTiming();
 
                 if ((_camera.transform.position - _samplePosition).sqrMagnitude
                     > PositionToleranceSquared
@@ -204,6 +226,31 @@ namespace VoxelEngine.Showcase
                     _pendingUploadsMax = state.SolidMeshesAwaitingUpload;
             }
 
+            private void CaptureUnityFrameTiming()
+            {
+                uint timingCount = FrameTimingManager.GetLatestTimings(1, _latestFrameTiming);
+                if (timingCount > 0)
+                {
+                    FrameTiming timing = _latestFrameTiming[0];
+                    AddPositive(timing.cpuFrameTime, _cpuFrameMilliseconds, ref _cpuFrameCount);
+                    AddPositive(timing.cpuMainThreadFrameTime,
+                                _cpuMainMilliseconds, ref _cpuMainCount);
+                    AddPositive(timing.cpuRenderThreadFrameTime,
+                                _cpuRenderMilliseconds, ref _cpuRenderCount);
+                    AddPositive(timing.cpuMainThreadPresentWaitTime,
+                                _cpuPresentWaitMilliseconds, ref _cpuPresentWaitCount);
+                    AddPositive(timing.gpuFrameTime, _gpuFrameMilliseconds, ref _gpuFrameCount);
+                }
+                FrameTimingManager.CaptureFrameTimings();
+            }
+
+            private static void AddPositive(double milliseconds, double[] destination, ref int count)
+            {
+                if (milliseconds <= 0.0 || double.IsNaN(milliseconds)
+                    || double.IsInfinity(milliseconds) || count >= destination.Length) return;
+                destination[count++] = milliseconds;
+            }
+
             private void Finish()
             {
                 _finished = true;
@@ -218,6 +265,13 @@ namespace VoxelEngine.Showcase
                 double frameP99 = Percentile(_frameMilliseconds, sampledFrames, 0.99);
                 double frameMax = sampledFrames > 0 ? _frameMilliseconds[sampledFrames - 1] : 0.0;
 
+                TimingStats cpuFrame = Summarize(_cpuFrameMilliseconds, _cpuFrameCount);
+                TimingStats cpuMain = Summarize(_cpuMainMilliseconds, _cpuMainCount);
+                TimingStats cpuRender = Summarize(_cpuRenderMilliseconds, _cpuRenderCount);
+                TimingStats cpuPresent = Summarize(
+                    _cpuPresentWaitMilliseconds, _cpuPresentWaitCount);
+                TimingStats gpuFrame = Summarize(_gpuFrameMilliseconds, _gpuFrameCount);
+
                 bool visibleStable = _visibleMin == _visibleMax && _visibleMin > 0;
                 bool coverageStable = _missingMax == 0;
                 bool workStayedConverged = _runningJobsMax == 0 && _pendingUploadsMax == 0;
@@ -226,19 +280,33 @@ namespace VoxelEngine.Showcase
                     && coverageStable && workStayedConverged && enoughRenderSamples;
 
                 Debug.Log(string.Format(CultureInfo.InvariantCulture,
-                    "STATIONARY result={0} seconds={1:0.00} frames={2} fps={3:0.0} "
-                    + "frame.ms[p50={4:0.000} p95={5:0.000} p99={6:0.000} max={7:0.000}] "
-                    + "cameraStable={8} projectionStable={9} visible[min={10} max={11}] "
-                    + "missingMax={12} jobsMax={13} uploadsMax={14} renderSamples={15} "
-                    + "visibility.ms[p50={16:0.0000} p95={17:0.0000} p99={18:0.0000} max={19:0.0000}] "
-                    + "staging.ms[p50={20:0.0000} p95={21:0.0000} p99={22:0.0000} max={23:0.0000}] "
-                    + "submission.ms[p50={24:0.0000} p95={25:0.0000} p99={26:0.0000} max={27:0.0000}] "
-                    + "solids[mean={28:0.0} last={29}] draws[mean={30:0.0} last={31}]",
-                    pass ? "PASS" : "FAIL", _sampleElapsed, sampledFrames, fps,
+                    "STATIONARY result={0} device={1} seconds={2:0.00} frames={3} fps={4:0.0} "
+                    + "frame.ms[p50={5:0.000} p95={6:0.000} p99={7:0.000} max={8:0.000}] "
+                    + "cpu.ms[n={9} p50={10:0.000} p95={11:0.000} p99={12:0.000} max={13:0.000}] "
+                    + "main.ms[n={14} p50={15:0.000} p95={16:0.000} p99={17:0.000} max={18:0.000}] "
+                    + "render.ms[n={19} p50={20:0.000} p95={21:0.000} p99={22:0.000} max={23:0.000}] "
+                    + "presentWait.ms[n={24} p50={25:0.000} p95={26:0.000} p99={27:0.000} max={28:0.000}] "
+                    + "gpu.ms[n={29} p50={30:0.000} p95={31:0.000} p99={32:0.000} max={33:0.000}] "
+                    + "cameraStable={34} projectionStable={35} visible[min={36} max={37}] "
+                    + "missingMax={38} jobsMax={39} uploadsMax={40} renderSamples={41} "
+                    + "prepare.ms[p50={42:0.0000} p95={43:0.0000} p99={44:0.0000} max={45:0.0000}] "
+                    + "visibility.ms[p50={46:0.0000} p95={47:0.0000} p99={48:0.0000} max={49:0.0000}] "
+                    + "staging.ms[p50={50:0.0000} p95={51:0.0000} p99={52:0.0000} max={53:0.0000}] "
+                    + "submission.ms[p50={54:0.0000} p95={55:0.0000} p99={56:0.0000} max={57:0.0000}] "
+                    + "solids[mean={58:0.0} last={59}] draws[mean={60:0.0} last={61}]",
+                    pass ? "PASS" : "FAIL", SystemInfo.graphicsDeviceType,
+                    _sampleElapsed, sampledFrames, fps,
                     frameP50, frameP95, frameP99, frameMax,
+                    cpuFrame.Count, cpuFrame.P50, cpuFrame.P95, cpuFrame.P99, cpuFrame.Max,
+                    cpuMain.Count, cpuMain.P50, cpuMain.P95, cpuMain.P99, cpuMain.Max,
+                    cpuRender.Count, cpuRender.P50, cpuRender.P95, cpuRender.P99, cpuRender.Max,
+                    cpuPresent.Count, cpuPresent.P50, cpuPresent.P95, cpuPresent.P99, cpuPresent.Max,
+                    gpuFrame.Count, gpuFrame.P50, gpuFrame.P95, gpuFrame.P99, gpuFrame.Max,
                     _cameraStable ? 1 : 0, _projectionStable ? 1 : 0,
                     _visibleMin, _visibleMax, _missingMax, _runningJobsMax, _pendingUploadsMax,
                     render.SampleCount,
+                    render.SchedulerPrepareP50Ms, render.SchedulerPrepareP95Ms,
+                    render.SchedulerPrepareP99Ms, render.SchedulerPrepareMaxMs,
                     render.VisibilityP50Ms, render.VisibilityP95Ms,
                     render.VisibilityP99Ms, render.VisibilityMaxMs,
                     render.StagingP50Ms, render.StagingP95Ms,
@@ -249,6 +317,36 @@ namespace VoxelEngine.Showcase
                     render.MeanUnitySubmissionCalls, render.LastUnitySubmissionCalls));
 
                 Application.Quit(pass ? 0 : 1);
+            }
+
+            private readonly struct TimingStats
+            {
+                public readonly int Count;
+                public readonly double P50;
+                public readonly double P95;
+                public readonly double P99;
+                public readonly double Max;
+
+                public TimingStats(int count, double p50, double p95, double p99, double max)
+                {
+                    Count = count;
+                    P50 = p50;
+                    P95 = p95;
+                    P99 = p99;
+                    Max = max;
+                }
+            }
+
+            private static TimingStats Summarize(double[] samples, int count)
+            {
+                if (count <= 0) return default;
+                Array.Sort(samples, 0, count);
+                return new TimingStats(
+                    count,
+                    Percentile(samples, count, 0.50),
+                    Percentile(samples, count, 0.95),
+                    Percentile(samples, count, 0.99),
+                    samples[count - 1]);
             }
 
             private void CaptureSettlePose()
@@ -276,6 +374,14 @@ namespace VoxelEngine.Showcase
             }
 
             private static double Percentile(float[] sorted, int count, double fraction)
+            {
+                if (count <= 0) return 0.0;
+                int index = Math.Min(count - 1,
+                    Math.Max(0, (int)Math.Ceiling(fraction * count) - 1));
+                return sorted[index];
+            }
+
+            private static double Percentile(double[] sorted, int count, double fraction)
             {
                 if (count <= 0) return 0.0;
                 int index = Math.Min(count - 1,
