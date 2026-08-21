@@ -36,10 +36,6 @@ namespace VoxelEngine.Rendering.Runtime
                 }
             }
 
-            // The focused single-test workflow maps ArchLookdevSceneTests to an ArchLookdev
-            // standalone player. Auto-activate there only outside the Editor so the PlayMode
-            // assertion remains a shader/Metal sanity gate while the actual experiment is the
-            // presented standalone framebuffer.
             bool focusedStandalone = !Application.isEditor
                 && SceneManager.GetActiveScene().name == "ArchLookdev";
             if (!explicitProbe && !focusedStandalone) return;
@@ -51,9 +47,6 @@ namespace VoxelEngine.Rendering.Runtime
 
         private void Awake()
         {
-            foreach (Camera existing in FindObjectsByType<Camera>(FindObjectsSortMode.None))
-                existing.enabled = false;
-
             Shader shader = Resources.Load<Shader>("IndexedIndirectContract");
             if (shader == null || !shader.isSupported)
             {
@@ -62,27 +55,28 @@ namespace VoxelEngine.Rendering.Runtime
                 return;
             }
 
-            _material = new Material(shader) { hideFlags = HideFlags.HideAndDontSave };
+            // Use the scene camera that the existing real-player harness has already proven reaches
+            // the presented framebuffer. A separate runtime-created URP camera made the first probe
+            // non-discriminating because it was not the presented camera.
+            _camera = Camera.main != null ? Camera.main : FindFirstObjectByType<Camera>();
+            if (_camera == null)
+            {
+                Debug.LogError("INDIRECT_PROBE no presented camera found");
+                enabled = false;
+                return;
+            }
 
-            var cameraObject = new GameObject("IndexedIndirectContractCamera");
-            cameraObject.transform.SetParent(transform, false);
-            _camera = cameraObject.AddComponent<Camera>();
-            _camera.clearFlags = CameraClearFlags.SolidColor;
-            _camera.backgroundColor = Color.black;
-            _camera.cullingMask = 0;
-            _camera.depth = 1000f;
-            _camera.allowHDR = false;
-            _camera.allowMSAA = false;
+            _material = new Material(shader) { hideFlags = HideFlags.HideAndDontSave };
 
             // Four triangles laid out left-to-right in clip space. The top row executes all four
             // commands in one RenderPrimitivesIndexedIndirect call. The bottom row executes the
             // exact same command records individually via commandCount=1/startCommand=N.
             var positions = new[]
             {
-                new Vector3(-0.90f, -0.22f, 0f), new Vector3(-0.60f, -0.22f, 0f), new Vector3(-0.75f,  0.22f, 0f),
-                new Vector3(-0.40f, -0.22f, 0f), new Vector3(-0.10f, -0.22f, 0f), new Vector3(-0.25f,  0.22f, 0f),
-                new Vector3( 0.10f, -0.22f, 0f), new Vector3( 0.40f, -0.22f, 0f), new Vector3( 0.25f,  0.22f, 0f),
-                new Vector3( 0.60f, -0.22f, 0f), new Vector3( 0.90f, -0.22f, 0f), new Vector3( 0.75f,  0.22f, 0f),
+                new Vector3(-0.72f, -0.22f, 0f), new Vector3(-0.42f, -0.22f, 0f), new Vector3(-0.57f,  0.22f, 0f),
+                new Vector3(-0.22f, -0.22f, 0f), new Vector3( 0.08f, -0.22f, 0f), new Vector3(-0.07f,  0.22f, 0f),
+                new Vector3( 0.28f, -0.22f, 0f), new Vector3( 0.58f, -0.22f, 0f), new Vector3( 0.43f,  0.22f, 0f),
+                new Vector3( 0.68f, -0.22f, 0f), new Vector3( 0.98f, -0.22f, 0f), new Vector3( 0.83f,  0.22f, 0f),
             };
             _positions = new GraphicsBuffer(GraphicsBuffer.Target.Structured, positions.Length, sizeof(float) * 3);
             _positions.SetData(positions);
@@ -110,6 +104,7 @@ namespace VoxelEngine.Rendering.Runtime
             _singleProps.SetFloat("_YOffset", -0.48f);
 
             Debug.Log("INDIRECT_PROBE ready device=" + SystemInfo.graphicsDeviceType
+                + " camera=" + _camera.name
                 + " top=commandCount4 bottom=individual startCommand0..3 "
                 + "args=[(0,0),(3,0),(0,6),(6,9)] expected colors=red,green,blue,yellow");
         }
