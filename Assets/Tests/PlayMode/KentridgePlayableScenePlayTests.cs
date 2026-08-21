@@ -54,9 +54,15 @@ namespace VoxelEngine.Tests.PlayMode
             // Batch-mode frame rate is intentionally uncapped, so a frame count alone is not a
             // deterministic amount of game time. Force each rendered test frame to advance 100 ms;
             // the scene still executes its normal Update -> actor tick -> story runtime tick path.
+            // Dialogue is intentionally player-blocking now, so the test explicitly dismisses each
+            // line after it appears, just as a player click would. That keeps the acceptance about
+            // the real scene/runtime instead of depending on the old instant-dialogue behavior.
             Time.captureDeltaTime = 0.1f;
             for (var frame = 0; frame < 240 && !ReadBoolProperty(driver, "GameplayControlEnabled"); frame++)
+            {
+                DismissPendingDialogue(driver);
                 yield return null;
+            }
             Time.captureDeltaTime = 0f;
 
             Assert.That(ReadBoolProperty(driver, "GameplayControlEnabled"), Is.True,
@@ -195,6 +201,24 @@ namespace VoxelEngine.Tests.PlayMode
             delta.y = 0f;
             Vector3 wish = delta.sqrMagnitude <= 1e-6f ? Vector3.zero : delta.normalized;
             motor.Step(world, wish, sprint: false, jumpHeld: false, dt: WalkDeltaTime);
+        }
+
+        private static void DismissPendingDialogue(Component driver)
+        {
+            object presentation = ReadPrivateField<object>(driver, "_presentation");
+            PropertyInfo pendingProperty = presentation.GetType().GetProperty(
+                "Pending",
+                BindingFlags.Instance | BindingFlags.Public);
+            Assert.That(pendingProperty, Is.Not.Null,
+                "Kentridge slice presentation must expose its pending dialogue operation.");
+            if (pendingProperty.GetValue(presentation) == null) return;
+
+            MethodInfo dismiss = presentation.GetType().GetMethod(
+                "DismissPending",
+                BindingFlags.Instance | BindingFlags.Public);
+            Assert.That(dismiss, Is.Not.Null,
+                "Kentridge slice presentation must let the scene dismiss a completed dialogue beat.");
+            dismiss.Invoke(presentation, null);
         }
 
         private static float HorizontalDistance(Vector3 a, Vector3 b)
