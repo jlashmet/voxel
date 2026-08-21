@@ -30,7 +30,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         private readonly GpuMeshletPageArena _pages;
         private readonly ComputeBuffer _vertices;
-        private readonly GraphicsBuffer _indices;
+        private readonly ComputeBuffer _indices;
         private bool _disposed;
 
         public int PageCount => _pages.PageCount;
@@ -45,7 +45,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         public ulong RefusedTooLargeCount => _pages.RefusedTooLargeCount;
 
         public ComputeBuffer Vertices => _vertices;
-        public GraphicsBuffer Indices => _indices;
+        public ComputeBuffer Indices => _indices;
 
         /// <summary>Bytes committed, so a caller can check itself against the device budget.</summary>
         public long CommittedBytes =>
@@ -67,10 +67,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
             _vertices = new ComputeBuffer(pageCount * verticesPerPage, VertexStrideBytes,
                                           ComputeBufferType.Structured);
-            // The mesher writes indices through an RWByteAddressBuffer, so the allocation has
-            // to be Raw; a Structured buffer bound to that UAV is undefined behaviour.
-            _indices = new GraphicsBuffer(GraphicsBuffer.Target.Raw,
-                                          pageCount * IndicesPerPage, sizeof(uint));
+            _indices = new ComputeBuffer(pageCount * IndicesPerPage, sizeof(uint),
+                                         ComputeBufferType.Structured);
         }
 
         /// <summary>

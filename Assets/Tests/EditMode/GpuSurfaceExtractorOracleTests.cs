@@ -113,8 +113,8 @@ namespace VoxelEngine.Tests.EditMode
                 const int indexCapacity = 65536;
                 var vertices = new ComputeBuffer(vertexCapacity, sizeof(float) * 6 + sizeof(uint) * 2,
                                                  ComputeBufferType.Structured);
-                var indices = new GraphicsBuffer(GraphicsBuffer.Target.Raw,
-                                                 indexCapacity, sizeof(uint));
+                var indices = new ComputeBuffer(indexCapacity, sizeof(uint),
+                                                ComputeBufferType.Structured);
                 try
                 {
                     GpuExtractionResult result = extractor.Extract(
@@ -160,7 +160,7 @@ namespace VoxelEngine.Tests.EditMode
             const int capacity = 4096;
             var vertices = new ComputeBuffer(capacity, sizeof(float) * 6 + sizeof(uint) * 2,
                                              ComputeBufferType.Structured);
-            var indices = new GraphicsBuffer(GraphicsBuffer.Target.Raw, capacity, sizeof(uint));
+            var indices = new ComputeBuffer(capacity, sizeof(uint), ComputeBufferType.Structured);
             try
             {
                 GpuExtractionResult result = extractor.Extract(
@@ -197,7 +197,7 @@ namespace VoxelEngine.Tests.EditMode
             const int capacity = 4096;
             var vertices = new ComputeBuffer(capacity, sizeof(float) * 6 + sizeof(uint) * 2,
                                              ComputeBufferType.Structured);
-            var indices = new GraphicsBuffer(GraphicsBuffer.Target.Raw, capacity, sizeof(uint));
+            var indices = new ComputeBuffer(capacity, sizeof(uint), ComputeBufferType.Structured);
             try
             {
                 GpuExtractionResult result = extractor.Extract(
@@ -237,7 +237,7 @@ namespace VoxelEngine.Tests.EditMode
             const int capacity = 16384;
             var vertices = new ComputeBuffer(capacity, sizeof(float) * 6 + sizeof(uint) * 2,
                                              ComputeBufferType.Structured);
-            var indices = new GraphicsBuffer(GraphicsBuffer.Target.Raw, capacity, sizeof(uint));
+            var indices = new ComputeBuffer(capacity, sizeof(uint), ComputeBufferType.Structured);
             try
             {
                 GpuExtractionResult result = extractor.Extract(
@@ -294,7 +294,7 @@ namespace VoxelEngine.Tests.EditMode
             const int capacity = 16384;
             var vertices = new ComputeBuffer(capacity, sizeof(float) * 6 + sizeof(uint) * 2,
                                              ComputeBufferType.Structured);
-            var indices = new GraphicsBuffer(GraphicsBuffer.Target.Raw, capacity, sizeof(uint));
+            var indices = new ComputeBuffer(capacity, sizeof(uint), ComputeBufferType.Structured);
             try
             {
                 extractor.Extract(mirror, tables, int3.zero, brickCacheOrigin, 1, 0.1f,
@@ -378,7 +378,7 @@ namespace VoxelEngine.Tests.EditMode
             const int capacity = 65536;
             var vertices = new ComputeBuffer(capacity, GpuSurfaceExtractor.ReadbackVertex.Stride,
                                              ComputeBufferType.Structured);
-            var indices = new GraphicsBuffer(GraphicsBuffer.Target.Raw, capacity, sizeof(uint));
+            var indices = new ComputeBuffer(capacity, sizeof(uint), ComputeBufferType.Structured);
             try
             {
                 GpuExtractionResult result = extractor.Extract(
@@ -513,7 +513,7 @@ namespace VoxelEngine.Tests.EditMode
             const int capacity = 65536;
             var vertices = new ComputeBuffer(capacity, GpuSurfaceExtractor.ReadbackVertex.Stride,
                                              ComputeBufferType.Structured);
-            var indices = new GraphicsBuffer(GraphicsBuffer.Target.Raw, capacity, sizeof(uint));
+            var indices = new ComputeBuffer(capacity, sizeof(uint), ComputeBufferType.Structured);
             try
             {
                 var delta = VoxelBrickDelta.MixedAt(int3.zero, 1, 0);
@@ -646,7 +646,7 @@ namespace VoxelEngine.Tests.EditMode
             const int capacity = 65536;
             var vertices = new ComputeBuffer(capacity, GpuSurfaceExtractor.ReadbackVertex.Stride,
                                              ComputeBufferType.Structured);
-            var indices = new GraphicsBuffer(GraphicsBuffer.Target.Raw, capacity, sizeof(uint));
+            var indices = new ComputeBuffer(capacity, sizeof(uint), ComputeBufferType.Structured);
             try
             {
                 extractor.Extract(mirror, tables, int3.zero, new int3(-1, -1, -1),
@@ -715,7 +715,7 @@ namespace VoxelEngine.Tests.EditMode
             {
                 var vertices = new ComputeBuffer(capacity, GpuSurfaceExtractor.ReadbackVertex.Stride,
                                                  ComputeBufferType.Structured);
-                var indices = new GraphicsBuffer(GraphicsBuffer.Target.Raw, capacity, sizeof(uint));
+                var indices = new ComputeBuffer(capacity, sizeof(uint), ComputeBufferType.Structured);
                 try
                 {
                     // Extract first only to zero the counters; its regular geometry is then

@@ -14,9 +14,10 @@ namespace VoxelEngine.Showcase.Editor
     /// and Profiler window are part of what gets measured. Neither can answer what the game
     /// actually runs at. This builds the smallest player that can.
     ///
-    ///   -voxelScene <path>      scene to build, default Assets/Scenes/SmallVoxelShowcase.unity
-    ///   -voxelBuildOutput <dir> output directory for the .app
-    ///   -voxelDevelopment       development build, so the profiler can attach
+    ///   -voxelScene <path>        scene to build, default Assets/Scenes/SmallVoxelShowcase.unity
+    ///   -voxelBuildOutput <dir>   output directory for the .app
+    ///   -voxelDevelopment         development build, so the profiler can attach
+    ///   -voxelFrameTimingStats    enable Unity CPU/GPU FrameTiming data in this player only
     /// </summary>
     public static class ShowcasePlayerBuild
     {
@@ -28,6 +29,7 @@ namespace VoxelEngine.Showcase.Editor
             string output = Argument("-voxelBuildOutput")
                             ?? Path.Combine(Directory.GetCurrentDirectory(), "Artifacts/Player");
             bool development = HasFlag("-voxelDevelopment");
+            bool frameTimingStats = HasFlag("-voxelFrameTimingStats");
 
             if (!File.Exists(scene))
                 throw new FileNotFoundException($"No scene at {scene}", scene);
@@ -52,11 +54,26 @@ namespace VoxelEngine.Showcase.Editor
                     : BuildOptions.None
             };
 
-            BuildReport report = BuildPipeline.BuildPlayer(options);
+            // FrameTimingManager only reports CPU/GPU breakdowns when the player was built with
+            // frame timing stats enabled. This is a benchmark-build concern, not a project policy:
+            // restore the serialized setting even if BuildPipeline throws so selecting this harness
+            // never dirties ProjectSettings or changes ordinary player builds.
+            bool previousFrameTimingStats = PlayerSettings.enableFrameTimingStats;
+            BuildReport report;
+            try
+            {
+                if (frameTimingStats) PlayerSettings.enableFrameTimingStats = true;
+                report = BuildPipeline.BuildPlayer(options);
+            }
+            finally
+            {
+                PlayerSettings.enableFrameTimingStats = previousFrameTimingStats;
+            }
+
             BuildSummary summary = report.summary;
             Debug.Log($"ShowcasePlayerBuild {summary.result} -> {appPath} "
                       + $"({summary.totalSize / (1024 * 1024)} MB, {summary.totalTime.TotalSeconds:0}s, "
-                      + $"errors {summary.totalErrors})");
+                      + $"errors {summary.totalErrors}, frameTiming={frameTimingStats})");
 
             if (summary.result != BuildResult.Succeeded)
                 throw new InvalidOperationException(

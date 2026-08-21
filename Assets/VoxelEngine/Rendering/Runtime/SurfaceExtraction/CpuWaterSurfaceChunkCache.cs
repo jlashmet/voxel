@@ -43,7 +43,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             private int _stagingVertexCursor;
             private int _stagingIndexCursor;
             public ComputeBuffer Vertices => _arena.Vertices;
-            public GraphicsBuffer Indices => _arena.Indices;
+            public ComputeBuffer Indices => _arena.Indices;
             public ComputeBuffer Args => _arena.Args;
             public bool Ready;
             public int IndexCount;
