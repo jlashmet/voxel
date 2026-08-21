@@ -71,6 +71,12 @@ namespace VoxelEngine.Tests.PlayMode
             Vector3 exteriorTarget = ReadRealizedPoint(pubAccess, "ExteriorApproach");
             Vector3 inward = ReadInt2Direction(pubAccess, "Inward");
 
+            Assert.That(HorizontalDistance(motor.Position, interiorApproach),
+                Is.LessThanOrEqualTo(0.05f),
+                "Gameplay control must be handed back on the architecture-owned clear interior " +
+                "doorway approach, not at an arbitrary cutscene performance mark. " +
+                PositionDiagnostic(motor.Position, interiorApproach, entrance, inward));
+
             float initialDepth = Vector3.Dot(motor.Position - entrance, inward);
             Assert.That(initialDepth, Is.GreaterThan(0.5f),
                 "When gameplay control returns, the actual scene player must still be physically inside the generated pub.");
@@ -109,6 +115,18 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(exteriorDepth, Is.LessThanOrEqualTo(-0.75f),
                 "The player must finish on the Kentridge-town side of the generated pub entrance. " +
                 PositionDiagnostic(motor.Position, exteriorTarget, entrance, inward));
+
+            Vector3 beforeRescue = motor.Position;
+            MethodInfo rescue = driver.GetType().GetMethod(
+                "RescuePlayerToY100",
+                BindingFlags.Instance | BindingFlags.Public);
+            Assert.That(rescue, Is.Not.Null,
+                "The playable slice must expose its player-facing Y=100 rescue action.");
+            rescue.Invoke(driver, null);
+            Assert.That(motor.Position.x, Is.EqualTo(beforeRescue.x).Within(0.001f));
+            Assert.That(motor.Position.z, Is.EqualTo(beforeRescue.z).Within(0.001f));
+            Assert.That(motor.Position.y, Is.EqualTo(100f).Within(0.001f),
+                "The rescue action must set the player's feet to world Y=100 exactly.");
         }
 
         [UnityTearDown]

@@ -51,6 +51,7 @@ namespace Game.Kentridge.PlayableSlice
         private KentridgeGameplaySiteAccess _pubAccess;
         private bool _spawned;
         private bool _hasExitedPub;
+        private bool _cutsceneOwnedControl;
         private bool _mouseLook = true;
         private float _yaw;
         private float _pitch;
@@ -140,6 +141,7 @@ namespace Game.Kentridge.PlayableSlice
                 ApplyPlayerCameraFacing();
                 transform.position = _motor.EyePosition;
                 _spawned = true;
+                _cutsceneOwnedControl = true;
                 SetCursorLocked(true);
             }
             catch
@@ -171,6 +173,7 @@ namespace Game.Kentridge.PlayableSlice
             _motor = null;
             _spawned = false;
             _hasExitedPub = false;
+            _cutsceneOwnedControl = false;
         }
 
         private void Update()
@@ -181,7 +184,12 @@ namespace Game.Kentridge.PlayableSlice
             _actors.Tick(dt);
             _session.Runtime.Tick(Mathf.Max(0, Mathf.RoundToInt(dt * 1000f)));
 
-            if (_session.Runtime.HasActiveCutscene)
+            bool hasActiveCutscene = _session.Runtime.HasActiveCutscene;
+            if (_cutsceneOwnedControl && !hasActiveCutscene)
+                ReleasePlayerAtPubExit();
+            _cutsceneOwnedControl = hasActiveCutscene;
+
+            if (hasActiveCutscene)
             {
                 ApplyPlayerCameraFacing();
             }
@@ -200,6 +208,44 @@ namespace Game.Kentridge.PlayableSlice
         private void HandleKeys()
         {
             if (Input.GetKeyDown(KeyCode.Escape)) SetCursorLocked(!_mouseLook);
+            if (Input.GetKeyDown(KeyCode.F10)) RescuePlayerToY100();
+        }
+
+        private void ReleasePlayerAtPubExit()
+        {
+            // A cutscene stage point is a performance mark, not a gameplay-safe spawn. The final
+            // mark can be off the doorway centreline (and revisions to the generated pub can put
+            // its capsule against new trim), which made ordinary WASD appear completely stuck.
+            // Hand control back at the architecture-owned clear interior approach and face the
+            // public exit. This is still inside the pub, so the player walks through the real door.
+            Vector3 interior = ToMetres(_pubAccess.InteriorApproach);
+            Vector3 entrance = ToMetres(_pubAccess.Entrance);
+            Vector3 facing = entrance - interior;
+            facing.y = 0f;
+
+            _motor.Position = interior;
+            _motor.Velocity = Vector3.zero;
+            if (facing.sqrMagnitude > 1e-6f)
+            {
+                transform.rotation = Quaternion.LookRotation(facing.normalized, Vector3.up);
+                _yaw = transform.rotation.eulerAngles.y;
+                _pitch = 0f;
+            }
+        }
+
+        /// <summary>
+        /// Emergency player-facing escape hatch for malformed or partially streamed geometry.
+        /// It intentionally preserves X/Z and sets the feet, rather than the camera, to world
+        /// Y=100 so the character can steer while falling back toward the world.
+        /// </summary>
+        public void RescuePlayerToY100()
+        {
+            if (_motor == null) return;
+            Vector3 position = _motor.Position;
+            position.y = 100f;
+            _motor.Position = position;
+            _motor.Velocity = Vector3.zero;
+            transform.position = _motor.EyePosition;
         }
 
         private void HandleLook()
@@ -286,6 +332,15 @@ namespace Game.Kentridge.PlayableSlice
                 _session.Runtime.HasActiveCutscene
                     ? _presentation.LastCue
                     : "WASD move • mouse look • Shift sprint • Space jump");
+
+            if (!_session.Runtime.HasActiveCutscene)
+            {
+                if (GUI.Button(new Rect(16f, 106f, 235f, 34f),
+                               "Rescue: move to Y = 100 m"))
+                    RescuePlayerToY100();
+                GUI.Label(new Rect(264f, 112f, 360f, 24f),
+                          "F10 anytime • Esc releases the cursor");
+            }
         }
 
         private static Vector3 ToMetres(CutsceneInt3 point) =>
