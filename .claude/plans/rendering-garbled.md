@@ -1,0 +1,43 @@
+# Rendering Garbled — VoxelShowcase Real-Player Repair
+
+This is a focused continuation of `voxel-showcase-rendering-repair-v2.md` for the player-visible geometry corruption reproduced on `rendering-garbled`. The parent plan's D2 near-field residency/pin-reject work and D3 near/far coverage work remain independent and must not be marked complete by this investigation.
+
+## Acceptance rules
+
+- Use the real `VoxelShowcase` standalone-player capture path (`VoxelEngine.Tests.PlayMode.CastleScreenshotTests`) as the visual acceptance gate.
+- A green PlayMode assertion is not sufficient: inspect every captured presented-frame PNG.
+- Fix the first proven rendering invariant; do not weaken unrelated rendering, LOD, or performance thresholds.
+- Keep Metal/macOS support intact; shader changes that make `Hidden/VoxelEngine/SmoothSurface` unsupported are invalid.
+- Preserve the parent rendering-repair plan's asynchronous publication and frame-budget constraints.
+
+## Task list
+
+### A. Reproduce and classify
+
+- [x] Create `rendering-garbled` from the requested master head and run the real-player `CastleScreenshotTests` capture.
+- [x] Inspect the original standalone-player screenshots and confirm severe geometry corruption: giant slabs/triangles and disconnected castle fragments rather than a simple missing-terrain hole.
+- [x] Trace the regression window to the indexed-indirect solid submission change (`fbaf77b8d210cc5e5f98bd99c0bf50e8640a7ac2`) and its surrounding arena/index-addressing changes.
+
+### B. Reject the first false lead
+
+- [x] Test the hypothesis that multi-draw command zero was incorrectly reused by changing `InitIndirectDrawArgs` to consume `SV_DrawID` and guarding that behavior in EditMode.
+- [x] Run the focused architecture regression for that hypothesis successfully.
+- [x] Rerun the same real-player capture and inspect the screenshots rather than trusting the green workflow.
+- [x] Reject the `SV_DrawID` change as the fix: the capture remains wrong and the Metal player reports `Hidden/VoxelEngine/SmoothSurface` unsupported with that shader signature.
+- [x] Remove the unsupported experiment from `rendering-garbled`; restore the branch to the clean original source head before the next controlled test.
+
+### C. Isolate the indexed-multidraw regression
+
+- [ ] Run the exact same real-player capture on `a9aa6c5707decc7faa3f718eaa1216aebe2ca6b1`, the direct parent of the indexed-multidraw commit.
+- [ ] Inspect every baseline PNG and record whether corruption is absent or already present.
+- [ ] If the parent is clean, add a focused regression for the first proven index/base-vertex invariant in the multidraw path before changing production code.
+- [ ] Fix the proven index/addressing defect without introducing unsupported shader semantics or restoring per-chunk frame garbage.
+
+### D. Validate the repair
+
+- [ ] Run the smallest focused EditMode regression for the production fix and require green CI.
+- [ ] Run `VoxelEngine.Tests.PlayMode.CastleScreenshotTests` on the fixed branch through the real standalone-player capture path.
+- [ ] Inspect all captured PNGs and verify the giant slabs/triangles and disconnected geometry are gone.
+- [ ] Inspect player logs for shader support/errors and require `Hidden/VoxelEngine/SmoothSurface` to remain supported on Metal.
+- [ ] Compare `rendering-garbled` with its master base and confirm only the intended renderer/test/plan changes remain.
+- [ ] Mark this repair complete only after the real-player images are clean; do not close the parent plan's independent D2/D3 tasks unless separately validated.
