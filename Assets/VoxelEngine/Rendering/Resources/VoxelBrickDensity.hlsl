@@ -234,8 +234,11 @@ float SampleField(int3 p, out uint dominantMaterial, out uint dominantSurface,
     bool centreSolid = IsSolidSample(centre);
     centreSurface = ResolveSurface(centre, centreSurface);
 
-    if (packedBoundary != 0u && HasOppositeOccupancyNeighbour(p, centreSolid))
+    if (packedBoundary != 0u)
     {
+        // The authoring path already sign-checks analytic samples against authoritative occupancy
+        // and intentionally keeps them on empty halo cells. Requiring a six-neighbour occupancy
+        // transition here discards valid diagonal crossings and falls back to voxel smoothing.
         dominantMaterial = centreSolid ? centre : 0u;
         dominantSurface = centreSolid ? centreSurface : 0u;
         return BoundarySignedQ3(packedBoundary) * 0.125 + CoatingDisplacement(centreSurface);
