@@ -184,6 +184,7 @@ namespace VoxelEngine.Showcase
             _castleFrontGateOpen = false;
             _deferredFeatureRegions.Clear();
             _pendingFeatureRegions.Clear();
+            _featureBuild?.Dispose();
             _featureBuild = null;
 
             CastleVoxels = bake.CastleVoxels;

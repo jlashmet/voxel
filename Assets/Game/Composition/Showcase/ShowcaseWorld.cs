@@ -941,8 +941,8 @@ namespace VoxelEngine.Showcase
         /// </summary>
         private void CaptureFarField(int3 coord) => FarField.CaptureRegion(coord, ReadStorage, Seed);
 
-        /// <summary>Instances rasterised per slice before the clock is consulted again.</summary>
-        private const int FeatureInstancesPerSlice = 4;
+        /// <summary>Storage-block primitive tiles rasterised before checking the clock again.</summary>
+        private const int FeatureTilesPerSlice = 4;
 
         /// <summary>
         /// Share of a streaming frame's budget reserved for queued features. Terrain keeps the
@@ -980,7 +980,7 @@ namespace VoxelEngine.Showcase
                 didWork = true;
 
                 if (!_featureBuild.Step(in _catalogue, Seed, _readSource, _mutationStore,
-                                        FeatureInstancesPerSlice))
+                                        FeatureTilesPerSlice))
                     continue;
 
                 CompleteFeatureBuild();
@@ -1015,6 +1015,7 @@ namespace VoxelEngine.Showcase
         {
             int3 coord = _featureBuild.RegionCoord;
             FeatureGenerationReport report = _featureBuild.Report;
+            _featureBuild.Dispose();
             _featureBuild = null;
 
             FeatureVoxelsBuilt += report.VoxelsWritten;
@@ -1039,7 +1040,10 @@ namespace VoxelEngine.Showcase
         {
             _pendingFeatureRegions.Remove(coord);
             if (_featureBuild != null && _featureBuild.RegionCoord.Equals(coord))
+            {
+                _featureBuild.Dispose();
                 _featureBuild = null;
+            }
         }
 
         /// <summary>Releases the in-flight generation state without publishing it.</summary>
@@ -2332,6 +2336,8 @@ namespace VoxelEngine.Showcase
         public void Dispose()
         {
             FinishRegionForced();
+            _featureBuild?.Dispose();
+            _featureBuild = null;
             _detachedChunks.Clear();
             if (_catalogue.IsCreated) _catalogue.Dispose();
             _storage.Dispose();

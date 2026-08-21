@@ -1,3 +1,4 @@
+using System;
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Structures.Api;
@@ -50,7 +51,7 @@ namespace VoxelEngine.Composition
     /// Composition bridge for a region's feature generation spread across frames. See
     /// <see cref="VoxelEngine.Structures.Runtime.FeatureRegionBuild"/> for why it is sliced.
     /// </summary>
-    internal sealed class FeatureRegionBuild
+    internal sealed class FeatureRegionBuild : IDisposable
     {
         private readonly VoxelEngine.Structures.Runtime.FeatureRegionBuild _build;
 
@@ -67,7 +68,9 @@ namespace VoxelEngine.Composition
 
         public bool Step(in FeatureCatalogue catalogue, uint seed,
                          IRegionReadSource reads, IRegionMutationStore mutations,
-                         int maxInstances) =>
-            _build.Step(in catalogue, seed, reads, mutations, maxInstances);
+                         int maxTiles) =>
+            _build.Step(in catalogue, seed, reads, mutations, maxTiles);
+
+        public void Dispose() => _build.Dispose();
     }
 }

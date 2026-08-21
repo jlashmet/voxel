@@ -22,7 +22,7 @@ namespace VoxelEngine.Tests.Features
         /// <summary>The region the cottage fixture's single placement lands in.</summary>
         private static readonly int3 CottageRegion = new(4, 0, 6);
 
-        /// <summary>Three cottages in one region, so a one-instance budget must resume twice.</summary>
+        /// <summary>Three cottages in one region exercise both intra- and inter-instance resume.</summary>
         private const int Placements = 3;
 
         private static FeatureCatalogue BuildCatalogue()
@@ -40,7 +40,7 @@ namespace VoxelEngine.Tests.Features
             catalogue.ExplicitPlacements[Placements - 1].Position
             + catalogue.Definitions[CottageFixture.CottageId].Footprint;
 
-        private static byte[] Run(in FeatureCatalogue catalogue, int maxInstancesPerStep,
+        private static byte[] Run(in FeatureCatalogue catalogue, int maxTilesPerStep,
                                   out FeatureGenerationReport report, out int steps)
         {
             var table = new RegionTable(8, Allocator.Persistent);
@@ -50,9 +50,9 @@ namespace VoxelEngine.Tests.Features
                 var reads = new RegionReadSource(in table, in pool);
                 var mutations = new RegionMutationStore(in table, in pool);
 
-                var build = new FeatureRegionBuild(CottageRegion);
+                using var build = new FeatureRegionBuild(CottageRegion);
                 steps = 0;
-                while (!build.Step(in catalogue, Seed, reads, mutations, maxInstancesPerStep))
+                while (!build.Step(in catalogue, Seed, reads, mutations, maxTilesPerStep))
                     steps++;
                 steps++;
                 report = build.Report;
@@ -103,8 +103,9 @@ namespace VoxelEngine.Tests.Features
                 Assert.Greater(wholeReport.VoxelsWritten, 0,
                     "The fixture must actually build something or this comparison is vacuous.");
                 Assert.AreEqual(1, wholeSteps, "An unbounded budget finishes in one step.");
-                Assert.AreEqual(Placements, slicedSteps,
-                    "A budget of one instance must take one step per placement.");
+                Assert.Greater(slicedSteps, slicedReport.PrimitivesEmitted,
+                    "At least one primitive must span multiple tiles; yielding only between " +
+                    "whole primitives would leave the original frame-stall invariant intact.");
 
                 int difference = SubVolumeEquality.FirstDifference(whole, sliced);
                 Assert.AreEqual(-1, difference,
@@ -156,7 +157,7 @@ namespace VoxelEngine.Tests.Features
         {
             // The showcase runs with no catalogue in some configurations; a build that never
             // reported completion would pin the queue head forever and stall every later region.
-            var build = new FeatureRegionBuild(CottageRegion);
+            using var build = new FeatureRegionBuild(CottageRegion);
             FeatureCatalogue none = default;
 
             Assert.IsTrue(build.Step(in none, Seed, null, null, 4));
@@ -174,7 +175,7 @@ namespace VoxelEngine.Tests.Features
                 var reads = new RegionReadSource(in table, in pool);
                 var mutations = new RegionMutationStore(in table, in pool);
 
-                var build = new FeatureRegionBuild(CottageRegion);
+                using var build = new FeatureRegionBuild(CottageRegion);
                 while (!build.Step(in catalogue, Seed, reads, mutations, 1)) { }
                 int written = build.Report.VoxelsWritten;
 
@@ -203,12 +204,40 @@ namespace VoxelEngine.Tests.Features
 
                 // Skipping a placement is a footprint comparison, so an empty region must not
                 // consume slices: it finishes in one call however small the budget is.
-                var build = new FeatureRegionBuild(new int3(-40, 0, -40));
+                using var build = new FeatureRegionBuild(new int3(-40, 0, -40));
                 Assert.IsTrue(build.Step(in catalogue, Seed, reads, mutations, 1));
                 Assert.AreEqual(0, build.Report.VoxelsWritten);
                 Assert.AreEqual(0, build.Report.InstancesRasterised);
                 Assert.Greater(build.Report.InstancesConsidered, 0,
                     "The catalogue was still walked; only the rasterisation was skipped.");
+            }
+            finally
+            {
+                pool.Dispose();
+                table.Dispose();
+                catalogue.Dispose();
+            }
+        }
+
+        [Test]
+        public void OneTileBudgetYieldsInsideTheFirstLargePrimitive()
+        {
+            FeatureCatalogue catalogue = BuildCatalogue();
+            var table = new RegionTable(8, Allocator.Persistent);
+            var pool = new BrickPool(8192, Allocator.Persistent);
+            try
+            {
+                var reads = new RegionReadSource(in table, in pool);
+                var mutations = new RegionMutationStore(in table, in pool);
+                using var build = new FeatureRegionBuild(CottageRegion);
+
+                Assert.IsFalse(build.Step(in catalogue, Seed, reads, mutations, 1),
+                    "one storage-block tile must not finish a cottage");
+                Assert.AreEqual(1, build.Report.InstancesConsidered);
+                Assert.Greater(build.Report.PrimitivesEmitted, 0,
+                    "the instance should have been evaluated before raster work yielded");
+                Assert.AreEqual(0, build.Report.InstancesRasterised,
+                    "an instance is reported only after all of its ordered primitive tiles finish");
             }
             finally
             {

@@ -42,7 +42,7 @@ namespace VoxelEngine.Structures.Runtime
             IRegionReadSource reads,
             IRegionMutationStore mutations)
         {
-            var build = new FeatureRegionBuild(regionCoord);
+            using var build = new FeatureRegionBuild(regionCoord);
             while (!build.Step(in catalogue, seed, reads, mutations, int.MaxValue)) { }
             return build.Report;
         }
@@ -68,26 +68,9 @@ namespace VoxelEngine.Structures.Runtime
             bool markHardSurface = definition.Kind == FeatureKind.Structure
                                 || definition.Kind == FeatureKind.Infrastructure;
 
-            primitives.Clear();
-            anchors.Clear();
-
-            var parameters = ResolveParameters(in catalogue, in definition, in placement,
-                                               definitionId, placement.Position, seed);
-
-            ulong instanceSeed = InstanceSeed(seed, definitionId, placement.Position);
-
-            var evaluation = ShapeProgram.Evaluate(
-                in catalogue, definitionId, in parameters,
-                placement.Position, placement.Orientation,
-                seed, instanceSeed, primitives, anchors);
-
-            if (evaluation == EvaluationResult.Ok
-                && !PrimitivesWithinDeclaredFootprint(
-                    primitives.AsArray(), in definition,
-                    placement.Position, placement.Orientation))
-            {
-                evaluation = EvaluationResult.OutsideFootprint;
-            }
+            EvaluationResult evaluation = EvaluateInstance(
+                in catalogue, seed, definitionId, in definition, in placement,
+                primitives, anchors);
 
             report.LastEvaluationResult = evaluation;
 
@@ -107,6 +90,40 @@ namespace VoxelEngine.Structures.Runtime
             report.BudgetExceeded |= raster.BudgetExceeded;
 
             if (raster.PrimitivesRasterised > 0) report.InstancesRasterised++;
+        }
+
+        /// <summary>
+        /// Evaluates one instance and applies the runtime footprint backstop without rasterising
+        /// it. The resumable build retains this ordered primitive stream across frame slices.
+        /// </summary>
+        internal static EvaluationResult EvaluateInstance(
+            in FeatureCatalogue catalogue,
+            uint seed,
+            int definitionId,
+            in FeatureDefinition definition,
+            in ExplicitPlacement placement,
+            NativeList<Primitive> primitives,
+            NativeList<ResolvedAnchor> anchors)
+        {
+            primitives.Clear();
+            anchors.Clear();
+
+            ParameterSet parameters = ResolveParameters(
+                in catalogue, in definition, in placement,
+                definitionId, placement.Position, seed);
+            ulong instanceSeed = InstanceSeed(seed, definitionId, placement.Position);
+            EvaluationResult evaluation = ShapeProgram.Evaluate(
+                in catalogue, definitionId, in parameters,
+                placement.Position, placement.Orientation,
+                seed, instanceSeed, primitives, anchors);
+
+            if (evaluation == EvaluationResult.Ok
+                && !PrimitivesWithinDeclaredFootprint(
+                    primitives.AsArray(), in definition,
+                    placement.Position, placement.Orientation))
+                return EvaluationResult.OutsideFootprint;
+
+            return evaluation;
         }
 
         /// <summary>

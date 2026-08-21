@@ -60,42 +60,64 @@ namespace VoxelEngine.Structures.Runtime
 
             for (var i = 0; i < primitives.Length; i++)
             {
-                var primitive = primitives[i];
-                primitive.Bounds(out var min, out var max);
-                bool hasBoundary = CurvedPrimitiveEmitter.TryBoundaryDistanceQ4(
-                    in primitive, primitive.A, out _);
-                bool geometryIntersects = primitive.Intersects(subVolumeMin, subVolumeMax);
-                bool boundaryIntersects = hasBoundary
-                    && math.all(min - 2 < subVolumeMax)
-                    && math.all(max + 2 >= subVolumeMin);
-                if (!geometryIntersects && !boundaryIntersects) continue;
-
-                int x0 = math.max(min.x, subVolumeMin.x), x1 = math.min(max.x, subVolumeMax.x - 1);
-                int y0 = math.max(min.y, subVolumeMin.y), y1 = math.min(max.y, subVolumeMax.y - 1);
-                int z0 = math.max(min.z, subVolumeMin.z), z1 = math.min(max.z, subVolumeMax.z - 1);
-
-                if (primitive.Mode == PrimitiveMode.PaintSurface)
-                {
-                    RasteriseSurfacePaint(in primitive,
-                        x0, x1, z0, z1,
-                        min.y, max.y,
-                        subVolumeMin.y, subVolumeMax.y,
-                        reads, mutations, ref result);
-                    result.PrimitivesRasterised++;
-                    continue;
-                }
-
-                RasterisePrimitiveBlocks(
-                    in primitive, x0, x1, y0, y1, z0, z1,
-                    reads, mutations, markHardSurface, ref result);
-
-                if (primitive.Mode != PrimitiveMode.SurfaceDetail)
-                    RasteriseBoundaryHalo(in primitive, subVolumeMin, subVolumeMax,
-                                          reads, mutations, ref result);
-
-                result.PrimitivesRasterised++;
+                Primitive primitive = primitives[i];
+                RasterResult primitiveResult = RasterisePrimitive(
+                    in primitive, subVolumeMin, subVolumeMax,
+                    reads, mutations, markHardSurface);
+                result.VoxelsWritten += primitiveResult.VoxelsWritten;
+                result.PrimitivesRasterised += primitiveResult.PrimitivesRasterised;
             }
 
+            return result;
+        }
+
+        /// <summary>
+        /// Rasterises one primitive clipped to a sub-volume. Streaming generation uses this entry
+        /// point to partition a costly primitive into disjoint storage-block tiles; completing all
+        /// tiles in order is voxel-for-voxel equivalent to the batch path above.
+        /// </summary>
+        public static RasterResult RasterisePrimitive(
+            in Primitive primitive,
+            int3 subVolumeMin,
+            int3 subVolumeMax,
+            IRegionReadSource reads,
+            IRegionMutationStore mutations,
+            bool markHardSurface = false)
+        {
+            var result = new RasterResult();
+            primitive.Bounds(out var min, out var max);
+            bool hasBoundary = CurvedPrimitiveEmitter.TryBoundaryDistanceQ4(
+                in primitive, primitive.A, out _);
+            bool geometryIntersects = primitive.Intersects(subVolumeMin, subVolumeMax);
+            bool boundaryIntersects = hasBoundary
+                && math.all(min - 2 < subVolumeMax)
+                && math.all(max + 2 >= subVolumeMin);
+            if (!geometryIntersects && !boundaryIntersects) return result;
+
+            int x0 = math.max(min.x, subVolumeMin.x), x1 = math.min(max.x, subVolumeMax.x - 1);
+            int y0 = math.max(min.y, subVolumeMin.y), y1 = math.min(max.y, subVolumeMax.y - 1);
+            int z0 = math.max(min.z, subVolumeMin.z), z1 = math.min(max.z, subVolumeMax.z - 1);
+
+            if (primitive.Mode == PrimitiveMode.PaintSurface)
+            {
+                RasteriseSurfacePaint(in primitive,
+                    x0, x1, z0, z1,
+                    min.y, max.y,
+                    subVolumeMin.y, subVolumeMax.y,
+                    reads, mutations, ref result);
+                result.PrimitivesRasterised++;
+                return result;
+            }
+
+            RasterisePrimitiveBlocks(
+                in primitive, x0, x1, y0, y1, z0, z1,
+                reads, mutations, markHardSurface, ref result);
+
+            if (primitive.Mode != PrimitiveMode.SurfaceDetail)
+                RasteriseBoundaryHalo(in primitive, subVolumeMin, subVolumeMax,
+                                      reads, mutations, ref result);
+
+            result.PrimitivesRasterised++;
             return result;
         }
 
