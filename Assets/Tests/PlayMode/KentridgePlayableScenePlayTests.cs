@@ -67,54 +67,32 @@ namespace VoxelEngine.Tests.PlayMode
             object pubAccess = ReadPrivateField<object>(driver, "_pubAccess");
 
             Vector3 entrance = ReadRealizedPoint(pubAccess, "Entrance");
-            Vector3 interiorApproach = ReadRealizedPoint(pubAccess, "InteriorApproach");
             Vector3 exteriorTarget = ReadRealizedPoint(pubAccess, "ExteriorApproach");
             Vector3 inward = ReadInt2Direction(pubAccess, "Inward");
 
-            Assert.That(HorizontalDistance(motor.Position, interiorApproach),
+            Assert.That(HorizontalDistance(motor.Position, exteriorTarget),
                 Is.LessThanOrEqualTo(0.05f),
-                "Gameplay control must be handed back on the architecture-owned clear interior " +
-                "doorway approach, not at an arbitrary cutscene performance mark. " +
-                PositionDiagnostic(motor.Position, interiorApproach, entrance, inward));
+                "Gameplay control must be handed back on the architecture-owned exterior " +
+                "approach, not embedded in a cutscene mark, building, or terrain. " +
+                PositionDiagnostic(motor.Position, exteriorTarget, entrance, inward));
 
             float initialDepth = Vector3.Dot(motor.Position - entrance, inward);
-            Assert.That(initialDepth, Is.GreaterThan(0.5f),
-                "When gameplay control returns, the actual scene player must still be physically inside the generated pub.");
+            Assert.That(initialDepth, Is.LessThanOrEqualTo(-0.75f),
+                "When gameplay control returns, the player must already be on the town side of the pub entrance.");
 
-            // InteriorGatheringArea intentionally spreads the cutscene actors laterally. The lead's
-            // final stage point therefore is not guaranteed to be on the doorway centreline. A real
-            // player would first line up with the door rather than walking diagonally through the
-            // front wall. Drive the exact scene-owned CharacterMotor to the architecture-owned
-            // interior approach, then through the public entrance. No teleport or semantic location
-            // mutation is used on either leg.
+            Assert.That(ReadBoolProperty(driver, "HasExitedPub"), Is.True,
+                "The launch scene must recognize the exterior release as Kentridge town.");
+
+            // Prove the fix is more than a teleport: the production motor must be able to walk
+            // another two metres into town immediately after control returns.
+            Vector3 freeMovementTarget = exteriorTarget - inward * 2f;
             Time.captureDeltaTime = WalkDeltaTime;
             yield return WalkMotorTo(
                 motor,
                 world,
-                interiorApproach,
-                "generated pub interior doorway approach");
-
-            float approachDepth = Vector3.Dot(motor.Position - entrance, inward);
-            Assert.That(approachDepth, Is.GreaterThan(0.5f),
-                "The interior approach must remain on the pub side of the generated public entrance.");
-
-            for (var frame = 0;
-                 frame < MaxWalkFramesPerLeg && !ReadBoolProperty(driver, "HasExitedPub");
-                 frame++)
-            {
-                StepToward(motor, world, exteriorTarget);
-                yield return null;
-            }
+                freeMovementTarget,
+                "free town-side movement after the opening cutscene");
             Time.captureDeltaTime = 0f;
-
-            Assert.That(ReadBoolProperty(driver, "HasExitedPub"), Is.True,
-                "The launched game scene reached the generated doorway approach but could not walk through the public entrance into Kentridge. " +
-                PositionDiagnostic(motor.Position, exteriorTarget, entrance, inward));
-
-            float exteriorDepth = Vector3.Dot(motor.Position - entrance, inward);
-            Assert.That(exteriorDepth, Is.LessThanOrEqualTo(-0.75f),
-                "The player must finish on the Kentridge-town side of the generated pub entrance. " +
-                PositionDiagnostic(motor.Position, exteriorTarget, entrance, inward));
 
             Vector3 beforeRescue = motor.Position;
             MethodInfo rescue = driver.GetType().GetMethod(

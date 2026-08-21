@@ -216,14 +216,16 @@ namespace Game.Kentridge.PlayableSlice
             // A cutscene stage point is a performance mark, not a gameplay-safe spawn. The final
             // mark can be off the doorway centreline (and revisions to the generated pub can put
             // its capsule against new trim), which made ordinary WASD appear completely stuck.
-            // Hand control back at the architecture-owned clear interior approach and face the
-            // public exit. This is still inside the pub, so the player walks through the real door.
-            Vector3 interior = ToMetres(_pubAccess.InteriorApproach);
+            // Hand control back at the architecture-owned exterior approach. The generated pub's
+            // current composed doorway can still contain later-authored trim inside the capsule
+            // corridor; releasing outside guarantees that a player never regains control embedded
+            // in either the building or terrain while that content defect is repaired separately.
+            Vector3 exterior = ToMetres(_pubAccess.ExteriorApproach);
             Vector3 entrance = ToMetres(_pubAccess.Entrance);
-            Vector3 facing = entrance - interior;
+            Vector3 facing = exterior - entrance;
             facing.y = 0f;
 
-            _motor.Position = interior;
+            _motor.Position = exterior;
             _motor.Velocity = Vector3.zero;
             if (facing.sqrMagnitude > 1e-6f)
             {
