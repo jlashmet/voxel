@@ -46,8 +46,13 @@ namespace VoxelEngine.Tests.PlayMode
             camera.targetTexture = target;
             try
             {
+                // Batch PlayMode can advance hundreds of frames per second. A frame-count timeout
+                // therefore rejected the scene after < 1 second even though the standalone player
+                // reaches READY around 12 seconds. Bound convergence by wall-clock time instead.
+                const float convergenceTimeoutSeconds = 30f;
+                float deadline = Time.realtimeSinceStartup + convergenceTimeoutSeconds;
                 int stableFrames = 0;
-                for (int frame = 0; frame < 240; frame++)
+                while (Time.realtimeSinceStartup < deadline)
                 {
                     // The scheduler deliberately retains discovered off-camera candidates without
                     // requiring them all to be resident. The shared coverage contract is therefore
@@ -65,7 +70,8 @@ namespace VoxelEngine.Tests.PlayMode
                 }
 
                 VoxelSurfaceMetrics finalMetrics = VoxelRenderBridge.SurfaceMetrics;
-                Assert.Fail($"Arch lookdev production surface did not reach complete visible coverage: "
+                Assert.Fail($"Arch lookdev production surface did not reach complete visible coverage within "
+                          + $"{convergenceTimeoutSeconds:0}s: "
                           + $"known={finalMetrics.SolidKnownChunks}, "
                           + $"resident={finalMetrics.SolidResidentChunks}, "
                           + $"dirty={finalMetrics.SolidDirtyChunks}, "
