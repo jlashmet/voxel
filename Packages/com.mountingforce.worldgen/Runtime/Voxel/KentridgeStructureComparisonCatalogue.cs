@@ -55,12 +55,14 @@ namespace MountingForce.WorldGen.Voxel
 
                 pair.ExplicitPlacements[0] = new ExplicitPlacement
                 {
-                    Position = new int3(StageMarginVoxels, 0, StageMarginVoxels),
+                    Position = new int3(
+                        StageMarginVoxels, StageAltitudeVoxels, StageMarginVoxels),
                     Orientation = 0,
                 };
                 pair.ExplicitPlacements[1] = new ExplicitPlacement
                 {
-                    Position = new int3(currentX, 0, StageMarginVoxels),
+                    Position = new int3(
+                        currentX, StageAltitudeVoxels, StageMarginVoxels),
                     Orientation = 0,
                 };
 

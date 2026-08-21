@@ -20,6 +20,8 @@ namespace VoxelEngine.Tests.EditMode
                 Seed, settings, KentridgeArchitectureVariant.Current, Allocator.Temp);
             FeatureCatalogue pair = KentridgeStructureComparisonCatalogue.Build(
                 Seed, settings, roleId: 1, Allocator.Temp);
+            var primitives = new NativeList<Primitive>(Allocator.Temp);
+            var anchors = new NativeList<ResolvedAnchor>(Allocator.Temp);
             try
             {
                 Assert.That(explicitCurrent.Hash, Is.EqualTo(implicitCurrent.Hash),
@@ -39,9 +41,36 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.That(pair.ExplicitPlacements[1].Position.x,
                     Is.GreaterThan(pair.ExplicitPlacements[0].Position.x
                         + pair.Definitions[0].Footprint.x));
+
+                for (int definitionId = 0; definitionId < 2; definitionId++)
+                {
+                    FeatureDefinition definition = pair.Definitions[definitionId];
+                    ExplicitPlacement placement = pair.ExplicitPlacements[definitionId];
+                    ParameterSet parameters = default;
+                    ulong instanceSeed = FeatureGeneration.InstanceSeed(
+                        Seed, definitionId, placement.Position);
+                    EvaluationResult evaluation = ShapeProgram.Evaluate(
+                        in pair,
+                        definitionId,
+                        in parameters,
+                        placement.Position,
+                        placement.Orientation,
+                        Seed,
+                        instanceSeed,
+                        primitives,
+                        anchors);
+                    Assert.That(evaluation, Is.EqualTo(EvaluationResult.Ok),
+                        "Comparison definition " + definition.Name +
+                        " must evaluate into rasterizable production primitives.");
+                    Assert.That(primitives.Length, Is.GreaterThan(0));
+                    primitives.Clear();
+                    anchors.Clear();
+                }
             }
             finally
             {
+                primitives.Dispose();
+                anchors.Dispose();
                 implicitCurrent.Dispose();
                 explicitCurrent.Dispose();
                 pair.Dispose();

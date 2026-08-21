@@ -112,7 +112,10 @@ namespace VoxelEngine.Showcase
                     StructuresComposition.BuildExplicitFeatureCatalogue(_storage, in pair, Seed);
                 if (result.InstancesRasterised < 2 || result.VoxelsWritten <= 0)
                     throw new System.InvalidOperationException(
-                        "The comparison scene did not rasterise both structure variants.");
+                        "The comparison scene did not rasterise both structure variants. " +
+                        $"regions={result.RegionsVisited}, " +
+                        $"instances={result.InstancesRasterised}, " +
+                        $"voxels={result.VoxelsWritten}.");
 
                 FramePair(in pair);
                 _status = $"AUTHORED  {result.VoxelsWritten:N0} voxels";
