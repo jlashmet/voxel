@@ -33,7 +33,7 @@ This is a focused continuation of `voxel-showcase-rendering-repair-v2.md` for th
 - [x] Pin `fbaf77b8d210cc5e5f98bd99c0bf50e8640a7ac2` as the garbling regression boundary: its direct parent is clean and `109dc042…`, which contains it, reproduces the corruption.
 - [x] Build controlled source `20b200cad353f5971024729db12b34ab1f21bb73` by retaining the current real-player harness and restoring the 15 files changed by the indexed-multidraw commit to their direct-parent versions.
 - [ ] Run the same real-player `CastleScreenshotTests` capture against that controlled current-harness/pre-multidraw source as confirmation.
-- [ ] Restore the Metal-validated bucketed solid submission path from the clean parent and keep its architecture regression, rather than retaining the unvalidated indexed-multidraw path or the unsupported `SV_DrawID` experiment.
+- [x] Restore the Metal-validated bucketed solid submission path from the clean parent on `rendering-garbled` (`075d672337e236642c729025bfa89248ccc18081`), including its architecture regression; do not retain the unvalidated indexed-multidraw path or unsupported `SV_DrawID` experiment.
 
 ### D. Validate the repair
 
