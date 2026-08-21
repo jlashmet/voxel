@@ -12,6 +12,14 @@ using VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel;
 
 namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 {
+    internal struct SurfaceDrawMetadata
+    {
+        public uint IndexStart;
+        public uint VertexStart;
+        public uint IndexCount;
+        public uint Padding;
+    }
+
     /// <summary>
     /// CPU-authored feature-aware mesh cache for all solid voxel geometry.
     ///
@@ -265,6 +273,18 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 Vector3 min = new Vector3(Coordinate.x, Coordinate.y, Coordinate.z) * size;
                 return new Bounds(min + Vector3.one * (size * 0.5f),
                                   Vector3.one * (size + SourceStep * voxelSize * 2f));
+            }
+
+            internal bool TryGetDrawMetadata(out SurfaceDrawMetadata metadata)
+            {
+                metadata = default;
+                if (!Ready || IndexCount == 0 || Vertices == null || Indices == null)
+                    return false;
+
+                metadata.IndexStart = (uint)_liveLease.IndexStart;
+                metadata.VertexStart = (uint)_liveLease.VertexStart;
+                metadata.IndexCount = (uint)IndexCount;
+                return true;
             }
 
             /// <summary>
@@ -862,6 +882,13 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         /// forever, including on a view that is already complete.
         /// </summary>
         public bool CanStartNewBuild { get; set; } = true;
+        /// <summary>
+        /// Whether a worker with no visible demand may consume its build slot on 360-degree
+        /// prefetch. The scheduler disables this while any visible chunk is missing so idle
+        /// shards cannot fill the shared arena behind the camera while another shard is trying
+        /// to close an on-screen hole.
+        /// </summary>
+        public bool AllowBackgroundBuilds { get; set; } = true;
 
         /// <summary>True while this worker is part way through building a chunk.</summary>
         public bool HasActiveBuild => _build.Active;
@@ -2026,7 +2053,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
             // No currently visible hole was ready for this workspace. Preserve the original
             // bounded background selection so 360-degree prefetch still converges opportunistically.
-            if (!hasBest)
+            if (!hasBest && AllowBackgroundBuilds)
             {
                 int candidates = math.min(BuildSelectionCandidatesPerSlice, _dirtyQueue.Count);
                 for (int i = 0; i < candidates; i++)

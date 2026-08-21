@@ -57,6 +57,14 @@ namespace VoxelEngine.Rendering.Runtime
         private static readonly int s_WaterTime = Shader.PropertyToID("_WaterTime");
         private static readonly int s_SurfaceVertices = Shader.PropertyToID("_SurfaceVertices");
         private static readonly int s_SurfaceIndices = Shader.PropertyToID("_SurfaceIndices");
+        private static readonly int s_SurfaceDrawMetadata =
+            Shader.PropertyToID("_SurfaceDrawMetadata");
+        private static readonly int s_SurfaceDrawBase = Shader.PropertyToID("_SurfaceDrawBase");
+
+        // Four buckets per power of two keep padded vertex work below 25% while collapsing
+        // hundreds of chunk submissions into at most a few dozen instanced draws.
+        private const int SolidDrawBucketCount = 128;
+        private const int SolidDrawMetadataBufferCount = 3;
 
         private VoxelSurfaceScheduler _scheduler;
         // Draw staging is bounded by the fixed arena args capacities. Allocate once with the
@@ -65,6 +73,13 @@ namespace VoxelEngine.Rendering.Runtime
             new CpuTransvoxelChunkCache.Entry[VoxelSurfaceScheduler.SurfaceArenaDrawCapacity];
         private readonly CpuWaterSurfaceChunkCache.Entry[] _waterDrawEntries =
             new CpuWaterSurfaceChunkCache.Entry[CpuWaterSurfaceChunkCache.ArenaDrawCapacity];
+        private readonly int[] _solidDrawBucketCounts = new int[SolidDrawBucketCount];
+        private readonly int[] _solidDrawBucketStarts = new int[SolidDrawBucketCount];
+        private readonly int[] _solidDrawBucketCursors = new int[SolidDrawBucketCount];
+        private readonly int[] _solidDrawBucketVertexCounts = new int[SolidDrawBucketCount];
+        private readonly ComputeBuffer[] _solidDrawMetadata =
+            new ComputeBuffer[SolidDrawMetadataBufferCount];
+        private ComputeBuffer _activeSolidDrawMetadata;
 
         private Material _surfaceMaterial;
         private Material _waterMaterial;
@@ -158,6 +173,10 @@ namespace VoxelEngine.Rendering.Runtime
             public CpuTransvoxelChunkCache.Entry[] TransvoxelEntries;
             public ComputeBuffer SurfaceVertices;
             public ComputeBuffer SurfaceIndices;
+            public ComputeBuffer SolidDrawMetadata;
+            public int[] SolidDrawBucketCounts;
+            public int[] SolidDrawBucketStarts;
+            public int[] SolidDrawBucketVertexCounts;
             public int TransvoxelEntryCount;
             public CpuWaterSurfaceChunkCache.Entry[] WaterEntries;
             public int WaterEntryCount;
@@ -271,6 +290,7 @@ namespace VoxelEngine.Rendering.Runtime
                     "Visible solid draw count exceeded the fixed arena draw capacity.");
             for (int i = 0; i < transvoxelVisible.Count; i++)
                 _transvoxelDrawEntries[i] = transvoxelVisible[i];
+            int solidDrawCount = PrepareSolidDrawBatches(transvoxelVisible);
 
             if (waterVisible.Count > _waterDrawEntries.Length)
                 throw new InvalidOperationException(
@@ -318,7 +338,11 @@ namespace VoxelEngine.Rendering.Runtime
             data.TransvoxelEntries = _transvoxelDrawEntries;
             data.SurfaceVertices = _scheduler.SolidGeometryVertices;
             data.SurfaceIndices = _scheduler.SolidGeometryIndices;
-            data.TransvoxelEntryCount = transvoxelVisible.Count;
+            data.SolidDrawMetadata = _activeSolidDrawMetadata;
+            data.SolidDrawBucketCounts = _solidDrawBucketCounts;
+            data.SolidDrawBucketStarts = _solidDrawBucketStarts;
+            data.SolidDrawBucketVertexCounts = _solidDrawBucketVertexCounts;
+            data.TransvoxelEntryCount = solidDrawCount;
             data.WaterEntries = _waterDrawEntries;
             data.WaterEntryCount = waterVisible.Count;
 
@@ -334,8 +358,8 @@ namespace VoxelEngine.Rendering.Runtime
                 // draw. Everything below is identical for the whole pass — ten vector arrays, two
                 // texture arrays and the lighting/cutaway constants — so binding it per chunk meant
                 // re-uploading the entire block ~1,400 times a frame once the arena grew large
-                // enough to actually cover the view. Bind it once as global state; only the two
-                // per-chunk buffer offsets stay in a block, and that block is kept tiny.
+                // enough to actually cover the view. Bind it once as global state; per-chunk
+                // offsets now live in the compact metadata table used by the instanced batches.
                 cmd.SetGlobalVectorArray(s_MaterialAlbedo,
                     VoxelPresentationCatalogue.MaterialAlbedo);
                 cmd.SetGlobalVectorArray(s_MaterialSampling,
@@ -389,11 +413,21 @@ namespace VoxelEngine.Rendering.Runtime
                     cmd.SetGlobalBuffer(s_SurfaceVertices, passData.SurfaceVertices);
                 if (passData.SurfaceIndices != null)
                     cmd.SetGlobalBuffer(s_SurfaceIndices, passData.SurfaceIndices);
+                if (passData.SolidDrawMetadata != null)
+                    cmd.SetGlobalBuffer(s_SurfaceDrawMetadata, passData.SolidDrawMetadata);
 
                 ctx.cmd.SetRenderTarget(passData.CameraColor, passData.CameraDepth);
 
-                for (int i = 0; i < passData.TransvoxelEntryCount; i++)
-                    passData.TransvoxelEntries[i].Draw(cmd, passData.Material);
+                for (int bucket = 0; bucket < SolidDrawBucketCount; bucket++)
+                {
+                    int instanceCount = passData.SolidDrawBucketCounts[bucket];
+                    if (instanceCount == 0) continue;
+                    cmd.SetGlobalInt(s_SurfaceDrawBase,
+                        passData.SolidDrawBucketStarts[bucket]);
+                    cmd.DrawProcedural(Matrix4x4.identity, passData.Material, 0,
+                        MeshTopology.Triangles,
+                        passData.SolidDrawBucketVertexCounts[bucket], instanceCount);
+                }
 
                 if (VoxelRenderBridge.WaterRenderEnabled
                     && passData.WaterMaterial != null && passData.WaterEntryCount > 0)
@@ -411,6 +445,81 @@ namespace VoxelEngine.Rendering.Runtime
             });
         }
 
+        private int PrepareSolidDrawBatches(
+            IReadOnlyList<CpuTransvoxelChunkCache.Entry> visible)
+        {
+            EnsureSolidDrawMetadata();
+            _activeSolidDrawMetadata =
+                _solidDrawMetadata[Time.frameCount % SolidDrawMetadataBufferCount];
+            Array.Clear(_solidDrawBucketCounts, 0, _solidDrawBucketCounts.Length);
+            Array.Clear(_solidDrawBucketVertexCounts, 0,
+                _solidDrawBucketVertexCounts.Length);
+
+            int drawCount = 0;
+            for (int i = 0; i < visible.Count; i++)
+            {
+                if (!visible[i].TryGetDrawMetadata(out SurfaceDrawMetadata metadata))
+                    continue;
+                int bucket = SolidDrawBucket((int)metadata.IndexCount);
+                _solidDrawBucketCounts[bucket]++;
+                _solidDrawBucketVertexCounts[bucket] = Math.Max(
+                    _solidDrawBucketVertexCounts[bucket], (int)metadata.IndexCount);
+                drawCount++;
+            }
+
+            int start = 0;
+            for (int bucket = 0; bucket < SolidDrawBucketCount; bucket++)
+            {
+                _solidDrawBucketStarts[bucket] = start;
+                _solidDrawBucketCursors[bucket] = start;
+                start += _solidDrawBucketCounts[bucket];
+            }
+
+            if (drawCount == 0) return 0;
+            NativeArray<SurfaceDrawMetadata> destination =
+                _activeSolidDrawMetadata.BeginWrite<SurfaceDrawMetadata>(0, drawCount);
+            for (int i = 0; i < visible.Count; i++)
+            {
+                if (!visible[i].TryGetDrawMetadata(out SurfaceDrawMetadata metadata))
+                    continue;
+                int bucket = SolidDrawBucket((int)metadata.IndexCount);
+                destination[_solidDrawBucketCursors[bucket]++] = metadata;
+            }
+            _activeSolidDrawMetadata.EndWrite<SurfaceDrawMetadata>(drawCount);
+            return drawCount;
+        }
+
+        internal static int SolidDrawBucket(int indexCount)
+        {
+            uint count = (uint)Math.Max(1, indexCount);
+            int exponent = 31 - math.lzcnt(count);
+            uint lower = 1u << exponent;
+            int subdivision = (int)Math.Min(3u, ((count - lower) * 4u) / lower);
+            return Math.Min(SolidDrawBucketCount - 1, exponent * 4 + subdivision);
+        }
+
+        private void EnsureSolidDrawMetadata()
+        {
+            if (_solidDrawMetadata[0] != null) return;
+            for (int i = 0; i < SolidDrawMetadataBufferCount; i++)
+            {
+                _solidDrawMetadata[i] = new ComputeBuffer(
+                    VoxelSurfaceScheduler.SurfaceArenaDrawCapacity,
+                    sizeof(uint) * 4, ComputeBufferType.Structured,
+                    ComputeBufferMode.SubUpdates);
+            }
+        }
+
+        private void ReleaseSolidDrawMetadata()
+        {
+            for (int i = 0; i < SolidDrawMetadataBufferCount; i++)
+            {
+                _solidDrawMetadata[i]?.Release();
+                _solidDrawMetadata[i] = null;
+            }
+            _activeSolidDrawMetadata = null;
+        }
+
         private void ReleaseWorldResources()
         {
             if (_scheduler == null) return;
@@ -423,6 +532,7 @@ namespace VoxelEngine.Rendering.Runtime
             // with the next arena and turns repeated scene loads into process-wide memory growth.
             _scheduler.Dispose();
             _scheduler = null;
+            ReleaseSolidDrawMetadata();
             Array.Clear(_transvoxelDrawEntries, 0, _transvoxelDrawEntries.Length);
             Array.Clear(_waterDrawEntries, 0, _waterDrawEntries.Length);
         }
@@ -433,6 +543,7 @@ namespace VoxelEngine.Rendering.Runtime
             VoxelRenderBridge.UnregisterWorldReleaseHandler(ReleaseWorldResources);
             _scheduler?.Dispose();
             _scheduler = null;
+            ReleaseSolidDrawMetadata();
             CoreUtils.Destroy(_surfaceMaterial);
             CoreUtils.Destroy(_waterMaterial);
             CoreUtils.Destroy(_albedoTextures);

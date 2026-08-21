@@ -630,6 +630,23 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             return (inner, outer, inner > 0f && inner >= outer);
         }
 
+        /// <summary>
+        /// Applies the presentation-only detail scale without changing world view distance.
+        /// The scale moves hand-offs between LODs; the last ring always reaches the streamed
+        /// voxel radius. Scaling its outer edge made distant structures disappear and falsely
+        /// improved frame time by rendering less world.
+        /// </summary>
+        internal static (float Inner, float Outer, bool Suspended) ResolveScaledRingBand(
+            float configuredInner, float configuredOuter, float detailBandScale,
+            float ringCap, bool lodEnabled, bool isOutermost)
+        {
+            float scale = Math.Max(0.05f, detailBandScale);
+            float scaledInner = configuredInner * scale;
+            float scaledOuter = isOutermost ? ringCap : configuredOuter * scale;
+            return ResolveRingBand(
+                scaledInner, scaledOuter, ringCap, lodEnabled);
+        }
+
         public const float MaxVoxelRingRadiusMetresDefault = 409.6f;
         /// <summary>
         /// Indices emitted per vertex by the solid extractor. The surface is faceted, so vertices are
@@ -768,7 +785,28 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
         private const int ReappearanceWindowFrames = 12;
         private const int ReappearancePruneFrames = 240;
-        private readonly Dictionary<int3, int> _lastDrawnFrame = new();
+        private readonly struct SurfaceChunkIdentity : IEquatable<SurfaceChunkIdentity>
+        {
+            public readonly int3 Coordinate;
+            public readonly int SourceStep;
+
+            public SurfaceChunkIdentity(int3 coordinate, int sourceStep)
+            {
+                Coordinate = coordinate;
+                SourceStep = sourceStep;
+            }
+
+            public bool Equals(SurfaceChunkIdentity other) =>
+                SourceStep == other.SourceStep && Coordinate.Equals(other.Coordinate);
+
+            public override bool Equals(object obj) =>
+                obj is SurfaceChunkIdentity other && Equals(other);
+
+            public override int GetHashCode() =>
+                unchecked(((int)math.hash(Coordinate) * 397) ^ SourceStep);
+        }
+
+        private readonly Dictionary<SurfaceChunkIdentity, int> _lastDrawnFrame = new();
         private int _lastPruneFrame;
 
         /// <summary>Chunks that left the drawn set and returned within a few frames.</summary>
@@ -782,13 +820,14 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             int reappeared = 0;
             for (int i = 0; i < _visibleSolids.Count; i++)
             {
-                int3 coordinate = _visibleSolids[i].Coordinate;
-                if (_lastDrawnFrame.TryGetValue(coordinate, out int seen))
+                CpuTransvoxelChunkCache.Entry entry = _visibleSolids[i];
+                var identity = new SurfaceChunkIdentity(entry.Coordinate, entry.SourceStep);
+                if (_lastDrawnFrame.TryGetValue(identity, out int seen))
                 {
                     int gap = frame - seen;
                     if (gap > 1 && gap <= ReappearanceWindowFrames) reappeared++;
                 }
-                _lastDrawnFrame[coordinate] = frame;
+                _lastDrawnFrame[identity] = frame;
             }
 
             LastFrameReappearances = reappeared;
@@ -798,12 +837,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             if (frame - _lastPruneFrame < ReappearancePruneFrames) return;
             _lastPruneFrame = frame;
             _pruneScratch.Clear();
-            foreach (KeyValuePair<int3, int> pair in _lastDrawnFrame)
+            foreach (KeyValuePair<SurfaceChunkIdentity, int> pair in _lastDrawnFrame)
                 if (frame - pair.Value > ReappearancePruneFrames) _pruneScratch.Add(pair.Key);
             for (int i = 0; i < _pruneScratch.Count; i++) _lastDrawnFrame.Remove(_pruneScratch[i]);
         }
 
-        private readonly List<int3> _pruneScratch = new();
+        private readonly List<SurfaceChunkIdentity> _pruneScratch = new();
 
 
         /// <summary>
@@ -846,7 +885,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
         /// <summary>
         /// Scales where each LOD step hands over to the next. 1 keeps the shipped layout, in which
-        /// the finest step reaches 96 m.
+        /// the finest step reaches 96 m. This never changes the outer voxel render radius.
         ///
         /// This is a presentation parameter and it is a real trade, not a free win: the drawn set
         /// is dominated by the finest ring, so pulling it in is the only lever that meaningfully
@@ -1206,10 +1245,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 // away was meshed at half resolution or worse and rendered as a grey blob.
                 // A coarse ring collapsing to a sliver is the correct outcome: there is no
                 // terrain out there to mesh, and the analytic far field already covers it.
-                (float inner, float outer, bool suspended) = ResolveRingBand(
-                    ring.InnerRadiusMetres * DetailBandScale,
-                    ring.OuterRadiusMetres * DetailBandScale,
-                    ringCap, LodEnabled);
+                (float inner, float outer, bool suspended) = ResolveScaledRingBand(
+                    ring.InnerRadiusMetres, ring.OuterRadiusMetres, DetailBandScale,
+                    ringCap, LodEnabled, isOutermost: r == _rings.Length - 1);
 
                 for (int i = 0; i < ringWorkers.Length; i++)
                 {
@@ -1241,6 +1279,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 _lastMissingVisibleCount,
                 MaxConcurrentBuildsConverging,
                 MaxConcurrentBuildsConverged);
+            bool allowBackgroundBuilds = ShouldAllowBackgroundBuilds(
+                _lastMissingVisibleCount, buildCeiling);
             int activeBuilds = 0;
             for (int i = 0; i < workerCount; i++)
                 if (_allWorkers[i].HasActiveBuild) activeBuilds++;
@@ -1256,6 +1296,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
                 bool wasBuilding = worker.HasActiveBuild;
                 worker.CanStartNewBuild = wasBuilding || activeBuilds < buildCeiling;
+                worker.AllowBackgroundBuilds = allowBackgroundBuilds;
                 worker.Prepare(storage, in palette, in surfaceCatalogue,
                                in coatingCatalogue, profileBlocks, camera, voxelSize, frame,
                                remainingMs);
@@ -1430,6 +1471,15 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         internal static int ResolveBuildCeiling(
             int missingVisibleCount, int convergingCeiling, int convergedCeiling) =>
             Math.Max(0, missingVisibleCount > 0 ? convergingCeiling : convergedCeiling);
+
+        /// <summary>
+        /// Prefetch is allowed only after visible convergence. Otherwise a worker whose shard has
+        /// no on-screen hole can fill the shared arena with off-screen geometry while a different
+        /// shard is blocked trying to publish geometry the player is waiting for.
+        /// </summary>
+        internal static bool ShouldAllowBackgroundBuilds(
+            int missingVisibleCount, int buildCeiling) =>
+            missingVisibleCount <= 0 && buildCeiling > 0;
 
         private Vector3 _lastVisibilityCameraPosition;
         private Quaternion _lastVisibilityCameraRotation;

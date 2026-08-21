@@ -81,6 +81,60 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void MixedTerrainSubcellUsesExposedCapMaterial()
+        {
+            var voxels = new NativeArray<byte>(
+                SurfaceBlockHlodSummaryBuilder.VoxelsPerBlock,
+                Allocator.Temp, NativeArrayOptions.ClearMemory);
+            try
+            {
+                // One 2^3 subcell with buried dirt (5) and a grass cap (7). The distant quad
+                // represents the exposed surface, so it must not inherit the buried material.
+                for (int z = 0; z < 2; z++)
+                for (int x = 0; x < 2; x++)
+                {
+                    voxels[x + 8 * (0 + 8 * z)] = 5;
+                    voxels[x + 8 * (1 + 8 * z)] = 7;
+                }
+
+                SurfaceBlockHlodSummary summary = SurfaceBlockHlodSummaryBuilder.Mixed(voxels, 0);
+                Assert.True(summary.IsOccupied(0));
+                Assert.AreEqual(7, summary.MaterialAt(0),
+                    "The HLOD terrain surface used its buried material instead of its cap.");
+            }
+            finally
+            {
+                voxels.Dispose();
+            }
+        }
+
+        [Test]
+        public void MixedTerrainSubcellRejectsOneHighMaterialOutlier()
+        {
+            var voxels = new NativeArray<byte>(
+                SurfaceBlockHlodSummaryBuilder.VoxelsPerBlock,
+                Allocator.Temp, NativeArrayOptions.ClearMemory);
+            try
+            {
+                // Three exposed grass columns at the lower height and one high stone edge.
+                // Geometry still records an occupied subcell, but its representative surface
+                // should describe the patch rather than the single highest outlier.
+                voxels[0 + 8 * (0 + 8 * 0)] = 7;
+                voxels[1 + 8 * (0 + 8 * 0)] = 7;
+                voxels[0 + 8 * (0 + 8 * 1)] = 7;
+                voxels[1 + 8 * (1 + 8 * 1)] = 1;
+
+                SurfaceBlockHlodSummary summary = SurfaceBlockHlodSummaryBuilder.Mixed(voxels, 0);
+                Assert.True(summary.IsOccupied(0));
+                Assert.AreEqual(7, summary.MaterialAt(0));
+            }
+            finally
+            {
+                voxels.Dispose();
+            }
+        }
+
+        [Test]
         public void LiquidOnlySubcellsDoNotBecomeSolidHlodGeometry()
         {
             var voxels = new NativeArray<byte>(

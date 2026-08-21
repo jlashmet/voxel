@@ -348,6 +348,22 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.DoesNotContain("EnsureCapacity(ref _waterDrawEntries", renderPass);
         }
 
+        [Test]
+        public void SolidSurfaceDrawsAreBucketedInsteadOfSubmittedPerChunk()
+        {
+            string renderPass = ReadRenderingSource(
+                Path.Combine("RenderFeature", "VoxelRenderPass.cs"));
+            string shader = File.ReadAllText(
+                "Assets/VoxelEngine/Rendering/Runtime/Shaders/SmoothSurface.shader");
+
+            StringAssert.Contains("PrepareSolidDrawBatches(transvoxelVisible)", renderPass);
+            StringAssert.Contains("SolidDrawBucketCount", renderPass);
+            StringAssert.Contains("SV_InstanceID", shader);
+            StringAssert.Contains("_SurfaceDrawMetadata", shader);
+            StringAssert.DoesNotContain(
+                "passData.TransvoxelEntries[i].Draw(cmd, passData.Material)", renderPass);
+        }
+
 
         [Test]
         public void GameplaySurfaceDiagnosticsAndIndirectArgsAvoidManagedFrameGarbage()

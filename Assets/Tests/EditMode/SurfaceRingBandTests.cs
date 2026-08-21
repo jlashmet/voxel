@@ -114,6 +114,14 @@ namespace VoxelEngine.Tests.EditMode
                 VoxelSurfaceScheduler.ResolveBuildCeiling(
                     missingVisibleCount: 1, convergingCeiling: 12, convergedCeiling: 0),
                 "The first visible hole must restore full convergence immediately.");
+            Assert.IsFalse(
+                VoxelSurfaceScheduler.ShouldAllowBackgroundBuilds(
+                    missingVisibleCount: 1, buildCeiling: 12),
+                "Visible convergence must not admit off-screen work from idle shards.");
+            Assert.IsTrue(
+                VoxelSurfaceScheduler.ShouldAllowBackgroundBuilds(
+                    missingVisibleCount: 0, buildCeiling: 1),
+                "An explicitly configured settled build slot may resume prefetch.");
         }
 
         [Test]
@@ -301,6 +309,31 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.IsFalse(suspended, $"Step {configured.Step} must stay live.");
                 Assert.AreEqual(configured.Inner, inner, 0.001f);
                 Assert.AreEqual(configured.Outer, outer, 0.001f);
+            }
+        }
+
+        [Test]
+        public void DetailScaleNeverReducesTheOuterRenderRadius()
+        {
+            const float ringCap = VoxelSurfaceScheduler.MaxVoxelRingRadiusMetresDefault;
+
+            foreach (float scale in new[] { 0.05f, 0.25f, 0.6f, 1f, 1.5f })
+            {
+                float furthestLiveOuter = 0f;
+                for (int r = 0; r < s_Layout.Length; r++)
+                {
+                    var configured = s_Layout[r];
+                    (float inner, float outer, bool suspended) =
+                        VoxelSurfaceScheduler.ResolveScaledRingBand(
+                            configured.Inner, configured.Outer, scale, ringCap,
+                            lodEnabled: true, isOutermost: r == s_Layout.Length - 1);
+                    if (suspended) continue;
+                    Assert.Less(inner, outer);
+                    furthestLiveOuter = Mathf.Max(furthestLiveOuter, outer);
+                }
+
+                Assert.AreEqual(ringCap, furthestLiveOuter, 0.001f,
+                    $"Detail scale {scale} reduced the voxel render radius.");
             }
         }
 
