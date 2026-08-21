@@ -1032,7 +1032,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         /// pass binds them once for the whole pass instead of per draw.
         /// </summary>
         internal ComputeBuffer SolidGeometryVertices => _geometryArena.Vertices;
-        internal GraphicsBuffer SolidGeometryIndices => _geometryArena.Indices;
+        internal ComputeBuffer SolidGeometryIndices => _geometryArena.Indices;
         public IReadOnlyList<CpuWaterSurfaceChunkCache.Entry> VisibleWater => _water.Visible;
         public VoxelSurfaceMetrics Metrics => new(
             _allWorkers, _water, _lastChangeRecords, _discoveredSurfaceBricks.Count,
