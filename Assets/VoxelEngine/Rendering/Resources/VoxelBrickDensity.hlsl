@@ -166,17 +166,6 @@ uint ReadMaterial(int3 p, out uint surface, out uint boundary)
     return material;
 }
 
-bool HasOppositeOccupancyNeighbour(int3 p, bool centreSolid)
-{
-    uint s, b;
-    return IsSolidSample(ReadMaterial(p + int3( 1, 0, 0), s, b)) != centreSolid
-        || IsSolidSample(ReadMaterial(p + int3(-1, 0, 0), s, b)) != centreSolid
-        || IsSolidSample(ReadMaterial(p + int3( 0, 1, 0), s, b)) != centreSolid
-        || IsSolidSample(ReadMaterial(p + int3( 0,-1, 0), s, b)) != centreSolid
-        || IsSolidSample(ReadMaterial(p + int3( 0, 0, 1), s, b)) != centreSolid
-        || IsSolidSample(ReadMaterial(p + int3( 0, 0,-1), s, b)) != centreSolid;
-}
-
 // Matches VoxelBoundarySample. The sample is authored whenever any bit is set; the offset is a
 // 6-bit field biased by 32, and the top two bits carry the extrusion axis (0 meaning "all axes").
 bool BoundaryIsAuthored(uint packed) { return packed != 0u; }
@@ -234,7 +223,10 @@ float SampleField(int3 p, out uint dominantMaterial, out uint dominantSurface,
     bool centreSolid = IsSolidSample(centre);
     centreSurface = ResolveSurface(centre, centreSurface);
 
-    if (packedBoundary != 0u && HasOppositeOccupancyNeighbour(p, centreSolid))
+    // Must stay identical to TransvoxelDensityJob.SampleField: an authored sample is trusted exactly
+    // when its sign agrees with authoritative occupancy. See the comment there for why both the old
+    // six-neighbour gate and no gate at all are wrong.
+    if (packedBoundary != 0u && centreSolid == (BoundarySignedQ3(packedBoundary) >= 0))
     {
         dominantMaterial = centreSolid ? centre : 0u;
         dominantSurface = centreSolid ? centreSurface : 0u;
