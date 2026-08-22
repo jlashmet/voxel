@@ -186,8 +186,10 @@ namespace VoxelEngine.Tests.EditMode
                 form.WidthDm * scale - 2 * (8 * scale + wall));
             int counterDepth = 6 * scale;
             int counterHeight = 9 * scale;
+            int usableInteriorDepth = form.DepthDm * scale - wall;
+            int gatheringDepth = (usableInteriorDepth * 2) / 3;
             int counterX = x0 + (form.WidthDm * scale - counterWidth) / 2;
-            int counterZ = z0 + form.DepthDm * scale - wall - 4 * scale - counterDepth;
+            int counterZ = z0 + gatheringDepth + 6 * scale;
             byte timber = settings.Materials.Resolve(plan.Theme.Frame);
 
             FeatureCatalogue catalogue = KentridgeCombinedVoxelCatalogue.Build(
@@ -230,8 +232,10 @@ namespace VoxelEngine.Tests.EditMode
                                 && sz == counterDepth)
                             {
                                 foundBase = true;
-                                Assert.GreaterOrEqual(z, z0 + form.DepthDm * scale / 2,
-                                    "Pub counter must stay in the rear half so the entrance-to-gathering aisle remains open.");
+                                Assert.Greater(z, z0 + gatheringDepth,
+                                    "Pub counter must sit just beyond the semantic gathering strip, not obstruct its entrance approach.");
+                                Assert.LessOrEqual(z + sz + 2 * scale, z0 + usableInteriorDepth,
+                                    "Pub counter must preserve usable bartender circulation behind the bar.");
                             }
 
                             if (x == counterX - 2 * scale
@@ -250,7 +254,7 @@ namespace VoxelEngine.Tests.EditMode
                 }
 
                 Assert.IsTrue(foundBase,
-                    "Active generated Pub geometry must contain the deterministic rear timber counter base.");
+                    "Active generated Pub geometry must contain the deterministic timber counter base at the gathering area.");
                 Assert.IsTrue(foundTop,
                     "Active generated Pub geometry must contain the counter top rather than a bare wall-side block.");
             }
@@ -369,8 +373,7 @@ namespace VoxelEngine.Tests.EditMode
                         else if (op == ShapeOp.EmitPrism)
                         {
                             ushort surface = (ushort)catalogue.Program[pc + 10];
-                            if (surface == SurfaceStyles.Smooth)
-                                fabricSmoothRoofs++;
+                            if (surface == SurfaceStyles.Smooth) fabricSmoothRoofs++;
                         }
 
                         pc += length;
