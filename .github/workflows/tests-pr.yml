@@ -16,9 +16,11 @@ on:
 permissions:
   contents: read
 
-# The single self-hosted macOS runner is the queue. Do not use Actions concurrency
-# here: GitHub keeps only one pending member of a concurrency group and can replace
-# an older pending run when another arrives. Every submitted Unity job should stay queued.
+# Repeated pushes to the same PR branch are latest-wins. Do not make the single
+# self-hosted runner burn time on stale commits while newer code waits behind them.
+concurrency:
+  group: tests-pr-${{ github.event.pull_request.head.repo.full_name }}-${{ github.event.pull_request.head.ref }}
+  cancel-in-progress: true
 
 jobs:
   affected:
