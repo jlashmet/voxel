@@ -196,6 +196,33 @@ namespace VoxelEngine.Composition
         }
     }
 
+    /// <summary>
+    /// Same-frame split of the scheduler's broad admission region. The values are copied as
+    /// primitives so real-player diagnostics can correlate a hitch without depending on Runtime
+    /// scheduler objects.
+    /// </summary>
+    public readonly struct SurfaceAdmissionFrameSnapshot
+    {
+        public readonly int Frame;
+        public readonly double TotalMs;
+        public readonly double SolidMs;
+        public readonly double ArenaReliefMs;
+        public readonly double WaterMs;
+        public readonly double ScheduleBatchedJobsMs;
+
+        internal SurfaceAdmissionFrameSnapshot(
+            int frame, double totalMs, double solidMs, double arenaReliefMs,
+            double waterMs, double scheduleBatchedJobsMs)
+        {
+            Frame = frame;
+            TotalMs = totalMs;
+            SolidMs = solidMs;
+            ArenaReliefMs = arenaReliefMs;
+            WaterMs = waterMs;
+            ScheduleBatchedJobsMs = scheduleBatchedJobsMs;
+        }
+    }
+
     public static class RenderingDiagnosticsComposition
     {
         /// <summary>
@@ -272,6 +299,15 @@ namespace VoxelEngine.Composition
             var upload = SurfaceGeometryUploadTelemetry.Snapshot;
             return new SurfaceArenaUploadFrameSnapshot(
                 upload.Frame, upload.WallMs, upload.Calls, upload.Bytes);
+        }
+
+        public static SurfaceAdmissionFrameSnapshot GetSurfaceAdmissionFrame()
+        {
+            SurfaceAdmissionFrameTimingSnapshot admission = SurfaceAdmissionTimingTelemetry.Snapshot;
+            return new SurfaceAdmissionFrameSnapshot(
+                admission.Frame, admission.TotalMs, admission.SolidMs,
+                admission.ArenaReliefMs, admission.WaterMs,
+                admission.ScheduleBatchedJobsMs);
         }
     }
 }
