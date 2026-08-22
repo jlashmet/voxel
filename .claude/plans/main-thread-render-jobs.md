@@ -65,10 +65,12 @@ The authoritative region surface classification and compaction are already Unity
   - The custom `ProfilerRecorder` lookups for `Voxel.Surface.*` returned zero in the standalone player and are not usable as the frame-window carrier for custom renderer markers.
   - Existing direct scheduler telemetry still caught the causal class in the late hitch: a ~`22.00 ms` FPS window contained a sampled frame at `prepare=19.36 ms`, `admit=15.88 ms`, `visible=0.39 ms`, with `missingVisible=0`. Broad admission therefore must be split before changing renderer behavior.
   - A separate `960.91 ms` outlier occurred around the 80-second screenshot boundary and is not treated as the renderer transient under investigation.
+- [x] Use that same late hitch to rule out arena-pressure relief for the representative event. `leaseFail` remained `0` and the solid arena was only about 14% occupied, so the scheduler's `needsArenaRelief` predicate could not have entered either eviction pass.
+- [x] Observe that the same `admit=15.88 ms` hitch published solid geometry: arena draw leases advanced `494 -> 497` while vertex/index occupancy increased. Solid publication/GPU arena writes are therefore the first direct subsection to measure; water and batched scheduling remain fallbacks if those writes do not account for the wall time.
 
 ## Current diagnostic plan
 
-The concurrency A/B was negative and GC pause is now ruled out. Do not change production concurrency. Direct scheduler telemetry proves that at least one representative ~20 ms hitch is dominated by the broad admission region, while the custom `ProfilerRecorder` names for renderer markers are unavailable in the standalone player. The next step is therefore a direct, allocation-free split of that broad admission wall time.
+The concurrency A/B was negative and GC pause is now ruled out. Do not change production concurrency. Direct scheduler telemetry proves that at least one representative ~20 ms hitch is dominated by the broad admission region, while the custom `ProfilerRecorder` names for renderer markers are unavailable in the standalone player. Existing state also rules arena-pressure relief out for that representative hitch and associates it with three solid publications. The next step is therefore a direct, allocation-free measurement of solid arena upload wall time before adding wider probes.
 
 1. **Managed allocation / GC pause**
    - [x] Add low-perturbation GC diagnostics to the fast player measurement: per-window `GC.CollectionCount` deltas and managed allocation volume (`a93a1a62`, guarded by `0e8236bd`).
@@ -79,14 +81,15 @@ The concurrency A/B was negative and GC pause is now ruled out. Do not change pr
 2. **Broad scheduler admission remainder**
    - [x] Attempt per-frame `ProfilerRecorder` maxima for scheduler/admission/worker/upload markers. The GC recorder works, but the custom `Voxel.Surface.*` recorder lookups return zero in the standalone player; do not rely on them for the renderer split.
    - [x] Establish that broad admission wall time can dominate the same window as the ~20 ms frame using direct scheduler telemetry: `prepare=19.36 ms`, `admit=15.88 ms`, `visible=0.39 ms` in the late ~22 ms hitch window of run `32553044708`.
-   - [ ] Split the broad admission region into the minimum useful main-thread sections: solid pending publication/upload, arena-pressure relief, water work/publication, and `JobHandle.ScheduleBatchedJobs()`.
-   - [ ] Capture per-frame section values with direct primitive timing and reduce them to one-second maxima in the diagnostic harness; do not depend on custom `ProfilerRecorder` marker lookup.
+   - [x] Rule out arena-pressure relief for that representative hitch from existing state: no arena allocation failure occurred, so the pressure-relief branch did not run.
+   - [ ] Measure direct current-frame solid GPU arena upload wall time across `BeginWrite`/copy/`EndWrite` for vertices, indices, and args. Reduce it to a one-second maximum without per-frame strings or managed allocation.
+   - [ ] Correlate the arena-upload maximum with the representative ~20 ms hitch. If it accounts for the wall time, optimize publication; if it remains small, continue the split with full solid-publication bookkeeping, water work/publication, and `JobHandle.ScheduleBatchedJobs()`.
+   - [ ] Split any remaining unexplained broad admission time into the minimum useful main-thread sections and preserve same-frame values for the worst admission event.
    - [ ] Reuse existing timing state where possible and avoid high-frequency string logging or managed allocations.
-   - [ ] Print the per-frame section maxima with the sparse player trace.
 
 3. **Fast real-player proof**
    - [x] Run one production-policy (`converging=12`, `converged=0`) 90-second `SmallVoxelShowcase` autowalk after the GC/broad-marker diagnostics (`32553044708`).
-   - [ ] For each representative ~20 ms renderer hitch, classify the admission cost as solid publication/upload, arena pressure, water work/publication, `ScheduleBatchedJobs()`, or another remainder.
+   - [ ] For each representative ~20 ms renderer hitch, classify the admission cost as solid publication/upload, water work/publication, `ScheduleBatchedJobs()`, or another remainder.
    - [ ] Fix only the first proven source, then re-run the same SmallVoxelShowcase gate.
    - [ ] If the admission split does not account for the renderer hitch, instrument Unity main/render-thread or presentation/GPU timing rather than guessing at renderer code.
 
@@ -101,7 +104,7 @@ The broader rendering investigation measured a settled real-player run where sch
 
 The moving-player routing/dedup optimization remains worthwhile and should stay. The residual transient is separate: discovery is negligible during spikes, worker `CpuTransvoxelChunkCache.Prepare()` subsections are sub-millisecond, lowering convergence concurrency from 12 to 8 did not remove the ~20 ms pattern, and GC wall time is sub-millisecond even in hitch windows.
 
-The next causal gate is now narrower: split the directly measured broad admission wall time. Do not spend another iteration on build concurrency, worker `Prepare()`, or GC unless new evidence contradicts the completed measurements.
+For the representative `admit=15.88 ms` event, arena-pressure eviction is already excluded and three solid leases landed in the same sampled frame. The first new probe therefore targets the actual arena writes. Do not spend another iteration on build concurrency, worker `Prepare()`, GC, or arena-pressure eviction unless new evidence contradicts the completed measurements.
 
 The visibility path remains a separate steady-state hotspot and should not distract from the transient investigation until the hitch source is identified.
 
@@ -112,7 +115,8 @@ The visibility path remains a separate steady-state hotspot and should not distr
 - [x] A/B convergence ceiling 12 vs 8 and reject 8 as a stutter fix.
 - [x] Correlate raw GC/allocation counters with hitch windows; collection counts are non-discriminating and renderer allocation is zero.
 - [x] Correlate actual GC pause with hitch windows and rule it out; direct scheduler telemetry simultaneously proves broad admission can dominate a renderer hitch.
-- [ ] Split the broad admission wall time into solid publication/upload, arena pressure, water work/publication, and batched-job scheduling.
+- [x] Rule out arena-pressure relief for the representative 15.88 ms admission hitch and prioritize solid publication because three solid leases landed in that frame.
+- [ ] Measure solid GPU arena upload wall time directly and classify the hitch before widening the split.
 - [ ] Fix the first measured culprit rather than changing renderer policy speculatively.
 - [ ] Keep commit/publication work allocation-free and bounded by explicit per-frame budgets.
 - [ ] Re-run the exact same small-player path after the fix, then full VoxelShowcase only for final acceptance.
