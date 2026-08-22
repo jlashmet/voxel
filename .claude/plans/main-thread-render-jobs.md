@@ -63,8 +63,8 @@ The authoritative region surface classification and compaction are already Unity
 The concurrency A/B was negative. Do not change production concurrency. The next run must distinguish two remaining classes of cause before changing renderer behavior:
 
 1. **Managed allocation / GC pause**
-   - [ ] Add low-perturbation GC diagnostics to the fast player measurement: per-window `GC.CollectionCount` deltas and managed allocation volume.
-   - [ ] Prefer counters sampled once per FPS window rather than per-frame logging. Existing renderer per-frame managed-allocation accounting may be surfaced, but whole-player GC counters are required because a collection can be triggered by allocations outside the renderer.
+   - [x] Add low-perturbation GC diagnostics to the fast player measurement: per-window `GC.CollectionCount` deltas and managed allocation volume (`a93a1a62`, guarded by `0e8236bd`).
+   - [x] Sample counters once per one-second FPS window rather than per-frame logging. Collection counters cover the whole managed process; allocated-byte deltas are sampled on the main thread before the diagnostic formats/logs its own line, then baselines are reset after logging.
    - [ ] Correlate every ~20 ms FPS window with collection-count changes. A hitch plus a GC increment makes allocation/collection the next fix target; a hitch with no collection rules GC out for that event.
 
 2. **Broad scheduler admission remainder**
