@@ -129,6 +129,15 @@ namespace VoxelEngine.Tests.PlayMode
             StringAssert.Contains("GC.GetAllocatedBytesForCurrentThread()", prepareHarness);
             StringAssert.Contains("gc[g0=+{33} g1=+{34} g2=+{35}] allocMain={36}", prepareHarness,
                 "the sparse player diagnostic must correlate hitches with collection and allocation activity");
+            StringAssert.Contains("ProfilerRecorder.StartNew", prepareHarness);
+            StringAssert.Contains("Voxel.Surface.SchedulerPrepare", prepareHarness);
+            StringAssert.Contains("Voxel.Surface.WorkerAdmission", prepareHarness);
+            StringAssert.Contains("Voxel.Surface.WorkerPrepare", prepareHarness);
+            StringAssert.Contains("Voxel.Surface.Upload", prepareHarness);
+            StringAssert.Contains("GC.Collect", prepareHarness);
+            StringAssert.Contains(
+                "frameMax[scheduler={37:0.000} admission={38:0.000} ", prepareHarness,
+                "hitch diagnostics must retain per-frame maxima rather than sample only the report frame");
             StringAssert.Contains("=== REAL PLAYER FPS TAIL ===", capture);
             StringAssert.Contains("=== REAL PLAYER PREPARE SECTIONS ===", capture);
             StringAssert.Contains("PREPARESECTIONS", capture);
