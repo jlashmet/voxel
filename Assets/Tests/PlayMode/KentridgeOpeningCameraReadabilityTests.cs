@@ -6,7 +6,6 @@ using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
-using VoxelEngine.Showcase;
 
 namespace VoxelEngine.Tests.PlayMode
 {
@@ -19,9 +18,8 @@ namespace VoxelEngine.Tests.PlayMode
     {
         private const string SceneName = "KentridgePlayableSlice";
         private const string DriverTypeName = "Game.Kentridge.PlayableSlice.KentridgePlayableSlice";
-        private const float MinimumBodyViewportHeight = 0.075f;
+        private const float MinimumBodyViewportHeight = 0.12f;
         private const float ViewportMargin = 0.04f;
-        private const float ApproximateBodyHeightMetres = 1.7f;
 
         private Scene _loadedScene;
         private Scene _previousActiveScene;
@@ -56,7 +54,6 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(openingCamera, Is.Not.Null,
                 "The production opening driver must share the camera whose transform it owns.");
 
-            CharacterMotor motor = ReadPrivateField<CharacterMotor>(driver, "_motor");
             object madelineActor = FindNpcActor(driver, "madeline");
             object stevenActor = FindNpcActor(driver, "steven");
             object loganActor = FindNpcActor(driver, "logan");
@@ -68,33 +65,41 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(HasPendingDialogue(driver), Is.True,
                 "The production opening never reached recovered dialogue line 1.");
 
-            AssertReadable(openingCamera, motor.Position, "Weldon at line 1");
-            AssertReadable(openingCamera, ReadActorRootPosition(madelineActor), "Madeline at line 1");
-            AssertReadable(openingCamera, ReadActorRootPosition(stevenActor), "Steven at line 1");
+            AssertReadable(openingCamera, GameObject.Find("Weldon"), "Weldon at line 1");
+            AssertReadable(openingCamera, ReadActorRoot(madelineActor), "Madeline at line 1");
+            AssertReadable(openingCamera, ReadActorRoot(stevenActor), "Steven at line 1");
 
-            var dismissed = 0;
-            for (var frame = 0; frame < 160 && dismissed < 10; frame++)
+            int dismissedBeforeLogan = 0;
+            for (var frame = 0; frame < 240; frame++)
             {
-                if (DismissPendingDialogue(driver))
-                    dismissed++;
+                object pending = ReadPendingDialogue(driver);
+                if (pending != null)
+                {
+                    string speaker = ReadStringProperty(pending, "Speaker");
+                    if (string.Equals(speaker, "Logan", StringComparison.OrdinalIgnoreCase))
+                        break;
+
+                    DismissPendingDialogue(driver);
+                    dismissedBeforeLogan++;
+                }
+
                 yield return null;
             }
 
-            Assert.That(dismissed, Is.EqualTo(10),
-                "The acceptance must reach Logan's recovered line-11 entrance beat.");
-
-            for (var frame = 0; frame < 40 && !HasPendingDialogue(driver); frame++)
-                yield return null;
-
-            Assert.That(HasPendingDialogue(driver), Is.True,
-                "Logan's recovered line 11 never became pending after the first ten beats.");
+            object loganLine = ReadPendingDialogue(driver);
+            Assert.That(loganLine, Is.Not.Null,
+                "Logan's recovered line 11 never became pending after the preceding dialogue beats.");
+            Assert.That(ReadStringProperty(loganLine, "Speaker"), Is.EqualTo("Logan").IgnoreCase,
+                "The opening must stop on Logan's recovered line-11 entrance beat.");
+            Assert.That(dismissedBeforeLogan, Is.EqualTo(10),
+                "Exactly the recovered first ten dialogue beats must precede Logan's line 11.");
             Assert.That(ReadBoolProperty(driver, "OpeningCutsceneCameraActive"), Is.True,
                 "The fixed ensemble camera must still own the view when Logan first speaks.");
 
-            AssertReadable(openingCamera, motor.Position, "Weldon at Logan's entrance");
-            AssertReadable(openingCamera, ReadActorRootPosition(madelineActor), "Madeline at Logan's entrance");
-            AssertReadable(openingCamera, ReadActorRootPosition(stevenActor), "Steven at Logan's entrance");
-            AssertReadable(openingCamera, ReadActorRootPosition(loganActor), "Logan at line 11");
+            AssertReadable(openingCamera, GameObject.Find("Weldon"), "Weldon at Logan's entrance");
+            AssertReadable(openingCamera, ReadActorRoot(madelineActor), "Madeline at Logan's entrance");
+            AssertReadable(openingCamera, ReadActorRoot(stevenActor), "Steven at Logan's entrance");
+            AssertReadable(openingCamera, ReadActorRoot(loganActor), "Logan at line 11");
         }
 
         [UnityTearDown]
@@ -119,46 +124,103 @@ namespace VoxelEngine.Tests.PlayMode
             _previousActiveScene = default;
         }
 
-        private static void AssertReadable(Camera camera, Vector3 rootPosition, string participant)
+        private static void AssertReadable(Camera camera, GameObject visualRoot, string participant)
         {
-            Vector3 feet = camera.WorldToViewportPoint(rootPosition);
-            Vector3 head = camera.WorldToViewportPoint(rootPosition + Vector3.up * ApproximateBodyHeightMetres);
+            Assert.That(visualRoot, Is.Not.Null, participant + " must have a realized visual body.");
 
-            Assert.That(feet.z, Is.GreaterThan(0f), participant + " must remain in front of the opening camera.");
-            Assert.That(feet.x, Is.InRange(ViewportMargin, 1f - ViewportMargin),
-                participant + " must remain comfortably inside the horizontal frame.");
-            Assert.That(feet.y, Is.InRange(ViewportMargin, 1f - ViewportMargin),
-                participant + " must remain comfortably inside the vertical frame.");
-            Assert.That(head.x, Is.InRange(ViewportMargin, 1f - ViewportMargin),
-                participant + " head must remain comfortably inside the horizontal frame.");
-            Assert.That(head.y, Is.InRange(ViewportMargin, 1f - ViewportMargin),
-                participant + " head must remain comfortably inside the vertical frame.");
+            Renderer[] renderers = visualRoot.GetComponentsInChildren<Renderer>(true);
+            bool foundBounds = false;
+            Bounds bounds = default;
+            for (var i = 0; i < renderers.Length; i++)
+            {
+                Renderer renderer = renderers[i];
+                if (renderer == null || !renderer.enabled || !renderer.gameObject.activeInHierarchy)
+                    continue;
 
-            float bodyViewportHeight = Mathf.Abs(head.y - feet.y);
-            Assert.That(bodyViewportHeight, Is.GreaterThanOrEqualTo(MinimumBodyViewportHeight),
-                participant + " is technically visible but too small for the intended ensemble shot. " +
-                "Approximate body viewport height=" + bodyViewportHeight.ToString("F3") + ".");
+                if (!foundBounds)
+                {
+                    bounds = renderer.bounds;
+                    foundBounds = true;
+                }
+                else
+                {
+                    bounds.Encapsulate(renderer.bounds);
+                }
+            }
+
+            Assert.That(foundBounds, Is.True,
+                participant + " must have at least one enabled renderer in the opening.");
+
+            Vector3 min = bounds.min;
+            Vector3 max = bounds.max;
+            float minX = float.PositiveInfinity;
+            float minY = float.PositiveInfinity;
+            float maxX = float.NegativeInfinity;
+            float maxY = float.NegativeInfinity;
+
+            for (var x = 0; x < 2; x++)
+            for (var y = 0; y < 2; y++)
+            for (var z = 0; z < 2; z++)
+            {
+                var corner = new Vector3(
+                    x == 0 ? min.x : max.x,
+                    y == 0 ? min.y : max.y,
+                    z == 0 ? min.z : max.z);
+                Vector3 viewport = camera.WorldToViewportPoint(corner);
+                Assert.That(viewport.z, Is.GreaterThan(0f),
+                    participant + " renderer bounds must remain in front of the opening camera.");
+                minX = Mathf.Min(minX, viewport.x);
+                minY = Mathf.Min(minY, viewport.y);
+                maxX = Mathf.Max(maxX, viewport.x);
+                maxY = Mathf.Max(maxY, viewport.y);
+            }
+
+            float viewportHeight = maxY - minY;
+            float viewportWidth = maxX - minX;
+            Debug.Log(
+                "KENTRIDGE_CAMERA_READABILITY participant=" + participant
+                + " viewportHeight=" + viewportHeight.ToString("F3")
+                + " viewportWidth=" + viewportWidth.ToString("F3")
+                + " bounds=(" + minX.ToString("F3") + "," + minY.ToString("F3")
+                + ")-(" + maxX.ToString("F3") + "," + maxY.ToString("F3") + ")");
+
+            Assert.That(minX, Is.GreaterThanOrEqualTo(ViewportMargin),
+                participant + " is clipped against the left edge of the fixed opening shot.");
+            Assert.That(maxX, Is.LessThanOrEqualTo(1f - ViewportMargin),
+                participant + " is clipped against the right edge of the fixed opening shot.");
+            Assert.That(minY, Is.GreaterThanOrEqualTo(ViewportMargin),
+                participant + " is clipped against the bottom edge of the fixed opening shot.");
+            Assert.That(maxY, Is.LessThanOrEqualTo(1f - ViewportMargin),
+                participant + " is clipped against the top edge of the fixed opening shot.");
+            Assert.That(viewportHeight, Is.GreaterThanOrEqualTo(MinimumBodyViewportHeight),
+                participant + " is technically visible but too small for the intended ensemble shot. "
+                + "Rendered viewport height=" + viewportHeight.ToString("F3") + ".");
         }
 
-        private static bool HasPendingDialogue(Component driver)
+        private static bool HasPendingDialogue(Component driver) =>
+            ReadPendingDialogue(driver) != null;
+
+        private static object ReadPendingDialogue(Component driver)
         {
             object presentation = ReadPrivateField<object>(driver, "_presentation");
             PropertyInfo property = presentation.GetType().GetProperty("Pending", BindingFlags.Instance | BindingFlags.Public);
             Assert.That(property, Is.Not.Null, "Kentridge presentation must expose its pending dialogue operation.");
-            return property.GetValue(presentation) != null;
+            return property.GetValue(presentation);
         }
 
-        private static bool DismissPendingDialogue(Component driver)
+        private static void DismissPendingDialogue(Component driver)
         {
             object presentation = ReadPrivateField<object>(driver, "_presentation");
-            PropertyInfo property = presentation.GetType().GetProperty("Pending", BindingFlags.Instance | BindingFlags.Public);
-            Assert.That(property, Is.Not.Null, "Kentridge presentation must expose its pending dialogue operation.");
-            if (property.GetValue(presentation) == null) return false;
-
             MethodInfo dismiss = presentation.GetType().GetMethod("DismissPending", BindingFlags.Instance | BindingFlags.Public);
             Assert.That(dismiss, Is.Not.Null, "Kentridge presentation must expose dialogue dismissal.");
             dismiss.Invoke(presentation, null);
-            return true;
+        }
+
+        private static string ReadStringProperty(object owner, string name)
+        {
+            PropertyInfo property = owner.GetType().GetProperty(name, BindingFlags.Instance | BindingFlags.Public);
+            Assert.That(property, Is.Not.Null, owner.GetType().FullName + " is missing property '" + name + "'.");
+            return property.GetValue(owner) as string;
         }
 
         private static object FindNpcActor(Component driver, string nameFragment)
@@ -180,13 +242,13 @@ namespace VoxelEngine.Tests.PlayMode
             return null;
         }
 
-        private static Vector3 ReadActorRootPosition(object actor)
+        private static GameObject ReadActorRoot(object actor)
         {
             FieldInfo rootField = actor.GetType().GetField("_root", BindingFlags.Instance | BindingFlags.NonPublic);
             Assert.That(rootField, Is.Not.Null, "Cutscene NPC actor is missing its visual root.");
             var root = rootField.GetValue(actor) as GameObject;
             Assert.That(root, Is.Not.Null, "Cutscene NPC visual root must exist while the opening is running.");
-            return root.transform.position;
+            return root;
         }
 
         private static Component FindDriver(Scene scene)
