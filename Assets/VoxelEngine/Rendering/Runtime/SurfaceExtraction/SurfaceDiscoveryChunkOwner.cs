@@ -37,8 +37,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
         /// <summary>
         /// Canonicalizes one discovery publication batch and partitions it by the exact renderer
-        /// shard that owns each resulting chunk. The scheduler can then call each shard only with
-        /// work it can admit instead of making every shard rescan the entire batch.
+        /// shard that owns each resulting chunk. Surface discovery is chunk admission, so multiple
+        /// surface bricks that resolve to the same chunk are emitted only once. The scheduler can
+        /// then call each shard only with unique work it can admit instead of making every shard
+        /// rescan the batch or making the owning shard repeat the same dictionary/hash work for
+        /// every surface brick in that chunk.
         /// </summary>
         public static void PartitionByOwningShard(
             IReadOnlyList<int3> worldBricks,
@@ -70,7 +73,16 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 // discovery record on the player thread.
                 int3 chunk = OwningChunk(worldBricks[i], edge);
                 int shard = CpuTransvoxelChunkCache.ShardForChunk(chunk, count);
-                shardBricks[shard].Add(chunk * edge + interior);
+                int3 canonical = chunk * edge + interior;
+                List<int3> bucket = shardBricks[shard];
+
+                // A publication batch is bounded and terrain usually contributes many bricks per
+                // chunk, so the already-reused bucket is also the cheapest allocation-free dedup
+                // set. This removes the much more expensive repeated cache admission (chunk math,
+                // shard hash, clipmap/slot lookup and managed HashSet probes) downstream. In the
+                // sparse worst case the bucket scan is small because records are spread by shard.
+                if (!bucket.Contains(canonical))
+                    bucket.Add(canonical);
             }
         }
 
