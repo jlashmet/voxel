@@ -118,16 +118,34 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
                 int axis = delta.x != 0 ? 0 : delta.y != 0 ? 1 : 2;
                 var b0 = new VoxelBoundarySample { Packed = boundaries[c0] };
                 var b1 = new VoxelBoundarySample { Packed = boundaries[c1] };
-                if ((b0.IsAuthored && !b0.AppliesAlong(axis))
-                    || (b1.IsAuthored && !b1.AppliesAlong(axis)))
+                bool extrusionCapEdge = (b0.IsAuthored && !b0.AppliesAlong(axis))
+                    || (b1.IsAuthored && !b1.AppliesAlong(axis));
+                if (extrusionCapEdge)
                 {
                     d0 = IsSolid(materials[c0]) ? 0.5f : -0.5f;
                     d1 = IsSolid(materials[c1]) ? 0.5f : -0.5f;
                 }
                 float t0 = math.abs(d1 - d0) > 1e-7f ? d1 / (d1 - d0) : 0.5f;
                 float t1 = 1f - t0;
-                float3 local = ((float3)(cell + o0) * t0 + (float3)(cell + o1) * t1)
-                             * SourceStep;
+                float3 local = ((float3)(cell + o0) * t0
+                              + (float3)(cell + o1) * t1) * SourceStep;
+
+                // Extruded analytic profiles deliberately cross the depth axis at exactly half a
+                // voxel so their front/back caps stay planar. That must not force the cap's rim to
+                // the integer XY lattice, though: doing so turns a circular intrados into a visible
+                // staircase whenever the rear cap is exposed. Move only the transverse coordinates
+                // of a near-rim cap vertex to the authored SDF zero crossing; the extrusion-axis
+                // coordinate remains the exact planar half-step above.
+                if (extrusionCapEdge)
+                {
+                    bool c0Solid = IsSolid(materials[c0]);
+                    int solidCorner = c0Solid ? c0 : c1;
+                    VoxelBoundarySample solidBoundary = c0Solid ? b0 : b1;
+                    int3 solidGrid = cell + Padding + (c0Solid ? o0 : o1);
+                    local = ProjectExtrusionCapRim(
+                        local, axis, solidBoundary, DensityNormal(solidGrid));
+                }
+
                 float3 position = (ChunkOriginVoxel + local + 0.5f) * VoxelSize;
                 float3 normal = math.normalizesafe(DensityNormal(cell + Padding + o0) * t0
                                                   + DensityNormal(cell + Padding + o1) * t1,
@@ -190,6 +208,24 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
 
         internal static bool UsesFlatTriangleNormals(bool planar, bool rounded, bool authoredBoundary)
             => planar && !rounded && !authoredBoundary;
+
+        internal static bool IsExtrusionCapRimSample(
+            VoxelBoundarySample boundary, int edgeAxis) =>
+            boundary.IsAuthored
+            && boundary.ExtrusionAxis == edgeAxis
+            && boundary.SignedQ3 >= 0
+            && boundary.SignedQ3 < 4;
+
+        internal static float3 ProjectExtrusionCapRim(
+            float3 local, int edgeAxis, VoxelBoundarySample boundary, float3 densityNormal)
+        {
+            if (!IsExtrusionCapRimSample(boundary, edgeAxis)) return local;
+            densityNormal[edgeAxis] = 0f;
+            float lengthSq = math.lengthsq(densityNormal);
+            if (lengthSq <= 1e-8f) return local;
+            float distance = boundary.SignedQ3 * 0.125f;
+            return local + densityNormal * math.rsqrt(lengthSq) * distance;
+        }
 
         private void WriteEmpty()
         {
