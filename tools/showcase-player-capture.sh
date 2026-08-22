@@ -292,6 +292,13 @@ if [[ -s "$PLAYER_LOG" ]] && grep -q 'RINGS ' "$PLAYER_LOG"; then
   grep 'RINGS ' "$PLAYER_LOG" | tail -30
 fi
 
+if [[ "$TEST_FILTER" == "VoxelEngine.Tests.PlayMode.ShowcaseTraversalPerformanceTests.ContinuousPlayerTraversalNeverStuttersOrOpensNearFarGap" ]]; then
+  python3 tools/validate-showcase-traversal.py \
+    --player-log "$PLAYER_LOG" \
+    --fps-log "$FPS_LOG" \
+    --autowalk-after "$AUTOWALK_AFTER"
+fi
+
 shots="$(find "$SHOTS_DIR" -name '*.png' -size +1k | wc -l | tr -d ' ')"
 echo "real-player screenshots captured: $shots"
 if (( shots < 2 )); then
