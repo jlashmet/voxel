@@ -41,9 +41,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         /// surface bricks that resolve to the same chunk are emitted only once. The scheduler can
         /// then call each shard only with unique work it can admit instead of making every shard
         /// rescan the batch or making the owning shard repeat the same dictionary/hash work for
-        /// every surface brick in that chunk.
+        /// every surface brick in that chunk. Returns the number of unique chunk admissions routed
+        /// across all shard buckets.
         /// </summary>
-        public static void PartitionByOwningShard(
+        public static int PartitionByOwningShard(
             IReadOnlyList<int3> worldBricks,
             int bricksPerChunkAxis,
             int shardCount,
@@ -62,10 +63,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 shardBricks[shard].Clear();
             }
 
-            if (worldBricks == null) return;
+            if (worldBricks == null) return 0;
 
             int edge = math.max(1, bricksPerChunkAxis);
             int interior = edge / 2;
+            int routed = 0;
             for (int i = 0; i < worldBricks.Count; i++)
             {
                 // Compute ownership once. Canonicalize() already derives this chunk, so doing an
@@ -81,9 +83,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 // set. This removes the much more expensive repeated cache admission (chunk math,
                 // shard hash, clipmap/slot lookup and managed HashSet probes) downstream. In the
                 // sparse worst case the bucket scan is small because records are spread by shard.
-                if (!bucket.Contains(canonical))
-                    bucket.Add(canonical);
+                if (bucket.Contains(canonical)) continue;
+                bucket.Add(canonical);
+                routed++;
             }
+            return routed;
         }
 
         private static int FloorDiv(int value, int divisor)
