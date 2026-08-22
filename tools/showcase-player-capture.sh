@@ -254,3 +254,14 @@ if (( shots < 2 )); then
   echo "A runner without a logged-in window server can launch the player but render no screenshots." >&2
   exit 1
 fi
+
+# CI-only observability for the canonical player frame while artifact storage is unavailable.
+latest_shot="$(find "$SHOTS_DIR" -name '*.png' -size +1k -print | sort | tail -1)"
+if [[ -n "$latest_shot" ]]; then
+  preview="$OUTPUT_ROOT/arch-ci-preview.jpg"
+  if sips -Z 500 -s format jpeg -s formatOptions 55 "$latest_shot" --out "$preview" >/dev/null 2>&1; then
+    echo 'ARCH_PREVIEW_BEGIN'
+    base64 < "$preview" | fold -w 20000 | sed 's/^/ARCH_PREVIEW_CHUNK /'
+    echo 'ARCH_PREVIEW_END'
+  fi
+fi
