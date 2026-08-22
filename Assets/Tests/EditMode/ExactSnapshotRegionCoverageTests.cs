@@ -152,6 +152,37 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void SchedulerSurfaceDiscoveryFlatBatchCollapsesToOwningStep1Chunks()
+        {
+            // SurfaceBrickCompactJob emits in block-index order. A flat terrain slice of 512
+            // surface blocks therefore commonly looks like 64 X positions across 8 Z rows at one
+            // Y. Step 1 owns 8 blocks per chunk, so those 512 discovery records represent only
+            // eight render chunks (8 X chunks * 1 Z chunk * 1 Y chunk). This is the production
+            // fanout the routing optimization is intended to collapse before managed cache work.
+            const int bricksPerChunk = 8;
+            var discovered = new List<int3>(512);
+            for (int z = 0; z < 8; z++)
+            for (int x = 0; x < 64; x++)
+                discovered.Add(new int3(x, 16, z));
+
+            var buckets = new List<int3>[8];
+            for (int i = 0; i < buckets.Length; i++)
+                buckets[i] = new List<int3>(64);
+
+            int routedCount = SurfaceDiscoveryChunkOwner.PartitionByOwningShard(
+                discovered, bricksPerChunk, buckets.Length, buckets);
+
+            int bucketRecords = 0;
+            for (int shard = 0; shard < buckets.Length; shard++)
+                bucketRecords += buckets[shard].Count;
+
+            Assert.AreEqual(8, routedCount,
+                "A representative flat 512-brick publication should become eight step-1 chunk admissions.");
+            Assert.AreEqual(routedCount, bucketRecords,
+                "Every unique admission must exist in exactly one owning shard bucket.");
+        }
+
+        [Test]
         public void CompleteRequiredCoreRegionSetMayProceedToExactClassification()
         {
             ExactSnapshotRegionCoverage coverage = default;
