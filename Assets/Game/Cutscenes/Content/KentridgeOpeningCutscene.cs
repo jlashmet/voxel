@@ -52,10 +52,11 @@ namespace Game.Cutscenes.Content.Kentridge
 
             return new CutsceneDefinition("kentridge.pub.opening", setup, new[]
             {
+                // Original Opening.m: hold the camera on WalkTo for one second, open the door,
+                // then let Weldon walk into the already-framed conversation area.
                 CutsceneStep.Camera(EstablishingCamera),
-                CutsceneStep.Wait(3000),
+                CutsceneStep.Wait(1000),
                 CutsceneStep.Sound(DoorOpenSound),
-                CutsceneStep.Wait(2000),
                 CutsceneStep.Move(Lead, LeadStage, 2500),
                 CutsceneStep.Parallel(
                     CutsceneStep.FaceActor(Madeline, Lead),
@@ -64,18 +65,22 @@ namespace Game.Cutscenes.Content.Kentridge
                 CutsceneStep.FaceActor(Lead, Madeline),
                 CutsceneStep.Wait(500),
                 CutsceneStep.Dialogue(BeforeLoganDialogue),
-                CutsceneStep.Wait(500),
+
+                // Before Logan enters, the original cast turns toward the entrance and waits.
                 CutsceneStep.Parallel(
                     CutsceneStep.FacePoint(Lead, EntranceFocus),
                     CutsceneStep.FacePoint(Madeline, EntranceFocus),
                     CutsceneStep.FacePoint(Steven, EntranceFocus)),
-                CutsceneStep.Wait(2500),
+                CutsceneStep.Wait(3000),
+
+                // Logan walks into the group; only after he arrives does everybody turn to him.
                 CutsceneStep.Move(Logan, LoganStop, 2000),
-                CutsceneStep.Dialogue(LoganArrivesDialogue),
                 CutsceneStep.Parallel(
                     CutsceneStep.FaceActor(Lead, Logan),
                     CutsceneStep.FaceActor(Madeline, Logan),
-                    CutsceneStep.FaceActor(Steven, Logan)),
+                    CutsceneStep.FaceActor(Steven, Logan),
+                    CutsceneStep.FaceActor(Logan, Steven)),
+                CutsceneStep.Dialogue(LoganArrivesDialogue),
                 CutsceneStep.Wait(500),
                 CutsceneStep.Dialogue(LoganConversationDialogue)
             }, stage);
