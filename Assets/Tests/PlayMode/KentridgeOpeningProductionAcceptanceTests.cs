@@ -60,6 +60,9 @@ namespace VoxelEngine.Tests.PlayMode
                 "The recovered opening must use its fixed establishing camera.");
 
             CharacterMotor motor = ReadPrivateField<CharacterMotor>(driver, "_motor");
+            Camera openingCamera = driver.GetComponent<Camera>();
+            Assert.That(openingCamera, Is.Not.Null,
+                "The production Kentridge driver must own the camera used for the opening shot.");
             Vector3 openingFocus = ReadVector3Property(driver, "OpeningCutsceneCameraFocus");
             Vector3 openingCameraPosition = driver.transform.position;
             Quaternion openingCameraRotation = driver.transform.rotation;
@@ -106,14 +109,32 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(leadMovingFrames, Is.GreaterThanOrEqualTo(5),
                 "Weldon's recovered entrance must remain visible movement rather than a teleport.");
 
+            object madelineActor = FindNpcActor(driver, "madeline");
+            object stevenActor = FindNpcActor(driver, "steven");
+            AssertActorReadable(openingCamera, motor.Position, "Weldon at dialogue line 1");
+            AssertActorReadable(openingCamera, ReadActorRootPosition(madelineActor), "Madeline at dialogue line 1");
+            AssertActorReadable(openingCamera, ReadActorRootPosition(stevenActor), "Steven at dialogue line 1");
+
             object loganActor = FindNpcActor(driver, "logan");
             Vector3 loganStart = ReadActorRootPosition(loganActor);
             Vector3 previousLogan = loganStart;
             int loganMovingFrames = 0;
             int dismissedDialogueBeats = 0;
+            bool provedFourActorFraming = false;
 
             for (var frame = 0; frame < 400 && !ReadBoolProperty(driver, "GameplayControlEnabled"); frame++)
             {
+                if (!provedFourActorFraming
+                    && HasPendingDialogue(driver)
+                    && string.Equals(ReadPendingSpeaker(driver), "Logan", StringComparison.Ordinal))
+                {
+                    AssertActorReadable(openingCamera, motor.Position, "Weldon when Logan first speaks");
+                    AssertActorReadable(openingCamera, ReadActorRootPosition(madelineActor), "Madeline when Logan first speaks");
+                    AssertActorReadable(openingCamera, ReadActorRootPosition(stevenActor), "Steven when Logan first speaks");
+                    AssertActorReadable(openingCamera, ReadActorRootPosition(loganActor), "Logan on his first dialogue line");
+                    provedFourActorFraming = true;
+                }
+
                 if (DismissPendingDialogue(driver))
                     dismissedDialogueBeats++;
 
@@ -132,6 +153,8 @@ namespace VoxelEngine.Tests.PlayMode
             }
             Time.captureDeltaTime = 0f;
 
+            Assert.That(provedFourActorFraming, Is.True,
+                "The production opening never proved that all four actors are readable when Logan first speaks.");
             Assert.That(dismissedDialogueBeats, Is.EqualTo(31),
                 "The production scene must present every recovered Kentridge opening dialogue beat exactly once.");
             Assert.That(loganMovingFrames, Is.GreaterThanOrEqualTo(5),
@@ -196,12 +219,40 @@ namespace VoxelEngine.Tests.PlayMode
                 "The establishing camera rotated " + phase + ".");
         }
 
+        private static void AssertActorReadable(Camera camera, Vector3 feet, string actor)
+        {
+            Vector3 centre = camera.WorldToViewportPoint(feet + Vector3.up * 0.9f);
+            Vector3 bottom = camera.WorldToViewportPoint(feet + Vector3.up * 0.05f);
+            Vector3 top = camera.WorldToViewportPoint(feet + Vector3.up * 1.75f);
+            float projectedHeight = Mathf.Abs(top.y - bottom.y);
+
+            Assert.That(centre.z, Is.GreaterThan(0f), actor + " must be in front of the opening camera.");
+            Assert.That(centre.x, Is.InRange(0.05f, 0.95f),
+                actor + " must remain horizontally inside the fixed ensemble frame; viewport x=" + centre.x.ToString("0.###"));
+            Assert.That(centre.y, Is.InRange(0.08f, 0.92f),
+                actor + " must remain vertically inside the fixed ensemble frame; viewport y=" + centre.y.ToString("0.###"));
+            Assert.That(projectedHeight, Is.GreaterThanOrEqualTo(0.12f),
+                actor + " must occupy a readable share of the frame instead of becoming a tiny distant figure; projected height=" + projectedHeight.ToString("0.###"));
+        }
+
         private static bool HasPendingDialogue(Component driver)
         {
             object presentation = ReadPrivateField<object>(driver, "_presentation");
             PropertyInfo property = presentation.GetType().GetProperty("Pending", BindingFlags.Instance | BindingFlags.Public);
             Assert.That(property, Is.Not.Null, "Kentridge presentation must expose its pending dialogue operation.");
             return property.GetValue(presentation) != null;
+        }
+
+        private static string ReadPendingSpeaker(Component driver)
+        {
+            object presentation = ReadPrivateField<object>(driver, "_presentation");
+            PropertyInfo pendingProperty = presentation.GetType().GetProperty("Pending", BindingFlags.Instance | BindingFlags.Public);
+            Assert.That(pendingProperty, Is.Not.Null, "Kentridge presentation must expose its pending dialogue operation.");
+            object pending = pendingProperty.GetValue(presentation);
+            Assert.That(pending, Is.Not.Null, "A pending dialogue speaker was requested with no pending line.");
+            PropertyInfo speakerProperty = pending.GetType().GetProperty("Speaker", BindingFlags.Instance | BindingFlags.Public);
+            Assert.That(speakerProperty, Is.Not.Null, "Kentridge pending dialogue must expose its speaker.");
+            return (string)speakerProperty.GetValue(pending);
         }
 
         private static bool DismissPendingDialogue(Component driver)
