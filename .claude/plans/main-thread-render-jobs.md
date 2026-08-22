@@ -95,7 +95,7 @@ Authoritative surface classification/compaction already runs as Jobs/Burst work.
 ## Terrain fidelity follow-up
 
 - [x] Confirm actual serialized `VoxelShowcase` near-terrain LOD configuration: LOD is enabled, but `m_DetailBandScale=0.6`, so the normal 96 m finest band is only 57.6 m before step-2/4/8 terrain begins.
-- [ ] Trace the authoritative moat/subtractive-terrain authoring path and compare it with `VoxelFarTerrain.SampleTerrainHeight`; determine exactly why the far height-field proxy can cover the moat.
+- [x] Trace the authoritative moat/subtractive-terrain authoring path and compare it with `VoxelFarTerrain.SampleTerrainHeight`; determine exactly why the far height-field proxy can cover the moat. `CastleSiteAuthoring` lowers/empties the analytic `TerrainQuery` surface for the crag/cliff, river gorge, and optional moat; `FarTerrainHeightJob` samples only that untouched analytic terrain, while `FarFieldStructureStore` and `VoxelFarTerrain` preserve only tall positive landmark tops via `max`, so authored lowering has no far-field representation and the fallback proxy fills it back in.
 - [ ] Preserve fallback coverage during incomplete near-field convergence while preventing the far proxy from visibly filling authored subtractive terrain. Use authoritative/shared world data rather than a second fake moat representation.
 - [ ] Evaluate finest-LOD presentation separately from fallback correctness against the repository's documented performance/device budgets; do not blindly expand 57.6 m to 96 m.
 - [ ] Add focused regression coverage for the terrain-fidelity invariant.
