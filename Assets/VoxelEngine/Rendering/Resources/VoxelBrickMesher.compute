@@ -257,18 +257,71 @@ bool IsExtrusionCapRimSample(uint packedBoundary, int edgeAxis)
         && signedQ3 >= 0 && signedQ3 < 4;
 }
 
-float3 ProjectExtrusionCapRim(float3 local, int edgeAxis,
-                              uint packedBoundary, int3 grid)
+bool IsCompatibleExtrusionProfileSample(uint packedBoundary, int edgeAxis)
 {
-    if (!IsExtrusionCapRimSample(packedBoundary, edgeAxis)) return local;
-    float3 transverse = DensityNormal(grid);
+    return BoundaryIsAuthored(packedBoundary)
+        && BoundaryExtrusionAxis(packedBoundary) == edgeAxis
+        && BoundarySignedQ3(packedBoundary) >= 0;
+}
+
+bool HasInPlaneOccupancyTransition(int3 grid, int faceAxis)
+{
+    int3 axisA = faceAxis == 0 ? int3(0, 1, 0) : int3(1, 0, 0);
+    int3 axisB = faceAxis == 2 ? int3(0, 1, 0) : int3(0, 0, 1);
+    if (faceAxis == 1)
+    {
+        axisA = int3(0, 0, 1);
+        axisB = int3(1, 0, 0);
+    }
+    int hi = _GridSize - 1;
+    for (int b = -1; b <= 1; b++)
+    for (int a = -1; a <= 1; a++)
+    {
+        if (a == 0 && b == 0) continue;
+        int3 neighbour = clamp(grid + axisA * a + axisB * b, 0, hi);
+        if (!IsSolidSample(_SampleMaterial[GridIndex(neighbour)])) return true;
+    }
+    return false;
+}
+
+uint ResolveExtrusionCapProfileSample(uint capBoundary,
+                                      uint inwardBoundary1,
+                                      uint inwardBoundary2,
+                                      int edgeAxis,
+                                      bool inPlaneBoundary)
+{
+    if (!IsCompatibleExtrusionProfileSample(capBoundary, edgeAxis)) return 0u;
+    if (!IsExtrusionCapRimSample(capBoundary, edgeAxis) && !inPlaneBoundary) return 0u;
+
+    uint best = capBoundary;
+    if (IsCompatibleExtrusionProfileSample(inwardBoundary1, edgeAxis)
+        && BoundarySignedQ3(inwardBoundary1) >= BoundarySignedQ3(best))
+        best = inwardBoundary1;
+    if (IsCompatibleExtrusionProfileSample(inwardBoundary2, edgeAxis)
+        && BoundarySignedQ3(inwardBoundary2) >= BoundarySignedQ3(best))
+        best = inwardBoundary2;
+    return best;
+}
+
+float3 ProjectExtrusionCapProfile(float3 local, int edgeAxis,
+                                  uint profileBoundary, int3 profileGrid)
+{
+    if (!IsCompatibleExtrusionProfileSample(profileBoundary, edgeAxis)) return local;
+    float3 transverse = DensityNormal(profileGrid);
     if (edgeAxis == 0) transverse.x = 0.0;
     else if (edgeAxis == 1) transverse.y = 0.0;
     else transverse.z = 0.0;
     float lenSq = dot(transverse, transverse);
     if (lenSq <= 1e-8) return local;
     return local + transverse * rsqrt(lenSq)
-         * (BoundarySignedQ3(packedBoundary) * 0.125);
+         * (BoundarySignedQ3(profileBoundary) * 0.125);
+}
+
+float3 ProjectExtrusionCapRim(float3 local, int edgeAxis,
+                              uint packedBoundary, int3 grid)
+{
+    if (!IsExtrusionCapRimSample(packedBoundary, edgeAxis)) return local;
+    return ProjectExtrusionCapProfile(local, edgeAxis, packedBoundary, grid);
 }
 
 // Mirrors TransvoxelTopologyJob.Pack: material, coating, style, then the high semantic byte.
@@ -345,8 +398,9 @@ void CSWriteCells(uint3 id : SV_DispatchThreadID)
         int3 delta = abs(o1 - o0);
         int axis = delta.x != 0 ? 0 : (delta.y != 0 ? 1 : 2);
 
-        // Keep an authored extrusion cap on the exact occupancy half-step, but do not let that
-        // sharp depth constraint quantize the rim in the two transverse axes.
+        // Keep an authored extrusion cap on the exact occupancy half-step. The cap-layer authored
+        // scalar is min(profile, depth), so recover the extrusion-invariant profile from inside the
+        // solid before using it to move the two transverse coordinates.
         bool extrusionCapEdge =
             (BoundaryIsAuthored(boundary[c0]) && !BoundaryAppliesAlong(boundary[c0], axis))
          || (BoundaryIsAuthored(boundary[c1]) && !BoundaryAppliesAlong(boundary[c1], axis));
@@ -362,9 +416,33 @@ void CSWriteCells(uint3 id : SV_DispatchThreadID)
         if (extrusionCapEdge)
         {
             bool c0Solid = IsSolidSample(material[c0]);
+            int3 solidOffset = c0Solid ? o0 : o1;
+            int3 airOffset = c0Solid ? o1 : o0;
             uint solidBoundary = c0Solid ? boundary[c0] : boundary[c1];
-            int3 solidGrid = cell + _Padding + (c0Solid ? o0 : o1);
-            local = ProjectExtrusionCapRim(local, axis, solidBoundary, solidGrid);
+            int3 solidGrid = cell + _Padding + solidOffset;
+            int3 axisMask = int3(axis == 0 ? 1 : 0,
+                                 axis == 1 ? 1 : 0,
+                                 axis == 2 ? 1 : 0);
+            int inwardDirection = dot(airOffset - solidOffset, axisMask) > 0 ? -1 : 1;
+            int hi = _GridSize - 1;
+            int3 inwardGrid1 = clamp(solidGrid + axisMask * inwardDirection, 0, hi);
+            int3 inwardGrid2 = clamp(solidGrid + axisMask * (inwardDirection * 2), 0, hi);
+            uint inwardBoundary1 = _SampleBoundary[GridIndex(inwardGrid1)];
+            uint inwardBoundary2 = _SampleBoundary[GridIndex(inwardGrid2)];
+            bool inPlaneBoundary = HasInPlaneOccupancyTransition(solidGrid, axis);
+            uint profileBoundary = ResolveExtrusionCapProfileSample(
+                solidBoundary, inwardBoundary1, inwardBoundary2, axis, inPlaneBoundary);
+            if (BoundaryIsAuthored(profileBoundary))
+            {
+                int3 profileGrid = solidGrid;
+                if (IsCompatibleExtrusionProfileSample(inwardBoundary2, axis)
+                    && inwardBoundary2 == profileBoundary)
+                    profileGrid = inwardGrid2;
+                else if (IsCompatibleExtrusionProfileSample(inwardBoundary1, axis)
+                         && inwardBoundary1 == profileBoundary)
+                    profileGrid = inwardGrid1;
+                local = ProjectExtrusionCapProfile(local, axis, profileBoundary, profileGrid);
+            }
         }
 
         SurfaceVertex vertex;
