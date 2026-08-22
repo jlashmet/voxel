@@ -69,12 +69,13 @@ namespace VoxelEngine.Terrain.Api
                 h += (int)(((long)relief * mask) >> 10);
             }
 
-            // The inhabited valley is composed as broad, readable landforms. The former 7 m and
-            // 2.4 m layers packed dozens of voxel contours into a single field and made every
-            // settlement approach look like wrinkled cloth. Mountain relief is authored above by
-            // the distance mask; the basin only needs enough variation to establish drainage and
-            // let the town terracing show its work.
-            h += Octave(worldX, worldZ, 9, 18, seed);
+            // Keep the inhabited valley readable at player scale, but do not flatten away the
+            // landform itself. The 51.2 m and 12.8 m layers restore the broad rolling relief that
+            // was lost when terrain styling collapsed the basin to one 18-voxel octave. The old
+            // 3.2 m and 1.6 m layers stay out: those were small enough to corrugate paths and fields
+            // instead of describing landscape-scale shape.
+            h += Octave(worldX, worldZ, 9, 70, seed);
+            h += Octave(worldX, worldZ, 7, 24, seed);
 
             // Player-scale relief stays in vegetation/material presentation, where it enriches a
             // surface without changing collision or cutting a contour around every few footsteps.

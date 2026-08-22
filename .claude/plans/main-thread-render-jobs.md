@@ -1,7 +1,7 @@
 # Main-thread render admission reduction
 
 **Branch:** `agent/main-thread-render-jobs-v2`
-**Current base:** contains current `master` through `15c388bc`
+**Current base:** contains current `master` through `e30b5562`
 **Related plan:** `.claude/plans/rendering-garbled.md`
 
 ## Goal
@@ -59,12 +59,12 @@ Authoritative surface classification/compaction already runs as Jobs/Burst work.
 ## 2026-08-22 master integration / CI compatibility
 
 - [x] Merge current `master` into the feature branch, most recently through `b496f3a0bc600c9532222e10cd60a62a244ecfa3` in merge commit `5ca49069aa1c53f5ac378e113628bc6081ddfefb`.
-- [x] Re-check after the latest master request: feature contains current `master` through `15c388bc` and is `behind_by=0`; no additional merge commit is required.
+- [x] Merge the nine post-PR #127 commits through PR #128 and fast-forward the feature branch to merged `master` commit `e30b5562ffc9347ea657c0055505e00b8c3dd135` before resuming work.
 - [x] Preserve `master`'s single-test policy: `group: single-test-${{ github.ref }}`, `cancel-in-progress: true`, job timeout 5 minutes, Unity invocation ceiling 4 minutes.
 - [x] Adopt exactly one reused `ci-test/agent/main-thread-render-jobs-v2` branch for targeted validation.
 - [x] Restore renderer-specific CI behavior compatible with that policy: SmallVoxelShowcase bake exclusions, eight-worker traversal routing, and failure details.
 - [x] Update source-contract tests for the current CI policy (`39f637192b3d2fd89a01cedda1f9268a0ba5ff09`).
-- [x] Confirm feature branch is ahead of current master and `behind_by=0` at the integration gate.
+- [x] Confirm feature branch is based on current merged master before the new visual-regression fixes.
 
 ## Validation after the first proven fix
 
@@ -88,19 +88,44 @@ Authoritative surface classification/compaction already runs as Jobs/Burst work.
 - [x] Run the focused EditMode source contract after the authoritative-player gate change. Run `32580810700` is green.
 - [x] Diagnose final-gate attempt `32581038603` instead of merging through a failed production-player assertion. The eight-worker PlayMode traversal passed in 79 seconds, but the visible player failed the authoritative validator: worst walking-window p95 `19.39 ms`, max `47.91 ms`, and `SURFACE missingMax=7`; `leaseFail=0` and `reappeared=0` remained clean.
 - [x] Compare the failed visible run against the earlier good `32579464263` run and identify a harness nondeterminism: `AutoWalk` inherits mutable pre-automation mouse yaw, so nominally identical launches take materially different routes and render different chunk loads. Do not weaken the performance/coverage thresholds to accommodate different paths.
-- [ ] Make command-line `AutoWalk` derive a deterministic clockwise tangent from the player/landmark world geometry, while still feeding ordinary forward movement through `CharacterMotor` and the normal streaming path. Add a focused source contract for this invariant.
+- [x] Make command-line `AutoWalk` derive a deterministic clockwise tangent from the player/landmark world geometry, while still feeding ordinary forward movement through `CharacterMotor` and the normal streaming path. A focused source contract now guards this invariant.
 - [ ] Re-run the corrected final full traversal request and require both the PlayMode correctness gate and authoritative real-player performance/coverage gate to pass with `ci/single-test=success`.
 - [ ] Review final diff against `CLAUDE.md`, the rendering specs, and current `master`.
 
 ## Terrain fidelity follow-up
 
 - [x] Confirm actual serialized `VoxelShowcase` near-terrain LOD configuration: LOD is enabled, but `m_DetailBandScale=0.6`, so the normal 96 m finest band is only 57.6 m before step-2/4/8 terrain begins.
-- [x] Trace the authoritative moat/subtractive-terrain authoring path and compare it with `VoxelFarTerrain.SampleTerrainHeight`; determine exactly why the far height-field proxy can cover the moat. `CastleSiteAuthoring` lowers/empties the analytic `TerrainQuery` surface for the crag/cliff, river gorge, and optional moat; `FarTerrainHeightJob` samples only that untouched analytic terrain, while `FarFieldStructureStore` and `VoxelFarTerrain` preserve only tall positive landmark tops via `max`, so authored lowering has no far-field representation and the fallback proxy fills it back in.
-- [ ] Preserve fallback coverage during incomplete near-field convergence while preventing the far proxy from visibly filling authored subtractive terrain. Use authoritative/shared world data rather than a second fake moat representation.
+- [x] Trace the authoritative moat/subtractive-terrain authoring path and compare it with `VoxelFarTerrain.SampleTerrainHeight`; determine exactly why the far height-field proxy can cover the moat. `CastleSiteAuthoring` lowers/empties the analytic `TerrainQuery` surface for the crag/cliff, river gorge, and optional moat; `FarTerrainHeightJob` samples only that untouched analytic terrain, while the old `FarFieldStructureStore`/`VoxelFarTerrain` path preserved only tall positive landmark tops.
+- [x] Preserve fallback coverage during incomplete near-field convergence while preventing the far proxy from visibly filling authored subtractive terrain. `FarFieldStructureStore` now captures authoritative lowered terrain and `VoxelFarTerrain` applies it before near-footprint structure suppression.
 - [ ] Evaluate finest-LOD presentation separately from fallback correctness against the repository's documented performance/device budgets; do not blindly expand 57.6 m to 96 m.
-- [ ] Add focused regression coverage for the terrain-fidelity invariant.
+- [x] Add focused source regression coverage for the authored subtractive-terrain fallback invariant.
 - [ ] Run focused Unity CI on the reused `ci-test/agent/main-thread-render-jobs-v2` branch and keep the job under five minutes.
 - [ ] Run the corrected exact full `VoxelShowcase` PlayMode + real-player path; inspect screenshots for moat/far-proxy fidelity and require no coverage, fallback, lease, reappearance, blocking-completion, or water-admission regression.
+
+## 2026-08-22 visual regression follow-up
+
+Reported visible regressions after the renderer/main-thread work was integrated:
+
+- castle and Kentridge walls can appear with whole rectangular sections missing;
+- elevated/flying views can expose pale blue square gaps in terrain;
+- near terrain kept the improved texture treatment but became nearly flat;
+- natural dirt/grass boundaries form conspicuous closed rings / "crop circles".
+
+Evidence and diagnosis:
+
+- [x] Inspect real-player artifact `32581038603`. During movement the Kentridge/castle geometry is missing in chunk-sized rectangular sections rather than losing only back-facing triangles.
+- [x] Correlate those screenshots with player diagnostics: movement raises `missingVisible` into the hundreds while `leaseFail=0` and `reappeared=0`, so the wall loss is unpublished newly visible chunks, not arena eviction or face culling.
+- [x] Trace the scheduler configuration. Production used `SurfaceMaxConcurrentBuildsConverged=0`, and `SurfaceBuildConcurrencyHarness` explicitly forced `converged=0`; once the current frustum converged, all nearby off-screen surface building stopped. Turning, walking, or flying then exposed geometry before convergence workers could catch up. This also matches the historical elevated-view sky-square failure mode.
+- [x] Restore one bounded steady-state prefetch build in production and in the traversal harness. Do not increase the visible-convergence ceiling or reduce coverage/LOD.
+- [x] Trace near-terrain flattening to `bfe02ec4`: the styling change reduced the 51.2 m valley octave from amplitude 70 to 18 and removed every other valley octave.
+- [x] Restore landscape-scale relief without reintroducing the old metre-scale corrugation: keep the 51.2 m octave at 70 and restore the 12.8 m octave at 24; continue omitting the former 3.2 m / 1.6 m layers.
+- [x] Trace the "crop circles" to the generic low-surface material split at `TerrainQuery.BaseHeight`: generated ground below the cutoff was Dirt and above it Grass, so the boundary literally followed closed elevation contours.
+- [x] Keep the newer stylized terrain presentation but make naturally generated valley surface Grass on both sides of the generic height split. Dirt remains subsurface and remains available to authored roads, fields, banks and excavations.
+- [x] Add focused regression guards for non-zero converged prefetch, traversal-harness parity, broad-but-not-player-scale terrain relief, and continuous natural ground cover.
+- [ ] Run the focused source/terrain Unity regressions on the reused CI branch.
+- [ ] Re-bake the current `VoxelShowcase` startup world because the canonical terrain-height function changed; publish the exact generated binary before relying on the bake-free final traversal gate.
+- [ ] Run the exact full PlayMode + real-player traversal and inspect elevated/walking screenshots. Require `missingVisible=0` during accepted movement, no pale blue square gaps, complete castle/Kentridge walls, and natural-looking terrain relief/material boundaries.
+- [ ] Confirm the one-worker steady prefetch does not regress settled-frame performance or arena pressure.
 
 ## Acceptance
 
@@ -112,5 +137,5 @@ Authoritative surface classification/compaction already runs as Jobs/Burst work.
 - [x] Identify water admission as the remaining ~20 ms transient owner.
 - [x] Reduce it without reducing render distance/coverage or introducing synchronous job completion. `32575648213` reduces the measured water spike by about 92% while preserving the production SmallVoxel coverage signals.
 - [x] No geometry holes or near/far fallback regression in the corrected full-scene production evidence (`32579464263`).
-- [ ] Final corrected full traversal reaches movement and passes both correctness and authoritative performance acceptance.
+- [ ] Final corrected full traversal reaches movement and passes both correctness and authoritative performance acceptance with the new visual-regression fixes.
 - [ ] Relevant CI status is green, or a concrete external CI blocker is documented with successful Unity/player evidence separated from the failing infrastructure step.

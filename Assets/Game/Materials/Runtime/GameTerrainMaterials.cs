@@ -10,18 +10,18 @@ namespace Game.Materials.Runtime
     public static class GameTerrainMaterials
     {
         /// <summary>
-        /// Ground cover for the inhabited valley: turf on the rises, bare earth in the hollows,
-        /// subsoil beneath both, bedrock at depth.
+        /// Ground cover for the inhabited valley: continuous turf over naturally generated ground,
+        /// dirt immediately below it, and bedrock at depth.
         ///
-        /// This was bedrock/stone/sand, which surfaced the whole basin in rock and sand and made a
-        /// temperate farmland valley read as a quarry floor. Sand is a shoreline material and is
-        /// left to the features that actually author a shoreline; it is not what a settled valley
-        /// is made of.
+        /// Dirt remains available to authored roads, fields, banks and excavations. It is not used
+        /// as the generic low-elevation surface because a binary height split paints closed contour
+        /// rings across rolling terrain, which reads as artificial crop circles rather than as a
+        /// natural grass/dirt transition.
         /// </summary>
         public static readonly TerrainMaterialSet Default = new TerrainMaterialSet(
             deep: GameMaterialIds.Bedrock,
             subsurface: GameMaterialIds.Dirt,
-            lowSurface: GameMaterialIds.Dirt,
+            lowSurface: GameMaterialIds.Grass,
             surface: GameMaterialIds.Grass);
     }
 }
