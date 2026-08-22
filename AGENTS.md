@@ -20,11 +20,42 @@ If a task is more than a trivial one-step edit, create or update a durable Markd
 - If the implementation direction changes, update the plan before continuing so it remains the authoritative record of the work.
 - A tiny edit that can be implemented and validated in one straightforward step does not require a separate plan.
 
+## Branch discipline
+
+A task uses **exactly two branches for its entire lifetime**: one feature branch and one CI
+request branch. Both names are fixed when the task starts and never change.
+
+```
+<feature-branch>          the work
+ci-test/<feature-branch>  the CI request branch, force-reset each iteration
+```
+
+Iterating means **force-updating these two refs, never creating a third**. Do not create a new
+branch to retry a test, try a variant, capture a baseline, or hold evidence. Suffixes such as
+`-v2`, `-latest`, `-retry`, `-resume`, `-baseline`, `-small`, `-clean`, `-temp`, `-final`, or a
+date/SHA fragment are forbidden. A distinct `request_id` is what makes a run unique — not a
+distinct branch.
+
+Reuse is what makes the latest-request-wins cancellation below work. Pushing each retry to a
+new branch defeats it: every stale attempt keeps its own runner slot instead of being
+superseded.
+
+Never push a placeholder, probe, or scratch branch (`tmp-*`, `temp-*`, `noop-*`, `__*`,
+`do-not-use-*`). If a ref would not be meaningful to a human reviewer a week later, it does not
+belong on `origin`.
+
+Delete `ci-test/<feature-branch>` as soon as the task's validation is green; delete the feature
+branch once it merges. The agent that pushed a branch is responsible for removing it. Leaving
+unmerged branches on `origin` is a defect, not housekeeping — it is unreviewed work that looks
+abandoned and consumes self-hosted runner capacity.
+
 ## Validation loop
 
 Assume you cannot execute Unity, **`tools/ci-test`**, or manually dispatch GitHub workflows.
 
-Use the repository's push-triggered targeted-test mechanism on a dedicated CI request branch. Do **not** update `.github/test-request.json` on the feature/PR branch: that would create a PR synchronize event and fan out normal PR CI again.
+Use the repository's push-triggered targeted-test mechanism on the task's single CI request
+branch defined above. Do **not** update `.github/test-request.json` on the feature/PR branch:
+that would create a PR synchronize event and fan out normal PR CI again.
 
 A requested single test is a fast-feedback path and must complete in **less than 5 minutes** once its workflow job starts. Keep the requested test narrow enough to fit that budget; if it does not, split or narrow the test instead of extending the single-test timeout.
 
@@ -33,8 +64,8 @@ Each `ci-test/...` branch is latest-request-wins. When a newer request is pushed
 For each iteration:
 
 1. Make the code/test changes on the feature branch, commit them, and push the feature branch.
-2. Create or reset a dedicated branch named **`ci-test/<feature-branch-or-purpose>`** to the exact feature commit that should be tested.
-   - Connector-only agents can create the branch when absent, or move it with a forced ref update when reusing it.
+2. Force-reset the task's **`ci-test/<feature-branch>`** to the exact feature commit that should be tested. Create it only on the first iteration; every later iteration reuses and resets that same ref.
+   - Connector-only agents create the branch when absent, and otherwise move it with a forced ref update. Reuse is mandatory, not an option.
    - The CI branch must point at the exact source commit before the request-file commit is added.
 3. On the `ci-test/...` branch only, update **`.github/test-request.json`** with the smallest relevant Unity test:
    - `platform`: `EditMode` or `PlayMode`
@@ -73,6 +104,8 @@ Before declaring the task complete:
 - Review the final diff.
 - Verify it follows **`CLAUDE.md`** and relevant specs.
 - Confirm the relevant CI jobs are green.
+- Delete the task's `ci-test/<feature-branch>` from `origin`.
+- Confirm the task created no branches on `origin` beyond its one feature branch and that one CI branch.
 - State what was changed and what CI validation actually passed.
 
 **Try in chat**
