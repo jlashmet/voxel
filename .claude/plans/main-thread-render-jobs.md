@@ -17,7 +17,7 @@ The authoritative region surface classification and compaction are already Unity
 - Do not synchronously `Complete()` geometry jobs on the player frame.
 - Do not reduce render distance, LOD coverage, or visible chunk count to improve timings.
 - Unity/GPU resource mutation remains on the safe publication path; only pure/native staging is eligible for Burst work.
-- Use the real-player harness for performance conclusions. The generic single-test workflow forces `-job-worker-count 1`, which is useful for correctness but is not representative of this job-heavy renderer.
+- Use the real-player harness for performance conclusions. The single-test workflow keeps one Unity job worker for ordinary correctness tests, but `ShowcaseTraversalPerformanceTests.*` now gets a bounded eight-worker pool so its convergence precondition is representative enough to execute. Real-player timing remains authoritative.
 
 ## Current branch state
 
@@ -34,15 +34,20 @@ The authoritative region surface classification and compaction are already Unity
 - [x] Change the routing regression to prove that duplicate bricks in one chunk emit that chunk exactly once while preserving all distinct positive/negative chunks.
 - [x] Return the unique routed-chunk count from `PartitionByOwningShard`; existing scheduler callers may ignore it, while later telemetry can record discovered-brick versus actual-admission fanout without another API change.
 - [x] Add a representative flat-terrain fanout regression: a 512-brick step-1 publication collapses to 8 unique render-chunk admissions before managed cache work.
-- [ ] Run the latest unique-chunk/fanout regression on the current feature tip; queued single-test requests are still draining through the one self-hosted runner.
+- [x] Give `ShowcaseTraversalPerformanceTests.*` eight Unity job workers in `tests-single.yml`; all ordinary single-test validation stays on one worker.
+- [x] Map the continuous traversal filter to a real `VoxelShowcase` player/autowalk profile in `tools/showcase-player-capture.sh`, and print the warm FPS tail directly into the job log so artifact quota cannot hide timing output.
+- [x] Guard the traversal-to-player mapping in `StationaryRenderBenchmarkTests` source-contract coverage.
+- [ ] Run the latest unique-chunk/fanout regression on the current feature tip. Exact-tip request: `ci-test/main-thread-render-jobs-v2-dedup-latest` at `70f1c7fc982a5608450185ef456768930e857239`.
 
 ## Measurement and validation
 
 - [x] Run a diagnostic `ShowcaseTraversalPerformanceTests.ContinuousPlayerTraversalNeverStuttersOrOpensNearFarGap` on the original v2 implementation (`32539453488`) with failure XML printed directly into Actions logs.
 - [x] Identify the exact failure: the test never reached movement. Its 1,200-frame pre-traversal gate ended at `known=6323 resident=173 dirty=1915 visible=173 missing=534 jobs=12`, so no p95/p99/max frame result exists for that run.
-- [x] Recognize that this is not a valid performance comparison: the generic single-test workflow forces one Unity job worker while the renderer intentionally allows 12 converging builds. The repo's dedicated showcase-performance workflow explicitly uses a real player because Editor/PlayMode timing is not authoritative.
-- [ ] Compare the same one-worker convergence behavior with `master` only to classify the timeout as existing versus branch-specific; a master request is already queued.
-- [ ] Measure the feature branch with `tools/showcase-player-capture.sh` in a real macOS player, using the same scene/motion window and hardware as the master baseline.
+- [x] Identify the validation defect behind that run: the generic single-test path forced one Unity job worker while the renderer intentionally allows many converging builds. That setup was useful for ordinary correctness tests but not this traversal gate.
+- [x] Correct the traversal assertion path to eight workers without changing the renderer's production worker policy.
+- [x] Make the same targeted traversal request automatically run the existing standalone `VoxelShowcase` player/autowalk harness afterward; the player remains the authoritative performance measurement.
+- [ ] Run the corrected traversal + real-player profile on the exact current feature tip. Request: `ci-test/main-thread-render-jobs-v2-latest` at `52e16329961f26bd6fc876ceb91c8f7c36f2d46d`.
+- [ ] Compare the same real-player scene, motion window and hardware against `master` before attributing a frame-time change to discovery routing. The isolated A/B benchmark branches are queued as `ci-test/main-thread-render-jobs-v2-player` and `ci-test/main-thread-render-jobs-v2-player-master`.
 - [ ] Record real-player frame timing plus discovered-brick versus unique-chunk admission fanout before attributing a performance change to this routing work.
 - [ ] Verify no coverage/fallback regression independently of the timing result.
 
@@ -65,6 +70,7 @@ Do not jobify the managed cache blindly. `CpuTransvoxelChunkCache` still owns ma
 
 - [x] Original ownership/routing behavior proven by an executed Unity test; full CI-green status remains infrastructure-blocked by artifact quota.
 - [ ] Latest unique-chunk/fanout regression executed successfully.
+- [ ] Corrected traversal assertion reaches movement without a coverage/fallback regression.
 - [ ] Real-player moving/streaming behavior characterized against master.
 - [ ] No new synchronous completion violations.
 - [ ] No geometry holes or near/far fallback regression.
