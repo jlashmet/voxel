@@ -1,5 +1,6 @@
 using System;
 using System.Globalization;
+using Unity.Profiling;
 using UnityEngine;
 using VoxelEngine.Composition;
 
@@ -12,6 +13,8 @@ namespace VoxelEngine.Showcase
     /// harness snapshots those existing values once per FPS window when the normal FPS logger is
     /// enabled. GC counters and main-thread allocated bytes are sampled before formatting/logging
     /// so the diagnostic's own strings do not masquerade as workload allocation in that window.
+    /// ProfilerRecorder values are sampled every frame and reduced to one-second maxima so a hitch
+    /// cannot disappear merely because the reporting frame itself happened to be cheap.
     /// </summary>
     public static class SurfacePrepareTimingHarness
     {
@@ -46,10 +49,39 @@ namespace VoxelEngine.Showcase
             private int _lastGen0Collections;
             private int _lastGen1Collections;
             private int _lastGen2Collections;
+            private ProfilerRecorder _schedulerPrepareRecorder;
+            private ProfilerRecorder _workerAdmissionRecorder;
+            private ProfilerRecorder _workerPrepareRecorder;
+            private ProfilerRecorder _solidUploadRecorder;
+            private ProfilerRecorder _gcCollectRecorder;
+            private long _schedulerPrepareMaxNs;
+            private long _workerAdmissionMaxNs;
+            private long _workerPrepareMaxNs;
+            private long _solidUploadMaxNs;
+            private long _gcCollectMaxNs;
 
             private void Start()
             {
+                _schedulerPrepareRecorder = ProfilerRecorder.StartNew(
+                    ProfilerCategory.Scripts, "Voxel.Surface.SchedulerPrepare", 1);
+                _workerAdmissionRecorder = ProfilerRecorder.StartNew(
+                    ProfilerCategory.Scripts, "Voxel.Surface.WorkerAdmission", 1);
+                _workerPrepareRecorder = ProfilerRecorder.StartNew(
+                    ProfilerCategory.Scripts, "Voxel.Surface.WorkerPrepare", 1);
+                _solidUploadRecorder = ProfilerRecorder.StartNew(
+                    ProfilerCategory.Scripts, "Voxel.Surface.Upload", 1);
+                _gcCollectRecorder = ProfilerRecorder.StartNew(
+                    ProfilerCategory.Memory, "GC.Collect", 1);
                 ResetGcBaselines();
+            }
+
+            private void OnDestroy()
+            {
+                _schedulerPrepareRecorder.Dispose();
+                _workerAdmissionRecorder.Dispose();
+                _workerPrepareRecorder.Dispose();
+                _solidUploadRecorder.Dispose();
+                _gcCollectRecorder.Dispose();
             }
 
             private void ResetGcBaselines()
@@ -60,8 +92,40 @@ namespace VoxelEngine.Showcase
                 _lastGen2Collections = GC.CollectionCount(2);
             }
 
+            private static long MaxRecorderValue(in ProfilerRecorder recorder, long current)
+            {
+                return recorder.Valid ? Math.Max(current, recorder.LastValue) : current;
+            }
+
+            private void SampleProfilerMaxima()
+            {
+                _schedulerPrepareMaxNs = MaxRecorderValue(
+                    in _schedulerPrepareRecorder, _schedulerPrepareMaxNs);
+                _workerAdmissionMaxNs = MaxRecorderValue(
+                    in _workerAdmissionRecorder, _workerAdmissionMaxNs);
+                _workerPrepareMaxNs = MaxRecorderValue(
+                    in _workerPrepareRecorder, _workerPrepareMaxNs);
+                _solidUploadMaxNs = MaxRecorderValue(
+                    in _solidUploadRecorder, _solidUploadMaxNs);
+                _gcCollectMaxNs = MaxRecorderValue(
+                    in _gcCollectRecorder, _gcCollectMaxNs);
+            }
+
+            private void ResetProfilerMaxima()
+            {
+                _schedulerPrepareMaxNs = 0;
+                _workerAdmissionMaxNs = 0;
+                _workerPrepareMaxNs = 0;
+                _solidUploadMaxNs = 0;
+                _gcCollectMaxNs = 0;
+            }
+
+            private static double NanosecondsToMilliseconds(long nanoseconds) =>
+                nanoseconds * 0.000001;
+
             private void Update()
             {
+                SampleProfilerMaxima();
                 _elapsed += Time.unscaledDeltaTime;
                 if (_elapsed < _nextReport) return;
                 _nextReport += ReportIntervalSeconds;
@@ -94,7 +158,9 @@ namespace VoxelEngine.Showcase
                     + "facetedMerge[p95={22:0.000} p99={23:0.000} max={24:0.000}] "
                     + "profile[p95={25:0.000} p99={26:0.000} max={27:0.000}] "
                     + "upload[p95={28:0.000} p99={29:0.000} max={30:0.000}] "
-                    + "jobs={31} missing={32} gc[g0=+{33} g1=+{34} g2=+{35}] allocMain={36}",
+                    + "jobs={31} missing={32} gc[g0=+{33} g1=+{34} g2=+{35}] allocMain={36} "
+                    + "frameMax[scheduler={37:0.000} admission={38:0.000} "
+                    + "worker={39:0.000} solidUpload={40:0.000} gcCollect={41:0.000}]",
                     _elapsed,
                     timing.WorkerP95Ms, timing.WorkerP99Ms, timing.WorkerMaxMs,
                     timing.RuleSyncP95Ms, timing.RuleSyncP99Ms, timing.RuleSyncMaxMs,
@@ -108,11 +174,17 @@ namespace VoxelEngine.Showcase
                     timing.ProfileP95Ms, timing.ProfileP99Ms, timing.ProfileMaxMs,
                     timing.UploadP95Ms, timing.UploadP99Ms, timing.UploadMaxMs,
                     state.RunningSolidJobs, state.MissingVisibleSolidChunks,
-                    gen0Delta, gen1Delta, gen2Delta, allocatedDelta));
+                    gen0Delta, gen1Delta, gen2Delta, allocatedDelta,
+                    NanosecondsToMilliseconds(_schedulerPrepareMaxNs),
+                    NanosecondsToMilliseconds(_workerAdmissionMaxNs),
+                    NanosecondsToMilliseconds(_workerPrepareMaxNs),
+                    NanosecondsToMilliseconds(_solidUploadMaxNs),
+                    NanosecondsToMilliseconds(_gcCollectMaxNs)));
 
                 // Exclude this diagnostic's own formatting/logging allocations from the next
                 // interval as much as possible by taking the next baseline after the log call.
                 ResetGcBaselines();
+                ResetProfilerMaxima();
             }
         }
     }
