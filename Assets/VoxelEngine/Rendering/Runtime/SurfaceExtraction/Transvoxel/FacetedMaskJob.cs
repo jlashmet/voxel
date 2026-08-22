@@ -51,7 +51,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
                     && (style.Reconstruction == SurfaceReconstruction.Sharp
                         || style.Reconstruction == SurfaceReconstruction.Cubic
                         || style.Reconstruction == SurfaceReconstruction.Planar
-                           && !boundarySample.AppliesAlong(axis) && !displaced);
+                           && !boundarySample.AppliesAlong(axis)
+                           && !TransvoxelTopologyJob.IsExtrusionCapRimSample(
+                               boundarySample, axis)
+                           && !displaced);
                 for (int side = 0; side < 2; side++)
                 {
                     int face = axis * 2 + side;
