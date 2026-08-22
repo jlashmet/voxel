@@ -67,8 +67,10 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(camera.nearClipPlane, Is.GreaterThan(1f),
                 "The opening roof cutaway must advance the near plane beyond normal gameplay clipping.");
 
-            Time.captureDeltaTime = 0.1f;
-            for (int frame = 0; frame < 30 && ReadFloatProperty(presentation, "FadeAlpha") > 0.01f; frame++)
+            // Keep cutscene and fade timing on the same real player clock. Accelerating only
+            // Time.deltaTime makes authored waits finish faster than the presentation fade, which
+            // can manufacture a handoff failure that cannot occur at normal gameplay timeScale.
+            for (int frame = 0; frame < 120 && ReadFloatProperty(presentation, "FadeAlpha") > 0.01f; frame++)
                 yield return null;
 
             Assert.That(ReadFloatProperty(presentation, "FadeAlpha"), Is.LessThanOrEqualTo(0.01f),
@@ -76,7 +78,7 @@ namespace VoxelEngine.Tests.PlayMode
 
             int dismissedLines = 0;
             bool sawFadeOutCue = false;
-            for (int frame = 0; frame < 800 && ReadBoolProperty(driver, "OpeningCutsceneCameraActive"); frame++)
+            for (int frame = 0; frame < 1800 && ReadBoolProperty(driver, "OpeningCutsceneCameraActive"); frame++)
             {
                 object pending = ReadPendingDialogue(driver);
                 if (pending != null)
@@ -102,7 +104,7 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(ReadBoolProperty(driver, "OpeningCutsceneCameraActive"), Is.True,
                 "The closing fade must begin while the cutscene still owns the overhead pub camera.");
 
-            for (int frame = 0; frame < 20
+            for (int frame = 0; frame < 120
                 && ReadFloatProperty(presentation, "FadeAlpha") < 0.99f; frame++)
                 yield return null;
 
@@ -111,7 +113,7 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(ReadBoolProperty(driver, "OpeningCutsceneCameraActive"), Is.True,
                 "The authored closing hold must keep the cutscene active until fade-out completes.");
 
-            for (int frame = 0; frame < 30 && ReadBoolProperty(driver, "OpeningCutsceneCameraActive"); frame++)
+            for (int frame = 0; frame < 120 && ReadBoolProperty(driver, "OpeningCutsceneCameraActive"); frame++)
                 yield return null;
 
             Assert.That(ReadBoolProperty(driver, "OpeningCutsceneCameraActive"), Is.False,
@@ -121,7 +123,7 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(camera.nearClipPlane, Is.EqualTo(0.05f).Within(0.001f),
                 "Gameplay must recover the scene camera's normal near clip plane.");
 
-            for (int frame = 0; frame < 20 && ReadFloatProperty(presentation, "FadeAlpha") > 0.01f; frame++)
+            for (int frame = 0; frame < 120 && ReadFloatProperty(presentation, "FadeAlpha") > 0.01f; frame++)
                 yield return null;
 
             Assert.That(ReadFloatProperty(presentation, "FadeAlpha"), Is.LessThanOrEqualTo(0.01f),
