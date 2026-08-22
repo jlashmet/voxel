@@ -19,6 +19,7 @@ Options:
   --if-configured          Exit successfully when FILTER is not a configured real-player test
   --run-seconds N          Player run duration / stationary timeout
   --autowalk-after N       Enable the showcase scripted walk after N seconds
+  --max-builds N           Override converging voxel build concurrency in the player
   --survey-after N         Enable showcase survey camera after N seconds
   --survey-height N        Survey camera height
   --survey-spin N          Survey spin degrees/second
@@ -32,6 +33,7 @@ SCENE=""
 TEST_FILTER=""
 RUN_SECONDS=""
 AUTOWALK_AFTER=""
+MAX_BUILDS=""
 SURVEY_AFTER=""
 SURVEY_HEIGHT=""
 SURVEY_SPIN=""
@@ -47,6 +49,7 @@ while (( $# > 0 )); do
     --if-configured) IF_CONFIGURED=1; shift ;;
     --run-seconds) RUN_SECONDS="$2"; shift 2 ;;
     --autowalk-after) AUTOWALK_AFTER="$2"; shift 2 ;;
+    --max-builds) MAX_BUILDS="$2"; shift 2 ;;
     --survey-after) SURVEY_AFTER="$2"; shift 2 ;;
     --survey-height) SURVEY_HEIGHT="$2"; shift 2 ;;
     --survey-spin) SURVEY_SPIN="$2"; shift 2 ;;
@@ -83,6 +86,10 @@ if [[ -n "$TEST_FILTER" ]]; then
       SCENE="Assets/Scenes/VoxelShowcase.unity"
       : "${RUN_SECONDS:=150}"
       : "${AUTOWALK_AFTER:=60}"
+      # Diagnostic A/B for the measured job-pool starvation hypothesis. This does not alter the
+      # production scheduler policy: the harness asks the existing runtime override to cap only
+      # this real-player run, and the SURFACE/RINGS tails below prove whether coverage keeps up.
+      : "${MAX_BUILDS:=8}"
       ;;
     VoxelEngine.Tests.PlayMode.CastleScreenshotTests|VoxelEngine.Tests.PlayMode.CastleScreenshotTests.*|\
     VoxelEngine.Tests.PlayMode.CastleExteriorLookdevTests|VoxelEngine.Tests.PlayMode.CastleExteriorLookdevTests.*)
@@ -205,6 +212,9 @@ else
   if [[ -n "$AUTOWALK_AFTER" ]]; then
     PLAYER_ARGS+=( -voxel-autowalk-after "$AUTOWALK_AFTER" )
   fi
+  if [[ -n "$MAX_BUILDS" ]]; then
+    PLAYER_ARGS+=( -voxel-max-builds "$MAX_BUILDS" )
+  fi
   if [[ -n "$SURVEY_AFTER" ]]; then
     PLAYER_ARGS+=( -voxel-survey-after "$SURVEY_AFTER" )
   fi
@@ -215,6 +225,9 @@ else
     PLAYER_ARGS+=( -voxel-survey-spin "$SURVEY_SPIN" )
   fi
   echo "Running real player for ${RUN_SECONDS}s; screenshots every 10s"
+  if [[ -n "$MAX_BUILDS" ]]; then
+    echo "Real-player converging build ceiling override: $MAX_BUILDS"
+  fi
 fi
 
 "$BIN" "${PLAYER_ARGS[@]}" &
@@ -268,6 +281,18 @@ fi
 if [[ -s "$PLAYER_LOG" ]] && grep -q 'PREPARESECTIONS' "$PLAYER_LOG"; then
   echo "=== REAL PLAYER PREPARE SECTIONS ==="
   grep 'PREPARESECTIONS' "$PLAYER_LOG" | tail -30
+fi
+
+# Coverage and scheduler pressure are part of the build-concurrency A/B. A lower ceiling only
+# counts as a performance win if the same camera path remains covered, so keep these diagnostics
+# visible even while artifact storage is unavailable.
+if [[ -s "$PLAYER_LOG" ]] && grep -q 'SURFACE t=' "$PLAYER_LOG"; then
+  echo "=== REAL PLAYER SURFACE TAIL ==="
+  grep 'SURFACE t=' "$PLAYER_LOG" | tail -30
+fi
+if [[ -s "$PLAYER_LOG" ]] && grep -q 'RINGS ' "$PLAYER_LOG"; then
+  echo "=== REAL PLAYER RINGS TAIL ==="
+  grep 'RINGS ' "$PLAYER_LOG" | tail -30
 fi
 
 shots="$(find "$SHOTS_DIR" -name '*.png' -size +1k | wc -l | tr -d ' ')"
