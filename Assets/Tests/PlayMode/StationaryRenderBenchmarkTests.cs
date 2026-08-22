@@ -1,14 +1,42 @@
+using System;
 using System.IO;
 using NUnit.Framework;
 
 namespace VoxelEngine.Tests.PlayMode
 {
     /// <summary>
-    /// Source contract for the standalone stationary benchmark. Selecting this test through the
-    /// single-test workflow also maps it to VoxelShowcase and executes the real-player benchmark.
+    /// Source contract for standalone renderer benchmarks selected through the single-test workflow.
     /// </summary>
     public sealed class StationaryRenderBenchmarkTests
     {
+        [Test]
+        public void SmallVoxelShowcaseMovingBuild12()
+        {
+            AssertSmallMovingProfile(nameof(SmallVoxelShowcaseMovingBuild12), "12");
+        }
+
+        [Test]
+        public void SmallVoxelShowcaseMovingBuild8()
+        {
+            AssertSmallMovingProfile(nameof(SmallVoxelShowcaseMovingBuild8), "8");
+        }
+
+        private static void AssertSmallMovingProfile(string method, string convergingBuilds)
+        {
+            string capture = File.ReadAllText("tools/showcase-player-capture.sh");
+            string filter = $"VoxelEngine.Tests.PlayMode.StationaryRenderBenchmarkTests.{method}";
+            int start = capture.IndexOf(filter, StringComparison.Ordinal);
+            Assert.GreaterOrEqual(start, 0, $"missing real-player profile for {filter}");
+            int end = capture.IndexOf(";;", start, StringComparison.Ordinal);
+            Assert.Greater(end, start, $"unterminated real-player profile for {filter}");
+            string profile = capture.Substring(start, end - start);
+
+            StringAssert.Contains("Assets/Scenes/SmallVoxelShowcase.unity", profile);
+            StringAssert.Contains(": \"${RUN_SECONDS:=90}\"", profile);
+            StringAssert.Contains(": \"${AUTOWALK_AFTER:=20}\"", profile);
+            StringAssert.Contains($": \"${{CONVERGING_BUILDS:={convergingBuilds}}}\"", profile);
+        }
+
         [Test]
         public void StationaryBenchmarkIsSeparatedFromSurveyCapture()
         {
@@ -44,9 +72,9 @@ namespace VoxelEngine.Tests.PlayMode
             StringAssert.DoesNotContain("AutoSurvey", harness);
             StringAssert.DoesNotContain("AutoWalk", harness);
 
-            int sampleStart = harness.IndexOf("private void SampleFrame", System.StringComparison.Ordinal);
+            int sampleStart = harness.IndexOf("private void SampleFrame", StringComparison.Ordinal);
             int sampleEnd = harness.IndexOf("private void CaptureUnityFrameTiming", sampleStart,
-                                            System.StringComparison.Ordinal);
+                                            StringComparison.Ordinal);
             Assert.GreaterOrEqual(sampleStart, 0);
             Assert.Greater(sampleEnd, sampleStart);
             string measuredFramePath = harness.Substring(sampleStart, sampleEnd - sampleStart);
@@ -74,18 +102,18 @@ namespace VoxelEngine.Tests.PlayMode
             StringAssert.Contains("post-measurement screenshot", capture);
             StringAssert.Contains("stationary benchmark did not publish a passing result", capture);
 
-            // The moving traversal assertions need enough Unity workers to let the job-heavy
-            // renderer converge before movement begins. Timing still belongs to the real player.
             StringAssert.Contains(
                 "VoxelEngine.Tests.PlayMode.ShowcaseTraversalPerformanceTests.*", singleWorkflow);
             StringAssert.Contains("WORKER_ARGS=(-job-worker-count 8)", singleWorkflow);
             StringAssert.Contains("=== UNITY TEST FAILURE DETAILS ===", singleWorkflow,
                 "failed traversal assertions must stay visible when artifact upload is unavailable");
+            StringAssert.Contains("group: voxel-single-test-self-hosted-mac", singleWorkflow);
+            StringAssert.Contains("cancel-in-progress: false", singleWorkflow,
+                "new requests should replace stale pending work without killing the active Unity run");
             StringAssert.Contains(
                 "ShowcaseTraversalPerformanceTests.ContinuousPlayerTraversalNeverStuttersOrOpensNearFarGap",
                 capture);
             StringAssert.Contains(": \"${AUTOWALK_AFTER:=60}\"", capture);
-            StringAssert.Contains(": \"${CONVERGING_BUILDS:=8}\"", capture);
             StringAssert.Contains("-voxel-converging-builds", capture);
             StringAssert.Contains("-voxel-converging-builds", concurrencyHarness);
             StringAssert.Contains("SetVoxelBuildConcurrency(converging, 0)", concurrencyHarness,
@@ -103,7 +131,6 @@ namespace VoxelEngine.Tests.PlayMode
             StringAssert.Contains("=== REAL PLAYER RINGS TAIL ===", capture);
             StringAssert.Contains("RINGS ", capture);
 
-            // The existing visual profile remains a distinct moving/screenshot run.
             StringAssert.Contains(": \"${SURVEY_AFTER:=10}\"", capture);
             StringAssert.Contains("-voxel-screenshot-every 10", capture);
         }
