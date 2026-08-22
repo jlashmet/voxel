@@ -59,8 +59,6 @@ jobs:
           clean: true
           fetch-depth: 1
 
-      # Push-triggered runs publish a classic commit status so connector-only
-      # agents can monitor queued/running/pass/fail without workflow discovery.
       - name: Publish pending commit status
         if: github.event_name == 'push'
         uses: actions/github-script@v7
@@ -157,13 +155,15 @@ jobs:
             sleep 5
           done
 
-      # Showcase PlayMode tests depend on the same baked startup world used by
-      # the PR and master workflows. The standalone Kentridge and self-contained
-      # Arch/Terrain lookdev scenes compose their own worlds and do not need it.
+      # Full VoxelShowcase tests need the baked startup world. SmallVoxelShowcase
+      # benchmark profiles intentionally skip this several-minute bake; their real
+      # standalone scene composes the smaller world directly.
       - name: Bake Voxel Showcase startup world
         if: >-
           steps.request.outputs.platform == 'PlayMode' &&
           startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.') &&
+          steps.request.outputs.test != 'VoxelEngine.Tests.PlayMode.StationaryRenderBenchmarkTests.SmallVoxelShowcaseMovingBuild12' &&
+          steps.request.outputs.test != 'VoxelEngine.Tests.PlayMode.StationaryRenderBenchmarkTests.SmallVoxelShowcaseMovingBuild8' &&
           !startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.KentridgeStructureComparisonSceneTests.') &&
           !startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests.') &&
           !startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.ArchLookdevSceneTests.') &&
