@@ -64,6 +64,12 @@ namespace VoxelEngine.Showcase
             private int _arenaUploadMaxCalls;
             private long _arenaUploadMaxBytes;
             private int _arenaUploadMaxFrame = -1;
+            private double _admissionMaxMs;
+            private double _admissionSolidMs;
+            private double _admissionArenaReliefMs;
+            private double _admissionWaterMs;
+            private double _admissionScheduleMs;
+            private int _admissionMaxFrame = -1;
 
             private void Start()
             {
@@ -117,11 +123,23 @@ namespace VoxelEngine.Showcase
 
                 SurfaceArenaUploadFrameSnapshot arenaUpload =
                     RenderingDiagnosticsComposition.GetSurfaceArenaUploadFrame();
-                if (arenaUpload.WallMs <= _arenaUploadMaxMs) return;
-                _arenaUploadMaxMs = arenaUpload.WallMs;
-                _arenaUploadMaxCalls = arenaUpload.Calls;
-                _arenaUploadMaxBytes = arenaUpload.Bytes;
-                _arenaUploadMaxFrame = arenaUpload.Frame;
+                if (arenaUpload.WallMs > _arenaUploadMaxMs)
+                {
+                    _arenaUploadMaxMs = arenaUpload.WallMs;
+                    _arenaUploadMaxCalls = arenaUpload.Calls;
+                    _arenaUploadMaxBytes = arenaUpload.Bytes;
+                    _arenaUploadMaxFrame = arenaUpload.Frame;
+                }
+
+                SurfaceAdmissionFrameSnapshot admission =
+                    RenderingDiagnosticsComposition.GetSurfaceAdmissionFrame();
+                if (admission.TotalMs <= _admissionMaxMs) return;
+                _admissionMaxMs = admission.TotalMs;
+                _admissionSolidMs = admission.SolidMs;
+                _admissionArenaReliefMs = admission.ArenaReliefMs;
+                _admissionWaterMs = admission.WaterMs;
+                _admissionScheduleMs = admission.ScheduleBatchedJobsMs;
+                _admissionMaxFrame = admission.Frame;
             }
 
             private void ResetProfilerMaxima()
@@ -135,6 +153,12 @@ namespace VoxelEngine.Showcase
                 _arenaUploadMaxCalls = 0;
                 _arenaUploadMaxBytes = 0;
                 _arenaUploadMaxFrame = -1;
+                _admissionMaxMs = 0.0;
+                _admissionSolidMs = 0.0;
+                _admissionArenaReliefMs = 0.0;
+                _admissionWaterMs = 0.0;
+                _admissionScheduleMs = 0.0;
+                _admissionMaxFrame = -1;
             }
 
             private static double NanosecondsToMilliseconds(long nanoseconds) =>
@@ -158,6 +182,9 @@ namespace VoxelEngine.Showcase
                 int gen0Delta = Math.Max(0, gen0Now - _lastGen0Collections);
                 int gen1Delta = Math.Max(0, gen1Now - _lastGen1Collections);
                 int gen2Delta = Math.Max(0, gen2Now - _lastGen2Collections);
+                double admissionResidualMs = Math.Max(
+                    0.0, _admissionMaxMs - _admissionSolidMs - _admissionArenaReliefMs
+                       - _admissionWaterMs - _admissionScheduleMs);
 
                 SurfacePrepareTimingSnapshot timing =
                     RenderingDiagnosticsComposition.GetSurfacePrepareTiming();
@@ -178,7 +205,9 @@ namespace VoxelEngine.Showcase
                     + "jobs={31} missing={32} gc[g0=+{33} g1=+{34} g2=+{35}] allocMain={36} "
                     + "frameMax[scheduler={37:0.000} admission={38:0.000} "
                     + "worker={39:0.000} solidUpload={40:0.000} gcCollect={41:0.000}] "
-                    + "arenaUpload[ms={42:0.000} calls={43} bytes={44} frame={45}]",
+                    + "arenaUpload[ms={42:0.000} calls={43} bytes={44} frame={45}] "
+                    + "admissionFrame[total={46:0.000} solid={47:0.000} relief={48:0.000} "
+                    + "water={49:0.000} schedule={50:0.000} residual={51:0.000} frame={52}]",
                     _elapsed,
                     timing.WorkerP95Ms, timing.WorkerP99Ms, timing.WorkerMaxMs,
                     timing.RuleSyncP95Ms, timing.RuleSyncP99Ms, timing.RuleSyncMaxMs,
@@ -199,7 +228,10 @@ namespace VoxelEngine.Showcase
                     NanosecondsToMilliseconds(_solidUploadMaxNs),
                     NanosecondsToMilliseconds(_gcCollectMaxNs),
                     _arenaUploadMaxMs, _arenaUploadMaxCalls, _arenaUploadMaxBytes,
-                    _arenaUploadMaxFrame));
+                    _arenaUploadMaxFrame,
+                    _admissionMaxMs, _admissionSolidMs, _admissionArenaReliefMs,
+                    _admissionWaterMs, _admissionScheduleMs, admissionResidualMs,
+                    _admissionMaxFrame));
 
                 // Exclude this diagnostic's own formatting/logging allocations from the next
                 // interval as much as possible by taking the next baseline after the log call.
