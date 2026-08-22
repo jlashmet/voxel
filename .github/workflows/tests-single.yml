@@ -242,6 +242,36 @@ jobs:
           fi
 
           if (( status != 0 )); then
+            # Artifact storage can be unavailable, so make the NUnit failure readable in the job
+            # log before returning Unity's status. Keep output bounded; the player capture below
+            # still runs under always() and owns performance timing.
+            if [[ -s "$ROOT/single.xml" ]]; then
+              echo "=== UNITY TEST FAILURE DETAILS ==="
+              python3 - "$ROOT/single.xml" <<'PY'
+          import sys
+          import xml.etree.ElementTree as ET
+
+          root = ET.parse(sys.argv[1]).getroot()
+          cases = root.findall('.//test-case')
+          failed = [case for case in cases if case.get('result') not in ('Passed', 'Success')]
+          print(f'Executed {len(cases)} test case(s); failed={len(failed)}.')
+          for case in failed[:8]:
+              print(f"FAILED: {case.get('fullname') or case.get('name') or '<unknown>'}")
+              failure = case.find('failure')
+              if failure is None:
+                  continue
+              message = failure.findtext('message') or ''
+              stack = failure.findtext('stack-trace') or ''
+              if message:
+                  print(message.strip())
+              if stack:
+                  print(stack.strip())
+          PY
+            fi
+            if [[ -s "$ROOT/single.log" ]]; then
+              echo "=== UNITY TEST LOG TAIL ==="
+              tail -120 "$ROOT/single.log"
+            fi
             exit "$status"
           fi
           test -s "$ROOT/single.xml"
