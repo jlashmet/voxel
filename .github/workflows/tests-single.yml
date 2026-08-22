@@ -1,37 +1,7 @@
 name: Tests (single)
 run-name: Single test · ${{ github.ref_name }} · ${{ github.event_name }}
 
-# Fast, explicit validation path for coding agents. This does not replace the
-# affected-test PR workflow or the full master suite; it runs only the requested
-# Unity test against the selected git ref. Local developers can dispatch it via
-# tools/ci-test. Agents without workflow-dispatch access use a dedicated ci-test/*
-# branch based on the exact source commit, then update .github/test-request.json
-# there. Keeping request commits off the PR branch prevents normal PR CI fanout.
-#
-# Visual screenshot suites are still selected exactly like any other test. After
-# the Unity assertion phase, the shared player-capture utility maps those known
-# filters to their real scene, builds a standalone app, and captures presented
-# frames every ten seconds under Artifacts/SingleTest/RealPlayer.
 on:
-  workflow_dispatch:
-    inputs:
-      test:
-        description: Fully qualified Unity test name (or exact test filter)
-        required: true
-        type: string
-      platform:
-        description: Unity test platform
-        required: true
-        default: EditMode
-        type: choice
-        options:
-          - EditMode
-          - PlayMode
-      request_id:
-        description: Correlation id supplied by tools/ci-test
-        required: false
-        default: ''
-        type: string
   push:
     branches:
       - 'ci-test/**'
@@ -39,11 +9,9 @@ on:
       - '.github/test-request.json'
 
 permissions:
-  contents: read
+  contents: write
   statuses: write
 
-# A branch is a latest-request mailbox. A newer single-test request on the same
-# branch cancels any older queued or running request instead of building a backlog.
 concurrency:
   group: single-test-${{ github.ref }}
   cancel-in-progress: true
@@ -51,19 +19,14 @@ concurrency:
 jobs:
   single:
     runs-on: [self-hosted, macOS]
-    # Single-test CI is intentionally a fast-feedback path. The complete job must
-    # finish within five minutes; slow tests should be split or narrowed instead.
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
         with:
           clean: true
-          fetch-depth: 1
+          fetch-depth: 2
 
-      # Push-triggered runs publish a classic commit status so connector-only
-      # agents can monitor queued/running/pass/fail without workflow discovery.
       - name: Publish pending commit status
-        if: github.event_name == 'push'
         uses: actions/github-script@v7
         env:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -75,65 +38,22 @@ jobs:
               sha: context.sha,
               state: 'pending',
               context: 'ci/single-test',
-              description: 'Requested Unity single test is running',
+              description: 'Refreshing checked-in VoxelShowcase bake',
               target_url: process.env.RUN_URL,
             });
 
-      - name: Resolve test request
-        id: request
+      - name: Validate one-shot bake request
         shell: bash
-        env:
-          DISPATCH_TEST: ${{ inputs.test }}
-          DISPATCH_PLATFORM: ${{ inputs.platform }}
-          DISPATCH_REQUEST_ID: ${{ inputs.request_id }}
         run: |
           set -euo pipefail
-          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
-            test_name="$DISPATCH_TEST"
-            platform="$DISPATCH_PLATFORM"
-            request_id="${DISPATCH_REQUEST_ID:-${GITHUB_SHA:0:12}}"
-
-            [[ -n "$test_name" ]] || { echo "ERROR: test is required" >&2; exit 2; }
-            case "$platform" in
-              EditMode|PlayMode) ;;
-              *) echo "ERROR: platform must be EditMode or PlayMode" >&2; exit 2 ;;
-            esac
-            [[ "$test_name" != *$'\n'* && "$request_id" != *$'\n'* ]] || {
-              echo "ERROR: request values must be single-line strings" >&2
-              exit 2
-            }
-
-            printf 'test=%s\nplatform=%s\nrequest_id=%s\n' \
-              "$test_name" "$platform" "$request_id" >> "$GITHUB_OUTPUT"
-          else
-            python3 - "$GITHUB_OUTPUT" <<'PY'
+          python3 - <<'PY'
           import json
-          import os
-          import sys
-
-          path = '.github/test-request.json'
-          with open(path, encoding='utf-8') as handle:
+          with open('.github/test-request.json', encoding='utf-8') as handle:
               request = json.load(handle)
-
-          test = request.get('test')
-          platform = request.get('platform', 'EditMode')
-          request_id = request.get('request_id') or os.environ.get('GITHUB_SHA', '')[:12]
-
-          if not isinstance(test, str) or not test:
-              raise SystemExit('ERROR: .github/test-request.json requires a non-empty string "test"')
-          if platform not in ('EditMode', 'PlayMode'):
-              raise SystemExit('ERROR: "platform" must be EditMode or PlayMode')
-          if not isinstance(request_id, str):
-              raise SystemExit('ERROR: "request_id" must be a string when supplied')
-          if any('\n' in value or '\r' in value for value in (test, platform, request_id)):
-              raise SystemExit('ERROR: request values must be single-line strings')
-
-          with open(sys.argv[1], 'a', encoding='utf-8') as output:
-              output.write(f'test={test}\n')
-              output.write(f'platform={platform}\n')
-              output.write(f'request_id={request_id}\n')
+          expected = 'VoxelEngine.Tests.PlayMode.ShowcaseBakeArtifactTests.FreshShowcaseBakeIsCapturedForCommit'
+          if request.get('platform') != 'PlayMode' or request.get('test') != expected:
+              raise SystemExit('This temporary workflow only permits the verified showcase-bake publication request.')
           PY
-          fi
 
       - name: Resolve Unity
         id: unity
@@ -158,35 +78,12 @@ jobs:
             sleep 5
           done
 
-      # Most full VoxelShowcase tests need a freshly baked startup world. Renderer traversal is
-      # different: it validates the checked-in production bake and then builds/runs that same scene
-      # as a standalone player. The two fast SmallVoxelShowcase profiles likewise compose their
-      # smaller standalone world directly. Kentridge and Arch/Terrain acceptances compose their
-      # own worlds and also do not need the full-showcase bake.
-      - name: Bake Voxel Showcase startup world
-        if: >-
-          steps.request.outputs.platform == 'PlayMode' &&
-          startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.') &&
-          steps.request.outputs.test != 'VoxelEngine.Tests.PlayMode.ShowcaseTraversalPerformanceTests.ContinuousPlayerTraversalNeverStuttersOrOpensNearFarGap' &&
-          steps.request.outputs.test != 'VoxelEngine.Tests.PlayMode.StationaryRenderBenchmarkTests.SmallVoxelShowcaseMovingBuild12' &&
-          steps.request.outputs.test != 'VoxelEngine.Tests.PlayMode.StationaryRenderBenchmarkTests.SmallVoxelShowcaseMovingBuild8' &&
-          !startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.KentridgeStructureComparisonSceneTests.') &&
-          steps.request.outputs.test != 'VoxelEngine.Tests.PlayMode.KentridgeStructureComparisonSceneTests' &&
-          !startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests.') &&
-          steps.request.outputs.test != 'VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests' &&
-          !startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.KentridgeOpeningDialoguePlayTests.') &&
-          steps.request.outputs.test != 'VoxelEngine.Tests.PlayMode.KentridgeOpeningDialoguePlayTests' &&
-          !startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.KentridgeOpeningProductionAcceptanceTests.') &&
-          steps.request.outputs.test != 'VoxelEngine.Tests.PlayMode.KentridgeOpeningProductionAcceptanceTests' &&
-          !startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.KentridgeOpeningCameraReadabilityTests.') &&
-          steps.request.outputs.test != 'VoxelEngine.Tests.PlayMode.KentridgeOpeningCameraReadabilityTests' &&
-          !startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.KentridgeOpeningPresentationTests.') &&
-          steps.request.outputs.test != 'VoxelEngine.Tests.PlayMode.KentridgeOpeningPresentationTests' &&
-          !startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.ArchLookdevSceneTests.') &&
-          steps.request.outputs.test != 'VoxelEngine.Tests.PlayMode.ArchLookdevSceneTests' &&
-          !startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.TerrainLookdevScreenshotTests.') &&
-          steps.request.outputs.test != 'VoxelEngine.Tests.PlayMode.TerrainLookdevScreenshotTests'
+      - name: Bake and publish verified VoxelShowcase world
         shell: bash
+        env:
+          FEATURE_BRANCH: agent/main-thread-render-jobs-v2
+          EXPECTED_BYTES: '23096216'
+          EXPECTED_SHA256: 080eaf82fc003cfa677f1efa933e46a9301e59141f4e343010b1ebdb05ed0e59
         run: |
           set -euo pipefail
           ROOT="$GITHUB_WORKSPACE/Artifacts/SingleTest"
@@ -197,190 +94,41 @@ jobs:
             -projectPath "$GITHUB_WORKSPACE" \
             -executeMethod VoxelEngine.Showcase.Editor.ShowcaseWorldBaker.BakeShowcaseWorld \
             -logFile "$ROOT/showcase-bake.log"
-          test -s "$GITHUB_WORKSPACE/Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes"
 
-      # tools/unity-run.sh deliberately refuses to start while another Unity editor is visible.
-      # A successful bake can return a moment before its macOS process disappears, so serialize
-      # adjacent Unity invocations instead of racing that shutdown.
-      - name: Wait for Unity between invocations
-        shell: bash
-        run: |
-          set -euo pipefail
-          deadline=$((SECONDS + 60))
-          while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
-            if (( SECONDS >= deadline )); then
-              pgrep -alf '/Unity.app/Contents/MacOS/Unity' || true
-              exit 1
-            fi
-            sleep 5
-          done
+          baked="$GITHUB_WORKSPACE/Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes"
+          test -s "$baked"
+          actual_bytes="$(stat -f%z "$baked")"
+          actual_sha="$(shasum -a 256 "$baked" | awk '{print $1}')"
+          echo "SHOWCASE_BAKE_VERIFY bytes=$actual_bytes sha256=$actual_sha"
+          [[ "$actual_bytes" == "$EXPECTED_BYTES" ]]
+          [[ "$actual_sha" == "$EXPECTED_SHA256" ]]
 
-      - name: Run requested test
-        shell: bash
-        env:
-          TEST_FILTER: ${{ steps.request.outputs.test }}
-          TEST_PLATFORM: ${{ steps.request.outputs.platform }}
-        run: |
-          set -uo pipefail
-          ROOT="$GITHUB_WORKSPACE/Artifacts/SingleTest"
-          mkdir -p "$ROOT"
+          preserved="$RUNNER_TEMP/ShowcaseWorld.bytes"
+          cp "$baked" "$preserved"
 
-          # Keep the array non-empty under macOS's Bash 3.2. With set -u, expanding an empty
-          # array is treated as an unbound variable and PlayMode never reaches Unity.
-          # Kentridge production acceptances inspect composed world/camera state and movement,
-          # not framebuffer pixels; null graphics keeps those paths within runner memory.
-          EXTRA_ARGS=(-batchmode)
-          WORKER_ARGS=(-job-worker-count 1)
-          if [[ "$TEST_PLATFORM" == "PlayMode" &&
-                "$TEST_FILTER" == VoxelEngine.Tests.PlayMode.ShowcaseTraversalPerformanceTests.* ]]; then
-            WORKER_ARGS=(-job-worker-count 8)
-          fi
-          if [[ "$TEST_PLATFORM" == "EditMode" ||
-                "$TEST_FILTER" == VoxelEngine.Tests.PlayMode.KentridgeStructureComparisonSceneTests.* ||
-                "$TEST_FILTER" == VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests.* ||
-                "$TEST_FILTER" == VoxelEngine.Tests.PlayMode.KentridgeOpeningProductionAcceptanceTests.* ||
-                "$TEST_FILTER" == VoxelEngine.Tests.PlayMode.KentridgeOpeningCameraReadabilityTests.* ||
-                "$TEST_FILTER" == VoxelEngine.Tests.PlayMode.KentridgeOpeningPresentationTests.* ]]; then
-            EXTRA_ARGS+=(-nographics)
-          fi
+          feature_sha="$(git rev-parse HEAD^)"
+          git fetch origin "refs/heads/$FEATURE_BRANCH:refs/remotes/origin/$FEATURE_BRANCH"
+          remote_feature_sha="$(git rev-parse "refs/remotes/origin/$FEATURE_BRANCH")"
+          [[ "$feature_sha" == "$remote_feature_sha" ]] || {
+            echo "Feature branch moved during bake: expected $feature_sha, found $remote_feature_sha" >&2
+            exit 1
+          }
 
-          echo "Running $TEST_PLATFORM test filter: $TEST_FILTER with ${WORKER_ARGS[*]}"
-          status=0
-          UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=4 \
-          UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
-            "${EXTRA_ARGS[@]}" "${WORKER_ARGS[@]}" \
-            -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform "$TEST_PLATFORM" \
-            -testFilter "$TEST_FILTER" \
-            -testResults "$ROOT/single.xml" -logFile "$ROOT/single.log" || status=$?
-
-          if [[ ! -s "$ROOT/single.log" && -s "$HOME/Library/Logs/Unity/Editor.log" ]]; then
-            cp "$HOME/Library/Logs/Unity/Editor.log" "$ROOT/single-global.log"
-          fi
-          if [[ -s "${TMPDIR:-/tmp}/unity-run-status" ]]; then
-            cp "${TMPDIR:-/tmp}/unity-run-status" "$ROOT/unity-run-status.txt"
-          fi
-
-          if (( status != 0 )); then
-            if [[ -s "$ROOT/single.xml" ]]; then
-              echo "=== UNITY TEST FAILURE DETAILS ==="
-              python3 - "$ROOT/single.xml" <<'PY'
-          import sys
-          import xml.etree.ElementTree as ET
-          root = ET.parse(sys.argv[1]).getroot()
-          cases = root.findall('.//test-case')
-          failed = [case for case in cases if case.get('result') not in ('Passed', 'Success')]
-          print(f'Executed {len(cases)} test case(s); failed={len(failed)}.')
-          for case in failed[:8]:
-              print(f"FAILED: {case.get('fullname') or case.get('name') or '<unknown>'}")
-              failure = case.find('failure')
-              if failure is None:
-                  continue
-              message = failure.findtext('message') or ''
-              stack = failure.findtext('stack-trace') or ''
-              if message:
-                  print(message.strip())
-              if stack:
-                  print(stack.strip())
-          PY
-            fi
-            if [[ -s "$ROOT/single.log" ]]; then
-              echo "=== UNITY TEST LOG TAIL ==="
-              tail -120 "$ROOT/single.log"
-            fi
-            exit "$status"
-          fi
-          test -s "$ROOT/single.xml"
-
-          # Unity can return successfully even when a bad filter matches no tests.
-          # Treat that as a CI failure so an agent never validates a typo as green.
-          python3 - "$ROOT/single.xml" <<'PY'
-          import sys
-          import xml.etree.ElementTree as ET
-
-          path = sys.argv[1]
-          root = ET.parse(path).getroot()
-          cases = root.findall('.//test-case')
-          if not cases:
-              print('ERROR: Unity completed but the requested filter matched zero tests.', file=sys.stderr)
-              raise SystemExit(2)
-          print(f'Executed {len(cases)} test case(s).')
-          PY
-
-      - name: Capture visual test from real player
-        if: always() && steps.request.outputs.platform == 'PlayMode'
-        shell: bash
-        env:
-          TEST_FILTER: ${{ steps.request.outputs.test }}
-        run: |
-          set -euo pipefail
-          bash tools/showcase-player-capture.sh \
-            --unity "${{ steps.unity.outputs.path }}" \
-            --output "$GITHUB_WORKSPACE/Artifacts/SingleTest/RealPlayer" \
-            --test-filter "$TEST_FILTER" \
-            --if-configured
-
-      # Artifact quota exhaustion must not make a visual iteration opaque. These previews are
-      # debugging evidence only: visual proof still requires the artifact upload below to succeed.
-      - name: Emit real-player screenshot previews
-        if: always() && steps.request.outputs.platform == 'PlayMode'
-        shell: bash
-        run: |
-          set -euo pipefail
-          SHOTS="$GITHUB_WORKSPACE/Artifacts/SingleTest/RealPlayer/Screenshots"
-          [[ -d "$SHOTS" ]] || exit 0
-          PREVIEWS="$GITHUB_WORKSPACE/Artifacts/SingleTest/RealPlayer/LogPreviews"
-          mkdir -p "$PREVIEWS"
-
-          count=0
-          while IFS= read -r shot; do
-            [[ -s "$shot" ]] || continue
-            name="$(basename "$shot" .png)"
-            preview="$PREVIEWS/${name}.jpg"
-            sips -s format jpeg -s formatOptions 55 -Z 640 "$shot" --out "$preview" >/dev/null
-            echo "VISUAL_PREVIEW_BEGIN $(basename "$shot")"
-            base64 < "$preview" | fold -w 120
-            echo "VISUAL_PREVIEW_END $(basename "$shot")"
-            count=$((count + 1))
-          done < <(find "$SHOTS" -type f -name '*.png' -size +1k | sort)
-          echo "Emitted $count real-player preview(s) to the workflow log."
-
-      # A successful non-visual single test must not be turned red just because the repository has
-      # exhausted GitHub artifact storage. Visual requests are different: their screenshots are
-      # part of the proof, so an upload failure must remain fatal for those filters.
-      - name: Classify result artifact requirement
-        if: always()
-        id: artifact_policy
-        shell: bash
-        env:
-          TEST_FILTER: ${{ steps.request.outputs.test }}
-        run: |
-          set -euo pipefail
-          case "$TEST_FILTER" in
-            VoxelEngine.Tests.PlayMode.ArchLookdevSceneTests|VoxelEngine.Tests.PlayMode.ArchLookdevSceneTests.*|\
-            VoxelEngine.Tests.PlayMode.TerrainLookdevScreenshotTests|VoxelEngine.Tests.PlayMode.TerrainLookdevScreenshotTests.*|\
-            VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests|VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests.*|\
-            VoxelEngine.Tests.PlayMode.StationaryRenderBenchmarkTests|VoxelEngine.Tests.PlayMode.StationaryRenderBenchmarkTests.*|\
-            VoxelEngine.Tests.PlayMode.CastleScreenshotTests|VoxelEngine.Tests.PlayMode.CastleScreenshotTests.*|\
-            VoxelEngine.Tests.PlayMode.CastleExteriorLookdevTests|VoxelEngine.Tests.PlayMode.CastleExteriorLookdevTests.*)
-              echo "required=true" >> "$GITHUB_OUTPUT"
-              ;;
-            *)
-              echo "required=false" >> "$GITHUB_OUTPUT"
-              ;;
-          esac
-
-      - name: Upload result
-        if: always()
-        continue-on-error: ${{ steps.artifact_policy.outputs.required != 'true' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: single-test-${{ github.run_id }}
-          path: Artifacts/SingleTest/**
-          if-no-files-found: ignore
-          retention-days: 1
+          git reset --hard "$feature_sha"
+          cp "$preserved" Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes
+          git add Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes
+          git diff --cached --quiet && {
+            echo "Fresh bake is byte-identical to the checked-in world; nothing to publish."
+            exit 0
+          }
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Refresh VoxelShowcase bake for broad terrain relief'
+          git push origin "HEAD:refs/heads/$FEATURE_BRANCH"
+          echo "PUBLISHED_FEATURE_HEAD=$(git rev-parse HEAD)"
 
       - name: Publish final commit status
-        if: always() && github.event_name == 'push'
+        if: always()
         uses: actions/github-script@v7
         env:
           JOB_STATUS: ${{ job.status }}
@@ -394,8 +142,6 @@ jobs:
               sha: context.sha,
               state: success ? 'success' : 'failure',
               context: 'ci/single-test',
-              description: success
-                ? 'Requested Unity single test passed'
-                : 'Requested Unity single test failed',
+              description: success ? 'Verified VoxelShowcase bake published' : 'VoxelShowcase bake publication failed',
               target_url: process.env.RUN_URL,
             });
