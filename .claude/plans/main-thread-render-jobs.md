@@ -57,7 +57,7 @@ Authoritative surface classification/compaction already runs as Jobs/Burst work.
 - Three solid leases published in that frame, but the run's existing direct `UploadTiming` proves full per-publication work was small: `upload[max=0.964 ms]`. `TryPublishPending` times the entire `Entry.AdvanceUpload`, including arena acquisition/bookkeeping and `BeginWrite`/copy/`EndWrite`, not just the raw buffer write.
 - The scheduler permits at most four solid upload workers per frame; therefore even the conservative upper bound from that run is under ~3.9 ms for all solid publications, and the representative three-publication frame is bounded under ~2.9 ms. Solid publication cannot account for `admit=15.88 ms`.
 - The scheduler's aggregate solid worker/admission+publication timing also stayed small in the late windows (`worker[max]` about `1.294 ms` in the final printed window). This independently points to work after the solid phase.
-- Raw arena writes are a strict subset of the already-bounded `Entry.AdvanceUpload`; the new arena-write probe is useful confirmation but is no longer required to rule solid publication out as the 16 ms source.
+- Raw arena writes are a strict subset of the already-bounded `Entry.AdvanceUpload`; the arena-write probe is confirmatory but is no longer required to rule solid publication out as the 16 ms source.
 
 ## 2026-08-22 master integration / CI compatibility
 
@@ -66,7 +66,7 @@ Authoritative surface classification/compaction already runs as Jobs/Burst work.
 - [x] Restore only renderer-specific behavior compatible with that policy: SmallVoxelShowcase bake exclusions, eight-worker traversal routing, and failure details (`b74c3dc761a0dcda9d5b85749c4464255c040790`).
 - [x] Update source-contract tests so they enforce the new CI policy instead of the superseded global-queue behavior (`39f637192b3d2fd89a01cedda1f9268a0ba5ff09`).
 - [x] Confirm branch is ahead of current master and `behind_by=0`.
-- [ ] Arena-write confirmation request: CI commit `81396a37c2eb7d13d664e47c640b30a7759c056d`, request id `arena-upload-20260822-0532`. It has remained queued/not started while the self-hosted runner is occupied. Do not block the investigation on this result because full solid publication is already bounded by run `32553044708`.
+- [x] Treat the older arena-write request `81396a37c2eb7d13d664e47c640b30a7759c056d` (`arena-upload-20260822-0532`) as superseded. It remained queued/not started, and existing run `32553044708` already bounds full solid publication below the hitch.
 
 ## Current diagnostic gate
 
@@ -79,13 +79,16 @@ The remaining transient is broad scheduler admission, but the pre-water solid po
 5. `JobHandle.ScheduleBatchedJobs()`;
 6. record `LastAdmissionMs`.
 
-For the representative hitch, steps 1-2 are bounded small and step 3 did not run. The next instrumentation must distinguish steps 4 and 5 without losing same-frame correlation.
+For the representative hitch, steps 1-2 are bounded small and step 3 did not run. The current probe distinguishes steps 4 and 5 without losing same-frame correlation.
 
 - [x] Rule full solid publication out using existing `UploadTiming` from run `32553044708`; do not optimize arena allocation/copy code based on the three lease changes alone.
-- [ ] Add allocation-free current-frame timing for the complete water block and `JobHandle.ScheduleBatchedJobs()`.
-- [ ] Retain those values together with the same frame's total admission and solid-phase time whenever that frame is the worst admission frame in the one-second report window.
-- [ ] Print one sparse line containing `total`, `solid`, `water`, `schedule`, and residual/remainder for the same worst-admission frame.
-- [ ] Run the production-policy `SmallVoxelShowcaseMovingBuild12` gate and classify the ~20 ms hitch as water, batched-job scheduling, or an explicitly measured residual.
+- [x] Add allocation-free current-frame timing for solid admission, arena-relief bookkeeping, the complete water block, and `JobHandle.ScheduleBatchedJobs()` (`ed54f644afecde44102368b792a0fd2b2d0ad818`).
+- [x] Copy that snapshot through the read-only Composition boundary as primitives (`e3cc50f0cfe528bf6f8780a323a62a3244471a90`).
+- [x] Retain the same frame's phase values whenever it is the worst admission frame in the one-second report window and print `total`, `solid`, `relief`, `water`, `schedule`, and residual (`d2e02fce45968d5bb548d4d0c92ab0e46c78c027`).
+- [x] Add source-contract guards for the timing boundaries and same-frame sparse diagnostic (`6791f6daee630ded5535f9741020ca51a4990013`).
+- [x] Verify the scheduler instrumentation diff before promotion: 45 additions, 0 deletions. Overall diagnostic diff remains limited to scheduler, Composition, harness, and source-contract test.
+- [ ] Run the production-policy `SmallVoxelShowcaseMovingBuild12` gate with the same-frame admission split and classify the ~20 ms hitch as water, batched-job scheduling, or an explicitly measured residual.
+- [ ] Record the CI run and classification here before changing production behavior.
 - [ ] Fix only the first measured culprit. Do not change renderer concurrency, coverage, or publication policy speculatively.
 
 ## Validation after the first proven fix
