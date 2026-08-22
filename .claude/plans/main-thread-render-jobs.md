@@ -17,7 +17,7 @@ The authoritative region surface classification and compaction are already Unity
 - Do not synchronously `Complete()` geometry jobs on the player frame.
 - Do not reduce render distance, LOD coverage, or visible chunk count to improve timings.
 - Unity/GPU resource mutation remains on the safe publication path; only pure/native staging is eligible for Burst work.
-- Use the real-player harness for performance conclusions. The single-test workflow keeps one Unity job worker for ordinary correctness tests, but `ShowcaseTraversalPerformanceTests.*` now gets a bounded eight-worker pool so its convergence precondition is representative enough to execute. Real-player timing remains authoritative.
+- Use real-player measurement for performance conclusions. For iterative stutter work, prefer the built `SmallVoxelShowcase` player because it exercises the production renderer/job path without the several-minute full-showcase world bake. Reserve the full `VoxelShowcase` traversal/bake for final coverage acceptance after a candidate has already won the small-player A/B.
 
 ## Current branch state
 
@@ -38,6 +38,9 @@ The authoritative region surface classification and compaction are already Unity
 - [x] Give `ShowcaseTraversalPerformanceTests.*` eight Unity job workers in `tests-single.yml`; all ordinary single-test validation stays on one worker.
 - [x] Map the continuous traversal filter to a real `VoxelShowcase` player/autowalk profile in `tools/showcase-player-capture.sh`, and print the warm FPS tail directly into the job log so artifact quota cannot hide timing output.
 - [x] Guard both the traversal worker selection and traversal-to-player mapping in `StationaryRenderBenchmarkTests` source-contract coverage.
+- [x] Configure single-test Actions concurrency (`6a9aadd7`) so the currently running Unity job is never killed, but a newer request replaces any older pending request waiting behind it.
+- [x] Add fast built-player `SmallVoxelShowcase` moving profiles (`e313c381`, guarded by `3eaf062c`) at converging ceilings 12 and 8: 90 s total, autowalk after 20 s, same FPS/prepare/job-pressure/coverage logging.
+- [x] Make those exact small-player PlayMode profiles skip the heavyweight `VoxelShowcase` startup-world bake (`5b6a1c3f`).
 
 ## Measurement and validation
 
@@ -45,8 +48,7 @@ The authoritative region surface classification and compaction are already Unity
 - [x] Identify the exact failure: the test never reached movement. Its 1,200-frame pre-traversal gate ended at `known=6323 resident=173 dirty=1915 visible=173 missing=534 jobs=12`, so no p95/p99/max frame result exists for that run.
 - [x] Identify the validation defect behind that run: the generic single-test path forced one Unity job worker while the renderer intentionally allows many converging builds. That setup was useful for ordinary correctness tests but not this traversal gate.
 - [x] Correct the traversal assertion path to eight workers without changing the renderer's production worker policy.
-- [x] Make the same targeted traversal request automatically run the existing standalone `VoxelShowcase` player/autowalk harness afterward; the player remains the authoritative performance measurement.
-- [ ] Run the corrected traversal + real-player profile on the current renderer source. Request: `ci-test/main-thread-render-jobs-v2-latest` at `52e16329961f26bd6fc876ceb91c8f7c36f2d46d` (later feature commits are validation comments/contracts only). The request still has no Actions status, so do not treat it as queued or executed.
+- [x] Make the same targeted traversal request automatically run the existing standalone `VoxelShowcase` player/autowalk harness afterward; the player remains the authoritative full-scene performance measurement.
 - [x] Compare the same real-player scene, motion window and hardware against `master` with isolated `SmallVoxelShowcase` A/B runs.
   - Master: run `32540389129`, 150 s player, autowalk after 60 s, 15 screenshots, success. Settled final-20-second window: mean p50 `2.282 ms`, worst p50 `3.19 ms`, worst frame `37.99 ms`, `missingVisible=0`.
   - Feature: run `32543006178`, same scene/window/hardware, 15 screenshots, success. Settled final-20-second window: mean p50 `1.790 ms`, worst p50 `2.30 ms`, worst frame `22.21 ms`, `missingVisible=0`.
@@ -55,15 +57,17 @@ The authoritative region surface classification and compaction are already Unity
 - [x] Expose the renderer's existing worker-prepare timing windows through the Composition diagnostics boundary as primitive values only; do not add new stopwatch work to the renderer frame path.
 - [x] Sample those timing windows sparsely in the standalone player and print `PREPARESECTIONS` directly into the Actions log so artifact-quota failures cannot hide the diagnostic.
 - [x] Run the phase diagnostic in the real `VoxelShowcase` player (`32545603132`). The player completes 150 s and captures 14 screenshots; the workflow is red because the traversal assertion still fails and artifact upload quota is full.
-- [x] Rule out the instrumented managed `CpuTransvoxelChunkCache.Prepare()` sections as the 20–50 ms late-run source. At t=130–150 s, worker `Prepare` max is only `0.181–0.364 ms`; capacity max is `0.000 ms`, selection max `0.011 ms`, residency max `0.044 ms`, while FPS windows still contain `26.99–50.35 ms` frames and one separate `956.74 ms` outlier. The earlier renderer-wide `admit=16.45 ms` wall time therefore is not CPU time inside these worker sections; scheduler comments and prior measurements make job-pool starvation the next hypothesis.
-- [x] Make the build-concurrency A/B isolate exactly one policy variable. The existing `-voxel-max-builds` hook would set the scheduler to `8,1`, changing both the converging and converged ceilings. `SurfaceBuildConcurrencyHarness` instead applies `SetVoxelBuildConcurrency(converging, 0)`, so the experiment changes only production convergence `12 -> 8` and preserves the production converged ceiling at zero. `StationaryRenderBenchmarkTests` guards this contract.
-- [x] Add direct active-job pressure to the sparse player diagnostic (`c167ccc9`, guarded by `ea3030c6`): `PREPARESECTIONS` now reports the existing `RunningSolidJobs` and `MissingVisibleSolidChunks` values alongside the existing timing windows. This adds no new renderer stopwatch work and makes the next run capable of correlating a hitch with geometry-job pressure directly.
-- [x] Preserve failed traversal assertions in the Actions log (`532f3ac8`, guarded by `f4fd0e7b`): on a nonzero Unity result, `tests-single.yml` prints bounded NUnit failure details and a Unity-log tail before exiting. Artifact quota can no longer hide the reason the traversal acceptance test failed.
-- [ ] Execute the clean build-8 real-player A/B. The exact request commit is `01bf1dad05027ee7b5cc56516b28a40ca6d9c50e` on `ci-test/main-thread-render-jobs-v2-build8`; it changes only `.github/test-request.json`. It was created while the older contaminated request was occupying the single Mac runner and still has no published `ci/single-test` status. Do not treat it as executed until that status appears.
-- [x] Reject the older build-8 run `32546709197` as causal evidence: it used the pre-correction `8,1` override, so it changed both scheduler ceilings. Its player capture still usefully showed `missingVisible=0`/`leaseFail=0`, but periodic `10-17 ms` admission-wall spikes remained and therefore cannot answer the clean `12 -> 8` question.
-- [ ] Correlate the 20–50 ms real-player windows with active geometry-job pressure and test converging-build concurrency directly.
+- [x] Rule out the instrumented managed `CpuTransvoxelChunkCache.Prepare()` sections as the 20–50 ms late-run source. At t=130–150 s, worker `Prepare` max is only `0.181–0.364 ms`; capacity max is `0.000 ms`, selection max `0.011 ms`, residency max `0.044 ms`, while FPS windows still contain `26.99–50.35 ms` frames and one separate `956.74 ms` outlier.
+- [x] Make the build-concurrency A/B isolate exactly one policy variable. `SurfaceBuildConcurrencyHarness` applies `SetVoxelBuildConcurrency(converging, 0)`, so the experiment changes only production convergence `12 -> 8` and preserves the production converged ceiling at zero.
+- [x] Add direct active-job pressure to the sparse player diagnostic (`c167ccc9`, guarded by `ea3030c6`): `PREPARESECTIONS` reports `RunningSolidJobs` and `MissingVisibleSolidChunks` alongside the timing windows.
+- [x] Preserve failed traversal assertions in the Actions log (`532f3ac8`, guarded by `f4fd0e7b`) so artifact quota cannot hide the assertion reason.
+- [x] Correct an instrumentation interpretation before changing production policy: renderer-wide `LastAdmissionMs` starts before the worker loop but ends after solid publication, arena-pressure relief, water prepare/publication, and `JobHandle.ScheduleBatchedJobs()`. Therefore `admit=16 ms` with sub-ms worker `Prepare()` does not by itself prove job starvation; the build-concurrency A/B remains the next causal test, and a negative result points to the post-worker admission remainder.
+- [ ] Run fast `SmallVoxelShowcaseMovingBuild12` real-player baseline on the current feature head.
+- [ ] Run fast `SmallVoxelShowcaseMovingBuild8` candidate on the same feature head/hardware/path.
+- [ ] Compare 12 vs 8 using moving p50/p95/p99/max, `PREPARESECTIONS jobs=... missing=...`, `RINGS prepare[...]`, and `SURFACE missingMax`; accept 8 only if tail latency improves without worse visible coverage.
+- [ ] If the small-player A/B proves lower convergence concurrency, implement the production policy and re-run the same small-player gate.
+- [ ] Only after a candidate wins the small-player gate, run the expensive corrected full `VoxelShowcase` traversal + real-player profile for final coverage/fallback acceptance.
 - [ ] Record discovered-brick versus unique-chunk admission fanout in real-player telemetry if another routing iteration is needed.
-- [ ] Verify no coverage/fallback regression with the corrected traversal assertion independently of the successful `missingVisible=0` real-player samples.
 
 ### Existing performance evidence
 
@@ -71,30 +75,31 @@ The broader rendering investigation already measured a settled real-player run w
 
 The moving A/B changes the transient conclusion: discovery routing/dedup is worthwhile because it materially improves moving-player frame behavior. It does not finish the work. In the feature run, discovery is negligible even on a spike (`0.10 ms`), while renderer-wide `admit` still reaches `16.45 ms`.
 
-The phase diagnostic changes the residual diagnosis again: the individual worker sections do not consume that wall time. Late in run `32545603132`, worker `Prepare` itself remains sub-millisecond even in one-second windows whose frame maxima reach 25–50 ms. The scheduler already documents an earlier measured failure mode where many Burst extraction builds in flight saturate the job pool and the main thread loses wall-clock time despite small scheduler CPU sections. The next controlled experiment is therefore build-concurrency A/B, not more managed `Prepare()` micro-optimization.
+The phase diagnostic rules out the measured worker sub-sections, but source inspection shows `admit` is broader than that worker loop. The next cheap causal experiment is therefore the real built `SmallVoxelShowcase` at convergence ceilings 12 and 8. Do not change the production ceiling until that A/B separates job pressure from post-worker admission work.
 
-The visibility path is still a separate known steady-state hotspot: active chunk coordinates consult managed state (`_known`, desired versions, ready entries, empty versions), and replacing the frustum primitive previously produced no measurable win. Keep that work separate from the transient job-saturation spikes measured here.
+The visibility path is still a separate known steady-state hotspot: active chunk coordinates consult managed state (`_known`, desired versions, ready entries, empty versions), and replacing the frustum primitive previously produced no measurable win. Keep that work separate from the transient spikes measured here.
 
 ## Next optimization gate
 
-Do not jobify the managed cache blindly. The A/B proves the routing optimization is useful, but it also proves the remaining transient is elsewhere.
+Do not jobify the managed cache blindly. The routing optimization is already proven useful; now isolate the residual with the cheapest representative real-player test.
 
 - [x] Keep the unique shard routing/dedup optimization; the real-player A/B measured a material improvement.
-- [x] Stop treating discovery fanout as the dominant residual: feature spike discovery was `0.10 ms` while renderer-wide worker-admission wall time reached `16.45 ms`.
-- [x] Add low-perturbation diagnostics for the already-instrumented worker sections and make their output survive artifact-quota failure.
-- [x] Split `CpuTransvoxelChunkCache.Prepare()` cost into its already-instrumented sections and rule those sections out as the late 20–50 ms frame source.
-- [ ] A/B the production converging-build ceiling (`12`) against lower bounded values in the same real-player traversal. Preserve render distance and require equivalent visible coverage/missing-chunk behavior; a lower ceiling is acceptable only if it removes tail spikes without leaving the camera waiting on geometry.
-- [ ] If build concurrency is proven causal, replace the fixed high converging ceiling with a policy that reserves CPU for the player/main thread while still prioritizing visible missing chunks. Do not hide stutter by disabling background correctness work or shrinking coverage.
-- [ ] If concurrency does not explain the residual, add the minimum next diagnostic needed to distinguish main/render-thread stalls, GPU/presentation stalls, and unrelated scene systems before changing renderer code.
+- [x] Add low-perturbation diagnostics for worker sections and job pressure.
+- [x] Make pending CI requests replace stale pending requests without cancelling the active Unity run.
+- [x] Establish `SmallVoxelShowcase` built-player motion as the fast iteration gate before full-world traversal.
+- [ ] A/B the production converging-build ceiling (`12`) against `8` in `SmallVoxelShowcase` first.
+- [ ] If build concurrency is proven causal, replace the fixed high converging ceiling with a policy that reserves CPU for the player/main thread while still prioritizing visible missing chunks.
+- [ ] If concurrency does not explain the residual, split the post-worker admission remainder (solid publication, arena relief, water, batched-job scheduling) before changing renderer behavior.
 - [ ] Keep the commit/publication path allocation-free and bounded by an explicit per-frame budget.
-- [ ] Re-run the exact same real-player A/B after the next change; do not infer success from editor timing.
+- [ ] Re-run the exact same small-player A/B after the next production change, then use full VoxelShowcase only for final acceptance.
 
 ## Acceptance
 
 - [x] Original ownership/routing behavior proven by an executed Unity test; full CI-green status remains infrastructure-blocked by artifact quota.
 - [x] Latest unique-chunk/fanout regression executed successfully in Unity.
-- [ ] Corrected traversal assertion reaches movement without a coverage/fallback regression.
 - [x] Real-player moving/streaming behavior characterized against master.
+- [ ] Fast SmallVoxelShowcase 12-vs-8 causal A/B completed on the same source/hardware/path.
+- [ ] Corrected full traversal assertion reaches movement without a coverage/fallback regression after the winning candidate exists.
 - [ ] No new synchronous completion violations.
 - [ ] No geometry holes or near/far fallback regression.
 - [x] Measured main-thread/frame-time improvement versus `master` in the isolated real-player A/B.
