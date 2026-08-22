@@ -1,7 +1,7 @@
 # Main-thread render admission reduction
 
 **Branch:** `agent/main-thread-render-jobs-v2`
-**Current base:** merged current `master` through `96da31346004c5e59efb2ba34e2b29cf31bcce6b`
+**Current base:** merged current `master` through `b496f3a0bc600c9532222e10cd60a62a244ecfa3`
 **Related plan:** `.claude/plans/rendering-garbled.md`
 
 ## Goal
@@ -19,7 +19,7 @@ Authoritative surface classification/compaction already runs as Jobs/Burst work.
 - Unity/GPU resource mutation remains on the safe publication path; only pure/native staging is eligible for Burst work.
 - Use real-player measurements for performance conclusions.
 - Use built `SmallVoxelShowcase` as the iterative stutter gate. Reserve full `VoxelShowcase` traversal for final coverage/fallback acceptance after a candidate wins the small-player gate.
-- Follow current repository CI policy: dedicated `ci-test/...` request branch, latest request wins per branch, and every single-test workflow must complete in under five minutes once started.
+- Follow current repository CI policy: exactly one reused `ci-test/agent/main-thread-render-jobs-v2` request branch, latest request wins, and every single-test workflow must complete in under five minutes once started.
 
 ## Completed implementation
 
@@ -69,8 +69,9 @@ Authoritative surface classification/compaction already runs as Jobs/Burst work.
 
 ## 2026-08-22 master integration / CI compatibility
 
-- [x] Merge current `master` into the feature branch: merge commit `86f4fccf31db55bc5aa70cc32f847cbfa7a9ca0b`.
-- [x] Preserve `master`'s new single-test policy: `group: single-test-${{ github.ref }}`, `cancel-in-progress: true`, job timeout 5 minutes, Unity invocation ceiling 4 minutes.
+- [x] Merge current `master` into the feature branch, most recently through `b496f3a0bc600c9532222e10cd60a62a244ecfa3` in merge commit `5ca49069aa1c53f5ac378e113628bc6081ddfefb`.
+- [x] Preserve `master`'s single-test policy: `group: single-test-${{ github.ref }}`, `cancel-in-progress: true`, job timeout 5 minutes, Unity invocation ceiling 4 minutes.
+- [x] Adopt the current branch-discipline policy: exactly one reused `ci-test/agent/main-thread-render-jobs-v2` branch for every targeted validation iteration.
 - [x] Restore only renderer-specific behavior compatible with that policy: SmallVoxelShowcase bake exclusions, eight-worker traversal routing, and failure details (`b74c3dc761a0dcda9d5b85749c4464255c040790`).
 - [x] Update source-contract tests so they enforce the new CI policy instead of the superseded global-queue behavior (`39f637192b3d2fd89a01cedda1f9268a0ba5ff09`).
 - [x] Confirm branch is ahead of current master and `behind_by=0`.
@@ -78,7 +79,9 @@ Authoritative surface classification/compaction already runs as Jobs/Burst work.
 
 ## Current fix gate
 
-The measured culprit is the water block. `VoxelSurfaceScheduler.Prepare` currently hands every newly published solid-surface discovery brick directly to `_water.InvalidateSurfaceBricks(storage, _discoveredSurfaceBricks)`. That method synchronously reloads/material-scans every brick to decide whether it contains water/cascade material before the separately budgeted water build starts. A surface-discovery publication can contain up to 512 bricks, so this unbudgeted scan can consume the full ~15.5 ms hitch even though `_water.Prepare(..., WaterBuildBudgetMs)` itself is time-bounded and water meshing is job-based.
+The measured culprit is the water block. `VoxelSurfaceScheduler.Prepare` handed every newly published solid-surface discovery brick directly to `_water.InvalidateSurfaceBricks(storage, _discoveredSurfaceBricks)`. That method synchronously reloads/material-scans every brick to decide whether it contains water/cascade material before the separately budgeted water build starts. A surface-discovery publication can contain up to 512 bricks, so this unbudgeted scan can consume the full ~15.5 ms hitch even though `_water.Prepare(..., WaterBuildBudgetMs)` itself is time-bounded and water meshing is job-based.
+
+The candidate fix keeps authoritative mutation invalidation immediate and amortizes only initial/streaming presentation discovery. A scheduler-owned `WaterSurfaceDiscoveryAdmission` deduplicates discovered bricks in a FIFO and drains at most 32 classifications per `Prepare`, continuing to drain on later frames even when no new discovery batch arrives.
 
 - [x] Rule full solid publication out using existing `UploadTiming` from run `32553044708`; do not optimize arena allocation/copy code based on the three lease changes alone.
 - [x] Add allocation-free current-frame timing for solid admission, arena-relief bookkeeping, the complete water block, and `JobHandle.ScheduleBatchedJobs()` (`ed54f644afecde44102368b792a0fd2b2d0ad818`).
@@ -87,8 +90,9 @@ The measured culprit is the water block. `VoxelSurfaceScheduler.Prepare` current
 - [x] Add source-contract guards for the timing boundaries and same-frame sparse diagnostic (`6791f6daee630ded5535f9741020ca51a4990013`).
 - [x] Verify the scheduler instrumentation diff before promotion: 45 additions, 0 deletions. Overall diagnostic diff remains limited to scheduler, Composition, harness, and source-contract test.
 - [x] Run production-policy `SmallVoxelShowcaseMovingBuild12`; run `32574092199` proves water owns essentially the entire transient and `ScheduleBatchedJobs()` does not.
-- [ ] Preserve immediate `_changedWaterBricks` mutation invalidation, but queue initial/streaming `_discoveredSurfaceBricks` for bounded water classification rather than scanning the whole publication batch synchronously.
-- [ ] Deduplicate the pending discovery queue and process a small fixed number per frame so water eventually sees every discovered surface brick without producing a multi-millisecond frame spike.
+- [x] Preserve immediate `_changedWaterBricks` mutation invalidation while routing initial/streaming `_discoveredSurfaceBricks` through bounded water classification (`cfaf93c4fa7fb69a9492439e95da59c9f9d06167`).
+- [x] Deduplicate pending discovery and drain a fixed 32 bricks per frame through `WaterSurfaceDiscoveryAdmission` (`82337f2118901115942b17cb178fa17628199030`); add a source contract that preserves the mutation/discovery distinction (`23a5f95404719bf17fa4e74a5a36b690faa07458`).
+- [x] Verify the final scheduler wiring diff is surgical: one helper field added and one discovery call replaced; no unrelated scheduler rewrite.
 - [ ] Re-run the exact SmallVoxelShowcase gate and require the ~15.5 ms water admission spikes to disappear without increasing `missingVisible`, lease failures, or visible reappearance.
 
 ## Validation after the first proven fix
