@@ -9,6 +9,8 @@ It is subordinate to `AGENTS.md`, `CLAUDE.md`, `docs/WORLDBUILDER_RUNTIME_INTEGR
 - [x] Re-read the repository instructions and the existing Kentridge/WorldBuilder integration contracts before changing the opening.
 - [x] Recover the original opening choreography from `jlashmet/mounting-force/Opening.m`.
 - [x] Recover the original 31-line opening dialogue from the Mounting Force `Art/Opening.txt` source.
+- [x] Extend `jlashmet/mounting-force` archaeology with a verified source-grounded Kentridge opening cutscene contract.
+- [x] Import that exact contract into `References/MountingForce/contracts/` and record its upstream blob SHA/head in `SOURCE_MANIFEST.yaml`.
 - [x] Preserve the recovered speaker order as explicit cutscene actor metadata rather than embedding speaker names in presentation text.
 - [x] Preserve the original dialogue split around Logan's entrance: lines 1-10, Logan line 11, then lines 12-31 after the group turns to him.
 - [x] Preserve the recovered door sound, waits, Weldon entrance, facing changes, and Logan approach in authored choreography.
