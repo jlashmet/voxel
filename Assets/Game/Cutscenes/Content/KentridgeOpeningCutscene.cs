@@ -48,13 +48,13 @@ namespace Game.Cutscenes.Content.Kentridge
                 new CutsceneStagePointRequirement(LeadStart, CutsceneStageRegion.PlayerSpawnArea, 8, CutsceneStageFacingHint.IntoSite),
 
                 // Keep the three people already gathered at the generated bar conversationally
-                // close. The shared resolver still owns their exact lateral positions and preserves
-                // 1.4 m centre spacing at this 0.7 m clearance; this simply avoids spreading a bar
-                // conversation across the full room and keeps the fixed ensemble shot readable.
-                new CutsceneStagePointRequirement(MadelineStage, CutsceneStageRegion.InteriorGatheringArea, 7, CutsceneStageFacingHint.TowardStageCenter),
-                new CutsceneStagePointRequirement(StevenStage, CutsceneStageRegion.InteriorGatheringArea, 7, CutsceneStageFacingHint.TowardStageCenter),
+                // close. The shared resolver still owns their exact lateral positions; a 0.5 m
+                // clearance yields 1.0 m centre spacing, which reads as one bar conversation rather
+                // than a lineup across the full room and lets the fixed establishing shot stay tight.
+                new CutsceneStagePointRequirement(MadelineStage, CutsceneStageRegion.InteriorGatheringArea, 5, CutsceneStageFacingHint.TowardStageCenter),
+                new CutsceneStagePointRequirement(StevenStage, CutsceneStageRegion.InteriorGatheringArea, 5, CutsceneStageFacingHint.TowardStageCenter),
                 new CutsceneStagePointRequirement(LoganStart, CutsceneStageRegion.PublicEntrance, 8, CutsceneStageFacingHint.IntoSite),
-                new CutsceneStagePointRequirement(LeadStage, CutsceneStageRegion.InteriorGatheringArea, 7, CutsceneStageFacingHint.TowardStageCenter),
+                new CutsceneStagePointRequirement(LeadStage, CutsceneStageRegion.InteriorGatheringArea, 5, CutsceneStageFacingHint.TowardStageCenter),
                 new CutsceneStagePointRequirement(EntranceFocus, CutsceneStageRegion.PublicEntrance, 4, CutsceneStageFacingHint.IntoSite),
 
                 // Opening.m has Logan approach the same WalkTo target used to gather the opening
