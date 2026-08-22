@@ -21,9 +21,10 @@ It is subordinate to `AGENTS.md`, `CLAUDE.md`, `docs/WORLDBUILDER_RUNTIME_INTEGR
 - [x] Add a focused regression covering all 31 recovered lines, exact speaker order, and stable cue mapping.
 - [x] Add a focused regression covering the recovered 10 / 1 / 20 choreography split and the action ordering around Logan's entrance.
 - [x] Keep artifact-quota failures from masking successful non-visual targeted tests while retaining strict artifact upload for visual proof runs.
-- [ ] Prove the dialogue/source regression passes on the exact current feature head through `ci/single-test`.
+- [x] Prove the dialogue/source regression passes through `ci/single-test` on feature code SHA `63f26d56e84b9fcacb2e697ae79c7ff932120ccc` (`ci-test` request commit `e898ec255808a53f00c6c26057536926fde565d4`, Actions run `32548348388`).
 - [ ] Prove the choreography regression passes on the exact current feature head through `ci/single-test`.
 - [ ] Re-run the production Kentridge playable-scene acceptance with the expanded 31-line opening and prove control/camera/movement/story handoff still completes.
+- [ ] Keep self-contained Kentridge dialogue/choreography requests from doing unrelated Voxel Showcase bake work in targeted CI.
 
 ## Player-facing fidelity
 
@@ -33,6 +34,17 @@ It is subordinate to `AGENTS.md`, `CLAUDE.md`, `docs/WORLDBUILDER_RUNTIME_INTEGR
 - [ ] Run the standalone player capture for `KentridgePlayableSlice` on the validated feature head.
 - [ ] Inspect the real-player frames for bar/pub staging, four-character readability, camera composition, Logan entrance, dialogue presentation, and post-cutscene handoff.
 - [ ] Fix any visual/staging fidelity defects found in capture and repeat the smallest relevant validation until green.
+
+## Generated pub bar and semantic staging
+
+- [x] Inspect the generated `Pub` role geometry and confirm the current role signature creates an exterior hanging sign but no interior bar/counter or seating.
+- [ ] Trace the production `InteriorGatheringArea` projection and actor stage anchors through the generated Kentridge site geometry.
+- [ ] Add a deterministic generated pub bar/counter at the WorldGen/architecture layer rather than synthesizing scene-local furniture.
+- [ ] Add seating/stool geometry where it improves the intended Weldon/Madeline/Steven bar staging without blocking the doorway, Logan's entrance path, or cutscene movement.
+- [ ] Keep actor placement semantic: align the existing authored stage-point resolution with the generated bar instead of hard-coding final world-space positions in `KentridgePlayableSlice`.
+- [ ] Add the smallest focused regression that proves generated Pub geometry contains the intended interior bar invariant and preserves required traversal/open space.
+- [ ] Prove that focused generated-pub regression through `ci/single-test` on the exact feature head.
+- [ ] Verify the production opening visually places Weldon, Madeline, and Steven at the generated bar before Logan enters.
 
 ## Completion gate
 
