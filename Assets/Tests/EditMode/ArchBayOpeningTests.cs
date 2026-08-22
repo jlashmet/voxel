@@ -153,8 +153,11 @@ namespace VoxelEngine.Tests.EditMode
                 @"bool\s+IsExtrusionCapRimSample\s*\(\s*uint\s+packedBoundary\s*,\s*int\s+edgeAxis\s*\)"), Is.True,
                 "GPU topology must recognize the same authored extrusion-cap rim as the CPU path.");
             Assert.That(Regex.IsMatch(gpu,
-                @"local\s*=\s*ProjectExtrusionCapRim\s*\(\s*local\s*,\s*axis\s*,\s*solidBoundary\s*,\s*solidGrid\s*\)"), Is.True,
-                "GPU topology must apply the same transverse rim projection as the CPU path.");
+                @"ResolveExtrusionCapProfileSample\s*\("), Is.True,
+                "GPU topology must recover the unclamped authored profile before projecting a proven cap perimeter cell.");
+            Assert.That(Regex.IsMatch(gpu,
+                @"local\s*=\s*ProjectExtrusionCapProfile\s*\(\s*local\s*,\s*axis\s*,\s*profileBoundary\s*,\s*profileGrid\s*\)"), Is.True,
+                "GPU topology must apply the same recovered-profile transverse projection as the CPU path.");
         }
 
         private static uint PositiveDepthFaceMask(bool hasDiagonalInPlaneAir)
