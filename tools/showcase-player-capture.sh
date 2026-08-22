@@ -287,10 +287,10 @@ if (( KENTRIDGE_EVIDENCE )); then
   index=0
   while IFS= read -r shot; do
     case "$index" in
-      2|4|6|8)
+      2|4|6|7)
         name="$(basename "$shot" .png)"
         preview="$EVIDENCE_DIR/${name}.jpg"
-        sips -s format jpeg -s formatOptions 45 -Z 400 "$shot" --out "$preview" >/dev/null
+        sips -s format jpeg -s formatOptions 30 -Z 220 "$shot" --out "$preview" >/dev/null
         printf 'KENTRIDGE_EVIDENCE %s ' "$(basename "$shot")"
         base64 < "$preview" | tr -d '\n'
         printf '\n'
