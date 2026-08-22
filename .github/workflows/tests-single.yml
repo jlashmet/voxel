@@ -158,14 +158,17 @@ jobs:
             sleep 5
           done
 
-      # Full VoxelShowcase tests need the baked startup world. The two fast
-      # SmallVoxelShowcase renderer profiles intentionally compose their smaller
-      # standalone world directly, so baking here would spend most of the
-      # five-minute single-test budget on unrelated setup.
+      # Most full VoxelShowcase tests need a freshly baked startup world. Renderer traversal is
+      # different: it validates the checked-in production bake and then builds/runs that same scene
+      # as a standalone player. Re-baking it here measured ~198 seconds and made the validation
+      # exceed the five-minute single-test policy before the actual movement gate could finish.
+      # The two fast SmallVoxelShowcase profiles likewise compose their smaller standalone world
+      # directly and must not pay for unrelated full-showcase setup.
       - name: Bake Voxel Showcase startup world
         if: >-
           steps.request.outputs.platform == 'PlayMode' &&
           startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.') &&
+          steps.request.outputs.test != 'VoxelEngine.Tests.PlayMode.ShowcaseTraversalPerformanceTests.ContinuousPlayerTraversalNeverStuttersOrOpensNearFarGap' &&
           steps.request.outputs.test != 'VoxelEngine.Tests.PlayMode.StationaryRenderBenchmarkTests.SmallVoxelShowcaseMovingBuild12' &&
           steps.request.outputs.test != 'VoxelEngine.Tests.PlayMode.StationaryRenderBenchmarkTests.SmallVoxelShowcaseMovingBuild8' &&
           !startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.KentridgeStructureComparisonSceneTests.') &&
