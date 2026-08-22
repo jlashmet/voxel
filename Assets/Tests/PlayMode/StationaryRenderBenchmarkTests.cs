@@ -14,6 +14,8 @@ namespace VoxelEngine.Tests.PlayMode
         {
             string harness = File.ReadAllText(
                 "Assets/Scenes/Showcase/StationaryRenderBenchmarkHarness.cs");
+            string concurrencyHarness = File.ReadAllText(
+                "Assets/Scenes/Showcase/SurfaceBuildConcurrencyHarness.cs");
             string composition = File.ReadAllText(
                 "Assets/VoxelEngine/Composition/RenderingDiagnosticsComposition.cs");
             string build = File.ReadAllText(
@@ -79,8 +81,11 @@ namespace VoxelEngine.Tests.PlayMode
                 "ShowcaseTraversalPerformanceTests.ContinuousPlayerTraversalNeverStuttersOrOpensNearFarGap",
                 capture);
             StringAssert.Contains(": \"${AUTOWALK_AFTER:=60}\"", capture);
-            StringAssert.Contains(": \"${MAX_BUILDS:=8}\"", capture);
-            StringAssert.Contains("-voxel-max-builds", capture);
+            StringAssert.Contains(": \"${CONVERGING_BUILDS:=8}\"", capture);
+            StringAssert.Contains("-voxel-converging-builds", capture);
+            StringAssert.Contains("-voxel-converging-builds", concurrencyHarness);
+            StringAssert.Contains("SetVoxelBuildConcurrency(converging, 0)", concurrencyHarness,
+                "the concurrency A/B must preserve the production converged ceiling");
             StringAssert.Contains("=== REAL PLAYER FPS TAIL ===", capture);
             StringAssert.Contains("=== REAL PLAYER PREPARE SECTIONS ===", capture);
             StringAssert.Contains("PREPARESECTIONS", capture);
