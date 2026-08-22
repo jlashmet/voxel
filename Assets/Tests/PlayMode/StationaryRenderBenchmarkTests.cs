@@ -80,6 +80,8 @@ namespace VoxelEngine.Tests.PlayMode
                 capture);
             StringAssert.Contains(": \"${AUTOWALK_AFTER:=60}\"", capture);
             StringAssert.Contains("=== REAL PLAYER FPS TAIL ===", capture);
+            StringAssert.Contains("=== REAL PLAYER PREPARE SECTIONS ===", capture);
+            StringAssert.Contains("PREPARESECTIONS", capture);
 
             // The existing visual profile remains a distinct moving/screenshot run.
             StringAssert.Contains(": \"${SURVEY_AFTER:=10}\"", capture);
