@@ -3,7 +3,6 @@ using System.Globalization;
 using Unity.Profiling;
 using UnityEngine;
 using VoxelEngine.Composition;
-using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 
 namespace VoxelEngine.Showcase
 {
@@ -116,8 +115,8 @@ namespace VoxelEngine.Showcase
                 _gcCollectMaxNs = MaxRecorderValue(
                     in _gcCollectRecorder, _gcCollectMaxNs);
 
-                SurfaceGeometryUploadFrameSnapshot arenaUpload =
-                    SurfaceGeometryUploadTelemetry.Snapshot;
+                SurfaceArenaUploadFrameSnapshot arenaUpload =
+                    RenderingDiagnosticsComposition.GetSurfaceArenaUploadFrame();
                 if (arenaUpload.WallMs <= _arenaUploadMaxMs) return;
                 _arenaUploadMaxMs = arenaUpload.WallMs;
                 _arenaUploadMaxCalls = arenaUpload.Calls;
