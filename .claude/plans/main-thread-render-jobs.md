@@ -81,8 +81,10 @@ Authoritative surface classification/compaction already runs as Jobs/Burst work.
 - [x] Capture the deterministic current full-showcase startup world in under-five-minute CI. Run `32578386963` completed in about 3m40s: the bake took 199s, the one-shot PlayMode capture test took 11s, and the artifact contains `ShowcaseWorld.bytes` at `11,291,590` bytes (10.77 MiB), SHA-256 `0a76b072d6634bcc5e833827efb51760c861fbe388d8bb2a5cbf62d9ef1956c4`.
 - [x] Publish that generated binary onto the existing CI branch, attach its exact Git blob `123558b8775a3d7b67c26c6e2bf6dc4e66fffda8` to the feature branch, and remove the temporary bake-artifact bridge (`55879a8e`). No binary reinterpretation occurred.
 - [x] Restore a bake-free exact full-traversal request now that the checked-in startup world is current (`d4b1fb94`), and guard the fallback-safe + bake-free contract without reintroducing the rejected 1800-frame assumption (`c5e51fdc`).
-- [ ] Re-run the corrected full `VoxelShowcase` PlayMode traversal and require movement, no synchronous completion, and fallback-safe coverage throughout.
-- [ ] Re-run the 150-second full standalone traversal using the refreshed baked world and require `missingVisible=0` after convergence/movement, `leaseFail=0`, `reappeared=0`, and no exposed near/far hole in captured frames.
+- [x] Re-run the corrected full `VoxelShowcase` PlayMode traversal for correctness in `32579464263`. It reached and completed all 420 movement frames, crossed the required streaming boundaries, kept synchronous-completion violations at zero, and never opened the far-field hole while near coverage was incomplete. Its timing distribution passed p95 (`17.91 ms < 18`) and p99 (`22.04 ms < 25`) but one Editor-only frame hit `46.75 ms`, so the current PlayMode single-frame timing assertion failed after correctness had already passed.
+- [x] Re-run the 150-second visible standalone traversal from the same refreshed checked-in world in `32579464263`. During the walking window, worst FPSLOG frame was `28.11 ms` (<33.34 ms); `SURFACE` stayed `missingMax=0`, `reappeared=0`; every sampled `RINGS` line kept `leaseFail=0`; every `FAR ... coverage=False` sample kept `hole=0`; 14 screenshots were captured and the walking frames show continuous ground with no exposed world/sky hole.
+- [ ] Align the timing gate with the documented authority boundary: keep PlayMode for coverage/blocking plus percentile sanity, but move the isolated <33.34 ms single-frame acceptance to the real-player traversal. Add real-player assertions for walking p95/p99/max, post-convergence missing/reappearance, lease failures, and `coverage=False => hole=0` so production evidence can fail CI directly.
+- [ ] Re-run the corrected final full traversal request and require both the PlayMode correctness gate and authoritative real-player performance/coverage gate to pass with `ci/single-test=success`.
 - [ ] Review final diff against `CLAUDE.md`, the rendering specs, and current `master`.
 
 ## Acceptance
@@ -94,6 +96,6 @@ Authoritative surface classification/compaction already runs as Jobs/Burst work.
 - [x] Concurrency, GC, solid-publication, and `ScheduleBatchedJobs()` hypotheses rejected with direct measurements.
 - [x] Identify water admission as the remaining ~20 ms transient owner.
 - [x] Reduce it without reducing render distance/coverage or introducing synchronous job completion. `32575648213` reduces the measured water spike by about 92% while preserving the production SmallVoxel coverage signals.
-- [ ] No geometry holes or near/far fallback regression in the corrected final full-scene gate.
-- [ ] Final corrected full traversal reaches movement and passes coverage acceptance.
+- [x] No geometry holes or near/far fallback regression in the corrected full-scene production evidence (`32579464263`).
+- [ ] Final corrected full traversal reaches movement and passes both correctness and authoritative performance acceptance.
 - [ ] Relevant CI status is green, or a concrete external CI blocker is documented with successful Unity/player evidence separated from the failing infrastructure step.
