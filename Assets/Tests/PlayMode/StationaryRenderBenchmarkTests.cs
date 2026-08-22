@@ -69,6 +69,15 @@ namespace VoxelEngine.Tests.PlayMode
             StringAssert.Contains("post-measurement screenshot", capture);
             StringAssert.Contains("stationary benchmark did not publish a passing result", capture);
 
+            // The moving traversal correctness test runs under the generic one-job-worker Unity
+            // test process, so it must also map to the actual production player before its timing
+            // can be interpreted as renderer performance.
+            StringAssert.Contains(
+                "ShowcaseTraversalPerformanceTests.ContinuousPlayerTraversalNeverStuttersOrOpensNearFarGap",
+                capture);
+            StringAssert.Contains(": \"${AUTOWALK_AFTER:=60}\"", capture);
+            StringAssert.Contains("=== REAL PLAYER FPS TAIL ===", capture);
+
             // The existing visual profile remains a distinct moving/screenshot run.
             StringAssert.Contains(": \"${SURVEY_AFTER:=10}\"", capture);
             StringAssert.Contains("-voxel-screenshot-every 10", capture);
