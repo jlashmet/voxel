@@ -106,7 +106,7 @@ Camera:
     height: 1
   near clip plane: 0.05
   far clip plane: 16000
-  field of view: 70
+  field of view: 71
   orthographic: 0
   orthographic size: 5
   m_Depth: -1
@@ -241,14 +241,10 @@ Light:
   m_ColorTemperature: 6570
   m_UseColorTemperature: 0
   m_BoundingSphereOverride: {x: 0, y: 0, z: 0, w: 0}
-  m_UseBoundingSphereOverride: 0
-  m_UseViewFrustumForShadowCasterCull: 1
-  m_ForceVisible: 0
+  m_UseCullingMatrixOverride: 0
+  m_CookieSize: 10
   m_ShadowRadius: 0
   m_ShadowAngle: 0
-  m_LightUnit: 1
-  m_LuxAtDistance: 1
-  m_EnableSpotReflector: 1
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
