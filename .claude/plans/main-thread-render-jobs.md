@@ -54,7 +54,10 @@ Authoritative surface classification/compaction already runs as Jobs/Burst work.
 - Custom `ProfilerRecorder` names for `Voxel.Surface.*` return zero in the standalone player, so renderer phase correlation must use direct scheduler/primitive telemetry.
 - The same marker-correlation run caught a representative late hitch with approximately `prepare=19.36 ms`, `admit=15.88 ms`, `visible=0.39 ms`, `missingVisible=0`.
 - Arena-pressure relief is ruled out for that event: `leaseFail=0` and the solid arena was only ~14% occupied.
-- Three solid leases published in the same representative hitch frame, making solid publication the first remaining subsection to test.
+- Three solid leases published in that frame, but the run's existing direct `UploadTiming` proves full per-publication work was small: `upload[max=0.964 ms]`. `TryPublishPending` times the entire `Entry.AdvanceUpload`, including arena acquisition/bookkeeping and `BeginWrite`/copy/`EndWrite`, not just the raw buffer write.
+- The scheduler permits at most four solid upload workers per frame; therefore even the conservative upper bound from that run is under ~3.9 ms for all solid publications, and the representative three-publication frame is bounded under ~2.9 ms. Solid publication cannot account for `admit=15.88 ms`.
+- The scheduler's aggregate solid worker/admission+publication timing also stayed small in the late windows (`worker[max]` about `1.294 ms` in the final printed window). This independently points to work after the solid phase.
+- Raw arena writes are a strict subset of the already-bounded `Entry.AdvanceUpload`; the new arena-write probe is useful confirmation but is no longer required to rule solid publication out as the 16 ms source.
 
 ## 2026-08-22 master integration / CI compatibility
 
@@ -63,11 +66,11 @@ Authoritative surface classification/compaction already runs as Jobs/Burst work.
 - [x] Restore only renderer-specific behavior compatible with that policy: SmallVoxelShowcase bake exclusions, eight-worker traversal routing, and failure details (`b74c3dc761a0dcda9d5b85749c4464255c040790`).
 - [x] Update source-contract tests so they enforce the new CI policy instead of the superseded global-queue behavior (`39f637192b3d2fd89a01cedda1f9268a0ba5ff09`).
 - [x] Confirm branch is ahead of current master and `behind_by=0`.
-- [ ] Current authoritative arena-upload probe request: CI commit `81396a37c2eb7d13d664e47c640b30a7759c056d`, request id `arena-upload-20260822-0532`. As of the latest check it has no `ci/single-test` status yet, which under `AGENTS.md` means queued/not started.
+- [ ] Arena-write confirmation request: CI commit `81396a37c2eb7d13d664e47c640b30a7759c056d`, request id `arena-upload-20260822-0532`. It has remained queued/not started while the self-hosted runner is occupied. Do not block the investigation on this result because full solid publication is already bounded by run `32553044708`.
 
 ## Current diagnostic gate
 
-The remaining transient is broad scheduler admission, not discovery, visibility, per-worker preparation, convergence ceiling, GC pause, or arena-pressure relief. The scheduler order is now explicitly understood:
+The remaining transient is broad scheduler admission, but the pre-water solid portion is now bounded too low to explain it. In `VoxelSurfaceScheduler.Prepare`, the order after visibility is:
 
 1. ring policy + solid worker admission/build progress;
 2. solid pending-publication processing;
@@ -76,13 +79,14 @@ The remaining transient is broad scheduler admission, not discovery, visibility,
 5. `JobHandle.ScheduleBatchedJobs()`;
 6. record `LastAdmissionMs`.
 
-The direct solid-arena write probe measures the actual `BeginWrite` / copy / `EndWrite` portion inside step 2.
+For the representative hitch, steps 1-2 are bounded small and step 3 did not run. The next instrumentation must distinguish steps 4 and 5 without losing same-frame correlation.
 
-- [ ] Run production-policy `SmallVoxelShowcaseMovingBuild12` with direct arena-write telemetry.
-- [ ] Correlate representative ~20 ms FPS/admission windows with `arenaUpload[ms=... calls=... bytes=... frame=...]` in `PREPARESECTIONS`.
-- [ ] If arena writes account for most admission wall time, optimize publication without changing coverage or concurrency.
-- [ ] If arena writes stay small, mark raw GPU writes ruled out and add only the minimum timing split needed to distinguish solid-publication bookkeeping from water work/publication and `ScheduleBatchedJobs()`.
-- [ ] Update this plan with the measured result before changing production behavior.
+- [x] Rule full solid publication out using existing `UploadTiming` from run `32553044708`; do not optimize arena allocation/copy code based on the three lease changes alone.
+- [ ] Add allocation-free current-frame timing for the complete water block and `JobHandle.ScheduleBatchedJobs()`.
+- [ ] Retain those values together with the same frame's total admission and solid-phase time whenever that frame is the worst admission frame in the one-second report window.
+- [ ] Print one sparse line containing `total`, `solid`, `water`, `schedule`, and residual/remainder for the same worst-admission frame.
+- [ ] Run the production-policy `SmallVoxelShowcaseMovingBuild12` gate and classify the ~20 ms hitch as water, batched-job scheduling, or an explicitly measured residual.
+- [ ] Fix only the first measured culprit. Do not change renderer concurrency, coverage, or publication policy speculatively.
 
 ## Validation after the first proven fix
 
@@ -97,8 +101,8 @@ The direct solid-arena write probe measures the actual `BeginWrite` / copy / `En
 - [x] Unique-chunk/fanout regression executed successfully in Unity.
 - [x] Real-player moving/streaming behavior characterized against master.
 - [x] Routing/dedup main-thread improvement measured versus master.
-- [x] Concurrency and GC hypotheses rejected with direct measurements.
-- [ ] Identify the remaining ~20 ms transient with direct evidence.
+- [x] Concurrency, GC, arena pressure, and solid-publication hypotheses rejected with direct measurements.
+- [ ] Identify whether water or `ScheduleBatchedJobs()` owns the remaining ~20 ms transient.
 - [ ] Reduce it without reducing render distance/coverage or introducing synchronous job completion.
 - [ ] No geometry holes or near/far fallback regression.
 - [ ] Final corrected full traversal reaches movement and passes coverage acceptance.
