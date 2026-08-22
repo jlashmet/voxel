@@ -65,9 +65,11 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(HasPendingDialogue(driver), Is.True,
                 "The production opening never reached recovered dialogue line 1.");
 
-            AssertReadable(openingCamera, GameObject.Find("Weldon"), "Weldon at line 1");
-            AssertReadable(openingCamera, ReadActorRoot(madelineActor), "Madeline at line 1");
-            AssertReadable(openingCamera, ReadActorRoot(stevenActor), "Steven at line 1");
+            AssertPhaseReadable(
+                openingCamera,
+                "line 1",
+                new[] { "Weldon", "Madeline", "Steven" },
+                new[] { GameObject.Find("Weldon"), ReadActorRoot(madelineActor), ReadActorRoot(stevenActor) });
 
             int dismissedBeforeLogan = 0;
             for (var frame = 0; frame < 240; frame++)
@@ -96,10 +98,17 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(ReadBoolProperty(driver, "OpeningCutsceneCameraActive"), Is.True,
                 "The fixed ensemble camera must still own the view when Logan first speaks.");
 
-            AssertReadable(openingCamera, GameObject.Find("Weldon"), "Weldon at Logan's entrance");
-            AssertReadable(openingCamera, ReadActorRoot(madelineActor), "Madeline at Logan's entrance");
-            AssertReadable(openingCamera, ReadActorRoot(stevenActor), "Steven at Logan's entrance");
-            AssertReadable(openingCamera, ReadActorRoot(loganActor), "Logan at line 11");
+            AssertPhaseReadable(
+                openingCamera,
+                "Logan line 11",
+                new[] { "Weldon", "Madeline", "Steven", "Logan" },
+                new[]
+                {
+                    GameObject.Find("Weldon"),
+                    ReadActorRoot(madelineActor),
+                    ReadActorRoot(stevenActor),
+                    ReadActorRoot(loganActor)
+                });
         }
 
         [UnityTearDown]
@@ -124,7 +133,44 @@ namespace VoxelEngine.Tests.PlayMode
             _previousActiveScene = default;
         }
 
-        private static void AssertReadable(Camera camera, GameObject visualRoot, string participant)
+        private static void AssertPhaseReadable(
+            Camera camera,
+            string phase,
+            string[] participants,
+            GameObject[] visualRoots)
+        {
+            Assert.That(participants.Length, Is.EqualTo(visualRoots.Length));
+            var diagnostics = new List<string>(participants.Length);
+            var failures = new List<string>();
+
+            for (var i = 0; i < participants.Length; i++)
+            {
+                ViewportMeasurement measurement = Measure(camera, visualRoots[i], participants[i] + " at " + phase);
+                diagnostics.Add(participants[i] + "=" + measurement.Describe());
+
+                if (measurement.MinX < ViewportMargin)
+                    failures.Add(participants[i] + " left=" + measurement.MinX.ToString("F3"));
+                if (measurement.MaxX > 1f - ViewportMargin)
+                    failures.Add(participants[i] + " right=" + measurement.MaxX.ToString("F3"));
+                if (measurement.MinY < ViewportMargin)
+                    failures.Add(participants[i] + " bottom=" + measurement.MinY.ToString("F3"));
+                if (measurement.MaxY > 1f - ViewportMargin)
+                    failures.Add(participants[i] + " top=" + measurement.MaxY.ToString("F3"));
+                if (measurement.Height < MinimumBodyViewportHeight)
+                    failures.Add(participants[i] + " height=" + measurement.Height.ToString("F3"));
+            }
+
+            string envelope = "KENTRIDGE_CAMERA_READABILITY phase=" + phase + " " + string.Join("; ", diagnostics);
+            Debug.Log(envelope);
+            if (failures.Count > 0)
+            {
+                Assert.Fail(
+                    "Opening camera readability failed at " + phase + ": " + string.Join(", ", failures)
+                    + ". Full envelope: " + string.Join("; ", diagnostics));
+            }
+        }
+
+        private static ViewportMeasurement Measure(Camera camera, GameObject visualRoot, string participant)
         {
             Assert.That(visualRoot, Is.Not.Null, participant + " must have a realized visual body.");
 
@@ -175,26 +221,32 @@ namespace VoxelEngine.Tests.PlayMode
                 maxY = Mathf.Max(maxY, viewport.y);
             }
 
-            float viewportHeight = maxY - minY;
-            float viewportWidth = maxX - minX;
-            Debug.Log(
-                "KENTRIDGE_CAMERA_READABILITY participant=" + participant
-                + " viewportHeight=" + viewportHeight.ToString("F3")
-                + " viewportWidth=" + viewportWidth.ToString("F3")
-                + " bounds=(" + minX.ToString("F3") + "," + minY.ToString("F3")
-                + ")-(" + maxX.ToString("F3") + "," + maxY.ToString("F3") + ")");
+            return new ViewportMeasurement(minX, minY, maxX, maxY);
+        }
 
-            Assert.That(minX, Is.GreaterThanOrEqualTo(ViewportMargin),
-                participant + " is clipped against the left edge of the fixed opening shot.");
-            Assert.That(maxX, Is.LessThanOrEqualTo(1f - ViewportMargin),
-                participant + " is clipped against the right edge of the fixed opening shot.");
-            Assert.That(minY, Is.GreaterThanOrEqualTo(ViewportMargin),
-                participant + " is clipped against the bottom edge of the fixed opening shot.");
-            Assert.That(maxY, Is.LessThanOrEqualTo(1f - ViewportMargin),
-                participant + " is clipped against the top edge of the fixed opening shot.");
-            Assert.That(viewportHeight, Is.GreaterThanOrEqualTo(MinimumBodyViewportHeight),
-                participant + " is technically visible but too small for the intended ensemble shot. "
-                + "Rendered viewport height=" + viewportHeight.ToString("F3") + ".");
+        private readonly struct ViewportMeasurement
+        {
+            public readonly float MinX;
+            public readonly float MinY;
+            public readonly float MaxX;
+            public readonly float MaxY;
+
+            public float Height => MaxY - MinY;
+            public float Width => MaxX - MinX;
+
+            public ViewportMeasurement(float minX, float minY, float maxX, float maxY)
+            {
+                MinX = minX;
+                MinY = minY;
+                MaxX = maxX;
+                MaxY = maxY;
+            }
+
+            public string Describe() =>
+                "h=" + Height.ToString("F3")
+                + " w=" + Width.ToString("F3")
+                + " bounds=(" + MinX.ToString("F3") + "," + MinY.ToString("F3")
+                + ")-(" + MaxX.ToString("F3") + "," + MaxY.ToString("F3") + ")";
         }
 
         private static bool HasPendingDialogue(Component driver) =>
