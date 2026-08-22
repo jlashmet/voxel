@@ -77,10 +77,9 @@ if [[ -n "$TEST_FILTER" ]]; then
       : "${STATIONARY_SAMPLE:=10}"
       ;;
     VoxelEngine.Tests.PlayMode.ShowcaseTraversalPerformanceTests.ContinuousPlayerTraversalNeverStuttersOrOpensNearFarGap)
-      # The PlayMode version is still valuable for assertions, but the generic single-test runner
-      # deliberately uses one Unity job worker and therefore cannot provide representative frame
-      # timing for the renderer's multi-worker streaming path. Always follow it with the same
-      # production VoxelShowcase in a real player and scripted walk.
+      # The PlayMode version is valuable for coverage/blocking assertions and now gets a bounded
+      # multi-worker pool in tests-single.yml so it can reach movement. Frame timing still belongs
+      # to the production VoxelShowcase real player rather than the Editor test loop.
       SCENE="Assets/Scenes/VoxelShowcase.unity"
       : "${RUN_SECONDS:=150}"
       : "${AUTOWALK_AFTER:=60}"
