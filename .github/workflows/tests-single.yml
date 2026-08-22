@@ -173,6 +173,8 @@ jobs:
           steps.request.outputs.test != 'VoxelEngine.Tests.PlayMode.KentridgeOpeningDialoguePlayTests' &&
           !startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.KentridgeOpeningProductionAcceptanceTests.') &&
           steps.request.outputs.test != 'VoxelEngine.Tests.PlayMode.KentridgeOpeningProductionAcceptanceTests' &&
+          !startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.KentridgeOpeningCameraReadabilityTests.') &&
+          steps.request.outputs.test != 'VoxelEngine.Tests.PlayMode.KentridgeOpeningCameraReadabilityTests' &&
           !startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.ArchLookdevSceneTests.') &&
           steps.request.outputs.test != 'VoxelEngine.Tests.PlayMode.ArchLookdevSceneTests' &&
           !startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.TerrainLookdevScreenshotTests.') &&
@@ -224,7 +226,8 @@ jobs:
           if [[ "$TEST_PLATFORM" == "EditMode" ||
                 "$TEST_FILTER" == VoxelEngine.Tests.PlayMode.KentridgeStructureComparisonSceneTests.* ||
                 "$TEST_FILTER" == VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests.* ||
-                "$TEST_FILTER" == VoxelEngine.Tests.PlayMode.KentridgeOpeningProductionAcceptanceTests.* ]]; then
+                "$TEST_FILTER" == VoxelEngine.Tests.PlayMode.KentridgeOpeningProductionAcceptanceTests.* ||
+                "$TEST_FILTER" == VoxelEngine.Tests.PlayMode.KentridgeOpeningCameraReadabilityTests.* ]]; then
             EXTRA_ARGS+=(-nographics)
           fi
 
