@@ -3,7 +3,8 @@ run-name: Kentridge evidence · ${{ github.ref_name }}
 
 # Diagnostic transport for reviewing real-player Kentridge frames when GitHub artifact storage is
 # exhausted. This does not replace the strict visual artifact gate in tests-single.yml: it only
-# emits the already-reduced representative JPEGs from the same standalone-player capture path.
+# emits and persists the already-reduced representative JPEGs from the same standalone-player
+# capture path on the disposable ci-evidence branch.
 on:
   push:
     branches:
@@ -12,7 +13,7 @@ on:
       - '.github/kentridge-evidence-request.json'
 
 permissions:
-  contents: read
+  contents: write
   statuses: write
 
 jobs:
@@ -98,6 +99,27 @@ jobs:
             base64 < "$frame" | tr -d '\n'
             printf '\n'
           done < <(find "$EVIDENCE" -type f -name '*.jpg' -size +1k | sort)
+
+      - name: Persist compact evidence on request branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          SOURCE="$GITHUB_WORKSPACE/Artifacts/KentridgeEvidence/KentridgeEvidence"
+          DEST="$GITHUB_WORKSPACE/.ci-evidence/kentridge"
+          mkdir -p "$DEST"
+          rm -f "$DEST"/*.jpg "$DEST"/README.txt
+          cp "$SOURCE"/*.jpg "$DEST"/
+          cat > "$DEST/README.txt" <<EOF
+          Real-player Kentridge visual evidence from Actions run $GITHUB_RUN_ID.
+          Source request commit: $GITHUB_SHA
+          Diagnostic copies only; strict visual proof remains the normal tests-single artifact gate.
+          EOF
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .ci-evidence/kentridge
+          git commit -m "Persist Kentridge visual evidence for review"
+          git push origin HEAD:"$GITHUB_REF_NAME"
 
       - name: Publish final evidence status
         if: always()
