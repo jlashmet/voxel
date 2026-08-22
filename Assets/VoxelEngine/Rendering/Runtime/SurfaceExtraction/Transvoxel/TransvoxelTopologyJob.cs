@@ -130,20 +130,54 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
                 float3 local = ((float3)(cell + o0) * t0
                               + (float3)(cell + o1) * t1) * SourceStep;
 
-                // Extruded analytic profiles deliberately cross the depth axis at exactly half a
-                // voxel so their front/back caps stay planar. That must not force the cap's rim to
-                // the integer XY lattice, though: doing so turns a circular intrados into a visible
-                // staircase whenever the rear cap is exposed. Move only the transverse coordinates
-                // of a near-rim cap vertex to the authored SDF zero crossing; the extrusion-axis
-                // coordinate remains the exact planar half-step above.
+                // The combined authored SDF on a front/back cap is min(profile, depth). At the
+                // cap layer depth is always +0.5 voxel, which can hide a profile distance well over
+                // one voxel and flatten the X/Y gradient to zero. For a cell already proven to be
+                // on the in-plane analytic perimeter, recover the same extrusion-invariant profile
+                // from up to two samples inward, where depth no longer wins the min(). Keep the
+                // extrusion coordinate on the exact occupancy half-step and move only transverse
+                // coordinates to that recovered profile zero crossing.
                 if (extrusionCapEdge)
                 {
                     bool c0Solid = IsSolid(materials[c0]);
-                    int solidCorner = c0Solid ? c0 : c1;
+                    int3 solidOffset = c0Solid ? o0 : o1;
+                    int3 airOffset = c0Solid ? o1 : o0;
                     VoxelBoundarySample solidBoundary = c0Solid ? b0 : b1;
-                    int3 solidGrid = cell + Padding + (c0Solid ? o0 : o1);
-                    local = ProjectExtrusionCapRim(
-                        local, axis, solidBoundary, DensityNormal(solidGrid));
+                    int3 solidGrid = cell + Padding + solidOffset;
+                    int inwardDirection = airOffset[axis] > solidOffset[axis] ? -1 : 1;
+
+                    int3 inwardGrid1 = solidGrid;
+                    inwardGrid1[axis] = math.clamp(
+                        inwardGrid1[axis] + inwardDirection, 0, GridSize - 1);
+                    int3 inwardGrid2 = solidGrid;
+                    inwardGrid2[axis] = math.clamp(
+                        inwardGrid2[axis] + inwardDirection * 2, 0, GridSize - 1);
+                    var inwardBoundary1 = new VoxelBoundarySample
+                    {
+                        Packed = BoundarySamples[GridIndex(inwardGrid1)]
+                    };
+                    var inwardBoundary2 = new VoxelBoundarySample
+                    {
+                        Packed = BoundarySamples[GridIndex(inwardGrid2)]
+                    };
+
+                    bool inPlaneBoundary = HasInPlaneOccupancyTransition(solidGrid, axis);
+                    VoxelBoundarySample profileBoundary = ResolveExtrusionCapProfileSample(
+                        solidBoundary, inwardBoundary1, inwardBoundary2,
+                        axis, inPlaneBoundary);
+                    if (profileBoundary.IsAuthored)
+                    {
+                        int3 profileGrid = solidGrid;
+                        if (IsCompatibleExtrusionProfileSample(inwardBoundary2, axis)
+                            && inwardBoundary2.Packed == profileBoundary.Packed)
+                            profileGrid = inwardGrid2;
+                        else if (IsCompatibleExtrusionProfileSample(inwardBoundary1, axis)
+                                 && inwardBoundary1.Packed == profileBoundary.Packed)
+                            profileGrid = inwardGrid1;
+
+                        local = ProjectExtrusionCapProfile(
+                            local, axis, profileBoundary, DensityNormal(profileGrid));
+                    }
                 }
 
                 float3 position = (ChunkOriginVoxel + local + 0.5f) * VoxelSize;
@@ -216,20 +250,69 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
             && boundary.SignedQ3 >= 0
             && boundary.SignedQ3 < 4;
 
+        internal static VoxelBoundarySample ResolveExtrusionCapProfileSample(
+            VoxelBoundarySample capBoundary,
+            VoxelBoundarySample inwardBoundary1,
+            VoxelBoundarySample inwardBoundary2,
+            int edgeAxis,
+            bool inPlaneBoundary)
+        {
+            if (!IsCompatibleExtrusionProfileSample(capBoundary, edgeAxis)) return default;
+            if (!IsExtrusionCapRimSample(capBoundary, edgeAxis) && !inPlaneBoundary) return default;
+
+            VoxelBoundarySample best = capBoundary;
+            if (IsCompatibleExtrusionProfileSample(inwardBoundary1, edgeAxis)
+                && inwardBoundary1.SignedQ3 >= best.SignedQ3)
+                best = inwardBoundary1;
+            if (IsCompatibleExtrusionProfileSample(inwardBoundary2, edgeAxis)
+                && inwardBoundary2.SignedQ3 >= best.SignedQ3)
+                best = inwardBoundary2;
+            return best;
+        }
+
+        internal static float3 ProjectExtrusionCapProfile(
+            float3 local, int edgeAxis, VoxelBoundarySample profileBoundary, float3 densityNormal)
+        {
+            if (!IsCompatibleExtrusionProfileSample(profileBoundary, edgeAxis)) return local;
+            densityNormal[edgeAxis] = 0f;
+            float lengthSq = math.lengthsq(densityNormal);
+            if (lengthSq <= 1e-8f) return local;
+            float distance = profileBoundary.SignedQ3 * 0.125f;
+            return local + densityNormal * math.rsqrt(lengthSq) * distance;
+        }
+
         internal static float3 ProjectExtrusionCapRim(
             float3 local, int edgeAxis, VoxelBoundarySample boundary, float3 densityNormal)
         {
             if (!IsExtrusionCapRimSample(boundary, edgeAxis)) return local;
-            densityNormal[edgeAxis] = 0f;
-            float lengthSq = math.lengthsq(densityNormal);
-            if (lengthSq <= 1e-8f) return local;
-            float distance = boundary.SignedQ3 * 0.125f;
-            return local + densityNormal * math.rsqrt(lengthSq) * distance;
+            return ProjectExtrusionCapProfile(local, edgeAxis, boundary, densityNormal);
+        }
+
+        private static bool IsCompatibleExtrusionProfileSample(
+            VoxelBoundarySample boundary, int edgeAxis) =>
+            boundary.IsAuthored
+            && boundary.ExtrusionAxis == edgeAxis
+            && boundary.SignedQ3 >= 0;
+
+        private bool HasInPlaneOccupancyTransition(int3 grid, int faceAxis)
+        {
+            int axisA = (faceAxis + 1) % 3;
+            int axisB = (faceAxis + 2) % 3;
+            for (int b = -1; b <= 1; b++)
+            for (int a = -1; a <= 1; a++)
+            {
+                if (a == 0 && b == 0) continue;
+                int3 neighbour = grid;
+                neighbour[axisA] += a;
+                neighbour[axisB] += b;
+                if (!IsSolid(Materials[GridIndex(neighbour)])) return true;
+            }
+            return false;
         }
 
         private void WriteEmpty()
         {
-            Output.Write((byte)0);
+            Output.Write((byte)1);
             Output.Write((byte)0);
             Output.Write((byte)0);
             Output.EndForEachIndex();
