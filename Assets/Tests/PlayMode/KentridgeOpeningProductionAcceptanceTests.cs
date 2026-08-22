@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
+using MountingForce.WorldGen.Content.Kentridge;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -62,9 +63,19 @@ namespace VoxelEngine.Tests.PlayMode
             Vector3 openingFocus = ReadVector3Property(driver, "OpeningCutsceneCameraFocus");
             Vector3 openingCameraPosition = driver.transform.position;
             Quaternion openingCameraRotation = driver.transform.rotation;
-            Assert.That(openingCameraPosition.y - openingFocus.y, Is.GreaterThan(2.5f),
-                "The opening camera must be elevated above the pub conversation group.");
-            Assert.That(Vector3.Dot(driver.transform.forward, Vector3.down), Is.GreaterThan(0.45f),
+            object pubAccessAtOpening = ReadPrivateField<object>(driver, "_pubAccess");
+            Vector3 openingEntrance = ReadRealizedPoint(pubAccessAtOpening, "Entrance");
+            Vector3 openingInward = ReadInt2Direction(pubAccessAtOpening, "Inward");
+            float firstSlabBottom = openingEntrance.y
+                + (KentridgeDefinition.Theme.FloorHeightDm - 3) * DecimetresToMetres;
+
+            Assert.That(openingCameraPosition.y, Is.LessThan(firstSlabBottom - 0.1f),
+                "The opening camera must remain below the generated pub's first intermediate floor instead of photographing through the roof.");
+            Assert.That(Vector3.Dot(openingCameraPosition - openingEntrance, openingInward), Is.GreaterThan(0.5f),
+                "The opening establishing camera must remain physically inside the generated pub entrance plane.");
+            Assert.That(openingCameraPosition.y - openingFocus.y, Is.GreaterThan(1.3f),
+                "The opening camera must remain elevated above the pub conversation group while staying below the upper floor.");
+            Assert.That(Vector3.Dot(driver.transform.forward, Vector3.down), Is.GreaterThan(0.35f),
                 "The opening camera must look downward as an overhead ensemble shot.");
             Assert.That(GameObject.Find("Weldon"), Is.Not.Null,
                 "The production opening must realize a visible Weldon body under the ensemble camera.");
