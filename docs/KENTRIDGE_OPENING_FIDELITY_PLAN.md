@@ -20,6 +20,7 @@ It is subordinate to `AGENTS.md`, `CLAUDE.md`, `docs/WORLDBUILDER_RUNTIME_INTEGR
 
 - [x] Add a focused regression covering all 31 recovered lines, exact speaker order, and stable cue mapping.
 - [x] Add a focused regression covering the recovered 10 / 1 / 20 choreography split and the action ordering around Logan's entrance.
+- [x] Keep artifact-quota failures from masking successful non-visual targeted tests while retaining strict artifact upload for visual proof runs.
 - [ ] Prove the dialogue/source regression passes on the exact current feature head through `ci/single-test`.
 - [ ] Prove the choreography regression passes on the exact current feature head through `ci/single-test`.
 - [ ] Re-run the production Kentridge playable-scene acceptance with the expanded 31-line opening and prove control/camera/movement/story handoff still completes.
