@@ -1,7 +1,7 @@
 # Main-thread render admission reduction
 
 **Branch:** `agent/main-thread-render-jobs-v2`
-**Current base:** merged current `master` through `b496f3a0bc600c9532222e10cd60a62a244ecfa3`
+**Current base:** contains current `master` through `15c388bc`
 **Related plan:** `.claude/plans/rendering-garbled.md`
 
 ## Goal
@@ -59,6 +59,7 @@ Authoritative surface classification/compaction already runs as Jobs/Burst work.
 ## 2026-08-22 master integration / CI compatibility
 
 - [x] Merge current `master` into the feature branch, most recently through `b496f3a0bc600c9532222e10cd60a62a244ecfa3` in merge commit `5ca49069aa1c53f5ac378e113628bc6081ddfefb`.
+- [x] Re-check after the latest master request: feature contains current `master` through `15c388bc` and is `behind_by=0`; no additional merge commit is required.
 - [x] Preserve `master`'s single-test policy: `group: single-test-${{ github.ref }}`, `cancel-in-progress: true`, job timeout 5 minutes, Unity invocation ceiling 4 minutes.
 - [x] Adopt exactly one reused `ci-test/agent/main-thread-render-jobs-v2` branch for targeted validation.
 - [x] Restore renderer-specific CI behavior compatible with that policy: SmallVoxelShowcase bake exclusions, eight-worker traversal routing, and failure details.
@@ -90,6 +91,16 @@ Authoritative surface classification/compaction already runs as Jobs/Burst work.
 - [ ] Make command-line `AutoWalk` derive a deterministic clockwise tangent from the player/landmark world geometry, while still feeding ordinary forward movement through `CharacterMotor` and the normal streaming path. Add a focused source contract for this invariant.
 - [ ] Re-run the corrected final full traversal request and require both the PlayMode correctness gate and authoritative real-player performance/coverage gate to pass with `ci/single-test=success`.
 - [ ] Review final diff against `CLAUDE.md`, the rendering specs, and current `master`.
+
+## Terrain fidelity follow-up
+
+- [x] Confirm actual serialized `VoxelShowcase` near-terrain LOD configuration: LOD is enabled, but `m_DetailBandScale=0.6`, so the normal 96 m finest band is only 57.6 m before step-2/4/8 terrain begins.
+- [ ] Trace the authoritative moat/subtractive-terrain authoring path and compare it with `VoxelFarTerrain.SampleTerrainHeight`; determine exactly why the far height-field proxy can cover the moat.
+- [ ] Preserve fallback coverage during incomplete near-field convergence while preventing the far proxy from visibly filling authored subtractive terrain. Use authoritative/shared world data rather than a second fake moat representation.
+- [ ] Evaluate finest-LOD presentation separately from fallback correctness against the repository's documented performance/device budgets; do not blindly expand 57.6 m to 96 m.
+- [ ] Add focused regression coverage for the terrain-fidelity invariant.
+- [ ] Run focused Unity CI on the reused `ci-test/agent/main-thread-render-jobs-v2` branch and keep the job under five minutes.
+- [ ] Run the corrected exact full `VoxelShowcase` PlayMode + real-player path; inspect screenshots for moat/far-proxy fidelity and require no coverage, fallback, lease, reappearance, blocking-completion, or water-admission regression.
 
 ## Acceptance
 
