@@ -147,6 +147,16 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(Regex.IsMatch(faceted,
                 @"!TransvoxelTopologyJob\.IsExtrusionCapRimSample\s*\(\s*boundarySample\s*,\s*axis\s*\)"), Is.True,
                 "The faceted pass must yield the analytic cap rim to continuous topology instead of drawing the old voxel stair-step on top.");
+
+            string gpuPath = Path.Combine(Application.dataPath,
+                "VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute");
+            string gpu = File.ReadAllText(gpuPath);
+            Assert.That(Regex.IsMatch(gpu,
+                @"bool\s+IsExtrusionCapRimSample\s*\(\s*uint\s+packedBoundary\s*,\s*int\s+edgeAxis\s*\)"), Is.True,
+                "GPU topology must recognize the same authored extrusion-cap rim as the CPU path.");
+            Assert.That(Regex.IsMatch(gpu,
+                @"local\s*=\s*ProjectExtrusionCapRim\s*\(\s*local\s*,\s*axis\s*,\s*solidBoundary\s*,\s*solidGrid\s*\)"), Is.True,
+                "GPU topology must apply the same transverse rim projection as the CPU path.");
         }
     }
 }
