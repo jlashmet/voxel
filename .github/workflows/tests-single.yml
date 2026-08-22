@@ -42,9 +42,12 @@ permissions:
   contents: read
   statuses: write
 
-# Do not add an Actions concurrency group here. This repository has one self-hosted
-# macOS runner, and that runner is the queue. GitHub concurrency groups retain only
-# one pending run and can replace an older pending request when a newer one arrives.
+# There is one self-hosted macOS runner. Let an active Unity run finish, but keep
+# only the newest single-test request waiting behind it. GitHub replaces the older
+# pending member of this group when a newer request arrives.
+concurrency:
+  group: voxel-single-test-self-hosted-mac
+  cancel-in-progress: false
 
 jobs:
   single:
@@ -180,9 +183,6 @@ jobs:
             -logFile "$ROOT/showcase-bake.log"
           test -s "$GITHUB_WORKSPACE/Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes"
 
-      # tools/unity-run.sh deliberately refuses to start while another Unity editor is visible.
-      # A successful bake can return a moment before its macOS process disappears, so serialize
-      # adjacent Unity invocations instead of racing that shutdown.
       - name: Wait for Unity between invocations
         shell: bash
         run: |
@@ -205,14 +205,6 @@ jobs:
           set -uo pipefail
           ROOT="$GITHUB_WORKSPACE/Artifacts/SingleTest"
           mkdir -p "$ROOT"
-
-          # Keep arrays non-empty under macOS's Bash 3.2. With set -u, expanding an empty array is
-          # treated as an unbound variable and PlayMode never reaches Unity. Most correctness tests
-          # deliberately use one job worker to bound runner memory and expose accidental blocking.
-          # Traversal is different: its precondition is that the production renderer can converge
-          # while multiple chunk builds are active. One worker starves that gate before movement
-          # begins, so give this suite a bounded multi-worker pool. Real-player capture below still
-          # owns the authoritative timing result.
           EXTRA_ARGS=(-batchmode)
           WORKER_ARGS=(-job-worker-count 1)
           if [[ "$TEST_PLATFORM" == "PlayMode" &&
@@ -242,15 +234,11 @@ jobs:
           fi
 
           if (( status != 0 )); then
-            # Artifact storage can be unavailable, so make the NUnit failure readable in the job
-            # log before returning Unity's status. Keep output bounded; the player capture below
-            # still runs under always() and owns performance timing.
             if [[ -s "$ROOT/single.xml" ]]; then
               echo "=== UNITY TEST FAILURE DETAILS ==="
               python3 - "$ROOT/single.xml" <<'PY'
           import sys
           import xml.etree.ElementTree as ET
-
           root = ET.parse(sys.argv[1]).getroot()
           cases = root.findall('.//test-case')
           failed = [case for case in cases if case.get('result') not in ('Passed', 'Success')]
@@ -276,12 +264,9 @@ jobs:
           fi
           test -s "$ROOT/single.xml"
 
-          # Unity can return successfully even when a bad filter matches no tests.
-          # Treat that as a CI failure so an agent never validates a typo as green.
           python3 - "$ROOT/single.xml" <<'PY'
           import sys
           import xml.etree.ElementTree as ET
-
           path = sys.argv[1]
           root = ET.parse(path).getroot()
           cases = root.findall('.//test-case')
