@@ -93,7 +93,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
             byte counts = GeometryCounts[cellClass];
             int sourceVertexCount = counts >> 4;
             int indexCount = (counts & 0x0f) * 3;
-            int outputVertexCount = planar && !rounded ? indexCount : sourceVertexCount;
+            bool flatPlanar = UsesFlatTriangleNormals(planar, rounded, authoredBoundary);
+            int outputVertexCount = flatPlanar ? indexCount : sourceVertexCount;
             if (outputVertexCount > MaxVerticesPerCell || indexCount > MaxIndicesPerCell)
             {
                 Output.Write((byte)1);
@@ -156,7 +157,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
             Output.Write((byte)0);
             Output.Write((byte)outputVertexCount);
             Output.Write((byte)indexCount);
-            if (planar && !rounded)
+            if (flatPlanar)
             {
                 for (int i = 0; i < indexCount; i += 3)
                 {
@@ -186,6 +187,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
             }
             Output.EndForEachIndex();
         }
+
+        internal static bool UsesFlatTriangleNormals(bool planar, bool rounded, bool authoredBoundary)
+            => planar && !rounded && !authoredBoundary;
 
         private void WriteEmpty()
         {
