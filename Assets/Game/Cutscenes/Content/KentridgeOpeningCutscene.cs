@@ -46,10 +46,15 @@ namespace Game.Cutscenes.Content.Kentridge
             var stage = new[]
             {
                 new CutsceneStagePointRequirement(LeadStart, CutsceneStageRegion.PlayerSpawnArea, 8, CutsceneStageFacingHint.IntoSite),
-                new CutsceneStagePointRequirement(MadelineStage, CutsceneStageRegion.InteriorGatheringArea, 8, CutsceneStageFacingHint.TowardStageCenter),
-                new CutsceneStagePointRequirement(StevenStage, CutsceneStageRegion.InteriorGatheringArea, 8, CutsceneStageFacingHint.TowardStageCenter),
+
+                // Keep the three people already gathered at the generated bar conversationally
+                // close. The shared resolver still owns their exact lateral positions and preserves
+                // 1.4 m centre spacing at this 0.7 m clearance; this simply avoids spreading a bar
+                // conversation across the full room and keeps the fixed ensemble shot readable.
+                new CutsceneStagePointRequirement(MadelineStage, CutsceneStageRegion.InteriorGatheringArea, 7, CutsceneStageFacingHint.TowardStageCenter),
+                new CutsceneStagePointRequirement(StevenStage, CutsceneStageRegion.InteriorGatheringArea, 7, CutsceneStageFacingHint.TowardStageCenter),
                 new CutsceneStagePointRequirement(LoganStart, CutsceneStageRegion.PublicEntrance, 8, CutsceneStageFacingHint.IntoSite),
-                new CutsceneStagePointRequirement(LeadStage, CutsceneStageRegion.InteriorGatheringArea, 8, CutsceneStageFacingHint.TowardStageCenter),
+                new CutsceneStagePointRequirement(LeadStage, CutsceneStageRegion.InteriorGatheringArea, 7, CutsceneStageFacingHint.TowardStageCenter),
                 new CutsceneStagePointRequirement(EntranceFocus, CutsceneStageRegion.PublicEntrance, 4, CutsceneStageFacingHint.IntoSite),
                 new CutsceneStagePointRequirement(LoganStop, CutsceneStageRegion.EntranceApproach, 8, CutsceneStageFacingHint.TowardStageCenter)
             };
