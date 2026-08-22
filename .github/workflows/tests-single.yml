@@ -42,14 +42,18 @@ permissions:
   contents: read
   statuses: write
 
-# Do not add an Actions concurrency group here. This repository has one self-hosted
-# macOS runner, and that runner is the queue. GitHub concurrency groups retain only
-# one pending run and can replace an older pending request when a newer one arrives.
+# A branch is a latest-request mailbox. A newer single-test request on the same
+# branch cancels any older queued or running request instead of building a backlog.
+concurrency:
+  group: single-test-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   single:
     runs-on: [self-hosted, macOS]
-    timeout-minutes: 45
+    # Single-test CI is intentionally a fast-feedback path. The complete job must
+    # finish within five minutes; slow tests should be split or narrowed instead.
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
         with:
@@ -145,7 +149,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          deadline=$((SECONDS + 900))
+          deadline=$((SECONDS + 60))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
               pgrep -alf '/Unity.app/Contents/MacOS/Unity' || true
@@ -172,7 +176,7 @@ jobs:
           set -euo pipefail
           ROOT="$GITHUB_WORKSPACE/Artifacts/SingleTest"
           mkdir -p "$ROOT"
-          UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=20 \
+          UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=4 \
           UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
             -batchmode -nographics -job-worker-count 1 -quit \
             -projectPath "$GITHUB_WORKSPACE" \
@@ -187,7 +191,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          deadline=$((SECONDS + 900))
+          deadline=$((SECONDS + 60))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
               pgrep -alf '/Unity.app/Contents/MacOS/Unity' || true
@@ -219,7 +223,7 @@ jobs:
 
           echo "Running $TEST_PLATFORM test filter: $TEST_FILTER"
           status=0
-          UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=30 \
+          UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=4 \
           UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
             "${EXTRA_ARGS[@]}" -job-worker-count 1 \
             -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform "$TEST_PLATFORM" \
