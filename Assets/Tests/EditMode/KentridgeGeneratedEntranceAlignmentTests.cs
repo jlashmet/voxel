@@ -1,9 +1,11 @@
+using System.Collections.Generic;
 using MountingForce.WorldGen;
 using MountingForce.WorldGen.Architecture;
 using MountingForce.WorldGen.Content.Kentridge;
 using MountingForce.WorldGen.Voxel;
 using NUnit.Framework;
 using Unity.Collections;
+using Unity.Mathematics;
 using VoxelEngine.Structures.Api;
 
 namespace VoxelEngine.Tests.EditMode
@@ -55,6 +57,8 @@ namespace VoxelEngine.Tests.EditMode
 
                 bool foundPhysicalDoor = false;
                 bool foundProgramDoorAnchor = false;
+                int3 transform = int3.zero;
+                var transformStack = new Stack<int3>();
                 int pc = pub.ProgramOffset;
                 int end = pub.ProgramOffset + pub.ProgramLength;
                 while (pc < end)
@@ -63,32 +67,48 @@ namespace VoxelEngine.Tests.EditMode
                     int length = ShapeOps.InstructionLength(op);
                     Assert.GreaterOrEqual(length, 2);
 
-                    if (op == ShapeOp.EmitBox
-                        && (PrimitiveMode)catalogue.Program[pc + 11] == PrimitiveMode.Carve
-                        && catalogue.Program[pc + 3] == foundation
-                        && catalogue.Program[pc + 4] == z0
-                        && catalogue.Program[pc + 5] == doorWidth
-                        && catalogue.Program[pc + 6] == doorHeight
-                        && catalogue.Program[pc + 7] == wallThickness)
+                    if (op == ShapeOp.PushTransform)
+                    {
+                        transformStack.Push(transform);
+                        transform += new int3(
+                            catalogue.Program[pc + 2],
+                            catalogue.Program[pc + 3],
+                            catalogue.Program[pc + 4]);
+                    }
+                    else if (op == ShapeOp.PopTransform)
+                    {
+                        Assert.IsNotEmpty(transformStack,
+                            "Translated Pub program popped an empty transform stack.");
+                        transform = transformStack.Pop();
+                    }
+                    else if (op == ShapeOp.EmitBox
+                             && (PrimitiveMode)catalogue.Program[pc + 11] == PrimitiveMode.Carve
+                             && catalogue.Program[pc + 3] + transform.y == foundation
+                             && catalogue.Program[pc + 4] + transform.z == z0
+                             && catalogue.Program[pc + 5] == doorWidth
+                             && catalogue.Program[pc + 6] == doorHeight
+                             && catalogue.Program[pc + 7] == wallThickness)
                     {
                         foundPhysicalDoor = true;
-                        Assert.AreEqual(expectedDoorX, catalogue.Program[pc + 2],
+                        Assert.AreEqual(expectedDoorX, catalogue.Program[pc + 2] + transform.x,
                             "The physical front-wall carve must begin at the architecture-owned Pub door offset.");
                     }
                     else if (op == ShapeOp.SetAnchor
                              && catalogue.Program[pc + 2] == 0)
                     {
                         foundProgramDoorAnchor = true;
-                        Assert.AreEqual(expectedDoorCenterX, catalogue.Program[pc + 3],
+                        Assert.AreEqual(expectedDoorCenterX, catalogue.Program[pc + 3] + transform.x,
                             "The shared house bytecode door anchor must follow the physical explicit opening.");
-                        Assert.AreEqual(foundation, catalogue.Program[pc + 4]);
-                        Assert.AreEqual(z0, catalogue.Program[pc + 5]);
+                        Assert.AreEqual(foundation, catalogue.Program[pc + 4] + transform.y);
+                        Assert.AreEqual(z0, catalogue.Program[pc + 5] + transform.z);
                     }
 
                     pc += length;
                     if (op == ShapeOp.End) break;
                 }
 
+                Assert.IsEmpty(transformStack,
+                    "Generated Pub program must balance its local transform stack.");
                 Assert.IsTrue(foundPhysicalDoor,
                     "Generated Pub program must contain its physical front-door carve.");
                 Assert.IsTrue(foundProgramDoorAnchor,
