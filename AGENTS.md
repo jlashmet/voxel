@@ -14,6 +14,10 @@ Assume you cannot execute Unity, **`tools/ci-test`**, or manually dispatch GitHu
 
 Use the repository's push-triggered targeted-test mechanism on a dedicated CI request branch. Do **not** update `.github/test-request.json` on the feature/PR branch: that would create a PR synchronize event and fan out normal PR CI again.
 
+A requested single test is a fast-feedback path and must complete in **less than 5 minutes** once its workflow job starts. Keep the requested test narrow enough to fit that budget; if it does not, split or narrow the test instead of extending the single-test timeout.
+
+Each `ci-test/...` branch is latest-request-wins. When a newer request is pushed to the same CI branch, GitHub Actions cancels any older queued or running single-test workflow for that branch rather than allowing requests to queue up. Only the newest request on that branch should be monitored as authoritative.
+
 For each iteration:
 
 1. Make the code/test changes on the feature branch, commit them, and push the feature branch.
@@ -25,7 +29,7 @@ For each iteration:
    - `test`: the fully qualified test name or exact filter
    - `request_id`: a new unique string for every requested run
 4. Commit/push that request-file change on the `ci-test/...` branch and record the resulting request commit SHA.
-5. Monitor commit status **`ci/single-test`** on the request commit until it reaches a terminal state.
+5. Monitor commit status **`ci/single-test`** on the newest request commit until it reaches a terminal state.
    - A missing status means the self-hosted job is queued/not started yet.
    - `pending` means the workflow has started.
    - `success` means the requested test actually passed.
@@ -33,6 +37,7 @@ For each iteration:
    - If a shell with authenticated `gh` is available, `tools/ci-wait --sha <request-commit>` polls continuously (5 seconds by default).
    - `tools/ci-wait` automatically honors `Retry-After` for HTTP 429/rate-limit 403 responses and otherwise exponentially backs off before retrying the API.
    - Connector-only agents should poll the same commit-status context through the GitHub connector/API.
+   - If a newer request is pushed to the same `ci-test/...` branch, stop monitoring the superseded request and monitor only the newest request commit.
 6. On failure, follow the status target URL and inspect the failed-step logs and uploaded `single-test-*` artifact. Determine the cause, modify the feature branch, commit/push it, reset the CI branch to the new feature head, create a new request commit, and repeat.
 7. Continue this loop until the target behavior is proven and CI is green.
 
@@ -43,6 +48,7 @@ Do not stop after implementing a plausible fix. Continue iterating through CI un
 ## Testing
 
 - Start with the smallest test that proves the behavior being worked on.
+- A single requested test must fit the **under-5-minute** CI budget; do not make the single-test workflow slower to accommodate an oversized test.
 - Add or improve regression tests when an invariant was previously untested.
 - After targeted validation passes, run the appropriate broader affected tests when warranted.
 - Never interpret a CI run that executed zero tests as success.
