@@ -261,60 +261,42 @@ namespace VoxelEngine.Rendering.Runtime
         /// <summary>Density threshold a cell must exceed to be cloud. Lower means more sky
         /// covered; 0.5 is a broken fair-weather deck.</summary>
         public static float CloudCoverage = 0.50f;
-        /// <summary>Cloud layer lower and upper altitude in metres.</summary>
-        public static float CloudBottomMetres = 180f;
-        public static float CloudTopMetres = 260f;
-        /// <summary>Cloud animation speed in world metres per second.</summary>
-        public static Vector2 CloudWindMetresPerSecond = new(0.75f, 0.20f);
-        /// <summary>Cloud opacity multiplier.</summary>
-        public static float CloudOpacity = 0.72f;
-        /// <summary>Sun-facing cloud brightness.</summary>
-        public static float CloudSilverLining = 0.48f;
-        /// <summary>Cloud self-shadow strength.</summary>
-        public static float CloudShadow = 0.32f;
-        /// <summary>World-space vertical scale used by the cloud density field.</summary>
-        public static float CloudVerticalScale = 0.35f;
+        /// <summary>Drift rate across the deck, in arbitrary units per second.</summary>
+        public static float CloudDriftSpeed = 0.006f;
+        /// <summary>How strongly cloud replaces sky where it is present.</summary>
+        public static float CloudOpacity = 0.92f;
+        /// <summary>Sunlit cloud face.</summary>
+        public static Color CloudColour = new(1.00f, 0.99f, 0.97f);
+        /// <summary>Shaded underside. Kept blue-grey rather than neutral so cloud bases pick
+        /// up skylight instead of reading as dirty smudges.</summary>
+        public static Color CloudShadowColour = new(0.58f, 0.63f, 0.72f);
 
-        /// <summary>Reset mutable diagnostic/runtime overrides to production defaults.</summary>
-        public static void ResetRuntimeOverrides()
+        /// <summary>
+        /// Presentation lights consumed directly by the voxel surface shader. xyz is world metres
+        /// and w is radius; matching colour xyz is linear tint and w is intensity.
+        /// </summary>
+        public static Vector4[] LocalLights = System.Array.Empty<Vector4>();
+        public static Vector4[] LocalLightColours = System.Array.Empty<Vector4>();
+
+        /// <summary>
+        /// Camera-mounted spotlight consumed by the voxel surface shader.
+        /// </summary>
+        public static bool FlashlightEnabled;
+        public static Vector3 FlashlightPosition;
+        public static Vector3 FlashlightDirection = Vector3.forward;
+        public static Color FlashlightColour = new(1.00f, 0.91f, 0.72f, 1f);
+        public static float FlashlightRange = 34f;
+        public static float FlashlightIntensity = 2.4f;
+        public static float FlashlightInnerCos = 0.94f;
+        public static float FlashlightOuterCos = 0.78f;
+
+        public static bool TryGetWorld(out VoxelWorldView view)
         {
-            SolidBuildBudgetMs = 0.50;
-            SolidUploadBudgetBytes = 2 * 1024 * 1024;
-            SolidUploadSliceBytes = 1024 * 1024;
-            SolidUploadWorkerBudget = 4;
-            SolidUploadBudgetMs = 0.25;
-            SurfaceDiscoveryBudgetMs = 0.10;
-            SurfaceConvergenceBudgetScale = 8.0;
-            SurfaceMaxVoxelRingRadiusMetres = VoxelSurfaceScheduler.MaxVoxelRingRadiusMetresDefault;
-            SurfaceLodEnabled = true;
-            WaterRenderEnabled = true;
-            SurfaceEvictVisibleUnderArenaPressure = false;
-            SurfaceMaxResidentChunksPerRing = 4096;
-            SurfaceMaxConcurrentBuildsConverging = 12;
-            SurfaceMaxConcurrentBuildsConverged = 1;
-            SolidArenaMaxActiveLeases = int.MaxValue;
-            SurfaceArenaBudgetBytesOverride = 0;
-            WaterBuildBudgetMs = 0.15;
-            SurfaceBuildEnabled = true;
-            SurfaceDebugTint = Color.white;
-            TerrainSeed = 0;
-            FarBaseHeight = 0;
-            FarFieldEnabled = false;
-            CutawayEnabled = false;
-            CutawayMinVoxel = default;
-            CutawayMaxVoxel = default;
-            SunDirection = new Vector3(-0.48f, 0.76f, -0.44f).normalized;
-            SkyHorizon = new(0.55f, 0.70f, 0.92f);
-            SkyZenith = new(0.16f, 0.40f, 0.82f);
-            CloudScale = 0.55f;
-            CloudCoverage = 0.50f;
-            CloudBottomMetres = 180f;
-            CloudTopMetres = 260f;
-            CloudWindMetresPerSecond = new(0.75f, 0.20f);
-            CloudOpacity = 0.72f;
-            CloudSilverLining = 0.48f;
-            CloudShadow = 0.32f;
-            CloudVerticalScale = 0.35f;
+            view = default;
+            if (Source == null) return false;
+
+            view = Source();
+            return view.IsValid;
         }
     }
 }
