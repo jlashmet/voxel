@@ -1033,7 +1033,22 @@ namespace Game.Kentridge.PlayableSlice
                 Mathf.Max(
                     HorizontalDistance(floorFocus, madeline),
                     HorizontalDistance(floorFocus, steven)));
-            float height = Mathf.Clamp(4.2f + groupRadius * 0.35f, 4.2f, 5.5f);
+
+            // The opening is staged on the generated pub's ground floor. Kentridge's hospitality
+            // buildings have an intermediate floor at the first level height, so the previous
+            // 4.2-5.5 m camera sat above that slab and photographed the roof instead of the actors.
+            // Keep the same semantic horizontal framing, but cap the elevated shot below the
+            // architecture-owned first-floor level with enough clearance for the slab itself.
+            float groundFloorHeight =
+                KentridgeDefinition.Theme.FloorHeightDm * DecimetresToMetres;
+            float maximumInteriorHeight = groundFloorHeight - 0.6f;
+            if (maximumInteriorHeight <= 2.2f)
+                throw new InvalidOperationException(
+                    "Generated Kentridge pub has insufficient ground-floor clearance for the opening camera.");
+            float height = Mathf.Clamp(
+                2.5f + groupRadius * 0.12f,
+                2.2f,
+                maximumInteriorHeight);
             float back = Mathf.Clamp(2.6f + groupRadius * 0.25f, 2.6f, 3.6f);
 
             _openingCameraFocus = floorFocus + Vector3.up * 0.9f;
