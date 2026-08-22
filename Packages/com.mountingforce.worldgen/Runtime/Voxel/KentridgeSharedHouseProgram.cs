@@ -28,7 +28,7 @@ namespace MountingForce.WorldGen.Voxel
         private const int PubCounterHeightDm = 9;
         private const int PubCounterTopOverhangDm = 2;
         private const int PubCounterTopThicknessDm = 2;
-        private const int PubCounterRearClearanceDm = 4;
+        private const int PubCounterGatheringGapDm = 6;
 
         internal readonly struct Program
         {
@@ -178,19 +178,25 @@ namespace MountingForce.WorldGen.Voxel
             int counterHeight = PubCounterHeightDm * scale;
             int topOverhang = PubCounterTopOverhangDm * scale;
             int topThickness = PubCounterTopThicknessDm * scale;
-            int rearClearance = PubCounterRearClearanceDm * scale;
+            int gatheringGap = PubCounterGatheringGapDm * scale;
+            int usableInteriorDepth = depth - wallThickness;
+            int gatheringDepth = (usableInteriorDepth * 2) / 3;
 
-            if (counterWidth <= 0
-                || depth <= wallThickness + rearClearance + counterDepth + 16 * scale)
+            if (counterWidth <= 0 || usableInteriorDepth <= 0)
                 throw new InvalidOperationException(
                     "Generated Kentridge pub is too small for the required interior counter.");
 
             int counterX = x0 + (width - counterWidth) / 2;
-            int counterZ = z0 + depth - wallThickness - rearClearance - counterDepth;
+            int counterZ = z0 + gatheringDepth + gatheringGap;
+            int rearInteriorEdge = z0 + usableInteriorDepth;
+            if (counterZ + counterDepth + topOverhang > rearInteriorEdge)
+                throw new InvalidOperationException(
+                    "Generated Kentridge pub has no bartender circulation space behind its counter.");
 
             // Furniture belongs to the generated Pub program so it shares the exact building
-            // placement/orientation/precedence. Keep it in the rear half of the room so the public
-            // entrance-to-gathering route remains a wide, unobstructed aisle.
+            // placement/orientation/precedence. Its public face sits immediately beyond the room's
+            // natural gathering strip, leaving the entrance approach open and usable space behind
+            // the bar for circulation instead of pinning the counter against the rear wall.
             var code = new List<int>(program.Length + 24);
             for (int i = 0; i < program.Length - endLength; i++)
                 code.Add(program[i]);
