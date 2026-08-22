@@ -24,8 +24,8 @@ namespace VoxelEngine.Tests.PlayMode
             byte[] bytes = File.ReadAllBytes(source);
             Assert.Greater(bytes.Length, 1024 * 1024,
                 "Showcase bake is unexpectedly tiny and should not replace the production asset.");
-            Assert.Less(bytes.Length, 20 * 1024 * 1024,
-                "Current showcase bake should remain in the compact production format; a much larger file likely means a stale startup image survived setup.");
+            Assert.Less(bytes.Length, 32 * 1024 * 1024,
+                "Fresh broad-relief terrain may produce a larger startup image, but a bake this large is likely the known stale ~37 MiB image rather than the current generated world.");
 
             string directory = Path.GetDirectoryName(destination);
             if (string.IsNullOrEmpty(directory))
