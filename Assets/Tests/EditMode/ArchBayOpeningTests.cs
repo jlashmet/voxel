@@ -137,16 +137,14 @@ namespace VoxelEngine.Tests.EditMode
                 VoxelBoundarySample.FromSignedQ4(8, extrusionAxis: 2);
             Assert.That(TransvoxelTopologyJob.IsExtrusionCapRimSample(
                 capInterior, edgeAxis: 2), Is.False,
-                "A cap sample saturated at the half-voxel depth distance is not known to lie on the radial rim and must stay on the regular cap grid.");
+                "A sample at the half-voxel centre-distance threshold alone is not enough to classify the cap rim.");
             Assert.That(TransvoxelTopologyJob.IsExtrusionCapRimSample(rim, edgeAxis: 0), Is.False,
                 "Only an edge along the primitive's extrusion axis is a planar cap crossing.");
 
-            string facetedPath = Path.Combine(Application.dataPath,
-                "VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/FacetedMaskJob.cs");
-            string faceted = File.ReadAllText(facetedPath);
-            Assert.That(Regex.IsMatch(faceted,
-                @"!TransvoxelTopologyJob\.IsExtrusionCapRimSample\s*\(\s*boundarySample\s*,\s*axis\s*\)"), Is.True,
-                "The faceted pass must yield the analytic cap rim to continuous topology instead of drawing the old voxel stair-step on top.");
+            Assert.That(PositiveDepthFaceMask(hasDiagonalInPlaneAir: true), Is.Zero,
+                "A diagonal in-plane occupancy transition proves the analytic perimeter crosses the cap neighbourhood. The faceted pass must yield that whole boundary strip even when the centre sample is exactly half a voxel from the SDF boundary.");
+            Assert.That(PositiveDepthFaceMask(hasDiagonalInPlaneAir: false), Is.Not.Zero,
+                "Authored cap interiors must remain exact faceted planes; only the analytic perimeter strip yields to continuous topology.");
 
             string gpuPath = Path.Combine(Application.dataPath,
                 "VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute");
@@ -157,6 +155,63 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(Regex.IsMatch(gpu,
                 @"local\s*=\s*ProjectExtrusionCapRim\s*\(\s*local\s*,\s*axis\s*,\s*solidBoundary\s*,\s*solidGrid\s*\)"), Is.True,
                 "GPU topology must apply the same transverse rim projection as the CPU path.");
+        }
+
+        private static uint PositiveDepthFaceMask(bool hasDiagonalInPlaneAir)
+        {
+            const int cellsPerAxis = 1;
+            const int gridSize = 4;
+            const int padding = 1;
+            const int sampleCount = gridSize * gridSize * gridSize;
+
+            var materials = new NativeArray<byte>(sampleCount, Allocator.TempJob);
+            var surfaces = new NativeArray<uint>(sampleCount, Allocator.TempJob);
+            var boundaries = new NativeArray<byte>(sampleCount, Allocator.TempJob);
+            var masks = new NativeArray<uint>(6, Allocator.TempJob);
+            try
+            {
+                for (int i = 0; i < materials.Length; i++) materials[i] = 1;
+
+                int3 centre = new(padding, padding, padding);
+                int CentreIndex(int3 p) => p.x + gridSize * (p.y + gridSize * p.z);
+                int centreIndex = CentreIndex(centre);
+                surfaces[centreIndex] = SurfaceStyles.Planar;
+                boundaries[centreIndex] =
+                    VoxelBoundarySample.FromSignedQ4(8, extrusionAxis: 2).Packed;
+
+                int3 depthAir = centre + new int3(0, 0, 1);
+                materials[CentreIndex(depthAir)] = VoxelGrid.MaterialEmpty;
+
+                if (hasDiagonalInPlaneAir)
+                {
+                    // Keep all four axial X/Y neighbours solid. The only occupancy evidence is a
+                    // diagonal crossing, exactly the corner case that recreates voxel-scale steps.
+                    int3 diagonalAir = centre + new int3(1, 1, 0);
+                    materials[CentreIndex(diagonalAir)] = VoxelGrid.MaterialEmpty;
+                }
+
+                var job = new FacetedMaskJob
+                {
+                    Materials = materials,
+                    SurfaceSemantics = surfaces,
+                    BoundarySamples = boundaries,
+                    Catalogue = SurfaceCatalogueView.CreateBuiltIns(),
+                    Coatings = default,
+                    CellsPerAxis = cellsPerAxis,
+                    GridSize = gridSize,
+                    Padding = padding,
+                    FaceMasks = masks,
+                };
+                job.Execute(0);
+                return masks[5];
+            }
+            finally
+            {
+                masks.Dispose();
+                boundaries.Dispose();
+                surfaces.Dispose();
+                materials.Dispose();
+            }
         }
     }
 }
