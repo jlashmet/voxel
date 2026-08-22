@@ -1,6 +1,9 @@
+using System.IO;
+using System.Text.RegularExpressions;
 using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
+using UnityEngine;
 using VoxelEngine.Structures.Api;
 using VoxelEngine.Structures.Runtime;
 
@@ -60,6 +63,29 @@ namespace VoxelEngine.Tests.EditMode
                 "The lower opening must clear the left integer-radius endpoint; otherwise a one-voxel column survives below the springline.");
             Assert.That(lowerOpening.B.x, Is.GreaterThanOrEqualTo(openingCentreX + radius),
                 "The lower opening must clear the right integer-radius endpoint; otherwise a one-voxel column survives below the springline.");
+        }
+
+        [Test]
+        public void AuthoredBoundarySamplesDoNotRequireAxisAlignedOccupancyTransition()
+        {
+            string cpuPath = Path.Combine(Application.dataPath,
+                "VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelDensityJob.cs");
+            string gpuPath = Path.Combine(Application.dataPath,
+                "VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl");
+            string cpu = File.ReadAllText(cpuPath);
+            string gpu = File.ReadAllText(gpuPath);
+
+            Assert.That(Regex.IsMatch(cpu, @"if\s*\(\s*packedBoundary\s*!=\s*0\s*\)"), Is.True,
+                "CPU density sampling must consume an authored boundary sample whenever one exists.");
+            Assert.That(Regex.IsMatch(gpu, @"if\s*\(\s*packedBoundary\s*!=\s*0u\s*\)"), Is.True,
+                "GPU density sampling must consume an authored boundary sample whenever one exists.");
+
+            Assert.That(Regex.IsMatch(cpu,
+                @"packedBoundary\s*!=\s*0\s*&&\s*HasOppositeOccupancyNeighbour"), Is.False,
+                "CPU sampling must not reject diagonal analytic crossings just because all six axial neighbours share the centre occupancy.");
+            Assert.That(Regex.IsMatch(gpu,
+                @"packedBoundary\s*!=\s*0u\s*&&\s*HasOppositeOccupancyNeighbour"), Is.False,
+                "GPU sampling must not reject diagonal analytic crossings just because all six axial neighbours share the centre occupancy.");
         }
     }
 }
