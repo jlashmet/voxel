@@ -234,6 +234,38 @@ jobs:
           fi
 
           if (( status != 0 )); then
+            echo "::group::Requested Unity test failure details"
+            if [[ -s "$ROOT/single.xml" ]]; then
+              python3 - "$ROOT/single.xml" <<'PY'
+          import sys
+          import xml.etree.ElementTree as ET
+
+          root = ET.parse(sys.argv[1]).getroot()
+          cases = root.findall('.//test-case')
+          print(f'Executed {len(cases)} test case(s).')
+          for case in cases:
+              result = case.get('result', '')
+              if result in ('Passed', 'Skipped'):
+                  continue
+              print(f"FAILED: {case.get('fullname') or case.get('name')} result={result}")
+              failure = case.find('./failure')
+              if failure is not None:
+                  message = failure.findtext('message')
+                  stack = failure.findtext('stack-trace')
+                  if message:
+                      print(message.strip())
+                  if stack:
+                      print(stack.strip())
+          PY
+            fi
+            if [[ -s "$ROOT/single.log" ]]; then
+              echo "--- tail single.log ---"
+              tail -200 "$ROOT/single.log"
+            elif [[ -s "$ROOT/single-global.log" ]]; then
+              echo "--- tail single-global.log ---"
+              tail -200 "$ROOT/single-global.log"
+            fi
+            echo "::endgroup::"
             exit "$status"
           fi
           test -s "$ROOT/single.xml"
@@ -265,6 +297,31 @@ jobs:
             --output "$GITHUB_WORKSPACE/Artifacts/SingleTest/RealPlayer" \
             --test-filter "$TEST_FILTER" \
             --if-configured
+
+      # Artifact quota exhaustion must not make a visual iteration opaque. These previews are
+      # debugging evidence only: visual proof still requires the artifact upload below to succeed.
+      - name: Emit real-player screenshot previews
+        if: always() && steps.request.outputs.platform == 'PlayMode'
+        shell: bash
+        run: |
+          set -euo pipefail
+          SHOTS="$GITHUB_WORKSPACE/Artifacts/SingleTest/RealPlayer/Screenshots"
+          [[ -d "$SHOTS" ]] || exit 0
+          PREVIEWS="$GITHUB_WORKSPACE/Artifacts/SingleTest/RealPlayer/LogPreviews"
+          mkdir -p "$PREVIEWS"
+
+          count=0
+          while IFS= read -r shot; do
+            [[ -s "$shot" ]] || continue
+            name="$(basename "$shot" .png)"
+            preview="$PREVIEWS/${name}.jpg"
+            sips -s format jpeg -s formatOptions 55 -Z 640 "$shot" --out "$preview" >/dev/null
+            echo "VISUAL_PREVIEW_BEGIN $(basename "$shot")"
+            base64 < "$preview" | fold -w 120
+            echo "VISUAL_PREVIEW_END $(basename "$shot")"
+            count=$((count + 1))
+          done < <(find "$SHOTS" -type f -name '*.png' -size +1k | sort)
+          echo "Emitted $count real-player preview(s) to the workflow log."
 
       # A successful non-visual single test must not be turned red just because the repository has
       # exhausted GitHub artifact storage. Visual requests are different: their screenshots are
