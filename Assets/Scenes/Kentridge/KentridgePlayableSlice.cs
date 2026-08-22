@@ -81,6 +81,11 @@ namespace Game.Kentridge.PlayableSlice
         private bool _hasExitedPub;
         private bool _cutsceneOwnedControl;
         private bool _openingGameplayReleased;
+        private bool _openingCameraReady;
+        private bool _openingCutsceneCameraActive;
+        private Vector3 _openingCameraPosition;
+        private Quaternion _openingCameraRotation;
+        private Vector3 _openingCameraFocus;
         private bool _mouseLook = true;
         private float _yaw;
         private float _pitch;
@@ -89,6 +94,8 @@ namespace Game.Kentridge.PlayableSlice
 
         public bool GameplayControlEnabled => _session != null && !_session.Runtime.HasActiveCutscene;
         public bool HasExitedPub => _hasExitedPub;
+        public bool OpeningCutsceneCameraActive => _openingCutsceneCameraActive;
+        public Vector3 OpeningCutsceneCameraFocus => _openingCameraFocus;
         public bool TravelObjectiveActive =>
             _session != null && _session.Runtime.IsObjectiveActive(_travelObjective);
         public bool TravelObjectiveCompleted =>
@@ -195,7 +202,7 @@ namespace Game.Kentridge.PlayableSlice
 
                 _motor = new CharacterMotor { WalkSpeed = m_WalkSpeed };
                 _actors = new ActorHost(_motor);
-                _presentation = new SlicePresentation();
+                _presentation = new SlicePresentation(ApplyCutsceneCamera);
                 _session = KentridgeCampaignSessionBootstrap.CreateSession(
                     content.Blueprint,
                     generation,
@@ -235,6 +242,7 @@ namespace Game.Kentridge.PlayableSlice
                     farFieldEnabled: true);
 
                 CutsceneStageBinding openingStage = FindOpeningStage(content.IntroCutscene);
+                PrepareOpeningCamera(openingStage);
                 GenerateAt(openingStage.Resolve(KentridgeOpeningCutscene.LeadStart).Position);
                 GenerateAt(openingStage.Resolve(KentridgeOpeningCutscene.LeadStage).Position);
                 GenerateAt(_pubAccess.Entrance);
@@ -259,8 +267,11 @@ namespace Game.Kentridge.PlayableSlice
                     throw new InvalidOperationException(
                         "New Game did not start the authored Kentridge opening cutscene.");
 
-                ApplyPlayerCameraFacing();
-                transform.position = _motor.EyePosition;
+                if (!_openingCutsceneCameraActive)
+                {
+                    ApplyPlayerCameraFacing();
+                    transform.position = _motor.EyePosition;
+                }
                 _spawned = true;
                 _cutsceneOwnedControl = true;
                 _openingGameplayReleased = false;
@@ -313,6 +324,11 @@ namespace Game.Kentridge.PlayableSlice
             _hasExitedPub = false;
             _cutsceneOwnedControl = false;
             _openingGameplayReleased = false;
+            _openingCameraReady = false;
+            _openingCutsceneCameraActive = false;
+            _openingCameraPosition = default;
+            _openingCameraRotation = Quaternion.identity;
+            _openingCameraFocus = default;
             _surveyCycleStartedAt = -1f;
             _loggedSurveyRole = -1;
         }
@@ -366,7 +382,7 @@ namespace Game.Kentridge.PlayableSlice
             else if (hasActiveCutscene)
             {
                 TryAdvanceDialogue();
-                ApplyPlayerCameraFacing();
+                if (!_openingCutsceneCameraActive) ApplyPlayerCameraFacing();
             }
             else
             {
@@ -376,7 +392,7 @@ namespace Game.Kentridge.PlayableSlice
                     // An E interaction can start a cutscene in this very frame. Transfer control
                     // immediately instead of allowing one extra frame of player look/movement.
                     _cutsceneOwnedControl = true;
-                    ApplyPlayerCameraFacing();
+                    if (!_openingCutsceneCameraActive) ApplyPlayerCameraFacing();
                 }
                 else
                 {
@@ -386,7 +402,11 @@ namespace Game.Kentridge.PlayableSlice
                 }
             }
 
-            transform.position = _motor.EyePosition;
+            // The opening's establishing camera is a stage camera, not the player's eyes. The
+            // original game held that shot on the pub group while Weldon and then Logan entered
+            // the frame. Once the opening releases, normal first-person follow resumes.
+            if (!_openingCutsceneCameraActive)
+                transform.position = _motor.EyePosition;
 
             // Spend far more of the frame on generation while the player does not have control.
             // The steady-state budget is sized so walking never stutters, but during the opening
@@ -397,12 +417,12 @@ namespace Game.Kentridge.PlayableSlice
             float budget = hasActiveCutscene
                 ? m_LoadingGenerateBudgetMs
                 : m_GenerateBudgetMs;
-            _world.StepStreaming(transform.position, budget);
+            _world.StepStreaming(_motor.EyePosition, budget);
             if (_farTerrain != null)
             {
                 float streamed = m_LoadRadiusRegions * ShowcaseWorld.RegionMetres;
                 _farTerrain.HoleRadiusMetres = Mathf.Max(
-                    _world.ResidentGroundRadiusMetres(transform.position), streamed);
+                    _world.ResidentGroundRadiusMetres(_motor.EyePosition), streamed);
             }
         }
 
@@ -485,8 +505,11 @@ namespace Game.Kentridge.PlayableSlice
             Vector3 facing = exterior - interior;
             facing.y = 0f;
 
+            _openingCutsceneCameraActive = false;
+            _actors?.Player.SetCutsceneBodyVisible(false);
             _motor.SnapToGround(_world, interior);
             _hasExitedPub = false;
+            transform.position = _motor.EyePosition;
             if (facing.sqrMagnitude > 1e-6f)
             {
                 transform.rotation = Quaternion.LookRotation(facing.normalized, Vector3.up);
@@ -942,6 +965,62 @@ namespace Game.Kentridge.PlayableSlice
             _pitch = euler.x > 180f ? euler.x - 360f : euler.x;
         }
 
+        private void PrepareOpeningCamera(CutsceneStageBinding stage)
+        {
+            Vector3 leadStart = ToMetres(stage.Resolve(KentridgeOpeningCutscene.LeadStart).Position);
+            Vector3 leadStage = ToMetres(stage.Resolve(KentridgeOpeningCutscene.LeadStage).Position);
+            Vector3 madeline = ToMetres(stage.Resolve(KentridgeOpeningCutscene.MadelineStage).Position);
+            Vector3 steven = ToMetres(stage.Resolve(KentridgeOpeningCutscene.StevenStage).Position);
+
+            // Match the first game's staging rather than the gameplay camera: hold on the pub
+            // conversation area while Weldon walks into it. A modest horizontal offset keeps the
+            // entrance path readable; most of the separation is vertical so the result is the
+            // overhead ensemble shot the original 2D camera naturally provided.
+            Vector3 floorFocus = (leadStage + madeline + steven) / 3f;
+            Vector3 approach = floorFocus - leadStart;
+            approach.y = 0f;
+            if (approach.sqrMagnitude < 1e-6f)
+                approach = new Vector3(_pubAccess.Inward.X, 0f, _pubAccess.Inward.Y);
+            if (approach.sqrMagnitude < 1e-6f) approach = Vector3.forward;
+            approach.Normalize();
+
+            float groupRadius = Mathf.Max(
+                HorizontalDistance(floorFocus, leadStage),
+                Mathf.Max(
+                    HorizontalDistance(floorFocus, madeline),
+                    HorizontalDistance(floorFocus, steven)));
+            float height = Mathf.Clamp(4.2f + groupRadius * 0.35f, 4.2f, 5.5f);
+            float back = Mathf.Clamp(2.6f + groupRadius * 0.25f, 2.6f, 3.6f);
+
+            _openingCameraFocus = floorFocus + Vector3.up * 0.9f;
+            _openingCameraPosition = floorFocus - approach * back + Vector3.up * height;
+            _openingCameraRotation = Quaternion.LookRotation(
+                _openingCameraFocus - _openingCameraPosition,
+                Vector3.up);
+            _openingCameraReady = true;
+        }
+
+        private void ApplyCutsceneCamera(CutsceneCueId cue)
+        {
+            if (!_openingCameraReady
+                || !string.Equals(
+                    cue.Value,
+                    KentridgeOpeningCutscene.EstablishingCamera.Value,
+                    StringComparison.Ordinal))
+                return;
+
+            _openingCutsceneCameraActive = true;
+            transform.position = _openingCameraPosition;
+            transform.rotation = _openingCameraRotation;
+        }
+
+        private static float HorizontalDistance(Vector3 a, Vector3 b)
+        {
+            float dx = a.x - b.x;
+            float dz = a.z - b.z;
+            return Mathf.Sqrt(dx * dx + dz * dz);
+        }
+
         private CutsceneStageBinding FindOpeningStage(CutsceneRef intro)
         {
             for (int i = 0; i < _session.World.CutsceneStages.Count; i++)
@@ -1052,20 +1131,29 @@ namespace Game.Kentridge.PlayableSlice
         private sealed class PlayerActor : ICutsceneActorRuntime
         {
             private readonly CharacterMotor _motor;
+            private readonly GameObject _root;
+            private readonly CharacterAnimationPolicy _animation;
             private PlayerMoveOperation _move;
 
             public Vector3 Facing { get; private set; } = Vector3.forward;
             public CutsceneInt3 Position => ToCutscene(_motor.Position);
 
-            public PlayerActor(CharacterMotor motor) =>
+            public PlayerActor(CharacterMotor motor)
+            {
                 _motor = motor ?? throw new ArgumentNullException(nameof(motor));
+                _root = CutsceneCast.CreateBody("Weldon");
+                _animation = _root.GetComponentInChildren<CharacterAnimationPolicy>();
+                _root.SetActive(false);
+            }
 
             public void PlaceAt(CutsceneStagePoint destination)
             {
                 _move = null;
-                _motor.Position = ToMetres(destination.Position);
+                SetPosition(ToMetres(destination.Position));
                 _motor.Velocity = Vector3.zero;
                 SetFacing(destination.Forward);
+                SetCutsceneBodyVisible(true);
+                _animation?.SetLocomotion(CharacterLocomotionState.Idle);
             }
 
             public ICutsceneOperation MoveTo(
@@ -1083,7 +1171,12 @@ namespace Game.Kentridge.PlayableSlice
             public ICutsceneOperation FaceTowards(CutsceneInt3 targetPosition)
             {
                 Vector3 direction = ToMetres(targetPosition) - _motor.Position;
-                if (direction.sqrMagnitude > 1e-6f) Facing = direction.normalized;
+                direction.y = 0f;
+                if (direction.sqrMagnitude > 1e-6f)
+                {
+                    Facing = direction.normalized;
+                    ApplyBodyFacing();
+                }
                 return CompletedCutsceneOperation.Instance;
             }
 
@@ -1091,12 +1184,49 @@ namespace Game.Kentridge.PlayableSlice
             {
                 _move?.Tick(dt);
                 if (_move != null && _move.IsComplete) _move = null;
+                _animation?.Tick();
+            }
+
+            public void SetCutsceneBodyVisible(bool visible)
+            {
+                if (_root == null) return;
+                _root.SetActive(visible);
+                if (visible)
+                {
+                    _root.transform.position = _motor.Position;
+                    ApplyBodyFacing();
+                }
+            }
+
+            public void Dispose()
+            {
+                if (_root != null) UnityEngine.Object.Destroy(_root);
+            }
+
+            private void SetPosition(Vector3 position)
+            {
+                _motor.Position = position;
+                _motor.Velocity = Vector3.zero;
+                if (_root != null) _root.transform.position = position;
             }
 
             private void SetFacing(CutsceneInt3 facing)
             {
                 Vector3 direction = new Vector3(facing.X, facing.Y, facing.Z);
-                if (direction.sqrMagnitude > 1e-6f) Facing = direction.normalized;
+                direction.y = 0f;
+                if (direction.sqrMagnitude > 1e-6f)
+                {
+                    Facing = direction.normalized;
+                    ApplyBodyFacing();
+                }
+            }
+
+            private void ApplyBodyFacing()
+            {
+                if (_root == null || Facing.sqrMagnitude < 1e-6f) return;
+                Vector3 flat = new Vector3(Facing.x, 0f, Facing.z).normalized;
+                if (flat.sqrMagnitude > 1e-6f)
+                    _root.transform.rotation = Quaternion.LookRotation(flat, Vector3.up);
             }
 
             private sealed class PlayerMoveOperation : ICutsceneOperation
@@ -1119,10 +1249,24 @@ namespace Game.Kentridge.PlayableSlice
                     _start = start;
                     _destination = destination;
                     _duration = Mathf.Max(0f, duration);
+
+                    Vector3 direction = _destination - _start;
+                    direction.y = 0f;
+                    if (direction.sqrMagnitude > 1e-6f)
+                    {
+                        _actor.Facing = direction.normalized;
+                        _actor.ApplyBodyFacing();
+                    }
+
                     if (_duration == 0f)
                     {
-                        _actor._motor.Position = _destination;
+                        _actor.SetPosition(_destination);
+                        _actor._animation?.SetLocomotion(CharacterLocomotionState.Idle);
                         IsComplete = true;
+                    }
+                    else
+                    {
+                        _actor._animation?.SetLocomotion(CharacterLocomotionState.Walk);
                     }
                 }
 
@@ -1131,9 +1275,12 @@ namespace Game.Kentridge.PlayableSlice
                     if (IsComplete) return;
                     _elapsed = Mathf.Min(_duration, _elapsed + Mathf.Max(0f, dt));
                     float t = _duration <= 0f ? 1f : _elapsed / _duration;
-                    _actor._motor.Position = Vector3.Lerp(_start, _destination, t);
-                    _actor._motor.Velocity = Vector3.zero;
-                    if (_elapsed >= _duration) IsComplete = true;
+                    _actor.SetPosition(Vector3.Lerp(_start, _destination, t));
+                    if (_elapsed >= _duration)
+                    {
+                        _actor._animation?.SetLocomotion(CharacterLocomotionState.Idle);
+                        IsComplete = true;
+                    }
                 }
             }
         }
@@ -1142,10 +1289,10 @@ namespace Game.Kentridge.PlayableSlice
         {
             private readonly GameObject _root;
             private CutsceneInt3 _position;
+            private CharacterAnimationPolicy _animation;
+            private NpcMoveOperation _move;
 
             public CutsceneInt3 Position => _position;
-
-            private CharacterAnimationPolicy _animation;
 
             public NpcActor(string name, CutsceneInt3 position)
             {
@@ -1155,19 +1302,24 @@ namespace Game.Kentridge.PlayableSlice
                 _animation?.SetLocomotion(CharacterLocomotionState.Idle);
             }
 
-            public void PlaceAt(CutsceneStagePoint destination) => SetPosition(destination.Position);
+            public void PlaceAt(CutsceneStagePoint destination)
+            {
+                _move = null;
+                SetPosition(destination.Position);
+                SetFacing(destination.Forward);
+                _animation?.SetLocomotion(CharacterLocomotionState.Idle);
+            }
 
             public ICutsceneOperation MoveTo(
                 CutsceneStagePoint destination,
                 int durationHintMilliseconds)
             {
-                // The move is still instant; what changes is that the body is now animated, so an
-                // actor that arrives somewhere stands there breathing rather than sliding as a
-                // rigid shape. Walking the path over the duration hint is the next step and needs
-                // the actor to own a path rather than a destination.
-                SetPosition(destination.Position);
-                _animation?.SetLocomotion(CharacterLocomotionState.Idle);
-                return CompletedCutsceneOperation.Instance;
+                _move = new NpcMoveOperation(
+                    this,
+                    ToMetres(_position),
+                    ToMetres(destination.Position),
+                    durationHintMilliseconds * 0.001f);
+                return _move;
             }
 
             public ICutsceneOperation FaceTowards(CutsceneInt3 targetPosition)
@@ -1189,7 +1341,78 @@ namespace Game.Kentridge.PlayableSlice
                 _root.transform.position = ToMetres(position);
             }
 
-            public void Tick() => _animation?.Tick();
+            private void SetPosition(Vector3 position)
+            {
+                _position = ToCutscene(position);
+                _root.transform.position = position;
+            }
+
+            private void SetFacing(CutsceneInt3 facing)
+            {
+                Vector3 direction = new Vector3(facing.X, facing.Y, facing.Z);
+                direction.y = 0f;
+                if (direction.sqrMagnitude > 1e-6f)
+                    _root.transform.rotation = Quaternion.LookRotation(direction.normalized, Vector3.up);
+            }
+
+            public void Tick(float dt)
+            {
+                _move?.Tick(dt);
+                if (_move != null && _move.IsComplete) _move = null;
+                _animation?.Tick();
+            }
+
+            private sealed class NpcMoveOperation : ICutsceneOperation
+            {
+                private readonly NpcActor _actor;
+                private readonly Vector3 _start;
+                private readonly Vector3 _destination;
+                private readonly float _duration;
+                private float _elapsed;
+
+                public bool IsComplete { get; private set; }
+
+                public NpcMoveOperation(
+                    NpcActor actor,
+                    Vector3 start,
+                    Vector3 destination,
+                    float duration)
+                {
+                    _actor = actor;
+                    _start = start;
+                    _destination = destination;
+                    _duration = Mathf.Max(0f, duration);
+
+                    Vector3 direction = _destination - _start;
+                    direction.y = 0f;
+                    if (direction.sqrMagnitude > 1e-6f)
+                        _actor._root.transform.rotation = Quaternion.LookRotation(direction.normalized, Vector3.up);
+
+                    if (_duration == 0f)
+                    {
+                        _actor.SetPosition(_destination);
+                        _actor._animation?.SetLocomotion(CharacterLocomotionState.Idle);
+                        IsComplete = true;
+                    }
+                    else
+                    {
+                        _actor._animation?.SetLocomotion(CharacterLocomotionState.Walk);
+                    }
+                }
+
+                public void Tick(float dt)
+                {
+                    if (IsComplete) return;
+                    _elapsed = Mathf.Min(_duration, _elapsed + Mathf.Max(0f, dt));
+                    float t = _duration <= 0f ? 1f : _elapsed / _duration;
+                    _actor.SetPosition(Vector3.Lerp(_start, _destination, t));
+                    if (_elapsed >= _duration)
+                    {
+                        _actor._animation?.SetLocomotion(CharacterLocomotionState.Idle);
+                        IsComplete = true;
+                    }
+                }
+            }
         }
 
         /// <summary>
@@ -1293,11 +1516,12 @@ namespace Game.Kentridge.PlayableSlice
             {
                 Player.Tick(dt);
                 // Animated bodies need their policy advanced or they hold a single pose.
-                foreach (NpcActor actor in _npcs.Values) actor.Tick();
+                foreach (NpcActor actor in _npcs.Values) actor.Tick(dt);
             }
 
             public void Dispose()
             {
+                Player.Dispose();
                 foreach (NpcActor actor in _npcs.Values) actor.Dispose();
                 _npcs.Clear();
             }
@@ -1333,14 +1557,20 @@ namespace Game.Kentridge.PlayableSlice
 
         private sealed class SlicePresentation : ICutscenePresentation
         {
+            private readonly Action<CutsceneCueId> _camera;
+
             public string LastCue { get; private set; } = string.Empty;
 
             /// <summary>The line currently on screen, or null when nobody is speaking.</summary>
             public DialogueLine Pending { get; private set; }
 
+            public SlicePresentation(Action<CutsceneCueId> camera) =>
+                _camera = camera ?? throw new ArgumentNullException(nameof(camera));
+
             public ICutsceneOperation SetCamera(CutsceneCueId cameraCue)
             {
                 LastCue = cameraCue.Value;
+                _camera(cameraCue);
                 return CompletedCutsceneOperation.Instance;
             }
 
