@@ -174,6 +174,14 @@ Shader "Hidden/VoxelEngine/SmoothSurface"
 
             half4 Frag(Varyings input) : SV_Target
             {
+                if (_CutawayEnabled != 0u)
+                {
+                    float3 cutawayVoxel = input.positionWS / max(_VoxelSize, 1e-4);
+                    if (all(cutawayVoxel >= _CutawayMinVoxel.xyz)
+                        && all(cutawayVoxel <= _CutawayMaxVoxel.xyz))
+                        discard;
+                }
+
                 if (_DebugCoverage > 0.5)
                     return half4(normalize(input.normalNS) * 0.5 + 0.5, 1.0);
 
