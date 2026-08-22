@@ -122,7 +122,7 @@ namespace VoxelEngine.Tests.EditMode
                 expectedChunks.Add(SurfaceDiscoveryChunkOwner.OwningChunk(
                     discovered[i], bricksPerChunk));
 
-            SurfaceDiscoveryChunkOwner.PartitionByOwningShard(
+            int routedCount = SurfaceDiscoveryChunkOwner.PartitionByOwningShard(
                 discovered, bricksPerChunk, buckets.Length, buckets);
 
             var routedChunks = new HashSet<int3>();
@@ -145,7 +145,9 @@ namespace VoxelEngine.Tests.EditMode
 
             CollectionAssert.AreEquivalent(expectedChunks, routedChunks,
                 "Partitioning must preserve every unique owning chunk while collapsing duplicate surface bricks.");
-            Assert.Less(routedChunks.Count, discovered.Count,
+            Assert.AreEqual(expectedChunks.Count, routedCount,
+                "The router's reported admission count must equal the unique chunks actually emitted.");
+            Assert.Less(routedCount, discovered.Count,
                 "The fixture must contain duplicate surface bricks for one chunk so the deduplication contract is exercised.");
         }
 
