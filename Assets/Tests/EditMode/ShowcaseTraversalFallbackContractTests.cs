@@ -10,6 +10,7 @@ namespace VoxelEngine.Tests.EditMode
         {
             string source = File.ReadAllText(
                 "Assets/Tests/PlayMode/ShowcaseTraversalPerformanceTests.cs");
+            string workflow = File.ReadAllText(".github/workflows/tests-single.yml");
 
             StringAssert.Contains(
                 "WaitForFallbackSafeVisibleCoverage(camera, far, 1200)", source);
@@ -22,6 +23,10 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.DoesNotContain(
                 "WaitForVisibleCoverage(camera, 1800)", source,
                 "The traversal gate must exercise far fallback while near coverage streams rather than waiting for Editor-only full convergence.");
+            StringAssert.Contains(
+                "steps.request.outputs.test != 'VoxelEngine.Tests.PlayMode.ShowcaseTraversalPerformanceTests.ContinuousPlayerTraversalNeverStuttersOrOpensNearFarGap'",
+                workflow,
+                "The exact full traversal must use the refreshed checked-in VoxelShowcase bake so PlayMode plus the visible standalone capture fits the five-minute CI budget.");
         }
     }
 }
