@@ -701,6 +701,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private readonly Plane[] _visibilityFrustumPlanes = new Plane[6];
         private int _lastVisibilityCandidateChecks;
         private readonly CpuWaterSurfaceChunkCache _water = new();
+        private readonly WaterSurfaceDiscoveryAdmission _waterDiscoveryAdmission = new();
         private const int ChangeReadRecordsPerFrame = 64;
         private const int ChangeBrickExpansionsPerFrame = 256;
         private const int ChangeRecoverySlotsPerFrame = 32;
@@ -1472,7 +1473,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             double arenaReliefMs = ElapsedMs(arenaReliefStart);
 
             double waterStart = Time.realtimeSinceStartupAsDouble;
-            _water.InvalidateSurfaceBricks(storage, _discoveredSurfaceBricks);
+            _waterDiscoveryAdmission.EnqueueAndStep(_water, storage, _discoveredSurfaceBricks);
             _water.Prepare(storage, camera, voxelSize, WaterBuildBudgetMs);
             LastFrameWaterUploadedBytes = 0;
             double waterUploadDeadline = Time.realtimeSinceStartupAsDouble
