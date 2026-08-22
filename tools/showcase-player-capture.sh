@@ -20,6 +20,7 @@ Options:
   --run-seconds N          Player run duration / stationary timeout
   --auto-dialogue N        Auto-advance scene dialogue every N seconds
   --autowalk-after N       Enable the showcase scripted walk after N seconds
+  --converging-builds N    Override only visible-convergence voxel build concurrency
   --survey-after N         Enable showcase survey camera after N seconds
   --survey-height N        Survey camera height
   --survey-spin N          Survey spin degrees/second
@@ -34,6 +35,7 @@ TEST_FILTER=""
 RUN_SECONDS=""
 AUTO_DIALOGUE=""
 AUTOWALK_AFTER=""
+CONVERGING_BUILDS=""
 SURVEY_AFTER=""
 SURVEY_HEIGHT=""
 SURVEY_SPIN=""
@@ -51,6 +53,7 @@ while (( $# > 0 )); do
     --run-seconds) RUN_SECONDS="$2"; shift 2 ;;
     --auto-dialogue) AUTO_DIALOGUE="$2"; shift 2 ;;
     --autowalk-after) AUTOWALK_AFTER="$2"; shift 2 ;;
+    --converging-builds) CONVERGING_BUILDS="$2"; shift 2 ;;
     --survey-after) SURVEY_AFTER="$2"; shift 2 ;;
     --survey-height) SURVEY_HEIGHT="$2"; shift 2 ;;
     --survey-spin) SURVEY_SPIN="$2"; shift 2 ;;
@@ -90,10 +93,33 @@ if [[ -n "$TEST_FILTER" ]]; then
       : "${SURVEY_SPIN:=0}"
       KENTRIDGE_EVIDENCE=1
       ;;
+    VoxelEngine.Tests.PlayMode.StationaryRenderBenchmarkTests.SmallVoxelShowcaseMovingBuild12)
+      SCENE="Assets/Scenes/SmallVoxelShowcase.unity"
+      : "${RUN_SECONDS:=90}"
+      : "${AUTOWALK_AFTER:=20}"
+      : "${CONVERGING_BUILDS:=12}"
+      ;;
+    VoxelEngine.Tests.PlayMode.StationaryRenderBenchmarkTests.SmallVoxelShowcaseMovingBuild8)
+      SCENE="Assets/Scenes/SmallVoxelShowcase.unity"
+      : "${RUN_SECONDS:=90}"
+      : "${AUTOWALK_AFTER:=20}"
+      : "${CONVERGING_BUILDS:=8}"
+      ;;
     VoxelEngine.Tests.PlayMode.StationaryRenderBenchmarkTests|VoxelEngine.Tests.PlayMode.StationaryRenderBenchmarkTests.*)
       SCENE="Assets/Scenes/VoxelShowcase.unity"
       : "${RUN_SECONDS:=120}"
       : "${STATIONARY_SAMPLE:=10}"
+      ;;
+    VoxelEngine.Tests.PlayMode.ShowcaseTraversalPerformanceTests.ContinuousPlayerTraversalNeverStuttersOrOpensNearFarGap)
+      # The PlayMode version is valuable for coverage/blocking assertions and now gets a bounded
+      # multi-worker pool in tests-single.yml so it can reach movement. Frame timing still belongs
+      # to the production VoxelShowcase real player rather than the Editor test loop.
+      SCENE="Assets/Scenes/VoxelShowcase.unity"
+      : "${RUN_SECONDS:=150}"
+      : "${AUTOWALK_AFTER:=60}"
+      # Diagnostic A/B for the measured job-pool starvation hypothesis. This changes only the
+      # visible-convergence ceiling (12 -> 8); the production converged ceiling remains zero.
+      : "${CONVERGING_BUILDS:=8}"
       ;;
     VoxelEngine.Tests.PlayMode.CastleScreenshotTests|VoxelEngine.Tests.PlayMode.CastleScreenshotTests.*|\
     VoxelEngine.Tests.PlayMode.CastleExteriorLookdevTests|VoxelEngine.Tests.PlayMode.CastleExteriorLookdevTests.*)
@@ -137,9 +163,6 @@ FPS_LOG="$OUTPUT_ROOT/fps.txt"
 STATIONARY_LOG="$OUTPUT_ROOT/stationary.txt"
 
 cleanup() {
-  # The .app is an execution intermediate, not a useful CI artifact. In particular the single-test
-  # workflow uploads its artifact root recursively, so retaining the bundle would turn a handful of
-  # screenshots into a hundreds-of-megabytes artifact.
   rm -rf "$BUILD_DIR"
 }
 trap cleanup EXIT
@@ -160,9 +183,6 @@ rm -rf "$BUILD_DIR" "$SHOTS_DIR"
 mkdir -p "$OUTPUT_ROOT" "$BUILD_DIR"
 if [[ -z "$STATIONARY_SAMPLE" ]]; then mkdir -p "$SHOTS_DIR"; fi
 
-# A preceding bake or PlayMode run can return before the macOS Unity process disappears from the
-# process table. tools/unity-run.sh intentionally refuses concurrent editors, so make the shared
-# capture utility sequencing-safe instead of racing the previous Unity invocation.
 wait_for_unity_quiet
 
 BUILD_ARGS=(-batchmode -nographics -quit)
@@ -219,6 +239,9 @@ else
   if [[ -n "$AUTOWALK_AFTER" ]]; then
     PLAYER_ARGS+=( -voxel-autowalk-after "$AUTOWALK_AFTER" )
   fi
+  if [[ -n "$CONVERGING_BUILDS" ]]; then
+    PLAYER_ARGS+=( -voxel-converging-builds "$CONVERGING_BUILDS" )
+  fi
   if [[ -n "$SURVEY_AFTER" ]]; then
     PLAYER_ARGS+=( -voxel-survey-after "$SURVEY_AFTER" )
   fi
@@ -229,6 +252,9 @@ else
     PLAYER_ARGS+=( -voxel-survey-spin "$SURVEY_SPIN" )
   fi
   echo "Running real player for ${RUN_SECONDS}s; screenshots every 10s"
+  if [[ -n "$CONVERGING_BUILDS" ]]; then
+    echo "Real-player converging build ceiling override: $CONVERGING_BUILDS (converged remains 0)"
+  fi
 fi
 
 "$BIN" "${PLAYER_ARGS[@]}" &
@@ -267,6 +293,32 @@ fi
 
 if [[ -s "$PLAYER_LOG" ]]; then
   grep 'FPSLOG' "$PLAYER_LOG" > "$FPS_LOG" || true
+fi
+
+if [[ -s "$FPS_LOG" ]]; then
+  echo "=== REAL PLAYER FPS TAIL ==="
+  tail -20 "$FPS_LOG"
+fi
+
+if [[ -s "$PLAYER_LOG" ]] && grep -q 'PREPARESECTIONS' "$PLAYER_LOG"; then
+  echo "=== REAL PLAYER PREPARE SECTIONS ==="
+  grep 'PREPARESECTIONS' "$PLAYER_LOG" | tail -30
+fi
+
+if [[ -s "$PLAYER_LOG" ]] && grep -q 'SURFACE t=' "$PLAYER_LOG"; then
+  echo "=== REAL PLAYER SURFACE TAIL ==="
+  grep 'SURFACE t=' "$PLAYER_LOG" | tail -30
+fi
+if [[ -s "$PLAYER_LOG" ]] && grep -q 'RINGS ' "$PLAYER_LOG"; then
+  echo "=== REAL PLAYER RINGS TAIL ==="
+  grep 'RINGS ' "$PLAYER_LOG" | tail -30
+fi
+
+if [[ "$TEST_FILTER" == "VoxelEngine.Tests.PlayMode.ShowcaseTraversalPerformanceTests.ContinuousPlayerTraversalNeverStuttersOrOpensNearFarGap" ]]; then
+  python3 tools/validate-showcase-traversal.py \
+    --player-log "$PLAYER_LOG" \
+    --fps-log "$FPS_LOG" \
+    --autowalk-after "$AUTOWALK_AFTER"
 fi
 
 shots="$(find "$SHOTS_DIR" -name '*.png' -size +1k | wc -l | tr -d ' ')"

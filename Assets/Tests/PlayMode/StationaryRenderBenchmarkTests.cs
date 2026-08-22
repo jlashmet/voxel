@@ -1,24 +1,88 @@
+using System;
 using System.IO;
 using NUnit.Framework;
 
 namespace VoxelEngine.Tests.PlayMode
 {
     /// <summary>
-    /// Source contract for the standalone stationary benchmark. Selecting this test through the
-    /// single-test workflow also maps it to VoxelShowcase and executes the real-player benchmark.
+    /// Source contract for standalone renderer benchmarks selected through the single-test workflow.
     /// </summary>
     public sealed class StationaryRenderBenchmarkTests
     {
+        [Test]
+        public void SmallVoxelShowcaseMovingBuild12()
+        {
+            AssertSmallMovingProfile(nameof(SmallVoxelShowcaseMovingBuild12), "12");
+        }
+
+        [Test]
+        public void SmallVoxelShowcaseMovingBuild8()
+        {
+            AssertSmallMovingProfile(nameof(SmallVoxelShowcaseMovingBuild8), "8");
+        }
+
+        private static void AssertSmallMovingProfile(string method, string convergingBuilds)
+        {
+            string capture = File.ReadAllText("tools/showcase-player-capture.sh");
+            string singleWorkflow = File.ReadAllText(".github/workflows/tests-single.yml");
+            string filter = $"VoxelEngine.Tests.PlayMode.StationaryRenderBenchmarkTests.{method}";
+            int start = capture.IndexOf(filter, StringComparison.Ordinal);
+            Assert.GreaterOrEqual(start, 0, $"missing real-player profile for {filter}");
+            int end = capture.IndexOf(";;", start, StringComparison.Ordinal);
+            Assert.Greater(end, start, $"unterminated real-player profile for {filter}");
+            string profile = capture.Substring(start, end - start);
+
+            StringAssert.Contains("Assets/Scenes/SmallVoxelShowcase.unity", profile);
+            StringAssert.Contains(": \"${RUN_SECONDS:=90}\"", profile);
+            StringAssert.Contains(": \"${AUTOWALK_AFTER:=20}\"", profile);
+            StringAssert.Contains($": \"${{CONVERGING_BUILDS:={convergingBuilds}}}\"", profile);
+            StringAssert.Contains("timeout-minutes: 5", singleWorkflow,
+                "fast renderer profiles must stay on the repository single-test budget");
+            StringAssert.Contains($"steps.request.outputs.test != '{filter}'", singleWorkflow,
+                "SmallVoxelShowcase profiles must skip the unrelated full-showcase bake");
+        }
+
+        [Test]
+        public void WaterDiscoveryClassificationIsBoundedButMutationInvalidationStaysImmediate()
+        {
+            string scheduler = File.ReadAllText(
+                "Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs");
+            string admission = File.ReadAllText(
+                "Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/WaterSurfaceDiscoveryAdmission.cs");
+
+            StringAssert.Contains("_water.InvalidateSurfaceBricks(storage, _changedWaterBricks);", scheduler,
+                "authoritative water mutations must remain immediate");
+            StringAssert.Contains(
+                "_waterDiscoveryAdmission.EnqueueAndStep(_water, storage, _discoveredSurfaceBricks);",
+                scheduler,
+                "initial/streaming discovery must use bounded water classification");
+            StringAssert.DoesNotContain(
+                "_water.InvalidateSurfaceBricks(storage, _discoveredSurfaceBricks);", scheduler,
+                "a whole solid-discovery batch must not be synchronously water-classified");
+            StringAssert.Contains("SurfaceDiscoveryBricksPerPrepare = 32", admission);
+            StringAssert.Contains("_queued.Add(worldBrick)", admission,
+                "repeated discovery publications must deduplicate pending classification");
+            StringAssert.Contains("while (_batch.Count < SurfaceDiscoveryBricksPerPrepare", admission,
+                "each frame must drain only the bounded classification slice");
+        }
+
         [Test]
         public void StationaryBenchmarkIsSeparatedFromSurveyCapture()
         {
             string harness = File.ReadAllText(
                 "Assets/Scenes/Showcase/StationaryRenderBenchmarkHarness.cs");
+            string concurrencyHarness = File.ReadAllText(
+                "Assets/Scenes/Showcase/SurfaceBuildConcurrencyHarness.cs");
+            string prepareHarness = File.ReadAllText(
+                "Assets/Scenes/Showcase/SurfacePrepareTimingHarness.cs");
             string composition = File.ReadAllText(
                 "Assets/VoxelEngine/Composition/RenderingDiagnosticsComposition.cs");
+            string scheduler = File.ReadAllText(
+                "Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs");
             string build = File.ReadAllText(
                 "Assets/Scenes/Showcase/Editor/ShowcasePlayerBuild.cs");
             string capture = File.ReadAllText("tools/showcase-player-capture.sh");
+            string singleWorkflow = File.ReadAllText(".github/workflows/tests-single.yml");
 
             StringAssert.Contains("state.IsConverged", harness);
             StringAssert.Contains("ConvergedFramesRequired = 30", harness);
@@ -39,9 +103,9 @@ namespace VoxelEngine.Tests.PlayMode
             StringAssert.DoesNotContain("AutoSurvey", harness);
             StringAssert.DoesNotContain("AutoWalk", harness);
 
-            int sampleStart = harness.IndexOf("private void SampleFrame", System.StringComparison.Ordinal);
+            int sampleStart = harness.IndexOf("private void SampleFrame", StringComparison.Ordinal);
             int sampleEnd = harness.IndexOf("private void CaptureUnityFrameTiming", sampleStart,
-                                            System.StringComparison.Ordinal);
+                                            StringComparison.Ordinal);
             Assert.GreaterOrEqual(sampleStart, 0);
             Assert.Greater(sampleEnd, sampleStart);
             string measuredFramePath = harness.Substring(sampleStart, sampleEnd - sampleStart);
@@ -55,6 +119,17 @@ namespace VoxelEngine.Tests.PlayMode
             StringAssert.Contains("metrics.VisibilityTiming", composition);
             StringAssert.Contains("RunningSolidJobs", composition);
             StringAssert.Contains("SolidMeshesAwaitingUpload", composition);
+            StringAssert.Contains("GetSurfaceAdmissionFrame()", composition,
+                "same-frame admission timing must cross the read-only Composition boundary");
+            StringAssert.Contains("SurfaceAdmissionTimingTelemetry.Snapshot", composition);
+
+            StringAssert.Contains("double solidAdmissionMs = ElapsedMs(admissionStart);", scheduler);
+            StringAssert.Contains("double arenaReliefStart = Time.realtimeSinceStartupAsDouble;", scheduler);
+            StringAssert.Contains("double waterStart = Time.realtimeSinceStartupAsDouble;", scheduler);
+            StringAssert.Contains("double scheduleStart = Time.realtimeSinceStartupAsDouble;", scheduler);
+            StringAssert.Contains("JobHandle.ScheduleBatchedJobs();", scheduler);
+            StringAssert.Contains("SurfaceAdmissionTimingTelemetry.Record(", scheduler,
+                "the split must preserve same-frame phase values at the end of admission");
 
             StringAssert.Contains("-voxelFrameTimingStats", build);
             StringAssert.Contains("PlayerSettings.enableFrameTimingStats = true", build);
@@ -69,7 +144,69 @@ namespace VoxelEngine.Tests.PlayMode
             StringAssert.Contains("post-measurement screenshot", capture);
             StringAssert.Contains("stationary benchmark did not publish a passing result", capture);
 
-            // The existing visual profile remains a distinct moving/screenshot run.
+            StringAssert.Contains(
+                "VoxelEngine.Tests.PlayMode.ShowcaseTraversalPerformanceTests.*", singleWorkflow);
+            StringAssert.Contains("WORKER_ARGS=(-job-worker-count 8)", singleWorkflow);
+            StringAssert.Contains("=== UNITY TEST FAILURE DETAILS ===", singleWorkflow,
+                "failed traversal assertions must stay visible when artifact upload is unavailable");
+            StringAssert.Contains("group: single-test-${{ github.ref }}", singleWorkflow);
+            StringAssert.Contains("cancel-in-progress: true", singleWorkflow,
+                "each CI request branch must be latest-wins under the repository CI policy");
+            StringAssert.Contains("timeout-minutes: 5", singleWorkflow,
+                "single-test CI must preserve the repository under-five-minute budget");
+            StringAssert.Contains("UNITY_MAX_MINUTES=4", singleWorkflow,
+                "individual Unity invocations must leave headroom inside the five-minute job");
+            StringAssert.DoesNotContain("group: voxel-single-test-self-hosted-mac", singleWorkflow);
+            StringAssert.DoesNotContain("cancel-in-progress: false", singleWorkflow);
+            StringAssert.Contains(
+                "steps.request.outputs.test != 'VoxelEngine.Tests.PlayMode.StationaryRenderBenchmarkTests.SmallVoxelShowcaseMovingBuild12'",
+                singleWorkflow);
+            StringAssert.Contains(
+                "steps.request.outputs.test != 'VoxelEngine.Tests.PlayMode.StationaryRenderBenchmarkTests.SmallVoxelShowcaseMovingBuild8'",
+                singleWorkflow);
+            StringAssert.Contains(
+                "ShowcaseTraversalPerformanceTests.ContinuousPlayerTraversalNeverStuttersOrOpensNearFarGap",
+                capture);
+            StringAssert.Contains(": \"${AUTOWALK_AFTER:=60}\"", capture);
+            StringAssert.Contains("-voxel-converging-builds", capture);
+            StringAssert.Contains("-voxel-converging-builds", concurrencyHarness);
+            StringAssert.Contains("SetVoxelBuildConcurrency(converging, 0)", concurrencyHarness,
+                "the concurrency A/B must preserve the production converged ceiling");
+            StringAssert.Contains("GetSurfaceBenchmarkState()", prepareHarness);
+            StringAssert.Contains("state.RunningSolidJobs", prepareHarness);
+            StringAssert.Contains("state.MissingVisibleSolidChunks", prepareHarness);
+            StringAssert.Contains("ReportIntervalSeconds = 1.0", prepareHarness,
+                "hitch diagnostics must align with the one-second FPS windows");
+            StringAssert.Contains("GC.CollectionCount(0)", prepareHarness);
+            StringAssert.Contains("GC.CollectionCount(1)", prepareHarness);
+            StringAssert.Contains("GC.CollectionCount(2)", prepareHarness);
+            StringAssert.Contains("GC.GetAllocatedBytesForCurrentThread()", prepareHarness);
+            StringAssert.Contains("gc[g0=+{33} g1=+{34} g2=+{35}] allocMain={36}", prepareHarness,
+                "the sparse player diagnostic must correlate hitches with collection and allocation activity");
+            StringAssert.Contains("ProfilerRecorder.StartNew", prepareHarness);
+            StringAssert.Contains("Voxel.Surface.SchedulerPrepare", prepareHarness);
+            StringAssert.Contains("Voxel.Surface.WorkerAdmission", prepareHarness);
+            StringAssert.Contains("Voxel.Surface.WorkerPrepare", prepareHarness);
+            StringAssert.Contains("Voxel.Surface.Upload", prepareHarness);
+            StringAssert.Contains("GC.Collect", prepareHarness);
+            StringAssert.Contains(
+                "frameMax[scheduler={37:0.000} admission={38:0.000} ", prepareHarness,
+                "hitch diagnostics must retain per-frame maxima rather than sample only the report frame");
+            StringAssert.Contains("GetSurfaceAdmissionFrame()", prepareHarness);
+            StringAssert.Contains(
+                "admissionFrame[total={46:0.000} solid={47:0.000} relief={48:0.000} ",
+                prepareHarness,
+                "the sparse diagnostic must keep phase values from the same worst-admission frame");
+            StringAssert.Contains("water={49:0.000} schedule={50:0.000} residual={51:0.000}",
+                prepareHarness);
+            StringAssert.Contains("=== REAL PLAYER FPS TAIL ===", capture);
+            StringAssert.Contains("=== REAL PLAYER PREPARE SECTIONS ===", capture);
+            StringAssert.Contains("PREPARESECTIONS", capture);
+            StringAssert.Contains("=== REAL PLAYER SURFACE TAIL ===", capture);
+            StringAssert.Contains("SURFACE t=", capture);
+            StringAssert.Contains("=== REAL PLAYER RINGS TAIL ===", capture);
+            StringAssert.Contains("RINGS ", capture);
+
             StringAssert.Contains(": \"${SURVEY_AFTER:=10}\"", capture);
             StringAssert.Contains("-voxel-screenshot-every 10", capture);
         }

@@ -100,6 +100,89 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void SchedulerSurfaceDiscoveryPartitionRoutesEachUniqueChunkToOwningShard()
+        {
+            const int bricksPerChunk = 32;
+            var buckets = new List<int3>[4];
+            for (int i = 0; i < buckets.Length; i++)
+                buckets[i] = new List<int3> { new int3(999, 999, 999) };
+
+            var discovered = new List<int3>
+            {
+                int3.zero,
+                new int3(31, 31, 31), // duplicate owning chunk (0,0,0)
+                new int3(32, 0, 0),
+                new int3(-1, 0, 0),
+                new int3(0, -1, 0),
+                new int3(0, 0, -1),
+                new int3(-33, 65, 97),
+            };
+            var expectedChunks = new HashSet<int3>();
+            for (int i = 0; i < discovered.Count; i++)
+                expectedChunks.Add(SurfaceDiscoveryChunkOwner.OwningChunk(
+                    discovered[i], bricksPerChunk));
+
+            int routedCount = SurfaceDiscoveryChunkOwner.PartitionByOwningShard(
+                discovered, bricksPerChunk, buckets.Length, buckets);
+
+            var routedChunks = new HashSet<int3>();
+            for (int shard = 0; shard < buckets.Length; shard++)
+            {
+                Assert.False(buckets[shard].Contains(new int3(999, 999, 999)),
+                    "Partitioning must reuse and clear scheduler-owned buckets rather than accumulating prior-frame discovery.");
+                for (int i = 0; i < buckets[shard].Count; i++)
+                {
+                    int3 canonical = buckets[shard][i];
+                    int3 chunk = SurfaceDiscoveryChunkOwner.OwningChunk(
+                        canonical, bricksPerChunk);
+                    Assert.AreEqual(shard,
+                        CpuTransvoxelChunkCache.ShardForChunk(chunk, buckets.Length),
+                        $"Canonical chunk {chunk} was routed to a shard that cannot admit it.");
+                    Assert.True(routedChunks.Add(chunk),
+                        $"Chunk {chunk} was routed more than once in one discovery publication.");
+                }
+            }
+
+            CollectionAssert.AreEquivalent(expectedChunks, routedChunks,
+                "Partitioning must preserve every unique owning chunk while collapsing duplicate surface bricks.");
+            Assert.AreEqual(expectedChunks.Count, routedCount,
+                "The router's reported admission count must equal the unique chunks actually emitted.");
+            Assert.Less(routedCount, discovered.Count,
+                "The fixture must contain duplicate surface bricks for one chunk so the deduplication contract is exercised.");
+        }
+
+        [Test]
+        public void SchedulerSurfaceDiscoveryFlatBatchCollapsesToOwningStep1Chunks()
+        {
+            // SurfaceBrickCompactJob emits in block-index order. A flat terrain slice of 512
+            // surface blocks therefore commonly looks like 64 X positions across 8 Z rows at one
+            // Y. Step 1 owns 8 blocks per chunk, so those 512 discovery records represent only
+            // eight render chunks (8 X chunks * 1 Z chunk * 1 Y chunk). This is the production
+            // fanout the routing optimization is intended to collapse before managed cache work.
+            const int bricksPerChunk = 8;
+            var discovered = new List<int3>(512);
+            for (int z = 0; z < 8; z++)
+            for (int x = 0; x < 64; x++)
+                discovered.Add(new int3(x, 16, z));
+
+            var buckets = new List<int3>[8];
+            for (int i = 0; i < buckets.Length; i++)
+                buckets[i] = new List<int3>(64);
+
+            int routedCount = SurfaceDiscoveryChunkOwner.PartitionByOwningShard(
+                discovered, bricksPerChunk, buckets.Length, buckets);
+
+            int bucketRecords = 0;
+            for (int shard = 0; shard < buckets.Length; shard++)
+                bucketRecords += buckets[shard].Count;
+
+            Assert.AreEqual(8, routedCount,
+                "A representative flat 512-brick publication should become eight step-1 chunk admissions.");
+            Assert.AreEqual(routedCount, bucketRecords,
+                "Every unique admission must exist in exactly one owning shard bucket.");
+        }
+
+        [Test]
         public void CompleteRequiredCoreRegionSetMayProceedToExactClassification()
         {
             ExactSnapshotRegionCoverage coverage = default;

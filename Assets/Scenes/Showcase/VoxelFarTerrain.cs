@@ -12,7 +12,7 @@ namespace VoxelEngine.Showcase
 {
     /// <summary>
     /// Draws terrain beyond the voxel streaming radius as a geometric clipmap sampled straight
-    /// from <see cref="TerrainSampler"/>.
+    /// from <see cref="TerrainSampler"/> and amended by permanent authored surface metadata.
     ///
     /// <para><b>Why this is not voxels.</b> A <c>Region</c> costs 1 MB of brick pointers no
     /// matter what it contains, and a region spans 51.2 m. Covering a 4 km view radius with
@@ -21,10 +21,9 @@ namespace VoxelEngine.Showcase
     /// height function, which costs nothing to keep and nothing to stream.</para>
     ///
     /// <para><b>Why it stays consistent with the voxels.</b> Both representations read the same
-    /// <see cref="TerrainSampler.HeightAt"/>. The far mesh is not an approximation of the voxel
-    /// world authored separately — it is the same integer height field at a coarser sample rate,
-    /// so a mountain does not change shape as you approach it. What changes is only detail, and
-    /// destruction, which the far field does not show.</para>
+    /// <see cref="TerrainSampler.HeightAt"/>. Permanent generated sculpts that depart from that
+    /// analytic field are supplied by <see cref="FarFieldStructureStore"/> at coarse far-field
+    /// resolution. Runtime destruction remains near-field detail and is intentionally omitted.</para>
     ///
     /// <para><b>Clipmap layout.</b> Concentric square rings centred on the camera, each ring
     /// twice the sample spacing of the one inside it. Every ring holds the same vertex count, so
@@ -51,8 +50,8 @@ namespace VoxelEngine.Showcase
         [SerializeField] private uint m_Seed = 1;
 
         /// <summary>
-        /// Built content to raise the far mesh over. Without it the far field shows bare
-        /// terrain and every structure appears only once you are inside the voxel radius.
+        /// Permanent authored far-field data. It can lower the analytic terrain for generated
+        /// sculpts and raise it for distant structure silhouettes.
         /// </summary>
         public FarFieldStructureStore Structures { get; set; }
 
@@ -220,7 +219,13 @@ namespace VoxelEngine.Showcase
                     float worldZ = cameraPosition.z + Mathf.Sin(angle) * radius;
                     int voxelX = Mathf.FloorToInt(worldX / 0.1f);
                     int voxelZ = Mathf.FloorToInt(worldZ / 0.1f);
-                    float terrainY = TerrainSampler.HeightAt(voxelX, voxelZ, m_Seed) * 0.1f;
+                    int terrainHeight = TerrainSampler.HeightAt(voxelX, voxelZ, m_Seed);
+                    if (Structures != null)
+                    {
+                        int authored = Structures.AuthoredTerrainHeightAt(voxelX, voxelZ);
+                        if (authored != int.MinValue) terrainHeight = authored;
+                    }
+                    float terrainY = terrainHeight * 0.1f;
                     float vertical = cameraPosition.y - terrainY;
                     if (radius * radius + vertical * vertical <= nearRadiusSq) continue;
                     shellFits = false;
@@ -701,10 +706,17 @@ namespace VoxelEngine.Showcase
                 int voxelX = origin.x + x * spacing;
                 int voxelZ = origin.y + z * spacing;
 
-                // Built content stands above the terrain the height field describes, so the
-                // far mesh takes whichever is higher. This is what puts the castle on the
-                // horizon instead of having it appear at the streaming radius.
+                // Start with the Burst-sampled analytic field, then apply the permanent authored
+                // terrain surface before considering positive structure silhouettes. The lowering
+                // stays active inside ring zero's requested near footprint because that is exactly
+                // where closed-hole fallback must reproduce a gorge/moat while near chunks publish.
                 int height = heights[i];
+                if (Structures != null)
+                {
+                    int authoredTerrain = Structures.AuthoredTerrainHeightAt(voxelX, voxelZ);
+                    if (authoredTerrain != int.MinValue) height = authoredTerrain;
+                }
+
                 bool isStructure = false;
                 float worldX = voxelX * 0.1f;
                 float worldZ = voxelZ * 0.1f;
@@ -715,7 +727,11 @@ namespace VoxelEngine.Showcase
                 if (Structures != null && !insideRequestedNearFootprint)
                 {
                     int built = Structures.HeightAt(voxelX, voxelZ);
-                    if (built != int.MinValue && built > height) { height = built; isStructure = true; }
+                    if (built != int.MinValue && built > height)
+                    {
+                        height = built;
+                        isStructure = true;
+                    }
                 }
 
                 positions[i] = new Vector3(worldX, height * 0.1f, worldZ);

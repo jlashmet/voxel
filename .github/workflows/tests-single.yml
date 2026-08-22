@@ -158,13 +158,18 @@ jobs:
             sleep 5
           done
 
-      # Showcase PlayMode tests depend on the same baked startup world used by
-      # the PR and master workflows. Kentridge's production/dialogue acceptances and the
-      # self-contained Arch/Terrain lookdev scenes compose their own worlds and do not need it.
+      # Most full VoxelShowcase tests need a freshly baked startup world. Renderer traversal is
+      # different: it validates the checked-in production bake and then builds/runs that same scene
+      # as a standalone player. The two fast SmallVoxelShowcase profiles likewise compose their
+      # smaller standalone world directly. Kentridge and Arch/Terrain acceptances compose their
+      # own worlds and also do not need the full-showcase bake.
       - name: Bake Voxel Showcase startup world
         if: >-
           steps.request.outputs.platform == 'PlayMode' &&
           startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.') &&
+          steps.request.outputs.test != 'VoxelEngine.Tests.PlayMode.ShowcaseTraversalPerformanceTests.ContinuousPlayerTraversalNeverStuttersOrOpensNearFarGap' &&
+          steps.request.outputs.test != 'VoxelEngine.Tests.PlayMode.StationaryRenderBenchmarkTests.SmallVoxelShowcaseMovingBuild12' &&
+          steps.request.outputs.test != 'VoxelEngine.Tests.PlayMode.StationaryRenderBenchmarkTests.SmallVoxelShowcaseMovingBuild8' &&
           !startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.KentridgeStructureComparisonSceneTests.') &&
           steps.request.outputs.test != 'VoxelEngine.Tests.PlayMode.KentridgeStructureComparisonSceneTests' &&
           !startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests.') &&
@@ -222,9 +227,14 @@ jobs:
 
           # Keep the array non-empty under macOS's Bash 3.2. With set -u, expanding an empty
           # array is treated as an unbound variable and PlayMode never reaches Unity.
-          # Kentridge's production acceptances inspect composed world/camera state and movement,
-          # not framebuffer pixels; null graphics keeps those real PlayMode paths within memory.
+          # Kentridge production acceptances inspect composed world/camera state and movement,
+          # not framebuffer pixels; null graphics keeps those paths within runner memory.
           EXTRA_ARGS=(-batchmode)
+          WORKER_ARGS=(-job-worker-count 1)
+          if [[ "$TEST_PLATFORM" == "PlayMode" &&
+                "$TEST_FILTER" == VoxelEngine.Tests.PlayMode.ShowcaseTraversalPerformanceTests.* ]]; then
+            WORKER_ARGS=(-job-worker-count 8)
+          fi
           if [[ "$TEST_PLATFORM" == "EditMode" ||
                 "$TEST_FILTER" == VoxelEngine.Tests.PlayMode.KentridgeStructureComparisonSceneTests.* ||
                 "$TEST_FILTER" == VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests.* ||
@@ -234,11 +244,11 @@ jobs:
             EXTRA_ARGS+=(-nographics)
           fi
 
-          echo "Running $TEST_PLATFORM test filter: $TEST_FILTER"
+          echo "Running $TEST_PLATFORM test filter: $TEST_FILTER with ${WORKER_ARGS[*]}"
           status=0
           UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=4 \
           UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
-            "${EXTRA_ARGS[@]}" -job-worker-count 1 \
+            "${EXTRA_ARGS[@]}" "${WORKER_ARGS[@]}" \
             -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform "$TEST_PLATFORM" \
             -testFilter "$TEST_FILTER" \
             -testResults "$ROOT/single.xml" -logFile "$ROOT/single.log" || status=$?
@@ -251,38 +261,32 @@ jobs:
           fi
 
           if (( status != 0 )); then
-            echo "::group::Requested Unity test failure details"
             if [[ -s "$ROOT/single.xml" ]]; then
+              echo "=== UNITY TEST FAILURE DETAILS ==="
               python3 - "$ROOT/single.xml" <<'PY'
           import sys
           import xml.etree.ElementTree as ET
-
           root = ET.parse(sys.argv[1]).getroot()
           cases = root.findall('.//test-case')
-          print(f'Executed {len(cases)} test case(s).')
-          for case in cases:
-              result = case.get('result', '')
-              if result in ('Passed', 'Skipped'):
+          failed = [case for case in cases if case.get('result') not in ('Passed', 'Success')]
+          print(f'Executed {len(cases)} test case(s); failed={len(failed)}.')
+          for case in failed[:8]:
+              print(f"FAILED: {case.get('fullname') or case.get('name') or '<unknown>'}")
+              failure = case.find('failure')
+              if failure is None:
                   continue
-              print(f"FAILED: {case.get('fullname') or case.get('name')} result={result}")
-              failure = case.find('./failure')
-              if failure is not None:
-                  message = failure.findtext('message')
-                  stack = failure.findtext('stack-trace')
-                  if message:
-                      print(message.strip())
-                  if stack:
-                      print(stack.strip())
+              message = failure.findtext('message') or ''
+              stack = failure.findtext('stack-trace') or ''
+              if message:
+                  print(message.strip())
+              if stack:
+                  print(stack.strip())
           PY
             fi
             if [[ -s "$ROOT/single.log" ]]; then
-              echo "--- tail single.log ---"
-              tail -200 "$ROOT/single.log"
-            elif [[ -s "$ROOT/single-global.log" ]]; then
-              echo "--- tail single-global.log ---"
-              tail -200 "$ROOT/single-global.log"
+              echo "=== UNITY TEST LOG TAIL ==="
+              tail -120 "$ROOT/single.log"
             fi
-            echo "::endgroup::"
             exit "$status"
           fi
           test -s "$ROOT/single.xml"
