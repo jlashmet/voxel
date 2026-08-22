@@ -298,4 +298,17 @@ if (( KENTRIDGE_EVIDENCE )); then
     esac
     index=$((index + 1))
   done < <(find "$SHOTS_DIR" -type f -name '*.png' -size +1k | sort)
+
+  # Preserve the original presented frames for strict artifact proof, but leave small copies in
+  # Screenshots so the generic workflow preview step cannot flood the job log by re-encoding every
+  # 1600x900 frame. The artifact upload is recursive, so FullResolutionScreenshots remains part of
+  # the same strict visual artifact whenever GitHub storage is available.
+  FULL_RES_DIR="$OUTPUT_ROOT/FullResolutionScreenshots"
+  rm -rf "$FULL_RES_DIR"
+  mkdir -p "$FULL_RES_DIR"
+  while IFS= read -r shot; do
+    [[ -s "$shot" ]] || continue
+    cp "$shot" "$FULL_RES_DIR/$(basename "$shot")"
+    sips -Z 96 "$shot" >/dev/null
+  done < <(find "$SHOTS_DIR" -type f -name '*.png' -size +1k | sort)
 fi
