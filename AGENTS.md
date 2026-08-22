@@ -8,6 +8,18 @@ Use this skill whenever working on **`jlashmet/voxel`**.
 - Inspect the relevant implementation, tests, and plans before making changes.
 - Prefer fixing proven causes and invariants over speculative changes.
 
+## Planning
+
+If a task is more than a trivial one-step edit, create or update a durable Markdown plan in **`.claude/plans/`** before implementation begins.
+
+- Resume an existing relevant plan instead of creating a duplicate.
+- State the goal, scope, important constraints, and concrete acceptance criteria.
+- Break the work into a checkable task list using Markdown checkboxes.
+- Check items off as they are completed and keep the plan current while work is in progress.
+- Record material findings, failed hypotheses, blockers, and validation evidence so another agent can resume the work without reconstructing the investigation from chat history.
+- If the implementation direction changes, update the plan before continuing so it remains the authoritative record of the work.
+- A tiny edit that can be implemented and validated in one straightforward step does not require a separate plan.
+
 ## Validation loop
 
 Assume you cannot execute Unity, **`tools/ci-test`**, or manually dispatch GitHub workflows.
