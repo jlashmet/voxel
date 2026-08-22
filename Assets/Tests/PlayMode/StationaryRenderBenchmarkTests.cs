@@ -53,6 +53,8 @@ namespace VoxelEngine.Tests.PlayMode
                 "Assets/Scenes/Showcase/SurfacePrepareTimingHarness.cs");
             string composition = File.ReadAllText(
                 "Assets/VoxelEngine/Composition/RenderingDiagnosticsComposition.cs");
+            string scheduler = File.ReadAllText(
+                "Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs");
             string build = File.ReadAllText(
                 "Assets/Scenes/Showcase/Editor/ShowcasePlayerBuild.cs");
             string capture = File.ReadAllText("tools/showcase-player-capture.sh");
@@ -93,6 +95,17 @@ namespace VoxelEngine.Tests.PlayMode
             StringAssert.Contains("metrics.VisibilityTiming", composition);
             StringAssert.Contains("RunningSolidJobs", composition);
             StringAssert.Contains("SolidMeshesAwaitingUpload", composition);
+            StringAssert.Contains("GetSurfaceAdmissionFrame()", composition,
+                "same-frame admission timing must cross the read-only Composition boundary");
+            StringAssert.Contains("SurfaceAdmissionTimingTelemetry.Snapshot", composition);
+
+            StringAssert.Contains("double solidAdmissionMs = ElapsedMs(admissionStart);", scheduler);
+            StringAssert.Contains("double arenaReliefStart = Time.realtimeSinceStartupAsDouble;", scheduler);
+            StringAssert.Contains("double waterStart = Time.realtimeSinceStartupAsDouble;", scheduler);
+            StringAssert.Contains("double scheduleStart = Time.realtimeSinceStartupAsDouble;", scheduler);
+            StringAssert.Contains("JobHandle.ScheduleBatchedJobs();", scheduler);
+            StringAssert.Contains("SurfaceAdmissionTimingTelemetry.Record(", scheduler,
+                "the split must preserve same-frame phase values at the end of admission");
 
             StringAssert.Contains("-voxelFrameTimingStats", build);
             StringAssert.Contains("PlayerSettings.enableFrameTimingStats = true", build);
@@ -155,6 +168,13 @@ namespace VoxelEngine.Tests.PlayMode
             StringAssert.Contains(
                 "frameMax[scheduler={37:0.000} admission={38:0.000} ", prepareHarness,
                 "hitch diagnostics must retain per-frame maxima rather than sample only the report frame");
+            StringAssert.Contains("GetSurfaceAdmissionFrame()", prepareHarness);
+            StringAssert.Contains(
+                "admissionFrame[total={46:0.000} solid={47:0.000} relief={48:0.000} ",
+                prepareHarness,
+                "the sparse diagnostic must keep phase values from the same worst-admission frame");
+            StringAssert.Contains("water={49:0.000} schedule={50:0.000} residual={51:0.000}",
+                prepareHarness);
             StringAssert.Contains("=== REAL PLAYER FPS TAIL ===", capture);
             StringAssert.Contains("=== REAL PLAYER PREPARE SECTIONS ===", capture);
             StringAssert.Contains("PREPARESECTIONS", capture);
