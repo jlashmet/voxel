@@ -107,7 +107,7 @@ jobs:
           cp "$baked" "$preserved"
 
           feature_sha="$(git rev-parse HEAD^)"
-          git fetch origin "refs/heads/$FEATURE_BRANCH:refs/remotes/origin/$FEATURE_BRANCH"
+          git fetch origin "+refs/heads/$FEATURE_BRANCH:refs/remotes/origin/$FEATURE_BRANCH"
           remote_feature_sha="$(git rev-parse "refs/remotes/origin/$FEATURE_BRANCH")"
           [[ "$feature_sha" == "$remote_feature_sha" ]] || {
             echo "Feature branch moved during bake: expected $feature_sha, found $remote_feature_sha" >&2
