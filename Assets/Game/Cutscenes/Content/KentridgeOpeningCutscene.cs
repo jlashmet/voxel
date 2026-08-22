@@ -56,7 +56,13 @@ namespace Game.Cutscenes.Content.Kentridge
                 new CutsceneStagePointRequirement(LoganStart, CutsceneStageRegion.PublicEntrance, 8, CutsceneStageFacingHint.IntoSite),
                 new CutsceneStagePointRequirement(LeadStage, CutsceneStageRegion.InteriorGatheringArea, 7, CutsceneStageFacingHint.TowardStageCenter),
                 new CutsceneStagePointRequirement(EntranceFocus, CutsceneStageRegion.PublicEntrance, 4, CutsceneStageFacingHint.IntoSite),
-                new CutsceneStagePointRequirement(LoganStop, CutsceneStageRegion.EntranceApproach, 8, CutsceneStageFacingHint.TowardStageCenter)
+
+                // Opening.m has Logan approach the same WalkTo target used to gather the opening
+                // conversation. Exact geometry is regenerable, so stop him in the neutral site
+                // interior between the entrance and bar rather than on the entrance-approach mark
+                // occupied by the modern fixed camera. He still visibly crosses the room toward
+                // the group before speaking line 11, but remains readable in the ensemble shot.
+                new CutsceneStagePointRequirement(LoganStop, CutsceneStageRegion.SiteInterior, 8, CutsceneStageFacingHint.TowardStageCenter)
             };
 
             var steps = new List<CutsceneStep>
