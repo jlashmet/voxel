@@ -74,6 +74,18 @@ if [[ -n "$TEST_FILTER" ]]; then
       SCENE="Assets/Scenes/TerrainLookdev.unity"
       : "${RUN_SECONDS:=30}"
       ;;
+    VoxelEngine.Tests.PlayMode.StationaryRenderBenchmarkTests.SmallVoxelShowcaseMovingBuild12)
+      SCENE="Assets/Scenes/SmallVoxelShowcase.unity"
+      : "${RUN_SECONDS:=90}"
+      : "${AUTOWALK_AFTER:=20}"
+      : "${CONVERGING_BUILDS:=12}"
+      ;;
+    VoxelEngine.Tests.PlayMode.StationaryRenderBenchmarkTests.SmallVoxelShowcaseMovingBuild8)
+      SCENE="Assets/Scenes/SmallVoxelShowcase.unity"
+      : "${RUN_SECONDS:=90}"
+      : "${AUTOWALK_AFTER:=20}"
+      : "${CONVERGING_BUILDS:=8}"
+      ;;
     VoxelEngine.Tests.PlayMode.StationaryRenderBenchmarkTests|VoxelEngine.Tests.PlayMode.StationaryRenderBenchmarkTests.*)
       SCENE="Assets/Scenes/VoxelShowcase.unity"
       : "${RUN_SECONDS:=120}"
@@ -132,9 +144,6 @@ FPS_LOG="$OUTPUT_ROOT/fps.txt"
 STATIONARY_LOG="$OUTPUT_ROOT/stationary.txt"
 
 cleanup() {
-  # The .app is an execution intermediate, not a useful CI artifact. In particular the single-test
-  # workflow uploads its artifact root recursively, so retaining the bundle would turn a handful of
-  # screenshots into a hundreds-of-megabytes artifact.
   rm -rf "$BUILD_DIR"
 }
 trap cleanup EXIT
@@ -155,9 +164,6 @@ rm -rf "$BUILD_DIR" "$SHOTS_DIR"
 mkdir -p "$OUTPUT_ROOT" "$BUILD_DIR"
 if [[ -z "$STATIONARY_SAMPLE" ]]; then mkdir -p "$SHOTS_DIR"; fi
 
-# A preceding bake or PlayMode run can return before the macOS Unity process disappears from the
-# process table. tools/unity-run.sh intentionally refuses concurrent editors, so make the shared
-# capture utility sequencing-safe instead of racing the previous Unity invocation.
 wait_for_unity_quiet
 
 BUILD_ARGS=(-batchmode -nographics -quit)
@@ -267,24 +273,16 @@ if [[ -s "$PLAYER_LOG" ]]; then
   grep 'FPSLOG' "$PLAYER_LOG" > "$FPS_LOG" || true
 fi
 
-# Keep the performance signal visible even when GitHub artifact storage is unavailable. The
-# single-test workflow still uploads fps.txt when quota permits, but the last warm/moving samples
-# belong in the job log as well so a rendering regression cannot become opaque infrastructure red.
 if [[ -s "$FPS_LOG" ]]; then
   echo "=== REAL PLAYER FPS TAIL ==="
   tail -20 "$FPS_LOG"
 fi
 
-# The prepare-phase diagnostic is intentionally sparse and benchmark-only. Echo it directly from
-# Player.log so artifact-quota failures cannot hide the phase that owns a main-thread spike.
 if [[ -s "$PLAYER_LOG" ]] && grep -q 'PREPARESECTIONS' "$PLAYER_LOG"; then
   echo "=== REAL PLAYER PREPARE SECTIONS ==="
   grep 'PREPARESECTIONS' "$PLAYER_LOG" | tail -30
 fi
 
-# Coverage and scheduler pressure are part of the build-concurrency A/B. A lower ceiling only
-# counts as a performance win if the same camera path remains covered, so keep these diagnostics
-# visible even while artifact storage is unavailable.
 if [[ -s "$PLAYER_LOG" ]] && grep -q 'SURFACE t=' "$PLAYER_LOG"; then
   echo "=== REAL PLAYER SURFACE TAIL ==="
   grep 'SURFACE t=' "$PLAYER_LOG" | tail -30
