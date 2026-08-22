@@ -50,7 +50,7 @@ namespace Game.Cutscenes.Content.Kentridge
                 new CutsceneStagePointRequirement(StevenStage, CutsceneStageRegion.InteriorGatheringArea, 8, CutsceneStageFacingHint.TowardStageCenter),
                 new CutsceneStagePointRequirement(LoganStart, CutsceneStageRegion.PublicEntrance, 8, CutsceneStageFacingHint.IntoSite),
                 new CutsceneStagePointRequirement(LeadStage, CutsceneStageRegion.InteriorGatheringArea, 8, CutsceneStageFacingHint.TowardStageCenter),
-                new CutsceneStagePointRequirement(EntranceFocus, CutsceneStageRegion.PublicEntrance, 4, CutsceneStageStageFacingHint.IntoSite),
+                new CutsceneStagePointRequirement(EntranceFocus, CutsceneStageRegion.PublicEntrance, 4, CutsceneStageFacingHint.IntoSite),
                 new CutsceneStagePointRequirement(LoganStop, CutsceneStageRegion.EntranceApproach, 8, CutsceneStageFacingHint.TowardStageCenter)
             };
 
