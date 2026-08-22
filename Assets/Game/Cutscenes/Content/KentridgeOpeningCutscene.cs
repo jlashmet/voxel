@@ -9,7 +9,7 @@ namespace Game.Cutscenes.Content.Kentridge
     /// </summary>
     public static class KentridgeOpeningCutscene
     {
-        public static readonly CutsceneActorId Lead = new CutsceneActorId("lead");
+        public static readonly CutsceneActorId Lead = new CutsceneActorId("weldon");
         public static readonly CutsceneActorId Madeline = new CutsceneActorId("madeline");
         public static readonly CutsceneActorId Steven = new CutsceneActorId("steven");
         public static readonly CutsceneActorId Logan = new CutsceneActorId("logan");
