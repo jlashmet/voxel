@@ -52,6 +52,19 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(ReadBoolProperty(driver, "HasExitedPub"), Is.False,
                 "The player must begin inside the pub, not already in Kentridge town.");
 
+            if (!ReadBoolProperty(driver, "OpeningPresentationReady"))
+                Assert.That(ReadBoolProperty(driver, "OpeningCutsceneStarted"), Is.False,
+                    "The authored opening must not start while its generated pub is still unpublished.");
+
+            for (var frame = 0; frame < 1200
+                && !ReadBoolProperty(driver, "OpeningCutsceneStarted"); frame++)
+                yield return null;
+
+            Assert.That(ReadBoolProperty(driver, "OpeningPresentationReady"), Is.True,
+                "The generated pub never reached complete published near-surface coverage.");
+            Assert.That(ReadBoolProperty(driver, "OpeningCutsceneStarted"), Is.True,
+                "New Game did not begin after the generated pub became presentation-ready.");
+
             CharacterMotor motor = ReadPrivateField<CharacterMotor>(driver, "_motor");
             Assert.That(ReadBoolProperty(driver, "OpeningCutsceneCameraActive"), Is.True,
                 "The recovered opening must use its fixed establishing camera instead of the first-person follow camera.");

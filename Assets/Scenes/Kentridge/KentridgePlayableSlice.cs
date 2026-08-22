@@ -81,6 +81,8 @@ namespace Game.Kentridge.PlayableSlice
         private bool _hasExitedPub;
         private bool _cutsceneOwnedControl;
         private bool _openingGameplayReleased;
+        private bool _openingStarted;
+        private bool _openingPresentationReady;
         private bool _openingCameraReady;
         private bool _openingCutsceneCameraActive;
         private Vector3 _openingCameraPosition;
@@ -92,8 +94,11 @@ namespace Game.Kentridge.PlayableSlice
         private float _surveyCycleStartedAt = -1f;
         private int _loggedSurveyRole = -1;
 
-        public bool GameplayControlEnabled => _session != null && !_session.Runtime.HasActiveCutscene;
+        public bool GameplayControlEnabled =>
+            _session != null && _openingStarted && !_session.Runtime.HasActiveCutscene;
         public bool HasExitedPub => _hasExitedPub;
+        public bool OpeningCutsceneStarted => _openingStarted;
+        public bool OpeningPresentationReady => _openingPresentationReady;
         public bool OpeningCutsceneCameraActive => _openingCutsceneCameraActive;
         public Vector3 OpeningCutsceneCameraFocus => _openingCameraFocus;
         public bool TravelObjectiveActive =>
@@ -262,19 +267,22 @@ namespace Game.Kentridge.PlayableSlice
                     (hightown.CentreDm.Y - 700) * DecimetresToMetres,
                     halfWidthMetres: 90f);
 
-                int matched = _session.StartNewGame();
-                if (matched == 0 || !_session.Runtime.HasActiveCutscene)
-                    throw new InvalidOperationException(
-                        "New Game did not start the authored Kentridge opening cutscene.");
+                // The semantic world and actor host are ready here, but surface
+                // extraction/publication is asynchronous. Do not burn the story clock against a
+                // bare terrain plane: park the player and stage camera, then start New Game only
+                // after the renderer says the visible near set has actually been published.
+                Vector3 openingLeadStart = ToMetres(
+                    openingStage.Resolve(KentridgeOpeningCutscene.LeadStart).Position);
+                _motor.Position = openingLeadStart;
+                _motor.Velocity = Vector3.zero;
+                _actors.Player.SetCutsceneBodyVisible(false);
+                ApplyOpeningCameraPose();
 
-                if (!_openingCutsceneCameraActive)
-                {
-                    ApplyPlayerCameraFacing();
-                    transform.position = _motor.EyePosition;
-                }
                 _spawned = true;
                 _cutsceneOwnedControl = true;
                 _openingGameplayReleased = false;
+                _openingStarted = false;
+                _openingPresentationReady = false;
                 SetCursorLocked(true);
             }
             catch
@@ -324,6 +332,8 @@ namespace Game.Kentridge.PlayableSlice
             _hasExitedPub = false;
             _cutsceneOwnedControl = false;
             _openingGameplayReleased = false;
+            _openingStarted = false;
+            _openingPresentationReady = false;
             _openingCameraReady = false;
             _openingCutsceneCameraActive = false;
             _openingCameraPosition = default;
@@ -339,6 +349,16 @@ namespace Game.Kentridge.PlayableSlice
 
             float dt = Time.deltaTime;
             _actors.Tick(dt);
+
+            // New Game is deliberately presentation-gated. Storage generation is synchronous,
+            // surface extraction/publication is not; the recovered opening must not begin until
+            // the generated pub is actually drawable from its establishing camera.
+            if (!_openingStarted)
+            {
+                TickOpeningPreload();
+                return;
+            }
+
             _session.Runtime.Tick(Mathf.Max(0, Mathf.RoundToInt(dt * 1000f)));
 
             bool hasActiveCutscene = _session.Runtime.HasActiveCutscene;
@@ -426,6 +446,30 @@ namespace Game.Kentridge.PlayableSlice
             }
         }
 
+        private void TickOpeningPreload()
+        {
+            ApplyOpeningCameraPose();
+
+            // Residency follows Weldon's authored entrance mark, not the detached stage camera.
+            _world.StepStreaming(_motor.EyePosition, m_LoadingGenerateBudgetMs);
+            if (_farTerrain != null)
+            {
+                float streamed = m_LoadRadiusRegions * ShowcaseWorld.RegionMetres;
+                _farTerrain.HoleRadiusMetres = Mathf.Max(
+                    _world.ResidentGroundRadiusMetres(_motor.EyePosition), streamed);
+            }
+
+            if (!RenderingComposition.HasCompletePublishedNearSurfaceCoverage()) return;
+
+            _openingPresentationReady = true;
+            int matched = _session.StartNewGame();
+            if (matched == 0 || !_session.Runtime.HasActiveCutscene)
+                throw new InvalidOperationException(
+                    "New Game did not start the authored Kentridge opening cutscene after pub presentation became ready.");
+
+            _openingStarted = true;
+            _cutsceneOwnedControl = true;
+        }
         private void HandleKeys()
         {
             if (Input.GetKeyDown(KeyCode.Escape)) SetCursorLocked(!_mouseLook);
@@ -1000,6 +1044,14 @@ namespace Game.Kentridge.PlayableSlice
             _openingCameraReady = true;
         }
 
+        private void ApplyOpeningCameraPose()
+        {
+            if (!_openingCameraReady) return;
+            _openingCutsceneCameraActive = true;
+            transform.position = _openingCameraPosition;
+            transform.rotation = _openingCameraRotation;
+        }
+
         private void ApplyCutsceneCamera(CutsceneCueId cue)
         {
             if (!_openingCameraReady
@@ -1009,9 +1061,7 @@ namespace Game.Kentridge.PlayableSlice
                     StringComparison.Ordinal))
                 return;
 
-            _openingCutsceneCameraActive = true;
-            transform.position = _openingCameraPosition;
-            transform.rotation = _openingCameraRotation;
+            ApplyOpeningCameraPose();
         }
 
         private static float HorizontalDistance(Vector3 a, Vector3 b)
@@ -1048,6 +1098,12 @@ namespace Game.Kentridge.PlayableSlice
         {
             if (!Application.isPlaying || !_spawned || _session == null) return;
 
+            if (!_openingStarted)
+            {
+                DrawOpeningLoadingCover();
+                return;
+            }
+
             // Automated review frames are evidence of the world, not of the debug HUD. Normal
             // players never set these modes and retain the authored dialogue and control prompt.
             if (AutoSurvey || AutoRecede) return;
@@ -1079,6 +1135,26 @@ namespace Game.Kentridge.PlayableSlice
             }
         }
 
+        private static void DrawOpeningLoadingCover()
+        {
+            Color previous = GUI.color;
+            GUI.color = Color.black;
+            GUI.DrawTexture(
+                new Rect(0f, 0f, Screen.width, Screen.height),
+                Texture2D.whiteTexture,
+                ScaleMode.StretchToFill);
+            GUI.color = previous;
+
+            var style = new GUIStyle(GUI.skin.label)
+            {
+                alignment = TextAnchor.MiddleCenter,
+                fontSize = 18,
+            };
+            GUI.Label(
+                new Rect(0f, Screen.height * 0.5f - 20f, Screen.width, 40f),
+                "Loading Kentridge…",
+                style);
+        }
         private static Vector3 ToMetres(CutsceneInt3 point) =>
             new Vector3(
                 point.X * DecimetresToMetres,
