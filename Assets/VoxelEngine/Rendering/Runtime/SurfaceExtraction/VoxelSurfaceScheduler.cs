@@ -466,6 +466,41 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         }
     }
 
+    public readonly struct SurfaceAdmissionFrameTimingSnapshot
+    {
+        public readonly int Frame;
+        public readonly double TotalMs;
+        public readonly double SolidMs;
+        public readonly double ArenaReliefMs;
+        public readonly double WaterMs;
+        public readonly double ScheduleBatchedJobsMs;
+
+        internal SurfaceAdmissionFrameTimingSnapshot(
+            int frame, double totalMs, double solidMs, double arenaReliefMs,
+            double waterMs, double scheduleBatchedJobsMs)
+        {
+            Frame = frame;
+            TotalMs = totalMs;
+            SolidMs = solidMs;
+            ArenaReliefMs = arenaReliefMs;
+            WaterMs = waterMs;
+            ScheduleBatchedJobsMs = scheduleBatchedJobsMs;
+        }
+    }
+
+    public static class SurfaceAdmissionTimingTelemetry
+    {
+        public static SurfaceAdmissionFrameTimingSnapshot Snapshot { get; private set; }
+
+        internal static void Record(int frame, double totalMs, double solidMs,
+                                    double arenaReliefMs, double waterMs,
+                                    double scheduleBatchedJobsMs)
+        {
+            Snapshot = new SurfaceAdmissionFrameTimingSnapshot(
+                frame, totalMs, solidMs, arenaReliefMs, waterMs, scheduleBatchedJobsMs);
+        }
+    }
+
     /// <summary>
     /// Common invalidation, residency, build-budget, and handoff owner for derived voxel surfaces.
     /// Render passes consume its ready entries and never interpret voxel semantics themselves.
@@ -666,6 +701,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private readonly Plane[] _visibilityFrustumPlanes = new Plane[6];
         private int _lastVisibilityCandidateChecks;
         private readonly CpuWaterSurfaceChunkCache _water = new();
+        private readonly WaterSurfaceDiscoveryAdmission _waterDiscoveryAdmission = new();
         private const int ChangeReadRecordsPerFrame = 64;
         private const int ChangeBrickExpansionsPerFrame = 256;
         private const int ChangeRecoverySlotsPerFrame = 32;
@@ -693,7 +729,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private readonly List<int3> _changedWaterBricks = new(ChangeBrickExpansionsPerFrame);
         private readonly HashSet<int3> _surfaceDiscoveryRegions = new();
         private readonly List<int3> _discoveredSurfaceBricks = new(512);
-        private readonly List<int3> _ownedDiscoveryBricks = new(512);
+        private readonly List<int3>[] _ownedDiscoveryShardBuckets =
+            new List<int3>[NearSolidWorkerCount];
         private readonly Queue<int3> _surfaceDiscoveryQueue = new();
         private readonly HashSet<int3> _queuedSurfaceDiscoveryRegions = new();
         private readonly HashSet<int3> _surfaceDiscoveryRescanRegions = new();
@@ -1106,6 +1143,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     _allWorkers[workerIndex++] = ring.Workers[worker];
             }
 
+            for (int shard = 0; shard < _ownedDiscoveryShardBuckets.Length; shard++)
+                _ownedDiscoveryShardBuckets[shard] =
+                    new List<int3>(SurfaceDiscoveryPublishBatch);
+
             _surfaceDiscoveryOccupiedWords = new NativeArray<ulong>(
                 VoxelReadGrid.BlockSummaryWordCount, Allocator.Persistent,
                 NativeArrayOptions.UninitializedMemory);
@@ -1213,21 +1254,21 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _discoveryTiming.Add(LastDiscoveryMs);
 
             // Solid discovery establishes authoritative chunk ownership, not halo invalidation.
-            // Canonicalize each discovered block into the interior of the same ring-local chunk
-            // before calling the cache's generic border-aware admission path. This prevents
-            // discovery from creating halo-only chunks whose owned core is non-resident (the
-            // production step-4 y=-1 pin-retry case) while preserving original brick coordinates
-            // for water below and for mutation invalidation above.
+            // Canonicalize each discovered block into the interior of the same ring-local chunk,
+            // then route it directly to the shard that owns that chunk. Previously every shard
+            // rescanned the same publication batch even though all but one rejected each chunk by
+            // hash ownership. With 22 workers that multiplied this main-thread admission work for
+            // no semantic gain. Water and mutation invalidation keep the original coordinates.
             for (int r = 0; r < _rings.Length; r++)
             {
                 SurfaceRing ring = _rings[r];
-                _ownedDiscoveryBricks.Clear();
                 int bricksPerChunkAxis = ring.Workers[0].BricksPerAxis;
-                for (int i = 0; i < _discoveredSurfaceBricks.Count; i++)
-                    _ownedDiscoveryBricks.Add(SurfaceDiscoveryChunkOwner.Canonicalize(
-                        _discoveredSurfaceBricks[i], bricksPerChunkAxis));
+                SurfaceDiscoveryChunkOwner.PartitionByOwningShard(
+                    _discoveredSurfaceBricks, bricksPerChunkAxis,
+                    ring.Workers.Length, _ownedDiscoveryShardBuckets);
                 for (int w = 0; w < ring.Workers.Length; w++)
-                    ring.Workers[w].DiscoverSurfaceBricks(_ownedDiscoveryBricks);
+                    ring.Workers[w].DiscoverSurfaceBricks(
+                        _ownedDiscoveryShardBuckets[w]);
             }
 
             CollectVisibility(camera, voxelSize, frame);
@@ -1347,6 +1388,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             if (workerCount > 0)
                 _uploadAdmissionCursor = (_uploadAdmissionCursor
                                         + Math.Max(1, uploadScanAdvance)) % workerCount;
+            double solidAdmissionMs = ElapsedMs(admissionStart);
 
             // Arena pressure exists so geometry the player is waiting on can publish. Both passes
             // below scan a worker's whole entry table and frustum-test every entry, which is far too
@@ -1357,6 +1399,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             // rises every frame forever. Evicting for that only churns published geometry the player
             // can see, to admit a chunk behind them. Once nothing visible is missing, a prefetch
             // chunk that cannot get a lease simply waits.
+            double arenaReliefStart = Time.realtimeSinceStartupAsDouble;
             ulong arenaFailures = _geometryArena.AllocationFailureCount;
             int workersAwaitingPublication = 0;
             for (int i = 0; i < workerCount; i++)
@@ -1427,8 +1470,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     }
                 }
             }
+            double arenaReliefMs = ElapsedMs(arenaReliefStart);
 
-            _water.InvalidateSurfaceBricks(storage, _discoveredSurfaceBricks);
+            double waterStart = Time.realtimeSinceStartupAsDouble;
+            _waterDiscoveryAdmission.EnqueueAndStep(_water, storage, _discoveredSurfaceBricks);
             _water.Prepare(storage, camera, voxelSize, WaterBuildBudgetMs);
             LastFrameWaterUploadedBytes = 0;
             double waterUploadDeadline = Time.realtimeSinceStartupAsDouble
@@ -1446,12 +1491,18 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 _observedWaterArenaAllocationFailures = waterArenaFailures;
                 _water.TryEvictOneForArenaPressure(camera, voxelSize);
             }
+            double waterMs = ElapsedMs(waterStart);
 
             _workerPrepareTiming.Add(workerPrepareMs);
 
+            double scheduleStart = Time.realtimeSinceStartupAsDouble;
             JobHandle.ScheduleBatchedJobs();
+            double scheduleBatchedJobsMs = ElapsedMs(scheduleStart);
 
             LastAdmissionMs = ElapsedMs(admissionStart);
+            SurfaceAdmissionTimingTelemetry.Record(
+                frame, LastAdmissionMs, solidAdmissionMs, arenaReliefMs,
+                waterMs, scheduleBatchedJobsMs);
             _prepareTiming.Add(ElapsedMs(prepareStart));
             // Whole-frame main-thread total, not a per-build percentile. Frame cost scales with
             // concurrent builds, so the question is how much of a frame this call consumes

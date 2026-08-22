@@ -1,4 +1,5 @@
 using VoxelEngine.Rendering.Runtime;
+using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 
 namespace VoxelEngine.Composition
 {
@@ -93,6 +94,135 @@ namespace VoxelEngine.Composition
         public bool IsConverged => VisibleSolidChunks > 0 && MissingVisibleSolidChunks == 0;
     }
 
+    /// <summary>
+    /// Rolling worker-prepare phase timings for the real-player harness. Only primitive values
+    /// cross the Composition boundary; renderer timing-window types remain private to Runtime.
+    /// </summary>
+    public readonly struct SurfacePrepareTimingSnapshot
+    {
+        public readonly double WorkerP95Ms;
+        public readonly double WorkerP99Ms;
+        public readonly double WorkerMaxMs;
+        public readonly double RuleSyncP95Ms;
+        public readonly double RuleSyncP99Ms;
+        public readonly double RuleSyncMaxMs;
+        public readonly double ResidencyP95Ms;
+        public readonly double ResidencyP99Ms;
+        public readonly double ResidencyMaxMs;
+        public readonly double CapacityP95Ms;
+        public readonly double CapacityP99Ms;
+        public readonly double CapacityMaxMs;
+        public readonly double SelectionP95Ms;
+        public readonly double SelectionP99Ms;
+        public readonly double SelectionMaxMs;
+        public readonly double SnapshotP95Ms;
+        public readonly double SnapshotP99Ms;
+        public readonly double SnapshotMaxMs;
+        public readonly double CompactP95Ms;
+        public readonly double CompactP99Ms;
+        public readonly double CompactMaxMs;
+        public readonly double FacetedMergeP95Ms;
+        public readonly double FacetedMergeP99Ms;
+        public readonly double FacetedMergeMaxMs;
+        public readonly double ProfileP95Ms;
+        public readonly double ProfileP99Ms;
+        public readonly double ProfileMaxMs;
+        public readonly double UploadP95Ms;
+        public readonly double UploadP99Ms;
+        public readonly double UploadMaxMs;
+
+        internal SurfacePrepareTimingSnapshot(
+            double workerP95Ms, double workerP99Ms, double workerMaxMs,
+            double ruleSyncP95Ms, double ruleSyncP99Ms, double ruleSyncMaxMs,
+            double residencyP95Ms, double residencyP99Ms, double residencyMaxMs,
+            double capacityP95Ms, double capacityP99Ms, double capacityMaxMs,
+            double selectionP95Ms, double selectionP99Ms, double selectionMaxMs,
+            double snapshotP95Ms, double snapshotP99Ms, double snapshotMaxMs,
+            double compactP95Ms, double compactP99Ms, double compactMaxMs,
+            double facetedMergeP95Ms, double facetedMergeP99Ms, double facetedMergeMaxMs,
+            double profileP95Ms, double profileP99Ms, double profileMaxMs,
+            double uploadP95Ms, double uploadP99Ms, double uploadMaxMs)
+        {
+            WorkerP95Ms = workerP95Ms;
+            WorkerP99Ms = workerP99Ms;
+            WorkerMaxMs = workerMaxMs;
+            RuleSyncP95Ms = ruleSyncP95Ms;
+            RuleSyncP99Ms = ruleSyncP99Ms;
+            RuleSyncMaxMs = ruleSyncMaxMs;
+            ResidencyP95Ms = residencyP95Ms;
+            ResidencyP99Ms = residencyP99Ms;
+            ResidencyMaxMs = residencyMaxMs;
+            CapacityP95Ms = capacityP95Ms;
+            CapacityP99Ms = capacityP99Ms;
+            CapacityMaxMs = capacityMaxMs;
+            SelectionP95Ms = selectionP95Ms;
+            SelectionP99Ms = selectionP99Ms;
+            SelectionMaxMs = selectionMaxMs;
+            SnapshotP95Ms = snapshotP95Ms;
+            SnapshotP99Ms = snapshotP99Ms;
+            SnapshotMaxMs = snapshotMaxMs;
+            CompactP95Ms = compactP95Ms;
+            CompactP99Ms = compactP99Ms;
+            CompactMaxMs = compactMaxMs;
+            FacetedMergeP95Ms = facetedMergeP95Ms;
+            FacetedMergeP99Ms = facetedMergeP99Ms;
+            FacetedMergeMaxMs = facetedMergeMaxMs;
+            ProfileP95Ms = profileP95Ms;
+            ProfileP99Ms = profileP99Ms;
+            ProfileMaxMs = profileMaxMs;
+            UploadP95Ms = uploadP95Ms;
+            UploadP99Ms = uploadP99Ms;
+            UploadMaxMs = uploadMaxMs;
+        }
+    }
+
+    /// <summary>
+    /// Current-frame solid arena write telemetry copied across the Composition boundary as
+    /// primitives so showcase diagnostics do not depend on renderer Runtime namespaces.
+    /// </summary>
+    public readonly struct SurfaceArenaUploadFrameSnapshot
+    {
+        public readonly int Frame;
+        public readonly double WallMs;
+        public readonly int Calls;
+        public readonly long Bytes;
+
+        internal SurfaceArenaUploadFrameSnapshot(int frame, double wallMs, int calls, long bytes)
+        {
+            Frame = frame;
+            WallMs = wallMs;
+            Calls = calls;
+            Bytes = bytes;
+        }
+    }
+
+    /// <summary>
+    /// Same-frame split of the scheduler's broad admission region. The values are copied as
+    /// primitives so real-player diagnostics can correlate a hitch without depending on Runtime
+    /// scheduler objects.
+    /// </summary>
+    public readonly struct SurfaceAdmissionFrameSnapshot
+    {
+        public readonly int Frame;
+        public readonly double TotalMs;
+        public readonly double SolidMs;
+        public readonly double ArenaReliefMs;
+        public readonly double WaterMs;
+        public readonly double ScheduleBatchedJobsMs;
+
+        internal SurfaceAdmissionFrameSnapshot(
+            int frame, double totalMs, double solidMs, double arenaReliefMs,
+            double waterMs, double scheduleBatchedJobsMs)
+        {
+            Frame = frame;
+            TotalMs = totalMs;
+            SolidMs = solidMs;
+            ArenaReliefMs = arenaReliefMs;
+            WaterMs = waterMs;
+            ScheduleBatchedJobsMs = scheduleBatchedJobsMs;
+        }
+    }
+
     public static class RenderingDiagnosticsComposition
     {
         /// <summary>
@@ -132,6 +262,52 @@ namespace VoxelEngine.Composition
                 metrics.MissingVisibleSolidChunks,
                 metrics.RunningSolidJobs,
                 metrics.SolidMeshesAwaitingUpload);
+        }
+
+        /// <summary>
+        /// Returns existing fixed-window timing summaries for worker admission and its instrumented
+        /// sub-phases. Intended for sparse benchmark logging rather than per-frame gameplay reads.
+        /// </summary>
+        public static SurfacePrepareTimingSnapshot GetSurfacePrepareTiming()
+        {
+            var metrics = VoxelRenderBridge.SurfaceMetrics;
+            var worker = metrics.WorkerPrepareTiming;
+            var rule = metrics.RuleSyncTiming;
+            var residency = metrics.ResidencyPruneTiming;
+            var capacity = metrics.CapacityTiming;
+            var selection = metrics.BuildSelectionTiming;
+            var snapshot = metrics.SnapshotTiming;
+            var compact = metrics.TopologyCompactTiming;
+            var facetedMerge = metrics.FacetedMergeTiming;
+            var profile = metrics.ProfileEmitTiming;
+            var upload = metrics.UploadTiming;
+            return new SurfacePrepareTimingSnapshot(
+                worker.P95Ms, worker.P99Ms, worker.MaxMs,
+                rule.P95Ms, rule.P99Ms, rule.MaxMs,
+                residency.P95Ms, residency.P99Ms, residency.MaxMs,
+                capacity.P95Ms, capacity.P99Ms, capacity.MaxMs,
+                selection.P95Ms, selection.P99Ms, selection.MaxMs,
+                snapshot.P95Ms, snapshot.P99Ms, snapshot.MaxMs,
+                compact.P95Ms, compact.P99Ms, compact.MaxMs,
+                facetedMerge.P95Ms, facetedMerge.P99Ms, facetedMerge.MaxMs,
+                profile.P95Ms, profile.P99Ms, profile.MaxMs,
+                upload.P95Ms, upload.P99Ms, upload.MaxMs);
+        }
+
+        public static SurfaceArenaUploadFrameSnapshot GetSurfaceArenaUploadFrame()
+        {
+            var upload = SurfaceGeometryUploadTelemetry.Snapshot;
+            return new SurfaceArenaUploadFrameSnapshot(
+                upload.Frame, upload.WallMs, upload.Calls, upload.Bytes);
+        }
+
+        public static SurfaceAdmissionFrameSnapshot GetSurfaceAdmissionFrame()
+        {
+            SurfaceAdmissionFrameTimingSnapshot admission = SurfaceAdmissionTimingTelemetry.Snapshot;
+            return new SurfaceAdmissionFrameSnapshot(
+                admission.Frame, admission.TotalMs, admission.SolidMs,
+                admission.ArenaReliefMs, admission.WaterMs,
+                admission.ScheduleBatchedJobsMs);
         }
     }
 }
