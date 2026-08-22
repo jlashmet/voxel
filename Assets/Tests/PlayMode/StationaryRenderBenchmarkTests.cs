@@ -79,9 +79,15 @@ namespace VoxelEngine.Tests.PlayMode
                 "ShowcaseTraversalPerformanceTests.ContinuousPlayerTraversalNeverStuttersOrOpensNearFarGap",
                 capture);
             StringAssert.Contains(": \"${AUTOWALK_AFTER:=60}\"", capture);
+            StringAssert.Contains(": \"${MAX_BUILDS:=8}\"", capture);
+            StringAssert.Contains("-voxel-max-builds", capture);
             StringAssert.Contains("=== REAL PLAYER FPS TAIL ===", capture);
             StringAssert.Contains("=== REAL PLAYER PREPARE SECTIONS ===", capture);
             StringAssert.Contains("PREPARESECTIONS", capture);
+            StringAssert.Contains("=== REAL PLAYER SURFACE TAIL ===", capture);
+            StringAssert.Contains("SURFACE t=", capture);
+            StringAssert.Contains("=== REAL PLAYER RINGS TAIL ===", capture);
+            StringAssert.Contains("RINGS ", capture);
 
             // The existing visual profile remains a distinct moving/screenshot run.
             StringAssert.Contains(": \"${SURVEY_AFTER:=10}\"", capture);
