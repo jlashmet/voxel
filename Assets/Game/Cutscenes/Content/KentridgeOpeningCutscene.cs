@@ -23,6 +23,7 @@ namespace Game.Cutscenes.Content.Kentridge
         public static readonly CutsceneStagePointId LoganStop = new CutsceneStagePointId("logan-stop");
 
         public static readonly CutsceneCueId EstablishingCamera = new CutsceneCueId("kentridge.pub.opening.establishing");
+        public static readonly CutsceneCueId FadeOutPresentation = new CutsceneCueId("kentridge.pub.opening.fade-out");
         public static readonly CutsceneCueId DoorOpenSound = new CutsceneCueId("door.open");
 
         // Retain the original public beat names as aliases for callers that referenced them before
@@ -128,7 +129,13 @@ namespace Game.Cutscenes.Content.Kentridge
                 Dialogue(Lead, 28),
                 Dialogue(Logan, 29),
                 Dialogue(Lead, 30),
-                Dialogue(Logan, 31)
+                Dialogue(Logan, 31),
+
+                // Presentation-only epilogue requested by the player-facing integration. The
+                // recovered story/choreography above remains untouched; this cue begins a black
+                // fade and the short hold keeps the cutscene alive until the view is fully hidden.
+                CutsceneStep.Camera(FadeOutPresentation),
+                CutsceneStep.Wait(850)
             };
 
             return new CutsceneDefinition("kentridge.pub.opening", setup, steps, stage);
