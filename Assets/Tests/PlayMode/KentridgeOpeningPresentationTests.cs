@@ -118,8 +118,15 @@ namespace VoxelEngine.Tests.PlayMode
 
             Assert.That(ReadBoolProperty(driver, "OpeningCutsceneCameraActive"), Is.False,
                 "The opening did not release to gameplay after its closing fade hold.");
+
+            // A UnityTest coroutine resumes after Update and before LateUpdate. The driver releases
+            // camera ownership in Update, while the presentation intentionally restores its near
+            // plane in LateUpdate so the same frame reaches rendering with gameplay camera state.
+            // Observe the next coroutine turn instead of asserting on that mid-frame boundary.
+            yield return null;
+
             Assert.That(ReadBoolProperty(presentation, "RoofCutawayActive"), Is.False,
-                "The roof cutaway must be removed as soon as gameplay regains camera ownership.");
+                "The roof cutaway must be removed before gameplay is presented.");
             Assert.That(camera.nearClipPlane, Is.EqualTo(0.05f).Within(0.001f),
                 "Gameplay must recover the scene camera's normal near clip plane.");
 
