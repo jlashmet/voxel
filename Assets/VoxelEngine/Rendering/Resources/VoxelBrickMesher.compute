@@ -129,6 +129,11 @@ int3 CellCorner(int i)
     return int3(i & 1, (i >> 2) & 1, (i >> 1) & 1);
 }
 
+bool UsesFlatTriangleNormals(bool planar, bool rounded, bool authoredBoundary)
+{
+    return planar && !rounded && !authoredBoundary;
+}
+
 // ---------------------------------------------------------------------------
 // 1. Sample the density field over the padded grid.
 // ---------------------------------------------------------------------------
@@ -172,10 +177,13 @@ void CSCountCells(uint3 id : SV_DispatchThreadID)
     int3 cell = int3(x, y, z);
 
     uint caseCode = 0u;
+    bool authoredBoundary = false;
     for (int i = 0; i < 8; i++)
     {
         int3 g = cell + _Padding + CellCorner(i);
-        if (_Density[GridIndex(g)] < 0.0) caseCode |= 1u << (uint)i;
+        int sample = GridIndex(g);
+        if (_Density[sample] < 0.0) caseCode |= 1u << (uint)i;
+        authoredBoundary |= _SampleBoundary[sample] != 0u;
     }
 
     // A cell entirely inside or entirely outside the surface contributes nothing. This is the
@@ -206,8 +214,10 @@ void CSCountCells(uint3 id : SV_DispatchThreadID)
     uint sourceVertexCount = counts >> 4;
     uint indexCount = (counts & 0x0Fu) * 3u;
 
-    // The planar path splits vertices per triangle so each face can carry its own normal.
-    uint outputVertexCount = (planar && !rounded) ? indexCount : sourceVertexCount;
+    // Planar authored SDF cells carry an analytic curve despite the material's planar style.
+    // Preserve their shared field normals; only plain planar occupancy is flat-shaded.
+    bool flatPlanar = UsesFlatTriangleNormals(planar, rounded, authoredBoundary);
+    uint outputVertexCount = flatPlanar ? indexCount : sourceVertexCount;
     if (outputVertexCount > 15u || indexCount > 15u) return;
 
     _CellVertexCountsWrite[cellIndex] = outputVertexCount;
@@ -270,6 +280,7 @@ void CSWriteCells(uint3 id : SV_DispatchThreadID)
     uint material[8];
     uint surface[8];
     uint boundary[8];
+    bool authoredBoundary = false;
     for (int i = 0; i < 8; i++)
     {
         int sample = GridIndex(cell + _Padding + CellCorner(i));
@@ -277,14 +288,27 @@ void CSWriteCells(uint3 id : SV_DispatchThreadID)
         material[i] = _SampleMaterial[sample];
         surface[i] = _SampleSurface[sample];
         boundary[i] = _SampleBoundary[sample];
+        authoredBoundary |= boundary[i] != 0u;
         if (density[i] < 0.0) caseCode |= 1u << (uint)i;
     }
     if (caseCode == 0u || caseCode == 255u) return;
 
+    bool planar = false, rounded = false;
+    for (int c = 0; c < 8; c++)
+    {
+        if (!IsSolidSample(material[c])) continue;
+        StyleDefinition style = LoadStyle(surface[c] & 0xFFFFu);
+        if (style.reconstruction == RECONSTRUCTION_CUBIC) continue;
+        if (style.reconstruction == RECONSTRUCTION_PLANAR
+         || style.reconstruction == RECONSTRUCTION_SHARP) planar = true;
+        else rounded = true;
+    }
+    bool flatPlanar = UsesFlatTriangleNormals(planar, rounded, authoredBoundary);
+
     uint cellClass = _RegularCellClass[caseCode];
     uint sourceVertexCount = _RegularGeometryCounts[cellClass] >> 4;
 
-    // Build the cell's shared vertices first; the planar path re-emits them per triangle below.
+    // Build the cell's shared vertices first; the truly planar path re-emits them per triangle below.
     SurfaceVertex cellVertices[15];
     for (uint v = 0u; v < sourceVertexCount; v++)
     {
@@ -299,8 +323,6 @@ void CSWriteCells(uint3 id : SV_DispatchThreadID)
         int3 delta = abs(o1 - o0);
         int axis = delta.x != 0 ? 0 : (delta.y != 0 ? 1 : 2);
 
-        // An authored boundary that does not apply along this edge's axis is ignored, and the edge
-        // reverts to a plain occupancy crossing.
         // An authored sample that does not apply along this edge's axis is ignored, and the edge
         // reverts to a plain occupancy crossing, so an authored bevel does not bend an edge it says
         // nothing about.
@@ -350,10 +372,10 @@ void CSWriteCells(uint3 id : SV_DispatchThreadID)
     if ((int)(indexBase + indexCount) > _IndexCapacity) return;
 
     uint tableBase = cellClass * 15u;
-    if (outputVertexCount == indexCount)
+    if (flatPlanar)
     {
-        // Planar: one vertex per corner of each triangle, all three sharing the face normal, so a
-        // flat surface reads flat instead of being rounded off by shared smooth normals.
+        // Plain planar occupancy keeps one vertex per triangle corner and a shared face normal.
+        // Authored analytic SDF cells use the shared gradient normals from the field instead.
         for (uint t = 0u; t < indexCount; t += 3u)
         {
             SurfaceVertex a = cellVertices[_RegularCellIndices[tableBase + t]];
