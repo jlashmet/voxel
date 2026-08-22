@@ -47,21 +47,23 @@ namespace VoxelEngine.Tests.PlayMode
         {
             string scheduler = File.ReadAllText(
                 "Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs");
-            string water = File.ReadAllText(
-                "Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuWaterSurfaceChunkCache.cs");
+            string admission = File.ReadAllText(
+                "Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/WaterSurfaceDiscoveryAdmission.cs");
 
             StringAssert.Contains("_water.InvalidateSurfaceBricks(storage, _changedWaterBricks);", scheduler,
                 "authoritative water mutations must remain immediate");
-            StringAssert.Contains("_water.QueueSurfaceDiscoveryBricks(_discoveredSurfaceBricks);", scheduler,
+            StringAssert.Contains(
+                "_waterDiscoveryAdmission.EnqueueAndStep(_water, storage, _discoveredSurfaceBricks);",
+                scheduler,
                 "initial/streaming discovery must use bounded water classification");
             StringAssert.DoesNotContain(
                 "_water.InvalidateSurfaceBricks(storage, _discoveredSurfaceBricks);", scheduler,
                 "a whole solid-discovery batch must not be synchronously water-classified");
-            StringAssert.Contains("SurfaceDiscoveryBricksPerPrepare = 32", water);
-            StringAssert.Contains("StepSurfaceDiscovery(storage);", water,
-                "queued discovery must advance every water Prepare before build early-outs");
-            StringAssert.Contains("_queuedSurfaceDiscovery.Add(worldBrick)", water,
+            StringAssert.Contains("SurfaceDiscoveryBricksPerPrepare = 32", admission);
+            StringAssert.Contains("_queued.Add(worldBrick)", admission,
                 "repeated discovery publications must deduplicate pending classification");
+            StringAssert.Contains("while (_batch.Count < SurfaceDiscoveryBricksPerPrepare", admission,
+                "each frame must drain only the bounded classification slice");
         }
 
         [Test]
