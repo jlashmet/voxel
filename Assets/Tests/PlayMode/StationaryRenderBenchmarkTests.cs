@@ -79,6 +79,8 @@ namespace VoxelEngine.Tests.PlayMode
             StringAssert.Contains(
                 "VoxelEngine.Tests.PlayMode.ShowcaseTraversalPerformanceTests.*", singleWorkflow);
             StringAssert.Contains("WORKER_ARGS=(-job-worker-count 8)", singleWorkflow);
+            StringAssert.Contains("=== UNITY TEST FAILURE DETAILS ===", singleWorkflow,
+                "failed traversal assertions must stay visible when artifact upload is unavailable");
             StringAssert.Contains(
                 "ShowcaseTraversalPerformanceTests.ContinuousPlayerTraversalNeverStuttersOrOpensNearFarGap",
                 capture);
