@@ -19,7 +19,7 @@ Options:
   --if-configured          Exit successfully when FILTER is not a configured real-player test
   --run-seconds N          Player run duration / stationary timeout
   --autowalk-after N       Enable the showcase scripted walk after N seconds
-  --max-builds N           Override converging voxel build concurrency in the player
+  --converging-builds N    Override only visible-convergence voxel build concurrency
   --survey-after N         Enable showcase survey camera after N seconds
   --survey-height N        Survey camera height
   --survey-spin N          Survey spin degrees/second
@@ -33,7 +33,7 @@ SCENE=""
 TEST_FILTER=""
 RUN_SECONDS=""
 AUTOWALK_AFTER=""
-MAX_BUILDS=""
+CONVERGING_BUILDS=""
 SURVEY_AFTER=""
 SURVEY_HEIGHT=""
 SURVEY_SPIN=""
@@ -49,7 +49,7 @@ while (( $# > 0 )); do
     --if-configured) IF_CONFIGURED=1; shift ;;
     --run-seconds) RUN_SECONDS="$2"; shift 2 ;;
     --autowalk-after) AUTOWALK_AFTER="$2"; shift 2 ;;
-    --max-builds) MAX_BUILDS="$2"; shift 2 ;;
+    --converging-builds) CONVERGING_BUILDS="$2"; shift 2 ;;
     --survey-after) SURVEY_AFTER="$2"; shift 2 ;;
     --survey-height) SURVEY_HEIGHT="$2"; shift 2 ;;
     --survey-spin) SURVEY_SPIN="$2"; shift 2 ;;
@@ -86,10 +86,9 @@ if [[ -n "$TEST_FILTER" ]]; then
       SCENE="Assets/Scenes/VoxelShowcase.unity"
       : "${RUN_SECONDS:=150}"
       : "${AUTOWALK_AFTER:=60}"
-      # Diagnostic A/B for the measured job-pool starvation hypothesis. This does not alter the
-      # production scheduler policy: the harness asks the existing runtime override to cap only
-      # this real-player run, and the SURFACE/RINGS tails below prove whether coverage keeps up.
-      : "${MAX_BUILDS:=8}"
+      # Diagnostic A/B for the measured job-pool starvation hypothesis. This changes only the
+      # visible-convergence ceiling (12 -> 8); the production converged ceiling remains zero.
+      : "${CONVERGING_BUILDS:=8}"
       ;;
     VoxelEngine.Tests.PlayMode.CastleScreenshotTests|VoxelEngine.Tests.PlayMode.CastleScreenshotTests.*|\
     VoxelEngine.Tests.PlayMode.CastleExteriorLookdevTests|VoxelEngine.Tests.PlayMode.CastleExteriorLookdevTests.*)
@@ -212,8 +211,8 @@ else
   if [[ -n "$AUTOWALK_AFTER" ]]; then
     PLAYER_ARGS+=( -voxel-autowalk-after "$AUTOWALK_AFTER" )
   fi
-  if [[ -n "$MAX_BUILDS" ]]; then
-    PLAYER_ARGS+=( -voxel-max-builds "$MAX_BUILDS" )
+  if [[ -n "$CONVERGING_BUILDS" ]]; then
+    PLAYER_ARGS+=( -voxel-converging-builds "$CONVERGING_BUILDS" )
   fi
   if [[ -n "$SURVEY_AFTER" ]]; then
     PLAYER_ARGS+=( -voxel-survey-after "$SURVEY_AFTER" )
@@ -225,8 +224,8 @@ else
     PLAYER_ARGS+=( -voxel-survey-spin "$SURVEY_SPIN" )
   fi
   echo "Running real player for ${RUN_SECONDS}s; screenshots every 10s"
-  if [[ -n "$MAX_BUILDS" ]]; then
-    echo "Real-player converging build ceiling override: $MAX_BUILDS"
+  if [[ -n "$CONVERGING_BUILDS" ]]; then
+    echo "Real-player converging build ceiling override: $CONVERGING_BUILDS (converged remains 0)"
   fi
 fi
 
