@@ -86,7 +86,12 @@ namespace Game.Cutscenes.Api
         PublicEntrance = 2,
         EntranceApproach = 3,
         InteriorGatheringArea = 4,
-        PlayerSpawnArea = 5
+        PlayerSpawnArea = 5,
+        /// <summary>
+        /// Interior approach near an established gathering area without joining that region's
+        /// occupied lateral packing. Useful for a character walking up to an existing group.
+        /// </summary>
+        ConversationApproach = 6
     }
 
     /// <summary>Orientation hint resolved by site generation after the concrete layout exists.</summary>
