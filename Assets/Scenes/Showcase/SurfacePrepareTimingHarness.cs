@@ -3,6 +3,7 @@ using System.Globalization;
 using Unity.Profiling;
 using UnityEngine;
 using VoxelEngine.Composition;
+using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 
 namespace VoxelEngine.Showcase
 {
@@ -13,8 +14,9 @@ namespace VoxelEngine.Showcase
     /// harness snapshots those existing values once per FPS window when the normal FPS logger is
     /// enabled. GC counters and main-thread allocated bytes are sampled before formatting/logging
     /// so the diagnostic's own strings do not masquerade as workload allocation in that window.
-    /// ProfilerRecorder values are sampled every frame and reduced to one-second maxima so a hitch
-    /// cannot disappear merely because the reporting frame itself happened to be cheap.
+    /// ProfilerRecorder values and direct solid-arena upload telemetry are sampled every frame and
+    /// reduced to one-second maxima so a hitch cannot disappear merely because the reporting frame
+    /// itself happened to be cheap.
     /// </summary>
     public static class SurfacePrepareTimingHarness
     {
@@ -59,6 +61,10 @@ namespace VoxelEngine.Showcase
             private long _workerPrepareMaxNs;
             private long _solidUploadMaxNs;
             private long _gcCollectMaxNs;
+            private double _arenaUploadMaxMs;
+            private int _arenaUploadMaxCalls;
+            private long _arenaUploadMaxBytes;
+            private int _arenaUploadMaxFrame = -1;
 
             private void Start()
             {
@@ -109,6 +115,14 @@ namespace VoxelEngine.Showcase
                     in _solidUploadRecorder, _solidUploadMaxNs);
                 _gcCollectMaxNs = MaxRecorderValue(
                     in _gcCollectRecorder, _gcCollectMaxNs);
+
+                SurfaceGeometryUploadFrameSnapshot arenaUpload =
+                    SurfaceGeometryUploadTelemetry.Snapshot;
+                if (arenaUpload.WallMs <= _arenaUploadMaxMs) return;
+                _arenaUploadMaxMs = arenaUpload.WallMs;
+                _arenaUploadMaxCalls = arenaUpload.Calls;
+                _arenaUploadMaxBytes = arenaUpload.Bytes;
+                _arenaUploadMaxFrame = arenaUpload.Frame;
             }
 
             private void ResetProfilerMaxima()
@@ -118,6 +132,10 @@ namespace VoxelEngine.Showcase
                 _workerPrepareMaxNs = 0;
                 _solidUploadMaxNs = 0;
                 _gcCollectMaxNs = 0;
+                _arenaUploadMaxMs = 0.0;
+                _arenaUploadMaxCalls = 0;
+                _arenaUploadMaxBytes = 0;
+                _arenaUploadMaxFrame = -1;
             }
 
             private static double NanosecondsToMilliseconds(long nanoseconds) =>
@@ -160,7 +178,8 @@ namespace VoxelEngine.Showcase
                     + "upload[p95={28:0.000} p99={29:0.000} max={30:0.000}] "
                     + "jobs={31} missing={32} gc[g0=+{33} g1=+{34} g2=+{35}] allocMain={36} "
                     + "frameMax[scheduler={37:0.000} admission={38:0.000} "
-                    + "worker={39:0.000} solidUpload={40:0.000} gcCollect={41:0.000}]",
+                    + "worker={39:0.000} solidUpload={40:0.000} gcCollect={41:0.000}] "
+                    + "arenaUpload[ms={42:0.000} calls={43} bytes={44} frame={45}]",
                     _elapsed,
                     timing.WorkerP95Ms, timing.WorkerP99Ms, timing.WorkerMaxMs,
                     timing.RuleSyncP95Ms, timing.RuleSyncP99Ms, timing.RuleSyncMaxMs,
@@ -179,7 +198,9 @@ namespace VoxelEngine.Showcase
                     NanosecondsToMilliseconds(_workerAdmissionMaxNs),
                     NanosecondsToMilliseconds(_workerPrepareMaxNs),
                     NanosecondsToMilliseconds(_solidUploadMaxNs),
-                    NanosecondsToMilliseconds(_gcCollectMaxNs)));
+                    NanosecondsToMilliseconds(_gcCollectMaxNs),
+                    _arenaUploadMaxMs, _arenaUploadMaxCalls, _arenaUploadMaxBytes,
+                    _arenaUploadMaxFrame));
 
                 // Exclude this diagnostic's own formatting/logging allocations from the next
                 // interval as much as possible by taking the next baseline after the log call.
