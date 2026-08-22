@@ -33,6 +33,55 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
     }
 
     /// <summary>
+    /// Allocation-free current-frame diagnostic for writes into the shared solid geometry arena.
+    /// The moving-player hitch investigation needs the wall time of the actual BeginWrite/copy/
+    /// EndWrite calls, not a rolling per-worker percentile. Publication is main-thread-only, so a
+    /// simple primitive accumulator is enough and does not need locking or managed containers.
+    /// </summary>
+    public readonly struct SurfaceGeometryUploadFrameSnapshot
+    {
+        public readonly int Frame;
+        public readonly double WallMs;
+        public readonly int Calls;
+        public readonly long Bytes;
+
+        public SurfaceGeometryUploadFrameSnapshot(int frame, double wallMs, int calls, long bytes)
+        {
+            Frame = frame;
+            WallMs = wallMs;
+            Calls = calls;
+            Bytes = bytes;
+        }
+    }
+
+    public static class SurfaceGeometryUploadTelemetry
+    {
+        private static int s_Frame = -1;
+        private static double s_WallMs;
+        private static int s_Calls;
+        private static long s_Bytes;
+
+        public static SurfaceGeometryUploadFrameSnapshot Snapshot =>
+            new(s_Frame, s_WallMs, s_Calls, s_Bytes);
+
+        internal static void BeginFrame(int frame)
+        {
+            if (s_Frame == frame) return;
+            s_Frame = frame;
+            s_WallMs = 0.0;
+            s_Calls = 0;
+            s_Bytes = 0;
+        }
+
+        internal static void Add(double wallMs, long bytes)
+        {
+            if (wallMs > 0.0) s_WallMs += wallMs;
+            s_Calls++;
+            if (bytes > 0) s_Bytes += bytes;
+        }
+    }
+
+    /// <summary>
     /// One eagerly allocated vertex/index/indirect-args arena shared by every solid surface
     /// worker. Streaming never creates a ComputeBuffer: if a replacement cannot obtain a range,
     /// publication waits and the previous ready geometry remains live until space is reclaimed.
@@ -214,6 +263,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public void RetireExpiredLeases(int frame)
         {
             _frame = frame;
+            SurfaceGeometryUploadTelemetry.BeginFrame(frame);
             while (_pendingRelease.Count > 0)
             {
                 PendingRelease pending = _pendingRelease.Peek();
@@ -235,20 +285,28 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                                    in SurfaceGeometryLease lease, int count)
         {
             if (count <= 0) return;
+            double start = Time.realtimeSinceStartupAsDouble;
             NativeArray<SmoothSurfaceVertex> destination =
                 Vertices.BeginWrite<SmoothSurfaceVertex>(lease.VertexStart + sourceStart, count);
             NativeArray<SmoothSurfaceVertex>.Copy(source, sourceStart, destination, 0, count);
             Vertices.EndWrite<SmoothSurfaceVertex>(count);
+            SurfaceGeometryUploadTelemetry.Add(
+                (Time.realtimeSinceStartupAsDouble - start) * 1000.0,
+                (long)count * SmoothSurfaceVertex.Stride);
         }
 
         public void UploadIndices(NativeArray<uint> source, int sourceStart,
                                   in SurfaceGeometryLease lease, int count)
         {
             if (count <= 0) return;
+            double start = Time.realtimeSinceStartupAsDouble;
             NativeArray<uint> destination =
                 Indices.BeginWrite<uint>(lease.IndexStart + sourceStart, count);
             NativeArray<uint>.Copy(source, sourceStart, destination, 0, count);
             Indices.EndWrite<uint>(count);
+            SurfaceGeometryUploadTelemetry.Add(
+                (Time.realtimeSinceStartupAsDouble - start) * 1000.0,
+                (long)count * sizeof(uint));
         }
 
         /// <summary>
@@ -261,6 +319,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         /// </summary>
         public void UploadArgs(uint indexCount, in SurfaceGeometryLease lease)
         {
+            double start = Time.realtimeSinceStartupAsDouble;
             NativeArray<uint> destination =
                 Args.BeginWrite<uint>(lease.ArgsWordStart, ArgsWordsPerDraw);
             destination[0] = indexCount;
@@ -268,6 +327,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             destination[2] = 0u;
             destination[3] = 0u;
             Args.EndWrite<uint>(ArgsWordsPerDraw);
+            SurfaceGeometryUploadTelemetry.Add(
+                (Time.realtimeSinceStartupAsDouble - start) * 1000.0,
+                ArgsWordsPerDraw * sizeof(uint));
         }
 
         public long ReservedBytes(in SurfaceGeometryLease lease) => !lease.IsValid ? 0L :
