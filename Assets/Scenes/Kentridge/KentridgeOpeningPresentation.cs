@@ -1,7 +1,10 @@
 using System;
 using System.Reflection;
 using Game.Cutscenes.Content.Kentridge;
+using MountingForce.WorldGen;
+using MountingForce.WorldGen.Content.Kentridge;
 using UnityEngine;
+using VoxelEngine.Composition;
 
 namespace Game.Kentridge.PlayableSlice
 {
@@ -9,16 +12,20 @@ namespace Game.Kentridge.PlayableSlice
     /// Presentation-only treatment for the recovered Kentridge opening.
     ///
     /// The generated pub remains authoritative geometry. During the opening this component raises
-    /// the existing stage camera into a slightly oblique top-down view and advances the camera's
-    /// near plane through the roof/upper floor. That gives the cutscene a dollhouse cutaway without
-    /// carving voxels or changing collision. It also owns the black fades around the opening so the
-    /// camera/cutaway handoff never appears as a pop.
+    /// the existing stage camera into a slightly oblique top-down view and asks the renderer to hide
+    /// only the generated pub volume above the ground-floor walls. That exposes the room without
+    /// carving voxels, changing collision, or sectioning actors/terrain with the camera near plane.
+    /// It also owns the black fades around the opening so the camera/cutaway handoff never appears
+    /// as a pop.
     /// </summary>
     [DisallowMultipleComponent]
     [RequireComponent(typeof(Camera))]
     [AddComponentMenu("Game/Kentridge Opening Presentation")]
     public sealed class KentridgeOpeningPresentation : MonoBehaviour
     {
+        private const float DecimetresPerMetre = 10f;
+        private const float OpeningFocusAboveFloorMetres = 0.9f;
+
         public enum TransitionPhase : byte
         {
             WaitingForOpening = 0,
@@ -33,9 +40,12 @@ namespace Game.Kentridge.PlayableSlice
         [Header("Opening camera")]
         [SerializeField] private float m_HeightMetres = 7.2f;
         [SerializeField] private float m_BackMetres = 3.5f;
-        [Tooltip("Depth, measured along the camera view, that remains visible in front of the stage focus. " +
-                 "Everything closer is clipped, which removes the roof/upper slab without mutating voxels.")]
-        [SerializeField] private float m_VisibleDepthMetres = 2.0f;
+        [Tooltip("Ground-floor wall height retained by the renderer cutaway. Geometry above this " +
+                 "height is hidden only inside the generated Pub footprint.")]
+        [SerializeField] private float m_CutawayHeightMetres = 2.8f;
+        // Legacy scene data from the former camera-near-plane cutaway. Keep it only as a fallback
+        // for older serialized scenes; new presentation uses the bounded world-voxel volume above.
+        [SerializeField, HideInInspector] private float m_VisibleDepthMetres = 2.0f;
 
         [Header("Fades")]
         [SerializeField] private float m_FadeInSeconds = 0.8f;
@@ -50,6 +60,11 @@ namespace Game.Kentridge.PlayableSlice
         private bool _wasOpeningCameraActive;
         private float _fadeAlpha = 1f;
         private TransitionPhase _phase = TransitionPhase.WaitingForOpening;
+        private FieldInfo _kentridgePlanField;
+        private SettlementPlan _kentridgePlan;
+        private bool _cutawayBoundsReady;
+        private Vector3 _cutawayMinVoxel;
+        private Vector3 _cutawayMaxVoxel;
 
         // SlicePresentation is intentionally private to the playable slice. Until cutscene
         // presentation exposes a general transition cue channel, observe only its public LastCue
@@ -78,6 +93,12 @@ namespace Game.Kentridge.PlayableSlice
             if (_presentationField == null)
                 throw new InvalidOperationException(
                     "Kentridge opening presentation cannot observe the slice presentation cue channel.");
+            _kentridgePlanField = typeof(KentridgePlayableSlice).GetField(
+                "_kentridgePlan",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            if (_kentridgePlanField == null)
+                throw new InvalidOperationException(
+                    "Kentridge opening presentation cannot resolve the generated Pub footprint.");
         }
 
         private void OnEnable()
@@ -88,6 +109,9 @@ namespace Game.Kentridge.PlayableSlice
             OpeningOverheadActive = false;
             RoofCutawayActive = false;
             LastObservedCue = string.Empty;
+            _kentridgePlan = null;
+            _cutawayBoundsReady = false;
+            RenderingComposition.SetCutaway(false, Vector3.zero, Vector3.zero);
         }
 
         private void OnDisable()
@@ -138,7 +162,7 @@ namespace Game.Kentridge.PlayableSlice
                 RestoreGameplayCameraPresentation();
                 // The authored closing hold keeps the opening alive until the fade reaches black.
                 // If a future content edit removes that hold, fail visually closed rather than
-                // revealing the camera/near-plane snap for a frame.
+                // revealing the camera/cutaway snap for a frame.
                 _fadeAlpha = Mathf.Max(_fadeAlpha, 0.98f);
                 _phase = TransitionPhase.FadingIntoGameplay;
             }
@@ -173,21 +197,90 @@ namespace Game.Kentridge.PlayableSlice
 
             transform.SetPositionAndRotation(position, rotation);
 
-            float focusDistance = Vector3.Dot(focus - position, transform.forward);
-            float desiredNear = Mathf.Max(
-                _gameplayNearClip,
-                focusDistance - Mathf.Max(0.5f, m_VisibleDepthMetres));
-            _camera.nearClipPlane = Mathf.Min(
-                desiredNear,
-                Mathf.Max(_gameplayNearClip, _camera.farClipPlane - 0.1f));
+            // The former cutaway advanced this plane to roughly six metres, which sliced every
+            // renderer in camera space — including actors and foreground terrain. Keep projection
+            // identical to normal gameplay and cut only bounded voxel geometry instead.
+            _camera.nearClipPlane = _gameplayNearClip;
+
+            Vector3 cutawayMin;
+            Vector3 cutawayMax;
+            if (TryResolvePubCutawayBounds(out cutawayMin, out cutawayMax))
+            {
+                RenderingComposition.SetCutaway(true, cutawayMin, cutawayMax);
+                RoofCutawayActive = true;
+            }
+            else
+            {
+                RenderingComposition.SetCutaway(false, Vector3.zero, Vector3.zero);
+                RoofCutawayActive = false;
+            }
 
             OpeningOverheadActive = true;
-            RoofCutawayActive = _camera.nearClipPlane > _gameplayNearClip + 0.1f;
+        }
+
+        private bool TryResolvePubCutawayBounds(out Vector3 minVoxel, out Vector3 maxVoxel)
+        {
+            if (_cutawayBoundsReady)
+            {
+                minVoxel = _cutawayMinVoxel;
+                maxVoxel = _cutawayMaxVoxel;
+                return true;
+            }
+
+            if (_kentridgePlan == null)
+                _kentridgePlan = _kentridgePlanField.GetValue(_slice) as SettlementPlan;
+            if (_kentridgePlan == null)
+            {
+                minVoxel = default;
+                maxVoxel = default;
+                return false;
+            }
+
+            for (int i = 0; i < _kentridgePlan.Plots.Count; i++)
+            {
+                BuildingPlot plot = _kentridgePlan.Plots[i];
+                if (plot.RoleId != (int)KentridgeRole.Pub) continue;
+
+                Int3 envelope = KentridgeDefinition.FootprintDm(plot.Archetype);
+                int roofOverhang = KentridgeDefinition.Theme.RoofOverhangDm;
+                float floorMetres = _slice.OpeningCutsceneCameraFocus.y
+                                   - OpeningFocusAboveFloorMetres;
+                float requestedWallHeight = m_CutawayHeightMetres > 0.1f
+                    ? m_CutawayHeightMetres
+                    : Mathf.Max(0.1f, m_VisibleDepthMetres);
+                float minimumWallHeight = KentridgeDefinition.Theme.DoorHeightDm
+                                        / DecimetresPerMetre;
+                float maximumWallHeight = (KentridgeDefinition.Theme.FloorHeightDm - 1)
+                                        / DecimetresPerMetre;
+                float wallHeightMetres = Mathf.Clamp(
+                    requestedWallHeight,
+                    minimumWallHeight,
+                    maximumWallHeight);
+                float floorVoxelY = floorMetres * DecimetresPerMetre;
+
+                _cutawayMinVoxel = new Vector3(
+                    plot.PositionDm.X - roofOverhang,
+                    floorVoxelY + wallHeightMetres * DecimetresPerMetre,
+                    plot.PositionDm.Y - roofOverhang);
+                _cutawayMaxVoxel = new Vector3(
+                    plot.PositionDm.X + envelope.X + roofOverhang,
+                    floorVoxelY + envelope.Y,
+                    plot.PositionDm.Y + envelope.Z + roofOverhang);
+                _cutawayBoundsReady = true;
+                minVoxel = _cutawayMinVoxel;
+                maxVoxel = _cutawayMaxVoxel;
+                return true;
+            }
+
+            minVoxel = default;
+            maxVoxel = default;
+            return false;
         }
 
         private void RestoreGameplayCameraPresentation()
         {
             if (_camera != null) _camera.nearClipPlane = _gameplayNearClip;
+            RenderingComposition.SetCutaway(false, Vector3.zero, Vector3.zero);
             OpeningOverheadActive = false;
             RoofCutawayActive = false;
             _hasStageApproach = false;
