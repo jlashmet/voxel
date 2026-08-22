@@ -263,6 +263,13 @@ if [[ -s "$FPS_LOG" ]]; then
   tail -20 "$FPS_LOG"
 fi
 
+# The prepare-phase diagnostic is intentionally sparse and benchmark-only. Echo it directly from
+# Player.log so artifact-quota failures cannot hide the phase that owns a main-thread spike.
+if [[ -s "$PLAYER_LOG" ]] && grep -q 'PREPARESECTIONS' "$PLAYER_LOG"; then
+  echo "=== REAL PLAYER PREPARE SECTIONS ==="
+  grep 'PREPARESECTIONS' "$PLAYER_LOG" | tail -30
+fi
+
 shots="$(find "$SHOTS_DIR" -name '*.png' -size +1k | wc -l | tr -d ' ')"
 echo "real-player screenshots captured: $shots"
 if (( shots < 2 )); then
