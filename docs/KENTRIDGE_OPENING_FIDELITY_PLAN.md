@@ -42,7 +42,7 @@ It is subordinate to `AGENTS.md`, `CLAUDE.md`, `docs/WORLDBUILDER_RUNTIME_INTEGR
 - [x] Inspect the real-player frames for bar/pub staging, four-character readability, camera composition, Logan entrance, dialogue presentation, and post-cutscene handoff.
   - Exact-head real-player evidence: feature SHA `55fff1c249f4c10f1600faeda5281f0163c79ae9`; evidence request commit `fa3ceccac0e9f5112e45e0d63bb7acc982f8e9cc`; Actions run `32566867562`, job `97016656754`. All four persisted frames at approximately 39s, 59s, 79s, and 89s were inspected. The edge-clipping defect is gone and dialogue remains readable, but the cast is still too small/far while the counter and near floor dominate the frame, so the player-facing ensemble composition remains a proven defect and the fix gate stays open.
 - [ ] Fix any visual/staging fidelity defects found in capture and repeat the smallest relevant validation until green.
-  - Current unvalidated iteration tightens the semantic bar group to 0.5 m clearance and narrows the real-player camera to the current 58-degree scene FOV. Treat this as in-progress until both the production readability regression and a new standalone-player capture pass on the same resulting feature head.
+  - Current unvalidated iteration tightens the semantic bar group to 0.5 m clearance and narrows the real-player camera to the current 58-degree scene FOV. The generated Pub entrance is now separately proven aligned end-to-end, so the next readability/capture cycle isolates this composition change rather than compensating for doorway drift. Treat this as in-progress until both the production readability regression and a new standalone-player capture pass on the same resulting feature head.
 
 ## Generated pub bar and semantic staging
 
