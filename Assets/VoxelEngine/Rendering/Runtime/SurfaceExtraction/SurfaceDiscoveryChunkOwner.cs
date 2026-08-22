@@ -61,12 +61,16 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
             if (worldBricks == null) return;
 
+            int edge = math.max(1, bricksPerChunkAxis);
+            int interior = edge / 2;
             for (int i = 0; i < worldBricks.Count; i++)
             {
-                int3 canonical = Canonicalize(worldBricks[i], bricksPerChunkAxis);
-                int3 chunk = OwningChunk(canonical, bricksPerChunkAxis);
+                // Compute ownership once. Canonicalize() already derives this chunk, so doing an
+                // OwningChunk(canonical) pass afterwards repeated three floor divisions for every
+                // discovery record on the player thread.
+                int3 chunk = OwningChunk(worldBricks[i], edge);
                 int shard = CpuTransvoxelChunkCache.ShardForChunk(chunk, count);
-                shardBricks[shard].Add(canonical);
+                shardBricks[shard].Add(chunk * edge + interior);
             }
         }
 
