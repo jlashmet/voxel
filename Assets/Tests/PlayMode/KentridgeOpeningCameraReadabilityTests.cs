@@ -18,7 +18,7 @@ namespace VoxelEngine.Tests.PlayMode
     {
         private const string SceneName = "KentridgePlayableSlice";
         private const string DriverTypeName = "Game.Kentridge.PlayableSlice.KentridgePlayableSlice";
-        private const float MinimumBodyViewportHeight = 0.12f;
+        private const float MinimumBodyViewportHeight = 0.18f;
         private const float ViewportMargin = 0.04f;
 
         private Scene _loadedScene;
