@@ -1,0 +1,228 @@
+schema_version: 1
+status: verified_source_grounded_cutscene
+scene_id: kentridge-opening
+place: Kentridge
+purpose: >-
+  Curated generator-facing contract for the original Kentridge pub opening. This preserves
+  authored narrative and choreography facts while allowing a modern implementation to change
+  physical geometry, rendering, timing mechanics, and presentation plumbing.
+
+source_evidence:
+  choreography:
+    path: Opening.m
+    blob_sha: df2b6779ed2382c58828bc1754387d04cbf3d3ed
+    confidence: verified_source
+  dialogue:
+    path: Art/Opening.txt
+    blob_sha: f8a80d3c9c1e02c0c695dd3644d90b39d6ed1e37
+    confidence: verified_source
+
+participants:
+  - token: RPGPlayer
+    canonical_character: Weldon
+  - token: Madeline
+    canonical_character: Madeline
+  - token: Steven
+    canonical_character: Steven
+  - token: Logan
+    canonical_character: Logan
+  - token: Barmaid
+    canonical_character: Barmaid
+    dialogue_participant: false
+  - token: WalkTo
+    role: staging_anchor
+
+initial_presentation:
+  background_music: level_default
+  sound_preload: door.caf
+  camera:
+    target: WalkTo
+    zoom: 0.80
+  facing:
+    Barmaid: right
+    Madeline: up
+    Steven: up
+    RPGPlayer: up
+    Logan: left
+  notes:
+    - The legacy source notes that the Barmaid sprite is mis-oriented and right visually means down.
+
+ordered_beats:
+  - beat: 1
+    action: wait
+    duration_seconds: 3.0
+  - beat: 2
+    action: play_sound
+    sound: door.caf
+  - beat: 3
+    action: wait
+    duration_seconds: 2.0
+  - beat: 4
+    action: move
+    actor: RPGPlayer
+    target: WalkTo
+    duration_seconds: 2.5
+  - beat: 5
+    action: face
+    actors: [Madeline, Steven]
+    direction: right
+    semantic_target: Weldon
+  - beat: 6
+    action: wait
+    duration_seconds: 0.5
+  - beat: 7
+    action: face
+    actors: [RPGPlayer]
+    direction: left
+    semantic_target: Madeline
+  - beat: 8
+    action: wait
+    duration_seconds: 0.5
+  - beat: 9
+    action: dialogue
+    line_range: [1, 10]
+    source_request_count: 10
+  - beat: 10
+    action: wait
+    duration_seconds: 0.5
+  - beat: 11
+    action: face
+    actors: [RPGPlayer, Steven, Madeline]
+    direction: up
+    semantic_target: Logan_entrance
+  - beat: 12
+    action: wait
+    duration_seconds: 2.5
+  - beat: 13
+    action: approach
+    actor: Logan
+    target: WalkTo
+    duration_seconds: 2.0
+  - beat: 14
+    action: dialogue
+    line_range: [11, 11]
+    source_request_count: 1
+  - beat: 15
+    action: face
+    actors: [RPGPlayer, Steven, Madeline]
+    direction: right
+    semantic_target: Logan
+  - beat: 16
+    action: wait
+    duration_seconds: 0.5
+  - beat: 17
+    action: dialogue
+    line_range: [12, 31]
+    source_request_count: 100
+    note: The source asks for up to 100 lines; only 20 lines remain in Opening.txt.
+
+verified_dialogue:
+  verbatim_from_source: true
+  line_count: 31
+  lines:
+    - index: 1
+      speaker: Madeline
+      text: "Hey Weldon, Glad you could join us!  How did your magic lessons go?  It looks like Medrare kept you late again."
+    - index: 2
+      speaker: Weldon
+      text: "Do you have to rub it in?  You know I was forced into wizardry, and I hate every second of it!"
+    - index: 3
+      speaker: Weldon
+      text: "Just because my father was a wizard, now I have to get stuck with it too?  What kind of crazy system is that?"
+    - index: 4
+      speaker: Madeline
+      text: "But you're so talented! The rest of the students would give anything to have your skills."
+    - index: 5
+      speaker: Weldon
+      text: "Anyway, man I'm starving.  I wish I could get a decent meal in this town."
+    - index: 6
+      speaker: Steven
+      text: "Bah, you probably could if it weren't for Lord Radcliffe."
+    - index: 7
+      speaker: Steven
+      text: "I see servants bringing food to his house day in and day out."
+    - index: 8
+      speaker: Madeline
+      text: "Hey Weldon, why don't you go cast a spell on him?"
+    - index: 9
+      speaker: Weldon
+      text: "Madeline geez, can we drop the magic talk already?"
+    - index: 10
+      speaker: Madeline
+      text: "Sorry, tee hee.  Here, next round is on me."
+    - index: 11
+      speaker: Logan
+      text: "Pardon me friends, I don't believe weve met before."
+    - index: 12
+      speaker: Logan
+      text: "My name is Logan. I couldn't help overhearing your conversation, and I'd like to tell you there are many more in this town that share your sentiments."
+    - index: 13
+      speaker: Madeline
+      text: "Yah its pretty hard not to feel that way when you're starving and forced to watch fatty Radcliffe gorge himself."
+    - index: 14
+      speaker: Logan
+      text: "I've been trying to gather support to try and take Radcliffe down.  However, its been difficult."
+    - index: 15
+      speaker: Logan
+      text: "Even though most of the town is of the same mind, I've yet to find anyone that will help me take action."
+    - index: 16
+      speaker: Weldon
+      text: "So... what are you planning?"
+    - index: 17
+      speaker: Logan
+      text: "Well, I'm a reasonable man.  I'd like to schedule a meeting with Lord Radcliffe and inquire about the official supply distribution policies."
+    - index: 18
+      speaker: Logan
+      text: "I'm hoping he owns up to his squandering, and that we can reach an agreement peacefully."
+    - index: 19
+      speaker: Logan
+      text: "However, I'd like you all to accompany me as lets say... an insurance policy."
+    - index: 20
+      speaker: Steven
+      text: "So you want us to march into an elected officials house like some brute squad and take care of your dirty work?  Unthinkable!"
+    - index: 21
+      speaker: Logan
+      text: "Look, I can tell by your appearance that you are an ordained knight.  And apparently, one so dedicated that you feel the need to wear your helmet in doors."
+    - index: 22
+      speaker: Logan
+      text: "If Lord Radcliffe is breaking the law by stealing food and supplies, isn't it your duty to uphold the law?"
+    - index: 23
+      speaker: Steven
+      text: "Well, I suppose so... What do you guys think?"
+    - index: 24
+      speaker: Weldon
+      text: "I'm in.  Its about time Radcliffe was confronted."
+    - index: 25
+      speaker: Madeline
+      text: "Me too.  Its time the people got their fair share and I'm sure he will listen to reason."
+    - index: 26
+      speaker: Weldon
+      text: "Ok then.  It's settled.  Logan, we're with you."
+    - index: 27
+      speaker: Weldon
+      text: "There's a few things I have to do first though.  First, my father wanted me to stop by the house to show me something."
+    - index: 28
+      speaker: Weldon
+      text: "Do you mind doing that first?"
+    - index: 29
+      speaker: Logan
+      text: "For my new companions? Anything!"
+    - index: 30
+      speaker: Weldon
+      text: "Ok, my house is in the southwest corner of the town just north of the church."
+    - index: 31
+      speaker: Logan
+      text: "Alright friends.  Lets head out!"
+
+hard_preservation_rules:
+  - Preserve all 31 dialogue lines and speaker identities unless an explicit editorial rewrite is separately approved.
+  - Preserve the 10-line conversation before Logan approaches, Logan's single introduction line on arrival, and the remaining 20 lines after the group turns to him.
+  - Preserve the door cue before Weldon reaches the group.
+  - Preserve Weldon's entrance, Madeline/Steven facing response, the group's attention shift toward Logan, Logan's approach, and the final group-facing-Logan conversation state.
+  - Preserve Weldon as the player-side canonical character for this scene rather than exposing the generic RPGPlayer token to presentation.
+
+regeneration_freedom:
+  - Exact world coordinates and tile geometry may change.
+  - Camera implementation may change if the staged ensemble remains readable and the semantic target is preserved.
+  - Timing implementation may change if action ordering and narrative grouping remain intact.
+  - Character visuals may be regenerated while preserving canonical identity and scene role.
