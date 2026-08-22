@@ -76,15 +76,15 @@ if [[ -n "$TEST_FILTER" ]]; then
       ;;
     VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests|VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests.*)
       # Kentridge is an integration scene, so its visual proof must come from the same standalone
-      # player path as the showcase benchmarks rather than a PlayMode RenderTexture. Exercise the
-      # real opening first, advancing dialogue the way a player click would, then move once to a
-      # fixed overview and let the near renderer converge. A continuously spinning survey keeps
-      # exposing unpublished chunks, which correctly closes the far-field hole forever and turns
-      # every later screenshot into fallback terrain rather than evidence of the settled scene.
+      # player path as the showcase benchmarks rather than a PlayMode RenderTexture. Keep the
+      # authored opening camera stationary long enough to survive real-player startup/worldgen and
+      # capture the complete conversation. Only after that move once to a fixed overview so the
+      # final frame can show the post-opening world without a continuously moving survey exposing
+      # unpublished chunks and turning later screenshots into fallback-terrain evidence.
       SCENE="Assets/Scenes/KentridgePlayableSlice.unity"
-      : "${RUN_SECONDS:=90}"
+      : "${RUN_SECONDS:=100}"
       : "${AUTO_DIALOGUE:=1.5}"
-      : "${SURVEY_AFTER:=30}"
+      : "${SURVEY_AFTER:=90}"
       : "${SURVEY_HEIGHT:=55}"
       : "${SURVEY_SPIN:=0}"
       ;;
