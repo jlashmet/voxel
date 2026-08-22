@@ -16,6 +16,8 @@ namespace VoxelEngine.Tests.PlayMode
                 "Assets/Scenes/Showcase/StationaryRenderBenchmarkHarness.cs");
             string concurrencyHarness = File.ReadAllText(
                 "Assets/Scenes/Showcase/SurfaceBuildConcurrencyHarness.cs");
+            string prepareHarness = File.ReadAllText(
+                "Assets/Scenes/Showcase/SurfacePrepareTimingHarness.cs");
             string composition = File.ReadAllText(
                 "Assets/VoxelEngine/Composition/RenderingDiagnosticsComposition.cs");
             string build = File.ReadAllText(
@@ -86,6 +88,11 @@ namespace VoxelEngine.Tests.PlayMode
             StringAssert.Contains("-voxel-converging-builds", concurrencyHarness);
             StringAssert.Contains("SetVoxelBuildConcurrency(converging, 0)", concurrencyHarness,
                 "the concurrency A/B must preserve the production converged ceiling");
+            StringAssert.Contains("GetSurfaceBenchmarkState()", prepareHarness);
+            StringAssert.Contains("state.RunningSolidJobs", prepareHarness);
+            StringAssert.Contains("state.MissingVisibleSolidChunks", prepareHarness);
+            StringAssert.Contains("jobs={31} missing={32}", prepareHarness,
+                "the sparse player diagnostic must correlate prepare windows with live geometry pressure");
             StringAssert.Contains("=== REAL PLAYER FPS TAIL ===", capture);
             StringAssert.Contains("=== REAL PLAYER PREPARE SECTIONS ===", capture);
             StringAssert.Contains("PREPARESECTIONS", capture);
