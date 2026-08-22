@@ -54,7 +54,9 @@ The authoritative region surface classification and compaction are already Unity
 - [x] Record the key residual from the A/B: the feature still has periodic worker-prepare spikes. One sample reached `prepare=20.42 ms`, with `admit=16.45 ms`, while discovery itself was only `0.10 ms` and visibility `0.64 ms`.
 - [x] Expose the renderer's existing worker-prepare timing windows through the Composition diagnostics boundary as primitive values only; do not add new stopwatch work to the renderer frame path.
 - [x] Sample those timing windows sparsely in the standalone player and print `PREPARESECTIONS` directly into the Actions log so artifact-quota failures cannot hide the diagnostic.
-- [ ] Correlate the 20–50 ms real-player windows with the `PREPARESECTIONS` breakdown and active geometry-job pressure, then name the first proven spike source.
+- [x] Run the phase diagnostic in the real `VoxelShowcase` player (`32545603132`). The player completes 150 s and captures 14 screenshots; the workflow is red because the traversal assertion still fails and artifact upload quota is full.
+- [x] Rule out the instrumented managed `CpuTransvoxelChunkCache.Prepare()` sections as the 20–50 ms late-run source. At t=130–150 s, worker `Prepare` max is only `0.181–0.364 ms`; capacity max is `0.000 ms`, selection max `0.011 ms`, residency max `0.044 ms`, while FPS windows still contain `26.99–50.35 ms` frames and one separate `956.74 ms` outlier. The earlier renderer-wide `admit=16.45 ms` wall time therefore is not CPU time inside these worker sections; scheduler comments and prior measurements make job-pool starvation the next hypothesis.
+- [ ] Correlate the 20–50 ms real-player windows with active geometry-job pressure and test converging-build concurrency directly.
 - [ ] Record discovered-brick versus unique-chunk admission fanout in real-player telemetry if another routing iteration is needed.
 - [ ] Verify no coverage/fallback regression with the corrected traversal assertion independently of the successful `missingVisible=0` real-player samples.
 
@@ -62,20 +64,23 @@ The authoritative region surface classification and compaction are already Unity
 
 The broader rendering investigation already measured a settled real-player run where scheduler `Prepare` averaged about 2.12 ms: visibility alone averaged about 1.92 ms, worker admission about 0.20 ms, and discovery/invalidation were effectively zero. That remains the steady-state picture.
 
-The moving A/B changes the transient conclusion: discovery routing/dedup is worthwhile because it materially improves moving-player frame behavior. It does not finish the work. In the feature run, discovery is negligible even on a spike (`0.10 ms`), while `admit` still reaches `16.45 ms`. `admit` is the scheduler's timed loop over `CpuTransvoxelChunkCache.Prepare`, not the surface-discovery router itself. The next investigation therefore belongs inside worker `Prepare()` rather than another round of shard-fanout jobification.
+The moving A/B changes the transient conclusion: discovery routing/dedup is worthwhile because it materially improves moving-player frame behavior. It does not finish the work. In the feature run, discovery is negligible even on a spike (`0.10 ms`), while renderer-wide `admit` still reaches `16.45 ms`.
 
-The visibility path is still a separate known steady-state hotspot: active chunk coordinates consult managed state (`_known`, desired versions, ready entries, empty versions), and replacing the frustum primitive previously produced no measurable win. Keep that work separate from the transient admission spikes measured here.
+The phase diagnostic changes the residual diagnosis again: the individual worker sections do not consume that wall time. Late in run `32545603132`, worker `Prepare` itself remains sub-millisecond even in one-second windows whose frame maxima reach 25–50 ms. The scheduler already documents an earlier measured failure mode where many Burst extraction builds in flight saturate the job pool and the main thread loses wall-clock time despite small scheduler CPU sections. The next controlled experiment is therefore build-concurrency A/B, not more managed `Prepare()` micro-optimization.
+
+The visibility path is still a separate known steady-state hotspot: active chunk coordinates consult managed state (`_known`, desired versions, ready entries, empty versions), and replacing the frustum primitive previously produced no measurable win. Keep that work separate from the transient job-saturation spikes measured here.
 
 ## Next optimization gate
 
 Do not jobify the managed cache blindly. The A/B proves the routing optimization is useful, but it also proves the remaining transient is elsewhere.
 
 - [x] Keep the unique shard routing/dedup optimization; the real-player A/B measured a material improvement.
-- [x] Stop treating discovery fanout as the dominant residual: feature spike discovery was `0.10 ms` while worker admission was `16.45 ms`.
+- [x] Stop treating discovery fanout as the dominant residual: feature spike discovery was `0.10 ms` while renderer-wide worker-admission wall time reached `16.45 ms`.
 - [x] Add low-perturbation diagnostics for the already-instrumented worker sections and make their output survive artifact-quota failure.
-- [ ] Split `CpuTransvoxelChunkCache.Prepare()` spike cost into its already-instrumented sections: rule sync, residency prune, capacity, build selection, snapshot/append/profile/transition work.
-- [ ] Fix the first section proven to violate the scheduler's intended frame budget. Note that rule sync, clipmap/residency pruning and capacity enforcement currently execute before the worker computes its `deadline`; if one of those is the spike source, make it resumable/budget-aware rather than merely moving managed mutation to a job.
-- [ ] If the residual instead comes from pure snapshot/coordinate processing, move only that pure/native portion to Burst/Jobs and leave managed dictionaries, queues, entry lifetimes and GPU publication on the main thread.
+- [x] Split `CpuTransvoxelChunkCache.Prepare()` cost into its already-instrumented sections and rule those sections out as the late 20–50 ms frame source.
+- [ ] A/B the production converging-build ceiling (`12`) against lower bounded values in the same real-player traversal. Preserve render distance and require equivalent visible coverage/missing-chunk behavior; a lower ceiling is acceptable only if it removes tail spikes without leaving the camera waiting on geometry.
+- [ ] If build concurrency is proven causal, replace the fixed high converging ceiling with a policy that reserves CPU for the player/main thread while still prioritizing visible missing chunks. Do not hide stutter by disabling background correctness work or shrinking coverage.
+- [ ] If concurrency does not explain the residual, add the minimum next diagnostic needed to distinguish main/render-thread stalls, GPU/presentation stalls, and unrelated scene systems before changing renderer code.
 - [ ] Keep the commit/publication path allocation-free and bounded by an explicit per-frame budget.
 - [ ] Re-run the exact same real-player A/B after the next change; do not infer success from editor timing.
 
@@ -88,5 +93,5 @@ Do not jobify the managed cache blindly. The A/B proves the routing optimization
 - [ ] No new synchronous completion violations.
 - [ ] No geometry holes or near/far fallback regression.
 - [x] Measured main-thread/frame-time improvement versus `master` in the isolated real-player A/B.
-- [ ] Identify and reduce the remaining worker-`Prepare()` transient without regressing the measured A/B.
+- [ ] Identify and reduce the remaining streaming transient without regressing the measured A/B.
 - [ ] Update `.claude/plans/rendering-garbled.md` if this work changes the broader renderer bottleneck conclusion.
