@@ -56,5 +56,33 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("if hole > 0.05:", validator,
                 "The real-player gate must fail if the far hole opens while near coverage is incomplete.");
         }
+
+        [Test]
+        public void CommandLineAutoWalkUsesDeterministicLandmarkTangent()
+        {
+            string helper = File.ReadAllText(
+                "Assets/Scenes/Showcase/DeterministicAutoWalkHeadingHarness.cs");
+            string showcase = File.ReadAllText("Assets/Scenes/Showcase/VoxelShowcase.cs");
+
+            StringAssert.Contains("[DefaultExecutionOrder(-10000)]", helper);
+            StringAssert.Contains(
+                "TryCommandLineValue(\"-voxel-autowalk-after\"", helper,
+                "Normal interactive players must not install the deterministic benchmark heading helper.");
+            StringAssert.Contains(
+                "Vector3 tangent = Vector3.Cross(Vector3.up, radial).normalized;", helper);
+            StringAssert.Contains(
+                "tangentYaw - ExistingAutoWalkDegreesPerSecond * Time.deltaTime", helper,
+                "The helper must pre-compensate the existing StepAutoWalk turn so actual movement lands on the geometry-derived tangent.");
+            StringAssert.Contains("MouseLookField.SetValue(_showcase, false);", helper,
+                "Real mouse deltas must not perturb the automated route once the benchmark arms.");
+
+            StringAssert.Contains("private float _yaw, _pitch;", showcase,
+                "The harness binding intentionally depends on VoxelShowcase's private heading state.");
+            StringAssert.Contains("private bool _mouseLook = true;", showcase);
+            StringAssert.Contains("private Vector3 LandmarkWorldPosition()", showcase);
+            StringAssert.Contains("const float DegreesPerSecond = 24f;", showcase);
+            StringAssert.Contains("_yaw += DegreesPerSecond * Time.deltaTime;", showcase,
+                "If StepAutoWalk's turn law changes, update the deterministic helper instead of silently changing the benchmark route.");
+        }
     }
 }
