@@ -201,3 +201,24 @@ if (( shots < 2 )); then
   echo "A runner without a logged-in window server can launch the player but render no screenshots." >&2
   exit 1
 fi
+
+# Validation-only escape hatch for GitHub artifact-quota failures. Arch lookdev is small enough
+# to publish a downsized JPEG preview into the job log, allowing connector-only agents to inspect
+# the actual presented frame even when actions/upload-artifact cannot create a new artifact.
+if [[ "$TEST_FILTER" == VoxelEngine.Tests.PlayMode.ArchLookdevSceneTests* ]]; then
+  latest_shot="$(find "$SHOTS_DIR" -name '*.png' -size +1k -print | sort | tail -1)"
+  preview="$OUTPUT_ROOT/arch-log-preview.jpg"
+  sips -Z 900 -s format jpeg -s formatOptions 65 "$latest_shot" --out "$preview" >/dev/null
+  python3 - "$preview" <<'PY'
+import base64
+import pathlib
+import sys
+
+payload = base64.b64encode(pathlib.Path(sys.argv[1]).read_bytes()).decode('ascii')
+print(f'ARCH_PREVIEW_BYTES {len(payload)}')
+for index in range(0, len(payload), 60000):
+    chunk = payload[index:index + 60000]
+    print(f'ARCH_PREVIEW_CHUNK {index // 60000:04d} {chunk}')
+print('ARCH_PREVIEW_END')
+PY
+fi
