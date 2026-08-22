@@ -76,6 +76,15 @@ if [[ -n "$TEST_FILTER" ]]; then
       : "${RUN_SECONDS:=120}"
       : "${STATIONARY_SAMPLE:=10}"
       ;;
+    VoxelEngine.Tests.PlayMode.ShowcaseTraversalPerformanceTests.ContinuousPlayerTraversalNeverStuttersOrOpensNearFarGap)
+      # The PlayMode version is still valuable for assertions, but the generic single-test runner
+      # deliberately uses one Unity job worker and therefore cannot provide representative frame
+      # timing for the renderer's multi-worker streaming path. Always follow it with the same
+      # production VoxelShowcase in a real player and scripted walk.
+      SCENE="Assets/Scenes/VoxelShowcase.unity"
+      : "${RUN_SECONDS:=150}"
+      : "${AUTOWALK_AFTER:=60}"
+      ;;
     VoxelEngine.Tests.PlayMode.CastleScreenshotTests|VoxelEngine.Tests.PlayMode.CastleScreenshotTests.*|\
     VoxelEngine.Tests.PlayMode.CastleExteriorLookdevTests|VoxelEngine.Tests.PlayMode.CastleExteriorLookdevTests.*)
       SCENE="Assets/Scenes/VoxelShowcase.unity"
@@ -245,6 +254,14 @@ fi
 
 if [[ -s "$PLAYER_LOG" ]]; then
   grep 'FPSLOG' "$PLAYER_LOG" > "$FPS_LOG" || true
+fi
+
+# Keep the performance signal visible even when GitHub artifact storage is unavailable. The
+# single-test workflow still uploads fps.txt when quota permits, but the last warm/moving samples
+# belong in the job log as well so a rendering regression cannot become opaque infrastructure red.
+if [[ -s "$FPS_LOG" ]]; then
+  echo "=== REAL PLAYER FPS TAIL ==="
+  tail -20 "$FPS_LOG"
 fi
 
 shots="$(find "$SHOTS_DIR" -name '*.png' -size +1k | wc -l | tr -d ' ')"
