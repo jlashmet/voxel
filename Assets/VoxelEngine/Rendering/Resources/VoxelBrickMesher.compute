@@ -249,6 +249,28 @@ float3 DensityNormal(int3 g)
     return len > 1e-6 ? n / len : float3(0, 1, 0);
 }
 
+bool IsExtrusionCapRimSample(uint packedBoundary, int edgeAxis)
+{
+    int signedQ3 = BoundarySignedQ3(packedBoundary);
+    return BoundaryIsAuthored(packedBoundary)
+        && BoundaryExtrusionAxis(packedBoundary) == edgeAxis
+        && signedQ3 >= 0 && signedQ3 < 4;
+}
+
+float3 ProjectExtrusionCapRim(float3 local, int edgeAxis,
+                              uint packedBoundary, int3 grid)
+{
+    if (!IsExtrusionCapRimSample(packedBoundary, edgeAxis)) return local;
+    float3 transverse = DensityNormal(grid);
+    if (edgeAxis == 0) transverse.x = 0.0;
+    else if (edgeAxis == 1) transverse.y = 0.0;
+    else transverse.z = 0.0;
+    float lenSq = dot(transverse, transverse);
+    if (lenSq <= 1e-8) return local;
+    return local + transverse * rsqrt(lenSq)
+         * (BoundarySignedQ3(packedBoundary) * 0.125);
+}
+
 // Mirrors TransvoxelTopologyJob.Pack: material, coating, style, then the high semantic byte.
 uint PackMaterial(uint material, uint surface)
 {
@@ -323,11 +345,12 @@ void CSWriteCells(uint3 id : SV_DispatchThreadID)
         int3 delta = abs(o1 - o0);
         int axis = delta.x != 0 ? 0 : (delta.y != 0 ? 1 : 2);
 
-        // An authored sample that does not apply along this edge's axis is ignored, and the edge
-        // reverts to a plain occupancy crossing, so an authored bevel does not bend an edge it says
-        // nothing about.
-        if ((BoundaryIsAuthored(boundary[c0]) && !BoundaryAppliesAlong(boundary[c0], axis))
-         || (BoundaryIsAuthored(boundary[c1]) && !BoundaryAppliesAlong(boundary[c1], axis)))
+        // Keep an authored extrusion cap on the exact occupancy half-step, but do not let that
+        // sharp depth constraint quantize the rim in the two transverse axes.
+        bool extrusionCapEdge =
+            (BoundaryIsAuthored(boundary[c0]) && !BoundaryAppliesAlong(boundary[c0], axis))
+         || (BoundaryIsAuthored(boundary[c1]) && !BoundaryAppliesAlong(boundary[c1], axis));
+        if (extrusionCapEdge)
         {
             d0 = IsSolidSample(material[c0]) ? 0.5 : -0.5;
             d1 = IsSolidSample(material[c1]) ? 0.5 : -0.5;
@@ -336,6 +359,13 @@ void CSWriteCells(uint3 id : SV_DispatchThreadID)
         float t0 = abs(d1 - d0) > 1e-7 ? d1 / (d1 - d0) : 0.5;
         float t1 = 1.0 - t0;
         float3 local = ((float3)(cell + o0) * t0 + (float3)(cell + o1) * t1) * _SourceStep;
+        if (extrusionCapEdge)
+        {
+            bool c0Solid = IsSolidSample(material[c0]);
+            uint solidBoundary = c0Solid ? boundary[c0] : boundary[c1];
+            int3 solidGrid = cell + _Padding + (c0Solid ? o0 : o1);
+            local = ProjectExtrusionCapRim(local, axis, solidBoundary, solidGrid);
+        }
 
         SurfaceVertex vertex;
         vertex.position = ((float3)_ChunkOriginVoxel + local + 0.5) * _VoxelSize;
