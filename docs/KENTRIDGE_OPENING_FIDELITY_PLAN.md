@@ -38,6 +38,7 @@ It is subordinate to `AGENTS.md`, `CLAUDE.md`, `docs/WORLDBUILDER_RUNTIME_INTEGR
 - [x] Add a focused production-camera readability regression that measures the actual rendered actor bounds at dialogue line 1 and Logan's recovered line 11, with a 4% viewport safety margin and 12% minimum rendered body height.
   - Diagnostic feature SHA `d14d8bf5de9ef7c5d275764d85af70ceb6fc11e5`, request commit `98c6899ba28fa712a5d4059a41e170df834cf503`, Actions run `32564427089`, job `97010861256` reached the intended line-11 gate and proved a real defect: Madeline's rendered bounds reached viewport X `0.0364`, outside the required `0.04` left-edge margin.
 - [ ] Prove the renderer-bounds camera readability regression green after the minimal semantic camera correction.
+  - Current correction keeps world coordinates out of the cutscene: the gathered trio uses 0.7 m semantic clearance, Logan stops in `SiteInterior` instead of the camera-adjacent entrance approach, and the production camera widens from 70 to 71 degrees. This remains unchecked until the renderer-bounds regression proves the exact feature head.
 - [ ] Inspect the real-player frames for bar/pub staging, four-character readability, camera composition, Logan entrance, dialogue presentation, and post-cutscene handoff.
 - [ ] Fix any visual/staging fidelity defects found in capture and repeat the smallest relevant validation until green.
 
