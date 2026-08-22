@@ -79,6 +79,8 @@ namespace VoxelEngine.Tests.PlayMode
                 "Assets/VoxelEngine/Composition/RenderingDiagnosticsComposition.cs");
             string scheduler = File.ReadAllText(
                 "Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs");
+            string traversal = File.ReadAllText(
+                "Assets/Tests/PlayMode/ShowcaseTraversalPerformanceTests.cs");
             string build = File.ReadAllText(
                 "Assets/Scenes/Showcase/Editor/ShowcasePlayerBuild.cs");
             string capture = File.ReadAllText("tools/showcase-player-capture.sh");
@@ -159,11 +161,17 @@ namespace VoxelEngine.Tests.PlayMode
             StringAssert.DoesNotContain("group: voxel-single-test-self-hosted-mac", singleWorkflow);
             StringAssert.DoesNotContain("cancel-in-progress: false", singleWorkflow);
             StringAssert.Contains(
+                "steps.request.outputs.test != 'VoxelEngine.Tests.PlayMode.ShowcaseTraversalPerformanceTests.ContinuousPlayerTraversalNeverStuttersOrOpensNearFarGap'",
+                singleWorkflow,
+                "the full renderer traversal must use the checked-in production bake rather than spend ~198 seconds regenerating it");
+            StringAssert.Contains(
                 "steps.request.outputs.test != 'VoxelEngine.Tests.PlayMode.StationaryRenderBenchmarkTests.SmallVoxelShowcaseMovingBuild12'",
                 singleWorkflow);
             StringAssert.Contains(
                 "steps.request.outputs.test != 'VoxelEngine.Tests.PlayMode.StationaryRenderBenchmarkTests.SmallVoxelShowcaseMovingBuild8'",
                 singleWorkflow);
+            StringAssert.Contains("WaitForVisibleCoverage(camera, 1800)", traversal,
+                "the eight-worker full traversal must have enough bounded convergence runway to reach movement");
             StringAssert.Contains(
                 "ShowcaseTraversalPerformanceTests.ContinuousPlayerTraversalNeverStuttersOrOpensNearFarGap",
                 capture);
