@@ -8,10 +8,10 @@ namespace VoxelEngine.Showcase
     /// <summary>
     /// Low-frequency diagnostic for the worker-admission spike seen while the showcase streams.
     ///
-    /// The renderer already measures these phases. This harness only snapshots those rolling
-    /// windows every five seconds when the normal FPS logger is enabled, so it does not add
-    /// stopwatch work to the renderer's frame path. The sparse cadence also keeps the snapshot
-    /// sorting cost out of almost every measured frame.
+    /// The renderer already measures these phases and exposes its active solid-job count. This
+    /// harness only snapshots those existing values every five seconds when the normal FPS logger
+    /// is enabled, so it does not add stopwatch work to the renderer's frame path. The sparse
+    /// cadence also keeps the snapshot sorting cost out of almost every measured frame.
     /// </summary>
     public static class SurfacePrepareTimingHarness
     {
@@ -51,6 +51,8 @@ namespace VoxelEngine.Showcase
 
                 SurfacePrepareTimingSnapshot timing =
                     RenderingDiagnosticsComposition.GetSurfacePrepareTiming();
+                SurfaceBenchmarkState state =
+                    RenderingDiagnosticsComposition.GetSurfaceBenchmarkState();
                 Debug.Log(string.Format(CultureInfo.InvariantCulture,
                     "PREPARESECTIONS t={0:0.0} "
                     + "worker[p95={1:0.000} p99={2:0.000} max={3:0.000}] "
@@ -62,7 +64,8 @@ namespace VoxelEngine.Showcase
                     + "compact[p95={19:0.000} p99={20:0.000} max={21:0.000}] "
                     + "facetedMerge[p95={22:0.000} p99={23:0.000} max={24:0.000}] "
                     + "profile[p95={25:0.000} p99={26:0.000} max={27:0.000}] "
-                    + "upload[p95={28:0.000} p99={29:0.000} max={30:0.000}]",
+                    + "upload[p95={28:0.000} p99={29:0.000} max={30:0.000}] "
+                    + "jobs={31} missing={32}",
                     _elapsed,
                     timing.WorkerP95Ms, timing.WorkerP99Ms, timing.WorkerMaxMs,
                     timing.RuleSyncP95Ms, timing.RuleSyncP99Ms, timing.RuleSyncMaxMs,
@@ -74,7 +77,8 @@ namespace VoxelEngine.Showcase
                     timing.FacetedMergeP95Ms, timing.FacetedMergeP99Ms,
                     timing.FacetedMergeMaxMs,
                     timing.ProfileP95Ms, timing.ProfileP99Ms, timing.ProfileMaxMs,
-                    timing.UploadP95Ms, timing.UploadP99Ms, timing.UploadMaxMs));
+                    timing.UploadP95Ms, timing.UploadP99Ms, timing.UploadMaxMs,
+                    state.RunningSolidJobs, state.MissingVisibleSolidChunks));
             }
         }
     }
