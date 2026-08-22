@@ -5,6 +5,7 @@ using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
 using VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel;
+using VoxelEngine.Storage.Api;
 using VoxelEngine.Structures.Api;
 using VoxelEngine.Structures.Runtime;
 
@@ -113,6 +114,39 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(Regex.IsMatch(gpu,
                 @"if\s*\(\s*outputVertexCount\s*==\s*indexCount\s*\)"), Is.False,
                 "GPU emission must not infer flat shading from equal counts; a smooth one-triangle cell can have equal vertex and index counts too.");
+        }
+
+        [Test]
+        public void AuthoredExtrusionCapRimKeepsPlanarDepthAndFollowsSdf()
+        {
+            VoxelBoundarySample rim = VoxelBoundarySample.FromSignedQ4(4, extrusionAxis: 2);
+            Assert.That(rim.SignedQ3, Is.EqualTo(2));
+            Assert.That(TransvoxelTopologyJob.IsExtrusionCapRimSample(rim, edgeAxis: 2), Is.True,
+                "A solid authored sample inside half a voxel of an extrusion rim must be projected to the analytic contour.");
+
+            float3 original = new(10f, 20f, 5.5f);
+            float3 projected = TransvoxelTopologyJob.ProjectExtrusionCapRim(
+                original, edgeAxis: 2, rim, new float3(-1f, 0f, 0.75f));
+            Assert.That(projected.x, Is.EqualTo(9.75f).Within(1e-5f),
+                "The cap rim must move transversely by the authored signed distance.");
+            Assert.That(projected.y, Is.EqualTo(original.y).Within(1e-5f));
+            Assert.That(projected.z, Is.EqualTo(original.z).Within(1e-5f),
+                "Projection must never move the extrusion coordinate; the cap must stay exactly planar.");
+
+            VoxelBoundarySample capInterior =
+                VoxelBoundarySample.FromSignedQ4(8, extrusionAxis: 2);
+            Assert.That(TransvoxelTopologyJob.IsExtrusionCapRimSample(
+                capInterior, edgeAxis: 2), Is.False,
+                "A cap sample saturated at the half-voxel depth distance is not known to lie on the radial rim and must stay on the regular cap grid.");
+            Assert.That(TransvoxelTopologyJob.IsExtrusionCapRimSample(rim, edgeAxis: 0), Is.False,
+                "Only an edge along the primitive's extrusion axis is a planar cap crossing.");
+
+            string facetedPath = Path.Combine(Application.dataPath,
+                "VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/FacetedMaskJob.cs");
+            string faceted = File.ReadAllText(facetedPath);
+            Assert.That(Regex.IsMatch(faceted,
+                @"!TransvoxelTopologyJob\.IsExtrusionCapRimSample\s*\(\s*boundarySample\s*,\s*axis\s*\)"), Is.True,
+                "The faceted pass must yield the analytic cap rim to continuous topology instead of drawing the old voxel stair-step on top.");
         }
     }
 }
