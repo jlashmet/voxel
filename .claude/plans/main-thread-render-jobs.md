@@ -93,13 +93,13 @@ The candidate fix keeps authoritative mutation invalidation immediate and amorti
 - [x] Preserve immediate `_changedWaterBricks` mutation invalidation while routing initial/streaming `_discoveredSurfaceBricks` through bounded water classification (`cfaf93c4fa7fb69a9492439e95da59c9f9d06167`).
 - [x] Deduplicate pending discovery and drain a fixed 32 bricks per frame through `WaterSurfaceDiscoveryAdmission` (`82337f2118901115942b17cb178fa17628199030`); add a source contract that preserves the mutation/discovery distinction (`23a5f95404719bf17fa4e74a5a36b690faa07458`).
 - [x] Verify the final scheduler wiring diff is surgical: one helper field added and one discovery call replaced; no unrelated scheduler rewrite.
-- [ ] Re-run the exact SmallVoxelShowcase gate and require the ~15.5 ms water admission spikes to disappear without increasing `missingVisible`, lease failures, or visible reappearance.
+- [x] Re-run the exact SmallVoxelShowcase gate. Run `32575648213` passed the requested Unity test and 90-second real-player capture. After movement started, worst water admission fell from `15.494 ms` pre-fix to `1.226 ms`, and worst total admission was `1.687 ms`. The printed settled tail stayed around `0.6-0.85 ms` water on classification frames. `leaseFail=0`, `reappeared=0`; the candidate had one transient `missingMax=1`, while the pre-fix run already had transient `missingMax=2`, so there is no new coverage signal from batching. Artifact upload and `ci/single-test` both succeeded.
 
 ## Validation after the first proven fix
 
-- [ ] Re-run the exact same production-policy SmallVoxelShowcase path and require materially reduced tail spikes with equivalent coverage (`missingVisible=0`, no new lease failures/holes).
-- [ ] Run the relevant focused Unity regression(s) under the under-five-minute single-test policy.
-- [ ] Only after the candidate wins the fast gate, run corrected full `VoxelShowcase` traversal + real-player profile for near/far coverage/fallback acceptance.
+- [x] Re-run the exact same production-policy SmallVoxelShowcase path and require materially reduced tail spikes with equivalent coverage (`missingVisible=0`, no new lease failures/holes). Proven by run `32575648213`; repeated ~15.5 ms water hitches are gone and settled coverage is equivalent.
+- [x] Run the relevant focused Unity regression under the under-five-minute single-test policy. `SmallVoxelShowcaseMovingBuild12` executed one requested PlayMode test successfully in 65 seconds in run `32575648213`.
+- [ ] Only after the candidate wins the fast gate, run corrected full `VoxelShowcase` traversal + real-player profile for near/far coverage/fallback acceptance. Run `32575925066` is the current gate; its requested PlayMode test has failed and the accompanying real-player capture is still running. Diagnose the exact assertion before changing code.
 - [ ] Review final diff against `CLAUDE.md`, the rendering specs, and current `master`.
 
 ## Acceptance
@@ -110,7 +110,7 @@ The candidate fix keeps authoritative mutation invalidation immediate and amorti
 - [x] Routing/dedup main-thread improvement measured versus master.
 - [x] Concurrency, GC, arena pressure, solid-publication, and `ScheduleBatchedJobs()` hypotheses rejected with direct measurements.
 - [x] Identify water admission as the remaining ~20 ms transient owner.
-- [ ] Reduce it without reducing render distance/coverage or introducing synchronous job completion.
+- [x] Reduce it without reducing render distance/coverage or introducing synchronous job completion. Run `32575648213` reduces the measured water spike by about 92% while preserving the production SmallVoxel coverage signals.
 - [ ] No geometry holes or near/far fallback regression.
 - [ ] Final corrected full traversal reaches movement and passes coverage acceptance.
 - [ ] Relevant CI status is green, or a concrete external CI blocker is documented with successful Unity/player evidence separated from the failing infrastructure step.
