@@ -93,6 +93,89 @@ namespace VoxelEngine.Composition
         public bool IsConverged => VisibleSolidChunks > 0 && MissingVisibleSolidChunks == 0;
     }
 
+    /// <summary>
+    /// Rolling worker-prepare phase timings for the real-player harness. These are the renderer's
+    /// existing fixed-window measurements, surfaced as primitives so scene diagnostics never take
+    /// a dependency on Rendering.Runtime timing types.
+    /// </summary>
+    public readonly struct SurfacePrepareTimingSnapshot
+    {
+        public readonly double WorkerP95Ms;
+        public readonly double WorkerP99Ms;
+        public readonly double WorkerMaxMs;
+        public readonly double RuleSyncP95Ms;
+        public readonly double RuleSyncP99Ms;
+        public readonly double RuleSyncMaxMs;
+        public readonly double ResidencyP95Ms;
+        public readonly double ResidencyP99Ms;
+        public readonly double ResidencyMaxMs;
+        public readonly double CapacityP95Ms;
+        public readonly double CapacityP99Ms;
+        public readonly double CapacityMaxMs;
+        public readonly double SelectionP95Ms;
+        public readonly double SelectionP99Ms;
+        public readonly double SelectionMaxMs;
+        public readonly double SnapshotP95Ms;
+        public readonly double SnapshotP99Ms;
+        public readonly double SnapshotMaxMs;
+        public readonly double CompactP95Ms;
+        public readonly double CompactP99Ms;
+        public readonly double CompactMaxMs;
+        public readonly double FacetedMergeP95Ms;
+        public readonly double FacetedMergeP99Ms;
+        public readonly double FacetedMergeMaxMs;
+        public readonly double ProfileP95Ms;
+        public readonly double ProfileP99Ms;
+        public readonly double ProfileMaxMs;
+        public readonly double UploadP95Ms;
+        public readonly double UploadP99Ms;
+        public readonly double UploadMaxMs;
+
+        internal SurfacePrepareTimingSnapshot(
+            in VoxelTimingSummary worker,
+            in VoxelTimingSummary ruleSync,
+            in VoxelTimingSummary residency,
+            in VoxelTimingSummary capacity,
+            in VoxelTimingSummary selection,
+            in VoxelTimingSummary snapshot,
+            in VoxelTimingSummary compact,
+            in VoxelTimingSummary facetedMerge,
+            in VoxelTimingSummary profile,
+            in VoxelTimingSummary upload)
+        {
+            WorkerP95Ms = worker.P95Ms;
+            WorkerP99Ms = worker.P99Ms;
+            WorkerMaxMs = worker.MaxMs;
+            RuleSyncP95Ms = ruleSync.P95Ms;
+            RuleSyncP99Ms = ruleSync.P99Ms;
+            RuleSyncMaxMs = ruleSync.MaxMs;
+            ResidencyP95Ms = residency.P95Ms;
+            ResidencyP99Ms = residency.P99Ms;
+            ResidencyMaxMs = residency.MaxMs;
+            CapacityP95Ms = capacity.P95Ms;
+            CapacityP99Ms = capacity.P99Ms;
+            CapacityMaxMs = capacity.MaxMs;
+            SelectionP95Ms = selection.P95Ms;
+            SelectionP99Ms = selection.P99Ms;
+            SelectionMaxMs = selection.MaxMs;
+            SnapshotP95Ms = snapshot.P95Ms;
+            SnapshotP99Ms = snapshot.P99Ms;
+            SnapshotMaxMs = snapshot.MaxMs;
+            CompactP95Ms = compact.P95Ms;
+            CompactP99Ms = compact.P99Ms;
+            CompactMaxMs = compact.MaxMs;
+            FacetedMergeP95Ms = facetedMerge.P95Ms;
+            FacetedMergeP99Ms = facetedMerge.P99Ms;
+            FacetedMergeMaxMs = facetedMerge.MaxMs;
+            ProfileP95Ms = profile.P95Ms;
+            ProfileP99Ms = profile.P99Ms;
+            ProfileMaxMs = profile.MaxMs;
+            UploadP95Ms = upload.P95Ms;
+            UploadP99Ms = upload.P99Ms;
+            UploadMaxMs = upload.MaxMs;
+        }
+    }
+
     public static class RenderingDiagnosticsComposition
     {
         /// <summary>
@@ -132,6 +215,27 @@ namespace VoxelEngine.Composition
                 metrics.MissingVisibleSolidChunks,
                 metrics.RunningSolidJobs,
                 metrics.SolidMeshesAwaitingUpload);
+        }
+
+        /// <summary>
+        /// Returns the existing fixed-window timing summaries for worker admission and its
+        /// instrumented sub-phases. Intended for low-frequency benchmark logging, not per-frame
+        /// gameplay sampling, because snapshotting timing windows sorts preallocated scratch data.
+        /// </summary>
+        public static SurfacePrepareTimingSnapshot GetSurfacePrepareTiming()
+        {
+            var metrics = VoxelRenderBridge.SurfaceMetrics;
+            return new SurfacePrepareTimingSnapshot(
+                in metrics.WorkerPrepareTiming,
+                in metrics.RuleSyncTiming,
+                in metrics.ResidencyPruneTiming,
+                in metrics.CapacityTiming,
+                in metrics.BuildSelectionTiming,
+                in metrics.SnapshotTiming,
+                in metrics.TopologyCompactTiming,
+                in metrics.FacetedMergeTiming,
+                in metrics.ProfileEmitTiming,
+                in metrics.UploadTiming);
         }
     }
 }
