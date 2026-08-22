@@ -42,14 +42,18 @@ permissions:
   contents: read
   statuses: write
 
-# Do not add an Actions concurrency group here. This repository has one self-hosted
-# macOS runner, and that runner is the queue. GitHub concurrency groups retain only
-# one pending run and can replace an older pending request when a newer one arrives.
+# A branch is a latest-request mailbox. A newer single-test request on the same
+# branch cancels any older queued or running request instead of building a backlog.
+concurrency:
+  group: single-test-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   single:
     runs-on: [self-hosted, macOS]
-    timeout-minutes: 45
+    # Single-test CI is intentionally a fast-feedback path. The complete job must
+    # finish within five minutes; slow tests should be split or narrowed instead.
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
         with:
@@ -145,7 +149,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          deadline=$((SECONDS + 900))
+          deadline=$((SECONDS + 60))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
               pgrep -alf '/Unity.app/Contents/MacOS/Unity' || true
@@ -155,16 +159,20 @@ jobs:
           done
 
       # Showcase PlayMode tests depend on the same baked startup world used by
-      # the PR and master workflows. The standalone Kentridge and self-contained
-      # Arch/Terrain lookdev scenes compose their own worlds and do not need it.
+      # the PR and master workflows. Kentridge's production/dialogue acceptances and the
+      # self-contained Arch/Terrain lookdev scenes compose their own worlds and do not need it.
       - name: Bake Voxel Showcase startup world
         if: >-
           steps.request.outputs.platform == 'PlayMode' &&
           startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.') &&
           !startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.KentridgeStructureComparisonSceneTests.') &&
+          steps.request.outputs.test != 'VoxelEngine.Tests.PlayMode.KentridgeStructureComparisonSceneTests' &&
           !startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests.') &&
+          steps.request.outputs.test != 'VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests' &&
           !startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.KentridgeOpeningDialoguePlayTests.') &&
           steps.request.outputs.test != 'VoxelEngine.Tests.PlayMode.KentridgeOpeningDialoguePlayTests' &&
+          !startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.KentridgeOpeningProductionAcceptanceTests.') &&
+          steps.request.outputs.test != 'VoxelEngine.Tests.PlayMode.KentridgeOpeningProductionAcceptanceTests' &&
           !startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.ArchLookdevSceneTests.') &&
           steps.request.outputs.test != 'VoxelEngine.Tests.PlayMode.ArchLookdevSceneTests' &&
           !startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.TerrainLookdevScreenshotTests.') &&
@@ -174,7 +182,7 @@ jobs:
           set -euo pipefail
           ROOT="$GITHUB_WORKSPACE/Artifacts/SingleTest"
           mkdir -p "$ROOT"
-          UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=20 \
+          UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=4 \
           UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
             -batchmode -nographics -job-worker-count 1 -quit \
             -projectPath "$GITHUB_WORKSPACE" \
@@ -189,7 +197,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          deadline=$((SECONDS + 900))
+          deadline=$((SECONDS + 60))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
               pgrep -alf '/Unity.app/Contents/MacOS/Unity' || true
@@ -210,18 +218,19 @@ jobs:
 
           # Keep the array non-empty under macOS's Bash 3.2. With set -u, expanding an empty
           # array is treated as an unbound variable and PlayMode never reaches Unity.
-          # The standalone Kentridge acceptances inspect composed world state and movement, not
-          # framebuffer pixels; null graphics keeps those real PlayMode paths within runner memory.
+          # Kentridge's production acceptances inspect composed world/camera state and movement,
+          # not framebuffer pixels; null graphics keeps those real PlayMode paths within memory.
           EXTRA_ARGS=(-batchmode)
           if [[ "$TEST_PLATFORM" == "EditMode" ||
                 "$TEST_FILTER" == VoxelEngine.Tests.PlayMode.KentridgeStructureComparisonSceneTests.* ||
-                "$TEST_FILTER" == VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests.* ]]; then
+                "$TEST_FILTER" == VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests.* ||
+                "$TEST_FILTER" == VoxelEngine.Tests.PlayMode.KentridgeOpeningProductionAcceptanceTests.* ]]; then
             EXTRA_ARGS+=(-nographics)
           fi
 
           echo "Running $TEST_PLATFORM test filter: $TEST_FILTER"
           status=0
-          UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=30 \
+          UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=4 \
           UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
             "${EXTRA_ARGS[@]}" -job-worker-count 1 \
             -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform "$TEST_PLATFORM" \
