@@ -94,9 +94,8 @@ namespace VoxelEngine.Composition
     }
 
     /// <summary>
-    /// Rolling worker-prepare phase timings for the real-player harness. These are the renderer's
-    /// existing fixed-window measurements, surfaced as primitives so scene diagnostics never take
-    /// a dependency on Rendering.Runtime timing types.
+    /// Rolling worker-prepare phase timings for the real-player harness. Only primitive values
+    /// cross the Composition boundary; renderer timing-window types remain private to Runtime.
     /// </summary>
     public readonly struct SurfacePrepareTimingSnapshot
     {
@@ -132,47 +131,47 @@ namespace VoxelEngine.Composition
         public readonly double UploadMaxMs;
 
         internal SurfacePrepareTimingSnapshot(
-            VoxelTimingSummary worker,
-            VoxelTimingSummary ruleSync,
-            VoxelTimingSummary residency,
-            VoxelTimingSummary capacity,
-            VoxelTimingSummary selection,
-            VoxelTimingSummary snapshot,
-            VoxelTimingSummary compact,
-            VoxelTimingSummary facetedMerge,
-            VoxelTimingSummary profile,
-            VoxelTimingSummary upload)
+            double workerP95Ms, double workerP99Ms, double workerMaxMs,
+            double ruleSyncP95Ms, double ruleSyncP99Ms, double ruleSyncMaxMs,
+            double residencyP95Ms, double residencyP99Ms, double residencyMaxMs,
+            double capacityP95Ms, double capacityP99Ms, double capacityMaxMs,
+            double selectionP95Ms, double selectionP99Ms, double selectionMaxMs,
+            double snapshotP95Ms, double snapshotP99Ms, double snapshotMaxMs,
+            double compactP95Ms, double compactP99Ms, double compactMaxMs,
+            double facetedMergeP95Ms, double facetedMergeP99Ms, double facetedMergeMaxMs,
+            double profileP95Ms, double profileP99Ms, double profileMaxMs,
+            double uploadP95Ms, double uploadP99Ms, double uploadMaxMs)
         {
-            WorkerP95Ms = worker.P95Ms;
-            WorkerP99Ms = worker.P99Ms;
-            WorkerMaxMs = worker.MaxMs;
-            RuleSyncP95Ms = ruleSync.P95Ms;
-            RuleSyncP99Ms = ruleSync.P99Ms;
-            RuleSyncMaxMs = ruleSync.MaxMs;
-            ResidencyP95Ms = residency.P95Ms;
-            ResidencyP99Ms = residency.P99Ms;
-            ResidencyMaxMs = residency.MaxMs;
-            CapacityP95Ms = capacity.P95Ms;
-            CapacityP99Ms = capacity.P99Ms;
-            CapacityMaxMs = capacity.MaxMs;
-            SelectionP95Ms = selection.P95Ms;
-            SelectionP99Ms = selection.P99Ms;
-            SelectionMaxMs = selection.MaxMs;
-            SnapshotP95Ms = snapshot.P95Ms;
-            SnapshotP99Ms = snapshot.P99Ms;
-            SnapshotMaxMs = snapshot.MaxMs;
-            CompactP95Ms = compact.P95Ms;
-            CompactP99Ms = compact.P99Ms;
-            CompactMaxMs = compact.MaxMs;
-            FacetedMergeP95Ms = facetedMerge.P95Ms;
-            FacetedMergeP99Ms = facetedMerge.P99Ms;
-            FacetedMergeMaxMs = facetedMerge.MaxMs;
-            ProfileP95Ms = profile.P95Ms;
-            ProfileP99Ms = profile.P99Ms;
-            ProfileMaxMs = profile.MaxMs;
-            UploadP95Ms = upload.P95Ms;
-            UploadP99Ms = upload.P99Ms;
-            UploadMaxMs = upload.MaxMs;
+            WorkerP95Ms = workerP95Ms;
+            WorkerP99Ms = workerP99Ms;
+            WorkerMaxMs = workerMaxMs;
+            RuleSyncP95Ms = ruleSyncP95Ms;
+            RuleSyncP99Ms = ruleSyncP99Ms;
+            RuleSyncMaxMs = ruleSyncMaxMs;
+            ResidencyP95Ms = residencyP95Ms;
+            ResidencyP99Ms = residencyP99Ms;
+            ResidencyMaxMs = residencyMaxMs;
+            CapacityP95Ms = capacityP95Ms;
+            CapacityP99Ms = capacityP99Ms;
+            CapacityMaxMs = capacityMaxMs;
+            SelectionP95Ms = selectionP95Ms;
+            SelectionP99Ms = selectionP99Ms;
+            SelectionMaxMs = selectionMaxMs;
+            SnapshotP95Ms = snapshotP95Ms;
+            SnapshotP99Ms = snapshotP99Ms;
+            SnapshotMaxMs = snapshotMaxMs;
+            CompactP95Ms = compactP95Ms;
+            CompactP99Ms = compactP99Ms;
+            CompactMaxMs = compactMaxMs;
+            FacetedMergeP95Ms = facetedMergeP95Ms;
+            FacetedMergeP99Ms = facetedMergeP99Ms;
+            FacetedMergeMaxMs = facetedMergeMaxMs;
+            ProfileP95Ms = profileP95Ms;
+            ProfileP99Ms = profileP99Ms;
+            ProfileMaxMs = profileMaxMs;
+            UploadP95Ms = uploadP95Ms;
+            UploadP99Ms = uploadP99Ms;
+            UploadMaxMs = uploadMaxMs;
         }
     }
 
@@ -218,24 +217,33 @@ namespace VoxelEngine.Composition
         }
 
         /// <summary>
-        /// Returns the existing fixed-window timing summaries for worker admission and its
-        /// instrumented sub-phases. Intended for low-frequency benchmark logging, not per-frame
-        /// gameplay sampling, because snapshotting timing windows sorts preallocated scratch data.
+        /// Returns existing fixed-window timing summaries for worker admission and its instrumented
+        /// sub-phases. Intended for sparse benchmark logging rather than per-frame gameplay reads.
         /// </summary>
         public static SurfacePrepareTimingSnapshot GetSurfacePrepareTiming()
         {
             var metrics = VoxelRenderBridge.SurfaceMetrics;
+            var worker = metrics.WorkerPrepareTiming;
+            var rule = metrics.RuleSyncTiming;
+            var residency = metrics.ResidencyPruneTiming;
+            var capacity = metrics.CapacityTiming;
+            var selection = metrics.BuildSelectionTiming;
+            var snapshot = metrics.SnapshotTiming;
+            var compact = metrics.TopologyCompactTiming;
+            var facetedMerge = metrics.FacetedMergeTiming;
+            var profile = metrics.ProfileEmitTiming;
+            var upload = metrics.UploadTiming;
             return new SurfacePrepareTimingSnapshot(
-                metrics.WorkerPrepareTiming,
-                metrics.RuleSyncTiming,
-                metrics.ResidencyPruneTiming,
-                metrics.CapacityTiming,
-                metrics.BuildSelectionTiming,
-                metrics.SnapshotTiming,
-                metrics.TopologyCompactTiming,
-                metrics.FacetedMergeTiming,
-                metrics.ProfileEmitTiming,
-                metrics.UploadTiming);
+                worker.P95Ms, worker.P99Ms, worker.MaxMs,
+                rule.P95Ms, rule.P99Ms, rule.MaxMs,
+                residency.P95Ms, residency.P99Ms, residency.MaxMs,
+                capacity.P95Ms, capacity.P99Ms, capacity.MaxMs,
+                selection.P95Ms, selection.P99Ms, selection.MaxMs,
+                snapshot.P95Ms, snapshot.P99Ms, snapshot.MaxMs,
+                compact.P95Ms, compact.P99Ms, compact.MaxMs,
+                facetedMerge.P95Ms, facetedMerge.P99Ms, facetedMerge.MaxMs,
+                profile.P95Ms, profile.P99Ms, profile.MaxMs,
+                upload.P95Ms, upload.P99Ms, upload.MaxMs);
         }
     }
 }
