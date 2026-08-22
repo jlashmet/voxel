@@ -65,7 +65,11 @@ namespace VoxelEngine.Tests.PlayMode
 
             try
             {
-                yield return WaitForVisibleCoverage(camera, 1200);
+                // Eight-worker CI reached missing=40/jobs=2 at the former 1200-frame cutoff,
+                // while the same full showcase continued to hole-free coverage shortly afterward.
+                // Keep this bounded, but give the production scene the same 1800-frame convergence
+                // allowance already used by the steady-state full-showcase gate below.
+                yield return WaitForVisibleCoverage(camera, 1800);
 
                 Vector3 origin = showcase.transform.position;
                 Quaternion originRotation = showcase.transform.rotation;
