@@ -22,9 +22,9 @@ It is subordinate to `AGENTS.md`, `CLAUDE.md`, `docs/WORLDBUILDER_RUNTIME_INTEGR
 - [x] Add a focused regression covering the recovered 10 / 1 / 20 choreography split and the action ordering around Logan's entrance.
 - [x] Keep artifact-quota failures from masking successful non-visual targeted tests while retaining strict artifact upload for visual proof runs.
 - [x] Prove the dialogue/source regression passes through `ci/single-test` on feature code SHA `63f26d56e84b9fcacb2e697ae79c7ff932120ccc` (`ci-test` request commit `e898ec255808a53f00c6c26057536926fde565d4`, Actions run `32548348388`).
-- [ ] Prove the choreography regression passes on the exact current feature head through `ci/single-test`.
+- [x] Prove the choreography regression passes on the exact current feature head through `ci/single-test`. Feature code SHA `9725c849123b7a8b7e3f6612a74c3ca6b8713033`; request commit `5243b2c361f33788e145ca7d71d004849ce05007`; Actions run `32553176476`; one requested PlayMode test executed and passed.
 - [ ] Re-run the production Kentridge playable-scene acceptance with the expanded 31-line opening and prove control/camera/movement/story handoff still completes.
-- [ ] Keep self-contained Kentridge dialogue/choreography requests from doing unrelated Voxel Showcase bake work in targeted CI.
+- [x] Keep self-contained Kentridge dialogue/choreography requests from doing unrelated Voxel Showcase bake work in targeted CI. Actions run `32553176476` shows `Bake Voxel Showcase startup world` skipped while the choreography test executed successfully.
 
 ## Player-facing fidelity
 
