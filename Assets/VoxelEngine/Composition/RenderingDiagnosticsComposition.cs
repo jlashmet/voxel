@@ -1,4 +1,5 @@
 using VoxelEngine.Rendering.Runtime;
+using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 
 namespace VoxelEngine.Composition
 {
@@ -175,6 +176,26 @@ namespace VoxelEngine.Composition
         }
     }
 
+    /// <summary>
+    /// Current-frame solid arena write telemetry copied across the Composition boundary as
+    /// primitives so showcase diagnostics do not depend on renderer Runtime namespaces.
+    /// </summary>
+    public readonly struct SurfaceArenaUploadFrameSnapshot
+    {
+        public readonly int Frame;
+        public readonly double WallMs;
+        public readonly int Calls;
+        public readonly long Bytes;
+
+        internal SurfaceArenaUploadFrameSnapshot(int frame, double wallMs, int calls, long bytes)
+        {
+            Frame = frame;
+            WallMs = wallMs;
+            Calls = calls;
+            Bytes = bytes;
+        }
+    }
+
     public static class RenderingDiagnosticsComposition
     {
         /// <summary>
@@ -244,6 +265,13 @@ namespace VoxelEngine.Composition
                 facetedMerge.P95Ms, facetedMerge.P99Ms, facetedMerge.MaxMs,
                 profile.P95Ms, profile.P99Ms, profile.MaxMs,
                 upload.P95Ms, upload.P99Ms, upload.MaxMs);
+        }
+
+        public static SurfaceArenaUploadFrameSnapshot GetSurfaceArenaUploadFrame()
+        {
+            var upload = SurfaceGeometryUploadTelemetry.Snapshot;
+            return new SurfaceArenaUploadFrameSnapshot(
+                upload.Frame, upload.WallMs, upload.Calls, upload.Bytes);
         }
     }
 }
