@@ -64,8 +64,22 @@ namespace VoxelEngine.Tests.PlayMode
                 "The opening camera should sit clearly above the pub rather than inside its upper floor.");
             Assert.That(Vector3.Dot(camera.transform.forward, Vector3.down), Is.GreaterThan(0.75f),
                 "The opening camera should read as a top-down view with only a modest oblique offset.");
-            Assert.That(camera.nearClipPlane, Is.GreaterThan(1f),
-                "The opening roof cutaway must advance the near plane beyond normal gameplay clipping.");
+            Assert.That(camera.nearClipPlane, Is.EqualTo(0.05f).Within(0.001f),
+                "The roof cutaway must not advance the camera near plane and slice actors/terrain in view space.");
+
+            Vector3 cutawayMin = ReadPrivateField<Vector3>(presentation, "_cutawayMinVoxel");
+            Vector3 cutawayMax = ReadPrivateField<Vector3>(presentation, "_cutawayMaxVoxel");
+            float floorVoxelY = (focus.y - 0.9f) * 10f;
+            Assert.That(cutawayMax.x - cutawayMin.x, Is.InRange(180f, 200f),
+                "The cutaway X span should stay bounded to the generated Pub envelope plus roof overhang.");
+            Assert.That(cutawayMax.z - cutawayMin.z, Is.InRange(180f, 200f),
+                "The cutaway Z span should stay bounded to the generated Pub envelope plus roof overhang.");
+            Assert.That(cutawayMin.y, Is.GreaterThanOrEqualTo(floorVoxelY + 24f),
+                "The cutaway must retain at least the generated doorway-height lower walls.");
+            Assert.That(cutawayMin.y, Is.LessThan(floorVoxelY + 34f),
+                "The cutaway must start below the generated first-floor slab so that slab cannot hide the room.");
+            Assert.That(cutawayMax.y, Is.GreaterThan(cutawayMin.y),
+                "The renderer cutaway must cover the generated Pub geometry above the retained lower walls.");
 
             // Presentation fades use unscaled wall-clock delta. Batchmode is uncapped, so a fixed
             // number of frames can represent far less time than it does in the real player. Gate
@@ -127,15 +141,15 @@ namespace VoxelEngine.Tests.PlayMode
                 "The opening did not release to gameplay after its closing fade hold.");
 
             // A UnityTest coroutine resumes after Update and before LateUpdate. The driver releases
-            // camera ownership in Update, while the presentation intentionally restores its near
-            // plane in LateUpdate so the same frame reaches rendering with gameplay camera state.
+            // camera ownership in Update, while the presentation intentionally restores transient
+            // renderer state in LateUpdate so the same frame reaches rendering as normal gameplay.
             // Observe the next coroutine turn instead of asserting on that mid-frame boundary.
             yield return null;
 
             Assert.That(ReadBoolProperty(presentation, "RoofCutawayActive"), Is.False,
                 "The roof cutaway must be removed before gameplay is presented.");
             Assert.That(camera.nearClipPlane, Is.EqualTo(0.05f).Within(0.001f),
-                "Gameplay must recover the scene camera's normal near clip plane.");
+                "Gameplay must retain the scene camera's normal near clip plane.");
 
             float gameplayFadeDeadline = Time.realtimeSinceStartup + 3f;
             while (ReadFloatProperty(presentation, "FadeAlpha") > 0.01f
