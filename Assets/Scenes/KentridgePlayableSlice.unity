@@ -30,12 +30,6 @@ RenderSettings:
   m_HaloStrength: 0.5
   m_FlareStrength: 1
   m_FlareFadeSpeed: 3
-  m_HaloTexture: {fileID: 0}
-  m_SpotCookie: {fileID: 10001, guid: 0000000000000000e000000000000000, type: 0}
-  m_DefaultReflectionMode: 0
-  m_DefaultReflectionResolution: 128
-  m_ReflectionBounces: 1
-  m_ReflectionIntensity: 1
   m_CustomReflection: {fileID: 0}
   m_Sun: {fileID: 200002}
   m_UseRadianceAmbientProbe: 0
@@ -166,6 +160,7 @@ MonoBehaviour:
   m_EditorClassIdentifier:
   m_HeightMetres: 7.2
   m_BackMetres: 3.5
+  m_CutawayHeightMetres: 2.8
   m_VisibleDepthMetres: 2
   m_FadeInSeconds: 0.8
   m_FadeOutSeconds: 0.65
@@ -182,7 +177,7 @@ GameObject:
   - component: {fileID: 200002}
   m_Layer: 0
   m_Name: Sun
-  m_TagString: Untagged
+  m_TagString:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
