@@ -35,6 +35,9 @@ It is subordinate to `AGENTS.md`, `CLAUDE.md`, `docs/WORLDBUILDER_RUNTIME_INTEGR
 - [x] Keep Weldon, Madeline, Steven, and Logan as visible staged participants using the production actor/presentation path.
 - [x] Run the standalone player capture for `KentridgePlayableSlice` on the validated feature head.
   - Exact-head evidence: feature SHA `f5e0175db3a7785444d8c9fabcfc0e36acf61a83`; `ci-test` request commit `a79d75e0abf124fa7a20556e2821a38fd9d04bf2`; Actions run `32559162545`, job `96997974992`. The one requested production PlayMode test passed, the standalone real-player capture passed, and preview emission passed. Strict visual artifact upload then failed only because GitHub artifact storage quota was exhausted, so frame-inspection and all-green completion gates remain open.
+- [x] Add a focused production-camera readability regression that measures the actual rendered actor bounds at dialogue line 1 and Logan's recovered line 11, with a 4% viewport safety margin and 12% minimum rendered body height.
+  - Diagnostic feature SHA `d14d8bf5de9ef7c5d275764d85af70ceb6fc11e5`, request commit `98c6899ba28fa712a5d4059a41e170df834cf503`, Actions run `32564427089`, job `97010861256` reached the intended line-11 gate and proved a real defect: Madeline's rendered bounds reached viewport X `0.0364`, outside the required `0.04` left-edge margin.
+- [ ] Prove the renderer-bounds camera readability regression green after the minimal semantic camera correction.
 - [ ] Inspect the real-player frames for bar/pub staging, four-character readability, camera composition, Logan entrance, dialogue presentation, and post-cutscene handoff.
 - [ ] Fix any visual/staging fidelity defects found in capture and repeat the smallest relevant validation until green.
 
