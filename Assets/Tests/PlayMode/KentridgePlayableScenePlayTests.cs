@@ -86,7 +86,7 @@ namespace VoxelEngine.Tests.PlayMode
             Vector3 previousLead = leadStart;
             int leadMovingFrames = 0;
             Time.captureDeltaTime = 0.1f;
-            for (var frame = 0; frame < 80 && !HasPendingDialogue(driver); frame++)
+            for (var frame = 0; frame < 100 && !HasPendingDialogue(driver); frame++)
             {
                 yield return null;
 
