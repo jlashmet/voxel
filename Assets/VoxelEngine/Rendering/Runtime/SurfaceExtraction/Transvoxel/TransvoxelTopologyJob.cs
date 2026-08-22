@@ -312,7 +312,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
 
         private void WriteEmpty()
         {
-            Output.Write((byte)1);
+            Output.Write((byte)0);
             Output.Write((byte)0);
             Output.Write((byte)0);
             Output.EndForEachIndex();
