@@ -43,6 +43,28 @@ namespace VoxelEngine.Tests.PlayMode
         }
 
         [Test]
+        public void WaterDiscoveryClassificationIsBoundedButMutationInvalidationStaysImmediate()
+        {
+            string scheduler = File.ReadAllText(
+                "Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs");
+            string water = File.ReadAllText(
+                "Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuWaterSurfaceChunkCache.cs");
+
+            StringAssert.Contains("_water.InvalidateSurfaceBricks(storage, _changedWaterBricks);", scheduler,
+                "authoritative water mutations must remain immediate");
+            StringAssert.Contains("_water.QueueSurfaceDiscoveryBricks(_discoveredSurfaceBricks);", scheduler,
+                "initial/streaming discovery must use bounded water classification");
+            StringAssert.DoesNotContain(
+                "_water.InvalidateSurfaceBricks(storage, _discoveredSurfaceBricks);", scheduler,
+                "a whole solid-discovery batch must not be synchronously water-classified");
+            StringAssert.Contains("SurfaceDiscoveryBricksPerPrepare = 32", water);
+            StringAssert.Contains("StepSurfaceDiscovery(storage);", water,
+                "queued discovery must advance every water Prepare before build early-outs");
+            StringAssert.Contains("_queuedSurfaceDiscovery.Add(worldBrick)", water,
+                "repeated discovery publications must deduplicate pending classification");
+        }
+
+        [Test]
         public void StationaryBenchmarkIsSeparatedFromSurveyCapture()
         {
             string harness = File.ReadAllText(
