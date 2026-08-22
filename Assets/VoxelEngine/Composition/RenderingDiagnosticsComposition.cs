@@ -132,16 +132,16 @@ namespace VoxelEngine.Composition
         public readonly double UploadMaxMs;
 
         internal SurfacePrepareTimingSnapshot(
-            in VoxelTimingSummary worker,
-            in VoxelTimingSummary ruleSync,
-            in VoxelTimingSummary residency,
-            in VoxelTimingSummary capacity,
-            in VoxelTimingSummary selection,
-            in VoxelTimingSummary snapshot,
-            in VoxelTimingSummary compact,
-            in VoxelTimingSummary facetedMerge,
-            in VoxelTimingSummary profile,
-            in VoxelTimingSummary upload)
+            VoxelTimingSummary worker,
+            VoxelTimingSummary ruleSync,
+            VoxelTimingSummary residency,
+            VoxelTimingSummary capacity,
+            VoxelTimingSummary selection,
+            VoxelTimingSummary snapshot,
+            VoxelTimingSummary compact,
+            VoxelTimingSummary facetedMerge,
+            VoxelTimingSummary profile,
+            VoxelTimingSummary upload)
         {
             WorkerP95Ms = worker.P95Ms;
             WorkerP99Ms = worker.P99Ms;
@@ -226,16 +226,16 @@ namespace VoxelEngine.Composition
         {
             var metrics = VoxelRenderBridge.SurfaceMetrics;
             return new SurfacePrepareTimingSnapshot(
-                in metrics.WorkerPrepareTiming,
-                in metrics.RuleSyncTiming,
-                in metrics.ResidencyPruneTiming,
-                in metrics.CapacityTiming,
-                in metrics.BuildSelectionTiming,
-                in metrics.SnapshotTiming,
-                in metrics.TopologyCompactTiming,
-                in metrics.FacetedMergeTiming,
-                in metrics.ProfileEmitTiming,
-                in metrics.UploadTiming);
+                metrics.WorkerPrepareTiming,
+                metrics.RuleSyncTiming,
+                metrics.ResidencyPruneTiming,
+                metrics.CapacityTiming,
+                metrics.BuildSelectionTiming,
+                metrics.SnapshotTiming,
+                metrics.TopologyCompactTiming,
+                metrics.FacetedMergeTiming,
+                metrics.ProfileEmitTiming,
+                metrics.UploadTiming);
         }
     }
 }
