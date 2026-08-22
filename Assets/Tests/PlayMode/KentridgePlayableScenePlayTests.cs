@@ -52,19 +52,95 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(ReadBoolProperty(driver, "HasExitedPub"), Is.False,
                 "The player must begin inside the pub, not already in Kentridge town.");
 
+            CharacterMotor motor = ReadPrivateField<CharacterMotor>(driver, "_motor");
+            Assert.That(ReadBoolProperty(driver, "OpeningCutsceneCameraActive"), Is.True,
+                "The recovered opening must use its fixed establishing camera instead of the first-person follow camera.");
+
+            Vector3 openingFocus = ReadVector3Property(driver, "OpeningCutsceneCameraFocus");
+            Vector3 openingCameraPosition = driver.transform.position;
+            Quaternion openingCameraRotation = driver.transform.rotation;
+            Assert.That(openingCameraPosition.y - openingFocus.y, Is.GreaterThan(2.5f),
+                "The Kentridge opening camera must be elevated above the pub group.");
+            Assert.That(Vector3.Dot(driver.transform.forward, Vector3.down), Is.GreaterThan(0.45f),
+                "The Kentridge opening camera must look downward as an overhead ensemble shot.");
+            Assert.That(GameObject.Find("Weldon"), Is.Not.Null,
+                "An overhead cutscene must realize a visible Weldon body; the player cannot just be an invisible first-person camera.");
+
+            // The first game's camera stays on the conversation area while Weldon walks into frame.
+            // Prove both halves: the motor must occupy several intermediate positions, while the
+            // camera position/rotation remain unchanged until the first dialogue beat appears.
+            Vector3 leadStart = motor.Position;
+            Vector3 previousLead = leadStart;
+            int leadMovingFrames = 0;
+            Time.captureDeltaTime = 0.1f;
+            for (var frame = 0; frame < 80 && !HasPendingDialogue(driver); frame++)
+            {
+                yield return null;
+
+                Vector3 leadNow = motor.Position;
+                if (HorizontalDistance(leadNow, previousLead) > 0.01f)
+                {
+                    leadMovingFrames++;
+                    previousLead = leadNow;
+                }
+
+                Assert.That(Vector3.Distance(driver.transform.position, openingCameraPosition),
+                    Is.LessThanOrEqualTo(0.01f),
+                    "The establishing camera followed Weldon instead of holding the original fixed pub composition.");
+                Assert.That(Quaternion.Angle(driver.transform.rotation, openingCameraRotation),
+                    Is.LessThanOrEqualTo(0.05f),
+                    "The establishing camera rotated while Weldon entered the fixed shot.");
+            }
+
+            Assert.That(HasPendingDialogue(driver), Is.True,
+                "The opening never reached its first dialogue beat after Weldon entered.");
+            Assert.That(HorizontalDistance(motor.Position, leadStart), Is.GreaterThan(0.5f),
+                "Weldon must actually travel from the opening spawn to the pub conversation area.");
+            Assert.That(leadMovingFrames, Is.GreaterThanOrEqualTo(5),
+                "Weldon's entrance collapsed to a teleport instead of visible movement across multiple frames.");
+
+            object loganActor = FindNpcActor(driver, "logan");
+            Vector3 loganStart = ReadActorRootPosition(loganActor);
+            Vector3 previousLogan = loganStart;
+            int loganMovingFrames = 0;
+
             // Batch-mode frame rate is intentionally uncapped, so a frame count alone is not a
             // deterministic amount of game time. Force each rendered test frame to advance 100 ms;
             // the scene still executes its normal Update -> actor tick -> story runtime tick path.
             // Dialogue is intentionally player-blocking now, so the test explicitly dismisses each
             // line after it appears, just as a player click would. That keeps the acceptance about
             // the real scene/runtime instead of depending on the old instant-dialogue behavior.
-            Time.captureDeltaTime = 0.1f;
             for (var frame = 0; frame < 240 && !ReadBoolProperty(driver, "GameplayControlEnabled"); frame++)
             {
                 DismissPendingDialogue(driver);
                 yield return null;
+
+                Vector3 loganNow = ReadActorRootPosition(loganActor);
+                if (HorizontalDistance(loganNow, previousLogan) > 0.01f)
+                {
+                    loganMovingFrames++;
+                    previousLogan = loganNow;
+                }
+
+                if (ReadBoolProperty(driver, "OpeningCutsceneCameraActive"))
+                {
+                    Assert.That(Vector3.Distance(driver.transform.position, openingCameraPosition),
+                        Is.LessThanOrEqualTo(0.01f),
+                        "The opening camera must remain fixed while Logan walks into the conversation.");
+                    Assert.That(Quaternion.Angle(driver.transform.rotation, openingCameraRotation),
+                        Is.LessThanOrEqualTo(0.05f));
+                }
             }
             Time.captureDeltaTime = 0f;
+
+            Assert.That(loganMovingFrames, Is.GreaterThanOrEqualTo(5),
+                "Logan's entrance collapsed to a teleport instead of the recovered walk into the group.");
+            Assert.That(HorizontalDistance(ReadActorRootPosition(loganActor), loganStart), Is.GreaterThan(0.5f),
+                "Logan must physically change position during the opening.");
+            Assert.That(ReadBoolProperty(driver, "OpeningCutsceneCameraActive"), Is.False,
+                "The fixed opening camera must release when the cutscene hands control back.");
+            Assert.That(GameObject.Find("Weldon"), Is.Null,
+                "The cutscene-only Weldon body must be hidden when first-person gameplay resumes.");
 
             Assert.That(ReadBoolProperty(driver, "GameplayControlEnabled"), Is.True,
                 "The actual launch scene never returned gameplay control after the opening cutscene.");
@@ -73,7 +149,6 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(ReadBoolProperty(driver, "TravelObjectiveCompleted"), Is.False,
                 "The travel objective must remain incomplete until the destination NPC is actually interacted with.");
 
-            CharacterMotor motor = ReadPrivateField<CharacterMotor>(driver, "_motor");
             ShowcaseWorld world = ReadPrivateField<ShowcaseWorld>(driver, "_world");
             object pubAccess = ReadPrivateField<object>(driver, "_pubAccess");
 
@@ -275,6 +350,17 @@ namespace VoxelEngine.Tests.PlayMode
             return (Vector3)arguments[0];
         }
 
+        private static bool HasPendingDialogue(Component driver)
+        {
+            object presentation = ReadPrivateField<object>(driver, "_presentation");
+            PropertyInfo pendingProperty = presentation.GetType().GetProperty(
+                "Pending",
+                BindingFlags.Instance | BindingFlags.Public);
+            Assert.That(pendingProperty, Is.Not.Null,
+                "Kentridge slice presentation must expose its pending dialogue operation.");
+            return pendingProperty.GetValue(presentation) != null;
+        }
+
         private static void DismissPendingDialogue(Component driver)
         {
             object presentation = ReadPrivateField<object>(driver, "_presentation");
@@ -291,6 +377,38 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(dismiss, Is.Not.Null,
                 "Kentridge slice presentation must let the scene dismiss a completed dialogue beat.");
             dismiss.Invoke(presentation, null);
+        }
+
+        private static object FindNpcActor(Component driver, string nameFragment)
+        {
+            object actors = ReadPrivateField<object>(driver, "_actors");
+            FieldInfo npcsField = actors.GetType().GetField(
+                "_npcs",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.That(npcsField, Is.Not.Null, "Actor host is missing its authoritative NPC registry.");
+            var npcs = npcsField.GetValue(actors) as IDictionary;
+            Assert.That(npcs, Is.Not.Null, "Actor host NPC registry must be enumerable for scene acceptance.");
+
+            foreach (DictionaryEntry entry in npcs)
+            {
+                if (entry.Key != null
+                    && entry.Key.ToString().IndexOf(nameFragment, StringComparison.OrdinalIgnoreCase) >= 0)
+                    return entry.Value;
+            }
+
+            Assert.Fail("Could not find opening NPC actor containing '" + nameFragment + "'.");
+            return null;
+        }
+
+        private static Vector3 ReadActorRootPosition(object actor)
+        {
+            FieldInfo rootField = actor.GetType().GetField(
+                "_root",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.That(rootField, Is.Not.Null, "Cutscene NPC actor is missing its visual root.");
+            var root = rootField.GetValue(actor) as GameObject;
+            Assert.That(root, Is.Not.Null, "Cutscene NPC visual root must exist while the opening is running.");
+            return root.transform.position;
         }
 
         private static float HorizontalDistance(Vector3 a, Vector3 b)
@@ -342,6 +460,15 @@ namespace VoxelEngine.Tests.PlayMode
                 BindingFlags.Instance | BindingFlags.Public);
             Assert.That(property, Is.Not.Null, "Playable scene driver is missing public property '" + name + "'.");
             return (bool)property.GetValue(driver);
+        }
+
+        private static Vector3 ReadVector3Property(Component driver, string name)
+        {
+            PropertyInfo property = driver.GetType().GetProperty(
+                name,
+                BindingFlags.Instance | BindingFlags.Public);
+            Assert.That(property, Is.Not.Null, "Playable scene driver is missing public property '" + name + "'.");
+            return (Vector3)property.GetValue(driver);
         }
 
         private static T ReadPrivateField<T>(Component driver, string name)
