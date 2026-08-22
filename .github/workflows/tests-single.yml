@@ -160,10 +160,9 @@ jobs:
 
       # Most full VoxelShowcase tests need a freshly baked startup world. Renderer traversal is
       # different: it validates the checked-in production bake and then builds/runs that same scene
-      # as a standalone player. Re-baking it here measured ~198 seconds and made the validation
-      # exceed the five-minute single-test policy before the actual movement gate could finish.
-      # The two fast SmallVoxelShowcase profiles likewise compose their smaller standalone world
-      # directly and must not pay for unrelated full-showcase setup.
+      # as a standalone player. The two fast SmallVoxelShowcase profiles likewise compose their
+      # smaller standalone world directly. Kentridge and Arch/Terrain acceptances compose their
+      # own worlds and also do not need the full-showcase bake.
       - name: Bake Voxel Showcase startup world
         if: >-
           steps.request.outputs.platform == 'PlayMode' &&
@@ -172,7 +171,17 @@ jobs:
           steps.request.outputs.test != 'VoxelEngine.Tests.PlayMode.StationaryRenderBenchmarkTests.SmallVoxelShowcaseMovingBuild12' &&
           steps.request.outputs.test != 'VoxelEngine.Tests.PlayMode.StationaryRenderBenchmarkTests.SmallVoxelShowcaseMovingBuild8' &&
           !startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.KentridgeStructureComparisonSceneTests.') &&
+          steps.request.outputs.test != 'VoxelEngine.Tests.PlayMode.KentridgeStructureComparisonSceneTests' &&
           !startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests.') &&
+          steps.request.outputs.test != 'VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests' &&
+          !startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.KentridgeOpeningDialoguePlayTests.') &&
+          steps.request.outputs.test != 'VoxelEngine.Tests.PlayMode.KentridgeOpeningDialoguePlayTests' &&
+          !startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.KentridgeOpeningProductionAcceptanceTests.') &&
+          steps.request.outputs.test != 'VoxelEngine.Tests.PlayMode.KentridgeOpeningProductionAcceptanceTests' &&
+          !startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.KentridgeOpeningCameraReadabilityTests.') &&
+          steps.request.outputs.test != 'VoxelEngine.Tests.PlayMode.KentridgeOpeningCameraReadabilityTests' &&
+          !startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.KentridgeOpeningPresentationTests.') &&
+          steps.request.outputs.test != 'VoxelEngine.Tests.PlayMode.KentridgeOpeningPresentationTests' &&
           !startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.ArchLookdevSceneTests.') &&
           steps.request.outputs.test != 'VoxelEngine.Tests.PlayMode.ArchLookdevSceneTests' &&
           !startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.TerrainLookdevScreenshotTests.') &&
@@ -218,8 +227,8 @@ jobs:
 
           # Keep the array non-empty under macOS's Bash 3.2. With set -u, expanding an empty
           # array is treated as an unbound variable and PlayMode never reaches Unity.
-          # The standalone Kentridge acceptances inspect composed world state and movement, not
-          # framebuffer pixels; null graphics keeps those real PlayMode paths within runner memory.
+          # Kentridge production acceptances inspect composed world/camera state and movement,
+          # not framebuffer pixels; null graphics keeps those paths within runner memory.
           EXTRA_ARGS=(-batchmode)
           WORKER_ARGS=(-job-worker-count 1)
           if [[ "$TEST_PLATFORM" == "PlayMode" &&
@@ -228,7 +237,10 @@ jobs:
           fi
           if [[ "$TEST_PLATFORM" == "EditMode" ||
                 "$TEST_FILTER" == VoxelEngine.Tests.PlayMode.KentridgeStructureComparisonSceneTests.* ||
-                "$TEST_FILTER" == VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests.* ]]; then
+                "$TEST_FILTER" == VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests.* ||
+                "$TEST_FILTER" == VoxelEngine.Tests.PlayMode.KentridgeOpeningProductionAcceptanceTests.* ||
+                "$TEST_FILTER" == VoxelEngine.Tests.PlayMode.KentridgeOpeningCameraReadabilityTests.* ||
+                "$TEST_FILTER" == VoxelEngine.Tests.PlayMode.KentridgeOpeningPresentationTests.* ]]; then
             EXTRA_ARGS+=(-nographics)
           fi
 
@@ -307,13 +319,65 @@ jobs:
             --test-filter "$TEST_FILTER" \
             --if-configured
 
+      # Artifact quota exhaustion must not make a visual iteration opaque. These previews are
+      # debugging evidence only: visual proof still requires the artifact upload below to succeed.
+      - name: Emit real-player screenshot previews
+        if: always() && steps.request.outputs.platform == 'PlayMode'
+        shell: bash
+        run: |
+          set -euo pipefail
+          SHOTS="$GITHUB_WORKSPACE/Artifacts/SingleTest/RealPlayer/Screenshots"
+          [[ -d "$SHOTS" ]] || exit 0
+          PREVIEWS="$GITHUB_WORKSPACE/Artifacts/SingleTest/RealPlayer/LogPreviews"
+          mkdir -p "$PREVIEWS"
+
+          count=0
+          while IFS= read -r shot; do
+            [[ -s "$shot" ]] || continue
+            name="$(basename "$shot" .png)"
+            preview="$PREVIEWS/${name}.jpg"
+            sips -s format jpeg -s formatOptions 55 -Z 640 "$shot" --out "$preview" >/dev/null
+            echo "VISUAL_PREVIEW_BEGIN $(basename "$shot")"
+            base64 < "$preview" | fold -w 120
+            echo "VISUAL_PREVIEW_END $(basename "$shot")"
+            count=$((count + 1))
+          done < <(find "$SHOTS" -type f -name '*.png' -size +1k | sort)
+          echo "Emitted $count real-player preview(s) to the workflow log."
+
+      # A successful non-visual single test must not be turned red just because the repository has
+      # exhausted GitHub artifact storage. Visual requests are different: their screenshots are
+      # part of the proof, so an upload failure must remain fatal for those filters.
+      - name: Classify result artifact requirement
+        if: always()
+        id: artifact_policy
+        shell: bash
+        env:
+          TEST_FILTER: ${{ steps.request.outputs.test }}
+        run: |
+          set -euo pipefail
+          case "$TEST_FILTER" in
+            VoxelEngine.Tests.PlayMode.ArchLookdevSceneTests|VoxelEngine.Tests.PlayMode.ArchLookdevSceneTests.*|\
+            VoxelEngine.Tests.PlayMode.TerrainLookdevScreenshotTests|VoxelEngine.Tests.PlayMode.TerrainLookdevScreenshotTests.*|\
+            VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests|VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests.*|\
+            VoxelEngine.Tests.PlayMode.StationaryRenderBenchmarkTests|VoxelEngine.Tests.PlayMode.StationaryRenderBenchmarkTests.*|\
+            VoxelEngine.Tests.PlayMode.CastleScreenshotTests|VoxelEngine.Tests.PlayMode.CastleScreenshotTests.*|\
+            VoxelEngine.Tests.PlayMode.CastleExteriorLookdevTests|VoxelEngine.Tests.PlayMode.CastleExteriorLookdevTests.*)
+              echo "required=true" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "required=false" >> "$GITHUB_OUTPUT"
+              ;;
+          esac
+
       - name: Upload result
         if: always()
+        continue-on-error: ${{ steps.artifact_policy.outputs.required != 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: single-test-${{ github.run_id }}
           path: Artifacts/SingleTest/**
           if-no-files-found: ignore
+          retention-days: 1
 
       - name: Publish final commit status
         if: always() && github.event_name == 'push'

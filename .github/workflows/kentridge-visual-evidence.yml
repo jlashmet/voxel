@@ -1,0 +1,141 @@
+name: Kentridge visual evidence
+run-name: Kentridge evidence · ${{ github.ref_name }}
+
+# Diagnostic transport for reviewing real-player Kentridge frames when GitHub artifact storage is
+# exhausted. This does not replace the strict visual artifact gate in tests-single.yml: it only
+# emits and persists the already-reduced representative JPEGs from the same standalone-player
+# capture path on the disposable ci-evidence branch.
+on:
+  push:
+    branches:
+      - 'ci-evidence/kentridge/**'
+    paths:
+      - '.github/kentridge-evidence-request.json'
+
+permissions:
+  contents: write
+  statuses: write
+
+jobs:
+  evidence:
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          clean: true
+          fetch-depth: 1
+
+      - name: Publish pending evidence status
+        uses: actions/github-script@v7
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        with:
+          script: |
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: context.sha,
+              state: 'pending',
+              context: 'ci/kentridge-visual-evidence',
+              description: 'Standalone Kentridge evidence capture is running',
+              target_url: process.env.RUN_URL,
+            });
+
+      - name: Resolve Unity
+        id: unity
+        shell: bash
+        run: |
+          set -euo pipefail
+          UNITY_VERSION="$(awk '/m_EditorVersion:/ { print $2 }' ProjectSettings/ProjectVersion.txt)"
+          UNITY_PATH="/Applications/Unity/Hub/Editor/${UNITY_VERSION}/Unity.app/Contents/MacOS/Unity"
+          test -x "$UNITY_PATH"
+          echo "path=$UNITY_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for any running Unity editor
+        shell: bash
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 900))
+          while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
+            if (( SECONDS >= deadline )); then
+              pgrep -alf '/Unity.app/Contents/MacOS/Unity' || true
+              exit 1
+            fi
+            sleep 5
+          done
+
+      - name: Capture compact Kentridge evidence
+        shell: bash
+        env:
+          TEST_FILTER: VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests.LaunchScene_NewGameCutscene_ReleasesControl_AndPlayerWalksOutIntoKentridge
+        run: |
+          set -uo pipefail
+          ROOT="$GITHUB_WORKSPACE/Artifacts/KentridgeEvidence"
+          mkdir -p "$ROOT"
+          status=0
+          bash tools/showcase-player-capture.sh \
+            --unity "${{ steps.unity.outputs.path }}" \
+            --output "$ROOT" \
+            --test-filter "$TEST_FILTER" \
+            > "$ROOT/capture.log" 2>&1 || status=$?
+
+          if (( status != 0 )); then
+            echo "Kentridge standalone capture failed with status $status" >&2
+            tail -120 "$ROOT/capture.log" >&2 || true
+            exit "$status"
+          fi
+
+          EVIDENCE="$ROOT/KentridgeEvidence"
+          count="$(find "$EVIDENCE" -type f -name '*.jpg' -size +1k | wc -l | tr -d ' ')"
+          echo "Kentridge standalone capture passed; compact evidence frames=$count"
+          if (( count != 4 )); then
+            echo "ERROR: expected exactly four compact Kentridge evidence frames." >&2
+            exit 2
+          fi
+
+          while IFS= read -r frame; do
+            printf 'KENTRIDGE_FRAME %s ' "$(basename "$frame")"
+            base64 < "$frame" | tr -d '\n'
+            printf '\n'
+          done < <(find "$EVIDENCE" -type f -name '*.jpg' -size +1k | sort)
+
+      - name: Persist compact evidence on request branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          SOURCE="$GITHUB_WORKSPACE/Artifacts/KentridgeEvidence/KentridgeEvidence"
+          DEST="$GITHUB_WORKSPACE/.ci-evidence/kentridge"
+          mkdir -p "$DEST"
+          rm -f "$DEST"/*.jpg "$DEST"/README.txt
+          cp "$SOURCE"/*.jpg "$DEST"/
+          cat > "$DEST/README.txt" <<EOF
+          Real-player Kentridge visual evidence from Actions run $GITHUB_RUN_ID.
+          Source request commit: $GITHUB_SHA
+          Diagnostic copies only; strict visual proof remains the normal tests-single artifact gate.
+          EOF
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .ci-evidence/kentridge
+          git commit -m "Persist Kentridge visual evidence for review"
+          git push origin HEAD:"$GITHUB_REF_NAME"
+
+      - name: Publish final evidence status
+        if: always()
+        uses: actions/github-script@v7
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          JOB_STATUS: ${{ job.status }}
+        with:
+          script: |
+            const ok = process.env.JOB_STATUS === 'success';
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: context.sha,
+              state: ok ? 'success' : 'failure',
+              context: 'ci/kentridge-visual-evidence',
+              description: ok ? 'Standalone Kentridge evidence capture passed' : 'Standalone Kentridge evidence capture failed',
+              target_url: process.env.RUN_URL,
+            });

@@ -2,9 +2,9 @@ schema_version: 1
 snapshot_kind: mounting_force_legacy_world_reference
 source_repository: jlashmet/mounting-force
 source_branch: agent/original-world-content-inventory
-source_branch_head_at_import: 875701cd0419ea1443a671ef04f246c2004ecb80
+source_branch_head_at_import: 9491acd9efc3ad7413a13fd28f1686ed473b5672
 target_repository: jlashmet/voxel
-target_branch: agent/mounting-force-content-handoff
+target_branch: agent/kentridge-integration-cleanup
 import_policy:
   original_repo_remains_deep_source_of_truth: true
   imported_files_are_snapshots: true
@@ -13,6 +13,10 @@ import_policy:
   preserve_source_confidence_classes: true
   inferred_guidance_must_not_override_verified_constraints: true
 imported_files:
+  - source_path: docs/kentridge-opening-cutscene-contract.yaml
+    source_blob_sha: d1abf5598c490a32c20880a0d0ece192ce53decf
+    target_path: References/MountingForce/contracts/kentridge-opening-cutscene-contract.yaml
+    role: verified_narrative_cutscene_contract
   - source_path: docs/world-actor-population-handoff.yaml
     source_blob_sha: 2cb280dc6100f256f9134848862a4fe9305b6fe7
     target_path: References/MountingForce/contracts/world-actor-population-handoff.yaml
@@ -68,8 +72,8 @@ known_upstream_state_at_import:
   wait_for_death_encounter_count: 30
   major_locked_actor_encounter_candidate_count: 12
 known_gaps:
-  - complete_ordered_cutscene_dialogue_and_choreography_is_not_yet_a_generator_contract
+  - complete_ordered_cutscene_dialogue_and_choreography_is_only_curated_for_the_kentridge_opening
   - multi_occurrence_character_identity_linkage_still_needs_expansion_for_cases_like_billy_and_timmy
-  - some social_lore_roles_remain_uncurated
+  - some_social_lore_roles_remain_uncurated
   - unresolved_authored_scene_state_orc_village_spike_trap_is_retained_as_non_constraining
   - authored_story_actor_token_Bdiff_is_a_known_source_mismatch_and_must_not_be_silently_rewritten
