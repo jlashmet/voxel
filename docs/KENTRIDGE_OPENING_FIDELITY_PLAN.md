@@ -38,12 +38,12 @@ It is subordinate to `AGENTS.md`, `CLAUDE.md`, `docs/WORLDBUILDER_RUNTIME_INTEGR
 ## Generated pub bar and semantic staging
 
 - [x] Inspect the generated `Pub` role geometry and confirm the current role signature creates an exterior hanging sign but no interior bar/counter or seating.
-- [ ] Trace the production `InteriorGatheringArea` projection and actor stage anchors through the generated Kentridge site geometry.
-- [ ] Add a deterministic generated pub bar/counter at the WorldGen/architecture layer rather than synthesizing scene-local furniture.
+- [x] Trace the production `InteriorGatheringArea` projection and actor stage anchors through the generated Kentridge site geometry. The generic stage resolver places the gathering region at two-thirds of the architecture-published usable interior depth.
+- [x] Add a deterministic generated pub bar/counter at the WorldGen/architecture layer rather than synthesizing scene-local furniture. The active shared-house program now emits a timber counter inside the generated Pub program so placement, frontage rotation, and precedence remain identical to the building.
 - [ ] Add seating/stool geometry where it improves the intended Weldon/Madeline/Steven bar staging without blocking the doorway, Logan's entrance path, or cutscene movement.
-- [ ] Keep actor placement semantic: align the existing authored stage-point resolution with the generated bar instead of hard-coding final world-space positions in `KentridgePlayableSlice`.
-- [ ] Add the smallest focused regression that proves generated Pub geometry contains the intended interior bar invariant and preserves required traversal/open space.
-- [ ] Prove that focused generated-pub regression through `ci/single-test` on the exact feature head.
+- [x] Keep actor placement semantic: align the existing authored stage-point resolution with the generated bar instead of hard-coding final world-space positions in `KentridgePlayableSlice`. The counter public face is derived from the same two-thirds-depth gathering strip, with a small interaction gap and bartender circulation behind it.
+- [x] Add the smallest focused regression that proves generated Pub geometry contains the intended interior bar invariant and preserves required traversal/open space: `ArchitectureGeometryCatalogueTests.KentridgeCombinedCataloguePubHasRearCounterAndOpenFrontAisle`.
+- [x] Prove that focused generated-pub regression through `ci/single-test` on the exact feature head. Feature code SHA `aaf4335364991a27b2caa8f51c1c97c47701ffcd`; request commit `27d5ba144d77479ba3177522d66a548016e2b25c`; Actions run `32552387721`; one requested EditMode test executed and passed.
 - [ ] Verify the production opening visually places Weldon, Madeline, and Steven at the generated bar before Logan enters.
 
 ## Completion gate
