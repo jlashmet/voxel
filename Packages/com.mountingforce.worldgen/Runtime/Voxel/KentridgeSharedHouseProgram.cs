@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using MountingForce.WorldGen.Architecture;
 using MountingForce.WorldGen.Content.Kentridge;
 using Unity.Mathematics;
@@ -22,6 +23,13 @@ namespace MountingForce.WorldGen.Voxel
     /// </summary>
     internal static class KentridgeSharedHouseProgram
     {
+        private const int PubCounterWidthDm = 64;
+        private const int PubCounterDepthDm = 6;
+        private const int PubCounterHeightDm = 9;
+        private const int PubCounterTopOverhangDm = 2;
+        private const int PubCounterTopThicknessDm = 2;
+        private const int PubCounterRearClearanceDm = 4;
+
         internal readonly struct Program
         {
             public readonly int[] Code;
@@ -104,6 +112,20 @@ namespace MountingForce.WorldGen.Voxel
             int3 localOffset = new int3(x0, 0, z0);
             int[] translated = ShapeProgramComposition.Translate(compiled, localOffset);
 
+            if (form.RoleId == (int)KentridgeRole.Pub)
+            {
+                translated = AddPubCounter(
+                    translated,
+                    x0,
+                    z0,
+                    width,
+                    depth,
+                    foundation,
+                    config.Walls.Thickness,
+                    scale,
+                    palette.Detail);
+            }
+
             int3 door = new int3(x0 + width / 2, foundation, z0);
             int3 hearth = new int3(x0 + width / 2, foundation, z0 + depth / 2);
             return new Program(translated, door, hearth, preset);
@@ -129,6 +151,90 @@ namespace MountingForce.WorldGen.Voxel
                     throw new InvalidOperationException(
                         "Kentridge settlement palette selected an unsupported house preset: " + presetId);
             }
+        }
+
+        private static int[] AddPubCounter(
+            int[] program,
+            int x0,
+            int z0,
+            int width,
+            int depth,
+            int foundation,
+            int wallThickness,
+            int scale,
+            byte material)
+        {
+            int endLength = ShapeOps.InstructionLength(ShapeOp.End);
+            if (program == null
+                || program.Length < endLength
+                || (ShapeOp)program[program.Length - endLength] != ShapeOp.End)
+                throw new InvalidOperationException(
+                    "Shared Kentridge house program is missing its terminal End instruction.");
+
+            int sideClearance = (8 * scale) + wallThickness;
+            int availableWidth = width - sideClearance * 2;
+            int counterWidth = math.min(PubCounterWidthDm * scale, availableWidth);
+            int counterDepth = PubCounterDepthDm * scale;
+            int counterHeight = PubCounterHeightDm * scale;
+            int topOverhang = PubCounterTopOverhangDm * scale;
+            int topThickness = PubCounterTopThicknessDm * scale;
+            int rearClearance = PubCounterRearClearanceDm * scale;
+
+            if (counterWidth <= 0
+                || depth <= wallThickness + rearClearance + counterDepth + 16 * scale)
+                throw new InvalidOperationException(
+                    "Generated Kentridge pub is too small for the required interior counter.");
+
+            int counterX = x0 + (width - counterWidth) / 2;
+            int counterZ = z0 + depth - wallThickness - rearClearance - counterDepth;
+
+            // Furniture belongs to the generated Pub program so it shares the exact building
+            // placement/orientation/precedence. Keep it in the rear half of the room so the public
+            // entrance-to-gathering route remains a wide, unobstructed aisle.
+            var code = new List<int>(program.Length + 24);
+            for (int i = 0; i < program.Length - endLength; i++)
+                code.Add(program[i]);
+
+            EmitBox(code,
+                counterX, foundation, counterZ,
+                counterWidth, counterHeight, counterDepth,
+                material);
+            EmitBox(code,
+                counterX - topOverhang,
+                foundation + counterHeight,
+                counterZ - topOverhang,
+                counterWidth + topOverhang * 2,
+                topThickness,
+                counterDepth + topOverhang * 2,
+                material);
+
+            for (int i = program.Length - endLength; i < program.Length; i++)
+                code.Add(program[i]);
+            return code.ToArray();
+        }
+
+        private static void EmitBox(
+            List<int> code,
+            int x,
+            int y,
+            int z,
+            int sx,
+            int sy,
+            int sz,
+            byte material)
+        {
+            code.Add((int)ShapeOp.EmitBox);
+            code.Add(0);
+            code.Add(x);
+            code.Add(y);
+            code.Add(z);
+            code.Add(sx);
+            code.Add(sy);
+            code.Add(sz);
+            code.Add(material);
+            code.Add(0);
+            code.Add(0);
+            code.Add((int)PrimitiveMode.Fill);
         }
 
         private static HouseConfig BaseConfig(
