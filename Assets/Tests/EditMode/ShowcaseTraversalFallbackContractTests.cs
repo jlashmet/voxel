@@ -28,5 +28,33 @@ namespace VoxelEngine.Tests.EditMode
                 workflow,
                 "The exact full traversal must use the refreshed checked-in VoxelShowcase bake so PlayMode plus the visible standalone capture fits the five-minute CI budget.");
         }
+
+        [Test]
+        public void SingleFrameHitchAndCoverageAcceptanceBelongToTheRealPlayer()
+        {
+            string source = File.ReadAllText(
+                "Assets/Tests/PlayMode/ShowcaseTraversalPerformanceTests.cs");
+            string capture = File.ReadAllText("tools/showcase-player-capture.sh");
+            string validator = File.ReadAllText("tools/validate-showcase-traversal.py");
+
+            StringAssert.Contains(
+                "frameTimesMs, \"continuous traversal\", enforceSingleFrameMax: false",
+                source,
+                "The Editor loop must retain percentile/correctness guards but must not own the production single-frame hitch threshold.");
+            StringAssert.Contains(
+                "AssertMovingFrameTimes(frameTimesMs, \"repeated LOD-boundary traversal\");",
+                source,
+                "The independent LOD sweep must retain its existing Editor single-frame guard.");
+            StringAssert.Contains(
+                "python3 tools/validate-showcase-traversal.py", capture,
+                "The exact visible traversal profile must execute the production-player acceptance validator.");
+            StringAssert.Contains("MAX_SINGLE_FRAME_MS = 33.34", validator);
+            StringAssert.Contains("if worst_max >= MAX_SINGLE_FRAME_MS:", validator);
+            StringAssert.Contains("if worst_missing != 0:", validator);
+            StringAssert.Contains("if worst_reappeared != 0:", validator);
+            StringAssert.Contains("if worst_lease_fail != 0:", validator);
+            StringAssert.Contains("if hole > 0.05:", validator,
+                "The real-player gate must fail if the far hole opens while near coverage is incomplete.");
+        }
     }
 }
