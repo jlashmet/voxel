@@ -46,33 +46,43 @@ The authoritative region surface classification and compaction are already Unity
 - [x] Identify the validation defect behind that run: the generic single-test path forced one Unity job worker while the renderer intentionally allows many converging builds. That setup was useful for ordinary correctness tests but not this traversal gate.
 - [x] Correct the traversal assertion path to eight workers without changing the renderer's production worker policy.
 - [x] Make the same targeted traversal request automatically run the existing standalone `VoxelShowcase` player/autowalk harness afterward; the player remains the authoritative performance measurement.
-- [ ] Run the corrected traversal + real-player profile on the current renderer source. Request: `ci-test/main-thread-render-jobs-v2-latest` at `52e16329961f26bd6fc876ceb91c8f7c36f2d46d` (later feature commits are validation comments/contracts only).
-- [ ] Compare the same real-player scene, motion window and hardware against `master` before attributing a frame-time change to discovery routing. The isolated A/B benchmark branches are queued as `ci-test/main-thread-render-jobs-v2-player` and `ci-test/main-thread-render-jobs-v2-player-master`.
-- [ ] Record real-player frame timing plus discovered-brick versus unique-chunk admission fanout before attributing a performance change to this routing work.
-- [ ] Verify no coverage/fallback regression independently of the timing result.
+- [ ] Run the corrected traversal + real-player profile on the current renderer source. Request: `ci-test/main-thread-render-jobs-v2-latest` at `52e16329961f26bd6fc876ceb91c8f7c36f2d46d` (later feature commits are validation comments/contracts only). The request still has no Actions status, so do not treat it as queued or executed.
+- [x] Compare the same real-player scene, motion window and hardware against `master` with isolated `SmallVoxelShowcase` A/B runs.
+  - Master: run `32540389129`, 150 s player, autowalk after 60 s, 15 screenshots, success. Settled final-20-second window: mean p50 `2.282 ms`, worst p50 `3.19 ms`, worst frame `37.99 ms`, `missingVisible=0`.
+  - Feature: run `32543006178`, same scene/window/hardware, 15 screenshots, success. Settled final-20-second window: mean p50 `1.790 ms`, worst p50 `2.30 ms`, worst frame `22.21 ms`, `missingVisible=0`.
+  - Delta: mean p50 improved about 22%, worst p50 about 28%, and worst observed settled-tail frame about 42%. This is a real moving-player win rather than a steady-state-only microbenchmark.
+- [x] Record the key residual from the A/B: the feature still has periodic worker-prepare spikes. One sample reached `prepare=20.42 ms`, with `admit=16.45 ms`, while discovery itself was only `0.10 ms` and visibility `0.64 ms`.
+- [ ] Record discovered-brick versus unique-chunk admission fanout in real-player telemetry if another routing iteration is needed.
+- [ ] Verify no coverage/fallback regression with the corrected traversal assertion independently of the successful `missingVisible=0` real-player samples.
 
 ### Existing performance evidence
 
-The broader rendering investigation already measured a settled real-player run where scheduler `Prepare` averaged about 2.12 ms: visibility alone averaged about 1.92 ms, worker admission about 0.20 ms, and discovery/invalidation were effectively zero. That makes off-thread cache admission a conditional optimization, not the default next step. A moving/streaming real-player measurement must show a material transient cost before this branch expands into native/Burst staging.
+The broader rendering investigation already measured a settled real-player run where scheduler `Prepare` averaged about 2.12 ms: visibility alone averaged about 1.92 ms, worker admission about 0.20 ms, and discovery/invalidation were effectively zero. That remains the steady-state picture.
 
-The visibility path is already known to spend most of its time walking active chunk coordinates and consulting managed state (`_known`, desired versions, ready entries, empty versions). The frustum primitive itself was experimentally replaced earlier with no measurable improvement. The slot-grid invariant also proves that the scheduler's active-slot traversal only yields coordinates acquired into `_known`, and `_known.Remove` retires that slot, so the worker's leading `_known.Contains` is redundant specifically on that path. If admission proves negligible, that managed visibility-state lookup path is the next target.
+The moving A/B changes the transient conclusion: discovery routing/dedup is worthwhile because it materially improves moving-player frame behavior. It does not finish the work. In the feature run, discovery is negligible even on a spike (`0.10 ms`), while `admit` still reaches `16.45 ms`. `admit` is the scheduler's timed loop over `CpuTransvoxelChunkCache.Prepare`, not the surface-discovery router itself. The next investigation therefore belongs inside worker `Prepare()` rather than another round of shard-fanout jobification.
+
+The visibility path is still a separate known steady-state hotspot: active chunk coordinates consult managed state (`_known`, desired versions, ready entries, empty versions), and replacing the frustum primitive previously produced no measurable win. Keep that work separate from the transient admission spikes measured here.
 
 ## Next optimization gate
 
-Do not jobify the managed cache blindly. `CpuTransvoxelChunkCache` still owns managed dictionaries, hash sets, queues, entry lifetimes, and clipmap-slot admission. After the real-player measurement:
+Do not jobify the managed cache blindly. The A/B proves the routing optimization is useful, but it also proves the remaining transient is elsewhere.
 
-- [ ] If unique shard routing makes discovery admission negligible, stop here and move to the measured visibility-state lookup hotspot.
-- [ ] If admission remains material, move pure coordinate/shard fanout into the existing Burst surface-compaction pipeline; keep only unique managed-cache commit on the player thread.
-- [ ] If a material residual remains after that, stage/deduplicate candidate chunk coordinates in native containers/Burst, then perform only the bounded managed-cache commit on the main thread.
-- [ ] Keep the commit step allocation-free and bounded by an explicit per-frame publication budget.
+- [x] Keep the unique shard routing/dedup optimization; the real-player A/B measured a material improvement.
+- [x] Stop treating discovery fanout as the dominant residual: feature spike discovery was `0.10 ms` while worker admission was `16.45 ms`.
+- [ ] Split `CpuTransvoxelChunkCache.Prepare()` spike cost into its already-instrumented sections: rule sync, residency prune, capacity, build selection, snapshot/append/profile/transition work.
+- [ ] Fix the first section proven to violate the scheduler's intended frame budget. Note that rule sync, clipmap/residency pruning and capacity enforcement currently execute before the worker computes its `deadline`; if one of those is the spike source, make it resumable/budget-aware rather than merely moving managed mutation to a job.
+- [ ] If the residual instead comes from pure snapshot/coordinate processing, move only that pure/native portion to Burst/Jobs and leave managed dictionaries, queues, entry lifetimes and GPU publication on the main thread.
+- [ ] Keep the commit/publication path allocation-free and bounded by an explicit per-frame budget.
+- [ ] Re-run the exact same real-player A/B after the next change; do not infer success from editor timing.
 
 ## Acceptance
 
 - [x] Original ownership/routing behavior proven by an executed Unity test; full CI-green status remains infrastructure-blocked by artifact quota.
 - [x] Latest unique-chunk/fanout regression executed successfully in Unity.
 - [ ] Corrected traversal assertion reaches movement without a coverage/fallback regression.
-- [ ] Real-player moving/streaming behavior characterized against master.
+- [x] Real-player moving/streaming behavior characterized against master.
 - [ ] No new synchronous completion violations.
 - [ ] No geometry holes or near/far fallback regression.
-- [ ] Measured main-thread improvement versus `master`, or documented evidence that this path is no longer worth optimizing.
+- [x] Measured main-thread/frame-time improvement versus `master` in the isolated real-player A/B.
+- [ ] Identify and reduce the remaining worker-`Prepare()` transient without regressing the measured A/B.
 - [ ] Update `.claude/plans/rendering-garbled.md` if this work changes the broader renderer bottleneck conclusion.
