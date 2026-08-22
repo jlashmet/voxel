@@ -58,6 +58,14 @@ Authoritative surface classification/compaction already runs as Jobs/Burst work.
 - The scheduler permits at most four solid upload workers per frame; therefore even the conservative upper bound from that run is under ~3.9 ms for all solid publications, and the representative three-publication frame is bounded under ~2.9 ms. Solid publication cannot account for `admit=15.88 ms`.
 - The scheduler's aggregate solid worker/admission+publication timing also stayed small in the late windows (`worker[max]` about `1.294 ms` in the final printed window). This independently points to work after the solid phase.
 - Raw arena writes are a strict subset of the already-bounded `Entry.AdvanceUpload`; the arena-write probe is confirmatory but is no longer required to rule solid publication out as the 16 ms source.
+- Same-frame phase run `32574092199` identifies the remaining transient conclusively. Requested Unity test and real-player capture both succeeded; the workflow failed only afterward because `actions/upload-artifact` hit repository storage quota.
+- Representative late hitch frames from that run are:
+  - frame `35821`: `total=15.574 ms`, `solid=0.139`, `relief=0.000`, `water=15.435`, `schedule=0.000`.
+  - frame `36674`: `total=15.598 ms`, `solid=0.142`, `relief=0.000`, `water=15.456`, `schedule=0.000`.
+  - frame `45119`: `total=15.628 ms`, `solid=0.136`, `relief=0.000`, `water=15.491`, `schedule=0.000`.
+  - frame `48221`: `total=15.631 ms`, `solid=0.137`, `relief=0.000`, `water=15.494`, `schedule=0.000`.
+- Normal admission windows in the same run were about `0.12-0.16 ms`, with water at approximately zero. `JobHandle.ScheduleBatchedJobs()` stayed `0.000-0.001 ms`; it is ruled out.
+- Hitch `RINGS` rows also show `discover=0.10 ms` immediately before `admit≈15.4-15.6 ms`, while `leaseFail=0`, pointing specifically at the discovery-to-water handoff rather than water arena pressure.
 
 ## 2026-08-22 master integration / CI compatibility
 
@@ -68,18 +76,9 @@ Authoritative surface classification/compaction already runs as Jobs/Burst work.
 - [x] Confirm branch is ahead of current master and `behind_by=0`.
 - [x] Treat the older arena-write request `81396a37c2eb7d13d664e47c640b30a7759c056d` (`arena-upload-20260822-0532`) as superseded. It remained queued/not started, and existing run `32553044708` already bounds full solid publication below the hitch.
 
-## Current diagnostic gate
+## Current fix gate
 
-The remaining transient is broad scheduler admission, but the pre-water solid portion is now bounded too low to explain it. In `VoxelSurfaceScheduler.Prepare`, the order after visibility is:
-
-1. ring policy + solid worker admission/build progress;
-2. solid pending-publication processing;
-3. optional arena-pressure relief;
-4. water invalidation/prepare/publication/relief;
-5. `JobHandle.ScheduleBatchedJobs()`;
-6. record `LastAdmissionMs`.
-
-For the representative hitch, steps 1-2 are bounded small and step 3 did not run. The current probe distinguishes steps 4 and 5 without losing same-frame correlation.
+The measured culprit is the water block. `VoxelSurfaceScheduler.Prepare` currently hands every newly published solid-surface discovery brick directly to `_water.InvalidateSurfaceBricks(storage, _discoveredSurfaceBricks)`. That method synchronously reloads/material-scans every brick to decide whether it contains water/cascade material before the separately budgeted water build starts. A surface-discovery publication can contain up to 512 bricks, so this unbudgeted scan can consume the full ~15.5 ms hitch even though `_water.Prepare(..., WaterBuildBudgetMs)` itself is time-bounded and water meshing is job-based.
 
 - [x] Rule full solid publication out using existing `UploadTiming` from run `32553044708`; do not optimize arena allocation/copy code based on the three lease changes alone.
 - [x] Add allocation-free current-frame timing for solid admission, arena-relief bookkeeping, the complete water block, and `JobHandle.ScheduleBatchedJobs()` (`ed54f644afecde44102368b792a0fd2b2d0ad818`).
@@ -87,9 +86,10 @@ For the representative hitch, steps 1-2 are bounded small and step 3 did not run
 - [x] Retain the same frame's phase values whenever it is the worst admission frame in the one-second report window and print `total`, `solid`, `relief`, `water`, `schedule`, and residual (`d2e02fce45968d5bb548d4d0c92ab0e46c78c027`).
 - [x] Add source-contract guards for the timing boundaries and same-frame sparse diagnostic (`6791f6daee630ded5535f9741020ca51a4990013`).
 - [x] Verify the scheduler instrumentation diff before promotion: 45 additions, 0 deletions. Overall diagnostic diff remains limited to scheduler, Composition, harness, and source-contract test.
-- [ ] Run the production-policy `SmallVoxelShowcaseMovingBuild12` gate with the same-frame admission split and classify the ~20 ms hitch as water, batched-job scheduling, or an explicitly measured residual.
-- [ ] Record the CI run and classification here before changing production behavior.
-- [ ] Fix only the first measured culprit. Do not change renderer concurrency, coverage, or publication policy speculatively.
+- [x] Run production-policy `SmallVoxelShowcaseMovingBuild12`; run `32574092199` proves water owns essentially the entire transient and `ScheduleBatchedJobs()` does not.
+- [ ] Preserve immediate `_changedWaterBricks` mutation invalidation, but queue initial/streaming `_discoveredSurfaceBricks` for bounded water classification rather than scanning the whole publication batch synchronously.
+- [ ] Deduplicate the pending discovery queue and process a small fixed number per frame so water eventually sees every discovered surface brick without producing a multi-millisecond frame spike.
+- [ ] Re-run the exact SmallVoxelShowcase gate and require the ~15.5 ms water admission spikes to disappear without increasing `missingVisible`, lease failures, or visible reappearance.
 
 ## Validation after the first proven fix
 
@@ -104,8 +104,8 @@ For the representative hitch, steps 1-2 are bounded small and step 3 did not run
 - [x] Unique-chunk/fanout regression executed successfully in Unity.
 - [x] Real-player moving/streaming behavior characterized against master.
 - [x] Routing/dedup main-thread improvement measured versus master.
-- [x] Concurrency, GC, arena pressure, and solid-publication hypotheses rejected with direct measurements.
-- [ ] Identify whether water or `ScheduleBatchedJobs()` owns the remaining ~20 ms transient.
+- [x] Concurrency, GC, arena pressure, solid-publication, and `ScheduleBatchedJobs()` hypotheses rejected with direct measurements.
+- [x] Identify water admission as the remaining ~20 ms transient owner.
 - [ ] Reduce it without reducing render distance/coverage or introducing synchronous job completion.
 - [ ] No geometry holes or near/far fallback regression.
 - [ ] Final corrected full traversal reaches movement and passes coverage acceptance.
