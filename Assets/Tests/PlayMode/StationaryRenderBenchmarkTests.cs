@@ -24,6 +24,7 @@ namespace VoxelEngine.Tests.PlayMode
         private static void AssertSmallMovingProfile(string method, string convergingBuilds)
         {
             string capture = File.ReadAllText("tools/showcase-player-capture.sh");
+            string singleWorkflow = File.ReadAllText(".github/workflows/tests-single.yml");
             string filter = $"VoxelEngine.Tests.PlayMode.StationaryRenderBenchmarkTests.{method}";
             int start = capture.IndexOf(filter, StringComparison.Ordinal);
             Assert.GreaterOrEqual(start, 0, $"missing real-player profile for {filter}");
@@ -35,6 +36,10 @@ namespace VoxelEngine.Tests.PlayMode
             StringAssert.Contains(": \"${RUN_SECONDS:=90}\"", profile);
             StringAssert.Contains(": \"${AUTOWALK_AFTER:=20}\"", profile);
             StringAssert.Contains($": \"${{CONVERGING_BUILDS:={convergingBuilds}}}\"", profile);
+            StringAssert.Contains("timeout-minutes: 5", singleWorkflow,
+                "fast renderer profiles must stay on the repository single-test budget");
+            StringAssert.Contains($"steps.request.outputs.test != '{filter}'", singleWorkflow,
+                "SmallVoxelShowcase profiles must skip the unrelated full-showcase bake");
         }
 
         [Test]
@@ -107,9 +112,21 @@ namespace VoxelEngine.Tests.PlayMode
             StringAssert.Contains("WORKER_ARGS=(-job-worker-count 8)", singleWorkflow);
             StringAssert.Contains("=== UNITY TEST FAILURE DETAILS ===", singleWorkflow,
                 "failed traversal assertions must stay visible when artifact upload is unavailable");
-            StringAssert.Contains("group: voxel-single-test-self-hosted-mac", singleWorkflow);
-            StringAssert.Contains("cancel-in-progress: false", singleWorkflow,
-                "new requests should replace stale pending work without killing the active Unity run");
+            StringAssert.Contains("group: single-test-${{ github.ref }}", singleWorkflow);
+            StringAssert.Contains("cancel-in-progress: true", singleWorkflow,
+                "each CI request branch must be latest-wins under the repository CI policy");
+            StringAssert.Contains("timeout-minutes: 5", singleWorkflow,
+                "single-test CI must preserve the repository under-five-minute budget");
+            StringAssert.Contains("UNITY_MAX_MINUTES=4", singleWorkflow,
+                "individual Unity invocations must leave headroom inside the five-minute job");
+            StringAssert.DoesNotContain("group: voxel-single-test-self-hosted-mac", singleWorkflow);
+            StringAssert.DoesNotContain("cancel-in-progress: false", singleWorkflow);
+            StringAssert.Contains(
+                "steps.request.outputs.test != 'VoxelEngine.Tests.PlayMode.StationaryRenderBenchmarkTests.SmallVoxelShowcaseMovingBuild12'",
+                singleWorkflow);
+            StringAssert.Contains(
+                "steps.request.outputs.test != 'VoxelEngine.Tests.PlayMode.StationaryRenderBenchmarkTests.SmallVoxelShowcaseMovingBuild8'",
+                singleWorkflow);
             StringAssert.Contains(
                 "ShowcaseTraversalPerformanceTests.ContinuousPlayerTraversalNeverStuttersOrOpensNearFarGap",
                 capture);
