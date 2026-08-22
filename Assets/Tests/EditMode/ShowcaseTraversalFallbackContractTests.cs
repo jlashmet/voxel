@@ -84,5 +84,35 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("_yaw += DegreesPerSecond * Time.deltaTime;", showcase,
                 "If StepAutoWalk's turn law changes, update the deterministic helper instead of silently changing the benchmark route.");
         }
+
+        [Test]
+        public void FarFallbackPreservesAuthoredSubtractiveTerrain()
+        {
+            string store = File.ReadAllText(
+                "Assets/Game/Composition/Showcase/FarFieldStructureStore.cs");
+            string farTerrain = File.ReadAllText("Assets/Scenes/Showcase/VoxelFarTerrain.cs");
+            string world = File.ReadAllText("Assets/Game/Composition/Showcase/ShowcaseWorld.cs");
+
+            StringAssert.Contains("if (top < terrain)", store,
+                "Post-authoring surfaces below TerrainQuery must be captured instead of discarded as non-structure.");
+            StringAssert.Contains("loweredTerrain ??= NewOverrideArray();", store);
+            StringAssert.Contains("changed |= MergeLoweredTerrain(key, loweredTerrain);", store,
+                "Authored lowering must survive later plain-terrain recaptures after eviction/regeneration.");
+            StringAssert.Contains("public int AuthoredTerrainHeightAt", store);
+
+            int terrainOverride = farTerrain.IndexOf(
+                "int authoredTerrain = Structures.AuthoredTerrainHeightAt(voxelX, voxelZ);");
+            int nearFootprintSuppression = farTerrain.IndexOf(
+                "bool insideRequestedNearFootprint = ring == 0");
+            Assert.That(terrainOverride, Is.GreaterThanOrEqualTo(0));
+            Assert.That(nearFootprintSuppression, Is.GreaterThan(terrainOverride),
+                "The authored terrain override must be applied before ring-zero structure suppression so closed-hole fallback still shows carved ground.");
+            StringAssert.Contains(
+                "int authored = Structures.AuthoredTerrainHeightAt(voxelX, voxelZ);", farTerrain,
+                "Near-hole projection must use the lowered surface too or it can over-open the far hole above a deep carve.");
+            StringAssert.Contains(
+                "FarField.CaptureRegion(_castleRegions[i], ReadStorage, Seed);", world,
+                "The permanent override must come from the already-authoritative post-castle voxel capture, not from a second renderer-side moat formula.");
+        }
     }
 }
