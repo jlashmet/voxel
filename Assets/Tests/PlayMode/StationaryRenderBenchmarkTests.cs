@@ -121,8 +121,14 @@ namespace VoxelEngine.Tests.PlayMode
             StringAssert.Contains("GetSurfaceBenchmarkState()", prepareHarness);
             StringAssert.Contains("state.RunningSolidJobs", prepareHarness);
             StringAssert.Contains("state.MissingVisibleSolidChunks", prepareHarness);
-            StringAssert.Contains("jobs={31} missing={32}", prepareHarness,
-                "the sparse player diagnostic must correlate prepare windows with live geometry pressure");
+            StringAssert.Contains("ReportIntervalSeconds = 1.0", prepareHarness,
+                "hitch diagnostics must align with the one-second FPS windows");
+            StringAssert.Contains("GC.CollectionCount(0)", prepareHarness);
+            StringAssert.Contains("GC.CollectionCount(1)", prepareHarness);
+            StringAssert.Contains("GC.CollectionCount(2)", prepareHarness);
+            StringAssert.Contains("GC.GetAllocatedBytesForCurrentThread()", prepareHarness);
+            StringAssert.Contains("gc[g0=+{33} g1=+{34} g2=+{35}] allocMain={36}", prepareHarness,
+                "the sparse player diagnostic must correlate hitches with collection and allocation activity");
             StringAssert.Contains("=== REAL PLAYER FPS TAIL ===", capture);
             StringAssert.Contains("=== REAL PLAYER PREPARE SECTIONS ===", capture);
             StringAssert.Contains("PREPARESECTIONS", capture);
