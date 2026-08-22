@@ -47,14 +47,26 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
                 int a = local[axisA];
                 int b = local[axisB];
                 int layer = local[axis];
+
+                bool planarCap = style.Reconstruction == SurfaceReconstruction.Planar
+                    && !boundarySample.AppliesAlong(axis)
+                    && !displaced;
+                if (planarCap && boundarySample.IsAuthored
+                    && (TransvoxelTopologyJob.IsExtrusionCapRimSample(boundarySample, axis)
+                        || HasInPlaneOccupancyTransition(grid, axis)))
+                {
+                    // The cap interior stays an exact greedy plane. At its analytic perimeter,
+                    // however, a whole-voxel rectangle would overdraw continuous topology and put
+                    // the staircase back on top of the projected SDF rim. A diagonal-only in-plane
+                    // transition is enough to prove that the contour crosses this cap neighbourhood;
+                    // it must not be reduced to a six-neighbour or centre-distance test.
+                    planarCap = false;
+                }
+
                 bool faceted = solid
                     && (style.Reconstruction == SurfaceReconstruction.Sharp
                         || style.Reconstruction == SurfaceReconstruction.Cubic
-                        || style.Reconstruction == SurfaceReconstruction.Planar
-                           && !boundarySample.AppliesAlong(axis)
-                           && !TransvoxelTopologyJob.IsExtrusionCapRimSample(
-                               boundarySample, axis)
-                           && !displaced);
+                        || planarCap);
                 for (int side = 0; side < 2; side++)
                 {
                     int face = axis * 2 + side;
@@ -76,6 +88,22 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
                         ? 0u : encoded;
                 }
             }
+        }
+
+        private bool HasInPlaneOccupancyTransition(int3 grid, int faceAxis)
+        {
+            int axisA = (faceAxis + 1) % 3;
+            int axisB = (faceAxis + 2) % 3;
+            for (int b = -1; b <= 1; b++)
+            for (int a = -1; a <= 1; a++)
+            {
+                if (a == 0 && b == 0) continue;
+                int3 neighbour = grid;
+                neighbour[axisA] += a;
+                neighbour[axisB] += b;
+                if (!IsSolid(Materials[GridIndex(neighbour)])) return true;
+            }
+            return false;
         }
 
         private int GridIndex(int3 p) => p.x + GridSize * (p.y + GridSize * p.z);
