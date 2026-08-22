@@ -266,13 +266,40 @@ jobs:
             --test-filter "$TEST_FILTER" \
             --if-configured
 
+      # A successful non-visual single test must not be turned red just because the repository has
+      # exhausted GitHub artifact storage. Visual requests are different: their screenshots are
+      # part of the proof, so an upload failure must remain fatal for those filters.
+      - name: Classify result artifact requirement
+        if: always()
+        id: artifact_policy
+        shell: bash
+        env:
+          TEST_FILTER: ${{ steps.request.outputs.test }}
+        run: |
+          set -euo pipefail
+          case "$TEST_FILTER" in
+            VoxelEngine.Tests.PlayMode.ArchLookdevSceneTests|VoxelEngine.Tests.PlayMode.ArchLookdevSceneTests.*|\
+            VoxelEngine.Tests.PlayMode.TerrainLookdevScreenshotTests|VoxelEngine.Tests.PlayMode.TerrainLookdevScreenshotTests.*|\
+            VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests|VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests.*|\
+            VoxelEngine.Tests.PlayMode.StationaryRenderBenchmarkTests|VoxelEngine.Tests.PlayMode.StationaryRenderBenchmarkTests.*|\
+            VoxelEngine.Tests.PlayMode.CastleScreenshotTests|VoxelEngine.Tests.PlayMode.CastleScreenshotTests.*|\
+            VoxelEngine.Tests.PlayMode.CastleExteriorLookdevTests|VoxelEngine.Tests.PlayMode.CastleExteriorLookdevTests.*)
+              echo "required=true" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "required=false" >> "$GITHUB_OUTPUT"
+              ;;
+          esac
+
       - name: Upload result
         if: always()
+        continue-on-error: ${{ steps.artifact_policy.outputs.required != 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: single-test-${{ github.run_id }}
           path: Artifacts/SingleTest/**
           if-no-files-found: ignore
+          retention-days: 1
 
       - name: Publish final commit status
         if: always() && github.event_name == 'push'
