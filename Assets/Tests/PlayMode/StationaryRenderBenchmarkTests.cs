@@ -19,6 +19,7 @@ namespace VoxelEngine.Tests.PlayMode
             string build = File.ReadAllText(
                 "Assets/Scenes/Showcase/Editor/ShowcasePlayerBuild.cs");
             string capture = File.ReadAllText("tools/showcase-player-capture.sh");
+            string singleWorkflow = File.ReadAllText(".github/workflows/tests-single.yml");
 
             StringAssert.Contains("state.IsConverged", harness);
             StringAssert.Contains("ConvergedFramesRequired = 30", harness);
@@ -69,9 +70,11 @@ namespace VoxelEngine.Tests.PlayMode
             StringAssert.Contains("post-measurement screenshot", capture);
             StringAssert.Contains("stationary benchmark did not publish a passing result", capture);
 
-            // The moving traversal correctness test runs under the generic one-job-worker Unity
-            // test process, so it must also map to the actual production player before its timing
-            // can be interpreted as renderer performance.
+            // The moving traversal assertions need enough Unity workers to let the job-heavy
+            // renderer converge before movement begins. Timing still belongs to the real player.
+            StringAssert.Contains(
+                "VoxelEngine.Tests.PlayMode.ShowcaseTraversalPerformanceTests.*", singleWorkflow);
+            StringAssert.Contains("WORKER_ARGS=(-job-worker-count 8)", singleWorkflow);
             StringAssert.Contains(
                 "ShowcaseTraversalPerformanceTests.ContinuousPlayerTraversalNeverStuttersOrOpensNearFarGap",
                 capture);
