@@ -12,6 +12,12 @@ on:
 permissions:
   contents: read
 
+# Repeated updates to the same branch are latest-wins. A newer master commit (or
+# a newer manual run on the same ref) cancels stale queued/running full-suite work.
+concurrency:
+  group: tests-master-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   editmode:
     runs-on: [self-hosted, macOS]

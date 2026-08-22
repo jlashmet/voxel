@@ -42,23 +42,26 @@ permissions:
   contents: read
   statuses: write
 
-# There is one self-hosted macOS runner. Let an active Unity run finish, but keep
-# only the newest single-test request waiting behind it. GitHub replaces the older
-# pending member of this group when a newer request arrives.
+# A branch is a latest-request mailbox. A newer single-test request on the same
+# branch cancels any older queued or running request instead of building a backlog.
 concurrency:
-  group: voxel-single-test-self-hosted-mac
-  cancel-in-progress: false
+  group: single-test-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   single:
     runs-on: [self-hosted, macOS]
-    timeout-minutes: 45
+    # Single-test CI is intentionally a fast-feedback path. The complete job must
+    # finish within five minutes; slow tests should be split or narrowed instead.
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
         with:
           clean: true
           fetch-depth: 1
 
+      # Push-triggered runs publish a classic commit status so connector-only
+      # agents can monitor queued/running/pass/fail without workflow discovery.
       - name: Publish pending commit status
         if: github.event_name == 'push'
         uses: actions/github-script@v7
@@ -146,7 +149,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          deadline=$((SECONDS + 900))
+          deadline=$((SECONDS + 60))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
               pgrep -alf '/Unity.app/Contents/MacOS/Unity' || true
@@ -155,15 +158,13 @@ jobs:
             sleep 5
           done
 
-      # Full VoxelShowcase tests need the baked startup world. SmallVoxelShowcase
-      # benchmark profiles intentionally skip this several-minute bake; their real
-      # standalone scene composes the smaller world directly.
+      # Showcase PlayMode tests depend on the same baked startup world used by
+      # the PR and master workflows. The standalone Kentridge and self-contained
+      # Arch/Terrain lookdev scenes compose their own worlds and do not need it.
       - name: Bake Voxel Showcase startup world
         if: >-
           steps.request.outputs.platform == 'PlayMode' &&
           startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.') &&
-          steps.request.outputs.test != 'VoxelEngine.Tests.PlayMode.StationaryRenderBenchmarkTests.SmallVoxelShowcaseMovingBuild12' &&
-          steps.request.outputs.test != 'VoxelEngine.Tests.PlayMode.StationaryRenderBenchmarkTests.SmallVoxelShowcaseMovingBuild8' &&
           !startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.KentridgeStructureComparisonSceneTests.') &&
           !startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests.') &&
           !startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.ArchLookdevSceneTests.') &&
@@ -175,7 +176,7 @@ jobs:
           set -euo pipefail
           ROOT="$GITHUB_WORKSPACE/Artifacts/SingleTest"
           mkdir -p "$ROOT"
-          UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=20 \
+          UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=4 \
           UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
             -batchmode -nographics -job-worker-count 1 -quit \
             -projectPath "$GITHUB_WORKSPACE" \
@@ -183,11 +184,14 @@ jobs:
             -logFile "$ROOT/showcase-bake.log"
           test -s "$GITHUB_WORKSPACE/Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes"
 
+      # tools/unity-run.sh deliberately refuses to start while another Unity editor is visible.
+      # A successful bake can return a moment before its macOS process disappears, so serialize
+      # adjacent Unity invocations instead of racing that shutdown.
       - name: Wait for Unity between invocations
         shell: bash
         run: |
           set -euo pipefail
-          deadline=$((SECONDS + 900))
+          deadline=$((SECONDS + 60))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
               pgrep -alf '/Unity.app/Contents/MacOS/Unity' || true
@@ -205,23 +209,23 @@ jobs:
           set -uo pipefail
           ROOT="$GITHUB_WORKSPACE/Artifacts/SingleTest"
           mkdir -p "$ROOT"
+
+          # Keep the array non-empty under macOS's Bash 3.2. With set -u, expanding an empty
+          # array is treated as an unbound variable and PlayMode never reaches Unity.
+          # The standalone Kentridge acceptances inspect composed world state and movement, not
+          # framebuffer pixels; null graphics keeps those real PlayMode paths within runner memory.
           EXTRA_ARGS=(-batchmode)
-          WORKER_ARGS=(-job-worker-count 1)
-          if [[ "$TEST_PLATFORM" == "PlayMode" &&
-                "$TEST_FILTER" == VoxelEngine.Tests.PlayMode.ShowcaseTraversalPerformanceTests.* ]]; then
-            WORKER_ARGS=(-job-worker-count 8)
-          fi
           if [[ "$TEST_PLATFORM" == "EditMode" ||
                 "$TEST_FILTER" == VoxelEngine.Tests.PlayMode.KentridgeStructureComparisonSceneTests.* ||
                 "$TEST_FILTER" == VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests.* ]]; then
             EXTRA_ARGS+=(-nographics)
           fi
 
-          echo "Running $TEST_PLATFORM test filter: $TEST_FILTER with ${WORKER_ARGS[*]}"
+          echo "Running $TEST_PLATFORM test filter: $TEST_FILTER"
           status=0
-          UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=30 \
+          UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=4 \
           UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
-            "${EXTRA_ARGS[@]}" "${WORKER_ARGS[@]}" \
+            "${EXTRA_ARGS[@]}" -job-worker-count 1 \
             -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform "$TEST_PLATFORM" \
             -testFilter "$TEST_FILTER" \
             -testResults "$ROOT/single.xml" -logFile "$ROOT/single.log" || status=$?
@@ -234,39 +238,16 @@ jobs:
           fi
 
           if (( status != 0 )); then
-            if [[ -s "$ROOT/single.xml" ]]; then
-              echo "=== UNITY TEST FAILURE DETAILS ==="
-              python3 - "$ROOT/single.xml" <<'PY'
-          import sys
-          import xml.etree.ElementTree as ET
-          root = ET.parse(sys.argv[1]).getroot()
-          cases = root.findall('.//test-case')
-          failed = [case for case in cases if case.get('result') not in ('Passed', 'Success')]
-          print(f'Executed {len(cases)} test case(s); failed={len(failed)}.')
-          for case in failed[:8]:
-              print(f"FAILED: {case.get('fullname') or case.get('name') or '<unknown>'}")
-              failure = case.find('failure')
-              if failure is None:
-                  continue
-              message = failure.findtext('message') or ''
-              stack = failure.findtext('stack-trace') or ''
-              if message:
-                  print(message.strip())
-              if stack:
-                  print(stack.strip())
-          PY
-            fi
-            if [[ -s "$ROOT/single.log" ]]; then
-              echo "=== UNITY TEST LOG TAIL ==="
-              tail -120 "$ROOT/single.log"
-            fi
             exit "$status"
           fi
           test -s "$ROOT/single.xml"
 
+          # Unity can return successfully even when a bad filter matches no tests.
+          # Treat that as a CI failure so an agent never validates a typo as green.
           python3 - "$ROOT/single.xml" <<'PY'
           import sys
           import xml.etree.ElementTree as ET
+
           path = sys.argv[1]
           root = ET.parse(path).getroot()
           cases = root.findall('.//test-case')
