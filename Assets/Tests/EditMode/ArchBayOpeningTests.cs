@@ -4,6 +4,7 @@ using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
+using VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel;
 using VoxelEngine.Structures.Api;
 using VoxelEngine.Structures.Runtime;
 
@@ -86,6 +87,32 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(Regex.IsMatch(gpu,
                 @"packedBoundary\s*!=\s*0u\s*&&\s*HasOppositeOccupancyNeighbour"), Is.False,
                 "GPU sampling must not reject diagonal analytic crossings just because all six axial neighbours share the centre occupancy.");
+        }
+
+        [Test]
+        public void AuthoredPlanarSdfKeepsSmoothFieldNormals()
+        {
+            Assert.That(TransvoxelTopologyJob.UsesFlatTriangleNormals(
+                planar: true, rounded: false, authoredBoundary: false), Is.True,
+                "Ordinary planar masonry must retain flat triangle normals.");
+            Assert.That(TransvoxelTopologyJob.UsesFlatTriangleNormals(
+                planar: true, rounded: false, authoredBoundary: true), Is.False,
+                "An authored analytic boundary must override planar material shading so a curved SDF keeps smooth field normals.");
+            Assert.That(TransvoxelTopologyJob.UsesFlatTriangleNormals(
+                planar: false, rounded: true, authoredBoundary: false), Is.False,
+                "Rounded surfaces must continue to use smooth field normals.");
+
+            string gpuPath = Path.Combine(Application.dataPath,
+                "VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute");
+            string gpu = File.ReadAllText(gpuPath);
+            Assert.That(Regex.IsMatch(gpu,
+                @"bool\s+UsesFlatTriangleNormals\s*\(\s*bool\s+planar\s*,\s*bool\s+rounded\s*,\s*bool\s+authoredBoundary\s*\)"), Is.True,
+                "GPU topology must carry the same authored-boundary normal policy as the CPU path.");
+            Assert.That(Regex.IsMatch(gpu, @"if\s*\(\s*flatPlanar\s*\)"), Is.True,
+                "GPU geometry emission must branch on the explicit normal policy.");
+            Assert.That(Regex.IsMatch(gpu,
+                @"if\s*\(\s*outputVertexCount\s*==\s*indexCount\s*\)"), Is.False,
+                "GPU emission must not infer flat shading from equal counts; a smooth one-triangle cell can have equal vertex and index counts too.");
         }
     }
 }
