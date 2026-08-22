@@ -466,6 +466,41 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         }
     }
 
+    public readonly struct SurfaceAdmissionFrameTimingSnapshot
+    {
+        public readonly int Frame;
+        public readonly double TotalMs;
+        public readonly double SolidMs;
+        public readonly double ArenaReliefMs;
+        public readonly double WaterMs;
+        public readonly double ScheduleBatchedJobsMs;
+
+        internal SurfaceAdmissionFrameTimingSnapshot(
+            int frame, double totalMs, double solidMs, double arenaReliefMs,
+            double waterMs, double scheduleBatchedJobsMs)
+        {
+            Frame = frame;
+            TotalMs = totalMs;
+            SolidMs = solidMs;
+            ArenaReliefMs = arenaReliefMs;
+            WaterMs = waterMs;
+            ScheduleBatchedJobsMs = scheduleBatchedJobsMs;
+        }
+    }
+
+    public static class SurfaceAdmissionTimingTelemetry
+    {
+        public static SurfaceAdmissionFrameTimingSnapshot Snapshot { get; private set; }
+
+        internal static void Record(int frame, double totalMs, double solidMs,
+                                    double arenaReliefMs, double waterMs,
+                                    double scheduleBatchedJobsMs)
+        {
+            Snapshot = new SurfaceAdmissionFrameTimingSnapshot(
+                frame, totalMs, solidMs, arenaReliefMs, waterMs, scheduleBatchedJobsMs);
+        }
+    }
+
     /// <summary>
     /// Common invalidation, residency, build-budget, and handoff owner for derived voxel surfaces.
     /// Render passes consume its ready entries and never interpret voxel semantics themselves.
@@ -1352,6 +1387,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             if (workerCount > 0)
                 _uploadAdmissionCursor = (_uploadAdmissionCursor
                                         + Math.Max(1, uploadScanAdvance)) % workerCount;
+            double solidAdmissionMs = ElapsedMs(admissionStart);
 
             // Arena pressure exists so geometry the player is waiting on can publish. Both passes
             // below scan a worker's whole entry table and frustum-test every entry, which is far too
@@ -1362,6 +1398,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             // rises every frame forever. Evicting for that only churns published geometry the player
             // can see, to admit a chunk behind them. Once nothing visible is missing, a prefetch
             // chunk that cannot get a lease simply waits.
+            double arenaReliefStart = Time.realtimeSinceStartupAsDouble;
             ulong arenaFailures = _geometryArena.AllocationFailureCount;
             int workersAwaitingPublication = 0;
             for (int i = 0; i < workerCount; i++)
@@ -1432,7 +1469,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     }
                 }
             }
+            double arenaReliefMs = ElapsedMs(arenaReliefStart);
 
+            double waterStart = Time.realtimeSinceStartupAsDouble;
             _water.InvalidateSurfaceBricks(storage, _discoveredSurfaceBricks);
             _water.Prepare(storage, camera, voxelSize, WaterBuildBudgetMs);
             LastFrameWaterUploadedBytes = 0;
@@ -1451,12 +1490,18 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 _observedWaterArenaAllocationFailures = waterArenaFailures;
                 _water.TryEvictOneForArenaPressure(camera, voxelSize);
             }
+            double waterMs = ElapsedMs(waterStart);
 
             _workerPrepareTiming.Add(workerPrepareMs);
 
+            double scheduleStart = Time.realtimeSinceStartupAsDouble;
             JobHandle.ScheduleBatchedJobs();
+            double scheduleBatchedJobsMs = ElapsedMs(scheduleStart);
 
             LastAdmissionMs = ElapsedMs(admissionStart);
+            SurfaceAdmissionTimingTelemetry.Record(
+                frame, LastAdmissionMs, solidAdmissionMs, arenaReliefMs,
+                waterMs, scheduleBatchedJobsMs);
             _prepareTiming.Add(ElapsedMs(prepareStart));
             // Whole-frame main-thread total, not a per-build percentile. Frame cost scales with
             // concurrent builds, so the question is how much of a frame this call consumes
