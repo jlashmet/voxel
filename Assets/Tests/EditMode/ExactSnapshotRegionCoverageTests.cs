@@ -100,7 +100,7 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void SchedulerSurfaceDiscoveryPartitionRoutesCanonicalChunksToOwningShard()
+        public void SchedulerSurfaceDiscoveryPartitionRoutesEachUniqueChunkToOwningShard()
         {
             const int bricksPerChunk = 32;
             var buckets = new List<int3>[4];
@@ -110,18 +110,22 @@ namespace VoxelEngine.Tests.EditMode
             var discovered = new List<int3>
             {
                 int3.zero,
-                new int3(31, 31, 31),
+                new int3(31, 31, 31), // duplicate owning chunk (0,0,0)
                 new int3(32, 0, 0),
                 new int3(-1, 0, 0),
                 new int3(0, -1, 0),
                 new int3(0, 0, -1),
                 new int3(-33, 65, 97),
             };
+            var expectedChunks = new HashSet<int3>();
+            for (int i = 0; i < discovered.Count; i++)
+                expectedChunks.Add(SurfaceDiscoveryChunkOwner.OwningChunk(
+                    discovered[i], bricksPerChunk));
 
             SurfaceDiscoveryChunkOwner.PartitionByOwningShard(
                 discovered, bricksPerChunk, buckets.Length, buckets);
 
-            int routed = 0;
+            var routedChunks = new HashSet<int3>();
             for (int shard = 0; shard < buckets.Length; shard++)
             {
                 Assert.False(buckets[shard].Contains(new int3(999, 999, 999)),
@@ -134,12 +138,15 @@ namespace VoxelEngine.Tests.EditMode
                     Assert.AreEqual(shard,
                         CpuTransvoxelChunkCache.ShardForChunk(chunk, buckets.Length),
                         $"Canonical chunk {chunk} was routed to a shard that cannot admit it.");
-                    routed++;
+                    Assert.True(routedChunks.Add(chunk),
+                        $"Chunk {chunk} was routed more than once in one discovery publication.");
                 }
             }
 
-            Assert.AreEqual(discovered.Count, routed,
-                "Partitioning must route every discovery record exactly once.");
+            CollectionAssert.AreEquivalent(expectedChunks, routedChunks,
+                "Partitioning must preserve every unique owning chunk while collapsing duplicate surface bricks.");
+            Assert.Less(routedChunks.Count, discovered.Count,
+                "The fixture must contain duplicate surface bricks for one chunk so the deduplication contract is exercised.");
         }
 
         [Test]
