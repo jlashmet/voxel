@@ -52,6 +52,9 @@ The authoritative region surface classification and compaction are already Unity
   - Feature: run `32543006178`, same scene/window/hardware, 15 screenshots, success. Settled final-20-second window: mean p50 `1.790 ms`, worst p50 `2.30 ms`, worst frame `22.21 ms`, `missingVisible=0`.
   - Delta: mean p50 improved about 22%, worst p50 about 28%, and worst observed settled-tail frame about 42%. This is a real moving-player win rather than a steady-state-only microbenchmark.
 - [x] Record the key residual from the A/B: the feature still has periodic worker-prepare spikes. One sample reached `prepare=20.42 ms`, with `admit=16.45 ms`, while discovery itself was only `0.10 ms` and visibility `0.64 ms`.
+- [x] Expose the renderer's existing worker-prepare timing windows through the Composition diagnostics boundary as primitive values only; do not add new stopwatch work to the renderer frame path.
+- [x] Sample those timing windows sparsely in the standalone player and print `PREPARESECTIONS` directly into the Actions log so artifact-quota failures cannot hide the diagnostic.
+- [ ] Correlate the 20–50 ms real-player windows with the `PREPARESECTIONS` breakdown and active geometry-job pressure, then name the first proven spike source.
 - [ ] Record discovered-brick versus unique-chunk admission fanout in real-player telemetry if another routing iteration is needed.
 - [ ] Verify no coverage/fallback regression with the corrected traversal assertion independently of the successful `missingVisible=0` real-player samples.
 
@@ -69,6 +72,7 @@ Do not jobify the managed cache blindly. The A/B proves the routing optimization
 
 - [x] Keep the unique shard routing/dedup optimization; the real-player A/B measured a material improvement.
 - [x] Stop treating discovery fanout as the dominant residual: feature spike discovery was `0.10 ms` while worker admission was `16.45 ms`.
+- [x] Add low-perturbation diagnostics for the already-instrumented worker sections and make their output survive artifact-quota failure.
 - [ ] Split `CpuTransvoxelChunkCache.Prepare()` spike cost into its already-instrumented sections: rule sync, residency prune, capacity, build selection, snapshot/append/profile/transition work.
 - [ ] Fix the first section proven to violate the scheduler's intended frame budget. Note that rule sync, clipmap/residency pruning and capacity enforcement currently execute before the worker computes its `deadline`; if one of those is the spike source, make it resumable/budget-aware rather than merely moving managed mutation to a job.
 - [ ] If the residual instead comes from pure snapshot/coordinate processing, move only that pure/native portion to Burst/Jobs and leave managed dictionaries, queues, entry lifetimes and GPU publication on the main thread.
