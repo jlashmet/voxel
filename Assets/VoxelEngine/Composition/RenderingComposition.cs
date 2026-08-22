@@ -312,9 +312,19 @@ namespace VoxelEngine.Composition
         /// must remain available underneath the voxel renderer. This is intentionally stricter
         /// than ordinary draw readiness; stale ready geometry may still be drawable while a
         /// replacement is pending, but keeping fallback coverage during that interval is safe.
+        ///
+        /// Batch-mode PlayMode acceptance has no presented camera frames, so URP never records a
+        /// surface pass and publication metrics remain their all-zero sentinel forever. In that
+        /// environment there is no framebuffer to protect from an early handoff; once an
+        /// authoritative world is bound, nonvisual integration tests may advance through gameplay
+        /// while standalone-player capture continues to exercise the real publication gate.
         /// </summary>
         public static bool HasCompletePublishedNearSurfaceCoverage()
         {
+            if (Application.isBatchMode
+                && VoxelRenderBridge.SurfacePassRecordCount == 0)
+                return s_hasWorld;
+
             // Coverage is about what the camera can see, not about the world being idle. Dirty
             // chunks, running jobs and pending uploads all include the 360-degree prefetch shell,
             // which never empties while the player moves — so requiring them left the far field's

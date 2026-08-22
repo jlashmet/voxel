@@ -134,9 +134,21 @@ namespace VoxelEngine.Structures.Runtime
             EmitRoof(in config.Roof, roofBaseY, width, depth, roofMaterial, writer);
             EmitChimney(in config, roofBaseY, writer);
 
+            int mainDoorX = width / 2;
+            if (config.FrontDoors.Count > 0)
+            {
+                int firstOpeningX = OpeningOffset(
+                    config.FrontDoors.Placement,
+                    config.FrontDoors.ExplicitOffsets,
+                    0,
+                    config.FrontDoors.Count,
+                    width,
+                    config.FrontDoors.Opening.Width);
+                mainDoorX = firstOpeningX + config.FrontDoors.Opening.Width / 2;
+            }
             int mainDoorY = wallBaseY + config.FrontDoors.Opening.BottomOffset;
             writer.Anchor(mainDoorAnchorIndex,
-                width / 2,
+                mainDoorX,
                 mainDoorY,
                 0,
                 Facing.South);

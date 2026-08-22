@@ -1,5 +1,6 @@
 using MountingForce.WorldGen;
 using MountingForce.WorldGen.Architecture;
+using MountingForce.WorldGen.Content.Kentridge;
 using MountingForce.WorldGen.Voxel;
 using NUnit.Framework;
 using Unity.Collections;
@@ -157,6 +158,113 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void KentridgeCombinedCataloguePubHasRearCounterAndOpenFrontAisle()
+        {
+            VoxelWorldGenSettings settings = BuildSettings();
+            SettlementPlan plan = SettlementVoxelPlan.Resolve(Seed, in settings);
+            BuildingPlot pubPlot = default;
+            bool foundPubPlot = false;
+            for (int i = 0; i < plan.Plots.Count; i++)
+            {
+                if (plan.Plots[i].RoleId != (int)KentridgeRole.Pub) continue;
+                pubPlot = plan.Plots[i];
+                foundPubPlot = true;
+                break;
+            }
+            Assert.IsTrue(foundPubPlot, "Kentridge settlement must contain its stable Pub role.");
+
+            StructureIntent intent = KentridgeDefinition.StructureIntent(pubPlot);
+            StructureForm form = ArchitectureCompiler.Resolve(intent, plan.Theme, Seed);
+            int scale = settings.VoxelsPerDecimetre;
+            Int3 envelopeDm = SettlementFootprints.For(plan, pubPlot.Archetype);
+            int x0 = (envelopeDm.X * scale - form.WidthDm * scale) / 2;
+            int z0 = 10 * scale;
+            int foundation = plan.Theme.FoundationHeightDm * scale;
+            int wall = plan.Theme.WallThicknessDm * scale;
+            int counterWidth = System.Math.Min(
+                64 * scale,
+                form.WidthDm * scale - 2 * (8 * scale + wall));
+            int counterDepth = 6 * scale;
+            int counterHeight = 9 * scale;
+            int usableInteriorDepth = form.DepthDm * scale - wall;
+            int gatheringDepth = (usableInteriorDepth * 2) / 3;
+            int counterX = x0 + (form.WidthDm * scale - counterWidth) / 2;
+            int counterZ = z0 + gatheringDepth + 6 * scale;
+            byte timber = settings.Materials.Resolve(plan.Theme.Frame);
+
+            FeatureCatalogue catalogue = KentridgeCombinedVoxelCatalogue.Build(
+                Seed, settings, Allocator.Temp);
+            try
+            {
+                bool foundBase = false;
+                bool foundTop = false;
+                for (int definitionIndex = 0;
+                     definitionIndex < catalogue.Definitions.Length;
+                     definitionIndex++)
+                {
+                    FeatureDefinition definition = catalogue.Definitions[definitionIndex];
+                    if (definition.Name.ToString() != "kentridge-role-pub") continue;
+
+                    int pc = definition.ProgramOffset;
+                    int end = definition.ProgramOffset + definition.ProgramLength;
+                    while (pc < end)
+                    {
+                        ShapeOp op = (ShapeOp)catalogue.Program[pc];
+                        int length = ShapeOps.InstructionLength(op);
+                        Assert.GreaterOrEqual(length, 2, definition.Name.ToString());
+
+                        if (op == ShapeOp.EmitBox
+                            && (PrimitiveMode)catalogue.Program[pc + 11] == PrimitiveMode.Fill
+                            && catalogue.Program[pc + 8] == timber)
+                        {
+                            int x = catalogue.Program[pc + 2];
+                            int y = catalogue.Program[pc + 3];
+                            int z = catalogue.Program[pc + 4];
+                            int sx = catalogue.Program[pc + 5];
+                            int sy = catalogue.Program[pc + 6];
+                            int sz = catalogue.Program[pc + 7];
+
+                            if (x == counterX
+                                && y == foundation
+                                && z == counterZ
+                                && sx == counterWidth
+                                && sy == counterHeight
+                                && sz == counterDepth)
+                            {
+                                foundBase = true;
+                                Assert.Greater(z, z0 + gatheringDepth,
+                                    "Pub counter must sit just beyond the semantic gathering strip, not obstruct its entrance approach.");
+                                Assert.LessOrEqual(z + sz + 2 * scale, z0 + usableInteriorDepth,
+                                    "Pub counter must preserve usable bartender circulation behind the bar.");
+                            }
+
+                            if (x == counterX - 2 * scale
+                                && y == foundation + counterHeight
+                                && z == counterZ - 2 * scale
+                                && sx == counterWidth + 4 * scale
+                                && sy == 2 * scale
+                                && sz == counterDepth + 4 * scale)
+                                foundTop = true;
+                        }
+
+                        pc += length;
+                        if (op == ShapeOp.End) break;
+                    }
+                    break;
+                }
+
+                Assert.IsTrue(foundBase,
+                    "Active generated Pub geometry must contain the deterministic timber counter base at the gathering area.");
+                Assert.IsTrue(foundTop,
+                    "Active generated Pub geometry must contain the counter top rather than a bare wall-side block.");
+            }
+            finally
+            {
+                catalogue.Dispose();
+            }
+        }
+
+        [Test]
         public void KentridgeCombinedCatalogueContainsRoundedNamedAndAnonymousArchitecture()
         {
             FeatureCatalogue catalogue = KentridgeCombinedVoxelCatalogue.Build(
@@ -265,8 +373,7 @@ namespace VoxelEngine.Tests.EditMode
                         else if (op == ShapeOp.EmitPrism)
                         {
                             ushort surface = (ushort)catalogue.Program[pc + 10];
-                            if (surface == SurfaceStyles.Smooth)
-                                fabricSmoothRoofs++;
+                            if (surface == SurfaceStyles.Smooth) fabricSmoothRoofs++;
                         }
 
                         pc += length;

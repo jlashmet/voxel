@@ -35,8 +35,8 @@ namespace Game.Kentridge.PlayableSlice
         private const float UndergrowthSampleStepMetres = 1.4f;
         private const float HabitatSampleStepMetres = 20f;
 
-        // Ceilings, enforced after placement. A theme tuned on gentle ground can produce several
-        // times as much on broken ground, and the frame budget does not care why.
+        // Hard ceilings. These are presentation resources, but they still need to be bounded by
+        // construction rather than by an inner-loop break that starts adding again on the next row.
         private const int MaxTrees = 900;
         private const int MaxUndergrowth = 12000;
         private const int MaxClusters = 110;
@@ -88,8 +88,10 @@ namespace Game.Kentridge.PlayableSlice
         {
             _trees.Clear();
 
-            for (float z = fromZ; z <= toZ; z += TreeSampleStepMetres)
-            for (float x = roadX - halfWidth; x <= roadX + halfWidth; x += TreeSampleStepMetres)
+            for (float z = fromZ; z <= toZ && _trees.Count < MaxTrees; z += TreeSampleStepMetres)
+            for (float x = roadX - halfWidth;
+                 x <= roadX + halfWidth && _trees.Count < MaxTrees;
+                 x += TreeSampleStepMetres)
             {
                 int zDm = Mathf.RoundToInt(z * 10f);
                 RegionThemeProfile profile = themes.ProfileAt(zDm);
@@ -125,8 +127,6 @@ namespace Game.Kentridge.PlayableSlice
                     Seed = seed == 0u ? 1u : seed,
                     Scale = 0.85f + Random01(seed ^ 0xC3u) * 0.5f,
                 });
-
-                if (_trees.Count >= MaxTrees) break;
             }
 
             VegetationComposition.ReplaceTreeWorld(_trees);
@@ -142,8 +142,10 @@ namespace Game.Kentridge.PlayableSlice
             // of metres and it is the densest thing here.
             float coverHalfWidth = Mathf.Min(halfWidth, 45f);
 
-            for (float z = fromZ; z <= toZ; z += UndergrowthSampleStepMetres)
-            for (float x = roadX - coverHalfWidth; x <= roadX + coverHalfWidth;
+            for (float z = fromZ; z <= toZ && _samples.Count < MaxUndergrowth;
+                 z += UndergrowthSampleStepMetres)
+            for (float x = roadX - coverHalfWidth;
+                 x <= roadX + coverHalfWidth && _samples.Count < MaxUndergrowth;
                  x += UndergrowthSampleStepMetres)
             {
                 int zDm = Mathf.RoundToInt(z * 10f);
@@ -163,13 +165,13 @@ namespace Game.Kentridge.PlayableSlice
                     Shade = profile.Kind == RegionThemeKind.PineForest ? 0.8f : 0.3f,
                     ArcaneSaturation = 0f,
                 });
-
-                if (_samples.Count >= MaxUndergrowth) break;
             }
 
             VegetationPlacementSettings settings = VegetationPlacementSettings.Default(world.Seed);
             _undergrowth.Clear();
             VegetationPlacement.Generate(_samples, in settings, _undergrowth);
+            if (_undergrowth.Count > MaxUndergrowth)
+                _undergrowth.RemoveRange(MaxUndergrowth, _undergrowth.Count - MaxUndergrowth);
             _vegetationRenderer.SetInstances(_undergrowth);
         }
 
@@ -178,9 +180,13 @@ namespace Game.Kentridge.PlayableSlice
             float roadX, float fromZ, float toZ, float halfWidth)
         {
             _habitats.Clear();
+            int maxHabitatSamples = MaxClusters * 3;
 
-            for (float z = fromZ; z <= toZ; z += HabitatSampleStepMetres)
-            for (float x = roadX - halfWidth; x <= roadX + halfWidth; x += HabitatSampleStepMetres)
+            for (float z = fromZ; z <= toZ && _habitats.Count < maxHabitatSamples;
+                 z += HabitatSampleStepMetres)
+            for (float x = roadX - halfWidth;
+                 x <= roadX + halfWidth && _habitats.Count < maxHabitatSamples;
+                 x += HabitatSampleStepMetres)
             {
                 int zDm = Mathf.RoundToInt(z * 10f);
                 RegionThemeProfile profile = themes.ProfileAt(zDm);
@@ -202,8 +208,6 @@ namespace Game.Kentridge.PlayableSlice
                     DeadwoodDensity = profile.Kind == RegionThemeKind.PineForest ? 0.55f : 0.2f,
                     ArcaneSaturation = 0f,
                 });
-
-                if (_habitats.Count >= MaxClusters * 3) break;
             }
 
             AmbientLifePopulationSettings settings =

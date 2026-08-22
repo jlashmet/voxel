@@ -18,6 +18,7 @@ Options:
   --test-filter FILTER     Resolve a known screenshot/benchmark test to its real scene
   --if-configured          Exit successfully when FILTER is not a configured real-player test
   --run-seconds N          Player run duration / stationary timeout
+  --auto-dialogue N        Auto-advance scene dialogue every N seconds
   --autowalk-after N       Enable the showcase scripted walk after N seconds
   --converging-builds N    Override only visible-convergence voxel build concurrency
   --survey-after N         Enable showcase survey camera after N seconds
@@ -32,12 +33,14 @@ OUTPUT_ROOT=""
 SCENE=""
 TEST_FILTER=""
 RUN_SECONDS=""
+AUTO_DIALOGUE=""
 AUTOWALK_AFTER=""
 CONVERGING_BUILDS=""
 SURVEY_AFTER=""
 SURVEY_HEIGHT=""
 SURVEY_SPIN=""
 STATIONARY_SAMPLE=""
+KENTRIDGE_EVIDENCE=0
 IF_CONFIGURED=0
 
 while (( $# > 0 )); do
@@ -48,6 +51,7 @@ while (( $# > 0 )); do
     --test-filter) TEST_FILTER="$2"; shift 2 ;;
     --if-configured) IF_CONFIGURED=1; shift ;;
     --run-seconds) RUN_SECONDS="$2"; shift 2 ;;
+    --auto-dialogue) AUTO_DIALOGUE="$2"; shift 2 ;;
     --autowalk-after) AUTOWALK_AFTER="$2"; shift 2 ;;
     --converging-builds) CONVERGING_BUILDS="$2"; shift 2 ;;
     --survey-after) SURVEY_AFTER="$2"; shift 2 ;;
@@ -73,6 +77,21 @@ if [[ -n "$TEST_FILTER" ]]; then
     VoxelEngine.Tests.PlayMode.TerrainLookdevScreenshotTests|VoxelEngine.Tests.PlayMode.TerrainLookdevScreenshotTests.*)
       SCENE="Assets/Scenes/TerrainLookdev.unity"
       : "${RUN_SECONDS:=30}"
+      ;;
+    VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests|VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests.*)
+      # Kentridge is an integration scene, so its visual proof must come from the same standalone
+      # player path as the showcase benchmarks rather than a PlayMode RenderTexture. Keep the
+      # authored opening camera stationary long enough to survive real-player startup/worldgen and
+      # capture the complete conversation. Only after that move once to a fixed overview so the
+      # final frame can show the post-opening world without a continuously moving survey exposing
+      # unpublished chunks and turning later screenshots into fallback-terrain evidence.
+      SCENE="Assets/Scenes/KentridgePlayableSlice.unity"
+      : "${RUN_SECONDS:=100}"
+      : "${AUTO_DIALOGUE:=1.5}"
+      : "${SURVEY_AFTER:=90}"
+      : "${SURVEY_HEIGHT:=55}"
+      : "${SURVEY_SPIN:=0}"
+      KENTRIDGE_EVIDENCE=1
       ;;
     VoxelEngine.Tests.PlayMode.StationaryRenderBenchmarkTests.SmallVoxelShowcaseMovingBuild12)
       SCENE="Assets/Scenes/SmallVoxelShowcase.unity"
@@ -214,6 +233,9 @@ else
     -voxel-screenshot-every 10
   )
 
+  if [[ -n "$AUTO_DIALOGUE" ]]; then
+    PLAYER_ARGS+=( -voxel-auto-dialogue "$AUTO_DIALOGUE" )
+  fi
   if [[ -n "$AUTOWALK_AFTER" ]]; then
     PLAYER_ARGS+=( -voxel-autowalk-after "$AUTOWALK_AFTER" )
   fi
@@ -305,4 +327,40 @@ if (( shots < 2 )); then
   echo "ERROR: expected at least 2 real-player screenshots, found $shots." >&2
   echo "A runner without a logged-in window server can launch the player but render no screenshots." >&2
   exit 1
+fi
+
+# Artifact quota exhaustion can make otherwise successful Kentridge capture opaque to a remote
+# reviewer. Emit four deliberately small, single-line JPEG payloads from representative frames so
+# the real presented output can still be inspected from the job log. This is diagnostic evidence
+# only; the workflow's strict visual artifact upload remains the completion gate.
+if (( KENTRIDGE_EVIDENCE )); then
+  EVIDENCE_DIR="$OUTPUT_ROOT/KentridgeEvidence"
+  mkdir -p "$EVIDENCE_DIR"
+  index=0
+  while IFS= read -r shot; do
+    case "$index" in
+      2|4|6|7)
+        name="$(basename "$shot" .png)"
+        preview="$EVIDENCE_DIR/${name}.jpg"
+        sips -s format jpeg -s formatOptions 30 -Z 220 "$shot" --out "$preview" >/dev/null
+        printf 'KENTRIDGE_EVIDENCE %s ' "$(basename "$shot")"
+        base64 < "$preview" | tr -d '\n'
+        printf '\n'
+        ;;
+    esac
+    index=$((index + 1))
+  done < <(find "$SHOTS_DIR" -type f -name '*.png' -size +1k | sort)
+
+  # Preserve the original presented frames for strict artifact proof, but leave small copies in
+  # Screenshots so the generic workflow preview step cannot flood the job log by re-encoding every
+  # 1600x900 frame. The artifact upload is recursive, so FullResolutionScreenshots remains part of
+  # the same strict visual artifact whenever GitHub storage is available.
+  FULL_RES_DIR="$OUTPUT_ROOT/FullResolutionScreenshots"
+  rm -rf "$FULL_RES_DIR"
+  mkdir -p "$FULL_RES_DIR"
+  while IFS= read -r shot; do
+    [[ -s "$shot" ]] || continue
+    cp "$shot" "$FULL_RES_DIR/$(basename "$shot")"
+    sips -Z 96 "$shot" >/dev/null
+  done < <(find "$SHOTS_DIR" -type f -name '*.png' -size +1k | sort)
 fi

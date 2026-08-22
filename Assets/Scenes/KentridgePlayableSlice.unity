@@ -51,6 +51,7 @@ GameObject:
   - component: {fileID: 100002}
   - component: {fileID: 100003}
   - component: {fileID: 100004}
+  - component: {fileID: 100005}
   m_Layer: 0
   m_Name: Kentridge Player Camera
   m_TagString: MainCamera
@@ -106,7 +107,7 @@ Camera:
     height: 1
   near clip plane: 0.05
   far clip plane: 16000
-  field of view: 70
+  field of view: 58
   orthographic: 0
   orthographic size: 5
   m_Depth: -1
@@ -151,6 +152,25 @@ MonoBehaviour:
   m_GenerateBudgetMs: 3
   m_WalkSpeed: 5.5
   m_LookSensitivity: 2.5
+--- !u!114 &100005
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 100000}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2df7a1e9f8c84c138155794d0f4f9b7a, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  m_HeightMetres: 7.2
+  m_BackMetres: 3.5
+  m_CutawayHeightMetres: 2.8
+  m_VisibleDepthMetres: 2
+  m_FadeInSeconds: 0.8
+  m_FadeOutSeconds: 0.65
+  m_GameplayFadeInSeconds: 0.45
 --- !u!1 &200000
 GameObject:
   m_ObjectHideFlags: 0
@@ -226,6 +246,33 @@ Light:
       e32: 0
       e33: 1
     m_UseCullingMatrixOverride: 0
+  m_CookieSize: 10
+  m_Shadows:
+    m_Type: 2
+    m_Resolution: -1
+    m_CustomResolution: -1
+    m_Strength: 0.85
+    m_Bias: 0.05
+    m_NormalBias: 0.4
+    m_NearPlane: 0.2
+    m_CullingMatrixOverride:
+      e00: 1
+      e01: 0
+      e02: 0
+      e03: 0
+      e10: 0
+      e11: 0
+      e12: 0
+      e13: 0
+      e20: 0
+      e21: 0
+      e22: 0
+      e23: 0
+      e30: 0
+      e31: 0
+      e32: 0
+      e33: 0
+    m_UseCullingMatrixOverride: 0
   m_Cookie: {fileID: 0}
   m_DrawHalo: 0
   m_Flare: {fileID: 0}
@@ -235,13 +282,11 @@ Light:
     m_Bits: 4294967295
   m_RenderingLayerMask: 1
   m_Lightmapping: 4
-  m_LightShadowCasterMode: 0
-  m_AreaSize: {x: 1, y: 1}
   m_BounceIntensity: 1
   m_ColorTemperature: 6570
   m_UseColorTemperature: 0
   m_BoundingSphereOverride: {x: 0, y: 0, z: 0, w: 0}
-  m_UseBoundingSphereOverride: 0
+  m_UseCullingMatrixOverride: 0
   m_UseViewFrustumForShadowCasterCull: 1
   m_ForceVisible: 0
   m_ShadowRadius: 0

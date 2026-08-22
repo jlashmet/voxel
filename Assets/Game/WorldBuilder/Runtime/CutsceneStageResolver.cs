@@ -160,6 +160,9 @@ namespace Game.WorldBuilder.Runtime
                 case CutsceneStageRegion.InteriorGatheringArea:
                     desired = Math.Max((depth * 2) / 3, clearance);
                     break;
+                case CutsceneStageRegion.ConversationApproach:
+                    desired = Math.Max((depth * 3) / 5, clearance);
+                    break;
                 case CutsceneStageRegion.SiteInterior:
                     desired = depth / 2;
                     break;
