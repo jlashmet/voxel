@@ -10,9 +10,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
 {
     /// <summary>
     /// Parallel continuous-cell polygonisation over an immutable density snapshot.
-    /// Every cell owns a sparse NativeStream lane, so workers never contend and capacity cannot
-    /// truncate a chunk silently. Memory is proportional to emitted surface geometry rather than
-    /// chunk volume; the main thread reads lanes in deterministic cell order before publication.
+    /// Every scheduled core cell owns a sparse NativeStream lane. Boundary lanes may also emit
+    /// cells from the chunk's one-cell negative shell so a continuous surface is owned by the
+    /// chunk containing its deterministic inside-density corner.
+    /// Workers never contend and capacity cannot truncate a chunk silently. Memory is proportional
+    /// to emitted surface geometry rather than chunk volume; the main thread reads lanes in
+    /// deterministic cell order before publication.
     /// </summary>
     [BurstCompile]
     internal struct TransvoxelTopologyJob : IJobParallelFor
@@ -45,7 +48,24 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
             int x = cellIndex % CellsPerAxis;
             int y = (cellIndex / CellsPerAxis) % CellsPerAxis;
             int z = cellIndex / (CellsPerAxis * CellsPerAxis);
-            int3 cell = new(x, y, z);
+
+            // The normal core cell covers every interior cell and the chunk's positive faces.
+            // A chunk also evaluates the one-cell shell on its negative faces. The ownership test
+            // inside PolygoniseCell guarantees exactly one of the two neighbouring chunks emits a
+            // shared boundary cell: whichever owns the first inside-density corner in fixed order.
+            PolygoniseCell(new int3(x, y, z));
+            if (x == 0) PolygoniseCell(new int3(-1, y, z));
+            if (y == 0) PolygoniseCell(new int3(x, -1, z));
+            if (z == 0) PolygoniseCell(new int3(x, y, -1));
+            if (x == 0 && y == 0) PolygoniseCell(new int3(-1, -1, z));
+            if (x == 0 && z == 0) PolygoniseCell(new int3(-1, y, -1));
+            if (y == 0 && z == 0) PolygoniseCell(new int3(x, -1, -1));
+            if (x == 0 && y == 0 && z == 0) PolygoniseCell(new int3(-1, -1, -1));
+            Output.EndForEachIndex();
+        }
+
+        private void PolygoniseCell(int3 cell)
+        {
             FixedList128Bytes<float> densities = default;
             FixedList64Bytes<byte> materials = default;
             FixedList128Bytes<uint> surfaces = default;
@@ -53,6 +73,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
             int caseCode = 0;
             bool authoredBoundary = false;
             bool displacedCoating = false;
+            int selectedInsideCorner = -1;
             for (int i = 0; i < 8; i++)
             {
                 int3 grid = cell + Padding + Corner(i);
@@ -68,9 +89,18 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
                 authoredBoundary |= boundary != 0;
                 displacedCoating |= Coatings.Get((byte)(surface >> 16)).Displacement != 0;
                 if (density < 0f) caseCode |= 1 << i;
+                else if (selectedInsideCorner < 0) selectedInsideCorner = i;
             }
 
-            if (caseCode == 0 || caseCode == 255) { WriteEmpty(); return; }
+            if (caseCode == 0 || caseCode == 255) return;
+
+            // Density sampling carries the dominant render material alongside the scalar field.
+            // That material can be Stone even at an AIR-centred, negative-density sample because a
+            // neighbouring solid supplies the surface's presentation identity. Ownership must
+            // therefore follow the reconstructed field sign, not Materials[]. Otherwise the first
+            // outside shell corner can look "solid" and incorrectly reject the solid-side chunk.
+            if (!OwnsSelectedInsideSample(cell, selectedInsideCorner, CellsPerAxis)) return;
+
             bool continuous = false;
             bool planar = false;
             bool rounded = false;
@@ -87,7 +117,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
                 if (definition.Reconstruction == SurfaceReconstruction.Planar) planar = true;
                 else rounded = true;
             }
-            if (!continuous) { WriteEmpty(); return; }
+            if (!continuous) return;
 
             int cellClass = CellClass[caseCode];
             byte counts = GeometryCounts[cellClass];
@@ -99,7 +129,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
                 Output.Write((byte)1);
                 Output.Write((byte)0);
                 Output.Write((byte)0);
-                Output.EndForEachIndex();
                 return;
             }
 
@@ -184,15 +213,15 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
                 for (int i = 0; i < indexCount; i++)
                     Output.Write(CellVertexIndices[tableBase + i]);
             }
-            Output.EndForEachIndex();
         }
 
-        private void WriteEmpty()
+        internal static bool OwnsSelectedInsideSample(
+            int3 cell, int selectedInsideCorner, int cellsPerAxis)
         {
-            Output.Write((byte)0);
-            Output.Write((byte)0);
-            Output.Write((byte)0);
-            Output.EndForEachIndex();
+            if ((uint)selectedInsideCorner >= 8u) return false;
+            int3 sample = cell + Corner(selectedInsideCorner);
+            int edge = math.max(1, cellsPerAxis);
+            return math.all(sample >= 0) && math.all(sample < edge);
         }
 
         private int GridIndex(int3 grid) => grid.x + GridSize * (grid.y + GridSize * grid.z);
