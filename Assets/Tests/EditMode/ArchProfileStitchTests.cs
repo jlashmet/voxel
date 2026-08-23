@@ -114,7 +114,7 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void BaySpringIntradosAuthoredFieldCrossesMonotonicallyAtMidDepth()
+        public void BayDeepOpeningCarveDoesNotAuthorSpringHalfPlane()
         {
             var arch = new ArchFeatureDefinition
             {
@@ -139,60 +139,34 @@ namespace VoxelEngine.Tests.EditMode
                 DamageSeed = 0x2222u,
                 DamageScale = 2,
             };
-
-            int3 origin = new(-bay.Width / 2, 0, 0);
             var primitives = new NativeList<Primitive>(bay.Metadata.MaxPrimitives, Allocator.Temp);
-            var table = new RegionTable(8, Allocator.Temp);
-            var pool = new BrickPool(24_000, Allocator.Temp);
             try
             {
-                Assert.True(bay.Emit(origin, primitives));
-                var reads = new RegionReadSource(in table, in pool);
-                var mutations = new RegionMutationStore(in table, in pool);
-                PrimitiveRasteriser.Rasterise(
-                    primitives.AsArray(), origin, origin + bay.Metadata.Footprint,
-                    reads, mutations);
+                Assert.True(bay.Emit(int3.zero, primitives));
 
-                int3 archOrigin = origin + new int3(bay.ShoulderWidth, 0, 1);
-                int3 centre = archOrigin + new int3(
-                    arch.Width / 2, arch.PierHeight, arch.Depth / 2);
-                int radius = arch.ClearSpan / 2;
-                int sampleZ = archOrigin.z + arch.Depth / 2 - 1;
+                Primitive deepOpening = default;
+                bool found = false;
+                for (int i = 0; i < primitives.Length; i++)
+                {
+                    Primitive primitive = primitives[i];
+                    if (primitive.Shape != PrimitiveShape.Annulus
+                        || primitive.Mode != PrimitiveMode.Carve
+                        || primitive.Radius != arch.ClearSpan / 2
+                        || primitive.B.z - primitive.A.z + 1 != arch.Depth)
+                        continue;
 
-                VoxelCell emptyFar = VoxelAccess.GetCell(
-                    ref table, in pool, new int3(centre.x + radius - 2, centre.y, sampleZ));
-                VoxelCell emptyNear = VoxelAccess.GetCell(
-                    ref table, in pool, new int3(centre.x + radius - 1, centre.y, sampleZ));
-                VoxelCell solidEdge = VoxelAccess.GetCell(
-                    ref table, in pool, new int3(centre.x + radius, centre.y, sampleZ));
-                VoxelCell solidNear = VoxelAccess.GetCell(
-                    ref table, in pool, new int3(centre.x + radius + 1, centre.y, sampleZ));
+                    Assert.False(found, "Arch bay should emit exactly one deep circular clear-opening carve.");
+                    deepOpening = primitive;
+                    found = true;
+                }
 
-                Assert.False(emptyFar.IsSolid);
-                Assert.False(emptyNear.IsSolid);
-                Assert.True(solidEdge.IsSolid);
-                Assert.True(solidNear.IsSolid);
-                Assert.True(emptyFar.Boundary.IsAuthored);
-                Assert.True(emptyNear.Boundary.IsAuthored);
-                Assert.True(solidEdge.Boundary.IsAuthored);
-                Assert.True(solidNear.Boundary.IsAuthored);
-
-                int d0 = emptyFar.Boundary.SignedQ4;
-                int d1 = emptyNear.Boundary.SignedQ4;
-                int d2 = solidEdge.Boundary.SignedQ4;
-                int d3 = solidNear.Boundary.SignedQ4;
-                Assert.Less(d0, d1,
-                    $"authored empty-side intrados distance must approach zero monotonically; got {d0}, {d1}");
-                Assert.Less(d1, d2,
-                    $"authored intrados field must cross zero between empty and solid; got {d1}, {d2}");
-                Assert.Less(d2, d3,
-                    $"authored solid-side intrados distance must move away from zero monotonically; got {d2}, {d3}");
+                Assert.True(found, "Arch bay must emit the deep circular clear-opening carve.");
+                Assert.AreEqual(PrismProfile.Gable, deepOpening.Profile,
+                    "deep opening must be a full disk: the lower rectangular carve already owns the lower half, so an Arch profile would add a false spring-plane boundary");
             }
             finally
             {
                 primitives.Dispose();
-                pool.Dispose();
-                table.Dispose();
             }
         }
     }
