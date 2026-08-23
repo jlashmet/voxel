@@ -18,6 +18,8 @@ namespace VoxelEngine.Showcase
     {
         private readonly List<VegetationInstance> _instances = new(32);
         private IVegetationBatchRenderer _renderer;
+        private float _originalCloudOpacity;
+        private bool _environmentApplied;
 
         public int InstanceCount => _renderer?.InstanceCount ?? 0;
 
@@ -51,12 +53,19 @@ namespace VoxelEngine.Showcase
             _renderer = VegetationLifeRenderingComposition.EnsureVegetationBatchRenderer(gameObject);
             BuildReferenceGrowth();
             _renderer.SetInstances(_instances);
+            _originalCloudOpacity = RenderingComposition.GetCloudOpacity();
             ApplyReferenceEnvironment();
+            _environmentApplied = true;
         }
 
         private void OnDisable()
         {
             _renderer?.Clear();
+            if (_environmentApplied)
+            {
+                RenderingComposition.SetCloudOpacity(_originalCloudOpacity);
+                _environmentApplied = false;
+            }
         }
 
         private void ApplyReferenceEnvironment()
@@ -69,6 +78,7 @@ namespace VoxelEngine.Showcase
             RenderingComposition.SetSky(
                 new Color(0.24f, 0.25f, 0.13f, 1f),
                 new Color(0.035f, 0.042f, 0.028f, 1f));
+            RenderingComposition.SetCloudOpacity(0f);
         }
 
         private void BuildReferenceGrowth()
