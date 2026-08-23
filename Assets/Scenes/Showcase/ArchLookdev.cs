@@ -50,9 +50,9 @@ namespace VoxelEngine.Showcase
         private int _damage, _damageScale = 2, _seedOffset = 0x2222;
         private int _jointQ4 = 4, _bevelQ4 = 4, _projectionQ4 = 8, _faceDepthQ4 = 16;
 
-        // Growth
-        private int _mossCoverage = 115, _mossDensity = 210, _mossRadiusQ4 = 18;
-        private int _mossHeightQ4 = 2, _mossDropQ4 = 18, _mossSeparation;
+        // Growth. The semantic ivy/vine layer carries the readable foliage; coating stays subtle.
+        private int _mossCoverage = 48, _mossDensity = 128, _mossRadiusQ4 = 14;
+        private int _mossHeightQ4 = 2, _mossDropQ4 = 10, _mossSeparation;
         private float _mossHue = 0.22f, _mossSaturation = 0.53f, _mossValue = 0.39f;
 
         // Presentation
@@ -695,7 +695,7 @@ namespace VoxelEngine.Showcase
             0 => new[] { 9, 11, 13, 15, 17 },
             1 => new[] { 2, 3, 4, 5, 6 },
             2 => new[] { 1, 2, 3, 4, 5 },
-            _ => new[] { 55, 85, 115, 145, 175 },
+            _ => new[] { 20, 35, 50, 70, 90 },
         };
 
         private void SetSweepValue(int axis, int value)
@@ -813,8 +813,8 @@ namespace VoxelEngine.Showcase
             _depth = 12; _shoulder = 4; _topMargin = 4; _faceRecess = 1;
             _plinthHeight = 4; _impostHeight = 3; _damage = 0; _damageScale = 2;
             _seedOffset = 0x2222; _jointQ4 = 4; _bevelQ4 = 4; _projectionQ4 = 8;
-            _faceDepthQ4 = 16; _mossCoverage = 115; _mossDensity = 210;
-            _mossRadiusQ4 = 18; _mossHeightQ4 = 2; _mossDropQ4 = 18;
+            _faceDepthQ4 = 16; _mossCoverage = 48; _mossDensity = 128;
+            _mossRadiusQ4 = 14; _mossHeightQ4 = 2; _mossDropQ4 = 10;
             _mossSeparation = 0; _mossHue = 0.22f; _mossSaturation = 0.53f;
             _mossValue = 0.39f; _stoneWarmth = 0.76f; _stoneValue = 0.86f;
             _sunAzimuth = -135f; _sunElevation = 55f; _cameraYaw = 14.5f;
