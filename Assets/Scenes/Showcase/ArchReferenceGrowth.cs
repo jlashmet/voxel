@@ -16,7 +16,7 @@ namespace VoxelEngine.Showcase
     [DisallowMultipleComponent]
     public sealed class ArchReferenceGrowth : MonoBehaviour
     {
-        private readonly List<VegetationInstance> _instances = new(32);
+        private readonly List<VegetationInstance> _instances = new(48);
         private IVegetationBatchRenderer _renderer;
         private float _originalCloudOpacity;
         private bool _environmentApplied;
@@ -91,36 +91,50 @@ namespace VoxelEngine.Showcase
             const float frontZ = -0.06f;
             float3 front = new(0f, 0f, -1f);
 
-            // Dense but broken-up left-side growth. Short overlapping climbers should read as leafy
-            // masses attached to the stone instead of the continuous vertical cords from the first
-            // vegetation pass.
-            Add(VegetationKind.Ivy,          -1.96f, 0.48f, frontZ, front, 0.58f, 0xA01u);
-            Add(VegetationKind.Ivy,          -1.68f, 1.36f, frontZ, front, 0.54f, 0xA02u);
-            Add(VegetationKind.ClimbingVine, -1.92f, 2.26f, frontZ, front, 0.48f, 0xA03u);
-            Add(VegetationKind.Ivy,          -1.60f, 3.08f, frontZ, front, 0.52f, 0xA04u);
-            Add(VegetationKind.Ivy,          -1.88f, 4.02f, frontZ, front, 0.50f, 0xA05u);
-            Add(VegetationKind.ClimbingVine, -1.54f, 4.88f, frontZ, front, 0.46f, 0xA06u);
-            Add(VegetationKind.Ivy,          -1.72f, 5.66f, frontZ, front, 0.54f, 0xA07u);
+            // The reference is dominated by broad overlapping leaf masses down the left pier.
+            // WallFern supplies that volume; short ivy runs stitch the masses together without
+            // returning to the repeated vertical-chain silhouette of the earlier pass.
+            Add(VegetationKind.WallFern, -1.98f, 0.42f, frontZ, front, 0.72f, 0xA01u);
+            Add(VegetationKind.Ivy,      -1.72f, 0.82f, frontZ - 0.01f, front, 0.32f, 0xA02u);
+            Add(VegetationKind.WallFern, -1.66f, 1.22f, frontZ, front, 0.82f, 0xA03u);
+            Add(VegetationKind.WallFern, -1.98f, 1.92f, frontZ, front, 0.78f, 0xA04u);
+            Add(VegetationKind.Ivy,      -1.70f, 2.22f, frontZ - 0.01f, front, 0.30f, 0xA05u);
+            Add(VegetationKind.Flower,   -1.54f, 2.54f, frontZ - 0.02f, front, 0.38f, 0xA06u);
+            Add(VegetationKind.WallFern, -1.70f, 2.82f, frontZ, front, 0.92f, 0xA07u);
+            Add(VegetationKind.WallFern, -1.96f, 3.58f, frontZ, front, 0.84f, 0xA08u);
+            Add(VegetationKind.Ivy,      -1.68f, 3.88f, frontZ - 0.01f, front, 0.30f, 0xA09u);
+            Add(VegetationKind.Flower,   -1.50f, 4.16f, frontZ - 0.02f, front, 0.34f, 0xA0Au);
+            Add(VegetationKind.WallFern, -1.62f, 4.42f, frontZ, front, 0.94f, 0xA0Bu);
+            Add(VegetationKind.Ivy,      -1.82f, 4.82f, frontZ - 0.01f, front, 0.32f, 0xA0Cu);
+            Add(VegetationKind.WallFern, -1.76f, 5.18f, frontZ, front, 0.90f, 0xA0Du);
+            Add(VegetationKind.WallFern, -1.48f, 5.82f, frontZ, front, 0.88f, 0xA0Eu);
+            Add(VegetationKind.Flower,   -1.28f, 6.10f, frontZ - 0.02f, front, 0.36f, 0xA0Fu);
 
-            // The reference grows outward across the left haunch and then thins over the crown.
-            Add(VegetationKind.Ivy, -1.46f, 6.38f, frontZ, front, 0.62f, 0xB01u);
-            Add(VegetationKind.Ivy, -1.08f, 6.98f, frontZ, front, 0.66f, 0xB02u);
-            Add(VegetationKind.Ivy, -0.58f, 7.48f, frontZ, front, 0.64f, 0xB03u);
-            Add(VegetationKind.Ivy, -0.05f, 7.84f, frontZ, front, 0.58f, 0xB04u);
-            Add(VegetationKind.Ivy,  0.46f, 8.02f, frontZ, front, 0.48f, 0xB05u);
-            Add(VegetationKind.HangingVine, -1.24f, 7.34f, frontZ - 0.015f, front, 0.40f, 0xB06u);
-            Add(VegetationKind.HangingVine, -0.50f, 7.84f, frontZ - 0.015f, front, 0.36f, 0xB07u);
+            // Push the same leafy mass across the left haunch and crown. The reference becomes most
+            // lush here, with a few flowers rising out of the foliage and only short hanging tips.
+            Add(VegetationKind.WallFern, -1.44f, 6.34f, frontZ, front, 0.96f, 0xB01u);
+            Add(VegetationKind.Ivy,      -1.18f, 6.64f, frontZ - 0.01f, front, 0.32f, 0xB02u);
+            Add(VegetationKind.WallFern, -1.08f, 6.78f, frontZ, front, 0.98f, 0xB03u);
+            Add(VegetationKind.WallFern, -0.74f, 7.16f, frontZ, front, 0.92f, 0xB04u);
+            Add(VegetationKind.Flower,   -0.56f, 7.38f, frontZ - 0.02f, front, 0.36f, 0xB05u);
+            Add(VegetationKind.WallFern, -0.36f, 7.50f, frontZ, front, 0.84f, 0xB06u);
+            Add(VegetationKind.WallFern,  0.04f, 7.72f, frontZ, front, 0.76f, 0xB07u);
+            Add(VegetationKind.Flower,    0.22f, 7.92f, frontZ - 0.02f, front, 0.32f, 0xB08u);
+            Add(VegetationKind.WallFern,  0.44f, 7.92f, frontZ, front, 0.62f, 0xB09u);
+            Add(VegetationKind.HangingVine, -1.10f, 7.18f, frontZ - 0.025f, front, 0.34f, 0xB0Au);
+            Add(VegetationKind.HangingVine, -0.30f, 7.68f, frontZ - 0.025f, front, 0.28f, 0xB0Bu);
 
-            // Sparse right-hand counterweight. Keep visible interruptions so it never becomes a
-            // mirrored second curtain.
-            Add(VegetationKind.Ivy,          1.78f, 1.62f, frontZ, front, 0.34f, 0xC01u);
-            Add(VegetationKind.Ivy,          1.70f, 3.48f, frontZ, front, 0.36f, 0xC02u);
-            Add(VegetationKind.ClimbingVine, 1.56f, 5.04f, frontZ, front, 0.34f, 0xC03u);
-            Add(VegetationKind.Ivy,          1.34f, 6.46f, frontZ, front, 0.36f, 0xC04u);
-            Add(VegetationKind.HangingVine,  1.36f, 7.08f, frontZ - 0.015f, front, 0.32f, 0xC05u);
+            // The right side stays deliberately sparse, matching the reference's asymmetry. Use a
+            // handful of leafy islands with one climbing connector rather than a mirrored curtain.
+            Add(VegetationKind.WallFern,     1.78f, 1.52f, frontZ, front, 0.42f, 0xC01u);
+            Add(VegetationKind.Ivy,          1.68f, 2.18f, frontZ - 0.01f, front, 0.26f, 0xC02u);
+            Add(VegetationKind.WallFern,     1.62f, 3.62f, frontZ, front, 0.46f, 0xC03u);
+            Add(VegetationKind.ClimbingVine, 1.56f, 4.36f, frontZ - 0.01f, front, 0.28f, 0xC04u);
+            Add(VegetationKind.WallFern,     1.46f, 5.18f, frontZ, front, 0.52f, 0xC05u);
+            Add(VegetationKind.WallFern,     1.28f, 6.30f, frontZ, front, 0.50f, 0xC06u);
+            Add(VegetationKind.HangingVine,  1.32f, 6.86f, frontZ - 0.025f, front, 0.26f, 0xC07u);
 
-            // The voxel coating already provides low-frequency moss weathering. Avoid semantic
-            // surface patches here: their planar silhouette competes with the leafy reference.
+            // Ground accents remain small; the visual focus should stay on masonry-bound growth.
             float3 up = new(0f, 1f, 0f);
             Add(VegetationKind.Fern,   -2.04f, 0.02f, -0.12f, up, 0.52f, 0xE01u);
             Add(VegetationKind.Flower, -1.58f, 0.02f, -0.15f, up, 0.42f, 0xE02u);
