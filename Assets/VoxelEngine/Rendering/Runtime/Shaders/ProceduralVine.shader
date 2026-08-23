@@ -97,14 +97,29 @@ Shader "VoxelEngine/ProceduralVine"
             half4 Frag(Varyings input) : SV_Target
             {
                 UNITY_SETUP_INSTANCE_ID(input);
-                float x = abs(input.uv.x * 2.0 - 1.0);
-                float leafWave = pow(saturate(0.5 + 0.5 * sin(input.uv.y * 37.699)), 8.0);
-                float width = 0.16 + leafWave * _Leafiness * 0.64;
-                float mask = width - x;
-                clip(mask - lerp(-0.04, 0.08, _Cutoff));
 
+                // A continuous narrow stem with alternating broad leaf lobes reads as ivy at hero
+                // distance. The previous high-frequency sine mask produced a mechanical ladder of
+                // identical holes, especially when several climber cards overlapped.
+                float x = input.uv.x * 2.0 - 1.0;
                 float along = saturate(input.uv.y);
-                float3 albedo = lerp(_BaseColor.rgb, _TipColor.rgb, along * 0.75);
+                const float leafCount = 5.0;
+                float scaled = min(along * leafCount, leafCount - 0.0001);
+                float leafIndex = floor(scaled);
+                float leafLocalY = frac(scaled);
+                float leafY = abs(leafLocalY * 2.0 - 1.0);
+                float leafProfile = sqrt(saturate(1.0 - leafY * leafY));
+                float side = fmod(leafIndex, 2.0) < 1.0 ? -1.0 : 1.0;
+                float leafCentre = side * 0.33;
+                float leafHalfWidth = (0.14 + 0.34 * _Leafiness) * leafProfile;
+                float leafMask = leafHalfWidth - abs(x - leafCentre);
+                float stemMask = 0.075 - abs(x);
+                float mask = max(stemMask, leafMask);
+                clip(mask - lerp(-0.035, 0.035, _Cutoff));
+
+                float leafHighlight = saturate(leafProfile * 0.65 + 0.20);
+                float3 albedo = lerp(_BaseColor.rgb, _TipColor.rgb,
+                                     saturate(along * 0.58 + leafHighlight * 0.30));
                 float3 n = normalize(input.normalWS);
                 float3 sun = normalize(_SunDirection.xyz);
                 float ndl = abs(dot(n, sun));
