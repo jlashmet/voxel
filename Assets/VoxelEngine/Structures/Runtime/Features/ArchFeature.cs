@@ -75,11 +75,11 @@ namespace VoxelEngine.Structures.Runtime
         public int JointRecessDepth;
         /// <summary>Half-width of retained face joints in Q4 voxels; zero uses the built-in cut-stone default.</summary>
         public byte ProfileJointHalfWidthQ4;
-        /// <summary>Front arris bevel in Q4 voxels; zero uses the built-in cut-stone default.</summary>
+        /// <summary>Retained face arris bevel in Q4 voxels; zero uses the built-in cut-stone default.</summary>
         public byte ProfileBevelQ4;
-        /// <summary>How far the retained face projects ahead of the structural ring, in Q4 voxels.</summary>
+        /// <summary>How far each retained face projects beyond the structural ring, in Q4 voxels.</summary>
         public byte ProfileProjectionQ4;
-        /// <summary>Depth of the retained face layer in Q4 voxels; zero uses one voxel.</summary>
+        /// <summary>Depth of each retained face layer in Q4 voxels; zero uses one voxel.</summary>
         public byte ProfileDepthQ4;
         public byte StoneMaterial;
         public ushort PierStyle;
@@ -252,14 +252,13 @@ namespace VoxelEngine.Structures.Runtime
                 if (profileBlocks != null)
                 {
                     int projectionQ4 = ProfileProjectionQ4 > 0 ? ProfileProjectionQ4 : 8;
-                    int profileDepthQ4 = ProfileDepthQ4 > 0 ? ProfileDepthQ4 : 16;
                     profileBlocks.Add(new ProfileBlock
                     {
                         Centre = centre,
-                        InnerRadiusQ4 = ClearSpan * 8 - 8,
-                        OuterRadiusQ4 = OuterRadius * 16 + 8,
+                        InnerRadiusQ4 = ClearSpan * 8,
+                        OuterRadiusQ4 = OuterRadius * 16,
                         FrontQ4 = origin.z * 16 - projectionQ4,
-                        BackQ4 = origin.z * 16 - projectionQ4 + profileDepthQ4,
+                        BackQ4 = (origin.z + Depth - 1) * 16 + projectionQ4,
                         StartDirection = start,
                         EndDirection = end,
                         Axis = 2,
@@ -473,14 +472,19 @@ namespace VoxelEngine.Structures.Runtime
             output.Add(CurvedPrimitiveEmitter.Annulus(
                 faceOpeningCentre, Arch.OuterRadius, 0, 2, 2, true,
                 Arch.StoneMaterial, wallStyle, PrimitiveMode.Carve, order++));
-            int clearWidth = math.max(1, Arch.ClearSpan - 1);
+            // Integer-circle geometry is 2r + 1 cells wide. Derive the rectangular opening from
+            // the actual pier footprints so no one-cell veneer/backing strips survive at either jamb.
+            int clearWidth = math.max(1, Arch.Width - Arch.RingThickness * 2);
             output.Add(BoxEmitter.Box(
                 new int3(openingCentre.x - clearWidth / 2, origin.y, backingZ),
                 new int3(clearWidth, Arch.PierHeight + 1, backingDepth),
                 Arch.StoneMaterial, PrimitiveMode.Carve, order++, wallStyle));
+            // The rectangular lower opening already owns everything below the spring diameter.
+            // Use a full disk here so the deep curved carve contributes only the radial intrados
+            // boundary; a half-disk would author a false horizontal boundary at the spring plane.
             output.Add(CurvedPrimitiveEmitter.Annulus(
                 openingCentre, Arch.ClearSpan / 2, 0,
-                backingDepth, 2, true,
+                backingDepth, 2, false,
                 Arch.StoneMaterial, wallStyle, PrimitiveMode.Carve, order++));
 
             int sideWidth = shoulder + Arch.RingThickness;
@@ -519,17 +523,20 @@ namespace VoxelEngine.Structures.Runtime
             rightPlinth.Order = order++;
             output.Add(rightPlinth);
 
+            // Imposts can project into the shoulder like a masonry capital, but projecting into
+            // the clear span creates a disconnected-looking shelf at the spring from oblique views.
             int impostY = origin.y + Arch.PierHeight - impostHeight + 1;
+            int impostWidth = pierWidth + 2;
             Primitive leftImpost = CurvedPrimitiveEmitter.RoundedBox(
                 new int3(leftPierX - 2, impostY, archOrigin.z),
-                new int3(ornamentWidth, impostHeight, Depth - 1), 1,
+                new int3(impostWidth, impostHeight, Depth - 1), 1,
                 Arch.StoneMaterial, wallStyle, PrimitiveMode.Fill, order++, Arch.Coating,
                 extrusionAxis: 2);
             leftImpost.SurfaceFlags = masonryFlags;
             output.Add(leftImpost);
             Primitive rightImpost = leftImpost;
-            rightImpost.A.x = rightPierX - 2;
-            rightImpost.B.x = rightImpost.A.x + ornamentWidth - 1;
+            rightImpost.A.x = rightPierX;
+            rightImpost.B.x = rightImpost.A.x + impostWidth - 1;
             rightImpost.Order = order++;
             output.Add(rightImpost);
 

@@ -43,9 +43,9 @@ namespace VoxelEngine.Showcase
         private GUIStyle _panelStyle, _titleStyle, _sectionStyle, _valueStyle, _buttonStyle;
         private Vector4 _originalStoneAlbedo, _originalMossTint;
 
-        // Form
-        private int _clearSpan = 32, _pierHeight = 40, _ringThickness = 7;
-        private int _voussoirs = 13, _depth = 12, _shoulder = 10, _topMargin = 8;
+        // Form. The hero preset follows the tall, narrow reference silhouette rather than a wall bay.
+        private int _clearSpan = 28, _pierHeight = 64, _ringThickness = 7;
+        private int _voussoirs = 13, _depth = 12, _shoulder = 4, _topMargin = 4;
         private int _faceRecess = 1, _plinthHeight = 4, _impostHeight = 3;
         private int _damage, _damageScale = 2, _seedOffset = 0x2222;
         private int _jointQ4 = 4, _bevelQ4 = 4, _projectionQ4 = 8, _faceDepthQ4 = 16;
@@ -56,8 +56,8 @@ namespace VoxelEngine.Showcase
         private float _mossHue = 0.22f, _mossSaturation = 0.53f, _mossValue = 0.39f;
 
         // Presentation
-        private float _stoneWarmth = 0.58f, _stoneValue = 0.68f;
-        private float _sunAzimuth = -48f, _sunElevation = 50f;
+        private float _stoneWarmth = 0.76f, _stoneValue = 0.86f;
+        private float _sunAzimuth = -135f, _sunElevation = 55f;
         private Vector3 _cameraFocus;
         private float _cameraYaw = 14.5f, _cameraPitch = 3.2f;
         private float _cameraDistance = 14.5f, _cameraFov = 34f;
@@ -137,10 +137,13 @@ namespace VoxelEngine.Showcase
                     out int residentChunks,
                     out long residentGeometryBytes))
             {
-                bool converged = dirtyChunks == 0 && residentChunks >= knownChunks;
+                // Known/dirty work includes the renderer's 360-degree prefetch shell. The bench
+                // should report readiness by the same contract production presentation uses:
+                // visible geometry exists and the current camera has no missing surface chunks.
+                bool converged = RenderingComposition.HasCompletePublishedNearSurfaceCoverage();
                 _status = converged
                     ? $"READY  {residentGeometryBytes / (1024f * 1024f):0.0} MB  ·  {_lastBuildMs:0} ms authoring"
-                    : $"MESHING  {residentChunks}/{knownChunks} chunks";
+                    : $"MESHING  {residentChunks}/{knownChunks} chunks  ·  {dirtyChunks} dirty";
             }
         }
 
@@ -221,7 +224,14 @@ namespace VoxelEngine.Showcase
             _cameraFocus = new Vector3(0f, height * VoxelSize * 0.5f, 0.45f);
             _cameraYaw = 14.5f;
             _cameraPitch = 3.2f;
-            _cameraDistance = Mathf.Max(8f, width * VoxelSize * 1.62f);
+
+            float halfVerticalFov = _cameraFov * Mathf.Deg2Rad * 0.5f;
+            float verticalDistance = height * VoxelSize * 0.5f / Mathf.Tan(halfVerticalFov);
+            float aspect = _camera != null && _camera.aspect > 0.01f ? _camera.aspect : 16f / 9f;
+            float halfHorizontalFov = Mathf.Atan(Mathf.Tan(halfVerticalFov) * aspect);
+            float horizontalDistance = width * VoxelSize * 0.5f / Mathf.Tan(halfHorizontalFov);
+            _cameraDistance = Mathf.Max(8f, Mathf.Max(verticalDistance, horizontalDistance) * 1.12f);
+
             _cameraInitialized = true;
             ApplyCameraTransform();
         }
@@ -569,10 +579,7 @@ namespace VoxelEngine.Showcase
             int stable = 0;
             for (int frame = 0; frame < 512 && stable < 3; frame++)
             {
-                bool ready = RenderingComposition.TryGetSurfaceBuildStatus(
-                        out int knownChunks, out int dirtyChunks, out int residentChunks, out _)
-                    && dirtyChunks == 0
-                    && residentChunks >= knownChunks;
+                bool ready = RenderingComposition.HasCompletePublishedNearSurfaceCoverage();
                 stable = ready ? stable + 1 : 0;
                 yield return null;
             }
@@ -580,11 +587,13 @@ namespace VoxelEngine.Showcase
             {
                 RenderingComposition.TryGetSurfaceBuildStatus(
                     out int knownChunks, out int dirtyChunks, out int residentChunks, out _);
-                _exchangeStatus = "CAPTURE FAILED · SURFACE DID NOT CONVERGE";
+                RenderingComposition.GetVoxelSurfaceCounts(out _, out int missingVisibleChunks);
+                _exchangeStatus = "CAPTURE FAILED · VISIBLE SURFACE INCOMPLETE";
                 PublishState();
                 throw new InvalidOperationException(
-                    $"Surface did not converge: known={knownChunks}, "
-                  + $"resident={residentChunks}, dirty={dirtyChunks}.");
+                    $"Visible surface did not converge: known={knownChunks}, "
+                  + $"resident={residentChunks}, dirty={dirtyChunks}, "
+                  + $"missingVisible={missingVisibleChunks}.");
             }
         }
 
@@ -748,7 +757,8 @@ namespace VoxelEngine.Showcase
             GUILayout.Label(label, GUILayout.Width(174));
             GUILayout.Label(value.ToString(), _valueStyle, GUILayout.Width(48));
             GUILayout.EndHorizontal();
-            int next = Mathf.RoundToInt(GUILayout.HorizontalSlider(value, min, max) / step) * step;
+            float raw = GUILayout.HorizontalSlider(value, min, max);
+            int next = min + Mathf.RoundToInt((raw - min) / step) * step;
             next = Mathf.Clamp(next, min, max);
             if (next != value) { value = next; _pendingRebuild = true; _stateDirty = true; }
         }
@@ -799,15 +809,15 @@ namespace VoxelEngine.Showcase
 
         private void ResetDefaults()
         {
-            _clearSpan = 32; _pierHeight = 40; _ringThickness = 7; _voussoirs = 13;
-            _depth = 12; _shoulder = 10; _topMargin = 8; _faceRecess = 1;
+            _clearSpan = 28; _pierHeight = 64; _ringThickness = 7; _voussoirs = 13;
+            _depth = 12; _shoulder = 4; _topMargin = 4; _faceRecess = 1;
             _plinthHeight = 4; _impostHeight = 3; _damage = 0; _damageScale = 2;
             _seedOffset = 0x2222; _jointQ4 = 4; _bevelQ4 = 4; _projectionQ4 = 8;
             _faceDepthQ4 = 16; _mossCoverage = 115; _mossDensity = 210;
             _mossRadiusQ4 = 18; _mossHeightQ4 = 2; _mossDropQ4 = 18;
             _mossSeparation = 0; _mossHue = 0.22f; _mossSaturation = 0.53f;
-            _mossValue = 0.39f; _stoneWarmth = 0.58f; _stoneValue = 0.68f;
-            _sunAzimuth = -48f; _sunElevation = 50f; _cameraYaw = 14.5f;
+            _mossValue = 0.39f; _stoneWarmth = 0.76f; _stoneValue = 0.86f;
+            _sunAzimuth = -135f; _sunElevation = 55f; _cameraYaw = 14.5f;
             _cameraPitch = 3.2f; _cameraDistance = 14.5f; _cameraFov = 34f;
             _cameraMoveSpeed = 4f;
             _buildBudgetMs = 12f;
