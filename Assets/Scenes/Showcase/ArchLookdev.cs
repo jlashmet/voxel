@@ -137,10 +137,13 @@ namespace VoxelEngine.Showcase
                     out int residentChunks,
                     out long residentGeometryBytes))
             {
-                bool converged = dirtyChunks == 0 && residentChunks >= knownChunks;
+                // Known/dirty work includes the renderer's 360-degree prefetch shell. The bench
+                // should report readiness by the same contract production presentation uses:
+                // visible geometry exists and the current camera has no missing surface chunks.
+                bool converged = RenderingComposition.HasCompletePublishedNearSurfaceCoverage();
                 _status = converged
                     ? $"READY  {residentGeometryBytes / (1024f * 1024f):0.0} MB  ·  {_lastBuildMs:0} ms authoring"
-                    : $"MESHING  {residentChunks}/{knownChunks} chunks";
+                    : $"MESHING  {residentChunks}/{knownChunks} chunks  ·  {dirtyChunks} dirty";
             }
         }
 
@@ -569,10 +572,7 @@ namespace VoxelEngine.Showcase
             int stable = 0;
             for (int frame = 0; frame < 512 && stable < 3; frame++)
             {
-                bool ready = RenderingComposition.TryGetSurfaceBuildStatus(
-                        out int knownChunks, out int dirtyChunks, out int residentChunks, out _)
-                    && dirtyChunks == 0
-                    && residentChunks >= knownChunks;
+                bool ready = RenderingComposition.HasCompletePublishedNearSurfaceCoverage();
                 stable = ready ? stable + 1 : 0;
                 yield return null;
             }
@@ -580,11 +580,13 @@ namespace VoxelEngine.Showcase
             {
                 RenderingComposition.TryGetSurfaceBuildStatus(
                     out int knownChunks, out int dirtyChunks, out int residentChunks, out _);
-                _exchangeStatus = "CAPTURE FAILED · SURFACE DID NOT CONVERGE";
+                RenderingComposition.GetVoxelSurfaceCounts(out _, out int missingVisibleChunks);
+                _exchangeStatus = "CAPTURE FAILED · VISIBLE SURFACE INCOMPLETE";
                 PublishState();
                 throw new InvalidOperationException(
-                    $"Surface did not converge: known={knownChunks}, "
-                  + $"resident={residentChunks}, dirty={dirtyChunks}.");
+                    $"Visible surface did not converge: known={knownChunks}, "
+                  + $"resident={residentChunks}, dirty={dirtyChunks}, "
+                  + $"missingVisible={missingVisibleChunks}.");
             }
         }
 
@@ -748,7 +750,8 @@ namespace VoxelEngine.Showcase
             GUILayout.Label(label, GUILayout.Width(174));
             GUILayout.Label(value.ToString(), _valueStyle, GUILayout.Width(48));
             GUILayout.EndHorizontal();
-            int next = Mathf.RoundToInt(GUILayout.HorizontalSlider(value, min, max) / step) * step;
+            float raw = GUILayout.HorizontalSlider(value, min, max);
+            int next = min + Mathf.RoundToInt((raw - min) / step) * step;
             next = Mathf.Clamp(next, min, max);
             if (next != value) { value = next; _pendingRebuild = true; _stateDirty = true; }
         }
