@@ -32,8 +32,8 @@ Make `Assets/Scenes/ArchLookdev.unity` visually match the version-controlled `Re
 - [x] Read `AGENTS.md` and `CLAUDE.md`.
 - [x] Create the fixed feature branch from current master (`bf7d125`).
 - [x] Confirm ArchLookdev now loads `References/arch_reference.png` from version control.
-- [ ] Locate the ArchDev/ArchLookdev build/capture test and artifact publisher.
-- [ ] Add the reference PNG to the artifact without changing the production scene just to expose the image.
+- [x] Locate the ArchDev/ArchLookdev build/capture test and artifact publisher.
+- [x] Add the reference PNG to the artifact without changing the production scene just to expose the image.
 - [ ] Run the smallest capture test via `ci-test/agent/arch-reference-match` and inspect the artifact.
 - [ ] Record concrete visual deltas versus reference.
 - [ ] Diagnose and fix the first proven geometry/rendering cause.
@@ -47,3 +47,6 @@ Make `Assets/Scenes/ArchLookdev.unity` visually match the version-controlled `Re
 - Master `bf7d125` changed `ArchLookdev.LoadTargetImage()` to try `References/arch_reference.png` first, so fresh checkouts can load the reference.
 - Prior smoothing commits fixed the front intrados by aligning authored radial distance with occupancy and trusting authored samples on sign agreement. The commit notes explicitly say the oblique soffit still has a separate cause.
 - Current moss in ArchLookdev is authored primarily as `Coatings.Moss` plus coating decoration; the engine also has an instanced `VegetationKind.Moss` renderer that supports arbitrary surface normals, but offscreen `Camera.Render()` captures may omit `Graphics.DrawMesh` vegetation. Verify capture compatibility before switching the scene to vegetation instances.
+- `Assets/Tests/PlayMode/ArchLookdevSceneTests.cs` is the explicit visual acceptance entry point. The single-test workflow invokes `tools/showcase-player-capture.sh`, which maps this test to `Assets/Scenes/ArchLookdev.unity`, builds a standalone macOS player, and captures presented frames every 10 seconds for 30 seconds.
+- The visual acceptance now copies `References/arch_reference.png` to `Artifacts/SingleTest/RealPlayer/Reference/arch_reference.png`. The workflow uploads `Artifacts/SingleTest/**`, so the reference should be delivered beside `RealPlayer/Screenshots/**` once a run reaches artifact upload.
+- CI run `32611015737` started for the ArchLookdev request but the pre-test Unity-idle guard failed after 60 seconds because another Unity editor was already running. The workflow then entered the always-run real-player capture step, which itself waits for Unity to become idle. No artifact had been uploaded at the last check, so this run is not validation evidence yet.
