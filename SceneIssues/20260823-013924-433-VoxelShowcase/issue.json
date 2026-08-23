@@ -1,0 +1,121 @@
+{
+    "formatVersion": 3,
+    "id": "20260823-013924-433-VoxelShowcase",
+    "capturedUtc": "2026-08-23T01:39:24.4339190Z",
+    "note": "terrain looks different than before.  grass texturing is better but general shape and transition to dirt is awful",
+    "status": "open",
+    "resolvedUtc": "",
+    "resolutionSummary": "",
+    "regressionTest": "",
+    "fixCommit": "",
+    "unityVersion": "6000.5.6f1",
+    "platform": "OSXEditor",
+    "sceneName": "VoxelShowcase",
+    "scenePath": "Assets/Scenes/VoxelShowcase.unity",
+    "sceneBuildIndex": 2,
+    "captures": [
+        {
+            "screenshot": "screenshot-001.png",
+            "capturedUtc": "2026-08-23T01:39:24.4368800Z",
+            "frameCount": 26284,
+            "timeSinceLevelLoad": 56.65144348144531,
+            "screenWidth": 1293,
+            "screenHeight": 718,
+            "poseAnchor": {
+                "hierarchyPath": "Showcase Camera",
+                "position": {
+                    "x": 75.63558959960938,
+                    "y": 26.550018310546876,
+                    "z": -7.454492568969727
+                },
+                "rotation": {
+                    "x": 0.11757123470306397,
+                    "y": -0.8181023001670837,
+                    "z": 0.18037749826908112,
+                    "w": 0.5332444906234741
+                },
+                "localScale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                }
+            },
+            "camera": {
+                "hierarchyPath": "Showcase Camera",
+                "position": {
+                    "x": 75.63558959960938,
+                    "y": 26.550018310546876,
+                    "z": -7.454492568969727
+                },
+                "rotation": {
+                    "x": 0.11757123470306397,
+                    "y": -0.8181023001670837,
+                    "z": 0.18037749826908112,
+                    "w": 0.5332444906234741
+                },
+                "fieldOfView": 70.0,
+                "orthographic": false,
+                "orthographicSize": 5.0,
+                "nearClipPlane": 0.05000000074505806,
+                "farClipPlane": 16000.0
+            },
+            "circles": [
+                {
+                    "centerX": 0.4032485783100128,
+                    "centerY": 0.42496514320373537,
+                    "radius": 0.5020860433578491
+                }
+            ]
+        }
+    ],
+    "screenshot": "screenshot-001.png",
+    "frameCount": 26284,
+    "timeSinceLevelLoad": 56.65144348144531,
+    "screenWidth": 1293,
+    "screenHeight": 718,
+    "poseAnchor": {
+        "hierarchyPath": "Showcase Camera",
+        "position": {
+            "x": 75.63558959960938,
+            "y": 26.550018310546876,
+            "z": -7.454492568969727
+        },
+        "rotation": {
+            "x": 0.11757123470306397,
+            "y": -0.8181023001670837,
+            "z": 0.18037749826908112,
+            "w": 0.5332444906234741
+        },
+        "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+        }
+    },
+    "camera": {
+        "hierarchyPath": "Showcase Camera",
+        "position": {
+            "x": 75.63558959960938,
+            "y": 26.550018310546876,
+            "z": -7.454492568969727
+        },
+        "rotation": {
+            "x": 0.11757123470306397,
+            "y": -0.8181023001670837,
+            "z": 0.18037749826908112,
+            "w": 0.5332444906234741
+        },
+        "fieldOfView": 70.0,
+        "orthographic": false,
+        "orthographicSize": 5.0,
+        "nearClipPlane": 0.05000000074505806,
+        "farClipPlane": 16000.0
+    },
+    "circles": [
+        {
+            "centerX": 0.4032485783100128,
+            "centerY": 0.42496514320373537,
+            "radius": 0.5020860433578491
+        }
+    ]
+}
