@@ -473,7 +473,9 @@ namespace VoxelEngine.Structures.Runtime
             output.Add(CurvedPrimitiveEmitter.Annulus(
                 faceOpeningCentre, Arch.OuterRadius, 0, 2, 2, true,
                 Arch.StoneMaterial, wallStyle, PrimitiveMode.Carve, order++));
-            int clearWidth = math.max(1, Arch.ClearSpan - 1);
+            // Integer-circle geometry is 2r + 1 cells wide. Derive the rectangular opening from
+            // the actual pier footprints so no one-cell veneer/backing strips survive at either jamb.
+            int clearWidth = math.max(1, Arch.Width - Arch.RingThickness * 2);
             output.Add(BoxEmitter.Box(
                 new int3(openingCentre.x - clearWidth / 2, origin.y, backingZ),
                 new int3(clearWidth, Arch.PierHeight + 1, backingDepth),
