@@ -11,7 +11,7 @@ namespace VoxelEngine.Tests.EditMode
     public sealed class ArchProfileStitchTests
     {
         [Test]
-        public void RetainedProfilesCoverBothFacesAndMatchStructuralAnnulusZeroes()
+        public void RetainedProfilesSpanFullArchDepthAndMatchStructuralAnnulusZeroes()
         {
             var arch = new ArchFeatureDefinition
             {
@@ -29,31 +29,25 @@ namespace VoxelEngine.Tests.EditMode
             try
             {
                 Assert.True(arch.Emit(int3.zero, primitives, blocks));
-                Assert.AreEqual(arch.VoussoirCount * 2, blocks.Count,
-                    "each voussoir needs a retained profile on both the front and rear face");
+                Assert.AreEqual(arch.VoussoirCount, blocks.Count,
+                    "each voussoir needs one continuous retained profile through the complete arch depth");
 
                 int expectedInnerQ4 = (arch.ClearSpan / 2) * 16;
                 int expectedOuterQ4 = arch.OuterRadius * 16;
+                int projectionQ4 = arch.ProfileProjectionQ4 > 0 ? arch.ProfileProjectionQ4 : 8;
+                int expectedFrontQ4 = -projectionQ4;
+                int expectedBackQ4 = (arch.Depth - 1) * 16 + projectionQ4;
                 for (int i = 0; i < blocks.Count; i++)
                 {
                     ProfileBlock block = blocks[i];
                     Assert.AreEqual(expectedInnerQ4, block.InnerRadiusQ4,
-                        $"retained intrados for profile {i} must stitch to the structural annulus zero");
+                        $"retained intrados for voussoir {i} must stitch to the structural annulus zero");
                     Assert.AreEqual(expectedOuterQ4, block.OuterRadiusQ4,
-                        $"retained extrados for profile {i} must stitch to the structural annulus zero");
-                }
-
-                int rearStart = arch.VoussoirCount;
-                for (int i = 0; i < arch.VoussoirCount; i++)
-                {
-                    ProfileBlock front = blocks[i];
-                    ProfileBlock rear = blocks[rearStart + i];
-                    Assert.AreEqual(front.StartDirection, rear.StartDirection,
-                        $"rear retained profile for voussoir {i} must mirror the same radial wedge");
-                    Assert.AreEqual(front.EndDirection, rear.EndDirection,
-                        $"rear retained profile for voussoir {i} must mirror the same radial wedge");
-                    Assert.Less(front.BackQ4, rear.FrontQ4,
-                        $"rear retained profile for voussoir {i} must live on the opposite structural face");
+                        $"retained extrados for voussoir {i} must stitch to the structural annulus zero");
+                    Assert.AreEqual(expectedFrontQ4, block.FrontQ4,
+                        $"retained profile for voussoir {i} must project from the entrance face");
+                    Assert.AreEqual(expectedBackQ4, block.BackQ4,
+                        $"retained profile for voussoir {i} must remain continuous through the rear face so the soffit cannot expose voxel steps");
                 }
             }
             finally
