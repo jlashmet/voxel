@@ -43,9 +43,9 @@ namespace VoxelEngine.Showcase
         private GUIStyle _panelStyle, _titleStyle, _sectionStyle, _valueStyle, _buttonStyle;
         private Vector4 _originalStoneAlbedo, _originalMossTint;
 
-        // Form
-        private int _clearSpan = 32, _pierHeight = 40, _ringThickness = 7;
-        private int _voussoirs = 13, _depth = 12, _shoulder = 10, _topMargin = 8;
+        // Form. The hero preset follows the tall, narrow reference silhouette rather than a wall bay.
+        private int _clearSpan = 28, _pierHeight = 64, _ringThickness = 7;
+        private int _voussoirs = 13, _depth = 12, _shoulder = 4, _topMargin = 4;
         private int _faceRecess = 1, _plinthHeight = 4, _impostHeight = 3;
         private int _damage, _damageScale = 2, _seedOffset = 0x2222;
         private int _jointQ4 = 4, _bevelQ4 = 4, _projectionQ4 = 8, _faceDepthQ4 = 16;
@@ -56,8 +56,8 @@ namespace VoxelEngine.Showcase
         private float _mossHue = 0.22f, _mossSaturation = 0.53f, _mossValue = 0.39f;
 
         // Presentation
-        private float _stoneWarmth = 0.58f, _stoneValue = 0.68f;
-        private float _sunAzimuth = -48f, _sunElevation = 50f;
+        private float _stoneWarmth = 0.76f, _stoneValue = 0.86f;
+        private float _sunAzimuth = -135f, _sunElevation = 55f;
         private Vector3 _cameraFocus;
         private float _cameraYaw = 14.5f, _cameraPitch = 3.2f;
         private float _cameraDistance = 14.5f, _cameraFov = 34f;
@@ -65,14 +65,11 @@ namespace VoxelEngine.Showcase
         private float _buildBudgetMs = 12f;
         private int _lastBayWidth, _lastBayHeight;
 
-        // Comparison and automation
-        private Texture2D _targetImage;
-        private string _targetPath, _exchangeDirectory, _commandPath, _statePath, _presetPath;
+        // Automation
+        private string _exchangeDirectory, _commandPath, _statePath, _presetPath;
         private string _lastCommandText;
         private float _nextCommandPoll;
         private float _nextStatePublish;
-        private int _comparisonMode = 1;
-        private float _targetOpacity = 0.46f;
         private int _sweepParameterIndex;
         private static readonly string[] SweepLabels =
             { "Voussoirs", "Joint", "Bevel", "Moss" };
@@ -101,7 +98,6 @@ namespace VoxelEngine.Showcase
                 new Color(0.627f, 0.722f, 0.773f, 1f),
                 new Color(0.341f, 0.600f, 0.847f, 1f));
             InitialiseExchange();
-            LoadTargetImage();
             Rebuild();
             PublishState();
         }
@@ -111,7 +107,6 @@ namespace VoxelEngine.Showcase
             RenderingComposition.ClearWorld();
             RenderingComposition.SetMaterialAlbedo(StoneMaterial, _originalStoneAlbedo);
             RenderingComposition.SetCoatingTint(Coatings.Moss, _originalMossTint);
-            if (_targetImage != null) Destroy(_targetImage);
             DisposeWorld();
         }
 
@@ -137,10 +132,13 @@ namespace VoxelEngine.Showcase
                     out int residentChunks,
                     out long residentGeometryBytes))
             {
-                bool converged = dirtyChunks == 0 && residentChunks >= knownChunks;
+                // Known/dirty work includes the renderer's 360-degree prefetch shell. The bench
+                // should report readiness by the same contract production presentation uses:
+                // visible geometry exists and the current camera has no missing surface chunks.
+                bool converged = RenderingComposition.HasCompletePublishedNearSurfaceCoverage();
                 _status = converged
                     ? $"READY  {residentGeometryBytes / (1024f * 1024f):0.0} MB  ·  {_lastBuildMs:0} ms authoring"
-                    : $"MESHING  {residentChunks}/{knownChunks} chunks";
+                    : $"MESHING  {residentChunks}/{knownChunks} chunks  ·  {dirtyChunks} dirty";
             }
         }
 
@@ -221,7 +219,14 @@ namespace VoxelEngine.Showcase
             _cameraFocus = new Vector3(0f, height * VoxelSize * 0.5f, 0.45f);
             _cameraYaw = 14.5f;
             _cameraPitch = 3.2f;
-            _cameraDistance = Mathf.Max(8f, width * VoxelSize * 1.62f);
+
+            float halfVerticalFov = _cameraFov * Mathf.Deg2Rad * 0.5f;
+            float verticalDistance = height * VoxelSize * 0.5f / Mathf.Tan(halfVerticalFov);
+            float aspect = _camera != null && _camera.aspect > 0.01f ? _camera.aspect : 16f / 9f;
+            float halfHorizontalFov = Mathf.Atan(Mathf.Tan(halfVerticalFov) * aspect);
+            float horizontalDistance = width * VoxelSize * 0.5f / Mathf.Tan(halfHorizontalFov);
+            _cameraDistance = Mathf.Max(8f, Mathf.Max(verticalDistance, horizontalDistance) * 1.12f);
+
             _cameraInitialized = true;
             ApplyCameraTransform();
         }
@@ -304,7 +309,6 @@ namespace VoxelEngine.Showcase
         {
             if (!Application.isPlaying) return;
             EnsureStyles();
-            DrawTargetComparison();
             if (!_panelVisible)
             {
                 if (GUI.Button(new Rect(16, 16, 190, 34), "TAB  ·  OPEN STONE BENCH", _buttonStyle))
@@ -351,15 +355,6 @@ namespace VoxelEngine.Showcase
             FloatSlider("Moss hue", ref _mossHue, 0.12f, 0.38f, false);
             FloatSlider("Moss saturation", ref _mossSaturation, 0f, 1f, false);
             FloatSlider("Moss value", ref _mossValue, 0.1f, 0.8f, false);
-
-            Section("REFERENCE");
-            GUILayout.BeginHorizontal();
-            if (GUILayout.Toggle(_comparisonMode == 0, "OFF", _buttonStyle)) _comparisonMode = 0;
-            if (GUILayout.Toggle(_comparisonMode == 1, "SPLIT", _buttonStyle)) _comparisonMode = 1;
-            if (GUILayout.Toggle(_comparisonMode == 2, "OVERLAY", _buttonStyle)) _comparisonMode = 2;
-            if (GUILayout.Toggle(_comparisonMode == 3, "TARGET", _buttonStyle)) _comparisonMode = 3;
-            GUILayout.EndHorizontal();
-            FloatSlider("Reference opacity", ref _targetOpacity, 0.05f, 1f, false);
 
             Section("LIGHT & LENS");
             FloatSlider("Stone warmth", ref _stoneWarmth, 0.35f, 0.85f, false);
@@ -409,74 +404,6 @@ namespace VoxelEngine.Showcase
             _commandPath = Path.Combine(_exchangeDirectory, "command.json");
             _statePath = Path.Combine(_exchangeDirectory, "state.json");
             _presetPath = Path.Combine(_exchangeDirectory, "hero-preset.json");
-        }
-
-        private void LoadTargetImage()
-        {
-            string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            string projectRoot = Directory.GetParent(Application.dataPath).FullName;
-            string[] candidates =
-            {
-                // Version-controlled first. The other three are a developer's Downloads folder and
-                // build-output paths, so on any fresh checkout the panel read REFERENCE NOT FOUND
-                // and the comparison overlay did nothing.
-                Path.Combine(projectRoot, "References", "arch_reference.png"),
-                Path.Combine(home, "Downloads", "Sunlit Cleric by the Waterfall.png"),
-                Path.Combine(projectRoot, "Artifacts", "ArchLookdev", "target.png"),
-                Path.Combine(Application.dataPath, "Tests", "References", "arch-target.png"),
-            };
-            foreach (string candidate in candidates)
-            {
-                if (!File.Exists(candidate)) continue;
-                byte[] bytes = File.ReadAllBytes(candidate);
-                _targetImage = new Texture2D(2, 2, TextureFormat.RGBA32, false)
-                    { name = "Arch Reference", hideFlags = HideFlags.DontSave };
-                if (_targetImage.LoadImage(bytes))
-                {
-                    _targetPath = candidate;
-                    _exchangeStatus = "REFERENCE LOADED";
-                    return;
-                }
-                Destroy(_targetImage);
-                _targetImage = null;
-            }
-            _exchangeStatus = "REFERENCE NOT FOUND";
-        }
-
-        private void DrawTargetComparison()
-        {
-            if (_targetImage == null || _comparisonMode == 0) return;
-            float left = _panelVisible ? PanelWidth + 42f : 0f;
-            Rect viewport = new(left, 0f, Screen.width - left, Screen.height);
-            Color previous = GUI.color;
-
-            if (_comparisonMode == 1)
-            {
-                Rect targetRect = new(viewport.x + viewport.width * 0.5f, viewport.y,
-                                      viewport.width * 0.5f, viewport.height);
-                GUI.BeginGroup(targetRect);
-                GUI.color = Color.black;
-                GUI.DrawTexture(new Rect(0f, 0f, targetRect.width, targetRect.height),
-                                Texture2D.whiteTexture);
-                GUI.color = Color.white;
-                GUI.DrawTexture(new Rect(-viewport.width * 0.5f, 0f,
-                                         viewport.width, viewport.height),
-                                _targetImage, ScaleMode.ScaleToFit, false);
-                GUI.EndGroup();
-                GUI.color = new Color(0.91f, 0.72f, 0.32f, 0.9f);
-                GUI.DrawTexture(new Rect(targetRect.x - 1f, 0f, 2f, Screen.height),
-                                Texture2D.whiteTexture);
-            }
-            else
-            {
-                GUI.color = _comparisonMode == 3 ? Color.black
-                    : new Color(1f, 1f, 1f, _targetOpacity);
-                if (_comparisonMode == 3) GUI.DrawTexture(viewport, Texture2D.whiteTexture);
-                GUI.color = _comparisonMode == 3 ? Color.white
-                    : new Color(1f, 1f, 1f, _targetOpacity);
-                GUI.DrawTexture(viewport, _targetImage, ScaleMode.ScaleToFit, false);
-            }
-            GUI.color = previous;
         }
 
         private void PollCommandInbox()
@@ -569,10 +496,7 @@ namespace VoxelEngine.Showcase
             int stable = 0;
             for (int frame = 0; frame < 512 && stable < 3; frame++)
             {
-                bool ready = RenderingComposition.TryGetSurfaceBuildStatus(
-                        out int knownChunks, out int dirtyChunks, out int residentChunks, out _)
-                    && dirtyChunks == 0
-                    && residentChunks >= knownChunks;
+                bool ready = RenderingComposition.HasCompletePublishedNearSurfaceCoverage();
                 stable = ready ? stable + 1 : 0;
                 yield return null;
             }
@@ -580,11 +504,13 @@ namespace VoxelEngine.Showcase
             {
                 RenderingComposition.TryGetSurfaceBuildStatus(
                     out int knownChunks, out int dirtyChunks, out int residentChunks, out _);
-                _exchangeStatus = "CAPTURE FAILED · SURFACE DID NOT CONVERGE";
+                RenderingComposition.GetVoxelSurfaceCounts(out _, out int missingVisibleChunks);
+                _exchangeStatus = "CAPTURE FAILED · VISIBLE SURFACE INCOMPLETE";
                 PublishState();
                 throw new InvalidOperationException(
-                    $"Surface did not converge: known={knownChunks}, "
-                  + $"resident={residentChunks}, dirty={dirtyChunks}.");
+                    $"Visible surface did not converge: known={knownChunks}, "
+                  + $"resident={residentChunks}, dirty={dirtyChunks}, "
+                  + $"missingVisible={missingVisibleChunks}.");
             }
         }
 
@@ -722,7 +648,7 @@ namespace VoxelEngine.Showcase
             var state = new LookdevState
             {
                 requestId = requestId ?? "", status = _exchangeStatus,
-                targetPath = _targetPath ?? "", capturePath = capturePath ?? "",
+                capturePath = capturePath ?? "",
                 commandPath = _commandPath, presetPath = _presetPath,
                 lastBuildMs = _lastBuildMs,
                 settings = GetSettings(),
@@ -748,7 +674,8 @@ namespace VoxelEngine.Showcase
             GUILayout.Label(label, GUILayout.Width(174));
             GUILayout.Label(value.ToString(), _valueStyle, GUILayout.Width(48));
             GUILayout.EndHorizontal();
-            int next = Mathf.RoundToInt(GUILayout.HorizontalSlider(value, min, max) / step) * step;
+            float raw = GUILayout.HorizontalSlider(value, min, max);
+            int next = min + Mathf.RoundToInt((raw - min) / step) * step;
             next = Mathf.Clamp(next, min, max);
             if (next != value) { value = next; _pendingRebuild = true; _stateDirty = true; }
         }
@@ -799,15 +726,15 @@ namespace VoxelEngine.Showcase
 
         private void ResetDefaults()
         {
-            _clearSpan = 32; _pierHeight = 40; _ringThickness = 7; _voussoirs = 13;
-            _depth = 12; _shoulder = 10; _topMargin = 8; _faceRecess = 1;
+            _clearSpan = 28; _pierHeight = 64; _ringThickness = 7; _voussoirs = 13;
+            _depth = 12; _shoulder = 4; _topMargin = 4; _faceRecess = 1;
             _plinthHeight = 4; _impostHeight = 3; _damage = 0; _damageScale = 2;
             _seedOffset = 0x2222; _jointQ4 = 4; _bevelQ4 = 4; _projectionQ4 = 8;
             _faceDepthQ4 = 16; _mossCoverage = 115; _mossDensity = 210;
             _mossRadiusQ4 = 18; _mossHeightQ4 = 2; _mossDropQ4 = 18;
             _mossSeparation = 0; _mossHue = 0.22f; _mossSaturation = 0.53f;
-            _mossValue = 0.39f; _stoneWarmth = 0.58f; _stoneValue = 0.68f;
-            _sunAzimuth = -48f; _sunElevation = 50f; _cameraYaw = 14.5f;
+            _mossValue = 0.39f; _stoneWarmth = 0.76f; _stoneValue = 0.86f;
+            _sunAzimuth = -135f; _sunElevation = 55f; _cameraYaw = 14.5f;
             _cameraPitch = 3.2f; _cameraDistance = 14.5f; _cameraFov = 34f;
             _cameraMoveSpeed = 4f;
             _buildBudgetMs = 12f;
@@ -914,7 +841,6 @@ namespace VoxelEngine.Showcase
         {
             public string requestId;
             public string status;
-            public string targetPath;
             public string capturePath;
             public string commandPath;
             public string presetPath;

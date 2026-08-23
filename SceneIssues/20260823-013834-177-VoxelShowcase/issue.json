@@ -7,7 +7,7 @@
     "resolvedUtc": "2026-08-23T17:41:11Z",
     "resolutionSummary": "Smooth Transvoxel cells on a chunk minimum face could be lost when the predecessor chunk was pure air and never admitted. CPU extraction now evaluates the owned negative one-cell shell and assigns shared cells from the first inside density sample rather than propagated material identity; exact-snapshot routing falls back from GPU for minimum-face solid/empty-halo cases that the GPU mesher cannot represent.",
     "regressionTest": "VoxelEngine.Tests.EditMode.TransvoxelChunkBoundaryOwnershipTests",
-    "fixCommit": "96a801a77ac41a5ce4101052c3f33dc2baeb8eeb",
+    "fixCommit": "c31b24e651ccd2bce7259fe712beb692bc4cdd2f",
     "unityVersion": "6000.5.6f1",
     "platform": "OSXEditor",
     "sceneName": "VoxelShowcase",
