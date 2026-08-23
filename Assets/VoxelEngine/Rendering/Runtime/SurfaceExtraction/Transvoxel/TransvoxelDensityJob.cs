@@ -73,11 +73,22 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
             dominantBoundary = packedBoundary;
             bool centreSolid = IsSolidSample(centre);
             centreSurface = ResolveSurface(centre, centreSurface);
-            if (packedBoundary != 0 && HasOppositeOccupancyNeighbour(p, centreSolid))
+            var boundary = new VoxelBoundarySample { Packed = packedBoundary };
+            // An authored sample refines where the surface sits inside this cell; occupancy decides
+            // which side of it the cell is on. Trust the analytic distance whenever the two agree.
+            //
+            // The previous rule instead demanded a six-neighbour occupancy transition, which is a
+            // proxy for "near the surface" and a bad one on a curve: a cell one voxel inside a
+            // smooth intrados has no empty axis neighbour, so it failed, fell through to the Planar
+            // branch below, and returned a constant 0.5. With no sub-voxel information on the solid
+            // side of an edge the crossing collapses onto the lattice, which is the staircased
+            // intrados. Dropping the guard outright is not the answer either: authored samples that
+            // contradict occupancy then produce surface where the world is empty, which tears holes
+            // in the surrounding wall. Sign agreement keeps the precision and rejects the garbage.
+            if (packedBoundary != 0 && centreSolid == boundary.SignedQ3 >= 0)
             {
                 dominantMaterial = centreSolid ? centre : (byte)0;
                 dominantSurface = centreSolid ? centreSurface : 0u;
-                var boundary = new VoxelBoundarySample { Packed = packedBoundary };
                 return boundary.SignedQ3 * 0.125f + CoatingDisplacement(centreSurface);
             }
             ushort style = (ushort)centreSurface;
@@ -118,16 +129,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
         {
             byte coating = (byte)(surface >> 16);
             return Coatings.Get(coating).Displacement * (1f / 64f);
-        }
-
-        private bool HasOppositeOccupancyNeighbour(int3 p, bool centreSolid)
-        {
-            return IsSolidSample(ReadMaterial(p + new int3(1, 0, 0), out _, out _)) != centreSolid
-                || IsSolidSample(ReadMaterial(p + new int3(-1, 0, 0), out _, out _)) != centreSolid
-                || IsSolidSample(ReadMaterial(p + new int3(0, 1, 0), out _, out _)) != centreSolid
-                || IsSolidSample(ReadMaterial(p + new int3(0, -1, 0), out _, out _)) != centreSolid
-                || IsSolidSample(ReadMaterial(p + new int3(0, 0, 1), out _, out _)) != centreSolid
-                || IsSolidSample(ReadMaterial(p + new int3(0, 0, -1), out _, out _)) != centreSolid;
         }
 
         private float Add(int3 p, float weight, bool centreSolid,
