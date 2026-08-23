@@ -256,8 +256,8 @@ namespace VoxelEngine.Structures.Runtime
                     profileBlocks.Add(new ProfileBlock
                     {
                         Centre = centre,
-                        InnerRadiusQ4 = ClearSpan * 8 - 8,
-                        OuterRadiusQ4 = OuterRadius * 16 + 8,
+                        InnerRadiusQ4 = ClearSpan * 8,
+                        OuterRadiusQ4 = OuterRadius * 16,
                         FrontQ4 = origin.z * 16 - projectionQ4,
                         BackQ4 = origin.z * 16 - projectionQ4 + profileDepthQ4,
                         StartDirection = start,
