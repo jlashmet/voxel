@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using Unity.Mathematics;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 using VoxelEngine.Composition;
 using VoxelEngine.Rendering.Api;
 using VoxelEngine.Vegetation.Api;
@@ -22,18 +21,24 @@ namespace VoxelEngine.Showcase
         private readonly List<VegetationInstance> _instances = new List<VegetationInstance>(32);
         private IVegetationBatchRenderer _renderer;
 
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-        private static void RegisterSceneHook()
+        // Attach after the first scene is fully active. The previous sceneLoaded subscription was
+        // fragile in standalone capture: the component compiled into the player but no vegetation
+        // ever reached the frame. A direct post-load bootstrap is deterministic for this one-scene
+        // lookdev bench and still keeps all actual rendering behind Rendering.Api.
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+        private static void AttachToArchLookdev()
         {
-            SceneManager.sceneLoaded -= AttachToArchLookdev;
-            SceneManager.sceneLoaded += AttachToArchLookdev;
-        }
+            ArchLookdev lookdev = Object.FindAnyObjectByType<ArchLookdev>();
+            if (lookdev == null)
+            {
+                Debug.LogWarning("ARCH_GROWTH no ArchLookdev found after scene load");
+                return;
+            }
 
-        private static void AttachToArchLookdev(Scene scene, LoadSceneMode mode)
-        {
-            ArchLookdev lookdev = Object.FindObjectOfType<ArchLookdev>();
-            if (lookdev == null || lookdev.GetComponent<ArchReferenceGrowth>() != null) return;
-            lookdev.gameObject.AddComponent<ArchReferenceGrowth>();
+            ArchReferenceGrowth growth = lookdev.GetComponent<ArchReferenceGrowth>();
+            if (growth == null)
+                growth = lookdev.gameObject.AddComponent<ArchReferenceGrowth>();
+            Debug.Log($"ARCH_GROWTH attached={growth != null}");
         }
 
         private void OnEnable()
@@ -41,6 +46,7 @@ namespace VoxelEngine.Showcase
             _renderer = VegetationLifeRenderingComposition.EnsureVegetationBatchRenderer(gameObject);
             BuildReferenceGrowth();
             _renderer.SetInstances(_instances);
+            Debug.Log($"ARCH_GROWTH instances={_renderer.InstanceCount}");
         }
 
         private void OnDisable()
