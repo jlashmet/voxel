@@ -1,8 +1,11 @@
+using Game.Materials.Api;
 using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
+using VoxelEngine.Rendering.Runtime.GpuVoxel;
 using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 using VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel;
+using VoxelEngine.Storage.Api;
 
 namespace VoxelEngine.Tests.EditMode
 {
@@ -42,6 +45,38 @@ namespace VoxelEngine.Tests.EditMode
             Assert.AreEqual(1, selectedByDensity);
             Assert.True(TransvoxelTopologyJob.OwnsSelectedInsideSample(
                 new int3(-1, 20, 20), selectedByDensity, 64));
+        }
+
+        [Test]
+        public void SceneIssue20260823014011920CoarseTerrainUsesExposedCapMaterial()
+        {
+            SurfaceCatalogueView surfaces = SurfaceCatalogueView.CreateBuiltIns();
+            CoatingCatalogueView coatings = default;
+            MaterialPaletteView palette = default;
+
+            CpuDensitySample buriedDirt = CpuDensityOracle.SampleLayeredColumnAtOrigin(
+                sourceStep: 2,
+                topSolidY: 1,
+                surfaceMaterial: GameMaterialIds.Grass,
+                subsurfaceMaterial: GameMaterialIds.Dirt,
+                surfaces, coatings, palette);
+
+            Assert.That(buriedDirt.Density, Is.GreaterThan(0f),
+                "The coarse lattice point should remain on the solid side of the reconstructed surface.");
+            Assert.AreEqual(GameMaterialIds.Grass, buriedDirt.Material,
+                "A coarse sample one voxel below turf must render the exposed grass cap, not buried dirt; "
+              + "otherwise coarse rings turn subsurface depth into topographic colour bands.");
+
+            CpuDensitySample exposedDirt = CpuDensityOracle.SampleLayeredColumnAtOrigin(
+                sourceStep: 2,
+                topSolidY: 0,
+                surfaceMaterial: GameMaterialIds.Dirt,
+                subsurfaceMaterial: GameMaterialIds.Dirt,
+                surfaces, coatings, palette);
+
+            Assert.That(exposedDirt.Density, Is.GreaterThan(0f));
+            Assert.AreEqual(GameMaterialIds.Dirt, exposedDirt.Material,
+                "Authored dirt that is genuinely exposed at the surface must remain dirt.");
         }
 
         [Test]
