@@ -1,4 +1,5 @@
 using System.Collections;
+using System.IO;
 using System.Reflection;
 using NUnit.Framework;
 using Unity.Mathematics;
@@ -150,6 +151,7 @@ namespace VoxelEngine.Tests.PlayMode
                 .SetValue(showcase, false);
 
             var target = new RenderTexture(162, 90, 24, RenderTextureFormat.ARGB32);
+            RenderTexture captureTarget = null;
             RenderTexture oldTarget = camera.targetTexture;
             float oldFov = camera.fieldOfView;
             float oldNear = camera.nearClipPlane;
@@ -192,6 +194,17 @@ namespace VoxelEngine.Tests.PlayMode
                     convergedFrame = frame;
                     break;
                 }
+
+                // Keep convergence cheap, then take one exact-resolution frame for human inspection.
+                // The original issue screenshot/circles remain immutable; this replay artifact lets CI
+                // show what the same saved pose renders after a fix.
+                captureTarget = new RenderTexture(1293, 718, 24, RenderTextureFormat.ARGB32);
+                captureTarget.Create();
+                camera.targetTexture = captureTarget;
+                RenderUrpCamera(camera);
+                yield return null;
+                metrics = VoxelRenderBridge.SurfaceMetrics;
+                WriteReplayPng(captureTarget);
             }
             finally
             {
@@ -199,6 +212,11 @@ namespace VoxelEngine.Tests.PlayMode
                 camera.fieldOfView = oldFov;
                 camera.nearClipPlane = oldNear;
                 camera.farClipPlane = oldFar;
+                if (captureTarget != null)
+                {
+                    captureTarget.Release();
+                    Object.DestroyImmediate(captureTarget);
+                }
                 target.Release();
                 Object.DestroyImmediate(target);
             }
@@ -252,6 +270,30 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.Greater(VoxelRenderBridge.SurfacePassRecordCount, 0,
                 "Scene issue replay did not execute VoxelRenderPass.");
             Assert.AreEqual("feature-aware", VoxelRenderBridge.LastSurfacePassState);
+        }
+
+        private static void WriteReplayPng(RenderTexture source)
+        {
+            const string outputDirectory = "Artifacts/SingleTest";
+            const string outputPath = outputDirectory + "/scene-issue-20260823-013834-177-replay.png";
+            Directory.CreateDirectory(outputDirectory);
+
+            RenderTexture previous = RenderTexture.active;
+            Texture2D texture = null;
+            try
+            {
+                RenderTexture.active = source;
+                texture = new Texture2D(source.width, source.height, TextureFormat.RGBA32, false);
+                texture.ReadPixels(new Rect(0, 0, source.width, source.height), 0, 0);
+                texture.Apply(false, false);
+                File.WriteAllBytes(outputPath, texture.EncodeToPNG());
+                Debug.Log($"### SCENE_ISSUE_20260823_013834_177_REPLAY path={Path.GetFullPath(outputPath)}");
+            }
+            finally
+            {
+                if (texture != null) Object.DestroyImmediate(texture);
+                RenderTexture.active = previous;
+            }
         }
 
         /// <summary>
