@@ -44,7 +44,7 @@ Make `Assets/Scenes/ArchLookdev.unity` visually match `References/arch_reference
 - [x] Correct ArchLookdev's own UI/capture readiness status to use visible coverage rather than `dirty == 0 && resident >= known`.
 - [x] Fix stepped integer slider snapping so odd-valued controls (notably the 13-voussoir default) snap relative to the slider minimum instead of silently becoming 12.
 - [x] Re-run ArchLookdev capture after those bench fixes and inspect the radial-stitch result plus remaining front/back/oblique defects.
-- [ ] Fix the lower clear-opening carve so it spans the full structural pier gap; prove with the focused EditMode regression.
+- [x] Fix the lower clear-opening carve so it spans the full structural pier gap; prove with the focused EditMode regression.
 - [ ] Diagnose and fix the first remaining right-spring/soffit geometry/rendering cause.
 - [ ] Iterate proportions/material/camera toward the reference after continuity is correct.
 - [x] Decide growth path and confirm existing vegetation API/lifecycle can render deterministic art-directed hero-arch growth in the real-player capture.
@@ -71,14 +71,21 @@ Make `Assets/Scenes/ArchLookdev.unity` visually match `References/arch_reference
 - Production fix: commit `8fdd10a288bcbbdc87cdf9fc1d1ef96aff0d4a9e`, changing only retained inner/outer radii to exact structural zeroes.
 - GREEN: request `6f978bf966ecdd1137f9dc5e5401c8c4d6326388`, run `32615515650`, focused EditMode regression passed.
 
+## Lower-opening regression
+- Focused test: `VoxelEngine.Tests.EditMode.ArchProfileStitchTests.BayLowerOpeningCarveSpansExactlyBetweenStructuralPiers`.
+- RED: request `48513b9302a10566e3f1d4255c1a4edf08f9a249`, run `32616228696`, exactly one test; expected lower-opening min X `17`, got `18`, proving the one-cell left jamb remnant on the pre-fix source. The symmetric width error also left the corresponding right jamb remnant.
+- Production fix: commit `2360f47b21d3ee7e4f60c1351b2153c9eaafb8f8`, deriving lower opening width as `Arch.Width - Arch.RingThickness * 2` from the structural pier footprints instead of `Arch.ClearSpan - 1`.
+- GREEN: request `130143921cc5ba199f420bab874eebf1c9a3de8c`, run `32616445234`, exact focused EditMode regression passed.
+
 ## Geometry investigation findings
 - Default structural arch occupancy is connected: all voussoirs connect to neighbors and spring wedges connect to piers. Visible disconnects are not literal missing structural occupancy.
 - Retained profile geometry is front-local; with the ArchBay +1 Z offset and default depth 12 it cannot create or repair a true rear-face defect.
 - Default retained-profile centroid backing checks are valid, so changing that guard is not justified.
 - Carve-then-refill stale-boundary theory was ruled out: later fills replace cell payloads and the clear-opening/ring radial sign convention agrees.
 - Authored scalar boundary samples are consumed on occupancy-sign agreement. Extrusion-axis metadata governs edge/face ownership, not whether the scalar field exists.
-- The lower vertical strips now have a direct authoring cause. For `ClearSpan=32`, `RingThickness=7`, `Arch.Width=47`; structural piers occupy x `0..6` and `40..46`, so the actual clear gap is x `7..39`, **33 cells**. `ArchBayFeatureDefinition` currently emits a centered box carve of `ClearSpan - 1`, only **31 cells** (x `8..38`), leaving one unintended column on each side. Focused regression commit `d687080d74ea8d54b30cf61dd32b6a3fdf3d77f9` pins the carve to the full pier-to-pier gap.
-- Smooth Transvoxel vs sharp/faceted cap-rim ownership remains a possible subsystem for the known oblique soffit issue, but historical cylinder diagnostics are clean; do not patch it until the lower-opening strips are removed and a fresh artifact localizes the remaining right-spring defect.
+- The lower vertical strips had a direct authoring cause. For `ClearSpan=32`, `RingThickness=7`, `Arch.Width=47`; structural piers occupy x `0..6` and `40..46`, so the actual clear gap is x `7..39`, **33 cells**. The old `ClearSpan - 1` carve was only **31 cells** (x `8..38`). Commit `2360f47b21d3ee7e4f60c1351b2153c9eaafb8f8` now carves the exact full pier gap and the focused regression is green.
+- `TransvoxelDensityJob` trusts authored analytic boundary distance whenever occupancy sign agrees. `TransvoxelTopologyJob`, however, replaces authored distances with occupancy `+/-0.5` on an edge when an authored `VoxelBoundarySample` reports that it does not apply along that edge axis. For an arch `ArcWedge` extruded along Z, this is a concrete diagnostic lead for the depth/soffit staircase while the X/Y front intrados remains smooth. Do not patch it until the post-jamb-fix player artifact confirms the defect persists in isolation.
+- Smooth Transvoxel vs sharp/faceted cap-rim ownership remains the leading subsystem for the known oblique soffit issue, but historical cylinder diagnostics are clean; localize the exact edge class after the fresh artifact.
 
 ## Growth direction
 - Use a hybrid presentation: subtle coating/tint for low-frequency staining and joints, sparse instanced `Moss`/`Lichen`, and deterministic art-directed `Ivy`/`ClimbingVine`/selected `HangingVine` masses. The reference is dominated by leafy vines, not raised moss clumps.
