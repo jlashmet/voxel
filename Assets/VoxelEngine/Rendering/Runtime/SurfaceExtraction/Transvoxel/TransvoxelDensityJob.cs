@@ -122,7 +122,75 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
             mass += Add(p + new int3(0,0, 2), 0.04f * curvature, centreSolid, in centreDefinition, ref dominantMaterial, ref dominantSurface);
             mass += Add(p + new int3(0,0,-2), 0.04f * curvature, centreSolid, in centreDefinition, ref dominantMaterial, ref dominantSurface);
 
+            // A coarse lattice point can sit several voxels below the actual surface. Density still
+            // reconstructs that surface correctly from occupancy, but using the buried centre voxel
+            // as the vertex material exposes subsoil in bands whose width follows SourceStep. Only
+            // directions whose next coarse endpoint is air can produce an edge crossing, so inspect
+            // those short segments and inherit the last solid voxel actually exposed by the edge.
+            // SourceStep 1 needs no correction and remains byte-for-byte aligned with the GPU path.
+            if (centreSolid && SourceStep > 1)
+                PreferNearestCrossingSurfaceMaterial(
+                    p, centre, centreSurface, ref dominantMaterial, ref dominantSurface);
+
             return mass - 0.5f + (centreSolid ? CoatingDisplacement(centreSurface) : 0f);
+        }
+
+        private void PreferNearestCrossingSurfaceMaterial(
+            int3 p, byte centreMaterial, uint centreSurface,
+            ref byte dominantMaterial, ref uint dominantSurface)
+        {
+            int bestDistance = SourceStep;
+            ConsiderCrossingRay(p, new int3( 1, 0, 0), centreMaterial, centreSurface,
+                ref bestDistance, ref dominantMaterial, ref dominantSurface);
+            ConsiderCrossingRay(p, new int3(-1, 0, 0), centreMaterial, centreSurface,
+                ref bestDistance, ref dominantMaterial, ref dominantSurface);
+            ConsiderCrossingRay(p, new int3(0,  1, 0), centreMaterial, centreSurface,
+                ref bestDistance, ref dominantMaterial, ref dominantSurface);
+            ConsiderCrossingRay(p, new int3(0, -1, 0), centreMaterial, centreSurface,
+                ref bestDistance, ref dominantMaterial, ref dominantSurface);
+            ConsiderCrossingRay(p, new int3(0, 0,  1), centreMaterial, centreSurface,
+                ref bestDistance, ref dominantMaterial, ref dominantSurface);
+            ConsiderCrossingRay(p, new int3(0, 0, -1), centreMaterial, centreSurface,
+                ref bestDistance, ref dominantMaterial, ref dominantSurface);
+        }
+
+        private void ConsiderCrossingRay(
+            int3 p, int3 direction, byte centreMaterial, uint centreSurface,
+            ref int bestDistance, ref byte dominantMaterial, ref uint dominantSurface)
+        {
+            byte farMaterial = ReadMaterial(p + direction * SourceStep, out _, out _);
+            if (IsSolidSample(farMaterial)) return;
+
+            byte lastMaterial = centreMaterial;
+            uint lastSurface = centreSurface;
+            for (int distance = 1; distance < SourceStep; distance++)
+            {
+                byte material = ReadMaterial(
+                    p + direction * distance, out uint surface, out _);
+                if (!IsSolidSample(material))
+                {
+                    int exposedDistance = distance - 1;
+                    if (exposedDistance < bestDistance)
+                    {
+                        bestDistance = exposedDistance;
+                        dominantMaterial = lastMaterial;
+                        dominantSurface = lastSurface;
+                    }
+                    return;
+                }
+
+                lastMaterial = material;
+                lastSurface = ResolveSurface(material, surface);
+            }
+
+            // The far coarse endpoint is air, so if every intermediate voxel was solid then the
+            // final intermediate voxel is the exposed one immediately before that endpoint.
+            int finalDistance = SourceStep - 1;
+            if (finalDistance < bestDistance)
+            {
+                dominantMaterial = lastMaterial;
+                dominantSurface = lastSurface;
+            }
         }
 
         private float CoatingDisplacement(uint surface)
