@@ -54,29 +54,35 @@ namespace VoxelEngine.Tests.EditMode
             CoatingCatalogueView coatings = default;
             MaterialPaletteView palette = default;
 
-            CpuDensitySample buriedDirt = CpuDensityOracle.SampleLayeredColumnAtOrigin(
-                sourceStep: 2,
-                topSolidY: 1,
-                surfaceMaterial: GameMaterialIds.Grass,
-                subsurfaceMaterial: GameMaterialIds.Dirt,
-                surfaces, coatings, palette);
+            foreach (int sourceStep in new[] { 2, 4, 8 })
+            {
+                // Worst alignment for this ring: the lattice point is as far below the one-voxel
+                // turf cap as it can be while the next coarse endpoint is already in air.
+                CpuDensitySample buriedDirt = CpuDensityOracle.SampleLayeredColumnAtOrigin(
+                    sourceStep,
+                    topSolidY: sourceStep - 1,
+                    surfaceMaterial: GameMaterialIds.Grass,
+                    subsurfaceMaterial: GameMaterialIds.Dirt,
+                    surfaces, coatings, palette);
 
-            Assert.That(buriedDirt.Density, Is.GreaterThan(0f),
-                "The coarse lattice point should remain on the solid side of the reconstructed surface.");
-            Assert.AreEqual(GameMaterialIds.Grass, buriedDirt.Material,
-                "A coarse sample one voxel below turf must render the exposed grass cap, not buried dirt; "
-              + "otherwise coarse rings turn subsurface depth into topographic colour bands.");
+                Assert.That(buriedDirt.Density, Is.GreaterThan(0f),
+                    $"Step {sourceStep}: the lattice point should remain on the solid side of the reconstructed surface.");
+                Assert.AreEqual(GameMaterialIds.Grass, buriedDirt.Material,
+                    $"Step {sourceStep}: a coarse sample below turf must render the exposed grass cap, not buried dirt; "
+                  + "otherwise coarse rings turn subsurface depth into topographic colour bands.");
 
-            CpuDensitySample exposedDirt = CpuDensityOracle.SampleLayeredColumnAtOrigin(
-                sourceStep: 2,
-                topSolidY: 0,
-                surfaceMaterial: GameMaterialIds.Dirt,
-                subsurfaceMaterial: GameMaterialIds.Dirt,
-                surfaces, coatings, palette);
+                CpuDensitySample exposedDirt = CpuDensityOracle.SampleLayeredColumnAtOrigin(
+                    sourceStep,
+                    topSolidY: 0,
+                    surfaceMaterial: GameMaterialIds.Dirt,
+                    subsurfaceMaterial: GameMaterialIds.Dirt,
+                    surfaces, coatings, palette);
 
-            Assert.That(exposedDirt.Density, Is.GreaterThan(0f));
-            Assert.AreEqual(GameMaterialIds.Dirt, exposedDirt.Material,
-                "Authored dirt that is genuinely exposed at the surface must remain dirt.");
+                Assert.That(exposedDirt.Density, Is.GreaterThan(0f),
+                    $"Step {sourceStep}: exposed dirt should remain on the solid side.");
+                Assert.AreEqual(GameMaterialIds.Dirt, exposedDirt.Material,
+                    $"Step {sourceStep}: authored dirt that is genuinely exposed at the surface must remain dirt.");
+            }
         }
 
         [Test]
