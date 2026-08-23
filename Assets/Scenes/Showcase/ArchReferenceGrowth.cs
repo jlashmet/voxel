@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Unity.Mathematics;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using VoxelEngine.Composition;
 using VoxelEngine.Rendering.Api;
 using VoxelEngine.Vegetation.Api;
@@ -21,24 +22,42 @@ namespace VoxelEngine.Showcase
         private readonly List<VegetationInstance> _instances = new List<VegetationInstance>(32);
         private IVegetationBatchRenderer _renderer;
 
-        // Attach after the first scene is fully active. The previous sceneLoaded subscription was
-        // fragile in standalone capture: the component compiled into the player but no vegetation
-        // ever reached the frame. A direct post-load bootstrap is deterministic for this one-scene
-        // lookdev bench and still keeps all actual rendering behind Rendering.Api.
+        public int InstanceCount => _renderer?.InstanceCount ?? 0;
+
+        // The standalone visual build starts directly in ArchLookdev, while the editor acceptance
+        // enters play mode first and loads ArchLookdev afterward. Cover both lifecycles explicitly:
+        // subscribe before any scene load, and also attach once after the startup scene is active.
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+        private static void RegisterSceneHook()
+        {
+            SceneManager.sceneLoaded -= OnSceneLoaded;
+            SceneManager.sceneLoaded += OnSceneLoaded;
+        }
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-        private static void AttachToArchLookdev()
+        private static void AttachStartupScene()
+        {
+            AttachToArchLookdev("startup");
+        }
+
+        private static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+        {
+            AttachToArchLookdev(scene.name);
+        }
+
+        private static void AttachToArchLookdev(string source)
         {
             ArchLookdev lookdev = Object.FindAnyObjectByType<ArchLookdev>();
             if (lookdev == null)
             {
-                Debug.LogWarning("ARCH_GROWTH no ArchLookdev found after scene load");
+                Debug.Log($"ARCH_GROWTH no ArchLookdev source={source}");
                 return;
             }
 
             ArchReferenceGrowth growth = lookdev.GetComponent<ArchReferenceGrowth>();
             if (growth == null)
                 growth = lookdev.gameObject.AddComponent<ArchReferenceGrowth>();
-            Debug.Log($"ARCH_GROWTH attached={growth != null}");
+            Debug.Log($"ARCH_GROWTH attached={growth != null} source={source} instances={growth.InstanceCount}");
         }
 
         private void OnEnable()
