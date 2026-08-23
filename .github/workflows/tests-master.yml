@@ -3,6 +3,12 @@ name: Tests (master — full suite)
 # Every test, unconditionally, on every merge to master. Pull requests run only
 # the assemblies their changes can affect (see tests-pr.yml); this is the run
 # that makes selection safe, so it must never be filtered or made conditional.
+#
+# Normal EditMode and PlayMode suites share one Unity editor process. Unity Test
+# Framework 1.x cannot execute both modes in one API call, so the editor-side CI
+# orchestrator sequences them without exiting Unity. VoxelEngine.Tests.PlayMode
+# remains split into fresh processes because that suite has demonstrated retained
+# native scene/rendering memory across repeated loads.
 
 on:
   push:
@@ -12,16 +18,14 @@ on:
 permissions:
   contents: read
 
-# Repeated updates to the same branch are latest-wins. A newer master commit (or
-# a newer manual run on the same ref) cancels stale queued/running full-suite work.
 concurrency:
   group: tests-master-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  editmode:
+  full-suite:
     runs-on: [self-hosted, macOS]
-    timeout-minutes: 60
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
         with:
@@ -51,134 +55,64 @@ jobs:
             sleep 5
           done
 
-      - name: EditMode (all assemblies)
+      - name: EditMode + normal PlayMode in one Unity editor
         shell: bash
+        env:
+          VOXEL_CI_EDITMODE_ASSEMBLIES: Game.Composition.CharacterEquipment.Tests;VoxelEngine.Tests.EditMode
+          VOXEL_CI_PLAYMODE_ASSEMBLIES: VoxelEngine.Tests.Parity;VoxelEngine.Tests.Features;VoxelEngine.CI.PlayMode;MountingForce.CombatPrototype.Tests.PlayMode
+          VOXEL_CI_RESULTS_ROOT: ${{ github.workspace }}/Artifacts/MasterTests
+          VOXEL_CI_BAKE_SHOWCASE: "1"
         run: |
           set -euo pipefail
           ROOT="$GITHUB_WORKSPACE/Artifacts/MasterTests"
           mkdir -p "$ROOT"
           UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=40 \
           UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
-            -batchmode -nographics -job-worker-count 1 \
-            -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform EditMode \
-            -testResults "$ROOT/editmode.xml" -logFile "$ROOT/editmode.log"
-          test -s "$ROOT/editmode.xml"
-
-      - name: Upload results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: master-editmode-results
-          path: Artifacts/MasterTests/**
-          if-no-files-found: ignore
-
-  playmode:
-    # One process per assembly, and one assembly at a time: the runner has a
-    # single Unity editor and unity-run.sh refuses a second. Isolation also
-    # keeps one leaking suite from taking the others down with it.
-    needs: editmode
-    runs-on: [self-hosted, macOS]
-    timeout-minutes: 60
-    strategy:
-      fail-fast: false
-      max-parallel: 1
-      matrix:
-        assembly:
-          - VoxelEngine.Tests.Parity
-          - VoxelEngine.Tests.Features
-          - VoxelEngine.CI.PlayMode
-          - MountingForce.CombatPrototype.Tests.PlayMode
-          # This assembly is further split into complementary test-name shards
-          # inside its step so Unity's retained native scene memory is reset
-          # between groups without dropping any coverage.
-          - VoxelEngine.Tests.PlayMode
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          clean: true
-          fetch-depth: 1
-
-      - name: Resolve Unity
-        id: unity
-        shell: bash
-        run: |
-          set -euo pipefail
-          UNITY_VERSION="$(awk '/m_EditorVersion:/ { print $2 }' ProjectSettings/ProjectVersion.txt)"
-          UNITY_PATH="/Applications/Unity/Hub/Editor/${UNITY_VERSION}/Unity.app/Contents/MacOS/Unity"
-          test -x "$UNITY_PATH"
-          echo "path=$UNITY_PATH" >> "$GITHUB_OUTPUT"
-
-      - name: Wait for any running Unity editor
-        shell: bash
-        run: |
-          set -euo pipefail
-          deadline=$((SECONDS + 900))
-          while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
-            if (( SECONDS >= deadline )); then
-              pgrep -alf '/Unity.app/Contents/MacOS/Unity' || true
-              exit 1
-            fi
-            sleep 5
-          done
-
-      - name: Bake Voxel Showcase startup world
-        if: matrix.assembly == 'VoxelEngine.Tests.PlayMode'
-        shell: bash
-        run: |
-          set -euo pipefail
-          ROOT="$GITHUB_WORKSPACE/Artifacts/MasterTests"
-          mkdir -p "$ROOT"
-          UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=20 \
-          UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
-            -batchmode -nographics -job-worker-count 1 -quit \
+            -batchmode -job-worker-count 1 \
             -projectPath "$GITHUB_WORKSPACE" \
-            -executeMethod VoxelEngine.Showcase.Editor.ShowcaseWorldBaker.BakeShowcaseWorld \
-            -logFile "$ROOT/showcase-bake.log"
+            -executeMethod VoxelCiPersistentTestRunner.Run \
+            -logFile "$ROOT/persistent.log"
+          test -s "$ROOT/persistent-summary.txt"
+          grep -q '^status=passed$' "$ROOT/persistent-summary.txt"
           test -s "$GITHUB_WORKSPACE/Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes"
 
-      - name: PlayMode ${{ matrix.assembly }}
+      # This one suite is intentionally still process-isolated. It retains native
+      # scene/rendering allocations across repeated scene loads, so each name shard
+      # gets a fresh editor and allocator state.
+      - name: PlayMode VoxelEngine.Tests.PlayMode isolated shards
         shell: bash
         run: |
           set -euo pipefail
           ROOT="$GITHUB_WORKSPACE/Artifacts/MasterTests"
-          mkdir -p "$ROOT"
-          ASM="${{ matrix.assembly }}"
+          ASM="VoxelEngine.Tests.PlayMode"
+          FILTERS=(
+            '^VoxelEngine\.Tests\.PlayMode\.[A-F]'
+            '^VoxelEngine\.Tests\.PlayMode\.[G-M]'
+            '^VoxelEngine\.Tests\.PlayMode\.[N-S]'
+            '!^VoxelEngine\.Tests\.PlayMode\.[A-S]'
+          )
+          LABELS=(a-f g-m n-s t-z-rest)
+          status=0
 
-          if [[ "$ASM" == "VoxelEngine.Tests.PlayMode" ]]; then
-            FILTERS=(
-              '^VoxelEngine\.Tests\.PlayMode\.[A-F]'
-              '^VoxelEngine\.Tests\.PlayMode\.[G-M]'
-              '^VoxelEngine\.Tests\.PlayMode\.[N-S]'
-              '!^VoxelEngine\.Tests\.PlayMode\.[A-S]'
-            )
-            LABELS=(a-f g-m n-s t-z-rest)
-            status=0
-            for i in "${!FILTERS[@]}"; do
-              label="${LABELS[$i]}"
-              UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=30 \
-              UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
-                -batchmode -job-worker-count 1 \
-                -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform PlayMode \
-                -assemblyNames "$ASM" -testFilter "${FILTERS[$i]}" \
-                -testResults "$ROOT/$ASM-$label.xml" \
-                -logFile "$ROOT/$ASM-$label.log" || status=1
-            done
-            exit $status
-          fi
+          for i in "${!FILTERS[@]}"; do
+            label="${LABELS[$i]}"
+            echo "::group::PlayMode $ASM ($label)"
+            UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=30 \
+            UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
+              -batchmode -job-worker-count 1 \
+              -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform PlayMode \
+              -assemblyNames "$ASM" -testFilter "${FILTERS[$i]}" \
+              -testResults "$ROOT/$ASM-$label.xml" \
+              -logFile "$ROOT/$ASM-$label.log" || status=1
+            echo "::endgroup::"
+          done
 
-          UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=30 \
-          UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
-            -batchmode -job-worker-count 1 \
-            -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform PlayMode \
-            -assemblyNames "$ASM" \
-            -testResults "$ROOT/$ASM.xml" \
-            -logFile "$ROOT/$ASM.log"
-          test -s "$ROOT/$ASM.xml"
+          exit $status
 
       - name: Upload results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: master-playmode-${{ matrix.assembly }}
+          name: master-test-results
           path: Artifacts/MasterTests/**
           if-no-files-found: ignore
