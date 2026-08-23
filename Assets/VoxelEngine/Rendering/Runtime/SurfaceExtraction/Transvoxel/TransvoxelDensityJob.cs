@@ -188,6 +188,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
             int finalDistance = SourceStep - 1;
             if (finalDistance < bestDistance)
             {
+                bestDistance = finalDistance;
                 dominantMaterial = lastMaterial;
                 dominantSurface = lastSurface;
             }
