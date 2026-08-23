@@ -75,11 +75,11 @@ namespace VoxelEngine.Structures.Runtime
         public int JointRecessDepth;
         /// <summary>Half-width of retained face joints in Q4 voxels; zero uses the built-in cut-stone default.</summary>
         public byte ProfileJointHalfWidthQ4;
-        /// <summary>Front arris bevel in Q4 voxels; zero uses the built-in cut-stone default.</summary>
+        /// <summary>Retained face arris bevel in Q4 voxels; zero uses the built-in cut-stone default.</summary>
         public byte ProfileBevelQ4;
-        /// <summary>How far the retained face projects ahead of the structural ring, in Q4 voxels.</summary>
+        /// <summary>How far each retained face projects beyond the structural ring, in Q4 voxels.</summary>
         public byte ProfileProjectionQ4;
-        /// <summary>Depth of the retained face layer in Q4 voxels; zero uses one voxel.</summary>
+        /// <summary>Depth of each retained face layer in Q4 voxels; zero uses one voxel.</summary>
         public byte ProfileDepthQ4;
         public byte StoneMaterial;
         public ushort PierStyle;
@@ -267,6 +267,39 @@ namespace VoxelEngine.Structures.Runtime
                         SurfaceStyle = RingStyle,
                         Coating = Coating,
                         SurfaceDetail = wedge.SurfaceDetail,
+                        JointHalfWidthQ4 = ProfileJointHalfWidthQ4 > 0
+                            ? ProfileJointHalfWidthQ4 : (byte)4,
+                        BevelQ4 = ProfileBevelQ4 > 0 ? ProfileBevelQ4 : (byte)4,
+                    });
+                }
+            }
+
+            if (profileBlocks != null)
+            {
+                // Retained profiles used to cover only the entrance face. Mirror the same
+                // sub-voxel wedges across the last structural layer so rear and oblique views
+                // retain the exact circular intrados/extrados instead of exposing voxel steps.
+                int projectionQ4 = ProfileProjectionQ4 > 0 ? ProfileProjectionQ4 : 8;
+                int profileDepthQ4 = ProfileDepthQ4 > 0 ? ProfileDepthQ4 : 16;
+                int rearCentreQ4 = (origin.z + Depth - 1) * 16;
+                for (int i = 0; i < VoussoirCount; i++)
+                {
+                    int2 start = SemicircleDirection(i, VoussoirCount);
+                    int2 end = SemicircleDirection(i + 1, VoussoirCount);
+                    profileBlocks.Add(new ProfileBlock
+                    {
+                        Centre = centre,
+                        InnerRadiusQ4 = ClearSpan * 8,
+                        OuterRadiusQ4 = OuterRadius * 16,
+                        FrontQ4 = rearCentreQ4 + projectionQ4 - profileDepthQ4,
+                        BackQ4 = rearCentreQ4 + projectionQ4,
+                        StartDirection = start,
+                        EndDirection = end,
+                        Axis = 2,
+                        Material = StoneMaterial,
+                        SurfaceStyle = RingStyle,
+                        Coating = Coating,
+                        SurfaceDetail = (byte)(2 + PieceVariation(i, VoussoirCount)),
                         JointHalfWidthQ4 = ProfileJointHalfWidthQ4 > 0
                             ? ProfileJointHalfWidthQ4 : (byte)4,
                         BevelQ4 = ProfileBevelQ4 > 0 ? ProfileBevelQ4 : (byte)4,
