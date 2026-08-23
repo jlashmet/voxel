@@ -3,6 +3,8 @@ using System.Reflection;
 using NUnit.Framework;
 using Unity.Mathematics;
 using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
 using VoxelEngine.Rendering.Runtime;
@@ -129,6 +131,7 @@ namespace VoxelEngine.Tests.PlayMode
             UnityEditor.SceneManagement.EditorSceneManager.LoadSceneInPlayMode(
                 ScenePath, new LoadSceneParameters(LoadSceneMode.Single));
             yield return null;
+            yield return WaitForAtomicWorldReady();
 
             VoxelShowcase showcase = Object.FindFirstObjectByType<VoxelShowcase>();
             Assert.NotNull(showcase);
@@ -174,12 +177,12 @@ namespace VoxelEngine.Tests.PlayMode
                     new Quaternion(-0.11285238713026047f, 0.3324708342552185f,
                                    0.040107980370521548f, 0.9354779124259949f));
 
-                // Capture 20260823-013834-177 was taken after the scene had been running for
-                // ~43.5 seconds. The regression is stronger: a cold teleport to the same pose must
-                // still converge and then hold complete authoritative surface coverage.
+                // A direct Camera.Render() does not execute the production URP voxel pass in this
+                // test runner. Submit the same single-camera request used by the focused step-4
+                // lifecycle gates, then require sustained complete visible coverage.
                 for (int frame = 0; frame < MaxConvergenceFrames; frame++)
                 {
-                    camera.Render();
+                    RenderUrpCamera(camera);
                     yield return null;
                     metrics = VoxelRenderBridge.SurfaceMetrics;
                     bool covered = metrics.MissingVisibleSolidChunks == 0
@@ -219,6 +222,36 @@ namespace VoxelEngine.Tests.PlayMode
               + "visible solid coverage; the marked wall view still exposes an unpublished chunk.");
             Assert.AreEqual(0, metrics.MissingVisibleSolidChunks,
                 "Capture 20260823-013834-177 still contains visible solid chunks without drawable geometry.");
+        }
+
+        private static IEnumerator WaitForAtomicWorldReady()
+        {
+            int frames = 0;
+            double deadline = Time.realtimeSinceStartupAsDouble + 60.0;
+            while (!VoxelRenderBridge.SurfaceBuildEnabled
+                   && frames++ < 3600
+                   && Time.realtimeSinceStartupAsDouble < deadline)
+                yield return null;
+
+            Assert.True(VoxelRenderBridge.SurfaceBuildEnabled,
+                "Showcase atomic world did not commit within 60 seconds.");
+            Assert.True(VoxelRenderBridge.TryGetWorld(out _),
+                "Showcase lost its render-world binding before capture replay validation.");
+        }
+
+        private static void RenderUrpCamera(Camera camera)
+        {
+            Assert.NotNull(camera.targetTexture);
+            var request = new UniversalRenderPipeline.SingleCameraRequest
+            {
+                destination = camera.targetTexture,
+            };
+            Assert.True(RenderPipeline.SupportsRenderRequest(camera, request));
+            VoxelRenderBridge.ResetSurfacePassDiagnostics("scene-issue-20260823-013834-177");
+            RenderPipeline.SubmitRenderRequest(camera, request);
+            Assert.Greater(VoxelRenderBridge.SurfacePassRecordCount, 0,
+                "Scene issue replay did not execute VoxelRenderPass.");
+            Assert.AreEqual("feature-aware", VoxelRenderBridge.LastSurfacePassState);
         }
 
         /// <summary>
