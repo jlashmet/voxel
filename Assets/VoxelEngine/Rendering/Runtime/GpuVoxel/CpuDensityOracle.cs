@@ -6,6 +6,23 @@ using VoxelEngine.Storage.Api;
 namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 {
     /// <summary>
+    /// One sample emitted by the real CPU density job for verification code.
+    /// </summary>
+    public readonly struct CpuDensitySample
+    {
+        public readonly float Density;
+        public readonly byte Material;
+        public readonly uint Surface;
+
+        public CpuDensitySample(float density, byte material, uint surface)
+        {
+            Density = density;
+            Material = material;
+            Surface = surface;
+        }
+    }
+
+    /// <summary>
     /// Runs the CPU density job so the GPU port can be checked against it.
     ///
     /// The comparison has to be against the real job, not a second implementation of the same rules
@@ -65,26 +82,12 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                         };
                 }
 
-                var job = new TransvoxelDensityJob
-                {
-                    Bricks = bricks,
-                    MixedVoxels = emptyVoxels,
-                    MixedSurfaceSemantics = emptySemantics,
-                    MixedBoundarySamples = emptyBoundary,
-                    Palette = palette,
-                    Catalogue = surfaces,
-                    Coatings = coatings,
-                    Density = density,
-                    Materials = materials,
-                    SurfaceSemantics = semantics,
-                    BoundarySamples = boundaries,
-                    ChunkOriginVoxel = chunkOriginVoxel,
-                    BrickCacheOrigin = brickCacheOrigin,
-                    BrickCacheEdge = brickCacheEdge,
-                    GridSize = gridSize,
-                    Padding = padding,
-                    SourceStep = sourceStep,
-                };
+                var job = BuildJob(
+                    bricks, emptyVoxels, emptySemantics, emptyBoundary,
+                    density, materials, semantics, boundaries,
+                    chunkOriginVoxel, brickCacheOrigin, brickCacheEdge,
+                    gridSize, padding, sourceStep,
+                    surfaces, coatings, palette);
 
                 for (int i = 0; i < samples; i++) job.Execute(i);
                 return density.ToArray();
@@ -101,5 +104,129 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 emptyBoundary.Dispose();
             }
         }
+
+        /// <summary>
+        /// Evaluates the sample at world voxel zero in a synthetic horizontal material stack.
+        /// Voxels below <paramref name="topSolidY"/> use <paramref name="subsurfaceMaterial"/>, the
+        /// top solid voxel uses <paramref name="surfaceMaterial"/>, and everything above is air.
+        /// This is deliberately a mixed-brick fixture so tests exercise the same material reads as
+        /// layered terrain rather than approximating them with one material per brick.
+        /// </summary>
+        public static CpuDensitySample SampleLayeredColumnAtOrigin(
+            int sourceStep, int topSolidY, byte surfaceMaterial, byte subsurfaceMaterial,
+            in SurfaceCatalogueView surfaces, in CoatingCatalogueView coatings,
+            in MaterialPaletteView palette)
+        {
+            const int brickCacheEdge = 3;
+            const int padding = 1;
+            const int gridSize = 3;
+            const int samples = gridSize * gridSize * gridSize;
+            int3 brickCacheOrigin = new int3(-1, -1, -1);
+            int brickCount = brickCacheEdge * brickCacheEdge * brickCacheEdge;
+            int mixedCount = brickCount * VoxelReadGrid.VoxelsPerBlock;
+
+            var bricks = new NativeArray<TransvoxelDensityBrick>(brickCount, Allocator.TempJob);
+            var mixedVoxels = new NativeArray<byte>(mixedCount, Allocator.TempJob);
+            var mixedSemantics = new NativeArray<ushort>(mixedCount, Allocator.TempJob);
+            var mixedBoundary = new NativeArray<byte>(mixedCount, Allocator.TempJob);
+            var density = new NativeArray<float>(samples, Allocator.TempJob);
+            var materials = new NativeArray<byte>(samples, Allocator.TempJob);
+            var semantics = new NativeArray<uint>(samples, Allocator.TempJob);
+            var boundaries = new NativeArray<byte>(samples, Allocator.TempJob);
+
+            try
+            {
+                for (int bz = 0; bz < brickCacheEdge; bz++)
+                for (int by = 0; by < brickCacheEdge; by++)
+                for (int bx = 0; bx < brickCacheEdge; bx++)
+                {
+                    int brickIndex = bx + brickCacheEdge * (by + brickCacheEdge * bz);
+                    int mixedOffset = brickIndex * VoxelReadGrid.VoxelsPerBlock;
+                    bricks[brickIndex] = new TransvoxelDensityBrick
+                    {
+                        Kind = 2,
+                        UniformMaterial = 0,
+                        MixedOffset = mixedOffset,
+                    };
+
+                    int3 worldBrick = brickCacheOrigin + new int3(bx, by, bz);
+                    int3 worldBase = worldBrick * VoxelReadGrid.BlockEdge;
+                    for (int vz = 0; vz < VoxelReadGrid.BlockEdge; vz++)
+                    for (int vy = 0; vy < VoxelReadGrid.BlockEdge; vy++)
+                    for (int vx = 0; vx < VoxelReadGrid.BlockEdge; vx++)
+                    {
+                        int worldY = worldBase.y + vy;
+                        byte material = worldY > topSolidY
+                            ? (byte)0
+                            : worldY == topSolidY ? surfaceMaterial : subsurfaceMaterial;
+                        int voxelIndex = vx | (vy << 3) | (vz << 6);
+                        mixedVoxels[mixedOffset + voxelIndex] = material;
+                    }
+                }
+
+                var job = BuildJob(
+                    bricks, mixedVoxels, mixedSemantics, mixedBoundary,
+                    density, materials, semantics, boundaries,
+                    int3.zero, brickCacheOrigin, brickCacheEdge,
+                    gridSize, padding, sourceStep,
+                    surfaces, coatings, palette);
+
+                for (int i = 0; i < samples; i++) job.Execute(i);
+
+                // gx=gy=gz=Padding maps to ChunkOriginVoxel, which is world voxel zero here.
+                const int centre = padding + gridSize * (padding + gridSize * padding);
+                return new CpuDensitySample(density[centre], materials[centre], semantics[centre]);
+            }
+            finally
+            {
+                bricks.Dispose();
+                mixedVoxels.Dispose();
+                mixedSemantics.Dispose();
+                mixedBoundary.Dispose();
+                density.Dispose();
+                materials.Dispose();
+                semantics.Dispose();
+                boundaries.Dispose();
+            }
+        }
+
+        private static TransvoxelDensityJob BuildJob(
+            NativeArray<TransvoxelDensityBrick> bricks,
+            NativeArray<byte> mixedVoxels,
+            NativeArray<ushort> mixedSemantics,
+            NativeArray<byte> mixedBoundary,
+            NativeArray<float> density,
+            NativeArray<byte> materials,
+            NativeArray<uint> semantics,
+            NativeArray<byte> boundaries,
+            int3 chunkOriginVoxel,
+            int3 brickCacheOrigin,
+            int brickCacheEdge,
+            int gridSize,
+            int padding,
+            int sourceStep,
+            in SurfaceCatalogueView surfaces,
+            in CoatingCatalogueView coatings,
+            in MaterialPaletteView palette) =>
+            new TransvoxelDensityJob
+            {
+                Bricks = bricks,
+                MixedVoxels = mixedVoxels,
+                MixedSurfaceSemantics = mixedSemantics,
+                MixedBoundarySamples = mixedBoundary,
+                Palette = palette,
+                Catalogue = surfaces,
+                Coatings = coatings,
+                Density = density,
+                Materials = materials,
+                SurfaceSemantics = semantics,
+                BoundarySamples = boundaries,
+                ChunkOriginVoxel = chunkOriginVoxel,
+                BrickCacheOrigin = brickCacheOrigin,
+                BrickCacheEdge = brickCacheEdge,
+                GridSize = gridSize,
+                Padding = padding,
+                SourceStep = sourceStep,
+            };
     }
 }
