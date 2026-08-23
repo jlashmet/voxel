@@ -1,4 +1,5 @@
 using System.Collections;
+using System.IO;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -22,6 +23,8 @@ namespace VoxelEngine.Tests.PlayMode
         [UnityTest, Timeout(120000)]
         public IEnumerator SceneBuildsHeroThroughProductionSurfacePath()
         {
+            PublishReferenceForVisualEvidence();
+
 #if UNITY_EDITOR
             UnityEditor.SceneManagement.EditorSceneManager.LoadSceneInPlayMode(
                 "Assets/Scenes/ArchLookdev.unity",
@@ -70,6 +73,23 @@ namespace VoxelEngine.Tests.PlayMode
                 target.Release();
                 Object.Destroy(target);
             }
+        }
+
+        private static void PublishReferenceForVisualEvidence()
+        {
+            string projectRoot = Directory.GetParent(Application.dataPath).FullName;
+            string source = Path.Combine(projectRoot, "References", "arch_reference.png");
+            Assert.That(File.Exists(source), Is.True,
+                $"Arch visual acceptance requires the tracked reference image at {source}.");
+
+            // The single-test workflow uploads Artifacts/SingleTest/** after the editor assertion
+            // and real-player capture phases. Put the source artwork under the RealPlayer root so
+            // a remote reviewer receives the reference beside the screenshots generated from the
+            // production standalone app, even when repository binary fetches are unavailable.
+            string evidenceDirectory = Path.Combine(
+                projectRoot, "Artifacts", "SingleTest", "RealPlayer", "Reference");
+            Directory.CreateDirectory(evidenceDirectory);
+            File.Copy(source, Path.Combine(evidenceDirectory, "arch_reference.png"), true);
         }
     }
 }
