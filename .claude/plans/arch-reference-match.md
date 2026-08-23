@@ -47,7 +47,8 @@ Make `Assets/Scenes/ArchLookdev.unity` visually match `References/arch_reference
 - [x] Fix the lower clear-opening carve so it spans the full structural pier gap; prove with the focused EditMode regression.
 - [x] Re-run after the lower-opening fix and visually confirm the jamb remnants are gone while the right depth/soffit staircase remains isolated.
 - [x] Sync latest `master` (`379e4332`) into the feature branch without losing Arch work.
-- [ ] Add a focused topology regression that distinguishes analytic radial continuation through depth from a true extrusion cap and keeps real caps planar.
+- [ ] Pin the real ArchBay mid-depth authored radial field to a monotone intrados crossing and prove the spring-plane `+/-0.5` plateau comes from the half-annulus opening carve, not Transvoxel topology.
+- [ ] Replace the deep half-annulus opening carve with an occupancy-equivalent full-disk carve so the lower rectangular opening owns the spring continuation; prove red/green and re-capture the soffit.
 - [ ] Diagnose and fix the first remaining right-spring/soffit geometry/rendering cause.
 - [ ] Iterate proportions/material/camera toward the reference after continuity is correct.
 - [x] Decide growth path and confirm existing vegetation API/lifecycle can render deterministic art-directed hero-arch growth in the real-player capture.
@@ -85,11 +86,11 @@ Make `Assets/Scenes/ArchLookdev.unity` visually match `References/arch_reference
 - Default structural arch occupancy is connected: all voussoirs connect to neighbors and spring wedges connect to piers. Visible disconnects are not literal missing structural occupancy.
 - Retained profile geometry is front-local; with the ArchBay +1 Z offset and default depth 12 it cannot create or repair a true rear-face defect.
 - Default retained-profile centroid backing checks are valid, so changing that guard is not justified.
-- Carve-then-refill stale-boundary theory was ruled out: later fills replace cell payloads and the clear-opening/ring radial sign convention agrees.
-- Authored scalar boundary samples are consumed on occupancy-sign agreement. Extrusion-axis metadata governs edge/face ownership, not whether the scalar field exists.
 - The lower vertical strips had a direct authoring cause. For `ClearSpan=32`, `RingThickness=7`, `Arch.Width=47`; structural piers occupy x `0..6` and `40..46`, so the actual clear gap is x `7..39`, **33 cells**. The old `ClearSpan - 1` carve was only **31 cells** (x `8..38`). Commit `2360f47b21d3ee7e4f60c1351b2153c9eaafb8f8` now carves the exact full pier gap and the focused regression is green.
-- `TransvoxelDensityJob` trusts authored analytic boundary distance whenever occupancy sign agrees. `TransvoxelTopologyJob`, however, replaces authored distances with occupancy `+/-0.5` on an edge when an authored `VoxelBoundarySample` reports that it does not apply along that edge axis. For an arch `ArcWedge` extruded along Z, that replacement is now the leading proven subsystem-level cause candidate because the post-jamb artifact still shows a voxel-stepped depth/soffit behind a smooth X/Y front intrados.
-- A topology fix must distinguish **radial surface continuation through the extrusion depth** from the **actual front/back extrusion cap**. Removing the axis fallback wholesale is not acceptable because true cylinder/arch caps must remain planar.
+- `TransvoxelDensityJob` trusts authored analytic boundary distance whenever occupancy sign agrees. The earlier topology hypothesis is now rejected as the first cause: current run `32620619404` of `CylinderRimDiagnosticTests.ContourVerticesOnTheCapLayerFollowTheAnalyticCircle` shows the synthetic cylinder barrel is already accurate to roughly `-0.046..+0.019` voxels. Historical diagnostic `ddb4a859` also concluded the real arch defect lived in field composition, not meshing, and noted that a one-owner cap-rim topology experiment barely moved the real arch.
+- Current run `32620741464` of `ArchCapLayerDiagnosticTests.ReportAuthoredCoverageAcrossDepthAtTheOpeningRim` proves the **current** real ArchBay field is still discontinuous before meshing. At mid-depth, the +Y intrados has a useful authored ramp (`-16,-8,+1,+8,+16` Q3), while the +X spring ray is flattened to `-4,-4,-4,-4,-4,+4,+4...`; the 45-degree ray also repeats `-4`.
+- The plateau has a direct composition cause. The deep opening uses `CurvedPrimitiveEmitter.Annulus(... half: true, mode: Carve)`. `AnnulusDistanceQ4` takes the minimum of radial, depth, and for a half-annulus the spring half-plane `(y-centreY)*16+8`. Exactly at spring height that half-plane is always `+8` Q4, so after carve sign inversion it authors a constant `-8` Q4 (`-4` Q3) across the empty side; later structural fill produces the symmetric `+0.5` plateau on solids. This is the measured +X sequence.
+- The rectangular lower-opening carve already spans the full pier-to-pier width through the entire pier height. Replacing the deep **half** disk with a full disk does not remove any additional occupancy below the spring because the lower half of that disk lies entirely inside the already-cleared rectangle. It only removes the false internal spring half-plane from the authored boundary field. This is the next test-first fix.
 
 ## Growth direction
 - Use a hybrid presentation: subtle coating/tint for low-frequency staining and joints, sparse instanced `Moss`/`Lichen`, and deterministic art-directed `Ivy`/`ClimbingVine`/selected `HangingVine` masses. The reference is dominated by leafy vines, not raised moss clumps.
@@ -98,5 +99,6 @@ Make `Assets/Scenes/ArchLookdev.unity` visually match `References/arch_reference
 
 ## CI / runner notes
 - Earlier failures were caused by the developer's interactive Unity Editor. After it was closed, the self-hosted Mac immediately acquired the Arch jobs; current idle-guard behavior is correct.
-- Latest `master` through `379e43323be283069b509f41fae583d48926801d` was merged into the feature branch as `be05855163ff9cef13b177027b8958f23131547f`; the feature is no longer behind master. The master changes are unrelated SceneIssueCapture/single-test workflow work and did not replace Arch files.
+- Latest `master` through `379e43323be283069b509f41fae583d48926801d` was merged into the feature branch as `be05855163ff9cef13b177027b8958f23131547f`; the feature is no longer behind that requested master head.
+- The merged single-test workflow now skips the expensive VoxelShowcase bake for these focused EditMode diagnostics; runs `32620619404` and `32620741464` each executed exactly one test in about 65-67 seconds.
 - Do not switch this work into SceneIssues or the `fixes` branch.
