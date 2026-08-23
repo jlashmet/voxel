@@ -235,14 +235,29 @@ namespace VoxelEngine.Tests.EditMode
                     ref table, in pool, new int3(21, 12, 4));
                 Assert.True(outerEdge.IsSolid);
                 Assert.True(outerEdge.Boundary.IsAuthored);
-                Assert.AreEqual(8, outerEdge.Boundary.SignedQ4,
-                    "the outermost included centre is half a voxel inside the authored boundary");
+                Assert.GreaterOrEqual(outerEdge.Boundary.SignedQ4, 0,
+                    "the outermost included centre is on the solid side of its own boundary");
                 Assert.Greater(ringInterior.Boundary.SignedQ4,
                                outerEdge.Boundary.SignedQ4);
                 Assert.False(outside.IsSolid);
                 Assert.True(outside.Boundary.IsAuthored);
                 Assert.Less(outside.Boundary.SignedQ4, 0,
                     "the empty side of the isosurface must retain its signed constraint");
+
+                // The invariant that matters, and the one a magic offset used to violate: the
+                // radial zero coincides with the membership test, so no cell can be occupied and
+                // outside its own authored boundary or vice versa. Where they disagreed, the
+                // rasteriser discarded the sample and the edge fell back to the flat Planar
+                // constant -- and which cells disagreed depended on angle, which is a staircase.
+                for (int y = 4; y <= 20; y++)
+                for (int x = 4; x <= 20; x++)
+                {
+                    VoxelCell cell = VoxelAccess.GetCell(ref table, in pool, new int3(x, y, 4));
+                    if (!cell.Boundary.IsAuthored) continue;
+                    Assert.AreEqual(cell.IsSolid, cell.Boundary.SignedQ4 >= 0,
+                        $"authored sign must agree with occupancy at ({x},{y},4): " +
+                        $"solid={cell.IsSolid} q4={cell.Boundary.SignedQ4}");
+                }
                 Assert.AreEqual(SurfaceStyles.Planar, outerEdge.Surface.StyleId,
                     "boundary geometry and shading style remain independent values");
             }

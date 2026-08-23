@@ -143,11 +143,17 @@ namespace VoxelEngine.Structures.Runtime.Emitters
             long db = voxel[axisB] - p.C[axisB];
             int radialQ4 = IntegerSqrt((da * da + db * db) << 8);
 
-            // Membership is sampled at integer cell centres. Half a cell expands the analytic
-            // boundary to the transition between the last included and first excluded centre.
-            int outer = (p.Radius << 4) + 8 - radialQ4;
+            // The radial zero must coincide with the membership test, which includes a centre
+            // when r <= Radius. Biasing these by half a cell -- correct for the flat depth and
+            // half-plane terms below, where a box face does sit half a cell beyond the last
+            // included centre -- put the analytic surface at r = Radius + 0.5 instead. Centres in
+            // that half-voxel band then read as inside while occupancy called them empty, so the
+            // rasteriser's sign check discarded their samples and the edge fell back to the flat
+            // Planar constant. Which centres land in the band depends on angle, so the crossing
+            // moved with angle: a staircase on any curved surface.
+            int outer = (p.Radius << 4) - radialQ4;
             int inner = p.InnerRadius > 0
-                ? radialQ4 - ((p.InnerRadius << 4) - 8)
+                ? radialQ4 - (p.InnerRadius << 4)
                 : int.MaxValue;
             int depth = math.min(voxel[p.Axis] - p.A[p.Axis],
                                  p.B[p.Axis] - voxel[p.Axis]) * 16 + 8;
