@@ -252,14 +252,16 @@ namespace Game.Materials.Runtime
                 // the blended-texture path is discarded — so this value never reached a terrain
                 // pixel either way. Raising it would have looked like a fix and changed nothing.
                 textureBlend: 0.16f,
-                // This is what made ground look untextured. A 52 m tile stretches the source over
-                // eight buildings' worth of frontage, so nothing survives at eye level and the
-                // luminance detail below had no structure left to modulate. Triplanar projection
-                // and the macro variation keep a tile this size from reading as a repeating grid.
+                // Keep the source resolvable at eye level. This small tile is intentionally retained
+                // from the texture-restoration fix; enlarging it would recreate flat, untextured
+                // ground even though the repeated near-field normal pattern disappeared.
                 uvScale: 1f / 7f,
-                // Ground with no normal relief lights like sheet plastic. Still gentle: this is
-                // stylized terrain, not a photoscan.
-                normalStrength: 0.24f,
+                // The normal map is sampled only in the near field and feeds lighting, so it must
+                // support the terrain silhouette rather than replace it. 0.24 made the source's
+                // repeated relief dominate elevated views as bluish swirls; the old 0.035 treatment
+                // was too flat. Keep a restrained middle ground while luminance detail carries most
+                // of the visible texture.
+                normalStrength: 0.08f,
                 roughness: 0.88f,
                 luminanceOnly: true,
                 luminancePivot: 0.66f,
