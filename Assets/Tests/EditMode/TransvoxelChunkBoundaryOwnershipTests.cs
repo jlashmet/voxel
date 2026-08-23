@@ -88,48 +88,55 @@ namespace VoxelEngine.Tests.EditMode
             // Source step 8 deliberately switches to the feature-preserving block HLOD backend.
             // Guard that backend separately rather than accidentally testing the exact-density job
             // at a stride production never sends through it.
-            using var hlodVoxels = new NativeArray<byte>(
+            var hlodVoxels = new NativeArray<byte>(
                 SurfaceBlockHlodSummaryBuilder.VoxelsPerBlock, Allocator.TempJob);
-            for (int z = 0; z < SurfaceBlockHlodSummaryBuilder.BlockEdge; z++)
-            for (int y = 0; y < SurfaceBlockHlodSummaryBuilder.BlockEdge; y++)
-            for (int x = 0; x < SurfaceBlockHlodSummaryBuilder.BlockEdge; x++)
+            try
             {
-                int index = x | (y << 3) | (z << 6);
-                hlodVoxels[index] = y == 7
-                    ? GameMaterialIds.Grass
-                    : GameMaterialIds.Dirt;
+                for (int z = 0; z < SurfaceBlockHlodSummaryBuilder.BlockEdge; z++)
+                for (int y = 0; y < SurfaceBlockHlodSummaryBuilder.BlockEdge; y++)
+                for (int x = 0; x < SurfaceBlockHlodSummaryBuilder.BlockEdge; x++)
+                {
+                    int index = x | (y << 3) | (z << 6);
+                    hlodVoxels[index] = y == 7
+                        ? GameMaterialIds.Grass
+                        : GameMaterialIds.Dirt;
+                }
+
+                SurfaceBlockHlodSummary grassCap = SurfaceBlockHlodSummaryBuilder.Mixed(hlodVoxels, 0);
+                for (int z = 0; z < SurfaceBlockHlodSummaryBuilder.SubcellsPerAxis; z++)
+                for (int x = 0; x < SurfaceBlockHlodSummaryBuilder.SubcellsPerAxis; x++)
+                {
+                    int topSubcell = x
+                                   + 3 * SurfaceBlockHlodSummaryBuilder.SubcellsPerAxis
+                                   + z * SurfaceBlockHlodSummaryBuilder.SubcellsPerAxis
+                                       * SurfaceBlockHlodSummaryBuilder.SubcellsPerAxis;
+                    Assert.True(grassCap.IsOccupied(topSubcell));
+                    Assert.AreEqual(GameMaterialIds.Grass, grassCap.MaterialAt(topSubcell),
+                        "Step 8 HLOD must vote from the exposed turf cap rather than buried dirt.");
+                }
+
+                // Remove the turf cap while leaving dirt at y=6. The same top HLOD subcells remain
+                // occupied, but their genuinely exposed material must now be Dirt.
+                for (int z = 0; z < SurfaceBlockHlodSummaryBuilder.BlockEdge; z++)
+                for (int x = 0; x < SurfaceBlockHlodSummaryBuilder.BlockEdge; x++)
+                    hlodVoxels[x | (7 << 3) | (z << 6)] = 0;
+
+                SurfaceBlockHlodSummary exposedHlodDirt = SurfaceBlockHlodSummaryBuilder.Mixed(hlodVoxels, 0);
+                for (int z = 0; z < SurfaceBlockHlodSummaryBuilder.SubcellsPerAxis; z++)
+                for (int x = 0; x < SurfaceBlockHlodSummaryBuilder.SubcellsPerAxis; x++)
+                {
+                    int topSubcell = x
+                                   + 3 * SurfaceBlockHlodSummaryBuilder.SubcellsPerAxis
+                                   + z * SurfaceBlockHlodSummaryBuilder.SubcellsPerAxis
+                                       * SurfaceBlockHlodSummaryBuilder.SubcellsPerAxis;
+                    Assert.True(exposedHlodDirt.IsOccupied(topSubcell));
+                    Assert.AreEqual(GameMaterialIds.Dirt, exposedHlodDirt.MaterialAt(topSubcell),
+                        "Step 8 HLOD must preserve dirt when dirt is actually the exposed surface.");
+                }
             }
-
-            SurfaceBlockHlodSummary grassCap = SurfaceBlockHlodSummaryBuilder.Mixed(hlodVoxels, 0);
-            for (int z = 0; z < SurfaceBlockHlodSummaryBuilder.SubcellsPerAxis; z++)
-            for (int x = 0; x < SurfaceBlockHlodSummaryBuilder.SubcellsPerAxis; x++)
+            finally
             {
-                int topSubcell = x
-                               + 3 * SurfaceBlockHlodSummaryBuilder.SubcellsPerAxis
-                               + z * SurfaceBlockHlodSummaryBuilder.SubcellsPerAxis
-                                   * SurfaceBlockHlodSummaryBuilder.SubcellsPerAxis;
-                Assert.True(grassCap.IsOccupied(topSubcell));
-                Assert.AreEqual(GameMaterialIds.Grass, grassCap.MaterialAt(topSubcell),
-                    "Step 8 HLOD must vote from the exposed turf cap rather than buried dirt.");
-            }
-
-            // Remove the turf cap while leaving dirt at y=6. The same top HLOD subcells remain
-            // occupied, but their genuinely exposed material must now be Dirt.
-            for (int z = 0; z < SurfaceBlockHlodSummaryBuilder.BlockEdge; z++)
-            for (int x = 0; x < SurfaceBlockHlodSummaryBuilder.BlockEdge; x++)
-                hlodVoxels[x | (7 << 3) | (z << 6)] = 0;
-
-            SurfaceBlockHlodSummary exposedHlodDirt = SurfaceBlockHlodSummaryBuilder.Mixed(hlodVoxels, 0);
-            for (int z = 0; z < SurfaceBlockHlodSummaryBuilder.SubcellsPerAxis; z++)
-            for (int x = 0; x < SurfaceBlockHlodSummaryBuilder.SubcellsPerAxis; x++)
-            {
-                int topSubcell = x
-                               + 3 * SurfaceBlockHlodSummaryBuilder.SubcellsPerAxis
-                               + z * SurfaceBlockHlodSummaryBuilder.SubcellsPerAxis
-                                   * SurfaceBlockHlodSummaryBuilder.SubcellsPerAxis;
-                Assert.True(exposedHlodDirt.IsOccupied(topSubcell));
-                Assert.AreEqual(GameMaterialIds.Dirt, exposedHlodDirt.MaterialAt(topSubcell),
-                    "Step 8 HLOD must preserve dirt when dirt is actually the exposed surface.");
+                hlodVoxels.Dispose();
             }
         }
 
