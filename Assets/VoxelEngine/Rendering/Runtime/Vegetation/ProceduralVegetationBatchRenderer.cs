@@ -29,7 +29,7 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
             for (int i = 0; i < instances.Count; i++)
             {
                 VegetationInstance instance = instances[i];
-                if (!_batches.TryGetValue(instance.Kind, out List<Matrix4x4> matrices))
+                if (!_batches.TryGetValue(instance.Kind, out List<Matrix4x4>> matrices))
                 {
                     matrices = new List<Matrix4x4>();
                     _batches.Add(instance.Kind, matrices);
@@ -117,7 +117,9 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
                 case VegetationShaderClass.Vine:
                     rotation = Quaternion.LookRotation(normal, Vector3.up);
                     float direction = profile.GrowthForm == VegetationGrowthForm.Climber ? 1f : -1f;
-                    localScale = new Vector3(0.42f * scale, direction * 2.6f * scale, 1f);
+                    // Hero-scale vines should read as overlapping leafy growth, not metre-long cords.
+                    // Keep width and height independently art-directable through semantic Scale.
+                    localScale = new Vector3(0.68f * scale, direction * 1.65f * scale, 1f);
                     position += normal * 0.022f;
                     break;
 
