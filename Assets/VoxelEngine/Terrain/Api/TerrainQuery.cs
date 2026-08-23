@@ -70,12 +70,14 @@ namespace VoxelEngine.Terrain.Api
             }
 
             // Keep the inhabited valley readable at player scale, but do not flatten away the
-            // landform itself. The 51.2 m and 12.8 m layers restore the broad rolling relief that
-            // was lost when terrain styling collapsed the basin to one 18-voxel octave. The old
-            // 3.2 m and 1.6 m layers stay out: those were small enough to corrugate paths and fields
-            // instead of describing landscape-scale shape.
-            h += Octave(worldX, worldZ, 9, 70, seed);
-            h += Octave(worldX, worldZ, 7, 24, seed);
+            // landform itself. Accumulate the 51.2 m and 12.8 m layers at fixed-point precision
+            // and quantize their combined height once. Quantizing each octave independently can
+            // make two sub-voxel rises land on the same column and create a two-voxel micro-cliff;
+            // on smooth terrain that exposes the Dirt sample directly below the turf and makes a
+            // gentle hill read as a brown terrace. The broad relief is unchanged by this ordering.
+            int valleyRelief = OctaveFixed(worldX, worldZ, 9, 70, seed)
+                             + OctaveFixed(worldX, worldZ, 7, 24, seed);
+            h += valleyRelief >> 10;
 
             // Player-scale relief stays in vegetation/material presentation, where it enriches a
             // surface without changing collision or cutting a contour around every few footsteps.
@@ -102,7 +104,16 @@ namespace VoxelEngine.Terrain.Api
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static int Octave(int worldX, int worldZ, int log2Cell, int amplitude, uint seed)
+        private static int Octave(int worldX, int worldZ, int log2Cell, int amplitude, uint seed) =>
+            OctaveFixed(worldX, worldZ, log2Cell, amplitude, seed) >> 10;
+
+        /// <summary>
+        /// One octave in 1/1024-voxel fixed-point units. Keeping this precision until related
+        /// landscape layers are combined prevents independent integer rounding from inventing
+        /// one-voxel steps that are not present in the underlying smooth field.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int OctaveFixed(int worldX, int worldZ, int log2Cell, int amplitude, uint seed)
         {
             int cell = 1 << log2Cell;
             int x0 = worldX >> log2Cell;
@@ -122,7 +133,7 @@ namespace VoxelEngine.Terrain.Api
             int b = c01 + (((c11 - c01) * tx) >> 10);
             int v = a + (((b - a) * tz) >> 10);
 
-            return ((v * amplitude) >> 10) - (amplitude >> 1);
+            return v * amplitude - ((amplitude >> 1) << 10);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

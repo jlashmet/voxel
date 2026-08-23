@@ -135,6 +135,43 @@ namespace VoxelEngine.Tests.Parity
         }
 
         [Test]
+        public void SceneIssue20260823013924433CaptureAreaHasNoQuantizationCliffs()
+        {
+            // The capture camera sits at roughly (75.6 m, -7.45 m), or (756, -75) in the
+            // 10 cm terrain grid. The two broad valley octaves used to round independently;
+            // occasionally both rounded on the same adjacent column and invented a two-voxel
+            // cliff in an otherwise gentle field. Besides distorting the landform, that exposes
+            // the Dirt sample directly under the one-voxel turf surface in the smooth mesh.
+            const uint showcaseSeed = 0x5EED1234u;
+            const int minX = 628;
+            const int maxX = 884;
+            const int minZ = -203;
+            const int maxZ = 53;
+            int largestJump = 0;
+            int2 jumpFrom = default;
+            int2 jumpTo = default;
+
+            for (int z = minZ; z <= maxZ; z++)
+            for (int x = minX; x <= maxX; x++)
+            {
+                int height = TerrainQuery.HeightAt(x, z, showcaseSeed);
+                if (x < maxX)
+                    RecordJump(x, z, x + 1, z, height,
+                        TerrainQuery.HeightAt(x + 1, z, showcaseSeed),
+                        ref largestJump, ref jumpFrom, ref jumpTo);
+                if (z < maxZ)
+                    RecordJump(x, z, x, z + 1, height,
+                        TerrainQuery.HeightAt(x, z + 1, showcaseSeed),
+                        ref largestJump, ref jumpFrom, ref jumpTo);
+            }
+
+            Assert.LessOrEqual(largestJump, 1,
+                $"Captured terrain has a {largestJump}-voxel quantization cliff from "
+              + $"({jumpFrom.x},{jumpFrom.y}) to ({jumpTo.x},{jumpTo.y}); "
+              + "natural valley relief should quantize only once after its broad layers are combined.");
+        }
+
+        [Test]
         public void SettlementValleyRetainsReadableLandscapeRelief()
         {
             int lowest = int.MaxValue;
@@ -171,6 +208,18 @@ namespace VoxelEngine.Tests.Parity
                 Assert.AreEqual(sequential, shuffled,
                     $"generation order {shuffle} produced a different world");
             }
+        }
+
+        private static void RecordJump(
+            int fromX, int fromZ, int toX, int toZ,
+            int fromHeight, int toHeight,
+            ref int largestJump, ref int2 jumpFrom, ref int2 jumpTo)
+        {
+            int jump = math.abs(toHeight - fromHeight);
+            if (jump <= largestJump) return;
+            largestJump = jump;
+            jumpFrom = new int2(fromX, fromZ);
+            jumpTo = new int2(toX, toZ);
         }
     }
 }
