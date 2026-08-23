@@ -58,23 +58,46 @@ namespace VoxelEngine.Tests.EditMode
                 PrimitiveRasteriser.Rasterise(
                     prims.AsArray(), int3.zero, new int3(48, 48, 12), reads, mutations);
 
-                for (int step = 0; step <= 60; step += 30)
+                if (!carve) return;
+
+                // Same alias-free crossing measurement as the arch: iterate the lattice, take every
+                // in-plane solid->empty edge near the hole, and record where the crossing lands.
+                float Density(int3 v)
                 {
-                    double a = step * math.PI / 180.0;
-                    var sb = new System.Text.StringBuilder();
-                    sb.Append($"[csg] {label,-12} {step,2}deg q3:");
-                    for (int r = -4; r <= 4; r++)
-                    {
-                        int x = centre.x + (int)math.round(math.cos(a) * (hole + r));
-                        int y = centre.y + (int)math.round(math.sin(a) * (hole + r));
-                        VoxelCell c = VoxelAccess.GetCell(ref t2, in p2, new int3(x, y, 6));
-                        string tag = c.BaseMaterialId == 0 ? "e" : "S";
-                        sb.Append(c.Boundary.IsAuthored
-                            ? $" {tag}{c.Boundary.SignedQ3,3}"
-                            : $" {tag}  .");
-                    }
-                    Debug.Log(sb.ToString());
+                    VoxelCell c = VoxelAccess.GetCell(ref t2, in p2, v);
+                    bool sol = c.BaseMaterialId != 0;
+                    var b = c.Boundary;
+                    if (b.IsAuthored && sol == b.SignedQ3 >= 0) return b.SignedQ3 * 0.125f;
+                    return sol ? 0.5f : -0.5f;
                 }
+
+                var rads = new System.Collections.Generic.List<float>();
+                for (int y = -hole - 4; y <= hole + 4; y++)
+                for (int x = -hole - 4; x <= hole + 4; x++)
+                {
+                    int3 a0 = new(centre.x + x, centre.y + y, 6);
+                    if (VoxelAccess.GetCell(ref t2, in p2, a0).BaseMaterialId == 0) continue;
+                    var steps = new[] { new int2(1, 0), new int2(-1, 0),
+                                        new int2(0, 1), new int2(0, -1) };
+                    foreach (int2 st in steps)
+                    {
+                        int3 b0 = new(a0.x + st.x, a0.y + st.y, 6);
+                        if (VoxelAccess.GetCell(ref t2, in p2, b0).BaseMaterialId != 0) continue;
+                        float d0 = Density(a0), d1 = Density(b0);
+                        if (math.abs(d1 - d0) < 1e-7f) continue;
+                        float t0 = d1 / (d1 - d0);
+                        float2 pp = new float2(x, y) * t0
+                                  + new float2(x + st.x, y + st.y) * (1f - t0);
+                        float rad = math.length(pp);
+                        if (rad < hole - 3f || rad > hole + 3f) continue;
+                        rads.Add(rad);
+                    }
+                }
+                rads.Sort();
+                if (rads.Count > 0)
+                    Debug.Log($"[csg] {label}: crossings={rads.Count} " +
+                              $"min={rads[0]:F3} max={rads[rads.Count - 1]:F3} " +
+                              $"SPREAD={rads[rads.Count - 1] - rads[0]:F3} voxels");
             }
             finally
             {

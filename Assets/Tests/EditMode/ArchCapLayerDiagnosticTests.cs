@@ -60,6 +60,46 @@ namespace VoxelEngine.Tests.EditMode
 
                 Debug.Log($"[cap] footprint={bay.Metadata.Footprint} centre={centre} r={radius}");
 
+                Debug.Log($"[cap] primitives={primitives.Length}");
+                var modes = new System.Collections.Generic.Dictionary<string,int>();
+                for (int i = 0; i < primitives.Length; i++)
+                {
+                    string k = $"{primitives[i].Shape}/{primitives[i].Mode}";
+                    modes.TryGetValue(k, out int n); modes[k] = n + 1;
+                }
+                foreach (var kv in modes) Debug.Log($"[cap] prim {kv.Key} x{kv.Value}");
+
+                // Exact lattice ray along +X from the centre: no trig, no rounding, so every
+                // sample is a distinct cell and the ramp can be read without aliasing.
+                {
+                    var sb = new System.Text.StringBuilder();
+                    sb.Append("[cap] +X lattice ray z=6:");
+                    for (int x = radius - 5; x <= radius + 5; x++)
+                    {
+                        VoxelCell c = VoxelAccess.GetCell(
+                            ref table, in pool, new int3(centre.x + x, centre.y, 6));
+                        string tag = c.BaseMaterialId == 0 ? "e" : "S";
+                        sb.Append(c.Boundary.IsAuthored
+                            ? $" x{x}:{tag}{c.Boundary.SignedQ3}"
+                            : $" x{x}:{tag}.");
+                    }
+                    Debug.Log(sb.ToString());
+                }
+                {
+                    var sb = new System.Text.StringBuilder();
+                    sb.Append("[cap] +Y lattice ray z=6:");
+                    for (int y = radius - 5; y <= radius + 5; y++)
+                    {
+                        VoxelCell c = VoxelAccess.GetCell(
+                            ref table, in pool, new int3(centre.x, centre.y + y, 6));
+                        string tag = c.BaseMaterialId == 0 ? "e" : "S";
+                        sb.Append(c.Boundary.IsAuthored
+                            ? $" y{y}:{tag}{c.Boundary.SignedQ3}"
+                            : $" y{y}:{tag}.");
+                    }
+                    Debug.Log(sb.ToString());
+                }
+
                 // Radial ray at 45 degrees, mid-depth. The cylinder fixture produces a clean
                 // analytic ramp here; if the arch does not, the field is the problem.
                 for (int step = 30; step <= 60; step += 15)
