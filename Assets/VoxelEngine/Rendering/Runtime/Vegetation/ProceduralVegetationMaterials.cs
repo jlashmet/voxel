@@ -152,7 +152,6 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
                 case VegetationKind.Moss:
                 case VegetationKind.FallenLeaves:
                 case VegetationKind.PineNeedles:
-                case VegetationKind.Ivy:
                 case VegetationKind.Lichen:
                 case VegetationKind.LilyPad:
                 case VegetationKind.Algae:
@@ -166,6 +165,8 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
                     return VegetationShaderClass.Woody;
             }
 
+            // Ivy is catalogued as a climber, so keep it on the branched vine path. Treating it as
+            // a surface creeper turns each semantic ivy instance into a large circular wall patch.
             switch (growthForm)
             {
                 case VegetationGrowthForm.Creeper: return VegetationShaderClass.Surface;
