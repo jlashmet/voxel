@@ -1,6 +1,7 @@
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Text;
@@ -12,16 +13,38 @@ namespace MountingForce.DeveloperTools
     [Serializable]
     public sealed class SceneIssueCaptureRecord
     {
-        public int formatVersion = 1;
+        public int formatVersion = 2;
         public string id;
         public string capturedUtc;
         public string note;
-        public string screenshot;
+        public string status = "open";
+        public string resolvedUtc;
+        public string resolutionSummary;
+        public string regressionTest;
+        public string fixCommit;
         public string unityVersion;
         public string platform;
         public string sceneName;
         public string scenePath;
         public int sceneBuildIndex;
+        public SceneIssueFrameCapture[] captures;
+
+        // Version-1 compatibility. New captures mirror the first frame here so older tools and
+        // hand-written fixtures continue to work while formatVersion 2 uses captures[].
+        public string screenshot;
+        public int frameCount;
+        public float timeSinceLevelLoad;
+        public int screenWidth;
+        public int screenHeight;
+        public SceneIssueTransformSnapshot poseAnchor;
+        public SceneIssueCameraSnapshot camera;
+    }
+
+    [Serializable]
+    public sealed class SceneIssueFrameCapture
+    {
+        public string screenshot;
+        public string capturedUtc;
         public int frameCount;
         public float timeSinceLevelLoad;
         public int screenWidth;
@@ -53,8 +76,9 @@ namespace MountingForce.DeveloperTools
     }
 
     /// <summary>
-    /// Development-only in-game issue capture overlay. It records the rendered viewpoint before
-    /// showing annotation UI, then stores a screenshot and a replayable scene/camera fixture.
+    /// Development-only in-game issue capture overlay. One issue can contain many clean rendered
+    /// frames, each with its own exact camera/pose metadata. This is useful for flicker, popping,
+    /// transient holes and other failures where no single screenshot explains the defect.
     /// </summary>
     public sealed class SceneIssueCapture : MonoBehaviour
     {
@@ -62,10 +86,18 @@ namespace MountingForce.DeveloperTools
 
         private const KeyCode CaptureKey = KeyCode.F8;
         private const string CaptureDirectoryName = "SceneIssues";
-        private const string ScreenshotFileName = "screenshot.png";
         private const string RecordFileName = "issue.json";
 
+        private sealed class PendingFrame
+        {
+            public SceneIssueFrameCapture Snapshot;
+            public byte[] Png;
+        }
+
+        private readonly List<PendingFrame> _pendingFrames = new();
+
         private bool _captureInProgress;
+        private bool _sessionActive;
         private bool _annotationVisible;
         private bool _overlayHidden;
         private bool _replayMode;
@@ -73,9 +105,10 @@ namespace MountingForce.DeveloperTools
         private string _note = string.Empty;
         private string _toast = string.Empty;
         private float _toastUntil;
-        private byte[] _pendingPng;
         private SceneIssueCaptureRecord _pendingRecord;
         private SceneIssueCaptureRecord _replayRecord;
+        private SceneIssueFrameCapture[] _replayFrames;
+        private int _replayIndex;
         private Camera _frozenCamera;
         private SceneIssueTransformSnapshot _frozenAnchor;
         private SceneIssueCameraSnapshot _frozenView;
@@ -124,7 +157,7 @@ namespace MountingForce.DeveloperTools
 
         private void LateUpdate()
         {
-            if ((_captureInProgress || _replayMode) && _frozenCamera != null)
+            if ((_annotationVisible || _replayMode) && _frozenCamera != null)
                 ApplyFrozenPose();
         }
 
@@ -144,6 +177,8 @@ namespace MountingForce.DeveloperTools
 
             if (_replayMode)
                 DrawReplayBanner();
+            else if (_sessionActive)
+                DrawActiveSessionControls();
             else if (!_captureInProgress)
                 DrawCaptureButton();
 
@@ -156,12 +191,15 @@ namespace MountingForce.DeveloperTools
             if (_annotationVisible || _captureInProgress || _replayMode)
                 return;
 
-            var current = Event.current;
+            Event current = Event.current;
             if (current == null || current.type != EventType.KeyDown || current.keyCode != CaptureKey)
                 return;
 
             current.Use();
-            BeginCapture();
+            if (_sessionActive)
+                AddFrameToActiveIssue();
+            else
+                BeginNewIssue();
         }
 
         private void DrawCaptureButton()
@@ -170,12 +208,29 @@ namespace MountingForce.DeveloperTools
             const float height = 38f;
             var rect = new Rect(Mathf.Max(10f, Screen.width - width - 12f), 12f, width, height);
             if (GUI.Button(rect, "Flag issue  [F8]"))
-                BeginCapture();
+                BeginNewIssue();
         }
 
-        private void BeginCapture()
+        private void DrawActiveSessionControls()
         {
-            if (_captureInProgress || _annotationVisible || _replayMode)
+            const float width = 250f;
+            var area = new Rect(Mathf.Max(10f, Screen.width - width - 12f), 12f, width, 105f);
+            GUILayout.BeginArea(area, GUI.skin.window);
+            GUILayout.Label($"Issue session — {_pendingFrames.Count} screenshot(s)", _smallStyle);
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("Add shot [F8]", GUILayout.Height(30f)))
+                AddFrameToActiveIssue();
+            if (GUILayout.Button("Finish issue", GUILayout.Height(30f)))
+                OpenAnnotationForFinish();
+            GUILayout.EndHorizontal();
+            if (GUILayout.Button("Cancel issue", GUILayout.Height(25f)))
+                CancelPendingCapture("Issue capture cancelled.");
+            GUILayout.EndArea();
+        }
+
+        private void BeginNewIssue()
+        {
+            if (_captureInProgress || _annotationVisible || _replayMode || _sessionActive)
                 return;
 
             Camera camera = ResolveActiveCamera(null);
@@ -185,46 +240,111 @@ namespace MountingForce.DeveloperTools
                 return;
             }
 
-            _pendingRecord = BuildRecord(camera);
-            _frozenCamera = camera;
-            _frozenView = _pendingRecord.camera;
-            _frozenAnchor = _pendingRecord.poseAnchor;
-            _captureInProgress = true;
+            _pendingFrames.Clear();
+            _pendingRecord = BuildIssueRecord();
+            _note = string.Empty;
+            _sessionActive = true;
+
+            // The first screenshot freezes the exact reported view and immediately asks for a
+            // description. The user can then choose Keep capturing to resume the scene and catch
+            // additional states of a flicker/transient failure with F8.
             PreserveAndPauseForAnnotation();
-            StartCoroutine(CaptureRenderedFrame());
+            BeginFrameCapture(camera, true);
         }
 
-        private IEnumerator CaptureRenderedFrame()
+        private void AddFrameToActiveIssue()
+        {
+            if (!_sessionActive || _captureInProgress || _annotationVisible || _replayMode)
+                return;
+
+            Camera camera = ResolveActiveCamera(null);
+            if (camera == null)
+            {
+                ShowToast("No active game camera found; screenshot was not added.");
+                return;
+            }
+
+            BeginFrameCapture(camera, false);
+        }
+
+        private void BeginFrameCapture(Camera camera, bool openAnnotationAfter)
+        {
+            _captureInProgress = true;
+            SceneIssueFrameCapture snapshot = BuildFrame(camera, _pendingFrames.Count + 1);
+            if (openAnnotationAfter)
+            {
+                _frozenCamera = camera;
+                _frozenAnchor = snapshot.poseAnchor;
+                _frozenView = snapshot.camera;
+                ApplyFrozenPose();
+            }
+
+            StartCoroutine(CaptureRenderedFrame(snapshot, openAnnotationAfter));
+        }
+
+        private IEnumerator CaptureRenderedFrame(SceneIssueFrameCapture snapshot, bool openAnnotationAfter)
         {
             _overlayHidden = true;
             yield return new WaitForEndOfFrame();
 
             try
             {
-                ApplyFrozenPose();
+                if (openAnnotationAfter)
+                    ApplyFrozenPose();
+
                 Texture2D screenshot = ScreenCapture.CaptureScreenshotAsTexture();
                 if (screenshot == null)
                     throw new InvalidOperationException("ScreenCapture returned no texture.");
 
-                _pendingPng = screenshot.EncodeToPNG();
+                byte[] png = screenshot.EncodeToPNG();
                 Destroy(screenshot);
-                if (_pendingPng == null || _pendingPng.Length == 0)
+                if (png == null || png.Length == 0)
                     throw new InvalidOperationException("PNG encoding returned no data.");
 
-                _note = string.Empty;
-                _annotationFocused = false;
-                _annotationVisible = true;
+                _pendingFrames.Add(new PendingFrame { Snapshot = snapshot, Png = png });
+
+                if (openAnnotationAfter)
+                {
+                    _annotationFocused = false;
+                    _annotationVisible = true;
+                }
+                else
+                {
+                    ShowToast($"Added screenshot {_pendingFrames.Count} to this issue.");
+                }
             }
             catch (Exception exception)
             {
                 Debug.LogException(exception);
-                CancelPendingCapture("Capture failed; see the Unity Console for details.");
+                if (_pendingFrames.Count == 0)
+                    CancelPendingCapture("Capture failed; see the Unity Console for details.");
+                else
+                    ShowToast("Screenshot failed; previous issue screenshots are still kept.");
             }
             finally
             {
                 _overlayHidden = false;
                 _captureInProgress = false;
             }
+        }
+
+        private void OpenAnnotationForFinish()
+        {
+            if (!_sessionActive || _captureInProgress || _annotationVisible)
+                return;
+
+            Camera camera = ResolveActiveCamera(null);
+            if (camera != null)
+            {
+                SceneIssueFrameCapture view = BuildFrame(camera, _pendingFrames.Count + 1);
+                _frozenCamera = camera;
+                _frozenAnchor = view.poseAnchor;
+                _frozenView = view.camera;
+            }
+
+            PreserveAndPauseForAnnotation();
+            _annotationFocused = false;
+            _annotationVisible = true;
         }
 
         private void DrawAnnotationDialog()
@@ -235,15 +355,15 @@ namespace MountingForce.DeveloperTools
             GUI.Box(dim, GUIContent.none);
             GUI.color = oldColor;
 
-            float width = Mathf.Clamp(Screen.width - 40f, 300f, 680f);
-            float height = Mathf.Clamp(Screen.height - 80f, 260f, 390f);
+            float width = Mathf.Clamp(Screen.width - 40f, 320f, 700f);
+            float height = Mathf.Clamp(Screen.height - 80f, 285f, 420f);
             var area = new Rect((Screen.width - width) * 0.5f, (Screen.height - height) * 0.5f, width, height);
 
             GUILayout.BeginArea(area, GUI.skin.window);
             GUILayout.Label("Flag scene issue", _titleStyle);
             GUILayout.Space(4f);
             GUILayout.Label(
-                "The clean screenshot and exact camera pose are already captured. Describe what is wrong in this view.",
+                $"{_pendingFrames.Count} clean screenshot(s) captured. Each screenshot keeps its own exact frame, camera and pose metadata. Describe the issue below.",
                 _bodyStyle);
             GUILayout.Space(8f);
 
@@ -257,11 +377,19 @@ namespace MountingForce.DeveloperTools
 
             GUILayout.Space(10f);
             GUILayout.BeginHorizontal();
-            if (GUILayout.Button("Cancel", GUILayout.Height(34f)))
+            if (GUILayout.Button("Cancel issue", GUILayout.Height(34f)))
             {
                 GUILayout.EndHorizontal();
                 GUILayout.EndArea();
                 CancelPendingCapture(null);
+                return;
+            }
+
+            if (GUILayout.Button("Keep capturing", GUILayout.Width(150f), GUILayout.Height(34f)))
+            {
+                GUILayout.EndHorizontal();
+                GUILayout.EndArea();
+                ContinueCaptureSession();
                 return;
             }
 
@@ -278,9 +406,18 @@ namespace MountingForce.DeveloperTools
             GUILayout.EndArea();
         }
 
+        private void ContinueCaptureSession()
+        {
+            _annotationVisible = false;
+            _annotationFocused = false;
+            ReleaseFrozenPose();
+            RestoreAfterAnnotation();
+            ShowToast("Issue session active — press F8 whenever the bad state appears.");
+        }
+
         private void SavePendingCapture()
         {
-            if (_pendingRecord == null || _pendingPng == null)
+            if (_pendingRecord == null || _pendingFrames.Count == 0)
             {
                 CancelPendingCapture("Nothing was captured.");
                 return;
@@ -293,16 +430,23 @@ namespace MountingForce.DeveloperTools
                 Directory.CreateDirectory(captureDirectory);
 
                 _pendingRecord.note = (_note ?? string.Empty).Trim();
-                _pendingRecord.screenshot = ScreenshotFileName;
+                _pendingRecord.captures = new SceneIssueFrameCapture[_pendingFrames.Count];
 
-                File.WriteAllBytes(Path.Combine(captureDirectory, ScreenshotFileName), _pendingPng);
+                for (int i = 0; i < _pendingFrames.Count; i++)
+                {
+                    PendingFrame pending = _pendingFrames[i];
+                    _pendingRecord.captures[i] = pending.Snapshot;
+                    File.WriteAllBytes(Path.Combine(captureDirectory, pending.Snapshot.screenshot), pending.Png);
+                }
+
+                MirrorFirstFrameIntoLegacyFields(_pendingRecord, _pendingRecord.captures[0]);
                 File.WriteAllText(
                     Path.Combine(captureDirectory, RecordFileName),
                     JsonUtility.ToJson(_pendingRecord, true),
                     new UTF8Encoding(false));
 
-                Debug.Log($"Scene issue captured: {captureDirectory}");
-                ShowToast($"Issue saved: {Path.GetFileName(captureDirectory)}");
+                Debug.Log($"Scene issue captured: {captureDirectory} ({_pendingFrames.Count} screenshots)");
+                ShowToast($"Issue saved with {_pendingFrames.Count} screenshot(s): {Path.GetFileName(captureDirectory)}");
             }
             catch (Exception exception)
             {
@@ -314,6 +458,17 @@ namespace MountingForce.DeveloperTools
                 ClearPendingCapture();
                 RestoreAfterAnnotation();
             }
+        }
+
+        private static void MirrorFirstFrameIntoLegacyFields(SceneIssueCaptureRecord record, SceneIssueFrameCapture frame)
+        {
+            record.screenshot = frame.screenshot;
+            record.frameCount = frame.frameCount;
+            record.timeSinceLevelLoad = frame.timeSinceLevelLoad;
+            record.screenWidth = frame.screenWidth;
+            record.screenHeight = frame.screenHeight;
+            record.poseAnchor = frame.poseAnchor;
+            record.camera = frame.camera;
         }
 
         private void CancelPendingCapture(string toast)
@@ -329,12 +484,11 @@ namespace MountingForce.DeveloperTools
             _annotationVisible = false;
             _annotationFocused = false;
             _captureInProgress = false;
-            _pendingPng = null;
+            _sessionActive = false;
+            _pendingFrames.Clear();
             _pendingRecord = null;
             _note = string.Empty;
-            _frozenCamera = null;
-            _frozenAnchor = null;
-            _frozenView = null;
+            ReleaseFrozenPose();
         }
 
         private void PreserveAndPauseForAnnotation()
@@ -363,24 +517,34 @@ namespace MountingForce.DeveloperTools
             _annotationOwnsPauseState = false;
         }
 
-        private SceneIssueCaptureRecord BuildRecord(Camera camera)
+        private SceneIssueCaptureRecord BuildIssueRecord()
         {
             Scene scene = SceneManager.GetActiveScene();
-            Transform poseAnchor = SelectPoseAnchor(camera.transform);
             string sceneSlug = SanitizeFileComponent(string.IsNullOrEmpty(scene.name) ? "UntitledScene" : scene.name);
             string timestamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fff", CultureInfo.InvariantCulture);
 
             return new SceneIssueCaptureRecord
             {
+                formatVersion = 2,
                 id = $"{timestamp}-{sceneSlug}",
                 capturedUtc = DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture),
                 note = string.Empty,
-                screenshot = ScreenshotFileName,
+                status = "open",
                 unityVersion = Application.unityVersion,
                 platform = Application.platform.ToString(),
                 sceneName = scene.name,
                 scenePath = scene.path,
-                sceneBuildIndex = scene.buildIndex,
+                sceneBuildIndex = scene.buildIndex
+            };
+        }
+
+        private SceneIssueFrameCapture BuildFrame(Camera camera, int sequence)
+        {
+            Transform poseAnchor = SelectPoseAnchor(camera.transform);
+            return new SceneIssueFrameCapture
+            {
+                screenshot = $"screenshot-{sequence:000}.png",
+                capturedUtc = DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture),
                 frameCount = Time.frameCount,
                 timeSinceLevelLoad = Time.timeSinceLevelLoad,
                 screenWidth = Screen.width,
@@ -392,9 +556,6 @@ namespace MountingForce.DeveloperTools
 
         private static Transform SelectPoseAnchor(Transform cameraTransform)
         {
-            // Prefer the nearest ancestor that actually looks like a movement/controller object.
-            // Falling back to the camera itself is intentionally conservative: blindly moving
-            // transform.root can move an entire scene when cameras live under a composition root.
             for (Transform current = cameraTransform; current != null; current = current.parent)
             {
                 if (current.GetComponent<CharacterController>() != null ||
@@ -504,14 +665,53 @@ namespace MountingForce.DeveloperTools
             _frozenCamera.farClipPlane = _frozenView.farClipPlane;
         }
 
+        private void ReleaseFrozenPose()
+        {
+            _frozenCamera = null;
+            _frozenAnchor = null;
+            _frozenView = null;
+        }
+
+        private static SceneIssueFrameCapture[] GetReplayFrames(SceneIssueCaptureRecord record)
+        {
+            if (record.captures != null && record.captures.Length > 0)
+                return record.captures;
+
+            if (record.camera == null)
+                return Array.Empty<SceneIssueFrameCapture>();
+
+            return new[]
+            {
+                new SceneIssueFrameCapture
+                {
+                    screenshot = record.screenshot,
+                    capturedUtc = record.capturedUtc,
+                    frameCount = record.frameCount,
+                    timeSinceLevelLoad = record.timeSinceLevelLoad,
+                    screenWidth = record.screenWidth,
+                    screenHeight = record.screenHeight,
+                    poseAnchor = record.poseAnchor,
+                    camera = record.camera
+                }
+            };
+        }
+
         private static Camera ResolveActiveCamera(SceneIssueCaptureRecord record)
         {
             Camera[] cameras = Camera.allCameras;
-            if (record != null && record.camera != null && !string.IsNullOrEmpty(record.camera.hierarchyPath))
+            SceneIssueCameraSnapshot target = null;
+            if (record != null)
+            {
+                SceneIssueFrameCapture[] frames = GetReplayFrames(record);
+                if (frames.Length > 0)
+                    target = frames[0].camera;
+            }
+
+            if (target != null && !string.IsNullOrEmpty(target.hierarchyPath))
             {
                 foreach (Camera candidate in cameras)
                 {
-                    if (candidate != null && GetHierarchyPath(candidate.transform) == record.camera.hierarchyPath)
+                    if (candidate != null && GetHierarchyPath(candidate.transform) == target.hierarchyPath)
                         return candidate;
                 }
             }
@@ -559,14 +759,24 @@ namespace MountingForce.DeveloperTools
 
         private void DrawReplayBanner()
         {
-            float width = Mathf.Clamp(Screen.width - 40f, 320f, 620f);
-            var area = new Rect((Screen.width - width) * 0.5f, 12f, width, 150f);
+            float width = Mathf.Clamp(Screen.width - 40f, 360f, 680f);
+            var area = new Rect((Screen.width - width) * 0.5f, 12f, width, 180f);
             GUILayout.BeginArea(area, GUI.skin.window);
             GUILayout.Label("Scene issue replay", _titleStyle);
             GUILayout.Label(_replayRecord != null ? _replayRecord.note : string.Empty, _bodyStyle);
+            GUILayout.Space(5f);
+            GUILayout.Label(
+                _replayFrames == null ? string.Empty : $"Screenshot {_replayIndex + 1} of {_replayFrames.Length} — {_replayFrames[_replayIndex].screenshot}",
+                _smallStyle);
             GUILayout.FlexibleSpace();
             GUILayout.BeginHorizontal();
-            GUILayout.Label("Camera is pinned to the recorded viewpoint.", _smallStyle);
+            GUI.enabled = _replayFrames != null && _replayIndex > 0;
+            if (GUILayout.Button("Previous", GUILayout.Width(90f), GUILayout.Height(30f)))
+                SelectReplayFrame(_replayIndex - 1);
+            GUI.enabled = _replayFrames != null && _replayIndex + 1 < _replayFrames.Length;
+            if (GUILayout.Button("Next", GUILayout.Width(90f), GUILayout.Height(30f)))
+                SelectReplayFrame(_replayIndex + 1);
+            GUI.enabled = true;
             GUILayout.FlexibleSpace();
             if (GUILayout.Button("Release camera", GUILayout.Width(130f), GUILayout.Height(30f)))
                 ReleaseReplayCamera();
@@ -574,13 +784,25 @@ namespace MountingForce.DeveloperTools
             GUILayout.EndArea();
         }
 
+        private void SelectReplayFrame(int index)
+        {
+            if (_replayFrames == null || index < 0 || index >= _replayFrames.Length)
+                return;
+
+            _replayIndex = index;
+            SceneIssueFrameCapture frame = _replayFrames[index];
+            _frozenAnchor = frame.poseAnchor;
+            _frozenView = frame.camera;
+            ApplyFrozenPose();
+        }
+
         private void ReleaseReplayCamera()
         {
             _replayMode = false;
             _replayRecord = null;
-            _frozenCamera = null;
-            _frozenAnchor = null;
-            _frozenView = null;
+            _replayFrames = null;
+            _replayIndex = 0;
+            ReleaseFrozenPose();
             ShowToast("Replay camera released at the captured location.");
         }
 
@@ -617,6 +839,13 @@ namespace MountingForce.DeveloperTools
                 yield break;
             }
 
+            SceneIssueFrameCapture[] frames = GetReplayFrames(record);
+            if (frames.Length == 0)
+            {
+                ShowToast("Replay capture contains no camera frames.");
+                yield break;
+            }
+
             Camera camera = null;
             for (int frame = 0; frame < 300 && camera == null; frame++)
             {
@@ -632,12 +861,12 @@ namespace MountingForce.DeveloperTools
             }
 
             _replayRecord = record;
+            _replayFrames = frames;
+            _replayIndex = 0;
             _frozenCamera = camera;
-            _frozenAnchor = record.poseAnchor;
-            _frozenView = record.camera;
             _replayMode = true;
-            ApplyFrozenPose();
-            ShowToast("Replaying captured viewpoint.");
+            SelectReplayFrame(0);
+            ShowToast($"Replaying issue with {frames.Length} screenshot(s).");
         }
 #endif
 
