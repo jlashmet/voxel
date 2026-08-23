@@ -56,8 +56,8 @@ namespace VoxelEngine.Showcase
         private float _mossHue = 0.22f, _mossSaturation = 0.53f, _mossValue = 0.39f;
 
         // Presentation
-        private float _stoneWarmth = 0.58f, _stoneValue = 0.68f;
-        private float _sunAzimuth = -48f, _sunElevation = 50f;
+        private float _stoneWarmth = 0.76f, _stoneValue = 0.86f;
+        private float _sunAzimuth = -135f, _sunElevation = 55f;
         private Vector3 _cameraFocus;
         private float _cameraYaw = 14.5f, _cameraPitch = 3.2f;
         private float _cameraDistance = 14.5f, _cameraFov = 34f;
@@ -816,8 +816,8 @@ namespace VoxelEngine.Showcase
             _faceDepthQ4 = 16; _mossCoverage = 115; _mossDensity = 210;
             _mossRadiusQ4 = 18; _mossHeightQ4 = 2; _mossDropQ4 = 18;
             _mossSeparation = 0; _mossHue = 0.22f; _mossSaturation = 0.53f;
-            _mossValue = 0.39f; _stoneWarmth = 0.58f; _stoneValue = 0.68f;
-            _sunAzimuth = -48f; _sunElevation = 50f; _cameraYaw = 14.5f;
+            _mossValue = 0.39f; _stoneWarmth = 0.76f; _stoneValue = 0.86f;
+            _sunAzimuth = -135f; _sunElevation = 55f; _cameraYaw = 14.5f;
             _cameraPitch = 3.2f; _cameraDistance = 14.5f; _cameraFov = 34f;
             _cameraMoveSpeed = 4f;
             _buildBudgetMs = 12f;
