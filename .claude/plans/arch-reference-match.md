@@ -41,10 +41,11 @@ Make `Assets/Scenes/ArchLookdev.unity` visually match `References/arch_reference
 - [x] Prove retained front-profile geometry cannot explain a defect at the true structural rear.
 - [x] Restore retained-profile radial stitch after the `0f74d7d` structural-zero change and prove it with a red/green EditMode regression.
 - [x] Correct the PlayMode visual acceptance to use the renderer's visible-coverage contract rather than requiring the entire 360-degree prefetch shell to be resident.
-- [ ] Correct ArchLookdev's own UI/capture readiness status to use visible coverage rather than `dirty == 0 && resident >= known`.
-- [ ] Fix stepped integer slider snapping so odd-valued controls (notably the 13-voussoir default) snap relative to the slider minimum instead of silently becoming 12.
-- [ ] Re-run ArchLookdev capture after those bench fixes and inspect the radial-stitch result plus remaining front/back/oblique defects.
-- [ ] Diagnose and fix the first remaining proven geometry/rendering cause.
+- [x] Correct ArchLookdev's own UI/capture readiness status to use visible coverage rather than `dirty == 0 && resident >= known`.
+- [x] Fix stepped integer slider snapping so odd-valued controls (notably the 13-voussoir default) snap relative to the slider minimum instead of silently becoming 12.
+- [x] Re-run ArchLookdev capture after those bench fixes and inspect the radial-stitch result plus remaining front/back/oblique defects.
+- [ ] Fix the lower clear-opening carve so it spans the full structural pier gap; prove with the focused EditMode regression.
+- [ ] Diagnose and fix the first remaining right-spring/soffit geometry/rendering cause.
 - [ ] Iterate proportions/material/camera toward the reference after continuity is correct.
 - [x] Decide growth path and confirm existing vegetation API/lifecycle can render deterministic art-directed hero-arch growth in the real-player capture.
 - [ ] Implement and tune hybrid moss/lichen + ivy/vine growth.
@@ -56,9 +57,11 @@ Make `Assets/Scenes/ArchLookdev.unity` visually match `References/arch_reference
 - The reference is a tall, narrow freestanding limestone ruin arch: large irregular rounded cream/golden blocks, readable individual voussoirs, deep soffit, modest side/crown masonry, warm light, leafy ivy/vines, localized moss, and flowers.
 - The baseline generated scene is much broader/heavier: large shoulders/spandrel wall mass, dark olive/gray low-contrast stone, faceted/mechanically coursed blocks, thin bright joints, and several visible discontinuities around the right spring/inner arch and narrow vertical gaps through the pier/wall composition.
 - Those visible gaps are not missing visible renderer chunks. The standalone diagnostics settle at `missing=0` and `jobs=0`. The renderer contract in `RenderingComposition.HasCompletePublishedNearSurfaceCoverage()` explicitly says known/dirty work includes a 360-degree prefetch shell; visible completeness is `known > 0`, `resident > 0`, `MissingVisibleSolidChunks == 0`.
-- The old ArchLookdev panel therefore misleadingly displays `MESHING 4/10 chunks`, and the old PlayMode assertion failed with `known=10, resident=2, dirty=2` even though the presented frame was complete. Commit `9fc469e87cabc70955a558e1318d6d01e063f763` corrects the PlayMode acceptance predicate; ArchLookdev's own status/`WaitForSurface()` still need the same production contract.
-- The baseline panel displays **12 voussoirs** although the source default/reset value is 13 and the sweep values are odd (9/11/13/15/17). `IntSlider` currently computes `Round(raw / step) * step`, which snaps relative to zero. For `min=7`, `step=2`, value 13 is immediately coerced to 12 on the first GUI frame and triggers an unintended rebuild. Snap must be relative to `min`.
-- The current landscape player screenshot also includes the Stonewright control panel over the left side and clips the tall composition more aggressively than the portrait reference. Framing/panel presentation should be tuned after continuity defects are fixed.
+- Commit `6c73c66310c5d9f48a1520e6be659f232f8739d5` applies that same visible-coverage contract to ArchLookdev's status/`WaitForSurface()` and fixes min-relative stepped sliders.
+- Post-bench request `8793f90dd36b2a610d544902ea4c15523ea07b8f`, run `32615796698`, artifact `9486917491`, confirms the real player now retains **13 voussoirs** and reports **READY**. The ~12s and ~22s presented frames are stable and the standalone diagnostics settle at `jobs=0 missing=0`.
+- The radial stitch is improved in that post-bench frame, but a large right spring/soffit stair-step remains. Two narrow vertical strips also remain inside the lower opening, one adjacent to each pier. The broad spandrel/shoulder mass, dark olive stone, and seam-like green coating remain far from the reference and are later art-direction tasks.
+- The editor-side PlayMode assertion on run `32615796698` still reports `missingVisible=2` while the real player settles `missing=0`; treat that as a separate batchmode camera/test-lifecycle problem, not evidence that the presented player frame is incomplete.
+- The current landscape player screenshot includes the Stonewright control panel over the left side and clips the tall composition more aggressively than the portrait reference. Framing/panel presentation should be tuned after continuity defects are fixed.
 
 ## Radial stitch regression
 - `0f74d7d` correctly moved structural annulus radial zeroes from the old half-cell convention to exact occupancy radii, but retained `ProfileBlock` radii stayed at `inner - 0.5` / `outer + 0.5`.
@@ -74,7 +77,8 @@ Make `Assets/Scenes/ArchLookdev.unity` visually match `References/arch_reference
 - Default retained-profile centroid backing checks are valid, so changing that guard is not justified.
 - Carve-then-refill stale-boundary theory was ruled out: later fills replace cell payloads and the clear-opening/ring radial sign convention agrees.
 - Authored scalar boundary samples are consumed on occupancy-sign agreement. Extrusion-axis metadata governs edge/face ownership, not whether the scalar field exists.
-- Smooth Transvoxel vs sharp/faceted cap-rim ownership remains a possible subsystem for the known oblique soffit issue, but historical cylinder diagnostics are clean; do not patch it until a post-stitch artifact localizes the remaining defect.
+- The lower vertical strips now have a direct authoring cause. For `ClearSpan=32`, `RingThickness=7`, `Arch.Width=47`; structural piers occupy x `0..6` and `40..46`, so the actual clear gap is x `7..39`, **33 cells**. `ArchBayFeatureDefinition` currently emits a centered box carve of `ClearSpan - 1`, only **31 cells** (x `8..38`), leaving one unintended column on each side. Focused regression commit `d687080d74ea8d54b30cf61dd32b6a3fdf3d77f9` pins the carve to the full pier-to-pier gap.
+- Smooth Transvoxel vs sharp/faceted cap-rim ownership remains a possible subsystem for the known oblique soffit issue, but historical cylinder diagnostics are clean; do not patch it until the lower-opening strips are removed and a fresh artifact localizes the remaining right-spring defect.
 
 ## Growth direction
 - Use a hybrid presentation: subtle coating/tint for low-frequency staining and joints, sparse instanced `Moss`/`Lichen`, and deterministic art-directed `Ivy`/`ClimbingVine`/selected `HangingVine` masses. The reference is dominated by leafy vines, not raised moss clumps.
