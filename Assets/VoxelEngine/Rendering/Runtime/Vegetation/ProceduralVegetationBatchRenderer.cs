@@ -115,11 +115,15 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
                     break;
 
                 case VegetationShaderClass.Vine:
-                    rotation = Quaternion.LookRotation(normal, Vector3.up);
                     float direction = profile.GrowthForm == VegetationGrowthForm.Climber ? 1f : -1f;
-                    // Hero-scale vines should read as overlapping leafy growth, not metre-long cords.
-                    // Keep width and height independently art-directable through semantic Scale.
-                    localScale = new Vector3(0.68f * scale, direction * 1.65f * scale, 1f);
+                    float vineShape = Random01(instance.Seed ^ 0xB5297A4Du);
+                    float vineTilt = Mathf.Lerp(-15f, 15f, Random01(instance.Seed ^ 0x68E31DA4u));
+                    rotation = Quaternion.LookRotation(normal, Vector3.up)
+                               * Quaternion.AngleAxis(vineTilt, Vector3.forward);
+                    // Seeded aspect variation prevents repeated climbers from reading as stamps.
+                    float vineWidth = Mathf.Lerp(0.58f, 0.78f, vineShape) * scale;
+                    float vineHeight = Mathf.Lerp(1.38f, 1.76f, 1f - vineShape) * scale;
+                    localScale = new Vector3(vineWidth, direction * vineHeight, 1f);
                     position += normal * 0.022f;
                     break;
 
