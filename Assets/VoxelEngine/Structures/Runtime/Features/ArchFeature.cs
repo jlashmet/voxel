@@ -524,17 +524,20 @@ namespace VoxelEngine.Structures.Runtime
             rightPlinth.Order = order++;
             output.Add(rightPlinth);
 
+            // Imposts can project into the shoulder like a masonry capital, but projecting into
+            // the clear span creates a disconnected-looking shelf at the spring from oblique views.
             int impostY = origin.y + Arch.PierHeight - impostHeight + 1;
+            int impostWidth = pierWidth + 2;
             Primitive leftImpost = CurvedPrimitiveEmitter.RoundedBox(
                 new int3(leftPierX - 2, impostY, archOrigin.z),
-                new int3(ornamentWidth, impostHeight, Depth - 1), 1,
+                new int3(impostWidth, impostHeight, Depth - 1), 1,
                 Arch.StoneMaterial, wallStyle, PrimitiveMode.Fill, order++, Arch.Coating,
                 extrusionAxis: 2);
             leftImpost.SurfaceFlags = masonryFlags;
             output.Add(leftImpost);
             Primitive rightImpost = leftImpost;
-            rightImpost.A.x = rightPierX - 2;
-            rightImpost.B.x = rightImpost.A.x + ornamentWidth - 1;
+            rightImpost.A.x = rightPierX;
+            rightImpost.B.x = rightImpost.A.x + impostWidth - 1;
             rightImpost.Order = order++;
             output.Add(rightImpost);
 
