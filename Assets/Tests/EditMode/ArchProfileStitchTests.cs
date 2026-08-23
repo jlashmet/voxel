@@ -169,5 +169,69 @@ namespace VoxelEngine.Tests.EditMode
                 primitives.Dispose();
             }
         }
+
+        [Test]
+        public void BayImpostsDoNotIntrudeIntoClearOpeningBelowSpring()
+        {
+            var arch = new ArchFeatureDefinition
+            {
+                ClearSpan = 32,
+                PierHeight = 40,
+                RingThickness = 7,
+                Depth = 12,
+                VoussoirCount = 13,
+                StoneMaterial = 9,
+                PierStyle = SurfaceStyles.MasonryJoint,
+                RingStyle = SurfaceStyles.MasonryJoint,
+            };
+            var bay = new ArchBayFeatureDefinition
+            {
+                Arch = arch,
+                ShoulderWidth = 10,
+                TopMargin = 8,
+                FaceRecess = 1,
+                PlinthHeight = 4,
+                ImpostHeight = 3,
+                Damage = ArchRuinDamage.Intact,
+                DamageSeed = 0x2222u,
+                DamageScale = 2,
+            };
+
+            int3 origin = int3.zero;
+            var primitives = new NativeList<Primitive>(bay.Metadata.MaxPrimitives, Allocator.Temp);
+            var table = new RegionTable(8, Allocator.Temp);
+            var pool = new BrickPool(24_000, Allocator.Temp);
+            try
+            {
+                Assert.True(bay.Emit(origin, primitives));
+                var reads = new RegionReadSource(in table, in pool);
+                var mutations = new RegionMutationStore(in table, in pool);
+                PrimitiveRasteriser.Rasterise(
+                    primitives.AsArray(), origin, origin + bay.Metadata.Footprint,
+                    reads, mutations);
+
+                int archOriginX = bay.ShoulderWidth;
+                int leftClearX = archOriginX + arch.RingThickness;
+                int rightClearX = archOriginX + arch.Width - arch.RingThickness - 1;
+                int sampleY = arch.PierHeight - 1;
+                int sampleZ = 1 + arch.Depth / 2;
+
+                VoxelCell left = VoxelAccess.GetCell(
+                    ref table, in pool, new int3(leftClearX, sampleY, sampleZ));
+                VoxelCell right = VoxelAccess.GetCell(
+                    ref table, in pool, new int3(rightClearX, sampleY, sampleZ));
+
+                Assert.False(left.IsSolid,
+                    "left impost may project into the shoulder but must not create a shelf inside the clear opening");
+                Assert.False(right.IsSolid,
+                    "right impost may project into the shoulder but must not create a shelf inside the clear opening");
+            }
+            finally
+            {
+                pool.Dispose();
+                table.Dispose();
+                primitives.Dispose();
+            }
+        }
     }
 }
