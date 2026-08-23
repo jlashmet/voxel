@@ -21,6 +21,7 @@ namespace VoxelEngine.Showcase
     {
         private readonly List<VegetationInstance> _instances = new List<VegetationInstance>(32);
         private IVegetationBatchRenderer _renderer;
+        private bool _reportedDraw;
 
         public int InstanceCount => _renderer?.InstanceCount ?? 0;
 
@@ -65,7 +66,22 @@ namespace VoxelEngine.Showcase
             _renderer = VegetationLifeRenderingComposition.EnsureVegetationBatchRenderer(gameObject);
             BuildReferenceGrowth();
             _renderer.SetInstances(_instances);
+
+            // The shared renderer normally submits itself from its own LateUpdate. For this bounded
+            // lookdev repro, own submission here so dynamic component attachment and script ordering
+            // cannot be blamed for a missing standalone frame. DrawNow is still the production API.
+            _renderer.enabled = false;
+            _reportedDraw = false;
             Debug.Log($"ARCH_GROWTH instances={_renderer.InstanceCount}");
+        }
+
+        private void LateUpdate()
+        {
+            if (_renderer == null || _renderer.InstanceCount == 0) return;
+            _renderer.DrawNow();
+            if (_reportedDraw) return;
+            _reportedDraw = true;
+            Debug.Log($"ARCH_GROWTH draw submitted instances={_renderer.InstanceCount}");
         }
 
         private void OnDisable()
