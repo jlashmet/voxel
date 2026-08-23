@@ -16,7 +16,7 @@ namespace VoxelEngine.Showcase
     [DisallowMultipleComponent]
     public sealed class ArchReferenceGrowth : MonoBehaviour
     {
-        private readonly List<VegetationInstance> _instances = new(64);
+        private readonly List<VegetationInstance> _instances = new(80);
         private IVegetationBatchRenderer _renderer;
         private float _originalCloudOpacity;
         private bool _environmentApplied;
@@ -70,14 +70,14 @@ namespace VoxelEngine.Showcase
 
         private void ApplyReferenceEnvironment()
         {
-            // The target is a warm ruin against a near-black olive woodland, not an open blue sky.
-            // Keep a little olive horizon energy so the stone and foliage retain readable fill.
+            // Match the reference's clean studio-like presentation. A nearly white horizon and
+            // zenith keep the foliage colors honest and let the warm masonry silhouette read clearly.
             Camera camera = GetComponent<Camera>();
             if (camera != null)
-                camera.backgroundColor = new Color(0.035f, 0.040f, 0.028f, 1f);
+                camera.backgroundColor = new Color(0.985f, 0.985f, 0.980f, 1f);
             RenderingComposition.SetSky(
-                new Color(0.24f, 0.25f, 0.13f, 1f),
-                new Color(0.035f, 0.042f, 0.028f, 1f));
+                new Color(0.990f, 0.990f, 0.985f, 1f),
+                new Color(0.965f, 0.970f, 0.965f, 1f));
             RenderingComposition.SetCloudOpacity(0f);
         }
 
@@ -102,10 +102,14 @@ namespace VoxelEngine.Showcase
             AddIvyCluster(-1.64f, 4.66f, 0.64f, frontZ, front, 0xA600u);
             AddIvyCluster(-1.72f, 5.50f, 0.64f, frontZ, front, 0xA700u);
 
-            // Flowers sit inside the foliage masses rather than reading as isolated ground props.
-            Add(VegetationKind.Flower, -1.48f, 2.66f, frontZ - 0.025f, front, 0.44f, 0xAF01u);
-            Add(VegetationKind.Flower, -1.52f, 4.22f, frontZ - 0.025f, front, 0.42f, 0xAF02u);
-            Add(VegetationKind.Flower, -1.30f, 5.96f, frontZ - 0.025f, front, 0.44f, 0xAF03u);
+            // Flower heads are deliberately large enough to survive the hero-camera distance and
+            // cluster asymmetrically inside the ivy blanket like the reference rather than forming
+            // an evenly-spaced decorative stripe.
+            Add(VegetationKind.Flower, -1.48f, 2.66f, frontZ - 0.025f, front, 0.56f, 0xAF01u);
+            Add(VegetationKind.Flower, -1.82f, 3.56f, frontZ - 0.030f, front, 0.48f, 0xAF04u);
+            Add(VegetationKind.Flower, -1.52f, 4.22f, frontZ - 0.025f, front, 0.58f, 0xAF02u);
+            Add(VegetationKind.Flower, -1.26f, 5.14f, frontZ - 0.030f, front, 0.52f, 0xAF05u);
+            Add(VegetationKind.Flower, -1.30f, 5.96f, frontZ - 0.025f, front, 0.60f, 0xAF03u);
 
             // The densest mass crosses the left haunch and upper crown, then breaks apart before the
             // far-right shoulder so the composition keeps the target's strong asymmetry.
@@ -114,8 +118,10 @@ namespace VoxelEngine.Showcase
             AddIvyCluster(-0.70f, 7.18f, 0.68f, frontZ, front, 0xB300u);
             AddIvyCluster(-0.28f, 7.48f, 0.64f, frontZ, front, 0xB400u);
             AddIvyCluster( 0.18f, 7.68f, 0.56f, frontZ, front, 0xB500u);
-            Add(VegetationKind.Flower, -0.62f, 7.48f, frontZ - 0.025f, front, 0.46f, 0xBF01u);
-            Add(VegetationKind.Flower,  0.12f, 7.88f, frontZ - 0.025f, front, 0.42f, 0xBF02u);
+            Add(VegetationKind.Flower, -1.04f, 6.74f, frontZ - 0.030f, front, 0.54f, 0xBF03u);
+            Add(VegetationKind.Flower, -0.62f, 7.48f, frontZ - 0.025f, front, 0.60f, 0xBF01u);
+            Add(VegetationKind.Flower, -0.18f, 7.34f, frontZ - 0.030f, front, 0.50f, 0xBF04u);
+            Add(VegetationKind.Flower,  0.12f, 7.88f, frontZ - 0.025f, front, 0.54f, 0xBF02u);
             Add(VegetationKind.HangingVine, -1.12f, 7.16f, frontZ - 0.03f, front, 0.32f, 0xB601u);
             Add(VegetationKind.HangingVine, -0.30f, 7.62f, frontZ - 0.03f, front, 0.28f, 0xB602u);
 
@@ -131,7 +137,7 @@ namespace VoxelEngine.Showcase
             // Ground accents remain small; the visual focus should stay on masonry-bound growth.
             float3 up = new(0f, 1f, 0f);
             Add(VegetationKind.Fern,   -2.04f, 0.02f, -0.12f, up, 0.46f, 0xE01u);
-            Add(VegetationKind.Flower, -1.58f, 0.02f, -0.15f, up, 0.38f, 0xE02u);
+            Add(VegetationKind.Flower, -1.58f, 0.02f, -0.15f, up, 0.42f, 0xE02u);
             Add(VegetationKind.Fern,    1.92f, 0.02f, -0.08f, up, 0.30f, 0xE03u);
         }
 
