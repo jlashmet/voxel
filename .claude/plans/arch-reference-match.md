@@ -1,78 +1,86 @@
 # Arch reference match
 
 ## Goal
-Make `Assets/Scenes/ArchLookdev.unity` visually match the version-controlled `References/arch_reference.png` as closely as practical using the production voxel rendering path, while fixing real geometry/rendering defects rather than hiding them with camera tricks.
+Make `Assets/Scenes/ArchLookdev.unity` visually match `References/arch_reference.png` as closely as practical through the production voxel rendering path. Fix real geometry/rendering defects rather than masking them with camera tricks, then tune composition, material, framing, and growth.
 
 ## Scope
-- Ensure the ArchLookdev/ArchDev CI capture artifact contains both the generated scene captures and the version-controlled reference PNG so connector-only agents can inspect both images.
+- Keep the tracked reference beside real-player screenshots in the ArchLookdev CI artifact.
 - Use those artifact images as the authoritative visual iteration loop.
-- Fix the remaining disconnected/missing arch geometry visible from front/back/oblique views.
-- Improve moss/growth so it resembles the reference rather than uniform/jagged coating noise.
-- Preserve the recently-fixed smooth intrados and existing architecture boundaries.
+- Fix disconnected/missing front/back/oblique arch geometry while preserving the smooth intrados.
+- Move the hero composition toward the narrow freestanding limestone ruin in the reference.
+- Replace uniform/jagged moss fuzz with coherent art-directed growth using existing production vegetation rendering.
 
 ## Constraints
 - Follow root `AGENTS.md`, `CLAUDE.md`, and referenced architecture constraints.
 - Feature branch: `agent/arch-reference-match`.
-- CI request branch: `ci-test/agent/arch-reference-match` only; reuse it for every iteration.
-- A requested single test must complete in under 5 minutes after its job starts.
-- Do not make authoritative/gameplay state depend on GPU output or floating-point presentation data.
-- Prefer proven geometry/sampling invariants over visual masking.
+- CI request branch: `ci-test/agent/arch-reference-match` only; reset/reuse it every iteration.
+- Requested single tests must complete in under 5 minutes once the job starts.
+- Authoritative/gameplay state must not depend on GPU output or floating-point presentation data.
+- Prefer proven invariants and targeted regressions over speculative visual changes.
 
 ## Acceptance criteria
-- [x] CI artifact for the ArchLookdev capture includes `References/arch_reference.png` alongside generated screenshots/settings.
+- [x] ArchLookdev CI artifact includes the tracked reference beside generated screenshots/settings.
 - [x] Reference and generated screenshots can both be downloaded and visually inspected from the CI artifact.
 - [ ] Front view has no visually disconnected arch/profile piece.
-- [ ] Back/oblique view has no missing/disconnected arch surface or obvious staircase defect attributable to a known field/composition bug.
+- [ ] Back/oblique view has no missing/disconnected surface or known staircase/composition defect.
 - [ ] Smooth intrados regression remains fixed.
-- [ ] Moss/growth is visually coherent and substantially closer to the reference; avoid uniform voxel fuzz.
-- [ ] Relevant targeted CI is green, with no zero-test false success.
+- [ ] Overall silhouette/proportions/material/framing are substantially closer to the reference.
+- [ ] Moss/growth is coherent and substantially closer to the reference; no uniform voxel fuzz.
+- [ ] Relevant targeted CI is green with no zero-test false success.
 - [ ] Final diff reviewed; CI request branch deleted after validation.
 
 ## Task list
 - [x] Read `AGENTS.md` and `CLAUDE.md`.
-- [x] Create the fixed feature branch from current master (`bf7d125`).
-- [x] Confirm ArchLookdev now loads `References/arch_reference.png` from version control.
-- [x] Locate the ArchDev/ArchLookdev build/capture test and artifact publisher.
-- [x] Add the reference PNG to the artifact without changing the production scene just to expose the image.
-- [x] Publish a temporary hosted reference-only evidence artifact while the self-hosted Mac is queued.
-- [x] Remove the temporary hosted reference-only evidence workflow after the tracked reference was inspected.
-- [x] Run the smallest capture test via `ci-test/agent/arch-reference-match` and inspect the artifact.
+- [x] Create/reuse fixed feature branch `agent/arch-reference-match` and CI branch `ci-test/agent/arch-reference-match`.
+- [x] Confirm ArchLookdev loads `References/arch_reference.png` from version control.
+- [x] Locate ArchLookdev visual acceptance and standalone real-player capture path.
+- [x] Add the tracked reference PNG to the normal single-test artifact.
+- [x] Use temporary hosted evidence only long enough to inspect the target, then remove it.
+- [x] Run a real-player ArchLookdev baseline capture and inspect reference + generated frames.
 - [x] Record concrete visual deltas versus reference.
-- [x] Prove the retained front-profile layer cannot explain a defect at the structural rear/soffit.
-- [ ] Restore the retained-profile radial stitch broken by the post-`0f74d7d` structural zero convention and add a regression; source fix is committed and the red regression is proven, but do not check this off until the post-fix regression is green.
-- [ ] Correct ArchLookdev's readiness/status contract: use visible coverage (`known > 0`, `resident > 0`, `MissingVisibleSolidChunks == 0`) rather than `dirty == 0 && resident >= known`, which incorrectly includes the 360-degree prefetch shell.
-- [ ] Diagnose and fix the first proven geometry/rendering cause visible in the complete standalone frame.
-- [ ] Re-run capture and inspect from front/back/oblique views.
-- [x] Diagnose moss path; decide whether coating-only, instanced vegetation, or hybrid best matches the reference while remaining capturable.
-- [x] Confirm the existing vegetation API/lifecycle supports deterministic art-directed hero-arch growth without new runtime dependencies.
-- [ ] Implement and tune moss/growth.
-- [ ] Re-run visual capture loop until remaining differences are minor or a concrete blocker is documented.
-- [ ] Run appropriate regression test(s), review final diff, and delete CI request branch.
+- [x] Prove retained front-profile geometry cannot explain a defect at the true structural rear.
+- [x] Restore retained-profile radial stitch after the `0f74d7d` structural-zero change and prove it with a red/green EditMode regression.
+- [x] Correct the PlayMode visual acceptance to use the renderer's visible-coverage contract rather than requiring the entire 360-degree prefetch shell to be resident.
+- [ ] Correct ArchLookdev's own UI/capture readiness status to use visible coverage rather than `dirty == 0 && resident >= known`.
+- [ ] Fix stepped integer slider snapping so odd-valued controls (notably the 13-voussoir default) snap relative to the slider minimum instead of silently becoming 12.
+- [ ] Re-run ArchLookdev capture after those bench fixes and inspect the radial-stitch result plus remaining front/back/oblique defects.
+- [ ] Diagnose and fix the first remaining proven geometry/rendering cause.
+- [ ] Iterate proportions/material/camera toward the reference after continuity is correct.
+- [x] Decide growth path and confirm existing vegetation API/lifecycle can render deterministic art-directed hero-arch growth in the real-player capture.
+- [ ] Implement and tune hybrid moss/lichen + ivy/vine growth.
+- [ ] Re-run visual capture loop until differences are minor or a concrete blocker is documented.
+- [ ] Run appropriate regressions, review final diff, sync unrelated master drift if still required, and delete the CI request branch.
 
-## Findings / evidence
-- Master `bf7d125` changed `ArchLookdev.LoadTargetImage()` to try `References/arch_reference.png` first, so fresh checkouts can load the reference.
-- Prior smoothing commits fixed the front intrados by aligning authored radial distance with occupancy and trusting authored samples on sign agreement. The commit notes explicitly say the oblique soffit still has a separate cause.
-- Current moss in ArchLookdev is authored primarily as `Coatings.Moss` plus coating decoration; the engine also has an instanced `VegetationKind.Moss` renderer that supports arbitrary surface normals.
-- `Assets/Tests/PlayMode/ArchLookdevSceneTests.cs` is the explicit visual acceptance entry point. The single-test workflow invokes `tools/showcase-player-capture.sh`, which maps this test to `Assets/Scenes/ArchLookdev.unity`, builds a standalone macOS player, and captures presented frames every 10 seconds for 30 seconds.
-- `RealPlayerScreenshotFallback` handles ArchLookdev because it has no measurement driver. It captures with `ScreenCapture.CaptureScreenshot` from the ordinary player update loop; `ProceduralVegetationBatchRenderer` submits its `Graphics.DrawMeshInstanced` batches in normal `LateUpdate`. Instanced vegetation is therefore part of the real presented-frame capture path and is suitable for the regression artifact.
-- The visual acceptance copies `References/arch_reference.png` to `Artifacts/SingleTest/RealPlayer/Reference/arch_reference.png`. Baseline run `32613661989` proved the upload path end-to-end: artifact `9486661395` contained that reference beside three real-player screenshots and their previews/logs, and both reference and generated frames were downloaded and inspected.
-- Baseline run `32613661989` executed exactly one PlayMode test and failed its old convergence assertion with `known=10, resident=2, dirty=2`; the standalone build/capture still succeeded and produced frames at roughly 2, 12, and 22 seconds. The 12s and 22s frames are visually identical, so the rendered scene had settled rather than merely needing more time.
-- The baseline UI says `MESHING 4/10 chunks`, but that status is based on the wrong invariant. `RenderingComposition.HasCompletePublishedNearSurfaceCoverage()` documents that known/dirty work includes the 360-degree prefetch shell and explicitly defines visible coverage as `SolidKnownChunks > 0`, `SolidResidentChunks > 0`, and `MissingVisibleSolidChunks == 0`. The standalone player diagnostics report `missing=0` and `jobs=0` after the initial build. Therefore the visible gaps in the settled frame are real rendered geometry/composition, not holes caused by unbuilt visible chunks. The ArchLookdev panel and PlayMode acceptance need to adopt the production visible-coverage contract separately from geometry fixes.
-- Concrete baseline-vs-reference deltas: the current composition is a broad, heavy wall/bay with large shoulders and spandrel mass, whereas the reference is a tall narrow freestanding ruin arch with modest crown/side masonry; current stone is dark olive/gray and low-contrast versus warm cream/golden limestone; the current blocks read faceted/planar and mechanically coursed versus large irregular rounded stones; the settled frame has obvious discontinuities/voids around the right spring/inner arch and narrow vertical gaps through the pier/wall composition despite `missing=0`; current growth is mostly thin green seam/fuzz decoration, while the reference is dominated by large leafy ivy/vines, localized soft moss, and flowers; and the current landscape capture leaves the Stonewright panel covering the left side while the reference is a clean portrait-style hero framing. Those are separate visual deltas and should be addressed in that order: correctness/continuity first, then proportions/material/camera, then growth detail.
-- CI run `32611015737` started for an earlier ArchLookdev request but the pre-test Unity-idle guard failed after 60 seconds because another Unity editor was already running. That request was superseded. The later request `3f234e4d7d774295c0dbd0847e4de6d3dcf7e69a` never surfaced `ci/single-test`; it was superseded as well. After the developer closed the interactive Unity Editor, the baseline request `80b5abd638b4b49afef449b634e0fce810660e06` immediately acquired the runner and produced run `32613661989`.
-- The earlier competing SceneIssues request `6f372a680ce19e48386831a0d209e1cde13654a4` had confirmed the prior blocker: its job reached the self-hosted Mac but failed at `Wait for any running Unity editor`, with PID 26699 identified as the developer's interactive Unity Editor for `/Users/jlashmet/code/voxel`. That blocker is now cleared.
-- The feature branch is eight commits behind current master `389087a8fcca72f3a1ef91dc761cfbddb54d8878`, but the master-only diff is isolated to the new `Assets/DeveloperTools/SceneIssueCapture/**` tooling and captured `SceneIssues/**` files. It does not touch ArchLookdev, rendering, vegetation, or `tests-single.yml`, so defer syncing those unrelated commits until the current visual work is stable.
-- Direct repository binary access is unavailable in this connector session: contents/blob/raw routes expose metadata or reject non-UTF-8 bytes. Temporary hosted evidence run `32612890941` succeeded and artifact `9486010161` exposed the tracked reference without replacing the self-hosted player acceptance. The temporary workflow was removed from the feature branch at commit `1936a39d534b39dbc47cb7668f106802d689a658` after the reference had been inspected; future CI requests use only the normal acceptance workflow.
-- Visual inspection of the actual tracked reference shows a tall freestanding limestone ruin arch made from large irregular rounded blocks, clearly readable individual voussoirs with deep soffit depth, localized green staining/moss in joints, and much larger leafy ivy/vine masses plus flowers. The target is not uniformly covered in raised moss clumps, so the current high-density coating-decoration look is not the final growth strategy.
-- Growth decision: use a hybrid presentation. Keep coating/tint only as subdued low-frequency staining/joint fill; use the production vegetation batch renderer for sparse thin `Moss`/`Lichen` surface patches and the reference-dominant `Ivy`/`ClimbingVine`/select `HangingVine` masses. Prefer explicit deterministic hero-arch instances/anchors over `VegetationPlacement.Generate` for this bench, because the generic placement policy samples the full vegetation catalogue and is intentionally ecological rather than art-directed. This remains presentation-only and does not move authoritative geometry/state onto the GPU.
-- The hero-growth integration needs no new assembly or runtime dependency: `VoxelEngine.Showcase.asmdef` already references `VoxelEngine.Rendering.Api` and `VoxelEngine.Vegetation.Api`, and `VegetationRenderingShowcase` demonstrates the intended scene lifecycle—obtain one `IVegetationBatchRenderer` from `VegetationLifeRenderingComposition`, retain a deterministic `List<VegetationInstance>`, and call `SetInstances` on rebuild. `VegetationInstance` is the stable semantic tuple `(position metres, surface normal, kind, seed, scale)`. The renderer converts climbers/hangers into wall-oriented vine cards with about `2.6 * scale` metres of vertical extent and creepers into layered surface patches, so a small number of deliberate Ivy/ClimbingVine/HangingVine anchors can create the large masses in the reference without high instance density.
-- Vegetation catalogue semantics also support the art direction directly: Moss and Lichen are masonry-capable creepers; Ivy and ClimbingVine are masonry-capable climbers; HangingVine is a masonry-capable hanger. This is preferable to reusing generic grass/bush placement or inventing an arch-specific renderer.
-- Deterministic inspection of the default Arch authoring rules shows all 13 structural voussoirs are face-connected to neighbors and the spring wedges connect to the piers. The visible disconnect is therefore not a literal structural occupancy break; rendered boundary/profile composition remains the relevant subsystem.
-- The retained profile centroid-backing check was tested analytically against the default profile dimensions and does not reject the default front/radial segments, so changing that guard speculatively is not justified.
-- The retained profile is definitively front-local and cannot explain a defect at the actual rear of the arch. `ArchBayFeatureDefinition` offsets the structural arch to `archOrigin.z = bayOrigin.z + 1`; then `ArchFeatureDefinition` authors the default retained layer around the structural front, while the default `Depth=12` structural `ArcWedge` extends to the true rear. The retained layer's emitted back/shoulder/radial faces remain front-local and cannot create or repair missing geometry at the true rear.
-- A separate front-only stitch invariant was proven broken by the radial smoothing fix. Before `0f74d7d`, `AnnulusDistanceQ4` placed the structural zeroes at `innerRadius - 0.5` and `outerRadius + 0.5`, exactly matching retained `ProfileBlock` radii. `0f74d7d` correctly moved the structural zeroes to exact occupancy radii but did not update the retained profile. `EmitProfileBlock` has no annular rear cap; its side quads terminate at `BackQ4` and rely on the structural annulus for continuation. The retained side edges were therefore displaced by 0.5 voxel from the structural intrados/extrados at their rear seam.
-- Focused regression `VoxelEngine.Tests.EditMode.ArchProfileStitchTests.RetainedProfileRadiiMatchStructuralAnnulusZeroes` was added on the feature branch. Pre-fix request `9c3e53c5aaa96a104c9eefd0b2aae35321334bc8` / run `32615289817` executed exactly one test and failed as intended: expected inner Q4 `256`, actual `248`. Production commit `8fdd10a288bcbbdc87cdf9fc1d1ef96aff0d4a9e` changes only the retained inner/outer radii to the exact structural annulus zeroes. Post-fix request `9162c456d7d5128f3900c415d29c15e4eaf54d11` is the authoritative validation request for that invariant; do not check the stitch task off until it is green.
-- The earlier `ArchCapLayerDiagnosticTests` fixture placed the pre-fix oblique defect in authored field composition rather than the Transvoxel mesher. Later radial/sign fixes changed that field, so this remains a subsystem lead rather than a proven current cause until the new post-fix artifact locates the remaining defect.
-- The carve-then-refill sequence in `ArchBayFeatureDefinition` is not a good explanation for the current disconnect. A later fill replaces the occupied `VoxelCell` payload (including an earlier carve boundary), then its own boundary halo is authored. At the clear-opening/ring interface, the carve's solid-relative signed radial field and the ring's inner-radius field also have the same sign/distance convention, so there is no demonstrated stale opposite field to repair.
-- `TransvoxelDensityJob.SampleField` consumes the authored boundary as a scalar whenever its sign agrees with occupancy; the stored extrusion axis does not disable the scalar sample. `VoxelBoundarySample.AppliesAlong(axis)` is instead used at topology/face ownership time. For the arch's Z extrusion, X/Y edges retain the analytic annulus crossing while Z edges are forced back to occupancy-planar crossing so the front/back cap stays sharp.
-- The exact-snapshot faceted path mirrors that ownership rule: Planar cells with an authored arch boundary are faceted on Z but not X/Y. The normal continuous build runs both Transvoxel topology and faceted merging, so the remaining cap/rim handoff is a plausible subsystem for an oblique seam. However, `CylinderRimDiagnosticTests` was created specifically around this handoff and historical diagnostics already report the synthetic barrel as accurate, so this is still only a lead—not a proven cause—and must not be patched speculatively.
+## Current visual evidence
+- Baseline request `80b5abd638b4b49afef449b634e0fce810660e06`, run `32613661989`, produced artifact `9486661395` with `RealPlayer/Reference/arch_reference.png` and three presented-frame screenshots. The ~12s and ~22s frames are identical, so the visible scene had settled.
+- The reference is a tall, narrow freestanding limestone ruin arch: large irregular rounded cream/golden blocks, readable individual voussoirs, deep soffit, modest side/crown masonry, warm light, leafy ivy/vines, localized moss, and flowers.
+- The baseline generated scene is much broader/heavier: large shoulders/spandrel wall mass, dark olive/gray low-contrast stone, faceted/mechanically coursed blocks, thin bright joints, and several visible discontinuities around the right spring/inner arch and narrow vertical gaps through the pier/wall composition.
+- Those visible gaps are not missing visible renderer chunks. The standalone diagnostics settle at `missing=0` and `jobs=0`. The renderer contract in `RenderingComposition.HasCompletePublishedNearSurfaceCoverage()` explicitly says known/dirty work includes a 360-degree prefetch shell; visible completeness is `known > 0`, `resident > 0`, `MissingVisibleSolidChunks == 0`.
+- The old ArchLookdev panel therefore misleadingly displays `MESHING 4/10 chunks`, and the old PlayMode assertion failed with `known=10, resident=2, dirty=2` even though the presented frame was complete. Commit `9fc469e87cabc70955a558e1318d6d01e063f763` corrects the PlayMode acceptance predicate; ArchLookdev's own status/`WaitForSurface()` still need the same production contract.
+- The baseline panel displays **12 voussoirs** although the source default/reset value is 13 and the sweep values are odd (9/11/13/15/17). `IntSlider` currently computes `Round(raw / step) * step`, which snaps relative to zero. For `min=7`, `step=2`, value 13 is immediately coerced to 12 on the first GUI frame and triggers an unintended rebuild. Snap must be relative to `min`.
+- The current landscape player screenshot also includes the Stonewright control panel over the left side and clips the tall composition more aggressively than the portrait reference. Framing/panel presentation should be tuned after continuity defects are fixed.
+
+## Radial stitch regression
+- `0f74d7d` correctly moved structural annulus radial zeroes from the old half-cell convention to exact occupancy radii, but retained `ProfileBlock` radii stayed at `inner - 0.5` / `outer + 0.5`.
+- `EmitProfileBlock` has no annular rear cap; its side quads terminate at `BackQ4` and rely on structural annulus geometry for continuation. The stale retained radii therefore created a real 0.5-voxel front-profile stitch mismatch.
+- Focused test: `VoxelEngine.Tests.EditMode.ArchProfileStitchTests.RetainedProfileRadiiMatchStructuralAnnulusZeroes`.
+- RED: request `9c3e53c5aaa96a104c9eefd0b2aae35321334bc8`, run `32615289817`, exactly one test, expected inner Q4 `256`, got `248`.
+- Production fix: commit `8fdd10a288bcbbdc87cdf9fc1d1ef96aff0d4a9e`, changing only retained inner/outer radii to exact structural zeroes.
+- GREEN: request `6f978bf966ecdd1137f9dc5e5401c8c4d6326388`, run `32615515650`, focused EditMode regression passed.
+
+## Geometry investigation findings
+- Default structural arch occupancy is connected: all voussoirs connect to neighbors and spring wedges connect to piers. Visible disconnects are not literal missing structural occupancy.
+- Retained profile geometry is front-local; with the ArchBay +1 Z offset and default depth 12 it cannot create or repair a true rear-face defect.
+- Default retained-profile centroid backing checks are valid, so changing that guard is not justified.
+- Carve-then-refill stale-boundary theory was ruled out: later fills replace cell payloads and the clear-opening/ring radial sign convention agrees.
+- Authored scalar boundary samples are consumed on occupancy-sign agreement. Extrusion-axis metadata governs edge/face ownership, not whether the scalar field exists.
+- Smooth Transvoxel vs sharp/faceted cap-rim ownership remains a possible subsystem for the known oblique soffit issue, but historical cylinder diagnostics are clean; do not patch it until a post-stitch artifact localizes the remaining defect.
+
+## Growth direction
+- Use a hybrid presentation: subtle coating/tint for low-frequency staining and joints, sparse instanced `Moss`/`Lichen`, and deterministic art-directed `Ivy`/`ClimbingVine`/selected `HangingVine` masses. The reference is dominated by leafy vines, not raised moss clumps.
+- `VoxelEngine.Showcase` already references Rendering.Api and Vegetation.Api. Existing lifecycle is suitable: obtain one `IVegetationBatchRenderer` from `VegetationLifeRenderingComposition`, retain deterministic `VegetationInstance` data, call `SetInstances` on rebuild.
+- Real-player CI uses presented-frame `ScreenCapture`, so instanced vegetation appears in authoritative visual artifacts. ArchLookdev's legacy manual `_camera.Render()` capture does not reliably include `Graphics.DrawMeshInstanced`; update/reuse the presented-frame approach when implementing hybrid growth.
+
+## CI / runner notes
+- Earlier failures were caused by the developer's interactive Unity Editor. After it was closed, the self-hosted Mac immediately acquired the Arch jobs; current idle-guard behavior is correct.
+- Current master drift after the branch point was previously inspected and was isolated to SceneIssueCapture tooling/captures, not ArchLookdev/rendering/vegetation/single-test behavior. Do not switch this work into SceneIssues or the `fixes` branch.
