@@ -45,12 +45,15 @@ Make `Assets/Scenes/ArchLookdev.unity` visually match `References/arch_reference
 - [x] Fix stepped integer slider snapping so odd-valued controls (notably the 13-voussoir default) snap relative to the slider minimum instead of silently becoming 12.
 - [x] Re-run ArchLookdev capture after those bench fixes and inspect the radial-stitch result plus remaining front/back/oblique defects.
 - [x] Fix the lower clear-opening carve so it spans the full structural pier gap; prove with the focused EditMode regression.
+- [x] Re-run after the lower-opening fix and visually confirm the jamb remnants are gone while the right depth/soffit staircase remains isolated.
+- [x] Sync latest `master` (`379e4332`) into the feature branch without losing Arch work.
+- [ ] Add a focused topology regression that distinguishes analytic radial continuation through depth from a true extrusion cap and keeps real caps planar.
 - [ ] Diagnose and fix the first remaining right-spring/soffit geometry/rendering cause.
 - [ ] Iterate proportions/material/camera toward the reference after continuity is correct.
 - [x] Decide growth path and confirm existing vegetation API/lifecycle can render deterministic art-directed hero-arch growth in the real-player capture.
 - [ ] Implement and tune hybrid moss/lichen + ivy/vine growth.
 - [ ] Re-run visual capture loop until differences are minor or a concrete blocker is documented.
-- [ ] Run appropriate regressions, review final diff, sync unrelated master drift if still required, and delete the CI request branch.
+- [ ] Run appropriate regressions, review final diff, and delete the CI request branch.
 
 ## Current visual evidence
 - Baseline request `80b5abd638b4b49afef449b634e0fce810660e06`, run `32613661989`, produced artifact `9486661395` with `RealPlayer/Reference/arch_reference.png` and three presented-frame screenshots. The ~12s and ~22s frames are identical, so the visible scene had settled.
@@ -60,6 +63,7 @@ Make `Assets/Scenes/ArchLookdev.unity` visually match `References/arch_reference
 - Commit `6c73c66310c5d9f48a1520e6be659f232f8739d5` applies that same visible-coverage contract to ArchLookdev's status/`WaitForSurface()` and fixes min-relative stepped sliders.
 - Post-bench request `8793f90dd36b2a610d544902ea4c15523ea07b8f`, run `32615796698`, artifact `9486917491`, confirms the real player now retains **13 voussoirs** and reports **READY**. The ~12s and ~22s presented frames are stable and the standalone diagnostics settle at `jobs=0 missing=0`.
 - The radial stitch is improved in that post-bench frame, but a large right spring/soffit stair-step remains. Two narrow vertical strips also remain inside the lower opening, one adjacent to each pier. The broad spandrel/shoulder mass, dark olive stone, and seam-like green coating remain far from the reference and are later art-direction tasks.
+- Post-jamb request run `32616730602`, artifact `9487189361`, confirms the lower-opening fix visually: both thin vertical jamb remnants are gone in the settled player frame. The right inner depth/soffit still stair-steps behind an otherwise smooth front intrados, isolating that as the next correctness defect.
 - The editor-side PlayMode assertion on run `32615796698` still reports `missingVisible=2` while the real player settles `missing=0`; treat that as a separate batchmode camera/test-lifecycle problem, not evidence that the presented player frame is incomplete.
 - The current landscape player screenshot includes the Stonewright control panel over the left side and clips the tall composition more aggressively than the portrait reference. Framing/panel presentation should be tuned after continuity defects are fixed.
 
@@ -84,8 +88,8 @@ Make `Assets/Scenes/ArchLookdev.unity` visually match `References/arch_reference
 - Carve-then-refill stale-boundary theory was ruled out: later fills replace cell payloads and the clear-opening/ring radial sign convention agrees.
 - Authored scalar boundary samples are consumed on occupancy-sign agreement. Extrusion-axis metadata governs edge/face ownership, not whether the scalar field exists.
 - The lower vertical strips had a direct authoring cause. For `ClearSpan=32`, `RingThickness=7`, `Arch.Width=47`; structural piers occupy x `0..6` and `40..46`, so the actual clear gap is x `7..39`, **33 cells**. The old `ClearSpan - 1` carve was only **31 cells** (x `8..38`). Commit `2360f47b21d3ee7e4f60c1351b2153c9eaafb8f8` now carves the exact full pier gap and the focused regression is green.
-- `TransvoxelDensityJob` trusts authored analytic boundary distance whenever occupancy sign agrees. `TransvoxelTopologyJob`, however, replaces authored distances with occupancy `+/-0.5` on an edge when an authored `VoxelBoundarySample` reports that it does not apply along that edge axis. For an arch `ArcWedge` extruded along Z, this is a concrete diagnostic lead for the depth/soffit staircase while the X/Y front intrados remains smooth. Do not patch it until the post-jamb-fix player artifact confirms the defect persists in isolation.
-- Smooth Transvoxel vs sharp/faceted cap-rim ownership remains the leading subsystem for the known oblique soffit issue, but historical cylinder diagnostics are clean; localize the exact edge class after the fresh artifact.
+- `TransvoxelDensityJob` trusts authored analytic boundary distance whenever occupancy sign agrees. `TransvoxelTopologyJob`, however, replaces authored distances with occupancy `+/-0.5` on an edge when an authored `VoxelBoundarySample` reports that it does not apply along that edge axis. For an arch `ArcWedge` extruded along Z, that replacement is now the leading proven subsystem-level cause candidate because the post-jamb artifact still shows a voxel-stepped depth/soffit behind a smooth X/Y front intrados.
+- A topology fix must distinguish **radial surface continuation through the extrusion depth** from the **actual front/back extrusion cap**. Removing the axis fallback wholesale is not acceptable because true cylinder/arch caps must remain planar.
 
 ## Growth direction
 - Use a hybrid presentation: subtle coating/tint for low-frequency staining and joints, sparse instanced `Moss`/`Lichen`, and deterministic art-directed `Ivy`/`ClimbingVine`/selected `HangingVine` masses. The reference is dominated by leafy vines, not raised moss clumps.
@@ -94,4 +98,5 @@ Make `Assets/Scenes/ArchLookdev.unity` visually match `References/arch_reference
 
 ## CI / runner notes
 - Earlier failures were caused by the developer's interactive Unity Editor. After it was closed, the self-hosted Mac immediately acquired the Arch jobs; current idle-guard behavior is correct.
-- Current master drift after the branch point was previously inspected and was isolated to SceneIssueCapture tooling/captures, not ArchLookdev/rendering/vegetation/single-test behavior. Do not switch this work into SceneIssues or the `fixes` branch.
+- Latest `master` through `379e43323be283069b509f41fae583d48926801d` was merged into the feature branch as `be05855163ff9cef13b177027b8958f23131547f`; the feature is no longer behind master. The master changes are unrelated SceneIssueCapture/single-test workflow work and did not replace Arch files.
+- Do not switch this work into SceneIssues or the `fixes` branch.
