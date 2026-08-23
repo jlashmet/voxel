@@ -417,6 +417,10 @@ namespace VoxelEngine.Showcase
             string projectRoot = Directory.GetParent(Application.dataPath).FullName;
             string[] candidates =
             {
+                // Version-controlled first. The other three are a developer's Downloads folder and
+                // build-output paths, so on any fresh checkout the panel read REFERENCE NOT FOUND
+                // and the comparison overlay did nothing.
+                Path.Combine(projectRoot, "References", "arch_reference.png"),
                 Path.Combine(home, "Downloads", "Sunlit Cleric by the Waterfall.png"),
                 Path.Combine(projectRoot, "Artifacts", "ArchLookdev", "target.png"),
                 Path.Combine(Application.dataPath, "Tests", "References", "arch-target.png"),
