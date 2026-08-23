@@ -157,6 +157,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
                     byte material = brick.UniformMaterial;
                     if (!IsSolid(material)) continue;
                     hasOwnedSolid |= ownsCore;
+                    if (ownsCore && LowBoundaryTouchesNoSolidHalo(
+                            Bricks, MixedVoxels, x, y, z,
+                            BrickCacheEdge, BrickCachePadding, BricksPerAxis))
+                        gpuUnsupported = true;
+
                     SurfaceStyleReadDefinition style = Catalogue.Get(
                         Palette.GetDefaultSurfaceStyle(material));
                     bool continuous = style.Reconstruction == SurfaceReconstruction.Smooth
@@ -167,12 +172,22 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
                     continue;
                 }
 
+                bool boundaryFallbackChecked = false;
                 int end = brick.MixedOffset + VoxelReadGrid.VoxelsPerBlock;
                 for (int voxel = brick.MixedOffset; voxel < end; voxel++)
                 {
                     byte material = MixedVoxels[voxel];
                     if (!IsSolid(material)) continue;
                     hasOwnedSolid |= ownsCore;
+                    if (ownsCore && !boundaryFallbackChecked)
+                    {
+                        boundaryFallbackChecked = true;
+                        if (LowBoundaryTouchesNoSolidHalo(
+                                Bricks, MixedVoxels, x, y, z,
+                                BrickCacheEdge, BrickCachePadding, BricksPerAxis))
+                            gpuUnsupported = true;
+                    }
+
                     uint surface = VoxelSurfaceSemantics.FromStorage(
                         MixedSurfaceSemantics[voxel]).Packed;
                     ushort styleId = (ushort)surface;
@@ -197,6 +212,48 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
             Flags[0] = hasOwnedSolid ? (byte)1 : (byte)0;
             Flags[1] = requiresContinuous ? (byte)1 : (byte)0;
             Flags[2] = gpuUnsupported ? (byte)1 : (byte)0;
+        }
+
+        /// <summary>
+        /// The regular GPU mesher evaluates only cells whose origins are inside the chunk. A smooth
+        /// surface entering through a minimum face needs the x/y/z=-1 crossing cell instead. When
+        /// the halo on that side contains no solid at all, the predecessor chunk may legitimately
+        /// be absent, so nobody else can publish that crossing. Route this rare boundary shape to
+        /// the CPU extractor, whose topology job explicitly evaluates the owned negative shell.
+        /// </summary>
+        internal static bool LowBoundaryTouchesNoSolidHalo(
+            NativeArray<TransvoxelDensityBrick> bricks,
+            NativeArray<byte> mixedVoxels,
+            int x, int y, int z,
+            int edge, int padding, int coreEdge)
+        {
+            int coreEnd = padding + coreEdge;
+            if (x < padding || y < padding || z < padding
+                || x >= coreEnd || y >= coreEnd || z >= coreEnd)
+                return false;
+
+            if (x == padding && !BrickContainsSolid(
+                    bricks[(x - 1) + edge * (y + edge * z)], mixedVoxels))
+                return true;
+            if (y == padding && !BrickContainsSolid(
+                    bricks[x + edge * ((y - 1) + edge * z)], mixedVoxels))
+                return true;
+            if (z == padding && !BrickContainsSolid(
+                    bricks[x + edge * (y + edge * (z - 1))], mixedVoxels))
+                return true;
+            return false;
+        }
+
+        private static bool BrickContainsSolid(
+            TransvoxelDensityBrick brick, NativeArray<byte> mixedVoxels)
+        {
+            if (brick.Kind == 0) return false;
+            if (brick.Kind == 1) return IsSolid(brick.UniformMaterial);
+
+            int end = brick.MixedOffset + VoxelReadGrid.VoxelsPerBlock;
+            for (int voxel = brick.MixedOffset; voxel < end; voxel++)
+                if (IsSolid(mixedVoxels[voxel])) return true;
+            return false;
         }
 
         private static bool IsSolid(byte material) =>
