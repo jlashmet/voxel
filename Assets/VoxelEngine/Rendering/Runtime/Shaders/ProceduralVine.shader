@@ -117,14 +117,31 @@ Shader "VoxelEngine/ProceduralVine"
                 float mask = max(stemMask, leafMask);
                 clip(mask - lerp(-0.035, 0.035, _Cutoff));
 
-                float leafHighlight = saturate(leafProfile * 0.65 + 0.20);
-                float3 albedo = lerp(_BaseColor.rgb, _TipColor.rgb,
-                                     saturate(along * 0.58 + leafHighlight * 0.30));
+                // Give each broad leaf lobe its own restrained value/color shift. Large coherent
+                // patches read as real leaf variation from the hero camera; pixel-scale noise would
+                // just shimmer under instancing and MSAA. Dark centre veins and warmer outer tips
+                // add enough internal structure to keep overlapping cards from collapsing into one
+                // flat green silhouette.
+                float leafVariation = frac(sin((leafIndex + 1.0) * 12.9898) * 43758.5453);
+                float leafHighlight = saturate(leafProfile * 0.62 + 0.16);
+                float colorMix = saturate(along * 0.36 + leafHighlight * 0.20 + leafVariation * 0.34);
+                float3 albedo = lerp(_BaseColor.rgb, _TipColor.rgb, colorMix);
+                albedo *= lerp(0.78, 1.10, leafVariation);
+
+                float safeLeafWidth = max(leafHalfWidth, 0.035);
+                float acrossLeaf = saturate(abs(x - leafCentre) / safeLeafWidth);
+                float vein = (1.0 - smoothstep(0.025, 0.115, abs(x - leafCentre))) * leafProfile;
+                albedo *= lerp(1.0, 0.84, vein);
+
+                float warmTip = smoothstep(0.52, 0.94, acrossLeaf) * leafProfile;
+                float3 yellowGreen = albedo * float3(1.13, 1.24, 0.76);
+                albedo = lerp(albedo, yellowGreen, warmTip * lerp(0.08, 0.23, leafVariation));
+
                 float3 n = normalize(input.normalWS);
                 float3 sun = normalize(_SunDirection.xyz);
                 float ndl = abs(dot(n, sun));
                 float3 ambient = lerp(_SkyHorizon.rgb, _SkyZenith.rgb, saturate(abs(n.y) * 0.62 + 0.20));
-                float3 lit = albedo * (ambient * 0.48 + (0.36 + ndl * 0.64));
+                float3 lit = albedo * (ambient * 0.36 + (0.32 + ndl * 0.52));
                 float pulse = 0.86 + 0.14 * sin(AnimationTime() * 1.4 + input.uv.y * 9.0);
                 lit += _EmissionColor.rgb * _EmissionStrength * pulse;
                 return half4(lit, 1.0);
