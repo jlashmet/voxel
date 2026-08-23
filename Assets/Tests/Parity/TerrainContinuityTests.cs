@@ -112,32 +112,30 @@ namespace VoxelEngine.Tests.Parity
         [Test]
         public void SettlementValleyHasNoPlayerScaleCorrugation()
         {
-            // Kentridge and Hightown both sit inside this lowland. Across a two-metre walking
-            // footprint, authored terrain may slope but should not oscillate up and down like the
-            // former 1.6 m noise octave did.
+            // Landscape-scale relief is allowed to slope through a walking footprint, but the
+            // removed 3.2 m / 1.6 m noise layers must not return as metre-scale corrugation.
+            // Across any sampled two-metre run the broad 51.2 m / 12.8 m layers should stay within
+            // a modest vertical span rather than producing a ridge/trough pattern every few steps.
             for (int z = 0; z <= 6_000; z += 137)
             for (int x = 400; x <= 2_000; x += 113)
             {
-                int reversals = 0;
-                int previousSign = 0;
-                int previous = TerrainQuery.HeightAt(x, z, Seed);
-                for (int step = 1; step <= 20; step++)
+                int lowest = int.MaxValue;
+                int highest = int.MinValue;
+                for (int step = 0; step <= 20; step++)
                 {
-                    int next = TerrainQuery.HeightAt(x + step, z, Seed);
-                    int delta = next - previous;
-                    int sign = delta == 0 ? previousSign : (delta > 0 ? 1 : -1);
-                    if (previousSign != 0 && sign != 0 && sign != previousSign) reversals++;
-                    previousSign = sign;
-                    previous = next;
+                    int height = TerrainQuery.HeightAt(x + step, z, Seed);
+                    lowest = math.min(lowest, height);
+                    highest = math.max(highest, height);
                 }
 
-                Assert.LessOrEqual(reversals, 2,
-                    $"Terrain chatters {reversals} times across 2 m near ({x},{z}).");
+                Assert.LessOrEqual(highest - lowest, 8,
+                    $"Terrain varies {highest - lowest} voxels across 2 m near ({x},{z}); "
+                  + "player-scale corrugation has returned.");
             }
         }
 
         [Test]
-        public void SettlementValleyReliefStaysBroadAndWalkable()
+        public void SettlementValleyRetainsReadableLandscapeRelief()
         {
             int lowest = int.MaxValue;
             int highest = int.MinValue;
@@ -149,9 +147,11 @@ namespace VoxelEngine.Tests.Parity
                 highest = math.max(highest, height);
             }
 
-            Assert.LessOrEqual(highest - lowest, 18,
-                "The inhabited valley should read as one broad landform; local settlements own "
-              + "their terraces, river banks, and other meaningful elevation changes.");
+            int relief = highest - lowest;
+            Assert.GreaterOrEqual(relief, 60,
+                "The inhabited valley has been flattened enough that its natural landform no longer reads.");
+            Assert.LessOrEqual(relief, 100,
+                "The inhabited valley should keep broad rolling relief rather than become mountainous.");
         }
 
         [Test]

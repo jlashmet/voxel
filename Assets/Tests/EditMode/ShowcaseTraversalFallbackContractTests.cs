@@ -114,5 +114,34 @@ namespace VoxelEngine.Tests.EditMode
                 "FarField.CaptureRegion(_castleRegions[i], ReadStorage, Seed);", world,
                 "The permanent override must come from the already-authoritative post-castle voxel capture, not from a second renderer-side moat formula.");
         }
+
+        [Test]
+        public void MovementPrefetchAndNaturalTerrainDoNotReintroduceVisualRegressions()
+        {
+            string bridge = File.ReadAllText(
+                "Assets/VoxelEngine/Rendering/Runtime/RenderFeature/VoxelRenderBridge.cs");
+            string harness = File.ReadAllText(
+                "Assets/Scenes/Showcase/SurfaceBuildConcurrencyHarness.cs");
+            string terrain = File.ReadAllText("Assets/VoxelEngine/Terrain/Api/TerrainQuery.cs");
+            string materials = File.ReadAllText(
+                "Assets/Game/Materials/Runtime/GameTerrainMaterials.cs");
+
+            StringAssert.Contains("SurfaceMaxConcurrentBuildsConverged = 1;", bridge,
+                "A fully visible frame must continue draining nearby prefetch instead of leaving the next camera turn unbuilt.");
+            StringAssert.Contains("private const int ConvergedPrefetchBuilds = 1;", harness);
+            StringAssert.DoesNotContain("SetVoxelBuildConcurrency(converging, 0)", harness,
+                "The real-player traversal must not disable the production prefetch that prevents newly exposed wall/terrain holes.");
+
+            StringAssert.Contains("Octave(worldX, worldZ, 9, 70, seed)", terrain,
+                "Terrain styling must not flatten away the broad valley landform.");
+            StringAssert.Contains("Octave(worldX, worldZ, 7, 24, seed)", terrain);
+            StringAssert.DoesNotContain("Octave(worldX, worldZ, 5, 6, seed)", terrain,
+                "Do not restore the former player-scale corrugation as part of the relief fix.");
+            StringAssert.DoesNotContain("Octave(worldX, worldZ, 4, 4, seed)", terrain);
+
+            StringAssert.Contains("lowSurface: GameMaterialIds.Grass", materials,
+                "A height-only dirt split traces closed contour rings across natural terrain.");
+            StringAssert.Contains("surface: GameMaterialIds.Grass", materials);
+        }
     }
 }

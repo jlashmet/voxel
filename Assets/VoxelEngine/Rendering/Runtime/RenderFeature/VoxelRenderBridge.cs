@@ -195,13 +195,15 @@ namespace VoxelEngine.Rendering.Runtime
         public static int SurfaceMaxConcurrentBuildsConverging = 12;
 
         /// <summary>
-        /// Chunk builds allowed in flight once the view is complete.
+        /// Chunk builds allowed in flight once the current view is complete.
         ///
-        /// Zero stops 360-degree prefetch once the current view is complete. A camera change that
-        /// exposes a missing chunk immediately selects the converging ceiling again, so visible
-        /// work resumes without permanently filling the arena with geometry nobody can see.
+        /// Keep one bounded background build alive so the scheduler slowly drains its nearby
+        /// prefetch shell while the camera is stationary. Zero leaves every off-screen chunk
+        /// unbuilt; the next turn, walk, or elevated view then exposes whole wall/terrain chunks
+        /// before the visible-convergence workers can catch up. One preserves the low steady-state
+        /// cost while preparing the geometry most likely to become visible next.
         /// </summary>
-        public static int SurfaceMaxConcurrentBuildsConverged = 0;
+        public static int SurfaceMaxConcurrentBuildsConverged = 1;
         /// <summary>
         /// Soft cap for active solid arena leases. The default does not constrain the fixed
         /// arena; tests/debugging may lower it to exercise real backpressure without reallocating
