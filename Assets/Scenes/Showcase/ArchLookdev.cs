@@ -43,9 +43,9 @@ namespace VoxelEngine.Showcase
         private GUIStyle _panelStyle, _titleStyle, _sectionStyle, _valueStyle, _buttonStyle;
         private Vector4 _originalStoneAlbedo, _originalMossTint;
 
-        // Form
-        private int _clearSpan = 32, _pierHeight = 40, _ringThickness = 7;
-        private int _voussoirs = 13, _depth = 12, _shoulder = 10, _topMargin = 8;
+        // Form. The hero preset follows the tall, narrow reference silhouette rather than a wall bay.
+        private int _clearSpan = 28, _pierHeight = 64, _ringThickness = 7;
+        private int _voussoirs = 13, _depth = 12, _shoulder = 4, _topMargin = 4;
         private int _faceRecess = 1, _plinthHeight = 4, _impostHeight = 3;
         private int _damage, _damageScale = 2, _seedOffset = 0x2222;
         private int _jointQ4 = 4, _bevelQ4 = 4, _projectionQ4 = 8, _faceDepthQ4 = 16;
@@ -224,7 +224,14 @@ namespace VoxelEngine.Showcase
             _cameraFocus = new Vector3(0f, height * VoxelSize * 0.5f, 0.45f);
             _cameraYaw = 14.5f;
             _cameraPitch = 3.2f;
-            _cameraDistance = Mathf.Max(8f, width * VoxelSize * 1.62f);
+
+            float halfVerticalFov = _cameraFov * Mathf.Deg2Rad * 0.5f;
+            float verticalDistance = height * VoxelSize * 0.5f / Mathf.Tan(halfVerticalFov);
+            float aspect = _camera != null && _camera.aspect > 0.01f ? _camera.aspect : 16f / 9f;
+            float halfHorizontalFov = Mathf.Atan(Mathf.Tan(halfVerticalFov) * aspect);
+            float horizontalDistance = width * VoxelSize * 0.5f / Mathf.Tan(halfHorizontalFov);
+            _cameraDistance = Mathf.Max(8f, Mathf.Max(verticalDistance, horizontalDistance) * 1.12f);
+
             _cameraInitialized = true;
             ApplyCameraTransform();
         }
@@ -802,8 +809,8 @@ namespace VoxelEngine.Showcase
 
         private void ResetDefaults()
         {
-            _clearSpan = 32; _pierHeight = 40; _ringThickness = 7; _voussoirs = 13;
-            _depth = 12; _shoulder = 10; _topMargin = 8; _faceRecess = 1;
+            _clearSpan = 28; _pierHeight = 64; _ringThickness = 7; _voussoirs = 13;
+            _depth = 12; _shoulder = 4; _topMargin = 4; _faceRecess = 1;
             _plinthHeight = 4; _impostHeight = 3; _damage = 0; _damageScale = 2;
             _seedOffset = 0x2222; _jointQ4 = 4; _bevelQ4 = 4; _projectionQ4 = 8;
             _faceDepthQ4 = 16; _mossCoverage = 115; _mossDensity = 210;
