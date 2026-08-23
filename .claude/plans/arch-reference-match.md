@@ -34,6 +34,7 @@ Make `Assets/Scenes/ArchLookdev.unity` visually match the version-controlled `Re
 - [x] Confirm ArchLookdev now loads `References/arch_reference.png` from version control.
 - [x] Locate the ArchDev/ArchLookdev build/capture test and artifact publisher.
 - [x] Add the reference PNG to the artifact without changing the production scene just to expose the image.
+- [ ] Publish a temporary hosted reference-only evidence artifact while the self-hosted Mac is queued; remove this helper before final validation.
 - [ ] Run the smallest capture test via `ci-test/agent/arch-reference-match` and inspect the artifact.
 - [ ] Record concrete visual deltas versus reference.
 - [ ] Diagnose and fix the first proven geometry/rendering cause.
@@ -41,12 +42,16 @@ Make `Assets/Scenes/ArchLookdev.unity` visually match the version-controlled `Re
 - [ ] Diagnose moss path; decide whether coating-only, instanced vegetation, or hybrid best matches the reference while remaining capturable.
 - [ ] Implement and tune moss/growth.
 - [ ] Re-run visual capture loop until remaining differences are minor or a concrete blocker is documented.
-- [ ] Run appropriate regression test(s), review final diff, and delete CI request branch.
+- [ ] Run appropriate regression test(s), remove temporary evidence plumbing, review final diff, and delete CI request branch.
 
 ## Findings / evidence
 - Master `bf7d125` changed `ArchLookdev.LoadTargetImage()` to try `References/arch_reference.png` first, so fresh checkouts can load the reference.
 - Prior smoothing commits fixed the front intrados by aligning authored radial distance with occupancy and trusting authored samples on sign agreement. The commit notes explicitly say the oblique soffit still has a separate cause.
-- Current moss in ArchLookdev is authored primarily as `Coatings.Moss` plus coating decoration; the engine also has an instanced `VegetationKind.Moss` renderer that supports arbitrary surface normals, but offscreen `Camera.Render()` captures may omit `Graphics.DrawMesh` vegetation. Verify capture compatibility before switching the scene to vegetation instances.
+- Current moss in ArchLookdev is authored primarily as `Coatings.Moss` plus coating decoration; the engine also has an instanced `VegetationKind.Moss` renderer that supports arbitrary surface normals. The real-player Arch capture is driven by `RealPlayerScreenshotFallback`/`ScreenCapture`, so presented-frame vegetation will be capturable there.
 - `Assets/Tests/PlayMode/ArchLookdevSceneTests.cs` is the explicit visual acceptance entry point. The single-test workflow invokes `tools/showcase-player-capture.sh`, which maps this test to `Assets/Scenes/ArchLookdev.unity`, builds a standalone macOS player, and captures presented frames every 10 seconds for 30 seconds.
 - The visual acceptance now copies `References/arch_reference.png` to `Artifacts/SingleTest/RealPlayer/Reference/arch_reference.png`. The workflow uploads `Artifacts/SingleTest/**`, so the reference should be delivered beside `RealPlayer/Screenshots/**` once a run reaches artifact upload.
-- CI run `32611015737` started for the ArchLookdev request but the pre-test Unity-idle guard failed after 60 seconds because another Unity editor was already running. The workflow then entered the always-run real-player capture step, which itself waits for Unity to become idle. No artifact had been uploaded at the last check, so this run is not validation evidence yet.
+- CI run `32611015737` started for the ArchLookdev request but the pre-test Unity-idle guard failed after 60 seconds because another Unity editor was already running. A newer request correctly cancelled that run. Current request commit `6721152` remains queued with no classic status, so it has not started and cannot yet count as validation evidence.
+- Direct repository binary access is unavailable in this connector session: contents/blob/raw routes expose metadata or reject non-UTF-8 bytes. A temporary GitHub-hosted artifact is therefore justified only to inspect the tracked reference while the authoritative self-hosted player run is queued; it must not substitute for the player capture or remain in the final diff.
+- Deterministic inspection of the default Arch authoring rules shows all 13 structural voussoirs are face-connected to neighbors and the spring wedges connect to the piers. The visible disconnect is therefore not a literal structural occupancy break; rendered boundary/profile composition remains the relevant subsystem.
+- The retained profile centroid-backing check was tested analytically against the default profile dimensions and does not reject the default front/radial segments, so changing that guard speculatively is not justified.
+- The earlier `ArchCapLayerDiagnosticTests` fixture placed the pre-fix oblique defect in authored field composition rather than the Transvoxel mesher. Later radial/sign fixes changed that field, so this remains a subsystem lead rather than a proven current cause until the new artifact locates the remaining defect.
