@@ -112,41 +112,46 @@ namespace VoxelEngine.Tests.Parity
         [Test]
         public void SettlementValleyHasNoPlayerScaleCorrugation()
         {
-            // Landscape-scale relief is allowed to slope through a walking footprint, but the
-            // removed 3.2 m / 1.6 m noise layers must not return as metre-scale corrugation.
-            // Across any sampled two-metre run the broad 51.2 m / 12.8 m layers should stay within
-            // a modest vertical span rather than producing a ridge/trough pattern every few steps.
+            // Kentridge and Hightown both sit inside this lowland. Across a two-metre walking
+            // footprint, authored terrain may slope but should not oscillate up and down like the
+            // former 1.6 m noise octave did.
             for (int z = 0; z <= 6_000; z += 137)
             for (int x = 400; x <= 2_000; x += 113)
             {
-                int lowest = int.MaxValue;
-                int highest = int.MinValue;
-                for (int step = 0; step <= 20; step++)
+                int reversals = 0;
+                int previousSign = 0;
+                int previous = TerrainQuery.HeightAt(x, z, Seed);
+                for (int step = 1; step <= 20; step++)
                 {
-                    int height = TerrainQuery.HeightAt(x + step, z, Seed);
-                    lowest = math.min(lowest, height);
-                    highest = math.max(highest, height);
+                    int next = TerrainQuery.HeightAt(x + step, z, Seed);
+                    int delta = next - previous;
+                    int sign = delta == 0 ? previousSign : (delta > 0 ? 1 : -1);
+                    if (previousSign != 0 && sign != 0 && sign != previousSign) reversals++;
+                    previousSign = sign;
+                    previous = next;
                 }
 
-                Assert.LessOrEqual(highest - lowest, 8,
-                    $"Terrain varies {highest - lowest} voxels across 2 m near ({x},{z}); "
-                  + "player-scale corrugation has returned.");
+                Assert.LessOrEqual(reversals, 2,
+                    $"Terrain chatters {reversals} times across 2 m near ({x},{z}).");
             }
         }
 
         [Test]
-        public void SceneIssue20260823013924433CaptureAreaHasNoQuantizationCliffs()
+        public void SceneIssue20260823013924433CaptureAreaStaysCalmAndContinuous()
         {
-            // The capture camera sits at roughly (75.6 m, -7.45 m), or (756, -75) in the
-            // 10 cm terrain grid. The two broad valley octaves used to round independently;
-            // occasionally both rounded on the same adjacent column and invented a two-voxel
-            // cliff in an otherwise gentle field. Besides distorting the landform, that exposes
-            // the Dirt sample directly under the one-voxel turf surface in the smooth mesh.
+            // The saved view sits over lowland around (75.6 m, -7.45 m). This is base terrain,
+            // not a mountain or an authored terrace. The visually rejected 51.2 m + 12.8 m relief
+            // spread sixteen vertical voxels across this small view, producing repeated contour
+            // bands and a sawtooth grass-to-dirt edge even though adjacent samples only jumped by
+            // one voxel. Guard both continuity and total local relief so that failure cannot hide
+            // behind a maximum-neighbour-delta assertion again.
             const uint showcaseSeed = 0x5EED1234u;
             const int minX = 628;
             const int maxX = 884;
             const int minZ = -203;
             const int maxZ = 53;
+            int lowest = int.MaxValue;
+            int highest = int.MinValue;
             int largestJump = 0;
             int2 jumpFrom = default;
             int2 jumpTo = default;
@@ -155,6 +160,8 @@ namespace VoxelEngine.Tests.Parity
             for (int x = minX; x <= maxX; x++)
             {
                 int height = TerrainQuery.HeightAt(x, z, showcaseSeed);
+                lowest = math.min(lowest, height);
+                highest = math.max(highest, height);
                 if (x < maxX)
                     RecordJump(x, z, x + 1, z, height,
                         TerrainQuery.HeightAt(x + 1, z, showcaseSeed),
@@ -166,13 +173,15 @@ namespace VoxelEngine.Tests.Parity
             }
 
             Assert.LessOrEqual(largestJump, 1,
-                $"Captured terrain has a {largestJump}-voxel quantization cliff from "
-              + $"({jumpFrom.x},{jumpFrom.y}) to ({jumpTo.x},{jumpTo.y}); "
-              + "natural valley relief should quantize only once after its broad layers are combined.");
+                $"Captured terrain has a {largestJump}-voxel cliff from "
+              + $"({jumpFrom.x},{jumpFrom.y}) to ({jumpTo.x},{jumpTo.y}).");
+            Assert.LessOrEqual(highest - lowest, 2,
+                $"Captured lowland spans {highest - lowest} vertical voxels; the exact replay "
+              + "should stay visually calm rather than forming repeated terrain contours.");
         }
 
         [Test]
-        public void SettlementValleyRetainsReadableLandscapeRelief()
+        public void SettlementValleyReliefStaysBroadAndWalkable()
         {
             int lowest = int.MaxValue;
             int highest = int.MinValue;
@@ -184,11 +193,9 @@ namespace VoxelEngine.Tests.Parity
                 highest = math.max(highest, height);
             }
 
-            int relief = highest - lowest;
-            Assert.GreaterOrEqual(relief, 60,
-                "The inhabited valley has been flattened enough that its natural landform no longer reads.");
-            Assert.LessOrEqual(relief, 100,
-                "The inhabited valley should keep broad rolling relief rather than become mountainous.");
+            Assert.LessOrEqual(highest - lowest, 18,
+                "The inhabited valley should read as one broad landform; local settlements own "
+              + "their terraces, river banks, and other meaningful elevation changes.");
         }
 
         [Test]

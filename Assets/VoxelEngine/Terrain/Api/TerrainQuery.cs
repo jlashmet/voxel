@@ -69,15 +69,11 @@ namespace VoxelEngine.Terrain.Api
                 h += (int)(((long)relief * mask) >> 10);
             }
 
-            // Keep the inhabited valley readable at player scale, but do not flatten away the
-            // landform itself. Accumulate the 51.2 m and 12.8 m layers at fixed-point precision
-            // and quantize their combined height once. Quantizing each octave independently can
-            // make two sub-voxel rises land on the same column and create a two-voxel micro-cliff;
-            // on smooth terrain that exposes the Dirt sample directly below the turf and makes a
-            // gentle hill read as a brown terrace. The broad relief is unchanged by this ordering.
-            int valleyRelief = OctaveFixed(worldX, worldZ, 9, 70, seed)
-                             + OctaveFixed(worldX, worldZ, 7, 24, seed);
-            h += valleyRelief >> 10;
+            // The inhabited valley is one broad, calm landform. Settlement-scale terraces,
+            // paths, banks, and cuts are authored by their owning features; putting stronger
+            // 51.2 m + 12.8 m relief into the base sampler produces contour bands through those
+            // features and exposes the dirt layer as a sawtooth edge at ordinary player scale.
+            h += Octave(worldX, worldZ, 9, 18, seed);
 
             // Player-scale relief stays in vegetation/material presentation, where it enriches a
             // surface without changing collision or cutting a contour around every few footsteps.
