@@ -29,7 +29,7 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
             for (int i = 0; i < instances.Count; i++)
             {
                 VegetationInstance instance = instances[i];
-                if (!_batches.TryGetValue(instance.Kind, out List<Matrix4x4>> matrices))
+                if (!_batches.TryGetValue(instance.Kind, out List<Matrix4x4> matrices))
                 {
                     matrices = new List<Matrix4x4>();
                     _batches.Add(instance.Kind, matrices);
