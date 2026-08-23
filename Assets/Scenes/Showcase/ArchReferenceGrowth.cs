@@ -16,7 +16,7 @@ namespace VoxelEngine.Showcase
     [DisallowMultipleComponent]
     public sealed class ArchReferenceGrowth : MonoBehaviour
     {
-        private readonly List<VegetationInstance> _instances = new(48);
+        private readonly List<VegetationInstance> _instances = new(64);
         private IVegetationBatchRenderer _renderer;
         private float _originalCloudOpacity;
         private bool _environmentApplied;
@@ -91,54 +91,63 @@ namespace VoxelEngine.Showcase
             const float frontZ = -0.06f;
             float3 front = new(0f, 0f, -1f);
 
-            // The reference is dominated by broad overlapping leaf masses down the left pier.
-            // WallFern supplies that volume; short ivy runs stitch the masses together without
-            // returning to the repeated vertical-chain silhouette of the earlier pass.
-            Add(VegetationKind.WallFern, -1.98f, 0.42f, frontZ, front, 0.72f, 0xA01u);
-            Add(VegetationKind.Ivy,      -1.72f, 0.82f, frontZ - 0.01f, front, 0.32f, 0xA02u);
-            Add(VegetationKind.WallFern, -1.66f, 1.22f, frontZ, front, 0.82f, 0xA03u);
-            Add(VegetationKind.WallFern, -1.98f, 1.92f, frontZ, front, 0.78f, 0xA04u);
-            Add(VegetationKind.Ivy,      -1.70f, 2.22f, frontZ - 0.01f, front, 0.30f, 0xA05u);
-            Add(VegetationKind.Flower,   -1.54f, 2.54f, frontZ - 0.02f, front, 0.38f, 0xA06u);
-            Add(VegetationKind.WallFern, -1.70f, 2.82f, frontZ, front, 0.92f, 0xA07u);
-            Add(VegetationKind.WallFern, -1.96f, 3.58f, frontZ, front, 0.84f, 0xA08u);
-            Add(VegetationKind.Ivy,      -1.68f, 3.88f, frontZ - 0.01f, front, 0.30f, 0xA09u);
-            Add(VegetationKind.Flower,   -1.50f, 4.16f, frontZ - 0.02f, front, 0.34f, 0xA0Au);
-            Add(VegetationKind.WallFern, -1.62f, 4.42f, frontZ, front, 0.94f, 0xA0Bu);
-            Add(VegetationKind.Ivy,      -1.82f, 4.82f, frontZ - 0.01f, front, 0.32f, 0xA0Cu);
-            Add(VegetationKind.WallFern, -1.76f, 5.18f, frontZ, front, 0.90f, 0xA0Du);
-            Add(VegetationKind.WallFern, -1.48f, 5.82f, frontZ, front, 0.88f, 0xA0Eu);
-            Add(VegetationKind.Flower,   -1.28f, 6.10f, frontZ - 0.02f, front, 0.36f, 0xA0Fu);
+            // Build the left side from overlapping short ivy instances. Each individual climber is
+            // intentionally modest; the reference's broad leafy blankets emerge from several offset
+            // instances merging together instead of one stretched plant or a fern-shaped stand-in.
+            AddIvyCluster(-1.90f, 0.45f, 0.56f, frontZ, front, 0xA100u);
+            AddIvyCluster(-1.72f, 1.25f, 0.58f, frontZ, front, 0xA200u);
+            AddIvyCluster(-1.90f, 2.08f, 0.60f, frontZ, front, 0xA300u);
+            AddIvyCluster(-1.68f, 2.92f, 0.62f, frontZ, front, 0xA400u);
+            AddIvyCluster(-1.88f, 3.78f, 0.62f, frontZ, front, 0xA500u);
+            AddIvyCluster(-1.64f, 4.66f, 0.64f, frontZ, front, 0xA600u);
+            AddIvyCluster(-1.72f, 5.50f, 0.64f, frontZ, front, 0xA700u);
 
-            // Push the same leafy mass across the left haunch and crown. The reference becomes most
-            // lush here, with a few flowers rising out of the foliage and only short hanging tips.
-            Add(VegetationKind.WallFern, -1.44f, 6.34f, frontZ, front, 0.96f, 0xB01u);
-            Add(VegetationKind.Ivy,      -1.18f, 6.64f, frontZ - 0.01f, front, 0.32f, 0xB02u);
-            Add(VegetationKind.WallFern, -1.08f, 6.78f, frontZ, front, 0.98f, 0xB03u);
-            Add(VegetationKind.WallFern, -0.74f, 7.16f, frontZ, front, 0.92f, 0xB04u);
-            Add(VegetationKind.Flower,   -0.56f, 7.38f, frontZ - 0.02f, front, 0.36f, 0xB05u);
-            Add(VegetationKind.WallFern, -0.36f, 7.50f, frontZ, front, 0.84f, 0xB06u);
-            Add(VegetationKind.WallFern,  0.04f, 7.72f, frontZ, front, 0.76f, 0xB07u);
-            Add(VegetationKind.Flower,    0.22f, 7.92f, frontZ - 0.02f, front, 0.32f, 0xB08u);
-            Add(VegetationKind.WallFern,  0.44f, 7.92f, frontZ, front, 0.62f, 0xB09u);
-            Add(VegetationKind.HangingVine, -1.10f, 7.18f, frontZ - 0.025f, front, 0.34f, 0xB0Au);
-            Add(VegetationKind.HangingVine, -0.30f, 7.68f, frontZ - 0.025f, front, 0.28f, 0xB0Bu);
+            // Flowers sit inside the foliage masses rather than reading as isolated ground props.
+            Add(VegetationKind.Flower, -1.48f, 2.66f, frontZ - 0.025f, front, 0.44f, 0xAF01u);
+            Add(VegetationKind.Flower, -1.52f, 4.22f, frontZ - 0.025f, front, 0.42f, 0xAF02u);
+            Add(VegetationKind.Flower, -1.30f, 5.96f, frontZ - 0.025f, front, 0.44f, 0xAF03u);
 
-            // The right side stays deliberately sparse, matching the reference's asymmetry. Use a
-            // handful of leafy islands with one climbing connector rather than a mirrored curtain.
-            Add(VegetationKind.WallFern,     1.78f, 1.52f, frontZ, front, 0.42f, 0xC01u);
-            Add(VegetationKind.Ivy,          1.68f, 2.18f, frontZ - 0.01f, front, 0.26f, 0xC02u);
-            Add(VegetationKind.WallFern,     1.62f, 3.62f, frontZ, front, 0.46f, 0xC03u);
-            Add(VegetationKind.ClimbingVine, 1.56f, 4.36f, frontZ - 0.01f, front, 0.28f, 0xC04u);
-            Add(VegetationKind.WallFern,     1.46f, 5.18f, frontZ, front, 0.52f, 0xC05u);
-            Add(VegetationKind.WallFern,     1.28f, 6.30f, frontZ, front, 0.50f, 0xC06u);
-            Add(VegetationKind.HangingVine,  1.32f, 6.86f, frontZ - 0.025f, front, 0.26f, 0xC07u);
+            // The densest mass crosses the left haunch and upper crown, then breaks apart before the
+            // far-right shoulder so the composition keeps the target's strong asymmetry.
+            AddIvyCluster(-1.42f, 6.26f, 0.68f, frontZ, front, 0xB100u);
+            AddIvyCluster(-1.08f, 6.76f, 0.70f, frontZ, front, 0xB200u);
+            AddIvyCluster(-0.70f, 7.18f, 0.68f, frontZ, front, 0xB300u);
+            AddIvyCluster(-0.28f, 7.48f, 0.64f, frontZ, front, 0xB400u);
+            AddIvyCluster( 0.18f, 7.68f, 0.56f, frontZ, front, 0xB500u);
+            Add(VegetationKind.Flower, -0.62f, 7.48f, frontZ - 0.025f, front, 0.46f, 0xBF01u);
+            Add(VegetationKind.Flower,  0.12f, 7.88f, frontZ - 0.025f, front, 0.42f, 0xBF02u);
+            Add(VegetationKind.HangingVine, -1.12f, 7.16f, frontZ - 0.03f, front, 0.32f, 0xB601u);
+            Add(VegetationKind.HangingVine, -0.30f, 7.62f, frontZ - 0.03f, front, 0.28f, 0xB602u);
+
+            // Sparse right-hand counterweight: small paired growth islands with visible bare masonry
+            // between them, plus one short connector near the upper pier.
+            AddIvyPair(1.76f, 1.60f, 0.34f, frontZ, front, 0xC100u);
+            AddIvyPair(1.66f, 3.58f, 0.36f, frontZ, front, 0xC200u);
+            AddIvyPair(1.48f, 5.20f, 0.38f, frontZ, front, 0xC300u);
+            AddIvyPair(1.28f, 6.42f, 0.38f, frontZ, front, 0xC400u);
+            Add(VegetationKind.ClimbingVine, 1.48f, 4.42f, frontZ - 0.02f, front, 0.26f, 0xC501u);
+            Add(VegetationKind.HangingVine,  1.30f, 6.84f, frontZ - 0.03f, front, 0.24f, 0xC502u);
 
             // Ground accents remain small; the visual focus should stay on masonry-bound growth.
             float3 up = new(0f, 1f, 0f);
-            Add(VegetationKind.Fern,   -2.04f, 0.02f, -0.12f, up, 0.52f, 0xE01u);
-            Add(VegetationKind.Flower, -1.58f, 0.02f, -0.15f, up, 0.42f, 0xE02u);
-            Add(VegetationKind.Fern,    1.92f, 0.02f, -0.08f, up, 0.34f, 0xE03u);
+            Add(VegetationKind.Fern,   -2.04f, 0.02f, -0.12f, up, 0.46f, 0xE01u);
+            Add(VegetationKind.Flower, -1.58f, 0.02f, -0.15f, up, 0.38f, 0xE02u);
+            Add(VegetationKind.Fern,    1.92f, 0.02f, -0.08f, up, 0.30f, 0xE03u);
+        }
+
+        private void AddIvyCluster(
+            float x, float y, float scale, float z, float3 normal, uint seed)
+        {
+            Add(VegetationKind.Ivy, x - 0.18f, y - 0.10f, z, normal, scale * 0.92f, seed + 1u);
+            Add(VegetationKind.Ivy, x + 0.12f, y + 0.02f, z - 0.008f, normal, scale, seed + 2u);
+            Add(VegetationKind.Ivy, x - 0.02f, y + 0.24f, z - 0.016f, normal, scale * 0.86f, seed + 3u);
+        }
+
+        private void AddIvyPair(
+            float x, float y, float scale, float z, float3 normal, uint seed)
+        {
+            Add(VegetationKind.Ivy, x - 0.10f, y, z, normal, scale, seed + 1u);
+            Add(VegetationKind.Ivy, x + 0.10f, y + 0.18f, z - 0.010f, normal, scale * 0.86f, seed + 2u);
         }
 
         private void Add(
