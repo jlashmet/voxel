@@ -162,8 +162,15 @@ namespace VoxelEngine.Tests.PlayMode
                 camera.fieldOfView = 70f;
                 camera.nearClipPlane = 0.05f;
                 camera.farClipPlane = 16000f;
+
+                var capturePosition = new Vector3(
+                    99.23580932617188f, 26.450145721435548f, -4.822741508483887f);
+                // Streaming follows the showcase/player transform, not Camera.main. Move that
+                // anchor first so the replay requests the same world residency as the capture,
+                // then restore the exact recorded camera pose independently.
+                showcase.TeleportTo(capturePosition);
                 camera.transform.SetPositionAndRotation(
-                    new Vector3(99.23580932617188f, 26.450145721435548f, -4.822741508483887f),
+                    capturePosition,
                     new Quaternion(-0.11285238713026047f, 0.3324708342552185f,
                                    0.040107980370521548f, 0.9354779124259949f));
 
