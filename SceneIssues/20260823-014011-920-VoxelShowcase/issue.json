@@ -4,6 +4,7 @@
     "capturedUtc": "2026-08-23T01:40:11.9206760Z",
     "note": "terrain from above looks aweful.  near terrain is blueish and spiraly",
     "status": "open",
+    "workInProgress": "2026-08-23: Developer explicitly chose to extend the new GPU surface-extraction path to sourceStep/LOD2 and use that path to eliminate the remaining LOD-specific terrain artifact. Preserve HLOD for farther terrain unless evidence says otherwise. Verify GPU LOD2 parity/performance and replay this captured view before resolving.",
     "resolvedUtc": "",
     "resolutionSummary": "",
     "regressionTest": "",
