@@ -65,14 +65,11 @@ namespace VoxelEngine.Showcase
         private float _buildBudgetMs = 12f;
         private int _lastBayWidth, _lastBayHeight;
 
-        // Comparison and automation
-        private Texture2D _targetImage;
-        private string _targetPath, _exchangeDirectory, _commandPath, _statePath, _presetPath;
+        // Automation
+        private string _exchangeDirectory, _commandPath, _statePath, _presetPath;
         private string _lastCommandText;
         private float _nextCommandPoll;
         private float _nextStatePublish;
-        private int _comparisonMode = 1;
-        private float _targetOpacity = 0.46f;
         private int _sweepParameterIndex;
         private static readonly string[] SweepLabels =
             { "Voussoirs", "Joint", "Bevel", "Moss" };
@@ -101,7 +98,6 @@ namespace VoxelEngine.Showcase
                 new Color(0.627f, 0.722f, 0.773f, 1f),
                 new Color(0.341f, 0.600f, 0.847f, 1f));
             InitialiseExchange();
-            LoadTargetImage();
             Rebuild();
             PublishState();
         }
@@ -111,7 +107,6 @@ namespace VoxelEngine.Showcase
             RenderingComposition.ClearWorld();
             RenderingComposition.SetMaterialAlbedo(StoneMaterial, _originalStoneAlbedo);
             RenderingComposition.SetCoatingTint(Coatings.Moss, _originalMossTint);
-            if (_targetImage != null) Destroy(_targetImage);
             DisposeWorld();
         }
 
@@ -314,7 +309,6 @@ namespace VoxelEngine.Showcase
         {
             if (!Application.isPlaying) return;
             EnsureStyles();
-            DrawTargetComparison();
             if (!_panelVisible)
             {
                 if (GUI.Button(new Rect(16, 16, 190, 34), "TAB  ·  OPEN STONE BENCH", _buttonStyle))
@@ -361,15 +355,6 @@ namespace VoxelEngine.Showcase
             FloatSlider("Moss hue", ref _mossHue, 0.12f, 0.38f, false);
             FloatSlider("Moss saturation", ref _mossSaturation, 0f, 1f, false);
             FloatSlider("Moss value", ref _mossValue, 0.1f, 0.8f, false);
-
-            Section("REFERENCE");
-            GUILayout.BeginHorizontal();
-            if (GUILayout.Toggle(_comparisonMode == 0, "OFF", _buttonStyle)) _comparisonMode = 0;
-            if (GUILayout.Toggle(_comparisonMode == 1, "SPLIT", _buttonStyle)) _comparisonMode = 1;
-            if (GUILayout.Toggle(_comparisonMode == 2, "OVERLAY", _buttonStyle)) _comparisonMode = 2;
-            if (GUILayout.Toggle(_comparisonMode == 3, "TARGET", _buttonStyle)) _comparisonMode = 3;
-            GUILayout.EndHorizontal();
-            FloatSlider("Reference opacity", ref _targetOpacity, 0.05f, 1f, false);
 
             Section("LIGHT & LENS");
             FloatSlider("Stone warmth", ref _stoneWarmth, 0.35f, 0.85f, false);
@@ -419,74 +404,6 @@ namespace VoxelEngine.Showcase
             _commandPath = Path.Combine(_exchangeDirectory, "command.json");
             _statePath = Path.Combine(_exchangeDirectory, "state.json");
             _presetPath = Path.Combine(_exchangeDirectory, "hero-preset.json");
-        }
-
-        private void LoadTargetImage()
-        {
-            string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            string projectRoot = Directory.GetParent(Application.dataPath).FullName;
-            string[] candidates =
-            {
-                // Version-controlled first. The other three are a developer's Downloads folder and
-                // build-output paths, so on any fresh checkout the panel read REFERENCE NOT FOUND
-                // and the comparison overlay did nothing.
-                Path.Combine(projectRoot, "References", "arch_reference.png"),
-                Path.Combine(home, "Downloads", "Sunlit Cleric by the Waterfall.png"),
-                Path.Combine(projectRoot, "Artifacts", "ArchLookdev", "target.png"),
-                Path.Combine(Application.dataPath, "Tests", "References", "arch-target.png"),
-            };
-            foreach (string candidate in candidates)
-            {
-                if (!File.Exists(candidate)) continue;
-                byte[] bytes = File.ReadAllBytes(candidate);
-                _targetImage = new Texture2D(2, 2, TextureFormat.RGBA32, false)
-                    { name = "Arch Reference", hideFlags = HideFlags.DontSave };
-                if (_targetImage.LoadImage(bytes))
-                {
-                    _targetPath = candidate;
-                    _exchangeStatus = "REFERENCE LOADED";
-                    return;
-                }
-                Destroy(_targetImage);
-                _targetImage = null;
-            }
-            _exchangeStatus = "REFERENCE NOT FOUND";
-        }
-
-        private void DrawTargetComparison()
-        {
-            if (_targetImage == null || _comparisonMode == 0) return;
-            float left = _panelVisible ? PanelWidth + 42f : 0f;
-            Rect viewport = new(left, 0f, Screen.width - left, Screen.height);
-            Color previous = GUI.color;
-
-            if (_comparisonMode == 1)
-            {
-                Rect targetRect = new(viewport.x + viewport.width * 0.5f, viewport.y,
-                                      viewport.width * 0.5f, viewport.height);
-                GUI.BeginGroup(targetRect);
-                GUI.color = Color.black;
-                GUI.DrawTexture(new Rect(0f, 0f, targetRect.width, targetRect.height),
-                                Texture2D.whiteTexture);
-                GUI.color = Color.white;
-                GUI.DrawTexture(new Rect(-viewport.width * 0.5f, 0f,
-                                         viewport.width, viewport.height),
-                                _targetImage, ScaleMode.ScaleToFit, false);
-                GUI.EndGroup();
-                GUI.color = new Color(0.91f, 0.72f, 0.32f, 0.9f);
-                GUI.DrawTexture(new Rect(targetRect.x - 1f, 0f, 2f, Screen.height),
-                                Texture2D.whiteTexture);
-            }
-            else
-            {
-                GUI.color = _comparisonMode == 3 ? Color.black
-                    : new Color(1f, 1f, 1f, _targetOpacity);
-                if (_comparisonMode == 3) GUI.DrawTexture(viewport, Texture2D.whiteTexture);
-                GUI.color = _comparisonMode == 3 ? Color.white
-                    : new Color(1f, 1f, 1f, _targetOpacity);
-                GUI.DrawTexture(viewport, _targetImage, ScaleMode.ScaleToFit, false);
-            }
-            GUI.color = previous;
         }
 
         private void PollCommandInbox()
@@ -731,7 +648,7 @@ namespace VoxelEngine.Showcase
             var state = new LookdevState
             {
                 requestId = requestId ?? "", status = _exchangeStatus,
-                targetPath = _targetPath ?? "", capturePath = capturePath ?? "",
+                capturePath = capturePath ?? "",
                 commandPath = _commandPath, presetPath = _presetPath,
                 lastBuildMs = _lastBuildMs,
                 settings = GetSettings(),
@@ -924,7 +841,6 @@ namespace VoxelEngine.Showcase
         {
             public string requestId;
             public string status;
-            public string targetPath;
             public string capturePath;
             public string commandPath;
             public string presetPath;

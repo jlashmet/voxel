@@ -1,0 +1,151 @@
+{
+    "formatVersion": 3,
+    "id": "20260823-193321-963-ArchLookdev",
+    "capturedUtc": "2026-08-23T19:33:21.9663070Z",
+    "note": "we still have a non smooth staircase look here",
+    "status": "open",
+    "resolvedUtc": "",
+    "resolutionSummary": "",
+    "regressionTest": "",
+    "fixCommit": "",
+    "unityVersion": "6000.5.6f1",
+    "platform": "OSXEditor",
+    "sceneName": "ArchLookdev",
+    "scenePath": "Assets/Scenes/ArchLookdev.unity",
+    "sceneBuildIndex": 2,
+    "captures": [
+        {
+            "screenshot": "screenshot-001.png",
+            "capturedUtc": "2026-08-23T19:33:21.9671950Z",
+            "frameCount": 5091,
+            "timeSinceLevelLoad": 11.109818458557129,
+            "screenWidth": 1637,
+            "screenHeight": 1140,
+            "poseAnchor": {
+                "hierarchyPath": "Hero Arch Camera",
+                "position": {
+                    "x": 6.282703876495361,
+                    "y": 3.7845230102539064,
+                    "z": -14.774131774902344
+                },
+                "rotation": {
+                    "x": -0.02129152975976467,
+                    "y": -0.19440248608589173,
+                    "z": -0.004220662638545036,
+                    "w": 0.9806816577911377
+                },
+                "localScale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                }
+            },
+            "camera": {
+                "hierarchyPath": "Hero Arch Camera",
+                "position": {
+                    "x": 6.282703876495361,
+                    "y": 3.7845230102539064,
+                    "z": -14.774131774902344
+                },
+                "rotation": {
+                    "x": -0.02129152975976467,
+                    "y": -0.19440248608589173,
+                    "z": -0.004220662638545036,
+                    "w": 0.9806816577911377
+                },
+                "fieldOfView": 34.0,
+                "orthographic": false,
+                "orthographicSize": 5.0,
+                "nearClipPlane": 0.10000000149011612,
+                "farClipPlane": 80.0
+            },
+            "circles": [
+                {
+                    "centerX": 0.46257060766220095,
+                    "centerY": 0.23532003164291383,
+                    "radius": 0.017209839075803758
+                },
+                {
+                    "centerX": 0.423022598028183,
+                    "centerY": 0.2272072285413742,
+                    "radius": 0.019975444301962854
+                },
+                {
+                    "centerX": 0.48516950011253359,
+                    "centerY": 0.20895344018936158,
+                    "radius": 0.0146255511790514
+                },
+                {
+                    "centerX": 0.44985875487327578,
+                    "centerY": 0.2697994112968445,
+                    "radius": 0.010140995495021344
+                }
+            ]
+        }
+    ],
+    "screenshot": "screenshot-001.png",
+    "frameCount": 5091,
+    "timeSinceLevelLoad": 11.109818458557129,
+    "screenWidth": 1637,
+    "screenHeight": 1140,
+    "poseAnchor": {
+        "hierarchyPath": "Hero Arch Camera",
+        "position": {
+            "x": 6.282703876495361,
+            "y": 3.7845230102539064,
+            "z": -14.774131774902344
+        },
+        "rotation": {
+            "x": -0.02129152975976467,
+            "y": -0.19440248608589173,
+            "z": -0.004220662638545036,
+            "w": 0.9806816577911377
+        },
+        "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+        }
+    },
+    "camera": {
+        "hierarchyPath": "Hero Arch Camera",
+        "position": {
+            "x": 6.282703876495361,
+            "y": 3.7845230102539064,
+            "z": -14.774131774902344
+        },
+        "rotation": {
+            "x": -0.02129152975976467,
+            "y": -0.19440248608589173,
+            "z": -0.004220662638545036,
+            "w": 0.9806816577911377
+        },
+        "fieldOfView": 34.0,
+        "orthographic": false,
+        "orthographicSize": 5.0,
+        "nearClipPlane": 0.10000000149011612,
+        "farClipPlane": 80.0
+    },
+    "circles": [
+        {
+            "centerX": 0.46257060766220095,
+            "centerY": 0.23532003164291383,
+            "radius": 0.017209839075803758
+        },
+        {
+            "centerX": 0.423022598028183,
+            "centerY": 0.2272072285413742,
+            "radius": 0.019975444301962854
+        },
+        {
+            "centerX": 0.48516950011253359,
+            "centerY": 0.20895344018936158,
+            "radius": 0.0146255511790514
+        },
+        {
+            "centerX": 0.44985875487327578,
+            "centerY": 0.2697994112968445,
+            "radius": 0.010140995495021344
+        }
+    ]
+}
