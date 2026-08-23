@@ -115,9 +115,15 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
                     break;
 
                 case VegetationShaderClass.Vine:
-                    rotation = Quaternion.LookRotation(normal, Vector3.up);
                     float direction = profile.GrowthForm == VegetationGrowthForm.Climber ? 1f : -1f;
-                    localScale = new Vector3(0.42f * scale, direction * 2.6f * scale, 1f);
+                    float vineShape = Random01(instance.Seed ^ 0xB5297A4Du);
+                    float vineTilt = Mathf.Lerp(-15f, 15f, Random01(instance.Seed ^ 0x68E31DA4u));
+                    rotation = Quaternion.LookRotation(normal, Vector3.up)
+                               * Quaternion.AngleAxis(vineTilt, Vector3.forward);
+                    // Seeded aspect variation prevents repeated climbers from reading as stamps.
+                    float vineWidth = Mathf.Lerp(0.58f, 0.78f, vineShape) * scale;
+                    float vineHeight = Mathf.Lerp(1.38f, 1.76f, 1f - vineShape) * scale;
+                    localScale = new Vector3(vineWidth, direction * vineHeight, 1f);
                     position += normal * 0.022f;
                     break;
 
@@ -134,10 +140,28 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
                     break;
 
                 default:
-                    rotation = Quaternion.FromToRotation(Vector3.up, normal)
-                               * Quaternion.AngleAxis(yaw, Vector3.up);
-                    GetFoliageScale(profile.GrowthForm, scale, out float width, out float height);
-                    localScale = new Vector3(width, height, width);
+                    bool wallMounted = Mathf.Abs(normal.y) < 0.55f &&
+                                       (profile.GrowthForm == VegetationGrowthForm.Frond ||
+                                        profile.GrowthForm == VegetationGrowthForm.Tuft);
+                    if (wallMounted)
+                    {
+                        // Fronds and flowers attached to masonry still grow upward. Aligning local Y
+                        // to the wall normal makes them project straight out of the stone and hides
+                        // their readable leafy silhouette from a frontal camera.
+                        float wallTilt = Mathf.Lerp(-18f, 18f, Random01(instance.Seed ^ 0x1B56C4E9u));
+                        rotation = Quaternion.LookRotation(normal, Vector3.up)
+                                   * Quaternion.AngleAxis(wallTilt, Vector3.forward);
+                        GetFoliageScale(profile.GrowthForm, scale, out float wallWidth, out float wallHeight);
+                        localScale = new Vector3(wallWidth * 1.18f, wallHeight, wallWidth * 0.48f);
+                        position += normal * 0.028f;
+                    }
+                    else
+                    {
+                        rotation = Quaternion.FromToRotation(Vector3.up, normal)
+                                   * Quaternion.AngleAxis(yaw, Vector3.up);
+                        GetFoliageScale(profile.GrowthForm, scale, out float width, out float height);
+                        localScale = new Vector3(width, height, width);
+                    }
                     break;
             }
 
