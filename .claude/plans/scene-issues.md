@@ -23,9 +23,9 @@ Goal: work through the captured `SceneIssues/` queue oldest-first on the shared 
 
 ## Per-issue loop
 
-- [ ] Read note, all capture poses/circles, and inspect every screenshot available through the working environment.
-- [ ] Reproduce/locate the marked failure and identify the smallest responsible subsystem.
-- [ ] Add or extend a focused regression using the saved scene/pose fixture or a more direct invariant.
+- [x] Read note, all capture poses/circles, and inspect every screenshot available through the working environment.
+- [x] Reproduce/locate the marked failure and identify the smallest responsible subsystem.
+- [x] Add or extend a focused regression using the saved scene/pose fixture or a more direct invariant.
 - [ ] Implement the smallest production fix.
 - [ ] Commit production + regression with the capture id in the message.
 - [ ] Validate the narrowest relevant Unity test through `ci-test/fixes`; iterate on failure.
