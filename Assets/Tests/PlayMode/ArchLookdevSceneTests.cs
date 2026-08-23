@@ -52,9 +52,12 @@ namespace VoxelEngine.Tests.PlayMode
                 for (int frame = 0; frame < 240; frame++)
                 {
                     VoxelSurfaceMetrics metrics = VoxelRenderBridge.SurfaceMetrics;
+                    // Known/dirty chunks include the 360-degree prefetch shell. Visual readiness
+                    // is the production coverage contract: some surface is resident and no chunk
+                    // needed by the current camera is missing.
                     bool converged = metrics.SolidKnownChunks > 0
-                        && metrics.SolidDirtyChunks == 0
-                        && metrics.SolidResidentChunks >= metrics.SolidKnownChunks;
+                        && metrics.SolidResidentChunks > 0
+                        && metrics.MissingVisibleSolidChunks == 0;
                     stableFrames = converged ? stableFrames + 1 : 0;
                     if (stableFrames >= 3)
                         yield break;
@@ -65,7 +68,8 @@ namespace VoxelEngine.Tests.PlayMode
                 Assert.Fail($"Arch lookdev production surface did not converge: "
                           + $"known={finalMetrics.SolidKnownChunks}, "
                           + $"resident={finalMetrics.SolidResidentChunks}, "
-                          + $"dirty={finalMetrics.SolidDirtyChunks}.");
+                          + $"dirty={finalMetrics.SolidDirtyChunks}, "
+                          + $"missingVisible={finalMetrics.MissingVisibleSolidChunks}.");
             }
             finally
             {
