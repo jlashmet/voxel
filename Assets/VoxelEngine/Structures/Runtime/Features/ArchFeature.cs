@@ -480,9 +480,12 @@ namespace VoxelEngine.Structures.Runtime
                 new int3(openingCentre.x - clearWidth / 2, origin.y, backingZ),
                 new int3(clearWidth, Arch.PierHeight + 1, backingDepth),
                 Arch.StoneMaterial, PrimitiveMode.Carve, order++, wallStyle));
+            // The rectangular lower opening already owns everything below the spring diameter.
+            // Use a full disk here so the deep curved carve contributes only the radial intrados
+            // boundary; a half-disk would author a false horizontal boundary at the spring plane.
             output.Add(CurvedPrimitiveEmitter.Annulus(
                 openingCentre, Arch.ClearSpan / 2, 0,
-                backingDepth, 2, true,
+                backingDepth, 2, false,
                 Arch.StoneMaterial, wallStyle, PrimitiveMode.Carve, order++));
 
             int sideWidth = shoulder + Arch.RingThickness;
