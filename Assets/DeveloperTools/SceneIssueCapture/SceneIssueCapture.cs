@@ -13,7 +13,7 @@ namespace MountingForce.DeveloperTools
     [Serializable]
     public sealed class SceneIssueCaptureRecord
     {
-        public int formatVersion = 2;
+        public int formatVersion = 3;
         public string id;
         public string capturedUtc;
         public string note;
@@ -29,8 +29,8 @@ namespace MountingForce.DeveloperTools
         public int sceneBuildIndex;
         public SceneIssueFrameCapture[] captures;
 
-        // Version-1 compatibility. New captures mirror the first frame here so older tools and
-        // hand-written fixtures continue to work while formatVersion 2 uses captures[].
+        // Compatibility fields. New captures mirror the first frame here so older replay/test
+        // helpers can continue to use a single-frame fixture while formatVersion 3 uses captures[].
         public string screenshot;
         public int frameCount;
         public float timeSinceLevelLoad;
@@ -38,6 +38,7 @@ namespace MountingForce.DeveloperTools
         public int screenHeight;
         public SceneIssueTransformSnapshot poseAnchor;
         public SceneIssueCameraSnapshot camera;
+        public SceneIssueScreenCircle[] circles;
     }
 
     [Serializable]
@@ -51,6 +52,16 @@ namespace MountingForce.DeveloperTools
         public int screenHeight;
         public SceneIssueTransformSnapshot poseAnchor;
         public SceneIssueCameraSnapshot camera;
+        public SceneIssueScreenCircle[] circles;
+    }
+
+    [Serializable]
+    public sealed class SceneIssueScreenCircle
+    {
+        // Screen-space values normalized to the captured image. centerY uses GUI/top-down space.
+        public float centerX;
+        public float centerY;
+        public float radius;
     }
 
     [Serializable]
@@ -77,8 +88,8 @@ namespace MountingForce.DeveloperTools
 
     /// <summary>
     /// Development-only in-game issue capture overlay. One issue can contain many clean rendered
-    /// frames, each with its own exact camera/pose metadata. This is useful for flicker, popping,
-    /// transient holes and other failures where no single screenshot explains the defect.
+    /// frames, each with exact camera/pose metadata and optional screen-space circles identifying
+    /// the problematic region. This is useful for flicker, popping, seams and transient holes.
     /// </summary>
     public sealed class SceneIssueCapture : MonoBehaviour
     {
@@ -87,11 +98,13 @@ namespace MountingForce.DeveloperTools
         private const KeyCode CaptureKey = KeyCode.F8;
         private const string CaptureDirectoryName = "SceneIssues";
         private const string RecordFileName = "issue.json";
+        private const int CircleSegments = 40;
 
         private sealed class PendingFrame
         {
             public SceneIssueFrameCapture Snapshot;
             public byte[] Png;
+            public readonly List<SceneIssueScreenCircle> Circles = new();
         }
 
         private readonly List<PendingFrame> _pendingFrames = new();
@@ -102,6 +115,7 @@ namespace MountingForce.DeveloperTools
         private bool _overlayHidden;
         private bool _replayMode;
         private bool _annotationFocused;
+        private bool _drawingCircle;
         private string _note = string.Empty;
         private string _toast = string.Empty;
         private float _toastUntil;
@@ -109,6 +123,10 @@ namespace MountingForce.DeveloperTools
         private SceneIssueCaptureRecord _replayRecord;
         private SceneIssueFrameCapture[] _replayFrames;
         private int _replayIndex;
+        private int _annotationFrameIndex;
+        private Vector2 _circleStart;
+        private Texture2D _annotationTexture;
+        private Texture2D _lineTexture;
         private Camera _frozenCamera;
         private SceneIssueTransformSnapshot _frozenAnchor;
         private SceneIssueCameraSnapshot _frozenView;
@@ -148,6 +166,13 @@ namespace MountingForce.DeveloperTools
             DontDestroyOnLoad(gameObject);
         }
 
+        private void OnDestroy()
+        {
+            ReleaseAnnotationTexture();
+            if (_lineTexture != null)
+                Destroy(_lineTexture);
+        }
+
         private void Start()
         {
 #if UNITY_EDITOR
@@ -176,11 +201,18 @@ namespace MountingForce.DeveloperTools
             }
 
             if (_replayMode)
+            {
+                DrawReplayCircles();
                 DrawReplayBanner();
+            }
             else if (_sessionActive)
+            {
                 DrawActiveSessionControls();
+            }
             else if (!_captureInProgress)
+            {
                 DrawCaptureButton();
+            }
 
             if (!string.IsNullOrEmpty(_toast) && Time.realtimeSinceStartup < _toastUntil)
                 DrawToast();
@@ -245,11 +277,8 @@ namespace MountingForce.DeveloperTools
             _note = string.Empty;
             _sessionActive = true;
 
-            // The first screenshot freezes the exact reported view and immediately asks for a
-            // description. The user can then choose Keep capturing to resume the scene and catch
-            // additional states of a flicker/transient failure with F8.
             PreserveAndPauseForAnnotation();
-            BeginFrameCapture(camera, true);
+            BeginFrameCapture(camera);
         }
 
         private void AddFrameToActiveIssue()
@@ -264,34 +293,30 @@ namespace MountingForce.DeveloperTools
                 return;
             }
 
-            BeginFrameCapture(camera, false);
+            // Pause immediately after snapshotting the pose so the exact bad frame can be marked.
+            PreserveAndPauseForAnnotation();
+            BeginFrameCapture(camera);
         }
 
-        private void BeginFrameCapture(Camera camera, bool openAnnotationAfter)
+        private void BeginFrameCapture(Camera camera)
         {
             _captureInProgress = true;
             SceneIssueFrameCapture snapshot = BuildFrame(camera, _pendingFrames.Count + 1);
-            if (openAnnotationAfter)
-            {
-                _frozenCamera = camera;
-                _frozenAnchor = snapshot.poseAnchor;
-                _frozenView = snapshot.camera;
-                ApplyFrozenPose();
-            }
-
-            StartCoroutine(CaptureRenderedFrame(snapshot, openAnnotationAfter));
+            _frozenCamera = camera;
+            _frozenAnchor = snapshot.poseAnchor;
+            _frozenView = snapshot.camera;
+            ApplyFrozenPose();
+            StartCoroutine(CaptureRenderedFrame(snapshot));
         }
 
-        private IEnumerator CaptureRenderedFrame(SceneIssueFrameCapture snapshot, bool openAnnotationAfter)
+        private IEnumerator CaptureRenderedFrame(SceneIssueFrameCapture snapshot)
         {
             _overlayHidden = true;
             yield return new WaitForEndOfFrame();
 
             try
             {
-                if (openAnnotationAfter)
-                    ApplyFrozenPose();
-
+                ApplyFrozenPose();
                 Texture2D screenshot = ScreenCapture.CaptureScreenshotAsTexture();
                 if (screenshot == null)
                     throw new InvalidOperationException("ScreenCapture returned no texture.");
@@ -301,17 +326,9 @@ namespace MountingForce.DeveloperTools
                 if (png == null || png.Length == 0)
                     throw new InvalidOperationException("PNG encoding returned no data.");
 
-                _pendingFrames.Add(new PendingFrame { Snapshot = snapshot, Png = png });
-
-                if (openAnnotationAfter)
-                {
-                    _annotationFocused = false;
-                    _annotationVisible = true;
-                }
-                else
-                {
-                    ShowToast($"Added screenshot {_pendingFrames.Count} to this issue.");
-                }
+                var pending = new PendingFrame { Snapshot = snapshot, Png = png };
+                _pendingFrames.Add(pending);
+                OpenAnnotationForFrame(_pendingFrames.Count - 1);
             }
             catch (Exception exception)
             {
@@ -319,7 +336,11 @@ namespace MountingForce.DeveloperTools
                 if (_pendingFrames.Count == 0)
                     CancelPendingCapture("Capture failed; see the Unity Console for details.");
                 else
+                {
+                    ReleaseFrozenPose();
+                    RestoreAfterAnnotation();
                     ShowToast("Screenshot failed; previous issue screenshots are still kept.");
+                }
             }
             finally
             {
@@ -330,7 +351,7 @@ namespace MountingForce.DeveloperTools
 
         private void OpenAnnotationForFinish()
         {
-            if (!_sessionActive || _captureInProgress || _annotationVisible)
+            if (!_sessionActive || _captureInProgress || _annotationVisible || _pendingFrames.Count == 0)
                 return;
 
             Camera camera = ResolveActiveCamera(null);
@@ -343,7 +364,18 @@ namespace MountingForce.DeveloperTools
             }
 
             PreserveAndPauseForAnnotation();
+            OpenAnnotationForFrame(_pendingFrames.Count - 1);
+        }
+
+        private void OpenAnnotationForFrame(int index)
+        {
+            if (index < 0 || index >= _pendingFrames.Count)
+                return;
+
+            _annotationFrameIndex = index;
             _annotationFocused = false;
+            _drawingCircle = false;
+            LoadAnnotationTexture(_pendingFrames[index].Png);
             _annotationVisible = true;
         }
 
@@ -351,31 +383,29 @@ namespace MountingForce.DeveloperTools
         {
             var dim = new Rect(0f, 0f, Screen.width, Screen.height);
             Color oldColor = GUI.color;
-            GUI.color = new Color(0f, 0f, 0f, 0.55f);
+            GUI.color = new Color(0f, 0f, 0f, 0.62f);
             GUI.Box(dim, GUIContent.none);
             GUI.color = oldColor;
 
-            float width = Mathf.Clamp(Screen.width - 40f, 320f, 700f);
-            float height = Mathf.Clamp(Screen.height - 80f, 285f, 420f);
+            float width = Mathf.Clamp(Screen.width - 40f, 760f, 1180f);
+            float height = Mathf.Clamp(Screen.height - 70f, 480f, 820f);
             var area = new Rect((Screen.width - width) * 0.5f, (Screen.height - height) * 0.5f, width, height);
 
             GUILayout.BeginArea(area, GUI.skin.window);
             GUILayout.Label("Flag scene issue", _titleStyle);
-            GUILayout.Space(4f);
+            GUILayout.Space(3f);
             GUILayout.Label(
-                $"{_pendingFrames.Count} clean screenshot(s) captured. Each screenshot keeps its own exact frame, camera and pose metadata. Describe the issue below.",
+                "Drag on the screenshot to circle the bad area. Circles belong to this specific captured frame and are shown again during replay.",
                 _bodyStyle);
-            GUILayout.Space(8f);
+            GUILayout.Space(6f);
 
-            GUI.SetNextControlName("SceneIssueDescription");
-            _note = GUILayout.TextArea(_note ?? string.Empty, _textAreaStyle, GUILayout.ExpandHeight(true));
-            if (!_annotationFocused && Event.current.type == EventType.Repaint)
-            {
-                GUI.FocusControl("SceneIssueDescription");
-                _annotationFocused = true;
-            }
-
+            GUILayout.BeginHorizontal(GUILayout.ExpandHeight(true));
+            DrawAnnotationPreview(width * 0.60f, height - 150f);
             GUILayout.Space(10f);
+            DrawAnnotationSidePanel(height - 150f);
+            GUILayout.EndHorizontal();
+
+            GUILayout.Space(8f);
             GUILayout.BeginHorizontal();
             if (GUILayout.Button("Cancel issue", GUILayout.Height(34f)))
             {
@@ -406,10 +436,165 @@ namespace MountingForce.DeveloperTools
             GUILayout.EndArea();
         }
 
+        private void DrawAnnotationPreview(float targetWidth, float targetHeight)
+        {
+            GUILayout.BeginVertical(GUILayout.Width(targetWidth), GUILayout.ExpandHeight(true));
+
+            GUILayout.BeginHorizontal();
+            GUI.enabled = _annotationFrameIndex > 0;
+            if (GUILayout.Button("Previous", GUILayout.Width(90f), GUILayout.Height(27f)))
+                OpenAnnotationForFrame(_annotationFrameIndex - 1);
+            GUI.enabled = _annotationFrameIndex + 1 < _pendingFrames.Count;
+            if (GUILayout.Button("Next", GUILayout.Width(90f), GUILayout.Height(27f)))
+                OpenAnnotationForFrame(_annotationFrameIndex + 1);
+            GUI.enabled = true;
+            GUILayout.FlexibleSpace();
+            GUILayout.Label($"Frame {_annotationFrameIndex + 1} of {_pendingFrames.Count}", _smallStyle);
+            GUILayout.EndHorizontal();
+
+            Rect outer = GUILayoutUtility.GetRect(targetWidth, Mathf.Max(260f, targetHeight - 35f), GUILayout.ExpandWidth(true), GUILayout.ExpandHeight(true));
+            GUI.Box(outer, GUIContent.none);
+
+            if (_annotationTexture == null)
+            {
+                GUI.Label(outer, "Screenshot preview unavailable.", _smallStyle);
+                GUILayout.EndVertical();
+                return;
+            }
+
+            Rect preview = FitRect(outer, _annotationTexture.width, _annotationTexture.height);
+            GUI.DrawTexture(preview, _annotationTexture, ScaleMode.StretchToFill, false);
+            HandleCircleInput(preview);
+
+            PendingFrame pending = _pendingFrames[_annotationFrameIndex];
+            DrawCircles(preview, pending.Circles, Color.red, 3f);
+
+            if (_drawingCircle)
+            {
+                SceneIssueScreenCircle draft = BuildCircle(preview, _circleStart, Event.current.mousePosition);
+                DrawCircle(preview, draft, new Color(1f, 0.6f, 0.15f, 1f), 2f);
+            }
+
+            GUILayout.EndVertical();
+        }
+
+        private void DrawAnnotationSidePanel(float targetHeight)
+        {
+            GUILayout.BeginVertical(GUILayout.ExpandWidth(true), GUILayout.Height(targetHeight));
+            GUILayout.Label("Issue description", _smallStyle);
+            GUI.SetNextControlName("SceneIssueDescription");
+            _note = GUILayout.TextArea(_note ?? string.Empty, _textAreaStyle, GUILayout.ExpandHeight(true));
+            if (!_annotationFocused && Event.current.type == EventType.Repaint)
+            {
+                GUI.FocusControl("SceneIssueDescription");
+                _annotationFocused = true;
+            }
+
+            GUILayout.Space(8f);
+            PendingFrame pending = _pendingFrames[_annotationFrameIndex];
+            GUILayout.Label($"Circles on this frame: {pending.Circles.Count}", _smallStyle);
+            GUILayout.Label(
+                "Left-drag: draw circle\nRight-click: remove nearest circle\nClear: remove all circles from this frame",
+                _bodyStyle);
+            if (GUILayout.Button("Clear circles", GUILayout.Width(120f), GUILayout.Height(28f)))
+                pending.Circles.Clear();
+            GUILayout.EndVertical();
+        }
+
+        private void HandleCircleInput(Rect preview)
+        {
+            Event current = Event.current;
+            if (current == null)
+                return;
+
+            if (current.type == EventType.MouseDown && preview.Contains(current.mousePosition))
+            {
+                if (current.button == 0)
+                {
+                    _drawingCircle = true;
+                    _circleStart = current.mousePosition;
+                    GUI.FocusControl(null);
+                    current.Use();
+                    return;
+                }
+
+                if (current.button == 1)
+                {
+                    RemoveNearestCircle(preview, current.mousePosition);
+                    current.Use();
+                    return;
+                }
+            }
+
+            if (_drawingCircle && current.type == EventType.MouseDrag)
+            {
+                current.Use();
+                return;
+            }
+
+            if (_drawingCircle && current.type == EventType.MouseUp && current.button == 0)
+            {
+                SceneIssueScreenCircle circle = BuildCircle(preview, _circleStart, current.mousePosition);
+                if (circle.radius >= 0.008f)
+                    _pendingFrames[_annotationFrameIndex].Circles.Add(circle);
+                _drawingCircle = false;
+                current.Use();
+            }
+        }
+
+        private void RemoveNearestCircle(Rect preview, Vector2 mousePosition)
+        {
+            List<SceneIssueScreenCircle> circles = _pendingFrames[_annotationFrameIndex].Circles;
+            if (circles.Count == 0)
+                return;
+
+            int nearest = -1;
+            float bestDistance = float.MaxValue;
+            for (int i = 0; i < circles.Count; i++)
+            {
+                float distance = Vector2.Distance(mousePosition, CircleCenter(preview, circles[i]));
+                if (distance < bestDistance)
+                {
+                    bestDistance = distance;
+                    nearest = i;
+                }
+            }
+
+            if (nearest >= 0)
+                circles.RemoveAt(nearest);
+        }
+
+        private static SceneIssueScreenCircle BuildCircle(Rect preview, Vector2 start, Vector2 end)
+        {
+            Vector2 center = new Vector2(
+                Mathf.Clamp(start.x, preview.xMin, preview.xMax),
+                Mathf.Clamp(start.y, preview.yMin, preview.yMax));
+            Vector2 edge = new Vector2(
+                Mathf.Clamp(end.x, preview.xMin, preview.xMax),
+                Mathf.Clamp(end.y, preview.yMin, preview.yMax));
+            float basis = Mathf.Max(1f, Mathf.Min(preview.width, preview.height));
+
+            return new SceneIssueScreenCircle
+            {
+                centerX = Mathf.InverseLerp(preview.xMin, preview.xMax, center.x),
+                centerY = Mathf.InverseLerp(preview.yMin, preview.yMax, center.y),
+                radius = Mathf.Clamp01(Vector2.Distance(center, edge) / basis)
+            };
+        }
+
+        private static Vector2 CircleCenter(Rect rect, SceneIssueScreenCircle circle)
+        {
+            return new Vector2(
+                Mathf.Lerp(rect.xMin, rect.xMax, circle.centerX),
+                Mathf.Lerp(rect.yMin, rect.yMax, circle.centerY));
+        }
+
         private void ContinueCaptureSession()
         {
             _annotationVisible = false;
             _annotationFocused = false;
+            _drawingCircle = false;
+            ReleaseAnnotationTexture();
             ReleaseFrozenPose();
             RestoreAfterAnnotation();
             ShowToast("Issue session active — press F8 whenever the bad state appears.");
@@ -435,6 +620,7 @@ namespace MountingForce.DeveloperTools
                 for (int i = 0; i < _pendingFrames.Count; i++)
                 {
                     PendingFrame pending = _pendingFrames[i];
+                    pending.Snapshot.circles = pending.Circles.ToArray();
                     _pendingRecord.captures[i] = pending.Snapshot;
                     File.WriteAllBytes(Path.Combine(captureDirectory, pending.Snapshot.screenshot), pending.Png);
                 }
@@ -469,6 +655,7 @@ namespace MountingForce.DeveloperTools
             record.screenHeight = frame.screenHeight;
             record.poseAnchor = frame.poseAnchor;
             record.camera = frame.camera;
+            record.circles = frame.circles;
         }
 
         private void CancelPendingCapture(string toast)
@@ -483,11 +670,13 @@ namespace MountingForce.DeveloperTools
         {
             _annotationVisible = false;
             _annotationFocused = false;
+            _drawingCircle = false;
             _captureInProgress = false;
             _sessionActive = false;
             _pendingFrames.Clear();
             _pendingRecord = null;
             _note = string.Empty;
+            ReleaseAnnotationTexture();
             ReleaseFrozenPose();
         }
 
@@ -525,7 +714,7 @@ namespace MountingForce.DeveloperTools
 
             return new SceneIssueCaptureRecord
             {
-                formatVersion = 2,
+                formatVersion = 3,
                 id = $"{timestamp}-{sceneSlug}",
                 capturedUtc = DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture),
                 note = string.Empty,
@@ -550,7 +739,8 @@ namespace MountingForce.DeveloperTools
                 screenWidth = Screen.width,
                 screenHeight = Screen.height,
                 poseAnchor = CaptureTransform(poseAnchor),
-                camera = CaptureCamera(camera)
+                camera = CaptureCamera(camera),
+                circles = Array.Empty<SceneIssueScreenCircle>()
             };
         }
 
@@ -691,7 +881,8 @@ namespace MountingForce.DeveloperTools
                     screenWidth = record.screenWidth,
                     screenHeight = record.screenHeight,
                     poseAnchor = record.poseAnchor,
-                    camera = record.camera
+                    camera = record.camera,
+                    circles = record.circles ?? Array.Empty<SceneIssueScreenCircle>()
                 }
             };
         }
@@ -757,17 +948,34 @@ namespace MountingForce.DeveloperTools
             return builder.ToString();
         }
 
+        private void DrawReplayCircles()
+        {
+            if (_replayFrames == null || _replayIndex < 0 || _replayIndex >= _replayFrames.Length)
+                return;
+
+            SceneIssueScreenCircle[] circles = _replayFrames[_replayIndex].circles;
+            if (circles == null || circles.Length == 0)
+                return;
+
+            DrawCircles(new Rect(0f, 0f, Screen.width, Screen.height), circles, Color.red, 3f);
+        }
+
         private void DrawReplayBanner()
         {
             float width = Mathf.Clamp(Screen.width - 40f, 360f, 680f);
-            var area = new Rect((Screen.width - width) * 0.5f, 12f, width, 180f);
+            var area = new Rect((Screen.width - width) * 0.5f, 12f, width, 190f);
             GUILayout.BeginArea(area, GUI.skin.window);
             GUILayout.Label("Scene issue replay", _titleStyle);
             GUILayout.Label(_replayRecord != null ? _replayRecord.note : string.Empty, _bodyStyle);
             GUILayout.Space(5f);
-            GUILayout.Label(
-                _replayFrames == null ? string.Empty : $"Screenshot {_replayIndex + 1} of {_replayFrames.Length} — {_replayFrames[_replayIndex].screenshot}",
-                _smallStyle);
+            if (_replayFrames != null)
+            {
+                SceneIssueFrameCapture frame = _replayFrames[_replayIndex];
+                int circleCount = frame.circles != null ? frame.circles.Length : 0;
+                GUILayout.Label(
+                    $"Screenshot {_replayIndex + 1} of {_replayFrames.Length} — {frame.screenshot} — {circleCount} marked region(s)",
+                    _smallStyle);
+            }
             GUILayout.FlexibleSpace();
             GUILayout.BeginHorizontal();
             GUI.enabled = _replayFrames != null && _replayIndex > 0;
@@ -870,6 +1078,94 @@ namespace MountingForce.DeveloperTools
         }
 #endif
 
+        private void LoadAnnotationTexture(byte[] png)
+        {
+            ReleaseAnnotationTexture();
+            if (png == null || png.Length == 0)
+                return;
+
+            var texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+            if (!texture.LoadImage(png, false))
+            {
+                Destroy(texture);
+                return;
+            }
+
+            _annotationTexture = texture;
+        }
+
+        private void ReleaseAnnotationTexture()
+        {
+            if (_annotationTexture == null)
+                return;
+
+            Destroy(_annotationTexture);
+            _annotationTexture = null;
+        }
+
+        private void DrawCircles(Rect rect, IList<SceneIssueScreenCircle> circles, Color color, float thickness)
+        {
+            if (circles == null)
+                return;
+
+            for (int i = 0; i < circles.Count; i++)
+                DrawCircle(rect, circles[i], color, thickness);
+        }
+
+        private void DrawCircle(Rect rect, SceneIssueScreenCircle circle, Color color, float thickness)
+        {
+            if (circle == null || circle.radius <= 0f)
+                return;
+
+            Vector2 center = CircleCenter(rect, circle);
+            float radius = circle.radius * Mathf.Min(rect.width, rect.height);
+            Vector2 previous = center + new Vector2(radius, 0f);
+            for (int i = 1; i <= CircleSegments; i++)
+            {
+                float theta = (Mathf.PI * 2f * i) / CircleSegments;
+                Vector2 next = center + new Vector2(Mathf.Cos(theta) * radius, Mathf.Sin(theta) * radius);
+                DrawLine(previous, next, color, thickness);
+                previous = next;
+            }
+        }
+
+        private void DrawLine(Vector2 start, Vector2 end, Color color, float thickness)
+        {
+            if (_lineTexture == null)
+                return;
+
+            Vector2 delta = end - start;
+            float length = delta.magnitude;
+            if (length <= 0.01f)
+                return;
+
+            Matrix4x4 oldMatrix = GUI.matrix;
+            Color oldColor = GUI.color;
+            float angle = Mathf.Atan2(delta.y, delta.x) * Mathf.Rad2Deg;
+            GUI.color = color;
+            GUIUtility.RotateAroundPivot(angle, start);
+            GUI.DrawTexture(new Rect(start.x, start.y - thickness * 0.5f, length, thickness), _lineTexture);
+            GUI.matrix = oldMatrix;
+            GUI.color = oldColor;
+        }
+
+        private static Rect FitRect(Rect outer, float contentWidth, float contentHeight)
+        {
+            if (contentWidth <= 0f || contentHeight <= 0f)
+                return outer;
+
+            float outerAspect = outer.width / Mathf.Max(1f, outer.height);
+            float contentAspect = contentWidth / contentHeight;
+            if (contentAspect > outerAspect)
+            {
+                float height = outer.width / contentAspect;
+                return new Rect(outer.xMin, outer.yMin + (outer.height - height) * 0.5f, outer.width, height);
+            }
+
+            float width = outer.height * contentAspect;
+            return new Rect(outer.xMin + (outer.width - width) * 0.5f, outer.yMin, width, outer.height);
+        }
+
         private void DrawToast()
         {
             float width = Mathf.Clamp(Screen.width - 40f, 300f, 560f);
@@ -909,6 +1205,10 @@ namespace MountingForce.DeveloperTools
                 fontSize = 14,
                 wordWrap = true
             };
+
+            _lineTexture = new Texture2D(1, 1, TextureFormat.RGBA32, false);
+            _lineTexture.SetPixel(0, 0, Color.white);
+            _lineTexture.Apply();
         }
     }
 }
