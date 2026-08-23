@@ -16,7 +16,8 @@ namespace MountingForce.WorldGen.Voxel
     /// endpoint heights come from TerrainQuery, and adjacent pieces share the same endpoint.
     /// This follows broad terrain without either failure mode of the earlier prototypes: independent
     /// flat tiles produced longitudinal steps, while one giant end-to-end ramp cut deep trenches
-    /// through intervening hills. The authored road width remains the actual cut/fill width.
+    /// through intervening hills. A Dirt carriageway keeps the authored width while five grassy
+    /// shoulder bands per side feather its cut/fill edge back into the surrounding terrain.
     /// </summary>
     public static class KentridgeTownSurfaceCatalogue
     {
@@ -26,25 +27,30 @@ namespace MountingForce.WorldGen.Voxel
         private const int SurfaceThicknessDm = 4;
         private const int ClearAboveDm = 24;
         private const int PlazaFootprintHeightDm = 52;
+        private const int ShoulderCount = 5;
+        private const int ShoulderWidthDm = 6;
+        private const int ShoulderRiseDm = 4;
 
         private readonly struct RoadSegmentBuild
         {
             public readonly FixedString64Bytes Name;
             public readonly int3 Footprint;
             public readonly ExplicitPlacement Placement;
-            public readonly int Width;
+            public readonly int CarriageWidth;
+            public readonly int ShoulderWidth;
             public readonly int Length;
             public readonly int HeightDelta;
             public readonly byte Axis;
 
             public RoadSegmentBuild(FixedString64Bytes name, int3 footprint,
-                                    ExplicitPlacement placement, int width, int length,
-                                    int heightDelta, byte axis)
+                                    ExplicitPlacement placement, int carriageWidth,
+                                    int shoulderWidth, int length, int heightDelta, byte axis)
             {
                 Name = name;
                 Footprint = footprint;
                 Placement = placement;
-                Width = width;
+                CarriageWidth = carriageWidth;
+                ShoulderWidth = shoulderWidth;
                 Length = length;
                 HeightDelta = heightDelta;
                 Axis = axis;
@@ -108,7 +114,7 @@ namespace MountingForce.WorldGen.Voxel
                     ProgramLength = program.Length,
                     MaterialOffset = 0,
                     MaterialCount = 0,
-                    MaxPrimitives = 3,
+                    MaxPrimitives = 1 + (1 + ShoulderCount * 2) * 2,
                 };
 
                 catalogue.ExplicitPlacements[i] = road.Placement;
@@ -201,9 +207,12 @@ namespace MountingForce.WorldGen.Voxel
             PlannedStreet street, int streetIndex, int semanticSegment, int piece,
             Int2 a, Int2 b, uint seed, int scale)
         {
-            int width = street.WidthDm * scale;
+            int carriageWidth = street.WidthDm * scale;
+            int shoulderWidth = ShoulderCount * ShoulderWidthDm * scale;
+            int totalWidth = carriageWidth + shoulderWidth * 2;
             int fillHeight = (RoadFillDepthDm + SurfaceThicknessDm) * scale;
             int clearAbove = ClearAboveDm * scale;
+            int maxShoulderRise = ShoulderCount * ShoulderRiseDm * scale;
             string name = "kentridge-road-" + street.Id + "-" + semanticSegment + "-" + piece;
 
             if (a.X == b.X)
@@ -220,18 +229,21 @@ namespace MountingForce.WorldGen.Voxel
 
                 return new RoadSegmentBuild(
                     new FixedString64Bytes(name),
-                    new int3(width, fillHeight + delta + clearAbove, length),
+                    new int3(
+                        totalWidth,
+                        fillHeight + delta + maxShoulderRise + clearAbove,
+                        length),
                     new ExplicitPlacement
                     {
                         Position = new int3(
-                            centreX - width / 2,
+                            centreX - totalWidth / 2,
                             low - fillHeight,
                             minZ),
                         Orientation = orientation,
                         OverrideOffset = 0,
                         OverrideCount = 0,
                     },
-                    width, length, delta, axis: 2);
+                    carriageWidth, shoulderWidth, length, delta, axis: 2);
             }
 
             int minX = Math.Min(a.X, b.X) * scale;
@@ -246,18 +258,21 @@ namespace MountingForce.WorldGen.Voxel
 
             return new RoadSegmentBuild(
                 new FixedString64Bytes(name),
-                new int3(xlength, fillHeight + xdelta + clearAbove, width),
+                new int3(
+                    xlength,
+                    fillHeight + xdelta + maxShoulderRise + clearAbove,
+                    totalWidth),
                 new ExplicitPlacement
                 {
                     Position = new int3(
                         minX,
                         xlow - fillHeight,
-                        centreZ - width / 2),
+                        centreZ - totalWidth / 2),
                     Orientation = xorientation,
                     OverrideOffset = 0,
                     OverrideCount = 0,
                 },
-                width, xlength, xdelta, axis: 0);
+                carriageWidth, shoulderWidth, xlength, xdelta, axis: 0);
         }
 
         private static ExplicitPlacement ResolvePlazaPlacement(
@@ -286,18 +301,63 @@ namespace MountingForce.WorldGen.Voxel
         {
             int s = settings.VoxelsPerDecimetre;
             int fillHeight = (RoadFillDepthDm + SurfaceThicknessDm) * s;
-            int clearHeight = road.HeightDelta + ClearAboveDm * s;
-            int sx = road.Axis == 0 ? road.Length : road.Width;
-            int sz = road.Axis == 2 ? road.Length : road.Width;
-            byte surface = settings.Materials.Resolve(MaterialRole.RoadSurface);
+            int maxShoulderRise = ShoulderCount * ShoulderRiseDm * s;
+            int clearHeight = road.HeightDelta + maxShoulderRise + ClearAboveDm * s;
+            int crossTotal = road.CarriageWidth + road.ShoulderWidth * 2;
+            int sx = road.Axis == 0 ? road.Length : crossTotal;
+            int sz = road.Axis == 2 ? road.Length : crossTotal;
+            byte roadSurface = settings.Materials.Resolve(MaterialRole.RoadSurface);
+            byte shoulderSurface = settings.Materials.Resolve(MaterialRole.Moss);
 
             var b = new ProgramBuilder();
+
+            // Cut one corridor to the low carriageway endpoint, then fill the centre road and
+            // progressively higher grassy shoulder bands back into it. Each strip keeps the same
+            // longitudinal ramp as this 12.8 m road segment, so feathering does not reintroduce
+            // tile-to-tile cliffs or a giant end-to-end road grade.
             b.Carve(0, fillHeight, 0, sx, clearHeight, sz);
-            b.Box(0, 0, 0, sx, fillHeight, sz, surface);
-            if (road.HeightDelta > 0)
-                b.Ramp(0, fillHeight, 0, sx, road.HeightDelta, sz,
-                       road.Axis, surface);
+
+            int centreCross = road.ShoulderWidth;
+            AddLongitudinalStrip(
+                b, road, centreCross, road.CarriageWidth, fillHeight, roadSurface);
+
+            int bandWidth = ShoulderWidthDm * s;
+            for (int band = 1; band <= ShoulderCount; band++)
+            {
+                int rise = band * ShoulderRiseDm * s;
+                int leftCross = road.ShoulderWidth - band * bandWidth;
+                int rightCross = road.ShoulderWidth + road.CarriageWidth
+                               + (band - 1) * bandWidth;
+                AddLongitudinalStrip(
+                    b, road, leftCross, bandWidth, fillHeight + rise, shoulderSurface);
+                AddLongitudinalStrip(
+                    b, road, rightCross, bandWidth, fillHeight + rise, shoulderSurface);
+            }
+
             return b.Finish();
+        }
+
+        private static void AddLongitudinalStrip(
+            ProgramBuilder b, RoadSegmentBuild road, int crossOffset, int crossWidth,
+            int baseHeight, byte material)
+        {
+            if (road.Axis == 0)
+            {
+                b.Box(0, 0, crossOffset, road.Length, baseHeight, crossWidth, material);
+                if (road.HeightDelta > 0)
+                    b.Ramp(
+                        0, baseHeight, crossOffset,
+                        road.Length, road.HeightDelta, crossWidth,
+                        axis: 0, material: material);
+                return;
+            }
+
+            b.Box(crossOffset, 0, 0, crossWidth, baseHeight, road.Length, material);
+            if (road.HeightDelta > 0)
+                b.Ramp(
+                    crossOffset, baseHeight, 0,
+                    crossWidth, road.HeightDelta, road.Length,
+                    axis: 2, material: material);
         }
 
         private static int[] PlazaProgram(PlannedPlaza plaza,
