@@ -97,19 +97,51 @@ Shader "VoxelEngine/ProceduralVine"
             half4 Frag(Varyings input) : SV_Target
             {
                 UNITY_SETUP_INSTANCE_ID(input);
-                float x = abs(input.uv.x * 2.0 - 1.0);
-                float leafWave = pow(saturate(0.5 + 0.5 * sin(input.uv.y * 37.699)), 8.0);
-                float width = 0.16 + leafWave * _Leafiness * 0.64;
-                float mask = width - x;
-                clip(mask - lerp(-0.04, 0.08, _Cutoff));
 
+                // A continuous narrow stem with alternating broad leaf lobes reads as ivy at hero
+                // distance. The previous high-frequency sine mask produced a mechanical ladder of
+                // identical holes, especially when several climber cards overlapped.
+                float x = input.uv.x * 2.0 - 1.0;
                 float along = saturate(input.uv.y);
-                float3 albedo = lerp(_BaseColor.rgb, _TipColor.rgb, along * 0.75);
+                const float leafCount = 5.0;
+                float scaled = min(along * leafCount, leafCount - 0.0001);
+                float leafIndex = floor(scaled);
+                float leafLocalY = frac(scaled);
+                float leafY = abs(leafLocalY * 2.0 - 1.0);
+                float leafProfile = sqrt(saturate(1.0 - leafY * leafY));
+                float side = fmod(leafIndex, 2.0) < 1.0 ? -1.0 : 1.0;
+                float leafCentre = side * 0.33;
+                float leafHalfWidth = (0.14 + 0.34 * _Leafiness) * leafProfile;
+                float leafMask = leafHalfWidth - abs(x - leafCentre);
+                float stemMask = 0.075 - abs(x);
+                float mask = max(stemMask, leafMask);
+                clip(mask - lerp(-0.035, 0.035, _Cutoff));
+
+                // Give each broad leaf lobe its own restrained value/color shift. Large coherent
+                // patches read as real leaf variation from the hero camera; pixel-scale noise would
+                // just shimmer under instancing and MSAA. Dark centre veins and warmer outer tips
+                // add enough internal structure to keep overlapping cards from collapsing into one
+                // flat green silhouette.
+                float leafVariation = frac(sin((leafIndex + 1.0) * 12.9898) * 43758.5453);
+                float leafHighlight = saturate(leafProfile * 0.62 + 0.16);
+                float colorMix = saturate(along * 0.36 + leafHighlight * 0.20 + leafVariation * 0.34);
+                float3 albedo = lerp(_BaseColor.rgb, _TipColor.rgb, colorMix);
+                albedo *= lerp(0.78, 1.10, leafVariation);
+
+                float safeLeafWidth = max(leafHalfWidth, 0.035);
+                float acrossLeaf = saturate(abs(x - leafCentre) / safeLeafWidth);
+                float vein = (1.0 - smoothstep(0.025, 0.115, abs(x - leafCentre))) * leafProfile;
+                albedo *= lerp(1.0, 0.84, vein);
+
+                float warmTip = smoothstep(0.52, 0.94, acrossLeaf) * leafProfile;
+                float3 yellowGreen = albedo * float3(1.13, 1.24, 0.76);
+                albedo = lerp(albedo, yellowGreen, warmTip * lerp(0.08, 0.23, leafVariation));
+
                 float3 n = normalize(input.normalWS);
                 float3 sun = normalize(_SunDirection.xyz);
                 float ndl = abs(dot(n, sun));
                 float3 ambient = lerp(_SkyHorizon.rgb, _SkyZenith.rgb, saturate(abs(n.y) * 0.62 + 0.20));
-                float3 lit = albedo * (ambient * 0.48 + (0.36 + ndl * 0.64));
+                float3 lit = albedo * (ambient * 0.36 + (0.32 + ndl * 0.52));
                 float pulse = 0.86 + 0.14 * sin(AnimationTime() * 1.4 + input.uv.y * 9.0);
                 lit += _EmissionColor.rgb * _EmissionStrength * pulse;
                 return half4(lit, 1.0);

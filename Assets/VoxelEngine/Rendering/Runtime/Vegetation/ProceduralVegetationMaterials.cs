@@ -152,7 +152,6 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
                 case VegetationKind.Moss:
                 case VegetationKind.FallenLeaves:
                 case VegetationKind.PineNeedles:
-                case VegetationKind.Ivy:
                 case VegetationKind.Lichen:
                 case VegetationKind.LilyPad:
                 case VegetationKind.Algae:
@@ -166,6 +165,8 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
                     return VegetationShaderClass.Woody;
             }
 
+            // Ivy is catalogued as a climber, so keep it on the branched vine path. Treating it as
+            // a surface creeper turns each semantic ivy instance into a large circular wall patch.
             switch (growthForm)
             {
                 case VegetationGrowthForm.Creeper: return VegetationShaderClass.Surface;
@@ -195,6 +196,11 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
                 case VegetationKind.Mushroom: return new Color(0.58f, 0.34f, 0.20f, 1f);
                 case VegetationKind.BerryBush: return new Color(0.20f, 0.39f, 0.13f, 1f);
                 case VegetationKind.ThornBush: return new Color(0.18f, 0.31f, 0.10f, 1f);
+                case VegetationKind.Ivy:
+                case VegetationKind.Vine:
+                case VegetationKind.ClimbingVine:
+                case VegetationKind.HangingVine:
+                    return new Color(0.28f, 0.55f, 0.10f, 1f);
                 case VegetationKind.Lichen: return new Color(0.48f, 0.54f, 0.27f, 1f);
                 case VegetationKind.Algae: return new Color(0.12f, 0.31f, 0.20f, 1f);
                 case VegetationKind.Glowshroom: return new Color(0.30f, 0.30f, 0.62f, 1f);
@@ -214,6 +220,11 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
             switch (kind)
             {
                 case VegetationKind.Flower: return new Color(1.00f, 0.73f, 0.28f, 1f);
+                case VegetationKind.Ivy:
+                case VegetationKind.Vine:
+                case VegetationKind.ClimbingVine:
+                case VegetationKind.HangingVine:
+                    return new Color(0.53f, 0.72f, 0.18f, 1f);
                 case VegetationKind.ManaBloom: return new Color(0.72f, 0.58f, 1.00f, 1f);
                 case VegetationKind.Glowshroom: return new Color(0.55f, 0.84f, 1.00f, 1f);
                 case VegetationKind.EmberThorn: return new Color(0.96f, 0.44f, 0.12f, 1f);

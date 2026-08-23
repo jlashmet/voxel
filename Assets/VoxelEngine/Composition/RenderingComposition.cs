@@ -280,6 +280,17 @@ namespace VoxelEngine.Composition
             VoxelRenderBridge.SkyZenith = zenith;
         }
 
+        /// <summary>Returns the current authored cloud opacity used by the production sky pass.</summary>
+        public static float GetCloudOpacity() => VoxelRenderBridge.CloudOpacity;
+
+        /// <summary>
+        /// Changes only cloud visibility, leaving the authored sky gradient and cloud shape policy
+        /// intact. Scene look-development can therefore suppress the deck without depending on
+        /// Rendering.Runtime or mutating unrelated environment defaults.
+        /// </summary>
+        public static void SetCloudOpacity(float opacity) =>
+            VoxelRenderBridge.CloudOpacity = Mathf.Clamp01(opacity);
+
         /// <summary>
         /// Sets the key-light direction without disturbing sky or debug tint. Look-development
         /// benches drive this continuously from sun azimuth/elevation controls, for which

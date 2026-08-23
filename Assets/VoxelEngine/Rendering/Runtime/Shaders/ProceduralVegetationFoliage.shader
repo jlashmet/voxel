@@ -159,7 +159,22 @@ Shader "VoxelEngine/ProceduralVegetationFoliage"
                 float height = saturate(input.uv.y);
                 float3 albedo = lerp(_BaseColor.rgb, _TipColor.rgb, height * 0.72);
                 albedo *= lerp(float3(1,1,1), input.color.rgb, 0.30);
-                float3 lit = albedo * (ambient * 0.48 + (0.36 + ndl * 0.64));
+
+                // Flowers need to read as blossoms rather than tiny foliage-colored stars. Preserve
+                // the material's authored petal hue, lift the outer petals toward a soft cream, and
+                // add a compact warm centre. This only affects the six-petal flower shape.
+                if (_Shape > 1.5 && _Shape < 2.5)
+                {
+                    float2 flowerP = input.uv * 2.0 - 1.0;
+                    float flowerR = length(flowerP);
+                    float flowerHead = 1.0 - smoothstep(0.58, 0.82, flowerR);
+                    float palePetal = smoothstep(0.18, 0.58, flowerR) * flowerHead;
+                    float warmCenter = 1.0 - smoothstep(0.09, 0.23, flowerR);
+                    albedo = lerp(albedo * 1.12, float3(1.0, 0.94, 0.86), palePetal * 0.30);
+                    albedo = lerp(albedo, float3(1.0, 0.76, 0.20), warmCenter * 0.92);
+                }
+
+                float3 lit = albedo * (ambient * 0.42 + (0.34 + ndl * 0.54));
                 float pulse = 0.88 + 0.12 * sin(AnimationTime() * 1.6 + dot(input.positionWS, float3(0.31, 0.19, 0.27)));
                 lit += _EmissionColor.rgb * _EmissionStrength * pulse;
                 return half4(lit, 1.0);
