@@ -51,11 +51,24 @@ namespace VoxelEngine.Showcase
             _renderer = VegetationLifeRenderingComposition.EnsureVegetationBatchRenderer(gameObject);
             BuildReferenceGrowth();
             _renderer.SetInstances(_instances);
+            ApplyReferenceEnvironment();
         }
 
         private void OnDisable()
         {
             _renderer?.Clear();
+        }
+
+        private void ApplyReferenceEnvironment()
+        {
+            // The target is a warm ruin against a near-black olive woodland, not an open blue sky.
+            // Keep a little olive horizon energy so the stone and foliage retain readable fill.
+            Camera camera = GetComponent<Camera>();
+            if (camera != null)
+                camera.backgroundColor = new Color(0.035f, 0.040f, 0.028f, 1f);
+            RenderingComposition.SetSky(
+                new Color(0.24f, 0.25f, 0.13f, 1f),
+                new Color(0.035f, 0.042f, 0.028f, 1f));
         }
 
         private void BuildReferenceGrowth()
