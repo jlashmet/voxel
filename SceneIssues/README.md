@@ -64,9 +64,10 @@ When an agent is asked to work through captured issues:
 6. Implement the smallest fix that resolves the reproduced problem without weakening coverage, performance budgets, or unrelated assertions.
 7. Run the new regression plus the smallest relevant existing test set. Follow the repository's Unity-running rules in `CLAUDE.md`; never bypass `tools/unity-run.sh` or start a second editor unsafely.
 8. Replay the original capture again after the fix. For multi-frame issues, check every recorded viewpoint.
-9. Update that issue's `issue.json`: set `status` to `fixed`, fill `resolvedUtc`, summarize the resolution in `resolutionSummary`, record the regression test in `regressionTest`, and record the fixing commit in `fixCommit` once known. If the issue cannot be reproduced or is blocked, record that explicitly instead of pretending it is fixed.
-10. Commit the issue fix on `fixes` with a message that names the capture, for example `Fix scene issue 20260822-...: prevent far-field flicker`.
-11. Only after that issue is reproduced, fixed, regressed, replay-verified, documented, and committed should the agent move to the next open issue — **still on the same `fixes` branch**.
-12. Push `fixes` after each completed issue so each fix remains an inspectable commit. A single PR can accumulate the sequential fixes; do not create one PR/branch pair per capture unless the developer explicitly changes this policy.
+9. Commit the production/test fix on `fixes` with a message that names the capture, for example `Fix scene issue 20260822-...: prevent far-field flicker`. This gives the fix a real commit SHA.
+10. Update that issue's `issue.json`: set `status` to `fixed`, fill `resolvedUtc`, summarize the resolution in `resolutionSummary`, record the regression test in `regressionTest`, and put the production/test commit SHA from the previous step in `fixCommit`. If the issue cannot be reproduced or is blocked, record that explicitly instead of pretending it is fixed.
+11. Commit that issue bookkeeping on the same `fixes` branch, for example `Resolve scene issue 20260822-...`. The extra bookkeeping commit is deliberate: it avoids inventing the SHA of a commit before that commit exists.
+12. Only after that issue is reproduced, fixed, regressed, replay-verified, documented, and committed should the agent move to the next open issue — **still on the same `fixes` branch**.
+13. Push `fixes` after each completed issue so each fix remains inspectable. A single PR can accumulate the sequential fixes; do not create one PR/branch pair per capture unless the developer explicitly changes this policy.
 
-The point of the shared branch is to make visual cleanup an ordered queue: reproduce → test → fix → verify → document → commit, then advance to the next issue.
+The point of the shared branch is to make visual cleanup an ordered queue: reproduce → test → fix → verify → document → commit → resolve, then advance to the next issue.
