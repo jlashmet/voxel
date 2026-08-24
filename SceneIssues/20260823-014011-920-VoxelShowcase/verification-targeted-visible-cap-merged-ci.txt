@@ -1,0 +1,14 @@
+source_commit=8b9026a0e7be5683225b7bcc4c62790cb740d597
+request_commit=90bbbeaffae1f3fb4d132f7c90745bb2b79487f5
+request_id=sceneissue-014011-visible-cap-8b9026a0-02
+platform=EditMode
+test=VoxelEngine.Tests.EditMode.CoarseLodDensityReconstructionTests.Step2LayeredSlopeUsesVisibleTopSurfaceMaterial
+run_url=https://github.com/jlashmet/voxel/actions/runs/32747432360
+job_started_utc=2026-08-24T15:51:49Z
+job_completed_utc=2026-08-24T15:53:00Z
+unity_test_elapsed_seconds=58
+executed_test_cases=1
+ci_single_test=success
+
+GitHub Actions reported: `Executed 1 test case(s).`
+Commit status `ci/single-test`: `Requested Unity single test passed`.

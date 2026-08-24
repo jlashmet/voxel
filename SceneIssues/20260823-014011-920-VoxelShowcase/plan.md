@@ -84,8 +84,8 @@ camera replay, then resolve the capture before moving to the next open SceneIssu
       source commit `f394ebc3a` (experiment 007).
 - [x] Commit the plan-location correction on `fixes` and merge current `master`.
 - [x] Push the merged feature head and experiment record to `fixes`.
-- [ ] Force-reset the existing `ci-test/fixes` branch to the corrected feature head, add a new unique
-      request, push it, and monitor `ci/single-test` to a terminal result.
+- [x] Force-reset `ci-test/fixes` to merged source `8b9026a0e`, request the direct visible-cap
+      regression, and confirm 1/1 passed in 58 seconds (experiment 008).
 - [ ] Iterate on `fixes` and reuse the same CI branch if the requested test fails.
 - [ ] Run broader focused CI validation if the smallest regression does not cover the repaired
       mixed-field and vertex-parity paths.
