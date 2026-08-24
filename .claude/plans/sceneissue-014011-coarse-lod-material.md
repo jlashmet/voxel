@@ -69,7 +69,7 @@ camera replay, then resolve the capture before moving to the next open SceneIssu
 - [x] Remove temporary local replay files and keep only durable findings.
 - [x] Review the repair diff.
 - [x] Commit the repair on `fixes`.
-- [ ] Push `fixes`.
+- [x] Push `fixes`.
 - [ ] Reset/create `ci-test/fixes` from the exact feature commit, add one unique targeted request,
       push it, and monitor `ci/single-test` to a terminal result.
 - [ ] Iterate on `fixes` and reuse the same CI branch if the requested test fails.
