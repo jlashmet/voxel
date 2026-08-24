@@ -12,14 +12,14 @@ using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 namespace VoxelEngine.Tests.PlayMode
 {
     /// <summary>
-    /// Production-surface acceptance for the generic authored-object Model Viewer. The test saves a
-    /// camera render after visible production chunks have converged so remote visual iteration is
-    /// grounded in RenderingComposition rather than the diagnostic exposed-voxel capture.
+    /// Production-surface acceptance for the generic authored-object Model Viewer. Both dragon
+    /// interpretations are captured through the real renderer so visual iteration compares actual
+    /// game output rather than a diagnostic or generated preview.
     /// </summary>
     [NUnit.Framework.Explicit("Visual acceptance for human review; run by name.")]
     public sealed class ModelViewerSceneTests
     {
-        [UnityTest, Timeout(120000)]
+        [UnityTest, Timeout(180000)]
         public IEnumerator DragonStatueConvergesThroughProductionSurfacePath()
         {
 #if UNITY_EDITOR
@@ -41,10 +41,25 @@ namespace VoxelEngine.Tests.PlayMode
             Camera camera = lookdev.GetComponent<Camera>();
             Assert.NotNull(camera);
 
-            // Drive convergence at the same modest render-target scale as the known-good Arch
-            // acceptance. The batchmode test runner does not evoke WaitForEndOfFrame, so render the
-            // camera explicitly and yield a normal coroutine frame while the async surface workers
-            // progress against a real wall-clock deadline.
+            yield return CaptureVariant(
+                lookdev, camera, modelIndex: 0, outputName: "dragon-a-detailed-production.png");
+            yield return CaptureVariant(
+                lookdev, camera, modelIndex: 1, outputName: "dragon-b-organic-production.png");
+        }
+
+        private static IEnumerator CaptureVariant(
+            ModelViewerLookdev lookdev,
+            Camera camera,
+            int modelIndex,
+            string outputName)
+        {
+            lookdev.SelectModelForAutomation(modelIndex);
+            yield return null;
+
+            Assert.True(RenderingComposition.TryGetWorld(out var world, out _),
+                $"Model Viewer variant {modelIndex} did not bind its production world.");
+            Assert.NotNull(world.Storage);
+
             var convergenceTarget = new RenderTexture(512, 512, 24, RenderTextureFormat.ARGB32);
             convergenceTarget.Create();
             camera.targetTexture = convergenceTarget;
@@ -53,7 +68,7 @@ namespace VoxelEngine.Tests.PlayMode
             {
                 bool converged = false;
                 int stableFrames = 0;
-                float deadline = Time.realtimeSinceStartup + 45f;
+                float deadline = Time.realtimeSinceStartup + 60f;
                 while (Time.realtimeSinceStartup < deadline)
                 {
                     camera.Render();
@@ -74,66 +89,55 @@ namespace VoxelEngine.Tests.PlayMode
                 if (!converged)
                 {
                     VoxelSurfaceMetrics finalMetrics = VoxelRenderBridge.SurfaceMetrics;
-                    Assert.Fail($"Model Viewer production surface did not converge: "
+                    Assert.Fail($"Model Viewer variant {modelIndex} production surface did not converge: "
                         + $"known={finalMetrics.SolidKnownChunks}, "
                         + $"resident={finalMetrics.SolidResidentChunks}, "
                         + $"dirty={finalMetrics.SolidDirtyChunks}, "
                         + $"missingVisible={finalMetrics.MissingVisibleSolidChunks}.");
                 }
-
-                // Once production surface residency is stable, capture at review resolution. The
-                // renderer/material path is unchanged; only the final pixel readback is test-only.
+            }
+            finally
+            {
                 camera.targetTexture = null;
                 convergenceTarget.Release();
                 Object.Destroy(convergenceTarget);
+            }
 
-                var target = new RenderTexture(1440, 1100, 24, RenderTextureFormat.ARGB32);
-                target.Create();
-                camera.targetTexture = target;
+            var target = new RenderTexture(1440, 1100, 24, RenderTextureFormat.ARGB32);
+            target.Create();
+            camera.targetTexture = target;
+            try
+            {
+                camera.Render();
+
+                RenderTexture previous = RenderTexture.active;
+                RenderTexture.active = target;
+                var pixels = new Texture2D(target.width, target.height, TextureFormat.RGB24, false);
                 try
                 {
-                    camera.Render();
+                    pixels.ReadPixels(new Rect(0, 0, target.width, target.height), 0, 0);
+                    pixels.Apply(false, false);
 
-                    RenderTexture previous = RenderTexture.active;
-                    RenderTexture.active = target;
-                    var pixels = new Texture2D(target.width, target.height, TextureFormat.RGB24, false);
-                    try
-                    {
-                        pixels.ReadPixels(new Rect(0, 0, target.width, target.height), 0, 0);
-                        pixels.Apply(false, false);
-
-                        string projectRoot = Directory.GetParent(Application.dataPath).FullName;
-                        string outputDirectory = Path.Combine(
-                            projectRoot, "Artifacts", "SingleTest", "ModelViewer");
-                        Directory.CreateDirectory(outputDirectory);
-                        string outputPath = Path.Combine(
-                            outputDirectory, "dragon-statue-production.png");
-                        File.WriteAllBytes(outputPath, pixels.EncodeToPNG());
-                        Assert.That(new FileInfo(outputPath).Length, Is.GreaterThan(4096),
-                            "Production Model Viewer capture was unexpectedly empty.");
-                    }
-                    finally
-                    {
-                        Object.Destroy(pixels);
-                        RenderTexture.active = previous;
-                    }
+                    string projectRoot = Directory.GetParent(Application.dataPath).FullName;
+                    string outputDirectory = Path.Combine(
+                        projectRoot, "Artifacts", "SingleTest", "ModelViewer");
+                    Directory.CreateDirectory(outputDirectory);
+                    string outputPath = Path.Combine(outputDirectory, outputName);
+                    File.WriteAllBytes(outputPath, pixels.EncodeToPNG());
+                    Assert.That(new FileInfo(outputPath).Length, Is.GreaterThan(4096),
+                        $"Production Model Viewer capture '{outputName}' was unexpectedly empty.");
                 }
                 finally
                 {
-                    camera.targetTexture = null;
-                    target.Release();
-                    Object.Destroy(target);
+                    Object.Destroy(pixels);
+                    RenderTexture.active = previous;
                 }
             }
             finally
             {
-                if (camera.targetTexture == convergenceTarget)
-                    camera.targetTexture = null;
-                if (convergenceTarget != null)
-                {
-                    convergenceTarget.Release();
-                    Object.Destroy(convergenceTarget);
-                }
+                camera.targetTexture = null;
+                target.Release();
+                Object.Destroy(target);
             }
         }
     }
