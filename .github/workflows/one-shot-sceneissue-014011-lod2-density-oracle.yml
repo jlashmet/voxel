@@ -1,0 +1,67 @@
+name: One-shot SceneIssue 014011 LOD2 density oracle
+
+on:
+  push:
+    branches: [fixes]
+    paths:
+      - .github/workflows/one-shot-sceneissue-014011-lod2-density-oracle.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fixes
+          fetch-depth: 0
+      - name: Exercise the regular density oracle at SourceStep2
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs')
+          text = path.read_text()
+
+          start_marker = '''        [Test]\n        public void GpuDensityMatchesTheCpuJobSampleForSample()\n        {\n'''
+          next_marker = '''\n        [Test]\n        public void GpuTrianglesMatchTheCpuTopologyJob()\n'''
+          if text.count(start_marker) != 1:
+              raise SystemExit(f'expected one density oracle test, found {text.count(start_marker)}')
+          start = text.index(start_marker)
+          end = text.index(next_marker, start)
+          block = text[start:end]
+
+          block = block.replace(
+              start_marker,
+              '''        [TestCase(1)]\n        [TestCase(2)]\n        public void GpuDensityMatchesTheCpuJobSampleForSample(int sourceStep)\n        {\n''',
+              1)
+
+          old_extract = '''                extractor.Extract(mirror, tables, int3.zero, brickCacheOrigin, 1, 0.1f,\n'''
+          new_extract = '''                extractor.Extract(mirror, tables, int3.zero, brickCacheOrigin, sourceStep, 0.1f,\n'''
+          if block.count(old_extract) != 1:
+              raise SystemExit(f'expected one density Extract call, found {block.count(old_extract)}')
+          block = block.replace(old_extract, new_extract, 1)
+
+          old_cpu = '''                    CellsPerAxis, Padding, sourceStep: 1,\n'''
+          new_cpu = '''                    CellsPerAxis, Padding, sourceStep: sourceStep,\n'''
+          if block.count(old_cpu) != 1:
+              raise SystemExit(f'expected one CPU sourceStep literal, found {block.count(old_cpu)}')
+          block = block.replace(old_cpu, new_cpu, 1)
+
+          text = text[:start] + block + text[end:]
+          path.write_text(text)
+          PY
+
+          git diff --check
+          git diff -- Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs
+          test "$(git diff --name-only | wc -l | tr -d ' ')" = "1"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs
+          git commit -m 'SceneIssue 014011: exercise GPU density oracle at LOD2'
+          git push origin HEAD:fixes
