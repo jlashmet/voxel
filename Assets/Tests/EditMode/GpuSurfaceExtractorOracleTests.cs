@@ -465,8 +465,9 @@ namespace VoxelEngine.Tests.EditMode
             }
         }
 
-        [Test]
-        public void MixedBricksWithAuthoredBoundariesAndCoatingsMatchTheCpu()
+        [TestCase(1)]
+        [TestCase(2)]
+        public void MixedBricksWithAuthoredBoundariesAndCoatingsMatchTheCpu(int sourceStep)
         {
             // Uniform bricks never exercise the paths spec 003 added: the authored-boundary short
             // circuit, the coating displacement, and per-voxel surface styles. Those are where the
@@ -541,7 +542,7 @@ namespace VoxelEngine.Tests.EditMode
                 }
 
                 GpuExtractionResult result = extractor.Extract(
-                    mirror, tables, int3.zero, brickCacheOrigin, 1, voxelSize,
+                    mirror, tables, int3.zero, brickCacheOrigin, sourceStep, voxelSize,
                     vertices, indices, capacity, capacity);
                 Assert.IsFalse(result.Overflowed);
 
@@ -561,7 +562,7 @@ namespace VoxelEngine.Tests.EditMode
                 }
 
                 List<OracleTriangle> cpu = CpuTopologyOracle.MeshNeighbourhood(
-                    int3.zero, brickCacheOrigin, edge, CellsPerAxis, Padding, 1, voxelSize,
+                    int3.zero, brickCacheOrigin, edge, CellsPerAxis, Padding, sourceStep, voxelSize,
                     kinds, uniforms, voxels, semantics, boundary,
                     surfaces, coatings, palette);
 
