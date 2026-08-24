@@ -1,0 +1,37 @@
+name: One-shot SceneIssue 014011 PDF preview
+
+on:
+  push:
+    branches: [fixes]
+    paths:
+      - .github/workflows/one-shot-sceneissue-014011-pdf-preview.yml
+
+permissions:
+  contents: write
+
+jobs:
+  export:
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fixes
+          fetch-depth: 1
+      - name: Convert before and after screenshots to PDFs
+        shell: bash
+        run: |
+          set -euo pipefail
+          ISSUE='SceneIssues/20260823-014011-920-VoxelShowcase'
+          OUT='.claude/plans/sceneissue-014011-pdf-preview'
+          rm -rf "$OUT"
+          mkdir -p "$OUT"
+          sips -s format pdf "$ISSUE/screenshot-001.png" --out "$OUT/before.pdf" >/dev/null
+          sips -s format pdf "$ISSUE/verification-lod2-attempt1.png" --out "$OUT/after.pdf" >/dev/null
+          test -s "$OUT/before.pdf"
+          test -s "$OUT/after.pdf"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "$OUT/before.pdf" "$OUT/after.pdf"
+          git commit -m 'SceneIssue 014011: export renderable before-after PDFs'
+          git push origin HEAD:fixes
