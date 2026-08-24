@@ -1,0 +1,322 @@
+name: SceneIssue 014011 verify and commit boundary ownership fix
+
+on:
+  push:
+    branches: [fixes]
+    paths:
+      - .github/workflows/one-shot-sceneissue-014011-boundary-ownership-commit.yml
+
+permissions:
+  contents: write
+  statuses: write
+
+concurrency:
+  group: sceneissue-014011-boundary-ownership-full
+  cancel-in-progress: true
+
+jobs:
+  verify-and-commit:
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fixes
+          clean: true
+          fetch-depth: 0
+
+      - name: Publish pending status
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: context.sha,
+              state: 'pending',
+              context: 'ci/sceneissue-014011-ownership-full',
+              description: 'Full GPU ownership oracle is running',
+              target_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+            });
+
+      - name: Resolve Unity
+        id: unity
+        shell: bash
+        run: |
+          set -euo pipefail
+          UNITY_VERSION="$(awk '/m_EditorVersion:/ { print $2 }' ProjectSettings/ProjectVersion.txt)"
+          UNITY_PATH="/Applications/Unity/Hub/Editor/${UNITY_VERSION}/Unity.app/Contents/MacOS/Unity"
+          test -x "$UNITY_PATH"
+          echo "path=$UNITY_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for Unity
+        shell: bash
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 90))
+          while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
+            if (( SECONDS >= deadline )); then
+              pgrep -alf '/Unity.app/Contents/MacOS/Unity' || true
+              exit 1
+            fi
+            sleep 5
+          done
+
+      - name: Patch GPU regular-cell ownership to match CPU
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          shader = Path('Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute')
+          s = shader.read_text()
+
+          anchor = '''int3 CellCorner(int i)
+          {
+              return int3(i & 1, (i >> 2) & 1, (i >> 1) & 1);
+          }
+          '''
+          helper = anchor + '''
+          int RegularCellAxis() { return _CellsPerAxis + 1; }
+
+          int3 RegularCellFromIndex(int cellIndex)
+          {
+              int axis = RegularCellAxis();
+              int x = cellIndex % axis;
+              int y = (cellIndex / axis) % axis;
+              int z = cellIndex / (axis * axis);
+              return int3(x - 1, y - 1, z - 1);
+          }
+
+          bool OwnsSelectedInsideSample(int3 cell, int selectedInsideCorner)
+          {
+              if (selectedInsideCorner < 0 || selectedInsideCorner >= 8) return false;
+              int3 sample = cell + CellCorner(selectedInsideCorner);
+              return all(sample >= 0) && all(sample < _CellsPerAxis);
+          }
+          '''
+          if s.count(anchor) != 1:
+              raise SystemExit(f'CellCorner anchor count {s.count(anchor)}')
+          s = s.replace(anchor, helper, 1)
+
+          old_count_map = '''    int cellIndex = (int)id.x;
+              int cellTotal = _CellsPerAxis * _CellsPerAxis * _CellsPerAxis;
+              if (cellIndex >= cellTotal) return;
+
+              _CellVertexCountsWrite[cellIndex] = 0u;
+              _CellTriangleCountsWrite[cellIndex] = 0u;
+
+              int x = cellIndex % _CellsPerAxis;
+              int y = (cellIndex / _CellsPerAxis) % _CellsPerAxis;
+              int z = cellIndex / (_CellsPerAxis * _CellsPerAxis);
+              int3 cell = int3(x, y, z);
+
+              uint caseCode = 0u;
+              for (int i = 0; i < 8; i++)
+              {
+                  int3 g = cell + _Padding + CellCorner(i);
+                  if (_Density[GridIndex(g)] < 0.0) caseCode |= 1u << (uint)i;
+              }
+          '''
+          new_count_map = '''    int cellIndex = (int)id.x;
+              int axis = RegularCellAxis();
+              int cellTotal = axis * axis * axis;
+              if (cellIndex >= cellTotal) return;
+
+              _CellVertexCountsWrite[cellIndex] = 0u;
+              _CellTriangleCountsWrite[cellIndex] = 0u;
+
+              int3 cell = RegularCellFromIndex(cellIndex);
+
+              uint caseCode = 0u;
+              int selectedInsideCorner = -1;
+              for (int i = 0; i < 8; i++)
+              {
+                  int3 g = cell + _Padding + CellCorner(i);
+                  float sampleDensity = _Density[GridIndex(g)];
+                  if (sampleDensity < 0.0) caseCode |= 1u << (uint)i;
+                  else if (selectedInsideCorner < 0) selectedInsideCorner = i;
+              }
+          '''
+          if s.count(old_count_map) != 1:
+              raise SystemExit(f'count mapping block count {s.count(old_count_map)}')
+          s = s.replace(old_count_map, new_count_map, 1)
+
+          count_early = '''    if (caseCode == 0u || caseCode == 255u) return;
+
+              // Style flags decide whether this cell is meshed at all, and whether its vertices are shared
+          '''
+          count_owned = '''    if (caseCode == 0u || caseCode == 255u) return;
+              if (!OwnsSelectedInsideSample(cell, selectedInsideCorner)) return;
+
+              // Style flags decide whether this cell is meshed at all, and whether its vertices are shared
+          '''
+          if s.count(count_early) != 1:
+              raise SystemExit(f'count early-exit block count {s.count(count_early)}')
+          s = s.replace(count_early, count_owned, 1)
+
+          old_write_map = '''    int cellIndex = (int)id.x;
+              int cellTotal = _CellsPerAxis * _CellsPerAxis * _CellsPerAxis;
+              if (cellIndex >= cellTotal) return;
+
+              uint outputVertexCount = _CellVertexCounts[cellIndex];
+              uint triangleCount = _CellTriangleCounts[cellIndex];
+              if (outputVertexCount == 0u || triangleCount == 0u) return;
+              uint indexCount = triangleCount * 3u;
+
+              int x = cellIndex % _CellsPerAxis;
+              int y = (cellIndex / _CellsPerAxis) % _CellsPerAxis;
+              int z = cellIndex / (_CellsPerAxis * _CellsPerAxis);
+              int3 cell = int3(x, y, z);
+
+              uint caseCode = 0u;
+              float density[8];
+              uint material[8];
+              uint surface[8];
+              uint boundary[8];
+              for (int i = 0; i < 8; i++)
+              {
+                  int sample = GridIndex(cell + _Padding + CellCorner(i));
+                  density[i] = _Density[sample];
+                  material[i] = _SampleMaterial[sample];
+                  surface[i] = _SampleSurface[sample];
+                  boundary[i] = _SampleBoundary[sample];
+                  if (density[i] < 0.0) caseCode |= 1u << (uint)i;
+              }
+              if (caseCode == 0u || caseCode == 255u) return;
+          '''
+          new_write_map = '''    int cellIndex = (int)id.x;
+              int axis = RegularCellAxis();
+              int cellTotal = axis * axis * axis;
+              if (cellIndex >= cellTotal) return;
+
+              uint outputVertexCount = _CellVertexCounts[cellIndex];
+              uint triangleCount = _CellTriangleCounts[cellIndex];
+              if (outputVertexCount == 0u || triangleCount == 0u) return;
+              uint indexCount = triangleCount * 3u;
+
+              int3 cell = RegularCellFromIndex(cellIndex);
+
+              uint caseCode = 0u;
+              int selectedInsideCorner = -1;
+              float density[8];
+              uint material[8];
+              uint surface[8];
+              uint boundary[8];
+              for (int i = 0; i < 8; i++)
+              {
+                  int sample = GridIndex(cell + _Padding + CellCorner(i));
+                  density[i] = _Density[sample];
+                  material[i] = _SampleMaterial[sample];
+                  surface[i] = _SampleSurface[sample];
+                  boundary[i] = _SampleBoundary[sample];
+                  if (density[i] < 0.0) caseCode |= 1u << (uint)i;
+                  else if (selectedInsideCorner < 0) selectedInsideCorner = i;
+              }
+              if (caseCode == 0u || caseCode == 255u) return;
+              if (!OwnsSelectedInsideSample(cell, selectedInsideCorner)) return;
+          '''
+          if s.count(old_write_map) != 1:
+              raise SystemExit(f'write mapping block count {s.count(old_write_map)}')
+          s = s.replace(old_write_map, new_write_map, 1)
+          shader.write_text(s)
+
+          extractor = Path('Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/GpuSurfaceExtractor.cs')
+          c = extractor.read_text()
+          old_ctor = '            int cells = cellsPerAxis * cellsPerAxis * cellsPerAxis;\n'
+          new_ctor = ('            int regularCellsPerAxis = cellsPerAxis + 1;\n'
+                      '            int cells = regularCellsPerAxis * regularCellsPerAxis * regularCellsPerAxis;\n')
+          if c.count(old_ctor) != 1:
+              raise SystemExit(f'constructor cell count occurrences {c.count(old_ctor)}')
+          c = c.replace(old_ctor, new_ctor, 1)
+
+          old_runtime = '            int cells = CellsPerAxis * CellsPerAxis * CellsPerAxis;\n'
+          new_runtime = ('            int regularCellsPerAxis = CellsPerAxis + 1;\n'
+                         '            int cells = regularCellsPerAxis * regularCellsPerAxis * regularCellsPerAxis;\n')
+          occurrences = c.count(old_runtime)
+          if occurrences != 4:
+              raise SystemExit(f'runtime cell count occurrences {occurrences}, expected 4')
+          c = c.replace(old_runtime, new_runtime)
+          extractor.write_text(c)
+          PY
+          git diff --check
+
+      - name: Run complete GPU CPU oracle class
+        id: test
+        shell: bash
+        run: |
+          set +e
+          ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue014011OwnershipFull"
+          mkdir -p "$ROOT"
+          UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=5 \
+          UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
+            -batchmode -job-worker-count 1 \
+            -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform EditMode \
+            -testFilter VoxelEngine.Tests.EditMode.GpuSurfaceExtractorOracleTests \
+            -testResults "$ROOT/results.xml" -logFile "$ROOT/unity.log"
+          status=$?
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          if [[ -s "$ROOT/results.xml" ]]; then
+            python3 - "$ROOT/results.xml" <<'PY'
+          import sys, xml.etree.ElementTree as ET
+          root=ET.parse(sys.argv[1]).getroot()
+          for c in root.findall('.//test-case'):
+              name=c.get('fullname') or c.get('name') or ''
+              if 'GpuSurfaceExtractorOracleTests' in name:
+                  print(c.get('result'), name)
+                  f=c.find('failure')
+                  if f is not None: print((f.findtext('message') or '').strip())
+          PY
+          fi
+          exit 0
+
+      - name: Commit passing production fix
+        id: commit
+        if: always()
+        shell: bash
+        env:
+          TEST_STATUS: ${{ steps.test.outputs.status }}
+        run: |
+          set -euo pipefail
+          if [[ "${TEST_STATUS:-1}" != "0" ]]; then
+            git restore -- Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute \
+                           Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/GpuSurfaceExtractor.cs
+            echo "sha=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute \
+                  Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/GpuSurfaceExtractor.cs
+          git commit -m 'Fix scene issue 20260823-014011: match GPU boundary ownership'
+          git pull --rebase origin fixes
+          git push origin HEAD:fixes
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Publish final status
+        if: always()
+        uses: actions/github-script@v7
+        env:
+          TEST_STATUS: ${{ steps.test.outputs.status }}
+          FIX_SHA: ${{ steps.commit.outputs.sha }}
+        with:
+          script: |
+            const ok = process.env.TEST_STATUS === '0' && process.env.FIX_SHA;
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: context.sha,
+              state: ok ? 'success' : 'failure',
+              context: 'ci/sceneissue-014011-ownership-full',
+              description: ok ? `Full oracle passed; fix ${process.env.FIX_SHA.substring(0, 12)}` : 'Full GPU ownership oracle failed',
+              target_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+            });
+
+      - name: Preserve failure conclusion
+        if: always()
+        shell: bash
+        env:
+          TEST_STATUS: ${{ steps.test.outputs.status }}
+        run: |
+          exit "${TEST_STATUS:-1}"
