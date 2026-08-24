@@ -34,7 +34,7 @@ causal relationship rather than adding a second speculative production change.
 - [x] Replay the exact saved pose on current `fixes`.
 - [x] Identify the responsible authored placement and focused regression.
 - [x] Run affected tests and final production-player replay.
-- [ ] Review, commit/push, and resolve the manifest separately.
+- [x] Review, commit/push, and resolve the manifest separately.
 
 ## Findings
 
