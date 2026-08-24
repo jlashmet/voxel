@@ -78,6 +78,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public const int BaseVoxelsPerAxis = CellsPerAxis * BaseSourceStep;
         public const int BaseBricksPerAxis = BaseVoxelsPerAxis / VoxelReadGrid.BlockEdge;
 
+        /// <summary>GPU extraction is limited to the two exact near rings. Step 4 keeps its
+        /// feature-preserving CPU fallback and step 8 remains block HLOD.</summary>
+        internal static bool SupportsGpuSurfaceStep(int sourceStep) =>
+            sourceStep == BaseSourceStep || sourceStep == BaseSourceStep * 2;
+
         private const int Padding = 1;
         private const int GridSize = CellsPerAxis + 3;
         private const int GridSampleCount = GridSize * GridSize * GridSize;
@@ -346,6 +351,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             public bool HasOwnedSolid;
             public bool RequiresContinuousTopology;
             public bool GpuEligible;
+            public int GpuTransitionFaceMask;
             public bool UsedFeaturePreservingFallback;
             public double BuildStartSeconds;
             public double DensityScheduledSeconds;
@@ -666,11 +672,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _transitionVertexStride = _lookupTables.TransitionVertexStride;
             _transitionIndexStride = _lookupTables.TransitionIndexStride;
 
-            // First production cutover: only the base ring has a bounded dense snapshot and no
-            // transition faces. Sharing the scheduler's slot grid keeps standalone/headless CPU
-            // caches unchanged, including EditMode tests that intentionally run without graphics.
+            // GPU cutover covers the two exact near rings. Sharing the scheduler's slot grid
+            // keeps standalone/headless CPU caches unchanged, including EditMode tests that
+            // intentionally run without graphics. Step 4 and block HLOD keep their current paths.
             _gpuCutoverConfigured = !GpuCutoverDisabled
-                && SourceStep == BaseSourceStep && !SamplesFromMips && slotGrid != null;
+                && SupportsGpuSurfaceStep(SourceStep) && !SamplesFromMips && slotGrid != null;
             _gpuMirrorBudgetBytes = (long)math.max(1, BrickCacheCount)
                                   * GpuBrickBufferLayout.BytesPerMixedBrick;
         }
@@ -1332,6 +1338,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
                 if (_build.Phase == 0)
                 {
+                    _build.GpuTransitionFaceMask = BuildGpuTransitionFaceMask(
+                        _build.Coordinate, voxelSize, camera.transform.position);
                     if (!_build.SnapshotTaken
                         && !StepDensitySnapshot(source, in palette, voxelSize, deadline))
                         break;
@@ -2511,7 +2519,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _exactClassificationJobScheduled = false;
             _build.HasOwnedSolid = _snapshotClassificationFlags[0] != 0;
             _build.RequiresContinuousTopology = _snapshotClassificationFlags[1] != 0;
-            _build.GpuEligible = SourceStep == BaseSourceStep
+            _build.GpuEligible = SupportsGpuSurfaceStep(SourceStep)
                               && _gpuCutoverConfigured && !_gpuExtractionUnavailable
                               && _snapshotClassificationFlags[2] == 0
                               && _buildProfileBlocks.Length == 0
@@ -2536,7 +2544,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                         _buildSurfaceCatalogue, _buildCoatingCatalogue, _buildPalette);
                     var request = new GpuChunkExtraction(
                         chunkOriginVoxel, cacheOrigin, SourceStep, voxelSize,
-                        transitionFaceMask: 0);
+                        transitionFaceMask: _build.GpuTransitionFaceMask);
                     // Counting is started, not awaited. Phase 9 collects the result once the GPU
                     // has finished, so no worker blocks the shared frame budget on a flush.
                     GpuStageOutcome stage = gpu.TryBeginStage(
@@ -4317,6 +4325,18 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                                   Mathf.Abs(delta.z) + extents.z));
             // Wholly inside the inner cut means the finer ring owns it outright.
             return far <= MinViewDistanceMetres;
+        }
+
+        /// <summary>Builds the GPU transition mask with the same finer-neighbour ownership test
+        /// as the CPU seam path. Bits are 0=-X, 1=+X, 2=-Y, 3=+Y, 4=-Z, 5=+Z.</summary>
+        internal int BuildGpuTransitionFaceMask(int3 coordinate, float voxelSize,
+                                                Vector3 cameraPosition)
+        {
+            int mask = 0;
+            for (int face = 0; face < 6; face++)
+                if (FaceNeedsTransition(coordinate, face, voxelSize, cameraPosition))
+                    mask |= 1 << face;
+            return mask;
         }
 
         private Bounds ChunkWorldBounds(int3 coordinate, float voxelSize)
