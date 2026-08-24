@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="5" result="Passed" total="5" passed="5" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-24 21:25:09Z" end-time="2026-08-24 21:25:09Z" duration="0.1417834">
+  <test-suite type="TestSuite" id="1000" name="voxel" fullname="voxel" runstate="Runnable" testcasecount="1138" result="Passed" start-time="2026-08-24 21:25:09Z" end-time="2026-08-24 21:25:09Z" duration="0.141783" total="5" passed="5" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <test-suite type="Assembly" id="2458" name="VoxelEngine.Tests.EditMode.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/VoxelEngine.Tests.EditMode.dll" runstate="Runnable" testcasecount="807" result="Passed" start-time="2026-08-24 21:25:09Z" end-time="2026-08-24 21:25:09Z" duration="0.133212" total="5" passed="5" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="26610" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <test-suite type="TestSuite" id="2459" name="VoxelEngine" fullname="VoxelEngine" runstate="Runnable" testcasecount="807" result="Passed" start-time="2026-08-24 21:25:09Z" end-time="2026-08-24 21:25:09Z" duration="0.130096" total="5" passed="5" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="2460" name="Tests" fullname="VoxelEngine.Tests" runstate="Runnable" testcasecount="807" result="Passed" start-time="2026-08-24 21:25:09Z" end-time="2026-08-24 21:25:09Z" duration="0.126943" total="5" passed="5" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="2461" name="EditMode" fullname="VoxelEngine.Tests.EditMode" runstate="Runnable" testcasecount="807" result="Passed" start-time="2026-08-24 21:25:09Z" end-time="2026-08-24 21:25:09Z" duration="0.123825" total="5" passed="5" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="1910" name="KentridgeShapeProgramEncodingTests" fullname="VoxelEngine.Tests.EditMode.KentridgeShapeProgramEncodingTests" classname="VoxelEngine.Tests.EditMode.KentridgeShapeProgramEncodingTests" runstate="Runnable" testcasecount="5" result="Passed" start-time="2026-08-24 21:25:09Z" end-time="2026-08-24 21:25:09Z" duration="0.107787" total="5" passed="5" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1915" name="CanonicalShapeEncodingHasOneApiOwner" fullname="VoxelEngine.Tests.EditMode.KentridgeShapeProgramEncodingTests.CanonicalShapeEncodingHasOneApiOwner" methodname="CanonicalShapeEncodingHasOneApiOwner" classname="VoxelEngine.Tests.EditMode.KentridgeShapeProgramEncodingTests" runstate="Runnable" seed="1516464750" result="Passed" start-time="2026-08-24 21:25:09Z" end-time="2026-08-24 21:25:09Z" duration="0.005621" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1911" name="CombinedCatalogueUsesCanonicalShapeInstructionBoundaries" fullname="VoxelEngine.Tests.EditMode.KentridgeShapeProgramEncodingTests.CombinedCatalogueUsesCanonicalShapeInstructionBoundaries" methodname="CombinedCatalogueUsesCanonicalShapeInstructionBoundaries" classname="VoxelEngine.Tests.EditMode.KentridgeShapeProgramEncodingTests" runstate="Runnable" seed="1275780869" result="Passed" start-time="2026-08-24 21:25:09Z" end-time="2026-08-24 21:25:09Z" duration="0.091158" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1912" name="FoundationSkirtsUseCanonicalBoxThenEndEncoding" fullname="VoxelEngine.Tests.EditMode.KentridgeShapeProgramEncodingTests.FoundationSkirtsUseCanonicalBoxThenEndEncoding" methodname="FoundationSkirtsUseCanonicalBoxThenEndEncoding" classname="VoxelEngine.Tests.EditMode.KentridgeShapeProgramEncodingTests" runstate="Runnable" seed="1280180082" result="Passed" start-time="2026-08-24 21:25:09Z" end-time="2026-08-24 21:25:09Z" duration="0.004294" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1914" name="KentridgeUsesCanonicalEncodingWithoutCompatibilityNormalizer" fullname="VoxelEngine.Tests.EditMode.KentridgeShapeProgramEncodingTests.KentridgeUsesCanonicalEncodingWithoutCompatibilityNormalizer" methodname="KentridgeUsesCanonicalEncodingWithoutCompatibilityNormalizer" classname="VoxelEngine.Tests.EditMode.KentridgeShapeProgramEncodingTests" runstate="Runnable" seed="1911442707" result="Passed" start-time="2026-08-24 21:25:09Z" end-time="2026-08-24 21:25:09Z" duration="0.000697" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1913" name="ManualBoxProgramBuildersDeriveAllocationLengthFromShapeOps" fullname="VoxelEngine.Tests.EditMode.KentridgeShapeProgramEncodingTests.ManualBoxProgramBuildersDeriveAllocationLengthFromShapeOps" methodname="ManualBoxProgramBuildersDeriveAllocationLengthFromShapeOps" classname="VoxelEngine.Tests.EditMode.KentridgeShapeProgramEncodingTests" runstate="Runnable" seed="905574137" result="Passed" start-time="2026-08-24 21:25:09Z" end-time="2026-08-24 21:25:09Z" duration="0.000388" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

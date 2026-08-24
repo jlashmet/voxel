@@ -67,8 +67,8 @@ namespace VoxelEngine.Tests.EditMode
 
                 Assert.AreEqual(17, structures,
                     "Stable gameplay building identity must remain exactly the original Kentridge roster.");
-                Assert.AreEqual(105, infrastructureInstances,
-                    "The formal Civic Crown court adds one summit public-space instance without changing gameplay structures.");
+                Assert.AreEqual(39, infrastructureInstances,
+                    "The combined catalogue must retain only secondary infrastructure whose declared envelope respects every named plot reservation.");
             }
             finally
             {

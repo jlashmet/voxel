@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="1" result="Failed(Child)" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-24 21:06:51Z" end-time="2026-08-24 21:06:51Z" duration="0.0798527">
+  <test-suite type="TestSuite" id="1000" name="voxel" fullname="voxel" runstate="Runnable" testcasecount="1140" result="Failed" site="Child" start-time="2026-08-24 21:06:51Z" end-time="2026-08-24 21:06:51Z" duration="0.079853" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <failure>
+      <message><![CDATA[One or more child tests had errors]]></message>
+    </failure>
+    <test-suite type="Assembly" id="2460" name="VoxelEngine.Tests.EditMode.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/VoxelEngine.Tests.EditMode.dll" runstate="Runnable" testcasecount="809" result="Failed" site="Child" start-time="2026-08-24 21:06:51Z" end-time="2026-08-24 21:06:51Z" duration="0.072212" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="75996" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <failure>
+        <message><![CDATA[One or more child tests had errors]]></message>
+      </failure>
+      <test-suite type="TestSuite" id="2461" name="VoxelEngine" fullname="VoxelEngine" runstate="Runnable" testcasecount="809" result="Failed" site="Child" start-time="2026-08-24 21:06:51Z" end-time="2026-08-24 21:06:51Z" duration="0.069337" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <failure>
+          <message><![CDATA[One or more child tests had errors]]></message>
+        </failure>
+        <test-suite type="TestSuite" id="2462" name="Tests" fullname="VoxelEngine.Tests" runstate="Runnable" testcasecount="809" result="Failed" site="Child" start-time="2026-08-24 21:06:51Z" end-time="2026-08-24 21:06:51Z" duration="0.066524" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <failure>
+            <message><![CDATA[One or more child tests had errors]]></message>
+          </failure>
+          <test-suite type="TestSuite" id="2463" name="EditMode" fullname="VoxelEngine.Tests.EditMode" runstate="Runnable" testcasecount="809" result="Failed" site="Child" start-time="2026-08-24 21:06:51Z" end-time="2026-08-24 21:06:51Z" duration="0.063705" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <failure>
+              <message><![CDATA[One or more child tests had errors]]></message>
+            </failure>
+            <test-suite type="TestFixture" id="1940" name="KentridgeUrbanOrganizationTests" fullname="VoxelEngine.Tests.EditMode.KentridgeUrbanOrganizationTests" classname="VoxelEngine.Tests.EditMode.KentridgeUrbanOrganizationTests" runstate="Runnable" testcasecount="4" result="Failed" site="Child" start-time="2026-08-24 21:06:51Z" end-time="2026-08-24 21:06:51Z" duration="0.053384" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <failure>
+                <message><![CDATA[One or more child tests had errors]]></message>
+              </failure>
+              <test-case id="1944" name="SecondaryUrbanPlacementsRespectNamedPlotSpacing" fullname="VoxelEngine.Tests.EditMode.KentridgeUrbanOrganizationTests.SecondaryUrbanPlacementsRespectNamedPlotSpacing" methodname="SecondaryUrbanPlacementsRespectNamedPlotSpacing" classname="VoxelEngine.Tests.EditMode.KentridgeUrbanOrganizationTests" runstate="Runnable" seed="865774833" result="Failed" start-time="2026-08-24 21:06:51Z" end-time="2026-08-24 21:06:51Z" duration="0.048775" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <failure>
+                  <message><![CDATA[  kentridge-vertical-0 at int3(690, 211, 766) violates the 12 dm reservation around LoganHouse 1002,700..1130,828.
+  Expected: False
+  But was:  True
+]]></message>
+                  <stack-trace><![CDATA[at VoxelEngine.Tests.EditMode.KentridgeUrbanOrganizationTests.SecondaryUrbanPlacementsRespectNamedPlotSpacing () [0x0019a] in /Users/jlashmet/code/voxel/Assets/Tests/EditMode/KentridgeUrbanOrganizationTests.cs:194
+]]></stack-trace>
+                </failure>
+                <output><![CDATA[<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

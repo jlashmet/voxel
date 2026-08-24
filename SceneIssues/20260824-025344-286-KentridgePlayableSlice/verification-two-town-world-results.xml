@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="9" result="Passed" total="9" passed="9" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-24 21:20:38Z" end-time="2026-08-24 21:20:38Z" duration="0.098709">
+  <test-suite type="TestSuite" id="1000" name="voxel" fullname="voxel" runstate="Runnable" testcasecount="1138" result="Passed" start-time="2026-08-24 21:20:38Z" end-time="2026-08-24 21:20:38Z" duration="0.098709" total="9" passed="9" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <test-suite type="Assembly" id="2458" name="VoxelEngine.Tests.EditMode.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/VoxelEngine.Tests.EditMode.dll" runstate="Runnable" testcasecount="807" result="Passed" start-time="2026-08-24 21:20:38Z" end-time="2026-08-24 21:20:38Z" duration="0.089112" total="9" passed="9" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="8037" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <test-suite type="TestSuite" id="2459" name="VoxelEngine" fullname="VoxelEngine" runstate="Runnable" testcasecount="807" result="Passed" start-time="2026-08-24 21:20:38Z" end-time="2026-08-24 21:20:38Z" duration="0.084410" total="9" passed="9" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="2460" name="Tests" fullname="VoxelEngine.Tests" runstate="Runnable" testcasecount="807" result="Passed" start-time="2026-08-24 21:20:38Z" end-time="2026-08-24 21:20:38Z" duration="0.079830" total="9" passed="9" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="2461" name="EditMode" fullname="VoxelEngine.Tests.EditMode" runstate="Runnable" testcasecount="807" result="Passed" start-time="2026-08-24 21:20:38Z" end-time="2026-08-24 21:20:38Z" duration="0.075300" total="9" passed="9" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="2358" name="TwoTownWorldTests" fullname="VoxelEngine.Tests.EditMode.TwoTownWorldTests" classname="VoxelEngine.Tests.EditMode.TwoTownWorldTests" runstate="Runnable" testcasecount="9" result="Passed" start-time="2026-08-24 21:20:38Z" end-time="2026-08-24 21:20:38Z" duration="0.065463" total="9" passed="9" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="2360" name="HightownIsAWholeTownRatherThanAHandfulOfPlots" fullname="VoxelEngine.Tests.EditMode.TwoTownWorldTests.HightownIsAWholeTownRatherThanAHandfulOfPlots" methodname="HightownIsAWholeTownRatherThanAHandfulOfPlots" classname="VoxelEngine.Tests.EditMode.TwoTownWorldTests" runstate="Runnable" seed="813572977" result="Passed" start-time="2026-08-24 21:20:38Z" end-time="2026-08-24 21:20:38Z" duration="0.007697" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="2361" name="HightownLooksDistinctFromKentridge" fullname="VoxelEngine.Tests.EditMode.TwoTownWorldTests.HightownLooksDistinctFromKentridge" methodname="HightownLooksDistinctFromKentridge" classname="VoxelEngine.Tests.EditMode.TwoTownWorldTests" runstate="Runnable" seed="1670201337" result="Passed" start-time="2026-08-24 21:20:38Z" end-time="2026-08-24 21:20:38Z" duration="0.001229" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="2364" name="HightownVoxelCatalogueDoesNotEmitSouthOfTheCountryMidpoint" fullname="VoxelEngine.Tests.EditMode.TwoTownWorldTests.HightownVoxelCatalogueDoesNotEmitSouthOfTheCountryMidpoint" methodname="HightownVoxelCatalogueDoesNotEmitSouthOfTheCountryMidpoint" classname="VoxelEngine.Tests.EditMode.TwoTownWorldTests" runstate="Runnable" seed="1703509131" result="Passed" start-time="2026-08-24 21:20:38Z" end-time="2026-08-24 21:20:38Z" duration="0.024051" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="2359" name="KentridgeStillPlacesEveryRecoveredBuilding" fullname="VoxelEngine.Tests.EditMode.TwoTownWorldTests.KentridgeStillPlacesEveryRecoveredBuilding" methodname="KentridgeStillPlacesEveryRecoveredBuilding" classname="VoxelEngine.Tests.EditMode.TwoTownWorldTests" runstate="Runnable" seed="1053867574" result="Passed" start-time="2026-08-24 21:20:38Z" end-time="2026-08-24 21:20:38Z" duration="0.000452" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="2365" name="TheBridgeCarriesTheRoadClearOverTheRiver" fullname="VoxelEngine.Tests.EditMode.TwoTownWorldTests.TheBridgeCarriesTheRoadClearOverTheRiver" methodname="TheBridgeCarriesTheRoadClearOverTheRiver" classname="VoxelEngine.Tests.EditMode.TwoTownWorldTests" runstate="Runnable" seed="617864233" result="Passed" start-time="2026-08-24 21:20:38Z" end-time="2026-08-24 21:20:38Z" duration="0.000606" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="2366" name="TheCorridorEmitsGeometryTheRasteriserWillAccept" fullname="VoxelEngine.Tests.EditMode.TwoTownWorldTests.TheCorridorEmitsGeometryTheRasteriserWillAccept" methodname="TheCorridorEmitsGeometryTheRasteriserWillAccept" classname="VoxelEngine.Tests.EditMode.TwoTownWorldTests" runstate="Runnable" seed="1633889186" result="Passed" start-time="2026-08-24 21:20:38Z" end-time="2026-08-24 21:20:38Z" duration="0.024784" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="2367" name="TheCrossingSitsBetweenTheTownsRatherThanInsideOne" fullname="VoxelEngine.Tests.EditMode.TwoTownWorldTests.TheCrossingSitsBetweenTheTownsRatherThanInsideOne" methodname="TheCrossingSitsBetweenTheTownsRatherThanInsideOne" classname="VoxelEngine.Tests.EditMode.TwoTownWorldTests" runstate="Runnable" seed="1337816696" result="Passed" start-time="2026-08-24 21:20:38Z" end-time="2026-08-24 21:20:38Z" duration="0.000218" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="2362" name="TheTwoTownsAreSeparatePlacesWithCountryBetweenThem" fullname="VoxelEngine.Tests.EditMode.TwoTownWorldTests.TheTwoTownsAreSeparatePlacesWithCountryBetweenThem" methodname="TheTwoTownsAreSeparatePlacesWithCountryBetweenThem" classname="VoxelEngine.Tests.EditMode.TwoTownWorldTests" runstate="Runnable" seed="1281126619" result="Passed" start-time="2026-08-24 21:20:38Z" end-time="2026-08-24 21:20:38Z" duration="0.000484" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="2363" name="TheTwoTownsDoNotOverlap" fullname="VoxelEngine.Tests.EditMode.TwoTownWorldTests.TheTwoTownsDoNotOverlap" methodname="TheTwoTownsDoNotOverlap" classname="VoxelEngine.Tests.EditMode.TwoTownWorldTests" runstate="Runnable" seed="1402567680" result="Passed" start-time="2026-08-24 21:20:38Z" end-time="2026-08-24 21:20:38Z" duration="0.000422" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

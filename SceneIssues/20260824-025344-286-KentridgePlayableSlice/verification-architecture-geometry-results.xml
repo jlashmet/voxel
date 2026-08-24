@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="6" result="Passed" total="6" passed="6" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-24 21:23:08Z" end-time="2026-08-24 21:23:08Z" duration="0.0974545">
+  <test-suite type="TestSuite" id="1000" name="voxel" fullname="voxel" runstate="Runnable" testcasecount="1138" result="Passed" start-time="2026-08-24 21:23:08Z" end-time="2026-08-24 21:23:08Z" duration="0.097455" total="6" passed="6" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <test-suite type="Assembly" id="2458" name="VoxelEngine.Tests.EditMode.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/VoxelEngine.Tests.EditMode.dll" runstate="Runnable" testcasecount="807" result="Passed" start-time="2026-08-24 21:23:08Z" end-time="2026-08-24 21:23:08Z" duration="0.091132" total="6" passed="6" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="15906" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <test-suite type="TestSuite" id="2459" name="VoxelEngine" fullname="VoxelEngine" runstate="Runnable" testcasecount="807" result="Passed" start-time="2026-08-24 21:23:08Z" end-time="2026-08-24 21:23:08Z" duration="0.090626" total="6" passed="6" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="2460" name="Tests" fullname="VoxelEngine.Tests" runstate="Runnable" testcasecount="807" result="Passed" start-time="2026-08-24 21:23:08Z" end-time="2026-08-24 21:23:08Z" duration="0.090216" total="6" passed="6" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="2461" name="EditMode" fullname="VoxelEngine.Tests.EditMode" runstate="Runnable" testcasecount="807" result="Passed" start-time="2026-08-24 21:23:08Z" end-time="2026-08-24 21:23:08Z" duration="0.089783" total="6" passed="6" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="1497" name="ArchitectureGeometryCatalogueTests" fullname="VoxelEngine.Tests.EditMode.ArchitectureGeometryCatalogueTests" classname="VoxelEngine.Tests.EditMode.ArchitectureGeometryCatalogueTests" runstate="Runnable" testcasecount="6" result="Passed" start-time="2026-08-24 21:23:08Z" end-time="2026-08-24 21:23:08Z" duration="0.077305" total="6" passed="6" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1499" name="ArchitecturalRoundedSurfaceIsSofterThanGeneralRoundedSurface" fullname="VoxelEngine.Tests.EditMode.ArchitectureGeometryCatalogueTests.ArchitecturalRoundedSurfaceIsSofterThanGeneralRoundedSurface" methodname="ArchitecturalRoundedSurfaceIsSofterThanGeneralRoundedSurface" classname="VoxelEngine.Tests.EditMode.ArchitectureGeometryCatalogueTests" runstate="Runnable" seed="240093726" result="Passed" start-time="2026-08-24 21:23:08Z" end-time="2026-08-24 21:23:08Z" duration="0.006895" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1500" name="ArchitectureShapeBuilderAppliesSemanticOpeningAndRoofPolicies" fullname="VoxelEngine.Tests.EditMode.ArchitectureGeometryCatalogueTests.ArchitectureShapeBuilderAppliesSemanticOpeningAndRoofPolicies" methodname="ArchitectureShapeBuilderAppliesSemanticOpeningAndRoofPolicies" classname="VoxelEngine.Tests.EditMode.ArchitectureGeometryCatalogueTests" runstate="Runnable" seed="1271172374" result="Passed" start-time="2026-08-24 21:23:08Z" end-time="2026-08-24 21:23:08Z" duration="0.000999" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1503" name="KentridgeCombinedCatalogueContainsRoundedNamedAndAnonymousArchitecture" fullname="VoxelEngine.Tests.EditMode.ArchitectureGeometryCatalogueTests.KentridgeCombinedCatalogueContainsRoundedNamedAndAnonymousArchitecture" methodname="KentridgeCombinedCatalogueContainsRoundedNamedAndAnonymousArchitecture" classname="VoxelEngine.Tests.EditMode.ArchitectureGeometryCatalogueTests" runstate="Runnable" seed="1089734615" result="Passed" start-time="2026-08-24 21:23:08Z" end-time="2026-08-24 21:23:08Z" duration="0.055588" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1502" name="KentridgeCombinedCataloguePubHasRearCounterAndOpenFrontAisle" fullname="VoxelEngine.Tests.EditMode.ArchitectureGeometryCatalogueTests.KentridgeCombinedCataloguePubHasRearCounterAndOpenFrontAisle" methodname="KentridgeCombinedCataloguePubHasRearCounterAndOpenFrontAisle" classname="VoxelEngine.Tests.EditMode.ArchitectureGeometryCatalogueTests" runstate="Runnable" seed="1741430055" result="Passed" start-time="2026-08-24 21:23:08Z" end-time="2026-08-24 21:23:08Z" duration="0.003795" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1501" name="KentridgeGrammarAuthorsGeometryRolesDirectly" fullname="VoxelEngine.Tests.EditMode.ArchitectureGeometryCatalogueTests.KentridgeGrammarAuthorsGeometryRolesDirectly" methodname="KentridgeGrammarAuthorsGeometryRolesDirectly" classname="VoxelEngine.Tests.EditMode.ArchitectureGeometryCatalogueTests" runstate="Runnable" seed="2081795291" result="Passed" start-time="2026-08-24 21:23:08Z" end-time="2026-08-24 21:23:08Z" duration="0.003980" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1498" name="StructureGeometryProfileKeepsMassingOpeningsDetailsRoofsAndSurfacesIndependent" fullname="VoxelEngine.Tests.EditMode.ArchitectureGeometryCatalogueTests.StructureGeometryProfileKeepsMassingOpeningsDetailsRoofsAndSurfacesIndependent" methodname="StructureGeometryProfileKeepsMassingOpeningsDetailsRoofsAndSurfacesIndependent" classname="VoxelEngine.Tests.EditMode.ArchitectureGeometryCatalogueTests" runstate="Runnable" seed="1710941772" result="Passed" start-time="2026-08-24 21:23:08Z" end-time="2026-08-24 21:23:08Z" duration="0.000293" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

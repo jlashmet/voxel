@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="4" result="Passed" total="4" passed="4" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-24 21:19:24Z" end-time="2026-08-24 21:19:24Z" duration="0.0900935">
+  <test-suite type="TestSuite" id="1000" name="voxel" fullname="voxel" runstate="Runnable" testcasecount="1138" result="Passed" start-time="2026-08-24 21:19:24Z" end-time="2026-08-24 21:19:24Z" duration="0.090094" total="4" passed="4" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <test-suite type="Assembly" id="2458" name="VoxelEngine.Tests.EditMode.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/VoxelEngine.Tests.EditMode.dll" runstate="Runnable" testcasecount="807" result="Passed" start-time="2026-08-24 21:19:24Z" end-time="2026-08-24 21:19:24Z" duration="0.083096" total="4" passed="4" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="4262" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <test-suite type="TestSuite" id="2459" name="VoxelEngine" fullname="VoxelEngine" runstate="Runnable" testcasecount="807" result="Passed" start-time="2026-08-24 21:19:24Z" end-time="2026-08-24 21:19:24Z" duration="0.080454" total="4" passed="4" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="2460" name="Tests" fullname="VoxelEngine.Tests" runstate="Runnable" testcasecount="807" result="Passed" start-time="2026-08-24 21:19:24Z" end-time="2026-08-24 21:19:24Z" duration="0.077849" total="4" passed="4" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="2461" name="EditMode" fullname="VoxelEngine.Tests.EditMode" runstate="Runnable" testcasecount="807" result="Passed" start-time="2026-08-24 21:19:24Z" end-time="2026-08-24 21:19:24Z" duration="0.075217" total="4" passed="4" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="1938" name="KentridgeUrbanOrganizationTests" fullname="VoxelEngine.Tests.EditMode.KentridgeUrbanOrganizationTests" classname="VoxelEngine.Tests.EditMode.KentridgeUrbanOrganizationTests" runstate="Runnable" testcasecount="4" result="Passed" start-time="2026-08-24 21:19:24Z" end-time="2026-08-24 21:19:24Z" duration="0.065309" total="4" passed="4" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1941" name="CoarseMassingAdapterRealizesTurnedBlocksWithoutCreatingGameplayStructures" fullname="VoxelEngine.Tests.EditMode.KentridgeUrbanOrganizationTests.CoarseMassingAdapterRealizesTurnedBlocksWithoutCreatingGameplayStructures" methodname="CoarseMassingAdapterRealizesTurnedBlocksWithoutCreatingGameplayStructures" classname="VoxelEngine.Tests.EditMode.KentridgeUrbanOrganizationTests" runstate="Runnable" seed="687138520" result="Passed" start-time="2026-08-24 21:19:24Z" end-time="2026-08-24 21:19:24Z" duration="0.010181" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1940" name="EveryUrbanBlockProtectsAnInteriorVoidAndAFrontageAccess" fullname="VoxelEngine.Tests.EditMode.KentridgeUrbanOrganizationTests.EveryUrbanBlockProtectsAnInteriorVoidAndAFrontageAccess" methodname="EveryUrbanBlockProtectsAnInteriorVoidAndAFrontageAccess" classname="VoxelEngine.Tests.EditMode.KentridgeUrbanOrganizationTests" runstate="Runnable" seed="234998195" result="Passed" start-time="2026-08-24 21:19:24Z" end-time="2026-08-24 21:19:24Z" duration="0.002011" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1942" name="SecondaryUrbanPlacementsRespectNamedPlotSpacing" fullname="VoxelEngine.Tests.EditMode.KentridgeUrbanOrganizationTests.SecondaryUrbanPlacementsRespectNamedPlotSpacing" methodname="SecondaryUrbanPlacementsRespectNamedPlotSpacing" classname="VoxelEngine.Tests.EditMode.KentridgeUrbanOrganizationTests" runstate="Runnable" seed="687455765" result="Passed" start-time="2026-08-24 21:19:24Z" end-time="2026-08-24 21:19:24Z" duration="0.047404" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1939" name="UrbanPlanUsesBlocksToTurnCornersWithoutClosingTheMainAscent" fullname="VoxelEngine.Tests.EditMode.KentridgeUrbanOrganizationTests.UrbanPlanUsesBlocksToTurnCornersWithoutClosingTheMainAscent" methodname="UrbanPlanUsesBlocksToTurnCornersWithoutClosingTheMainAscent" classname="VoxelEngine.Tests.EditMode.KentridgeUrbanOrganizationTests" runstate="Runnable" seed="1490508522" result="Passed" start-time="2026-08-24 21:19:24Z" end-time="2026-08-24 21:19:24Z" duration="0.000644" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

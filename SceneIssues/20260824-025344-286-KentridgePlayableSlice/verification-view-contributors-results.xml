@@ -1,0 +1,338 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="1" result="Passed" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-24 20:56:18Z" end-time="2026-08-24 20:56:18Z" duration="0.5010317">
+  <test-suite type="TestSuite" id="1000" name="voxel" fullname="voxel" runstate="Runnable" testcasecount="1138" result="Passed" start-time="2026-08-24 20:56:18Z" end-time="2026-08-24 20:56:18Z" duration="0.501032" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <test-suite type="Assembly" id="2458" name="VoxelEngine.Tests.EditMode.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/VoxelEngine.Tests.EditMode.dll" runstate="Runnable" testcasecount="807" result="Passed" start-time="2026-08-24 20:56:18Z" end-time="2026-08-24 20:56:18Z" duration="0.492332" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="70794" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <test-suite type="TestSuite" id="2459" name="VoxelEngine" fullname="VoxelEngine" runstate="Runnable" testcasecount="807" result="Passed" start-time="2026-08-24 20:56:18Z" end-time="2026-08-24 20:56:18Z" duration="0.489252" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="2460" name="Tests" fullname="VoxelEngine.Tests" runstate="Runnable" testcasecount="807" result="Passed" start-time="2026-08-24 20:56:18Z" end-time="2026-08-24 20:56:18Z" duration="0.486337" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="2461" name="EditMode" fullname="VoxelEngine.Tests.EditMode" runstate="Runnable" testcasecount="807" result="Passed" start-time="2026-08-24 20:56:18Z" end-time="2026-08-24 20:56:18Z" duration="0.483414" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="1874" name="KentridgeGenerationTests" fullname="VoxelEngine.Tests.EditMode.KentridgeGenerationTests" classname="VoxelEngine.Tests.EditMode.KentridgeGenerationTests" runstate="Runnable" testcasecount="11" result="Passed" start-time="2026-08-24 20:56:18Z" end-time="2026-08-24 20:56:18Z" duration="0.471136" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1875" name="DiagnosticSavedOverlapViewContributors" fullname="VoxelEngine.Tests.EditMode.KentridgeGenerationTests.DiagnosticSavedOverlapViewContributors" methodname="DiagnosticSavedOverlapViewContributors" classname="VoxelEngine.Tests.EditMode.KentridgeGenerationTests" runstate="Runnable" seed="1971274962" result="Passed" start-time="2026-08-24 20:56:18Z" end-time="2026-08-24 20:56:18Z" duration="0.465315" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[VIEW_RAY sample=int2(818, 570) distance=373 voxel=int3(1369, 291, 239) definition=kentridge-district-terrace-civic-summit precedence=15 placement=int3(848, 206, -32) orientation=0 primitive=1 shape=Box material=13 order=1 bounds=int3(920, 206, 40)..int3(1389, 361, 239)
+VIEW_RAY sample=int2(818, 420) distance=381 voxel=int3(1369, 346, 239) definition=kentridge-district-terrace-civic-summit precedence=15 placement=int3(848, 206, -32) orientation=0 primitive=1 shape=Box material=13 order=1 bounds=int3(920, 206, 40)..int3(1389, 361, 239)
+VIEW_RAY sample=int2(1040, 430) distance=372 voxel=int3(1290, 339, 239) definition=kentridge-district-terrace-civic-summit precedence=15 placement=int3(848, 206, -32) orientation=0 primitive=1 shape=Box material=13 order=1 bounds=int3(920, 206, 40)..int3(1389, 361, 239)
+VIEW_RAY sample=int2(818, 570) distance=324 voxel=int3(1360, 287, 287) definition=kentridge-district-terrace-civic-summit precedence=15 placement=int3(848, 206, -32) orientation=0 primitive=12 shape=Box material=13 order=12 bounds=int3(848, 220, 276)..int3(1461, 290, 287)
+VIEW_RAY sample=int2(818, 570) distance=336 voxel=int3(1362, 288, 275) definition=kentridge-district-terrace-civic-summit precedence=15 placement=int3(848, 206, -32) orientation=0 primitive=13 shape=Box material=13 order=13 bounds=int3(848, 220, 264)..int3(1461, 313, 275)
+VIEW_RAY sample=int2(818, 570) distance=348 voxel=int3(1364, 289, 263) definition=kentridge-district-terrace-civic-summit precedence=15 placement=int3(848, 206, -32) orientation=0 primitive=14 shape=Box material=13 order=14 bounds=int3(848, 220, 252)..int3(1461, 337, 263)
+VIEW_RAY sample=int2(1040, 430) distance=348 voxel=int3(1290, 334, 263) definition=kentridge-district-terrace-civic-summit precedence=15 placement=int3(848, 206, -32) orientation=0 primitive=14 shape=Box material=13 order=14 bounds=int3(848, 220, 252)..int3(1461, 337, 263)
+VIEW_RAY sample=int2(818, 570) distance=360 voxel=int3(1367, 290, 251) definition=kentridge-district-terrace-civic-summit precedence=15 placement=int3(848, 206, -32) orientation=0 primitive=15 shape=Box material=13 order=15 bounds=int3(848, 220, 240)..int3(1461, 361, 251)
+VIEW_RAY sample=int2(818, 420) distance=368 voxel=int3(1367, 343, 251) definition=kentridge-district-terrace-civic-summit precedence=15 placement=int3(848, 206, -32) orientation=0 primitive=15 shape=Box material=13 order=15 bounds=int3(848, 220, 240)..int3(1461, 361, 251)
+VIEW_RAY sample=int2(600, 430) distance=392 voxel=int3(1449, 343, 251) definition=kentridge-district-terrace-civic-summit precedence=15 placement=int3(848, 206, -32) orientation=0 primitive=15 shape=Box material=13 order=15 bounds=int3(848, 220, 240)..int3(1461, 361, 251)
+VIEW_RAY sample=int2(1040, 430) distance=360 voxel=int3(1290, 337, 251) definition=kentridge-district-terrace-civic-summit precedence=15 placement=int3(848, 206, -32) orientation=0 primitive=15 shape=Box material=13 order=15 bounds=int3(848, 220, 240)..int3(1461, 361, 251)
+VIEW_RAY sample=int2(818, 570) distance=333 voxel=int3(1362, 288, 278) definition=kentridge-district-retaining-civic-summit precedence=18 placement=int3(848, 206, -32) orientation=0 primitive=2 shape=Box material=1 order=2 bounds=int3(860, 220, 276)..int3(1449, 290, 278)
+VIEW_RAY sample=int2(818, 570) distance=370 voxel=int3(1369, 291, 242) definition=kentridge-district-retaining-civic-summit precedence=18 placement=int3(848, 206, -32) orientation=0 primitive=3 shape=Box material=1 order=3 bounds=int3(860, 291, 240)..int3(1449, 361, 242)
+VIEW_RAY sample=int2(818, 420) distance=378 voxel=int3(1369, 346, 242) definition=kentridge-district-retaining-civic-summit precedence=18 placement=int3(848, 206, -32) orientation=0 primitive=3 shape=Box material=1 order=3 bounds=int3(860, 291, 240)..int3(1449, 361, 242)
+VIEW_RAY sample=int2(1040, 430) distance=369 voxel=int3(1290, 338, 242) definition=kentridge-district-retaining-civic-summit precedence=18 placement=int3(848, 206, -32) orientation=0 primitive=3 shape=Box material=1 order=3 bounds=int3(860, 291, 240)..int3(1449, 361, 242)
+VIEW_RAY sample=int2(818, 570) distance=250 voxel=int3(1345, 282, 359) definition=kentridge-urban-connector-upper-east-contour precedence=23 placement=int3(1198, 200, 320) orientation=0 primitive=1 shape=Box material=1 order=1 bounds=int3(1198, 200, 320)..int3(1472, 283, 359)
+VIEW_RAY sample=int2(818, 570) distance=273 voxel=int3(1350, 284, 337) definition=kentridge-urban-connector-upper-east-contour precedence=23 placement=int3(1198, 200, 320) orientation=0 primitive=2 shape=Box material=13 order=2 bounds=int3(1198, 284, 320)..int3(1472, 291, 359)
+VIEW_RAY sample=int2(818, 420) distance=385 voxel=int3(1370, 347, 235) definition=kentridge-infrastructure-civic-retaining-east precedence=35 placement=int3(1210, 318, 218) orientation=0 primitive=0 shape=Box material=1 order=0 bounds=int3(1210, 318, 226)..int3(1374, 361, 235)
+VIEW_RAY sample=int2(1040, 430) distance=376 voxel=int3(1290, 340, 235) definition=kentridge-infrastructure-civic-retaining-east precedence=35 placement=int3(1210, 318, 218) orientation=0 primitive=0 shape=Box material=1 order=0 bounds=int3(1210, 318, 226)..int3(1374, 361, 235)
+VIEW_RAY sample=int2(818, 420) distance=385 voxel=int3(1370, 347, 235) definition=kentridge-infrastructure-civic-retaining-east precedence=35 placement=int3(1210, 318, 218) orientation=0 primitive=7 shape=Box material=6 order=7 bounds=int3(1370, 318, 221)..int3(1374, 361, 235)
+VIEW_RAY sample=int2(1040, 430) distance=399 voxel=int3(1289, 345, 213) definition=kentridge-foundation-skirt-3 precedence=35 placement=int3(1224, 338, 86) orientation=0 primitive=0 shape=Box material=1 order=0 bounds=int3(1224, 338, 86)..int3(1351, 361, 213)
+VIEW_RAY sample=int2(818, 420) distance=122 voxel=int3(1320, 290, 487) definition=kentridge-upper-east-block-court precedence=85 placement=int3(1256, 290, 452) orientation=0 primitive=0 shape=Box material=1 order=0 bounds=int3(1256, 290, 452)..int3(1373, 291, 493)
+VIEW_RAY sample=int2(600, 430) distance=130 voxel=int3(1347, 290, 487) definition=kentridge-upper-east-block-court precedence=85 placement=int3(1256, 290, 452) orientation=0 primitive=0 shape=Box material=1 order=0 bounds=int3(1256, 290, 452)..int3(1373, 291, 493)
+VIEW_RAY sample=int2(1040, 430) distance=130 voxel=int3(1294, 290, 476) definition=kentridge-upper-east-block-court precedence=85 placement=int3(1256, 290, 452) orientation=0 primitive=0 shape=Box material=1 order=0 bounds=int3(1256, 290, 452)..int3(1373, 291, 493)
+VIEW_RAY sample=int2(1040, 430) distance=101 voxel=int3(1295, 284, 505) definition=kentridge-vertical-2 precedence=85 placement=int3(1230, 249, 502) orientation=0 primitive=3 shape=Box material=1 order=3 bounds=int3(1230, 284, 502)..int3(1302, 288, 519)
+VIEW_RAY sample=int2(600, 430) distance=101 voxel=int3(1336, 284, 513) definition=kentridge-vertical-2 precedence=85 placement=int3(1230, 249, 502) orientation=0 primitive=4 shape=Box material=1 order=4 bounds=int3(1327, 284, 502)..int3(1399, 288, 519)
+VIEW_RAY sample=int2(1040, 430) distance=309 voxel=int3(1291, 326, 301) definition=kentridge-vertical-4 precedence=85 placement=int3(1240, 315, 298) orientation=0 primitive=5 shape=Box material=1 order=5 bounds=int3(1240, 320, 298)..int3(1304, 353, 301)
+VIEW_RAY sample=int2(818, 420) distance=316 voxel=int3(1357, 332, 301) definition=kentridge-vertical-4 precedence=85 placement=int3(1240, 315, 298) orientation=0 primitive=6 shape=Box material=1 order=6 bounds=int3(1325, 320, 298)..int3(1389, 353, 301)
+VIEW_RAY sample=int2(818, 420) distance=313 voxel=int3(1356, 331, 304) definition=kentridge-vertical-4 precedence=85 placement=int3(1240, 315, 298) orientation=0 primitive=12 shape=Box material=15 order=12 bounds=int3(1353, 323, 303)..int3(1378, 350, 304)
+VIEW_RAY sample=int2(1040, 430) distance=125 voxel=int3(1294, 289, 481) definition=kentridge-fabric-19 precedence=86 placement=int3(1230, 236, 419) orientation=0 primitive=3 shape=RoundedBox material=1 order=3 bounds=int3(1236, 277, 426)..int3(1295, 344, 482)
+VIEW_RAY sample=int2(1040, 430) distance=177 voxel=int3(1293, 299, 430) definition=kentridge-fabric-19 precedence=86 placement=int3(1230, 236, 419) orientation=0 primitive=59 shape=RoundedBox material=2 order=59 bounds=int3(1293, 277, 426)..int3(1295, 344, 431)
+VIEW_RAY sample=int2(1040, 430) distance=124 voxel=int3(1294, 288, 482) definition=kentridge-fabric-19 precedence=86 placement=int3(1230, 236, 419) orientation=0 primitive=61 shape=RoundedBox material=2 order=61 bounds=int3(1293, 277, 477)..int3(1295, 344, 482)
+VIEW_RAY sample=int2(600, 430) distance=135 voxel=int3(1349, 291, 482) definition=kentridge-fabric-20 precedence=86 placement=int3(1327, 236, 419) orientation=0 primitive=3 shape=RoundedBox material=1 order=3 bounds=int3(1335, 277, 426)..int3(1390, 310, 482)
+VIEW_RAY sample=int2(600, 430) distance=194 voxel=int3(1372, 303, 429) definition=kentridge-fabric-20 precedence=86 placement=int3(1327, 236, 419) orientation=0 primitive=13 shape=Box material=4 order=13 bounds=int3(1372, 297, 426)..int3(1381, 308, 430)
+VIEW_RAY sample=int2(600, 430) distance=127 voxel=int3(1346, 289, 489) definition=kentridge-fabric-21 precedence=86 placement=int3(1337, 236, 437) orientation=3 primitive=3 shape=RoundedBox material=1 order=3 bounds=int3(1346, 277, 443)..int3(1399, 344, 503)
+VIEW_RAY sample=int2(1040, 430) distance=337 voxel=int3(1290, 332, 274) definition=kentridge-fabric-28 precedence=86 placement=int3(1236, 306, 211) orientation=0 primitive=1 shape=RoundedBox material=1 order=1 bounds=int3(1241, 313, 218)..int3(1301, 346, 274)
+VIEW_RAY sample=int2(1040, 430) distance=338 voxel=int3(1290, 332, 273) definition=kentridge-fabric-28 precedence=86 placement=int3(1236, 306, 211) orientation=0 primitive=49 shape=RoundedBox material=2 order=49 bounds=int3(1241, 330, 269)..int3(1301, 332, 274)
+VIEW_RAY sample=int2(818, 420) distance=345 voxel=int3(1362, 338, 273) definition=kentridge-fabric-29 precedence=86 placement=int3(1321, 306, 210) orientation=0 primitive=1 shape=RoundedBox material=1 order=1 bounds=int3(1326, 313, 218)..int3(1387, 346, 273)
+VIEW_RAY sample=int2(818, 420) distance=383 voxel=int3(1370, 347, 237) definition=kentridge-fabric-29 precedence=86 placement=int3(1321, 306, 210) orientation=0 primitive=3 shape=RoundedBox material=1 order=3 bounds=int3(1326, 347, 218)..int3(1387, 414, 273)
+VIEW_RAY sample=int2(818, 420) distance=345 voxel=int3(1362, 338, 273) definition=kentridge-fabric-29 precedence=86 placement=int3(1321, 306, 210) orientation=0 primitive=21 shape=Box material=15 order=21 bounds=int3(1362, 333, 269)..int3(1371, 344, 273)
+VIEW_RAY sample=int2(818, 420) distance=346 voxel=int3(1363, 339, 272) definition=kentridge-fabric-30 precedence=86 placement=int3(1326, 306, 207) orientation=3 primitive=1 shape=RoundedBox material=1 order=1 bounds=int3(1334, 313, 213)..int3(1389, 346, 272)
+VIEW_RAY sample=int2(818, 420) distance=383 voxel=int3(1370, 347, 237) definition=kentridge-fabric-30 precedence=86 placement=int3(1326, 306, 207) orientation=3 primitive=3 shape=RoundedBox material=1 order=3 bounds=int3(1334, 347, 213)..int3(1389, 414, 272)
+VIEW_RAY sample=int2(818, 420) distance=346 voxel=int3(1363, 339, 272) definition=kentridge-fabric-30 precedence=86 placement=int3(1326, 306, 207) orientation=3 primitive=23 shape=Box material=15 order=23 bounds=int3(1357, 333, 268)..int3(1366, 344, 272)
+VIEW_RAY sample=int2(818, 420) distance=293 voxel=int3(1352, 327, 323) definition=kentridge-fabric-31 precedence=86 placement=int3(1327, 306, 257) orientation=3 primitive=1 shape=RoundedBox material=1 order=1 bounds=int3(1336, 313, 263)..int3(1388, 346, 323)
+VIEW_RAY sample=int2(818, 420) distance=352 voxel=int3(1364, 340, 267) definition=kentridge-fabric-31 precedence=86 placement=int3(1327, 306, 257) orientation=3 primitive=25 shape=Box material=15 order=25 bounds=int3(1357, 333, 263)..int3(1366, 344, 267)
+VIEW_RAY sample=int2(1040, 430) distance=280 voxel=int3(1291, 320, 329) definition=kentridge-gallery-civic-east-block-downhill-gallery precedence=88 placement=int3(1240, 311, 318) orientation=0 primitive=1 shape=Box material=6 order=1 bounds=int3(1240, 320, 328)..int3(1304, 324, 329)
+VIEW_RAY sample=int2(818, 570) distance=143 voxel=int3(1324, 274, 464) definition=kentridge-access-upper-east-block-access precedence=94 placement=int3(1230, 241, 416) orientation=0 primitive=44 shape=Box material=6 order=44 bounds=int3(1323, 267, 462)..int3(1324, 274, 464)
+VIEW_RAY sample=int2(818, 570) distance=140 voxel=int3(1324, 274, 467) definition=kentridge-access-upper-east-block-access precedence=94 placement=int3(1230, 241, 416) orientation=0 primitive=47 shape=Box material=6 order=47 bounds=int3(1323, 269, 465)..int3(1324, 276, 467)
+VIEW_RAY sample=int2(818, 570) distance=136 voxel=int3(1323, 273, 470) definition=kentridge-access-upper-east-block-access precedence=94 placement=int3(1230, 241, 416) orientation=0 primitive=50 shape=Box material=6 order=50 bounds=int3(1323, 271, 468)..int3(1324, 278, 470)
+VIEW_RAY sample=int2(818, 570) distance=133 voxel=int3(1322, 273, 473) definition=kentridge-access-upper-east-block-access precedence=94 placement=int3(1230, 241, 416) orientation=0 primitive=51 shape=Box material=1 order=51 bounds=int3(1307, 273, 471)..int3(1322, 274, 473)
+VIEW_RAY sample=int2(818, 570) distance=134 voxel=int3(1323, 273, 472) definition=kentridge-access-upper-east-block-access precedence=94 placement=int3(1230, 241, 416) orientation=0 primitive=53 shape=Box material=6 order=53 bounds=int3(1323, 273, 471)..int3(1324, 280, 473)
+VIEW_RAY sample=int2(818, 420) distance=114 voxel=int3(1318, 288, 494) definition=kentridge-access-upper-east-block-access precedence=94 placement=int3(1230, 241, 416) orientation=0 primitive=72 shape=Box material=1 order=72 bounds=int3(1307, 287, 492)..int3(1322, 288, 494)
+VIEW_RAY sample=int2(1040, 430) distance=342 voxel=int3(1290, 333, 269) definition=kentridge-infrastructure-terrace-dwelling precedence=90 placement=int3(1280, 306, 218) orientation=0 primitive=1 shape=Box material=1 order=1 bounds=int3(1284, 312, 222)..int3(1339, 379, 269)
+VIEW_RAY sample=int2(818, 570) distance=154 voxel=int3(1326, 275, 453) definition=kentridge-infrastructure-retaining-gallery precedence=92 placement=int3(1240, 248, 426) orientation=0 primitive=1 shape=Box material=1 order=1 bounds=int3(1244, 252, 430)..int3(1339, 291, 453)
+VIEW_RAY sample=int2(818, 570) distance=175 voxel=int3(1331, 276, 432) definition=kentridge-infrastructure-retaining-gallery precedence=92 placement=int3(1240, 248, 426) orientation=0 primitive=11 shape=Box material=6 order=11 bounds=int3(1331, 252, 428)..int3(1335, 291, 433)
+VIEW_RAY sample=int2(818, 420) distance=153 voxel=int3(1326, 296, 457) definition=kentridge-infrastructure-retaining-gallery precedence=92 placement=int3(1240, 248, 426) orientation=0 primitive=13 shape=Prism material=8 order=13 bounds=int3(1240, 292, 426)..int3(1343, 309, 457)
+VIEW_RAY sample=int2(1040, 430) distance=150 voxel=int3(1294, 294, 457) definition=kentridge-infrastructure-retaining-gallery precedence=92 placement=int3(1240, 248, 426) orientation=0 primitive=13 shape=Prism material=8 order=13 bounds=int3(1240, 292, 426)..int3(1343, 309, 457)
+VIEW_RAY sample=int2(818, 570) distance=140 voxel=int3(1324, 274, 467) definition=kentridge-role-rebeccahouse precedence=100 placement=int3(1266, 247, 374) orientation=2 primitive=1 shape=Box material=1 order=1 bounds=int3(1283, 254, 401)..int3(1352, 321, 467)
+VIEW_RAY sample=int2(818, 420) distance=143 voxel=int3(1324, 294, 467) definition=kentridge-role-rebeccahouse precedence=100 placement=int3(1266, 247, 374) orientation=2 primitive=1 shape=Box material=1 order=1 bounds=int3(1283, 254, 401)..int3(1352, 321, 467)
+VIEW_RAY sample=int2(1040, 430) distance=139 voxel=int3(1294, 291, 467) definition=kentridge-role-rebeccahouse precedence=100 placement=int3(1266, 247, 374) orientation=2 primitive=1 shape=Box material=1 order=1 bounds=int3(1283, 254, 401)..int3(1352, 321, 467)
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1152, 216, 256) orientation=0 bounds=int3(1152, 216, 256)..int3(1183, 240, 287) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1184, 215, 256) orientation=0 bounds=int3(1184, 215, 256)..int3(1215, 239, 287) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1216, 215, 256) orientation=0 bounds=int3(1216, 215, 256)..int3(1247, 239, 287) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1248, 214, 256) orientation=0 bounds=int3(1248, 214, 256)..int3(1279, 238, 287) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1280, 213, 256) orientation=0 bounds=int3(1280, 213, 256)..int3(1311, 237, 287) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1312, 212, 256) orientation=0 bounds=int3(1312, 212, 256)..int3(1343, 236, 287) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1344, 212, 256) orientation=0 bounds=int3(1344, 212, 256)..int3(1375, 236, 287) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1376, 211, 256) orientation=0 bounds=int3(1376, 211, 256)..int3(1407, 235, 287) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1408, 211, 256) orientation=0 bounds=int3(1408, 211, 256)..int3(1439, 235, 287) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1440, 210, 256) orientation=0 bounds=int3(1440, 210, 256)..int3(1471, 234, 287) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1472, 210, 256) orientation=0 bounds=int3(1472, 210, 256)..int3(1503, 234, 287) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1152, 215, 288) orientation=0 bounds=int3(1152, 215, 288)..int3(1183, 239, 319) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1184, 215, 288) orientation=0 bounds=int3(1184, 215, 288)..int3(1215, 239, 319) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1216, 214, 288) orientation=0 bounds=int3(1216, 214, 288)..int3(1247, 238, 319) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1248, 213, 288) orientation=0 bounds=int3(1248, 213, 288)..int3(1279, 237, 319) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1280, 212, 288) orientation=0 bounds=int3(1280, 212, 288)..int3(1311, 236, 319) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1312, 212, 288) orientation=0 bounds=int3(1312, 212, 288)..int3(1343, 236, 319) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1344, 211, 288) orientation=0 bounds=int3(1344, 211, 288)..int3(1375, 235, 319) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1376, 210, 288) orientation=0 bounds=int3(1376, 210, 288)..int3(1407, 234, 319) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1408, 210, 288) orientation=0 bounds=int3(1408, 210, 288)..int3(1439, 234, 319) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1440, 209, 288) orientation=0 bounds=int3(1440, 209, 288)..int3(1471, 233, 319) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1472, 209, 288) orientation=0 bounds=int3(1472, 209, 288)..int3(1503, 233, 319) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1152, 215, 320) orientation=0 bounds=int3(1152, 215, 320)..int3(1183, 239, 351) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1184, 214, 320) orientation=0 bounds=int3(1184, 214, 320)..int3(1215, 238, 351) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1216, 213, 320) orientation=0 bounds=int3(1216, 213, 320)..int3(1247, 237, 351) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1248, 213, 320) orientation=0 bounds=int3(1248, 213, 320)..int3(1279, 237, 351) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1280, 212, 320) orientation=0 bounds=int3(1280, 212, 320)..int3(1311, 236, 351) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1312, 211, 320) orientation=0 bounds=int3(1312, 211, 320)..int3(1343, 235, 351) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1344, 210, 320) orientation=0 bounds=int3(1344, 210, 320)..int3(1375, 234, 351) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1376, 210, 320) orientation=0 bounds=int3(1376, 210, 320)..int3(1407, 234, 351) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1408, 209, 320) orientation=0 bounds=int3(1408, 209, 320)..int3(1439, 233, 351) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1440, 209, 320) orientation=0 bounds=int3(1440, 209, 320)..int3(1471, 233, 351) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1472, 209, 320) orientation=0 bounds=int3(1472, 209, 320)..int3(1503, 233, 351) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1152, 214, 352) orientation=0 bounds=int3(1152, 214, 352)..int3(1183, 238, 383) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1184, 214, 352) orientation=0 bounds=int3(1184, 214, 352)..int3(1215, 238, 383) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1216, 213, 352) orientation=0 bounds=int3(1216, 213, 352)..int3(1247, 237, 383) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1248, 212, 352) orientation=0 bounds=int3(1248, 212, 352)..int3(1279, 236, 383) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1280, 211, 352) orientation=0 bounds=int3(1280, 211, 352)..int3(1311, 235, 383) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1312, 211, 352) orientation=0 bounds=int3(1312, 211, 352)..int3(1343, 235, 383) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1344, 210, 352) orientation=0 bounds=int3(1344, 210, 352)..int3(1375, 234, 383) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1376, 209, 352) orientation=0 bounds=int3(1376, 209, 352)..int3(1407, 233, 383) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1408, 209, 352) orientation=0 bounds=int3(1408, 209, 352)..int3(1439, 233, 383) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1440, 208, 352) orientation=0 bounds=int3(1440, 208, 352)..int3(1471, 232, 383) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1472, 208, 352) orientation=0 bounds=int3(1472, 208, 352)..int3(1503, 232, 383) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1152, 214, 384) orientation=0 bounds=int3(1152, 214, 384)..int3(1183, 238, 415) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1184, 213, 384) orientation=0 bounds=int3(1184, 213, 384)..int3(1215, 237, 415) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1216, 212, 384) orientation=0 bounds=int3(1216, 212, 384)..int3(1247, 236, 415) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1248, 212, 384) orientation=0 bounds=int3(1248, 212, 384)..int3(1279, 236, 415) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1280, 211, 384) orientation=0 bounds=int3(1280, 211, 384)..int3(1311, 235, 415) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1312, 210, 384) orientation=0 bounds=int3(1312, 210, 384)..int3(1343, 234, 415) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1344, 209, 384) orientation=0 bounds=int3(1344, 209, 384)..int3(1375, 233, 415) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1376, 209, 384) orientation=0 bounds=int3(1376, 209, 384)..int3(1407, 233, 415) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1408, 208, 384) orientation=0 bounds=int3(1408, 208, 384)..int3(1439, 232, 415) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1440, 208, 384) orientation=0 bounds=int3(1440, 208, 384)..int3(1471, 232, 415) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1472, 207, 384) orientation=0 bounds=int3(1472, 207, 384)..int3(1503, 231, 415) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1152, 213, 416) orientation=0 bounds=int3(1152, 213, 416)..int3(1183, 237, 447) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1184, 213, 416) orientation=0 bounds=int3(1184, 213, 416)..int3(1215, 237, 447) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1216, 212, 416) orientation=0 bounds=int3(1216, 212, 416)..int3(1247, 236, 447) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1248, 211, 416) orientation=0 bounds=int3(1248, 211, 416)..int3(1279, 235, 447) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1280, 210, 416) orientation=0 bounds=int3(1280, 210, 416)..int3(1311, 234, 447) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1312, 210, 416) orientation=0 bounds=int3(1312, 210, 416)..int3(1343, 234, 447) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1344, 209, 416) orientation=0 bounds=int3(1344, 209, 416)..int3(1375, 233, 447) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1376, 208, 416) orientation=0 bounds=int3(1376, 208, 416)..int3(1407, 232, 447) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1408, 208, 416) orientation=0 bounds=int3(1408, 208, 416)..int3(1439, 232, 447) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1440, 207, 416) orientation=0 bounds=int3(1440, 207, 416)..int3(1471, 231, 447) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1472, 207, 416) orientation=0 bounds=int3(1472, 207, 416)..int3(1503, 231, 447) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1152, 213, 448) orientation=0 bounds=int3(1152, 213, 448)..int3(1183, 237, 479) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1184, 213, 448) orientation=0 bounds=int3(1184, 213, 448)..int3(1215, 237, 479) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1216, 212, 448) orientation=0 bounds=int3(1216, 212, 448)..int3(1247, 236, 479) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1248, 211, 448) orientation=0 bounds=int3(1248, 211, 448)..int3(1279, 235, 479) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1280, 210, 448) orientation=0 bounds=int3(1280, 210, 448)..int3(1311, 234, 479) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1312, 209, 448) orientation=0 bounds=int3(1312, 209, 448)..int3(1343, 233, 479) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1344, 209, 448) orientation=0 bounds=int3(1344, 209, 448)..int3(1375, 233, 479) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1376, 208, 448) orientation=0 bounds=int3(1376, 208, 448)..int3(1407, 232, 479) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1408, 208, 448) orientation=0 bounds=int3(1408, 208, 448)..int3(1439, 232, 479) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1440, 207, 448) orientation=0 bounds=int3(1440, 207, 448)..int3(1471, 231, 479) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1472, 207, 448) orientation=0 bounds=int3(1472, 207, 448)..int3(1503, 231, 479) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1152, 213, 480) orientation=0 bounds=int3(1152, 213, 480)..int3(1183, 237, 511) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1184, 212, 480) orientation=0 bounds=int3(1184, 212, 480)..int3(1215, 236, 511) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1216, 212, 480) orientation=0 bounds=int3(1216, 212, 480)..int3(1247, 236, 511) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1248, 211, 480) orientation=0 bounds=int3(1248, 211, 480)..int3(1279, 235, 511) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1280, 210, 480) orientation=0 bounds=int3(1280, 210, 480)..int3(1311, 234, 511) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1312, 209, 480) orientation=0 bounds=int3(1312, 209, 480)..int3(1343, 233, 511) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1344, 209, 480) orientation=0 bounds=int3(1344, 209, 480)..int3(1375, 233, 511) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1376, 208, 480) orientation=0 bounds=int3(1376, 208, 480)..int3(1407, 232, 511) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1408, 207, 480) orientation=0 bounds=int3(1408, 207, 480)..int3(1439, 231, 511) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1440, 207, 480) orientation=0 bounds=int3(1440, 207, 480)..int3(1471, 231, 511) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1472, 207, 480) orientation=0 bounds=int3(1472, 207, 480)..int3(1503, 231, 511) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1152, 213, 512) orientation=0 bounds=int3(1152, 213, 512)..int3(1183, 237, 543) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1184, 212, 512) orientation=0 bounds=int3(1184, 212, 512)..int3(1215, 236, 543) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1216, 212, 512) orientation=0 bounds=int3(1216, 212, 512)..int3(1247, 236, 543) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1248, 211, 512) orientation=0 bounds=int3(1248, 211, 512)..int3(1279, 235, 543) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1280, 210, 512) orientation=0 bounds=int3(1280, 210, 512)..int3(1311, 234, 543) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1312, 209, 512) orientation=0 bounds=int3(1312, 209, 512)..int3(1343, 233, 543) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1344, 209, 512) orientation=0 bounds=int3(1344, 209, 512)..int3(1375, 233, 543) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1376, 208, 512) orientation=0 bounds=int3(1376, 208, 512)..int3(1407, 232, 543) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1408, 207, 512) orientation=0 bounds=int3(1408, 207, 512)..int3(1439, 231, 543) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1440, 207, 512) orientation=0 bounds=int3(1440, 207, 512)..int3(1471, 231, 543) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1472, 207, 512) orientation=0 bounds=int3(1472, 207, 512)..int3(1503, 231, 543) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1152, 213, 544) orientation=0 bounds=int3(1152, 213, 544)..int3(1183, 237, 575) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1184, 212, 544) orientation=0 bounds=int3(1184, 212, 544)..int3(1215, 236, 575) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1216, 212, 544) orientation=0 bounds=int3(1216, 212, 544)..int3(1247, 236, 575) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1248, 211, 544) orientation=0 bounds=int3(1248, 211, 544)..int3(1279, 235, 575) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1280, 210, 544) orientation=0 bounds=int3(1280, 210, 544)..int3(1311, 234, 575) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1312, 209, 544) orientation=0 bounds=int3(1312, 209, 544)..int3(1343, 233, 575) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1344, 209, 544) orientation=0 bounds=int3(1344, 209, 544)..int3(1375, 233, 575) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1376, 208, 544) orientation=0 bounds=int3(1376, 208, 544)..int3(1407, 232, 575) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1408, 207, 544) orientation=0 bounds=int3(1408, 207, 544)..int3(1439, 231, 575) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1440, 207, 544) orientation=0 bounds=int3(1440, 207, 544)..int3(1471, 231, 575) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1472, 207, 544) orientation=0 bounds=int3(1472, 207, 544)..int3(1503, 231, 575) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1152, 213, 576) orientation=0 bounds=int3(1152, 213, 576)..int3(1183, 237, 607) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1184, 213, 576) orientation=0 bounds=int3(1184, 213, 576)..int3(1215, 237, 607) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1216, 212, 576) orientation=0 bounds=int3(1216, 212, 576)..int3(1247, 236, 607) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1248, 211, 576) orientation=0 bounds=int3(1248, 211, 576)..int3(1279, 235, 607) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1280, 210, 576) orientation=0 bounds=int3(1280, 210, 576)..int3(1311, 234, 607) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1312, 209, 576) orientation=0 bounds=int3(1312, 209, 576)..int3(1343, 233, 607) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1344, 209, 576) orientation=0 bounds=int3(1344, 209, 576)..int3(1375, 233, 607) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1376, 208, 576) orientation=0 bounds=int3(1376, 208, 576)..int3(1407, 232, 607) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1408, 207, 576) orientation=0 bounds=int3(1408, 207, 576)..int3(1439, 231, 607) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1440, 207, 576) orientation=0 bounds=int3(1440, 207, 576)..int3(1471, 231, 607) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1472, 207, 576) orientation=0 bounds=int3(1472, 207, 576)..int3(1503, 231, 607) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1152, 213, 608) orientation=0 bounds=int3(1152, 213, 608)..int3(1183, 237, 639) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1184, 213, 608) orientation=0 bounds=int3(1184, 213, 608)..int3(1215, 237, 639) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1216, 212, 608) orientation=0 bounds=int3(1216, 212, 608)..int3(1247, 236, 639) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1248, 211, 608) orientation=0 bounds=int3(1248, 211, 608)..int3(1279, 235, 639) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1280, 210, 608) orientation=0 bounds=int3(1280, 210, 608)..int3(1311, 234, 639) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1312, 209, 608) orientation=0 bounds=int3(1312, 209, 608)..int3(1343, 233, 639) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1344, 209, 608) orientation=0 bounds=int3(1344, 209, 608)..int3(1375, 233, 639) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1376, 208, 608) orientation=0 bounds=int3(1376, 208, 608)..int3(1407, 232, 639) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1408, 208, 608) orientation=0 bounds=int3(1408, 208, 608)..int3(1439, 232, 639) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1440, 207, 608) orientation=0 bounds=int3(1440, 207, 608)..int3(1471, 231, 639) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1472, 207, 608) orientation=0 bounds=int3(1472, 207, 608)..int3(1503, 231, 639) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1152, 213, 640) orientation=0 bounds=int3(1152, 213, 640)..int3(1183, 237, 671) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1184, 213, 640) orientation=0 bounds=int3(1184, 213, 640)..int3(1215, 237, 671) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1216, 212, 640) orientation=0 bounds=int3(1216, 212, 640)..int3(1247, 236, 671) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1248, 211, 640) orientation=0 bounds=int3(1248, 211, 640)..int3(1279, 235, 671) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1280, 210, 640) orientation=0 bounds=int3(1280, 210, 640)..int3(1311, 234, 671) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1312, 210, 640) orientation=0 bounds=int3(1312, 210, 640)..int3(1343, 234, 671) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1344, 209, 640) orientation=0 bounds=int3(1344, 209, 640)..int3(1375, 233, 671) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1376, 208, 640) orientation=0 bounds=int3(1376, 208, 640)..int3(1407, 232, 671) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1408, 208, 640) orientation=0 bounds=int3(1408, 208, 640)..int3(1439, 232, 671) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1440, 207, 640) orientation=0 bounds=int3(1440, 207, 640)..int3(1471, 231, 671) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1472, 207, 640) orientation=0 bounds=int3(1472, 207, 640)..int3(1503, 231, 671) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1152, 214, 672) orientation=0 bounds=int3(1152, 214, 672)..int3(1183, 238, 703) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1184, 213, 672) orientation=0 bounds=int3(1184, 213, 672)..int3(1215, 237, 703) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1216, 212, 672) orientation=0 bounds=int3(1216, 212, 672)..int3(1247, 236, 703) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1248, 211, 672) orientation=0 bounds=int3(1248, 211, 672)..int3(1279, 235, 703) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1280, 210, 672) orientation=0 bounds=int3(1280, 210, 672)..int3(1311, 234, 703) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1312, 210, 672) orientation=0 bounds=int3(1312, 210, 672)..int3(1343, 234, 703) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1344, 209, 672) orientation=0 bounds=int3(1344, 209, 672)..int3(1375, 233, 703) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1376, 208, 672) orientation=0 bounds=int3(1376, 208, 672)..int3(1407, 232, 703) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1408, 208, 672) orientation=0 bounds=int3(1408, 208, 672)..int3(1439, 232, 703) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1440, 207, 672) orientation=0 bounds=int3(1440, 207, 672)..int3(1471, 231, 703) primitives=1
+VIEW_INSTANCE definition=kentridge-ground-32dm precedence=5 placement=int3(1472, 207, 672) orientation=0 bounds=int3(1472, 207, 672)..int3(1503, 231, 703) primitives=1
+VIEW_INSTANCE definition=kentridge-district-terrace-lower-middle precedence=15 placement=int3(926, 203, 596) orientation=0 bounds=int3(926, 203, 596)..int3(1493, 268, 913) primitives=27
+VIEW_INSTANCE definition=kentridge-district-terrace-working-yard precedence=15 placement=int3(1436, 203, 516) orientation=0 bounds=int3(1436, 203, 516)..int3(1803, 279, 873) primitives=35
+VIEW_INSTANCE definition=kentridge-district-terrace-market-main precedence=15 placement=int3(608, 205, 368) orientation=0 bounds=int3(608, 205, 368)..int3(1371, 299, 771) primitives=35
+VIEW_INSTANCE definition=kentridge-district-terrace-market-rebecca precedence=15 placement=int3(1168, 203, 278) orientation=0 bounds=int3(1168, 203, 278)..int3(1491, 299, 571) primitives=35
+VIEW_INSTANCE definition=kentridge-district-terrace-upper-shoulder precedence=15 placement=int3(828, 207, 168) orientation=0 bounds=int3(828, 207, 168)..int3(1281, 339, 511) primitives=35
+VIEW_INSTANCE definition=kentridge-district-terrace-civic-summit precedence=15 placement=int3(848, 206, -32) orientation=0 bounds=int3(848, 206, -32)..int3(1461, 409, 311) primitives=35
+VIEW_INSTANCE definition=kentridge-district-terrace-noble-ridge precedence=15 placement=int3(1418, 203, 18) orientation=0 bounds=int3(1418, 203, 18)..int3(1901, 379, 481) primitives=35
+VIEW_INSTANCE definition=kentridge-district-retaining-market-main precedence=18 placement=int3(608, 205, 368) orientation=0 bounds=int3(620, 213, 401)..int3(1359, 251, 687) primitives=4
+VIEW_INSTANCE definition=kentridge-district-retaining-market-rebecca precedence=18 placement=int3(1168, 203, 278) orientation=0 bounds=int3(1180, 211, 362)..int3(1479, 251, 538) primitives=4
+VIEW_INSTANCE definition=kentridge-district-retaining-upper-shoulder precedence=18 placement=int3(828, 207, 168) orientation=0 bounds=int3(840, 217, 252)..int3(1269, 291, 478) primitives=4
+VIEW_INSTANCE definition=kentridge-district-retaining-noble-ridge precedence=18 placement=int3(1418, 203, 18) orientation=0 bounds=int3(1430, 212, 102)..int3(1889, 331, 448) primitives=4
+VIEW_INSTANCE definition=kentridge-terrace-surface-lower-middle precedence=16 placement=int3(926, 195, 596) orientation=0 bounds=int3(926, 195, 596)..int3(1493, 236, 913) primitives=2
+VIEW_INSTANCE definition=kentridge-terrace-surface-working-yard precedence=16 placement=int3(1436, 195, 516) orientation=0 bounds=int3(1436, 195, 516)..int3(1803, 248, 873) primitives=2
+VIEW_INSTANCE definition=kentridge-terrace-surface-market-main precedence=16 placement=int3(608, 197, 368) orientation=0 bounds=int3(608, 197, 368)..int3(1371, 268, 771) primitives=3
+VIEW_INSTANCE definition=kentridge-terrace-surface-market-rebecca precedence=16 placement=int3(1168, 195, 278) orientation=0 bounds=int3(1168, 195, 278)..int3(1491, 268, 571) primitives=3
+VIEW_INSTANCE definition=kentridge-terrace-surface-upper-shoulder precedence=16 placement=int3(828, 199, 168) orientation=0 bounds=int3(828, 199, 168)..int3(1281, 308, 511) primitives=3
+VIEW_INSTANCE definition=kentridge-terrace-surface-civic-summit precedence=16 placement=int3(848, 198, -32) orientation=0 bounds=int3(848, 198, -32)..int3(1461, 378, 311) primitives=3
+VIEW_INSTANCE definition=kentridge-terrace-surface-noble-ridge precedence=16 placement=int3(1418, 196, 18) orientation=0 bounds=int3(1418, 196, 18)..int3(1901, 348, 481) primitives=3
+VIEW_INSTANCE definition=kentridge-vertical-road-north-south-spine-0-4 precedence=20 placement=int3(1142, 203, 276) orientation=0 bounds=int3(1142, 203, 276)..int3(1197, 344, 366) primitives=4
+VIEW_INSTANCE definition=kentridge-vertical-road-north-south-spine-0-5 precedence=20 placement=int3(1142, 202, 366) orientation=0 bounds=int3(1142, 202, 366)..int3(1197, 319, 455) primitives=4
+VIEW_INSTANCE definition=kentridge-vertical-road-north-south-spine-0-6 precedence=20 placement=int3(1142, 201, 455) orientation=0 bounds=int3(1142, 201, 455)..int3(1197, 279, 544) primitives=3
+VIEW_INSTANCE definition=kentridge-vertical-road-north-south-spine-0-7 precedence=20 placement=int3(1142, 201, 544) orientation=0 bounds=int3(1142, 201, 544)..int3(1197, 279, 633) primitives=4
+VIEW_INSTANCE definition=kentridge-vertical-road-north-south-spine-0-8 precedence=20 placement=int3(1142, 202, 633) orientation=0 bounds=int3(1142, 202, 633)..int3(1197, 275, 723) primitives=4
+VIEW_INSTANCE definition=kentridge-vertical-road-market-street-0-4 precedence=20 placement=int3(1084, 201, 496) orientation=0 bounds=int3(1084, 201, 496)..int3(1180, 279, 543) primitives=3
+VIEW_INSTANCE definition=kentridge-vertical-road-market-street-0-5 precedence=20 placement=int3(1180, 199, 496) orientation=0 bounds=int3(1180, 199, 496)..int3(1276, 279, 543) primitives=3
+VIEW_INSTANCE definition=kentridge-vertical-road-market-street-0-6 precedence=20 placement=int3(1276, 197, 496) orientation=0 bounds=int3(1276, 197, 496)..int3(1372, 279, 543) primitives=3
+VIEW_INSTANCE definition=kentridge-vertical-road-market-street-0-7 precedence=20 placement=int3(1372, 195, 496) orientation=0 bounds=int3(1372, 195, 496)..int3(1468, 279, 543) primitives=3
+VIEW_INSTANCE definition=kentridge-vertical-road-market-street-0-8 precedence=20 placement=int3(1468, 195, 496) orientation=0 bounds=int3(1468, 195, 496)..int3(1564, 279, 543) primitives=3
+VIEW_INSTANCE definition=kentridge-vertical-road-east-service-lane-0-2 precedence=20 placement=int3(1472, 197, 245) orientation=0 bounds=int3(1472, 197, 245)..int3(1507, 359, 338) primitives=4
+VIEW_INSTANCE definition=kentridge-vertical-road-east-service-lane-0-3 precedence=20 placement=int3(1472, 195, 338) orientation=0 bounds=int3(1472, 195, 338)..int3(1507, 329, 430) primitives=4
+VIEW_INSTANCE definition=kentridge-vertical-road-east-service-lane-0-4 precedence=20 placement=int3(1472, 195, 430) orientation=0 bounds=int3(1472, 195, 430)..int3(1507, 285, 523) primitives=4
+VIEW_INSTANCE definition=kentridge-vertical-road-east-service-lane-0-5 precedence=20 placement=int3(1472, 195, 523) orientation=0 bounds=int3(1472, 195, 523)..int3(1507, 279, 616) primitives=3
+VIEW_INSTANCE definition=kentridge-vertical-road-east-service-lane-0-6 precedence=20 placement=int3(1472, 195, 616) orientation=0 bounds=int3(1472, 195, 616)..int3(1507, 279, 709) primitives=4
+VIEW_INSTANCE definition=kentridge-vertical-market-square precedence=25 placement=int3(1060, 193, 450) orientation=0 bounds=int3(1060, 193, 450)..int3(1279, 279, 589) primitives=3
+VIEW_INSTANCE definition=kentridge-procession-market-to-upper-rise precedence=28 placement=int3(1142, 247, 375) orientation=0 bounds=int3(1142, 247, 375)..int3(1197, 323, 440) primitives=3
+VIEW_INSTANCE definition=kentridge-procession-upper-landing precedence=28 placement=int3(1122, 287, 320) orientation=0 bounds=int3(1122, 287, 320)..int3(1217, 323, 375) primitives=2
+VIEW_INSTANCE definition=kentridge-procession-upper-to-civic-gate-rise precedence=28 placement=int3(1142, 287, 280) orientation=0 bounds=int3(1142, 287, 280)..int3(1197, 348, 320) primitives=3
+VIEW_INSTANCE definition=kentridge-procession-civic-gate precedence=28 placement=int3(1120, 312, 240) orientation=0 bounds=int3(1120, 312, 240)..int3(1219, 348, 280) primitives=2
+VIEW_INSTANCE definition=kentridge-urban-connector-upper-east-contour precedence=23 placement=int3(1198, 200, 320) orientation=0 bounds=int3(1198, 200, 320)..int3(1472, 325, 359) primitives=4
+VIEW_INSTANCE definition=kentridge-foundation-skirt-8 precedence=35 placement=int3(1268, 228, 376) orientation=0 bounds=int3(1268, 228, 376)..int3(1367, 251, 475) primitives=1
+VIEW_INSTANCE definition=kentridge-foundation-skirt-1 precedence=35 placement=int3(1224, 193, 670) orientation=0 bounds=int3(1224, 193, 670)..int3(1403, 216, 849) primitives=1
+VIEW_INSTANCE definition=kentridge-plot-townhouse precedence=40 placement=int3(1266, 239, 374) orientation=2 bounds=int3(1266, 239, 374)..int3(1369, 319, 477) primitives=39
+VIEW_INSTANCE definition=kentridge-plot-inn precedence=40 placement=int3(1222, 204, 668) orientation=1 bounds=int3(1230, 204, 668)..int3(1405, 284, 851) primitives=39
+VIEW_INSTANCE definition=kentridge-sidewalk-main-east precedence=59 placement=int3(1196, 0, 150) orientation=0 bounds=int3(1196, 0, 150)..int3(1207, 519, 1029) primitives=1
+VIEW_INSTANCE definition=kentridge-sidewalk-market-south precedence=59 placement=int3(700, 0, 486) orientation=0 bounds=int3(700, 0, 486)..int3(1489, 519, 497) primitives=1
+VIEW_INSTANCE definition=kentridge-sidewalk-market-north precedence=59 placement=int3(700, 0, 542) orientation=0 bounds=int3(700, 0, 542)..int3(1489, 519, 553) primitives=1
+VIEW_INSTANCE definition=kentridge-sidewalk-east-service-west precedence=59 placement=int3(1462, 0, 340) orientation=0 bounds=int3(1462, 0, 340)..int3(1473, 519, 979) primitives=1
+VIEW_INSTANCE definition=kentridge-frontage-8 precedence=60 placement=int3(1313, 0, 468) orientation=0 bounds=int3(1313, 0, 468)..int3(1322, 255, 498) primitives=1
+VIEW_INSTANCE definition=kentridge-market-piazza-hard-surface precedence=61 placement=int3(1060, 250, 450) orientation=0 bounds=int3(1060, 250, 450)..int3(1279, 251, 589) primitives=5
+VIEW_INSTANCE definition=kentridge-street-lamp precedence=80 placement=int3(1200, 317, 275) orientation=0 bounds=int3(1200, 317, 275)..int3(1208, 359, 283) primitives=4
+VIEW_INSTANCE definition=kentridge-street-lamp precedence=80 placement=int3(1350, 252, 481) orientation=0 bounds=int3(1350, 252, 481)..int3(1358, 294, 489) primitives=4
+VIEW_INSTANCE definition=kentridge-street-lamp precedence=80 placement=int3(1350, 252, 549) orientation=0 bounds=int3(1350, 252, 549)..int3(1358, 294, 557) primitives=4
+VIEW_INSTANCE definition=kentridge-plot-dressing-fence-x precedence=80 placement=int3(1330, 265, 374) orientation=0 bounds=int3(1330, 265, 374)..int3(1361, 280, 377) primitives=5
+VIEW_INSTANCE definition=kentridge-plot-dressing-fence-x precedence=80 placement=int3(1274, 265, 374) orientation=0 bounds=int3(1274, 265, 374)..int3(1305, 280, 377) primitives=5
+VIEW_INSTANCE definition=kentridge-plot-dressing-garden-bed precedence=80 placement=int3(1354, 253, 387) orientation=0 bounds=int3(1354, 253, 387)..int3(1361, 255, 394) primitives=5
+VIEW_INSTANCE definition=kentridge-plot-dressing-cargo-stack precedence=80 placement=int3(1243, 218, 675) orientation=0 bounds=int3(1243, 218, 675)..int3(1256, 231, 689) primitives=6
+VIEW_INSTANCE definition=kentridge-dressing-market-stall precedence=80 placement=int3(1214, 252, 458) orientation=0 bounds=int3(1214, 252, 458)..int3(1247, 285, 483) primitives=10
+VIEW_INSTANCE definition=kentridge-dressing-market-stall precedence=80 placement=int3(1214, 252, 556) orientation=0 bounds=int3(1214, 252, 556)..int3(1247, 285, 581) primitives=10
+VIEW_INSTANCE definition=kentridge-dressing-bench precedence=80 placement=int3(1220, 252, 486) orientation=0 bounds=int3(1222, 252, 487)..int3(1245, 267, 493) primitives=6
+VIEW_INSTANCE definition=kentridge-dressing-bench precedence=80 placement=int3(1220, 252, 546) orientation=0 bounds=int3(1222, 252, 547)..int3(1245, 267, 553) primitives=6
+VIEW_INSTANCE definition=kentridge-dressing-lantern-post precedence=80 placement=int3(1203, 252, 482) orientation=0 bounds=int3(1203, 252, 482)..int3(1211, 289, 490) primitives=4
+VIEW_INSTANCE definition=kentridge-dressing-lantern-post precedence=80 placement=int3(1203, 252, 549) orientation=0 bounds=int3(1203, 252, 549)..int3(1211, 289, 557) primitives=4
+VIEW_INSTANCE definition=kentridge-dressing-lantern-post precedence=80 placement=int3(1267, 252, 452) orientation=0 bounds=int3(1267, 252, 452)..int3(1275, 289, 460) primitives=4
+VIEW_INSTANCE definition=kentridge-dressing-lantern-post precedence=80 placement=int3(1267, 252, 579) orientation=0 bounds=int3(1267, 252, 579)..int3(1275, 289, 587) primitives=4
+VIEW_INSTANCE definition=kentridge-dressing-market-crates precedence=80 placement=int3(1250, 252, 462) orientation=0 bounds=int3(1250, 252, 462)..int3(1267, 267, 473) primitives=5
+VIEW_INSTANCE definition=kentridge-dressing-market-crates precedence=80 placement=int3(1250, 252, 560) orientation=0 bounds=int3(1250, 252, 560)..int3(1267, 267, 571) primitives=5
+VIEW_INSTANCE definition=kentridge-upper-east-block-court precedence=85 placement=int3(1256, 290, 452) orientation=0 bounds=int3(1256, 290, 452)..int3(1373, 291, 493) primitives=1
+VIEW_INSTANCE definition=kentridge-civic-east-block-court precedence=85 placement=int3(1268, 360, 246) orientation=0 bounds=int3(1268, 360, 246)..int3(1361, 361, 289) primitives=1
+VIEW_INSTANCE definition=kentridge-working-lane-block-court precedence=85 placement=int3(1324, 230, 674) orientation=0 bounds=int3(1324, 230, 674)..int3(1435, 231, 795) primitives=1
+VIEW_INSTANCE definition=kentridge-vertical-2 precedence=85 placement=int3(1230, 249, 502) orientation=0 bounds=int3(1230, 249, 502)..int3(1399, 288, 519) primitives=17
+VIEW_INSTANCE definition=kentridge-vertical-4 precedence=85 placement=int3(1240, 315, 298) orientation=0 bounds=int3(1240, 315, 298)..int3(1389, 358, 317) primitives=14
+VIEW_INSTANCE definition=kentridge-fabric-19 precedence=86 placement=int3(1230, 236, 419) orientation=0 bounds=int3(1233, 236, 423)..int3(1298, 379, 485) primitives=76
+VIEW_INSTANCE definition=kentridge-fabric-20 precedence=86 placement=int3(1327, 236, 419) orientation=0 bounds=int3(1327, 236, 423)..int3(1393, 341, 485) primitives=83
+VIEW_INSTANCE definition=kentridge-fabric-21 precedence=86 placement=int3(1337, 236, 437) orientation=3 bounds=int3(1343, 236, 440)..int3(1402, 374, 508) primitives=95
+VIEW_INSTANCE definition=kentridge-fabric-31 precedence=86 placement=int3(1327, 306, 257) orientation=3 bounds=int3(1333, 306, 260)..int3(1391, 443, 326) primitives=76
+VIEW_INSTANCE definition=kentridge-fabric-38 precedence=86 placement=int3(1297, 214, 642) orientation=0 bounds=int3(1301, 214, 647)..int3(1364, 284, 708) primitives=35
+VIEW_INSTANCE definition=kentridge-fabric-39 precedence=86 placement=int3(1391, 214, 643) orientation=0 bounds=int3(1391, 214, 645)..int3(1460, 323, 710) primitives=65
+VIEW_INSTANCE definition=kentridge-fabric-40 precedence=86 placement=int3(1397, 214, 656) orientation=3 bounds=int3(1403, 214, 658)..int3(1462, 294, 725) primitives=34
+VIEW_INSTANCE definition=kentridge-gallery-upper-east-block-downhill-gallery precedence=88 placement=int3(1230, 241, 520) orientation=0 bounds=int3(1230, 241, 520)..int3(1399, 258, 531) primitives=10
+VIEW_INSTANCE definition=kentridge-gallery-civic-east-block-downhill-gallery precedence=88 placement=int3(1240, 311, 318) orientation=0 bounds=int3(1240, 311, 318)..int3(1389, 324, 329) primitives=8
+VIEW_INSTANCE definition=kentridge-upper-court-skybridge precedence=93 placement=int3(1088, 292, 451) orientation=0 bounds=int3(1088, 292, 451)..int3(1251, 318, 468) primitives=23
+VIEW_INSTANCE definition=kentridge-access-upper-east-block-access precedence=94 placement=int3(1230, 241, 416) orientation=0 bounds=int3(1230, 241, 416)..int3(1409, 315, 519) primitives=83
+VIEW_INSTANCE definition=kentridge-access-civic-east-block-access precedence=94 placement=int3(1240, 311, 208) orientation=0 bounds=int3(1240, 311, 208)..int3(1399, 385, 317) primitives=83
+VIEW_INSTANCE definition=kentridge-access-working-lane-block-access precedence=94 placement=int3(1300, 219, 640) orientation=0 bounds=int3(1300, 219, 640)..int3(1469, 262, 819) primitives=26
+VIEW_INSTANCE definition=kentridge-infrastructure-retaining-gallery precedence=92 placement=int3(1240, 248, 426) orientation=0 bounds=int3(1240, 248, 426)..int3(1343, 309, 457) primitives=14
+VIEW_INSTANCE definition=kentridge-role-rebeccahouse precedence=100 placement=int3(1266, 247, 374) orientation=2 bounds=int3(1283, 247, 401)..int3(1352, 351, 467) primitives=11
+VIEW_INSTANCE definition=kentridge-role-well precedence=100 placement=int3(1142, 247, 492) orientation=0 bounds=int3(1146, 247, 498)..int3(1193, 306, 542) primitives=7
+<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

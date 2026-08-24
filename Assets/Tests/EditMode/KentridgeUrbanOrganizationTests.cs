@@ -151,6 +151,74 @@ namespace VoxelEngine.Tests.EditMode
             }
         }
 
+        [Test]
+        public void SecondaryUrbanPlacementsRespectNamedPlotSpacing()
+        {
+            SettlementPlan plan = KentridgeDefinition.Build(Seed);
+            FeatureCatalogue catalogue = KentridgeCombinedVoxelCatalogue.Build(
+                Seed, BuildSettings(), Allocator.Temp);
+            int spacing = KentridgeTownPlanner.CompositionPolicy.Density.MinSpacingDm;
+
+            try
+            {
+                for (int ruleIndex = 0; ruleIndex < catalogue.Rules.Length; ruleIndex++)
+                {
+                    PlacementRule rule = catalogue.Rules[ruleIndex];
+                    FeatureDefinition definition = catalogue.Definitions[rule.DefinitionId];
+                    string name = definition.Name.ToString();
+                    if (!IsSecondaryUrbanBuilding(name)) continue;
+
+                    for (int i = 0; i < rule.ExplicitCount; i++)
+                    {
+                        ExplicitPlacement placement = catalogue.ExplicitPlacements[
+                            rule.ExplicitOffset + i];
+                        bool quarterTurn = (placement.Orientation & 1) != 0;
+                        int width = quarterTurn ? definition.Footprint.z : definition.Footprint.x;
+                        int depth = quarterTurn ? definition.Footprint.x : definition.Footprint.z;
+                        int minX = placement.Position.x;
+                        int minZ = placement.Position.z;
+                        int maxX = minX + width;
+                        int maxZ = minZ + depth;
+
+                        for (int plotIndex = 0; plotIndex < plan.Plots.Count; plotIndex++)
+                        {
+                            BuildingPlot plot = plan.Plots[plotIndex];
+                            Int3 footprint = KentridgeDefinition.FootprintDm(plot.Archetype);
+                            int reservedMinX = plot.PositionDm.X - spacing;
+                            int reservedMinZ = plot.PositionDm.Y - spacing;
+                            int reservedMaxX = plot.PositionDm.X + footprint.X + spacing;
+                            int reservedMaxZ = plot.PositionDm.Y + footprint.Z + spacing;
+                            bool intersects = maxX > reservedMinX && minX < reservedMaxX
+                                           && maxZ > reservedMinZ && minZ < reservedMaxZ;
+
+                            Assert.IsFalse(intersects,
+                                name + " at " + placement.Position
+                                + " violates the " + spacing + " dm reservation around "
+                                + ((KentridgeRole)plot.RoleId) + " "
+                                + reservedMinX + "," + reservedMinZ + ".."
+                                + reservedMaxX + "," + reservedMaxZ + ".");
+                        }
+                    }
+                }
+            }
+            finally
+            {
+                catalogue.Dispose();
+            }
+        }
+
+        private static bool IsSecondaryUrbanBuilding(string name) =>
+            name.StartsWith("kentridge-fabric-", System.StringComparison.Ordinal)
+            || name.StartsWith("kentridge-access-", System.StringComparison.Ordinal)
+            || name.StartsWith("kentridge-gallery-", System.StringComparison.Ordinal)
+            || name.EndsWith("-court", System.StringComparison.Ordinal)
+            || name == "kentridge-upper-court-skybridge"
+            || name.StartsWith("kentridge-vertical-", System.StringComparison.Ordinal)
+                && name.Length > "kentridge-vertical-".Length
+                && char.IsDigit(name["kentridge-vertical-".Length])
+            || name == "kentridge-infrastructure-terrace-dwelling"
+            || name == "kentridge-infrastructure-retaining-gallery";
+
         private static VoxelWorldGenSettings BuildSettings()
         {
             var materials = new VoxelMaterialMap(

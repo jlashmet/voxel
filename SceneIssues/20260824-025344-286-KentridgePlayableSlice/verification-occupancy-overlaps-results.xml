@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="1" result="Passed" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-24 21:01:18Z" end-time="2026-08-24 21:01:20Z" duration="1.8163428">
+  <test-suite type="TestSuite" id="1000" name="voxel" fullname="voxel" runstate="Runnable" testcasecount="1139" result="Passed" start-time="2026-08-24 21:01:18Z" end-time="2026-08-24 21:01:20Z" duration="1.816343" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <test-suite type="Assembly" id="2459" name="VoxelEngine.Tests.EditMode.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/VoxelEngine.Tests.EditMode.dll" runstate="Runnable" testcasecount="808" result="Passed" start-time="2026-08-24 21:01:18Z" end-time="2026-08-24 21:01:20Z" duration="1.808612" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="73291" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <test-suite type="TestSuite" id="2460" name="VoxelEngine" fullname="VoxelEngine" runstate="Runnable" testcasecount="808" result="Passed" start-time="2026-08-24 21:01:18Z" end-time="2026-08-24 21:01:20Z" duration="1.806091" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="2461" name="Tests" fullname="VoxelEngine.Tests" runstate="Runnable" testcasecount="808" result="Passed" start-time="2026-08-24 21:01:18Z" end-time="2026-08-24 21:01:20Z" duration="1.798565" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="2462" name="EditMode" fullname="VoxelEngine.Tests.EditMode" runstate="Runnable" testcasecount="808" result="Passed" start-time="2026-08-24 21:01:18Z" end-time="2026-08-24 21:01:20Z" duration="1.794821" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="1874" name="KentridgeGenerationTests" fullname="VoxelEngine.Tests.EditMode.KentridgeGenerationTests" classname="VoxelEngine.Tests.EditMode.KentridgeGenerationTests" runstate="Runnable" testcasecount="12" result="Passed" start-time="2026-08-24 21:01:18Z" end-time="2026-08-24 21:01:20Z" duration="1.766298" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1876" name="DiagnosticNamedStructureUrbanStageOccupancyOverlaps" fullname="VoxelEngine.Tests.EditMode.KentridgeGenerationTests.DiagnosticNamedStructureUrbanStageOccupancyOverlaps" methodname="DiagnosticNamedStructureUrbanStageOccupancyOverlaps" classname="VoxelEngine.Tests.EditMode.KentridgeGenerationTests" runstate="Runnable" seed="364710110" result="Passed" start-time="2026-08-24 21:01:18Z" end-time="2026-08-24 21:01:20Z" duration="1.760381" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[OCCUPANCY_OVERLAP named=kentridge-role-inn namedPlacement=int3(934, 287, 248) secondary=kentridge-vertical-3 secondaryPlacement=int3(900, 315, 306) secondaryPrecedence=85 cells=4498 first=int3(944, 315, 306) intersection=int3(944, 315, 306)..int3(1047, 358, 325)
+OCCUPANCY_OVERLAP named=kentridge-role-inn namedPlacement=int3(934, 287, 248) secondary=kentridge-fabric-22 secondaryPlacement=int3(887, 306, 219) secondaryPrecedence=86 cells=3602 first=int3(944, 306, 274) intersection=int3(944, 306, 274)..int3(958, 425, 286)
+OCCUPANCY_OVERLAP named=kentridge-role-inn namedPlacement=int3(934, 287, 248) secondary=kentridge-fabric-23 secondaryPlacement=int3(933, 306, 218) secondaryPrecedence=86 cells=7742 first=int3(944, 306, 274) intersection=int3(944, 306, 274)..int3(1001, 425, 284)
+OCCUPANCY_OVERLAP named=kentridge-role-inn namedPlacement=int3(934, 287, 248) secondary=kentridge-fabric-24 secondaryPlacement=int3(1004, 306, 219) secondaryPrecedence=86 cells=5658 first=int3(1011, 306, 274) intersection=int3(1004, 306, 274)..int3(1047, 425, 286)
+OCCUPANCY_OVERLAP named=kentridge-role-inn namedPlacement=int3(934, 287, 248) secondary=kentridge-fabric-26 secondaryPlacement=int3(891, 306, 215) secondaryPrecedence=86 cells=3529 first=int3(944, 306, 274) intersection=int3(944, 306, 274)..int3(958, 425, 286)
+OCCUPANCY_OVERLAP named=kentridge-role-inn namedPlacement=int3(934, 287, 248) secondary=kentridge-fabric-27 secondaryPlacement=int3(891, 306, 265) secondaryPrecedence=86 cells=10412 first=int3(944, 306, 274) intersection=int3(944, 306, 274)..int3(956, 425, 331)
+OCCUPANCY_OVERLAP named=kentridge-role-inn namedPlacement=int3(934, 287, 248) secondary=kentridge-gallery-civic-west-block-downhill-gallery secondaryPlacement=int3(900, 311, 326) secondaryPrecedence=88 cells=272 first=int3(944, 318, 326) intersection=int3(944, 311, 326)..int3(1047, 324, 337)
+OCCUPANCY_OVERLAP named=kentridge-role-inn namedPlacement=int3(934, 287, 248) secondary=kentridge-access-civic-west-block-access secondaryPlacement=int3(890, 311, 216) secondaryPrecedence=94 cells=1032 first=int3(995, 345, 274) intersection=int3(944, 311, 274)..int3(1047, 385, 325)
+OCCUPANCY_OVERLAP named=kentridge-role-inn namedPlacement=int3(934, 287, 248) secondary=kentridge-infrastructure-terrace-dwelling secondaryPlacement=int3(930, 306, 226) secondaryPrecedence=90 cells=16826 first=int3(944, 306, 274) intersection=int3(944, 306, 274)..int3(993, 405, 281)
+OCCUPANCY_OVERLAP named=kentridge-role-pub namedPlacement=int3(1222, 212, 668) secondary=kentridge-fabric-38 secondaryPlacement=int3(1297, 214, 642) secondaryPrecedence=86 cells=7444 first=int3(1305, 214, 704) intersection=int3(1304, 214, 704)..int3(1364, 284, 708)
+OCCUPANCY_OVERLAP named=kentridge-role-pub namedPlacement=int3(1222, 212, 668) secondary=kentridge-fabric-39 secondaryPlacement=int3(1391, 214, 643) secondaryPrecedence=86 cells=238 first=int3(1395, 255, 704) intersection=int3(1391, 214, 704)..int3(1395, 310, 710)
+OCCUPANCY_OVERLAP named=kentridge-role-church namedPlacement=int3(954, 357, 68) secondary=kentridge-fabric-24 secondaryPlacement=int3(1004, 306, 219) secondaryPrecedence=86 cells=2361 first=int3(1043, 367, 224) intersection=int3(1004, 357, 221)..int3(1073, 444, 228)
+OCCUPANCY_OVERLAP named=kentridge-role-church namedPlacement=int3(954, 357, 68) secondary=kentridge-fabric-25 secondaryPlacement=int3(1050, 306, 216) secondaryPrecedence=86 cells=1247 first=int3(1057, 367, 224) intersection=int3(1053, 357, 221)..int3(1108, 444, 228)
+OCCUPANCY_OVERLAP named=kentridge-role-loganhouse namedPlacement=int3(1014, 211, 712) secondary=kentridge-vertical-0 secondaryPlacement=int3(690, 211, 766) secondaryPrecedence=85 cells=8140 first=int3(1024, 211, 766) intersection=int3(1024, 211, 766)..int3(1095, 248, 783)
+OCCUPANCY_OVERLAP named=kentridge-role-loganhouse namedPlacement=int3(1014, 211, 712) secondary=kentridge-fabric-9 secondaryPlacement=int3(977, 196, 668) secondaryPrecedence=86 cells=4330 first=int3(1024, 211, 728) intersection=int3(1024, 211, 728)..int3(1045, 302, 733)
+OCCUPANCY_OVERLAP named=kentridge-role-loganhouse namedPlacement=int3(1014, 211, 712) secondary=kentridge-fabric-10 secondaryPlacement=int3(1041, 196, 666) secondaryPrecedence=86 cells=1465 first=int3(1043, 271, 728) intersection=int3(1043, 211, 728)..int3(1095, 310, 729)
+OCCUPANCY_OVERLAP named=kentridge-role-loganhouse namedPlacement=int3(1014, 211, 712) secondary=kentridge-gallery-market-lower-block-downhill-gallery secondaryPlacement=int3(690, 201, 784) secondaryPrecedence=88 cells=2064 first=int3(1024, 214, 784) intersection=int3(1024, 211, 784)..int3(1095, 220, 795)
+OCCUPANCY_OVERLAP named=kentridge-role-loganhouse namedPlacement=int3(1014, 211, 712) secondary=kentridge-infrastructure-terrace-dwelling secondaryPlacement=int3(1000, 196, 676) secondaryPrecedence=90 cells=2145 first=int3(1024, 270, 728) intersection=int3(1024, 211, 728)..int3(1063, 295, 731)
+OCCUPANCY_OVERLAP named=kentridge-role-rebeccahouse namedPlacement=int3(1266, 247, 374) secondary=kentridge-fabric-19 secondaryPlacement=int3(1230, 236, 419) secondaryPrecedence=86 cells=5966 first=int3(1283, 247, 426) intersection=int3(1283, 247, 423)..int3(1298, 351, 467)
+OCCUPANCY_OVERLAP named=kentridge-role-rebeccahouse namedPlacement=int3(1266, 247, 374) secondary=kentridge-fabric-20 secondaryPlacement=int3(1327, 236, 419) secondaryPrecedence=86 cells=8222 first=int3(1349, 311, 423) intersection=int3(1327, 247, 423)..int3(1352, 341, 467)
+OCCUPANCY_OVERLAP named=kentridge-role-rebeccahouse namedPlacement=int3(1266, 247, 374) secondary=kentridge-fabric-21 secondaryPlacement=int3(1337, 236, 437) secondaryPrecedence=86 cells=5337 first=int3(1347, 247, 443) intersection=int3(1343, 247, 440)..int3(1352, 351, 467)
+OCCUPANCY_OVERLAP named=kentridge-role-rebeccahouse namedPlacement=int3(1266, 247, 374) secondary=kentridge-access-upper-east-block-access secondaryPlacement=int3(1230, 241, 416) secondaryPrecedence=94 cells=1040 first=int3(1303, 247, 423) intersection=int3(1283, 247, 416)..int3(1352, 315, 467)
+OCCUPANCY_OVERLAP named=kentridge-role-rebeccahouse namedPlacement=int3(1266, 247, 374) secondary=kentridge-infrastructure-retaining-gallery secondaryPlacement=int3(1240, 248, 426) secondaryPrecedence=92 cells=16844 first=int3(1283, 292, 426) intersection=int3(1283, 248, 426)..int3(1343, 309, 457)
+OCCUPANCY_OVERLAP named=kentridge-role-sarahhouse namedPlacement=int3(647, 187, 938) secondary=kentridge-fabric-0 secondaryPlacement=int3(698, 174, 950) secondaryPrecedence=86 cells=22783 first=int3(752, 249, 955) intersection=int3(703, 187, 955)..int3(755, 283, 1016)
+OCCUPANCY_OVERLAP named=kentridge-role-sarahhouse namedPlacement=int3(647, 187, 938) secondary=kentridge-fabric-4 secondaryPlacement=int3(679, 174, 967) secondaryPrecedence=86 cells=20013 first=int3(691, 187, 969) intersection=int3(687, 187, 967)..int3(744, 278, 1029)
+OCCUPANCY_OVERLAP named=kentridge-role-katiehouse namedPlacement=int3(821, 187, 938) secondary=kentridge-fabric-1 secondaryPlacement=int3(788, 174, 951) secondaryPrecedence=86 cells=12569 first=int3(835, 249, 955) intersection=int3(835, 187, 955)..int3(859, 280, 1017)
+OCCUPANCY_OVERLAP named=kentridge-role-katiehouse namedPlacement=int3(821, 187, 938) secondary=kentridge-access-lower-west-neighbourhood-access secondaryPlacement=int3(680, 179, 948) secondaryPrecedence=94 cells=2004 first=int3(869, 187, 955) intersection=int3(835, 187, 948)..int3(909, 222, 1017)
+OCCUPANCY_OVERLAP named=kentridge-role-medrarehouse namedPlacement=int3(972, 187, 938) secondary=kentridge-fabric-3 secondaryPlacement=int3(999, 174, 951) secondaryPrecedence=86 cells=20458 first=int3(1020, 262, 955) intersection=int3(1002, 187, 955)..int3(1066, 281, 1017)
+OCCUPANCY_OVERLAP_SUMMARY named=17 secondary=73 pairs=28
+<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

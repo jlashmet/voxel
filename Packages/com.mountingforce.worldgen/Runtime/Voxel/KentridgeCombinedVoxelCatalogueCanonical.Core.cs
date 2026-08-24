@@ -43,13 +43,13 @@ namespace MountingForce.WorldGen.Voxel
             Add(stageList, KentridgeVerticalPlacementAdapter.BuildTownDressing(seed, settings, Allocator.Temp));
             if (isKentridge)
             {
-                Add(stageList, KentridgeUrbanCourtCatalogue.Build(seed, settings, Allocator.Temp));
-                Add(stageList, KentridgeVerticalFrontageCatalogue.Build(seed, settings, Allocator.Temp));
-                Add(stageList, KentridgeFrontageAlignedUrbanFabricCatalogue.Build(seed, settings, Allocator.Temp));
-                Add(stageList, KentridgeVerticalGalleryCatalogue.Build(seed, settings, Allocator.Temp));
-                Add(stageList, KentridgeUpperSkybridgeCatalogue.Build(seed, settings, Allocator.Temp));
-                Add(stageList, KentridgeUrbanAccessCatalogue.Build(seed, settings, Allocator.Temp));
-                Add(stageList, KentridgeHillsideArchitectureCatalogue.Build(seed, settings, Allocator.Temp));
+                AddReserved(stageList, KentridgeUrbanCourtCatalogue.Build(seed, settings, Allocator.Temp), settlement, settings);
+                AddReserved(stageList, KentridgeVerticalFrontageCatalogue.Build(seed, settings, Allocator.Temp), settlement, settings);
+                AddReserved(stageList, KentridgeFrontageAlignedUrbanFabricCatalogue.Build(seed, settings, Allocator.Temp), settlement, settings);
+                AddReserved(stageList, KentridgeVerticalGalleryCatalogue.Build(seed, settings, Allocator.Temp), settlement, settings);
+                AddReserved(stageList, KentridgeUpperSkybridgeCatalogue.Build(seed, settings, Allocator.Temp), settlement, settings);
+                AddReserved(stageList, KentridgeUrbanAccessCatalogue.Build(seed, settings, Allocator.Temp), settlement, settings);
+                AddReserved(stageList, KentridgeHillsideArchitectureCatalogue.Build(seed, settings, Allocator.Temp), settlement, settings);
             }
             Add(stageList, KentridgeSharedStructureVoxelCatalogue.Build(seed, settings, Allocator.Temp));
 
@@ -106,5 +106,13 @@ namespace MountingForce.WorldGen.Voxel
 
         private static void Add(List<FeatureCatalogue> stages, FeatureCatalogue stage) =>
             stages.Add(stage);
+
+        private static void AddReserved(
+            List<FeatureCatalogue> stages,
+            FeatureCatalogue stage,
+            SettlementPlan settlement,
+            VoxelWorldGenSettings settings) =>
+            stages.Add(KentridgeNamedPlotReservationCatalogue.Apply(
+                stage, settlement, settings));
     }
 }
