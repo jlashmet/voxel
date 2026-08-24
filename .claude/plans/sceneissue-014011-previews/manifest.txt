@@ -1,2 +1,2 @@
-before_parts=5
-after_parts=4
+before_parts=1
+after_parts=1
