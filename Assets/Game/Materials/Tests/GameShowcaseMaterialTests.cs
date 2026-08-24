@@ -14,7 +14,7 @@ namespace Game.Materials.Tests
 
             Assert.That(roles.TerrainDeep, Is.EqualTo(GameMaterialIds.Bedrock));
             Assert.That(roles.TerrainSubsurface, Is.EqualTo(GameMaterialIds.Dirt));
-            Assert.That(roles.TerrainLowSurface, Is.EqualTo(GameMaterialIds.Dirt));
+            Assert.That(roles.TerrainLowSurface, Is.EqualTo(GameMaterialIds.Grass));
             Assert.That(roles.TerrainHighSurface, Is.EqualTo(GameMaterialIds.Grass));
             Assert.That(roles.Gate, Is.EqualTo(GameMaterialIds.Wood));
             Assert.That(roles.ReferenceArch, Is.EqualTo(GameMaterialIds.DarkStone));
@@ -40,7 +40,7 @@ namespace Game.Materials.Tests
             ShowcaseMaterialSet roles = GameShowcaseMaterials.Default;
             const int split = 220;
 
-            Assert.That(roles.SurfaceAt(split - 1, split), Is.EqualTo(GameMaterialIds.Dirt));
+            Assert.That(roles.SurfaceAt(split - 1, split), Is.EqualTo(GameMaterialIds.Grass));
             Assert.That(roles.SurfaceAt(split, split), Is.EqualTo(GameMaterialIds.Grass));
             Assert.That(roles.SurfaceAt(split + 1, split), Is.EqualTo(GameMaterialIds.Grass));
         }

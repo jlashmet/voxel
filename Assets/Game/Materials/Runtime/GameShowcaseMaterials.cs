@@ -26,7 +26,7 @@ namespace Game.Materials.Runtime
             // the near voxel surface derive their ground cover independently, so any disagreement
             // between these two sets draws itself as a hard material seam at the streaming radius —
             // which is exactly what a sand low surface here and a sand-and-stone one there did.
-            terrainLowSurface: GameMaterialIds.Dirt,
+            terrainLowSurface: GameMaterialIds.Grass,
             terrainHighSurface: GameMaterialIds.Grass,
             gate: GameMaterialIds.Wood,
             referenceArch: GameMaterialIds.DarkStone,

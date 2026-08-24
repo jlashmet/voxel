@@ -132,9 +132,11 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.DoesNotContain("SetVoxelBuildConcurrency(converging, 0)", harness,
                 "The real-player traversal must not disable the production prefetch that prevents newly exposed wall/terrain holes.");
 
-            StringAssert.Contains("Octave(worldX, worldZ, 9, 70, seed)", terrain,
-                "Terrain styling must not flatten away the broad valley landform.");
-            StringAssert.Contains("Octave(worldX, worldZ, 7, 24, seed)", terrain);
+            StringAssert.Contains("Octave(worldX, worldZ, 9, 18, seed)", terrain,
+                "The settled valley must retain the gentle broad landform proven by SceneIssue 013924.");
+            StringAssert.DoesNotContain("Octave(worldX, worldZ, 9, 70, seed)", terrain,
+                "Do not restore the strong settlement-scale relief that produced contour banding.");
+            StringAssert.DoesNotContain("Octave(worldX, worldZ, 7, 24, seed)", terrain);
             StringAssert.DoesNotContain("Octave(worldX, worldZ, 5, 6, seed)", terrain,
                 "Do not restore the former player-scale corrugation as part of the relief fix.");
             StringAssert.DoesNotContain("Octave(worldX, worldZ, 4, 4, seed)", terrain);

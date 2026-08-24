@@ -1,0 +1,22 @@
+source_commit=87bfc27d7
+unity_version=6000.5.6f1
+configuration=tools/unity-run.sh build; production macOS player; GPU cutover enabled
+scene=Assets/Scenes/VoxelShowcase.unity
+capture_resolution=1293x718
+camera_position=(-71.0000229,23.0505180,-339.9714661)
+camera_rotation=(-0.0146547379,-0.8007169962,0.0196047835,-0.5985426307)
+field_of_view=70
+
+t=17.2 drawn=0 missingVisible=28
+t=18.2 drawn=157 missingVisible=370
+t=19.2 drawn=420 missingVisible=45 artifact=broad_brown_patches_reproduced
+t=20.2 drawn=436 missingVisible=22
+t=21.2 drawn=442 missingVisible=16
+t=22.2 drawn=446 missingVisible=12
+t=23.2 drawn=452 missingVisible=6
+t=24.2 drawn=456 missingVisible=2
+t=25.2 drawn=458 missingVisible=0
+t=26.2 drawn=458 missingVisible=0 artifact=broad_brown_patches_absent
+
+transient_sha256=8a45c7e58ddac1557b2730e9107f035f453c308964a92c562365715716e0b99e
+settled_sha256=b642c05069cc6d2a5b5da23de37408bf8a5abf3d9fa1ce0230bd1c050febec57
