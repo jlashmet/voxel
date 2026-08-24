@@ -2,18 +2,10 @@
 
 A destructible and buildable multiplayer voxel world, built in Unity.
 
-**Which validation loop applies depends on what you can execute, not on which tool you are.**
-This file, the specs it references, and the constitution are binding on every agent. The
-validation loop is not:
-
-- **If you can run Unity locally** (a shell with `tools/unity-run.sh`): use the loop described
-  below. `AGENTS.md`'s push-triggered CI loop does not apply to you.
-- **If you can only push commits and read the GitHub API** (a browser tab with a GitHub
-  connector): `AGENTS.md` governs your validation loop and its branch discipline. Use its
-  push-triggered targeted-test mechanism.
-
-Both share one self-hosted runner that executes one job at a time, so CI requests are a fleet
-resource. `SceneIssues/README.md` defines how concurrent agents claim work without colliding.
+`AGENTS.md` targets a different agent tool and does not apply to Claude Code. Ignore it — this
+file, the specs it references, and the constitution are authoritative. In particular its
+validation loop, which assumes Unity cannot be run locally and drives everything through
+push-triggered CI, is not the workflow here: use `tools/unity-run.sh` as described below.
 
 ## Active feature
 

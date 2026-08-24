@@ -44,13 +44,6 @@ Never push a placeholder, probe, or scratch branch (`tmp-*`, `temp-*`, `noop-*`,
 `do-not-use-*`). If a ref would not be meaningful to a human reviewer a week later, it does not
 belong on `origin`.
 
-For queued work the branch name is not chosen, it is derived — the branch list is the claim
-registry that keeps concurrent agents off each other's work:
-
-```
-sceneissue/<id>    ci-test/sceneissue/<id>    id verbatim from issue.json
-```
-
 Delete `ci-test/<feature-branch>` as soon as the task's validation is green; delete the feature
 branch once it merges. The agent that pushed a branch is responsible for removing it. Leaving
 unmerged branches on `origin` is a defect, not housekeeping — it is unreviewed work that looks
@@ -63,11 +56,6 @@ Assume you cannot execute Unity, **`tools/ci-test`**, or manually dispatch GitHu
 Use the repository's push-triggered targeted-test mechanism on the task's single CI request
 branch defined above. Do **not** update `.github/test-request.json` on the feature/PR branch:
 that would create a PR synchronize event and fan out normal PR CI again.
-
-The self-hosted runner executes **one job at a time for the whole fleet**, and several agents
-share it. Your queued request delays every other agent. Do not push a CI request to confirm a
-guess — push it to confirm a hypothesis you have already reasoned through, and prefer one
-request that validates a fix and its regression together over two sequential requests.
 
 A requested single test is a fast-feedback path and must complete in **less than 5 minutes** once its workflow job starts. Keep the requested test narrow enough to fit that budget; if it does not, split or narrow the test instead of extending the single-test timeout.
 
