@@ -18,6 +18,12 @@ namespace Game.Structures.Runtime
                 placement.Backend != DecorationRenderBackend.VoxelStamp)
                 return false;
 
+            if (DragonStatueWorldBuilderObject.IsDragon(in placement))
+            {
+                DragonStatueAuthoring.Author(authoring, DragonStatueWorldBuilderObject.ResolveAuthoringOrigin(in placement));
+                return true;
+            }
+
             DecorationPresentationProfile profile = DecorationContextProfiles.ResolvePresentation(in context);
             switch (placement.Family)
             {
