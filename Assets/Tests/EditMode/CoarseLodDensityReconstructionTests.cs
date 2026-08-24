@@ -51,6 +51,25 @@ namespace VoxelEngine.Tests.EditMode
             }
         }
 
+        [Test]
+        public void Step2LayeredSlopeUsesVisibleTopSurfaceMaterial()
+        {
+            SurfaceCatalogueView surfaces = SurfaceCatalogueView.CreateBuiltIns();
+            CoatingCatalogueView coatings = default;
+            MaterialPaletteView palette = default;
+
+            CpuDensitySample sample = CpuDensityOracle.SampleLayeredSlopeEdgeAtOrigin(
+                sourceStep: 2, surfaceMaterial: 1, subsurfaceMaterial: 2,
+                surfaces, coatings, palette);
+
+            Assert.Greater(sample.Density, 0f,
+                "The coarse sample must remain inside the terrain for this reproduction.");
+            Assert.That(sample.Material, Is.EqualTo(1),
+                "SceneIssue 014011: a lateral air crossing must not make a coarse terrain sample "
+              + "render the buried subsurface material when the layered top-surface voxel is exposed "
+              + "one voxel above it.");
+        }
+
         private static float ReconstructedCrossingY(
             int sourceStep, int topSolidY,
             in SurfaceCatalogueView surfaces,
