@@ -1,0 +1,93 @@
+name: One-shot SceneIssue 014011 LOD2 density oracle (graphics)
+
+on:
+  push:
+    branches: [fixes]
+    paths:
+      - .github/workflows/one-shot-sceneissue-014011-lod2-density-oracle-graphics.yml
+
+jobs:
+  oracle:
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fixes
+          clean: true
+          fetch-depth: 1
+
+      - name: Resolve Unity
+        id: unity
+        shell: bash
+        run: |
+          set -euo pipefail
+          UNITY_VERSION="$(awk '/m_EditorVersion:/ { print $2 }' ProjectSettings/ProjectVersion.txt)"
+          UNITY_PATH="/Applications/Unity/Hub/Editor/${UNITY_VERSION}/Unity.app/Contents/MacOS/Unity"
+          test -x "$UNITY_PATH"
+          echo "path=$UNITY_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for Unity
+        shell: bash
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 60))
+          while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
+            if (( SECONDS >= deadline )); then
+              pgrep -alf '/Unity.app/Contents/MacOS/Unity' || true
+              exit 1
+            fi
+            sleep 5
+          done
+
+      - name: Run graphics-enabled SourceStep1/2 density oracle
+        shell: bash
+        env:
+          TEST_FILTER: VoxelEngine.Tests.EditMode.GpuSurfaceExtractorOracleTests.GpuDensityMatchesTheCpuJobSampleForSample
+        run: |
+          set -uo pipefail
+          ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue014011DensityOracle"
+          mkdir -p "$ROOT"
+          status=0
+          UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=4 \
+          UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
+            -batchmode -job-worker-count 1 \
+            -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform EditMode \
+            -testFilter "$TEST_FILTER" \
+            -testResults "$ROOT/results.xml" -logFile "$ROOT/unity.log" || status=$?
+
+          if [[ -s "$ROOT/results.xml" ]]; then
+            python3 - "$ROOT/results.xml" <<'PY'
+          import sys
+          import xml.etree.ElementTree as ET
+          root = ET.parse(sys.argv[1]).getroot()
+          cases = root.findall('.//test-case')
+          print(f'Executed {len(cases)} test case(s).')
+          for case in cases:
+              name = case.get('fullname') or case.get('name') or '<unknown>'
+              result = case.get('result')
+              print(f'{result}: {name}')
+              if result not in ('Passed', 'Success'):
+                  failure = case.find('failure')
+                  if failure is not None:
+                      message = (failure.findtext('message') or '').strip()
+                      stack = (failure.findtext('stack-trace') or '').strip()
+                      if message:
+                          print(message)
+                      if stack:
+                          print(stack)
+          PY
+          fi
+          if (( status != 0 )); then
+            echo '=== UNITY LOG TAIL ==='
+            tail -160 "$ROOT/unity.log" || true
+          fi
+          exit "$status"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sceneissue-014011-lod2-density-oracle-${{ github.run_id }}
+          path: Artifacts/SceneIssue014011DensityOracle/**
+          if-no-files-found: ignore
+          retention-days: 1
