@@ -46,32 +46,32 @@ Assets/VoxelEngine/Structures/Runtime/PrimitiveRasteriser.cs-376-
 Assets/VoxelEngine/Structures/Runtime/PrimitiveRasteriser.cs-377-                    if (!mutationOpen)
 Assets/VoxelEngine/Structures/Runtime/PrimitiveRasteriser.cs-378-                    {
 --
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-295-        float d0 = density[c0];
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-296-        float d1 = density[c1];
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-297-        int3 o0 = CellCorner(c0);
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-298-        int3 o1 = CellCorner(c1);
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-299-        int3 delta = abs(o1 - o0);
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-300-        int axis = delta.x != 0 ? 0 : (delta.y != 0 ? 1 : 2);
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-301-
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-302-        // An authored boundary that does not apply along this edge's axis is ignored, and the edge
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-303-        // reverts to a plain occupancy crossing.
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-304-        // An authored sample that does not apply along this edge's axis is ignored, and the edge
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-305-        // reverts to a plain occupancy crossing, so an authored bevel does not bend an edge it says
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-306-        // nothing about.
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute:307:        if ((BoundaryIsAuthored(boundary[c0]) && !BoundaryAppliesAlong(boundary[c0], axis))
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute:308:         || (BoundaryIsAuthored(boundary[c1]) && !BoundaryAppliesAlong(boundary[c1], axis)))
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-309-        {
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-310-            d0 = IsSolidSample(material[c0]) ? 0.5 : -0.5;
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-311-            d1 = IsSolidSample(material[c1]) ? 0.5 : -0.5;
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-312-        }
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-313-
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-314-        float t0 = abs(d1 - d0) > 1e-7 ? d1 / (d1 - d0) : 0.5;
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-315-        float t1 = 1.0 - t0;
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-316-        float3 local = ((float3)(cell + o0) * t0 + (float3)(cell + o1) * t1) * _SourceStep;
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-317-
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-318-        SurfaceVertex vertex;
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-319-        vertex.position = ((float3)_ChunkOriginVoxel + local + 0.5) * _VoxelSize;
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-320-        vertex.normal = normalize(DensityNormal(cell + _Padding + o0) * t0
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-316-        float d0 = density[c0];
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-317-        float d1 = density[c1];
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-318-        int3 o0 = CellCorner(c0);
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-319-        int3 o1 = CellCorner(c1);
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-320-        int3 delta = abs(o1 - o0);
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-321-        int axis = delta.x != 0 ? 0 : (delta.y != 0 ? 1 : 2);
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-322-
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-323-        // An authored boundary that does not apply along this edge's axis is ignored, and the edge
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-324-        // reverts to a plain occupancy crossing.
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-325-        // An authored sample that does not apply along this edge's axis is ignored, and the edge
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-326-        // reverts to a plain occupancy crossing, so an authored bevel does not bend an edge it says
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-327-        // nothing about.
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute:328:        if ((BoundaryIsAuthored(boundary[c0]) && !BoundaryAppliesAlong(boundary[c0], axis))
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute:329:         || (BoundaryIsAuthored(boundary[c1]) && !BoundaryAppliesAlong(boundary[c1], axis)))
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-330-        {
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-331-            d0 = IsSolidSample(material[c0]) ? 0.5 : -0.5;
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-332-            d1 = IsSolidSample(material[c1]) ? 0.5 : -0.5;
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-333-        }
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-334-
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-335-        float t0 = abs(d1 - d0) > 1e-7 ? d1 / (d1 - d0) : 0.5;
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-336-        float t1 = 1.0 - t0;
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-337-        float3 local = ((float3)(cell + o0) * t0 + (float3)(cell + o1) * t1) * _SourceStep;
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-338-
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-339-        SurfaceVertex vertex;
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-340-        vertex.position = ((float3)_ChunkOriginVoxel + local + 0.5) * _VoxelSize;
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-341-        vertex.normal = normalize(DensityNormal(cell + _Padding + o0) * t0
 --
 Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-161-    surface = (surfaceWord >> ((voxel & 1u) * 16u)) & 0xFFFFu;
 Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-162-
@@ -112,35 +112,35 @@ Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-196-
 Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-197-    surface = ResolveSurface(material, surface);
 Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-198-    if (dominantMaterial == 0u)
 --
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-273-                  out uint dominantBoundary)
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-274-{
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-275-    uint centreSurface, packedBoundary;
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-276-    uint centre = ReadMaterial(p, centreSurface, packedBoundary);
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-277-    dominantBoundary = packedBoundary;
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-278-
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-279-    bool centreSolid = IsSolidSample(centre);
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-280-    centreSurface = ResolveSurface(centre, centreSurface);
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-281-
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-282-    // Must stay identical to TransvoxelDensityJob.SampleField: an authored sample is trusted exactly
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-283-    // when its sign agrees with authoritative occupancy. See the comment there for why both the old
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-284-    // six-neighbour gate and no gate at all are wrong.
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl:285:    if (packedBoundary != 0u && centreSolid == (BoundarySignedQ3(packedBoundary) >= 0))
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-286-    {
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-287-        dominantMaterial = centreSolid ? centre : 0u;
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-288-        dominantSurface = centreSolid ? centreSurface : 0u;
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl:289:        return BoundarySignedQ3(packedBoundary) * 0.125 + CoatingDisplacement(centreSurface);
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-290-    }
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-291-
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-292-    StyleDefinition centreStyle = LoadStyle(centreSurface & 0xFFFFu);
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-293-    if (centreSolid && (centreStyle.reconstruction == RECONSTRUCTION_PLANAR
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-294-                     || centreStyle.reconstruction == RECONSTRUCTION_SHARP
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-295-                     || centreStyle.reconstruction == RECONSTRUCTION_CUBIC))
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-296-    {
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-297-        dominantMaterial = centre;
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-298-        dominantSurface = centreSurface;
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-299-        return 0.5 + CoatingDisplacement(centreSurface);
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-300-    }
-Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-301-
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-331-                  out uint dominantBoundary)
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-332-{
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-333-    uint centreSurface, packedBoundary;
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-334-    uint centre = ReadMaterial(p, centreSurface, packedBoundary);
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-335-    dominantBoundary = packedBoundary;
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-336-
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-337-    bool centreSolid = IsSolidSample(centre);
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-338-    centreSurface = ResolveSurface(centre, centreSurface);
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-339-
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-340-    // Must stay identical to TransvoxelDensityJob.SampleField: an authored sample is trusted exactly
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-341-    // when its sign agrees with authoritative occupancy. See the comment there for why both the old
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-342-    // six-neighbour gate and no gate at all are wrong.
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl:343:    if (packedBoundary != 0u && centreSolid == (BoundarySignedQ3(packedBoundary) >= 0))
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-344-    {
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-345-        dominantMaterial = centreSolid ? centre : 0u;
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-346-        dominantSurface = centreSolid ? centreSurface : 0u;
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl:347:        return BoundarySignedQ3(packedBoundary) * 0.125 + CoatingDisplacement(centreSurface);
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-348-    }
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-349-
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-350-    StyleDefinition centreStyle = LoadStyle(centreSurface & 0xFFFFu);
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-351-    if (centreSolid && (centreStyle.reconstruction == RECONSTRUCTION_PLANAR
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-352-                     || centreStyle.reconstruction == RECONSTRUCTION_SHARP
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-353-                     || centreStyle.reconstruction == RECONSTRUCTION_CUBIC))
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-354-    {
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-355-        dominantMaterial = centre;
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-356-        dominantSurface = centreSurface;
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-357-        return 0.5 + CoatingDisplacement(centreSurface);
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-358-    }
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-359-
 --
 Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-2962-                ushort edgeCode = edgeCodes[i];
 Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-2963-                int corner0 = (edgeCode >> 4) & 0x0F;
