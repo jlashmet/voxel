@@ -274,6 +274,93 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             }
         }
 
+        /// <summary>
+        /// Evaluates world voxel zero at the lip of a steep layered terrain slope. At x &lt;= 0 the
+        /// column is solid through y=1 (surface material at y=1, subsurface below); at x &gt; 0 it is
+        /// solid only through y=-1. The origin is therefore subsurface material with an exposed
+        /// surface-material voxel one step above it and air immediately to +X. This reproduces the
+        /// SceneIssue 014011 ambiguity where a lateral coarse crossing can be nearer than the visible
+        /// top-surface crossing.
+        /// </summary>
+        public static CpuDensitySample SampleLayeredSlopeEdgeAtOrigin(
+            int sourceStep, byte surfaceMaterial, byte subsurfaceMaterial,
+            in SurfaceCatalogueView surfaces, in CoatingCatalogueView coatings,
+            in MaterialPaletteView palette)
+        {
+            const int brickCacheEdge = 3;
+            const int padding = 1;
+            const int gridSize = 3;
+            const int samples = gridSize * gridSize * gridSize;
+            int3 brickCacheOrigin = new int3(-1, -1, -1);
+            int brickCount = brickCacheEdge * brickCacheEdge * brickCacheEdge;
+            int mixedCount = brickCount * VoxelReadGrid.VoxelsPerBlock;
+
+            var bricks = new NativeArray<TransvoxelDensityBrick>(brickCount, Allocator.TempJob);
+            var mixedVoxels = new NativeArray<byte>(mixedCount, Allocator.TempJob);
+            var mixedSemantics = new NativeArray<ushort>(mixedCount, Allocator.TempJob);
+            var mixedBoundary = new NativeArray<byte>(mixedCount, Allocator.TempJob);
+            var density = new NativeArray<float>(samples, Allocator.TempJob);
+            var materials = new NativeArray<byte>(samples, Allocator.TempJob);
+            var semantics = new NativeArray<uint>(samples, Allocator.TempJob);
+            var boundaries = new NativeArray<byte>(samples, Allocator.TempJob);
+
+            try
+            {
+                for (int bz = 0; bz < brickCacheEdge; bz++)
+                for (int by = 0; by < brickCacheEdge; by++)
+                for (int bx = 0; bx < brickCacheEdge; bx++)
+                {
+                    int brickIndex = bx + brickCacheEdge * (by + brickCacheEdge * bz);
+                    int mixedOffset = brickIndex * VoxelReadGrid.VoxelsPerBlock;
+                    bricks[brickIndex] = new TransvoxelDensityBrick
+                    {
+                        Kind = 2,
+                        UniformMaterial = 0,
+                        MixedOffset = mixedOffset,
+                    };
+
+                    int3 worldBrick = brickCacheOrigin + new int3(bx, by, bz);
+                    int3 worldBase = worldBrick * VoxelReadGrid.BlockEdge;
+                    for (int vz = 0; vz < VoxelReadGrid.BlockEdge; vz++)
+                    for (int vy = 0; vy < VoxelReadGrid.BlockEdge; vy++)
+                    for (int vx = 0; vx < VoxelReadGrid.BlockEdge; vx++)
+                    {
+                        int worldX = worldBase.x + vx;
+                        int worldY = worldBase.y + vy;
+                        int topSolidY = worldX <= 0 ? 1 : -1;
+                        byte material = worldY > topSolidY
+                            ? (byte)0
+                            : worldY == topSolidY ? surfaceMaterial : subsurfaceMaterial;
+                        int voxelIndex = vx | (vy << 3) | (vz << 6);
+                        mixedVoxels[mixedOffset + voxelIndex] = material;
+                    }
+                }
+
+                var job = BuildJob(
+                    bricks, mixedVoxels, mixedSemantics, mixedBoundary,
+                    density, materials, semantics, boundaries,
+                    int3.zero, brickCacheOrigin, brickCacheEdge,
+                    gridSize, padding, sourceStep,
+                    surfaces, coatings, palette);
+
+                for (int i = 0; i < samples; i++) job.Execute(i);
+
+                const int centre = padding + gridSize * (padding + gridSize * padding);
+                return new CpuDensitySample(density[centre], materials[centre], semantics[centre]);
+            }
+            finally
+            {
+                bricks.Dispose();
+                mixedVoxels.Dispose();
+                mixedSemantics.Dispose();
+                mixedBoundary.Dispose();
+                density.Dispose();
+                materials.Dispose();
+                semantics.Dispose();
+                boundaries.Dispose();
+            }
+        }
+
         private static TransvoxelDensityJob BuildJob(
             NativeArray<TransvoxelDensityBrick> bricks,
             NativeArray<byte> mixedVoxels,
