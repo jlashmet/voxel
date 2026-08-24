@@ -17,10 +17,7 @@ namespace Game.ModelViewer
     /// <summary>
     /// Generic production-path viewer for procedurally authored world objects. Every selected model
     /// is authored into canonical voxel storage and rendered through RenderingComposition; the viewer
-    /// deliberately has no parallel preview-mesh renderer. The dragon uses its World Builder backend,
-    /// the hero Arch reuses StructuresComposition.BuildArchLookdev including retained profile blocks,
-    /// and the rest of the catalogue is sourced from the same Showcase FeatureCatalogue used by
-    /// production procedural buildings and infrastructure.
+    /// deliberately has no parallel preview-mesh renderer.
     /// </summary>
     [RequireComponent(typeof(Camera))]
     public sealed class ModelViewerLookdev : MonoBehaviour
@@ -46,6 +43,8 @@ namespace Game.ModelViewer
         private int3 _activeLocalMin;
         private int3 _activeLocalSize;
 
+        public int SelectedModel => _selectedModel;
+
         private readonly struct ModelEntry
         {
             public readonly string Name;
@@ -62,8 +61,8 @@ namespace Game.ModelViewer
             }
         }
 
-        // Dragon + exact hero Arch + every standalone Showcase structure/infrastructure definition.
-        private int ModelCount => 2 + _featureDefinitionIds.Count;
+        // Two dragon interpretations + exact hero Arch + every standalone Showcase structure/infrastructure.
+        private int ModelCount => 3 + _featureDefinitionIds.Count;
 
         private void OnEnable()
         {
@@ -82,7 +81,7 @@ namespace Game.ModelViewer
             RenderingComposition.SetSunDirection(new Vector3(-0.55f, 0.72f, -0.42f).normalized);
             RenderingComposition.SetBuildBudgets(BuildBudgetMs, 0);
 
-#pragma warning disable 0618 // Viewer intentionally consumes the Showcase compatibility material map.
+#pragma warning disable 0618
             _showcaseCatalogue = ShowcaseCatalogue.Build(ViewerSeed, Allocator.Persistent);
 #pragma warning restore 0618
             BuildFeatureDefinitionIndex();
@@ -106,9 +105,6 @@ namespace Game.ModelViewer
             for (int definitionId = 0; definitionId < _showcaseCatalogue.DefinitionCount; definitionId++)
             {
                 FeatureDefinition definition = _showcaseCatalogue.Definitions[definitionId];
-                // Standalone model viewing is meaningful for authored solids. Excavations, landforms
-                // and water bodies need surrounding terrain/world context and are therefore not
-                // presented as isolated objects here.
                 if (definition.Kind == FeatureKind.Structure || definition.Kind == FeatureKind.Infrastructure)
                     _featureDefinitionIds.Add(definitionId);
             }
@@ -137,6 +133,14 @@ namespace Game.ModelViewer
             }
         }
 
+        public void SelectModelForAutomation(int index)
+        {
+            if ((uint)index >= (uint)ModelCount)
+                throw new ArgumentOutOfRangeException(nameof(index), index, $"Model Viewer has {ModelCount} entries.");
+            _selectedModel = index;
+            BuildSelectedModel();
+        }
+
         private void SelectRelative(int delta)
         {
             int count = ModelCount;
@@ -150,19 +154,26 @@ namespace Game.ModelViewer
         {
             if (index == 0)
                 return new ModelEntry(
-                    "Dragon Statue",
+                    "Dragon A · Detailed Voxels",
+                    DragonStatueDetailedVoxelAuthoring.LocalMin,
+                    DragonStatueDetailedVoxelAuthoring.LocalSize,
+                    FeatureKind.Structure);
+
+            if (index == 1)
+                return new ModelEntry(
+                    "Dragon B · Organic Sculpt",
                     DragonStatueAuthoring.LocalMin,
                     DragonStatueAuthoring.LocalSize,
                     FeatureKind.Structure);
 
-            if (index == 1)
+            if (index == 2)
                 return new ModelEntry(
                     "Hero Arch",
                     new int3(-32, 0, -ModelViewerArchAdapter.Depth / 2),
                     new int3(64, 80, ModelViewerArchAdapter.Depth),
                     FeatureKind.Structure);
 
-            int featureListIndex = index - 2;
+            int featureListIndex = index - 3;
             if ((uint)featureListIndex >= (uint)_featureDefinitionIds.Count)
                 throw new InvalidOperationException($"Unknown Model Viewer entry {index}");
 
@@ -178,9 +189,9 @@ namespace Game.ModelViewer
             _profileBlocks = null;
 
             _storage = VoxelEngineBootstrap.CreateStorage(
-                expectedResidentRegions: 48,
-                mixedBrickCapacity: 72_000,
-                changeJournalCapacity: 16384);
+                expectedResidentRegions: 64,
+                mixedBrickCapacity: 96_000,
+                changeJournalCapacity: 32768);
             RegisterViewerMaterials(_storage);
 
             ModelEntry model = GetModelEntry(_selectedModel);
@@ -189,13 +200,22 @@ namespace Game.ModelViewer
             if (_selectedModel == 0)
             {
                 IStructureAuthoringSession authoring = VoxelEngineBootstrap.CreateStructureAuthoring(
-                    _storage, writeBudget: 3_000_000);
-                AuthorDragon(authoring, -model.LocalMin);
+                    _storage, writeBudget: 5_000_000);
+                DragonStatueDetailedVoxelAuthoring.Author(authoring, -model.LocalMin);
                 voxelsWritten = authoring.TotalVoxelsWritten;
                 _activeLocalMin = int3.zero;
                 _activeLocalSize = model.LocalSize;
             }
             else if (_selectedModel == 1)
+            {
+                IStructureAuthoringSession authoring = VoxelEngineBootstrap.CreateStructureAuthoring(
+                    _storage, writeBudget: 3_000_000);
+                AuthorLegacyDragon(authoring, -model.LocalMin);
+                voxelsWritten = authoring.TotalVoxelsWritten;
+                _activeLocalMin = int3.zero;
+                _activeLocalSize = model.LocalSize;
+            }
+            else if (_selectedModel == 2)
             {
                 ArchLookdevBuildResult arch = ModelViewerArchAdapter.Author(_storage);
                 _profileBlocks = arch.ProfileBlocks;
@@ -204,7 +224,7 @@ namespace Game.ModelViewer
             }
             else
             {
-                voxelsWritten = AuthorShowcaseFeature(_selectedModel - 2);
+                voxelsWritten = AuthorShowcaseFeature(_selectedModel - 3);
                 _activeLocalMin = int3.zero;
                 _activeLocalSize = model.LocalSize;
             }
@@ -270,8 +290,7 @@ namespace Game.ModelViewer
                 primitives,
                 anchors);
             if (evaluation != EvaluationResult.Ok)
-                throw new InvalidOperationException(
-                    $"Model Viewer could not evaluate '{definition.Name}': {evaluation}.");
+                throw new InvalidOperationException($"Model Viewer could not evaluate '{definition.Name}': {evaluation}.");
 
             bool hardSurface = definition.Kind == FeatureKind.Structure
                             || definition.Kind == FeatureKind.Infrastructure;
@@ -283,12 +302,11 @@ namespace Game.ModelViewer
                 _storage.Mutations,
                 hardSurface);
             if (raster.BudgetExceeded)
-                throw new InvalidOperationException(
-                    $"Model Viewer raster budget exceeded for '{definition.Name}'.");
+                throw new InvalidOperationException($"Model Viewer raster budget exceeded for '{definition.Name}'.");
             return raster.VoxelsWritten;
         }
 
-        private static void AuthorDragon(IStructureAuthoringSession authoring, int3 origin)
+        private static void AuthorLegacyDragon(IStructureAuthoringSession authoring, int3 origin)
         {
             var placement = DragonStatueWorldBuilderObject.CreatePlacement(
                 new GeneratedPropId(0xD12A60UL),
@@ -322,11 +340,8 @@ namespace Game.ModelViewer
 
         private static void ApplyMaterialLook()
         {
-            // Showcase compatibility roles. These presentation overrides keep isolated models close
-            // to the project's stylized palette while retaining the material IDs authored by the
-            // production feature catalogue.
             RenderingComposition.SetMaterialAlbedo(1, new Vector4(0.58f, 0.56f, 0.49f, 1f));
-            RenderingComposition.SetMaterialAlbedo(2, new Vector4(0.36f, 0.23f, 0.14f, 1f));
+            RenderingComposition.SetMaterialAlbedo(2, new Vector4(0.42f, 0.25f, 0.14f, 1f));
             RenderingComposition.SetMaterialAlbedo(4, new Vector4(0.42f, 0.58f, 0.64f, 1f));
             RenderingComposition.SetMaterialAlbedo(6, new Vector4(0.19f, 0.23f, 0.25f, 1f));
             RenderingComposition.SetMaterialAlbedo(7, new Vector4(0.31f, 0.37f, 0.39f, 1f));
@@ -334,9 +349,9 @@ namespace Game.ModelViewer
             RenderingComposition.SetMaterialAlbedo(9, new Vector4(0.56f, 0.41f, 0.30f, 1f));
             RenderingComposition.SetMaterialAlbedo(11, new Vector4(0.24f, 0.43f, 0.52f, 1f));
             RenderingComposition.SetMaterialAlbedo(12, new Vector4(0.78f, 0.53f, 0.13f, 1f));
-            RenderingComposition.SetMaterialAlbedo(13, new Vector4(0.40f, 0.37f, 0.31f, 1f));
+            RenderingComposition.SetMaterialAlbedo(13, new Vector4(0.66f, 0.61f, 0.50f, 1f));
             RenderingComposition.SetMaterialAlbedo(14, new Vector4(0.23f, 0.34f, 0.20f, 1f));
-            RenderingComposition.SetMaterialAlbedo(15, new Vector4(0.92f, 0.64f, 0.25f, 1f));
+            RenderingComposition.SetMaterialAlbedo(15, new Vector4(0.98f, 0.58f, 0.08f, 1f));
         }
 
         private void FrameSelectedModel()
@@ -347,18 +362,17 @@ namespace Game.ModelViewer
                 centreVoxels.y * VoxelSize,
                 centreVoxels.z * VoxelSize);
 
-            if (_selectedModel == 1)
+            if (_selectedModel == 2)
             {
-                // Match the old Arch lookdev's readable three-quarter hero angle.
                 _cameraYaw = 14.5f;
                 _cameraPitch = 3.2f;
                 _cameraFov = 34f;
             }
             else
             {
-                _cameraYaw = -32f;
-                _cameraPitch = 7f;
-                _cameraFov = 32f;
+                _cameraYaw = -26f;
+                _cameraPitch = 5f;
+                _cameraFov = 31f;
             }
 
             float width = math.max(_activeLocalSize.x, _activeLocalSize.z) * VoxelSize;
@@ -368,7 +382,7 @@ namespace Game.ModelViewer
             float aspect = _camera != null && _camera.aspect > 0.01f ? _camera.aspect : 16f / 9f;
             float halfHorizontalFov = Mathf.Atan(Mathf.Tan(halfVerticalFov) * aspect);
             float horizontalDistance = width * 0.5f / Mathf.Tan(halfHorizontalFov);
-            _cameraDistance = Mathf.Max(8f, Mathf.Max(verticalDistance, horizontalDistance) * 1.22f);
+            _cameraDistance = Mathf.Max(8f, Mathf.Max(verticalDistance, horizontalDistance) * 1.16f);
             ApplyCameraTransform();
         }
 
