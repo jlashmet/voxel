@@ -82,4 +82,5 @@ crossing all four marked regions in the saved `20260823-014108-038-VoxelShowcase
 - [x] Run focused affected Unity validation: GPU boundary/parity 3/3 and direct waterfall 1/1.
 - [x] Replay the exact saved pose and inspect every marked region; the terrain sheet is absent and
       the cascade/ravine are visible.
-- [ ] Review, commit, push, resolve `issue.json` separately, and clean `ci-test/fixes` if used.
+- [x] Review, commit, push, resolve `issue.json` separately, and confirm no `ci-test/fixes`
+      branch exists locally or on `origin`.
