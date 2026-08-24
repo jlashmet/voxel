@@ -1,6 +1,6 @@
 name: One-shot SceneIssue 014011 exact replay
 
-# Replay revision 2: hard-reset Unity/editor dirt before committing evidence and emit a small preview.
+# Replay revision 3: exact CPU LOD2 capture with observable commit status.
 on:
   push:
     branches: [fixes]
@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: write
+  statuses: write
 
 concurrency:
   group: sceneissue-014011-cpu-lod2-diagnostic
@@ -24,6 +25,22 @@ jobs:
           ref: fixes
           clean: true
           fetch-depth: 0
+
+      - name: Publish pending status
+        uses: actions/github-script@v7
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        with:
+          script: |
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: context.sha,
+              state: 'pending',
+              context: 'ci/sceneissue-014011-cpu-replay',
+              description: 'Exact CPU LOD2 replay is running',
+              target_url: process.env.RUN_URL,
+            });
 
       - name: Resolve Unity
         id: unity
@@ -149,3 +166,22 @@ jobs:
             Artifacts/SceneIssue014011/RealPlayer/player-run.log
           if-no-files-found: ignore
           retention-days: 1
+
+      - name: Publish final status
+        if: always()
+        uses: actions/github-script@v7
+        env:
+          JOB_STATUS: ${{ job.status }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        with:
+          script: |
+            const success = process.env.JOB_STATUS === 'success';
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: context.sha,
+              state: success ? 'success' : 'failure',
+              context: 'ci/sceneissue-014011-cpu-replay',
+              description: success ? 'Exact CPU LOD2 replay passed' : 'Exact CPU LOD2 replay failed',
+              target_url: process.env.RUN_URL,
+            });
