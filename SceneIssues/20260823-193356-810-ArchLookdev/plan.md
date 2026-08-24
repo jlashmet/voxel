@@ -29,7 +29,7 @@ areas, without obscuring the arch construction or changing structural voxel beha
 - [x] Compare against the repository reference and isolate the responsible subsystem.
 - [x] Add a focused regression that preserves the already-landed causal fix and its lifecycle.
 - [x] Run affected tests and final exact replay.
-- [ ] Review, commit/push, and resolve the manifest separately.
+- [x] Review, commit/push, and resolve the manifest separately.
 
 ## Findings
 
