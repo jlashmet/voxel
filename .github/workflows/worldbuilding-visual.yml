@@ -1,21 +1,27 @@
 name: Worldbuilding Visuals
 
-# TEMPORARY branch-local production capture for the generic Model Viewer.
-# Restore this file from master after the dragon visual iteration is complete.
+# Keep this branch-local visual gate push-triggered while the showcase is actively iterated.
 on:
   workflow_dispatch:
   push:
     branches:
-      - feature/sdf-dragon-statue
+      - agent/worldbuilding-structures-caves
+    paths:
+      - 'Assets/Game/Structures/**'
+      - 'Assets/Game/Composition/Showcase/**'
+      - 'Assets/Scenes/WorldbuildingGalleryShowcase.unity'
+      - 'Assets/VoxelEngine/Structures/**'
+      - 'Packages/com.mountingforce.worldgen/**'
+      - '.github/workflows/worldbuilding-visual.yml'
 
 permissions:
   contents: read
 
 jobs:
   capture:
-    name: Render Model Viewer production frame
+    name: Render generated worldbuilding geometry
     runs-on: [self-hosted, macOS]
-    timeout-minutes: 12
+    timeout-minutes: 20
 
     steps:
       - name: Checkout
@@ -37,7 +43,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          deadline=$((SECONDS + 180))
+          deadline=$((SECONDS + 900))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
               pgrep -alf '/Unity.app/Contents/MacOS/Unity' || true
@@ -46,50 +52,49 @@ jobs:
             sleep 5
           done
 
-      - name: Validate Model Viewer production surface
+      - name: Render visual regression images
         shell: bash
         run: |
-          set -euo pipefail
-          ROOT="$GITHUB_WORKSPACE/Artifacts/ModelViewer"
-          mkdir -p "$ROOT"
-          UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=3 \
+          set -uo pipefail
+          ROOT="$GITHUB_WORKSPACE/Artifacts/WorldbuildingVisuals"
+          mkdir -p "$ROOT" "$GITHUB_WORKSPACE/TestResults/WorldbuildingVisuals"
+
+          # Developer/reviewer images only: real authorers write deterministic voxel geometry into
+          # capture volumes; two independent solid renderers plus the cave cutaway preserve PNGs.
+          status=0
+          UNITY_MAX_RSS_MB=12288 UNITY_MAX_MINUTES=15 \
           UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
-            -batchmode -job-worker-count 1 \
+            -batchmode -nographics -job-worker-count 1 \
             -projectPath "$GITHUB_WORKSPACE" \
-            -runTests -testPlatform PlayMode \
-            -testFilter "VoxelEngine.Tests.PlayMode.ModelViewerSceneTests.DragonStatueConvergesThroughProductionSurfacePath" \
-            -testResults "$ROOT/model-viewer.xml" \
-            -logFile "$ROOT/model-viewer-test.log"
+            -runTests -testPlatform EditMode \
+            -assemblyNames Game.Structures.Tests \
+            -testFilter Game.Structures.Tests.WorldbuildingVisualRegressionTests \
+            -testResults "$ROOT/results.xml" \
+            -logFile "$ROOT/unity.log" || status=$?
 
-      - name: Wait for Unity before player build
-        shell: bash
-        run: |
-          set -euo pipefail
-          deadline=$((SECONDS + 180))
-          while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
-            if (( SECONDS >= deadline )); then
-              pgrep -alf '/Unity.app/Contents/MacOS/Unity' || true
-              exit 1
-            fi
-            sleep 5
-          done
+          if [[ -s "${TMPDIR:-/tmp}/unity-run-status" ]]; then
+            cp "${TMPDIR:-/tmp}/unity-run-status" "$ROOT/unity-run-status.txt"
+          fi
+          if [[ ! -s "$ROOT/unity.log" && -s "$HOME/Library/Logs/Unity/Editor.log" ]]; then
+            cp "$HOME/Library/Logs/Unity/Editor.log" "$ROOT/unity-global.log"
+          fi
 
-      - name: Capture Model Viewer from real player
-        shell: bash
-        run: |
-          set -euo pipefail
-          bash tools/showcase-player-capture.sh \
-            --unity "${{ steps.unity.outputs.path }}" \
-            --output "$GITHUB_WORKSPACE/Artifacts/ModelViewer/RealPlayer" \
-            --scene "Assets/Scenes/ModelViewer.unity" \
-            --run-seconds 30
+          find "$GITHUB_WORKSPACE/TestResults/WorldbuildingVisuals" -name '*.png' -size +1k -print | sort | tee "$ROOT/images.txt"
+          image_count="$(wc -l < "$ROOT/images.txt" | tr -d ' ')"
+          if (( image_count < 13 )); then
+            echo "Expected at least 13 rendered worldbuilding images, found $image_count" >&2
+            status=1
+          fi
 
-      - name: Upload Model Viewer evidence
+          exit "$status"
+
+      - name: Upload rendered geometry
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: model-viewer-${{ github.sha }}
+          name: worldbuilding-visuals-${{ github.sha }}
           path: |
-            Artifacts/ModelViewer/**
+            TestResults/WorldbuildingVisuals/*.png
+            Artifacts/WorldbuildingVisuals/**
           if-no-files-found: warn
-          retention-days: 7
+          retention-days: 14
