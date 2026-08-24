@@ -5,10 +5,13 @@
     "Game.Structures.Api",
     "Game.Structures.Runtime",
     "Game.Materials.Api",
+    "Game.Composition.Showcase",
     "VoxelEngine.Structures.Api",
+    "VoxelEngine.Structures.Runtime",
     "VoxelEngine.Storage.Api",
     "VoxelEngine.Rendering.Api",
     "VoxelEngine.Composition",
+    "Unity.Collections",
     "Unity.Mathematics"
   ],
   "includePlatforms": [],
