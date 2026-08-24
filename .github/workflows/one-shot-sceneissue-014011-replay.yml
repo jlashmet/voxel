@@ -78,12 +78,11 @@ jobs:
             sleep 5
           done
 
-      - name: Replay exact captured view in real player
+      - name: Replay exact captured view with GPU cutover disabled
         shell: bash
         run: |
           set -euo pipefail
           ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue014011/RealPlayer"
-          # Match the original SceneIssue framebuffer rather than the generic 1600x900 helper size.
           python3 - <<'PY'
           from pathlib import Path
           path = Path('tools/showcase-player-capture.sh')
@@ -94,13 +93,13 @@ jobs:
               raise SystemExit(f'expected one capture-size target, found {text.count(old)}')
           path.write_text(text.replace(old, new, 1))
           PY
-          bash tools/showcase-player-capture.sh \
+          VOXEL_DISABLE_GPU_CUTOVER=1 bash tools/showcase-player-capture.sh \
             --unity "${{ steps.unity.outputs.path }}" \
             --output "$ROOT" \
             --scene Assets/Scenes/VoxelShowcase.unity \
             --run-seconds 40
 
-      - name: Persist replay evidence in SceneIssue
+      - name: Persist CPU LOD2 diagnostic evidence
         shell: bash
         run: |
           set -euo pipefail
@@ -108,13 +107,13 @@ jobs:
           ISSUE="SceneIssues/20260823-014011-920-VoxelShowcase"
           final="$(find "$ROOT/Screenshots" -type f -name '*.png' -size +1k | sort | tail -1)"
           test -n "$final"
-          cp "$final" "$ISSUE/verification-lod2-attempt2.png"
+          cp "$final" "$ISSUE/diagnostic-cpu-lod2.png"
           {
             echo "source_commit=$GITHUB_SHA"
             echo "camera_fixture=Showcase Camera @ (101.44347381591797,113.22681427001953,-51.74753952026367), fov=70"
             echo "capture_resolution=1293x718"
             echo "selected_screenshot=$(basename "$final")"
-            echo "change_under_test=GPU LOD2 coarse exposed-material parity"
+            echo "diagnostic=VOXEL_DISABLE_GPU_CUTOVER=1; at this camera step1 has no residents, isolating CPU LOD2 vs GPU LOD2"
             echo
             echo "=== camera replay ==="
             grep 'SCENEISSUE camera' "$ROOT/player-run.log" || true
@@ -127,10 +126,10 @@ jobs:
             echo
             echo "=== rings tail ==="
             grep 'RINGS ' "$ROOT/player-run.log" | tail -20 || true
-          } > "$ISSUE/verification-lod2-attempt2.txt"
-          cat "$ISSUE/verification-lod2-attempt2.txt"
+          } > "$ISSUE/diagnostic-cpu-lod2.txt"
+          cat "$ISSUE/diagnostic-cpu-lod2.txt"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add "$ISSUE/verification-lod2-attempt2.png" "$ISSUE/verification-lod2-attempt2.txt"
-          git commit -m 'SceneIssue 014011: record GPU LOD2 replay attempt 2'
+          git add "$ISSUE/diagnostic-cpu-lod2.png" "$ISSUE/diagnostic-cpu-lod2.txt"
+          git commit -m 'SceneIssue 014011: record CPU LOD2 diagnostic replay'
           git push origin HEAD:fixes
