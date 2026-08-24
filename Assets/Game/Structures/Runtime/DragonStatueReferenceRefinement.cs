@@ -6,8 +6,7 @@ namespace Game.Structures.Runtime
 {
     /// <summary>
     /// Version-A replacement pass. The failed prototype is erased by occupied-part envelopes before
-    /// the reference-driven rebuild is authored. This keeps iteration deterministic without spending
-    /// the structure write budget clearing the large amount of empty space inside the model bounds.
+    /// the reference-driven rebuild and render-reviewed destructive polish are authored.
     /// </summary>
     public static class DragonStatueReferenceRefinement
     {
@@ -15,7 +14,6 @@ namespace Game.Structures.Runtime
         {
             if (a == null) throw new System.ArgumentNullException(nameof(a));
 
-            // Head + long neck, torso/limbs, both wing volumes, and low sweeping tail.
             Clear(a, origin, new int3(-38, 74, -92), new int3(76, 100, 98));
             Clear(a, origin, new int3(-50, 0, -48), new int3(100, 102, 122));
             Clear(a, origin, new int3(-110, 30, 0), new int3(88, 118, 54));
@@ -23,6 +21,7 @@ namespace Game.Structures.Runtime
             Clear(a, origin, new int3(-18, 0, -86), new int3(126, 58, 146));
 
             DragonStatueAAAAuthoring.Author(a, origin);
+            DragonStatueAAAPolish.Apply(a, origin);
         }
 
         private static void Clear(IStructureAuthoringSession a, int3 o, int3 min, int3 size)
