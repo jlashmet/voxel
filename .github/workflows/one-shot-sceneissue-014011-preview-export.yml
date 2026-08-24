@@ -26,7 +26,7 @@ jobs:
           OUT='.claude/plans/sceneissue-014011-previews'
           rm -rf "$OUT"
           mkdir -p "$OUT"
-          for pair in before:screenshot-001.png after:verification-lod2-attempt1.png; do
+          for pair in before:screenshot-001.png after:verification-lod2-attempt2.png; do
             label="${pair%%:*}"
             src="$ISSUE/${pair#*:}"
             jpg="$OUT/$label.jpg"
@@ -43,5 +43,5 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A "$OUT"
-          git commit -m 'SceneIssue 014011: shrink visual comparison previews'
+          git commit -m 'SceneIssue 014011: export attempt 2 comparison preview'
           git push origin HEAD:fixes
