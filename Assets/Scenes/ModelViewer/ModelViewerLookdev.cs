@@ -184,7 +184,7 @@ namespace Game.ModelViewer
             RegisterViewerMaterials(_storage);
 
             ModelEntry model = GetModelEntry(_selectedModel);
-            int voxelsWritten = -1;
+            long voxelsWritten = -1;
 
             if (_selectedModel == 0)
             {
