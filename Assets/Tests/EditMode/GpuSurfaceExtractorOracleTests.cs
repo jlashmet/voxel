@@ -339,8 +339,9 @@ namespace VoxelEngine.Tests.EditMode
             }
         }
 
-        [Test]
-        public void GpuTrianglesMatchTheCpuTopologyJob()
+        [TestCase(1)]
+        [TestCase(2)]
+        public void GpuTrianglesMatchTheCpuTopologyJob(int sourceStep)
         {
             // Density agreeing is necessary but not sufficient: the tables, edge decoding,
             // interpolation and winding all sit between a matching field and matching geometry.
@@ -383,7 +384,7 @@ namespace VoxelEngine.Tests.EditMode
             try
             {
                 GpuExtractionResult result = extractor.Extract(
-                    mirror, tables, int3.zero, brickCacheOrigin, 1, voxelSize,
+                    mirror, tables, int3.zero, brickCacheOrigin, sourceStep, voxelSize,
                     vertices, indices, capacity, capacity);
                 Assert.IsFalse(result.Overflowed);
                 Assert.Greater(result.IndexCount, 0);
@@ -406,7 +407,7 @@ namespace VoxelEngine.Tests.EditMode
 
                 List<OracleTriangle> cpu = CpuTopologyOracle.MeshUniformNeighbourhood(
                     int3.zero, brickCacheOrigin, extractor.BrickCacheEdge,
-                    CellsPerAxis, Padding, 1, voxelSize,
+                    CellsPerAxis, Padding, sourceStep, voxelSize,
                     material, solidBrickYLimit, surfaces, coatings, palette);
 
                 var cpuKeys = new Dictionary<string, int>();
