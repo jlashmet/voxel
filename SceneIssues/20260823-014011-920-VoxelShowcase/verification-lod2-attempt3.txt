@@ -1,0 +1,76 @@
+source_commit=942f67e3d16ad8523dc1225d576bcde22b0b35de
+fix_commit=9275602c3610079a2966cd022b1a3f2fb13d8b62
+camera_fixture=Showcase Camera @ (101.44347381591797,113.22681427001953,-51.74753952026367), fov=70
+capture_resolution=1293x718
+selected_screenshot=showcase-002-t034.5s-stationary.png
+change_under_test=GPU regular-cell negative-shell ownership parity
+
+=== camera replay ===
+SCENEISSUE camera replay armed for Showcase Camera
+SCENEISSUE camera pinned at (101.44, 113.23, -51.75) fov=70
+
+=== fps tail ===
+FPSLOG t=20.2 frames=464 fps=463.8 ms p50=2.11 p95=2.30 p99=2.49 max=3.54 mean=2.16
+FPSLOG t=21.2 frames=466 fps=465.3 ms p50=2.10 p95=2.30 p99=2.50 max=2.95 mean=2.15
+FPSLOG t=22.2 frames=457 fps=456.1 ms p50=2.20 p95=2.40 p99=2.51 max=2.60 mean=2.19
+FPSLOG t=23.2 frames=463 fps=462.9 ms p50=2.11 p95=2.30 p99=2.51 max=5.55 mean=2.16
+FPSLOG t=24.2 frames=457 fps=457.0 ms p50=2.19 p95=2.40 p99=2.68 max=4.65 mean=2.19
+FPSLOG t=25.2 frames=452 fps=451.8 ms p50=2.20 p95=2.31 p99=2.49 max=3.40 mean=2.20
+FPSLOG t=26.2 frames=450 fps=449.1 ms p50=2.20 p95=2.41 p99=2.60 max=2.69 mean=2.23
+FPSLOG t=27.2 frames=446 fps=445.0 ms p50=2.20 p95=2.50 p99=2.60 max=3.85 mean=2.25
+FPSLOG t=28.2 frames=437 fps=436.9 ms p50=2.29 p95=2.51 p99=2.80 max=3.15 mean=2.29
+FPSLOG t=29.2 frames=443 fps=442.1 ms p50=2.21 p95=2.41 p99=2.61 max=7.32 mean=2.26
+FPSLOG t=30.2 frames=458 fps=457.1 ms p50=2.29 p95=2.58 p99=3.81 max=5.15 mean=2.19
+FPSLOG t=31.2 frames=435 fps=434.2 ms p50=2.06 p95=3.72 p99=18.45 max=21.99 mean=2.30
+FPSLOG t=32.2 frames=455 fps=454.5 ms p50=2.06 p95=3.39 p99=14.25 max=20.53 mean=2.20
+FPSLOG t=33.2 frames=437 fps=436.7 ms p50=1.88 p95=6.86 p99=12.05 max=21.54 mean=2.29
+FPSLOG t=34.2 frames=445 fps=444.7 ms p50=2.01 p95=3.66 p99=12.54 max=25.30 mean=2.25
+FPSLOG t=35.2 frames=440 fps=439.1 ms p50=1.91 p95=4.85 p99=10.23 max=15.60 mean=2.20
+FPSLOG t=36.2 frames=417 fps=415.1 ms p50=2.05 p95=5.19 p99=16.74 max=23.03 mean=2.41
+FPSLOG t=37.3 frames=441 fps=440.4 ms p50=1.98 p95=4.13 p99=16.63 max=17.53 mean=2.27
+FPSLOG t=38.3 frames=417 fps=416.4 ms p50=1.97 p95=6.74 p99=16.39 max=20.61 mean=2.40
+FPSLOG t=39.3 frames=432 fps=431.4 ms p50=2.11 p95=3.37 p99=14.01 max=27.62 mean=2.32
+
+=== surface tail ===
+SURFACE t=20.2 visible=366 min=362 max=366 swing=4 drops=0 worstDrop=0 missingMax=52 reappeared=0
+SURFACE t=21.2 visible=372 min=366 max=372 swing=6 drops=0 worstDrop=0 missingMax=48 reappeared=0
+SURFACE t=22.2 visible=376 min=372 max=376 swing=4 drops=0 worstDrop=0 missingMax=42 reappeared=0
+SURFACE t=23.2 visible=382 min=376 max=382 swing=6 drops=0 worstDrop=0 missingMax=38 reappeared=0
+SURFACE t=24.2 visible=386 min=382 max=386 swing=4 drops=0 worstDrop=0 missingMax=32 reappeared=0
+SURFACE t=25.2 visible=391 min=386 max=391 swing=5 drops=0 worstDrop=0 missingMax=28 reappeared=0
+SURFACE t=26.2 visible=396 min=391 max=396 swing=5 drops=0 worstDrop=0 missingMax=23 reappeared=0
+SURFACE t=27.2 visible=400 min=396 max=400 swing=4 drops=0 worstDrop=0 missingMax=18 reappeared=0
+SURFACE t=28.2 visible=406 min=400 max=406 swing=6 drops=0 worstDrop=0 missingMax=14 reappeared=0
+SURFACE t=29.2 visible=410 min=406 max=410 swing=4 drops=0 worstDrop=0 missingMax=8 reappeared=0
+SURFACE t=30.2 visible=414 min=410 max=414 swing=4 drops=0 worstDrop=0 missingMax=4 reappeared=0
+SURFACE t=31.2 visible=414 min=414 max=414 swing=0 drops=0 worstDrop=0 missingMax=0 reappeared=0
+SURFACE t=32.2 visible=414 min=414 max=414 swing=0 drops=0 worstDrop=0 missingMax=0 reappeared=0
+SURFACE t=33.2 visible=414 min=414 max=414 swing=0 drops=0 worstDrop=0 missingMax=0 reappeared=0
+SURFACE t=34.2 visible=414 min=414 max=414 swing=0 drops=0 worstDrop=0 missingMax=0 reappeared=0
+SURFACE t=35.2 visible=414 min=414 max=414 swing=0 drops=0 worstDrop=0 missingMax=0 reappeared=0
+SURFACE t=36.2 visible=414 min=414 max=414 swing=0 drops=0 worstDrop=0 missingMax=0 reappeared=0
+SURFACE t=37.3 visible=414 min=414 max=414 swing=0 drops=0 worstDrop=0 missingMax=0 reappeared=0
+SURFACE t=38.3 visible=414 min=414 max=414 swing=0 drops=0 worstDrop=0 missingMax=0 reappeared=0
+SURFACE t=39.3 visible=414 min=414 max=414 swing=0 drops=0 worstDrop=0 missingMax=0 reappeared=0
+
+=== rings tail ===
+RINGS arena[v=3671552/34408080 i=5538816/60214140 draws=366/16384 leaseFail=0] missingVisible=48 prepare[total=1.35 invalidate=0.00 discover=0.00 admit=0.19 visible=1.15 cand=5792 drawn=366] exits[known=5792 inBand=1150 frustum=417] step1[0-57.6m res=0 known=2592] step2[57.6-115.2m res=297 known=2316] step4[115.2-172.8m res=51 known=685] step8[172.8-409.6m res=18 known=199]
+RINGS arena[v=3690752/34408080 i=5568512/60214140 draws=372/16384 leaseFail=0] missingVisible=42 prepare[total=1.36 invalidate=0.00 discover=0.00 admit=0.18 visible=1.17 cand=5792 drawn=372] exits[known=5792 inBand=1150 frustum=417] step1[0-57.6m res=0 known=2592] step2[57.6-115.2m res=297 known=2316] step4[115.2-172.8m res=51 known=685] step8[172.8-409.6m res=24 known=199]
+RINGS arena[v=3710720/34408080 i=5598720/60214140 draws=376/16384 leaseFail=0] missingVisible=38 prepare[total=1.32 invalidate=0.00 discover=0.00 admit=0.18 visible=1.13 cand=5792 drawn=376] exits[known=5792 inBand=1150 frustum=417] step1[0-57.6m res=0 known=2592] step2[57.6-115.2m res=297 known=2316] step4[115.2-172.8m res=51 known=685] step8[172.8-409.6m res=28 known=199]
+RINGS arena[v=3741440/34408080 i=5644288/60214140 draws=382/16384 leaseFail=0] missingVisible=32 prepare[total=1.32 invalidate=0.00 discover=0.00 admit=0.18 visible=1.14 cand=5792 drawn=382] exits[known=5792 inBand=1150 frustum=417] step1[0-57.6m res=0 known=2592] step2[57.6-115.2m res=297 known=2316] step4[115.2-172.8m res=51 known=685] step8[172.8-409.6m res=34 known=199]
+RINGS arena[v=3760384/34408080 i=5672960/60214140 draws=386/16384 leaseFail=0] missingVisible=28 prepare[total=1.30 invalidate=0.00 discover=0.00 admit=0.17 visible=1.13 cand=5792 drawn=386] exits[known=5792 inBand=1150 frustum=417] step1[0-57.6m res=0 known=2592] step2[57.6-115.2m res=297 known=2316] step4[115.2-172.8m res=51 known=685] step8[172.8-409.6m res=38 known=199]
+RINGS arena[v=3790080/34408080 i=5717504/60214140 draws=391/16384 leaseFail=0] missingVisible=23 prepare[total=1.39 invalidate=0.00 discover=0.00 admit=0.20 visible=1.19 cand=5792 drawn=391] exits[known=5792 inBand=1150 frustum=417] step1[0-57.6m res=0 known=2592] step2[57.6-115.2m res=297 known=2316] step4[115.2-172.8m res=51 known=685] step8[172.8-409.6m res=43 known=199]
+RINGS arena[v=3817472/34408080 i=5758464/60214140 draws=396/16384 leaseFail=0] missingVisible=18 prepare[total=1.45 invalidate=0.00 discover=0.00 admit=0.20 visible=1.24 cand=5792 drawn=396] exits[known=5792 inBand=1150 frustum=417] step1[0-57.6m res=0 known=2592] step2[57.6-115.2m res=297 known=2316] step4[115.2-172.8m res=51 known=685] step8[172.8-409.6m res=48 known=199]
+RINGS arena[v=3838720/34408080 i=5791232/60214140 draws=400/16384 leaseFail=0] missingVisible=14 prepare[total=1.55 invalidate=0.00 discover=0.00 admit=0.21 visible=1.33 cand=5792 drawn=400] exits[known=5792 inBand=1150 frustum=417] step1[0-57.6m res=0 known=2592] step2[57.6-115.2m res=297 known=2316] step4[115.2-172.8m res=51 known=685] step8[172.8-409.6m res=52 known=199]
+RINGS arena[v=3869696/34408080 i=5837312/60214140 draws=406/16384 leaseFail=0] missingVisible=8 prepare[total=1.39 invalidate=0.00 discover=0.00 admit=0.20 visible=1.18 cand=5792 drawn=406] exits[known=5792 inBand=1150 frustum=417] step1[0-57.6m res=0 known=2592] step2[57.6-115.2m res=297 known=2316] step4[115.2-172.8m res=51 known=685] step8[172.8-409.6m res=58 known=199]
+RINGS arena[v=3891712/34408080 i=5870592/60214140 draws=410/16384 leaseFail=0] missingVisible=4 prepare[total=1.50 invalidate=0.00 discover=0.00 admit=0.20 visible=1.29 cand=5792 drawn=410] exits[known=5792 inBand=1150 frustum=417] step1[0-57.6m res=0 known=2592] step2[57.6-115.2m res=297 known=2316] step4[115.2-172.8m res=51 known=685] step8[172.8-409.6m res=62 known=199]
+RINGS arena[v=3941376/34408080 i=5946880/60214140 draws=416/16384 leaseFail=0] missingVisible=0 prepare[total=0.18 invalidate=0.00 discover=0.00 admit=0.18 visible=0.00 cand=5792 drawn=414] exits[known=5792 inBand=1150 frustum=417] step1[0-57.6m res=0 known=2592] step2[57.6-115.2m res=297 known=2316] step4[115.2-172.8m res=53 known=685] step8[172.8-409.6m res=66 known=199]
+RINGS arena[v=4418816/34408080 i=6663168/60214140 draws=448/16384 leaseFail=0] missingVisible=0 prepare[total=0.18 invalidate=0.00 discover=0.00 admit=0.18 visible=0.00 cand=5792 drawn=414] exits[known=5792 inBand=1150 frustum=417] step1[0-57.6m res=0 known=2592] step2[57.6-115.2m res=324 known=2316] step4[115.2-172.8m res=57 known=685] step8[172.8-409.6m res=67 known=199]
+RINGS arena[v=4521728/34408080 i=6818816/60214140 draws=456/16384 leaseFail=0] missingVisible=0 prepare[total=0.17 invalidate=0.00 discover=0.00 admit=0.17 visible=0.00 cand=5792 drawn=414] exits[known=5792 inBand=1150 frustum=417] step1[0-57.6m res=0 known=2592] step2[57.6-115.2m res=324 known=2316] step4[115.2-172.8m res=62 known=685] step8[172.8-409.6m res=70 known=199]
+RINGS arena[v=4534016/34408080 i=6837248/60214140 draws=458/16384 leaseFail=0] missingVisible=0 prepare[total=0.21 invalidate=0.00 discover=0.00 admit=0.21 visible=0.00 cand=5792 drawn=414] exits[known=5792 inBand=1150 frustum=417] step1[0-57.6m res=0 known=2592] step2[57.6-115.2m res=324 known=2316] step4[115.2-172.8m res=62 known=685] step8[172.8-409.6m res=72 known=199]
+RINGS arena[v=4563712/34408080 i=6881792/60214140 draws=461/16384 leaseFail=0] missingVisible=0 prepare[total=0.20 invalidate=0.00 discover=0.00 admit=0.20 visible=0.00 cand=5792 drawn=414] exits[known=5792 inBand=1150 frustum=417] step1[0-57.6m res=0 known=2592] step2[57.6-115.2m res=324 known=2316] step4[115.2-172.8m res=63 known=685] step8[172.8-409.6m res=74 known=199]
+RINGS arena[v=4913664/34408080 i=7408640/60214140 draws=481/16384 leaseFail=0] missingVisible=0 prepare[total=0.19 invalidate=0.00 discover=0.00 admit=0.18 visible=0.00 cand=5792 drawn=414] exits[known=5792 inBand=1150 frustum=417] step1[0-57.6m res=0 known=2592] step2[57.6-115.2m res=324 known=2316] step4[115.2-172.8m res=81 known=685] step8[172.8-409.6m res=76 known=199]
+RINGS arena[v=4925184/34408080 i=7426048/60214140 draws=483/16384 leaseFail=0] missingVisible=0 prepare[total=0.21 invalidate=0.00 discover=0.00 admit=0.20 visible=0.00 cand=5792 drawn=414] exits[known=5792 inBand=1150 frustum=417] step1[0-57.6m res=0 known=2592] step2[57.6-115.2m res=324 known=2316] step4[115.2-172.8m res=81 known=685] step8[172.8-409.6m res=78 known=199]
+RINGS arena[v=4939008/34408080 i=7447040/60214140 draws=486/16384 leaseFail=0] missingVisible=0 prepare[total=0.55 invalidate=0.00 discover=0.00 admit=0.55 visible=0.00 cand=5792 drawn=414] exits[known=5792 inBand=1150 frustum=417] step1[0-57.6m res=0 known=2592] step2[57.6-115.2m res=324 known=2316] step4[115.2-172.8m res=81 known=685] step8[172.8-409.6m res=81 known=199]
+RINGS arena[v=5234176/34408080 i=7893504/60214140 draws=513/16384 leaseFail=0] missingVisible=0 prepare[total=0.21 invalidate=0.00 discover=0.00 admit=0.20 visible=0.00 cand=5792 drawn=414] exits[known=5792 inBand=1150 frustum=417] step1[0-57.6m res=0 known=2592] step2[57.6-115.2m res=344 known=2316] step4[115.2-172.8m res=87 known=685] step8[172.8-409.6m res=82 known=199]
+RINGS arena[v=5298176/34408080 i=7990784/60214140 draws=518/16384 leaseFail=0] missingVisible=0 prepare[total=0.21 invalidate=0.00 discover=0.00 admit=0.19 visible=0.00 cand=5792 drawn=414] exits[known=5792 inBand=1150 frustum=417] step1[0-57.6m res=0 known=2592] step2[57.6-115.2m res=344 known=2316] step4[115.2-172.8m res=90 known=685] step8[172.8-409.6m res=84 known=199]
