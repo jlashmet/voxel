@@ -103,5 +103,6 @@ camera replay, then resolve the capture before moving to the next open SceneIssu
 - [x] Produce and inspect a current-head exact-camera replay without committing temporary wiring;
       the incorrect blue/grey near-field bands are gone (experiment 010).
 - [x] Resolve `issue.json` in a separate bookkeeping commit after the clean replay.
-- [ ] Push the resolution commit, delete `ci-test/fixes`, and confirm no extra task branches remain.
-- [ ] Advance to `20260823-014108-038-VoxelShowcase` only after 014011 is fully resolved.
+- [x] Push the resolution commit, delete `ci-test/fixes`, and confirm no extra task branches remain.
+- [x] Release `20260823-014108-038-VoxelShowcase` as the next issue only after 014011 is fully
+      resolved.
