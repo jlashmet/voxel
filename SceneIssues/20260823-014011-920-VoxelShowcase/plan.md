@@ -46,6 +46,10 @@ camera replay, then resolve the capture before moving to the next open SceneIssu
 - Diagnostic local runs passed the focused coarse-density class 5/5 and the related
   GPU/ownership/cutover/vertex selection 12/12 after updating one stale source-text assertion to
   the shader's current nested guard. These results guide the repair but require CI confirmation.
+- The merged-head direct visible-cap regression passed targeted CI. A broader mixed-field GPU
+  request discovered both parameterized cases but could not load `CSSampleDensity` because the
+  EditMode workflow forces `-nographics`; no oracle comparison ran, so this is an environment
+  limitation rather than a production failure (experiment 009).
 - An attempted local exact-camera build was interrupted before producing a screenshot; no visual
   conclusion can be drawn from it.
 
@@ -86,7 +90,8 @@ camera replay, then resolve the capture before moving to the next open SceneIssu
 - [x] Push the merged feature head and experiment record to `fixes`.
 - [x] Force-reset `ci-test/fixes` to merged source `8b9026a0e`, request the direct visible-cap
       regression, and confirm 1/1 passed in 58 seconds (experiment 008).
-- [ ] Iterate on `fixes` and reuse the same CI branch if the requested test fails.
+- [x] Investigate the broader mixed-field CI failure and record that `-nographics` prevents compute
+      kernel loading before either parameterized oracle case can compare results (experiment 009).
 - [ ] Run broader focused CI validation if the smallest regression does not cover the repaired
       mixed-field and vertex-parity paths.
 - [ ] Produce and inspect a current-head exact-camera replay without committing temporary wiring.

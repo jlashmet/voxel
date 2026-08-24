@@ -1,0 +1,21 @@
+source_commit=0caa62f48de6d6562a25ed5d6ee1b9fd3f2427a1
+request_commit=cd82ec4f59b59f95e2ca0a8c0dd04af4f92a5297
+request_id=sceneissue-014011-mixed-field-0caa62f4-03
+platform=EditMode
+test=VoxelEngine.Tests.EditMode.GpuSurfaceExtractorOracleTests.MixedSampleFieldMatchesTheCpuJob
+run_url=https://github.com/jlashmet/voxel/actions/runs/32747664724
+job_started_utc=2026-08-24T15:54:07Z
+job_completed_utc=2026-08-24T15:55:18Z
+unity_test_elapsed_seconds=58
+executed_test_cases=2
+failed_test_cases=2
+ci_single_test=failure
+
+Both parameterized cases were discovered and executed. Each stopped before oracle comparison with:
+
+System.ArgumentException: Kernel 'CSSampleDensity' not found.
+at VoxelEngine.Rendering.Runtime.GpuVoxel.GpuSurfaceExtractor..ctor
+at VoxelEngine.Tests.EditMode.GpuSurfaceExtractorOracleTests.MixedSampleFieldMatchesTheCpuJob
+
+The workflow applies `-nographics` to all EditMode requests. This result establishes that the
+request environment cannot load the compute kernel; it does not establish a CPU/GPU mismatch.
