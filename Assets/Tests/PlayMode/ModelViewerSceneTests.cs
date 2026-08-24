@@ -5,6 +5,7 @@ using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
+using VoxelEngine.Composition;
 using VoxelEngine.Rendering.Runtime;
 using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 
@@ -32,10 +33,10 @@ namespace VoxelEngine.Tests.PlayMode
 
             ModelViewerLookdev lookdev = Object.FindAnyObjectByType<ModelViewerLookdev>();
             Assert.NotNull(lookdev, "ModelViewer.unity must contain the generic ModelViewerLookdev camera.");
-            Assert.True(VoxelRenderBridge.TryGetWorld(out var world),
+            Assert.True(RenderingComposition.TryGetWorld(out var world, out _),
                 "Model Viewer did not bind authored voxel storage to the production renderer.");
-            Assert.NotNull(world.ProfileBlocks);
-            Assert.Greater(world.ProfileBlocks.Count, 0);
+            Assert.NotNull(world.Storage,
+                "Model Viewer production binding must expose the canonical voxel storage source.");
 
             Camera camera = lookdev.GetComponent<Camera>();
             Assert.NotNull(camera);
