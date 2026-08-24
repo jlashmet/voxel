@@ -45,7 +45,8 @@
         "Game.Structures.Api",
         "Game.Structures.Runtime",
         "Game.Materials.Api",
-        "Game.Composition.Showcase"
+        "Game.Composition.Showcase",
+        "Game.ModelViewer"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
