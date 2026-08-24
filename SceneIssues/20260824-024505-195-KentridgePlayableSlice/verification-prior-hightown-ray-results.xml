@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="1" result="Passed" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-24 19:55:10Z" end-time="2026-08-24 19:55:11Z" duration="0.4203291">
+  <test-suite type="TestSuite" id="1000" name="voxel" fullname="voxel" runstate="Runnable" testcasecount="1139" result="Passed" start-time="2026-08-24 19:55:10Z" end-time="2026-08-24 19:55:11Z" duration="0.420329" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <test-suite type="Assembly" id="2459" name="VoxelEngine.Tests.EditMode.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/VoxelEngine.Tests.EditMode.dll" runstate="Runnable" testcasecount="808" result="Passed" start-time="2026-08-24 19:55:10Z" end-time="2026-08-24 19:55:11Z" duration="0.412198" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="86487" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <test-suite type="TestSuite" id="2460" name="VoxelEngine" fullname="VoxelEngine" runstate="Runnable" testcasecount="808" result="Passed" start-time="2026-08-24 19:55:10Z" end-time="2026-08-24 19:55:11Z" duration="0.409256" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="2461" name="Tests" fullname="VoxelEngine.Tests" runstate="Runnable" testcasecount="808" result="Passed" start-time="2026-08-24 19:55:10Z" end-time="2026-08-24 19:55:11Z" duration="0.403458" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="2462" name="EditMode" fullname="VoxelEngine.Tests.EditMode" runstate="Runnable" testcasecount="808" result="Passed" start-time="2026-08-24 19:55:10Z" end-time="2026-08-24 19:55:11Z" duration="0.397729" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="1874" name="KentridgeGenerationTests" fullname="VoxelEngine.Tests.EditMode.KentridgeGenerationTests" classname="VoxelEngine.Tests.EditMode.KentridgeGenerationTests" runstate="Runnable" testcasecount="12" result="Passed" start-time="2026-08-24 19:55:10Z" end-time="2026-08-24 19:55:11Z" duration="0.366972" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1876" name="DiagnosticPriorHightownStagesAtSavedRay" fullname="VoxelEngine.Tests.EditMode.KentridgeGenerationTests.DiagnosticPriorHightownStagesAtSavedRay" methodname="DiagnosticPriorHightownStagesAtSavedRay" classname="VoxelEngine.Tests.EditMode.KentridgeGenerationTests" runstate="Runnable" seed="1440178074" result="Passed" start-time="2026-08-24 19:55:10Z" end-time="2026-08-24 19:55:11Z" duration="0.360706" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

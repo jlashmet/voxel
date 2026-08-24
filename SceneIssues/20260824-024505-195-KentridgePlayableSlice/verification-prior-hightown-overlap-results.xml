@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="1" result="Passed" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-24 19:57:06Z" end-time="2026-08-24 19:57:06Z" duration="0.0982638">
+  <test-suite type="TestSuite" id="1000" name="voxel" fullname="voxel" runstate="Runnable" testcasecount="1139" result="Passed" start-time="2026-08-24 19:57:06Z" end-time="2026-08-24 19:57:06Z" duration="0.098264" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <test-suite type="Assembly" id="2459" name="VoxelEngine.Tests.EditMode.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/VoxelEngine.Tests.EditMode.dll" runstate="Runnable" testcasecount="808" result="Passed" start-time="2026-08-24 19:57:06Z" end-time="2026-08-24 19:57:06Z" duration="0.089841" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="88835" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <test-suite type="TestSuite" id="2460" name="VoxelEngine" fullname="VoxelEngine" runstate="Runnable" testcasecount="808" result="Passed" start-time="2026-08-24 19:57:06Z" end-time="2026-08-24 19:57:06Z" duration="0.086912" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="2461" name="Tests" fullname="VoxelEngine.Tests" runstate="Runnable" testcasecount="808" result="Passed" start-time="2026-08-24 19:57:06Z" end-time="2026-08-24 19:57:06Z" duration="0.084018" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="2462" name="EditMode" fullname="VoxelEngine.Tests.EditMode" runstate="Runnable" testcasecount="808" result="Passed" start-time="2026-08-24 19:57:06Z" end-time="2026-08-24 19:57:06Z" duration="0.081068" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="1874" name="KentridgeGenerationTests" fullname="VoxelEngine.Tests.EditMode.KentridgeGenerationTests" classname="VoxelEngine.Tests.EditMode.KentridgeGenerationTests" runstate="Runnable" testcasecount="12" result="Passed" start-time="2026-08-24 19:57:06Z" end-time="2026-08-24 19:57:06Z" duration="0.067763" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1876" name="DiagnosticPriorHightownStagesOverlappingMagicShop" fullname="VoxelEngine.Tests.EditMode.KentridgeGenerationTests.DiagnosticPriorHightownStagesOverlappingMagicShop" methodname="DiagnosticPriorHightownStagesOverlappingMagicShop" classname="VoxelEngine.Tests.EditMode.KentridgeGenerationTests" runstate="Runnable" seed="1226202749" result="Passed" start-time="2026-08-24 19:57:06Z" end-time="2026-08-24 19:57:06Z" duration="0.061780" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[PRIOR_HIGHTOWN_OVERLAP stage=0 definition=kentridge-district-terrace-lower-middle precedence=15 placement=int3(926, 203, 596) primitive=0 shape=Box mode=Carve material=0 order=0 bounds=int3(980, 217, 650)..int3(1439, 268, 859)
+PRIOR_HIGHTOWN_OVERLAP stage=0 definition=kentridge-district-terrace-lower-middle precedence=15 placement=int3(926, 203, 596) primitive=2 shape=Box mode=Carve material=0 order=2 bounds=int3(926, 217, 596)..int3(1493, 268, 649)
+PRIOR_HIGHTOWN_OVERLAP stage=0 definition=kentridge-district-terrace-lower-middle precedence=15 placement=int3(926, 203, 596) primitive=22 shape=Box mode=PaintSurface material=13 order=22 bounds=int3(926, 203, 596)..int3(1493, 268, 649)
+PRIOR_HIGHTOWN_OVERLAP stage=0 definition=kentridge-district-terrace-lower-middle precedence=15 placement=int3(926, 203, 596) primitive=26 shape=Box mode=PaintSurface material=13 order=26 bounds=int3(980, 203, 650)..int3(1439, 268, 859)
+PRIOR_HIGHTOWN_OVERLAP stage=0 definition=kentridge-district-terrace-market-main precedence=15 placement=int3(608, 205, 368) primitive=0 shape=Box mode=Carve material=0 order=0 bounds=int3(680, 252, 440)..int3(1299, 299, 699)
+PRIOR_HIGHTOWN_OVERLAP stage=0 definition=kentridge-district-terrace-market-main precedence=15 placement=int3(608, 205, 368) primitive=1 shape=Box mode=Fill material=13 order=1 bounds=int3(680, 205, 440)..int3(1299, 251, 699)
+PRIOR_HIGHTOWN_OVERLAP stage=0 definition=kentridge-district-terrace-market-main precedence=15 placement=int3(608, 205, 368) primitive=34 shape=Box mode=PaintSurface material=6 order=34 bounds=int3(680, 205, 440)..int3(1299, 299, 699)
+PRIOR_HIGHTOWN_OVERLAP stage=1 definition=kentridge-terrace-surface-market-main precedence=16 placement=int3(608, 197, 368) primitive=0 shape=Box mode=PaintSolid material=1 order=0 bounds=int3(608, 197, 368)..int3(1371, 268, 771)
+PRIOR_HIGHTOWN_OVERLAP stage=1 definition=kentridge-terrace-surface-market-main precedence=16 placement=int3(608, 197, 368) primitive=1 shape=Box mode=PaintSurface material=14 order=1 bounds=int3(608, 197, 368)..int3(1371, 268, 771)
+PRIOR_HIGHTOWN_OVERLAP stage=1 definition=kentridge-terrace-surface-market-main precedence=16 placement=int3(608, 197, 368) primitive=2 shape=Box mode=PaintSurface material=6 order=2 bounds=int3(680, 197, 440)..int3(1299, 268, 699)
+PRIOR_HIGHTOWN_OVERLAP stage=4 definition=kentridge-infrastructure-market-retaining-west precedence=35 placement=int3(700, 218, 678) primitive=13 shape=Box mode=Fill material=6 order=13 bounds=int3(988, 218, 681)..int3(992, 251, 695)
+PRIOR_HIGHTOWN_OVERLAP stage=4 definition=kentridge-infrastructure-market-retaining-west precedence=35 placement=int3(700, 218, 678) primitive=14 shape=Box mode=Fill material=6 order=14 bounds=int3(1046, 218, 681)..int3(1050, 251, 695)
+PRIOR_HIGHTOWN_OVERLAP stage=4 definition=kentridge-infrastructure-market-retaining-west precedence=35 placement=int3(700, 218, 678) primitive=15 shape=Box mode=Fill material=6 order=15 bounds=int3(1104, 218, 681)..int3(1108, 251, 695)
+PRIOR_HIGHTOWN_OVERLAP stage=4 definition=kentridge-infrastructure-market-retaining-west precedence=35 placement=int3(700, 218, 678) primitive=16 shape=Box mode=Fill material=6 order=16 bounds=int3(700, 248, 683)..int3(1109, 251, 697)
+PRIOR_HIGHTOWN_OVERLAP stage=10 definition=kentridge-fabric-9 precedence=86 placement=int3(977, 196, 668) primitive=3 shape=RoundedBox mode=Fill material=1 order=3 bounds=int3(983, 237, 674)..int3(1042, 270, 730)
+PRIOR_HIGHTOWN_OVERLAP stage=10 definition=kentridge-fabric-9 precedence=86 placement=int3(977, 196, 668) primitive=4 shape=Box mode=Carve material=0 order=4 bounds=int3(987, 237, 678)..int3(1038, 270, 726)
+PRIOR_HIGHTOWN_OVERLAP stage=10 definition=kentridge-fabric-9 precedence=86 placement=int3(977, 196, 668) primitive=8 shape=RoundedBox mode=Carve material=0 order=8 bounds=int3(993, 257, 674)..int3(1002, 268, 678)
+PRIOR_HIGHTOWN_OVERLAP stage=10 definition=kentridge-fabric-9 precedence=86 placement=int3(977, 196, 668) primitive=9 shape=Box mode=Fill material=4 order=9 bounds=int3(993, 257, 674)..int3(1002, 268, 678)
+PRIOR_HIGHTOWN_OVERLAP stage=10 definition=kentridge-fabric-9 precedence=86 placement=int3(977, 196, 668) primitive=10 shape=RoundedBox mode=Carve material=0 order=10 bounds=int3(1018, 257, 674)..int3(1027, 268, 678)
+PRIOR_HIGHTOWN_OVERLAP stage=10 definition=kentridge-fabric-9 precedence=86 placement=int3(977, 196, 668) primitive=11 shape=Box mode=Fill material=4 order=11 bounds=int3(1018, 257, 674)..int3(1027, 268, 678)
+PRIOR_HIGHTOWN_OVERLAP stage=10 definition=kentridge-fabric-9 precedence=86 placement=int3(977, 196, 668) primitive=45 shape=RoundedBox mode=Fill material=2 order=45 bounds=int3(1040, 237, 674)..int3(1042, 270, 679)
+PRIOR_HIGHTOWN_OVERLAP stage=10 definition=kentridge-fabric-9 precedence=86 placement=int3(977, 196, 668) primitive=52 shape=RoundedBox mode=Fill material=2 order=52 bounds=int3(983, 254, 674)..int3(1042, 256, 679)
+PRIOR_HIGHTOWN_OVERLAP stage=10 definition=kentridge-fabric-9 precedence=86 placement=int3(977, 196, 668) primitive=54 shape=RoundedBox mode=Fill material=2 order=54 bounds=int3(983, 254, 674)..int3(988, 256, 730)
+PRIOR_HIGHTOWN_OVERLAP stage=10 definition=kentridge-fabric-9 precedence=86 placement=int3(977, 196, 668) primitive=55 shape=RoundedBox mode=Fill material=2 order=55 bounds=int3(1037, 254, 674)..int3(1042, 256, 730)
+PRIOR_HIGHTOWN_OVERLAP stage=10 definition=kentridge-fabric-9 precedence=86 placement=int3(977, 196, 668) primitive=56 shape=RoundedBox mode=Fill material=2 order=56 bounds=int3(983, 268, 674)..int3(1042, 270, 679)
+PRIOR_HIGHTOWN_OVERLAP stage=10 definition=kentridge-fabric-9 precedence=86 placement=int3(977, 196, 668) primitive=58 shape=RoundedBox mode=Fill material=2 order=58 bounds=int3(983, 268, 674)..int3(988, 270, 730)
+PRIOR_HIGHTOWN_OVERLAP stage=10 definition=kentridge-fabric-9 precedence=86 placement=int3(977, 196, 668) primitive=59 shape=RoundedBox mode=Fill material=2 order=59 bounds=int3(1037, 268, 674)..int3(1042, 270, 730)
+PRIOR_HIGHTOWN_OVERLAP stage=10 definition=kentridge-fabric-9 precedence=86 placement=int3(977, 196, 668) primitive=61 shape=Prism mode=Fill material=8 order=61 bounds=int3(980, 271, 671)..int3(1015, 293, 733)
+PRIOR_HIGHTOWN_OVERLAP stage=10 definition=kentridge-fabric-9 precedence=86 placement=int3(977, 196, 668) primitive=62 shape=Prism mode=Fill material=8 order=62 bounds=int3(1010, 271, 671)..int3(1045, 293, 733)
+PRIOR_HIGHTOWN_OVERLAP stage=10 definition=kentridge-fabric-10 precedence=86 placement=int3(1041, 196, 666) primitive=3 shape=RoundedBox mode=Fill material=1 order=3 bounds=int3(1046, 237, 676)..int3(1106, 270, 726)
+PRIOR_HIGHTOWN_OVERLAP stage=10 definition=kentridge-fabric-10 precedence=86 placement=int3(1041, 196, 666) primitive=4 shape=Box mode=Carve material=0 order=4 bounds=int3(1050, 237, 680)..int3(1102, 270, 722)
+PRIOR_HIGHTOWN_OVERLAP stage=10 definition=kentridge-fabric-10 precedence=86 placement=int3(1041, 196, 666) primitive=8 shape=RoundedBox mode=Carve material=0 order=8 bounds=int3(1056, 257, 676)..int3(1065, 268, 680)
+PRIOR_HIGHTOWN_OVERLAP stage=10 definition=kentridge-fabric-10 precedence=86 placement=int3(1041, 196, 666) primitive=9 shape=Box mode=Fill material=15 order=9 bounds=int3(1056, 257, 676)..int3(1065, 268, 680)
+PRIOR_HIGHTOWN_OVERLAP stage=10 definition=kentridge-fabric-10 precedence=86 placement=int3(1041, 196, 666) primitive=10 shape=RoundedBox mode=Carve material=0 order=10 bounds=int3(1081, 257, 676)..int3(1090, 268, 680)
+PRIOR_HIGHTOWN_OVERLAP stage=10 definition=kentridge-fabric-10 precedence=86 placement=int3(1041, 196, 666) primitive=11 shape=Box mode=Fill material=15 order=11 bounds=int3(1081, 257, 676)..int3(1090, 268, 680)
+PRIOR_HIGHTOWN_OVERLAP stage=10 definition=kentridge-fabric-10 precedence=86 placement=int3(1041, 196, 666) primitive=44 shape=RoundedBox mode=Fill material=2 order=44 bounds=int3(1046, 237, 676)..int3(1048, 270, 681)
+PRIOR_HIGHTOWN_OVERLAP stage=10 definition=kentridge-fabric-10 precedence=86 placement=int3(1041, 196, 666) primitive=45 shape=RoundedBox mode=Fill material=2 order=45 bounds=int3(1104, 237, 676)..int3(1106, 270, 681)
+PRIOR_HIGHTOWN_OVERLAP stage=10 definition=kentridge-fabric-10 precedence=86 placement=int3(1041, 196, 666) primitive=52 shape=RoundedBox mode=Fill material=2 order=52 bounds=int3(1046, 254, 676)..int3(1106, 256, 681)
+PRIOR_HIGHTOWN_OVERLAP stage=10 definition=kentridge-fabric-10 precedence=86 placement=int3(1041, 196, 666) primitive=54 shape=RoundedBox mode=Fill material=2 order=54 bounds=int3(1046, 254, 676)..int3(1051, 256, 726)
+PRIOR_HIGHTOWN_OVERLAP stage=10 definition=kentridge-fabric-10 precedence=86 placement=int3(1041, 196, 666) primitive=55 shape=RoundedBox mode=Fill material=2 order=55 bounds=int3(1101, 254, 676)..int3(1106, 256, 726)
+PRIOR_HIGHTOWN_OVERLAP stage=10 definition=kentridge-fabric-10 precedence=86 placement=int3(1041, 196, 666) primitive=56 shape=RoundedBox mode=Fill material=2 order=56 bounds=int3(1046, 268, 676)..int3(1106, 270, 681)
+PRIOR_HIGHTOWN_OVERLAP stage=10 definition=kentridge-fabric-10 precedence=86 placement=int3(1041, 196, 666) primitive=58 shape=RoundedBox mode=Fill material=2 order=58 bounds=int3(1046, 268, 676)..int3(1051, 270, 726)
+PRIOR_HIGHTOWN_OVERLAP stage=10 definition=kentridge-fabric-10 precedence=86 placement=int3(1041, 196, 666) primitive=59 shape=RoundedBox mode=Fill material=2 order=59 bounds=int3(1101, 268, 676)..int3(1106, 270, 726)
+PRIOR_HIGHTOWN_OVERLAP stage=10 definition=kentridge-fabric-10 precedence=86 placement=int3(1041, 196, 666) primitive=60 shape=Prism mode=Fill material=8 order=60 bounds=int3(1043, 271, 673)..int3(1109, 301, 729)
+PRIOR_HIGHTOWN_OVERLAP stage=14 definition=kentridge-infrastructure-terrace-dwelling precedence=90 placement=int3(1000, 196, 676) primitive=1 shape=Box mode=Fill material=1 order=1 bounds=int3(1004, 202, 680)..int3(1059, 269, 727)
+PRIOR_HIGHTOWN_OVERLAP stage=14 definition=kentridge-infrastructure-terrace-dwelling precedence=90 placement=int3(1000, 196, 676) primitive=2 shape=Box mode=Carve material=0 order=2 bounds=int3(1008, 202, 684)..int3(1055, 269, 723)
+PRIOR_HIGHTOWN_OVERLAP stage=14 definition=kentridge-infrastructure-terrace-dwelling precedence=90 placement=int3(1000, 196, 676) primitive=12 shape=Box mode=Carve material=0 order=12 bounds=int3(1013, 254, 680)..int3(1022, 265, 684)
+PRIOR_HIGHTOWN_OVERLAP stage=14 definition=kentridge-infrastructure-terrace-dwelling precedence=90 placement=int3(1000, 196, 676) primitive=13 shape=Box mode=Fill material=15 order=13 bounds=int3(1013, 254, 680)..int3(1022, 265, 684)
+PRIOR_HIGHTOWN_OVERLAP stage=14 definition=kentridge-infrastructure-terrace-dwelling precedence=90 placement=int3(1000, 196, 676) primitive=14 shape=Box mode=Carve material=0 order=14 bounds=int3(1041, 254, 680)..int3(1050, 265, 684)
+PRIOR_HIGHTOWN_OVERLAP stage=14 definition=kentridge-infrastructure-terrace-dwelling precedence=90 placement=int3(1000, 196, 676) primitive=15 shape=Box mode=Fill material=15 order=15 bounds=int3(1041, 254, 680)..int3(1050, 265, 684)
+PRIOR_HIGHTOWN_OVERLAP stage=14 definition=kentridge-infrastructure-terrace-dwelling precedence=90 placement=int3(1000, 196, 676) primitive=28 shape=Box mode=Fill material=2 order=28 bounds=int3(1004, 202, 679)..int3(1006, 269, 681)
+PRIOR_HIGHTOWN_OVERLAP stage=14 definition=kentridge-infrastructure-terrace-dwelling precedence=90 placement=int3(1000, 196, 676) primitive=29 shape=Box mode=Fill material=2 order=29 bounds=int3(1057, 202, 679)..int3(1059, 269, 681)
+PRIOR_HIGHTOWN_OVERLAP stage=14 definition=kentridge-infrastructure-terrace-dwelling precedence=90 placement=int3(1000, 196, 676) primitive=31 shape=Box mode=Fill material=2 order=31 bounds=int3(1004, 267, 679)..int3(1059, 269, 681)
+PRIOR_HIGHTOWN_OVERLAP stage=14 definition=kentridge-infrastructure-terrace-dwelling precedence=90 placement=int3(1000, 196, 676) primitive=32 shape=Prism mode=Fill material=8 order=32 bounds=int3(1000, 270, 676)..int3(1063, 295, 731)
+<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

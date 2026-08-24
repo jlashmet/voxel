@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="1" result="Passed" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-24 19:50:49Z" end-time="2026-08-24 19:50:49Z" duration="0.4982122">
+  <test-suite type="TestSuite" id="1000" name="voxel" fullname="voxel" runstate="Runnable" testcasecount="1138" result="Passed" start-time="2026-08-24 19:50:49Z" end-time="2026-08-24 19:50:49Z" duration="0.498212" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <test-suite type="Assembly" id="2458" name="VoxelEngine.Tests.EditMode.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/VoxelEngine.Tests.EditMode.dll" runstate="Runnable" testcasecount="807" result="Passed" start-time="2026-08-24 19:50:49Z" end-time="2026-08-24 19:50:49Z" duration="0.490920" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="84066" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <test-suite type="TestSuite" id="2459" name="VoxelEngine" fullname="VoxelEngine" runstate="Runnable" testcasecount="807" result="Passed" start-time="2026-08-24 19:50:49Z" end-time="2026-08-24 19:50:49Z" duration="0.488478" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="2460" name="Tests" fullname="VoxelEngine.Tests" runstate="Runnable" testcasecount="807" result="Passed" start-time="2026-08-24 19:50:49Z" end-time="2026-08-24 19:50:49Z" duration="0.486193" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="2461" name="EditMode" fullname="VoxelEngine.Tests.EditMode" runstate="Runnable" testcasecount="807" result="Passed" start-time="2026-08-24 19:50:49Z" end-time="2026-08-24 19:50:49Z" duration="0.483737" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="1874" name="KentridgeGenerationTests" fullname="VoxelEngine.Tests.EditMode.KentridgeGenerationTests" classname="VoxelEngine.Tests.EditMode.KentridgeGenerationTests" runstate="Runnable" testcasecount="11" result="Passed" start-time="2026-08-24 19:50:49Z" end-time="2026-08-24 19:50:49Z" duration="0.473510" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1875" name="DiagnosticSavedFloatingStructureRayContributors" fullname="VoxelEngine.Tests.EditMode.KentridgeGenerationTests.DiagnosticSavedFloatingStructureRayContributors" methodname="DiagnosticSavedFloatingStructureRayContributors" classname="VoxelEngine.Tests.EditMode.KentridgeGenerationTests" runstate="Runnable" seed="1319064786" result="Passed" start-time="2026-08-24 19:50:49Z" end-time="2026-08-24 19:50:49Z" duration="0.468165" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[FLOATING_RAY origin=float3(1039.305f, 263.5004f, 605.0956f) forward=float3(-0.9766352f, 0.2143092f, -0.01598191f)
+FLOATING_HIT distance=0.50 voxel=int3(1038, 263, 605) definition=kentridge-plot-shop precedence=40 placement=int3(988, 239, 562) orientation=0 primitive=2 shape=Box material=14 order=2 bounds=int3(988, 263, 562)..int3(1111, 263, 675)
+FLOATING_HIT distance=227.75 voxel=int3(816, 312, 601) definition=kentridge-role-weaponshop precedence=100 placement=int3(708, 247, 562) orientation=0 primitive=1 shape=Box material=1 order=1 bounds=int3(723, 254, 572)..int3(816, 321, 641)
+FLOATING_HIT distance=273.00 voxel=int3(772, 322, 600) definition=kentridge-role-weaponshop precedence=100 placement=int3(708, 247, 562) orientation=0 primitive=8 shape=Prism material=8 order=8 bounds=int3(723, 322, 572)..int3(816, 341, 641)
+FLOATING_HIT distance=89.50 voxel=int3(951, 282, 603) definition=kentridge-role-armorshop precedence=100 placement=int3(848, 247, 562) orientation=0 primitive=1 shape=Box material=1 order=1 bounds=int3(868, 254, 572)..int3(951, 321, 643)
+FLOATING_HIT distance=100.50 voxel=int3(941, 285, 603) definition=kentridge-role-armorshop precedence=100 placement=int3(848, 247, 562) orientation=0 primitive=3 shape=Box material=2 order=3 bounds=int3(872, 285, 576)..int3(947, 287, 639)
+FLOATING_HIT distance=0.50 voxel=int3(1038, 263, 605) definition=kentridge-role-magicshop precedence=100 placement=int3(988, 247, 562) orientation=0 primitive=1 shape=Box material=1 order=1 bounds=int3(1014, 254, 572)..int3(1085, 355, 639)
+<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>
