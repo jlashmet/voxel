@@ -24,13 +24,7 @@ namespace Game.ModelViewer
                 DestructionClass.Crumble,
                 SurfaceStyles.MasonryJoint,
                 coatings);
-            storage.ConfigureCoatingDecoration(
-                Coatings.Moss,
-                density: 128,
-                radiusQ4: 14,
-                heightQ4: 2,
-                dropQ4: 10,
-                separation: 0);
+            storage.ConfigureCoatingDecoration(Coatings.Moss, 128, 14, 2, 10, 0);
 
             var request = new ArchLookdevBuildRequest
             {
