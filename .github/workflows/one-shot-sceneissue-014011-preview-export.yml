@@ -30,9 +30,9 @@ jobs:
             label="${pair%%:*}"
             src="$ISSUE/${pair#*:}"
             jpg="$OUT/$label.jpg"
-            sips -s format jpeg -s formatOptions 30 -Z 320 "$src" --out "$jpg" >/dev/null
+            sips -s format jpeg -s formatOptions 25 -Z 240 "$src" --out "$jpg" >/dev/null
             base64 < "$jpg" | tr -d '\n' > "$OUT/$label.b64"
-            split -b 12000 -a 2 "$OUT/$label.b64" "$OUT/$label.part-"
+            split -b 4500 -a 2 "$OUT/$label.b64" "$OUT/$label.part-"
             rm "$jpg" "$OUT/$label.b64"
           done
           {
@@ -43,5 +43,5 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A "$OUT"
-          git commit -m 'SceneIssue 014011: export attempt 2 comparison preview'
+          git commit -m 'SceneIssue 014011: compact attempt 2 comparison preview'
           git push origin HEAD:fixes
