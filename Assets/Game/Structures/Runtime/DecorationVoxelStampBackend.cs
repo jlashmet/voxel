@@ -20,7 +20,9 @@ namespace Game.Structures.Runtime
 
             if (DragonStatueWorldBuilderObject.IsDragon(in placement))
             {
-                DragonStatueAuthoring.Author(authoring, DragonStatueWorldBuilderObject.ResolveAuthoringOrigin(in placement));
+                int3 origin = DragonStatueWorldBuilderObject.ResolveAuthoringOrigin(in placement);
+                DragonStatueAuthoring.Author(authoring, origin);
+                DragonStatueDetailPass.Apply(authoring, origin);
                 return true;
             }
 
