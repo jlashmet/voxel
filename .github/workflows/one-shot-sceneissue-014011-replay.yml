@@ -108,12 +108,13 @@ jobs:
           ISSUE="SceneIssues/20260823-014011-920-VoxelShowcase"
           final="$(find "$ROOT/Screenshots" -type f -name '*.png' -size +1k | sort | tail -1)"
           test -n "$final"
-          cp "$final" "$ISSUE/verification-lod2-attempt1.png"
+          cp "$final" "$ISSUE/verification-lod2-attempt2.png"
           {
             echo "source_commit=$GITHUB_SHA"
             echo "camera_fixture=Showcase Camera @ (101.44347381591797,113.22681427001953,-51.74753952026367), fov=70"
             echo "capture_resolution=1293x718"
             echo "selected_screenshot=$(basename "$final")"
+            echo "change_under_test=GPU LOD2 coarse exposed-material parity"
             echo
             echo "=== camera replay ==="
             grep 'SCENEISSUE camera' "$ROOT/player-run.log" || true
@@ -126,10 +127,10 @@ jobs:
             echo
             echo "=== rings tail ==="
             grep 'RINGS ' "$ROOT/player-run.log" | tail -20 || true
-          } > "$ISSUE/verification-lod2-attempt1.txt"
-          cat "$ISSUE/verification-lod2-attempt1.txt"
+          } > "$ISSUE/verification-lod2-attempt2.txt"
+          cat "$ISSUE/verification-lod2-attempt2.txt"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add "$ISSUE/verification-lod2-attempt1.png" "$ISSUE/verification-lod2-attempt1.txt"
-          git commit -m 'SceneIssue 014011: record GPU LOD2 replay evidence'
+          git add "$ISSUE/verification-lod2-attempt2.png" "$ISSUE/verification-lod2-attempt2.txt"
+          git commit -m 'SceneIssue 014011: record GPU LOD2 replay attempt 2'
           git push origin HEAD:fixes
