@@ -29,7 +29,8 @@ namespace VoxelEngine.Tests.EditMode
             string mesher = File.ReadAllText(
                 "Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute");
 
-            StringAssert.Contains("if (centreSolid && sourceStep > 1)", densityShader);
+            StringAssert.Contains("if (sourceStep > 1)", densityShader);
+            StringAssert.Contains("if (centreSolid)", densityShader);
             StringAssert.Contains("PreferNearestCrossingSurfaceMaterial(", densityShader);
             StringAssert.Contains("for (int distance = 1; distance < sourceStep; distance++)", densityShader);
             StringAssert.Contains("p + direction * sourceStep", densityShader);
