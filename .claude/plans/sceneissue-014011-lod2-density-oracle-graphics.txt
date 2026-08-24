@@ -1,0 +1,208 @@
+status=0
+filter=VoxelEngine.Tests.EditMode.GpuSurfaceExtractorOracleTests.GpuDensityMatchesTheCpuJobSampleForSample
+
+Executed 2 test case(s).
+Passed: VoxelEngine.Tests.EditMode.GpuSurfaceExtractorOracleTests.GpuDensityMatchesTheCpuJobSampleForSample(1)
+Passed: VoxelEngine.Tests.EditMode.GpuSurfaceExtractorOracleTests.GpuDensityMatchesTheCpuJobSampleForSample(2)
+
+=== UNITY LOG TAIL ===
+
+(Filename: Assets/ThirdParty/PlaceholderHumanoids/Editor/PlaceholderHumanoidAnimationConfigurator.cs Line: 196)
+
+Loaded scene 'Library/Unused/ef2793a7c04e2421cb699063bb95ed5d'
+	Deserialize:            0.101 ms
+	Integration:            0.319 ms
+	Integration of assets:  0.001 ms
+	Thread Wait Time:       0.006 ms
+	Total Operation Time:   0.427 ms
+Importing 'GUID: 63706ba310e344a7ba454b5919cac560 - Path: Assets/ThirdParty/PlaceholderHumanoids/Models/placeholder_male.prefab' with importer (PrefabImporter)
+Imported 'GUID: 63706ba310e344a7ba454b5919cac560' -> (Import Result ID: 'cedfa1f7c5f18b9cf59a8a6ec8d6ac3b') in 0.002 seconds [static and dynamic dependencies]. Details - ImportResultOutputID=c26c45f33a2e136551a5956db151ef49 DependenciesID=da284ef839f1b254373efbc33df3fa66 StaticDependenciesID=9e436904f4ee8593e41d56aaa6cf2c69 
+Asset Pipeline Refresh (id=e8a215bf454c94a339904b3dc4ea1769): Total: 0.048 seconds - Initiated by StopAssetImportingV2(NoUpdateAssetOptions)
+Placeholder humanoid wired animation runtime onto 'Assets/ThirdParty/PlaceholderHumanoids/Models/placeholder_male.prefab'.
+UnityEngine.Debug:ExtractStackTraceNoAlloc (byte*,int,string)
+UnityEngine.StackTraceUtility:ExtractStackTrace () (at /Users/bokken/build/output/unity/unity/Runtime/Export/Scripting/StackTrace.cs:35)
+UnityEngine.DebugLogHandler:Internal_Log (UnityEngine.LogType,UnityEngine.LogOption,string,UnityEngine.Object)
+UnityEngine.DebugLogHandler:LogFormat (UnityEngine.LogType,UnityEngine.Object,string,object[])
+UnityEngine.Logger:Log (UnityEngine.LogType,object)
+UnityEngine.Debug:Log (object)
+VoxelGame.Editor.PlaceholderHumanoidAnimationConfigurator:ConfigurePrefab (string) (at Assets/ThirdParty/PlaceholderHumanoids/Editor/PlaceholderHumanoidAnimationConfigurator.cs:196)
+VoxelGame.Editor.PlaceholderHumanoidAnimationConfigurator:ProcessPendingPrefabs () (at Assets/ThirdParty/PlaceholderHumanoids/Editor/PlaceholderHumanoidAnimationConfigurator.cs:107)
+UnityEditor.EditorApplication:Internal_CallDelayFunctions () (at /Users/bokken/build/output/unity/unity/Editor/Mono/EditorApplication.cs:418)
+
+(Filename: Assets/ThirdParty/PlaceholderHumanoids/Editor/PlaceholderHumanoidAnimationConfigurator.cs Line: 196)
+
+Loaded scene 'Library/Unused/a39e039c67ec14933a69696a9f28bf32'
+	Deserialize:            0.131 ms
+	Integration:            0.358 ms
+	Integration of assets:  0.001 ms
+	Thread Wait Time:       0.005 ms
+	Total Operation Time:   0.494 ms
+Loaded scene 'Library/Unused/87081fbd25b2a4736a1991a6ab629ca1'
+	Deserialize:            0.091 ms
+	Integration:            0.268 ms
+	Integration of assets:  0.000 ms
+	Thread Wait Time:       0.004 ms
+	Total Operation Time:   0.363 ms
+Unloading 4 Unused Serialized files (Serialized files now loaded: 0)
+Unloading 1836 unused Assets / (6.2 MB). Loaded Objects now: 8876.
+Memory consumption went from 0.50 GB to 510.0 MB.
+Total: 19.000667 ms (FindLiveObjects: 0.167750 ms CreateObjectMapping: 0.812875 ms MarkObjects: 16.990000 ms  DeleteObjects: 1.029875 ms)
+
+Executing IPrebuildSetup for: Unity.PerformanceTesting.Editor.TestRunBuilder.
+UnityEngine.Debug:ExtractStackTraceNoAlloc (byte*,int,string)
+UnityEngine.StackTraceUtility:ExtractStackTrace () (at /Users/bokken/build/output/unity/unity/Runtime/Export/Scripting/StackTrace.cs:35)
+UnityEngine.DebugLogHandler:Internal_Log (UnityEngine.LogType,UnityEngine.LogOption,string,UnityEngine.Object)
+UnityEngine.DebugLogHandler:LogFormat (UnityEngine.LogType,UnityEngine.Object,string,object[])
+UnityEngine.Logger:Log (UnityEngine.LogType,object)
+UnityEngine.Debug:Log (object)
+UnityEditor.TestTools.TestRunner.TestRun.Tasks.BuildActionTaskBase`1/<ExecuteMethods>d__8<UnityEngine.TestTools.IPrebuildSetup>:MoveNext () (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/TestRun/Tasks/BuildActionTaskBase.cs:48)
+UnityEditor.TestTools.TestRunner.TestRun.Tasks.BuildActionTaskBase`1/<Execute>d__7<UnityEngine.TestTools.IPrebuildSetup>:MoveNext () (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/TestRun/Tasks/BuildActionTaskBase.cs:34)
+UnityEditor.TestTools.TestRunner.TestRun.TestJobRunner:ExecuteStep () (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/TestRun/TestJobRunner.cs:194)
+UnityEditor.TestTools.TestRunner.TestRun.TestJobRunner:ExecuteCallback () (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/TestRun/TestJobRunner.cs:129)
+UnityEditor.EditorApplication:Internal_CallUpdateFunctions () (at /Users/bokken/build/output/unity/unity/Editor/Mono/EditorApplication.cs:403)
+
+(Filename: ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/TestRun/Tasks/BuildActionTaskBase.cs Line: 48)
+
+<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Applied No Throttling for test run.
+UnityEngine.Debug:ExtractStackTraceNoAlloc (byte*,int,string)
+UnityEngine.StackTraceUtility:ExtractStackTrace () (at /Users/bokken/build/output/unity/unity/Runtime/Export/Scripting/StackTrace.cs:35)
+UnityEngine.DebugLogHandler:Internal_Log (UnityEngine.LogType,UnityEngine.LogOption,string,UnityEngine.Object)
+UnityEngine.DebugLogHandler:LogFormat (UnityEngine.LogType,UnityEngine.Object,string,object[])
+UnityEngine.Logger:Log (UnityEngine.LogType,object)
+UnityEngine.Debug:Log (object)
+MCPForUnity.Editor.Helpers.McpLog:Info (string,bool) (at ./Library/PackageCache/com.coplaydev.unity-mcp@8bd91ce7bd3a/Editor/Helpers/McpLog.cs:40)
+MCPForUnity.Editor.Services.TestRunnerNoThrottle:ApplyNoThrottling () (at ./Library/PackageCache/com.coplaydev.unity-mcp@8bd91ce7bd3a/Editor/Services/TestRunnerNoThrottle.cs:101)
+MCPForUnity.Editor.Services.TestRunnerNoThrottle/TestCallbacks:RunStarted (UnityEditor.TestTools.TestRunner.Api.ITestAdaptor) (at ./Library/PackageCache/com.coplaydev.unity-mcp@8bd91ce7bd3a/Editor/Services/TestRunnerNoThrottle.cs:138)
+UnityEditor.TestTools.TestRunner.Api.CallbacksDelegator/<>c__DisplayClass7_0:<RunStarted>b__0 (UnityEditor.TestTools.TestRunner.Api.ICallbacks) (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/Api/CallbacksDelegator.cs:42)
+UnityEditor.TestTools.TestRunner.Api.CallbacksDelegator:TryInvokeAllCallbacks (System.Action`1<UnityEditor.TestTools.TestRunner.Api.ICallbacks>) (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/Api/CallbacksDelegator.cs:135)
+UnityEditor.TestTools.TestRunner.Api.CallbacksDelegator:RunStarted (NUnit.Framework.Interfaces.ITest) (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/Api/CallbacksDelegator.cs:42)
+UnityEngine.Events.InvokableCall`1<NUnit.Framework.Interfaces.ITest>:Invoke (NUnit.Framework.Interfaces.ITest) (at /Users/bokken/build/output/unity/unity/Runtime/Export/UnityEvent/UnityEvent.cs:222)
+UnityEngine.Events.UnityEvent`1<NUnit.Framework.Interfaces.ITest>:Invoke (NUnit.Framework.Interfaces.ITest) (at /Users/bokken/build/output/unity/unity/artifacts/generated/UnityEvent/UnityEvent_1.cs:59)
+UnityEditor.TestTools.TestRunner.TestRun.Tasks.Events.RunStartedInvocationEvent/<Execute>d__0:MoveNext () (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/TestRun/Tasks/Events/RunStartedInvocationEvent.cs:15)
+UnityEditor.TestTools.TestRunner.TestRun.TestJobRunner:ExecuteStep () (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/TestRun/TestJobRunner.cs:194)
+UnityEditor.TestTools.TestRunner.TestRun.TestJobRunner:ExecuteCallback () (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/TestRun/TestJobRunner.cs:129)
+UnityEditor.EditorApplication:Internal_CallUpdateFunctions () (at /Users/bokken/build/output/unity/unity/Editor/Mono/EditorApplication.cs:403)
+
+(Filename: ./Library/PackageCache/com.coplaydev.unity-mcp@8bd91ce7bd3a/Editor/Helpers/McpLog.cs Line: 40)
+
+Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (LoadJoin) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl(92) (on metal)
+Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (CurvatureFactor) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl(120) (on metal)
+Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (ReadMaterial) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl(145) (on metal)
+Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (AddTap) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl(195) (on metal)
+Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (dominantMaterial) use of potentially uninitialized variable (dominantSurface) use of potentially uninitialized variable (SampleField) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl(290) (on metal)
+Shader warning in 'VoxelBrickMesher': integer modulus may be much slower, try using uints if possible. at kernel CSSampleDensity at VoxelBrickMesher.compute(144) (on metal)
+Shader warning in 'VoxelBrickMesher': integer divides may be much slower, try using uints if possible. at kernel CSSampleDensity at VoxelBrickMesher.compute(145) (on metal)
+Shader warning in 'VoxelBrickMesher': integer modulus may be much slower, try using uints if possible. at kernel CSSampleDensity at VoxelBrickMesher.compute(146) (on metal)
+Shader warning in 'VoxelBrickMesher': integer divides may be much slower, try using uints if possible. at kernel CSSampleDensity at VoxelBrickMesher.compute(147) (on metal)
+Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (LoadJoin) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl(92) (on metal)
+Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (CurvatureFactor) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl(120) (on metal)
+Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (ReadMaterial) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl(145) (on metal)
+Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (AddTap) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl(195) (on metal)
+Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (dominantMaterial) use of potentially uninitialized variable (dominantSurface) use of potentially uninitialized variable (SampleField) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl(290) (on metal)
+Shader warning in 'VoxelBrickMesher': integer modulus may be much slower, try using uints if possible. at kernel CSSampleDensity at VoxelBrickMesher.compute(144) (on metal)
+Shader warning in 'VoxelBrickMesher': integer divides may be much slower, try using uints if possible. at kernel CSSampleDensity at VoxelBrickMesher.compute(145) (on metal)
+Shader warning in 'VoxelBrickMesher': integer modulus may be much slower, try using uints if possible. at kernel CSSampleDensity at VoxelBrickMesher.compute(146) (on metal)
+Shader warning in 'VoxelBrickMesher': integer divides may be much slower, try using uints if possible. at kernel CSSampleDensity at VoxelBrickMesher.compute(147) (on metal)
+Shader warning in 'VoxelBrickMesher': integer modulus may be much slower, try using uints if possible. at kernel CSCountCells at VoxelBrickMesher.compute(171) (on metal)
+Shader warning in 'VoxelBrickMesher': integer divides may be much slower, try using uints if possible. at kernel CSCountCells at VoxelBrickMesher.compute(172) (on metal)
+Shader warning in 'VoxelBrickMesher': integer modulus may be much slower, try using uints if possible. at kernel CSCountCells at VoxelBrickMesher.compute(172) (on metal)
+Shader warning in 'VoxelBrickMesher': integer divides may be much slower, try using uints if possible. at kernel CSCountCells at VoxelBrickMesher.compute(173) (on metal)
+Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (LoadJoin) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl(92) (on metal)
+Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (CurvatureFactor) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl(120) (on metal)
+Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (ReadMaterial) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl(145) (on metal)
+Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (AddTap) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl(195) (on metal)
+Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (dominantMaterial) use of potentially uninitialized variable (dominantSurface) use of potentially uninitialized variable (SampleField) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl(290) (on metal)
+Shader warning in 'VoxelBrickMesher': integer modulus may be much slower, try using uints if possible. at kernel CSSampleDensity at VoxelBrickMesher.compute(144) (on metal)
+Shader warning in 'VoxelBrickMesher': integer divides may be much slower, try using uints if possible. at kernel CSSampleDensity at VoxelBrickMesher.compute(145) (on metal)
+Shader warning in 'VoxelBrickMesher': integer modulus may be much slower, try using uints if possible. at kernel CSSampleDensity at VoxelBrickMesher.compute(146) (on metal)
+Shader warning in 'VoxelBrickMesher': integer divides may be much slower, try using uints if possible. at kernel CSSampleDensity at VoxelBrickMesher.compute(147) (on metal)
+Shader warning in 'VoxelBrickMesher': integer modulus may be much slower, try using uints if possible. at kernel CSCountCells at VoxelBrickMesher.compute(171) (on metal)
+Shader warning in 'VoxelBrickMesher': integer divides may be much slower, try using uints if possible. at kernel CSCountCells at VoxelBrickMesher.compute(172) (on metal)
+Shader warning in 'VoxelBrickMesher': integer modulus may be much slower, try using uints if possible. at kernel CSCountCells at VoxelBrickMesher.compute(172) (on metal)
+Shader warning in 'VoxelBrickMesher': integer divides may be much slower, try using uints if possible. at kernel CSCountCells at VoxelBrickMesher.compute(173) (on metal)
+Shader warning in 'VoxelBrickMesher': integer modulus may be much slower, try using uints if possible. at kernel CSWriteCells at VoxelBrickMesher.compute(265) (on metal)
+Shader warning in 'VoxelBrickMesher': integer divides may be much slower, try using uints if possible. at kernel CSWriteCells at VoxelBrickMesher.compute(266) (on metal)
+Shader warning in 'VoxelBrickMesher': integer modulus may be much slower, try using uints if possible. at kernel CSWriteCells at VoxelBrickMesher.compute(266) (on metal)
+Shader warning in 'VoxelBrickMesher': integer divides may be much slower, try using uints if possible. at kernel CSWriteCells at VoxelBrickMesher.compute(267) (on metal)
+<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+UnityEngine.Debug:ExtractStackTraceNoAlloc (byte*,int,string)
+UnityEngine.StackTraceUtility:ExtractStackTrace () (at /Users/bokken/build/output/unity/unity/Runtime/Export/Scripting/StackTrace.cs:35)
+UnityEngine.DebugLogHandler:Internal_Log (UnityEngine.LogType,UnityEngine.LogOption,string,UnityEngine.Object)
+UnityEngine.DebugLogHandler:LogFormat (UnityEngine.LogType,UnityEngine.Object,string,object[])
+UnityEngine.Logger:Log (UnityEngine.LogType,object)
+UnityEngine.Debug:Log (object)
+MCPForUnity.Editor.Helpers.McpLog:Info (string,bool) (at ./Library/PackageCache/com.coplaydev.unity-mcp@8bd91ce7bd3a/Editor/Helpers/McpLog.cs:40)
+MCPForUnity.Editor.Services.TestRunnerNoThrottle:RestoreThrottling () (at ./Library/PackageCache/com.coplaydev.unity-mcp@8bd91ce7bd3a/Editor/Services/TestRunnerNoThrottle.cs:114)
+MCPForUnity.Editor.Services.TestRunnerNoThrottle/TestCallbacks:RunFinished (UnityEditor.TestTools.TestRunner.Api.ITestResultAdaptor) (at ./Library/PackageCache/com.coplaydev.unity-mcp@8bd91ce7bd3a/Editor/Services/TestRunnerNoThrottle.cs:143)
+UnityEditor.TestTools.TestRunner.Api.CallbacksDelegator/<>c__DisplayClass9_0:<RunFinished>b__0 (UnityEditor.TestTools.TestRunner.Api.ICallbacks) (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/Api/CallbacksDelegator.cs:55)
+UnityEditor.TestTools.TestRunner.Api.CallbacksDelegator:TryInvokeAllCallbacks (System.Action`1<UnityEditor.TestTools.TestRunner.Api.ICallbacks>) (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/Api/CallbacksDelegator.cs:135)
+UnityEditor.TestTools.TestRunner.Api.CallbacksDelegator:RunFinished (NUnit.Framework.Interfaces.ITestResult) (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/Api/CallbacksDelegator.cs:55)
+UnityEngine.Events.InvokableCall`1<NUnit.Framework.Interfaces.ITestResult>:Invoke (NUnit.Framework.Interfaces.ITestResult) (at /Users/bokken/build/output/unity/unity/Runtime/Export/UnityEvent/UnityEvent.cs:222)
+UnityEngine.Events.UnityEvent`1<NUnit.Framework.Interfaces.ITestResult>:Invoke (NUnit.Framework.Interfaces.ITestResult) (at /Users/bokken/build/output/unity/unity/artifacts/generated/UnityEvent/UnityEvent_1.cs:59)
+UnityEditor.TestTools.TestRunner.TestRun.Tasks.Events.RunFinishedInvocationEvent/<Execute>d__0:MoveNext () (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/TestRun/Tasks/Events/RunFinishedInvocationEvent.cs:24)
+UnityEditor.TestTools.TestRunner.TestRun.TestJobRunner:ExecuteStep () (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/TestRun/TestJobRunner.cs:194)
+UnityEditor.TestTools.TestRunner.TestRun.TestJobRunner:ExecuteCallback () (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/TestRun/TestJobRunner.cs:129)
+UnityEditor.EditorApplication:Internal_CallUpdateFunctions () (at /Users/bokken/build/output/unity/unity/Editor/Mono/EditorApplication.cs:403)
+
+(Filename: ./Library/PackageCache/com.coplaydev.unity-mcp@8bd91ce7bd3a/Editor/Helpers/McpLog.cs Line: 40)
+
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+Saving results to: /Users/jlashmet/tmp/_work/voxel/voxel/Artifacts/SceneIssue014011DensityOracle/results.xml
+Executing IPostBuildCleanup for: Unity.PerformanceTesting.Editor.TestRunBuilder.
+UnityEngine.Debug:ExtractStackTraceNoAlloc (byte*,int,string)
+UnityEngine.StackTraceUtility:ExtractStackTrace () (at /Users/bokken/build/output/unity/unity/Runtime/Export/Scripting/StackTrace.cs:35)
+UnityEngine.DebugLogHandler:Internal_Log (UnityEngine.LogType,UnityEngine.LogOption,string,UnityEngine.Object)
+UnityEngine.DebugLogHandler:LogFormat (UnityEngine.LogType,UnityEngine.Object,string,object[])
+UnityEngine.Logger:Log (UnityEngine.LogType,object)
+UnityEngine.Debug:Log (object)
+UnityEditor.TestTools.TestRunner.TestRun.Tasks.BuildActionTaskBase`1/<ExecuteMethods>d__8<UnityEngine.TestTools.IPostBuildCleanup>:MoveNext () (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/TestRun/Tasks/BuildActionTaskBase.cs:48)
+UnityEditor.TestTools.TestRunner.TestRun.Tasks.BuildActionTaskBase`1/<Execute>d__7<UnityEngine.TestTools.IPostBuildCleanup>:MoveNext () (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/TestRun/Tasks/BuildActionTaskBase.cs:34)
+UnityEditor.TestTools.TestRunner.TestRun.TestJobRunner:ExecuteStep () (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/TestRun/TestJobRunner.cs:194)
+UnityEditor.TestTools.TestRunner.TestRun.TestJobRunner:ExecuteCallback () (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/TestRun/TestJobRunner.cs:129)
+UnityEditor.EditorApplication:Internal_CallUpdateFunctions () (at /Users/bokken/build/output/unity/unity/Editor/Mono/EditorApplication.cs:403)
+
+(Filename: ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/TestRun/Tasks/BuildActionTaskBase.cs Line: 48)
+
+Unloading 1 Unused Serialized files (Serialized files now loaded: 0)
+Unloading 1 unused Assets / (170.2 KB). Loaded Objects now: 8877.
+Memory consumption went from 505.8 MB to 505.6 MB.
+Total: 17.122333 ms (FindLiveObjects: 0.139166 ms CreateObjectMapping: 0.584125 ms MarkObjects: 16.268333 ms  DeleteObjects: 0.130500 ms)
+
+DisplayProgressbar: Undo
+Test run completed. Exiting with code 0 (Ok). Run completed.
+UnityEngine.Debug:ExtractStackTraceNoAlloc (byte*,int,string)
+UnityEngine.StackTraceUtility:ExtractStackTrace () (at /Users/bokken/build/output/unity/unity/Runtime/Export/Scripting/StackTrace.cs:35)
+UnityEngine.DebugLogHandler:Internal_Log (UnityEngine.LogType,UnityEngine.LogOption,string,UnityEngine.Object)
+UnityEngine.DebugLogHandler:LogFormat (UnityEngine.LogType,UnityEngine.Object,string,object[])
+UnityEngine.Logger:Log (UnityEngine.LogType,object)
+UnityEngine.Debug:Log (object)
+UnityEditor.TestTools.TestRunner.CommandLineTest.Executer:ExitApplication (UnityEditor.TestTools.TestRunner.CommandLineTest.Executer/ReturnCodes,string) (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/CommandLineTest/Executer.cs:81)
+UnityEditor.TestTools.TestRunner.CommandLineTest.Executer:ExitIfRunIsCompleted () (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/CommandLineTest/Executer.cs:74)
+UnityEditor.EditorApplication:Internal_CallUpdateFunctions () (at /Users/bokken/build/output/unity/unity/Editor/Mono/EditorApplication.cs:403)
+
+(Filename: ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/CommandLineTest/Executer.cs Line: 81)
+
+MonoPathRemapper: Attempts to remap: 73568; Successful remaps: 2176
+Serialized file version minimum: 22, current 23
+Thread 0x35dc87000 may have been prematurely finalized
+Shutting down MSBuild server...
+Shutting down VB/C# compiler server...
+VB/C# compiler server shut down successfully.
+Input System module state changed to: ShutdownInProgress.
+Input Polling Thread exited.
+Input System module state changed to: Shutdown.
+MSBuild server shut down successfully.
+[Physics::Module] Cleanup current backend.
+[Physics::Module] Id: 0xf2b8ea05
+[Licensing::IpcConnector] LicenseClient-jlashmet-6000.5.6-notifications channel disconnected successfully.
+[Licensing::IpcConnector] LicenseClient-jlashmet-6000.5.6 channel disconnected successfully.
+Thread 0x17122b000 may have been prematurely finalized
+AcceleratorClientConnectionCallback - disconnected - :0
+Thread 0x172c23000 may have been prematurely finalized
+info: Microsoft.Hosting.Lifetime[0]
+      Application is shutting down...
+Cleanup mono
+CodeReloadManager destroyed
+info: Unity.ILPP.Runner.PostProcessingAssemblyLoadContext[0]
+      ALC ILPP context 1 is unloading
+debugger-agent: Unable to listen on 37
