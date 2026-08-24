@@ -64,4 +64,5 @@ pose and disappears after the player moves a few steps to the second pose.
 - [x] Preserve and document the existing smallest causal boundary-ownership fix.
 - [x] Run focused affected Unity validation: boundary/parity and HLOD summaries pass 13/13.
 - [x] Replay both saved poses and compare terrain stability.
-- [ ] Review, commit, push, resolve `issue.json` separately, and confirm branch cleanup.
+- [x] Review, commit, push, resolve `issue.json` separately, and confirm no `ci-test/fixes`
+      branch exists locally or on `origin`.
