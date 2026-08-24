@@ -32,7 +32,7 @@ masonry joints, the arch opening, authored profile ownership, and authoritative 
 - [x] Isolate the responsible ownership/authoring invariant.
 - [x] Add a focused regression and implement the proven fix.
 - [x] Run affected tests and final exact replay.
-- [ ] Review, commit/push, and resolve the manifest separately.
+- [x] Review, commit/push, and resolve the manifest separately.
 
 ## Findings
 
