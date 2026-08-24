@@ -140,6 +140,44 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void HightownVoxelCatalogueDoesNotEmitSouthOfTheCountryMidpoint()
+        {
+            SettlementPlan kentridge = KentridgeDefinition.Build(Seed);
+            SettlementPlan hightown = HightownDefinition.Build(Seed);
+            int midpointZ = (kentridge.CentreDm.Y + hightown.CentreDm.Y) / 2;
+            var settings = new VoxelWorldGenSettings(1, DefaultMaterials());
+            FeatureCatalogue catalogue = HightownVoxelCatalogue.Build(
+                hightown,
+                settings,
+                Allocator.Temp);
+
+            try
+            {
+                var leaked = new List<string>();
+                for (int ruleIndex = 0; ruleIndex < catalogue.Rules.Length; ruleIndex++)
+                {
+                    PlacementRule rule = catalogue.Rules[ruleIndex];
+                    FeatureDefinition definition = catalogue.Definitions[rule.DefinitionId];
+                    for (int i = 0; i < rule.ExplicitCount; i++)
+                    {
+                        ExplicitPlacement placement = catalogue.ExplicitPlacements[
+                            rule.ExplicitOffset + i];
+                        if (placement.Position.z >= midpointZ) continue;
+                        leaked.Add(definition.Name + "@" + placement.Position);
+                    }
+                }
+
+                Assert.That(leaked, Is.Empty,
+                    "A Hightown-only catalogue emitted placements on Kentridge's side of the "
+                    + "country midpoint: " + string.Join("; ", leaked));
+            }
+            finally
+            {
+                catalogue.Dispose();
+            }
+        }
+
+        [Test]
         public void TheBridgeCarriesTheRoadClearOverTheRiver()
         {
             SettlementPlan kentridge = KentridgeDefinition.Build(Seed);

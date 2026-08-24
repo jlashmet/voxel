@@ -6,6 +6,9 @@ using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
+using Unity.Mathematics;
+using VoxelEngine.Showcase;
+using VoxelEngine.Storage.Api;
 
 namespace VoxelEngine.Tests.PlayMode
 {
@@ -20,6 +23,9 @@ namespace VoxelEngine.Tests.PlayMode
         private const string DriverTypeName = "Game.Kentridge.PlayableSlice.KentridgePlayableSlice";
         private const float MinimumBodyViewportHeight = 0.18f;
         private const float ViewportMargin = 0.04f;
+        private static readonly Vector3 CapturedCameraPosition = new Vector3(137.2f, 29.5f, 74.8f);
+        private static readonly Quaternion CapturedCameraRotation =
+            new Quaternion(0.37510243f, -0.5994149f, 0.37510243f, 0.59941494f);
 
         private Scene _loadedScene;
         private Scene _previousActiveScene;
@@ -108,6 +114,70 @@ namespace VoxelEngine.Tests.PlayMode
                     ReadActorRoot(madelineActor),
                     ReadActorRoot(stevenActor),
                     ReadActorRoot(loganActor)
+                });
+        }
+
+        [UnityTest]
+        public IEnumerator CapturedOpeningCameraHasAuthoritativeLineOfSightToInitialCast()
+        {
+            _previousActiveScene = SceneManager.GetActiveScene();
+
+            AsyncOperation load = SceneManager.LoadSceneAsync(SceneName, LoadSceneMode.Additive);
+            Assert.That(load, Is.Not.Null, "The Kentridge playable scene must be loadable from build settings.");
+            while (!load.isDone) yield return null;
+
+            _loadedScene = SceneManager.GetSceneByName(SceneName);
+            Assert.That(_loadedScene.IsValid() && _loadedScene.isLoaded, Is.True,
+                "The Kentridge playable scene failed to load.");
+            Assert.That(SceneManager.SetActiveScene(_loadedScene), Is.True);
+            yield return null;
+
+            Component driver = FindDriver(_loadedScene);
+            Assert.That(driver, Is.Not.Null, "The production Kentridge playable driver must own this acceptance.");
+
+            for (var frame = 0; frame < 1200 && !ReadBoolProperty(driver, "OpeningCutsceneStarted"); frame++)
+                yield return null;
+
+            Assert.That(ReadBoolProperty(driver, "OpeningCutsceneStarted"), Is.True,
+                "The opening never started after the generated Pub became presentation-ready.");
+
+            Time.captureDeltaTime = 0.1f;
+            for (var frame = 0; frame < 100 && !HasPendingDialogue(driver); frame++)
+                yield return null;
+            Assert.That(HasPendingDialogue(driver), Is.True,
+                "The production opening never reached the captured first dialogue beat.");
+
+            Camera openingCamera = driver.GetComponent<Camera>();
+            Assert.That(openingCamera, Is.Not.Null,
+                "The production opening driver must share the captured camera.");
+            openingCamera.transform.SetPositionAndRotation(
+                CapturedCameraPosition,
+                CapturedCameraRotation);
+            openingCamera.fieldOfView = 58f;
+            Assert.That(Vector3.Distance(openingCamera.transform.position, CapturedCameraPosition),
+                Is.LessThan(0.001f), "The line-of-sight regression must use the saved issue position.");
+            Assert.That(Quaternion.Angle(openingCamera.transform.rotation, CapturedCameraRotation),
+                Is.LessThan(0.01f), "The line-of-sight regression must use the saved issue rotation.");
+            Assert.That(openingCamera.fieldOfView, Is.EqualTo(58f).Within(0.001f),
+                "The line-of-sight regression must use the saved issue field of view.");
+
+            object madelineActor = FindNpcActor(driver, "madeline");
+            object stevenActor = FindNpcActor(driver, "steven");
+            Component openingPresentation = driver.GetComponent("KentridgeOpeningPresentation");
+            Assert.That(openingPresentation, Is.Not.Null,
+                "The production opening must own its bounded voxel cutaway.");
+
+            AssertTorsoLineOfSight(
+                openingCamera,
+                ReadPrivateField<ShowcaseWorld>(driver, "_world"),
+                ReadPrivateField<Vector3>(openingPresentation, "_cutawayMinVoxel"),
+                ReadPrivateField<Vector3>(openingPresentation, "_cutawayMaxVoxel"),
+                new[] { "Weldon", "Madeline", "Steven" },
+                new[]
+                {
+                    GameObject.Find("Weldon"),
+                    ReadActorRoot(madelineActor),
+                    ReadActorRoot(stevenActor)
                 });
         }
 
@@ -222,6 +292,53 @@ namespace VoxelEngine.Tests.PlayMode
             }
 
             return new ViewportMeasurement(minX, minY, maxX, maxY);
+        }
+
+        private static void AssertTorsoLineOfSight(
+            Camera camera,
+            ShowcaseWorld world,
+            Vector3 cutawayMinVoxel,
+            Vector3 cutawayMaxVoxel,
+            string[] participants,
+            GameObject[] roots)
+        {
+            Assert.That(participants.Length, Is.EqualTo(roots.Length));
+            for (int i = 0; i < participants.Length; i++)
+            {
+                Vector3 target = roots[i].transform.position + Vector3.up * 0.9f;
+                Vector3 delta = target - camera.transform.position;
+                float distance = delta.magnitude;
+                Vector3 direction = delta / distance;
+                int3 previousVoxel = new int3(int.MinValue);
+
+                for (float travelled = 0.1f; travelled < distance - 0.1f; travelled += 0.025f)
+                {
+                    Vector3 point = camera.transform.position + direction * travelled;
+                    Vector3 voxelPoint = point * 10f;
+                    int3 voxel = (int3)math.floor((float3)voxelPoint);
+                    if (math.all(voxel == previousVoxel)) continue;
+                    previousVoxel = voxel;
+
+                    bool cutAway = voxelPoint.x >= cutawayMinVoxel.x
+                                && voxelPoint.y >= cutawayMinVoxel.y
+                                && voxelPoint.z >= cutawayMinVoxel.z
+                                && voxelPoint.x <= cutawayMaxVoxel.x
+                                && voxelPoint.y <= cutawayMaxVoxel.y
+                                && voxelPoint.z <= cutawayMaxVoxel.z;
+                    if (cutAway) continue;
+
+                    if (world.SurfaceQuery.TryRead(voxel, out VoxelCell cell)
+                        && cell.BaseMaterialId != VoxelGrid.MaterialEmpty)
+                    {
+                        Assert.Fail(
+                            participants[i] + " torso is hidden by authoritative material "
+                            + cell.BaseMaterialId + " at voxel " + voxel
+                            + " outside the opening cutaway; camera="
+                            + camera.transform.position.ToString("F3")
+                            + " target=" + target.ToString("F3") + ".");
+                    }
+                }
+            }
         }
 
         private readonly struct ViewportMeasurement

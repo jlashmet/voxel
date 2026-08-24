@@ -10,11 +10,14 @@ using Game.Cutscenes.Content.Kentridge;
 using Game.WorldBuilder.Api;
 using MountingForce.WorldGen;
 using MountingForce.WorldGen.Content.Kentridge;
+using MountingForce.WorldGen.Content.Hightown;
 using MountingForce.WorldGen.Voxel;
 using NUnit.Framework;
 using Unity.Collections;
 using UnityEngine;
+using Unity.Mathematics;
 using VoxelEngine.Showcase;
+using VoxelEngine.Storage.Api;
 using VoxelEngine.Structures.Api;
 
 namespace VoxelEngine.Tests.PlayMode
@@ -206,6 +209,59 @@ namespace VoxelEngine.Tests.PlayMode
             }
         }
 
+        [Test]
+        public void ProductionCatalogueCompositionLeavesOpeningTorsoVoxelClear()
+        {
+            KnownOpeningCampaignContent content = KnownOpeningCampaignContent.Build(
+                DialogueOnly("destination-conversation"));
+            SettlementPlan kentridgePlan = KentridgeDefinition.Build(Seed);
+            SettlementPlan hightownPlan = HightownDefinition.Build(Seed);
+            KentridgeCampaignGenerationPlan generation = KentridgeCampaignSessionBootstrap.Plan(
+                content.Blueprint,
+                kentridgePlan);
+            VoxelWorldGenSettings kentridgeSettings = BuildProductionSettings(kentridge: true);
+            VoxelWorldGenSettings hightownSettings = BuildProductionSettings(kentridge: false);
+
+            FeatureCatalogue kentridge = KentridgeCombinedVoxelCatalogue.Build(
+                kentridgePlan,
+                kentridgeSettings,
+                generation.HiddenSpaces,
+                Allocator.Temp);
+            FeatureCatalogue hightown = HightownVoxelCatalogue.Build(
+                hightownPlan,
+                hightownSettings,
+                Allocator.Temp);
+            FeatureCatalogue corridor = RegionCorridorCatalogue.Build(
+                Seed,
+                kentridgeSettings,
+                kentridgePlan.CentreDm,
+                hightownPlan.CentreDm,
+                Allocator.Temp);
+
+            try
+            {
+                int3 torsoVoxel = new int3(1339, 231, 757);
+                byte k = SampleComposition(torsoVoxel, kentridge);
+                byte kh = SampleComposition(torsoVoxel, kentridge, hightown);
+                byte kc = SampleComposition(torsoVoxel, kentridge, corridor);
+                byte khc = SampleComposition(torsoVoxel, kentridge, hightown, corridor);
+                string evidence = "KENTRIDGE_TORSO_COMPOSITION voxel=" + torsoVoxel
+                                + " k=" + k + " kh=" + kh + " kc=" + kc + " khc=" + khc;
+                Debug.Log(evidence);
+
+                Assert.That(k, Is.EqualTo(VoxelGrid.MaterialEmpty), evidence);
+                Assert.That(khc, Is.EqualTo(VoxelGrid.MaterialEmpty),
+                    "The production two-town/corridor catalogue must not author solid occupancy "
+                    + "inside the opening cast. " + evidence);
+            }
+            finally
+            {
+                kentridge.Dispose();
+                hightown.Dispose();
+                corridor.Dispose();
+            }
+        }
+
         private static bool WalkTo(
             CharacterMotor motor,
             ShowcaseWorld world,
@@ -228,6 +284,34 @@ namespace VoxelEngine.Tests.PlayMode
 
         private static void GenerateAt(ShowcaseWorld world, RealizedWorldPoint point) =>
             world.GenerateRegionBlocking(ShowcaseWorld.RegionAt(ToMetres(point)));
+
+        private static byte Get(ShowcaseWorld world, int x, int y, int z) =>
+            world.SurfaceQuery.TryRead(new int3(x, y, z), out VoxelCell cell)
+                ? cell.BaseMaterialId
+                : VoxelGrid.MaterialEmpty;
+
+        private static byte SampleComposition(int3 voxel, params FeatureCatalogue[] catalogues)
+        {
+            FeatureCatalogue combined = default;
+            ShowcaseWorld world = null;
+            try
+            {
+                combined = SettlementCatalogueCombiner.Combine(
+                    Allocator.Persistent,
+                    catalogues);
+                world = new ShowcaseWorld(Seed, 65536, 2, 3);
+                world.ConfigureGeneratedContentForGameplay(combined);
+                combined = default;
+                world.GenerateRegionBlocking(ShowcaseWorld.RegionAt(
+                    new Vector3(voxel.x, voxel.y, voxel.z) * DecimetresToMetres));
+                return Get(world, voxel.x, voxel.y, voxel.z);
+            }
+            finally
+            {
+                world?.Dispose();
+                if (combined.IsCreated) combined.Dispose();
+            }
+        }
 
         private static Vector3 ToMetres(CutsceneInt3 point) =>
             new Vector3(
@@ -261,6 +345,24 @@ namespace VoxelEngine.Tests.PlayMode
             var materials = new VoxelMaterialMap(
                 foundationStone: 1,
                 masonry: 1,
+                darkMasonry: 6,
+                timber: 2,
+                glass: 4,
+                warmWindow: 15,
+                roofTile: 8,
+                slate: 7,
+                cloth: 9,
+                moss: 14,
+                water: 11,
+                roadSurface: 13);
+            return new VoxelWorldGenSettings(1, materials);
+        }
+
+        private static VoxelWorldGenSettings BuildProductionSettings(bool kentridge)
+        {
+            var materials = new VoxelMaterialMap(
+                foundationStone: kentridge ? (byte)20 : (byte)6,
+                masonry: kentridge ? (byte)18 : (byte)1,
                 darkMasonry: 6,
                 timber: 2,
                 glass: 4,

@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="1" result="Failed(Child)" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-24 19:08:37Z" end-time="2026-08-24 19:09:08Z" duration="31.5895568">
+  <test-suite type="TestSuite" id="1553" name="voxel" fullname="voxel" runstate="Runnable" testcasecount="401" result="Failed" site="Child" start-time="2026-08-24 19:08:37Z" end-time="2026-08-24 19:09:08Z" duration="31.589557" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="PlayMode" />
+    </properties>
+    <failure>
+      <message><![CDATA[One or more child tests had errors]]></message>
+    </failure>
+    <test-suite type="Assembly" id="1549" name="VoxelEngine.Tests.PlayMode.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/VoxelEngine.Tests.PlayMode.dll" runstate="Runnable" testcasecount="164" result="Failed" site="Child" start-time="2026-08-24 19:08:37Z" end-time="2026-08-24 19:09:08Z" duration="31.582457" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="49104" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="PlayMode" />
+        <property name="EditorOnly" value="False" />
+      </properties>
+      <failure>
+        <message><![CDATA[One or more child tests had errors]]></message>
+      </failure>
+      <test-suite type="TestSuite" id="1550" name="VoxelEngine" fullname="VoxelEngine" runstate="Runnable" testcasecount="164" result="Failed" site="Child" start-time="2026-08-24 19:08:37Z" end-time="2026-08-24 19:09:08Z" duration="31.581427" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <failure>
+          <message><![CDATA[One or more child tests had errors]]></message>
+        </failure>
+        <test-suite type="TestSuite" id="1551" name="Tests" fullname="VoxelEngine.Tests" runstate="Runnable" testcasecount="164" result="Failed" site="Child" start-time="2026-08-24 19:08:37Z" end-time="2026-08-24 19:09:08Z" duration="31.580446" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <failure>
+            <message><![CDATA[One or more child tests had errors]]></message>
+          </failure>
+          <test-suite type="TestSuite" id="1552" name="PlayMode" fullname="VoxelEngine.Tests.PlayMode" runstate="Runnable" testcasecount="164" result="Failed" site="Child" start-time="2026-08-24 19:08:37Z" end-time="2026-08-24 19:09:08Z" duration="31.579543" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <failure>
+              <message><![CDATA[One or more child tests had errors]]></message>
+            </failure>
+            <test-suite type="TestFixture" id="1414" name="KentridgeOpeningCameraReadabilityTests" fullname="VoxelEngine.Tests.PlayMode.KentridgeOpeningCameraReadabilityTests" classname="VoxelEngine.Tests.PlayMode.KentridgeOpeningCameraReadabilityTests" runstate="Runnable" testcasecount="1" result="Failed" site="Child" start-time="2026-08-24 19:08:37Z" end-time="2026-08-24 19:09:08Z" duration="31.575359" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <failure>
+                <message><![CDATA[One or more child tests had errors]]></message>
+              </failure>
+              <test-case id="1415" name="OpeningCameraKeepsConversationParticipantsReadable" fullname="VoxelEngine.Tests.PlayMode.KentridgeOpeningCameraReadabilityTests.OpeningCameraKeepsConversationParticipantsReadable" methodname="OpeningCameraKeepsConversationParticipantsReadable" classname="VoxelEngine.Tests.PlayMode.KentridgeOpeningCameraReadabilityTests" runstate="Runnable" seed="1180734301" result="Failed" start-time="2026-08-24 19:08:37Z" end-time="2026-08-24 19:09:08Z" duration="31.570558" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <failure>
+                  <message><![CDATA[Opening camera readability failed at Logan line 11: Weldon height=0.165, Madeline height=0.172, Steven height=0.145, Logan height=0.145. Full envelope: Weldon=h=0.165 w=0.151 bounds=(0.523,0.449)-(0.675,0.614); Madeline=h=0.172 w=0.153 bounds=(0.324,0.447)-(0.477,0.620); Steven=h=0.145 w=0.140 bounds=(0.430,0.460)-(0.570,0.605); Logan=h=0.145 w=0.147 bounds=(0.427,0.396)-(0.574,0.541)]]></message>
+                  <stack-trace><![CDATA[at VoxelEngine.Tests.PlayMode.KentridgeOpeningCameraReadabilityTests.AssertPhaseReadable (UnityEngine.Camera camera, System.String phase, System.String[] participants, UnityEngine.GameObject[] visualRoots) [0x0018d] in /Users/jlashmet/code/voxel/Assets/Tests/PlayMode/KentridgeOpeningCameraReadabilityTests.cs:167
+at VoxelEngine.Tests.PlayMode.KentridgeOpeningCameraReadabilityTests+<OpeningCameraKeepsConversationParticipantsReadable>d__6.MoveNext () [0x0041f] in /Users/jlashmet/code/voxel/Assets/Tests/PlayMode/KentridgeOpeningCameraReadabilityTests.cs:101
+at UnityEngine.TestTools.TestEnumerator+<Execute>d__7.MoveNext () [0x0003a] in ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEngine.TestRunner/NUnitExtensions/Attributes/TestEnumerator.cs:44
+]]></stack-trace>
+                </failure>
+                <output><![CDATA[Kentridge region life: 823 trees, 3435 ground cover, 32 wildlife clusters.
+SCENEISSUE camera pinned at (137.20, 29.50, 74.80) fov=58
+[VoxelResidency] residentRegions=16 mixed=67,415/262,144 evicted=0 reclaimedMixed=0
+KENTRIDGE_ACTOR_WORLD_BOUNDS participant=Weldon at line 1 root=(133.700, 21.900, 75.800) min=(133.010, 21.868, 75.565) max=(134.391, 23.716, 76.003) camera=(137.200, 29.500, 74.800)
+KENTRIDGE_ACTOR_WORLD_BOUNDS participant=Madeline at line 1 root=(133.700, 21.900, 73.800) min=(133.016, 21.897, 73.623) max=(134.384, 23.745, 74.009) camera=(137.200, 29.500, 74.800)
+KENTRIDGE_ACTOR_WORLD_BOUNDS participant=Steven at line 1 root=(133.700, 21.900, 74.800) min=(133.016, 21.897, 74.623) max=(134.384, 23.745, 75.009) camera=(137.200, 29.500, 74.800)
+KENTRIDGE_CAMERA_READABILITY phase=line 1 Weldon=h=0.249 w=0.067 bounds=(0.560,0.410)-(0.627,0.659); Madeline=h=0.249 w=0.062 bounds=(0.376,0.412)-(0.438,0.661); Steven=h=0.249 w=0.041 bounds=(0.481,0.412)-(0.522,0.661)
+KENTRIDGE_ACTOR_WORLD_BOUNDS participant=Weldon at Logan line 11 root=(133.700, 21.900, 75.800) min=(133.423, 21.868, 75.093) max=(134.009, 23.716, 76.502) camera=(137.200, 29.500, 74.800)
+KENTRIDGE_ACTOR_WORLD_BOUNDS participant=Madeline at Logan line 11 root=(133.700, 21.900, 73.800) min=(133.394, 21.897, 73.096) max=(134.038, 23.745, 74.510) camera=(137.200, 29.500, 74.800)
+KENTRIDGE_ACTOR_WORLD_BOUNDS participant=Steven at Logan line 11 root=(133.700, 21.900, 74.800) min=(133.524, 21.897, 74.116) max=(133.908, 23.745, 75.484) camera=(137.200, 29.500, 74.800)
+KENTRIDGE_ACTOR_WORLD_BOUNDS participant=Logan at Logan line 11 root=(134.300, 21.900, 74.800) min=(134.051, 21.856, 74.107) max=(134.517, 23.704, 75.495) camera=(137.200, 29.500, 74.800)
+KENTRIDGE_CAMERA_READABILITY phase=Logan line 11 Weldon=h=0.165 w=0.151 bounds=(0.523,0.449)-(0.675,0.614); Madeline=h=0.172 w=0.153 bounds=(0.324,0.447)-(0.477,0.620); Steven=h=0.145 w=0.140 bounds=(0.430,0.460)-(0.570,0.605); Logan=h=0.145 w=0.147 bounds=(0.427,0.396)-(0.574,0.541)
+<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

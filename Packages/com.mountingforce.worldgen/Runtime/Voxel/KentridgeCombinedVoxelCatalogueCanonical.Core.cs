@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Unity.Collections;
 
 using VoxelEngine.Structures.Api;
@@ -10,46 +11,54 @@ namespace MountingForce.WorldGen.Voxel
         public static FeatureCatalogue Build(uint seed, VoxelWorldGenSettings settings,
                                              Allocator allocator)
         {
-            FeatureCatalogue[] stages =
-            {
-                KentridgeGroundCoverCatalogue.Build(seed, settings, Allocator.Temp),
-                KentridgeDistrictTerraceCatalogue.Build(seed, settings, Allocator.Temp),
-                KentridgeTerraceSurfaceCorrectionCatalogue.Build(seed, settings, Allocator.Temp),
-                KentridgeDirectedTownSurfaceCatalogue.Build(seed, settings, Allocator.Temp),
-                KentridgeProcessionalClimbCatalogue.Build(seed, settings, Allocator.Temp),
-                KentridgeUrbanCirculationCatalogue.Build(seed, settings, Allocator.Temp),
-                KentridgeVerticalConnectorCatalogue.Build(seed, settings, Allocator.Temp),
-                KentridgeTerraceSupportCatalogue.Build(seed, settings, Allocator.Temp),
-                KentridgeVerticalPlacementAdapter.BuildPlotSurfaces(seed, settings, Allocator.Temp),
-                KentridgeUrbanSidewalkCatalogue.Build(seed, settings, Allocator.Temp),
-                KentridgeFrontagePathCatalogue.Build(seed, settings, Allocator.Temp),
-                KentridgeMarketPiazzaCatalogue.Build(seed, settings, Allocator.Temp),
-                KentridgeCivicForecourtCatalogue.Build(seed, settings, Allocator.Temp),
-                KentridgeStreetDressingCatalogue.Build(seed, settings, Allocator.Temp),
-                KentridgeVerticalPlacementAdapter.BuildPlotDressing(seed, settings, Allocator.Temp),
-                KentridgeVerticalPlacementAdapter.BuildTownDressing(seed, settings, Allocator.Temp),
-                KentridgeUrbanCourtCatalogue.Build(seed, settings, Allocator.Temp),
-                KentridgeVerticalFrontageCatalogue.Build(seed, settings, Allocator.Temp),
-                KentridgeFrontageAlignedUrbanFabricCatalogue.Build(seed, settings, Allocator.Temp),
-                KentridgeVerticalGalleryCatalogue.Build(seed, settings, Allocator.Temp),
-                KentridgeUpperSkybridgeCatalogue.Build(seed, settings, Allocator.Temp),
-                KentridgeUrbanAccessCatalogue.Build(seed, settings, Allocator.Temp),
-                KentridgeHillsideArchitectureCatalogue.Build(seed, settings, Allocator.Temp),
-                KentridgeSharedStructureVoxelCatalogue.Build(seed, settings, Allocator.Temp),
-            };
+            SettlementPlan settlement = SettlementVoxelPlan.Resolve(seed, in settings);
+            bool isKentridge = settlement.Theme.Id == Content.Kentridge.KentridgeDefinition.Id;
+            var stageList = new List<FeatureCatalogue>(isKentridge ? 25 : 9);
 
-            // The undercroft stage is authored around Kentridge's named pub and warehouse, and
-            // throws when they are absent. It is Kentridge content rather than part of the generic
-            // town pass, so a settlement without those roles simply does not get it.
-            if (SettlementVoxelPlan.Resolve(seed, in settings).Theme.Id
-                == Content.Kentridge.KentridgeDefinition.Id)
+            Add(stageList, KentridgeGroundCoverCatalogue.Build(seed, settings, Allocator.Temp));
+            if (isKentridge)
             {
-                var withUndercrofts = new FeatureCatalogue[stages.Length + 1];
-                Array.Copy(stages, withUndercrofts, stages.Length);
-                withUndercrofts[stages.Length] =
-                    KentridgeAnchorUndercroftCatalogue.Build(seed, settings, Allocator.Temp);
-                stages = withUndercrofts;
+                Add(stageList, KentridgeDistrictTerraceCatalogue.Build(seed, settings, Allocator.Temp));
+                Add(stageList, KentridgeTerraceSurfaceCorrectionCatalogue.Build(seed, settings, Allocator.Temp));
             }
+            Add(stageList, KentridgeDirectedTownSurfaceCatalogue.Build(seed, settings, Allocator.Temp));
+            if (isKentridge)
+            {
+                Add(stageList, KentridgeProcessionalClimbCatalogue.Build(seed, settings, Allocator.Temp));
+                Add(stageList, KentridgeUrbanCirculationCatalogue.Build(seed, settings, Allocator.Temp));
+                Add(stageList, KentridgeVerticalConnectorCatalogue.Build(seed, settings, Allocator.Temp));
+            }
+            Add(stageList, KentridgeTerraceSupportCatalogue.Build(seed, settings, Allocator.Temp));
+            Add(stageList, KentridgeVerticalPlacementAdapter.BuildPlotSurfaces(seed, settings, Allocator.Temp));
+            if (isKentridge)
+                Add(stageList, KentridgeUrbanSidewalkCatalogue.Build(seed, settings, Allocator.Temp));
+            Add(stageList, KentridgeFrontagePathCatalogue.Build(seed, settings, Allocator.Temp));
+            Add(stageList, KentridgeMarketPiazzaCatalogue.Build(seed, settings, Allocator.Temp));
+            if (isKentridge)
+            {
+                Add(stageList, KentridgeCivicForecourtCatalogue.Build(seed, settings, Allocator.Temp));
+                Add(stageList, KentridgeStreetDressingCatalogue.Build(seed, settings, Allocator.Temp));
+            }
+            Add(stageList, KentridgeVerticalPlacementAdapter.BuildPlotDressing(seed, settings, Allocator.Temp));
+            Add(stageList, KentridgeVerticalPlacementAdapter.BuildTownDressing(seed, settings, Allocator.Temp));
+            if (isKentridge)
+            {
+                Add(stageList, KentridgeUrbanCourtCatalogue.Build(seed, settings, Allocator.Temp));
+                Add(stageList, KentridgeVerticalFrontageCatalogue.Build(seed, settings, Allocator.Temp));
+                Add(stageList, KentridgeFrontageAlignedUrbanFabricCatalogue.Build(seed, settings, Allocator.Temp));
+                Add(stageList, KentridgeVerticalGalleryCatalogue.Build(seed, settings, Allocator.Temp));
+                Add(stageList, KentridgeUpperSkybridgeCatalogue.Build(seed, settings, Allocator.Temp));
+                Add(stageList, KentridgeUrbanAccessCatalogue.Build(seed, settings, Allocator.Temp));
+                Add(stageList, KentridgeHillsideArchitectureCatalogue.Build(seed, settings, Allocator.Temp));
+            }
+            Add(stageList, KentridgeSharedStructureVoxelCatalogue.Build(seed, settings, Allocator.Temp));
+
+            // Undercrofts are authored around Kentridge's named pub and warehouse rather than a
+            // settlement plan, so they remain part of the Kentridge-only stage sequence.
+            if (isKentridge)
+                Add(stageList, KentridgeAnchorUndercroftCatalogue.Build(seed, settings, Allocator.Temp));
+
+            FeatureCatalogue[] stages = stageList.ToArray();
 
             try
             {
@@ -94,5 +103,8 @@ namespace MountingForce.WorldGen.Voxel
                     if (stages[i].IsCreated) stages[i].Dispose();
             }
         }
+
+        private static void Add(List<FeatureCatalogue> stages, FeatureCatalogue stage) =>
+            stages.Add(stage);
     }
 }

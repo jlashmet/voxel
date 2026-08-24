@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="10" result="Passed" total="10" passed="10" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-24 19:27:31Z" end-time="2026-08-24 19:27:31Z" duration="0.1262273">
+  <test-suite type="TestSuite" id="1000" name="voxel" fullname="voxel" runstate="Runnable" testcasecount="1137" result="Passed" start-time="2026-08-24 19:27:31Z" end-time="2026-08-24 19:27:31Z" duration="0.126227" total="10" passed="10" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <test-suite type="Assembly" id="2457" name="VoxelEngine.Tests.EditMode.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/VoxelEngine.Tests.EditMode.dll" runstate="Runnable" testcasecount="806" result="Passed" start-time="2026-08-24 19:27:31Z" end-time="2026-08-24 19:27:31Z" duration="0.118172" total="10" passed="10" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="32328" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <test-suite type="TestSuite" id="2458" name="VoxelEngine" fullname="VoxelEngine" runstate="Runnable" testcasecount="806" result="Passed" start-time="2026-08-24 19:27:31Z" end-time="2026-08-24 19:27:31Z" duration="0.115458" total="10" passed="10" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="2459" name="Tests" fullname="VoxelEngine.Tests" runstate="Runnable" testcasecount="806" result="Passed" start-time="2026-08-24 19:27:31Z" end-time="2026-08-24 19:27:31Z" duration="0.112834" total="10" passed="10" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="2460" name="EditMode" fullname="VoxelEngine.Tests.EditMode" runstate="Runnable" testcasecount="806" result="Passed" start-time="2026-08-24 19:27:31Z" end-time="2026-08-24 19:27:31Z" duration="0.110100" total="10" passed="10" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="1874" name="KentridgeGenerationTests" fullname="VoxelEngine.Tests.EditMode.KentridgeGenerationTests" classname="VoxelEngine.Tests.EditMode.KentridgeGenerationTests" runstate="Runnable" testcasecount="10" result="Passed" start-time="2026-08-24 19:27:31Z" end-time="2026-08-24 19:27:31Z" duration="0.098697" total="10" passed="10" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1875" name="CatalogueEvaluatesEveryPlannedFeatureWithoutShowcase" fullname="VoxelEngine.Tests.EditMode.KentridgeGenerationTests.CatalogueEvaluatesEveryPlannedFeatureWithoutShowcase" methodname="CatalogueEvaluatesEveryPlannedFeatureWithoutShowcase" classname="VoxelEngine.Tests.EditMode.KentridgeGenerationTests" runstate="Runnable" seed="852695676" result="Passed" start-time="2026-08-24 19:27:31Z" end-time="2026-08-24 19:27:31Z" duration="0.090431" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1877" name="DistrictTerracesCreateNeighbourhoodScaleShelves" fullname="VoxelEngine.Tests.EditMode.KentridgeGenerationTests.DistrictTerracesCreateNeighbourhoodScaleShelves" methodname="DistrictTerracesCreateNeighbourhoodScaleShelves" classname="VoxelEngine.Tests.EditMode.KentridgeGenerationTests" runstate="Runnable" seed="165944679" result="Passed" start-time="2026-08-24 19:27:31Z" end-time="2026-08-24 19:27:31Z" duration="0.000408" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1878" name="EverySemanticPlotIsSupportedByASharedDistrictShelf" fullname="VoxelEngine.Tests.EditMode.KentridgeGenerationTests.EverySemanticPlotIsSupportedByASharedDistrictShelf" methodname="EverySemanticPlotIsSupportedByASharedDistrictShelf" classname="VoxelEngine.Tests.EditMode.KentridgeGenerationTests" runstate="Runnable" seed="387465037" result="Passed" start-time="2026-08-24 19:27:31Z" end-time="2026-08-24 19:27:31Z" duration="0.000392" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1876" name="MacroVerticalProfileCreatesARealTownClimb" fullname="VoxelEngine.Tests.EditMode.KentridgeGenerationTests.MacroVerticalProfileCreatesARealTownClimb" methodname="MacroVerticalProfileCreatesARealTownClimb" classname="VoxelEngine.Tests.EditMode.KentridgeGenerationTests" runstate="Runnable" seed="27650459" result="Passed" start-time="2026-08-24 19:27:31Z" end-time="2026-08-24 19:27:31Z" duration="0.000061" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1880" name="MarketDressingHasStablePropVocabularyAndPlacements" fullname="VoxelEngine.Tests.EditMode.KentridgeGenerationTests.MarketDressingHasStablePropVocabularyAndPlacements" methodname="MarketDressingHasStablePropVocabularyAndPlacements" classname="VoxelEngine.Tests.EditMode.KentridgeGenerationTests" runstate="Runnable" seed="446437207" result="Passed" start-time="2026-08-24 19:27:31Z" end-time="2026-08-24 19:27:31Z" duration="0.000166" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1879" name="ParcelSupportsAreShallowFoundationSkirtsNotTerrainColumns" fullname="VoxelEngine.Tests.EditMode.KentridgeGenerationTests.ParcelSupportsAreShallowFoundationSkirtsNotTerrainColumns" methodname="ParcelSupportsAreShallowFoundationSkirtsNotTerrainColumns" classname="VoxelEngine.Tests.EditMode.KentridgeGenerationTests" runstate="Runnable" seed="157859663" result="Passed" start-time="2026-08-24 19:27:31Z" end-time="2026-08-24 19:27:31Z" duration="0.000324" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1884" name="PlanIsDeterministicForSameSeed" fullname="VoxelEngine.Tests.EditMode.KentridgeGenerationTests.PlanIsDeterministicForSameSeed" methodname="PlanIsDeterministicForSameSeed" classname="VoxelEngine.Tests.EditMode.KentridgeGenerationTests" runstate="Runnable" seed="1711329025" result="Passed" start-time="2026-08-24 19:27:31Z" end-time="2026-08-24 19:27:31Z" duration="0.000270" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1882" name="PlotDressingFollowsDistrictsAndFrontages" fullname="VoxelEngine.Tests.EditMode.KentridgeGenerationTests.PlotDressingFollowsDistrictsAndFrontages" methodname="PlotDressingFollowsDistrictsAndFrontages" classname="VoxelEngine.Tests.EditMode.KentridgeGenerationTests" runstate="Runnable" seed="1017597818" result="Passed" start-time="2026-08-24 19:27:31Z" end-time="2026-08-24 19:27:31Z" duration="0.000309" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1883" name="PlotSurfaceFeatherUsesVoxelScaleSteps" fullname="VoxelEngine.Tests.EditMode.KentridgeGenerationTests.PlotSurfaceFeatherUsesVoxelScaleSteps" methodname="PlotSurfaceFeatherUsesVoxelScaleSteps" classname="VoxelEngine.Tests.EditMode.KentridgeGenerationTests" runstate="Runnable" seed="1811884352" result="Passed" start-time="2026-08-24 19:27:31Z" end-time="2026-08-24 19:27:31Z" duration="0.000304" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1881" name="StreetscapeDressingMarksTheClimbWithoutInflatingBuildingCount" fullname="VoxelEngine.Tests.EditMode.KentridgeGenerationTests.StreetscapeDressingMarksTheClimbWithoutInflatingBuildingCount" methodname="StreetscapeDressingMarksTheClimbWithoutInflatingBuildingCount" classname="VoxelEngine.Tests.EditMode.KentridgeGenerationTests" runstate="Runnable" seed="759634024" result="Passed" start-time="2026-08-24 19:27:31Z" end-time="2026-08-24 19:27:31Z" duration="0.000263" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

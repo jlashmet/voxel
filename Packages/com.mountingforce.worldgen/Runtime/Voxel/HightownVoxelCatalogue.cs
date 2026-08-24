@@ -8,11 +8,11 @@ namespace MountingForce.WorldGen.Voxel
     /// <summary>
     /// Voxel realization for Hightown.
     ///
-    /// This runs the same town pass Kentridge does — ground cover, terracing, street surfaces,
-    /// circulation, frontages, urban fabric — against Hightown's plan and theme. That reuse is the
-    /// point: a second town built by a second pipeline would drift from the first, and the whole
-    /// reason the pass was made settlement-generic is so the two towns differ by their plan and
-    /// theme rather than by their code.
+    /// This runs the settlement-bound core of Kentridge's town pass — ground cover, street
+    /// surfaces, plot preparation, frontage paths, market treatment, dressing, and shared
+    /// structures — against Hightown's plan and theme. Kentridge's absolute authored terraces,
+    /// circulation, and urban landmarks remain Kentridge content; including them here would emit a
+    /// second copy at Kentridge's coordinates rather than adapt them to Hightown.
     ///
     /// It deliberately does not go through <see cref="KentridgeCombinedVoxelCatalogue"/>: that entry
     /// point also emits Kentridge's authored hidden spaces and asserts the Kentridge theme, neither

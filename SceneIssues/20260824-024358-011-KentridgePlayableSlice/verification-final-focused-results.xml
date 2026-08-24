@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="2" result="Failed(Child)" total="2" passed="1" failed="1" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-24 19:36:26Z" end-time="2026-08-24 19:37:38Z" duration="72.3080284">
+  <test-suite type="TestSuite" id="1555" name="voxel" fullname="voxel" runstate="Runnable" testcasecount="403" result="Failed" site="Child" start-time="2026-08-24 19:36:26Z" end-time="2026-08-24 19:37:38Z" duration="72.308028" total="2" passed="1" failed="1" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="PlayMode" />
+    </properties>
+    <failure>
+      <message><![CDATA[One or more child tests had errors]]></message>
+    </failure>
+    <test-suite type="Assembly" id="1551" name="VoxelEngine.Tests.PlayMode.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/VoxelEngine.Tests.PlayMode.dll" runstate="Runnable" testcasecount="166" result="Failed" site="Child" start-time="2026-08-24 19:36:26Z" end-time="2026-08-24 19:37:38Z" duration="72.300061" total="2" passed="1" failed="1" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="40630" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="PlayMode" />
+        <property name="EditorOnly" value="False" />
+      </properties>
+      <failure>
+        <message><![CDATA[One or more child tests had errors]]></message>
+      </failure>
+      <test-suite type="TestSuite" id="1552" name="VoxelEngine" fullname="VoxelEngine" runstate="Runnable" testcasecount="166" result="Failed" site="Child" start-time="2026-08-24 19:36:26Z" end-time="2026-08-24 19:37:38Z" duration="72.299133" total="2" passed="1" failed="1" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <failure>
+          <message><![CDATA[One or more child tests had errors]]></message>
+        </failure>
+        <test-suite type="TestSuite" id="1553" name="Tests" fullname="VoxelEngine.Tests" runstate="Runnable" testcasecount="166" result="Failed" site="Child" start-time="2026-08-24 19:36:26Z" end-time="2026-08-24 19:37:38Z" duration="72.298244" total="2" passed="1" failed="1" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <failure>
+            <message><![CDATA[One or more child tests had errors]]></message>
+          </failure>
+          <test-suite type="TestSuite" id="1554" name="PlayMode" fullname="VoxelEngine.Tests.PlayMode" runstate="Runnable" testcasecount="166" result="Failed" site="Child" start-time="2026-08-24 19:36:26Z" end-time="2026-08-24 19:37:38Z" duration="72.297438" total="2" passed="1" failed="1" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <failure>
+              <message><![CDATA[One or more child tests had errors]]></message>
+            </failure>
+            <test-suite type="TestFixture" id="1414" name="KentridgeOpeningCameraReadabilityTests" fullname="VoxelEngine.Tests.PlayMode.KentridgeOpeningCameraReadabilityTests" classname="VoxelEngine.Tests.PlayMode.KentridgeOpeningCameraReadabilityTests" runstate="Runnable" testcasecount="2" result="Failed" site="Child" start-time="2026-08-24 19:36:26Z" end-time="2026-08-24 19:36:50Z" duration="24.638181" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <failure>
+                <message><![CDATA[One or more child tests had errors]]></message>
+              </failure>
+              <test-case id="1416" name="CapturedOpeningCameraHasAuthoritativeLineOfSightToInitialCast" fullname="VoxelEngine.Tests.PlayMode.KentridgeOpeningCameraReadabilityTests.CapturedOpeningCameraHasAuthoritativeLineOfSightToInitialCast" methodname="CapturedOpeningCameraHasAuthoritativeLineOfSightToInitialCast" classname="VoxelEngine.Tests.PlayMode.KentridgeOpeningCameraReadabilityTests" runstate="Runnable" seed="1686590739" result="Failed" start-time="2026-08-24 19:36:26Z" end-time="2026-08-24 19:36:50Z" duration="24.633204" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <failure>
+                  <message><![CDATA[  The line-of-sight regression must use the saved issue position.
+  Expected: less than 0.00100000005f
+  But was:  0.5f
+]]></message>
+                  <stack-trace><![CDATA[at VoxelEngine.Tests.PlayMode.KentridgeOpeningCameraReadabilityTests+<CapturedOpeningCameraHasAuthoritativeLineOfSightToInitialCast>d__9.MoveNext () [0x00239] in /Users/jlashmet/code/voxel/Assets/Tests/PlayMode/KentridgeOpeningCameraReadabilityTests.cs:153
+at UnityEngine.TestTools.TestEnumerator+<Execute>d__7.MoveNext () [0x0003a] in ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEngine.TestRunner/NUnitExtensions/Attributes/TestEnumerator.cs:44
+]]></stack-trace>
+                </failure>
+                <output><![CDATA[Kentridge region life: 823 trees, 3435 ground cover, 32 wildlife clusters.
+[VoxelResidency] residentRegions=16 mixed=71,583/262,144 evicted=0 reclaimedMixed=0
+]]></output>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1430" name="KentridgePubExitPlayTests" fullname="VoxelEngine.Tests.PlayMode.KentridgePubExitPlayTests" classname="VoxelEngine.Tests.PlayMode.KentridgePubExitPlayTests" runstate="Runnable" testcasecount="2" result="Passed" start-time="2026-08-24 19:36:50Z" end-time="2026-08-24 19:37:38Z" duration="47.652388" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1432" name="ProductionCatalogueCompositionLeavesOpeningTorsoVoxelClear" fullname="VoxelEngine.Tests.PlayMode.KentridgePubExitPlayTests.ProductionCatalogueCompositionLeavesOpeningTorsoVoxelClear" methodname="ProductionCatalogueCompositionLeavesOpeningTorsoVoxelClear" classname="VoxelEngine.Tests.PlayMode.KentridgePubExitPlayTests" runstate="Runnable" seed="957970790" result="Passed" start-time="2026-08-24 19:36:50Z" end-time="2026-08-24 19:37:38Z" duration="47.651658" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[KENTRIDGE_TORSO_COMPOSITION voxel=int3(1339, 231, 757) k=0 kh=0 kc=0 khc=0
+<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

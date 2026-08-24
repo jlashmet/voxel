@@ -132,8 +132,9 @@ namespace MountingForce.WorldGen.Voxel
         {
             FeatureCatalogue catalogue = KentridgeTownDressingCatalogue.Build(
                 seed, settings, allocator);
+            SettlementPlan plan = SettlementVoxelPlan.Resolve(seed, in settings);
             int scale = settings.VoxelsPerDecimetre;
-            Int2 centre = KentridgeDefinition.TownCentreDm;
+            Int2 centre = plan.CentreDm;
             int natural = TerrainQuery.HeightAt(centre.X * scale, centre.Y * scale, seed);
             int target = KentridgeVerticalProfile.SurfaceYAtDm(centre.X, centre.Y, seed, scale);
             int delta = target - natural;
