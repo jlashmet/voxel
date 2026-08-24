@@ -1,0 +1,11 @@
+source_commit=be2315394e5f000a4093c0c61f71c10b2d1b7630
+working_tree_change=added capture-specific waterfall/cascade/clearance PlayMode regression
+unity_version=6000.5.6f1
+configuration=tools/unity-run.sh; PlayMode; graphics enabled
+test=VoxelEngine.Tests.PlayMode.CastleAccessTests.SceneIssue20260823014108038WaterfallRemainsVisibleAndUnoccluded
+executed_test_cases=1
+passed_test_cases=0
+failed_test_cases=1
+unity_exit_status=2
+failure=the authored upper stream must reach the waterfall lip; expected material 11 (Water), found 0 (Empty)
+failure_location=Assets/Tests/PlayMode/CastleAccessTests.cs:246

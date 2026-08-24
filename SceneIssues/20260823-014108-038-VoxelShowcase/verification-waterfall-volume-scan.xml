@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="1" result="Failed(Child)" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-24 16:21:59Z" end-time="2026-08-24 16:22:26Z" duration="26.5384218">
+  <test-suite type="TestSuite" id="1551" name="voxel" fullname="voxel" runstate="Runnable" testcasecount="400" result="Failed" site="Child" start-time="2026-08-24 16:21:59Z" end-time="2026-08-24 16:22:26Z" duration="26.538422" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="PlayMode" />
+    </properties>
+    <failure>
+      <message><![CDATA[One or more child tests had errors]]></message>
+    </failure>
+    <test-suite type="Assembly" id="1547" name="VoxelEngine.Tests.PlayMode.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/VoxelEngine.Tests.PlayMode.dll" runstate="Runnable" testcasecount="163" result="Failed" site="Child" start-time="2026-08-24 16:21:59Z" end-time="2026-08-24 16:22:26Z" duration="26.532251" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="64363" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="PlayMode" />
+        <property name="EditorOnly" value="False" />
+      </properties>
+      <failure>
+        <message><![CDATA[One or more child tests had errors]]></message>
+      </failure>
+      <test-suite type="TestSuite" id="1548" name="VoxelEngine" fullname="VoxelEngine" runstate="Runnable" testcasecount="163" result="Failed" site="Child" start-time="2026-08-24 16:21:59Z" end-time="2026-08-24 16:22:26Z" duration="26.531774" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <failure>
+          <message><![CDATA[One or more child tests had errors]]></message>
+        </failure>
+        <test-suite type="TestSuite" id="1549" name="Tests" fullname="VoxelEngine.Tests" runstate="Runnable" testcasecount="163" result="Failed" site="Child" start-time="2026-08-24 16:21:59Z" end-time="2026-08-24 16:22:26Z" duration="26.531397" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <failure>
+            <message><![CDATA[One or more child tests had errors]]></message>
+          </failure>
+          <test-suite type="TestSuite" id="1550" name="PlayMode" fullname="VoxelEngine.Tests.PlayMode" runstate="Runnable" testcasecount="163" result="Failed" site="Child" start-time="2026-08-24 16:21:59Z" end-time="2026-08-24 16:22:26Z" duration="26.531078" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <failure>
+              <message><![CDATA[One or more child tests had errors]]></message>
+            </failure>
+            <test-suite type="TestFixture" id="1341" name="CastleAccessTests" fullname="VoxelEngine.Tests.PlayMode.CastleAccessTests" classname="VoxelEngine.Tests.PlayMode.CastleAccessTests" runstate="Runnable" testcasecount="6" result="Failed" site="Child" start-time="2026-08-24 16:21:59Z" end-time="2026-08-24 16:22:26Z" duration="26.527250" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <failure>
+                <message><![CDATA[One or more child tests had errors]]></message>
+              </failure>
+              <test-case id="1345" name="SceneIssue20260823014108038WaterfallRemainsVisibleAndUnoccluded" fullname="VoxelEngine.Tests.PlayMode.CastleAccessTests.SceneIssue20260823014108038WaterfallRemainsVisibleAndUnoccluded" methodname="SceneIssue20260823014108038WaterfallRemainsVisibleAndUnoccluded" classname="VoxelEngine.Tests.PlayMode.CastleAccessTests" runstate="Runnable" seed="1008031902" result="Failed" start-time="2026-08-24 16:21:59Z" end-time="2026-08-24 16:22:26Z" duration="26.521944" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <failure>
+                  <message><![CDATA[  the authored upper stream must reach the waterfall lip
+  Expected: 11
+  But was:  0
+]]></message>
+                  <stack-trace><![CDATA[at VoxelEngine.Tests.PlayMode.CastleAccessTests+<SceneIssue20260823014108038WaterfallRemainsVisibleAndUnoccluded>d__4.MoveNext () [0x00453] in /Users/jlashmet/code/voxel/Assets/Tests/PlayMode/CastleAccessTests.cs:303
+at UnityEngine.TestTools.TestEnumerator+<Execute>d__7.MoveNext () [0x0003a] in ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEngine.TestRunner/NUnitExtensions/Attributes/TestEnumerator.cs:44
+]]></stack-trace>
+                </failure>
+                <output><![CDATA[Showcase features: 1298 instance(s), 208,423,122 voxels; regions generated 199, terrain 100%
+Showcase castle complete: 44,843,001 voxels in 28.6 s since load; worst stage 0 at 0.0 ms; regions generated 199, terrain 100%
+[VoxelResidency] residentRegions=199 mixed=958,554/2,367,424 evicted=0 reclaimedMixed=0
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+loaded centre=int3(256, 215, 376) bailey=244,226 wall=19 seed=1592594996; reconstructed centre=int3(256, 215, 376) bailey=244,226 wall=19 seed=1592594996
+waterfall scan water=7282 firstWater=int3(560, 158, 36) z=36..652; cascade=2071 firstCascade=int3(548, 164, 108); expected stream=int3(561, 236, 382) lip=int3(568, 170, 112); streamSlice=16 int3(552, 230, 382)..int3(570, 236, 382); lipCascade=689 int3(546, 164, 112)..int3(590, 224, 112)
+<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

@@ -1,0 +1,15 @@
+source_commit=be2315394e5f000a4093c0c61f71c10b2d1b7630
+working_tree_change=added bounded waterfall volume and ravine clearance regression
+unity_version=6000.5.6f1
+configuration=tools/unity-run.sh; PlayMode; graphics enabled
+test=VoxelEngine.Tests.PlayMode.CastleAccessTests.SceneIssue20260823014108038WaterfallRemainsVisibleAndUnoccluded
+executed_test_cases=1
+passed_test_cases=1
+failed_test_cases=0
+nunit_duration_seconds=26.0597756
+unity_exit_status=0
+
+Assertions proved:
+- a nontrivial Water volume crosses the authored upper-stream slice;
+- a substantial Cascade volume occupies the waterfall lip;
+- east, west, and rear ravine clearance samples remain Empty rather than terrain.

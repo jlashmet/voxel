@@ -1,0 +1,23 @@
+source_commit=be2315394e5f000a4093c0c61f71c10b2d1b7630
+unity_version=6000.5.6f1
+configuration=tools/unity-run.sh; graphics enabled
+
+EditMode filters:
+- TransvoxelChunkBoundaryOwnershipTests.SceneIssue20260823013834177BoundaryCellBelongsToInsideDensitySide
+- SceneIssue014011GpuVertexAttributeParityTests.MixedLodVertexMaterialsAndNormalsMatchCpu
+executed_test_cases=3
+passed_test_cases=3
+failed_test_cases=0
+unity_exit_status=0
+
+PlayMode filter:
+- CastleAccessTests.CastleLandscapeContainsConnectedWaterLevelsAndSupportedBridge
+executed_test_cases=1
+passed_test_cases=0
+failed_test_cases=1
+unity_exit_status=2
+failure=the lower approach river is missing beneath the bridge; expected material 11 (Water), found 0 (Empty)
+failure_location=Assets/Tests/PlayMode/CastleAccessTests.cs:147
+
+The PlayMode failure occurs before the test reaches its upper-stream, Cascade, plunge-pool,
+outlet-connectivity, and unsupported-terrain assertions.

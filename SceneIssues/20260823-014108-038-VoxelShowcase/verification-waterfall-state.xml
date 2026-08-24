@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="1" result="Failed(Child)" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-24 16:12:27Z" end-time="2026-08-24 16:12:54Z" duration="26.1646682">
+  <test-suite type="TestSuite" id="1550" name="voxel" fullname="voxel" runstate="Runnable" testcasecount="399" result="Failed" site="Child" start-time="2026-08-24 16:12:27Z" end-time="2026-08-24 16:12:54Z" duration="26.164668" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="PlayMode" />
+    </properties>
+    <failure>
+      <message><![CDATA[One or more child tests had errors]]></message>
+    </failure>
+    <test-suite type="Assembly" id="1546" name="VoxelEngine.Tests.PlayMode.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/VoxelEngine.Tests.PlayMode.dll" runstate="Runnable" testcasecount="162" result="Failed" site="Child" start-time="2026-08-24 16:12:27Z" end-time="2026-08-24 16:12:54Z" duration="26.158444" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="19673" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="PlayMode" />
+        <property name="EditorOnly" value="False" />
+      </properties>
+      <failure>
+        <message><![CDATA[One or more child tests had errors]]></message>
+      </failure>
+      <test-suite type="TestSuite" id="1547" name="VoxelEngine" fullname="VoxelEngine" runstate="Runnable" testcasecount="162" result="Failed" site="Child" start-time="2026-08-24 16:12:27Z" end-time="2026-08-24 16:12:54Z" duration="26.157876" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <failure>
+          <message><![CDATA[One or more child tests had errors]]></message>
+        </failure>
+        <test-suite type="TestSuite" id="1548" name="Tests" fullname="VoxelEngine.Tests" runstate="Runnable" testcasecount="162" result="Failed" site="Child" start-time="2026-08-24 16:12:27Z" end-time="2026-08-24 16:12:54Z" duration="26.157510" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <failure>
+            <message><![CDATA[One or more child tests had errors]]></message>
+          </failure>
+          <test-suite type="TestSuite" id="1549" name="PlayMode" fullname="VoxelEngine.Tests.PlayMode" runstate="Runnable" testcasecount="162" result="Failed" site="Child" start-time="2026-08-24 16:12:27Z" end-time="2026-08-24 16:12:54Z" duration="26.157202" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <failure>
+              <message><![CDATA[One or more child tests had errors]]></message>
+            </failure>
+            <test-suite type="TestFixture" id="1341" name="CastleAccessTests" fullname="VoxelEngine.Tests.PlayMode.CastleAccessTests" classname="VoxelEngine.Tests.PlayMode.CastleAccessTests" runstate="Runnable" testcasecount="5" result="Failed" site="Child" start-time="2026-08-24 16:12:27Z" end-time="2026-08-24 16:12:54Z" duration="26.153012" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <failure>
+                <message><![CDATA[One or more child tests had errors]]></message>
+              </failure>
+              <test-case id="1344" name="CastleLandscapeContainsConnectedWaterLevelsAndSupportedBridge" fullname="VoxelEngine.Tests.PlayMode.CastleAccessTests.CastleLandscapeContainsConnectedWaterLevelsAndSupportedBridge" methodname="CastleLandscapeContainsConnectedWaterLevelsAndSupportedBridge" classname="VoxelEngine.Tests.PlayMode.CastleAccessTests" runstate="Runnable" seed="889231145" result="Failed" start-time="2026-08-24 16:12:27Z" end-time="2026-08-24 16:12:54Z" duration="26.147311" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <failure>
+                  <message><![CDATA[  the lower approach river is missing beneath the bridge
+  Expected: 11
+  But was:  0
+]]></message>
+                  <stack-trace><![CDATA[at VoxelEngine.Tests.PlayMode.CastleAccessTests+<CastleLandscapeContainsConnectedWaterLevelsAndSupportedBridge>d__3.MoveNext () [0x000c6] in /Users/jlashmet/code/voxel/Assets/Tests/PlayMode/CastleAccessTests.cs:147
+at UnityEngine.TestTools.TestEnumerator+<Execute>d__7.MoveNext () [0x0003a] in ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEngine.TestRunner/NUnitExtensions/Attributes/TestEnumerator.cs:44
+]]></stack-trace>
+                </failure>
+                <output><![CDATA[Showcase features: 1298 instance(s), 208,423,122 voxels; regions generated 199, terrain 100%
+Showcase castle complete: 44,843,001 voxels in 28.5 s since load; worst stage 0 at 0.0 ms; regions generated 199, terrain 100%
+[VoxelResidency] residentRegions=199 mixed=958,554/2,367,424 evicted=0 reclaimedMixed=0
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+Procedural vegetation: worldgen published 36 semantic Showcase trees.
+<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

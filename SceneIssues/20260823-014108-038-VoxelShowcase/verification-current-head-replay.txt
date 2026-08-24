@@ -1,0 +1,22 @@
+source_commit=be2315394e5f000a4093c0c61f71c10b2d1b7630
+unity_version=6000.5.6f1
+configuration=tools/unity-run.sh; production macOS player; GPU enabled
+scene=Assets/Scenes/VoxelShowcase.unity
+camera_fixture=Showcase Camera @ (59.23564910888672,20.750329971313478,-2.231241226196289), fov=70
+capture_resolution=1293x718
+run_seconds=50
+selected_screenshot=showcase-003-t045.7s-stationary.png
+preserved_as=verification-current-head-replay.png
+sha256=bb13a7e5c3cd5088a7a7d4ee3dff9f71e8ad975c13d237d88b108fe7d95299eb
+player_exit_status=0
+captured_frames=4
+settled_visible_sections=742
+settled_missing_sections=0
+
+SCENEISSUE camera replay armed for Showcase Camera
+SCENEISSUE camera pinned at (59.24, 20.75, -2.23) fov=70
+
+Visual comparison against screenshot-001.png:
+- diagonal green terrain sheet crossing all four circles: absent
+- castle, ravine banks, and central opening previously hidden by the sheet: visible
+- authored blue cascade behind the central tower: visible

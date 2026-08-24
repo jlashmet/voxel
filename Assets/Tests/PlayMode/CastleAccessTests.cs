@@ -218,6 +218,53 @@ namespace VoxelEngine.Tests.PlayMode
         }
 
         [UnityTest]
+        public IEnumerator SceneIssue20260823014108038WaterfallRemainsVisibleAndUnoccluded()
+        {
+            yield return LoadShowcaseWithCastle();
+
+            var showcase = Object.FindFirstObjectByType<VoxelShowcase>();
+            var world = (ShowcaseWorld)typeof(VoxelShowcase)
+                .GetField("_world", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(showcase);
+
+            CastlePlan plan = (CastlePlan)typeof(ShowcaseWorld)
+                .GetField("_castlePlan", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(world);
+            int top = plan.Centre.y + plan.PlateauHeight;
+            int streamX = CastleLayout.WaterfallStreamX(in plan);
+            int lipZ = CastleLayout.WaterfallLipZ(in plan);
+            int poolY = top - 80;
+
+            int streamStartZ = plan.Centre.z + plan.BaileyHalfZ + plan.TowerRadius + 18;
+            int streamZ = (streamStartZ + lipZ) / 2;
+            float streamT = (streamStartZ - streamZ)
+                          / (float)math.max(1, streamStartZ - lipZ);
+            int streamCentreX = streamX
+                              + (int)math.round(math.sin(streamT * math.PI * 3.2f) * 7f);
+            int streamY = top - 6 - (int)math.round(streamT * 11f);
+
+            int streamWater = 0;
+            for (int y = streamY - 8; y <= streamY + 8; y++)
+            for (int x = streamCentreX - 20; x <= streamCentreX + 20; x++)
+                if (Get(world, x, y, streamZ) == Mat.Water) streamWater++;
+            Assert.That(streamWater, Is.GreaterThan(8),
+                "the authored upper stream must carry a visible water volume toward the lip");
+
+            int cascadeVoxels = 0;
+            for (int y = poolY - 8; y <= top - 16; y++)
+            for (int x = streamX - 23; x <= streamX + 23; x++)
+                if (Get(world, x, y, lipZ) == Mat.Cascade) cascadeVoxels++;
+            Assert.That(cascadeVoxels, Is.GreaterThan(100),
+                "the saved castle-ravine view must contain a substantial waterfall cascade");
+
+            int clearY = (poolY + top - 16) / 2;
+            Assert.AreEqual(Mat.Empty, Get(world, streamX + 28, clearY, lipZ),
+                "terrain must not occlude the east air lane beside the waterfall");
+            Assert.AreEqual(Mat.Empty, Get(world, streamX - 28, clearY, lipZ),
+                "terrain must not occlude the west air lane beside the waterfall");
+            Assert.AreEqual(Mat.Empty, Get(world, streamX, clearY, lipZ + 4),
+                "terrain must not bridge across the cleared ravine behind the waterfall");
+        }
+
+        [UnityTest]
         public IEnumerator PlayerEInteractionUsesMotorProximityAndClearsItsPrompt()
         {
             yield return LoadShowcaseWithCastle();

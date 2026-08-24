@@ -1,0 +1,11 @@
+Command:
+UNITY_MAX_RSS_MB=12288 UNITY_MAX_MINUTES=10 UNITY_BIN=/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/MacOS/Unity tools/unity-run.sh -batchmode -projectPath /Users/jlashmet/code/voxel -runTests -testPlatform PlayMode -testFilter VoxelEngine.Tests.PlayMode.CastleAccessTests.SceneIssue20260823014108038WaterfallRemainsVisibleAndUnoccluded -testResults /Users/jlashmet/code/voxel/Artifacts/SceneIssue014108Validation/direct-waterfall-final-tree.xml -logFile /Users/jlashmet/code/voxel/Artifacts/SceneIssue014108Validation/direct-waterfall-final-tree.log
+
+Source: be2315394e5f000a4093c0c61f71c10b2d1b7630 plus final working-tree test addition
+Unity: 6000.5.6f1
+Platform: PlayMode
+Filter: VoxelEngine.Tests.PlayMode.CastleAccessTests.SceneIssue20260823014108038WaterfallRemainsVisibleAndUnoccluded
+Result: Passed 1/1
+NUnit duration: 26.102749 seconds
+Wrapper result: exit status 0, peak RSS 9270 MB, elapsed 41 seconds
+XML SHA-256: 720c535c4a324467122e46bf8197181346890587adf9e249f7429186555ff611
