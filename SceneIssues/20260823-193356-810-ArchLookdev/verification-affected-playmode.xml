@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="2" result="Passed" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-24 18:39:28Z" end-time="2026-08-24 18:39:28Z" duration="0.045459">
+  <test-suite type="TestSuite" id="1553" name="voxel" fullname="voxel" runstate="Runnable" testcasecount="401" result="Passed" start-time="2026-08-24 18:39:28Z" end-time="2026-08-24 18:39:28Z" duration="0.045459" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="PlayMode" />
+    </properties>
+    <test-suite type="Assembly" id="1100" name="VoxelEngine.CI.PlayMode.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/VoxelEngine.CI.PlayMode.dll" runstate="Runnable" testcasecount="19" result="Passed" start-time="2026-08-24 18:39:28Z" end-time="2026-08-24 18:39:28Z" duration="0.026670" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="7356" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="PlayMode" />
+        <property name="EditorOnly" value="False" />
+      </properties>
+      <test-suite type="TestSuite" id="1101" name="VoxelEngine" fullname="VoxelEngine" runstate="Runnable" testcasecount="19" result="Passed" start-time="2026-08-24 18:39:28Z" end-time="2026-08-24 18:39:28Z" duration="0.025901" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="1102" name="CI" fullname="VoxelEngine.CI" runstate="Runnable" testcasecount="19" result="Passed" start-time="2026-08-24 18:39:28Z" end-time="2026-08-24 18:39:28Z" duration="0.025215" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestFixture" id="1091" name="VegetationRenderingTests" fullname="VoxelEngine.CI.VegetationRenderingTests" classname="VoxelEngine.CI.VegetationRenderingTests" runstate="Runnable" testcasecount="1" result="Passed" start-time="2026-08-24 18:39:28Z" end-time="2026-08-24 18:39:28Z" duration="0.023445" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-case id="1092" name="StandaloneShowcase_CoversCatalogue_AndDrawsThroughInstancedRenderer" fullname="VoxelEngine.CI.VegetationRenderingTests.StandaloneShowcase_CoversCatalogue_AndDrawsThroughInstancedRenderer" methodname="StandaloneShowcase_CoversCatalogue_AndDrawsThroughInstancedRenderer" classname="VoxelEngine.CI.VegetationRenderingTests" runstate="Runnable" seed="1868063268" result="Passed" start-time="2026-08-24 18:39:28Z" end-time="2026-08-24 18:39:28Z" duration="0.018822" asserts="0">
+              <properties>
+                <property name="_JOINTYPE" value="UnityCombinatorial" />
+                <property name="retryIteration" value="0" />
+                <property name="repeatIteration" value="0" />
+              </properties>
+            </test-case>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+    <test-suite type="Assembly" id="1549" name="VoxelEngine.Tests.PlayMode.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/VoxelEngine.Tests.PlayMode.dll" runstate="Runnable" testcasecount="164" result="Passed" start-time="2026-08-24 18:39:28Z" end-time="2026-08-24 18:39:28Z" duration="0.010960" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="7356" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="PlayMode" />
+        <property name="EditorOnly" value="False" />
+      </properties>
+      <test-suite type="TestSuite" id="1550" name="VoxelEngine" fullname="VoxelEngine" runstate="Runnable" testcasecount="164" result="Passed" start-time="2026-08-24 18:39:28Z" end-time="2026-08-24 18:39:28Z" duration="0.010104" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="1551" name="Tests" fullname="VoxelEngine.Tests" runstate="Runnable" testcasecount="164" result="Passed" start-time="2026-08-24 18:39:28Z" end-time="2026-08-24 18:39:28Z" duration="0.009795" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="1552" name="PlayMode" fullname="VoxelEngine.Tests.PlayMode" runstate="Runnable" testcasecount="164" result="Passed" start-time="2026-08-24 18:39:28Z" end-time="2026-08-24 18:39:28Z" duration="0.009492" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="1330" name="ArchReferenceGrowthTests" fullname="VoxelEngine.Tests.PlayMode.ArchReferenceGrowthTests" classname="VoxelEngine.Tests.PlayMode.ArchReferenceGrowthTests" runstate="Runnable" testcasecount="1" result="Passed" start-time="2026-08-24 18:39:28Z" end-time="2026-08-24 18:39:28Z" duration="0.003333" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1331" name="AuthoredGrowthCoversLeftPierCrownAndRightCounterweight" fullname="VoxelEngine.Tests.PlayMode.ArchReferenceGrowthTests.AuthoredGrowthCoversLeftPierCrownAndRightCounterweight" methodname="AuthoredGrowthCoversLeftPierCrownAndRightCounterweight" classname="VoxelEngine.Tests.PlayMode.ArchReferenceGrowthTests" runstate="Runnable" seed="1448949887" result="Passed" start-time="2026-08-24 18:39:28Z" end-time="2026-08-24 18:39:28Z" duration="0.002994" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

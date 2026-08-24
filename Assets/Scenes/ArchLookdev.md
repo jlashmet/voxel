@@ -1,17 +1,15 @@
 # Hero arch look-development bench
 
 Open `Assets/Scenes/ArchLookdev.unity` and enter Play Mode. Geometry sliders rebuild
-automatically. Material, lighting, lens, and reference controls update continuously.
+automatically. Material, lighting, and lens controls update continuously.
 
 ## Comparing to the target
 
-The scene loads `~/Downloads/Sunlit Cleric by the Waterfall.png`, falling back to
-`Artifacts/ArchLookdev/target.png`. Reference modes are:
-
-- **Split** — live render on the left and reference on the right.
-- **Overlay** — reference composited over the live render with adjustable opacity.
-- **Target** — reference only.
-- **Off** — live render only.
+The focused, version-controlled target is `References/arch_reference.png`; the broader source
+composition is retained at `References/sunlit-cleric-reference.png`. The in-scene split/overlay
+controls were removed so reference pixels cannot obscure scene defects or leak into evidence.
+Compare production-player captures externally. `ArchLookdevSceneTests` also publishes the focused
+target beside its standalone-player screenshots for visual acceptance.
 
 ## Presets and captures
 

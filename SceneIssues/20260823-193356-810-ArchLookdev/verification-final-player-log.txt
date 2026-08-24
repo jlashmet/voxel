@@ -1,0 +1,49 @@
+Mono path[0] = '/Users/jlashmet/code/voxel/Artifacts/Player/ArchLookdev.app/Contents/Resources/Data/Managed'
+Mono config path = '/Users/jlashmet/code/voxel/Artifacts/Player/ArchLookdev.app/Contents/MonoBleedingEdge/etc'
+CodeReloadManager initialized
+Input System module state changed to: Initialized.
+[Physics::Module] Initialized fallback backend.
+[Physics::Module] Id: 0xdecafbad
+ preferred device: Apple M4 Max (high power)
+Metal devices available: 1
+0: Apple M4 Max (high power)
+Using device Apple M4 Max (high power)
+Initialize engine version: 6000.5.6f1 (0e0577a1a2ac)
+[Subsystems] Discovering subsystems at path /Users/jlashmet/code/voxel/Artifacts/Player/ArchLookdev.app/Contents/Resources/Data/UnitySubsystems
+GfxDevice: creating device client; kGfxThreadingModeThreaded
+Initializing Metal device caps: Apple M4 Max
+Mac GPU Family: 2
+Apple GPU Family: 9
+MSL Version: 3.0
+Has Float MSAA: 1
+Has Float Filtering: 1
+ReadWrite Texture Tier: 2
+Begin MonoManager ReloadAssembly
+- Finished resetting the current domain, in  0.015 seconds
+[Physics::Module] Selected backend.
+[Physics::Module] Name: PhysX
+[Physics::Module] Id: 0xf2b8ea05
+[Physics::Module] SDK Version: 4.1.2
+[Physics::Module] Integration Version: 1.0.0
+[Physics::Module] Threading Mode: Multi-Threaded
+Metal RecreateSurface[0x1064feb90]: surface size 1637x1140
+UnloadTime: 0.575041 ms
+SCENEISSUE camera replay armed for Hero Arch Camera
+HARNESS screenshot /Users/jlashmet/code/voxel/Artifacts/SceneIssue193356Final/Screenshots/frame_000_t002.1.png
+SCENEISSUE camera pinned at (6.52, 6.42, -14.57) fov=34
+HARNESS screenshot /Users/jlashmet/code/voxel/Artifacts/SceneIssue193356Final/Screenshots/frame_001_t013.1.png
+HARNESS screenshot /Users/jlashmet/code/voxel/Artifacts/SceneIssue193356Final/Screenshots/frame_002_t024.1.png
+HARNESS quit after 25.0s
+Thread 0x16d97f000 may have been prematurely finalized
+[Physics::Module] Cleanup current backend.
+[Physics::Module] Id: 0xf2b8ea05
+Input System module state changed to: ShutdownInProgress.
+Input Polling Thread exited.
+Input System module state changed to: Shutdown.
+Thread 0x16c353000 may have been prematurely finalized
+Thread 0x16c46b000 may have been prematurely finalized
+Thread 0x16c583000 may have been prematurely finalized
+Thread 0x16c4f7000 may have been prematurely finalized
+Thread 0x16c3df000 may have been prematurely finalized
+Thread 0x16c60f000 may have been prematurely finalized
+CodeReloadManager destroyed

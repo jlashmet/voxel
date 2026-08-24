@@ -35,6 +35,7 @@
         "VoxelEngine.Showcase",
         "VoxelEngine.Composition",
         "VoxelEngine.Terrain.Api",
+        "VoxelEngine.Vegetation.Api",
         "VoxelEngine.Edits.Api",
         "VoxelEngine.Streaming.Runtime",
         "VoxelEngine.Collision.Runtime",

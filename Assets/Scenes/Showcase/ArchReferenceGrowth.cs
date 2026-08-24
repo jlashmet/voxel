@@ -22,6 +22,7 @@ namespace VoxelEngine.Showcase
         private bool _environmentApplied;
 
         public int InstanceCount => _renderer?.InstanceCount ?? 0;
+        public IReadOnlyList<VegetationInstance> Instances => _instances;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         private static void RegisterSceneHook()
