@@ -42,9 +42,9 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.NotNull(camera);
 
             // Drive convergence at the same modest render-target scale as the known-good Arch
-            // acceptance. Unity's coroutine test runner can otherwise advance hundreds of `yield
-            // return null` iterations in well under two seconds, which is faster than the async
-            // surface workers can complete a dragon chunk on a cold CI import.
+            // acceptance. The batchmode test runner does not evoke WaitForEndOfFrame, so render the
+            // camera explicitly and yield a normal coroutine frame while the async surface workers
+            // progress against a real wall-clock deadline.
             var convergenceTarget = new RenderTexture(512, 512, 24, RenderTextureFormat.ARGB32);
             convergenceTarget.Create();
             camera.targetTexture = convergenceTarget;
@@ -56,8 +56,8 @@ namespace VoxelEngine.Tests.PlayMode
                 float deadline = Time.realtimeSinceStartup + 45f;
                 while (Time.realtimeSinceStartup < deadline)
                 {
-                    yield return new WaitForEndOfFrame();
                     camera.Render();
+                    yield return null;
 
                     VoxelSurfaceMetrics metrics = VoxelRenderBridge.SurfaceMetrics;
                     bool frameConverged = metrics.SolidKnownChunks > 0
@@ -92,7 +92,6 @@ namespace VoxelEngine.Tests.PlayMode
                 camera.targetTexture = target;
                 try
                 {
-                    yield return new WaitForEndOfFrame();
                     camera.Render();
 
                     RenderTexture previous = RenderTexture.active;
