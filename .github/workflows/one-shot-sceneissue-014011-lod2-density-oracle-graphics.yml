@@ -6,6 +6,9 @@ on:
     paths:
       - .github/workflows/one-shot-sceneissue-014011-lod2-density-oracle-graphics.yml
 
+permissions:
+  contents: write
+
 jobs:
   oracle:
     runs-on: [self-hosted, macOS]
@@ -15,7 +18,7 @@ jobs:
         with:
           ref: fixes
           clean: true
-          fetch-depth: 1
+          fetch-depth: 0
 
       - name: Resolve Unity
         id: unity
@@ -47,7 +50,8 @@ jobs:
         run: |
           set -uo pipefail
           ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue014011DensityOracle"
-          mkdir -p "$ROOT"
+          OUT="$GITHUB_WORKSPACE/.claude/plans/sceneissue-014011-lod2-density-oracle-graphics.txt"
+          mkdir -p "$ROOT" "$(dirname "$OUT")"
           status=0
           UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=4 \
           UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
@@ -56,8 +60,12 @@ jobs:
             -testFilter "$TEST_FILTER" \
             -testResults "$ROOT/results.xml" -logFile "$ROOT/unity.log" || status=$?
 
-          if [[ -s "$ROOT/results.xml" ]]; then
-            python3 - "$ROOT/results.xml" <<'PY'
+          {
+            echo "status=$status"
+            echo "filter=$TEST_FILTER"
+            echo
+            if [[ -s "$ROOT/results.xml" ]]; then
+              python3 - "$ROOT/results.xml" <<'PY'
           import sys
           import xml.etree.ElementTree as ET
           root = ET.parse(sys.argv[1]).getroot()
@@ -77,12 +85,31 @@ jobs:
                       if stack:
                           print(stack)
           PY
-          fi
-          if (( status != 0 )); then
+            else
+              echo "No results.xml produced."
+            fi
+            echo
             echo '=== UNITY LOG TAIL ==='
-            tail -160 "$ROOT/unity.log" || true
+            tail -200 "$ROOT/unity.log" 2>/dev/null || true
+          } | tee "$OUT"
+          printf '%s\n' "$status" > "$ROOT/status.txt"
+
+      - name: Commit oracle result
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT=.claude/plans/sceneissue-014011-lod2-density-oracle-graphics.txt
+          test -s "$OUT"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "$OUT"
+          if git diff --cached --quiet; then
+            echo 'Oracle result unchanged.'
+          else
+            git commit -m 'SceneIssue 014011: record LOD2 density oracle result'
+            git push origin HEAD:fixes
           fi
-          exit "$status"
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -91,3 +118,10 @@ jobs:
           path: Artifacts/SceneIssue014011DensityOracle/**
           if-no-files-found: ignore
           retention-days: 1
+
+      - name: Preserve oracle result
+        if: always()
+        shell: bash
+        run: |
+          status="$(cat Artifacts/SceneIssue014011DensityOracle/status.txt 2>/dev/null || echo 1)"
+          exit "$status"
