@@ -111,6 +111,7 @@ jobs:
           git add "$OUT"
           if ! git diff --cached --quiet; then
             git commit -m 'SceneIssue 014011: record no-boundary topology diagnostic'
+            git pull --rebase origin fixes
             git push origin HEAD:fixes
           fi
 
