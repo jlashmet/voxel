@@ -1,0 +1,79 @@
+name: One-shot SceneIssue 014011 GPU LOD2 cutover
+
+on:
+  push:
+    branches:
+      - fixes
+    paths:
+      - .github/workflows/one-shot-sceneissue-014011-gpu-lod2.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fixes
+          fetch-depth: 0
+      - name: Extend exact GPU surface extraction through LOD2
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs')
+          text = path.read_text()
+
+          replacements = [
+              (
+                  '''        public const int BaseSourceStep = 1;\n        public const int BaseVoxelsPerAxis = CellsPerAxis * BaseSourceStep;\n        public const int BaseBricksPerAxis = BaseVoxelsPerAxis / VoxelReadGrid.BlockEdge;\n''',
+                  '''        public const int BaseSourceStep = 1;\n        public const int BaseVoxelsPerAxis = CellsPerAxis * BaseSourceStep;\n        public const int BaseBricksPerAxis = BaseVoxelsPerAxis / VoxelReadGrid.BlockEdge;\n\n        /// <summary>GPU extraction is limited to the two exact near rings. Step 4 keeps its\n        /// feature-preserving CPU fallback and step 8 remains block HLOD.</summary>\n        internal static bool SupportsGpuSurfaceStep(int sourceStep) =>\n            sourceStep == BaseSourceStep || sourceStep == BaseSourceStep * 2;\n'''
+              ),
+              (
+                  '''            public bool HasOwnedSolid;\n            public bool RequiresContinuousTopology;\n            public bool GpuEligible;\n            public bool UsedFeaturePreservingFallback;\n''',
+                  '''            public bool HasOwnedSolid;\n            public bool RequiresContinuousTopology;\n            public bool GpuEligible;\n            public int GpuTransitionFaceMask;\n            public bool UsedFeaturePreservingFallback;\n'''
+              ),
+              (
+                  '''            // First production cutover: only the base ring has a bounded dense snapshot and no\n            // transition faces. Sharing the scheduler's slot grid keeps standalone/headless CPU\n            // caches unchanged, including EditMode tests that intentionally run without graphics.\n            _gpuCutoverConfigured = !GpuCutoverDisabled\n                && SourceStep == BaseSourceStep && !SamplesFromMips && slotGrid != null;\n''',
+                  '''            // GPU cutover covers the two exact near rings. Sharing the scheduler's slot grid\n            // keeps standalone/headless CPU caches unchanged, including EditMode tests that\n            // intentionally run without graphics. Step 4 and block HLOD keep their current paths.\n            _gpuCutoverConfigured = !GpuCutoverDisabled\n                && SupportsGpuSurfaceStep(SourceStep) && !SamplesFromMips && slotGrid != null;\n'''
+              ),
+              (
+                  '''                if (_build.Phase == 0)\n                {\n                    if (!_build.SnapshotTaken\n''',
+                  '''                if (_build.Phase == 0)\n                {\n                    _build.GpuTransitionFaceMask = BuildGpuTransitionFaceMask(\n                        _build.Coordinate, voxelSize, camera.transform.position);\n                    if (!_build.SnapshotTaken\n'''
+              ),
+              (
+                  '''            _build.GpuEligible = SourceStep == BaseSourceStep\n                              && _gpuCutoverConfigured && !_gpuExtractionUnavailable\n''',
+                  '''            _build.GpuEligible = SupportsGpuSurfaceStep(SourceStep)\n                              && _gpuCutoverConfigured && !_gpuExtractionUnavailable\n'''
+              ),
+              (
+                  '''                    var request = new GpuChunkExtraction(\n                        chunkOriginVoxel, cacheOrigin, SourceStep, voxelSize,\n                        transitionFaceMask: 0);\n''',
+                  '''                    var request = new GpuChunkExtraction(\n                        chunkOriginVoxel, cacheOrigin, SourceStep, voxelSize,\n                        transitionFaceMask: _build.GpuTransitionFaceMask);\n'''
+              ),
+              (
+                  '''            // Wholly inside the inner cut means the finer ring owns it outright.\n            return far <= MinViewDistanceMetres;\n        }\n\n        private Bounds ChunkWorldBounds(int3 coordinate, float voxelSize)\n''',
+                  '''            // Wholly inside the inner cut means the finer ring owns it outright.\n            return far <= MinViewDistanceMetres;\n        }\n\n        /// <summary>Builds the GPU transition mask with the same finer-neighbour ownership test\n        /// as the CPU seam path. Bits are 0=-X, 1=+X, 2=-Y, 3=+Y, 4=-Z, 5=+Z.</summary>\n        internal int BuildGpuTransitionFaceMask(int3 coordinate, float voxelSize,\n                                                Vector3 cameraPosition)\n        {\n            int mask = 0;\n            for (int face = 0; face < 6; face++)\n                if (FaceNeedsTransition(coordinate, face, voxelSize, cameraPosition))\n                    mask |= 1 << face;\n            return mask;\n        }\n\n        private Bounds ChunkWorldBounds(int3 coordinate, float voxelSize)\n'''
+              ),
+          ]
+
+          for old, new in replacements:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'expected exactly one GPU LOD2 target, found {count}: {old[:120]!r}')
+              text = text.replace(old, new, 1)
+
+          path.write_text(text)
+          PY
+          git diff --check
+          git diff --stat -- Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
+          git diff -- Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
+          test "$(git diff --name-only | wc -l | tr -d ' ')" = "1"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
+          git commit -m 'SceneIssue 014011: extend GPU surface extraction to LOD2'
+          git push origin HEAD:fixes
