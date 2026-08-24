@@ -122,20 +122,42 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
             mass += Add(p + new int3(0,0, 2), 0.04f * curvature, centreSolid, in centreDefinition, ref dominantMaterial, ref dominantSurface);
             mass += Add(p + new int3(0,0,-2), 0.04f * curvature, centreSolid, in centreDefinition, ref dominantMaterial, ref dominantSurface);
 
-            // A coarse lattice point can sit several voxels below the actual surface. Density still
-            // reconstructs that surface correctly from occupancy, but using the buried centre voxel
-            // as the vertex material exposes subsoil in bands whose width follows SourceStep. Only
-            // directions whose next coarse endpoint is air can produce an edge crossing, so inspect
-            // those short segments and inherit the last solid voxel actually exposed by the edge.
-            // SourceStep 1 needs no correction and remains byte-for-byte aligned with the GPU path.
-            if (centreSolid && SourceStep > 1)
-                PreferNearestCrossingSurfaceMaterial(
-                    p, centre, centreSurface, ref dominantMaterial, ref dominantSurface);
+            float density = mass - 0.5f;
+            int nearestCrossingDistance = SourceStep;
 
-            return mass - 0.5f + (centreSolid ? CoatingDisplacement(centreSurface) : 0f);
+            // A coarse lattice point can sit several voxels below the actual surface. The 13-tap
+            // smoothing kernel is intentionally evaluated at authoritative-voxel scale, but simply
+            // interpolating its values between SourceStep-spaced samples nearly erases where a
+            // crossing falls inside that coarse edge. A one-voxel terrain rise at SourceStep 2 then
+            // moves the reconstructed surface only a small fraction of a voxel, producing contour
+            // rings. Preserve the smoothing decision (including removal/fill of tiny features) by
+            // changing magnitude only when its sign agrees with authoritative centre occupancy, and
+            // only when a coarse axis ray really reaches the opposite occupancy. The nearest fine
+            // transition supplies a signed-distance-like magnitude with the missing sub-step phase.
+            if (SourceStep > 1)
+            {
+                if (centreSolid)
+                {
+                    nearestCrossingDistance = PreferNearestCrossingSurfaceMaterial(
+                        p, centre, centreSurface, ref dominantMaterial, ref dominantSurface);
+                }
+                else
+                {
+                    nearestCrossingDistance = FindNearestCrossingDistance(p, centreSolid);
+                }
+
+                bool densitySignMatchesOccupancy = centreSolid ? density >= 0f : density < 0f;
+                if (nearestCrossingDistance < SourceStep && densitySignMatchesOccupancy)
+                {
+                    float phase = (nearestCrossingDistance + 0.5f) / SourceStep;
+                    density = centreSolid ? phase : -phase;
+                }
+            }
+
+            return density + (centreSolid ? CoatingDisplacement(centreSurface) : 0f);
         }
 
-        private void PreferNearestCrossingSurfaceMaterial(
+        private int PreferNearestCrossingSurfaceMaterial(
             int3 p, byte centreMaterial, uint centreSurface,
             ref byte dominantMaterial, ref uint dominantSurface)
         {
@@ -152,6 +174,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
                 ref bestDistance, ref dominantMaterial, ref dominantSurface);
             ConsiderCrossingRay(p, new int3(0, 0, -1), centreMaterial, centreSurface,
                 ref bestDistance, ref dominantMaterial, ref dominantSurface);
+            return bestDistance;
         }
 
         private void ConsiderCrossingRay(
@@ -192,6 +215,35 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
                 dominantMaterial = lastMaterial;
                 dominantSurface = lastSurface;
             }
+        }
+
+        private int FindNearestCrossingDistance(int3 p, bool centreSolid)
+        {
+            int bestDistance = SourceStep;
+            ConsiderPhaseCrossingRay(p, new int3( 1, 0, 0), centreSolid, ref bestDistance);
+            ConsiderPhaseCrossingRay(p, new int3(-1, 0, 0), centreSolid, ref bestDistance);
+            ConsiderPhaseCrossingRay(p, new int3(0,  1, 0), centreSolid, ref bestDistance);
+            ConsiderPhaseCrossingRay(p, new int3(0, -1, 0), centreSolid, ref bestDistance);
+            ConsiderPhaseCrossingRay(p, new int3(0, 0,  1), centreSolid, ref bestDistance);
+            ConsiderPhaseCrossingRay(p, new int3(0, 0, -1), centreSolid, ref bestDistance);
+            return bestDistance;
+        }
+
+        private void ConsiderPhaseCrossingRay(
+            int3 p, int3 direction, bool centreSolid, ref int bestDistance)
+        {
+            byte farMaterial = ReadMaterial(p + direction * SourceStep, out _, out _);
+            if (IsSolidSample(farMaterial) == centreSolid) return;
+
+            for (int distance = 1; distance < SourceStep; distance++)
+            {
+                byte material = ReadMaterial(p + direction * distance, out _, out _);
+                if (IsSolidSample(material) == centreSolid) continue;
+                bestDistance = math.min(bestDistance, distance - 1);
+                return;
+            }
+
+            bestDistance = math.min(bestDistance, SourceStep - 1);
         }
 
         private float CoatingDisplacement(uint surface)

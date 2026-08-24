@@ -207,7 +207,7 @@ float AddTap(int3 p, float weight, bool centreSolid, StyleDefinition centreStyle
     if (join.compatibility != COMPATIBILITY_JOIN || join.continuity == CONTINUITY_DISCONTINUOUS)
         return weight;
 
-    // Smooth-compatible neighbours share reconstruction influence. This pairwise rule is what lets
+    // Smooth-compatible neighbours share their reconstruction influence. This pairwise rule is what lets
     // curvature propagate without a style deciding unilaterally how its neighbour is rebuilt.
     float neighbourCurvature = CurvatureFactor(neighbourStyle);
     return weight * lerp(1.0, neighbourCurvature, saturate(join.blendWidth * 0.5));
@@ -255,10 +255,10 @@ void ConsiderCrossingRay(int3 p, int3 direction, int sourceStep,
     }
 }
 
-void PreferNearestCrossingSurfaceMaterial(int3 p, int sourceStep,
-                                          uint centreMaterial, uint centreSurface,
-                                          inout uint dominantMaterial,
-                                          inout uint dominantSurface)
+int PreferNearestCrossingSurfaceMaterial(int3 p, int sourceStep,
+                                         uint centreMaterial, uint centreSurface,
+                                         inout uint dominantMaterial,
+                                         inout uint dominantSurface)
 {
     int bestDistance = sourceStep;
     ConsiderCrossingRay(p, int3( 1, 0, 0), sourceStep, centreMaterial, centreSurface, bestDistance, dominantMaterial, dominantSurface);
@@ -267,6 +267,38 @@ void PreferNearestCrossingSurfaceMaterial(int3 p, int sourceStep,
     ConsiderCrossingRay(p, int3(0, -1, 0), sourceStep, centreMaterial, centreSurface, bestDistance, dominantMaterial, dominantSurface);
     ConsiderCrossingRay(p, int3(0, 0,  1), sourceStep, centreMaterial, centreSurface, bestDistance, dominantMaterial, dominantSurface);
     ConsiderCrossingRay(p, int3(0, 0, -1), sourceStep, centreMaterial, centreSurface, bestDistance, dominantMaterial, dominantSurface);
+    return bestDistance;
+}
+
+void ConsiderPhaseCrossingRay(int3 p, int3 direction, int sourceStep, bool centreSolid,
+                              inout int bestDistance)
+{
+    uint farSurface, farBoundary;
+    uint farMaterial = ReadMaterial(p + direction * sourceStep, farSurface, farBoundary);
+    if (IsSolidSample(farMaterial) == centreSolid) return;
+
+    for (int distance = 1; distance < sourceStep; distance++)
+    {
+        uint surface, boundary;
+        uint material = ReadMaterial(p + direction * distance, surface, boundary);
+        if (IsSolidSample(material) == centreSolid) continue;
+        bestDistance = min(bestDistance, distance - 1);
+        return;
+    }
+
+    bestDistance = min(bestDistance, sourceStep - 1);
+}
+
+int FindNearestCrossingDistance(int3 p, int sourceStep, bool centreSolid)
+{
+    int bestDistance = sourceStep;
+    ConsiderPhaseCrossingRay(p, int3( 1, 0, 0), sourceStep, centreSolid, bestDistance);
+    ConsiderPhaseCrossingRay(p, int3(-1, 0, 0), sourceStep, centreSolid, bestDistance);
+    ConsiderPhaseCrossingRay(p, int3(0,  1, 0), sourceStep, centreSolid, bestDistance);
+    ConsiderPhaseCrossingRay(p, int3(0, -1, 0), sourceStep, centreSolid, bestDistance);
+    ConsiderPhaseCrossingRay(p, int3(0, 0,  1), sourceStep, centreSolid, bestDistance);
+    ConsiderPhaseCrossingRay(p, int3(0, 0, -1), sourceStep, centreSolid, bestDistance);
+    return bestDistance;
 }
 
 float SampleField(int3 p, int sourceStep, out uint dominantMaterial, out uint dominantSurface,
@@ -321,11 +353,29 @@ float SampleField(int3 p, int sourceStep, out uint dominantMaterial, out uint do
     mass += AddTap(p + int3( 0, 0, 2), far, centreSolid, centreStyle, dominantMaterial, dominantSurface);
     mass += AddTap(p + int3( 0, 0,-2), far, centreSolid, centreStyle, dominantMaterial, dominantSurface);
 
-    if (centreSolid && sourceStep > 1)
-        PreferNearestCrossingSurfaceMaterial(
-            p, sourceStep, centre, centreSurface, dominantMaterial, dominantSurface);
+    float density = mass - 0.5;
+    int nearestCrossingDistance = sourceStep;
+    if (sourceStep > 1)
+    {
+        if (centreSolid)
+        {
+            nearestCrossingDistance = PreferNearestCrossingSurfaceMaterial(
+                p, sourceStep, centre, centreSurface, dominantMaterial, dominantSurface);
+        }
+        else
+        {
+            nearestCrossingDistance = FindNearestCrossingDistance(p, sourceStep, centreSolid);
+        }
 
-    return mass - 0.5 + (centreSolid ? CoatingDisplacement(centreSurface) : 0.0);
+        bool densitySignMatchesOccupancy = centreSolid ? density >= 0.0 : density < 0.0;
+        if (nearestCrossingDistance < sourceStep && densitySignMatchesOccupancy)
+        {
+            float phase = (nearestCrossingDistance + 0.5) / sourceStep;
+            density = centreSolid ? phase : -phase;
+        }
+    }
+
+    return density + (centreSolid ? CoatingDisplacement(centreSurface) : 0.0);
 }
 
 #endif // VOXEL_BRICK_DENSITY_INCLUDED
