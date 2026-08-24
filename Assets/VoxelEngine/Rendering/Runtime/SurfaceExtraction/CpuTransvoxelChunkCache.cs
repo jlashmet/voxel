@@ -3580,12 +3580,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
                 int3 neighbour = voxel;
                 neighbour[axis] += sign * SourceStep;
-                ReadSnapshotCell(neighbour, out byte neighbourMaterial, out _,
-                                 out byte neighbourBoundary);
-                var neighbourAuthoredBoundary =
-                    new VoxelBoundarySample { Packed = neighbourBoundary };
+                ReadSnapshotCell(neighbour, out byte neighbourMaterial, out _, out _);
+                // The occupied cell's own reconstruction and boundary select faceted ownership.
+                // Empty-side halos can belong to another primitive and must not erase this exact
+                // occupancy face (rounded veneer over planar backing is the canonical case).
                 _faceMask[a + b * CellsPerAxis] = IsSolidSurfaceMaterial(neighbourMaterial)
-                    || neighbourAuthoredBoundary.AppliesAlong(axis)
                     ? 0u : PackSurfaceAttributes(material, surface) + 1u;
             }
         }

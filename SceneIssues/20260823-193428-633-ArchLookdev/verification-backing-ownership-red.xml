@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="1" result="Failed(Child)" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-24 18:49:51Z" end-time="2026-08-24 18:49:51Z" duration="0.0329296">
+  <test-suite type="TestSuite" id="1000" name="voxel" fullname="voxel" runstate="Runnable" testcasecount="1136" result="Failed" site="Child" start-time="2026-08-24 18:49:51Z" end-time="2026-08-24 18:49:51Z" duration="0.032930" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <failure>
+      <message><![CDATA[One or more child tests had errors]]></message>
+    </failure>
+    <test-suite type="Assembly" id="2456" name="VoxelEngine.Tests.EditMode.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/VoxelEngine.Tests.EditMode.dll" runstate="Runnable" testcasecount="805" result="Failed" site="Child" start-time="2026-08-24 18:49:51Z" end-time="2026-08-24 18:49:51Z" duration="0.026890" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="18269" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <failure>
+        <message><![CDATA[One or more child tests had errors]]></message>
+      </failure>
+      <test-suite type="TestSuite" id="2457" name="VoxelEngine" fullname="VoxelEngine" runstate="Runnable" testcasecount="805" result="Failed" site="Child" start-time="2026-08-24 18:49:51Z" end-time="2026-08-24 18:49:51Z" duration="0.025563" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <failure>
+          <message><![CDATA[One or more child tests had errors]]></message>
+        </failure>
+        <test-suite type="TestSuite" id="2458" name="Tests" fullname="VoxelEngine.Tests" runstate="Runnable" testcasecount="805" result="Failed" site="Child" start-time="2026-08-24 18:49:51Z" end-time="2026-08-24 18:49:51Z" duration="0.024241" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <failure>
+            <message><![CDATA[One or more child tests had errors]]></message>
+          </failure>
+          <test-suite type="TestSuite" id="2459" name="EditMode" fullname="VoxelEngine.Tests.EditMode" runstate="Runnable" testcasecount="805" result="Failed" site="Child" start-time="2026-08-24 18:49:51Z" end-time="2026-08-24 18:49:51Z" duration="0.022924" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <failure>
+              <message><![CDATA[One or more child tests had errors]]></message>
+            </failure>
+            <test-suite type="TestFixture" id="1679" name="FacetedBoundaryOwnershipTests" fullname="VoxelEngine.Tests.EditMode.FacetedBoundaryOwnershipTests" classname="VoxelEngine.Tests.EditMode.FacetedBoundaryOwnershipTests" runstate="Runnable" testcasecount="1" result="Failed" site="Child" start-time="2026-08-24 18:49:51Z" end-time="2026-08-24 18:49:51Z" duration="0.013046" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <failure>
+                <message><![CDATA[One or more child tests had errors]]></message>
+              </failure>
+              <test-case id="1680" name="PlanarBackingFaceSurvivesUnrelatedRoundedVeneerHalo" fullname="VoxelEngine.Tests.EditMode.FacetedBoundaryOwnershipTests.PlanarBackingFaceSurvivesUnrelatedRoundedVeneerHalo" methodname="PlanarBackingFaceSurvivesUnrelatedRoundedVeneerHalo" classname="VoxelEngine.Tests.EditMode.FacetedBoundaryOwnershipTests" runstate="Runnable" seed="796715175" result="Failed" start-time="2026-08-24 18:49:51Z" end-time="2026-08-24 18:49:51Z" duration="0.008590" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <failure>
+                  <message><![CDATA[  An empty neighbour's unrelated curved halo must not steal ownership of the occupied planar cell's exact exposed face.
+  Expected: not equal to 0
+  But was:  0
+]]></message>
+                  <stack-trace><![CDATA[at VoxelEngine.Tests.EditMode.FacetedBoundaryOwnershipTests.PlanarBackingFaceSurvivesUnrelatedRoundedVeneerHalo () [0x000da] in /Users/jlashmet/code/voxel/Assets/Tests/EditMode/FacetedBoundaryOwnershipTests.cs:45
+]]></stack-trace>
+                </failure>
+                <output><![CDATA[<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

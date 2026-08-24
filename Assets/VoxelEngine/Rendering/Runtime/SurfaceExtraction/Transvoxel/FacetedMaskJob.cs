@@ -66,11 +66,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
                     neighbourGrid[axis] += side == 0 ? -1 : 1;
                     int neighbourSample = GridIndex(neighbourGrid);
                     byte neighbour = Materials[neighbourSample];
-                    byte neighbourBoundary = BoundarySamples[neighbourSample];
-                    FaceMasks[output] = IsSolid(neighbour)
-                        || new VoxelBoundarySample { Packed = neighbourBoundary }
-                            .AppliesAlong(axis)
-                        ? 0u : encoded;
+                    // The occupied cell decides whether its face is continuous or faceted. An
+                    // empty neighbour can carry a halo from a different curved primitive (for
+                    // example rounded veneer in front of planar wall backing); that metadata must
+                    // not steal the exact solid-to-empty occupancy face from this planar cell.
+                    FaceMasks[output] = IsSolid(neighbour) ? 0u : encoded;
                 }
             }
         }

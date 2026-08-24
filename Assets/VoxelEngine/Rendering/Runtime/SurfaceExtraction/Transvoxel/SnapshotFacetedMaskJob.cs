@@ -70,11 +70,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
                     }
                     int3 neighbour = voxel;
                     neighbour[axis] += side == 0 ? -step : step;
-                    byte adjacent = Read(neighbour, out _, out byte neighbourBoundary);
-                    FaceMasks[output] = IsSolid(adjacent)
-                        || new VoxelBoundarySample { Packed = neighbourBoundary }
-                            .AppliesAlong(axis)
-                        ? 0u : encoded;
+                    byte adjacent = Read(neighbour, out _, out _);
+                    // Face ownership belongs to the occupied cell. Empty-side boundary metadata
+                    // may be an unrelated primitive's halo and cannot erase an exact occupancy face.
+                    FaceMasks[output] = IsSolid(adjacent) ? 0u : encoded;
                 }
             }
         }
