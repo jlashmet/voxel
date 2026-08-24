@@ -1,0 +1,47 @@
+name: One-shot SceneIssue 014011 preview export
+
+on:
+  push:
+    branches: [fixes]
+    paths:
+      - .github/workflows/one-shot-sceneissue-014011-preview-export.yml
+
+permissions:
+  contents: write
+
+jobs:
+  export:
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fixes
+          fetch-depth: 1
+      - name: Export small text previews
+        shell: bash
+        run: |
+          set -euo pipefail
+          ISSUE='SceneIssues/20260823-014011-920-VoxelShowcase'
+          OUT='.claude/plans/sceneissue-014011-previews'
+          rm -rf "$OUT"
+          mkdir -p "$OUT"
+          for pair in before:screenshot-001.png after:verification-lod2-attempt1.png; do
+            label="${pair%%:*}"
+            src="$ISSUE/${pair#*:}"
+            jpg="$OUT/$label.jpg"
+            sips -s format jpeg -s formatOptions 50 -Z 480 "$src" --out "$jpg" >/dev/null
+            base64 < "$jpg" | tr -d '\n' > "$OUT/$label.b64"
+            split -b 6000 -a 2 "$OUT/$label.b64" "$OUT/$label.part-"
+            rm "$jpg" "$OUT/$label.b64"
+          done
+          {
+            echo -n 'before_parts='; find "$OUT" -name 'before.part-*' | wc -l | tr -d ' '
+            echo -n 'after_parts='; find "$OUT" -name 'after.part-*' | wc -l | tr -d ' '
+          } > "$OUT/manifest.txt"
+          cat "$OUT/manifest.txt"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "$OUT"
+          git commit -m 'SceneIssue 014011: export visual comparison previews'
+          git push origin HEAD:fixes
