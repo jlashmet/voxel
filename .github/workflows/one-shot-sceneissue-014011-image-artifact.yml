@@ -40,6 +40,7 @@ jobs:
           ISSUE='SceneIssues/20260823-014011-920-VoxelShowcase'
           mkdir -p Artifacts/SceneIssue014011Comparison
           cp "$ISSUE/screenshot-001.png" Artifacts/SceneIssue014011Comparison/original.png
+          cp "$ISSUE/diagnostic-cpu-lod2.png" Artifacts/SceneIssue014011Comparison/cpu-lod2.png
           cp "$ISSUE/verification-lod2-attempt2.png" Artifacts/SceneIssue014011Comparison/attempt2.png
           cp "$ISSUE/verification-lod2-attempt3.png" Artifacts/SceneIssue014011Comparison/attempt3.png
       - name: Upload comparison images
