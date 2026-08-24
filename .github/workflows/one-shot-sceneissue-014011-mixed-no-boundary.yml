@@ -1,0 +1,121 @@
+name: One-shot SceneIssue 014011 mixed topology without boundaries
+
+on:
+  push:
+    branches: [fixes]
+    paths:
+      - .github/workflows/one-shot-sceneissue-014011-mixed-no-boundary.yml
+
+permissions:
+  contents: write
+
+jobs:
+  diagnostic:
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fixes
+          clean: true
+          fetch-depth: 0
+
+      - name: Disable authored boundary only in diagnostic workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs')
+          s = p.read_text()
+          start = s.index('public void MixedBricksWithAuthoredBoundariesAndCoatingsMatchTheCpu(int sourceStep)')
+          end = s.index('/// <summary>\n        /// Fills the extractor', start)
+          block = s[start:end]
+          old = '''                boundary[i] = y == 3\n                    ? VoxelBoundarySample.FromSignedQ4(6, extrusionAxis: 1).Packed\n                    : (byte)0;'''
+          if block.count(old) != 1:
+              raise SystemExit(f'expected one mixed boundary fixture, found {block.count(old)}')
+          block = block.replace(old, '                boundary[i] = 0;', 1)
+          p.write_text(s[:start] + block + s[end:])
+          PY
+          git diff --check
+          git diff -- Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs
+
+      - name: Resolve Unity
+        id: unity
+        shell: bash
+        run: |
+          set -euo pipefail
+          UNITY_VERSION="$(awk '/m_EditorVersion:/ { print $2 }' ProjectSettings/ProjectVersion.txt)"
+          UNITY_PATH="/Applications/Unity/Hub/Editor/${UNITY_VERSION}/Unity.app/Contents/MacOS/Unity"
+          test -x "$UNITY_PATH"
+          echo "path=$UNITY_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for Unity
+        shell: bash
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 60))
+          while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
+            if (( SECONDS >= deadline )); then
+              pgrep -alf '/Unity.app/Contents/MacOS/Unity' || true
+              exit 1
+            fi
+            sleep 5
+          done
+
+      - name: Run graphics-enabled mixed topology diagnostic
+        shell: bash
+        env:
+          TEST_FILTER: VoxelEngine.Tests.EditMode.GpuSurfaceExtractorOracleTests.MixedBricksWithAuthoredBoundariesAndCoatingsMatchTheCpu
+        run: |
+          set -uo pipefail
+          ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue014011MixedNoBoundary"
+          OUT="$GITHUB_WORKSPACE/.claude/plans/sceneissue-014011-mixed-no-boundary.txt"
+          mkdir -p "$ROOT" "$(dirname "$OUT")"
+          status=0
+          UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=4 \
+          UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
+            -batchmode -job-worker-count 1 \
+            -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform EditMode \
+            -testFilter "$TEST_FILTER" \
+            -testResults "$ROOT/results.xml" -logFile "$ROOT/unity.log" || status=$?
+          {
+            echo "status=$status"
+            echo "diagnostic=authored boundary bytes forced to zero in mixed fixture"
+            if [[ -s "$ROOT/results.xml" ]]; then
+              python3 - "$ROOT/results.xml" <<'PY'
+          import sys, xml.etree.ElementTree as ET
+          root=ET.parse(sys.argv[1]).getroot()
+          for c in root.findall('.//test-case'):
+              print(f"{c.get('result')}: {c.get('fullname') or c.get('name')}")
+              f=c.find('failure')
+              if f is not None:
+                  print((f.findtext('message') or '').strip())
+          PY
+            fi
+            echo '=== UNITY LOG TAIL ==='
+            tail -120 "$ROOT/unity.log" 2>/dev/null || true
+          } | tee "$OUT"
+          printf '%s\n' "$status" > "$ROOT/status.txt"
+
+      - name: Commit diagnostic result only
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          git restore -- Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs
+          OUT=.claude/plans/sceneissue-014011-mixed-no-boundary.txt
+          test -s "$OUT"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "$OUT"
+          if ! git diff --cached --quiet; then
+            git commit -m 'SceneIssue 014011: record no-boundary topology diagnostic'
+            git push origin HEAD:fixes
+          fi
+
+      - name: Preserve status
+        if: always()
+        shell: bash
+        run: |
+          exit "$(cat Artifacts/SceneIssue014011MixedNoBoundary/status.txt 2>/dev/null || echo 1)"
