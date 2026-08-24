@@ -10,7 +10,9 @@ Use this skill whenever working on **`jlashmet/voxel`**.
 
 ## Planning
 
-If a task is more than a trivial one-step edit, create or update a durable Markdown plan in **`.claude/plans/`** before implementation begins.
+If a task is more than a trivial one-step edit, create or update a durable Markdown plan before
+implementation begins. Keep it next to the work it documents: scene-issue plans and experiment
+notes live in the capture directory under `SceneIssues/` — see `SceneIssues/README.md`.
 
 - Resume an existing relevant plan instead of creating a duplicate.
 - State the goal, scope, important constraints, and concrete acceptance criteria.
