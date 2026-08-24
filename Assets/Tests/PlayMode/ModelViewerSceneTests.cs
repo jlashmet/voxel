@@ -6,6 +6,7 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
 using VoxelEngine.Rendering.Runtime;
+using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 
 namespace VoxelEngine.Tests.PlayMode
 {
@@ -33,7 +34,8 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.NotNull(lookdev, "ModelViewer.unity must contain the generic ModelViewerLookdev camera.");
             Assert.True(VoxelRenderBridge.TryGetWorld(out var world),
                 "Model Viewer did not bind authored voxel storage to the production renderer.");
-            Assert.NotNull(world.Reads);
+            Assert.NotNull(world.ProfileBlocks);
+            Assert.Greater(world.ProfileBlocks.Count, 0);
 
             Camera camera = lookdev.GetComponent<Camera>();
             Assert.NotNull(camera);
