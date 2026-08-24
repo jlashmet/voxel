@@ -213,12 +213,37 @@ float AddTap(int3 p, float weight, bool centreSolid, StyleDefinition centreStyle
     return weight * lerp(1.0, neighbourCurvature, saturate(join.blendWidth * 0.5));
 }
 
+void ConsiderExposedMaterial(int exposedDistance, bool preferVisibleTopMaterial,
+                             uint material, uint surface,
+                             inout int bestDistance, inout int bestMaterialDistance,
+                             inout bool hasVisibleTopMaterial,
+                             inout uint dominantMaterial, inout uint dominantSurface)
+{
+    bestDistance = min(bestDistance, exposedDistance);
+
+    // Geometry and material answer different questions. Geometry needs the nearest crossing on any
+    // axis so the coarse scalar field keeps its fine-voxel phase. Terrain material is vertically
+    // layered: grass/snow is stored only on the exposed cap while a nearby side crossing can
+    // legitimately expose dirt/rock. If this sample has a +Y cap inside the same coarse step, use
+    // that cap for colour without moving the crossing. Walls, ceilings and cave sides have no +Y
+    // cap and retain the old nearest-crossing rule.
+    bool shouldUseMaterial = preferVisibleTopMaterial
+                          || (!hasVisibleTopMaterial && exposedDistance < bestMaterialDistance);
+    if (!shouldUseMaterial) return;
+
+    if (preferVisibleTopMaterial) hasVisibleTopMaterial = true;
+    bestMaterialDistance = exposedDistance;
+    dominantMaterial = material;
+    dominantSurface = surface;
+}
+
 // Coarse lattice samples can sit below the actually exposed voxel. Match the CPU density job's
 // crossing-ray correction so LOD2 does not turn buried material depth into coarse colour bands.
-void ConsiderCrossingRay(int3 p, int3 direction, int sourceStep,
+void ConsiderCrossingRay(int3 p, int3 direction, bool preferVisibleTopMaterial, int sourceStep,
                          uint centreMaterial, uint centreSurface,
-                         inout int bestDistance, inout uint dominantMaterial,
-                         inout uint dominantSurface)
+                         inout int bestDistance, inout int bestMaterialDistance,
+                         inout bool hasVisibleTopMaterial,
+                         inout uint dominantMaterial, inout uint dominantSurface)
 {
     uint farSurface, farBoundary;
     uint farMaterial = ReadMaterial(p + direction * sourceStep, farSurface, farBoundary);
@@ -232,13 +257,9 @@ void ConsiderCrossingRay(int3 p, int3 direction, int sourceStep,
         uint material = ReadMaterial(p + direction * distance, surface, boundary);
         if (!IsSolidSample(material))
         {
-            int exposedDistance = distance - 1;
-            if (exposedDistance < bestDistance)
-            {
-                bestDistance = exposedDistance;
-                dominantMaterial = lastMaterial;
-                dominantSurface = lastSurface;
-            }
+            ConsiderExposedMaterial(distance - 1, preferVisibleTopMaterial,
+                lastMaterial, lastSurface, bestDistance, bestMaterialDistance,
+                hasVisibleTopMaterial, dominantMaterial, dominantSurface);
             return;
         }
 
@@ -246,13 +267,9 @@ void ConsiderCrossingRay(int3 p, int3 direction, int sourceStep,
         lastSurface = ResolveSurface(material, surface);
     }
 
-    int finalDistance = sourceStep - 1;
-    if (finalDistance < bestDistance)
-    {
-        bestDistance = finalDistance;
-        dominantMaterial = lastMaterial;
-        dominantSurface = lastSurface;
-    }
+    ConsiderExposedMaterial(sourceStep - 1, preferVisibleTopMaterial,
+        lastMaterial, lastSurface, bestDistance, bestMaterialDistance,
+        hasVisibleTopMaterial, dominantMaterial, dominantSurface);
 }
 
 int PreferNearestCrossingSurfaceMaterial(int3 p, int sourceStep,
@@ -261,12 +278,21 @@ int PreferNearestCrossingSurfaceMaterial(int3 p, int sourceStep,
                                          inout uint dominantSurface)
 {
     int bestDistance = sourceStep;
-    ConsiderCrossingRay(p, int3( 1, 0, 0), sourceStep, centreMaterial, centreSurface, bestDistance, dominantMaterial, dominantSurface);
-    ConsiderCrossingRay(p, int3(-1, 0, 0), sourceStep, centreMaterial, centreSurface, bestDistance, dominantMaterial, dominantSurface);
-    ConsiderCrossingRay(p, int3(0,  1, 0), sourceStep, centreMaterial, centreSurface, bestDistance, dominantMaterial, dominantSurface);
-    ConsiderCrossingRay(p, int3(0, -1, 0), sourceStep, centreMaterial, centreSurface, bestDistance, dominantMaterial, dominantSurface);
-    ConsiderCrossingRay(p, int3(0, 0,  1), sourceStep, centreMaterial, centreSurface, bestDistance, dominantMaterial, dominantSurface);
-    ConsiderCrossingRay(p, int3(0, 0, -1), sourceStep, centreMaterial, centreSurface, bestDistance, dominantMaterial, dominantSurface);
+    int bestMaterialDistance = sourceStep;
+    bool hasVisibleTopMaterial = false;
+
+    ConsiderCrossingRay(p, int3( 1, 0, 0), false, sourceStep, centreMaterial, centreSurface,
+        bestDistance, bestMaterialDistance, hasVisibleTopMaterial, dominantMaterial, dominantSurface);
+    ConsiderCrossingRay(p, int3(-1, 0, 0), false, sourceStep, centreMaterial, centreSurface,
+        bestDistance, bestMaterialDistance, hasVisibleTopMaterial, dominantMaterial, dominantSurface);
+    ConsiderCrossingRay(p, int3(0,  1, 0), true, sourceStep, centreMaterial, centreSurface,
+        bestDistance, bestMaterialDistance, hasVisibleTopMaterial, dominantMaterial, dominantSurface);
+    ConsiderCrossingRay(p, int3(0, -1, 0), false, sourceStep, centreMaterial, centreSurface,
+        bestDistance, bestMaterialDistance, hasVisibleTopMaterial, dominantMaterial, dominantSurface);
+    ConsiderCrossingRay(p, int3(0, 0,  1), false, sourceStep, centreMaterial, centreSurface,
+        bestDistance, bestMaterialDistance, hasVisibleTopMaterial, dominantMaterial, dominantSurface);
+    ConsiderCrossingRay(p, int3(0, 0, -1), false, sourceStep, centreMaterial, centreSurface,
+        bestDistance, bestMaterialDistance, hasVisibleTopMaterial, dominantMaterial, dominantSurface);
     return bestDistance;
 }
 

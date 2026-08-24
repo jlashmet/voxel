@@ -162,24 +162,35 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
             ref byte dominantMaterial, ref uint dominantSurface)
         {
             int bestDistance = SourceStep;
-            ConsiderCrossingRay(p, new int3( 1, 0, 0), centreMaterial, centreSurface,
-                ref bestDistance, ref dominantMaterial, ref dominantSurface);
-            ConsiderCrossingRay(p, new int3(-1, 0, 0), centreMaterial, centreSurface,
-                ref bestDistance, ref dominantMaterial, ref dominantSurface);
-            ConsiderCrossingRay(p, new int3(0,  1, 0), centreMaterial, centreSurface,
-                ref bestDistance, ref dominantMaterial, ref dominantSurface);
-            ConsiderCrossingRay(p, new int3(0, -1, 0), centreMaterial, centreSurface,
-                ref bestDistance, ref dominantMaterial, ref dominantSurface);
-            ConsiderCrossingRay(p, new int3(0, 0,  1), centreMaterial, centreSurface,
-                ref bestDistance, ref dominantMaterial, ref dominantSurface);
-            ConsiderCrossingRay(p, new int3(0, 0, -1), centreMaterial, centreSurface,
-                ref bestDistance, ref dominantMaterial, ref dominantSurface);
+            int bestMaterialDistance = SourceStep;
+            bool hasVisibleTopMaterial = false;
+
+            ConsiderCrossingRay(p, new int3( 1, 0, 0), false, centreMaterial, centreSurface,
+                ref bestDistance, ref bestMaterialDistance, ref hasVisibleTopMaterial,
+                ref dominantMaterial, ref dominantSurface);
+            ConsiderCrossingRay(p, new int3(-1, 0, 0), false, centreMaterial, centreSurface,
+                ref bestDistance, ref bestMaterialDistance, ref hasVisibleTopMaterial,
+                ref dominantMaterial, ref dominantSurface);
+            ConsiderCrossingRay(p, new int3(0,  1, 0), true, centreMaterial, centreSurface,
+                ref bestDistance, ref bestMaterialDistance, ref hasVisibleTopMaterial,
+                ref dominantMaterial, ref dominantSurface);
+            ConsiderCrossingRay(p, new int3(0, -1, 0), false, centreMaterial, centreSurface,
+                ref bestDistance, ref bestMaterialDistance, ref hasVisibleTopMaterial,
+                ref dominantMaterial, ref dominantSurface);
+            ConsiderCrossingRay(p, new int3(0, 0,  1), false, centreMaterial, centreSurface,
+                ref bestDistance, ref bestMaterialDistance, ref hasVisibleTopMaterial,
+                ref dominantMaterial, ref dominantSurface);
+            ConsiderCrossingRay(p, new int3(0, 0, -1), false, centreMaterial, centreSurface,
+                ref bestDistance, ref bestMaterialDistance, ref hasVisibleTopMaterial,
+                ref dominantMaterial, ref dominantSurface);
             return bestDistance;
         }
 
         private void ConsiderCrossingRay(
-            int3 p, int3 direction, byte centreMaterial, uint centreSurface,
-            ref int bestDistance, ref byte dominantMaterial, ref uint dominantSurface)
+            int3 p, int3 direction, bool preferVisibleTopMaterial,
+            byte centreMaterial, uint centreSurface,
+            ref int bestDistance, ref int bestMaterialDistance, ref bool hasVisibleTopMaterial,
+            ref byte dominantMaterial, ref uint dominantSurface)
         {
             byte farMaterial = ReadMaterial(p + direction * SourceStep, out _, out _);
             if (IsSolidSample(farMaterial)) return;
@@ -192,13 +203,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
                     p + direction * distance, out uint surface, out _);
                 if (!IsSolidSample(material))
                 {
-                    int exposedDistance = distance - 1;
-                    if (exposedDistance < bestDistance)
-                    {
-                        bestDistance = exposedDistance;
-                        dominantMaterial = lastMaterial;
-                        dominantSurface = lastSurface;
-                    }
+                    ConsiderExposedMaterial(
+                        distance - 1, preferVisibleTopMaterial, lastMaterial, lastSurface,
+                        ref bestDistance, ref bestMaterialDistance, ref hasVisibleTopMaterial,
+                        ref dominantMaterial, ref dominantSurface);
                     return;
                 }
 
@@ -208,13 +216,34 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
 
             // The far coarse endpoint is air, so if every intermediate voxel was solid then the
             // final intermediate voxel is the exposed one immediately before that endpoint.
-            int finalDistance = SourceStep - 1;
-            if (finalDistance < bestDistance)
-            {
-                bestDistance = finalDistance;
-                dominantMaterial = lastMaterial;
-                dominantSurface = lastSurface;
-            }
+            ConsiderExposedMaterial(
+                SourceStep - 1, preferVisibleTopMaterial, lastMaterial, lastSurface,
+                ref bestDistance, ref bestMaterialDistance, ref hasVisibleTopMaterial,
+                ref dominantMaterial, ref dominantSurface);
+        }
+
+        private static void ConsiderExposedMaterial(
+            int exposedDistance, bool preferVisibleTopMaterial,
+            byte material, uint surface,
+            ref int bestDistance, ref int bestMaterialDistance, ref bool hasVisibleTopMaterial,
+            ref byte dominantMaterial, ref uint dominantSurface)
+        {
+            bestDistance = math.min(bestDistance, exposedDistance);
+
+            // Geometry and material answer different questions. Geometry needs the nearest crossing
+            // on any axis so the coarse scalar field keeps its fine-voxel phase. Terrain material,
+            // however, is vertically layered: grass/snow is stored only on the exposed cap while a
+            // nearby side crossing can legitimately expose dirt/rock. If this sample has a +Y cap
+            // inside the same coarse step, use that cap for colour without moving the crossing.
+            // Walls, ceilings and cave sides have no +Y cap and retain the old nearest-crossing rule.
+            bool shouldUseMaterial = preferVisibleTopMaterial
+                || (!hasVisibleTopMaterial && exposedDistance < bestMaterialDistance);
+            if (!shouldUseMaterial) return;
+
+            if (preferVisibleTopMaterial) hasVisibleTopMaterial = true;
+            bestMaterialDistance = exposedDistance;
+            dominantMaterial = material;
+            dominantSurface = surface;
         }
 
         private int FindNearestCrossingDistance(int3 p, bool centreSolid)
