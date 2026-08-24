@@ -1,5 +1,6 @@
 name: One-shot SceneIssue 014011 exact replay
 
+# Replay revision 2: hard-reset Unity/editor dirt before committing evidence and emit a small preview.
 on:
   push:
     branches: [fixes]
@@ -97,7 +98,15 @@ jobs:
           ISSUE="SceneIssues/20260823-014011-920-VoxelShowcase"
           final="$(find "$ROOT/Screenshots" -type f -name '*.png' -size +1k | sort | tail -1)"
           test -n "$final"
+
+          # Unity can rewrite tracked editor settings during a graphics run. Restore the checkout
+          # before staging evidence so that cannot block the later rebase/push or contaminate it.
+          git reset --hard HEAD
+
           cp "$final" "$ISSUE/diagnostic-cpu-lod2.png"
+          mkdir -p "$GITHUB_WORKSPACE/Artifacts/SceneIssue014011/Preview"
+          sips -s format jpeg -s formatOptions 70 -Z 800 "$final" \
+            --out "$GITHUB_WORKSPACE/Artifacts/SceneIssue014011/Preview/diagnostic-cpu-lod2-preview.jpg" >/dev/null
           {
             echo "source_commit=$GITHUB_SHA"
             echo "camera_fixture=Showcase Camera @ (101.44347381591797,113.22681427001953,-51.74753952026367), fov=70"
@@ -118,10 +127,25 @@ jobs:
             grep 'RINGS ' "$ROOT/player-run.log" | tail -20 || true
           } > "$ISSUE/diagnostic-cpu-lod2.txt"
           cat "$ISSUE/diagnostic-cpu-lod2.txt"
-          git restore -- Assets/Resources/SceneIssueCameraPose.json tools/showcase-player-capture.sh 2>/dev/null || true
+          echo 'CPU_PREVIEW_BEGIN'
+          base64 < "$GITHUB_WORKSPACE/Artifacts/SceneIssue014011/Preview/diagnostic-cpu-lod2-preview.jpg" | fold -w 120
+          echo 'CPU_PREVIEW_END'
+
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add "$ISSUE/diagnostic-cpu-lod2.png" "$ISSUE/diagnostic-cpu-lod2.txt"
           git commit -m 'SceneIssue 014011: record CPU LOD2 diagnostic replay'
           git pull --rebase origin fixes
           git push origin HEAD:fixes
+
+      - name: Upload CPU replay preview
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sceneissue-014011-cpu-replay-${{ github.run_id }}
+          path: |
+            Artifacts/SceneIssue014011/Preview/**
+            Artifacts/SceneIssue014011/RealPlayer/Screenshots/**
+            Artifacts/SceneIssue014011/RealPlayer/player-run.log
+          if-no-files-found: ignore
+          retention-days: 1
