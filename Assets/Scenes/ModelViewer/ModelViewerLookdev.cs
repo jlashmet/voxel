@@ -199,7 +199,7 @@ namespace Game.ModelViewer
         private void FrameSelectedModel()
         {
             ModelEntry model = Catalogue[_selectedModel];
-            float3 centreVoxels = model.LocalMin + model.LocalSize * 0.5f - model.LocalMin;
+            float3 centreVoxels = (float3)model.LocalSize * 0.5f;
             _cameraFocus = new Vector3(
                 centreVoxels.x * VoxelSize,
                 centreVoxels.y * VoxelSize,
