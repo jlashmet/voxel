@@ -1,0 +1,123 @@
+=== Real capture / visual test classes ===
+=== Scene issue / camera replay hooks ===
+Assets/Scenes/Showcase/SceneIssueCameraReplayHarness.cs:7:    /// Pins a standalone showcase player to a captured SceneIssue camera pose when a temporary
+Assets/Scenes/Showcase/SceneIssueCameraReplayHarness.cs:8:    /// Resources/SceneIssueCameraPose.json fixture is present. Normal players are unaffected.
+Assets/Scenes/Showcase/SceneIssueCameraReplayHarness.cs:14:    public static class SceneIssueCameraReplayHarness
+Assets/Scenes/Showcase/SceneIssueCameraReplayHarness.cs:16:        private const string ResourceName = "SceneIssueCameraPose";
+Assets/Scenes/Showcase/VoxelShowcase.cs:253:        /// Enables a presentation-only section box. Intended for fixed showcase cameras; it
+Assets/Tests/Parity/TerrainContinuityTests.cs:140:        public void SceneIssue20260823013924433CaptureAreaStaysCalmAndContinuous()
+Assets/Tests/PlayMode/ShowcaseTraversalPerformanceTests.cs:19:    /// Player-visible performance regressions for the production showcase while the camera is
+Assets/Tests/PlayMode/Step4FalseEmptyLifecycleTests.cs:19:    /// does not compare screenshots or change renderer budgets. It parks the real showcase camera
+Assets/Tests/PlayMode/AsyncGeometryStressTests.cs:569:                "Active URP renderer does not support SingleCameraRequest for the showcase camera.");
+Assets/Tests/PlayMode/LodRenderingTests.cs:367:                "Active URP renderer does not support SingleCameraRequest for the showcase camera.");
+Assets/Tests/PlayMode/ShowcaseFrameBudgetDiagnosticTests.cs:365:        /// The showcase rewrites the camera every frame, so both position and rotation are set
+Assets/Tests/PlayMode/ShowcaseFrameBudgetDiagnosticTests.cs:550:            // showcase transform, so a camera-only walk measures a stationary world with a sliding
+Assets/Tests/PlayMode/FallingVoxelPhysicsTests.cs:471:            var cameraObject = new GameObject("GPU debris capture camera");
+Assets/Tests/PlayMode/FarFieldCoverageInvariantTests.cs:300:            // Enable the showcase's production fly path so this artificial camera displacement is
+Assets/Tests/PlayMode/Step4CoreResidencyAdmissionTests.cs:23:    /// actual active step-4 slot, aims the real showcase camera at it, derives the unpadded core
+Assets/Tests/EditMode/TransvoxelChunkBoundaryOwnershipTests.cs:15:        public void SceneIssue20260823013834177BoundaryCellBelongsToInsideDensitySide()
+Assets/Tests/EditMode/TransvoxelChunkBoundaryOwnershipTests.cs:32:        public void SceneIssueOwnershipIgnoresDominantMaterialOnOutsideCorner()
+Assets/Tests/EditMode/TransvoxelChunkBoundaryOwnershipTests.cs:51:        public void SceneIssue20260823014011920CoarseTerrainUsesExposedCapMaterial()
+Assets/Tests/EditMode/GpuLod2CutoverPolicyTests.cs:11:        public void SceneIssue20260823014011920GpuCutoverTargetsOnlyNearExactRings()
+Assets/Tests/EditMode/GpuLod2CutoverPolicyTests.cs:16:                "LOD2 is the intended extension for this SceneIssue.");
+Assets/Tests/EditMode/GpuLod2CutoverPolicyTests.cs:24:        public void SceneIssue20260823014011920GpuLod2CarriesInnerTransitionFaceMask()
+Assets/VoxelEngine/CI/PlayMode/DeterministicVegetationAnimationVisualTests.cs:60:                SetTime(0f); showcase.Renderer.DrawNow(); camera.Render();
+Assets/VoxelEngine/CI/PlayMode/DeterministicVegetationAnimationVisualTests.cs:62:                SetTime(0.70f); showcase.Renderer.DrawNow(); camera.Render();
+Assets/VoxelEngine/CI/PlayMode/DeterministicVegetationAnimationVisualTests.cs:187:                SetTime(0f); showcase.Renderer.DrawNow(); camera.Render(); luminous0 = VegetationLifeRenderingVisualTests.ReadTarget(target);
+Assets/VoxelEngine/CI/PlayMode/DeterministicVegetationAnimationVisualTests.cs:188:                SetTime(1.30f); showcase.Renderer.DrawNow(); camera.Render(); luminous1 = VegetationLifeRenderingVisualTests.ReadTarget(target);
+Assets/VoxelEngine/CI/PlayMode/DeterministicVegetationAnimationVisualTests.cs:195:                SetTime(0f); showcase.Renderer.DrawNow(); camera.Render(); mundane0 = VegetationLifeRenderingVisualTests.ReadTarget(target);
+Assets/VoxelEngine/CI/PlayMode/DeterministicVegetationAnimationVisualTests.cs:196:                SetTime(1.30f); showcase.Renderer.DrawNow(); camera.Render(); mundane1 = VegetationLifeRenderingVisualTests.ReadTarget(target);
+Assets/VoxelEngine/CI/PlayMode/TemporalAnimationVisualTests.cs:138:                showcase.Renderer.DrawNow(); camera.Render(); Texture2D first = VegetationLifeRenderingVisualTests.ReadTarget(target); frames.Add(first);
+Assets/VoxelEngine/CI/PlayMode/TemporalAnimationVisualTests.cs:143:                showcase.Renderer.DrawNow(); camera.Render(); Texture2D second = VegetationLifeRenderingVisualTests.ReadTarget(target); frames.Add(second);
+Assets/VoxelEngine/CI/PlayMode/TemporalAnimationVisualTests.cs:183:                    showcase.Renderer.DrawNow(); camera.Render();
+Assets/VoxelEngine/CI/PlayMode/TemporalAnimationVisualTests.cs:230:                showcase.Renderer.DrawNow(); camera.Render(); Texture2D first = VegetationLifeRenderingVisualTests.ReadTarget(target); frames.Add(first);
+Assets/VoxelEngine/CI/PlayMode/TemporalAnimationVisualTests.cs:235:                showcase.Renderer.DrawNow(); camera.Render(); Texture2D second = VegetationLifeRenderingVisualTests.ReadTarget(target); frames.Add(second);
+Assets/VoxelEngine/CI/Editor/WaterStudyAlphaPostprocess.cs:31:                    // URP/Metal capture on this runner leaves the transparent camera clear
+Assets/VoxelEngine/CI/Editor/KentridgeCameraCaptureHook.cs:15:    /// four FOV-52 street captures immediately before render; production cameras and worldgen remain
+Assets/Game/Composition/Showcase/ShowcaseWorld.cs:110:        /// <summary>Where the showcase's landmark sits. The spawn camera is aimed here.</summary>
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:14:    public sealed class SceneIssueCaptureRecord
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:30:        public SceneIssueFrameCapture[] captures;
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:39:        public SceneIssueTransformSnapshot poseAnchor;
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:40:        public SceneIssueCameraSnapshot camera;
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:41:        public SceneIssueScreenCircle[] circles;
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:45:    public sealed class SceneIssueFrameCapture
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:53:        public SceneIssueTransformSnapshot poseAnchor;
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:54:        public SceneIssueCameraSnapshot camera;
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:55:        public SceneIssueScreenCircle[] circles;
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:59:    public sealed class SceneIssueScreenCircle
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:68:    public sealed class SceneIssueTransformSnapshot
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:77:    public sealed class SceneIssueCameraSnapshot
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:94:    public sealed class SceneIssueCapture : MonoBehaviour
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:96:        public const string ReplayRequestEditorPrefsKey = "MountingForce.SceneIssueCapture.ReplayRequest";
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:99:        private const string CaptureDirectoryName = "SceneIssues";
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:105:            public SceneIssueFrameCapture Snapshot;
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:107:            public readonly List<SceneIssueScreenCircle> Circles = new();
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:122:        private SceneIssueCaptureRecord _pendingRecord;
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:123:        private SceneIssueCaptureRecord _replayRecord;
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:124:        private SceneIssueFrameCapture[] _replayFrames;
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:131:        private SceneIssueTransformSnapshot _frozenAnchor;
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:132:        private SceneIssueCameraSnapshot _frozenView;
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:145:            if (FindFirstObjectByType<SceneIssueCapture>() != null)
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:150:            host.AddComponent<SceneIssueCapture>();
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:304:            SceneIssueFrameCapture snapshot = BuildFrame(camera, _pendingFrames.Count + 1);
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:312:        private IEnumerator CaptureRenderedFrame(SceneIssueFrameCapture snapshot)
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:360:                SceneIssueFrameCapture view = BuildFrame(camera, _pendingFrames.Count + 1);
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:474:                SceneIssueScreenCircle draft = BuildCircle(preview, _circleStart, Event.current.mousePosition);
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:485:            GUI.SetNextControlName("SceneIssueDescription");
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:489:                GUI.FocusControl("SceneIssueDescription");
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:537:                SceneIssueScreenCircle circle = BuildCircle(preview, _circleStart, current.mousePosition);
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:547:            List<SceneIssueScreenCircle> circles = _pendingFrames[_annotationFrameIndex].Circles;
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:567:        private static SceneIssueScreenCircle BuildCircle(Rect preview, Vector2 start, Vector2 end)
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:577:            return new SceneIssueScreenCircle
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:585:        private static Vector2 CircleCenter(Rect rect, SceneIssueScreenCircle circle)
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:618:                _pendingRecord.captures = new SceneIssueFrameCapture[_pendingFrames.Count];
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:649:        private static void MirrorFirstFrameIntoLegacyFields(SceneIssueCaptureRecord record, SceneIssueFrameCapture frame)
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:709:        private SceneIssueCaptureRecord BuildIssueRecord()
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:715:            return new SceneIssueCaptureRecord
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:730:        private SceneIssueFrameCapture BuildFrame(Camera camera, int sequence)
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:733:            return new SceneIssueFrameCapture
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:743:                circles = Array.Empty<SceneIssueScreenCircle>()
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:781:        private static Transform ResolveRecordedAnchor(Transform cameraTransform, SceneIssueTransformSnapshot snapshot)
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:795:        private static SceneIssueTransformSnapshot CaptureTransform(Transform transform)
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:797:            return new SceneIssueTransformSnapshot
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:806:        private static SceneIssueCameraSnapshot CaptureCamera(Camera camera)
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:808:            return new SceneIssueCameraSnapshot
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:865:        private static SceneIssueFrameCapture[] GetReplayFrames(SceneIssueCaptureRecord record)
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:871:                return Array.Empty<SceneIssueFrameCapture>();
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:875:                new SceneIssueFrameCapture
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:885:                    circles = record.circles ?? Array.Empty<SceneIssueScreenCircle>()
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:890:        private static Camera ResolveActiveCamera(SceneIssueCaptureRecord record)
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:893:            SceneIssueCameraSnapshot target = null;
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:896:                SceneIssueFrameCapture[] frames = GetReplayFrames(record);
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:956:            SceneIssueScreenCircle[] circles = _replayFrames[_replayIndex].circles;
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:973:                SceneIssueFrameCapture frame = _replayFrames[_replayIndex];
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:1001:            SceneIssueFrameCapture frame = _replayFrames[index];
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:1026:            SceneIssueCaptureRecord record;
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:1029:                record = JsonUtility.FromJson<SceneIssueCaptureRecord>(File.ReadAllText(path));
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:1050:            SceneIssueFrameCapture[] frames = GetReplayFrames(record);
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:1053:                ShowToast("Replay capture contains no camera frames.");
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:1106:        private void DrawCircles(Rect rect, IList<SceneIssueScreenCircle> circles, Color color, float thickness)
+Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:1115:        private void DrawCircle(Rect rect, SceneIssueScreenCircle circle, Color color, float thickness)
+Assets/DeveloperTools/SceneIssueCapture/Editor/SceneIssueCaptureMenu.cs:12:    public static class SceneIssueCaptureMenu
+Assets/DeveloperTools/SceneIssueCapture/Editor/SceneIssueCaptureMenu.cs:19:            string root = SceneIssueCapture.GetCaptureRootPath();
+Assets/DeveloperTools/SceneIssueCapture/Editor/SceneIssueCaptureMenu.cs:41:            string root = SceneIssueCapture.GetCaptureRootPath();
+Assets/DeveloperTools/SceneIssueCapture/Editor/SceneIssueCaptureMenu.cs:51:            string root = SceneIssueCapture.GetCaptureRootPath();
+Assets/DeveloperTools/SceneIssueCapture/Editor/SceneIssueCaptureMenu.cs:58:            SceneIssueCaptureRecord record;
+Assets/DeveloperTools/SceneIssueCapture/Editor/SceneIssueCaptureMenu.cs:61:                record = JsonUtility.FromJson<SceneIssueCaptureRecord>(File.ReadAllText(path));
+Assets/DeveloperTools/SceneIssueCapture/Editor/SceneIssueCaptureMenu.cs:100:            EditorPrefs.SetString(SceneIssueCapture.ReplayRequestEditorPrefsKey, path);
+=== Showcase player argument parsing ===
+Assets/Scenes/Kentridge/KentridgePlayableSlice.cs:660:            string[] args = Environment.GetCommandLineArgs();
+Assets/Scenes/Kentridge/KentridgePlayableSlice.cs:672:            string[] args = Environment.GetCommandLineArgs();
+Assets/Scenes/Showcase/StationaryRenderBenchmarkHarness.cs:55:            string[] args = Environment.GetCommandLineArgs();
+Assets/Scenes/Showcase/SurfaceBuildConcurrencyHarness.cs:33:            string[] args = Environment.GetCommandLineArgs();
+Assets/Scenes/Showcase/SurfacePrepareTimingHarness.cs:39:            string[] args = Environment.GetCommandLineArgs();
+Assets/Scenes/Showcase/ShowcasePlayerHarness.cs:219:            string[] args = Environment.GetCommandLineArgs();
+Assets/Scenes/Showcase/ShowcasePlayerHarness.cs:227:            string[] args = Environment.GetCommandLineArgs();
+Assets/Scenes/Showcase/ShowcasePlayerHarness.cs:235:            string[] args = Environment.GetCommandLineArgs();
+Assets/Scenes/Showcase/Editor/ShowcasePlayerBuild.cs:85:            string[] args = Environment.GetCommandLineArgs();
+Assets/Scenes/Showcase/Editor/ShowcasePlayerBuild.cs:93:            string[] args = Environment.GetCommandLineArgs();
+Assets/Scenes/Showcase/Editor/ProfilerCaptureReport.cs:150:            string[] args = Environment.GetCommandLineArgs();
+Assets/Scenes/Showcase/DeterministicAutoWalkHeadingHarness.cs:99:            string[] args = Environment.GetCommandLineArgs();
+Assets/Scenes/Showcase/RealPlayerScreenshotFallback.cs:57:            string[] args = Environment.GetCommandLineArgs();
+Assets/Scenes/Showcase/RealPlayerScreenshotFallback.cs:65:            string[] args = Environment.GetCommandLineArgs();
+Assets/Scenes/Showcase/RealPlayerScreenshotFallback.cs:73:            string[] args = Environment.GetCommandLineArgs();
