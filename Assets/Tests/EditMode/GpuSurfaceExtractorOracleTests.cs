@@ -255,8 +255,9 @@ namespace VoxelEngine.Tests.EditMode
             }
         }
 
-        [Test]
-        public void GpuDensityMatchesTheCpuJobSampleForSample()
+        [TestCase(1)]
+        [TestCase(2)]
+        public void GpuDensityMatchesTheCpuJobSampleForSample(int sourceStep)
         {
             // The real comparison. Everything downstream — case codes, which cells emit, where the
             // surface crosses each edge — is a deterministic function of these numbers and the
@@ -297,7 +298,7 @@ namespace VoxelEngine.Tests.EditMode
             var indices = new ComputeBuffer(capacity, sizeof(uint), ComputeBufferType.Structured);
             try
             {
-                extractor.Extract(mirror, tables, int3.zero, brickCacheOrigin, 1, 0.1f,
+                extractor.Extract(mirror, tables, int3.zero, brickCacheOrigin, sourceStep, 0.1f,
                                   vertices, indices, capacity, capacity);
 
                 var gpuDensity = new float[extractor.GridSize * extractor.GridSize * extractor.GridSize];
@@ -305,7 +306,7 @@ namespace VoxelEngine.Tests.EditMode
 
                 float[] cpuDensity = CpuDensityOracle.SampleUniformNeighbourhood(
                     int3.zero, brickCacheOrigin, extractor.BrickCacheEdge,
-                    CellsPerAxis, Padding, sourceStep: 1,
+                    CellsPerAxis, Padding, sourceStep: sourceStep,
                     material, solidBelowBrickY: true, solidBrickYLimit,
                     surfaces, coatings, palette);
 
