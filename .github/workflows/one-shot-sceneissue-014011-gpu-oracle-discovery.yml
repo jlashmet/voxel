@@ -1,0 +1,38 @@
+name: One-shot SceneIssue 014011 GPU oracle discovery
+
+on:
+  push:
+    branches: [fixes]
+    paths:
+      - .github/workflows/one-shot-sceneissue-014011-gpu-oracle-discovery.yml
+
+permissions:
+  contents: write
+
+jobs:
+  discover:
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fixes
+          fetch-depth: 1
+      - name: Locate GPU readback/oracle tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          out=.claude/plans/sceneissue-014011-gpu-oracle-discovery.txt
+          {
+            echo '=== tests using GPU surface readbacks ==='
+            grep -RIn --include='*.cs' -E 'ReadDensity\(|ReadSampleMaterials\(|ReadCellCounts\(|GpuSurfaceExtractor' Assets/Tests Assets/VoxelEngine/CI 2>/dev/null || true
+            echo
+            echo '=== extractor readback methods ==='
+            grep -RIn --include='*.cs' -E 'ReadDensity\(|ReadSampleMaterials\(|ReadCellCounts\(' Assets/VoxelEngine/Rendering/Runtime/GpuVoxel 2>/dev/null || true
+          } > "$out"
+          cat "$out"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "$out"
+          git commit -m 'SceneIssue 014011: record GPU oracle test discovery'
+          git push origin HEAD:fixes
