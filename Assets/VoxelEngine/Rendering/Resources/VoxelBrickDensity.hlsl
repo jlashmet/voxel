@@ -213,7 +213,63 @@ float AddTap(int3 p, float weight, bool centreSolid, StyleDefinition centreStyle
     return weight * lerp(1.0, neighbourCurvature, saturate(join.blendWidth * 0.5));
 }
 
-float SampleField(int3 p, out uint dominantMaterial, out uint dominantSurface,
+// Coarse lattice samples can sit below the actually exposed voxel. Match the CPU density job's
+// crossing-ray correction so LOD2 does not turn buried material depth into coarse colour bands.
+void ConsiderCrossingRay(int3 p, int3 direction, int sourceStep,
+                         uint centreMaterial, uint centreSurface,
+                         inout int bestDistance, inout uint dominantMaterial,
+                         inout uint dominantSurface)
+{
+    uint farSurface, farBoundary;
+    uint farMaterial = ReadMaterial(p + direction * sourceStep, farSurface, farBoundary);
+    if (IsSolidSample(farMaterial)) return;
+
+    uint lastMaterial = centreMaterial;
+    uint lastSurface = centreSurface;
+    for (int distance = 1; distance < sourceStep; distance++)
+    {
+        uint surface, boundary;
+        uint material = ReadMaterial(p + direction * distance, surface, boundary);
+        if (!IsSolidSample(material))
+        {
+            int exposedDistance = distance - 1;
+            if (exposedDistance < bestDistance)
+            {
+                bestDistance = exposedDistance;
+                dominantMaterial = lastMaterial;
+                dominantSurface = lastSurface;
+            }
+            return;
+        }
+
+        lastMaterial = material;
+        lastSurface = ResolveSurface(material, surface);
+    }
+
+    int finalDistance = sourceStep - 1;
+    if (finalDistance < bestDistance)
+    {
+        bestDistance = finalDistance;
+        dominantMaterial = lastMaterial;
+        dominantSurface = lastSurface;
+    }
+}
+
+void PreferNearestCrossingSurfaceMaterial(int3 p, int sourceStep,
+                                          uint centreMaterial, uint centreSurface,
+                                          inout uint dominantMaterial,
+                                          inout uint dominantSurface)
+{
+    int bestDistance = sourceStep;
+    ConsiderCrossingRay(p, int3( 1, 0, 0), sourceStep, centreMaterial, centreSurface, bestDistance, dominantMaterial, dominantSurface);
+    ConsiderCrossingRay(p, int3(-1, 0, 0), sourceStep, centreMaterial, centreSurface, bestDistance, dominantMaterial, dominantSurface);
+    ConsiderCrossingRay(p, int3(0,  1, 0), sourceStep, centreMaterial, centreSurface, bestDistance, dominantMaterial, dominantSurface);
+    ConsiderCrossingRay(p, int3(0, -1, 0), sourceStep, centreMaterial, centreSurface, bestDistance, dominantMaterial, dominantSurface);
+    ConsiderCrossingRay(p, int3(0, 0,  1), sourceStep, centreMaterial, centreSurface, bestDistance, dominantMaterial, dominantSurface);
+    ConsiderCrossingRay(p, int3(0, 0, -1), sourceStep, centreMaterial, centreSurface, bestDistance, dominantMaterial, dominantSurface);
+}
+
+float SampleField(int3 p, int sourceStep, out uint dominantMaterial, out uint dominantSurface,
                   out uint dominantBoundary)
 {
     uint centreSurface, packedBoundary;
@@ -264,6 +320,10 @@ float SampleField(int3 p, out uint dominantMaterial, out uint dominantSurface,
     mass += AddTap(p + int3( 0,-2, 0), far, centreSolid, centreStyle, dominantMaterial, dominantSurface);
     mass += AddTap(p + int3( 0, 0, 2), far, centreSolid, centreStyle, dominantMaterial, dominantSurface);
     mass += AddTap(p + int3( 0, 0,-2), far, centreSolid, centreStyle, dominantMaterial, dominantSurface);
+
+    if (centreSolid && sourceStep > 1)
+        PreferNearestCrossingSurfaceMaterial(
+            p, sourceStep, centre, centreSurface, dominantMaterial, dominantSurface);
 
     return mass - 0.5 + (centreSolid ? CoatingDisplacement(centreSurface) : 0.0);
 }

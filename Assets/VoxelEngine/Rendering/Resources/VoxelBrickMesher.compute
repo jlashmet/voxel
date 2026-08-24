@@ -147,7 +147,7 @@ void CSSampleDensity(uint3 id : SV_DispatchThreadID)
     int3 p = _ChunkOriginVoxel + (int3(gx, gy, gz) - _Padding) * _SourceStep;
 
     uint material, surface, boundary;
-    _DensityWrite[index] = SampleField(p, material, surface, boundary);
+    _DensityWrite[index] = SampleField(p, _SourceStep, material, surface, boundary);
     _SampleMaterialWrite[index] = material;
     _SampleSurfaceWrite[index] = surface;
     _SampleBoundaryWrite[index] = boundary;
