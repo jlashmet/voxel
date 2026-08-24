@@ -590,6 +590,129 @@ namespace VoxelEngine.Tests.EditMode
 
         [TestCase(1)]
         [TestCase(2)]
+        public void MixedSampleFieldMatchesTheCpuJob(int sourceStep)
+        {
+            const int perBrick = 512;
+            var voxels = new byte[perBrick];
+            var semantics = new ushort[perBrick];
+            var boundary = new byte[perBrick];
+            for (int z = 0; z < 8; z++)
+            for (int y = 0; y < 8; y++)
+            for (int x = 0; x < 8; x++)
+            {
+                int i = x + 8 * (y + 8 * z);
+                voxels[i] = (byte)(y < 4 ? 1 : 0);
+                semantics[i] = (ushort)(((x + z) & 1) == 0 ? SurfaceStyles.Smooth
+                                                           : SurfaceStyles.Rounded);
+                boundary[i] = y == 3
+                    ? VoxelBoundarySample.FromSignedQ4(6, extrusionAxis: 1).Packed
+                    : (byte)0;
+            }
+
+            using var mirror = new GpuVoxelBrickMirror(slotCapacity: 8);
+            using var tables = GpuTransvoxelTables.CreateDefault();
+            using var extractor = new GpuSurfaceExtractor(_shader, CellsPerAxis, Padding);
+            SurfaceCatalogueView surfaces = SurfaceCatalogueView.CreateBuiltIns();
+            CoatingCatalogueView coatings = default;
+            MaterialPaletteView palette = default;
+            var defaultStyles = new uint[256];
+            for (int i = 0; i < 256; i++)
+                defaultStyles[i] = palette.GetDefaultSurfaceStyle((byte)i);
+            extractor.SetCatalogues(surfaces, coatings, defaultStyles);
+
+            var nativeVoxels = new Unity.Collections.NativeArray<byte>(
+                voxels, Unity.Collections.Allocator.Temp);
+            var nativeSemantics = new Unity.Collections.NativeArray<ushort>(
+                semantics, Unity.Collections.Allocator.Temp);
+            var nativeBoundary = new Unity.Collections.NativeArray<byte>(
+                boundary, Unity.Collections.Allocator.Temp);
+            const int capacity = 65536;
+            var vertices = new ComputeBuffer(capacity, GpuSurfaceExtractor.ReadbackVertex.Stride,
+                                             ComputeBufferType.Structured);
+            var indices = new ComputeBuffer(capacity, sizeof(uint), ComputeBufferType.Structured);
+            try
+            {
+                var delta = VoxelBrickDelta.MixedAt(int3.zero, 1, 0);
+                Assert.AreEqual(GpuBrickPublish.Uploaded,
+                    mirror.Publish(delta, nativeVoxels, nativeSemantics, nativeBoundary, 0, true));
+                Assert.IsTrue(mirror.TryGetSlot(int3.zero, out int slot));
+
+                int edge = extractor.BrickCacheEdge;
+                int3 brickCacheOrigin = new int3(-1, -1, -1);
+                var kinds = new byte[edge * edge * edge];
+                var uniforms = new byte[edge * edge * edge];
+                extractor.ClearBrickCache();
+                uint mixedEntry = GpuSurfaceExtractor.PackBrickCacheEntry(
+                    VoxelBrickContent.Mixed, 0, slot);
+                for (int z = 0; z < edge; z++)
+                for (int y = 0; y < edge; y++)
+                for (int x = 0; x < edge; x++)
+                {
+                    int i = x + edge * (y + edge * z);
+                    extractor.SetBrickCacheEntry(new int3(x, y, z), mixedEntry);
+                    kinds[i] = 2;
+                }
+
+                extractor.Extract(mirror, tables, int3.zero, brickCacheOrigin, sourceStep, 0.1f,
+                                  vertices, indices, capacity, capacity);
+                int sampleCount = extractor.GridSize * extractor.GridSize * extractor.GridSize;
+                var gpuDensity = new float[sampleCount];
+                var gpuMaterials = new uint[sampleCount];
+                var gpuSurfaces = new uint[sampleCount];
+                var gpuBoundaries = new uint[sampleCount];
+                extractor.ReadDensity(gpuDensity);
+                extractor.ReadSampleMaterials(gpuMaterials);
+                extractor.ReadSampleSurfaces(gpuSurfaces);
+                extractor.ReadSampleBoundaries(gpuBoundaries);
+
+                CpuDensityFieldSnapshot cpu = CpuDensityOracle.SampleMixedNeighbourhood(
+                    int3.zero, brickCacheOrigin, edge, CellsPerAxis, Padding, sourceStep,
+                    kinds, uniforms, voxels, semantics, boundary, surfaces, coatings, palette);
+
+                int densityMismatch = 0, materialMismatch = 0, surfaceMismatch = 0, boundaryMismatch = 0;
+                int firstDensity = -1, firstMaterial = -1, firstSurface = -1, firstBoundary = -1;
+                for (int i = 0; i < sampleCount; i++)
+                {
+                    if (Mathf.Abs(cpu.Density[i] - gpuDensity[i]) > 1e-4f)
+                    {
+                        densityMismatch++;
+                        if (firstDensity < 0) firstDensity = i;
+                    }
+                    if (cpu.Materials[i] != (byte)gpuMaterials[i])
+                    {
+                        materialMismatch++;
+                        if (firstMaterial < 0) firstMaterial = i;
+                    }
+                    if (cpu.Surfaces[i] != gpuSurfaces[i])
+                    {
+                        surfaceMismatch++;
+                        if (firstSurface < 0) firstSurface = i;
+                    }
+                    if (cpu.Boundaries[i] != (byte)gpuBoundaries[i])
+                    {
+                        boundaryMismatch++;
+                        if (firstBoundary < 0) firstBoundary = i;
+                    }
+                }
+
+                Assert.AreEqual(0, densityMismatch + materialMismatch + surfaceMismatch + boundaryMismatch,
+                    $"SourceStep {sourceStep}: density {densityMismatch} (first {firstDensity}), "
+                  + $"material {materialMismatch} (first {firstMaterial}), "
+                  + $"surface {surfaceMismatch} (first {firstSurface}), "
+                  + $"boundary {boundaryMismatch} (first {firstBoundary}).");
+            }
+            finally
+            {
+                nativeVoxels.Dispose();
+                nativeSemantics.Dispose();
+                nativeBoundary.Dispose();
+                vertices.Release();
+                indices.Release();
+            }
+        }
+
+        [TestCase(1)]
+        [TestCase(2)]
         public void MixedBricksWithAuthoredBoundariesAndCoatingsMatchTheCpu(int sourceStep)
         {
             // Uniform bricks never exercise the paths spec 003 added: the authored-boundary short
