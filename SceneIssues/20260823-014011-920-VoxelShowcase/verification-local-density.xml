@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="5" result="Passed" total="5" passed="5" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-24 15:34:06Z" end-time="2026-08-24 15:34:06Z" duration="0.0678794">
+  <test-suite type="TestSuite" id="1000" name="voxel" fullname="voxel" runstate="Runnable" testcasecount="1134" result="Passed" start-time="2026-08-24 15:34:06Z" end-time="2026-08-24 15:34:06Z" duration="0.067879" total="5" passed="5" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <test-suite type="Assembly" id="2453" name="VoxelEngine.Tests.EditMode.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/VoxelEngine.Tests.EditMode.dll" runstate="Runnable" testcasecount="803" result="Passed" start-time="2026-08-24 15:34:06Z" end-time="2026-08-24 15:34:06Z" duration="0.057457" total="5" passed="5" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="53948" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <test-suite type="TestSuite" id="2454" name="VoxelEngine" fullname="VoxelEngine" runstate="Runnable" testcasecount="803" result="Passed" start-time="2026-08-24 15:34:06Z" end-time="2026-08-24 15:34:06Z" duration="0.052169" total="5" passed="5" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="2455" name="Tests" fullname="VoxelEngine.Tests" runstate="Runnable" testcasecount="803" result="Passed" start-time="2026-08-24 15:34:06Z" end-time="2026-08-24 15:34:06Z" duration="0.038680" total="5" passed="5" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="2456" name="EditMode" fullname="VoxelEngine.Tests.EditMode" runstate="Runnable" testcasecount="803" result="Passed" start-time="2026-08-24 15:34:06Z" end-time="2026-08-24 15:34:06Z" duration="0.037288" total="5" passed="5" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="1585" name="CoarseLodDensityReconstructionTests" fullname="VoxelEngine.Tests.EditMode.CoarseLodDensityReconstructionTests" classname="VoxelEngine.Tests.EditMode.CoarseLodDensityReconstructionTests" runstate="Runnable" testcasecount="5" result="Passed" start-time="2026-08-24 15:34:06Z" end-time="2026-08-24 15:34:06Z" duration="0.020230" total="5" passed="5" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-suite type="ParameterizedMethod" id="1590" name="LayeredTerrainPreservesEverySubstepSurfacePhase" fullname="VoxelEngine.Tests.EditMode.CoarseLodDensityReconstructionTests.LayeredTerrainPreservesEverySubstepSurfacePhase" classname="VoxelEngine.Tests.EditMode.CoarseLodDensityReconstructionTests" runstate="Runnable" testcasecount="3" result="Passed" start-time="2026-08-24 15:34:06Z" end-time="2026-08-24 15:34:06Z" duration="0.015535" total="3" passed="3" failed="0" inconclusive="0" skipped="0" asserts="0">
+                <properties />
+                <test-case id="1587" name="LayeredTerrainPreservesEverySubstepSurfacePhase(2)" fullname="VoxelEngine.Tests.EditMode.CoarseLodDensityReconstructionTests.LayeredTerrainPreservesEverySubstepSurfacePhase(2)" methodname="LayeredTerrainPreservesEverySubstepSurfacePhase" classname="VoxelEngine.Tests.EditMode.CoarseLodDensityReconstructionTests" runstate="Runnable" seed="447255260" result="Passed" start-time="2026-08-24 15:34:06Z" end-time="2026-08-24 15:34:06Z" duration="0.011029" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1588" name="LayeredTerrainPreservesEverySubstepSurfacePhase(4)" fullname="VoxelEngine.Tests.EditMode.CoarseLodDensityReconstructionTests.LayeredTerrainPreservesEverySubstepSurfacePhase(4)" methodname="LayeredTerrainPreservesEverySubstepSurfacePhase" classname="VoxelEngine.Tests.EditMode.CoarseLodDensityReconstructionTests" runstate="Runnable" seed="1087325351" result="Passed" start-time="2026-08-24 15:34:06Z" end-time="2026-08-24 15:34:06Z" duration="0.000596" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1589" name="LayeredTerrainPreservesEverySubstepSurfacePhase(8)" fullname="VoxelEngine.Tests.EditMode.CoarseLodDensityReconstructionTests.LayeredTerrainPreservesEverySubstepSurfacePhase(8)" methodname="LayeredTerrainPreservesEverySubstepSurfacePhase" classname="VoxelEngine.Tests.EditMode.CoarseLodDensityReconstructionTests" runstate="Runnable" seed="1612672834" result="Passed" start-time="2026-08-24 15:34:06Z" end-time="2026-08-24 15:34:06Z" duration="0.001077" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+              </test-suite>
+              <test-case id="1591" name="Step2LayeredSlopeUsesVisibleTopSurfaceMaterial" fullname="VoxelEngine.Tests.EditMode.CoarseLodDensityReconstructionTests.Step2LayeredSlopeUsesVisibleTopSurfaceMaterial" methodname="Step2LayeredSlopeUsesVisibleTopSurfaceMaterial" classname="VoxelEngine.Tests.EditMode.CoarseLodDensityReconstructionTests" runstate="Runnable" seed="1228633758" result="Passed" start-time="2026-08-24 15:34:06Z" end-time="2026-08-24 15:34:06Z" duration="0.000790" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1586" name="Step2LayeredTerrainPreservesOneVoxelSurfacePhase" fullname="VoxelEngine.Tests.EditMode.CoarseLodDensityReconstructionTests.Step2LayeredTerrainPreservesOneVoxelSurfacePhase" methodname="Step2LayeredTerrainPreservesOneVoxelSurfacePhase" classname="VoxelEngine.Tests.EditMode.CoarseLodDensityReconstructionTests" runstate="Runnable" seed="1941096828" result="Passed" start-time="2026-08-24 15:34:06Z" end-time="2026-08-24 15:34:06Z" duration="0.000345" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

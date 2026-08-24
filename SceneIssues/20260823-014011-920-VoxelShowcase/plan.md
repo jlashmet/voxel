@@ -80,9 +80,10 @@ camera replay, then resolve the capture before moving to the next open SceneIssu
 - [x] Update the stale GPU source guard to the current nested phase/material structure.
 - [x] Remove temporary local replay files and keep only durable findings.
 - [x] Push the repair to `fixes`.
-- [x] Create the first narrow request on `ci-test/fixes`; it is superseded by the plan-location
-      correction before its result can be authoritative.
-- [x] Commit and push this plan-location correction on `fixes`.
+- [x] Run the first narrow request on `ci-test/fixes`: 1/1 test passed in 61 seconds at pre-merge
+      source commit `f394ebc3a` (experiment 007).
+- [x] Commit the plan-location correction on `fixes` and merge current `master`.
+- [x] Push the merged feature head and experiment record to `fixes`.
 - [ ] Force-reset the existing `ci-test/fixes` branch to the corrected feature head, add a new unique
       request, push it, and monitor `ci/single-test` to a terminal result.
 - [ ] Iterate on `fixes` and reuse the same CI branch if the requested test fails.

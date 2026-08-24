@@ -1,0 +1,595 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="12" result="Failed(Child)" total="12" passed="11" failed="1" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-24 15:34:41Z" end-time="2026-08-24 15:34:43Z" duration="1.2772395">
+  <test-suite type="TestSuite" id="1000" name="voxel" fullname="voxel" runstate="Runnable" testcasecount="1134" result="Failed" site="Child" start-time="2026-08-24 15:34:41Z" end-time="2026-08-24 15:34:43Z" duration="1.277240" total="12" passed="11" failed="1" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <failure>
+      <message><![CDATA[One or more child tests had errors]]></message>
+    </failure>
+    <test-suite type="Assembly" id="2453" name="VoxelEngine.Tests.EditMode.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/VoxelEngine.Tests.EditMode.dll" runstate="Runnable" testcasecount="803" result="Failed" site="Child" start-time="2026-08-24 15:34:41Z" end-time="2026-08-24 15:34:43Z" duration="1.261080" total="12" passed="11" failed="1" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="55859" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <failure>
+        <message><![CDATA[One or more child tests had errors]]></message>
+      </failure>
+      <test-suite type="TestSuite" id="2454" name="VoxelEngine" fullname="VoxelEngine" runstate="Runnable" testcasecount="803" result="Failed" site="Child" start-time="2026-08-24 15:34:41Z" end-time="2026-08-24 15:34:43Z" duration="1.258263" total="12" passed="11" failed="1" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <failure>
+          <message><![CDATA[One or more child tests had errors]]></message>
+        </failure>
+        <test-suite type="TestSuite" id="2455" name="Tests" fullname="VoxelEngine.Tests" runstate="Runnable" testcasecount="803" result="Failed" site="Child" start-time="2026-08-24 15:34:41Z" end-time="2026-08-24 15:34:43Z" duration="1.255681" total="12" passed="11" failed="1" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <failure>
+            <message><![CDATA[One or more child tests had errors]]></message>
+          </failure>
+          <test-suite type="TestSuite" id="2456" name="EditMode" fullname="VoxelEngine.Tests.EditMode" runstate="Runnable" testcasecount="803" result="Failed" site="Child" start-time="2026-08-24 15:34:41Z" end-time="2026-08-24 15:34:43Z" duration="1.247700" total="12" passed="11" failed="1" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <failure>
+              <message><![CDATA[One or more child tests had errors]]></message>
+            </failure>
+            <test-suite type="TestFixture" id="1780" name="GpuLod2CutoverPolicyTests" fullname="VoxelEngine.Tests.EditMode.GpuLod2CutoverPolicyTests" classname="VoxelEngine.Tests.EditMode.GpuLod2CutoverPolicyTests" runstate="Runnable" testcasecount="3" result="Failed" site="Child" start-time="2026-08-24 15:34:41Z" end-time="2026-08-24 15:34:42Z" duration="0.048455" total="3" passed="2" failed="1" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <failure>
+                <message><![CDATA[One or more child tests had errors]]></message>
+              </failure>
+              <test-case id="1781" name="SceneIssue20260823014011920GpuCutoverTargetsOnlyNearExactRings" fullname="VoxelEngine.Tests.EditMode.GpuLod2CutoverPolicyTests.SceneIssue20260823014011920GpuCutoverTargetsOnlyNearExactRings" methodname="SceneIssue20260823014011920GpuCutoverTargetsOnlyNearExactRings" classname="VoxelEngine.Tests.EditMode.GpuLod2CutoverPolicyTests" runstate="Runnable" seed="1017098824" result="Passed" start-time="2026-08-24 15:34:41Z" end-time="2026-08-24 15:34:41Z" duration="0.003109" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1783" name="SceneIssue20260823014011920GpuLod2CarriesInnerTransitionFaceMask" fullname="VoxelEngine.Tests.EditMode.GpuLod2CutoverPolicyTests.SceneIssue20260823014011920GpuLod2CarriesInnerTransitionFaceMask" methodname="SceneIssue20260823014011920GpuLod2CarriesInnerTransitionFaceMask" classname="VoxelEngine.Tests.EditMode.GpuLod2CutoverPolicyTests" runstate="Runnable" seed="1128324799" result="Passed" start-time="2026-08-24 15:34:41Z" end-time="2026-08-24 15:34:42Z" duration="0.036400" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1782" name="SceneIssue20260823014011920GpuLod2PortsCoarseExposedMaterialCorrection" fullname="VoxelEngine.Tests.EditMode.GpuLod2CutoverPolicyTests.SceneIssue20260823014011920GpuLod2PortsCoarseExposedMaterialCorrection" methodname="SceneIssue20260823014011920GpuLod2PortsCoarseExposedMaterialCorrection" classname="VoxelEngine.Tests.EditMode.GpuLod2CutoverPolicyTests" runstate="Runnable" seed="383386527" result="Failed" start-time="2026-08-24 15:34:42Z" end-time="2026-08-24 15:34:42Z" duration="0.003168" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <failure>
+                  <message><![CDATA[  Expected: String containing "if (centreSolid && sourceStep > 1)"
+  But was:  "#ifndef VOXEL_BRICK_DENSITY_INCLUDED
+#define VOXEL_BRICK_DENSITY_INCLUDED
+
+// Density sampling for the GPU mesher.
+//
+// This is a deliberate line-by-line port of TransvoxelDensityJob.SampleField. The two meshers must
+// agree: a GPU surface that differs from the CPU one for the same voxels is not a faster renderer,
+// it is a second renderer, and the drift between them is the recurring look regression this project
+// already knows about. The oracle test compares the two outputs directly, so any divergence here is
+// a test failure rather than something noticed months later on a rooftop.
+//
+// Where the CPU reads a NativeArray this reads a packed buffer; the arithmetic is otherwise
+// identical, including the tap weights and the order they accumulate in.
+
+// -- authoritative brick payload (the mirror) --------------------------------
+
+StructuredBuffer<uint> _BrickMaterials;        // 4 material bytes per word
+StructuredBuffer<uint> _BrickSurfaceSemantics; // 2 surface ushorts per word
+StructuredBuffer<uint> _BrickBoundarySamples;  // 4 boundary bytes per word
+
+// One entry per brick in the meshed chunk's neighbourhood, mirroring the CPU brick cache:
+//   bits  0..1  kind (0 empty, 1 uniform, 2 mixed)
+//   bits  8..15 uniform material
+//   bits 16..31 mirror slot for a mixed brick
+StructuredBuffer<uint> _BrickCache;
+
+int3 _BrickCacheOrigin;
+int _BrickCacheEdge;
+
+// -- catalogues --------------------------------------------------------------
+
+StructuredBuffer<uint> _StyleWords;    // GpuSurfaceCataloguePacking.PackStyle
+StructuredBuffer<uint> _JoinWords;     // GpuSurfaceCataloguePacking.PackJoin
+StructuredBuffer<uint> _CoatingWords;  // 3 words per coating
+StructuredBuffer<uint> _MaterialDefaultStyle;
+
+#define STYLE_COUNT 32
+#define JOIN_GROUP_COUNT 16
+#define COATING_WORDS 3
+
+#define RECONSTRUCTION_SMOOTH 0
+#define RECONSTRUCTION_PLANAR 1
+#define RECONSTRUCTION_ROUNDED 2
+#define RECONSTRUCTION_SHARP 3
+#define RECONSTRUCTION_CUBIC 4
+
+#define COMPATIBILITY_JOIN 0
+#define CONTINUITY_DISCONTINUOUS 0
+
+// SurfaceStyles: MaterialDefault is 0 and Smooth is 1, not a sentinel and zero. Getting this
+// backwards means the default style is never resolved and every cell reads style 0 instead, which
+// is a planar fallback — so smooth terrain silently meshes as though it were architecture.
+#define SURFACE_STYLE_MATERIAL_DEFAULT 0
+#define SURFACE_STYLE_SMOOTH 1
+
+struct StyleDefinition
+{
+    uint reconstruction;
+    uint curvature;
+    uint joinGroup;
+    bool preserveSharpFeatures;
+};
+
+StyleDefinition LoadStyle(uint styleId)
+{
+    StyleDefinition style;
+    uint packed = styleId < STYLE_COUNT ? _StyleWords[styleId] : 0u;
+    style.reconstruction = packed & 0xFFu;
+    style.curvature = (packed >> 8) & 0xFFu;
+    style.joinGroup = (packed >> 16) & 0xFFu;
+    style.preserveSharpFeatures = (packed & (1u << 24)) != 0u;
+    return style;
+}
+
+struct JoinRule
+{
+    uint compatibility;
+    uint continuity;
+    uint blendWidth;
+};
+
+JoinRule LoadJoin(uint groupA, uint groupB)
+{
+    JoinRule join;
+    // Out-of-range groups fall back to a sharp seam, matching SurfaceJoinReadRule.SharpSeam.
+    if (groupA >= JOIN_GROUP_COUNT || groupB >= JOIN_GROUP_COUNT)
+    {
+        join.compatibility = 1u;               // Seam
+        join.continuity = CONTINUITY_DISCONTINUOUS;
+        join.blendWidth = 0u;
+        return join;
+    }
+    uint packed = _JoinWords[groupA * JOIN_GROUP_COUNT + groupB];
+    join.compatibility = packed & 0xFu;
+    join.continuity = (packed >> 4) & 0xFu;
+    join.blendWidth = (packed >> 8) & 0xFFu;
+    return join;
+}
+
+float CoatingDisplacement(uint surface)
+{
+    uint coating = (surface >> 16) & 0xFFu;
+    uint word1 = _CoatingWords[coating * COATING_WORDS + 1];
+    return (word1 & 0xFFu) * (1.0 / 64.0);
+}
+
+// -- voxel reads -------------------------------------------------------------
+
+// Matches TransvoxelDensityJob.IsSolidSample. 11 and 16 are non-solid presentation materials.
+bool IsSolidSample(uint material)
+{
+    return material != 0u && material != 11u && material != 16u;
+}
+
+float CurvatureFactor(StyleDefinition style)
+{
+    if (style.reconstruction == RECONSTRUCTION_PLANAR
+     || style.reconstruction == RECONSTRUCTION_SHARP
+     || style.reconstruction == RECONSTRUCTION_CUBIC)
+        return 0.0;
+    return style.curvature / 255.0;
+}
+
+uint ResolveSurface(uint material, uint surface)
+{
+    uint style = surface & 0xFFFFu;
+    if (style == SURFACE_STYLE_MATERIAL_DEFAULT) style = _MaterialDefaultStyle[material & 0xFFu];
+    if (style == SURFACE_STYLE_MATERIAL_DEFAULT) style = SURFACE_STYLE_SMOOTH;
+    return (surface & 0xFFFF0000u) | style;
+}
+
+// Arithmetic shift for floor division, so the half of the world at negative coordinates does not
+// fold onto the origin. HLSL's >> on int is arithmetic, which is what this relies on.
+int3 WorldBrickOf(int3 p) { return int3(p.x >> 3, p.y >> 3, p.z >> 3); }
+
+uint ReadMaterial(int3 p, out uint surface, out uint boundary)
+{
+    surface = 0u;
+    boundary = 0u;
+
+    int3 localBrick = WorldBrickOf(p) - _BrickCacheOrigin;
+    if ((uint)localBrick.x >= (uint)_BrickCacheEdge
+     || (uint)localBrick.y >= (uint)_BrickCacheEdge
+     || (uint)localBrick.z >= (uint)_BrickCacheEdge)
+        return 0u;
+
+    int brickIndex = localBrick.x
+                   + _BrickCacheEdge * (localBrick.y + _BrickCacheEdge * localBrick.z);
+    uint entry = _BrickCache[brickIndex];
+    uint kind = entry & 0x3u;
+    if (kind == 0u) return 0u;
+    if (kind == 1u) return (entry >> 8) & 0xFFu;
+
+    uint slot = entry >> 16;
+    uint voxel = (uint)((p.x & 7) + 8 * ((p.y & 7) + 8 * (p.z & 7)));
+
+    uint materialWord = _BrickMaterials[slot * 128u + (voxel >> 2)];
+    uint material = (materialWord >> ((voxel & 3u) * 8u)) & 0xFFu;
+
+    uint surfaceWord = _BrickSurfaceSemantics[slot * 256u + (voxel >> 1)];
+    surface = (surfaceWord >> ((voxel & 1u) * 16u)) & 0xFFFFu;
+
+    uint boundaryWord = _BrickBoundarySamples[slot * 128u + (voxel >> 2)];
+    boundary = (boundaryWord >> ((voxel & 3u) * 8u)) & 0xFFu;
+
+    return material;
+}
+
+// Matches VoxelBoundarySample. The sample is authored whenever any bit is set; the offset is a
+// 6-bit field biased by 32, and the top two bits carry the extrusion axis (0 meaning "all axes").
+bool BoundaryIsAuthored(uint packed) { return packed != 0u; }
+
+int BoundarySignedQ3(uint packed)
+{
+    return BoundaryIsAuthored(packed) ? (int)(packed & 0x3Fu) - 32 : 0;
+}
+
+int BoundaryExtrusionAxis(uint packed)
+{
+    uint code = packed >> 6;
+    return code == 0u ? 3 : (int)code - 1;
+}
+
+bool BoundaryAppliesAlong(uint packed, int edgeAxis)
+{
+    int axis = BoundaryExtrusionAxis(packed);
+    return BoundaryIsAuthored(packed) && (axis == 3 || edgeAxis != axis);
+}
+
+float AddTap(int3 p, float weight, bool centreSolid, StyleDefinition centreStyle,
+             inout uint dominantMaterial, inout uint dominantSurface)
+{
+    uint surface, boundary;
+    uint material = ReadMaterial(p, surface, boundary);
+    if (!IsSolidSample(material)) return 0.0;
+
+    surface = ResolveSurface(material, surface);
+    if (dominantMaterial == 0u)
+    {
+        dominantMaterial = material;
+        dominantSurface = surface;
+    }
+    if (!centreSolid) return weight;
+
+    StyleDefinition neighbourStyle = LoadStyle(surface & 0xFFFFu);
+    JoinRule join = LoadJoin(centreStyle.joinGroup, neighbourStyle.joinGroup);
+    if (join.compatibility != COMPATIBILITY_JOIN || join.continuity == CONTINUITY_DISCONTINUOUS)
+        return weight;
+
+    // Smooth-compatible neighbours share their reconstruction influence. This pairwise rule is what lets
+    // curvature propagate without a style deciding unilaterally how its neighbour is rebuilt.
+    float neighbourCurvature = CurvatureFactor(neighbourStyle);
+    return weight * lerp(1.0, neighbourCurvature, saturate(join.blendWidth * 0.5));
+}
+
+void ConsiderExposedMaterial(int exposedDistance, bool preferVisibleTopMaterial,
+                             uint material, uint surface,
+                             inout int bestDistance, inout int bestMaterialDistance,
+                             inout bool hasVisibleTopMaterial,
+                             inout uint dominantMaterial, inout uint dominantSurface)
+{
+    bestDistance = min(bestDistance, exposedDistance);
+
+    // Geometry and material answer different questions. Geometry needs the nearest crossing on any
+    // axis so the coarse scalar field keeps its fine-voxel phase. Terrain material is vertically
+    // layered: grass/snow is stored only on the exposed cap while a nearby side crossing can
+    // legitimately expose dirt/rock. If this sample has a +Y cap inside the same coarse step, use
+    // that cap for colour without moving the crossing. Walls, ceilings and cave sides have no +Y
+    // cap and retain the old nearest-crossing rule.
+    bool shouldUseMaterial = preferVisibleTopMaterial
+                          || (!hasVisibleTopMaterial && exposedDistance < bestMaterialDistance);
+    if (!shouldUseMaterial) return;
+
+    if (preferVisibleTopMaterial) hasVisibleTopMaterial = true;
+    bestMaterialDistance = exposedDistance;
+    dominantMaterial = material;
+    dominantSurface = surface;
+}
+
+// Coarse lattice samples can sit below the actually exposed voxel. Match the CPU density job's
+// crossing-ray correction so LOD2 does not turn buried material depth into coarse colour bands.
+void ConsiderCrossingRay(int3 p, int3 direction, bool preferVisibleTopMaterial, int sourceStep,
+                         uint centreMaterial, uint centreSurface,
+                         inout int bestDistance, inout int bestMaterialDistance,
+                         inout bool hasVisibleTopMaterial,
+                         inout uint dominantMaterial, inout uint dominantSurface)
+{
+    uint farSurface, farBoundary;
+    uint farMaterial = ReadMaterial(p + direction * sourceStep, farSurface, farBoundary);
+    if (IsSolidSample(farMaterial)) return;
+
+    uint lastMaterial = centreMaterial;
+    uint lastSurface = centreSurface;
+    for (int distance = 1; distance < sourceStep; distance++)
+    {
+        uint surface, boundary;
+        uint material = ReadMaterial(p + direction * distance, surface, boundary);
+        if (!IsSolidSample(material))
+        {
+            ConsiderExposedMaterial(distance - 1, preferVisibleTopMaterial,
+                lastMaterial, lastSurface, bestDistance, bestMaterialDistance,
+                hasVisibleTopMaterial, dominantMaterial, dominantSurface);
+            return;
+        }
+
+        lastMaterial = material;
+        lastSurface = ResolveSurface(material, surface);
+    }
+
+    ConsiderExposedMaterial(sourceStep - 1, preferVisibleTopMaterial,
+        lastMaterial, lastSurface, bestDistance, bestMaterialDistance,
+        hasVisibleTopMaterial, dominantMaterial, dominantSurface);
+}
+
+int PreferNearestCrossingSurfaceMaterial(int3 p, int sourceStep,
+                                         uint centreMaterial, uint centreSurface,
+                                         inout uint dominantMaterial,
+                                         inout uint dominantSurface)
+{
+    int bestDistance = sourceStep;
+    int bestMaterialDistance = sourceStep;
+    bool hasVisibleTopMaterial = false;
+
+    ConsiderCrossingRay(p, int3( 1, 0, 0), false, sourceStep, centreMaterial, centreSurface,
+        bestDistance, bestMaterialDistance, hasVisibleTopMaterial, dominantMaterial, dominantSurface);
+    ConsiderCrossingRay(p, int3(-1, 0, 0), false, sourceStep, centreMaterial, centreSurface,
+        bestDistance, bestMaterialDistance, hasVisibleTopMaterial, dominantMaterial, dominantSurface);
+    ConsiderCrossingRay(p, int3(0,  1, 0), true, sourceStep, centreMaterial, centreSurface,
+        bestDistance, bestMaterialDistance, hasVisibleTopMaterial, dominantMaterial, dominantSurface);
+    ConsiderCrossingRay(p, int3(0, -1, 0), false, sourceStep, centreMaterial, centreSurface,
+        bestDistance, bestMaterialDistance, hasVisibleTopMaterial, dominantMaterial, dominantSurface);
+    ConsiderCrossingRay(p, int3(0, 0,  1), false, sourceStep, centreMaterial, centreSurface,
+        bestDistance, bestMaterialDistance, hasVisibleTopMaterial, dominantMaterial, dominantSurface);
+    ConsiderCrossingRay(p, int3(0, 0, -1), false, sourceStep, centreMaterial, centreSurface,
+        bestDistance, bestMaterialDistance, hasVisibleTopMaterial, dominantMaterial, dominantSurface);
+    return bestDistance;
+}
+
+void ConsiderPhaseCrossingRay(int3 p, int3 direction, int sourceStep, bool centreSolid,
+                              inout int bestDistance)
+{
+    uint farSurface, farBoundary;
+    uint farMaterial = ReadMaterial(p + direction * sourceStep, farSurface, farBoundary);
+    if (IsSolidSample(farMaterial) == centreSolid) return;
+
+    for (int distance = 1; distance < sourceStep; distance++)
+    {
+        uint surface, boundary;
+        uint material = ReadMaterial(p + direction * distance, surface, boundary);
+        if (IsSolidSample(material) == centreSolid) continue;
+        bestDistance = min(bestDistance, distance - 1);
+        return;
+    }
+
+    bestDistance = min(bestDistance, sourceStep - 1);
+}
+
+int FindNearestCrossingDistance(int3 p, int sourceStep, bool centreSolid)
+{
+    int bestDistance = sourceStep;
+    ConsiderPhaseCrossingRay(p, int3( 1, 0, 0), sourceStep, centreSolid, bestDistance);
+    ConsiderPhaseCrossingRay(p, int3(-1, 0, 0), sourceStep, centreSolid, bestDistance);
+    ConsiderPhaseCrossingRay(p, int3(0,  1, 0), sourceStep, centreSolid, bestDistance);
+    ConsiderPhaseCrossingRay(p, int3(0, -1, 0), sourceStep, centreSolid, bestDistance);
+    ConsiderPhaseCrossingRay(p, int3(0, 0,  1), sourceStep, centreSolid, bestDistance);
+    ConsiderPhaseCrossingRay(p, int3(0, 0, -1), sourceStep, centreSolid, bestDistance);
+    return bestDistance;
+}
+
+float SampleField(int3 p, int sourceStep, out uint dominantMaterial, out uint dominantSurface,
+                  out uint dominantBoundary)
+{
+    uint centreSurface, packedBoundary;
+    uint centre = ReadMaterial(p, centreSurface, packedBoundary);
+    dominantBoundary = packedBoundary;
+
+    bool centreSolid = IsSolidSample(centre);
+    centreSurface = ResolveSurface(centre, centreSurface);
+
+    // Must stay identical to TransvoxelDensityJob.SampleField: an authored sample is trusted exactly
+    // when its sign agrees with authoritative occupancy. See the comment there for why both the old
+    // six-neighbour gate and no gate at all are wrong.
+    if (packedBoundary != 0u && centreSolid == (BoundarySignedQ3(packedBoundary) >= 0))
+    {
+        dominantMaterial = centreSolid ? centre : 0u;
+        dominantSurface = centreSolid ? centreSurface : 0u;
+        return BoundarySignedQ3(packedBoundary) * 0.125 + CoatingDisplacement(centreSurface);
+    }
+
+    StyleDefinition centreStyle = LoadStyle(centreSurface & 0xFFFFu);
+    if (centreSolid && (centreStyle.reconstruction == RECONSTRUCTION_PLANAR
+                     || centreStyle.reconstruction == RECONSTRUCTION_SHARP
+                     || centreStyle.reconstruction == RECONSTRUCTION_CUBIC))
+    {
+        dominantMaterial = centre;
+        dominantSurface = centreSurface;
+        return 0.5 + CoatingDisplacement(centreSurface);
+    }
+
+    float curvature = CurvatureFactor(centreStyle);
+    float centreWeight = lerp(0.55, 0.40, curvature);
+    float mass = centreSolid ? centreWeight : 0.0;
+    dominantMaterial = centreSolid ? centre : 0u;
+    dominantSurface = centreSolid ? centreSurface : 0u;
+
+    float near = 0.06 * curvature;
+    mass += AddTap(p + int3( 1, 0, 0), near, centreSolid, centreStyle, dominantMaterial, dominantSurface);
+    mass += AddTap(p + int3(-1, 0, 0), near, centreSolid, centreStyle, dominantMaterial, dominantSurface);
+    mass += AddTap(p + int3( 0, 1, 0), near, centreSolid, centreStyle, dominantMaterial, dominantSurface);
+    mass += AddTap(p + int3( 0,-1, 0), near, centreSolid, centreStyle, dominantMaterial, dominantSurface);
+    mass += AddTap(p + int3( 0, 0, 1), near, centreSolid, centreStyle, dominantMaterial, dominantSurface);
+    mass += AddTap(p + int3( 0, 0,-1), near, centreSolid, centreStyle, dominantMaterial, dominantSurface);
+
+    float far = 0.04 * curvature;
+    mass += AddTap(p + int3( 2, 0, 0), far, centreSolid, centreStyle, dominantMaterial, dominantSurface);
+    mass += AddTap(p + int3(-2, 0, 0), far, centreSolid, centreStyle, dominantMaterial, dominantSurface);
+    mass += AddTap(p + int3( 0, 2, 0), far, centreSolid, centreStyle, dominantMaterial, dominantSurface);
+    mass += AddTap(p + int3( 0,-2, 0), far, centreSolid, centreStyle, dominantMaterial, dominantSurface);
+    mass += AddTap(p + int3( 0, 0, 2), far, centreSolid, centreStyle, dominantMaterial, dominantSurface);
+    mass += AddTap(p + int3( 0, 0,-2), far, centreSolid, centreStyle, dominantMaterial, dominantSurface);
+
+    float density = mass - 0.5;
+    int nearestCrossingDistance = sourceStep;
+    if (sourceStep > 1)
+    {
+        if (centreSolid)
+        {
+            nearestCrossingDistance = PreferNearestCrossingSurfaceMaterial(
+                p, sourceStep, centre, centreSurface, dominantMaterial, dominantSurface);
+        }
+        else
+        {
+            nearestCrossingDistance = FindNearestCrossingDistance(p, sourceStep, centreSolid);
+        }
+
+        bool densitySignMatchesOccupancy = centreSolid ? density >= 0.0 : density < 0.0;
+        if (nearestCrossingDistance < sourceStep && densitySignMatchesOccupancy)
+        {
+            float phase = (nearestCrossingDistance + 0.5) / sourceStep;
+            density = centreSolid ? phase : -phase;
+        }
+    }
+
+    return density + (centreSolid ? CoatingDisplacement(centreSurface) : 0.0);
+}
+
+#endif // VOXEL_BRICK_DENSITY_INCLUDED
+"
+]]></message>
+                  <stack-trace><![CDATA[at NUnit.Framework.StringAssert.Contains (System.String expected, System.String actual, System.String message, System.Object[] args) [0x00008] in <8b63e8ac0a4746599ed207982825ae6c>:0
+at NUnit.Framework.StringAssert.Contains (System.String expected, System.String actual) [0x00001] in <8b63e8ac0a4746599ed207982825ae6c>:0
+at VoxelEngine.Tests.EditMode.GpuLod2CutoverPolicyTests.SceneIssue20260823014011920GpuLod2PortsCoarseExposedMaterialCorrection () [0x00016] in /Users/jlashmet/code/voxel/Assets/Tests/EditMode/GpuLod2CutoverPolicyTests.cs:32
+]]></stack-trace>
+                </failure>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1804" name="GpuSurfaceExtractorOracleTests" fullname="VoxelEngine.Tests.EditMode.GpuSurfaceExtractorOracleTests" classname="VoxelEngine.Tests.EditMode.GpuSurfaceExtractorOracleTests" runstate="Runnable" testcasecount="14" result="Passed" start-time="2026-08-24 15:34:42Z" end-time="2026-08-24 15:34:43Z" duration="1.084729" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-suite type="ParameterizedMethod" id="1817" name="MixedSampleFieldMatchesTheCpuJob" fullname="VoxelEngine.Tests.EditMode.GpuSurfaceExtractorOracleTests.MixedSampleFieldMatchesTheCpuJob" classname="VoxelEngine.Tests.EditMode.GpuSurfaceExtractorOracleTests" runstate="Runnable" testcasecount="2" result="Passed" start-time="2026-08-24 15:34:42Z" end-time="2026-08-24 15:34:43Z" duration="1.082344" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0">
+                <properties />
+                <test-case id="1815" name="MixedSampleFieldMatchesTheCpuJob(1)" fullname="VoxelEngine.Tests.EditMode.GpuSurfaceExtractorOracleTests.MixedSampleFieldMatchesTheCpuJob(1)" methodname="MixedSampleFieldMatchesTheCpuJob" classname="VoxelEngine.Tests.EditMode.GpuSurfaceExtractorOracleTests" runstate="Runnable" seed="1384977323" result="Passed" start-time="2026-08-24 15:34:42Z" end-time="2026-08-24 15:34:43Z" duration="1.077297" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                  <output><![CDATA[Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (LoadJoin) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl(92) (on metal)
+Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (CurvatureFactor) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl(120) (on metal)
+Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (ReadMaterial) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl(145) (on metal)
+Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (AddTap) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl(195) (on metal)
+Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (dominantMaterial) use of potentially uninitialized variable (dominantSurface) use of potentially uninitialized variable (SampleField) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl(348) (on metal)
+Shader warning in 'VoxelBrickMesher': integer modulus may be much slower, try using uints if possible. at kernel CSSampleDensity at VoxelBrickMesher.compute(162) (on metal)
+Shader warning in 'VoxelBrickMesher': integer divides may be much slower, try using uints if possible. at kernel CSSampleDensity at VoxelBrickMesher.compute(163) (on metal)
+Shader warning in 'VoxelBrickMesher': integer modulus may be much slower, try using uints if possible. at kernel CSSampleDensity at VoxelBrickMesher.compute(164) (on metal)
+Shader warning in 'VoxelBrickMesher': integer divides may be much slower, try using uints if possible. at kernel CSSampleDensity at VoxelBrickMesher.compute(165) (on metal)
+Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (LoadJoin) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl(92) (on metal)
+Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (CurvatureFactor) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl(120) (on metal)
+Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (ReadMaterial) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl(145) (on metal)
+Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (AddTap) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl(195) (on metal)
+Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (dominantMaterial) use of potentially uninitialized variable (dominantSurface) use of potentially uninitialized variable (SampleField) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl(348) (on metal)
+Shader warning in 'VoxelBrickMesher': integer modulus may be much slower, try using uints if possible. at kernel CSCountCells at VoxelBrickMesher.compute(139) (on metal)
+Shader warning in 'VoxelBrickMesher': integer divides may be much slower, try using uints if possible. at kernel CSCountCells at VoxelBrickMesher.compute(140) (on metal)
+Shader warning in 'VoxelBrickMesher': integer modulus may be much slower, try using uints if possible. at kernel CSCountCells at VoxelBrickMesher.compute(140) (on metal)
+Shader warning in 'VoxelBrickMesher': integer divides may be much slower, try using uints if possible. at kernel CSCountCells at VoxelBrickMesher.compute(141) (on metal)
+Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (OwnsSelectedInsideSample) at kernel CSCountCells at VoxelBrickMesher.compute(147) (on metal)
+Shader warning in 'VoxelBrickMesher': integer modulus may be much slower, try using uints if possible. at kernel CSSampleDensity at VoxelBrickMesher.compute(162) (on metal)
+Shader warning in 'VoxelBrickMesher': integer divides may be much slower, try using uints if possible. at kernel CSSampleDensity at VoxelBrickMesher.compute(163) (on metal)
+Shader warning in 'VoxelBrickMesher': integer modulus may be much slower, try using uints if possible. at kernel CSSampleDensity at VoxelBrickMesher.compute(164) (on metal)
+Shader warning in 'VoxelBrickMesher': integer divides may be much slower, try using uints if possible. at kernel CSSampleDensity at VoxelBrickMesher.compute(165) (on metal)
+Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (LoadJoin) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl(92) (on metal)
+Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (CurvatureFactor) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl(120) (on metal)
+Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (ReadMaterial) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl(145) (on metal)
+Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (AddTap) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl(195) (on metal)
+Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (dominantMaterial) use of potentially uninitialized variable (dominantSurface) use of potentially uninitialized variable (SampleField) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl(348) (on metal)
+Shader warning in 'VoxelBrickMesher': integer modulus may be much slower, try using uints if possible. at kernel CSCountCells at VoxelBrickMesher.compute(139) (on metal)
+Shader warning in 'VoxelBrickMesher': integer modulus may be much slower, try using uints if possible. at kernel CSWriteCells at VoxelBrickMesher.compute(139) (on metal)
+Shader warning in 'VoxelBrickMesher': integer divides may be much slower, try using uints if possible. at kernel CSCountCells at VoxelBrickMesher.compute(140) (on metal)
+Shader warning in 'VoxelBrickMesher': integer divides may be much slower, try using uints if possible. at kernel CSWriteCells at VoxelBrickMesher.compute(140) (on metal)
+Shader warning in 'VoxelBrickMesher': integer modulus may be much slower, try using uints if possible. at kernel CSCountCells at VoxelBrickMesher.compute(140) (on metal)
+Shader warning in 'VoxelBrickMesher': integer modulus may be much slower, try using uints if possible. at kernel CSWriteCells at VoxelBrickMesher.compute(140) (on metal)
+Shader warning in 'VoxelBrickMesher': integer divides may be much slower, try using uints if possible. at kernel CSCountCells at VoxelBrickMesher.compute(141) (on metal)
+Shader warning in 'VoxelBrickMesher': integer divides may be much slower, try using uints if possible. at kernel CSWriteCells at VoxelBrickMesher.compute(141) (on metal)
+Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (OwnsSelectedInsideSample) at kernel CSCountCells at VoxelBrickMesher.compute(147) (on metal)
+Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (OwnsSelectedInsideSample) at kernel CSWriteCells at VoxelBrickMesher.compute(147) (on metal)
+Shader warning in 'VoxelBrickMesher': integer modulus may be much slower, try using uints if possible. at kernel CSSampleDensity at VoxelBrickMesher.compute(162) (on metal)
+Shader warning in 'VoxelBrickMesher': integer divides may be much slower, try using uints if possible. at kernel CSSampleDensity at VoxelBrickMesher.compute(163) (on metal)
+Shader warning in 'VoxelBrickMesher': integer modulus may be much slower, try using uints if possible. at kernel CSSampleDensity at VoxelBrickMesher.compute(164) (on metal)
+Shader warning in 'VoxelBrickMesher': integer divides may be much slower, try using uints if possible. at kernel CSSampleDensity at VoxelBrickMesher.compute(165) (on metal)
+]]></output>
+                </test-case>
+                <test-case id="1816" name="MixedSampleFieldMatchesTheCpuJob(2)" fullname="VoxelEngine.Tests.EditMode.GpuSurfaceExtractorOracleTests.MixedSampleFieldMatchesTheCpuJob(2)" methodname="MixedSampleFieldMatchesTheCpuJob" classname="VoxelEngine.Tests.EditMode.GpuSurfaceExtractorOracleTests" runstate="Runnable" seed="75292687" result="Passed" start-time="2026-08-24 15:34:43Z" end-time="2026-08-24 15:34:43Z" duration="0.004397" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+              </test-suite>
+            </test-suite>
+            <test-suite type="TestFixture" id="2128" name="SceneIssue014011GpuVertexAttributeParityTests" fullname="VoxelEngine.Tests.EditMode.SceneIssue014011GpuVertexAttributeParityTests" classname="VoxelEngine.Tests.EditMode.SceneIssue014011GpuVertexAttributeParityTests" runstate="Runnable" testcasecount="2" result="Passed" start-time="2026-08-24 15:34:43Z" end-time="2026-08-24 15:34:43Z" duration="0.035049" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-suite type="ParameterizedMethod" id="2131" name="MixedLodVertexMaterialsAndNormalsMatchCpu" fullname="VoxelEngine.Tests.EditMode.SceneIssue014011GpuVertexAttributeParityTests.MixedLodVertexMaterialsAndNormalsMatchCpu" classname="VoxelEngine.Tests.EditMode.SceneIssue014011GpuVertexAttributeParityTests" runstate="Runnable" testcasecount="2" result="Passed" start-time="2026-08-24 15:34:43Z" end-time="2026-08-24 15:34:43Z" duration="0.034240" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0">
+                <properties />
+                <test-case id="2129" name="MixedLodVertexMaterialsAndNormalsMatchCpu(1)" fullname="VoxelEngine.Tests.EditMode.SceneIssue014011GpuVertexAttributeParityTests.MixedLodVertexMaterialsAndNormalsMatchCpu(1)" methodname="MixedLodVertexMaterialsAndNormalsMatchCpu" classname="VoxelEngine.Tests.EditMode.SceneIssue014011GpuVertexAttributeParityTests" runstate="Runnable" seed="444835969" result="Passed" start-time="2026-08-24 15:34:43Z" end-time="2026-08-24 15:34:43Z" duration="0.018806" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="2130" name="MixedLodVertexMaterialsAndNormalsMatchCpu(2)" fullname="VoxelEngine.Tests.EditMode.SceneIssue014011GpuVertexAttributeParityTests.MixedLodVertexMaterialsAndNormalsMatchCpu(2)" methodname="MixedLodVertexMaterialsAndNormalsMatchCpu" classname="VoxelEngine.Tests.EditMode.SceneIssue014011GpuVertexAttributeParityTests" runstate="Runnable" seed="699771157" result="Passed" start-time="2026-08-24 15:34:43Z" end-time="2026-08-24 15:34:43Z" duration="0.014683" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+              </test-suite>
+            </test-suite>
+            <test-suite type="TestFixture" id="2335" name="TransvoxelChunkBoundaryOwnershipTests" fullname="VoxelEngine.Tests.EditMode.TransvoxelChunkBoundaryOwnershipTests" classname="VoxelEngine.Tests.EditMode.TransvoxelChunkBoundaryOwnershipTests" runstate="Runnable" testcasecount="5" result="Passed" start-time="2026-08-24 15:34:43Z" end-time="2026-08-24 15:34:43Z" duration="0.004194" total="5" passed="5" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="2339" name="BoundaryLaneCompactsMultipleCellRecordsWithoutLosingIndices" fullname="VoxelEngine.Tests.EditMode.TransvoxelChunkBoundaryOwnershipTests.BoundaryLaneCompactsMultipleCellRecordsWithoutLosingIndices" methodname="BoundaryLaneCompactsMultipleCellRecordsWithoutLosingIndices" classname="VoxelEngine.Tests.EditMode.TransvoxelChunkBoundaryOwnershipTests" runstate="Runnable" seed="1855171983" result="Passed" start-time="2026-08-24 15:34:43Z" end-time="2026-08-24 15:34:43Z" duration="0.001141" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="2340" name="MinimumFaceWithNoSolidHaloFallsBackFromGpu" fullname="VoxelEngine.Tests.EditMode.TransvoxelChunkBoundaryOwnershipTests.MinimumFaceWithNoSolidHaloFallsBackFromGpu" methodname="MinimumFaceWithNoSolidHaloFallsBackFromGpu" classname="VoxelEngine.Tests.EditMode.TransvoxelChunkBoundaryOwnershipTests" runstate="Runnable" seed="893742587" result="Passed" start-time="2026-08-24 15:34:43Z" end-time="2026-08-24 15:34:43Z" duration="0.000359" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="2336" name="SceneIssue20260823013834177BoundaryCellBelongsToInsideDensitySide" fullname="VoxelEngine.Tests.EditMode.TransvoxelChunkBoundaryOwnershipTests.SceneIssue20260823013834177BoundaryCellBelongsToInsideDensitySide" methodname="SceneIssue20260823013834177BoundaryCellBelongsToInsideDensitySide" classname="VoxelEngine.Tests.EditMode.TransvoxelChunkBoundaryOwnershipTests" runstate="Runnable" seed="1636402925" result="Passed" start-time="2026-08-24 15:34:43Z" end-time="2026-08-24 15:34:43Z" duration="0.000105" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="2338" name="SceneIssue20260823014011920CoarseTerrainUsesExposedCapMaterial" fullname="VoxelEngine.Tests.EditMode.TransvoxelChunkBoundaryOwnershipTests.SceneIssue20260823014011920CoarseTerrainUsesExposedCapMaterial" methodname="SceneIssue20260823014011920CoarseTerrainUsesExposedCapMaterial" classname="VoxelEngine.Tests.EditMode.TransvoxelChunkBoundaryOwnershipTests" runstate="Runnable" seed="1968746746" result="Passed" start-time="2026-08-24 15:34:43Z" end-time="2026-08-24 15:34:43Z" duration="0.001437" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="2337" name="SceneIssueOwnershipIgnoresDominantMaterialOnOutsideCorner" fullname="VoxelEngine.Tests.EditMode.TransvoxelChunkBoundaryOwnershipTests.SceneIssueOwnershipIgnoresDominantMaterialOnOutsideCorner" methodname="SceneIssueOwnershipIgnoresDominantMaterialOnOutsideCorner" classname="VoxelEngine.Tests.EditMode.TransvoxelChunkBoundaryOwnershipTests" runstate="Runnable" seed="1426093355" result="Passed" start-time="2026-08-24 15:34:43Z" end-time="2026-08-24 15:34:43Z" duration="0.000095" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>
