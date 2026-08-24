@@ -1,1 +1,734 @@
-=== definitions ===
+=== matching files ===
+Assets/VoxelEngine/Structures/Runtime/PrimitiveRasteriser.cs
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelTopologyJob.cs
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelDensityJob.cs
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/FacetedMaskJob.cs
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/SnapshotFacetedMaskJob.cs
+Assets/VoxelEngine/Storage/Api/VoxelBlockMutation.cs
+Assets/VoxelEngine/Storage/Api/RegionReadView.cs
+Assets/VoxelEngine/Storage/Api/VoxelCell.cs
+Assets/VoxelEngine/Storage/Runtime/SemanticRegionSnapshotCodec.cs
+Assets/VoxelEngine/Storage/Runtime/BrickPool.cs
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs
+Assets/Tests/EditMode/StorageRegionReadViewTests.cs
+Assets/Tests/EditMode/CylinderRimDiagnosticTests.cs
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs
+Assets/Tests/EditMode/VoxelSurfaceArchitectureTests.cs
+Assets/Tests/EditMode/StorageCellMutationTests.cs
+
+=== definitions/usages ===
+Assets/VoxelEngine/Structures/Runtime/PrimitiveRasteriser.cs-354-                    if (primitive.Mode != PrimitiveMode.Carve && current.IsSolid
+Assets/VoxelEngine/Structures/Runtime/PrimitiveRasteriser.cs-355-                        && current.BaseMaterialId != primitive.Material) continue;
+Assets/VoxelEngine/Structures/Runtime/PrimitiveRasteriser.cs-356-
+Assets/VoxelEngine/Structures/Runtime/PrimitiveRasteriser.cs-357-                    if (solidDistanceQ4 == 0)
+Assets/VoxelEngine/Structures/Runtime/PrimitiveRasteriser.cs-358-                        solidDistanceQ4 = current.IsSolid ? 1 : -1;
+Assets/VoxelEngine/Structures/Runtime/PrimitiveRasteriser.cs-359-
+Assets/VoxelEngine/Structures/Runtime/PrimitiveRasteriser.cs-360-                    int extrusionAxis = primitive.Shape == PrimitiveShape.Annulus
+Assets/VoxelEngine/Structures/Runtime/PrimitiveRasteriser.cs-361-                        || primitive.Shape == PrimitiveShape.ArcWedge
+Assets/VoxelEngine/Structures/Runtime/PrimitiveRasteriser.cs-362-                        || primitive.Shape == PrimitiveShape.Frustum
+Assets/VoxelEngine/Structures/Runtime/PrimitiveRasteriser.cs-363-                        || primitive.Shape == PrimitiveShape.RoundedBox && primitive.Axis <= 2
+Assets/VoxelEngine/Structures/Runtime/PrimitiveRasteriser.cs-364-                        ? primitive.Axis : 3;
+Assets/VoxelEngine/Structures/Runtime/PrimitiveRasteriser.cs-365-                    VoxelBoundarySample boundary =
+Assets/VoxelEngine/Structures/Runtime/PrimitiveRasteriser.cs:366:                        VoxelBoundarySample.FromSignedQ4(solidDistanceQ4, extrusionAxis);
+Assets/VoxelEngine/Structures/Runtime/PrimitiveRasteriser.cs-367-                    if (current.Boundary.IsAuthored)
+Assets/VoxelEngine/Structures/Runtime/PrimitiveRasteriser.cs-368-                    {
+Assets/VoxelEngine/Structures/Runtime/PrimitiveRasteriser.cs-369-                        int existingDistanceQ4 = current.Boundary.SignedQ4;
+Assets/VoxelEngine/Structures/Runtime/PrimitiveRasteriser.cs-370-                        bool candidateWins = primitive.Mode == PrimitiveMode.Carve
+Assets/VoxelEngine/Structures/Runtime/PrimitiveRasteriser.cs-371-                            ? solidDistanceQ4 < existingDistanceQ4
+Assets/VoxelEngine/Structures/Runtime/PrimitiveRasteriser.cs-372-                            : solidDistanceQ4 > existingDistanceQ4;
+Assets/VoxelEngine/Structures/Runtime/PrimitiveRasteriser.cs-373-                        if (!candidateWins) continue;
+Assets/VoxelEngine/Structures/Runtime/PrimitiveRasteriser.cs-374-                    }
+Assets/VoxelEngine/Structures/Runtime/PrimitiveRasteriser.cs-375-                    if (current.Boundary.Equals(boundary)) continue;
+Assets/VoxelEngine/Structures/Runtime/PrimitiveRasteriser.cs-376-
+Assets/VoxelEngine/Structures/Runtime/PrimitiveRasteriser.cs-377-                    if (!mutationOpen)
+Assets/VoxelEngine/Structures/Runtime/PrimitiveRasteriser.cs-378-                    {
+--
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-295-        float d0 = density[c0];
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-296-        float d1 = density[c1];
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-297-        int3 o0 = CellCorner(c0);
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-298-        int3 o1 = CellCorner(c1);
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-299-        int3 delta = abs(o1 - o0);
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-300-        int axis = delta.x != 0 ? 0 : (delta.y != 0 ? 1 : 2);
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-301-
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-302-        // An authored boundary that does not apply along this edge's axis is ignored, and the edge
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-303-        // reverts to a plain occupancy crossing.
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-304-        // An authored sample that does not apply along this edge's axis is ignored, and the edge
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-305-        // reverts to a plain occupancy crossing, so an authored bevel does not bend an edge it says
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-306-        // nothing about.
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute:307:        if ((BoundaryIsAuthored(boundary[c0]) && !BoundaryAppliesAlong(boundary[c0], axis))
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute:308:         || (BoundaryIsAuthored(boundary[c1]) && !BoundaryAppliesAlong(boundary[c1], axis)))
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-309-        {
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-310-            d0 = IsSolidSample(material[c0]) ? 0.5 : -0.5;
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-311-            d1 = IsSolidSample(material[c1]) ? 0.5 : -0.5;
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-312-        }
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-313-
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-314-        float t0 = abs(d1 - d0) > 1e-7 ? d1 / (d1 - d0) : 0.5;
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-315-        float t1 = 1.0 - t0;
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-316-        float3 local = ((float3)(cell + o0) * t0 + (float3)(cell + o1) * t1) * _SourceStep;
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-317-
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-318-        SurfaceVertex vertex;
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-319-        vertex.position = ((float3)_ChunkOriginVoxel + local + 0.5) * _VoxelSize;
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute-320-        vertex.normal = normalize(DensityNormal(cell + _Padding + o0) * t0
+--
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-161-    surface = (surfaceWord >> ((voxel & 1u) * 16u)) & 0xFFFFu;
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-162-
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-163-    uint boundaryWord = _BrickBoundarySamples[slot * 128u + (voxel >> 2)];
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-164-    boundary = (boundaryWord >> ((voxel & 3u) * 8u)) & 0xFFu;
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-165-
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-166-    return material;
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-167-}
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-168-
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-169-// Matches VoxelBoundarySample. The sample is authored whenever any bit is set; the offset is a
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-170-// 6-bit field biased by 32, and the top two bits carry the extrusion axis (0 meaning "all axes").
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-171-bool BoundaryIsAuthored(uint packed) { return packed != 0u; }
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-172-
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl:173:int BoundarySignedQ3(uint packed)
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-174-{
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-175-    return BoundaryIsAuthored(packed) ? (int)(packed & 0x3Fu) - 32 : 0;
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-176-}
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-177-
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl:178:int BoundaryExtrusionAxis(uint packed)
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-179-{
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-180-    uint code = packed >> 6;
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-181-    return code == 0u ? 3 : (int)code - 1;
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-182-}
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-183-
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl:184:bool BoundaryAppliesAlong(uint packed, int edgeAxis)
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-185-{
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl:186:    int axis = BoundaryExtrusionAxis(packed);
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-187-    return BoundaryIsAuthored(packed) && (axis == 3 || edgeAxis != axis);
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-188-}
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-189-
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-190-float AddTap(int3 p, float weight, bool centreSolid, StyleDefinition centreStyle,
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-191-             inout uint dominantMaterial, inout uint dominantSurface)
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-192-{
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-193-    uint surface, boundary;
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-194-    uint material = ReadMaterial(p, surface, boundary);
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-195-    if (!IsSolidSample(material)) return 0.0;
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-196-
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-197-    surface = ResolveSurface(material, surface);
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-198-    if (dominantMaterial == 0u)
+--
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-273-                  out uint dominantBoundary)
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-274-{
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-275-    uint centreSurface, packedBoundary;
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-276-    uint centre = ReadMaterial(p, centreSurface, packedBoundary);
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-277-    dominantBoundary = packedBoundary;
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-278-
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-279-    bool centreSolid = IsSolidSample(centre);
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-280-    centreSurface = ResolveSurface(centre, centreSurface);
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-281-
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-282-    // Must stay identical to TransvoxelDensityJob.SampleField: an authored sample is trusted exactly
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-283-    // when its sign agrees with authoritative occupancy. See the comment there for why both the old
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-284-    // six-neighbour gate and no gate at all are wrong.
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl:285:    if (packedBoundary != 0u && centreSolid == (BoundarySignedQ3(packedBoundary) >= 0))
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-286-    {
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-287-        dominantMaterial = centreSolid ? centre : 0u;
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-288-        dominantSurface = centreSolid ? centreSurface : 0u;
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl:289:        return BoundarySignedQ3(packedBoundary) * 0.125 + CoatingDisplacement(centreSurface);
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-290-    }
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-291-
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-292-    StyleDefinition centreStyle = LoadStyle(centreSurface & 0xFFFFu);
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-293-    if (centreSolid && (centreStyle.reconstruction == RECONSTRUCTION_PLANAR
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-294-                     || centreStyle.reconstruction == RECONSTRUCTION_SHARP
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-295-                     || centreStyle.reconstruction == RECONSTRUCTION_CUBIC))
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-296-    {
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-297-        dominantMaterial = centre;
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-298-        dominantSurface = centreSurface;
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-299-        return 0.5 + CoatingDisplacement(centreSurface);
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-300-    }
+Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl-301-
+--
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-2962-                ushort edgeCode = edgeCodes[i];
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-2963-                int corner0 = (edgeCode >> 4) & 0x0F;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-2964-                int corner1 = edgeCode & 0x0F;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-2965-                float d0 = _cellDensity[corner0];
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-2966-                float d1 = _cellDensity[corner1];
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-2967-
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-2968-                int3 o0 = TransvoxelRegularTables.CornerOffsets[corner0];
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-2969-                int3 o1 = TransvoxelRegularTables.CornerOffsets[corner1];
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-2970-                int3 edgeDelta = math.abs(o1 - o0);
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-2971-                int edgeAxis = edgeDelta.x != 0 ? 0 : edgeDelta.y != 0 ? 1 : 2;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-2972-                var boundary0 = new VoxelBoundarySample { Packed = _cellBoundary[corner0] };
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-2973-                var boundary1 = new VoxelBoundarySample { Packed = _cellBoundary[corner1] };
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs:2974:                if ((boundary0.IsAuthored && !boundary0.AppliesAlong(edgeAxis))
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs:2975:                    || (boundary1.IsAuthored && !boundary1.AppliesAlong(edgeAxis)))
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-2976-                {
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-2977-                    d0 = IsSolidSurfaceMaterial(_cellMaterial[corner0]) ? 0.5f : -0.5f;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-2978-                    d1 = IsSolidSurfaceMaterial(_cellMaterial[corner1]) ? 0.5f : -0.5f;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-2979-                }
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-2980-                float t0 = math.abs(d1 - d0) > 1e-7f ? d1 / (d1 - d0) : 0.5f;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-2981-                float t1 = 1f - t0;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-2982-                float3 localVoxel = ((float3)(cell + o0) * t0
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-2983-                                   + (float3)(cell + o1) * t1) * SourceStep;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-2984-                float3 worldVoxel = chunkOrigin + localVoxel + 0.5f;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-2985-
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-2986-                int3 g0 = cell + Padding + o0;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-2987-                int3 g1 = cell + Padding + o1;
+--
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-3472-                int3 local = int3.zero;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-3473-                local[axis] = layer;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-3474-                local[axisA] = a;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-3475-                local[axisB] = b;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-3476-                int3 voxel = chunkOrigin + local * SourceStep;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-3477-                ReadSnapshotCell(voxel, out byte material, out uint surface,
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-3478-                                 out byte boundary);
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-3479-                SurfaceStyleReadDefinition style = _buildSurfaceCatalogue.Get((ushort)surface);
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-3480-                byte coating = (byte)(surface >> 16);
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-3481-                bool displacedCoating =
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-3482-                    _buildCoatingCatalogue.Get(coating).Displacement != 0;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-3483-                var authoredBoundary = new VoxelBoundarySample { Packed = boundary };
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs:3484:                bool boundaryAffectsFace = authoredBoundary.AppliesAlong(axis);
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-3485-                bool faceted = IsSolidSurfaceMaterial(material)
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-3486-                    && (style.Reconstruction == SurfaceReconstruction.Sharp
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-3487-                        || style.Reconstruction == SurfaceReconstruction.Cubic
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-3488-                        || style.Reconstruction == SurfaceReconstruction.Planar
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-3489-                           && !boundaryAffectsFace && !displacedCoating);
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-3490-                if (!faceted)
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-3491-                {
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-3492-                    _faceMask[a + b * CellsPerAxis] = 0;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-3493-                    continue;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-3494-                }
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-3495-
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-3496-                int3 neighbour = voxel;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-3497-                neighbour[axis] += sign * SourceStep;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-3498-                ReadSnapshotCell(neighbour, out byte neighbourMaterial, out _,
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-3499-                                 out byte neighbourBoundary);
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-3500-                var neighbourAuthoredBoundary =
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-3501-                    new VoxelBoundarySample { Packed = neighbourBoundary };
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-3502-                _faceMask[a + b * CellsPerAxis] = IsSolidSurfaceMaterial(neighbourMaterial)
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs:3503:                    || neighbourAuthoredBoundary.AppliesAlong(axis)
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-3504-                    ? 0u : PackSurfaceAttributes(material, surface) + 1u;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-3505-            }
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-3506-        }
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-3507-
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-3508-        private void MergeFacetedMask(int3 chunkOrigin, int axis, int sign, int layer,
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-3509-                                      float voxelSize)
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-3510-        {
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-3511-            int axisA = (axis + 1) % 3;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-3512-            int axisB = (axis + 2) % 3;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-3513-            for (int b = 0; b < CellsPerAxis; b++)
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-3514-            for (int a = 0; a < CellsPerAxis; a++)
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs-3515-            {
+--
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelTopologyJob.cs-137-            {
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelTopologyJob.cs-138-                ushort edge = EdgeCodes[caseCode * 12 + i];
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelTopologyJob.cs-139-                int c0 = (edge >> 4) & 0x0f;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelTopologyJob.cs-140-                int c1 = edge & 0x0f;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelTopologyJob.cs-141-                float d0 = densities[c0];
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelTopologyJob.cs-142-                float d1 = densities[c1];
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelTopologyJob.cs-143-                int3 o0 = Corner(c0);
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelTopologyJob.cs-144-                int3 o1 = Corner(c1);
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelTopologyJob.cs-145-                int3 delta = math.abs(o1 - o0);
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelTopologyJob.cs-146-                int axis = delta.x != 0 ? 0 : delta.y != 0 ? 1 : 2;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelTopologyJob.cs-147-                var b0 = new VoxelBoundarySample { Packed = boundaries[c0] };
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelTopologyJob.cs-148-                var b1 = new VoxelBoundarySample { Packed = boundaries[c1] };
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelTopologyJob.cs:149:                if ((b0.IsAuthored && !b0.AppliesAlong(axis))
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelTopologyJob.cs:150:                    || (b1.IsAuthored && !b1.AppliesAlong(axis)))
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelTopologyJob.cs-151-                {
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelTopologyJob.cs-152-                    d0 = IsSolid(materials[c0]) ? 0.5f : -0.5f;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelTopologyJob.cs-153-                    d1 = IsSolid(materials[c1]) ? 0.5f : -0.5f;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelTopologyJob.cs-154-                }
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelTopologyJob.cs-155-                float t0 = math.abs(d1 - d0) > 1e-7f ? d1 / (d1 - d0) : 0.5f;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelTopologyJob.cs-156-                float t1 = 1f - t0;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelTopologyJob.cs-157-                float3 local = ((float3)(cell + o0) * t0 + (float3)(cell + o1) * t1)
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelTopologyJob.cs-158-                             * SourceStep;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelTopologyJob.cs-159-                float3 position = (ChunkOriginVoxel + local + 0.5f) * VoxelSize;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelTopologyJob.cs-160-                float3 normal = math.normalizesafe(DensityNormal(cell + Padding + o0) * t0
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelTopologyJob.cs-161-                                                  + DensityNormal(cell + Padding + o1) * t1,
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelTopologyJob.cs-162-                                                    new float3(0f, 1f, 0f));
+--
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelDensityJob.cs-76-            var boundary = new VoxelBoundarySample { Packed = packedBoundary };
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelDensityJob.cs-77-            // An authored sample refines where the surface sits inside this cell; occupancy decides
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelDensityJob.cs-78-            // which side of it the cell is on. Trust the analytic distance whenever the two agree.
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelDensityJob.cs-79-            //
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelDensityJob.cs-80-            // The previous rule instead demanded a six-neighbour occupancy transition, which is a
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelDensityJob.cs-81-            // proxy for "near the surface" and a bad one on a curve: a cell one voxel inside a
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelDensityJob.cs-82-            // smooth intrados has no empty axis neighbour, so it failed, fell through to the Planar
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelDensityJob.cs-83-            // branch below, and returned a constant 0.5. With no sub-voxel information on the solid
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelDensityJob.cs-84-            // side of an edge the crossing collapses onto the lattice, which is the staircased
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelDensityJob.cs-85-            // intrados. Dropping the guard outright is not the answer either: authored samples that
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelDensityJob.cs-86-            // contradict occupancy then produce surface where the world is empty, which tears holes
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelDensityJob.cs-87-            // in the surrounding wall. Sign agreement keeps the precision and rejects the garbage.
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelDensityJob.cs:88:            if (packedBoundary != 0 && centreSolid == boundary.SignedQ3 >= 0)
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelDensityJob.cs-89-            {
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelDensityJob.cs-90-                dominantMaterial = centreSolid ? centre : (byte)0;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelDensityJob.cs-91-                dominantSurface = centreSolid ? centreSurface : 0u;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelDensityJob.cs:92:                return boundary.SignedQ3 * 0.125f + CoatingDisplacement(centreSurface);
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelDensityJob.cs-93-            }
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelDensityJob.cs-94-            ushort style = (ushort)centreSurface;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelDensityJob.cs-95-            SurfaceStyleReadDefinition centreDefinition = Catalogue.Get(style);
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelDensityJob.cs-96-            if (centreSolid && (centreDefinition.Reconstruction == SurfaceReconstruction.Planar
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelDensityJob.cs-97-                                || centreDefinition.Reconstruction == SurfaceReconstruction.Sharp
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelDensityJob.cs-98-                                || centreDefinition.Reconstruction == SurfaceReconstruction.Cubic))
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelDensityJob.cs-99-            {
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelDensityJob.cs-100-                dominantMaterial = centre;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelDensityJob.cs-101-                dominantSurface = centreSurface;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelDensityJob.cs-102-                return 0.5f + CoatingDisplacement(centreSurface);
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelDensityJob.cs-103-            }
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelDensityJob.cs-104-
+--
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/FacetedMaskJob.cs-42-            var boundarySample = new VoxelBoundarySample { Packed = boundary };
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/FacetedMaskJob.cs-43-            for (int axis = 0; axis < 3; axis++)
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/FacetedMaskJob.cs-44-            {
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/FacetedMaskJob.cs-45-                int axisA = (axis + 1) % 3;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/FacetedMaskJob.cs-46-                int axisB = (axis + 2) % 3;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/FacetedMaskJob.cs-47-                int a = local[axisA];
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/FacetedMaskJob.cs-48-                int b = local[axisB];
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/FacetedMaskJob.cs-49-                int layer = local[axis];
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/FacetedMaskJob.cs-50-                bool faceted = solid
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/FacetedMaskJob.cs-51-                    && (style.Reconstruction == SurfaceReconstruction.Sharp
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/FacetedMaskJob.cs-52-                        || style.Reconstruction == SurfaceReconstruction.Cubic
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/FacetedMaskJob.cs-53-                        || style.Reconstruction == SurfaceReconstruction.Planar
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/FacetedMaskJob.cs:54:                           && !boundarySample.AppliesAlong(axis) && !displaced);
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/FacetedMaskJob.cs-55-                for (int side = 0; side < 2; side++)
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/FacetedMaskJob.cs-56-                {
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/FacetedMaskJob.cs-57-                    int face = axis * 2 + side;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/FacetedMaskJob.cs-58-                    int output = (face * CellsPerAxis + layer) * cellsPerPlane
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/FacetedMaskJob.cs-59-                               + a + b * CellsPerAxis;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/FacetedMaskJob.cs-60-                    if (!faceted)
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/FacetedMaskJob.cs-61-                    {
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/FacetedMaskJob.cs-62-                        FaceMasks[output] = 0;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/FacetedMaskJob.cs-63-                        continue;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/FacetedMaskJob.cs-64-                    }
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/FacetedMaskJob.cs-65-                    int3 neighbourGrid = grid;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/FacetedMaskJob.cs-66-                    neighbourGrid[axis] += side == 0 ? -1 : 1;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/FacetedMaskJob.cs-67-                    int neighbourSample = GridIndex(neighbourGrid);
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/FacetedMaskJob.cs-68-                    byte neighbour = Materials[neighbourSample];
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/FacetedMaskJob.cs-69-                    byte neighbourBoundary = BoundarySamples[neighbourSample];
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/FacetedMaskJob.cs-70-                    FaceMasks[output] = IsSolid(neighbour)
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/FacetedMaskJob.cs-71-                        || new VoxelBoundarySample { Packed = neighbourBoundary }
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/FacetedMaskJob.cs:72:                            .AppliesAlong(axis)
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/FacetedMaskJob.cs-73-                        ? 0u : encoded;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/FacetedMaskJob.cs-74-                }
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/FacetedMaskJob.cs-75-            }
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/FacetedMaskJob.cs-76-        }
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/FacetedMaskJob.cs-77-
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/FacetedMaskJob.cs-78-        private int GridIndex(int3 p) => p.x + GridSize * (p.y + GridSize * p.z);
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/FacetedMaskJob.cs-79-        private static bool IsSolid(byte material) =>
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/FacetedMaskJob.cs-80-            material != 0 && material != 11 && material != 16;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/FacetedMaskJob.cs-81-        private static uint Pack(byte material, uint surface) => material
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/FacetedMaskJob.cs-82-            | (((surface >> 16) & 0xffu) << 8)
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/FacetedMaskJob.cs-83-            | ((surface & 0xffu) << 16)
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/FacetedMaskJob.cs-84-            | (((surface >> 24) & 0xffu) << 24);
+--
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/SnapshotFacetedMaskJob.cs-48-            var boundarySample = new VoxelBoundarySample { Packed = boundary };
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/SnapshotFacetedMaskJob.cs-49-            for (int axis = 0; axis < 3; axis++)
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/SnapshotFacetedMaskJob.cs-50-            {
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/SnapshotFacetedMaskJob.cs-51-                int axisA = (axis + 1) % 3;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/SnapshotFacetedMaskJob.cs-52-                int axisB = (axis + 2) % 3;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/SnapshotFacetedMaskJob.cs-53-                int a = local[axisA];
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/SnapshotFacetedMaskJob.cs-54-                int b = local[axisB];
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/SnapshotFacetedMaskJob.cs-55-                int layer = local[axis];
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/SnapshotFacetedMaskJob.cs-56-                bool faceted = solid
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/SnapshotFacetedMaskJob.cs-57-                    && (style.Reconstruction == SurfaceReconstruction.Sharp
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/SnapshotFacetedMaskJob.cs-58-                        || style.Reconstruction == SurfaceReconstruction.Cubic
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/SnapshotFacetedMaskJob.cs-59-                        || style.Reconstruction == SurfaceReconstruction.Planar
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/SnapshotFacetedMaskJob.cs:60:                           && !boundarySample.AppliesAlong(axis) && !displaced);
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/SnapshotFacetedMaskJob.cs-61-                for (int side = 0; side < 2; side++)
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/SnapshotFacetedMaskJob.cs-62-                {
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/SnapshotFacetedMaskJob.cs-63-                    int face = axis * 2 + side;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/SnapshotFacetedMaskJob.cs-64-                    int output = (face * CellsPerAxis + layer) * cellsPerPlane
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/SnapshotFacetedMaskJob.cs-65-                               + a + b * CellsPerAxis;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/SnapshotFacetedMaskJob.cs-66-                    if (!faceted)
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/SnapshotFacetedMaskJob.cs-67-                    {
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/SnapshotFacetedMaskJob.cs-68-                        FaceMasks[output] = 0;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/SnapshotFacetedMaskJob.cs-69-                        continue;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/SnapshotFacetedMaskJob.cs-70-                    }
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/SnapshotFacetedMaskJob.cs-71-                    int3 neighbour = voxel;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/SnapshotFacetedMaskJob.cs-72-                    neighbour[axis] += side == 0 ? -step : step;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/SnapshotFacetedMaskJob.cs-73-                    byte adjacent = Read(neighbour, out _, out byte neighbourBoundary);
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/SnapshotFacetedMaskJob.cs-74-                    FaceMasks[output] = IsSolid(adjacent)
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/SnapshotFacetedMaskJob.cs-75-                        || new VoxelBoundarySample { Packed = neighbourBoundary }
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/SnapshotFacetedMaskJob.cs:76:                            .AppliesAlong(axis)
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/SnapshotFacetedMaskJob.cs-77-                        ? 0u : encoded;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/SnapshotFacetedMaskJob.cs-78-                }
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/SnapshotFacetedMaskJob.cs-79-            }
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/SnapshotFacetedMaskJob.cs-80-        }
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/SnapshotFacetedMaskJob.cs-81-
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/SnapshotFacetedMaskJob.cs-82-        private byte Read(int3 voxel, out uint surface, out byte boundary)
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/SnapshotFacetedMaskJob.cs-83-        {
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/SnapshotFacetedMaskJob.cs-84-            int3 worldBrick = voxel >> VoxelReadGrid.BlockEdgeLog2;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/SnapshotFacetedMaskJob.cs-85-            int3 localBrick = worldBrick - BrickCacheOrigin;
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/SnapshotFacetedMaskJob.cs-86-            if (math.any(localBrick < 0) || math.any(localBrick >= BrickCacheEdge))
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/SnapshotFacetedMaskJob.cs-87-            { surface = 0; boundary = 0; return 0; }
+Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/SnapshotFacetedMaskJob.cs-88-            int brickIndex = localBrick.x
+--
+Assets/VoxelEngine/Storage/Api/VoxelCell.cs-1-using System;
+Assets/VoxelEngine/Storage/Api/VoxelCell.cs-2-
+Assets/VoxelEngine/Storage/Api/VoxelCell.cs-3-namespace VoxelEngine.Storage.Api
+Assets/VoxelEngine/Storage/Api/VoxelCell.cs-4-{
+Assets/VoxelEngine/Storage/Api/VoxelCell.cs-5-    /// <summary>
+Assets/VoxelEngine/Storage/Api/VoxelCell.cs-6-    /// Compact authored solid-boundary sample. Zero means occupancy-only reconstruction; all
+Assets/VoxelEngine/Storage/Api/VoxelCell.cs-7-    /// other values encode signed distance in eighths of a voxel plus an optional extrusion axis,
+Assets/VoxelEngine/Storage/Api/VoxelCell.cs-8-    /// positive inside solid. Profile constraints apply perpendicular to that axis; depth faces
+Assets/VoxelEngine/Storage/Api/VoxelCell.cs-9-    /// remain occupancy-planar so sharp profile/extrusion intersections are not rounded.
+Assets/VoxelEngine/Storage/Api/VoxelCell.cs-10-    /// Keeping this independent from surface semantics prevents materials and shading styles from
+Assets/VoxelEngine/Storage/Api/VoxelCell.cs-11-    /// inventing geometry that the feature authoring stage did not preserve.
+Assets/VoxelEngine/Storage/Api/VoxelCell.cs-12-    /// </summary>
+Assets/VoxelEngine/Storage/Api/VoxelCell.cs:13:    public struct VoxelBoundarySample : IEquatable<VoxelBoundarySample>
+Assets/VoxelEngine/Storage/Api/VoxelCell.cs-14-    {
+Assets/VoxelEngine/Storage/Api/VoxelCell.cs-15-        public byte Packed;
+Assets/VoxelEngine/Storage/Api/VoxelCell.cs-16-
+Assets/VoxelEngine/Storage/Api/VoxelCell.cs-17-        public bool IsAuthored => Packed != 0;
+Assets/VoxelEngine/Storage/Api/VoxelCell.cs:18:        public int SignedQ3 => IsAuthored ? (Packed & 0x3F) - 32 : 0;
+Assets/VoxelEngine/Storage/Api/VoxelCell.cs:19:        public int SignedQ4 => SignedQ3 * 2;
+Assets/VoxelEngine/Storage/Api/VoxelCell.cs:20:        public int ExtrusionAxis
+Assets/VoxelEngine/Storage/Api/VoxelCell.cs-21-        {
+Assets/VoxelEngine/Storage/Api/VoxelCell.cs-22-            get
+Assets/VoxelEngine/Storage/Api/VoxelCell.cs-23-            {
+Assets/VoxelEngine/Storage/Api/VoxelCell.cs-24-                int code = Packed >> 6;
+Assets/VoxelEngine/Storage/Api/VoxelCell.cs-25-                return code == 0 ? 3 : code - 1;
+Assets/VoxelEngine/Storage/Api/VoxelCell.cs-26-            }
+Assets/VoxelEngine/Storage/Api/VoxelCell.cs-27-        }
+Assets/VoxelEngine/Storage/Api/VoxelCell.cs-28-
+Assets/VoxelEngine/Storage/Api/VoxelCell.cs:29:        public bool AppliesAlong(int edgeAxis) =>
+Assets/VoxelEngine/Storage/Api/VoxelCell.cs:30:            IsAuthored && (ExtrusionAxis == 3 || edgeAxis != ExtrusionAxis);
+Assets/VoxelEngine/Storage/Api/VoxelCell.cs-31-
+Assets/VoxelEngine/Storage/Api/VoxelCell.cs:32:        public static VoxelBoundarySample FromSignedQ4(int signedQ4, int extrusionAxis = 3)
+Assets/VoxelEngine/Storage/Api/VoxelCell.cs-33-        {
+Assets/VoxelEngine/Storage/Api/VoxelCell.cs-34-            int signedQ3 = signedQ4 >= 0 ? (signedQ4 + 1) / 2 : (signedQ4 - 1) / 2;
+Assets/VoxelEngine/Storage/Api/VoxelCell.cs-35-            signedQ3 = Math.Clamp(signedQ3, -31, 31);
+Assets/VoxelEngine/Storage/Api/VoxelCell.cs-36-            int axisCode = extrusionAxis >= 0 && extrusionAxis <= 2 ? extrusionAxis + 1 : 0;
+Assets/VoxelEngine/Storage/Api/VoxelCell.cs-37-            return new VoxelBoundarySample
+Assets/VoxelEngine/Storage/Api/VoxelCell.cs-38-            {
+Assets/VoxelEngine/Storage/Api/VoxelCell.cs-39-                Packed = (byte)((axisCode << 6) | (signedQ3 + 32))
+Assets/VoxelEngine/Storage/Api/VoxelCell.cs-40-            };
+Assets/VoxelEngine/Storage/Api/VoxelCell.cs-41-        }
+Assets/VoxelEngine/Storage/Api/VoxelCell.cs-42-
+Assets/VoxelEngine/Storage/Api/VoxelCell.cs-43-        public bool Equals(VoxelBoundarySample other) => Packed == other.Packed;
+Assets/VoxelEngine/Storage/Api/VoxelCell.cs-44-        public override bool Equals(object obj) => obj is VoxelBoundarySample other && Equals(other);
+--
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-71-
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-72-                // Exact lattice ray along +X from the centre: no trig, no rounding, so every
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-73-                // sample is a distinct cell and the ramp can be read without aliasing.
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-74-                {
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-75-                    var sb = new System.Text.StringBuilder();
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-76-                    sb.Append("[cap] +X lattice ray z=6:");
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-77-                    for (int x = radius - 5; x <= radius + 5; x++)
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-78-                    {
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-79-                        VoxelCell c = VoxelAccess.GetCell(
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-80-                            ref table, in pool, new int3(centre.x + x, centre.y, 6));
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-81-                        string tag = c.BaseMaterialId == 0 ? "e" : "S";
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-82-                        sb.Append(c.Boundary.IsAuthored
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs:83:                            ? $" x{x}:{tag}{c.Boundary.SignedQ3}"
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-84-                            : $" x{x}:{tag}.");
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-85-                    }
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-86-                    Debug.Log(sb.ToString());
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-87-                }
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-88-                {
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-89-                    var sb = new System.Text.StringBuilder();
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-90-                    sb.Append("[cap] +Y lattice ray z=6:");
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-91-                    for (int y = radius - 5; y <= radius + 5; y++)
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-92-                    {
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-93-                        VoxelCell c = VoxelAccess.GetCell(
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-94-                            ref table, in pool, new int3(centre.x, centre.y + y, 6));
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-95-                        string tag = c.BaseMaterialId == 0 ? "e" : "S";
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-96-                        sb.Append(c.Boundary.IsAuthored
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs:97:                            ? $" y{y}:{tag}{c.Boundary.SignedQ3}"
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-98-                            : $" y{y}:{tag}.");
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-99-                    }
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-100-                    Debug.Log(sb.ToString());
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-101-                }
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-102-
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-103-                // Radial ray at 45 degrees, mid-depth. The cylinder fixture produces a clean
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-104-                // analytic ramp here; if the arch does not, the field is the problem.
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-105-                for (int step = 30; step <= 60; step += 15)
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-106-                {
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-107-                    double a = step * math.PI / 180.0;
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-108-                    var sb = new System.Text.StringBuilder();
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-109-                    sb.Append($"[cap] ray {step}deg z=6 q3 by radius:");
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-110-                    for (int r = -4; r <= 4; r++)
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-111-                    {
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-112-                        int x = centre.x + (int)math.round(math.cos(a) * (radius + r));
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-113-                        int y = centre.y + (int)math.round(math.sin(a) * (radius + r));
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-114-                        VoxelCell c = VoxelAccess.GetCell(ref table, in pool, new int3(x, y, 6));
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-115-                        string tag = c.BaseMaterialId == 0 ? "e" : "S";
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-116-                        sb.Append(c.Boundary.IsAuthored
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs:117:                            ? $" {tag}{c.Boundary.SignedQ3,3}"
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-118-                            : $" {tag}  .");
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-119-                    }
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-120-                    Debug.Log(sb.ToString());
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-121-                }
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-122-                for (int z = origin.z - 1; z < origin.z + depth; z++)
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-123-                {
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-124-                    // Walk the rim: for each angle take the innermost solid cell outside the
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-125-                    // opening, i.e. the cell whose -radial face lines the hole.
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-126-                    int solid = 0, authored = 0, facetedZ = 0, planar = 0;
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-127-                    for (int step = 0; step <= 180; step += 3)
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-128-                    {
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-129-                        double a = step * math.PI / 180.0;
+--
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-131-                        {
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-132-                            int x = centre.x + (int)math.round(math.cos(a) * (radius + r));
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-133-                            int y = centre.y + (int)math.round(math.sin(a) * (radius + r));
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-134-                            VoxelCell cell = VoxelAccess.GetCell(
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-135-                                ref table, in pool, new int3(x, y, z));
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-136-                            if (cell.BaseMaterialId == 0) continue;
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-137-                            solid++;
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-138-                            if (cell.Boundary.IsAuthored) authored++;
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-139-                            SurfaceStyleReadDefinition style =
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-140-                                view.Get((ushort)cell.Surface.Packed);
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-141-                            if (style.Reconstruction == Recon.Planar) planar++;
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-142-                            if (style.Reconstruction == Recon.Planar
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs:143:                                && !cell.Boundary.AppliesAlong(2)) facetedZ++;
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-144-                            break;
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-145-                        }
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-146-                    }
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-147-                    Debug.Log($"[cap] z={z,3} rimSolid={solid,3} authored={authored,3} " +
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-148-                              $"planar={planar,3} greedyZ={facetedZ,3}");
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-149-                }
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-150-            }
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-151-            finally
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-152-            {
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-153-                primitives.Dispose();
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-154-                pool.Dispose();
+Assets/Tests/EditMode/ArchCapLayerDiagnosticTests.cs-155-                table.Dispose();
+--
+Assets/Tests/EditMode/CylinderRimDiagnosticTests.cs-56-                    bool insideHole = radial < Radius && z >= ZMin && z < ZMax;
+Assets/Tests/EditMode/CylinderRimDiagnosticTests.cs-57-                    bool solid = !insideHole;
+Assets/Tests/EditMode/CylinderRimDiagnosticTests.cs-58-
+Assets/Tests/EditMode/CylinderRimDiagnosticTests.cs-59-                    materials[i] = solid ? Stone : (byte)0;
+Assets/Tests/EditMode/CylinderRimDiagnosticTests.cs-60-                    semantics[i] = solid ? SurfaceStyles.MasonryJoint : 0u;
+Assets/Tests/EditMode/CylinderRimDiagnosticTests.cs-61-
+Assets/Tests/EditMode/CylinderRimDiagnosticTests.cs-62-                    float toWall = radial - Radius;
+Assets/Tests/EditMode/CylinderRimDiagnosticTests.cs-63-                    float toCap = math.min(z - (ZMin - 0.5f), (ZMax - 0.5f) - z);
+Assets/Tests/EditMode/CylinderRimDiagnosticTests.cs-64-                    float signed = math.min(toWall, toCap);
+Assets/Tests/EditMode/CylinderRimDiagnosticTests.cs-65-                    if (!solid) signed = -math.abs(signed);
+Assets/Tests/EditMode/CylinderRimDiagnosticTests.cs-66-                    bool authored = math.abs(signed) <= 2f;
+Assets/Tests/EditMode/CylinderRimDiagnosticTests.cs-67-                    var sample = authored
+Assets/Tests/EditMode/CylinderRimDiagnosticTests.cs:68:                        ? VoxelBoundarySample.FromSignedQ4(
+Assets/Tests/EditMode/CylinderRimDiagnosticTests.cs-69-                            (int)math.round(math.clamp(signed * 16f, -127f, 127f)), 2)
+Assets/Tests/EditMode/CylinderRimDiagnosticTests.cs-70-                        : default;
+Assets/Tests/EditMode/CylinderRimDiagnosticTests.cs-71-                    boundaries[i] = sample.Packed;
+Assets/Tests/EditMode/CylinderRimDiagnosticTests.cs-72-
+Assets/Tests/EditMode/CylinderRimDiagnosticTests.cs-73-                    // Reproduce TransvoxelDensityJob.SampleField for MasonryJoint (Planar,
+Assets/Tests/EditMode/CylinderRimDiagnosticTests.cs-74-                    // curvature 0, no coating) with the sign-agreement gate this branch installs.
+Assets/Tests/EditMode/CylinderRimDiagnosticTests.cs:75:                    density[i] = authored && solid == sample.SignedQ3 >= 0
+Assets/Tests/EditMode/CylinderRimDiagnosticTests.cs:76:                        ? sample.SignedQ3 * 0.125f
+Assets/Tests/EditMode/CylinderRimDiagnosticTests.cs-77-                        : solid ? 0.5f : -0.5f;
+Assets/Tests/EditMode/CylinderRimDiagnosticTests.cs-78-                }
+Assets/Tests/EditMode/CylinderRimDiagnosticTests.cs-79-
+Assets/Tests/EditMode/CylinderRimDiagnosticTests.cs-80-                var topology = new TransvoxelTopologyJob
+Assets/Tests/EditMode/CylinderRimDiagnosticTests.cs-81-                {
+Assets/Tests/EditMode/CylinderRimDiagnosticTests.cs-82-                    Density = density,
+Assets/Tests/EditMode/CylinderRimDiagnosticTests.cs-83-                    Materials = materials,
+Assets/Tests/EditMode/CylinderRimDiagnosticTests.cs-84-                    SurfaceSemantics = semantics,
+Assets/Tests/EditMode/CylinderRimDiagnosticTests.cs-85-                    BoundarySamples = boundaries,
+Assets/Tests/EditMode/CylinderRimDiagnosticTests.cs-86-                    CellClass = tables.RegularCellClass,
+Assets/Tests/EditMode/CylinderRimDiagnosticTests.cs-87-                    GeometryCounts = tables.RegularGeometryCounts,
+Assets/Tests/EditMode/CylinderRimDiagnosticTests.cs-88-                    CellVertexIndices = tables.RegularCellVertexIndices,
+--
+Assets/Tests/EditMode/ArchCrossingStabilityTests.cs-58-                SurfaceCatalogueView view = catalogue;
+Assets/Tests/EditMode/ArchCrossingStabilityTests.cs-59-                int3 centre = new(0, arch.PierHeight, origin.z);
+Assets/Tests/EditMode/ArchCrossingStabilityTests.cs-60-                int radius = arch.ClearSpan / 2;
+Assets/Tests/EditMode/ArchCrossingStabilityTests.cs-61-                const int z = 6;
+Assets/Tests/EditMode/ArchCrossingStabilityTests.cs-62-
+Assets/Tests/EditMode/ArchCrossingStabilityTests.cs-63-                float Density(int3 v)
+Assets/Tests/EditMode/ArchCrossingStabilityTests.cs-64-                {
+Assets/Tests/EditMode/ArchCrossingStabilityTests.cs-65-                    VoxelCell c = VoxelAccess.GetCell(ref table, in pool, v);
+Assets/Tests/EditMode/ArchCrossingStabilityTests.cs-66-                    bool solid = c.BaseMaterialId != 0;
+Assets/Tests/EditMode/ArchCrossingStabilityTests.cs-67-                    var b = c.Boundary;
+Assets/Tests/EditMode/ArchCrossingStabilityTests.cs-68-                    // TransvoxelDensityJob.SampleField for MasonryJoint: Planar, curvature 0,
+Assets/Tests/EditMode/ArchCrossingStabilityTests.cs-69-                    // no coating, with this branch's sign-agreement gate.
+Assets/Tests/EditMode/ArchCrossingStabilityTests.cs:70:                    if (b.IsAuthored && solid == b.SignedQ3 >= 0) return b.SignedQ3 * 0.125f;
+Assets/Tests/EditMode/ArchCrossingStabilityTests.cs-71-                    return solid ? 0.5f : -0.5f;
+Assets/Tests/EditMode/ArchCrossingStabilityTests.cs-72-                }
+Assets/Tests/EditMode/ArchCrossingStabilityTests.cs-73-
+Assets/Tests/EditMode/ArchCrossingStabilityTests.cs-74-                var errors = new List<(float angle, float err)>();
+Assets/Tests/EditMode/ArchCrossingStabilityTests.cs-75-                for (int y = -radius - 4; y <= radius + 4; y++)
+Assets/Tests/EditMode/ArchCrossingStabilityTests.cs-76-                for (int x = -radius - 4; x <= radius + 4; x++)
+Assets/Tests/EditMode/ArchCrossingStabilityTests.cs-77-                {
+Assets/Tests/EditMode/ArchCrossingStabilityTests.cs-78-                    if (y < 0) continue;                       // semicircular arch only
+Assets/Tests/EditMode/ArchCrossingStabilityTests.cs-79-                    int3 a = new(centre.x + x, centre.y + y, z);
+Assets/Tests/EditMode/ArchCrossingStabilityTests.cs-80-                    bool aSolid = VoxelAccess.GetCell(ref table, in pool, a).BaseMaterialId != 0;
+Assets/Tests/EditMode/ArchCrossingStabilityTests.cs-81-                    if (!aSolid) continue;
+Assets/Tests/EditMode/ArchCrossingStabilityTests.cs-82-
+--
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs-473-            var voxels = new byte[perBrick];
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs-474-            var semantics = new ushort[perBrick];
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs-475-            var boundary = new byte[perBrick];
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs-476-            for (int z = 0; z < 8; z++)
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs-477-            for (int y = 0; y < 8; y++)
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs-478-            for (int x = 0; x < 8; x++)
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs-479-            {
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs-480-                int i = x + 8 * (y + 8 * z);
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs-481-                voxels[i] = (byte)(y < 4 ? 1 : 0);
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs-482-                semantics[i] = (ushort)(((x + z) & 1) == 0 ? SurfaceStyles.Smooth
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs-483-                                                           : SurfaceStyles.Rounded);
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs-484-                boundary[i] = y == 3
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs:485:                    ? VoxelBoundarySample.FromSignedQ4(6, extrusionAxis: 1).Packed
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs-486-                    : (byte)0;
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs-487-            }
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs-488-
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs-489-            using var mirror = new GpuVoxelBrickMirror(slotCapacity: 8);
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs-490-            using var tables = GpuTransvoxelTables.CreateDefault();
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs-491-            using var extractor = new GpuSurfaceExtractor(_shader, CellsPerAxis, Padding);
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs-492-            SurfaceCatalogueView surfaces = SurfaceCatalogueView.CreateBuiltIns();
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs-493-            CoatingCatalogueView coatings = default;
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs-494-            MaterialPaletteView palette = default;
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs-495-            var defaultStyles = new uint[256];
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs-496-            for (int i = 0; i < 256; i++)
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs-497-                defaultStyles[i] = palette.GetDefaultSurfaceStyle((byte)i);
+--
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs-605-            for (int z = 0; z < 8; z++)
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs-606-            for (int y = 0; y < 8; y++)
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs-607-            for (int x = 0; x < 8; x++)
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs-608-            {
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs-609-                int i = x + 8 * (y + 8 * z);
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs-610-                voxels[i] = (byte)(y < 4 ? 1 : 0);
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs-611-                // Alternate two styles so the pairwise join rule is consulted rather than skipped.
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs-612-                semantics[i] = (ushort)(((x + z) & 1) == 0 ? SurfaceStyles.Smooth
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs-613-                                                           : SurfaceStyles.Rounded);
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs-614-                // Author a boundary on the surface layer, along a specific axis, so both the
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs-615-                // signed-offset decode and the axis test are exercised.
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs-616-                boundary[i] = y == 3
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs:617:                    ? VoxelBoundarySample.FromSignedQ4(6, extrusionAxis: 1).Packed
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs-618-                    : (byte)0;
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs-619-            }
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs-620-
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs-621-            using var mirror = new GpuVoxelBrickMirror(slotCapacity: 8);
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs-622-            using var tables = GpuTransvoxelTables.CreateDefault();
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs-623-            using var extractor = new GpuSurfaceExtractor(_shader, CellsPerAxis, Padding);
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs-624-
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs-625-            SurfaceCatalogueView surfaces = SurfaceCatalogueView.CreateBuiltIns();
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs-626-            CoatingCatalogueView coatings = default;
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs-627-            MaterialPaletteView palette = default;
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs-628-            var defaultStyles = new uint[256];
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs-629-            for (int i = 0; i < 256; i++) defaultStyles[i] = palette.GetDefaultSurfaceStyle((byte)i);
+--
+Assets/Tests/EditMode/VoxelSurfaceArchitectureTests.cs-272-        [Test]
+Assets/Tests/EditMode/VoxelSurfaceArchitectureTests.cs-273-        public void RegionHashIncludesAuthoredBoundaryGeometry()
+Assets/Tests/EditMode/VoxelSurfaceArchitectureTests.cs-274-        {
+Assets/Tests/EditMode/VoxelSurfaceArchitectureTests.cs-275-            var aTable = new RegionTable(1, Allocator.Temp);
+Assets/Tests/EditMode/VoxelSurfaceArchitectureTests.cs-276-            var bTable = new RegionTable(1, Allocator.Temp);
+Assets/Tests/EditMode/VoxelSurfaceArchitectureTests.cs-277-            var aPool = new BrickPool(4, Allocator.Temp);
+Assets/Tests/EditMode/VoxelSurfaceArchitectureTests.cs-278-            var bPool = new BrickPool(4, Allocator.Temp);
+Assets/Tests/EditMode/VoxelSurfaceArchitectureTests.cs-279-            try
+Assets/Tests/EditMode/VoxelSurfaceArchitectureTests.cs-280-            {
+Assets/Tests/EditMode/VoxelSurfaceArchitectureTests.cs-281-                var a = new VoxelCell
+Assets/Tests/EditMode/VoxelSurfaceArchitectureTests.cs-282-                {
+Assets/Tests/EditMode/VoxelSurfaceArchitectureTests.cs-283-                    BaseMaterialId = 6,
+Assets/Tests/EditMode/VoxelSurfaceArchitectureTests.cs:284:                    Boundary = VoxelBoundarySample.FromSignedQ4(3)
+Assets/Tests/EditMode/VoxelSurfaceArchitectureTests.cs-285-                };
+Assets/Tests/EditMode/VoxelSurfaceArchitectureTests.cs-286-                var b = a;
+Assets/Tests/EditMode/VoxelSurfaceArchitectureTests.cs:287:                b.Boundary = VoxelBoundarySample.FromSignedQ4(11);
+Assets/Tests/EditMode/VoxelSurfaceArchitectureTests.cs-288-                VoxelAccess.SetCell(ref aTable, ref aPool, new int3(2, 3, 4), in a);
+Assets/Tests/EditMode/VoxelSurfaceArchitectureTests.cs-289-                VoxelAccess.SetCell(ref bTable, ref bPool, new int3(2, 3, 4), in b);
+Assets/Tests/EditMode/VoxelSurfaceArchitectureTests.cs-290-                Assert.AreNotEqual(SemanticHash(ref aTable, in aPool),
+Assets/Tests/EditMode/VoxelSurfaceArchitectureTests.cs-291-                                   SemanticHash(ref bTable, in bPool));
+Assets/Tests/EditMode/VoxelSurfaceArchitectureTests.cs-292-            }
+Assets/Tests/EditMode/VoxelSurfaceArchitectureTests.cs-293-            finally
+Assets/Tests/EditMode/VoxelSurfaceArchitectureTests.cs-294-            {
+Assets/Tests/EditMode/VoxelSurfaceArchitectureTests.cs-295-                aTable.Dispose();
+Assets/Tests/EditMode/VoxelSurfaceArchitectureTests.cs-296-                bTable.Dispose();
+Assets/Tests/EditMode/VoxelSurfaceArchitectureTests.cs-297-                aPool.Dispose();
+Assets/Tests/EditMode/VoxelSurfaceArchitectureTests.cs-298-                bPool.Dispose();
+Assets/Tests/EditMode/VoxelSurfaceArchitectureTests.cs-299-            }
+--
+Assets/Tests/EditMode/StorageCellMutationTests.cs-17-            {
+Assets/Tests/EditMode/StorageCellMutationTests.cs-18-                table.LoadRegion(int3.zero);
+Assets/Tests/EditMode/StorageCellMutationTests.cs-19-                int3 voxel = new int3(1, 2, 3);
+Assets/Tests/EditMode/StorageCellMutationTests.cs-20-                var authored = new VoxelCell
+Assets/Tests/EditMode/StorageCellMutationTests.cs-21-                {
+Assets/Tests/EditMode/StorageCellMutationTests.cs-22-                    BaseMaterialId = VoxelGrid.MaterialEmpty,
+Assets/Tests/EditMode/StorageCellMutationTests.cs-23-                    Surface = new VoxelSurfaceSemantics
+Assets/Tests/EditMode/StorageCellMutationTests.cs-24-                    {
+Assets/Tests/EditMode/StorageCellMutationTests.cs-25-                        StyleId = SurfaceStyles.Planar,
+Assets/Tests/EditMode/StorageCellMutationTests.cs-26-                        CoatingId = Coatings.Moss,
+Assets/Tests/EditMode/StorageCellMutationTests.cs-27-                        Detail = 7,
+Assets/Tests/EditMode/StorageCellMutationTests.cs-28-                    },
+Assets/Tests/EditMode/StorageCellMutationTests.cs:29:                    Boundary = VoxelBoundarySample.FromSignedQ4(-10, 1),
+Assets/Tests/EditMode/StorageCellMutationTests.cs-30-                };
+Assets/Tests/EditMode/StorageCellMutationTests.cs-31-
+Assets/Tests/EditMode/StorageCellMutationTests.cs-32-                Assert.That(VoxelAccess.SetCell(ref table, ref pool, voxel, in authored), Is.True);
+Assets/Tests/EditMode/StorageCellMutationTests.cs-33-
+Assets/Tests/EditMode/StorageCellMutationTests.cs-34-                var source = new RegionReadSource(in table, in pool);
+Assets/Tests/EditMode/StorageCellMutationTests.cs-35-                Assert.That(source.TryAcquireRegion(int3.zero, out RegionReadView view), Is.True);
+Assets/Tests/EditMode/StorageCellMutationTests.cs-36-                Assert.That(view.TryReadCell(voxel, out VoxelCell read), Is.True);
+Assets/Tests/EditMode/StorageCellMutationTests.cs-37-                Assert.That(read.BaseMaterialId, Is.EqualTo(VoxelGrid.MaterialEmpty));
+Assets/Tests/EditMode/StorageCellMutationTests.cs-38-                Assert.That(read.Surface.Packed, Is.Zero,
+Assets/Tests/EditMode/StorageCellMutationTests.cs-39-                    "Empty cells normalize presentation surface metadata away.");
+Assets/Tests/EditMode/StorageCellMutationTests.cs-40-                Assert.That(read.Boundary, Is.EqualTo(authored.Boundary),
+Assets/Tests/EditMode/StorageCellMutationTests.cs-41-                    "Authored signed boundary survives on the empty side of a surface.");
+--
+Assets/Tests/EditMode/StorageCellMutationTests.cs-61-                int voxelIndex = 1 | (2 << VoxelReadGrid.BlockEdgeLog2)
+Assets/Tests/EditMode/StorageCellMutationTests.cs-62-                                   | (3 << (VoxelReadGrid.BlockEdgeLog2 * 2));
+Assets/Tests/EditMode/StorageCellMutationTests.cs-63-                var authored = new VoxelCell
+Assets/Tests/EditMode/StorageCellMutationTests.cs-64-                {
+Assets/Tests/EditMode/StorageCellMutationTests.cs-65-                    BaseMaterialId = 5,
+Assets/Tests/EditMode/StorageCellMutationTests.cs-66-                    Surface = new VoxelSurfaceSemantics
+Assets/Tests/EditMode/StorageCellMutationTests.cs-67-                    {
+Assets/Tests/EditMode/StorageCellMutationTests.cs-68-                        StyleId = SurfaceStyles.Planar,
+Assets/Tests/EditMode/StorageCellMutationTests.cs-69-                        CoatingId = Coatings.Moss,
+Assets/Tests/EditMode/StorageCellMutationTests.cs-70-                        Flags = VoxelSurfaceFlags.PreserveFeature,
+Assets/Tests/EditMode/StorageCellMutationTests.cs-71-                        Detail = 9,
+Assets/Tests/EditMode/StorageCellMutationTests.cs-72-                    },
+Assets/Tests/EditMode/StorageCellMutationTests.cs:73:                    Boundary = VoxelBoundarySample.FromSignedQ4(14, 2),
+Assets/Tests/EditMode/StorageCellMutationTests.cs-74-                };
+Assets/Tests/EditMode/StorageCellMutationTests.cs-75-
+Assets/Tests/EditMode/StorageCellMutationTests.cs-76-                Assert.That(mutation.SetCell(voxelIndex, in authored), Is.True);
+Assets/Tests/EditMode/StorageCellMutationTests.cs-77-                Assert.That(mutation.GetCell(voxelIndex), Is.EqualTo(authored));
+Assets/Tests/EditMode/StorageCellMutationTests.cs-78-                Assert.That(storage.CompletePartialBlock(ref mutation, true), Is.True);
+Assets/Tests/EditMode/StorageCellMutationTests.cs-79-                Assert.That(pool.AllocatedCount, Is.EqualTo(1),
+Assets/Tests/EditMode/StorageCellMutationTests.cs-80-                    "Authored surface/boundary payload keeps the logical block mixed.");
+Assets/Tests/EditMode/StorageCellMutationTests.cs-81-
+Assets/Tests/EditMode/StorageCellMutationTests.cs-82-                VoxelCell read = VoxelAccess.GetCell(ref table, in pool, new int3(1, 2, 3));
+Assets/Tests/EditMode/StorageCellMutationTests.cs-83-                Assert.That(read, Is.EqualTo(authored));
+Assets/Tests/EditMode/StorageCellMutationTests.cs-84-                Assert.That(table.TryGetRegion(int3.zero, out Region region), Is.True);
+Assets/Tests/EditMode/StorageCellMutationTests.cs-85-                Assert.That(region.IsHardSurfaceBrick(0), Is.True);
+--
+Assets/Tests/EditMode/StorageCellMutationTests.cs-176-            var table = new RegionTable(1, Allocator.TempJob);
+Assets/Tests/EditMode/StorageCellMutationTests.cs-177-            var pool = new BrickPool(8, Allocator.TempJob);
+Assets/Tests/EditMode/StorageCellMutationTests.cs-178-            try
+Assets/Tests/EditMode/StorageCellMutationTests.cs-179-            {
+Assets/Tests/EditMode/StorageCellMutationTests.cs-180-                table.LoadRegion(int3.zero);
+Assets/Tests/EditMode/StorageCellMutationTests.cs-181-                var storage = new RegionMutationStore(in table, in pool);
+Assets/Tests/EditMode/StorageCellMutationTests.cs-182-                int voxelIndex = 4;
+Assets/Tests/EditMode/StorageCellMutationTests.cs-183-
+Assets/Tests/EditMode/StorageCellMutationTests.cs-184-                Assert.That(storage.TryBeginCellBlock(int3.zero, false, out VoxelBlockMutation author), Is.True);
+Assets/Tests/EditMode/StorageCellMutationTests.cs-185-                var emptyBoundary = new VoxelCell
+Assets/Tests/EditMode/StorageCellMutationTests.cs-186-                {
+Assets/Tests/EditMode/StorageCellMutationTests.cs-187-                    BaseMaterialId = VoxelGrid.MaterialEmpty,
+Assets/Tests/EditMode/StorageCellMutationTests.cs:188:                    Boundary = VoxelBoundarySample.FromSignedQ4(-6),
+Assets/Tests/EditMode/StorageCellMutationTests.cs-189-                };
+Assets/Tests/EditMode/StorageCellMutationTests.cs-190-                Assert.That(author.SetCell(voxelIndex, in emptyBoundary), Is.True);
+Assets/Tests/EditMode/StorageCellMutationTests.cs-191-                Assert.That(storage.CompletePartialBlock(ref author, true), Is.True);
+Assets/Tests/EditMode/StorageCellMutationTests.cs-192-                Assert.That(pool.AllocatedCount, Is.EqualTo(1));
+Assets/Tests/EditMode/StorageCellMutationTests.cs-193-
+Assets/Tests/EditMode/StorageCellMutationTests.cs-194-                Assert.That(storage.TryBeginCellBlock(int3.zero, false, out VoxelBlockMutation clear), Is.True);
+Assets/Tests/EditMode/StorageCellMutationTests.cs-195-                Assert.That(clear.GetCell(voxelIndex).Boundary.IsAuthored, Is.True);
+Assets/Tests/EditMode/StorageCellMutationTests.cs-196-                Assert.That(clear.SetCell(voxelIndex, default), Is.True);
+Assets/Tests/EditMode/StorageCellMutationTests.cs-197-                Assert.That(storage.CompletePartialBlock(ref clear, true), Is.True);
+Assets/Tests/EditMode/StorageCellMutationTests.cs-198-                Assert.That(pool.AllocatedCount, Is.Zero,
+Assets/Tests/EditMode/StorageCellMutationTests.cs-199-                    "Removing the last authored semantic payload allows uniform-empty collapse.");
+Assets/Tests/EditMode/StorageCellMutationTests.cs-200-
+--
+Assets/Tests/EditMode/CsgFieldCoherenceTests.cs-58-                PrimitiveRasteriser.Rasterise(
+Assets/Tests/EditMode/CsgFieldCoherenceTests.cs-59-                    prims.AsArray(), int3.zero, new int3(48, 48, 12), reads, mutations);
+Assets/Tests/EditMode/CsgFieldCoherenceTests.cs-60-
+Assets/Tests/EditMode/CsgFieldCoherenceTests.cs-61-                if (!carve) return;
+Assets/Tests/EditMode/CsgFieldCoherenceTests.cs-62-
+Assets/Tests/EditMode/CsgFieldCoherenceTests.cs-63-                // Same alias-free crossing measurement as the arch: iterate the lattice, take every
+Assets/Tests/EditMode/CsgFieldCoherenceTests.cs-64-                // in-plane solid->empty edge near the hole, and record where the crossing lands.
+Assets/Tests/EditMode/CsgFieldCoherenceTests.cs-65-                float Density(int3 v)
+Assets/Tests/EditMode/CsgFieldCoherenceTests.cs-66-                {
+Assets/Tests/EditMode/CsgFieldCoherenceTests.cs-67-                    VoxelCell c = VoxelAccess.GetCell(ref t2, in p2, v);
+Assets/Tests/EditMode/CsgFieldCoherenceTests.cs-68-                    bool sol = c.BaseMaterialId != 0;
+Assets/Tests/EditMode/CsgFieldCoherenceTests.cs-69-                    var b = c.Boundary;
+Assets/Tests/EditMode/CsgFieldCoherenceTests.cs:70:                    if (b.IsAuthored && sol == b.SignedQ3 >= 0) return b.SignedQ3 * 0.125f;
+Assets/Tests/EditMode/CsgFieldCoherenceTests.cs-71-                    return sol ? 0.5f : -0.5f;
+Assets/Tests/EditMode/CsgFieldCoherenceTests.cs-72-                }
+Assets/Tests/EditMode/CsgFieldCoherenceTests.cs-73-
+Assets/Tests/EditMode/CsgFieldCoherenceTests.cs-74-                var rads = new System.Collections.Generic.List<float>();
+Assets/Tests/EditMode/CsgFieldCoherenceTests.cs-75-                for (int y = -hole - 4; y <= hole + 4; y++)
+Assets/Tests/EditMode/CsgFieldCoherenceTests.cs-76-                for (int x = -hole - 4; x <= hole + 4; x++)
+Assets/Tests/EditMode/CsgFieldCoherenceTests.cs-77-                {
+Assets/Tests/EditMode/CsgFieldCoherenceTests.cs-78-                    int3 a0 = new(centre.x + x, centre.y + y, 6);
+Assets/Tests/EditMode/CsgFieldCoherenceTests.cs-79-                    if (VoxelAccess.GetCell(ref t2, in p2, a0).BaseMaterialId == 0) continue;
+Assets/Tests/EditMode/CsgFieldCoherenceTests.cs-80-                    var steps = new[] { new int2(1, 0), new int2(-1, 0),
+Assets/Tests/EditMode/CsgFieldCoherenceTests.cs-81-                                        new int2(0, 1), new int2(0, -1) };
+Assets/Tests/EditMode/CsgFieldCoherenceTests.cs-82-                    foreach (int2 st in steps)
