@@ -1,6 +1,6 @@
 name: One-shot SceneIssue 014011 exact replay
 
-# Replay revision 3: exact CPU LOD2 capture with observable commit status.
+# Replay revision 4: exact CPU LOD2 capture, long enough to persist a converged frame.
 on:
   push:
     branches: [fixes]
@@ -105,7 +105,7 @@ jobs:
             --unity "${{ steps.unity.outputs.path }}" \
             --output "$ROOT" \
             --scene Assets/Scenes/VoxelShowcase.unity \
-            --run-seconds 25
+            --run-seconds 45
 
       - name: Persist CPU LOD2 diagnostic evidence
         shell: bash
@@ -116,8 +116,6 @@ jobs:
           final="$(find "$ROOT/Screenshots" -type f -name '*.png' -size +1k | sort | tail -1)"
           test -n "$final"
 
-          # Unity can rewrite tracked editor settings during a graphics run. Restore the checkout
-          # before staging evidence so that cannot block the later rebase/push or contaminate it.
           git reset --hard HEAD
 
           cp "$final" "$ISSUE/diagnostic-cpu-lod2.png"
