@@ -38,7 +38,7 @@ solid terrain with a broader presentation cutaway.
 - [x] Isolate camera, cutaway-bounds, stage alignment, or world-realization cause.
 - [x] Add/extend a focused regression and implement the proven fix.
 - [x] Run affected tests and final opening replay.
-- [ ] Review, commit/push, and resolve the manifest separately.
+- [x] Review, commit/push, and resolve the manifest separately.
 
 ## Findings
 
