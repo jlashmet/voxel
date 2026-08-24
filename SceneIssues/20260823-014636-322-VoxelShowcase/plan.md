@@ -66,4 +66,4 @@ the saved `VoxelShowcase` camera pose and then disappear.
 - [x] Add or identify the smallest direct regression for the proven cause.
 - [x] Implement the smallest necessary production fix.
 - [x] Run focused Unity validation and exact-pose final replay.
-- [ ] Review, commit, push, then resolve `issue.json` in a separate commit.
+- [x] Review, commit, push, then resolve `issue.json` in a separate commit.
