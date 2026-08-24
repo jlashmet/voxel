@@ -30,9 +30,9 @@ jobs:
             label="${pair%%:*}"
             src="$ISSUE/${pair#*:}"
             jpg="$OUT/$label.jpg"
-            sips -s format jpeg -s formatOptions 50 -Z 480 "$src" --out "$jpg" >/dev/null
+            sips -s format jpeg -s formatOptions 30 -Z 320 "$src" --out "$jpg" >/dev/null
             base64 < "$jpg" | tr -d '\n' > "$OUT/$label.b64"
-            split -b 6000 -a 2 "$OUT/$label.b64" "$OUT/$label.part-"
+            split -b 12000 -a 2 "$OUT/$label.b64" "$OUT/$label.part-"
             rm "$jpg" "$OUT/$label.b64"
           done
           {
@@ -42,6 +42,6 @@ jobs:
           cat "$OUT/manifest.txt"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add "$OUT"
-          git commit -m 'SceneIssue 014011: export visual comparison previews'
+          git add -A "$OUT"
+          git commit -m 'SceneIssue 014011: shrink visual comparison previews'
           git push origin HEAD:fixes
