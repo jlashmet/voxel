@@ -1,0 +1,11 @@
+source_commit=4813b91dd
+unity_version=6000.5.6f1
+configuration=tools/unity-run.sh; EditMode; graphics enabled
+filters=TransvoxelChunkBoundaryOwnershipTests.SceneIssue20260823013834177BoundaryCellBelongsToInsideDensitySide; SceneIssue014011GpuVertexAttributeParityTests.MixedLodVertexMaterialsAndNormalsMatchCpu; SurfaceBlockHlodSummaryTests
+executed_test_cases=13
+passed_test_cases=13
+failed_test_cases=0
+nunit_duration_seconds=0.1870416
+unity_exit_status=0
+unity_wrapper_elapsed_seconds=14
+xml_sha256=5bae08edc4426e2e1b19abf63824cf1873fc44d7327955752d740d319a640704

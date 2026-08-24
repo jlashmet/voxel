@@ -1,0 +1,13 @@
+source_commit=4813b91dd plus temporary diagnostic test
+unity_version=6000.5.6f1
+platform=PlayMode
+test=VoxelEngine.Tests.PlayMode.SceneIssue014327Diagnostics.MarkedPoseReportsAuthoritativeHitAndVisibleLod
+result=Passed 1/1
+nunit_duration_seconds=55.996190
+unity_wrapper_exit_status=0
+unity_wrapper_elapsed_seconds=70
+hit_block=int3(128,43,31)
+hit_world_metres=(102.8,34.8,25.2)
+hit_distance_metres=416.4
+visible_source_step_mask=8
+temporary_diagnostic_removed_after_run=true

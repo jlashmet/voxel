@@ -1,0 +1,14 @@
+source_commit=4813b91dd plus temporary diagnostic scene scale
+unity_version=6000.5.6f1
+configuration=tools/unity-run.sh; production macOS player; GPU enabled
+scene=Assets/Scenes/VoxelShowcase.unity
+camera_pose=(-107.5978775,23.7500610,-333.7994385)
+capture_resolution=1293x718
+production_detail_band_scale=0.6
+diagnostic_detail_band_scale=0.8
+selected_frame=showcase-003-t046.5s-stationary.png
+sha256=2b01aa24a33c0f0a505a5142cd5acb118484218007d34d52dd456f428320ce8c
+visible_surfaces=832
+missing_surfaces=0
+result=marked current structural silhouette materially unchanged
+temporary scene, camera, and resolution changes removed after replay

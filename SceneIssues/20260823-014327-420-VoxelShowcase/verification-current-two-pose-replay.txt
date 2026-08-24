@@ -1,0 +1,24 @@
+source_commit=4813b91dd
+unity_version=6000.5.6f1
+configuration=tools/unity-run.sh; production macOS player; GPU enabled
+scene=Assets/Scenes/VoxelShowcase.unity
+capture_resolution=1293x718
+field_of_view=70
+run_seconds_per_pose=50
+
+pose1=(-107.5978775,23.7500610,-333.7994385)
+pose1_frame=showcase-003-t046.3s-stationary.png
+pose1_sha256=2e0187df330e72219c65604927591fa8432e26b54b8bed6d27543f26bff1d2a6
+pose1_visible_surfaces=514
+pose1_missing_surfaces=0
+
+pose2=(-102.4875793,23.1500854,-325.6714172)
+pose2_frame=showcase-003-t046.8s-stationary.png
+pose2_sha256=e38a38e4b3656dd2faa758867ed6bc198e4456814723be2ccabb16b78311ff38
+pose2_visible_surfaces=557
+pose2_missing_surfaces=0
+
+Visual comparison at the stored top-origin circle coordinates:
+- pose 1: original triangular terrain-like silhouette is absent; rectangular castle frontage visible
+- pose 2: castle frontage remains structurally consistent after the saved movement
+- temporary camera fixture and resolution override removed after replay
