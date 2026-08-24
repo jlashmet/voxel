@@ -18,7 +18,8 @@ namespace Game.ModelViewer
     /// Generic production-path viewer for procedurally authored world objects. Every selected model
     /// is authored into canonical voxel storage and rendered through RenderingComposition; the viewer
     /// deliberately has no parallel preview-mesh renderer. The dragon uses its World Builder backend,
-    /// while the rest of the catalogue is sourced from the same Showcase FeatureCatalogue used by
+    /// the hero Arch reuses StructuresComposition.BuildArchLookdev including retained profile blocks,
+    /// and the rest of the catalogue is sourced from the same Showcase FeatureCatalogue used by
     /// production procedural buildings and infrastructure.
     /// </summary>
     [RequireComponent(typeof(Camera))]
@@ -30,6 +31,7 @@ namespace Game.ModelViewer
         private const double BuildBudgetMs = 12.0;
 
         private IVoxelStorageRuntime _storage;
+        private IProfileBlockReadSource _profileBlocks;
         private FeatureCatalogue _showcaseCatalogue;
         private readonly List<int> _featureDefinitionIds = new List<int>();
         private Camera _camera;
@@ -41,6 +43,8 @@ namespace Game.ModelViewer
         private bool _panelVisible = true;
         private string _status = "BUILDING";
         private int _selectedModel;
+        private int3 _activeLocalMin;
+        private int3 _activeLocalSize;
 
         private readonly struct ModelEntry
         {
@@ -58,7 +62,8 @@ namespace Game.ModelViewer
             }
         }
 
-        private int ModelCount => 1 + _featureDefinitionIds.Count;
+        // Dragon + exact hero Arch + every standalone Showcase structure/infrastructure definition.
+        private int ModelCount => 2 + _featureDefinitionIds.Count;
 
         private void OnEnable()
         {
@@ -89,6 +94,7 @@ namespace Game.ModelViewer
             RenderingComposition.ClearWorld();
             _storage?.Dispose();
             _storage = null;
+            _profileBlocks = null;
             if (_showcaseCatalogue.IsCreated)
                 _showcaseCatalogue.Dispose();
             _featureDefinitionIds.Clear();
@@ -149,7 +155,14 @@ namespace Game.ModelViewer
                     DragonStatueAuthoring.LocalSize,
                     FeatureKind.Structure);
 
-            int featureListIndex = index - 1;
+            if (index == 1)
+                return new ModelEntry(
+                    "Hero Arch",
+                    new int3(-32, 0, -ModelViewerArchAdapter.Depth / 2),
+                    new int3(64, 80, ModelViewerArchAdapter.Depth),
+                    FeatureKind.Structure);
+
+            int featureListIndex = index - 2;
             if ((uint)featureListIndex >= (uint)_featureDefinitionIds.Count)
                 throw new InvalidOperationException($"Unknown Model Viewer entry {index}");
 
@@ -161,6 +174,8 @@ namespace Game.ModelViewer
         {
             RenderingComposition.ClearWorld();
             _storage?.Dispose();
+            _storage = null;
+            _profileBlocks = null;
 
             _storage = VoxelEngineBootstrap.CreateStorage(
                 expectedResidentRegions: 48,
@@ -169,7 +184,7 @@ namespace Game.ModelViewer
             RegisterViewerMaterials(_storage);
 
             ModelEntry model = GetModelEntry(_selectedModel);
-            int voxelsWritten;
+            int voxelsWritten = -1;
 
             if (_selectedModel == 0)
             {
@@ -177,18 +192,36 @@ namespace Game.ModelViewer
                     _storage, writeBudget: 3_000_000);
                 AuthorDragon(authoring, -model.LocalMin);
                 voxelsWritten = authoring.TotalVoxelsWritten;
+                _activeLocalMin = int3.zero;
+                _activeLocalSize = model.LocalSize;
+            }
+            else if (_selectedModel == 1)
+            {
+                ArchLookdevBuildResult arch = ModelViewerArchAdapter.Author(_storage);
+                _profileBlocks = arch.ProfileBlocks;
+                _activeLocalMin = new int3(-arch.Width / 2, 0, -ModelViewerArchAdapter.Depth / 2);
+                _activeLocalSize = new int3(arch.Width, arch.Height, ModelViewerArchAdapter.Depth);
             }
             else
             {
-                voxelsWritten = AuthorShowcaseFeature(_selectedModel - 1);
+                voxelsWritten = AuthorShowcaseFeature(_selectedModel - 2);
+                _activeLocalMin = int3.zero;
+                _activeLocalSize = model.LocalSize;
             }
 
             _storage.PublishAllResidentRegions();
-            var world = new RenderingWorldBinding(
-                _storage.Reads,
-                _storage.MaterialPresentation,
-                _storage.SurfacePresentation,
-                _storage.CoatingPresentation);
+            RenderingWorldBinding world = _profileBlocks != null
+                ? new RenderingWorldBinding(
+                    _storage.Reads,
+                    _storage.MaterialPresentation,
+                    _storage.SurfacePresentation,
+                    _storage.CoatingPresentation,
+                    _profileBlocks)
+                : new RenderingWorldBinding(
+                    _storage.Reads,
+                    _storage.MaterialPresentation,
+                    _storage.SurfacePresentation,
+                    _storage.CoatingPresentation);
             RenderingComposition.ConfigureWorld(
                 in world,
                 _storage.Changes,
@@ -199,7 +232,9 @@ namespace Game.ModelViewer
 
             ApplyMaterialLook();
             FrameSelectedModel();
-            _status = $"AUTHORED · {voxelsWritten:N0} voxels";
+            _status = voxelsWritten >= 0
+                ? $"AUTHORED · {voxelsWritten:N0} voxels"
+                : "AUTHORED · retained profiles";
         }
 
         private int AuthorShowcaseFeature(int featureListIndex)
@@ -306,19 +341,28 @@ namespace Game.ModelViewer
 
         private void FrameSelectedModel()
         {
-            ModelEntry model = GetModelEntry(_selectedModel);
-            float3 centreVoxels = (float3)model.LocalSize * 0.5f;
+            float3 centreVoxels = (float3)_activeLocalMin + (float3)_activeLocalSize * 0.5f;
             _cameraFocus = new Vector3(
                 centreVoxels.x * VoxelSize,
                 centreVoxels.y * VoxelSize,
                 centreVoxels.z * VoxelSize);
 
-            _cameraYaw = -32f;
-            _cameraPitch = 7f;
-            _cameraFov = 32f;
+            if (_selectedModel == 1)
+            {
+                // Match the old Arch lookdev's readable three-quarter hero angle.
+                _cameraYaw = 14.5f;
+                _cameraPitch = 3.2f;
+                _cameraFov = 34f;
+            }
+            else
+            {
+                _cameraYaw = -32f;
+                _cameraPitch = 7f;
+                _cameraFov = 32f;
+            }
 
-            float width = math.max(model.LocalSize.x, model.LocalSize.z) * VoxelSize;
-            float height = model.LocalSize.y * VoxelSize;
+            float width = math.max(_activeLocalSize.x, _activeLocalSize.z) * VoxelSize;
+            float height = _activeLocalSize.y * VoxelSize;
             float halfVerticalFov = _cameraFov * Mathf.Deg2Rad * 0.5f;
             float verticalDistance = height * 0.5f / Mathf.Tan(halfVerticalFov);
             float aspect = _camera != null && _camera.aspect > 0.01f ? _camera.aspect : 16f / 9f;
