@@ -15,12 +15,14 @@ Assets/Tests/PlayMode/ShowcaseFrameBudgetDiagnosticTests.cs:550:            // s
 Assets/Tests/PlayMode/FallingVoxelPhysicsTests.cs:471:            var cameraObject = new GameObject("GPU debris capture camera");
 Assets/Tests/PlayMode/FarFieldCoverageInvariantTests.cs:300:            // Enable the showcase's production fly path so this artificial camera displacement is
 Assets/Tests/PlayMode/Step4CoreResidencyAdmissionTests.cs:23:    /// actual active step-4 slot, aims the real showcase camera at it, derives the unpadded core
+Assets/Tests/EditMode/CoarseLodDensityReconstructionTests.cs:68:                "SceneIssue 014011: a lateral air crossing must not make a coarse terrain sample "
 Assets/Tests/EditMode/TransvoxelChunkBoundaryOwnershipTests.cs:15:        public void SceneIssue20260823013834177BoundaryCellBelongsToInsideDensitySide()
 Assets/Tests/EditMode/TransvoxelChunkBoundaryOwnershipTests.cs:32:        public void SceneIssueOwnershipIgnoresDominantMaterialOnOutsideCorner()
 Assets/Tests/EditMode/TransvoxelChunkBoundaryOwnershipTests.cs:51:        public void SceneIssue20260823014011920CoarseTerrainUsesExposedCapMaterial()
-Assets/Tests/EditMode/GpuLod2CutoverPolicyTests.cs:11:        public void SceneIssue20260823014011920GpuCutoverTargetsOnlyNearExactRings()
-Assets/Tests/EditMode/GpuLod2CutoverPolicyTests.cs:16:                "LOD2 is the intended extension for this SceneIssue.");
-Assets/Tests/EditMode/GpuLod2CutoverPolicyTests.cs:24:        public void SceneIssue20260823014011920GpuLod2CarriesInnerTransitionFaceMask()
+Assets/Tests/EditMode/GpuLod2CutoverPolicyTests.cs:12:        public void SceneIssue20260823014011920GpuCutoverTargetsOnlyNearExactRings()
+Assets/Tests/EditMode/GpuLod2CutoverPolicyTests.cs:17:                "LOD2 is the intended extension for this SceneIssue.");
+Assets/Tests/EditMode/GpuLod2CutoverPolicyTests.cs:25:        public void SceneIssue20260823014011920GpuLod2PortsCoarseExposedMaterialCorrection()
+Assets/Tests/EditMode/GpuLod2CutoverPolicyTests.cs:40:        public void SceneIssue20260823014011920GpuLod2CarriesInnerTransitionFaceMask()
 Assets/VoxelEngine/CI/PlayMode/DeterministicVegetationAnimationVisualTests.cs:60:                SetTime(0f); showcase.Renderer.DrawNow(); camera.Render();
 Assets/VoxelEngine/CI/PlayMode/DeterministicVegetationAnimationVisualTests.cs:62:                SetTime(0.70f); showcase.Renderer.DrawNow(); camera.Render();
 Assets/VoxelEngine/CI/PlayMode/DeterministicVegetationAnimationVisualTests.cs:187:                SetTime(0f); showcase.Renderer.DrawNow(); camera.Render(); luminous0 = VegetationLifeRenderingVisualTests.ReadTarget(target);
@@ -34,6 +36,7 @@ Assets/VoxelEngine/CI/PlayMode/TemporalAnimationVisualTests.cs:230:             
 Assets/VoxelEngine/CI/PlayMode/TemporalAnimationVisualTests.cs:235:                showcase.Renderer.DrawNow(); camera.Render(); Texture2D second = VegetationLifeRenderingVisualTests.ReadTarget(target); frames.Add(second);
 Assets/VoxelEngine/CI/Editor/WaterStudyAlphaPostprocess.cs:31:                    // URP/Metal capture on this runner leaves the transparent camera clear
 Assets/VoxelEngine/CI/Editor/KentridgeCameraCaptureHook.cs:15:    /// four FOV-52 street captures immediately before render; production cameras and worldgen remain
+Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/CpuDensityOracle.cs:366:        /// SceneIssue 014011 ambiguity where a lateral coarse crossing can be nearer than the visible
 Assets/Game/Composition/Showcase/ShowcaseWorld.cs:110:        /// <summary>Where the showcase's landmark sits. The spawn camera is aimed here.</summary>
 Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:14:    public sealed class SceneIssueCaptureRecord
 Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs:30:        public SceneIssueFrameCapture[] captures;
