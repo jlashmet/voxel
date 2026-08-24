@@ -1,0 +1,41 @@
+=== tests using GPU surface readbacks ===
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs:23:    public sealed class GpuSurfaceExtractorOracleTests
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs:88:            using var extractor = new GpuSurfaceExtractor(_shader, CellsPerAxis, Padding);
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs:105:                uint entry = GpuSurfaceExtractor.PackBrickCacheEntry(
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs:156:            using var extractor = new GpuSurfaceExtractor(_shader, CellsPerAxis, Padding);
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs:186:            using var extractor = new GpuSurfaceExtractor(_shader, CellsPerAxis, Padding);
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs:190:            uint uniformSolid = GpuSurfaceExtractor.PackBrickCacheEntry(
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs:226:            using var extractor = new GpuSurfaceExtractor(_shader, CellsPerAxis, Padding);
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs:230:            uint solid = GpuSurfaceExtractor.PackBrickCacheEntry(VoxelBrickContent.Uniform, 1, -1);
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs:231:            uint air = GpuSurfaceExtractor.PackBrickCacheEntry(VoxelBrickContent.Empty, 0, -1);
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs:271:            using var extractor = new GpuSurfaceExtractor(_shader, CellsPerAxis, Padding);
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs:289:                    GpuSurfaceExtractor.PackBrickCacheEntry(
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs:304:                extractor.ReadDensity(gpuDensity);
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs:356:            using var extractor = new GpuSurfaceExtractor(_shader, CellsPerAxis, Padding);
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs:373:                    GpuSurfaceExtractor.PackBrickCacheEntry(
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs:379:            var vertices = new ComputeBuffer(capacity, GpuSurfaceExtractor.ReadbackVertex.Stride,
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs:390:                var gpuVertices = new GpuSurfaceExtractor.ReadbackVertex[result.VertexCount];
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs:497:            using var extractor = new GpuSurfaceExtractor(_shader, CellsPerAxis, Padding);
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs:514:            var vertices = new ComputeBuffer(capacity, GpuSurfaceExtractor.ReadbackVertex.Stride,
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs:530:                uint mixedEntry = GpuSurfaceExtractor.PackBrickCacheEntry(
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs:546:                var gpuVertices = new GpuSurfaceExtractor.ReadbackVertex[Mathf.Max(1, result.VertexCount)];
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs:603:            GpuSurfaceExtractor extractor, int solidBrickYLimit, byte material)
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs:612:                    GpuSurfaceExtractor.PackBrickCacheEntry(
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs:636:            using var extractor = new GpuSurfaceExtractor(_shader, CellsPerAxis, Padding);
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs:647:            var vertices = new ComputeBuffer(capacity, GpuSurfaceExtractor.ReadbackVertex.Stride,
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs:700:            using var extractor = new GpuSurfaceExtractor(_shader, CellsPerAxis, Padding);
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs:716:                var vertices = new ComputeBuffer(capacity, GpuSurfaceExtractor.ReadbackVertex.Stride,
+Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs:736:                    var gpuVertices = new GpuSurfaceExtractor.ReadbackVertex[
+Assets/Tests/EditMode/GpuGeometryArenaExtractionTests.cs:48:        private static void FillHalfSolidCache(GpuSurfaceExtractor extractor,
+Assets/Tests/EditMode/GpuGeometryArenaExtractionTests.cs:58:                    GpuSurfaceExtractor.PackBrickCacheEntry(
+Assets/Tests/EditMode/GpuGeometryArenaExtractionTests.cs:64:        private static void ConfigureCatalogues(GpuSurfaceExtractor extractor)
+Assets/Tests/EditMode/GpuGeometryArenaExtractionTests.cs:77:            using var extractor = new GpuSurfaceExtractor(_shader, CellsPerAxis, Padding);
+Assets/Tests/EditMode/GpuGeometryArenaExtractionTests.cs:119:            using var extractor = new GpuSurfaceExtractor(_shader, CellsPerAxis, Padding);
+Assets/Tests/EditMode/GpuGeometryArenaExtractionTests.cs:228:            using var extractor = new GpuSurfaceExtractor(_shader, CellsPerAxis, Padding);
+Assets/Tests/EditMode/GpuGeometryArenaExtractionTests.cs:241:            var vertices = new ComputeBuffer(capacity, GpuSurfaceExtractor.ReadbackVertex.Stride,
+Assets/Tests/EditMode/GpuGeometryArenaExtractionTests.cs:316:            using var extractor = new GpuSurfaceExtractor(_shader, CellsPerAxis, Padding);
+
+=== extractor readback methods ===
+Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/GpuSurfaceExtractor.cs:802:        public void ReadCellCounts(uint[] vertexCounts, uint[] triangleCounts)
+Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/GpuSurfaceExtractor.cs:824:        public void ReadDensity(float[] density)
+Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/GpuSurfaceExtractor.cs:830:        public void ReadSampleMaterials(uint[] materials)
