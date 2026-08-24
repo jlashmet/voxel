@@ -1,0 +1,128 @@
+name: SceneIssue 014011 phase fix CPU replay
+
+on:
+  push:
+    branches: [fixes]
+    paths:
+      - .github/workflows/one-shot-sceneissue-014011-phase-cpu-replay.yml
+
+permissions:
+  contents: write
+  statuses: write
+
+jobs:
+  replay:
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fixes
+          clean: true
+          fetch-depth: 0
+      - name: Resolve Unity
+        id: unity
+        shell: bash
+        run: |
+          set -euo pipefail
+          V="$(awk '/m_EditorVersion:/ { print $2 }' ProjectSettings/ProjectVersion.txt)"
+          P="/Applications/Unity/Hub/Editor/${V}/Unity.app/Contents/MacOS/Unity"
+          test -x "$P"
+          echo "path=$P" >> "$GITHUB_OUTPUT"
+      - name: Wait for Unity
+        shell: bash
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 90))
+          while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
+            (( SECONDS < deadline )) || exit 1
+            sleep 5
+          done
+      - name: Create exact camera fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p Assets/Resources
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          issue=json.loads(Path('SceneIssues/20260823-014011-920-VoxelShowcase/issue.json').read_text())
+          c=issue['captures'][0]['camera']
+          Path('Assets/Resources/SceneIssueCameraPose.json').write_text(json.dumps({k:c[k] for k in ('hierarchyPath','position','rotation','fieldOfView')},indent=2)+'\n')
+          PY
+      - name: Bake Showcase
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue014011CpuReplay"
+          mkdir -p "$ROOT"
+          UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=4 UNITY_BIN="${{ steps.unity.outputs.path }}" \
+          tools/unity-run.sh -batchmode -nographics -job-worker-count 1 -quit \
+            -projectPath "$GITHUB_WORKSPACE" \
+            -executeMethod VoxelEngine.Showcase.Editor.ShowcaseWorldBaker.BakeShowcaseWorld \
+            -logFile "$ROOT/bake.log"
+      - name: Wait for Unity between invocations
+        shell: bash
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 60))
+          while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
+            (( SECONDS < deadline )) || exit 1
+            sleep 5
+          done
+      - name: Capture CPU-only exact saved view
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue014011CpuReplay/Player"
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('tools/showcase-player-capture.sh'); t=p.read_text()
+          old='-screen-width 1600 -screen-height 900 -screen-fullscreen 0'
+          new='-screen-width 1293 -screen-height 718 -screen-fullscreen 0'
+          if t.count(old)!=1: raise SystemExit('capture-size target changed')
+          p.write_text(t.replace(old,new,1))
+          PY
+          VOXEL_DISABLE_GPU_CUTOVER=1 bash tools/showcase-player-capture.sh \
+            --unity "${{ steps.unity.outputs.path }}" \
+            --output "$ROOT" --scene Assets/Scenes/VoxelShowcase.unity --run-seconds 40
+      - name: Persist CPU evidence
+        id: evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue014011CpuReplay/Player"
+          ISSUE="SceneIssues/20260823-014011-920-VoxelShowcase"
+          final="$(find "$ROOT/Screenshots" -type f -name '*.png' -size +1k | sort | tail -1)"
+          test -n "$final"
+          cp "$final" "$ISSUE/verification-lod2-phase-fix-cpu.png"
+          {
+            echo "source_commit=$GITHUB_SHA"
+            echo "gpu_cutover_disabled=1"
+            echo "capture_resolution=1293x718"
+            echo "selected_screenshot=$(basename "$final")"
+            grep 'SCENEISSUE camera' "$ROOT/player-run.log" || true
+            grep 'SURFACE t=' "$ROOT/player-run.log" | tail -20 || true
+            grep 'RINGS ' "$ROOT/player-run.log" | tail -20 || true
+          } > "$ISSUE/verification-lod2-phase-fix-cpu.txt"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "$ISSUE/verification-lod2-phase-fix-cpu.png" "$ISSUE/verification-lod2-phase-fix-cpu.txt"
+          git commit -m 'SceneIssue 014011: record CPU phase-fix replay'
+          git restore --worktree -- .
+          git clean -fd -- Assets/Resources/SceneIssueCameraPose.json || true
+          git pull --rebase origin fixes
+          git push origin HEAD:fixes
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Publish success status
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.repos.createCommitStatus({owner:context.repo.owner,repo:context.repo.repo,sha:context.sha,state:'success',context:'ci/sceneissue-014011-phase-cpu-replay',description:'CPU exact replay captured',target_url:`${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`});
+      - name: Publish failure status
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.repos.createCommitStatus({owner:context.repo.owner,repo:context.repo.repo,sha:context.sha,state:'failure',context:'ci/sceneissue-014011-phase-cpu-replay',description:'CPU exact replay failed',target_url:`${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`});
