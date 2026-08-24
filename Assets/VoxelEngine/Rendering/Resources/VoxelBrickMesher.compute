@@ -129,6 +129,24 @@ int3 CellCorner(int i)
     return int3(i & 1, (i >> 2) & 1, (i >> 1) & 1);
 }
 
+int RegularCellAxis() { return _CellsPerAxis + 1; }
+
+int3 RegularCellFromIndex(int cellIndex)
+{
+    int axis = RegularCellAxis();
+    int x = cellIndex % axis;
+    int y = (cellIndex / axis) % axis;
+    int z = cellIndex / (axis * axis);
+    return int3(x - 1, y - 1, z - 1);
+}
+
+bool OwnsSelectedInsideSample(int3 cell, int selectedInsideCorner)
+{
+    if (selectedInsideCorner < 0 || selectedInsideCorner >= 8) return false;
+    int3 sample = cell + CellCorner(selectedInsideCorner);
+    return all(sample >= 0) && all(sample < _CellsPerAxis);
+}
+
 // ---------------------------------------------------------------------------
 // 1. Sample the density field over the padded grid.
 // ---------------------------------------------------------------------------
@@ -160,28 +178,30 @@ void CSSampleDensity(uint3 id : SV_DispatchThreadID)
 void CSCountCells(uint3 id : SV_DispatchThreadID)
 {
     int cellIndex = (int)id.x;
-    int cellTotal = _CellsPerAxis * _CellsPerAxis * _CellsPerAxis;
+    int axis = RegularCellAxis();
+    int cellTotal = axis * axis * axis;
     if (cellIndex >= cellTotal) return;
 
     _CellVertexCountsWrite[cellIndex] = 0u;
     _CellTriangleCountsWrite[cellIndex] = 0u;
 
-    int x = cellIndex % _CellsPerAxis;
-    int y = (cellIndex / _CellsPerAxis) % _CellsPerAxis;
-    int z = cellIndex / (_CellsPerAxis * _CellsPerAxis);
-    int3 cell = int3(x, y, z);
+    int3 cell = RegularCellFromIndex(cellIndex);
 
     uint caseCode = 0u;
+    int selectedInsideCorner = -1;
     for (int i = 0; i < 8; i++)
     {
         int3 g = cell + _Padding + CellCorner(i);
-        if (_Density[GridIndex(g)] < 0.0) caseCode |= 1u << (uint)i;
+        float sampleDensity = _Density[GridIndex(g)];
+        if (sampleDensity < 0.0) caseCode |= 1u << (uint)i;
+        else if (selectedInsideCorner < 0) selectedInsideCorner = i;
     }
 
     // A cell entirely inside or entirely outside the surface contributes nothing. This is the
     // overwhelming majority of a voxel world, and rejecting it here is what keeps the write pass
     // proportional to surface area rather than volume.
     if (caseCode == 0u || caseCode == 255u) return;
+    if (!OwnsSelectedInsideSample(cell, selectedInsideCorner)) return;
 
     // Style flags decide whether this cell is meshed at all, and whether its vertices are shared
     // or split per triangle. A cell with no continuous style is owned by the faceted path.
@@ -252,7 +272,8 @@ uint PackMaterial(uint material, uint surface)
 void CSWriteCells(uint3 id : SV_DispatchThreadID)
 {
     int cellIndex = (int)id.x;
-    int cellTotal = _CellsPerAxis * _CellsPerAxis * _CellsPerAxis;
+    int axis = RegularCellAxis();
+    int cellTotal = axis * axis * axis;
     if (cellIndex >= cellTotal) return;
 
     uint outputVertexCount = _CellVertexCounts[cellIndex];
@@ -260,12 +281,10 @@ void CSWriteCells(uint3 id : SV_DispatchThreadID)
     if (outputVertexCount == 0u || triangleCount == 0u) return;
     uint indexCount = triangleCount * 3u;
 
-    int x = cellIndex % _CellsPerAxis;
-    int y = (cellIndex / _CellsPerAxis) % _CellsPerAxis;
-    int z = cellIndex / (_CellsPerAxis * _CellsPerAxis);
-    int3 cell = int3(x, y, z);
+    int3 cell = RegularCellFromIndex(cellIndex);
 
     uint caseCode = 0u;
+    int selectedInsideCorner = -1;
     float density[8];
     uint material[8];
     uint surface[8];
@@ -278,8 +297,10 @@ void CSWriteCells(uint3 id : SV_DispatchThreadID)
         surface[i] = _SampleSurface[sample];
         boundary[i] = _SampleBoundary[sample];
         if (density[i] < 0.0) caseCode |= 1u << (uint)i;
+        else if (selectedInsideCorner < 0) selectedInsideCorner = i;
     }
     if (caseCode == 0u || caseCode == 255u) return;
+    if (!OwnsSelectedInsideSample(cell, selectedInsideCorner)) return;
 
     uint cellClass = _RegularCellClass[caseCode];
     uint sourceVertexCount = _RegularGeometryCounts[cellClass] >> 4;

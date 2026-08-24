@@ -252,7 +252,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _transitionKernel = shader.FindKernel("CSTransitionCells");
 
             int samples = GridSize * GridSize * GridSize;
-            int cells = cellsPerAxis * cellsPerAxis * cellsPerAxis;
+            int regularCellsPerAxis = cellsPerAxis + 1;
+            int cells = regularCellsPerAxis * regularCellsPerAxis * regularCellsPerAxis;
             int faceSamples = FaceSamplesPerAxis * FaceSamplesPerAxis;
 
             _density = new ComputeBuffer(samples, sizeof(float), ComputeBufferType.Structured);
@@ -381,7 +382,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _shader.SetBuffer(_writeKernel, IdIndices, indices);
 
             int samples = GridSize * GridSize * GridSize;
-            int cells = CellsPerAxis * CellsPerAxis * CellsPerAxis;
+            int regularCellsPerAxis = CellsPerAxis + 1;
+            int cells = regularCellsPerAxis * regularCellsPerAxis * regularCellsPerAxis;
 
             _shader.Dispatch(_sampleKernel, Groups(samples), 1, 1);
             _shader.Dispatch(_countKernel, Groups(cells), 1, 1);
@@ -501,7 +503,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _shader.SetBuffer(_countKernel, IdCellTriangleCountsWrite, _cellTriangleCounts);
 
             int samples = GridSize * GridSize * GridSize;
-            int cells = CellsPerAxis * CellsPerAxis * CellsPerAxis;
+            int regularCellsPerAxis = CellsPerAxis + 1;
+            int cells = regularCellsPerAxis * regularCellsPerAxis * regularCellsPerAxis;
             _shader.Dispatch(_sampleKernel, Groups(samples), 1, 1);
             _shader.Dispatch(_countKernel, Groups(cells), 1, 1);
 
@@ -556,7 +559,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _shader.SetBuffer(_writeKernel, IdVertices, vertices);
             _shader.SetBuffer(_writeKernel, IdIndices, indices);
 
-            int cells = CellsPerAxis * CellsPerAxis * CellsPerAxis;
+            int regularCellsPerAxis = CellsPerAxis + 1;
+            int cells = regularCellsPerAxis * regularCellsPerAxis * regularCellsPerAxis;
             _shader.Dispatch(_writeKernel, Groups(cells), 1, 1);
 
             DispatchTransitionFaces(mirror, tables, request, countOnly: false,
@@ -627,7 +631,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _shader.SetBuffer(_writeKernel, IdVertices, vertices);
             _shader.SetBuffer(_writeKernel, IdIndices, indices);
 
-            int cells = CellsPerAxis * CellsPerAxis * CellsPerAxis;
+            int regularCellsPerAxis = CellsPerAxis + 1;
+            int cells = regularCellsPerAxis * regularCellsPerAxis * regularCellsPerAxis;
             _shader.Dispatch(_writeKernel, Groups(cells), 1, 1);
 
             DispatchTransitionFaces(mirror, tables, request, countOnly: false, vertices, indices);
