@@ -1,228 +1,226 @@
-status=0
+status=1
 filter=VoxelEngine.Tests.EditMode.GpuSurfaceExtractorOracleTests.MixedSampleFieldMatchesTheCpuJob
 
-Executed 2 test case(s).
-Passed: VoxelEngine.Tests.EditMode.GpuSurfaceExtractorOracleTests.MixedSampleFieldMatchesTheCpuJob(1)
-Passed: VoxelEngine.Tests.EditMode.GpuSurfaceExtractorOracleTests.MixedSampleFieldMatchesTheCpuJob(2)
+No results.xml produced.
 
 === UNITY LOG TAIL ===
-Created GICache directory at /Users/jlashmet/Library/Caches/com.unity3d.UnityEditor/GiCache. Took: 0.001s, timestamps: [57.869 - 57.870]
-Loaded scene 'Library/Unused/de83c752d5e3f4e51aad9ab8bb4cd383'
-	Deserialize:            0.115 ms
-	Integration:            0.400 ms
-	Integration of assets:  0.001 ms
-	Thread Wait Time:       0.005 ms
-	Total Operation Time:   0.521 ms
-Importing 'GUID: b72b06c434a634f41b323763af29546d - Path: Assets/ThirdParty/PlaceholderHumanoids/Models/placeholder_female.prefab' with importer (PrefabImporter)
-Imported 'GUID: b72b06c434a634f41b323763af29546d' -> (Import Result ID: '8a6ea352267438d56b86704f8da1baa0') in 0.001 seconds [static and dynamic dependencies]. Details - ImportResultOutputID=5aef8dc8f2ecddc1975091ab16be8fc3 DependenciesID=dcd020cd4c8ddba0e38c5968e73d613a StaticDependenciesID=7ec95a66d5faf0eb1c309ae38ad3ebfd 
-Asset Pipeline Refresh (id=b103c504a821f420c8e1dfd8bfc12391): Total: 0.049 seconds - Initiated by StopAssetImportingV2(NoUpdateAssetOptions)
-Placeholder humanoid wired animation runtime onto 'Assets/ThirdParty/PlaceholderHumanoids/Models/placeholder_female.prefab'.
-UnityEngine.Debug:ExtractStackTraceNoAlloc (byte*,int,string)
-UnityEngine.StackTraceUtility:ExtractStackTrace () (at /Users/bokken/build/output/unity/unity/Runtime/Export/Scripting/StackTrace.cs:35)
-UnityEngine.DebugLogHandler:Internal_Log (UnityEngine.LogType,UnityEngine.LogOption,string,UnityEngine.Object)
-UnityEngine.DebugLogHandler:LogFormat (UnityEngine.LogType,UnityEngine.Object,string,object[])
-UnityEngine.Logger:Log (UnityEngine.LogType,object)
-UnityEngine.Debug:Log (object)
-VoxelGame.Editor.PlaceholderHumanoidAnimationConfigurator:ConfigurePrefab (string) (at Assets/ThirdParty/PlaceholderHumanoids/Editor/PlaceholderHumanoidAnimationConfigurator.cs:196)
-VoxelGame.Editor.PlaceholderHumanoidAnimationConfigurator:ProcessPendingPrefabs () (at Assets/ThirdParty/PlaceholderHumanoids/Editor/PlaceholderHumanoidAnimationConfigurator.cs:107)
-UnityEditor.EditorApplication:Internal_CallDelayFunctions () (at /Users/bokken/build/output/unity/unity/Editor/Mono/EditorApplication.cs:418)
-
-(Filename: Assets/ThirdParty/PlaceholderHumanoids/Editor/PlaceholderHumanoidAnimationConfigurator.cs Line: 196)
-
-Loaded scene 'Library/Unused/f7581e02f2919456fb49268342c0537b'
-	Deserialize:            0.089 ms
-	Integration:            0.298 ms
-	Integration of assets:  0.001 ms
-	Thread Wait Time:       0.005 ms
-	Total Operation Time:   0.393 ms
-Importing 'GUID: e80a174ff0dd14d66bd10e36af95b88c - Path: Assets/ThirdParty/PlaceholderHumanoids/Models/placeholder_male.prefab' with importer (PrefabImporter)
-Imported 'GUID: e80a174ff0dd14d66bd10e36af95b88c' -> (Import Result ID: 'bf37649d2712eb0b52a3d4cfd76f9000') in 0.002 seconds [static and dynamic dependencies]. Details - ImportResultOutputID=a7824c5a02be6f9333c0190b26184a02 DependenciesID=dba8b113abf8c800e4839c55d9cb9a66 StaticDependenciesID=63fd51200979111d422798c793a532f2 
-Asset Pipeline Refresh (id=32b3b1032985645a29a4ded4ec78336e): Total: 0.049 seconds - Initiated by StopAssetImportingV2(NoUpdateAssetOptions)
-Placeholder humanoid wired animation runtime onto 'Assets/ThirdParty/PlaceholderHumanoids/Models/placeholder_male.prefab'.
-UnityEngine.Debug:ExtractStackTraceNoAlloc (byte*,int,string)
-UnityEngine.StackTraceUtility:ExtractStackTrace () (at /Users/bokken/build/output/unity/unity/Runtime/Export/Scripting/StackTrace.cs:35)
-UnityEngine.DebugLogHandler:Internal_Log (UnityEngine.LogType,UnityEngine.LogOption,string,UnityEngine.Object)
-UnityEngine.DebugLogHandler:LogFormat (UnityEngine.LogType,UnityEngine.Object,string,object[])
-UnityEngine.Logger:Log (UnityEngine.LogType,object)
-UnityEngine.Debug:Log (object)
-VoxelGame.Editor.PlaceholderHumanoidAnimationConfigurator:ConfigurePrefab (string) (at Assets/ThirdParty/PlaceholderHumanoids/Editor/PlaceholderHumanoidAnimationConfigurator.cs:196)
-VoxelGame.Editor.PlaceholderHumanoidAnimationConfigurator:ProcessPendingPrefabs () (at Assets/ThirdParty/PlaceholderHumanoids/Editor/PlaceholderHumanoidAnimationConfigurator.cs:107)
-UnityEditor.EditorApplication:Internal_CallDelayFunctions () (at /Users/bokken/build/output/unity/unity/Editor/Mono/EditorApplication.cs:418)
-
-(Filename: Assets/ThirdParty/PlaceholderHumanoids/Editor/PlaceholderHumanoidAnimationConfigurator.cs Line: 196)
-
-Loaded scene 'Library/Unused/631845d602dd848ec8cad690528204bd'
-	Deserialize:            0.124 ms
-	Integration:            0.343 ms
-	Integration of assets:  0.001 ms
-	Thread Wait Time:       0.005 ms
-	Total Operation Time:   0.473 ms
-Loaded scene 'Library/Unused/64d70ef268fa54987925ee9f45f1de00'
-	Deserialize:            0.099 ms
-	Integration:            0.274 ms
-	Integration of assets:  0.000 ms
-	Thread Wait Time:       0.005 ms
-	Total Operation Time:   0.378 ms
-Unloading 4 Unused Serialized files (Serialized files now loaded: 0)
-Unloading 1836 unused Assets / (4.1 MB). Loaded Objects now: 8876.
-Memory consumption went from 0.51 GB to 0.51 GB.
-Total: 17.383417 ms (FindLiveObjects: 0.179500 ms CreateObjectMapping: 0.794875 ms MarkObjects: 15.755916 ms  DeleteObjects: 0.652917 ms)
-
-Executing IPrebuildSetup for: Unity.PerformanceTesting.Editor.TestRunBuilder.
-UnityEngine.Debug:ExtractStackTraceNoAlloc (byte*,int,string)
-UnityEngine.StackTraceUtility:ExtractStackTrace () (at /Users/bokken/build/output/unity/unity/Runtime/Export/Scripting/StackTrace.cs:35)
-UnityEngine.DebugLogHandler:Internal_Log (UnityEngine.LogType,UnityEngine.LogOption,string,UnityEngine.Object)
-UnityEngine.DebugLogHandler:LogFormat (UnityEngine.LogType,UnityEngine.Object,string,object[])
-UnityEngine.Logger:Log (UnityEngine.LogType,object)
-UnityEngine.Debug:Log (object)
-UnityEditor.TestTools.TestRunner.TestRun.Tasks.BuildActionTaskBase`1/<ExecuteMethods>d__8<UnityEngine.TestTools.IPrebuildSetup>:MoveNext () (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/TestRun/Tasks/BuildActionTaskBase.cs:48)
-UnityEditor.TestTools.TestRunner.TestRun.Tasks.BuildActionTaskBase`1/<Execute>d__7<UnityEngine.TestTools.IPrebuildSetup>:MoveNext () (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/TestRun/Tasks/BuildActionTaskBase.cs:34)
-UnityEditor.TestTools.TestRunner.TestRun.TestJobRunner:ExecuteStep () (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/TestRun/TestJobRunner.cs:194)
-UnityEditor.TestTools.TestRunner.TestRun.TestJobRunner:ExecuteCallback () (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/TestRun/TestJobRunner.cs:129)
-UnityEditor.EditorApplication:Internal_CallUpdateFunctions () (at /Users/bokken/build/output/unity/unity/Editor/Mono/EditorApplication.cs:403)
-
-(Filename: ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/TestRun/Tasks/BuildActionTaskBase.cs Line: 48)
-
-<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Applied No Throttling for test run.
-UnityEngine.Debug:ExtractStackTraceNoAlloc (byte*,int,string)
-UnityEngine.StackTraceUtility:ExtractStackTrace () (at /Users/bokken/build/output/unity/unity/Runtime/Export/Scripting/StackTrace.cs:35)
-UnityEngine.DebugLogHandler:Internal_Log (UnityEngine.LogType,UnityEngine.LogOption,string,UnityEngine.Object)
-UnityEngine.DebugLogHandler:LogFormat (UnityEngine.LogType,UnityEngine.Object,string,object[])
-UnityEngine.Logger:Log (UnityEngine.LogType,object)
-UnityEngine.Debug:Log (object)
-MCPForUnity.Editor.Helpers.McpLog:Info (string,bool) (at ./Library/PackageCache/com.coplaydev.unity-mcp@8bd91ce7bd3a/Editor/Helpers/McpLog.cs:40)
-MCPForUnity.Editor.Services.TestRunnerNoThrottle:ApplyNoThrottling () (at ./Library/PackageCache/com.coplaydev.unity-mcp@8bd91ce7bd3a/Editor/Services/TestRunnerNoThrottle.cs:101)
-MCPForUnity.Editor.Services.TestRunnerNoThrottle/TestCallbacks:RunStarted (UnityEditor.TestTools.TestRunner.Api.ITestAdaptor) (at ./Library/PackageCache/com.coplaydev.unity-mcp@8bd91ce7bd3a/Editor/Services/TestRunnerNoThrottle.cs:138)
-UnityEditor.TestTools.TestRunner.Api.CallbacksDelegator/<>c__DisplayClass7_0:<RunStarted>b__0 (UnityEditor.TestTools.TestRunner.Api.ICallbacks) (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/Api/CallbacksDelegator.cs:42)
-UnityEditor.TestTools.TestRunner.Api.CallbacksDelegator:TryInvokeAllCallbacks (System.Action`1<UnityEditor.TestTools.TestRunner.Api.ICallbacks>) (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/Api/CallbacksDelegator.cs:135)
-UnityEditor.TestTools.TestRunner.Api.CallbacksDelegator:RunStarted (NUnit.Framework.Interfaces.ITest) (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/Api/CallbacksDelegator.cs:42)
-UnityEngine.Events.InvokableCall`1<NUnit.Framework.Interfaces.ITest>:Invoke (NUnit.Framework.Interfaces.ITest) (at /Users/bokken/build/output/unity/unity/Runtime/Export/UnityEvent/UnityEvent.cs:222)
-UnityEngine.Events.UnityEvent`1<NUnit.Framework.Interfaces.ITest>:Invoke (NUnit.Framework.Interfaces.ITest) (at /Users/bokken/build/output/unity/unity/artifacts/generated/UnityEvent/UnityEvent_1.cs:59)
-UnityEditor.TestTools.TestRunner.TestRun.Tasks.Events.RunStartedInvocationEvent/<Execute>d__0:MoveNext () (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/TestRun/Tasks/Events/RunStartedInvocationEvent.cs:15)
-UnityEditor.TestTools.TestRunner.TestRun.TestJobRunner:ExecuteStep () (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/TestRun/TestJobRunner.cs:194)
-UnityEditor.TestTools.TestRunner.TestRun.TestJobRunner:ExecuteCallback () (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/TestRun/TestJobRunner.cs:129)
-UnityEditor.EditorApplication:Internal_CallUpdateFunctions () (at /Users/bokken/build/output/unity/unity/Editor/Mono/EditorApplication.cs:403)
-
-(Filename: ./Library/PackageCache/com.coplaydev.unity-mcp@8bd91ce7bd3a/Editor/Helpers/McpLog.cs Line: 40)
-
-Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (LoadJoin) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl(92) (on metal)
-Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (CurvatureFactor) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl(120) (on metal)
-Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (ReadMaterial) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl(145) (on metal)
-Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (AddTap) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl(195) (on metal)
-Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (dominantMaterial) use of potentially uninitialized variable (dominantSurface) use of potentially uninitialized variable (SampleField) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl(290) (on metal)
-Shader warning in 'VoxelBrickMesher': integer modulus may be much slower, try using uints if possible. at kernel CSSampleDensity at VoxelBrickMesher.compute(144) (on metal)
-Shader warning in 'VoxelBrickMesher': integer divides may be much slower, try using uints if possible. at kernel CSSampleDensity at VoxelBrickMesher.compute(145) (on metal)
-Shader warning in 'VoxelBrickMesher': integer modulus may be much slower, try using uints if possible. at kernel CSSampleDensity at VoxelBrickMesher.compute(146) (on metal)
-Shader warning in 'VoxelBrickMesher': integer divides may be much slower, try using uints if possible. at kernel CSSampleDensity at VoxelBrickMesher.compute(147) (on metal)
-Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (LoadJoin) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl(92) (on metal)
-Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (CurvatureFactor) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl(120) (on metal)
-Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (ReadMaterial) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl(145) (on metal)
-Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (AddTap) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl(195) (on metal)
-Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (dominantMaterial) use of potentially uninitialized variable (dominantSurface) use of potentially uninitialized variable (SampleField) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl(290) (on metal)
-Shader warning in 'VoxelBrickMesher': integer modulus may be much slower, try using uints if possible. at kernel CSSampleDensity at VoxelBrickMesher.compute(144) (on metal)
-Shader warning in 'VoxelBrickMesher': integer divides may be much slower, try using uints if possible. at kernel CSSampleDensity at VoxelBrickMesher.compute(145) (on metal)
-Shader warning in 'VoxelBrickMesher': integer modulus may be much slower, try using uints if possible. at kernel CSSampleDensity at VoxelBrickMesher.compute(146) (on metal)
-Shader warning in 'VoxelBrickMesher': integer divides may be much slower, try using uints if possible. at kernel CSSampleDensity at VoxelBrickMesher.compute(147) (on metal)
-Shader warning in 'VoxelBrickMesher': integer modulus may be much slower, try using uints if possible. at kernel CSCountCells at VoxelBrickMesher.compute(171) (on metal)
-Shader warning in 'VoxelBrickMesher': integer divides may be much slower, try using uints if possible. at kernel CSCountCells at VoxelBrickMesher.compute(172) (on metal)
-Shader warning in 'VoxelBrickMesher': integer modulus may be much slower, try using uints if possible. at kernel CSCountCells at VoxelBrickMesher.compute(172) (on metal)
-Shader warning in 'VoxelBrickMesher': integer divides may be much slower, try using uints if possible. at kernel CSCountCells at VoxelBrickMesher.compute(173) (on metal)
-Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (LoadJoin) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl(92) (on metal)
-Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (CurvatureFactor) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl(120) (on metal)
-Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (ReadMaterial) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl(145) (on metal)
-Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (AddTap) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl(195) (on metal)
-Shader warning in 'VoxelBrickMesher': use of potentially uninitialized variable (dominantMaterial) use of potentially uninitialized variable (dominantSurface) use of potentially uninitialized variable (SampleField) at kernel CSSampleDensity at Assets/VoxelEngine/Rendering/Resources/VoxelBrickDensity.hlsl(290) (on metal)
-Shader warning in 'VoxelBrickMesher': integer modulus may be much slower, try using uints if possible. at kernel CSSampleDensity at VoxelBrickMesher.compute(144) (on metal)
-Shader warning in 'VoxelBrickMesher': integer divides may be much slower, try using uints if possible. at kernel CSSampleDensity at VoxelBrickMesher.compute(145) (on metal)
-Shader warning in 'VoxelBrickMesher': integer modulus may be much slower, try using uints if possible. at kernel CSSampleDensity at VoxelBrickMesher.compute(146) (on metal)
-Shader warning in 'VoxelBrickMesher': integer divides may be much slower, try using uints if possible. at kernel CSSampleDensity at VoxelBrickMesher.compute(147) (on metal)
-Shader warning in 'VoxelBrickMesher': integer modulus may be much slower, try using uints if possible. at kernel CSCountCells at VoxelBrickMesher.compute(171) (on metal)
-Shader warning in 'VoxelBrickMesher': integer divides may be much slower, try using uints if possible. at kernel CSCountCells at VoxelBrickMesher.compute(172) (on metal)
-Shader warning in 'VoxelBrickMesher': integer modulus may be much slower, try using uints if possible. at kernel CSCountCells at VoxelBrickMesher.compute(172) (on metal)
-Shader warning in 'VoxelBrickMesher': integer divides may be much slower, try using uints if possible. at kernel CSCountCells at VoxelBrickMesher.compute(173) (on metal)
-Shader warning in 'VoxelBrickMesher': integer modulus may be much slower, try using uints if possible. at kernel CSWriteCells at VoxelBrickMesher.compute(265) (on metal)
-Shader warning in 'VoxelBrickMesher': integer divides may be much slower, try using uints if possible. at kernel CSWriteCells at VoxelBrickMesher.compute(266) (on metal)
-Shader warning in 'VoxelBrickMesher': integer modulus may be much slower, try using uints if possible. at kernel CSWriteCells at VoxelBrickMesher.compute(266) (on metal)
-Shader warning in 'VoxelBrickMesher': integer divides may be much slower, try using uints if possible. at kernel CSWriteCells at VoxelBrickMesher.compute(267) (on metal)
-<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
-UnityEngine.Debug:ExtractStackTraceNoAlloc (byte*,int,string)
-UnityEngine.StackTraceUtility:ExtractStackTrace () (at /Users/bokken/build/output/unity/unity/Runtime/Export/Scripting/StackTrace.cs:35)
-UnityEngine.DebugLogHandler:Internal_Log (UnityEngine.LogType,UnityEngine.LogOption,string,UnityEngine.Object)
-UnityEngine.DebugLogHandler:LogFormat (UnityEngine.LogType,UnityEngine.Object,string,object[])
-UnityEngine.Logger:Log (UnityEngine.LogType,object)
-UnityEngine.Debug:Log (object)
-MCPForUnity.Editor.Helpers.McpLog:Info (string,bool) (at ./Library/PackageCache/com.coplaydev.unity-mcp@8bd91ce7bd3a/Editor/Helpers/McpLog.cs:40)
-MCPForUnity.Editor.Services.TestRunnerNoThrottle:RestoreThrottling () (at ./Library/PackageCache/com.coplaydev.unity-mcp@8bd91ce7bd3a/Editor/Services/TestRunnerNoThrottle.cs:114)
-MCPForUnity.Editor.Services.TestRunnerNoThrottle/TestCallbacks:RunFinished (UnityEditor.TestTools.TestRunner.Api.ITestResultAdaptor) (at ./Library/PackageCache/com.coplaydev.unity-mcp@8bd91ce7bd3a/Editor/Services/TestRunnerNoThrottle.cs:143)
-UnityEditor.TestTools.TestRunner.Api.CallbacksDelegator/<>c__DisplayClass9_0:<RunFinished>b__0 (UnityEditor.TestTools.TestRunner.Api.ICallbacks) (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/Api/CallbacksDelegator.cs:55)
-UnityEditor.TestTools.TestRunner.Api.CallbacksDelegator:TryInvokeAllCallbacks (System.Action`1<UnityEditor.TestTools.TestRunner.Api.ICallbacks>) (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/Api/CallbacksDelegator.cs:135)
-UnityEditor.TestTools.TestRunner.Api.CallbacksDelegator:RunFinished (NUnit.Framework.Interfaces.ITestResult) (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/Api/CallbacksDelegator.cs:55)
-UnityEngine.Events.InvokableCall`1<NUnit.Framework.Interfaces.ITestResult>:Invoke (NUnit.Framework.Interfaces.ITestResult) (at /Users/bokken/build/output/unity/unity/Runtime/Export/UnityEvent/UnityEvent.cs:222)
-UnityEngine.Events.UnityEvent`1<NUnit.Framework.Interfaces.ITestResult>:Invoke (NUnit.Framework.Interfaces.ITestResult) (at /Users/bokken/build/output/unity/unity/artifacts/generated/UnityEvent/UnityEvent_1.cs:59)
-UnityEditor.TestTools.TestRunner.TestRun.Tasks.Events.RunFinishedInvocationEvent/<Execute>d__0:MoveNext () (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/TestRun/Tasks/Events/RunFinishedInvocationEvent.cs:24)
-UnityEditor.TestTools.TestRunner.TestRun.TestJobRunner:ExecuteStep () (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/TestRun/TestJobRunner.cs:194)
-UnityEditor.TestTools.TestRunner.TestRun.TestJobRunner:ExecuteCallback () (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/TestRun/TestJobRunner.cs:129)
-UnityEditor.EditorApplication:Internal_CallUpdateFunctions () (at /Users/bokken/build/output/unity/unity/Editor/Mono/EditorApplication.cs:403)
-
-(Filename: ./Library/PackageCache/com.coplaydev.unity-mcp@8bd91ce7bd3a/Editor/Helpers/McpLog.cs Line: 40)
-
-Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
-Saving results to: /Users/jlashmet/tmp/_work/voxel/voxel/Artifacts/SceneIssue014011MixedFieldOracle/results.xml
-Executing IPostBuildCleanup for: Unity.PerformanceTesting.Editor.TestRunBuilder.
-UnityEngine.Debug:ExtractStackTraceNoAlloc (byte*,int,string)
-UnityEngine.StackTraceUtility:ExtractStackTrace () (at /Users/bokken/build/output/unity/unity/Runtime/Export/Scripting/StackTrace.cs:35)
-UnityEngine.DebugLogHandler:Internal_Log (UnityEngine.LogType,UnityEngine.LogOption,string,UnityEngine.Object)
-UnityEngine.DebugLogHandler:LogFormat (UnityEngine.LogType,UnityEngine.Object,string,object[])
-UnityEngine.Logger:Log (UnityEngine.LogType,object)
-UnityEngine.Debug:Log (object)
-UnityEditor.TestTools.TestRunner.TestRun.Tasks.BuildActionTaskBase`1/<ExecuteMethods>d__8<UnityEngine.TestTools.IPostBuildCleanup>:MoveNext () (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/TestRun/Tasks/BuildActionTaskBase.cs:48)
-UnityEditor.TestTools.TestRunner.TestRun.Tasks.BuildActionTaskBase`1/<Execute>d__7<UnityEngine.TestTools.IPostBuildCleanup>:MoveNext () (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/TestRun/Tasks/BuildActionTaskBase.cs:34)
-UnityEditor.TestTools.TestRunner.TestRun.TestJobRunner:ExecuteStep () (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/TestRun/TestJobRunner.cs:194)
-UnityEditor.TestTools.TestRunner.TestRun.TestJobRunner:ExecuteCallback () (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/TestRun/TestJobRunner.cs:129)
-UnityEditor.EditorApplication:Internal_CallUpdateFunctions () (at /Users/bokken/build/output/unity/unity/Editor/Mono/EditorApplication.cs:403)
-
-(Filename: ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/TestRun/Tasks/BuildActionTaskBase.cs Line: 48)
-
-Unloading 1 Unused Serialized files (Serialized files now loaded: 0)
-Unloading 1 unused Assets / (165.7 KB). Loaded Objects now: 8877.
-Memory consumption went from 506.6 MB to 506.5 MB.
-Total: 16.881625 ms (FindLiveObjects: 0.142958 ms CreateObjectMapping: 0.577458 ms MarkObjects: 16.029500 ms  DeleteObjects: 0.131542 ms)
-
-DisplayProgressbar: Undo
-Test run completed. Exiting with code 0 (Ok). Run completed.
-UnityEngine.Debug:ExtractStackTraceNoAlloc (byte*,int,string)
-UnityEngine.StackTraceUtility:ExtractStackTrace () (at /Users/bokken/build/output/unity/unity/Runtime/Export/Scripting/StackTrace.cs:35)
-UnityEngine.DebugLogHandler:Internal_Log (UnityEngine.LogType,UnityEngine.LogOption,string,UnityEngine.Object)
-UnityEngine.DebugLogHandler:LogFormat (UnityEngine.LogType,UnityEngine.Object,string,object[])
-UnityEngine.Logger:Log (UnityEngine.LogType,object)
-UnityEngine.Debug:Log (object)
-UnityEditor.TestTools.TestRunner.CommandLineTest.Executer:ExitApplication (UnityEditor.TestTools.TestRunner.CommandLineTest.Executer/ReturnCodes,string) (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/CommandLineTest/Executer.cs:81)
-UnityEditor.TestTools.TestRunner.CommandLineTest.Executer:ExitIfRunIsCompleted () (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/CommandLineTest/Executer.cs:74)
-UnityEditor.EditorApplication:Internal_CallUpdateFunctions () (at /Users/bokken/build/output/unity/unity/Editor/Mono/EditorApplication.cs:403)
-
-(Filename: ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/CommandLineTest/Executer.cs Line: 81)
-
-MonoPathRemapper: Attempts to remap: 73568; Successful remaps: 2176
-Serialized file version minimum: 22, current 23
-Thread 0x365dc7000 may have been prematurely finalized
-Shutting down MSBuild server...
-Shutting down VB/C# compiler server...
-VB/C# compiler server shut down successfully.
-Input System module state changed to: ShutdownInProgress.
-Input Polling Thread exited.
-Input System module state changed to: Shutdown.
-MSBuild server shut down successfully.
-[Physics::Module] Cleanup current backend.
-[Physics::Module] Id: 0xf2b8ea05
-[Licensing::IpcConnector] LicenseClient-jlashmet-6000.5.6-notifications channel disconnected successfully.
-[Licensing::IpcConnector] LicenseClient-jlashmet-6000.5.6 channel disconnected successfully.
-Thread 0x178487000 may have been prematurely finalized
-AcceleratorClientConnectionCallback - disconnected - :0
-Thread 0x179e7f000 may have been prematurely finalized
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.Net.Primitives.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.Net.Requests.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.Net.Security.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.Net.Sockets.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.Net.WebHeaderCollection.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.Net.WebSockets.Client.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.Net.WebSockets.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.Numerics.Vectors.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.ObjectModel.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.Reflection.DispatchProxy.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.Reflection.Emit.ILGeneration.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.Reflection.Emit.Lightweight.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.Reflection.Emit.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.Reflection.Extensions.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.Reflection.Primitives.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.Reflection.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.Resources.Reader.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.Resources.ResourceManager.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.Resources.Writer.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.Runtime.CompilerServices.VisualC.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.Runtime.Extensions.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.Runtime.Handles.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.Runtime.InteropServices.RuntimeInformation.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.Runtime.InteropServices.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.Runtime.Numerics.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.Runtime.Serialization.Formatters.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.Runtime.Serialization.Json.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.Runtime.Serialization.Primitives.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.Runtime.Serialization.Xml.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.Runtime.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.Security.Claims.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.Security.Cryptography.Algorithms.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.Security.Cryptography.Csp.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.Security.Cryptography.Encoding.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.Security.Cryptography.Primitives.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.Security.Cryptography.X509Certificates.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.Security.Principal.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.Security.SecureString.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.Text.Encoding.Extensions.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.Text.Encoding.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.Text.RegularExpressions.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.Threading.Overlapped.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.Threading.Tasks.Extensions.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.Threading.Tasks.Parallel.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.Threading.Tasks.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.Threading.Thread.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.Threading.ThreadPool.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.Threading.Timer.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.Threading.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.ValueTuple.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.Xml.ReaderWriter.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.Xml.XDocument.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.Xml.XPath.XDocument.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.Xml.XPath.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.Xml.XmlDocument.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netstandard/System.Xml.XmlSerializer.dll"
+-r:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/ref/2.1.0/netstandard.dll"
+-r:"Library/PackageCache/com.unity.analytics@c9d14a6bdec6/AnalyticsStandardEvents/Unity.Analytics.StandardEvents.dll"
+-r:"Library/PackageCache/com.unity.analytics@c9d14a6bdec6/Unity.Analytics.Editor.dll"
+-r:"Library/PackageCache/com.unity.analytics@c9d14a6bdec6/Unity.Analytics.Tracker.dll"
+-r:"Library/PackageCache/com.unity.collab-proxy@4f3be89e8675/Lib/Editor/TextMateSharp/Onigwrap/OnigwrapPlastic.dll"
+-r:"Library/PackageCache/com.unity.collab-proxy@4f3be89e8675/Lib/Editor/TextMateSharp/TextMateSharpPlastic.Grammars.dll"
+-r:"Library/PackageCache/com.unity.collab-proxy@4f3be89e8675/Lib/Editor/TextMateSharp/TextMateSharpPlastic.dll"
+-r:"Library/PackageCache/com.unity.collab-proxy@4f3be89e8675/Lib/Editor/Unity.Plastic.Antlr3.Runtime.dll"
+-r:"Library/PackageCache/com.unity.collab-proxy@4f3be89e8675/Lib/Editor/Unity.Plastic.Newtonsoft.Json.dll"
+-r:"Library/PackageCache/com.unity.collab-proxy@4f3be89e8675/Lib/Editor/log4netPlastic.dll"
+-r:"Library/PackageCache/com.unity.collab-proxy@4f3be89e8675/Lib/Editor/unityplastic.dll"
+-r:"Library/PackageCache/com.unity.collections@a43cabe808ca/Unity.Collections.LowLevel.ILSupport/Unity.Collections.LowLevel.ILSupport.dll"
+-r:"Library/PackageCache/com.unity.ext.nunit@44f7d31723bd/net472/unity-custom/nunit.framework.dll"
+-r:"Library/PackageCache/com.unity.nuget.mono-cecil@ecb9724e46ff/Mono.Cecil.dll"
+-r:"Library/PackageCache/com.unity.nuget.newtonsoft-json@4dfd81071c64/Runtime/Newtonsoft.Json.dll"
+-r:"Library/Bee/artifacts/200b0aE.dag/Unity.Burst.ref.dll"
+-r:"Library/Bee/artifacts/200b0aE.dag/Unity.Collections.ref.dll"
+-r:"Library/Bee/artifacts/200b0aE.dag/Unity.Mathematics.ref.dll"
+-r:"Library/Bee/artifacts/200b0aE.dag/Unity.RenderPipelines.Core.Runtime.ref.dll"
+-r:"Library/Bee/artifacts/200b0aE.dag/Unity.RenderPipelines.Universal.Runtime.ref.dll"
+-r:"Library/Bee/artifacts/200b0aE.dag/UnityEditor.UI.ref.dll"
+-r:"Library/Bee/artifacts/200b0aE.dag/UnityEngine.UI.ref.dll"
+-r:"Library/Bee/artifacts/200b0aE.dag/VoxelEngine.AmbientLife.Api.ref.dll"
+-r:"Library/Bee/artifacts/200b0aE.dag/VoxelEngine.Rendering.Api.ref.dll"
+-r:"Library/Bee/artifacts/200b0aE.dag/VoxelEngine.Storage.Api.ref.dll"
+-r:"Library/Bee/artifacts/200b0aE.dag/VoxelEngine.Tiering.Api.ref.dll"
+-r:"Library/Bee/artifacts/200b0aE.dag/VoxelEngine.Vegetation.Api.ref.dll"
+-analyzer:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/BuildPipeline/Unity.Analyzers.Common/Unity.Analyzers.Common.dll"
+-analyzer:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/BuildPipeline/Unity.Analyzers.LongLiving/Unity.Analyzers.LongLiving.dll"
+-analyzer:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/BuildPipeline/Unity.SourceGenerators/Unity.Properties.SourceGenerator.dll"
+-analyzer:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/BuildPipeline/Unity.SourceGenerators/Unity.SourceGenerators.dll"
+-analyzer:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/BuildPipeline/Unity.SourceGenerators/Unity.UIToolkit.SourceGenerator.dll"
+-analyzer:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/BCLExtensions/TargetingPacks/netstandard2.1/analyzers/dotnet/roslyn4.0/cs/Microsoft.Extensions.Logging.Generators.dll"
+-analyzer:"/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/BCLExtensions/TargetingPacks/netstandard2.1/analyzers/dotnet/roslyn4.0/cs/System.Text.Json.SourceGeneration.dll"
+"Assets/VoxelEngine/Rendering/Runtime/AmbientLife/AmbientLifeMotion.cs"
+"Assets/VoxelEngine/Rendering/Runtime/AmbientLife/ProceduralAmbientLifeBatchRenderer.cs"
+"Assets/VoxelEngine/Rendering/Runtime/AmbientLife/ProceduralAmbientLifeMaterials.cs"
+"Assets/VoxelEngine/Rendering/Runtime/AssemblyInfo.cs"
+"Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/CpuDensityOracle.cs"
+"Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/CpuTopologyOracle.cs"
+"Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/CpuTransitionOracle.cs"
+"Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/GpuBrickBufferLayout.cs"
+"Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/GpuBrickMipInvalidation.cs"
+"Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/GpuBrickSlotTable.cs"
+"Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/GpuGeometryArena.cs"
+"Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/GpuMeshletPageArena.cs"
+"Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/GpuSurfaceArenaBridge.cs"
+"Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/GpuSurfaceCataloguePacking.cs"
+"Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/GpuSurfaceExtractionContext.cs"
+"Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/GpuSurfaceExtractor.cs"
+"Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/GpuTransvoxelTables.cs"
+"Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/GpuVoxelBrickMirror.cs"
+"Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/VoxelBrickDelta.cs"
+"Assets/VoxelEngine/Rendering/Runtime/MaterialPresentationInstaller.cs"
+"Assets/VoxelEngine/Rendering/Runtime/RenderFeature/VoxelPresentationCatalogue.cs"
+"Assets/VoxelEngine/Rendering/Runtime/RenderFeature/VoxelRenderBridge.cs"
+"Assets/VoxelEngine/Rendering/Runtime/RenderFeature/VoxelRenderFeature.cs"
+"Assets/VoxelEngine/Rendering/Runtime/RenderFeature/VoxelRenderPass.cs"
+"Assets/VoxelEngine/Rendering/Runtime/RenderFeature/VoxelSkyPass.cs"
+"Assets/VoxelEngine/Rendering/Runtime/RenderFeature/VoxelSolidRenderDiagnostics.cs"
+"Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs"
+"Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuWaterSurfaceChunkCache.cs"
+"Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/GeometryFrameJobCompletionGuard.cs"
+"Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/SmoothSurfaceVertex.cs"
+"Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Step4FalseEmptyDiagnostics.cs"
+"Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/SurfaceBlockHlodMeshJob.cs"
+"Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/SurfaceBrickDiscoveryJob.cs"
+"Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/SurfaceBuildPriority.cs"
+"Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/SurfaceChunkSlot.cs"
+"Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/SurfaceChunkSlotGrid.cs"
+"Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/SurfaceDiscoveryChunkOwner.cs"
+"Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/SurfaceGeometryArena.cs"
+"Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/SurfaceLodActiveCoverage.cs"
+"Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/SurfaceLodCoverageState.cs"
+"Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/SurfaceLodHierarchy.cs"
+"Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/SurfaceLodTransitionMask.cs"
+"Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/ExactSnapshotMetadataJobs.cs"
+"Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/ExactSnapshotRegionCoverage.cs"
+"Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/FacetedMaskJob.cs"
+"Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/FacetedMergeJob.cs"
+"Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/MipDensityJob.cs"
+"Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/SnapshotFacetedMaskJob.cs"
+"Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/SurfaceBlockHlodSummaryJob.cs"
+"Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransitionMeshJob.cs"
+"Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelCompactJob.cs"
+"Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelDensityJob.cs"
+"Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelRegularTables.cs"
+"Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelTableValidator.cs"
+"Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelTopologyJob.cs"
+"Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelTransitionTables.cs"
+"Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/TransvoxelBuildWorkspace.cs"
+"Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/TransvoxelLookupTables.cs"
+"Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs"
+"Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelTiming.cs"
+"Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/WaterBrickMeshBatchJob.cs"
+"Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/WaterSurfaceDiscoveryAdmission.cs"
+"Assets/VoxelEngine/Rendering/Runtime/Vegetation/ProceduralTreeBreakPresenter.cs"
+"Assets/VoxelEngine/Rendering/Runtime/Vegetation/ProceduralTreeDetachedLimbPresenter.cs"
+"Assets/VoxelEngine/Rendering/Runtime/Vegetation/ProceduralTreeMaterials.cs"
+"Assets/VoxelEngine/Rendering/Runtime/Vegetation/ProceduralTreeMeshBuilder.cs"
+"Assets/VoxelEngine/Rendering/Runtime/Vegetation/ProceduralTreeRenderer.cs"
+"Assets/VoxelEngine/Rendering/Runtime/Vegetation/ProceduralVegetationBatchRenderer.cs"
+"Assets/VoxelEngine/Rendering/Runtime/Vegetation/ProceduralVegetationMaterials.cs"
+-langversion:9.0
+/unsafe+
+/deterministic
+/optimize+
+/debug:portable
+/nologo
+/RuntimeMetadataVersion:v4.0.30319
+/nowarn:0169
+/nowarn:0649
+/nowarn:0282
+/nowarn:1701
+/nowarn:1702
+/utf8output
+/preferreduilang:en-US
+/additionalfile:"Library/Bee/artifacts/200b0aE.dag/VoxelEngine.Rendering.Runtime.UnityAdditionalFile.txt"
+##### Custom Environment Variables
+DOTNET_HOST_PATH=/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/DotNetSdk/dotnet
+DOTNET_MULTILEVEL_LOOKUP=0
+##### ExitCode
+1
+##### Output
+Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/CpuDensityOracle.cs(56,28): error CS0101: The namespace 'VoxelEngine.Rendering.Runtime.GpuVoxel' already contains a definition for 'CpuDensityFieldSnapshot'
+Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/CpuDensityOracle.cs(63,16): error CS0111: Type 'CpuDensityFieldSnapshot' already defines a member called 'CpuDensityFieldSnapshot' with the same parameter types
+Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/CpuDensityOracle.cs(208,47): error CS0111: Type 'CpuDensityOracle' already defines a member called 'SampleMixedNeighbourhood' with the same parameter types
+Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/GpuSurfaceExtractor.cs(853,21): error CS0111: Type 'GpuSurfaceExtractor' already defines a member called 'ReadSampleSurfaces' with the same parameter types
+Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/GpuSurfaceExtractor.cs(859,21): error CS0111: Type 'GpuSurfaceExtractor' already defines a member called 'ReadSampleBoundaries' with the same parameter types
+*** Tundra build failed (6.55 seconds), 1692 items updated, 1852 evaluated
+## Script Compilation Error for: Csc Library/Bee/artifacts/200b0aE.dag/VoxelEngine.Rendering.Runtime.dll (+2 others)
+## CmdLine: "/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/DotNetSdk/dotnet" exec "/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/DotNetSdk/sdk/8.0.318/Roslyn/bincore/csc.dll" /nostdlib /noconfig /shared "@Library/Bee/artifacts/200b0aE.dag/VoxelEngine.Rendering.Runtime.rsp" "@Library/Bee/artifacts/200b0aE.dag/VoxelEngine.Rendering.Runtime.rsp2"
+## Output:
+Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/CpuDensityOracle.cs(56,28): error CS0101: The namespace 'VoxelEngine.Rendering.Runtime.GpuVoxel' already contains a definition for 'CpuDensityFieldSnapshot'
+Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/CpuDensityOracle.cs(63,16): error CS0111: Type 'CpuDensityFieldSnapshot' already defines a member called 'CpuDensityFieldSnapshot' with the same parameter types
+Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/CpuDensityOracle.cs(208,47): error CS0111: Type 'CpuDensityOracle' already defines a member called 'SampleMixedNeighbourhood' with the same parameter types
+Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/GpuSurfaceExtractor.cs(853,21): error CS0111: Type 'GpuSurfaceExtractor' already defines a member called 'ReadSampleSurfaces' with the same parameter types
+Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/GpuSurfaceExtractor.cs(859,21): error CS0111: Type 'GpuSurfaceExtractor' already defines a member called 'ReadSampleBoundaries' with the same parameter types
+InternalAPIEngineBridg
+Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/CpuDensityOracle.cs(56,28): error CS0101: The namespace 'VoxelEngine.Rendering.Runtime.GpuVoxel' already contains a definition for 'CpuDensityFieldSnapshot'
+Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/CpuDensityOracle.cs(63,16): error CS0111: Type 'CpuDensityFieldSnapshot' already defines a member called 'CpuDensityFieldSnapshot' with the same parameter types
+Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/CpuDensityOracle.cs(208,47): error CS0111: Type 'CpuDensityOracle' already defines a member called 'SampleMixedNeighbourhood' with the same parameter types
+Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/GpuSurfaceExtractor.cs(853,21): error CS0111: Type 'GpuSurfaceExtractor' already defines a member called 'ReadSampleSurfaces' with the same parameter types
+Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/GpuSurfaceExtractor.cs(859,21): error CS0111: Type 'GpuSurfaceExtractor' already defines a member called 'ReadSampleBoundaries' with the same parameter types
+Assets/VoxelEngine/Net/Runtime/Protocol/PlayerInput.cs(84,13): warning CS0618: 'C_PlayerInput.playerId' is obsolete: 'Player identity is connection-owned and is not part of C_PlayerInput.'
+Assets/VoxelEngine/Net/Runtime/Protocol/PlayerInput.cs(146,17): warning CS0618: 'C_PlayerInput.playerId' is obsolete: 'Player identity is connection-owned and is not part of C_PlayerInput.'
+Assets/VoxelEngine/Net/Runtime/Client/InputBuffer.cs(184,25): warning CS0618: 'C_PlayerInput.C_PlayerInput(uint, ushort, ushort, float3, float3, C_PlayerInput.ActionType, byte)' is obsolete: 'Use the constructor taking movement, viewDirection and ActionBits.'
+Assets/VoxelEngine/Net/Runtime/Client/InputBuffer.cs(217,31): warning CS0618: 'C_PlayerInput.Position()' is obsolete: 'C_PlayerInput no longer carries world position; this returns movement intent in XZ.'
+Assets/VoxelEngine/Net/Runtime/Client/InputBuffer.cs(220,39): warning CS0618: 'C_PlayerInput.playerId' is obsolete: 'Player identity is connection-owned and is not part of C_PlayerInput.'
+Assets/VoxelEngine/Net/Runtime/Client/InputBuffer.cs(221,27): warning CS0618: 'C_PlayerInput.playerId' is obsolete: 'Player identity is connection-owned and is not part of C_PlayerInput.'
+Assets/VoxelEngine/Net/Runtime/Client/PlacementCoalescer.cs(31,29): warning CS0414: The field 'PlacementCoalescer._hasPendingFlush' is assigned but its value is never used
+Assets/VoxelEngine/Net/Runtime/Client/Reconciliation.cs(20,22): warning CS0414: The field 'Reconciliation._initialized' is assigned but its value is never used
+Assets/Game/Composition/WorldObjects/Runtime/WorldObjectRuntimeBootstrap.cs(28,24): warning CS0618: 'Object.FindFirstObjectByType<T>()' is obsolete: 'FindFirstObjectByType has been deprecated because it relies on instance ID ordering. Use FindAnyObjectByType instead, which does not depend on ordering.'
+Assets/Tests/Parity/LossConvergenceTests.cs(83,23): warning CS0219: The variable 'outageTicks' is assigned but its value is never used
+Assets/Tests/Parity/CollapseAgreementTests.cs(220,18): warning CS0219: The variable 'radius' is assigned but its value is never used
+AssetDatabase: script compilation time: 8.567430s
+Total cache size 240091331
+Total cache size after purge 240091331, took 00:00:00.0735310
+Scripts have compiler errors.
+[Package Manager] Server process was shutdown
 info: Microsoft.Hosting.Lifetime[0]
       Application is shutting down...
-Cleanup mono
-CodeReloadManager destroyed
 info: Unity.ILPP.Runner.PostProcessingAssemblyLoadContext[0]
       ALC ILPP context 1 is unloading
-debugger-agent: Unable to listen on 37
