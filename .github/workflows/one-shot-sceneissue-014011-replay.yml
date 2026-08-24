@@ -16,12 +16,13 @@ concurrency:
 jobs:
   replay:
     runs-on: [self-hosted, macOS]
-    timeout-minutes: 5
+    timeout-minutes: 6
     steps:
       - uses: actions/checkout@v4
         with:
           ref: fixes
-          fetch-depth: 1
+          clean: true
+          fetch-depth: 0
 
       - name: Resolve Unity
         id: unity
@@ -33,6 +34,19 @@ jobs:
           test -x "$UNITY_PATH"
           test -s "$GITHUB_WORKSPACE/Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes"
           echo "path=$UNITY_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for Unity
+        shell: bash
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 90))
+          while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
+            if (( SECONDS >= deadline )); then
+              pgrep -alf '/Unity.app/Contents/MacOS/Unity' || true
+              exit 1
+            fi
+            sleep 5
+          done
 
       - name: Create exact SceneIssue camera fixture
         shell: bash
@@ -104,8 +118,10 @@ jobs:
             grep 'RINGS ' "$ROOT/player-run.log" | tail -20 || true
           } > "$ISSUE/diagnostic-cpu-lod2.txt"
           cat "$ISSUE/diagnostic-cpu-lod2.txt"
+          git restore -- Assets/Resources/SceneIssueCameraPose.json tools/showcase-player-capture.sh 2>/dev/null || true
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add "$ISSUE/diagnostic-cpu-lod2.png" "$ISSUE/diagnostic-cpu-lod2.txt"
           git commit -m 'SceneIssue 014011: record CPU LOD2 diagnostic replay'
+          git pull --rebase origin fixes
           git push origin HEAD:fixes
