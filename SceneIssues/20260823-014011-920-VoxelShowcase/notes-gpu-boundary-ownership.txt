@@ -1,0 +1,4 @@
+status=1
+hypothesis=GPU regular meshing must match CPU negative-shell ownership domain
+
+=== UNITY LOG TAIL ===
