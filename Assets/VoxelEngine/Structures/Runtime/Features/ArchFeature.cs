@@ -258,7 +258,11 @@ namespace VoxelEngine.Structures.Runtime
                         InnerRadiusQ4 = ClearSpan * 8,
                         OuterRadiusQ4 = OuterRadius * 16,
                         FrontQ4 = origin.z * 16 - projectionQ4,
-                        BackQ4 = (origin.z + Depth - 1) * 16 + projectionQ4,
+                        // Occupied samples end at Depth-1, while their rear cell face is Depth.
+                        // Retained presentation projects from the face; backing validation uses
+                        // the occupied sample explicitly instead of rounding projected geometry.
+                        BackQ4 = (origin.z + Depth) * 16 + projectionQ4,
+                        BackingDepthVoxel = origin.z + Depth - 1,
                         StartDirection = start,
                         EndDirection = end,
                         Axis = 2,

@@ -1,0 +1,1217 @@
+Unity Editor version:    6000.5.6f1 (0e0577a1a2ac)
+Branch:                  6000.5/staging
+Build type:              Release
+Batch mode:              YES
+macOS version:           Version 15.5 (Build 24F74)
+Darwin version:          24.5.0
+Architecture:            arm64
+Running under Rosetta:   NO
+Available memory:        65536 MB
+Date:                    2026-08-24T17:57:34Z
+[Licensing::Module] Trying to connect to existing licensing client channel...
+[Licensing::IpcConnector] Successfully connected to: "LicenseClient-jlashmet" at "2026-08-24T17:57:34.333424Z"
+Launching external process: /Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Helpers/PackageManager/Server/UnityPackageManager
+
+COMMAND LINE ARGUMENTS:
+/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/MacOS/Unity
+-projectPath
+/Users/jlashmet/code/voxel
+-batchmode
+-runTests
+-testPlatform
+EditMode
+-testFilter
+VoxelEngine.Tests.EditMode.ArchProfileStitchTests.RetainedProfilesSpanFullArchDepthAndMatchStructuralAnnulusZeroes
+-testResults
+/Users/jlashmet/code/voxel/SceneIssues/20260823-193321-963-ArchLookdev/verification-profile-rear-face-green.xml
+-logFile
+/Users/jlashmet/code/voxel/SceneIssues/20260823-193321-963-ArchLookdev/verification-profile-rear-face-green.txt
+Successfully changed project path to: /Users/jlashmet/code/voxel
+/Users/jlashmet/code/voxel
+[UnityMemory] Configuration Parameters - Can be set up in boot.config
+    "memorysetup-temp-allocator-size-gi-baking-worker=262144"
+    "memorysetup-temp-allocator-size-gi-baking-worker=262144"
+    "memorysetup-temp-allocator-size-gi-baking-worker=262144"
+    "memorysetup-temp-allocator-size-gi-baking-worker=262144"
+    "memorysetup-temp-allocator-size-gi-baking-worker=262144"
+    "memorysetup-temp-allocator-size-nav-mesh-worker=65536"
+    "memorysetup-temp-allocator-size-audio-worker=65536"
+    "memorysetup-temp-allocator-size-cloud-worker=32768"
+    "memorysetup-allocator-temp-initial-block-size-main=262144"
+    "memorysetup-allocator-temp-initial-block-size-worker=262144"
+    "memorysetup-temp-allocator-size-preload-manager=33554432"
+    "memorysetup-temp-allocator-size-gfx=262144"
+    "memorysetup-temp-allocator-size-background-worker=32768"
+    "memorysetup-temp-allocator-size-job-worker=262144"
+    "memorysetup-bucket-allocator-granularity=16"
+    "memorysetup-bucket-allocator-bucket-count=8"
+    "memorysetup-bucket-allocator-block-size=33554432"
+    "memorysetup-bucket-allocator-block-count=8"
+    "memorysetup-main-allocator-block-size=16777216"
+    "memorysetup-thread-allocator-block-size=16777216"
+    "memorysetup-main-allocator-mimalloc-enabled=0"
+    "memorysetup-gfx-main-allocator-block-size=16777216"
+    "memorysetup-gfx-thread-allocator-block-size=16777216"
+    "memorysetup-cache-allocator-block-size=4194304"
+    "memorysetup-typetree-allocator-block-size=2097152"
+    "memorysetup-profiler-bucket-allocator-granularity=16"
+    "memorysetup-profiler-bucket-allocator-bucket-count=8"
+    "memorysetup-profiler-bucket-allocator-block-size=33554432"
+    "memorysetup-profiler-bucket-allocator-block-count=8"
+    "memorysetup-profiler-allocator-block-size=16777216"
+    "memorysetup-profiler-editor-allocator-block-size=1048576"
+    "memorysetup-temp-allocator-size-main=16777216"
+    "memorysetup-job-temp-allocator-block-size=2097152"
+    "memorysetup-job-temp-allocator-block-size-background=1048576"
+    "memorysetup-job-temp-allocator-reduction-small-platforms=262144"
+Logging is directed to a specific file, skipping project log.Player connection [8495210240]  Target information:
+
+Player connection [8495210240]  * "[IP] 192.168.68.59 [Port] 55504 [Flags] 2 [Guid] 1630928232 [EditorId] 1630928232 [Version] 1048832 [Id] OSXEditor(0,Jasons-MacBook-Pro.local) [Debug] 1 [PackageName] OSXEditor [ProjectName] Editor"
+
+Player connection [8495210240] Host joined multi-casting on [225.0.0.222:54997]...
+Player connection [8495210240] Host joined alternative multi-casting on [225.0.0.222:34997]...
+Input System module state changed to: Initialized.
+[Physics::Module] Initialized fallback backend.
+[Physics::Module] Id: 0xdecafbad
+[Licensing::Client] Error: HandshakeResponse reported an error:
+	ResponseCode: 505
+	ResponseStatus: Unsupported protocol version '1.18.1'.
+[Licensing::Module] Error: Failed to handshake to channel: "LicenseClient-jlashmet"
+[Licensing::IpcConnector] LicenseClient-jlashmet channel disconnected successfully.
+[Licensing::IpcConnector] Channel LicenseClient-jlashmet-6000.5.6 doesn't exist
+Launching external process: /Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Helpers/UnityLicensingClient.app/Contents/MacOS/Unity.Licensing.Client
+[Licensing::Module] Successfully launched the LicensingClient (PId: 44427)
+[Package Manager] Connected to IPC stream "Upm-44379" after 0.1 seconds.
+[Licensing::Module] Licensing is not yet initialized.
+[Licensing::IpcConnector] Successfully connected to: "LicenseClient-jlashmet-6000.5.6" at "2026-08-24T17:57:34.612815Z"
+[Licensing::Client] Handshaking with LicensingClient:
+  Version:                 1.18.1+9fbee8e
+  Session Id:              a46afe9f7d8649198eaa5cf0da42ea4a
+  Correlation Id:          10123ad10900f67c8cb874211fc211b4
+  External correlation Id: 7744988570736438209
+  Machine Id:              +RIQ8xEkJcR9okhzEI7uTO1sGwM=
+[Licensing::Module] Successfully connected to LicensingClient on channel: "LicenseClient-jlashmet-6000.5.6" (connect: 0.11s, validation: 0.01s, handshake: 0.15s)
+[Licensing::IpcConnector] Successfully connected to: "LicenseClient-jlashmet-6000.5.6-notifications" at "2026-08-24T17:57:34.775654Z"
+[Licensing::Module] Connected to LicensingClient (PId: 44427, launch time: 0.00, total connection time: 0.27s)
+[Licensing::Module] Error: Access token is unavailable; failed to update
+[Licensing::Client] Successfully resolved entitlement details
+[Licensing::Module] License group:
+  Id: 3465641-UnityPersXXXX
+  Product: Unity Personal
+  Type: Assigned
+  Expiration: Unlimited
+[Licensing::Client] Successfully updated license, isAsync: True, time: 0.00
+[Licensing::Module] Licensing Background thread has ended after 0.45s
+[Licensing::Module] Licensing is initialized (took 0.27s).
+[Licensing::Client] Successfully resolved entitlement details
+Library Redirect Path: Library/
+[Physics::Module] Selected backend.
+[Physics::Module] Name: PhysX
+[Physics::Module] Id: 0xf2b8ea05
+[Physics::Module] SDK Version: 4.1.2
+[Physics::Module] Integration Version: 1.0.0
+[Physics::Module] Threading Mode: Multi-Threaded
+Initialize engine version: 6000.5.6f1 (0e0577a1a2ac)
+[Subsystems] Discovering subsystems at path /Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/UnitySubsystems
+[Subsystems] Discovering subsystems at path /Users/jlashmet/code/voxel/Assets
+GfxDevice: creating device client; kGfxThreadingModeNonThreaded
+ preferred device: Apple M4 Max (high power)
+Metal devices available: 1
+0: Apple M4 Max (high power)
+Using device Apple M4 Max (high power)
+Initializing Metal device caps: Apple M4 Max
+Mac GPU Family: 2
+Apple GPU Family: 9
+MSL Version: 3.0
+Has Float MSAA: 1
+Has Float Filtering: 1
+ReadWrite Texture Tier: 2
+Initialize mono
+Mono path[0] = '/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/Managed'
+Mono path[1] = '/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/BCLExtensions/runtime/netstandard2.1'
+Mono path[2] = '/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/MonoBleedingEdge/lib/mono/unityjit-macos'
+Mono config path = '/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/MonoBleedingEdge/etc'
+Using monoOptions --debugger-agent=transport=dt_socket,embedding=1,server=y,suspend=n,address=127.0.0.1:56379
+CodeReloadManager initialized
+ImportWorker Server TCP listen port: 0
+AcceleratorClientConnectionCallback - disconnected - :0
+Begin MonoManager ReloadAssembly
+Registering precompiled unity dll's ...
+Register platform support module: /Applications/Unity/Hub/Editor/6000.5.6f1/PlaybackEngines/WebGLSupport/UnityEditor.WebGL.Extensions.dll
+Register platform support module: /Applications/Unity/Hub/Editor/6000.5.6f1/PlaybackEngines/MacStandaloneSupport/UnityEditor.OSXStandalone.Extensions.dll
+Registered in 0.000305 seconds.
+Native extension for OSXStandalone target not found
+Native extension for WebGL target not found
+Package Manager log level set to [2]
+ScheduleIndexationOnStartup MainProcess:False IndexOnStartup:True
+Mono: successfully reloaded assembly
+- Finished resetting the current domain, in  0.175 seconds
+Domain Reload Profiling: 383ms
+	BeginReloadAssembly (53ms)
+		CreateAndSetChildDomain (20ms)
+	RebuildNativeTypeToScriptingClass (8ms)
+	initialDomainReloadingComplete (23ms)
+	LoadAllAssembliesAndSetupDomain (120ms)
+		LoadAssemblies (33ms)
+		AnalyzeDomain (91ms)
+			TypeCache.Refresh (90ms)
+				TypeCache.ScanAssembly (84ms)
+	FinalizeReload (176ms)
+		SetupLoadedEditorAssemblies (0ms)
+			BeforeProcessingInitializeOnLoad (40ms)
+			ProcessInitializeOnLoadAttributes (40ms)
+			ProcessInitializeOnLoadMethodAttributes (58ms)
+[Licensing::Client] Successfully resolved entitlement details
+Application.AssetDatabase Initial Refresh Start
+[Package Manager] Restoring resolved packages state from cache
+[Licensing::Client] Successfully resolved entitlement details
+[Package Manager] Registered 66 packages:
+  Packages from [https://packages.unity.com]:
+    com.unity.ai.navigation@2.0.14 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.ai.navigation@134dd6a3b97b)
+    com.unity.analytics@3.8.2 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.analytics@c9d14a6bdec6)
+    com.unity.burst@1.8.29 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.burst@6bb9aca3ef38)
+    com.unity.collab-proxy@2.13.3 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.collab-proxy@4f3be89e8675)
+    com.unity.ide.rider@3.0.38 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.ide.rider@1f60b3138684)
+    com.unity.ide.visualstudio@2.0.26 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.ide.visualstudio@a99d56dec63f)
+    com.unity.purchasing@5.4.2 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.purchasing@290a16a9a099)
+    com.unity.timeline@1.8.12 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.timeline@8cd8509afae5)
+    com.unity.xr.legacyinputhelpers@3.0.1 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.xr.legacyinputhelpers@3f62d634f63b)
+    com.unity.services.core@1.18.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.services.core@3464cb68d709)
+    com.unity.nuget.mono-cecil@1.11.6 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.nuget.mono-cecil@ecb9724e46ff)
+    com.unity.test-framework.performance@3.5.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.test-framework.performance@8b56083ec0f0)
+    com.unity.services.analytics@6.3.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.services.analytics@cde4e6cf92f9)
+    com.unity.nuget.newtonsoft-json@3.2.2 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.nuget.newtonsoft-json@4dfd81071c64)
+    com.unity.searcher@4.9.4 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.searcher@d45a78918735)
+  Built-in packages:
+    com.unity.2d.sprite@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.2d.sprite@053a968eab56)
+    com.unity.2d.tilemap@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.2d.tilemap@b959501fd678)
+    com.unity.collections@6.5.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.collections@a43cabe808ca)
+    com.unity.mathematics@1.4.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.mathematics@981956d94fb6)
+    com.unity.multiplayer.center@1.0.1 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.multiplayer.center@b860850997d0)
+    com.unity.render-pipelines.universal@17.5.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.render-pipelines.universal@73b4c4ff130e)
+    com.unity.test-framework@1.7.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.test-framework@1405238725ab)
+    com.unity.transport@6.5.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.transport@0c07c94c2861)
+    com.unity.ugui@2.5.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.ugui@67707a67a4ab)
+    com.unity.modules.accessibility@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.accessibility)
+    com.unity.modules.adaptiveperformance@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.adaptiveperformance)
+    com.unity.modules.ai@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.ai)
+    com.unity.modules.androidjni@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.androidjni)
+    com.unity.modules.animation@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.animation)
+    com.unity.modules.assetbundle@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.assetbundle)
+    com.unity.modules.audio@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.audio)
+    com.unity.modules.cloth@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.cloth)
+    com.unity.modules.director@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.director)
+    com.unity.modules.imageconversion@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.imageconversion)
+    com.unity.modules.imgui@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.imgui)
+    com.unity.modules.jsonserialize@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.jsonserialize)
+    com.unity.modules.particlesystem@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.particlesystem)
+    com.unity.modules.physics@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.physics)
+    com.unity.modules.physics2d@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.physics2d)
+    com.unity.modules.physicscore2d@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.physicscore2d)
+    com.unity.modules.screencapture@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.screencapture)
+    com.unity.modules.terrain@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.terrain)
+    com.unity.modules.terrainphysics@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.terrainphysics)
+    com.unity.modules.tilemap@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.tilemap)
+    com.unity.modules.ui@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.ui)
+    com.unity.modules.uielements@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.uielements)
+    com.unity.modules.umbra@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.umbra)
+    com.unity.modules.unityanalytics@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.unityanalytics)
+    com.unity.modules.unitywebrequest@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.unitywebrequest)
+    com.unity.modules.unitywebrequestassetbundle@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.unitywebrequestassetbundle)
+    com.unity.modules.unitywebrequestaudio@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.unitywebrequestaudio)
+    com.unity.modules.unitywebrequesttexture@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.unitywebrequesttexture)
+    com.unity.modules.unitywebrequestwww@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.unitywebrequestwww)
+    com.unity.modules.vectorgraphics@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.vectorgraphics)
+    com.unity.modules.vehicles@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.vehicles)
+    com.unity.modules.video@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.video)
+    com.unity.modules.wind@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.wind)
+    com.unity.modules.xr@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.xr)
+    com.unity.modules.subsystems@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.subsystems)
+    com.unity.modules.hierarchycore@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.hierarchycore)
+    com.unity.ext.nunit@2.1.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.ext.nunit@44f7d31723bd)
+    com.unity.render-pipelines.core@17.5.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.render-pipelines.core@645717f21c5f)
+    com.unity.shadergraph@17.5.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.shadergraph@8d7376ec43ee)
+    com.unity.render-pipelines.universal-config@17.5.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.render-pipelines.universal-config@fdda01c80fe3)
+  Embedded packages:
+    com.mountingforce.worldgen@file:/Users/jlashmet/code/voxel/Packages/com.mountingforce.worldgen (location: /Users/jlashmet/code/voxel/Packages/com.mountingforce.worldgen)
+  Git packages:
+    com.coplaydev.unity-mcp@https://github.com/CoplayDev/unity-mcp.git?path=/MCPForUnity#main (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.coplaydev.unity-mcp@8bd91ce7bd3a)
+[Subsystems] No new subsystems found in resolved package list.
+[Package Manager] Done registering packages in 0.01 seconds
+[ScriptCompilation] Requested script compilation because: AssetDatabase observed changes in script compilation related files
+Assembly for Assembly Definition File 'Assets/VoxelEngine/StructuralIntegrity/Api/VoxelEngine.StructuralIntegrity.Api.asmdef' will not be compiled, because it has no scripts associated with it.
+UnityEngine.Debug:ExtractStackTraceNoAlloc (byte*,int,string)
+UnityEngine.StackTraceUtility:ExtractStackTrace () (at /Users/bokken/build/output/unity/unity/Runtime/Export/Scripting/StackTrace.cs:35)
+UnityEngine.DebugLogHandler:Internal_Log (UnityEngine.LogType,UnityEngine.LogOption,string,UnityEngine.Object)
+UnityEngine.DebugLogHandler:LogFormat (UnityEngine.LogType,UnityEngine.Object,string,object[])
+UnityEngine.Logger:LogFormat (UnityEngine.LogType,string,object[])
+UnityEngine.Debug:LogWarningFormat (string,object[])
+UnityEditor.Scripting.ScriptCompilation.EditorCompilation:WarnIfThereAreAssembliesWithoutAnyScripts (UnityEditor.Scripting.ScriptCompilation.ScriptAssemblySettings,UnityEditor.Scripting.ScriptCompilation.ScriptAssembly[]) (at /Users/bokken/build/output/unity/unity/Editor/Mono/Scripting/ScriptCompilation/EditorCompilation.cs:814)
+UnityEditor.Scripting.ScriptCompilation.EditorCompilation:CompileScriptsWithSettings (UnityEditor.Scripting.ScriptCompilation.ScriptAssemblySettings) (at /Users/bokken/build/output/unity/unity/Editor/Mono/Scripting/ScriptCompilation/EditorCompilation.cs:871)
+UnityEditor.Scripting.ScriptCompilation.EditorCompilation:CompileScripts (UnityEditor.Scripting.ScriptCompilation.EditorScriptCompilationOptions,UnityEditor.BuildTarget,int,string[]) (at /Users/bokken/build/output/unity/unity/Editor/Mono/Scripting/ScriptCompilation/EditorCompilation.cs:748)
+UnityEditor.Scripting.ScriptCompilation.EditorCompilationInterface/<>c__DisplayClass21_0:<CompileScripts>b__0 () (at /Users/bokken/build/output/unity/unity/Editor/Mono/Scripting/ScriptCompilation/EditorCompilationInterface.cs:187)
+UnityEditor.Scripting.ScriptCompilation.EditorCompilationInterface:EmitExceptionAsError<UnityEditor.Scripting.ScriptCompilation.EditorCompilation/CompileStatus> (System.Func`1<UnityEditor.Scripting.ScriptCompilation.EditorCompilation/CompileStatus>,UnityEditor.Scripting.ScriptCompilation.EditorCompilation/CompileStatus) (at /Users/bokken/build/output/unity/unity/Editor/Mono/Scripting/ScriptCompilation/EditorCompilationInterface.cs:52)
+UnityEditor.Scripting.ScriptCompilation.EditorCompilationInterface:CompileScripts (UnityEditor.Scripting.ScriptCompilation.EditorScriptCompilationOptions,UnityEditor.BuildTarget,int,string[]) (at /Users/bokken/build/output/unity/unity/Editor/Mono/Scripting/ScriptCompilation/EditorCompilationInterface.cs:187)
+
+(Filename: /Users/bokken/build/output/unity/unity/Editor/Mono/Scripting/ScriptCompilation/EditorCompilation.cs Line: 814)
+
+Assembly for Assembly Definition File 'Assets/VoxelEngine/Net/Api/VoxelEngine.Net.Api.asmdef' will not be compiled, because it has no scripts associated with it.
+UnityEngine.Debug:ExtractStackTraceNoAlloc (byte*,int,string)
+UnityEngine.StackTraceUtility:ExtractStackTrace () (at /Users/bokken/build/output/unity/unity/Runtime/Export/Scripting/StackTrace.cs:35)
+UnityEngine.DebugLogHandler:Internal_Log (UnityEngine.LogType,UnityEngine.LogOption,string,UnityEngine.Object)
+UnityEngine.DebugLogHandler:LogFormat (UnityEngine.LogType,UnityEngine.Object,string,object[])
+UnityEngine.Logger:LogFormat (UnityEngine.LogType,string,object[])
+UnityEngine.Debug:LogWarningFormat (string,object[])
+UnityEditor.Scripting.ScriptCompilation.EditorCompilation:WarnIfThereAreAssembliesWithoutAnyScripts (UnityEditor.Scripting.ScriptCompilation.ScriptAssemblySettings,UnityEditor.Scripting.ScriptCompilation.ScriptAssembly[]) (at /Users/bokken/build/output/unity/unity/Editor/Mono/Scripting/ScriptCompilation/EditorCompilation.cs:814)
+UnityEditor.Scripting.ScriptCompilation.EditorCompilation:CompileScriptsWithSettings (UnityEditor.Scripting.ScriptCompilation.ScriptAssemblySettings) (at /Users/bokken/build/output/unity/unity/Editor/Mono/Scripting/ScriptCompilation/EditorCompilation.cs:871)
+UnityEditor.Scripting.ScriptCompilation.EditorCompilation:CompileScripts (UnityEditor.Scripting.ScriptCompilation.EditorScriptCompilationOptions,UnityEditor.BuildTarget,int,string[]) (at /Users/bokken/build/output/unity/unity/Editor/Mono/Scripting/ScriptCompilation/EditorCompilation.cs:748)
+UnityEditor.Scripting.ScriptCompilation.EditorCompilationInterface/<>c__DisplayClass21_0:<CompileScripts>b__0 () (at /Users/bokken/build/output/unity/unity/Editor/Mono/Scripting/ScriptCompilation/EditorCompilationInterface.cs:187)
+UnityEditor.Scripting.ScriptCompilation.EditorCompilationInterface:EmitExceptionAsError<UnityEditor.Scripting.ScriptCompilation.EditorCompilation/CompileStatus> (System.Func`1<UnityEditor.Scripting.ScriptCompilation.EditorCompilation/CompileStatus>,UnityEditor.Scripting.ScriptCompilation.EditorCompilation/CompileStatus) (at /Users/bokken/build/output/unity/unity/Editor/Mono/Scripting/ScriptCompilation/EditorCompilationInterface.cs:52)
+UnityEditor.Scripting.ScriptCompilation.EditorCompilationInterface:CompileScripts (UnityEditor.Scripting.ScriptCompilation.EditorScriptCompilationOptions,UnityEditor.BuildTarget,int,string[]) (at /Users/bokken/build/output/unity/unity/Editor/Mono/Scripting/ScriptCompilation/EditorCompilationInterface.cs:187)
+
+(Filename: /Users/bokken/build/output/unity/unity/Editor/Mono/Scripting/ScriptCompilation/EditorCompilation.cs Line: 814)
+
+info: Microsoft.Hosting.Lifetime[14]
+      Now listening on: http://unix:/tmp/ilpp.sock-c3b432dd611250ca5bcc2f17f61b6832
+info: Microsoft.Hosting.Lifetime[0]
+      Application started. Press Ctrl+C to shut down.
+info: Microsoft.Hosting.Lifetime[0]
+      Hosting environment: Production
+info: Microsoft.Hosting.Lifetime[0]
+      Content root path: /Users/jlashmet/code/voxel
+info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+      Request starting HTTP/2 POST http://ilpp/UnityILPP.PostProcessing/Ping - application/grpc -
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[0]
+      Executing endpoint 'gRPC - /UnityILPP.PostProcessing/Ping'
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[1]
+      Executed endpoint 'gRPC - /UnityILPP.PostProcessing/Ping'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+      Request finished HTTP/2 POST http://ilpp/UnityILPP.PostProcessing/Ping - 200 - application/grpc 12.9535ms
+Starting: /Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/BuildPipeline/bee_backend --ipc --defer-dag-verification --dagfile="Library/Bee/200b0aE.dag" --continue-on-failure --profile="Library/Bee/backend1.traceevents" ScriptAssemblies
+WorkingDir: /Users/jlashmet/code/voxel
+DisplayProgressbar: Compiling Scripts
+info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+      Request starting HTTP/2 POST http://ilpp/UnityILPP.PostProcessing/ConfigurePostProcessors - application/grpc -
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[0]
+      Executing endpoint 'gRPC - /UnityILPP.PostProcessing/ConfigurePostProcessors'
+warn: Unity.ILPP.Runner.PostProcessingAssemblyLoadContext[0]
+      Assembly system.runtime.interopservices.windowsruntime has duplicate hint path. Ignoring "/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/Facades/System.Runtime.InteropServices.WindowsRuntime.dll" in favor of "/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/Extensions/2.0.0/System.Runtime.InteropServices.WindowsRuntime.dll"
+warn: Unity.ILPP.Runner.PostProcessingAssemblyLoadContext[0]
+      Assembly system.componentmodel.composition has duplicate hint path. Ignoring "/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/System.ComponentModel.Composition.dll" in favor of "/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netfx/System.ComponentModel.Composition.dll"
+info: Unity.ILPP.Runner.PostProcessingAssemblyLoadContext[0]
+      Resolved Unity.Burst.Cecil, Version=0.11.6.0, Culture=neutral, PublicKeyToken=50cebf1cceb9d05e with Library/PackageCache/com.unity.burst@6bb9aca3ef38/Unity.Burst.CodeGen/Unity.Burst.Cecil.dll
+info: Unity.ILPP.Runner.PostProcessingAssemblyLoadContext[0]
+      Resolved Mono.Cecil, Version=0.11.5.0, Culture=neutral, PublicKeyToken=50cebf1cceb9d05e with Library/PackageCache/com.unity.nuget.mono-cecil@ecb9724e46ff/Mono.Cecil.dll
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[1]
+      Executed endpoint 'gRPC - /UnityILPP.PostProcessing/ConfigurePostProcessors'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+      Request finished HTTP/2 POST http://ilpp/UnityILPP.PostProcessing/ConfigurePostProcessors - 200 - application/grpc 12.5629ms
+info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+      Request starting HTTP/2 POST http://ilpp/UnityILPP.PostProcessing/PostProcessAssembly - application/grpc -
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[0]
+      Executing endpoint 'gRPC - /UnityILPP.PostProcessing/PostProcessAssembly'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+      Request starting HTTP/2 POST http://ilpp/UnityILPP.PostProcessing/PostProcessAssembly - application/grpc -
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[0]
+      Executing endpoint 'gRPC - /UnityILPP.PostProcessing/PostProcessAssembly'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+      Request starting HTTP/2 POST http://ilpp/UnityILPP.PostProcessing/PostProcessAssembly - application/grpc -
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[0]
+      Executing endpoint 'gRPC - /UnityILPP.PostProcessing/PostProcessAssembly'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+      Request starting HTTP/2 POST http://ilpp/UnityILPP.PostProcessing/PostProcessAssembly - application/grpc -
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[0]
+      Executing endpoint 'gRPC - /UnityILPP.PostProcessing/PostProcessAssembly'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+      Request starting HTTP/2 POST http://ilpp/UnityILPP.PostProcessing/PostProcessAssembly - application/grpc -
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[0]
+      Executing endpoint 'gRPC - /UnityILPP.PostProcessing/PostProcessAssembly'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+      Request starting HTTP/2 POST http://ilpp/UnityILPP.PostProcessing/PostProcessAssembly - application/grpc -
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[0]
+      Executing endpoint 'gRPC - /UnityILPP.PostProcessing/PostProcessAssembly'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+      Request starting HTTP/2 POST http://ilpp/UnityILPP.PostProcessing/PostProcessAssembly - application/grpc -
+info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+      Request starting HTTP/2 POST http://ilpp/UnityILPP.PostProcessing/PostProcessAssembly - application/grpc -
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[0]
+      Executing endpoint 'gRPC - /UnityILPP.PostProcessing/PostProcessAssembly'
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[0]
+      Executing endpoint 'gRPC - /UnityILPP.PostProcessing/PostProcessAssembly'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+      Request starting HTTP/2 POST http://ilpp/UnityILPP.PostProcessing/PostProcessAssembly - application/grpc -
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[0]
+      Executing endpoint 'gRPC - /UnityILPP.PostProcessing/PostProcessAssembly'
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      Processing assembly Library/Bee/artifacts/200b0aE.dag/Game.Composition.Showcase.dll, with 136 defines and 324 references
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      Processing assembly Library/Bee/artifacts/200b0aE.dag/VoxelEngine.Tests.Parity.dll, with 136 defines and 297 references
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      processors: Unity.Jobs.CodeGen.JobsILPostProcessor, zzzUnity.Burst.CodeGen.BurstILPostProcessor
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      processors: Unity.Jobs.CodeGen.JobsILPostProcessor, zzzUnity.Burst.CodeGen.BurstILPostProcessor
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      Processing assembly Library/Bee/artifacts/200b0aE.dag/VoxelEngine.Tests.Features.dll, with 136 defines and 292 references
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      processors: Unity.Jobs.CodeGen.JobsILPostProcessor, zzzUnity.Burst.CodeGen.BurstILPostProcessor
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      Processing assembly Library/Bee/artifacts/200b0aE.dag/Game.Structures.Runtime.dll, with 136 defines and 304 references
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      running Unity.Jobs.CodeGen.JobsILPostProcessor
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      processors: Unity.Jobs.CodeGen.JobsILPostProcessor, zzzUnity.Burst.CodeGen.BurstILPostProcessor
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      running Unity.Jobs.CodeGen.JobsILPostProcessor
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      running Unity.Jobs.CodeGen.JobsILPostProcessor
+info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+      Request starting HTTP/2 POST http://ilpp/UnityILPP.PostProcessing/PostProcessAssembly - application/grpc -
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[0]
+      Executing endpoint 'gRPC - /UnityILPP.PostProcessing/PostProcessAssembly'
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      Processing assembly Library/Bee/artifacts/200b0aE.dag/MountingForce.WorldGen.Voxel.dll, with 136 defines and 308 references
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      processors: Unity.Jobs.CodeGen.JobsILPostProcessor, zzzUnity.Burst.CodeGen.BurstILPostProcessor
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      running Unity.Jobs.CodeGen.JobsILPostProcessor
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      running Unity.Jobs.CodeGen.JobsILPostProcessor
+info: Unity.ILPP.Runner.PostProcessingAssemblyLoadContext[0]
+      Resolved Unity.Collections, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null with Library/Bee/artifacts/200b0aE.dag/Unity.Collections.dll
+info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+      Request starting HTTP/2 POST http://ilpp/UnityILPP.PostProcessing/PostProcessAssembly - application/grpc -
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[0]
+      Executing endpoint 'gRPC - /UnityILPP.PostProcessing/PostProcessAssembly'
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      Processing assembly Library/Bee/artifacts/200b0aE.dag/Game.Structures.Tests.dll, with 134 defines and 320 references
+info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+      Request starting HTTP/2 POST http://ilpp/UnityILPP.PostProcessing/PostProcessAssembly - application/grpc -
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      processors: Unity.Jobs.CodeGen.JobsILPostProcessor, zzzUnity.Burst.CodeGen.BurstILPostProcessor
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[0]
+      Executing endpoint 'gRPC - /UnityILPP.PostProcessing/PostProcessAssembly'
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      running Unity.Jobs.CodeGen.JobsILPostProcessor
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      Processing assembly Library/Bee/artifacts/200b0aE.dag/Game.Composition.WorldObjects.Runtime.dll, with 136 defines and 300 references
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      processors: Unity.Jobs.CodeGen.JobsILPostProcessor, zzzUnity.Burst.CodeGen.BurstILPostProcessor
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      running Unity.Jobs.CodeGen.JobsILPostProcessor
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      running zzzUnity.Burst.CodeGen.BurstILPostProcessor
+info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+      Request starting HTTP/2 POST http://ilpp/UnityILPP.PostProcessing/PostProcessAssembly - application/grpc -
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[0]
+      Executing endpoint 'gRPC - /UnityILPP.PostProcessing/PostProcessAssembly'
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      Processing assembly Library/Bee/artifacts/200b0aE.dag/Assembly-CSharp.dll, with 136 defines and 366 references
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      processors: Unity.Jobs.CodeGen.JobsILPostProcessor, zzzUnity.Burst.CodeGen.BurstILPostProcessor
+info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+      Request starting HTTP/2 POST http://ilpp/UnityILPP.PostProcessing/PostProcessAssembly - application/grpc -
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[0]
+      Executing endpoint 'gRPC - /UnityILPP.PostProcessing/PostProcessAssembly'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+      Request starting HTTP/2 POST http://ilpp/UnityILPP.PostProcessing/PostProcessAssembly - application/grpc -
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[0]
+      Executing endpoint 'gRPC - /UnityILPP.PostProcessing/PostProcessAssembly'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+      Request starting HTTP/2 POST http://ilpp/UnityILPP.PostProcessing/PostProcessAssembly - application/grpc -
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[0]
+      Executing endpoint 'gRPC - /UnityILPP.PostProcessing/PostProcessAssembly'
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      running Unity.Jobs.CodeGen.JobsILPostProcessor
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      Processing assembly Library/Bee/artifacts/200b0aE.dag/VoxelEngine.Structures.Runtime.dll, with 136 defines and 304 references
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      processors: Unity.Jobs.CodeGen.JobsILPostProcessor, zzzUnity.Burst.CodeGen.BurstILPostProcessor
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      running Unity.Jobs.CodeGen.JobsILPostProcessor
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      Processing assembly Library/Bee/artifacts/200b0aE.dag/Game.Composition.CaveWorldBuilder.dll, with 136 defines and 303 references
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      processors: Unity.Jobs.CodeGen.JobsILPostProcessor, zzzUnity.Burst.CodeGen.BurstILPostProcessor
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      running Unity.Jobs.CodeGen.JobsILPostProcessor
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      running zzzUnity.Burst.CodeGen.BurstILPostProcessor
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      Processing assembly Library/Bee/artifacts/200b0aE.dag/Game.Composition.Materials.Editor.dll, with 134 defines and 307 references
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      processors: Unity.Jobs.CodeGen.JobsILPostProcessor, zzzUnity.Burst.CodeGen.BurstILPostProcessor
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[1]
+      Executed endpoint 'gRPC - /UnityILPP.PostProcessing/PostProcessAssembly'
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      running Unity.Jobs.CodeGen.JobsILPostProcessor
+info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+      Request finished HTTP/2 POST http://ilpp/UnityILPP.PostProcessing/PostProcessAssembly - 200 - application/grpc 14.2172ms
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      running zzzUnity.Burst.CodeGen.BurstILPostProcessor
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[1]
+      Executed endpoint 'gRPC - /UnityILPP.PostProcessing/PostProcessAssembly'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+      Request finished HTTP/2 POST http://ilpp/UnityILPP.PostProcessing/PostProcessAssembly - 200 - application/grpc 12.4745ms
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      Processing assembly Library/Bee/artifacts/200b0aE.dag/VoxelEngine.Composition.dll, with 136 defines and 318 references
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      processors: Unity.Jobs.CodeGen.JobsILPostProcessor, zzzUnity.Burst.CodeGen.BurstILPostProcessor
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      Processing assembly Library/Bee/artifacts/200b0aE.dag/VoxelEngine.Tests.PlayMode.dll, with 136 defines and 324 references
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      processors: Unity.Jobs.CodeGen.JobsILPostProcessor, zzzUnity.Burst.CodeGen.BurstILPostProcessor
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      running Unity.Jobs.CodeGen.JobsILPostProcessor
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[1]
+      Executed endpoint 'gRPC - /UnityILPP.PostProcessing/PostProcessAssembly'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+      Request finished HTTP/2 POST http://ilpp/UnityILPP.PostProcessing/PostProcessAssembly - 200 - application/grpc 1.3943ms
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      running Unity.Jobs.CodeGen.JobsILPostProcessor
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      Processing assembly Library/Bee/artifacts/200b0aE.dag/Game.Kentridge.PlayableSlice.dll, with 136 defines and 323 references
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      processors: Unity.Jobs.CodeGen.JobsILPostProcessor, zzzUnity.Burst.CodeGen.BurstILPostProcessor
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      running Unity.Jobs.CodeGen.JobsILPostProcessor
+info: Unity.ILPP.Runner.PostProcessingAssemblyLoadContext[0]
+      Resolved UnityEditor.CoreModule, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null with /Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/Managed/UnityEngine/UnityEditor.CoreModule.dll
+info: Unity.ILPP.Runner.PostProcessingAssemblyLoadContext[0]
+      Resolved UnityEngine.CoreModule, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null with /Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/Managed/UnityEngine/UnityEngine.CoreModule.dll
+info: Unity.ILPP.Runner.PostProcessingAssemblyLoadContext[0]
+      Resolved Unity.Scripting, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null with /Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/Managed/UnityEngine/Unity.Scripting.dll
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      running zzzUnity.Burst.CodeGen.BurstILPostProcessor
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      running zzzUnity.Burst.CodeGen.BurstILPostProcessor
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      running zzzUnity.Burst.CodeGen.BurstILPostProcessor
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[1]
+      Executed endpoint 'gRPC - /UnityILPP.PostProcessing/PostProcessAssembly'
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[1]
+      Executed endpoint 'gRPC - /UnityILPP.PostProcessing/PostProcessAssembly'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+      Request finished HTTP/2 POST http://ilpp/UnityILPP.PostProcessing/PostProcessAssembly - 200 - application/grpc 143.0854ms
+info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+      Request finished HTTP/2 POST http://ilpp/UnityILPP.PostProcessing/PostProcessAssembly - 200 - application/grpc 129.3955ms
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      Processing assembly Library/Bee/artifacts/200b0aE.dag/Game.Composition.Materials.dll, with 136 defines and 303 references
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      processors: Unity.Jobs.CodeGen.JobsILPostProcessor, zzzUnity.Burst.CodeGen.BurstILPostProcessor
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      running Unity.Jobs.CodeGen.JobsILPostProcessor
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      running zzzUnity.Burst.CodeGen.BurstILPostProcessor
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      Processing assembly Library/Bee/artifacts/200b0aE.dag/VoxelEngine.Tests.EditMode.dll, with 134 defines and 340 references
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      processors: Unity.Jobs.CodeGen.JobsILPostProcessor, zzzUnity.Burst.CodeGen.BurstILPostProcessor
+info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+      Request starting HTTP/2 POST http://ilpp/UnityILPP.PostProcessing/PostProcessAssembly - application/grpc -
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[0]
+      Executing endpoint 'gRPC - /UnityILPP.PostProcessing/PostProcessAssembly'
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[1]
+      Executed endpoint 'gRPC - /UnityILPP.PostProcessing/PostProcessAssembly'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+      Request starting HTTP/2 POST http://ilpp/UnityILPP.PostProcessing/PostProcessAssembly - application/grpc -
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[0]
+      Executing endpoint 'gRPC - /UnityILPP.PostProcessing/PostProcessAssembly'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+      Request finished HTTP/2 POST http://ilpp/UnityILPP.PostProcessing/PostProcessAssembly - 200 - application/grpc 125.0982ms
+info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+      Request starting HTTP/2 POST http://ilpp/UnityILPP.PostProcessing/PostProcessAssembly - application/grpc -
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[0]
+      Executing endpoint 'gRPC - /UnityILPP.PostProcessing/PostProcessAssembly'
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      running zzzUnity.Burst.CodeGen.BurstILPostProcessor
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      running Unity.Jobs.CodeGen.JobsILPostProcessor
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      running zzzUnity.Burst.CodeGen.BurstILPostProcessor
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      running zzzUnity.Burst.CodeGen.BurstILPostProcessor
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[1]
+      Executed endpoint 'gRPC - /UnityILPP.PostProcessing/PostProcessAssembly'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+      Request finished HTTP/2 POST http://ilpp/UnityILPP.PostProcessing/PostProcessAssembly - 200 - application/grpc 158.8780ms
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      running zzzUnity.Burst.CodeGen.BurstILPostProcessor
+info: Unity.ILPP.Runner.PostProcessingAssemblyLoadContext[0]
+      Resolved Mono.Cecil.Rocks, Version=0.11.5.0, Culture=neutral, PublicKeyToken=50cebf1cceb9d05e with Library/PackageCache/com.unity.nuget.mono-cecil@ecb9724e46ff/Mono.Cecil.Rocks.dll
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      running zzzUnity.Burst.CodeGen.BurstILPostProcessor
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      running zzzUnity.Burst.CodeGen.BurstILPostProcessor
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      running zzzUnity.Burst.CodeGen.BurstILPostProcessor
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[1]
+      Executed endpoint 'gRPC - /UnityILPP.PostProcessing/PostProcessAssembly'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+      Request finished HTTP/2 POST http://ilpp/UnityILPP.PostProcessing/PostProcessAssembly - 200 - application/grpc 156.8867ms
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      Processing assembly Library/Bee/artifacts/200b0aE.dag/VoxelEngine.Showcase.dll, with 136 defines and 317 references
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      processors: Unity.Jobs.CodeGen.JobsILPostProcessor, zzzUnity.Burst.CodeGen.BurstILPostProcessor
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      running Unity.Jobs.CodeGen.JobsILPostProcessor
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      running zzzUnity.Burst.CodeGen.BurstILPostProcessor
+info: Unity.ILPP.Runner.PostProcessingAssemblyLoadContext[0]
+      Resolved Unity.Burst.Cecil.Rocks, Version=0.11.6.0, Culture=neutral, PublicKeyToken=50cebf1cceb9d05e with Library/PackageCache/com.unity.burst@6bb9aca3ef38/Unity.Burst.CodeGen/Unity.Burst.Cecil.Rocks.dll
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[1]
+      Executed endpoint 'gRPC - /UnityILPP.PostProcessing/PostProcessAssembly'
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[1]
+      Executed endpoint 'gRPC - /UnityILPP.PostProcessing/PostProcessAssembly'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+      Request finished HTTP/2 POST http://ilpp/UnityILPP.PostProcessing/PostProcessAssembly - 200 - application/grpc 251.9254ms
+info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+      Request finished HTTP/2 POST http://ilpp/UnityILPP.PostProcessing/PostProcessAssembly - 200 - application/grpc 262.9630ms
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[1]
+      Executed endpoint 'gRPC - /UnityILPP.PostProcessing/PostProcessAssembly'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+      Request finished HTTP/2 POST http://ilpp/UnityILPP.PostProcessing/PostProcessAssembly - 200 - application/grpc 266.1401ms
+info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+      Request starting HTTP/2 POST http://ilpp/UnityILPP.PostProcessing/PostProcessAssembly - application/grpc -
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[0]
+      Executing endpoint 'gRPC - /UnityILPP.PostProcessing/PostProcessAssembly'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+      Request starting HTTP/2 POST http://ilpp/UnityILPP.PostProcessing/PostProcessAssembly - application/grpc -
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      Processing assembly Library/Bee/artifacts/200b0aE.dag/VoxelEngine.CI.PlayMode.dll, with 136 defines and 291 references
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      processors: Unity.Jobs.CodeGen.JobsILPostProcessor, zzzUnity.Burst.CodeGen.BurstILPostProcessor
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[0]
+      Executing endpoint 'gRPC - /UnityILPP.PostProcessing/PostProcessAssembly'
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      running Unity.Jobs.CodeGen.JobsILPostProcessor
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      running zzzUnity.Burst.CodeGen.BurstILPostProcessor
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[1]
+      Executed endpoint 'gRPC - /UnityILPP.PostProcessing/PostProcessAssembly'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+      Request finished HTTP/2 POST http://ilpp/UnityILPP.PostProcessing/PostProcessAssembly - 200 - application/grpc 122.8602ms
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      Processing assembly Library/Bee/artifacts/200b0aE.dag/Assembly-CSharp-Editor.dll, with 134 defines and 386 references
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      processors: Unity.Jobs.CodeGen.JobsILPostProcessor, zzzUnity.Burst.CodeGen.BurstILPostProcessor
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      running Unity.Jobs.CodeGen.JobsILPostProcessor
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      Processing assembly Library/Bee/artifacts/200b0aE.dag/VoxelEngine.CI.Editor.dll, with 134 defines and 321 references
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      processors: Unity.Jobs.CodeGen.JobsILPostProcessor, zzzUnity.Burst.CodeGen.BurstILPostProcessor
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      running Unity.Jobs.CodeGen.JobsILPostProcessor
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[1]
+      Executed endpoint 'gRPC - /UnityILPP.PostProcessing/PostProcessAssembly'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+      Request finished HTTP/2 POST http://ilpp/UnityILPP.PostProcessing/PostProcessAssembly - 200 - application/grpc 276.5454ms
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      Processing assembly Library/Bee/artifacts/200b0aE.dag/VoxelEngine.Showcase.Editor.dll, with 134 defines and 313 references
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      processors: Unity.Jobs.CodeGen.JobsILPostProcessor, zzzUnity.Burst.CodeGen.BurstILPostProcessor
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      running Unity.Jobs.CodeGen.JobsILPostProcessor
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      running zzzUnity.Burst.CodeGen.BurstILPostProcessor
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[1]
+      Executed endpoint 'gRPC - /UnityILPP.PostProcessing/PostProcessAssembly'
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[1]
+      Executed endpoint 'gRPC - /UnityILPP.PostProcessing/PostProcessAssembly'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+      Request finished HTTP/2 POST http://ilpp/UnityILPP.PostProcessing/PostProcessAssembly - 200 - application/grpc 277.1411ms
+info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+      Request finished HTTP/2 POST http://ilpp/UnityILPP.PostProcessing/PostProcessAssembly - 200 - application/grpc 22.6922ms
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      running zzzUnity.Burst.CodeGen.BurstILPostProcessor
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[1]
+      Executed endpoint 'gRPC - /UnityILPP.PostProcessing/PostProcessAssembly'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+      Request finished HTTP/2 POST http://ilpp/UnityILPP.PostProcessing/PostProcessAssembly - 200 - application/grpc 157.5122ms
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      running zzzUnity.Burst.CodeGen.BurstILPostProcessor
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[1]
+      Executed endpoint 'gRPC - /UnityILPP.PostProcessing/PostProcessAssembly'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+      Request finished HTTP/2 POST http://ilpp/UnityILPP.PostProcessing/PostProcessAssembly - 200 - application/grpc 40.0736ms
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[1]
+      Executed endpoint 'gRPC - /UnityILPP.PostProcessing/PostProcessAssembly'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+      Request finished HTTP/2 POST http://ilpp/UnityILPP.PostProcessing/PostProcessAssembly - 200 - application/grpc 295.3063ms
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      running zzzUnity.Burst.CodeGen.BurstILPostProcessor
+info: Unity.ILPP.Runner.PostProcessingPipeline[0]
+      running zzzUnity.Burst.CodeGen.BurstILPostProcessor
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[1]
+      Executed endpoint 'gRPC - /UnityILPP.PostProcessing/PostProcessAssembly'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+      Request finished HTTP/2 POST http://ilpp/UnityILPP.PostProcessing/PostProcessAssembly - 200 - application/grpc 310.4314ms
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[1]
+      Executed endpoint 'gRPC - /UnityILPP.PostProcessing/PostProcessAssembly'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+      Request finished HTTP/2 POST http://ilpp/UnityILPP.PostProcessing/PostProcessAssembly - 200 - application/grpc 356.9821ms
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[1]
+      Executed endpoint 'gRPC - /UnityILPP.PostProcessing/PostProcessAssembly'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+      Request finished HTTP/2 POST http://ilpp/UnityILPP.PostProcessing/PostProcessAssembly - 200 - application/grpc 223.6621ms
+ExitCode: 0 Duration: 1s690ms
+[1314/1852  0s] ILPP-Configuration Library/ilpp-configuration.nevergeneratedoutput
+[1768/1852  1s] Csc Library/Bee/artifacts/200b0aE.dag/VoxelEngine.Structures.Runtime.dll (+2 others)
+[1789/1852  0s] ILPostProcess Library/Bee/artifacts/200b0aE.dag/post-processed/Game.Composition.Materials.Editor.dll (+pdb)
+Processing assembly Library/Bee/artifacts/200b0aE.dag/Game.Composition.Materials.Editor.dll, with 134 defines and 307 references
+processors: Unity.Jobs.CodeGen.JobsILPostProcessor, zzzUnity.Burst.CodeGen.BurstILPostProcessor
+running Unity.Jobs.CodeGen.JobsILPostProcessor
+running zzzUnity.Burst.CodeGen.BurstILPostProcessor
+[1790/1852  0s] ILPostProcess Library/Bee/artifacts/200b0aE.dag/post-processed/Game.Composition.WorldObjects.Runtime.dll (+pdb)
+Processing assembly Library/Bee/artifacts/200b0aE.dag/Game.Composition.WorldObjects.Runtime.dll, with 136 defines and 300 references
+processors: Unity.Jobs.CodeGen.JobsILPostProcessor, zzzUnity.Burst.CodeGen.BurstILPostProcessor
+running Unity.Jobs.CodeGen.JobsILPostProcessor
+running zzzUnity.Burst.CodeGen.BurstILPostProcessor
+[1791/1852  0s] ILPostProcess Library/Bee/artifacts/200b0aE.dag/post-processed/Game.Composition.CaveWorldBuilder.dll (+pdb)
+Processing assembly Library/Bee/artifacts/200b0aE.dag/Game.Composition.CaveWorldBuilder.dll, with 136 defines and 303 references
+processors: Unity.Jobs.CodeGen.JobsILPostProcessor, zzzUnity.Burst.CodeGen.BurstILPostProcessor
+running Unity.Jobs.CodeGen.JobsILPostProcessor
+running zzzUnity.Burst.CodeGen.BurstILPostProcessor
+[1792/1852  0s] ILPostProcess Library/Bee/artifacts/200b0aE.dag/post-processed/Game.Structures.Runtime.dll (+pdb)
+Processing assembly Library/Bee/artifacts/200b0aE.dag/Game.Structures.Runtime.dll, with 136 defines and 304 references
+processors: Unity.Jobs.CodeGen.JobsILPostProcessor, zzzUnity.Burst.CodeGen.BurstILPostProcessor
+running Unity.Jobs.CodeGen.JobsILPostProcessor
+running zzzUnity.Burst.CodeGen.BurstILPostProcessor
+[1793/1852  0s] ILPostProcess Library/Bee/artifacts/200b0aE.dag/post-processed/Game.Kentridge.PlayableSlice.dll (+pdb)
+Processing assembly Library/Bee/artifacts/200b0aE.dag/Game.Kentridge.PlayableSlice.dll, with 136 defines and 323 references
+processors: Unity.Jobs.CodeGen.JobsILPostProcessor, zzzUnity.Burst.CodeGen.BurstILPostProcessor
+running Unity.Jobs.CodeGen.JobsILPostProcessor
+running zzzUnity.Burst.CodeGen.BurstILPostProcessor
+[1794/1852  0s] ILPostProcess Library/Bee/artifacts/200b0aE.dag/post-processed/Game.Structures.Tests.dll (+pdb)
+Processing assembly Library/Bee/artifacts/200b0aE.dag/Game.Structures.Tests.dll, with 134 defines and 320 references
+processors: Unity.Jobs.CodeGen.JobsILPostProcessor, zzzUnity.Burst.CodeGen.BurstILPostProcessor
+running Unity.Jobs.CodeGen.JobsILPostProcessor
+running zzzUnity.Burst.CodeGen.BurstILPostProcessor
+[1795/1852  0s] ILPostProcess Library/Bee/artifacts/200b0aE.dag/post-processed/MountingForce.WorldGen.Voxel.dll (+pdb)
+Processing assembly Library/Bee/artifacts/200b0aE.dag/MountingForce.WorldGen.Voxel.dll, with 136 defines and 308 references
+processors: Unity.Jobs.CodeGen.JobsILPostProcessor, zzzUnity.Burst.CodeGen.BurstILPostProcessor
+running Unity.Jobs.CodeGen.JobsILPostProcessor
+running zzzUnity.Burst.CodeGen.BurstILPostProcessor
+[1810/1852  0s] ILPostProcess Library/Bee/artifacts/200b0aE.dag/post-processed/VoxelEngine.Composition.dll (+pdb)
+Processing assembly Library/Bee/artifacts/200b0aE.dag/VoxelEngine.Composition.dll, with 136 defines and 318 references
+processors: Unity.Jobs.CodeGen.JobsILPostProcessor, zzzUnity.Burst.CodeGen.BurstILPostProcessor
+running Unity.Jobs.CodeGen.JobsILPostProcessor
+running zzzUnity.Burst.CodeGen.BurstILPostProcessor
+[1811/1852  0s] ILPostProcess Library/Bee/artifacts/200b0aE.dag/post-processed/Assembly-CSharp.dll (+pdb)
+Processing assembly Library/Bee/artifacts/200b0aE.dag/Assembly-CSharp.dll, with 136 defines and 366 references
+processors: Unity.Jobs.CodeGen.JobsILPostProcessor, zzzUnity.Burst.CodeGen.BurstILPostProcessor
+running Unity.Jobs.CodeGen.JobsILPostProcessor
+running zzzUnity.Burst.CodeGen.BurstILPostProcessor
+[1812/1852  0s] ILPostProcess Library/Bee/artifacts/200b0aE.dag/post-processed/VoxelEngine.Tests.Parity.dll (+pdb)
+Processing assembly Library/Bee/artifacts/200b0aE.dag/VoxelEngine.Tests.Parity.dll, with 136 defines and 297 references
+processors: Unity.Jobs.CodeGen.JobsILPostProcessor, zzzUnity.Burst.CodeGen.BurstILPostProcessor
+running Unity.Jobs.CodeGen.JobsILPostProcessor
+running zzzUnity.Burst.CodeGen.BurstILPostProcessor
+[1813/1852  0s] ILPostProcess Library/Bee/artifacts/200b0aE.dag/post-processed/VoxelEngine.Tests.Features.dll (+pdb)
+Processing assembly Library/Bee/artifacts/200b0aE.dag/VoxelEngine.Tests.Features.dll, with 136 defines and 292 references
+processors: Unity.Jobs.CodeGen.JobsILPostProcessor, zzzUnity.Burst.CodeGen.BurstILPostProcessor
+running Unity.Jobs.CodeGen.JobsILPostProcessor
+running zzzUnity.Burst.CodeGen.BurstILPostProcessor
+[1814/1852  0s] ILPostProcess Library/Bee/artifacts/200b0aE.dag/post-processed/VoxelEngine.Structures.Runtime.dll (+pdb)
+Processing assembly Library/Bee/artifacts/200b0aE.dag/VoxelEngine.Structures.Runtime.dll, with 136 defines and 304 references
+processors: Unity.Jobs.CodeGen.JobsILPostProcessor, zzzUnity.Burst.CodeGen.BurstILPostProcessor
+running Unity.Jobs.CodeGen.JobsILPostProcessor
+running zzzUnity.Burst.CodeGen.BurstILPostProcessor
+[1815/1852  0s] ILPostProcess Library/Bee/artifacts/200b0aE.dag/post-processed/VoxelEngine.Showcase.Editor.dll (+pdb)
+Processing assembly Library/Bee/artifacts/200b0aE.dag/VoxelEngine.Showcase.Editor.dll, with 134 defines and 313 references
+processors: Unity.Jobs.CodeGen.JobsILPostProcessor, zzzUnity.Burst.CodeGen.BurstILPostProcessor
+running Unity.Jobs.CodeGen.JobsILPostProcessor
+running zzzUnity.Burst.CodeGen.BurstILPostProcessor
+[1816/1852  0s] ILPostProcess Library/Bee/artifacts/200b0aE.dag/post-processed/Assembly-CSharp-Editor.dll (+pdb)
+Processing assembly Library/Bee/artifacts/200b0aE.dag/Assembly-CSharp-Editor.dll, with 134 defines and 386 references
+processors: Unity.Jobs.CodeGen.JobsILPostProcessor, zzzUnity.Burst.CodeGen.BurstILPostProcessor
+running Unity.Jobs.CodeGen.JobsILPostProcessor
+running zzzUnity.Burst.CodeGen.BurstILPostProcessor
+[1817/1852  0s] ILPostProcess Library/Bee/artifacts/200b0aE.dag/post-processed/VoxelEngine.CI.Editor.dll (+pdb)
+Processing assembly Library/Bee/artifacts/200b0aE.dag/VoxelEngine.CI.Editor.dll, with 134 defines and 321 references
+processors: Unity.Jobs.CodeGen.JobsILPostProcessor, zzzUnity.Burst.CodeGen.BurstILPostProcessor
+running Unity.Jobs.CodeGen.JobsILPostProcessor
+running zzzUnity.Burst.CodeGen.BurstILPostProcessor
+[1818/1852  0s] ILPostProcess Library/Bee/artifacts/200b0aE.dag/post-processed/VoxelEngine.Tests.PlayMode.dll (+pdb)
+Processing assembly Library/Bee/artifacts/200b0aE.dag/VoxelEngine.Tests.PlayMode.dll, with 136 defines and 324 references
+processors: Unity.Jobs.CodeGen.JobsILPostProcessor, zzzUnity.Burst.CodeGen.BurstILPostProcessor
+running Unity.Jobs.CodeGen.JobsILPostProcessor
+running zzzUnity.Burst.CodeGen.BurstILPostProcessor
+[1819/1852  0s] ILPostProcess Library/Bee/artifacts/200b0aE.dag/post-processed/Game.Composition.Materials.dll (+pdb)
+Processing assembly Library/Bee/artifacts/200b0aE.dag/Game.Composition.Materials.dll, with 136 defines and 303 references
+processors: Unity.Jobs.CodeGen.JobsILPostProcessor, zzzUnity.Burst.CodeGen.BurstILPostProcessor
+running Unity.Jobs.CodeGen.JobsILPostProcessor
+running zzzUnity.Burst.CodeGen.BurstILPostProcessor
+[1820/1852  0s] ILPostProcess Library/Bee/artifacts/200b0aE.dag/post-processed/VoxelEngine.Tests.EditMode.dll (+pdb)
+Processing assembly Library/Bee/artifacts/200b0aE.dag/VoxelEngine.Tests.EditMode.dll, with 134 defines and 340 references
+processors: Unity.Jobs.CodeGen.JobsILPostProcessor, zzzUnity.Burst.CodeGen.BurstILPostProcessor
+running Unity.Jobs.CodeGen.JobsILPostProcessor
+running zzzUnity.Burst.CodeGen.BurstILPostProcessor
+[1827/1852  0s] ILPostProcess Library/Bee/artifacts/200b0aE.dag/post-processed/Game.Composition.Showcase.dll (+pdb)
+Processing assembly Library/Bee/artifacts/200b0aE.dag/Game.Composition.Showcase.dll, with 136 defines and 324 references
+processors: Unity.Jobs.CodeGen.JobsILPostProcessor, zzzUnity.Burst.CodeGen.BurstILPostProcessor
+running Unity.Jobs.CodeGen.JobsILPostProcessor
+running zzzUnity.Burst.CodeGen.BurstILPostProcessor
+[1828/1852  0s] ILPostProcess Library/Bee/artifacts/200b0aE.dag/post-processed/VoxelEngine.CI.PlayMode.dll (+pdb)
+Processing assembly Library/Bee/artifacts/200b0aE.dag/VoxelEngine.CI.PlayMode.dll, with 136 defines and 291 references
+processors: Unity.Jobs.CodeGen.JobsILPostProcessor, zzzUnity.Burst.CodeGen.BurstILPostProcessor
+running Unity.Jobs.CodeGen.JobsILPostProcessor
+running zzzUnity.Burst.CodeGen.BurstILPostProcessor
+[1829/1852  0s] ILPostProcess Library/Bee/artifacts/200b0aE.dag/post-processed/VoxelEngine.Showcase.dll (+pdb)
+Processing assembly Library/Bee/artifacts/200b0aE.dag/VoxelEngine.Showcase.dll, with 136 defines and 317 references
+processors: Unity.Jobs.CodeGen.JobsILPostProcessor, zzzUnity.Burst.CodeGen.BurstILPostProcessor
+running Unity.Jobs.CodeGen.JobsILPostProcessor
+running zzzUnity.Burst.CodeGen.BurstILPostProcessor
+[1832/1852  0s] CopyFiles Library/ScriptAssemblies/VoxelEngine.Structures.Runtime.pdb
+[1833/1852  0s] CopyFiles Library/ScriptAssemblies/VoxelEngine.Structures.Runtime.dll
+*** Tundra build success (1.68 seconds), 25 items updated, 1852 evaluated
+AssetDatabase: script compilation time: 1.979917s
+Begin MonoManager ReloadAssembly
+Total cache size 240091331
+Total cache size after purge 240091331, took 00:00:00.1377961
+Symbol file LoadedFromMemory is not a mono symbol file
+Refreshing native plugins compatible for Editor in 2.07 ms, found 2 plugins.
+Native extension for OSXStandalone target not found
+Native extension for WebGL target not found
+ScheduleIndexationOnStartup MainProcess:True IndexOnStartup:True
+Mono: successfully reloaded assembly
+- Finished resetting the current domain, in  2.264 seconds
+Domain Reload Profiling: 2670ms
+	BeginReloadAssembly (80ms)
+		DisableScriptedObjects (9ms)
+		CreateAndSetChildDomain (19ms)
+	RebuildCommonClasses (4ms)
+	RebuildNativeTypeToScriptingClass (8ms)
+	initialDomainReloadingComplete (23ms)
+	LoadAllAssembliesAndSetupDomain (291ms)
+		LoadAssemblies (131ms)
+		AnalyzeDomain (128ms)
+			TypeCache.Refresh (92ms)
+				TypeCache.ScanAssembly (82ms)
+			BuildScriptInfoCaches (32ms)
+			ResolveRequiredComponents (3ms)
+	FinalizeReload (2264ms)
+		SetupLoadedEditorAssemblies (0ms)
+			BeforeProcessingInitializeOnLoad (41ms)
+			ProcessInitializeOnLoadAttributes (1940ms)
+			ProcessInitializeOnLoadMethodAttributes (175ms)
+		AwakeInstancesAfterBackupRestoration (7ms)
+Starting new worker id: 0 with log in /Users/jlashmet/code/voxel/Logs/AssetImportWorkerHW0.log
+
+Asset Pipeline Refresh (id=25cc1322c7401420892da02d76ba6444): Total: 5.550 seconds - Initiated by InitialRefreshV2(ForceSynchronousImport)
+	(Values over 0.05ms)
+	Summary:
+		Imports: total=0 (actual=0, local cache=0, cache server=0)
+		Asset DB Process Time: managed=0 ms, native=2920 ms
+		Asset DB Callback time: managed=179 ms, native=13 ms
+		Scripting: domain reloads=1, domain reload time=424 ms, compile time=1980 ms, other=31 ms
+		Project Asset Count: scripts=1883, non-scripts=2586
+		Asset File Changes: new=0, changed=1, moved=0, deleted=0
+		Scan Filter Count: 1
+	InvokePackagesCallback: 9.589ms
+	ApplyChangesToAssetFolders: 0.180ms
+	Scan: 451.794ms
+	Collect global state as custom dependencies: 7.835ms
+	OnSourceAssetsModified: 0.273ms
+	CategorizeScriptCompilationAssets: 20.052ms
+	ProcessAssetsWithTransientArtifactChanges: 42.211ms
+	CategorizeAssets: 35.389ms
+	CompileScripts: 1980.488ms
+	ImportOutOfDateAssets: 2307.594ms (2279.380ms without children)
+		UnloadImportedAssets: 0.503ms
+		EnsureUptoDateAssetsAreRegisteredWithGuidPM: 0.423ms
+		ImportSchedulerStart: 27.264ms
+	PostProcessAllAssets: 180.567ms
+		VCAutoAddAssetPostprocess 0.477ms
+		XRBuildSystem.XRAssetImported 0.318ms
+		MonoPostProcessAllAssets: 179.584ms
+			AssetPostprocessor.OnPostprocessAllAssets 85.804ms
+			UniversalRenderPipelineGlobalSettingsPostprocessor.OnPostprocessAllAssets 15.603ms
+			StyleCatalogPostProcessor.OnPostprocessAllAssets 14.498ms
+			BuilderAssetPostprocessor.OnPostprocessAllAssets 3.837ms
+			SpriteSlicePostprocessor.OnPostprocessAllAssets 1.225ms
+			SpeedTree9Postprocessor.OnPostprocessAllAssets 1.159ms
+			ShaderGraphAssetPostProcessor.OnPostprocessAllAssets 1.090ms
+			AssetChangedListener.OnPostprocessAllAssets 0.868ms
+			WindowAssetPostprocessingWatcher.OnPostprocessAllAssets 0.861ms
+			RetainedModeAssetPostprocessor.OnPostprocessAllAssets 0.714ms
+			EditModeScopePostprocessor.OnPostprocessAllAssets 0.466ms
+			MaterialPostprocessor.OnPostprocessAllAssets 0.406ms
+			RenderPipelineGlobalSettingsPostprocessor.OnPostprocessAllAssets 0.309ms
+			SpriteEditorTexturePostprocessor.OnPostprocessAllAssets 0.305ms
+			ArtifactBrowserPostProcessor.OnPostprocessAllAssets 0.268ms
+			PlaceholderHumanoidAnimationConfigurator.OnPostprocessAllAssets 0.221ms
+			UVCSAssetPostprocessor.OnPostprocessAllAssets 0.185ms
+			AssetProcessor.OnPostprocessAllAssets 0.168ms
+			ShaderReflectionAssetPostProcessor.OnPostprocessAllAssets 0.163ms
+			SampleDependencyImporterPostProcessor.OnPostprocessAllAssets 0.159ms
+			AudioMixerPostprocessor.OnPostprocessAllAssets 0.157ms
+			TextAssetPostProcessor.OnPostprocessAllAssets 0.157ms
+			CharacterFactoryAssetImporter.OnPostprocessAllAssets 0.157ms
+			ReferencedClipsPostProcessor.OnPostprocessAllAssets 0.135ms
+			TMPro_TexturePostProcessor.OnPostprocessAllAssets 0.128ms
+			AssetEvents.OnPostprocessAllAssets 0.127ms
+			PostProcessor.OnPostprocessAllAssets 0.115ms
+			TerrainToolbarOverlayPostProcessor.OnPostprocessAllAssets 0.085ms
+			AssetPostprocessorProxy.OnPostprocessAllAssets 0.077ms
+			SamplePostprocessor.OnPostprocessAllAssets 0.077ms
+			SpeedTreePostProcessor.OnPostprocessAllAssets 0.071ms
+			CharacterFactoryCharacterPrefabCleanup.OnPostprocessAllAssets 0.070ms
+			ConfigAssetsTracker.OnPostprocessAllAssets 0.066ms
+			SyncVS.PostprocessSyncProject 0.061ms
+			AssetDatabaseCallbacks.OnPostprocessAllAssets 0.060ms
+			AssetReloadNotifier.OnPostprocessAllAssets 0.059ms
+	PostAssetChangesProfiler: 3.563ms
+	UnloadStreamsBegin: 0.914ms
+	PersistCurrentRevisions: 0.081ms
+	GenerateScriptTypeHashes: 0.897ms
+	GenerateScriptTypeSerializationHashes: 1.888ms
+	Untracked: 508.534ms
+
+Application.AssetDatabase Initial Refresh End
+Shader Hidden/ChartRasterizerHardware is not supported: GPU does not support conservative rasterization
+Launching external process: /Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Helpers/UnityShaderCompiler
+Launched and connected shader compiler UnityShaderCompiler after 0.02 seconds
+Shader Hidden/ChartRasterizerHardware is not supported: GPU does not support conservative rasterization
+Scanning for USB devices : 0.315ms
+Initializing Unity extensions:
+[MODES] ModeService[none].Initialize
+[MODES] ModeService[none].LoadModes
+[MODES] Loading mode Default (0) for mode-current-id-voxel
+2026-08-24 10:57:41.477 Unity[44379:133213463] NSEventModifierFlagFunction specified to -setKeyEquivalentModifierMask: for item <NSMenuItem: 0x60000154adf0 SDF, ke='Command-F12'>, but is only supported for system-provided menu items; will not be used
+Unloading 53 Unused Serialized files (Serialized files now loaded: 0)
+Unloading 8016 unused Assets / (9.3 MB). Loaded Objects now: 8846.
+Memory consumption went from 278.8 MB to 269.5 MB.
+Total: 10.237833 ms (FindLiveObjects: 0.344417 ms CreateObjectMapping: 1.564458 ms MarkObjects: 4.826125 ms  DeleteObjects: 3.502542 ms)
+
+2026-08-24 10:57:41.528 Unity[44379:133213463] NSEventModifierFlagFunction specified to -setKeyEquivalentModifierMask: for item <NSMenuItem: 0x60000154baa0 SDF, ke='Command-F12'>, but is only supported for system-provided menu items; will not be used
+[Project] Loading completed in 7.198 seconds
+	Project init time: 				6.983 seconds
+		Template init time: 		0.000 seconds
+		Package Manager init time: 		0.378 seconds
+		Asset Database init time: 		0.229 seconds
+		Global illumination init time: 	0.000 seconds
+		Assemblies load time: 			0.394 seconds
+		Unity extensions init time: 	0.012 seconds
+		Asset Database refresh time: 	5.550 seconds
+	Scene opening time: 			0.164 seconds
+##utp:{"type":"ProjectInfo","version":2,"phase":"Immediate","time":1787594261529,"processId":44379,"projectLoad":7.198379584,"projectInit":6.983417084,"templateInit":0.0,"packageManagerInit":0.378100333,"assetDatabaseInit":0.228951833,"globalIlluminationInit":0.000465708,"assembliesLoad":0.394128209,"unityExtensionsInit":0.012197958,"assetDatabaseRefresh":5.550426583,"sceneOpening":0.164130417}
+##utp:{"type":"EditorInfo","version":2,"phase":"Immediate","time":1787594261529,"processId":44379,"editorVersion":"6000.5.6f1 (0e0577a1a2ac)","branch":"6000.5/staging","buildType":"Release","platform":"OSX"}
+Subscribe to USB device events
+Scanning for USB devices : 0.268ms
+[Licensing::Client] Successfully resolved entitlement details
+Running tests for ExecutionSettings with details:
+targetPlatform =
+playerHeartbeatTimeout = 600
+filters[0] =
+   Filter with settings:
+   testMode = EditMode
+   targetPlatform =
+   testNames = null
+   groupNames = VoxelEngine.Tests.EditMode.ArchProfileStitchTests.RetainedProfilesSpanFullArchDepthAndMatchStructuralAnnulusZeroes
+   categoryNames = null
+   assemblyNames = null
+ignoreTests = {}
+featureFlags = null
+
+UnityEngine.Debug:ExtractStackTraceNoAlloc (byte*,int,string)
+UnityEngine.StackTraceUtility:ExtractStackTrace () (at /Users/bokken/build/output/unity/unity/Runtime/Export/Scripting/StackTrace.cs:35)
+UnityEngine.DebugLogHandler:Internal_Log (UnityEngine.LogType,UnityEngine.LogOption,string,UnityEngine.Object)
+UnityEngine.DebugLogHandler:LogFormat (UnityEngine.LogType,UnityEngine.Object,string,object[])
+UnityEngine.Logger:Log (UnityEngine.LogType,object)
+UnityEngine.Debug:Log (object)
+UnityEditor.TestTools.TestRunner.CommandLineTest.Executer:InitializeAndExecuteRun (string[]) (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/CommandLineTest/Executer.cs:53)
+UnityEditor.TestTools.TestRunner.CommandLineTest.TestStarter:InitializeAndExecuteRun () (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/CommandLineTest/TestStarter.cs:64)
+UnityEditor.EditorApplication:Internal_CallUpdateFunctions () (at /Users/bokken/build/output/unity/unity/Editor/Mono/EditorApplication.cs:403)
+
+(Filename: ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/CommandLineTest/Executer.cs Line: 53)
+
+Worker ready: AssetImportWorkerHW0 0
+Start Indexing on Editor startup
+[Indexing] Starting Initial Indexing for Assets
+[UnityConnectServicesConfig] config is NOT valid, switching to default
+Created GICache directory at /Users/jlashmet/Library/Caches/com.unity3d.UnityEditor/GiCache. Took: 0.003s, timestamps: [7.200 - 7.203]
+[Licensing::Client] Successfully resolved entitlement details
+
+=================================================================
+	Native Crash Reporting
+=================================================================
+Got a segv while executing native code. This usually indicates
+a fatal error in the mono runtime or one of the native libraries
+used by your application.
+=================================================================
+
+=================================================================
+	Native stacktrace:
+=================================================================
+	0x16f50134c - /Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Frameworks/libmonobdwgc-2.0.dylib : mono_dump_native_crash_info
+	0x16f4c35cc - /Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Frameworks/libmonobdwgc-2.0.dylib : mono_handle_native_crash
+	0x16f44bdd4 - /Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Frameworks/libmonobdwgc-2.0.dylib : mono_sigsegv_signal_handler_debug
+	0x18c4d4624 - /usr/lib/system/libsystem_platform.dylib : _sigtramp
+	0x3bcad9d1c - Unknown
+	0x3bca86a0c - Unknown
+	0x3bca85dec - Unknown
+	0x3bca85994 - Unknown
+	0x3a1f77204 - Unknown
+	0x3a1f75840 - Unknown
+	0x3a1f75558 - Unknown
+	0x3a1f74f04 - Unknown
+	0x37763ae90 - Unknown
+	0x37763acc8 - Unknown
+	0x37763ab9c - Unknown
+	0x37763a9f0 - Unknown
+	0x37763a8e4 - Unknown
+	0x37763a89c - Unknown
+	0x14ffd7304 - Unknown
+	0x14ffd6f7c - Unknown
+	0x37763a600 - Unknown
+	0x37763a0a8 - Unknown
+	0x377639f38 - Unknown
+	0x377639ea0 - Unknown
+	0x14ffd7cfc - Unknown
+	0x14ffd78a4 - Unknown
+	0x14ffd7304 - Unknown
+	0x14ffd6f7c - Unknown
+	0x14ffd6e4c - Unknown
+	0x14ffd6c4c - Unknown
+	0x14ffd6ad8 - Unknown
+	0x16f44f0a8 - /Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Frameworks/libmonobdwgc-2.0.dylib : mono_jit_runtime_invoke
+	0x16f5d4b38 - /Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Frameworks/libmonobdwgc-2.0.dylib : do_runtime_invoke
+	0x16f5d6500 - /Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Frameworks/libmonobdwgc-2.0.dylib : mono_runtime_delegate_try_invoke
+	0x16f5f6ba4 - /Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Frameworks/libmonobdwgc-2.0.dylib : start_wrapper_internal
+	0x16f5f695c - /Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Frameworks/libmonobdwgc-2.0.dylib : start_wrapper
+	0x16f675f38 - /Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Frameworks/libmonobdwgc-2.0.dylib : GC_inner_start_routine
+	0x16f675ec0 - /Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Frameworks/libmonobdwgc-2.0.dylib : GC_start_routine
+	0x18c49ac0c - /usr/lib/system/libsystem_pthread.dylib : _pthread_start
+	0x18c495b80 - /usr/lib/system/libsystem_pthread.dylib : thread_start
+
+=================================================================
+	Telemetry Dumper:
+=================================================================
+Pkilling 0x14244900864x from 0x14785392640x
+Pkilling 0x15290150912x from 0x14785392640x
+Pkilling 0x14796124160x from 0x14785392640x
+Pkilling 0x15294443520x from 0x14785392640x
+Pkilling 0x15298736128x from 0x14785392640x
+Pkilling 0x6125498368x from 0x14785392640x
+Pkilling 0x6126071808x from 0x14785392640x
+Pkilling 0x6126645248x from 0x14785392640x
+Pkilling 0x6127218688x from 0x14785392640x
+Pkilling 0x6127792128x from 0x14785392640x
+Pkilling 0x6128365568x from 0x14785392640x
+Pkilling 0x6128939008x from 0x14785392640x
+Pkilling 0x14249455616x from 0x14785392640x
+Pkilling 0x6172913664x from 0x14785392640x
+Pkilling 0x14768222208x from 0x14785392640x
+Pkilling 0x6173487104x from 0x14785392640x
+Pkilling 0x14772514816x from 0x14785392640x
+Pkilling 0x14776807424x from 0x14785392640x
+Pkilling 0x14229876736x from 0x14785392640x
+Pkilling 0x14891642880x from 0x14785392640x
+Pkilling 0x14781100032x from 0x14785392640x
+Pkilling 0x14234169344x from 0x14785392640x
+Pkilling 0x14895935488x from 0x14785392640x
+Pkilling 0x14238461952x from 0x14785392640x
+Pkilling 0x15288004608x from 0x14785392640x
+Pkilling 0x14789685248x from 0x14785392640x
+Pkilling 0x14242754560x from 0x14785392640x
+Pkilling 0x15292297216x from 0x14785392640x
+Pkilling 0x14793977856x from 0x14785392640x
+Pkilling 0x15296589824x from 0x14785392640x
+Pkilling 0x6118043648x from 0x14785392640x
+Pkilling 0x14117269504x from 0x14785392640x
+Pkilling 0x14798270464x from 0x14785392640x
+Pkilling 0x6120304640x from 0x14785392640x
+Pkilling 0x8495210240x from 0x14785392640x
+Pkilling 0x14247309312x from 0x14785392640x
+Pkilling 0x6170767360x from 0x14785392640x
+Pkilling 0x14766075904x from 0x14785392640x
+Pkilling 0x14770368512x from 0x14785392640x
+Pkilling 0x14774661120x from 0x14785392640x
+Pkilling 0x14227730432x from 0x14785392640x
+Pkilling 0x14778953728x from 0x14785392640x
+Pkilling 0x6124924928x from 0x14785392640x
+Pkilling 0x14232023040x from 0x14785392640x
+Pkilling 0x14783246336x from 0x14785392640x
+Pkilling 0x14236315648x from 0x14785392640x
+Pkilling 0x14893789184x from 0x14785392640x
+Pkilling 0x14787538944x from 0x14785392640x
+Pkilling 0x14240608256x from 0x14785392640x
+Pkilling 0x14898081792x from 0x14785392640x
+Pkilling 0x14791831552x from 0x14785392640x
+Entering thread summarizer pause from 0x14785392640x
+Finished thread summarizer pause from 0x14785392640x.
+Failed to create breadcrumb file (null)/crash_hash_0x137d23bcc2
+debugger-agent: Unable to listen on 45
+
+Waiting for dumping threads to resume
+Unloading 3 Unused Serialized files (Serialized files now loaded: 0)
+Unloading 1 unused Assets / (60.1 KB). Loaded Objects now: 8873.
+Memory consumption went from 250.0 MB to 249.9 MB.
+Total: 10.295292 ms (FindLiveObjects: 0.161583 ms CreateObjectMapping: 0.608792 ms MarkObjects: 9.496083 ms  DeleteObjects: 0.028459 ms)
+
+Executing IPrebuildSetup for: Unity.PerformanceTesting.Editor.TestRunBuilder.
+UnityEngine.Debug:ExtractStackTraceNoAlloc (byte*,int,string)
+UnityEngine.StackTraceUtility:ExtractStackTrace () (at /Users/bokken/build/output/unity/unity/Runtime/Export/Scripting/StackTrace.cs:35)
+UnityEngine.DebugLogHandler:Internal_Log (UnityEngine.LogType,UnityEngine.LogOption,string,UnityEngine.Object)
+UnityEngine.DebugLogHandler:LogFormat (UnityEngine.LogType,UnityEngine.Object,string,object[])
+UnityEngine.Logger:Log (UnityEngine.LogType,object)
+UnityEngine.Debug:Log (object)
+UnityEditor.TestTools.TestRunner.TestRun.Tasks.BuildActionTaskBase`1/<ExecuteMethods>d__8<UnityEngine.TestTools.IPrebuildSetup>:MoveNext () (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/TestRun/Tasks/BuildActionTaskBase.cs:48)
+UnityEditor.TestTools.TestRunner.TestRun.Tasks.BuildActionTaskBase`1/<Execute>d__7<UnityEngine.TestTools.IPrebuildSetup>:MoveNext () (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/TestRun/Tasks/BuildActionTaskBase.cs:34)
+UnityEditor.TestTools.TestRunner.TestRun.TestJobRunner:ExecuteStep () (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/TestRun/TestJobRunner.cs:194)
+UnityEditor.TestTools.TestRunner.TestRun.TestJobRunner:ExecuteCallback () (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/TestRun/TestJobRunner.cs:129)
+UnityEditor.EditorApplication:Internal_CallUpdateFunctions () (at /Users/bokken/build/output/unity/unity/Editor/Mono/EditorApplication.cs:403)
+
+(Filename: ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/TestRun/Tasks/BuildActionTaskBase.cs Line: 48)
+
+<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Applied No Throttling for test run.
+UnityEngine.Debug:ExtractStackTraceNoAlloc (byte*,int,string)
+UnityEngine.StackTraceUtility:ExtractStackTrace () (at /Users/bokken/build/output/unity/unity/Runtime/Export/Scripting/StackTrace.cs:35)
+UnityEngine.DebugLogHandler:Internal_Log (UnityEngine.LogType,UnityEngine.LogOption,string,UnityEngine.Object)
+UnityEngine.DebugLogHandler:LogFormat (UnityEngine.LogType,UnityEngine.Object,string,object[])
+UnityEngine.Logger:Log (UnityEngine.LogType,object)
+UnityEngine.Debug:Log (object)
+MCPForUnity.Editor.Helpers.McpLog:Info (string,bool) (at ./Library/PackageCache/com.coplaydev.unity-mcp@8bd91ce7bd3a/Editor/Helpers/McpLog.cs:40)
+MCPForUnity.Editor.Services.TestRunnerNoThrottle:ApplyNoThrottling () (at ./Library/PackageCache/com.coplaydev.unity-mcp@8bd91ce7bd3a/Editor/Services/TestRunnerNoThrottle.cs:101)
+MCPForUnity.Editor.Services.TestRunnerNoThrottle/TestCallbacks:RunStarted (UnityEditor.TestTools.TestRunner.Api.ITestAdaptor) (at ./Library/PackageCache/com.coplaydev.unity-mcp@8bd91ce7bd3a/Editor/Services/TestRunnerNoThrottle.cs:138)
+UnityEditor.TestTools.TestRunner.Api.CallbacksDelegator/<>c__DisplayClass7_0:<RunStarted>b__0 (UnityEditor.TestTools.TestRunner.Api.ICallbacks) (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/Api/CallbacksDelegator.cs:42)
+UnityEditor.TestTools.TestRunner.Api.CallbacksDelegator:TryInvokeAllCallbacks (System.Action`1<UnityEditor.TestTools.TestRunner.Api.ICallbacks>) (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/Api/CallbacksDelegator.cs:135)
+UnityEditor.TestTools.TestRunner.Api.CallbacksDelegator:RunStarted (NUnit.Framework.Interfaces.ITest) (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/Api/CallbacksDelegator.cs:42)
+UnityEngine.Events.InvokableCall`1<NUnit.Framework.Interfaces.ITest>:Invoke (NUnit.Framework.Interfaces.ITest) (at /Users/bokken/build/output/unity/unity/Runtime/Export/UnityEvent/UnityEvent.cs:222)
+UnityEngine.Events.UnityEvent`1<NUnit.Framework.Interfaces.ITest>:Invoke (NUnit.Framework.Interfaces.ITest) (at /Users/bokken/build/output/unity/unity/artifacts/generated/UnityEvent/UnityEvent_1.cs:59)
+UnityEditor.TestTools.TestRunner.TestRun.Tasks.Events.RunStartedInvocationEvent/<Execute>d__0:MoveNext () (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/TestRun/Tasks/Events/RunStartedInvocationEvent.cs:15)
+UnityEditor.TestTools.TestRunner.TestRun.TestJobRunner:ExecuteStep () (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/TestRun/TestJobRunner.cs:194)
+UnityEditor.TestTools.TestRunner.TestRun.TestJobRunner:ExecuteCallback () (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/TestRun/TestJobRunner.cs:129)
+UnityEditor.EditorApplication:Internal_CallUpdateFunctions () (at /Users/bokken/build/output/unity/unity/Editor/Mono/EditorApplication.cs:403)
+
+(Filename: ./Library/PackageCache/com.coplaydev.unity-mcp@8bd91ce7bd3a/Editor/Helpers/McpLog.cs Line: 40)
+
+<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+UnityEngine.Debug:ExtractStackTraceNoAlloc (byte*,int,string)
+UnityEngine.StackTraceUtility:ExtractStackTrace () (at /Users/bokken/build/output/unity/unity/Runtime/Export/Scripting/StackTrace.cs:35)
+UnityEngine.DebugLogHandler:Internal_Log (UnityEngine.LogType,UnityEngine.LogOption,string,UnityEngine.Object)
+UnityEngine.DebugLogHandler:LogFormat (UnityEngine.LogType,UnityEngine.Object,string,object[])
+UnityEngine.Logger:Log (UnityEngine.LogType,object)
+UnityEngine.Debug:Log (object)
+MCPForUnity.Editor.Helpers.McpLog:Info (string,bool) (at ./Library/PackageCache/com.coplaydev.unity-mcp@8bd91ce7bd3a/Editor/Helpers/McpLog.cs:40)
+MCPForUnity.Editor.Services.TestRunnerNoThrottle:RestoreThrottling () (at ./Library/PackageCache/com.coplaydev.unity-mcp@8bd91ce7bd3a/Editor/Services/TestRunnerNoThrottle.cs:114)
+MCPForUnity.Editor.Services.TestRunnerNoThrottle/TestCallbacks:RunFinished (UnityEditor.TestTools.TestRunner.Api.ITestResultAdaptor) (at ./Library/PackageCache/com.coplaydev.unity-mcp@8bd91ce7bd3a/Editor/Services/TestRunnerNoThrottle.cs:143)
+UnityEditor.TestTools.TestRunner.Api.CallbacksDelegator/<>c__DisplayClass9_0:<RunFinished>b__0 (UnityEditor.TestTools.TestRunner.Api.ICallbacks) (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/Api/CallbacksDelegator.cs:55)
+UnityEditor.TestTools.TestRunner.Api.CallbacksDelegator:TryInvokeAllCallbacks (System.Action`1<UnityEditor.TestTools.TestRunner.Api.ICallbacks>) (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/Api/CallbacksDelegator.cs:135)
+UnityEditor.TestTools.TestRunner.Api.CallbacksDelegator:RunFinished (NUnit.Framework.Interfaces.ITestResult) (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/Api/CallbacksDelegator.cs:55)
+UnityEngine.Events.InvokableCall`1<NUnit.Framework.Interfaces.ITestResult>:Invoke (NUnit.Framework.Interfaces.ITestResult) (at /Users/bokken/build/output/unity/unity/Runtime/Export/UnityEvent/UnityEvent.cs:222)
+UnityEngine.Events.UnityEvent`1<NUnit.Framework.Interfaces.ITestResult>:Invoke (NUnit.Framework.Interfaces.ITestResult) (at /Users/bokken/build/output/unity/unity/artifacts/generated/UnityEvent/UnityEvent_1.cs:59)
+UnityEditor.TestTools.TestRunner.TestRun.Tasks.Events.RunFinishedInvocationEvent/<Execute>d__0:MoveNext () (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/TestRun/Tasks/Events/RunFinishedInvocationEvent.cs:24)
+UnityEditor.TestTools.TestRunner.TestRun.TestJobRunner:ExecuteStep () (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/TestRun/TestJobRunner.cs:194)
+UnityEditor.TestTools.TestRunner.TestRun.TestJobRunner:ExecuteCallback () (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/TestRun/TestJobRunner.cs:129)
+UnityEditor.EditorApplication:Internal_CallUpdateFunctions () (at /Users/bokken/build/output/unity/unity/Editor/Mono/EditorApplication.cs:403)
+
+(Filename: ./Library/PackageCache/com.coplaydev.unity-mcp@8bd91ce7bd3a/Editor/Helpers/McpLog.cs Line: 40)
+
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+Saving results to: /Users/jlashmet/code/voxel/SceneIssues/20260823-193321-963-ArchLookdev/verification-profile-rear-face-green.xml
+Executing IPostBuildCleanup for: Unity.PerformanceTesting.Editor.TestRunBuilder.
+UnityEngine.Debug:ExtractStackTraceNoAlloc (byte*,int,string)
+UnityEngine.StackTraceUtility:ExtractStackTrace () (at /Users/bokken/build/output/unity/unity/Runtime/Export/Scripting/StackTrace.cs:35)
+UnityEngine.DebugLogHandler:Internal_Log (UnityEngine.LogType,UnityEngine.LogOption,string,UnityEngine.Object)
+UnityEngine.DebugLogHandler:LogFormat (UnityEngine.LogType,UnityEngine.Object,string,object[])
+UnityEngine.Logger:Log (UnityEngine.LogType,object)
+UnityEngine.Debug:Log (object)
+UnityEditor.TestTools.TestRunner.TestRun.Tasks.BuildActionTaskBase`1/<ExecuteMethods>d__8<UnityEngine.TestTools.IPostBuildCleanup>:MoveNext () (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/TestRun/Tasks/BuildActionTaskBase.cs:48)
+UnityEditor.TestTools.TestRunner.TestRun.Tasks.BuildActionTaskBase`1/<Execute>d__7<UnityEngine.TestTools.IPostBuildCleanup>:MoveNext () (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/TestRun/Tasks/BuildActionTaskBase.cs:34)
+UnityEditor.TestTools.TestRunner.TestRun.TestJobRunner:ExecuteStep () (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/TestRun/TestJobRunner.cs:194)
+UnityEditor.TestTools.TestRunner.TestRun.TestJobRunner:ExecuteCallback () (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/TestRun/TestJobRunner.cs:129)
+UnityEditor.EditorApplication:Internal_CallUpdateFunctions () (at /Users/bokken/build/output/unity/unity/Editor/Mono/EditorApplication.cs:403)
+
+(Filename: ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/TestRun/Tasks/BuildActionTaskBase.cs Line: 48)
+
+Unloading 0 Unused Serialized files (Serialized files now loaded: 0)
+Unloading 0 unused Assets / (0 B). Loaded Objects now: 8874.
+Memory consumption went from 246.6 MB to 246.6 MB.
+Total: 6.799250 ms (FindLiveObjects: 0.130750 ms CreateObjectMapping: 0.617958 ms MarkObjects: 6.043583 ms  DeleteObjects: 0.006667 ms)
+
+DisplayProgressbar: Undo
+Test run completed. Exiting with code 0 (Ok). Run completed.
+UnityEngine.Debug:ExtractStackTraceNoAlloc (byte*,int,string)
+UnityEngine.StackTraceUtility:ExtractStackTrace () (at /Users/bokken/build/output/unity/unity/Runtime/Export/Scripting/StackTrace.cs:35)
+UnityEngine.DebugLogHandler:Internal_Log (UnityEngine.LogType,UnityEngine.LogOption,string,UnityEngine.Object)
+UnityEngine.DebugLogHandler:LogFormat (UnityEngine.LogType,UnityEngine.Object,string,object[])
+UnityEngine.Logger:Log (UnityEngine.LogType,object)
+UnityEngine.Debug:Log (object)
+UnityEditor.TestTools.TestRunner.CommandLineTest.Executer:ExitApplication (UnityEditor.TestTools.TestRunner.CommandLineTest.Executer/ReturnCodes,string) (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/CommandLineTest/Executer.cs:81)
+UnityEditor.TestTools.TestRunner.CommandLineTest.Executer:ExitIfRunIsCompleted () (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/CommandLineTest/Executer.cs:74)
+UnityEditor.EditorApplication:Internal_CallUpdateFunctions () (at /Users/bokken/build/output/unity/unity/Editor/Mono/EditorApplication.cs:403)
+
+(Filename: ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/CommandLineTest/Executer.cs Line: 81)
+
+MonoPathRemapper: Attempts to remap: 72434; Successful remaps: 22464
+Serialized file version minimum: 23, current 23
+Thread 0x16ca9f000 may have been prematurely finalizedShutting down MSBuild server...
+Shutting down VB/C# compiler server...
+VB/C# compiler server shut down successfully.
+Input System module state changed to: ShutdownInProgress.
+Input Polling Thread exited.
+Input System module state changed to: Shutdown.
+MSBuild server shut down successfully.
+[Physics::Module] Cleanup current backend.
+[Physics::Module] Id: 0xf2b8ea05
+[Licensing::IpcConnector] LicenseClient-jlashmet-6000.5.6-notifications channel disconnected successfully.
+[Licensing::IpcConnector] LicenseClient-jlashmet-6000.5.6 channel disconnected successfully.
+Thread 0x16d12f000 may have been prematurely finalizedThread 0x16d247000 may have been prematurely finalizedThread 0x16d1bb000 may have been prematurely finalizedThread 0x16d3eb000 may have been prematurely finalizedThread 0x16d477000 may have been prematurely finalizedThread 0x16d2d3000 may have been prematurely finalizedThread 0x16d503000 may have been prematurely finalizedThread 0x16d35f000 may have been prematurely finalized
+=================================================================
+	External Debugger Dump:
+=================================================================
+
+=================================================================
+	Basic Fault Address Reporting
+=================================================================
+Memory around native instruction pointer (0x177621600):0x1776215f0  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+0x177621600  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+0x177621610  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+0x177621620  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+
+=================================================================
+	Managed Stacktrace:
+=================================================================
+=================================================================
+Obtained 35 stack frames.
+#0  0x00000177621600 in (Unknown)
+#1  0x000003bca86a0c in  Burst.Compiler.IL.Server.LibraryCompiler:CompileMethodGroupImpl (Burst.Compiler.IL.Server.CompilationJob,int,Burst.Compiler.IL.Server.SharedLibraryCompilationState) [{0x13b87d940} + 0x744]  (0x3bca862c8 0x3bca86a84) [0x13ac022a0 - Burst Child Domain]
+#2  0x000003bca85dec in  Burst.Compiler.IL.Server.LibraryCompiler:CompileMethodGroup (Burst.Compiler.IL.Server.CompilationJob,int,Burst.Compiler.IL.Server.SharedLibraryCompilationState) [{0x13b87d890} + 0x114]  (0x3bca85cd8 0x3bca86024) [0x13ac022a0 - Burst Child Domain]
+#3  0x000003bca85994 in  Burst.Compiler.IL.Server.CompilerServer:CompileMethodGroup (Burst.Compiler.IL.Server.CompileMethodGroupJob,Burst.Compiler.IL.Server.CompilationMessageStreamer,Burst.Compiler.IL.Server.ProgressMessageHelper) [{0x12b62da90} + 0x1f4]  (0x3bca857a0 0x3bca85a78) [0x13ac022a0 - Burst Child Domain]
+#4  0x000003a1f77204 in  Burst.Compiler.IL.Server.CompilerServer/<CompileLibrary>d__19:MoveNext () [{0x12b62cd88} + 0x484]  (0x3a1f76d80 0x3a1f7772c) [0x13ac022a0 - Burst Child Domain]
+#5  0x000003a1f75840 in  System.Runtime.CompilerServices.AsyncTaskMethodBuilder:Start<Burst.Compiler.IL.Server.CompilerServer/<CompileLibrary>d__19> (Burst.Compiler.IL.Server.CompilerServer/<CompileLibrary>d__19&) [{0x600009b12820} + 0x80]  (0x3a1f757c0 0x3a1f7587c) [0x13ac022a0 - Burst Child Domain]
+#6  0x000003a1f75558 in  Burst.Compiler.IL.Server.CompilerServer:CompileLibrary (Burst.Compiler.IL.Server.CompileLibraryJob,Burst.Compiler.IL.Server.CompilationMessageStreamer,Burst.Compiler.IL.Server.ProgressMessageHelper,System.Threading.CancellationToken) [{0x12b358c38} + 0x100]  (0x3a1f75458 0x3a1f75578) [0x13ac022a0 - Burst Child Domain]
+#7  0x000003a1f74f04 in  Burst.Compiler.IL.Server.CompilerServer/<>c__DisplayClass17_1:<Compile>b__1 (Burst.Compiler.IL.Server.Caching.CacheManager) [{0x12e9a6800} + 0x54]  (0x3a1f74eb0 0x3a1f74f20) [0x13ac022a0 - Burst Child Domain]
+#8  0x0000037763ae90 in  Burst.Compiler.IL.Server.CompilerServer/<>c__DisplayClass25_0/<<RunTask>b__0>d:MoveNext () [{0x12db117c0} + 0xc8]  (0x37763adc8 0x37763b1d8) [0x13ac022a0 - Burst Child Domain]
+#9  0x0000037763acc8 in  System.Runtime.CompilerServices.AsyncTaskMethodBuilder:Start<Burst.Compiler.IL.Server.CompilerServer/<>c__DisplayClass25_0/<<RunTask>b__0>d> (Burst.Compiler.IL.Server.CompilerServer/<>c__DisplayClass25_0/<<RunTask>b__0>d&) [{0x600001b222e0} + 0xa0]  (0x37763ac28 0x37763ad04) [0x13ac022a0 - Burst Child Domain]
+#10 0x0000037763ab9c in  Burst.Compiler.IL.Server.CompilerServer/<>c__DisplayClass25_0:<RunTask>b__0 () [{0x12db00d68} + 0x94]  (0x37763ab08 0x37763abb8) [0x13ac022a0 - Burst Child Domain]
+#11 0x0000037763a9f0 in  System.Threading.Tasks.Task`1<TResult_REF>:InnerInvoke () [{0x600001a736c0} + 0x58]  (0x37763a998 0x37763aaa4) [0x13ac022a0 - Burst Child Domain]
+#12 0x0000037763a8e4 in  System.Threading.Tasks.Task:Execute () [{0x13b162a00} + 0x24]  (0x37763a8c0 0x37763a928) [0x13ac022a0 - Burst Child Domain]
+#13 0x0000037763a89c in  System.Threading.Tasks.Task:ExecutionContextCallback (object) [{0x13b162ae8} + 0x54]  (0x37763a848 0x37763a8ac) [0x13ac022a0 - Burst Child Domain]
+#14 0x0000014ffd7304 in  System.Threading.ExecutionContext:RunInternal (System.Threading.ExecutionContext,System.Threading.ContextCallback,object,bool) [{0x12b5c3790} + 0x17c]  (0x14ffd7188 0x14ffd734c) [0x13ac022a0 - Burst Child Domain]
+#15 0x0000014ffd6f7c in  System.Threading.ExecutionContext:Run (System.Threading.ExecutionContext,System.Threading.ContextCallback,object,bool) [{0x12b5c3738} + 0x2c]  (0x14ffd6f50 0x14ffd6f88) [0x13ac022a0 - Burst Child Domain]
+#16 0x0000037763a600 in  System.Threading.Tasks.Task:ExecuteWithThreadLocal (System.Threading.Tasks.Task&) [{0x13b1626e0} + 0x118]  (0x37763a4e8 0x37763a67c) [0x13ac022a0 - Burst Child Domain]
+#17 0x0000037763a0a8 in  System.Threading.Tasks.Task:ExecuteEntry (bool) [{0x13b1622c8} + 0xc0]  (0x377639fe8 0x37763a134) [0x13ac022a0 - Burst Child Domain]
+#18 0x00000377639f38 in  System.Threading.Tasks.TaskScheduler:TryExecuteTask (System.Threading.Tasks.Task) [{0x12db09628} + 0x38]  (0x377639f00 0x377639f68) [0x13ac022a0 - Burst Child Domain]
+#19 0x00000377639ea0 in  Burst.Compiler.IL.Server.CompilerServerTaskScheduler/TaskJob:Execute (Burst.Compiler.IL.Server.GlobalContext) [{0x12db110f0} + 0x28]  (0x377639e78 0x377639eb0) [0x13ac022a0 - Burst Child Domain]
+#20 0x0000014ffd7cfc in  Burst.Compiler.IL.Server.CompilerThread:CompilerThreadLoop () [{0x12cbd51b0} + 0x3dc]  (0x14ffd7920 0x14ffd808c) [0x13ac022a0 - Burst Child Domain]
+#21 0x0000014ffd78a4 in  System.Threading.ThreadHelper:ThreadStart_Context (object) [{0x12b5c2b00} + 0xbc]  (0x14ffd77e8 0x14ffd7910) [0x13ac022a0 - Burst Child Domain]
+#22 0x0000014ffd7304 in  System.Threading.ExecutionContext:RunInternal (System.Threading.ExecutionContext,System.Threading.ContextCallback,object,bool) [{0x12b5c3790} + 0x17c]  (0x14ffd7188 0x14ffd734c) [0x13ac022a0 - Burst Child Domain]
+#23 0x0000014ffd6f7c in  System.Threading.ExecutionContext:Run (System.Threading.ExecutionContext,System.Threading.ContextCallback,object,bool) [{0x12b5c3738} + 0x2c]  (0x14ffd6f50 0x14ffd6f88) [0x13ac022a0 - Burst Child Domain]
+#24 0x0000014ffd6e4c in  System.Threading.ExecutionContext:Run (System.Threading.ExecutionContext,System.Threading.ContextCallback,object) [{0x12b5c36c0} + 0x4c]  (0x14ffd6e00 0x14ffd6e9c) [0x13ac022a0 - Burst Child Domain]
+#25 0x0000014ffd6c4c in  System.Threading.ThreadHelper:ThreadStart () [{0x12b5c2780} + 0x34]  (0x14ffd6c18 0x14ffd6cac) [0x13ac022a0 - Burst Child Domain]
+#26 0x0000014ffd6ad8 in  (wrapper runtime-invoke) object:runtime_invoke_void__this__ (object,intptr,intptr,intptr) [{0x15c98b258} + 0xd0]  (0x14ffd6a08 0x14ffd6b14) [0x13ac022a0 - Burst Child Domain]
+#27 0x0000016f44f0a8 in mono_jit_runtime_invoke
+#28 0x0000016f5d4b38 in do_runtime_invoke
+#29 0x0000016f5d6500 in mono_runtime_delegate_try_invoke
+#30 0x0000016f5f6ba4 in start_wrapper_internal
+#31 0x0000016f5f695c in start_wrapper
+#32 0x0000016f675f38 in GC_inner_start_routine
+#33 0x0000016f675ec0 in GC_start_routine
+#34 0x0000018c49ac0c in _pthread_start
+info: Microsoft.Hosting.Lifetime[0]
+      Application is shutting down...
+info: Unity.ILPP.Runner.PostProcessingAssemblyLoadContext[0]
+      ALC ILPP context 1 is unloading

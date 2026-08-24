@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="1" result="Failed(Child)" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-24 17:30:36Z" end-time="2026-08-24 17:30:36Z" duration="0.0762161">
+  <test-suite type="TestSuite" id="1000" name="voxel" fullname="voxel" runstate="Runnable" testcasecount="1136" result="Failed" site="Child" start-time="2026-08-24 17:30:36Z" end-time="2026-08-24 17:30:36Z" duration="0.076216" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <failure>
+      <message><![CDATA[One or more child tests had errors]]></message>
+    </failure>
+    <test-suite type="Assembly" id="2455" name="VoxelEngine.Tests.EditMode.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/VoxelEngine.Tests.EditMode.dll" runstate="Runnable" testcasecount="805" result="Failed" site="Child" start-time="2026-08-24 17:30:36Z" end-time="2026-08-24 17:30:36Z" duration="0.069815" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="97164" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <failure>
+        <message><![CDATA[One or more child tests had errors]]></message>
+      </failure>
+      <test-suite type="TestSuite" id="2456" name="VoxelEngine" fullname="VoxelEngine" runstate="Runnable" testcasecount="805" result="Failed" site="Child" start-time="2026-08-24 17:30:36Z" end-time="2026-08-24 17:30:36Z" duration="0.068686" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <failure>
+          <message><![CDATA[One or more child tests had errors]]></message>
+        </failure>
+        <test-suite type="TestSuite" id="2457" name="Tests" fullname="VoxelEngine.Tests" runstate="Runnable" testcasecount="805" result="Failed" site="Child" start-time="2026-08-24 17:30:36Z" end-time="2026-08-24 17:30:36Z" duration="0.067575" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <failure>
+            <message><![CDATA[One or more child tests had errors]]></message>
+          </failure>
+          <test-suite type="TestSuite" id="2458" name="EditMode" fullname="VoxelEngine.Tests.EditMode" runstate="Runnable" testcasecount="805" result="Failed" site="Child" start-time="2026-08-24 17:30:36Z" end-time="2026-08-24 17:30:36Z" duration="0.066555" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <failure>
+              <message><![CDATA[One or more child tests had errors]]></message>
+            </failure>
+            <test-suite type="TestFixture" id="1608" name="CsgFieldCoherenceTests" fullname="VoxelEngine.Tests.EditMode.CsgFieldCoherenceTests" classname="VoxelEngine.Tests.EditMode.CsgFieldCoherenceTests" runstate="Runnable" testcasecount="2" result="Failed" site="Child" start-time="2026-08-24 17:30:36Z" end-time="2026-08-24 17:30:36Z" duration="0.052138" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <failure>
+                <message><![CDATA[One or more child tests had errors]]></message>
+              </failure>
+              <test-case id="1609" name="RetainedIntradosCoversMinimalBackingOpeningAtEveryDepth" fullname="VoxelEngine.Tests.EditMode.CsgFieldCoherenceTests.RetainedIntradosCoversMinimalBackingOpeningAtEveryDepth" methodname="RetainedIntradosCoversMinimalBackingOpeningAtEveryDepth" classname="VoxelEngine.Tests.EditMode.CsgFieldCoherenceTests" runstate="Runnable" seed="1972107458" result="Failed" start-time="2026-08-24 17:30:36Z" end-time="2026-08-24 17:30:36Z" duration="0.046642" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <failure>
+                  <message><![CDATA[  The minimal backing opening protrudes beyond the retained intrados at depth layer z=2.
+  Expected: less than or equal to 0.00100000005f
+  But was:  0.0485614203f
+]]></message>
+                  <stack-trace><![CDATA[at VoxelEngine.Tests.EditMode.CsgFieldCoherenceTests.RetainedIntradosCoversMinimalBackingOpeningAtEveryDepth () [0x0019d] in /Users/jlashmet/code/voxel/Assets/Tests/EditMode/CsgFieldCoherenceTests.cs:117
+]]></stack-trace>
+                </failure>
+                <output><![CDATA[[bare-intrados] z=2 crossings=63 inward=0.075 cover=0.027 deficit=0.049 voxels
+[bare-intrados] z=3 crossings=63 inward=0.075 cover=0.048 deficit=0.027 voxels
+[bare-intrados] z=4 crossings=63 inward=0.075 cover=0.069 deficit=0.006 voxels
+[bare-intrados] z=5 crossings=63 inward=0.075 cover=0.090 deficit=-0.015 voxels
+[bare-intrados] z=6 crossings=63 inward=0.075 cover=0.112 deficit=-0.037 voxels
+[bare-intrados] z=7 crossings=63 inward=0.075 cover=0.133 deficit=-0.058 voxels
+[bare-intrados] z=8 crossings=63 inward=0.075 cover=0.154 deficit=-0.079 voxels
+[bare-intrados] z=9 crossings=63 inward=0.075 cover=0.176 deficit=-0.100 voxels
+[bare-intrados] z=10 crossings=63 inward=0.075 cover=0.197 deficit=-0.122 voxels
+[bare-intrados] z=11 crossings=63 inward=0.075 cover=0.218 deficit=-0.143 voxels
+[bare-intrados] z=12 crossings=63 inward=0.164 cover=0.239 deficit=-0.076 voxels
+<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

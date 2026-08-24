@@ -352,6 +352,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             public bool RequiresContinuousTopology;
             public bool GpuEligible;
             public int GpuTransitionFaceMask;
+            public float VoxelSize;
             public bool UsedFeaturePreservingFallback;
             public double BuildStartSeconds;
             public double DensityScheduledSeconds;
@@ -1757,12 +1758,14 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                         $"Continuous topology output overflow in chunk {_build.Coordinate}, "
                       + $"cell {overflowCell}; refusing to publish partial geometry.");
 
+                bool omitProfileTopology = _buildProfileBlocks.Length > 0;
                 if (!StepAppendNativeGeometry(_compactedTopologyVertices.AsArray(),
                                               _compactedTopologyIndices.AsArray(),
                                               ref _topologyAppendVertexCursor,
                                               ref _topologyAppendIndexCursor,
                                               ref _topologyAppendVertexBase,
-                                              deadlineSeconds))
+                                              deadlineSeconds, omitProfileTopology,
+                                              _build.VoxelSize))
                 {
                     LastTopologyCompactMs = ElapsedMs(start);
                     _topologyCompactTiming.Add(LastTopologyCompactMs);
@@ -1800,7 +1803,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                                               NativeArray<uint> sourceIndices,
                                               ref int vertexCursor, ref int indexCursor,
                                               ref uint vertexBase,
-                                              double deadlineSeconds)
+                                              double deadlineSeconds,
+                                              bool omitRetainedProfileCoverage = false,
+                                              float voxelSize = 1f)
         {
             if (Time.realtimeSinceStartupAsDouble >= deadlineSeconds) return false;
             if (vertexCursor == 0 && indexCursor == 0)
@@ -1821,13 +1826,54 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             {
                 int end = math.min(sourceIndices.Length,
                                    indexCursor + AppendElementsPerDeadlineCheck);
-                for (; indexCursor < end; indexCursor++)
-                    _indices.Add(vertexBase + sourceIndices[indexCursor]);
+                if (omitRetainedProfileCoverage)
+                {
+                    end -= (end - indexCursor) % 3;
+                    if (end == indexCursor)
+                        end = math.min(sourceIndices.Length, indexCursor + 3);
+                    float inverseVoxelSize = 1f / math.max(1e-6f, voxelSize);
+                    for (; indexCursor + 2 < end; indexCursor += 3)
+                    {
+                        uint i0 = sourceIndices[indexCursor];
+                        uint i1 = sourceIndices[indexCursor + 1];
+                        uint i2 = sourceIndices[indexCursor + 2];
+                        SmoothSurfaceVertex a = sourceVertices[(int)i0];
+                        SmoothSurfaceVertex b = sourceVertices[(int)i1];
+                        SmoothSurfaceVertex c = sourceVertices[(int)i2];
+                        if (RetainedProfileOwnsTopologyTriangle(
+                                in a, in b, in c, inverseVoxelSize))
+                            continue;
+                        _indices.Add(vertexBase + i0);
+                        _indices.Add(vertexBase + i1);
+                        _indices.Add(vertexBase + i2);
+                    }
+                }
+                else
+                {
+                    for (; indexCursor < end; indexCursor++)
+                        _indices.Add(vertexBase + sourceIndices[indexCursor]);
+                }
                 if (indexCursor < sourceIndices.Length
                     && Time.realtimeSinceStartupAsDouble >= deadlineSeconds)
                     return false;
             }
             return true;
+        }
+
+        private bool RetainedProfileOwnsTopologyTriangle(
+            in SmoothSurfaceVertex a, in SmoothSurfaceVertex b, in SmoothSurfaceVertex c,
+            float inverseVoxelSize)
+        {
+            byte material = (byte)a.Material;
+            if ((byte)b.Material != material || (byte)c.Material != material) return false;
+            float3 pa = (float3)a.Position * inverseVoxelSize;
+            float3 pb = (float3)b.Position * inverseVoxelSize;
+            float3 pc = (float3)c.Position * inverseVoxelSize;
+            for (int i = 0; i < _buildProfileBlocks.Length; i++)
+                if (RetainedProfileOwnsTriangle(
+                        in _buildProfileBlocks[i], pa, pb, pc, material))
+                    return true;
+            return false;
         }
 
         private void ScheduleFacetedMaskJob(JobHandle dependency = default)
@@ -2135,6 +2181,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 SurfaceCatalogueHash = _surfaceCatalogue.CatalogueHash,
                 CoatingCatalogueVersion = _coatingCatalogue.Version,
                 CoatingCatalogueHash = _coatingCatalogue.CatalogueHash,
+                VoxelSize = voxelSize,
                 BuildStartSeconds = Time.realtimeSinceStartupAsDouble
             };
             if (_queuedAtSeconds.TryGetValue(best, out double queuedAt))
@@ -3131,7 +3178,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 float3 f10 = ProfilePoint(block.Centre, axisA, axisB, block.Axis,
                                           frontInner, faceA1, front);
                 if (!TryReadProfileBacking((f00 + f01 + f11 + f10) * 0.25f,
-                                           block.Axis, back, out uint backingSurface))
+                                           block.Axis, block.BackingDepthVoxel,
+                                           out uint backingSurface))
                     continue;
                 VoxelSurfaceSemantics current = VoxelSurfaceSemantics.FromPacked(backingSurface);
                 uint attributes = PackSurfaceAttributes(block.Material,
@@ -3181,6 +3229,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                                                  inner, a1, back);
                 EmitProfileQuad(innerBack0, inner0, inner1, innerBack1,
                                 innerNormal, attributes, voxelSize);
+                float3 backNormal = float3.zero;
+                backNormal[block.Axis] = 1f;
+                EmitProfileQuad(innerBack0, outerBack0, outerBack1, innerBack1,
+                                backNormal, attributes, voxelSize);
             }
 
             uint sideAttributes = PackSurfaceAttributes(block.Material,
@@ -3220,7 +3272,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             float3 b1 = ProfilePoint(block.Centre, axisA, axisB, block.Axis,
                                      outer, angle, back);
             if (!TryReadProfileBacking((f0 + f1 + b0 + b1) * 0.25f,
-                                       block.Axis, back, out _)) return;
+                                       block.Axis, block.BackingDepthVoxel, out _)) return;
             float3 normal = float3.zero;
             normal[axisA] = -math.sin(angle) * sign;
             normal[axisB] = math.cos(angle) * sign;
@@ -3232,11 +3284,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             EmitProfileQuad(s0, b0, b1, s1, normal, attributes, voxelSize);
         }
 
-        private bool TryReadProfileBacking(float3 position, int axis, float back,
+        private bool TryReadProfileBacking(float3 position, int axis, int backingDepthVoxel,
                                            out uint surface)
         {
             int3 voxel = (int3)math.round(position);
-            voxel[axis] = (int)math.round(back);
+            voxel[axis] = backingDepthVoxel;
             ReadSnapshotCell(voxel, out byte material, out surface, out _);
             return IsSolidSurfaceMaterial(material);
         }
@@ -3277,6 +3329,39 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             point[axisB] += math.sin(angle) * radius;
             point[axis] = depth;
             return point;
+        }
+
+        internal static bool RetainedProfileOwnsTriangle(
+            in ProfileBlock block, float3 a, float3 b, float3 c, byte material)
+        {
+            if (material != block.Material) return false;
+
+            int axisA = (block.Axis + 1) % 3;
+            int axisB = (block.Axis + 2) % 3;
+            float start = math.atan2(block.StartDirection.y, block.StartDirection.x);
+            float finish = math.atan2(block.EndDirection.y, block.EndDirection.x);
+            if (finish <= start) finish += math.PI * 2f;
+            float inner = block.InnerRadiusQ4 * (1f / 16f);
+            float outer = block.OuterRadiusQ4 * (1f / 16f);
+            float front = math.min(block.FrontQ4, block.BackQ4) * (1f / 16f);
+            float back = math.max(block.FrontQ4, block.BackQ4) * (1f / 16f);
+            float3 centre = block.Centre;
+            int profileAxis = block.Axis;
+            const float topologyPadding = 0.55f;
+            float3 point = (a + b + c) * (1f / 3f);
+            float da = point[axisA] - centre[axisA];
+            float db = point[axisB] - centre[axisB];
+            float radius = math.sqrt(da * da + db * db);
+            if (radius < inner - topologyPadding || radius > outer + topologyPadding
+                || point[profileAxis] < front - topologyPadding
+                || point[profileAxis] > back + topologyPadding)
+                return false;
+
+            float angle = math.atan2(db, da);
+            while (angle < start) angle += math.PI * 2f;
+            // The primitive owns its raw wedge. JointHalfWidthQ4 only insets the retained faces;
+            // their radial sides present the joint and do not grant duplicate topology ownership.
+            return angle >= start && angle <= finish;
         }
 
         private void TryEmitSurfaceDecoration(int3 voxel, float voxelSize)

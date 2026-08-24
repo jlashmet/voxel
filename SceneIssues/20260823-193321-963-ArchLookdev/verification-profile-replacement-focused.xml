@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="5" result="Passed" total="5" passed="5" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-24 18:17:01Z" end-time="2026-08-24 18:17:01Z" duration="0.1575489">
+  <test-suite type="TestSuite" id="1000" name="voxel" fullname="voxel" runstate="Runnable" testcasecount="1135" result="Passed" start-time="2026-08-24 18:17:01Z" end-time="2026-08-24 18:17:01Z" duration="0.157549" total="5" passed="5" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <test-suite type="Assembly" id="2454" name="VoxelEngine.Tests.EditMode.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/VoxelEngine.Tests.EditMode.dll" runstate="Runnable" testcasecount="804" result="Passed" start-time="2026-08-24 18:17:01Z" end-time="2026-08-24 18:17:01Z" duration="0.147665" total="5" passed="5" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="66444" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <test-suite type="TestSuite" id="2455" name="VoxelEngine" fullname="VoxelEngine" runstate="Runnable" testcasecount="804" result="Passed" start-time="2026-08-24 18:17:01Z" end-time="2026-08-24 18:17:01Z" duration="0.144569" total="5" passed="5" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="2456" name="Tests" fullname="VoxelEngine.Tests" runstate="Runnable" testcasecount="804" result="Passed" start-time="2026-08-24 18:17:01Z" end-time="2026-08-24 18:17:01Z" duration="0.142476" total="5" passed="5" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="2457" name="EditMode" fullname="VoxelEngine.Tests.EditMode" runstate="Runnable" testcasecount="804" result="Passed" start-time="2026-08-24 18:17:01Z" end-time="2026-08-24 18:17:01Z" duration="0.139820" total="5" passed="5" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="1482" name="ArchProfileStitchTests" fullname="VoxelEngine.Tests.EditMode.ArchProfileStitchTests" classname="VoxelEngine.Tests.EditMode.ArchProfileStitchTests" runstate="Runnable" testcasecount="5" result="Passed" start-time="2026-08-24 18:17:01Z" end-time="2026-08-24 18:17:01Z" duration="0.110199" total="5" passed="5" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1486" name="BayDeepOpeningCarveDoesNotAuthorSpringHalfPlane" fullname="VoxelEngine.Tests.EditMode.ArchProfileStitchTests.BayDeepOpeningCarveDoesNotAuthorSpringHalfPlane" methodname="BayDeepOpeningCarveDoesNotAuthorSpringHalfPlane" classname="VoxelEngine.Tests.EditMode.ArchProfileStitchTests" runstate="Runnable" seed="1138046911" result="Passed" start-time="2026-08-24 18:17:01Z" end-time="2026-08-24 18:17:01Z" duration="0.027456" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1487" name="BayImpostsDoNotIntrudeIntoClearOpeningBelowSpring" fullname="VoxelEngine.Tests.EditMode.ArchProfileStitchTests.BayImpostsDoNotIntrudeIntoClearOpeningBelowSpring" methodname="BayImpostsDoNotIntrudeIntoClearOpeningBelowSpring" classname="VoxelEngine.Tests.EditMode.ArchProfileStitchTests" runstate="Runnable" seed="475710783" result="Passed" start-time="2026-08-24 18:17:01Z" end-time="2026-08-24 18:17:01Z" duration="0.075362" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1485" name="BayLowerOpeningCarveSpansExactlyBetweenStructuralPiers" fullname="VoxelEngine.Tests.EditMode.ArchProfileStitchTests.BayLowerOpeningCarveSpansExactlyBetweenStructuralPiers" methodname="BayLowerOpeningCarveSpansExactlyBetweenStructuralPiers" classname="VoxelEngine.Tests.EditMode.ArchProfileStitchTests" runstate="Runnable" seed="1401393974" result="Passed" start-time="2026-08-24 18:17:01Z" end-time="2026-08-24 18:17:01Z" duration="0.000603" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1483" name="RetainedProfileOwnsOnlyCoveredContinuousTopology" fullname="VoxelEngine.Tests.EditMode.ArchProfileStitchTests.RetainedProfileOwnsOnlyCoveredContinuousTopology" methodname="RetainedProfileOwnsOnlyCoveredContinuousTopology" classname="VoxelEngine.Tests.EditMode.ArchProfileStitchTests" runstate="Runnable" seed="549097595" result="Passed" start-time="2026-08-24 18:17:01Z" end-time="2026-08-24 18:17:01Z" duration="0.000623" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1484" name="RetainedProfilesSpanFullArchDepthAndMatchStructuralAnnulusZeroes" fullname="VoxelEngine.Tests.EditMode.ArchProfileStitchTests.RetainedProfilesSpanFullArchDepthAndMatchStructuralAnnulusZeroes" methodname="RetainedProfilesSpanFullArchDepthAndMatchStructuralAnnulusZeroes" classname="VoxelEngine.Tests.EditMode.ArchProfileStitchTests" runstate="Runnable" seed="751585593" result="Passed" start-time="2026-08-24 18:17:01Z" end-time="2026-08-24 18:17:01Z" duration="0.000618" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

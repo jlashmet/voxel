@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="6" result="Passed" total="6" passed="6" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-24 17:25:13Z" end-time="2026-08-24 17:25:13Z" duration="0.2401402">
+  <test-suite type="TestSuite" id="1000" name="voxel" fullname="voxel" runstate="Runnable" testcasecount="1135" result="Passed" start-time="2026-08-24 17:25:13Z" end-time="2026-08-24 17:25:13Z" duration="0.240140" total="6" passed="6" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <test-suite type="Assembly" id="2454" name="VoxelEngine.Tests.EditMode.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/VoxelEngine.Tests.EditMode.dll" runstate="Runnable" testcasecount="804" result="Passed" start-time="2026-08-24 17:25:13Z" end-time="2026-08-24 17:25:13Z" duration="0.232338" total="6" passed="6" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="90931" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <test-suite type="TestSuite" id="2455" name="VoxelEngine" fullname="VoxelEngine" runstate="Runnable" testcasecount="804" result="Passed" start-time="2026-08-24 17:25:13Z" end-time="2026-08-24 17:25:13Z" duration="0.228760" total="6" passed="6" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="2456" name="Tests" fullname="VoxelEngine.Tests" runstate="Runnable" testcasecount="804" result="Passed" start-time="2026-08-24 17:25:13Z" end-time="2026-08-24 17:25:13Z" duration="0.228263" total="6" passed="6" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="2457" name="EditMode" fullname="VoxelEngine.Tests.EditMode" runstate="Runnable" testcasecount="804" result="Passed" start-time="2026-08-24 17:25:13Z" end-time="2026-08-24 17:25:13Z" duration="0.227837" total="6" passed="6" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="1480" name="ArchCrossingStabilityTests" fullname="VoxelEngine.Tests.EditMode.ArchCrossingStabilityTests" classname="VoxelEngine.Tests.EditMode.ArchCrossingStabilityTests" runstate="Runnable" testcasecount="1" result="Passed" start-time="2026-08-24 17:25:13Z" end-time="2026-08-24 17:25:13Z" duration="0.117088" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1481" name="IntradosCrossingsFollowTheAnalyticCircle" fullname="VoxelEngine.Tests.EditMode.ArchCrossingStabilityTests.IntradosCrossingsFollowTheAnalyticCircle" methodname="IntradosCrossingsFollowTheAnalyticCircle" classname="VoxelEngine.Tests.EditMode.ArchCrossingStabilityTests" runstate="Runnable" seed="1142538869" result="Passed" start-time="2026-08-24 17:25:13Z" end-time="2026-08-24 17:25:13Z" duration="0.111445" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[[xing:mid] z=7 intrados crossings=57 mean=0.007 worst=0.111 voxels
+[xing:mid] angle  -178.0 deg  error   0.009
+[xing:mid] angle     0.0 deg  error  -0.111
+[xing:mid] angle     8.2 deg  error   0.018
+[xing:mid] angle    16.5 deg  error   0.080
+[xing:mid] angle    22.0 deg  error   0.020
+[xing:mid] angle    30.0 deg  error   0.016
+[xing:mid] angle    34.7 deg  error   0.068
+[xing:mid] angle    40.0 deg  error  -0.007
+[xing:mid] angle    45.5 deg  error   0.025
+[xing:mid] angle    51.8 deg  error   0.004
+[xing:mid] angle    58.9 deg  error   0.020
+[xing:mid] angle    64.6 deg  error  -0.022
+[xing:mid] angle    69.1 deg  error   0.045
+[xing:mid] angle    77.6 deg  error  -0.008
+[xing:mid] angle    85.9 deg  error  -0.075
+[xing:mid] angle    94.1 deg  error  -0.075
+[xing:mid] angle   102.4 deg  error  -0.008
+[xing:mid] angle   110.9 deg  error   0.045
+[xing:mid] angle   115.4 deg  error  -0.022
+[xing:mid] angle   121.1 deg  error   0.020
+[xing:mid] angle   128.2 deg  error   0.004
+[xing:mid] angle   134.5 deg  error   0.025
+[xing:mid] angle   140.0 deg  error  -0.007
+[xing:mid] angle   145.3 deg  error   0.068
+[xing:mid] angle   150.0 deg  error   0.016
+[xing:mid] angle   158.0 deg  error   0.020
+[xing:mid] angle   163.5 deg  error   0.080
+[xing:mid] angle   171.8 deg  error   0.018
+[xing:mid] angle   180.0 deg  error  -0.111
+[xing:rear] z=12 intrados crossings=57 mean=-0.014 worst=0.200 voxels
+[xing:rear] angle  -178.0 deg  error   0.009
+[xing:rear] angle     0.0 deg  error  -0.200
+[xing:rear] angle     8.2 deg  error  -0.056
+[xing:rear] angle    16.5 deg  error   0.080
+[xing:rear] angle    22.0 deg  error   0.020
+[xing:rear] angle    29.8 deg  error   0.066
+[xing:rear] angle    34.7 deg  error   0.068
+[xing:rear] angle    40.2 deg  error  -0.044
+[xing:rear] angle    45.6 deg  error   0.001
+[xing:rear] angle    51.8 deg  error   0.004
+[xing:rear] angle    58.9 deg  error   0.020
+[xing:rear] angle    64.5 deg  error  -0.070
+[xing:rear] angle    69.3 deg  error   0.115
+[xing:rear] angle    77.5 deg  error  -0.101
+[xing:rear] angle    85.9 deg  error  -0.164
+[xing:rear] angle    94.1 deg  error  -0.164
+[xing:rear] angle   102.5 deg  error  -0.101
+[xing:rear] angle   110.7 deg  error   0.115
+[xing:rear] angle   115.5 deg  error  -0.070
+[xing:rear] angle   121.1 deg  error   0.020
+[xing:rear] angle   128.2 deg  error   0.004
+[xing:rear] angle   134.4 deg  error   0.001
+[xing:rear] angle   139.8 deg  error  -0.044
+[xing:rear] angle   145.3 deg  error   0.068
+[xing:rear] angle   150.2 deg  error   0.066
+[xing:rear] angle   158.0 deg  error   0.020
+[xing:rear] angle   163.5 deg  error   0.080
+[xing:rear] angle   171.8 deg  error  -0.056
+[xing:rear] angle   180.0 deg  error  -0.200
+]]></output>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1482" name="ArchProfileStitchTests" fullname="VoxelEngine.Tests.EditMode.ArchProfileStitchTests" classname="VoxelEngine.Tests.EditMode.ArchProfileStitchTests" runstate="Runnable" testcasecount="5" result="Passed" start-time="2026-08-24 17:25:13Z" end-time="2026-08-24 17:25:13Z" duration="0.064012" total="5" passed="5" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1486" name="BayDeepOpeningCarveDoesNotAuthorSpringHalfPlane" fullname="VoxelEngine.Tests.EditMode.ArchProfileStitchTests.BayDeepOpeningCarveDoesNotAuthorSpringHalfPlane" methodname="BayDeepOpeningCarveDoesNotAuthorSpringHalfPlane" classname="VoxelEngine.Tests.EditMode.ArchProfileStitchTests" runstate="Runnable" seed="288003661" result="Passed" start-time="2026-08-24 17:25:13Z" end-time="2026-08-24 17:25:13Z" duration="0.001800" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1487" name="BayImpostsDoNotIntrudeIntoClearOpeningBelowSpring" fullname="VoxelEngine.Tests.EditMode.ArchProfileStitchTests.BayImpostsDoNotIntrudeIntoClearOpeningBelowSpring" methodname="BayImpostsDoNotIntrudeIntoClearOpeningBelowSpring" classname="VoxelEngine.Tests.EditMode.ArchProfileStitchTests" runstate="Runnable" seed="2111408664" result="Passed" start-time="2026-08-24 17:25:13Z" end-time="2026-08-24 17:25:13Z" duration="0.059445" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1485" name="BayLowerOpeningCarveSpansExactlyBetweenStructuralPiers" fullname="VoxelEngine.Tests.EditMode.ArchProfileStitchTests.BayLowerOpeningCarveSpansExactlyBetweenStructuralPiers" methodname="BayLowerOpeningCarveSpansExactlyBetweenStructuralPiers" classname="VoxelEngine.Tests.EditMode.ArchProfileStitchTests" runstate="Runnable" seed="880820958" result="Passed" start-time="2026-08-24 17:25:13Z" end-time="2026-08-24 17:25:13Z" duration="0.000610" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1483" name="RetainedProfileEmitterClosesRearAnnularFace" fullname="VoxelEngine.Tests.EditMode.ArchProfileStitchTests.RetainedProfileEmitterClosesRearAnnularFace" methodname="RetainedProfileEmitterClosesRearAnnularFace" classname="VoxelEngine.Tests.EditMode.ArchProfileStitchTests" runstate="Runnable" seed="532200061" result="Passed" start-time="2026-08-24 17:25:13Z" end-time="2026-08-24 17:25:13Z" duration="0.000834" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1484" name="RetainedProfilesSpanFullArchDepthAndMatchStructuralAnnulusZeroes" fullname="VoxelEngine.Tests.EditMode.ArchProfileStitchTests.RetainedProfilesSpanFullArchDepthAndMatchStructuralAnnulusZeroes" methodname="RetainedProfilesSpanFullArchDepthAndMatchStructuralAnnulusZeroes" classname="VoxelEngine.Tests.EditMode.ArchProfileStitchTests" runstate="Runnable" seed="145077622" result="Passed" start-time="2026-08-24 17:25:13Z" end-time="2026-08-24 17:25:13Z" duration="0.000312" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

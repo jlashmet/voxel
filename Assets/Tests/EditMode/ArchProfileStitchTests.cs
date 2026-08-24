@@ -1,6 +1,7 @@
 using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
+using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Storage.Runtime;
 using VoxelEngine.Structures.Api;
@@ -10,6 +11,61 @@ namespace VoxelEngine.Tests.EditMode
 {
     public sealed class ArchProfileStitchTests
     {
+        [Test]
+        public void RetainedProfileOwnsOnlyCoveredContinuousTopology()
+        {
+            var block = new ProfileBlock
+            {
+                Centre = int3.zero,
+                InnerRadiusQ4 = 14 * 16,
+                OuterRadiusQ4 = 21 * 16,
+                FrontQ4 = -8,
+                BackQ4 = 12 * 16 + 8,
+                StartDirection = new int2(4096, 0),
+                EndDirection = new int2(0, 4096),
+                Axis = 2,
+                Material = 9,
+                JointHalfWidthQ4 = 4,
+            };
+
+            Assert.True(CpuTransvoxelChunkCache.RetainedProfileOwnsTriangle(
+                in block,
+                new float3(13.9f, 5.0f, 6f),
+                new float3(14.1f, 5.1f, 6f),
+                new float3(14.0f, 4.9f, 6.2f), 9),
+                "the retained intrados must replace matching duplicate topology");
+            Assert.False(CpuTransvoxelChunkCache.RetainedProfileOwnsTriangle(
+                in block,
+                new float3(13.9f, 5.0f, 6f),
+                new float3(14.1f, 5.1f, 6f),
+                new float3(14.0f, 4.9f, 6.2f), 8),
+                "a profile may not suppress another material");
+            Assert.False(CpuTransvoxelChunkCache.RetainedProfileOwnsTriangle(
+                in block,
+                new float3(8f, 1f, 6f),
+                new float3(8f, 2f, 6f),
+                new float3(8f, 1.5f, 6.2f), 9),
+                "geometry outside the annular profile volume must remain");
+            Assert.False(CpuTransvoxelChunkCache.RetainedProfileOwnsTriangle(
+                in block,
+                new float3(14f, 5f, 14f),
+                new float3(14.2f, 5.1f, 14f),
+                new float3(14.1f, 4.9f, 14.2f), 9),
+                "geometry outside the retained profile depth must remain");
+            Assert.True(CpuTransvoxelChunkCache.RetainedProfileOwnsTriangle(
+                in block,
+                new float3(14f, 0.01f, 6f),
+                new float3(14.2f, 0.02f, 6f),
+                new float3(14.1f, 0.03f, 6.2f), 9),
+                "the profile primitive owns duplicate topology through its full wedge; its inset side faces present the intentional joint");
+            Assert.False(CpuTransvoxelChunkCache.RetainedProfileOwnsTriangle(
+                in block,
+                new float3(14f, -1.0f, 6f),
+                new float3(14.2f, -0.9f, 6f),
+                new float3(14.1f, -1.1f, 6.2f), 9),
+                "topology outside the authored wedge must remain");
+        }
+
         [Test]
         public void RetainedProfilesSpanFullArchDepthAndMatchStructuralAnnulusZeroes()
         {
@@ -36,7 +92,8 @@ namespace VoxelEngine.Tests.EditMode
                 int expectedOuterQ4 = arch.OuterRadius * 16;
                 int projectionQ4 = arch.ProfileProjectionQ4 > 0 ? arch.ProfileProjectionQ4 : 8;
                 int expectedFrontQ4 = -projectionQ4;
-                int expectedBackQ4 = (arch.Depth - 1) * 16 + projectionQ4;
+                int expectedBackQ4 = arch.Depth * 16 + projectionQ4;
+                int expectedBackingDepth = arch.Depth - 1;
                 for (int i = 0; i < blocks.Count; i++)
                 {
                     ProfileBlock block = blocks[i];
@@ -48,6 +105,8 @@ namespace VoxelEngine.Tests.EditMode
                         $"retained profile for voussoir {i} must project from the entrance face");
                     Assert.AreEqual(expectedBackQ4, block.BackQ4,
                         $"retained profile for voussoir {i} must remain continuous through the rear face so the soffit cannot expose voxel steps");
+                    Assert.AreEqual(expectedBackingDepth, block.BackingDepthVoxel,
+                        $"retained profile for voussoir {i} must validate against occupied backing rather than projected empty space");
                 }
             }
             finally

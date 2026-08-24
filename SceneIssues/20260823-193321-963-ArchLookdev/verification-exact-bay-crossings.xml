@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="1" result="Failed(Child)" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-24 17:24:21Z" end-time="2026-08-24 17:24:21Z" duration="0.1597287">
+  <test-suite type="TestSuite" id="1000" name="voxel" fullname="voxel" runstate="Runnable" testcasecount="1135" result="Failed" site="Child" start-time="2026-08-24 17:24:21Z" end-time="2026-08-24 17:24:21Z" duration="0.159729" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <failure>
+      <message><![CDATA[One or more child tests had errors]]></message>
+    </failure>
+    <test-suite type="Assembly" id="2454" name="VoxelEngine.Tests.EditMode.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/VoxelEngine.Tests.EditMode.dll" runstate="Runnable" testcasecount="804" result="Failed" site="Child" start-time="2026-08-24 17:24:21Z" end-time="2026-08-24 17:24:21Z" duration="0.151119" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="88633" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <failure>
+        <message><![CDATA[One or more child tests had errors]]></message>
+      </failure>
+      <test-suite type="TestSuite" id="2455" name="VoxelEngine" fullname="VoxelEngine" runstate="Runnable" testcasecount="804" result="Failed" site="Child" start-time="2026-08-24 17:24:21Z" end-time="2026-08-24 17:24:21Z" duration="0.149809" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <failure>
+          <message><![CDATA[One or more child tests had errors]]></message>
+        </failure>
+        <test-suite type="TestSuite" id="2456" name="Tests" fullname="VoxelEngine.Tests" runstate="Runnable" testcasecount="804" result="Failed" site="Child" start-time="2026-08-24 17:24:21Z" end-time="2026-08-24 17:24:21Z" duration="0.148553" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <failure>
+            <message><![CDATA[One or more child tests had errors]]></message>
+          </failure>
+          <test-suite type="TestSuite" id="2457" name="EditMode" fullname="VoxelEngine.Tests.EditMode" runstate="Runnable" testcasecount="804" result="Failed" site="Child" start-time="2026-08-24 17:24:21Z" end-time="2026-08-24 17:24:21Z" duration="0.147327" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <failure>
+              <message><![CDATA[One or more child tests had errors]]></message>
+            </failure>
+            <test-suite type="TestFixture" id="1480" name="ArchCrossingStabilityTests" fullname="VoxelEngine.Tests.EditMode.ArchCrossingStabilityTests" classname="VoxelEngine.Tests.EditMode.ArchCrossingStabilityTests" runstate="Runnable" testcasecount="1" result="Failed" site="Child" start-time="2026-08-24 17:24:21Z" end-time="2026-08-24 17:24:21Z" duration="0.120577" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <failure>
+                <message><![CDATA[One or more child tests had errors]]></message>
+              </failure>
+              <test-case id="1481" name="IntradosCrossingsFollowTheAnalyticCircle" fullname="VoxelEngine.Tests.EditMode.ArchCrossingStabilityTests.IntradosCrossingsFollowTheAnalyticCircle" methodname="IntradosCrossingsFollowTheAnalyticCircle" classname="VoxelEngine.Tests.EditMode.ArchCrossingStabilityTests" runstate="Runnable" seed="1824656359" result="Failed" start-time="2026-08-24 17:24:21Z" end-time="2026-08-24 17:24:21Z" duration="0.115248" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <failure>
+                  <message><![CDATA[  The retained profile guard must cover the exact bay's rear-layer crossings.
+  Expected: less than or equal to 0.125f
+  But was:  0.200000763f
+]]></message>
+                  <stack-trace><![CDATA[at VoxelEngine.Tests.EditMode.ArchCrossingStabilityTests.IntradosCrossingsFollowTheAnalyticCircle () [0x00212] in /Users/jlashmet/code/voxel/Assets/Tests/EditMode/ArchCrossingStabilityTests.cs:128
+]]></stack-trace>
+                </failure>
+                <output><![CDATA[[xing:mid] z=7 intrados crossings=57 mean=0.007 worst=0.111 voxels
+[xing:mid] angle  -178.0 deg  error   0.009
+[xing:mid] angle     0.0 deg  error  -0.111
+[xing:mid] angle     8.2 deg  error   0.018
+[xing:mid] angle    16.5 deg  error   0.080
+[xing:mid] angle    22.0 deg  error   0.020
+[xing:mid] angle    30.0 deg  error   0.016
+[xing:mid] angle    34.7 deg  error   0.068
+[xing:mid] angle    40.0 deg  error  -0.007
+[xing:mid] angle    45.5 deg  error   0.025
+[xing:mid] angle    51.8 deg  error   0.004
+[xing:mid] angle    58.9 deg  error   0.020
+[xing:mid] angle    64.6 deg  error  -0.022
+[xing:mid] angle    69.1 deg  error   0.045
+[xing:mid] angle    77.6 deg  error  -0.008
+[xing:mid] angle    85.9 deg  error  -0.075
+[xing:mid] angle    94.1 deg  error  -0.075
+[xing:mid] angle   102.4 deg  error  -0.008
+[xing:mid] angle   110.9 deg  error   0.045
+[xing:mid] angle   115.4 deg  error  -0.022
+[xing:mid] angle   121.1 deg  error   0.020
+[xing:mid] angle   128.2 deg  error   0.004
+[xing:mid] angle   134.5 deg  error   0.025
+[xing:mid] angle   140.0 deg  error  -0.007
+[xing:mid] angle   145.3 deg  error   0.068
+[xing:mid] angle   150.0 deg  error   0.016
+[xing:mid] angle   158.0 deg  error   0.020
+[xing:mid] angle   163.5 deg  error   0.080
+[xing:mid] angle   171.8 deg  error   0.018
+[xing:mid] angle   180.0 deg  error  -0.111
+[xing:rear] z=12 intrados crossings=57 mean=-0.014 worst=0.200 voxels
+[xing:rear] angle  -178.0 deg  error   0.009
+[xing:rear] angle     0.0 deg  error  -0.200
+[xing:rear] angle     8.2 deg  error  -0.056
+[xing:rear] angle    16.5 deg  error   0.080
+[xing:rear] angle    22.0 deg  error   0.020
+[xing:rear] angle    29.8 deg  error   0.066
+[xing:rear] angle    34.7 deg  error   0.068
+[xing:rear] angle    40.2 deg  error  -0.044
+[xing:rear] angle    45.6 deg  error   0.001
+[xing:rear] angle    51.8 deg  error   0.004
+[xing:rear] angle    58.9 deg  error   0.020
+[xing:rear] angle    64.5 deg  error  -0.070
+[xing:rear] angle    69.3 deg  error   0.115
+[xing:rear] angle    77.5 deg  error  -0.101
+[xing:rear] angle    85.9 deg  error  -0.164
+[xing:rear] angle    94.1 deg  error  -0.164
+[xing:rear] angle   102.5 deg  error  -0.101
+[xing:rear] angle   110.7 deg  error   0.115
+[xing:rear] angle   115.5 deg  error  -0.070
+[xing:rear] angle   121.1 deg  error   0.020
+[xing:rear] angle   128.2 deg  error   0.004
+[xing:rear] angle   134.4 deg  error   0.001
+[xing:rear] angle   139.8 deg  error  -0.044
+[xing:rear] angle   145.3 deg  error   0.068
+[xing:rear] angle   150.2 deg  error   0.066
+[xing:rear] angle   158.0 deg  error   0.020
+[xing:rear] angle   163.5 deg  error   0.080
+[xing:rear] angle   171.8 deg  error  -0.056
+[xing:rear] angle   180.0 deg  error  -0.200
+<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

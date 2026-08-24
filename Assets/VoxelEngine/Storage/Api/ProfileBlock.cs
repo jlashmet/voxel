@@ -14,6 +14,9 @@ namespace VoxelEngine.Storage.Api
         public int OuterRadiusQ4;
         public int FrontQ4;
         public int BackQ4;
+        /// <summary>Last occupied sample used to validate structural backing independently from
+        /// projected presentation geometry.</summary>
+        public int BackingDepthVoxel;
         public int2 StartDirection;
         public int2 EndDirection;
         public byte Axis;

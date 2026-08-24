@@ -1,0 +1,5 @@
+32:HARNESS screenshot /Users/jlashmet/code/voxel/Artifacts/SceneIssue193321Final/Screenshots/frame_000_t002.0.png
+33:SCENEISSUE camera pinned at (6.28, 3.78, -14.77) fov=34
+34:HARNESS screenshot /Users/jlashmet/code/voxel/Artifacts/SceneIssue193321Final/Screenshots/frame_001_t013.0.png
+35:HARNESS screenshot /Users/jlashmet/code/voxel/Artifacts/SceneIssue193321Final/Screenshots/frame_002_t024.0.png
+36:HARNESS quit after 25.0s
