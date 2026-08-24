@@ -37,6 +37,22 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
     ///
     /// Not part of the frame path. It exists for verification, and it allocates and blocks.
     /// </summary>
+    public readonly struct CpuDensityFieldSnapshot
+    {
+        public readonly float[] Density;
+        public readonly byte[] Materials;
+        public readonly uint[] Surfaces;
+        public readonly byte[] Boundaries;
+
+        public CpuDensityFieldSnapshot(float[] density, byte[] materials, uint[] surfaces, byte[] boundaries)
+        {
+            Density = density;
+            Materials = materials;
+            Surfaces = surfaces;
+            Boundaries = boundaries;
+        }
+    }
+
     public static class CpuDensityOracle
     {
         /// <summary>
@@ -102,6 +118,74 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 emptyVoxels.Dispose();
                 emptySemantics.Dispose();
                 emptyBoundary.Dispose();
+            }
+        }
+
+        public static CpuDensityFieldSnapshot SampleMixedNeighbourhood(
+            int3 chunkOriginVoxel, int3 brickCacheOrigin, int brickCacheEdge,
+            int cellsPerAxis, int padding, int sourceStep,
+            byte[] brickKinds, byte[] brickUniformMaterials,
+            byte[] mixedVoxels, ushort[] mixedSurfaceSemantics, byte[] mixedBoundarySamples,
+            in SurfaceCatalogueView surfaces, in CoatingCatalogueView coatings,
+            in MaterialPaletteView palette)
+        {
+            int gridSize = cellsPerAxis + padding * 2 + 1;
+            int samples = gridSize * gridSize * gridSize;
+            int brickCount = brickCacheEdge * brickCacheEdge * brickCacheEdge;
+
+            var bricks = new NativeArray<TransvoxelDensityBrick>(brickCount, Allocator.TempJob);
+            var payloadVoxels = new NativeArray<byte>(
+                mixedVoxels is { Length: > 0 } ? mixedVoxels.Length : 1, Allocator.TempJob);
+            var payloadSemantics = new NativeArray<ushort>(
+                mixedSurfaceSemantics is { Length: > 0 } ? mixedSurfaceSemantics.Length : 1,
+                Allocator.TempJob);
+            var payloadBoundary = new NativeArray<byte>(
+                mixedBoundarySamples is { Length: > 0 } ? mixedBoundarySamples.Length : 1,
+                Allocator.TempJob);
+            var density = new NativeArray<float>(samples, Allocator.TempJob);
+            var materials = new NativeArray<byte>(samples, Allocator.TempJob);
+            var semantics = new NativeArray<uint>(samples, Allocator.TempJob);
+            var boundaries = new NativeArray<byte>(samples, Allocator.TempJob);
+
+            try
+            {
+                if (mixedVoxels is { Length: > 0 }) payloadVoxels.CopyFrom(mixedVoxels);
+                if (mixedSurfaceSemantics is { Length: > 0 })
+                    payloadSemantics.CopyFrom(mixedSurfaceSemantics);
+                if (mixedBoundarySamples is { Length: > 0 })
+                    payloadBoundary.CopyFrom(mixedBoundarySamples);
+
+                for (int i = 0; i < brickCount; i++)
+                {
+                    byte kind = brickKinds[i];
+                    bricks[i] = new TransvoxelDensityBrick
+                    {
+                        Kind = kind,
+                        UniformMaterial = brickUniformMaterials[i],
+                        MixedOffset = 0,
+                    };
+                }
+
+                var job = BuildJob(
+                    bricks, payloadVoxels, payloadSemantics, payloadBoundary,
+                    density, materials, semantics, boundaries,
+                    chunkOriginVoxel, brickCacheOrigin, brickCacheEdge,
+                    gridSize, padding, sourceStep, surfaces, coatings, palette);
+                for (int i = 0; i < samples; i++) job.Execute(i);
+
+                return new CpuDensityFieldSnapshot(
+                    density.ToArray(), materials.ToArray(), semantics.ToArray(), boundaries.ToArray());
+            }
+            finally
+            {
+                bricks.Dispose();
+                payloadVoxels.Dispose();
+                payloadSemantics.Dispose();
+                payloadBoundary.Dispose();
+                density.Dispose();
+                materials.Dispose();
+                semantics.Dispose();
+                boundaries.Dispose();
             }
         }
 

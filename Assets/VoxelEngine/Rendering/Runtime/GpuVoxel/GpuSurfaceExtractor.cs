@@ -833,6 +833,18 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _sampleMaterial.GetData(materials);
         }
 
+        public void ReadSampleSurfaces(uint[] surfaces)
+        {
+            GeometryReadbacks++;
+            _sampleSurface.GetData(surfaces);
+        }
+
+        public void ReadSampleBoundaries(uint[] boundaries)
+        {
+            GeometryReadbacks++;
+            _sampleBoundary.GetData(boundaries);
+        }
+
         /// <summary>Face snapshot, for the transition oracle. Never called on the frame path.</summary>
         public void ReadFaceDensity(float[] density)
         {
