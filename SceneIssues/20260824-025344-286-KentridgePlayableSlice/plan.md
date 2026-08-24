@@ -41,7 +41,7 @@ surfaces in the correct direction.
 - [x] Identify the overlapping instances and reversed stair from authoritative catalogue data.
 - [x] Add regression coverage and implement the smallest proven fix.
 - [x] Run affected tests and final production-player replay.
-- [ ] Review, commit/push, and resolve the manifest separately.
+- [x] Review, commit/push, and resolve the manifest separately.
 
 ## Findings
 
