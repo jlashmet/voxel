@@ -70,7 +70,7 @@ jobs:
         run: |
           set -uo pipefail
           ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue014011MixedNoBoundary"
-          OUT="$GITHUB_WORKSPACE/.claude/plans/sceneissue-014011-mixed-no-boundary.txt"
+          OUT="$GITHUB_WORKSPACE/SceneIssues/20260823-014011-920-VoxelShowcase/notes-mixed-no-boundary.txt"
           mkdir -p "$ROOT" "$(dirname "$OUT")"
           status=0
           UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=4 \
@@ -104,7 +104,7 @@ jobs:
         run: |
           set -euo pipefail
           git restore -- Assets/Tests/EditMode/GpuSurfaceExtractorOracleTests.cs
-          OUT=.claude/plans/sceneissue-014011-mixed-no-boundary.txt
+          OUT=SceneIssues/20260823-014011-920-VoxelShowcase/notes-mixed-no-boundary.txt
           test -s "$OUT"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'

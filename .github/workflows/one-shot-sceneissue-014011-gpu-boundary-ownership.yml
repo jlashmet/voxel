@@ -247,7 +247,7 @@ jobs:
         run: |
           set -euo pipefail
           ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue014011GpuBoundaryOwnership"
-          OUT="$GITHUB_WORKSPACE/.claude/plans/sceneissue-014011-gpu-boundary-ownership.txt"
+          OUT="$GITHUB_WORKSPACE/SceneIssues/20260823-014011-920-VoxelShowcase/notes-gpu-boundary-ownership.txt"
           mkdir -p "$(dirname "$OUT")"
           status=1
           if [[ -s "$ROOT/results.xml" ]]; then

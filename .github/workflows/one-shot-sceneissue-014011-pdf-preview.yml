@@ -23,7 +23,7 @@ jobs:
         run: |
           set -euo pipefail
           ISSUE='SceneIssues/20260823-014011-920-VoxelShowcase'
-          OUT='.claude/plans/sceneissue-014011-pdf-preview'
+          OUT='SceneIssues/20260823-014011-920-VoxelShowcase/pdf-preview'
           rm -rf "$OUT"
           mkdir -p "$OUT"
           sips -s format pdf "$ISSUE/screenshot-001.png" --out "$OUT/before.pdf" >/dev/null

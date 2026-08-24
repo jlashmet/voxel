@@ -23,7 +23,7 @@ jobs:
         run: |
           set -euo pipefail
           ISSUE='SceneIssues/20260823-014011-920-VoxelShowcase'
-          OUT='.claude/plans/sceneissue-014011-previews'
+          OUT='SceneIssues/20260823-014011-920-VoxelShowcase/previews'
           rm -rf "$OUT"
           mkdir -p "$OUT"
           for pair in before:screenshot-001.png after:verification-lod2-attempt2.png; do

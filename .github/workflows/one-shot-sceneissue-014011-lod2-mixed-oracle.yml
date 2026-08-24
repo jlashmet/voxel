@@ -95,7 +95,7 @@ jobs:
         run: |
           set -uo pipefail
           ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue014011MixedOracle"
-          OUT="$GITHUB_WORKSPACE/.claude/plans/sceneissue-014011-lod2-mixed-oracle.txt"
+          OUT="$GITHUB_WORKSPACE/SceneIssues/20260823-014011-920-VoxelShowcase/notes-lod2-mixed-oracle.txt"
           mkdir -p "$ROOT" "$(dirname "$OUT")"
           status=0
           UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=4 \
@@ -144,7 +144,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          OUT=.claude/plans/sceneissue-014011-lod2-mixed-oracle.txt
+          OUT=SceneIssues/20260823-014011-920-VoxelShowcase/notes-lod2-mixed-oracle.txt
           test -s "$OUT"
           git add "$OUT"
           if git diff --cached --quiet; then
