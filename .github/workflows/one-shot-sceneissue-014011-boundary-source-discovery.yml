@@ -25,11 +25,16 @@ jobs:
           OUT=.claude/plans/sceneissue-014011-boundary-source.txt
           mkdir -p "$(dirname "$OUT")"
           {
-            echo '=== definitions ==='
-            rg -n -C 12 'struct VoxelBoundarySample|class VoxelBoundarySample|AppliesAlong\(|FromSignedQ4\(|SignedQ3|ExtrusionAxis' Assets/VoxelEngine Assets/Tests || true
+            echo '=== matching files ==='
+            grep -RIlE 'VoxelBoundarySample|AppliesAlong\(|FromSignedQ4\(' Assets/VoxelEngine Assets/Tests || true
+            echo
+            echo '=== definitions/usages ==='
+            grep -RInE -C 12 'struct VoxelBoundarySample|class VoxelBoundarySample|AppliesAlong\(|FromSignedQ4\(|SignedQ3|ExtrusionAxis' Assets/VoxelEngine Assets/Tests || true
           } > "$OUT"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add "$OUT"
-          git commit -m 'SceneIssue 014011: record boundary semantics source'
-          git push origin HEAD:fixes
+          if ! git diff --cached --quiet; then
+            git commit -m 'SceneIssue 014011: record boundary semantics source'
+            git push origin HEAD:fixes
+          fi
