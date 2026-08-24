@@ -1,0 +1,109 @@
+{
+    "formatVersion": 3,
+    "id": "20260824-024505-195-KentridgePlayableSlice",
+    "capturedUtc": "2026-08-24T02:45:05.1954120Z",
+    "note": "what is this floating stuff?  if its a building make it look right.",
+    "status": "open",
+    "resolvedUtc": "",
+    "resolutionSummary": "",
+    "regressionTest": "",
+    "fixCommit": "",
+    "unityVersion": "6000.5.6f1",
+    "platform": "OSXEditor",
+    "sceneName": "KentridgePlayableSlice",
+    "scenePath": "Assets/Scenes/KentridgePlayableSlice.unity",
+    "sceneBuildIndex": 0,
+    "captures": [
+        {
+            "screenshot": "screenshot-001.png",
+            "capturedUtc": "2026-08-24T02:45:05.1954430Z",
+            "frameCount": 10283,
+            "timeSinceLevelLoad": 76.10149383544922,
+            "screenWidth": 1637,
+            "screenHeight": 1140,
+            "poseAnchor": {
+                "hierarchyPath": "Kentridge Player Camera",
+                "position": {
+                    "x": 103.93045806884766,
+                    "y": 26.35003662109375,
+                    "z": 60.50956344604492
+                },
+                "rotation": {
+                    "x": 0.07558764517307282,
+                    "y": 0.7087153196334839,
+                    "z": 0.07683468610048294,
+                    "w": -0.6972127556800842
+                },
+                "localScale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                }
+            },
+            "camera": {
+                "hierarchyPath": "Kentridge Player Camera",
+                "position": {
+                    "x": 103.93045806884766,
+                    "y": 26.35003662109375,
+                    "z": 60.50956344604492
+                },
+                "rotation": {
+                    "x": 0.07558764517307282,
+                    "y": 0.7087153196334839,
+                    "z": 0.07683468610048294,
+                    "w": -0.6972127556800842
+                },
+                "fieldOfView": 58.0,
+                "orthographic": false,
+                "orthographicSize": 5.0,
+                "nearClipPlane": 0.05000000074505806,
+                "farClipPlane": 16000.0
+            },
+            "circles": []
+        }
+    ],
+    "screenshot": "screenshot-001.png",
+    "frameCount": 10283,
+    "timeSinceLevelLoad": 76.10149383544922,
+    "screenWidth": 1637,
+    "screenHeight": 1140,
+    "poseAnchor": {
+        "hierarchyPath": "Kentridge Player Camera",
+        "position": {
+            "x": 103.93045806884766,
+            "y": 26.35003662109375,
+            "z": 60.50956344604492
+        },
+        "rotation": {
+            "x": 0.07558764517307282,
+            "y": 0.7087153196334839,
+            "z": 0.07683468610048294,
+            "w": -0.6972127556800842
+        },
+        "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+        }
+    },
+    "camera": {
+        "hierarchyPath": "Kentridge Player Camera",
+        "position": {
+            "x": 103.93045806884766,
+            "y": 26.35003662109375,
+            "z": 60.50956344604492
+        },
+        "rotation": {
+            "x": 0.07558764517307282,
+            "y": 0.7087153196334839,
+            "z": 0.07683468610048294,
+            "w": -0.6972127556800842
+        },
+        "fieldOfView": 58.0,
+        "orthographic": false,
+        "orthographicSize": 5.0,
+        "nearClipPlane": 0.05000000074505806,
+        "farClipPlane": 16000.0
+    },
+    "circles": []
+}

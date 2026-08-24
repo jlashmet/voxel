@@ -1,0 +1,121 @@
+{
+    "formatVersion": 3,
+    "id": "20260824-024358-011-KentridgePlayableSlice",
+    "capturedUtc": "2026-08-24T02:43:58.0142220Z",
+    "note": "this is the beginning scene.  they are supposed to be in a bar but look covered in terrain/grass",
+    "status": "open",
+    "resolvedUtc": "",
+    "resolutionSummary": "",
+    "regressionTest": "",
+    "fixCommit": "",
+    "unityVersion": "6000.5.6f1",
+    "platform": "OSXEditor",
+    "sceneName": "KentridgePlayableSlice",
+    "scenePath": "Assets/Scenes/KentridgePlayableSlice.unity",
+    "sceneBuildIndex": 0,
+    "captures": [
+        {
+            "screenshot": "screenshot-001.png",
+            "capturedUtc": "2026-08-24T02:43:58.0150670Z",
+            "frameCount": 2315,
+            "timeSinceLevelLoad": 36.76993179321289,
+            "screenWidth": 1637,
+            "screenHeight": 1140,
+            "poseAnchor": {
+                "hierarchyPath": "Kentridge Player Camera",
+                "position": {
+                    "x": 137.1999969482422,
+                    "y": 29.5,
+                    "z": 74.80000305175781
+                },
+                "rotation": {
+                    "x": 0.3751024305820465,
+                    "y": -0.5994148850440979,
+                    "z": 0.3751024305820465,
+                    "w": 0.5994149446487427
+                },
+                "localScale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                }
+            },
+            "camera": {
+                "hierarchyPath": "Kentridge Player Camera",
+                "position": {
+                    "x": 137.1999969482422,
+                    "y": 29.5,
+                    "z": 74.80000305175781
+                },
+                "rotation": {
+                    "x": 0.3751024305820465,
+                    "y": -0.5994148850440979,
+                    "z": 0.3751024305820465,
+                    "w": 0.5994149446487427
+                },
+                "fieldOfView": 58.0,
+                "orthographic": false,
+                "orthographicSize": 5.0,
+                "nearClipPlane": 0.05000000074505806,
+                "farClipPlane": 16000.0
+            },
+            "circles": [
+                {
+                    "centerX": 0.5021186470985413,
+                    "centerY": 0.4543655216693878,
+                    "radius": 0.14152412116527558
+                }
+            ]
+        }
+    ],
+    "screenshot": "screenshot-001.png",
+    "frameCount": 2315,
+    "timeSinceLevelLoad": 36.76993179321289,
+    "screenWidth": 1637,
+    "screenHeight": 1140,
+    "poseAnchor": {
+        "hierarchyPath": "Kentridge Player Camera",
+        "position": {
+            "x": 137.1999969482422,
+            "y": 29.5,
+            "z": 74.80000305175781
+        },
+        "rotation": {
+            "x": 0.3751024305820465,
+            "y": -0.5994148850440979,
+            "z": 0.3751024305820465,
+            "w": 0.5994149446487427
+        },
+        "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+        }
+    },
+    "camera": {
+        "hierarchyPath": "Kentridge Player Camera",
+        "position": {
+            "x": 137.1999969482422,
+            "y": 29.5,
+            "z": 74.80000305175781
+        },
+        "rotation": {
+            "x": 0.3751024305820465,
+            "y": -0.5994148850440979,
+            "z": 0.3751024305820465,
+            "w": 0.5994149446487427
+        },
+        "fieldOfView": 58.0,
+        "orthographic": false,
+        "orthographicSize": 5.0,
+        "nearClipPlane": 0.05000000074505806,
+        "farClipPlane": 16000.0
+    },
+    "circles": [
+        {
+            "centerX": 0.5021186470985413,
+            "centerY": 0.4543655216693878,
+            "radius": 0.14152412116527558
+        }
+    ]
+}
