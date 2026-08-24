@@ -78,14 +78,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public const int BaseVoxelsPerAxis = CellsPerAxis * BaseSourceStep;
         public const int BaseBricksPerAxis = BaseVoxelsPerAxis / VoxelReadGrid.BlockEdge;
 
-        /// <summary>
-        /// GPU surface extraction is intentionally limited to the two exact near rings. Step 4
-        /// retains its feature-preserving CPU/fallback behavior and step 8 remains block HLOD.
-        /// Keep this policy explicit so future ring additions do not silently cross back ends.
-        /// </summary>
-        internal static bool SupportsGpuSurfaceStep(int sourceStep) =>
-            sourceStep == BaseSourceStep || sourceStep == BaseSourceStep * 2;
-
         private const int Padding = 1;
         private const int GridSize = CellsPerAxis + 3;
         private const int GridSampleCount = GridSize * GridSize * GridSize;
@@ -354,7 +346,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             public bool HasOwnedSolid;
             public bool RequiresContinuousTopology;
             public bool GpuEligible;
-            public int GpuTransitionFaceMask;
             public bool UsedFeaturePreservingFallback;
             public double BuildStartSeconds;
             public double DensityScheduledSeconds;
@@ -370,6 +361,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private bool _clipmapWindowValid;
         private int3 _clipmapCenter;
         private int _clipmapRadius;
+        // Camera motion retires only the slabs that left the previous clipmap window. The
+        // traversal is resumable, so even a teleport never turns residency cleanup into a scan
+        // of every known chunk or a full old-window walk in one frame.
         private const int ClipmapEdgeCandidatesPerPrepare = 32;
         private bool _clipmapEdgeRetirementPending;
         private int3 _clipmapRetirementFromCenter;
@@ -378,10 +372,15 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private int _clipmapRetirementAxis;
         private int _clipmapRetirementDepth;
         private int _clipmapRetirementPlaneCursor;
+        // Known-chunk liveness is maintained incrementally. A full HashSet scan in every worker
+        // turns residency pressure into O(world-residency) frame work, so each known chunk owns
+        // one round-robin queue record instead.
         private readonly Queue<int3> _residencyQueue = new();
         private readonly HashSet<int3> _queuedResidency = new();
         private const int ResidencyChecksPerPrepare = 32;
 
+        // Full-region invalidations (journal overflow, residency publication, atomic world swap)
+        // are also incremental. Fine-grained edits continue to use the brick path immediately.
         private readonly Queue<int3> _regionInvalidationQueue = new();
         private readonly HashSet<int3> _queuedRegionInvalidations = new();
         private readonly HashSet<int3> _rescanRegionInvalidations = new();
@@ -393,25 +392,39 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private int _activeRegionCandidateCursor;
 
         private readonly HashSet<int3> _dirty = new();
+        // Dirty work is also kept in a persistent FIFO. The HashSet remains the authoritative
+        // membership/coalescing structure; the queue gives build admission bounded incremental
+        // traversal instead of rescanning every dirty chunk whenever one workspace becomes free.
         private readonly Queue<int3> _dirtyQueue = new();
         private readonly HashSet<int3> _queuedDirty = new();
+        // Missing/stale chunks that are inside the actual camera frustum get a second queue
+        // record. This never changes authoritative dirty membership or the global frame budget;
+        // it only prevents thousands of valid 360-degree prefetch records from delaying a hole
+        // the player can already see. Stale priority records are harmless and self-pruning.
         private readonly Queue<int3> _visibleDirtyQueue = new();
         private readonly HashSet<int3> _queuedVisibleDirty = new();
         private const int BuildSelectionCandidatesPerSlice = 64;
         private const int VisibleBuildSelectionCandidatesPerSlice = 8;
         private readonly Dictionary<int3, ulong> _desiredVersions = new();
+        // Chunks whose last completed build produced no geometry, and the source version that
+        // proved it. They hold no Entry and no GPU memory, so they cost a dictionary slot
+        // rather than a resident chunk, and they stay out of the dirty set until invalidated.
         private readonly Dictionary<int3, ulong> _emptyVersions = new();
         private readonly Dictionary<int3, double> _queuedAtSeconds = new();
         private ulong _versionCounter;
         private readonly List<Entry> _visible = new();
         private readonly Plane[] _frustumPlanes = new Plane[6];
 
+        // Heavy persistent native memory is lifecycle-owned by the reusable build workspace.
+        // These handles are borrowed aliases kept only to avoid obscuring the job setup below.
         private readonly TransvoxelBuildWorkspace _workspace;
         private readonly NativeArray<float> _density;
         private readonly NativeArray<byte> _materials;
         private readonly NativeArray<uint> _surfaceSemantics;
         private readonly NativeArray<byte> _boundarySamples;
         private NativeArray<TransvoxelDensityBrick> _densityBricks;
+        // Coarse-ring snapshot: one mip cell per lattice sample. Fixed size regardless of how
+        // much world the chunk covers, unlike the brick cache it replaces.
         private NativeArray<byte> _mipSampleOccupancy;
         private NativeArray<byte> _mipSampleMaterials;
         private NativeList<byte> _densityMixedVoxels;
@@ -463,6 +476,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private NativeList<SmoothSurfaceVertex> _compactedTopologyVertices;
         private NativeList<uint> _compactedTopologyIndices;
         private NativeArray<int> _topologyOverflowCell;
+        // Transition-cell tables, uploaded once per cache. Only coarse rings stitch faces, but
+        // the tables are a few kilobytes and sharing the allocation keeps the build path simple.
+        /// <summary>Half-stride samples per axis on a transition face: two per coarse cell,
+        /// plus one to close the last cell.</summary>
         private const int FaceSamplesPerAxis = CellsPerAxis * 2 + 1;
         private NativeArray<float> _faceDensity;
         private NativeArray<byte> _faceMaterials;
@@ -499,10 +516,19 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private readonly byte[] _cellBoundary = new byte[8];
         private readonly SmoothSurfaceVertex[] _cellVertices = new SmoothSurfaceVertex[16];
         private readonly uint[] _faceMask = new uint[CellsPerAxis * CellsPerAxis];
+        // Final build output stays in persistent native memory from Burst completion through
+        // bounded arena upload. Streaming must not grow managed geometry Lists on the frame path.
         private NativeList<SmoothSurfaceVertex> _vertices;
         private NativeList<uint> _indices;
         private BuildState _build;
         private bool _pendingUpload;
+        /// <summary>
+        /// Forces every ring onto the CPU mesher when <c>VOXEL_DISABLE_GPU_CUTOVER=1</c>.
+        ///
+        /// This exists so the compute path can be measured against the path it replaces in one
+        /// build, with nothing else differing between the two runs. Read once, because a value that
+        /// changed mid-session would split a single measurement across both back ends.
+        /// </summary>
         internal static readonly bool GpuCutoverDisabled =
             Environment.GetEnvironmentVariable("VOXEL_DISABLE_GPU_CUTOVER") == "1";
 
@@ -512,6 +538,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private bool _gpuExtractionUnavailable;
         private GpuSurfaceArenaBuild _gpuBuild;
         private bool _gpuBuildPending;
+        // A GPU build now spans frames: phase 9 waits for the counting pass, phase 10 for the
+        // write pass. Both hold mirror pins, and phase 10 additionally holds a staging arena
+        // lease that must be released if the build is abandoned.
         private bool _gpuStagePending;
         private SurfaceGeometryLease _gpuStageLease;
         private GpuExtractionCounts _gpuStageCounts;
@@ -584,6 +613,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             SourceStep = sourceStep;
             VoxelsPerAxis = CellsPerAxis * sourceStep;
             BricksPerAxis = VoxelsPerAxis / VoxelReadGrid.BlockEdge;
+            // A ring whose stride reaches a whole brick or more reads the mip pyramid instead
+            // of caching bricks; its brick cache would grow with the cube of the stride and is
+            // never allocated.
             SamplesFromMips = VoxelReadGrid.LevelForStride(sourceStep) >= 0;
             BrickCacheEdge = SamplesFromMips ? 0 : BricksPerAxis + BrickCachePadding * 2;
             BrickCacheCount = BrickCacheEdge * BrickCacheEdge * BrickCacheEdge;
@@ -634,19 +666,34 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _transitionVertexStride = _lookupTables.TransitionVertexStride;
             _transitionIndexStride = _lookupTables.TransitionIndexStride;
 
-            // GPU cutover covers the two exact near rings only. Sharing the scheduler's slot grid
-            // keeps standalone/headless CPU caches unchanged, including EditMode tests that
-            // intentionally run without graphics. Step 4/farther remain on their existing paths.
+            // First production cutover: only the base ring has a bounded dense snapshot and no
+            // transition faces. Sharing the scheduler's slot grid keeps standalone/headless CPU
+            // caches unchanged, including EditMode tests that intentionally run without graphics.
             _gpuCutoverConfigured = !GpuCutoverDisabled
-                && SupportsGpuSurfaceStep(SourceStep) && !SamplesFromMips && slotGrid != null;
+                && SourceStep == BaseSourceStep && !SamplesFromMips && slotGrid != null;
             _gpuMirrorBudgetBytes = (long)math.max(1, BrickCacheCount)
                                   * GpuBrickBufferLayout.BytesPerMixedBrick;
         }
 
+        /// <summary>
+        /// Creates the GPU backend on first demand, not at construction.
+        ///
+        /// The context costs several megabytes of sampling scratch and a brick mirror, and the ring
+        /// runs <see cref="VoxelSurfaceScheduler.NearSolidWorkerCount"/> shards of it. Eligibility is
+        /// a property of a chunk's contents rather than of the ring — only continuous terrain with no
+        /// decorating coatings or profile blocks qualifies — so a shard that never meets an eligible
+        /// chunk would otherwise hold that memory for the whole session without ever dispatching.
+        ///
+        /// A creation failure is remembered: a device without compute support must not retry, and
+        /// pay a Resources.Load, once per candidate chunk.
+        /// </summary>
         private GpuSurfaceExtractionContext EnsureGpuExtraction()
         {
             if (_gpuExtraction != null) return _gpuExtraction;
             if (!_gpuCutoverConfigured || _gpuExtractionUnavailable) return null;
+
+            // The cutover is only worth taking where the counters can be collected without a
+            // pipeline flush. Blocking on them costs far more than the meshing it waits for.
             if (!GpuSurfaceExtractor.SupportsAsyncCounters)
             {
                 _gpuExtractionUnavailable = true;
@@ -659,6 +706,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             return _gpuExtraction;
         }
 
+        /// <summary>
+        /// Advances transition-face generation without ever waiting for an unfinished job.
+        /// Face snapshots are sliced by the worker deadline, then the Burst transition mesh
+        /// runs asynchronously. The previous ready chunk remains published until every seam
+        /// face for the replacement has completed.
+        /// </summary>
         private bool StepTransitionFaces(IRegionReadSource source,
                                          in MaterialPaletteView palette,
                                          Camera camera, float voxelSize,
@@ -669,6 +722,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             if (_transitionJobScheduled)
             {
                 if (!_transitionJobHandle.IsCompleted) return false;
+
+                // Completion is non-blocking because IsCompleted was observed above. The result
+                // is now CPU-owned, but merging it into final output is itself budgeted.
                 if (!GeometryFrameJobCompletionGuard.TryCompleteReady(
                         _transitionJobHandle, ref _framePathBlockingCompletionViolations))
                     return false;
@@ -746,6 +802,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             return true;
         }
 
+        /// <summary>
+        /// Snapshots a transition face at the finer neighbour's sample spacing without
+        /// monopolising the frame. Region read views are borrowed only inside this call;
+        /// no borrowed Storage state survives across frames while the snapshot is sliced.
+        /// </summary>
         private bool StepTransitionFaceSnapshot(IRegionReadSource source,
                                                 in MaterialPaletteView palette, int face,
                                                 double deadlineSeconds)
@@ -810,45 +871,135 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         }
 
         public int MaxResidentChunks { get; set; } = 4096;
+
+        /// <summary>
+        /// Whether this worker may begin a new chunk build this frame. A build already in flight
+        /// always runs to completion; this only gates starting another one.
+        ///
+        /// Extraction runs as Burst jobs, so its cost does not appear in this worker's own timings —
+        /// it appears as the main thread waiting on a saturated job pool. Prefetch is 360 degrees and
+        /// never runs out of work, so without a ceiling the extractor keeps every job worker busy
+        /// forever, including on a view that is already complete.
+        /// </summary>
         public bool CanStartNewBuild { get; set; } = true;
+        /// <summary>
+        /// Whether a worker with no visible demand may consume its build slot on 360-degree
+        /// prefetch. The scheduler disables this while any visible chunk is missing so idle
+        /// shards cannot fill the shared arena behind the camera while another shard is trying
+        /// to close an on-screen hole.
+        /// </summary>
         public bool AllowBackgroundBuilds { get; set; } = true;
+
+        /// <summary>True while this worker is part way through building a chunk.</summary>
         public bool HasActiveBuild => _build.Active;
+        /// <summary>
+        /// Outer edge of this ring's band. Beyond it the next coarser ring takes over.
+        /// </summary>
         public float MaxViewDistanceMetres { get; set; } = 96f;
+
+        /// <summary>
+        /// Inner edge of this ring's band. A chunk lying entirely inside it belongs to a finer
+        /// ring and is neither drawn nor built here, so the rings partition the view rather
+        /// than overlapping. Zero for the innermost ring.
+        ///
+        /// The test is against the chunk's *farthest* corner: a chunk is surrendered only once
+        /// all of it is within the finer ring's reach, so a chunk straddling the boundary is
+        /// still drawn here and the seam never opens into a gap.
+        /// </summary>
         public float MinViewDistanceMetres { get; set; }
+
+        /// <summary>
+        /// Switches this ring off entirely: it builds nothing and draws nothing.
+        ///
+        /// A band is not turned off by collapsing it to zero width. The inner cut tests a chunk's
+        /// farthest corner and the outer cut its nearest, so that the bands of adjacent rings
+        /// overlap by one chunk instead of gapping while the viewer moves. Set
+        /// <see cref="MinViewDistanceMetres"/> equal to <see cref="MaxViewDistanceMetres"/> and
+        /// that tolerance becomes the whole band — the ring keeps a one-chunk-thick shell just
+        /// inside the cut, meshed at its own step, over ground a finer ring already covers. At
+        /// step 8 the shell is 51.2 m of coarse terrain drawn on top of the near field.
+        ///
+        /// A ring truncated past its inner radius by the streamed world size has to be suspended
+        /// rather than collapsed.
+        /// </summary>
         public bool RingSuspended { get; set; }
+
         public int ShardIndex { get; set; }
         public int ShardCount { get; set; } = 1;
         public int ResidentCount => _entries.Count;
         public int KnownCount => _known.Count;
+
+        /// <summary>
+        /// Counts every admission and invalidation this shard has recorded.
+        ///
+        /// Monotonic, so an authoritative voxel change or a newly admitted chunk permanently moves
+        /// it. That is what lets the scheduler prove that nothing which could alter this shard's
+        /// visible set has happened since the previous frame.
+        /// </summary>
         public ulong DemandVersion => _versionCounter;
+
+        /// <summary>
+        /// Counts every time drawable geometry has been taken away from this shard — an eviction
+        /// under arena pressure, a cancelled build, a retired entry.
+        ///
+        /// Demand alone cannot see any of that: a chunk evicted to free arena space stops being
+        /// ready without anything being admitted or invalidated, so a caller trusting
+        /// <see cref="DemandVersion"/> by itself would keep drawing a set that has quietly lost
+        /// members and would never mark them dirty again. That is geometry disappearing while the
+        /// camera stands still, which is the exact failure the surface coverage assertions exist
+        /// to catch.
+        /// </summary>
         public ulong ReadySetVersion => _readySetVersion;
+
         private ulong _readySetVersion;
 
+        /// <summary>Single funnel for entry retirement, so no removal can skip the signal.</summary>
         private void RemoveEntry(int3 coordinate)
         {
             if (_entries.Remove(coordinate)) _readySetVersion++;
         }
         public int SlotCount => _known.Count;
+        /// <summary>Number of exact-snapshot brick records reserved by this build workspace.</summary>
         public int SnapshotBrickCapacity => BrickCacheCount;
         public int DirtyCount => _dirty.Count + (_build.Active ? 1 : 0);
         public ulong ActiveSurfaceCatalogueHash => _surfaceCatalogue.CatalogueHash;
         public ulong CompletedBuildCount { get; private set; }
         public ulong StaleBuildCount { get; private set; }
+        /// <summary>
+        /// Whether this ring can mesh on the GPU. True before the backend is built, because the
+        /// context is created on first eligible chunk rather than at construction; it drops to false
+        /// only once a creation attempt has proved the device cannot run it.
+        /// </summary>
         public bool GpuCutoverAvailable =>
             _gpuExtraction != null || (_gpuCutoverConfigured && !_gpuExtractionUnavailable);
+        /// <summary>Whether the GPU backend's buffers are currently allocated by this shard.</summary>
         public bool GpuBackendResident => _gpuExtraction != null;
         public ulong GpuCompletedBuildCount { get; private set; }
         public ulong GpuFallbackBuildCount { get; private set; }
+        /// <summary>
+        /// Worker slices that did nothing but observe an unfinished GPU readback.
+        ///
+        /// A build owns its worker's only build slot for its whole life, so this is the cost of the
+        /// compute path in units of lost build opportunities, not milliseconds.
+        /// </summary>
         public ulong GpuReadbackWaitSlices { get; private set; }
+        /// <summary>Build latency for chunks that completed on the GPU, against
+        /// <see cref="BuildLatencyTiming"/> for every chunk however it was meshed.</summary>
         public VoxelTimingSummary GpuBuildLatencyTiming => _gpuBuildLatencyTiming.Snapshot();
         public ulong ExactMetadataScheduleCount { get; private set; }
         public ulong ExactMetadataCompleteCount { get; private set; }
         public ulong ExactMetadataRevisionRejectCount { get; private set; }
         public ulong ExactMetadataPinRejectCount { get; private set; }
+        // Step-4 false-empty fallback lifecycle diagnostics. These counters do not affect
+        // admission or publication; they distinguish policy selection, worker output and final
+        // visibility when a coarse exact-owned chunk disappears in production.
         public ulong FeaturePreservingFallbackScheduleCount { get; private set; }
         public ulong FeaturePreservingFallbackCompleteCount { get; private set; }
         public ulong FeaturePreservingFallbackNonEmptyCount { get; private set; }
         public ulong FeaturePreservingFallbackPublishCount { get; private set; }
+        // Last visibility pass diagnostics. These counters are reset by BeginVisibilityCollection
+        // and never participate in scheduling; they distinguish ring ownership, frustum routing,
+        // current-ready and current-empty states when a production LOD disappears.
         public int LastVisibilityKnownCount { get; private set; }
         public int LastVisibilityInBandCount { get; private set; }
         public int LastVisibilityFrustumCount { get; private set; }
@@ -869,6 +1020,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                                    || _topologyJobScheduled || _facetedMaskJobScheduled
                                    || _transitionJobScheduled || _gpuStagePending
                                     ? 1 : 0;
+        // Allocation-free diagnostics used by renderer telemetry/tests to distinguish a genuinely
+        // active coarse build from a known chunk that fell out of the work lifecycle. Bits are
+        // deliberately stable and local to this cache; they do not influence scheduling.
         public int ActiveBuildPhase => _build.Active ? _build.Phase : -1;
         public uint ActiveJobMask =>
             (_exactMetadataJobScheduled ? 1u << 0 : 0u)
@@ -894,6 +1048,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public double LastUploadMs { get; private set; }
         public VoxelTimingSummary SnapshotTiming => _snapshotTiming.Snapshot();
         public VoxelTimingSummary DensityTurnaroundTiming => _densityTurnaroundTiming.Snapshot();
+        /// <summary>Density job alone, observed when its own handle completes.</summary>
         public VoxelTimingSummary DensityOnlyTiming => _densityOnlyTiming.Snapshot();
         public VoxelTimingSummary TopologyJobTurnaroundTiming => _topologyTurnaroundTiming.Snapshot();
         public VoxelTimingSummary TopologyCompactTiming => _topologyCompactTiming.Snapshot();
@@ -925,6 +1080,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _profileBlocksByChunk.TryGetValue(coordinate, out ProfileBlock[] blocks)
                 ? blocks.Length : 0;
 
+        /// <summary>
+        /// Whether a chunk's sampled extent, including its one-sample halo, reaches into a
+        /// region. The halo is a full <paramref name="sourceStep"/> wide, so a coarse ring
+        /// reaches further past its own bounds than the base ring does.
+        /// </summary>
         public static bool ChunkOverlapsRegion(int3 chunk, int3 region,
                                                int voxelsPerAxis = BaseVoxelsPerAxis,
                                                int sourceStep = BaseSourceStep)
@@ -936,6 +1096,14 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             return !math.any(chunkMax <= regionMin) && !math.any(chunkMin >= regionMax);
         }
 
+        /// <summary>
+        /// Admits chunks discovered from immutable Storage surface summaries. Discovery is not a
+        /// mutation signal: once a chunk is known, its build snapshots the entire authoritative
+        /// chunk, so later 512-brick publication slices from the same unchanged region must not
+        /// advance its source generation and kill in-flight geometry. Real voxel edits continue
+        /// through <see cref="InvalidateSurfaceBricks"/> and region invalidation below.
+        /// Returns the number of newly admitted chunks.
+        /// </summary>
         internal int DiscoverSurfaceBricks(IReadOnlyList<int3> worldBricks)
         {
             if (worldBricks == null) return 0;
@@ -965,6 +1133,13 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     int3 chunk = baseChunk + new int3(x, y, z);
                     if (!OwnsShard(chunk) || _known.Contains(chunk)) continue;
                     if (!TrackKnown(chunk)) continue;
+
+                    // Discovery establishes authoritative source state, not immediate build
+                    // demand. Every LOD ring learns the same surface summaries, but only the
+                    // ring currently owning this chunk should consume the renderer-wide build
+                    // budget. CollectVisibleCoordinate activates in-band demand before worker
+                    // admission; retaining only the desired generation here prevents thousands
+                    // of finer/coarser off-band chunks from filling the dirty FIFO at startup.
                     _desiredVersions[chunk] = ++_versionCounter;
                     admitted++;
                 }
@@ -972,6 +1147,13 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             return admitted;
         }
 
+        /// <summary>
+        /// Invalidates chunks touched by an authoritative voxel change. Unlike surface discovery,
+        /// this path intentionally advances already-known chunk generations so active/ready
+        /// geometry cannot publish stale voxel content.
+        /// The one-sample Transvoxel padding can consume a neighbouring chunk's edge,
+        /// so face/edge/corner neighbours are dirtied only when the brick lies on a chunk border.
+        /// </summary>
         public void InvalidateSurfaceBricks(IReadOnlyList<int3> worldBricks)
         {
             if (worldBricks == null) return;
@@ -1004,6 +1186,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             }
         }
 
+        /// <summary>
+        /// Consumes scheduler-local regions derived from the versioned change journal. Existing
+        /// chunks in or adjacent to an edited region are rebuilt; the old ready mesh stays alive
+        /// until the replacement is uploaded.
+        /// </summary>
         public void InvalidateDirtyRegions(HashSet<int3> dirtyRegions)
         {
             if (dirtyRegions != null)
@@ -1033,7 +1220,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     if (_regionInvalidationQueue.Count == 0) return;
                     _activeRegionInvalidation = _regionInvalidationQueue.Dequeue();
                     _hasActiveRegionInvalidation = true;
-                    _activeRegionInvalidation = _activeRegionInvalidation;
                     _activeRegionCandidateCursor = 0;
 
                     int halo = Padding * SourceStep;
@@ -1110,6 +1296,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     || desired <= _build.SourceVersion))
                 Invalidate(_build.Coordinate);
 
+            // Snapshot work may now include Burst metadata/classification jobs. A newer source
+            // generation marks the build for discard, but the frame path never completes an
+            // unfinished job: it waits for IsCompleted, then drains leases under the deadline.
             if (_build.Active && !_build.SnapshotTaken
                 && _desiredVersions.TryGetValue(_build.Coordinate, out ulong slicedDesired)
                 && slicedDesired > _build.SourceVersion)
@@ -1143,14 +1332,14 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
                 if (_build.Phase == 0)
                 {
-                    // A build can span frames while the camera moves. Keep the GPU seam request
-                    // aligned with the same current ring-boundary decision the CPU path would use.
-                    _build.GpuTransitionFaceMask = BuildGpuTransitionFaceMask(
-                        _build.Coordinate, voxelSize, camera.transform.position);
                     if (!_build.SnapshotTaken
                         && !StepDensitySnapshot(source, in palette, voxelSize, deadline))
                         break;
 
+                    // Step 8 already scheduled its summary -> greedy HLOD dependency chain as
+                    // part of the immutable exact snapshot. It bypasses Transvoxel density,
+                    // faceted and transition phases and rejoins the normal profile/publication path
+                    // only after the HLOD job is ready and its Storage pins are released.
                     if (UsesBlockHlod)
                     {
                         _build.Phase = 7;
@@ -1159,16 +1348,24 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
                     if (_gpuStagePending)
                     {
+                        // Counting is in flight on the GPU. Nothing here waits for it.
                         _build.Phase = 9;
                         continue;
                     }
 
                     if (_gpuBuildPending)
                     {
+                        // The compute payload and args are complete. Keep the immutable Storage
+                        // pins until they drain under the normal frame deadline, then publish the
+                        // completed arena lease through Entry's existing atomic swap.
                         _build.Phase = 8;
                         continue;
                     }
 
+                    // Border invalidation intentionally discovers halo chunks. If the immutable
+                    // snapshot proves this chunk owns no solid cells, publish a complete empty
+                    // result without scanning/merging all 64^3 cells. Profile blocks still run
+                    // because their authored geometry may overlap an otherwise empty core.
                     if (!_build.HasOwnedSolid && _buildProfileBlocks.Length == 0)
                     {
                         if (!StepReleasePinnedSnapshotBlocks(deadline)) break;
@@ -1210,6 +1407,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                         && arena.TryAcquire(counts.VertexCount, counts.IndexCount,
                                             out SurfaceGeometryLease lease))
                     {
+                        // The staging lease is invisible to the draw path until its args record is
+                        // written in phase 10, so the previously published geometry stays live.
                         _gpuStageLease = lease;
                         _gpuStageCounts = counts;
                         _gpuExtraction.BeginWriteRange(
@@ -1220,6 +1419,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                         continue;
                     }
 
+                    // Empty counts, a lost readback, or a full arena: this chunk still has to be
+                    // meshed, so hand it to the CPU chain rather than publishing nothing.
                     _gpuExtraction.Release();
                     _gpuStagePending = false;
                     GpuFallbackBuildCount++;
@@ -1263,6 +1464,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
                 if (_build.Phase == 1)
                 {
+                    // Density finishes before the chain behind it, so its own handle has to be
+                    // observed separately. Recording both at the chain's completion made the two
+                    // turnarounds identical and hid which of the reconstruction pass and the
+                    // marching pass actually costs the build.
                     if (!_build.DensityCompletionRecorded && _densityJobHandle.IsCompleted)
                     {
                         _densityOnlyTiming.Add(ElapsedMs(_build.DensityScheduledSeconds));
@@ -1358,6 +1563,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                         throw new InvalidOperationException(
                             $"Feature-preserving HLOD output overflow in chunk {_build.Coordinate}; "
                           + "refusing to allocate or publish partial coarse geometry.");
+                    // Profile blocks validate their backing against the same immutable mixed-brick
+                    // payloads. Keep COW pins alive through profile emission; phase 3 releases
+                    // them under the normal deadline once the last profile has consumed them.
                     if (_buildProfileBlocks.Length == 0
                         && !StepReleasePinnedSnapshotBlocks(deadline))
                         break;
@@ -1368,6 +1576,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
                 if (_build.Phase == 6)
                 {
+                    // Profile geometry may still need mixed-brick backing from the immutable COW
+                    // snapshot. Do not release those pins until profile emission has finished.
                     if (_buildProfileBlocks.Length == 0
                         && !StepReleasePinnedSnapshotBlocks(deadline))
                         break;
@@ -1392,8 +1602,14 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     _profileEmitTiming.Add(ElapsedMs(profileStart));
                     if (!profilesDone) continue;
 
+                    // Profile backing reads are complete. Drain the exact mixed-brick pins now,
+                    // still under the worker deadline, before transition/publication can proceed.
                     if (!StepReleasePinnedSnapshotBlocks(deadline)) break;
 
+                    // The step-8 HLOD grid and the step-4 inner ring both resolve geometry on a
+                    // four-voxel lattice. Do not feed faceted HLOD through Transvoxel transition
+                    // cells; finish directly and let the visual LOD regression police the aligned
+                    // boundary. If that test exposes a seam, add a dedicated HLOD boundary pass.
                     if (UsesBlockHlod || _build.UsedFeaturePreservingFallback)
                     {
                         FinishBuild(frame);
@@ -1696,6 +1912,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             LastVisibilityEmptyCount = 0;
         }
 
+        /// <summary>
+        /// Evaluates one clipmap coordinate already routed to this shard. Visibility traversal is
+        /// driven by the bounded camera-centred ring grid, never by the lifetime size of _known.
+        /// </summary>
         public void CollectVisibleCoordinate(int3 coordinate, Plane[] frustumPlanes,
                                              Vector3 cameraPosition, float voxelSize, int frame)
         {
@@ -1705,6 +1925,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             Bounds bounds = ChunkWorldBounds(coordinate, voxelSize);
             if (!WithinRingBand(bounds, cameraPosition))
             {
+                // Authoritative discovery is shared across LODs. Keep the known/version state,
+                // but never let a chunk owned wholly by another ring remain active build demand.
                 if (_dirty.Contains(coordinate)) ParkDirty(coordinate);
                 return;
             }
@@ -1718,6 +1940,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             bool currentEmpty = _emptyVersions.TryGetValue(coordinate, out ulong emptyVersion)
                              && (!hasDesired || emptyVersion >= desired);
 
+            // This traversal covers the ring's dense active-slot list. Activate build demand for
+            // every in-band chunk before the frustum test so geometry is prefetched around the
+            // viewer, while still excluding the thousands of known chunks owned by other LODs.
             if (!currentReady && !currentEmpty && !currentGenerationInFlight)
                 MarkDirty(coordinate);
 
@@ -1726,21 +1951,35 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             if (currentReady) LastVisibilityReadyCount++;
             if (currentEmpty) LastVisibilityEmptyCount++;
 
+            // Background prefetch above remains intentionally 360 degrees. Once a chunk is in
+            // the actual camera frustum, however, promote its still-needed generation so build
+            // selection cannot make a visible hole wait behind the entire prefetch shell.
             if (!currentReady && !currentEmpty && !currentGenerationInFlight)
                 PromoteVisibleDirty(coordinate);
 
             if (ready)
             {
+                // Keep the previous mesh drawable while a newer authoritative generation builds.
+                // CurrentBuildCoversDesiredGeneration above prevents visibility from recreating a
+                // duplicate dirty record for the exact generation already in flight.
                 if (entry.IndexCount == 0) return;
                 entry.LastUsedFrame = frame;
                 _visible.Add(entry);
                 return;
             }
 
+            // A current known-empty result is complete, not a visual hole. Any other in-band
+            // visible coordinate remains missing until its authoritative generation publishes.
             if (currentEmpty) return;
+
             MissingVisibleCount++;
         }
 
+        /// <summary>
+        /// Compatibility entry point for focused tests/tools. Production scheduling performs one
+        /// ring traversal in VoxelSurfaceScheduler and routes coordinates directly to shards.
+        /// This fallback is still bounded by the ring's configured view distance.
+        /// </summary>
         public IReadOnlyList<Entry> CollectVisible(Camera camera, float voxelSize, int frame)
         {
             BeginVisibilityCollection();
@@ -1782,6 +2021,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             Vector3 cameraWorldPosition = camera.transform.position;
             GeometryUtility.CalculateFrustumPlanes(camera, _frustumPlanes);
 
+            // First sample only demand that was actually visible when collected. Camera motion can
+            // stale that classification, so recheck both ring ownership and the current frustum.
+            // A priority record that moved offscreen simply falls back to its existing background
+            // FIFO record; no authoritative work is lost.
             int visibleCandidates = math.min(
                 VisibleBuildSelectionCandidatesPerSlice, _visibleDirtyQueue.Count);
             for (int i = 0; i < visibleCandidates; i++)
@@ -1799,11 +2042,17 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 if (!GeometryUtility.TestPlanesAABB(_frustumPlanes, bounds))
                     continue;
 
+                // Visibility already established urgency. Ranking dozens of visible holes by
+                // distance cost the entire renderer-wide build budget in production (0.52 ms
+                // selection p95 against a 0.50 ms budget). FIFO is fair, deterministic and lets
+                // the selected workspace spend this frame advancing geometry instead.
                 best = candidate;
                 hasBest = true;
                 break;
             }
 
+            // No currently visible hole was ready for this workspace. Preserve the original
+            // bounded background selection so 360-degree prefetch still converges opportunistically.
             if (!hasBest && AllowBackgroundBuilds)
             {
                 int candidates = math.min(BuildSelectionCandidatesPerSlice, _dirtyQueue.Count);
@@ -1811,7 +2060,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 {
                     int3 candidate = _dirtyQueue.Dequeue();
                     _queuedDirty.Remove(candidate);
-                    if (!_dirty.Contains(candidate)) continue;
+                    if (!_dirty.Contains(candidate)) continue; // stale queue record
 
                     Bounds bounds = ChunkWorldBounds(candidate, voxelSize);
                     if (!WithinRingBand(bounds, cameraWorldPosition))
@@ -1837,11 +2086,17 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                         RequeueDirty(candidate);
                     }
 
+                    // Score checks are cheap, but a destruction burst can enqueue thousands. The
+                    // frame contract wins over exact global nearest ordering; later slices continue
+                    // from the queue tail and converge without a scan spike.
                     if (Time.realtimeSinceStartupAsDouble >= deadlineSeconds) break;
                 }
             }
 
             if (!hasBest) return false;
+            // Priority selection leaves the background queue's physical record in place. Clear its
+            // membership bit before admission so a failed slot acquisition can be reactivated on a
+            // later visibility pass; the old physical record will self-prune as stale.
             _queuedDirty.Remove(best);
             _queuedVisibleDirty.Remove(best);
             if (!_slotGrid.TryGet(best, out SurfaceChunkSlot buildSlot)
@@ -1888,6 +2143,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
         private void MarkDirty(int3 chunk)
         {
+            // Every active dirty record needs a durable desired generation. Most callers arrive
+            // through Invalidate, but arena/capacity eviction can request a rebuild directly.
+            // Keeping that generation lets parked work be reactivated safely when it becomes
+            // visible again.
             if (!_desiredVersions.ContainsKey(chunk))
                 _desiredVersions[chunk] = ++_versionCounter;
             if (_dirty.Add(chunk))
@@ -1919,6 +2178,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _queuedDirty.Remove(chunk);
             _queuedVisibleDirty.Remove(chunk);
             _queuedAtSeconds.Remove(chunk);
+            // Intentionally retain _desiredVersions: discovery/edit state remains authoritative,
+            // and CollectVisibleCoordinate will reactivate it if this chunk enters the ring.
         }
 
         private bool CurrentBuildCoversDesiredGeneration(int3 chunk, bool hasDesired, ulong desired)
@@ -1946,6 +2207,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _surfaceCatalogue = catalogue;
             if (_surfaceCatalogue.CatalogueHash == 0)
                 _surfaceCatalogue.Seal(_surfaceCatalogue.Version, hash);
+
+            // Catalogue data participates in geometry. Existing meshes may remain visible while
+            // every known chunk queues a replacement built from the new immutable snapshot.
             SurfaceCatalogueInvalidationCount++;
             foreach (int3 chunk in _known) Invalidate(chunk);
         }
@@ -2014,6 +2278,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
         private const int SnapshotMipSamplesPerDeadlineCheck = 64;
 
+        /// <summary>
+        /// Advances the authoritative-to-immutable snapshot boundary without ever walking a full
+        /// chunk in one frame. The snapshot lives entirely in this workspace's persistent native
+        /// buffers; borrowed Storage views are reacquired inside each slice and never survive the
+        /// call. A later journal invalidation rejects the partial generation before publication.
+        /// </summary>
         private bool StepDensitySnapshot(IRegionReadSource source,
                                          in MaterialPaletteView palette,
                                          float voxelSize, double deadlineSeconds)
@@ -2090,6 +2360,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 ExactMetadataCompleteCount++;
                 if (!_exactMetadataRegionCoverage.IsComplete)
                 {
+                    // A failed region metadata pin means this exact snapshot is unavailable,
+                    // never that the cleared cache range is authoritatively empty. Waited jobs
+                    // are already complete here, so release every successful pin and retry the
+                    // generation through the existing bounded discard/requeue lifecycle.
                     ExactMetadataPinRejectCount++;
                     ReleasePinnedRegionMetadataImmediate();
                     _discardBuildAfterPinRelease = true;
@@ -2107,6 +2381,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 _exactMetadataReady = true;
             }
 
+            // The worker identified only the mixed refs. Pin those payload versions in bounded
+            // slices; uniform/empty blocks need no physical lease at all.
             while (_exactMixedPinCursor < _exactMixedBrickIndices.Length)
             {
                 int end = math.min(_exactMixedBrickIndices.Length,
@@ -2118,6 +2394,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     if (!source.TryPinWorldBlock(worldBlock, out PinnedVoxelReadBlock pinned))
                     {
                         ExactMetadataPinRejectCount++;
+                        // Metadata said this block was mixed, but the coordinate can no longer
+                        // supply that immutable COW payload. The optimistic snapshot is no longer
+                        // coherent (for example, residency or a writer raced the metadata copy).
+                        // Do not spin forever on the same cursor: reject this generation and let
+                        // the existing bounded pin-release path retry from fresh metadata.
                         ReleasePinnedRegionMetadataImmediate();
                         _discardBuildAfterPinRelease = true;
                         AccumulateSnapshotSlice(sliceStart, completed: false);
@@ -2167,6 +2448,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 }
             }
 
+            // Region refs may have changed while mixed payloads were pinned across frames. Never
+            // splice metadata generations: reject the whole optimistic snapshot and try again.
             if (!PinnedRegionMetadataCurrent())
             {
                 ExactMetadataRevisionRejectCount++;
@@ -2180,7 +2463,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             if (UsesBlockHlod)
             {
                 ScheduleFeaturePreservingHlod(voxelSize);
-                _build.HasOwnedSolid = true;
+                _build.HasOwnedSolid = true; // resolved from final HLOD output on completion
                 _build.RequiresContinuousTopology = false;
                 _build.SnapshotTaken = true;
                 _exactMetadataReady = false;
@@ -2228,7 +2511,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _exactClassificationJobScheduled = false;
             _build.HasOwnedSolid = _snapshotClassificationFlags[0] != 0;
             _build.RequiresContinuousTopology = _snapshotClassificationFlags[1] != 0;
-            _build.GpuEligible = SupportsGpuSurfaceStep(SourceStep)
+            _build.GpuEligible = SourceStep == BaseSourceStep
                               && _gpuCutoverConfigured && !_gpuExtractionUnavailable
                               && _snapshotClassificationFlags[2] == 0
                               && _buildProfileBlocks.Length == 0
@@ -2253,7 +2536,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                         _buildSurfaceCatalogue, _buildCoatingCatalogue, _buildPalette);
                     var request = new GpuChunkExtraction(
                         chunkOriginVoxel, cacheOrigin, SourceStep, voxelSize,
-                        _build.GpuTransitionFaceMask);
+                        transitionFaceMask: 0);
+                    // Counting is started, not awaited. Phase 9 collects the result once the GPU
+                    // has finished, so no worker blocks the shared frame budget on a flush.
                     GpuStageOutcome stage = gpu.TryBeginStage(
                         _densityBricks,
                         PinnedMixedVoxelsOrFallback(),
@@ -2274,6 +2559,14 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             return true;
         }
 
+        /// <summary>
+        /// Schedules the CPU Transvoxel chain for the chunk currently being built.
+        ///
+        /// Separate from the snapshot step because the GPU back end can now fail after the snapshot
+        /// has already completed — an empty count, a full arena, or a lost readback — and that
+        /// chunk still has to be meshed. The origins are recomputed rather than passed in so a
+        /// late fallback cannot schedule against a stale neighbourhood.
+        /// </summary>
         private void ScheduleContinuousDensityExtraction(float voxelSize)
         {
             int3 chunkOriginVoxel = _build.Coordinate * VoxelsPerAxis;
@@ -2325,6 +2618,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 Bricks = _densityBricks,
                 MixedFlags = _exactMixedFlags,
             }.Schedule(BrickCacheCount, ExtractionBatchSize(BrickCacheCount, 256));
+            // Region intersections are disjoint cache ranges. Schedule every copy behind the
+            // shared clear only, then combine their handles once before compaction. Chaining each
+            // copy behind the previous region serializes phase-0 snapshot work and can starve
+            // coarse LOD workers on Metal even though the copies are independent.
             JobHandle dependency = clearHandle;
 
             int edge = VoxelReadGrid.BlocksPerRegionEdge;
@@ -2522,6 +2819,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
         private const int PinnedReleasesPerDeadlineCheck = 64;
 
+        /// <summary>
+        /// Releases immutable Storage payload versions incrementally. Job completion is not
+        /// allowed to turn into a large frame-thread unpin loop; slow release merely delays the
+        /// next build while the previous published geometry remains valid.
+        /// </summary>
         private bool StepReleasePinnedSnapshotBlocks(double deadlineSeconds)
         {
             if (_pinnedReadBlocks.Length == 0)
@@ -2638,6 +2940,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                         hasRoundedSurface = true;
                 }
             }
+            // Planar cells need continuous topology only when authoring retained a sub-voxel
+            // boundary. Ordinary planar occupancy has exact axis-aligned faces and is emitted in
+            // phase 2, avoiding diagonal marching triangles across walls and piers.
             if (!hasContinuousSurface) return;
 
             RegularCellData cellData =
@@ -2677,6 +2982,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 float3 normal = math.normalizesafe(n0 * t0 + n1 * t1,
                                                     new float3(0f, 1f, 0f));
 
+                // Positive density is the solid side. Carry both its material and independent
+                // surface semantics; if that endpoint is empty, fall back to another solid corner.
                 int selectedCorner = d0 > d1 ? corner0 : corner1;
                 byte material = _cellMaterial[selectedCorner];
                 uint selectedSurface = _cellSurface[selectedCorner];
@@ -2704,6 +3011,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             byte[] localIndices = cellData.VertexIndices;
             if (hasPlanarSurface && !hasRoundedSurface)
             {
+                // Continuous topology does not imply smooth shading. Duplicate the three
+                // vertices of each planar triangle and assign its geometric normal, preserving
+                // cut-stone facets while keeping the occupancy-constrained isosurface positions.
                 for (int i = 0; i < indexCount; i += 3)
                 {
                     SmoothSurfaceVertex a = _cellVertices[localIndices[i]];
@@ -2790,6 +3100,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             float back = block.BackQ4 * (1f / 16f);
             float frontInner = inner + bevel;
             float frontOuter = outer - bevel;
+            // Radial beds need a much narrower face bevel than the intrados/extrados. Applying
+            // the full radial bevel at both sides doubles the authored mortar gap and turns the
+            // ring into a black-outlined diagram rather than cut masonry.
             float angularBevel = bevel * 0.32f / math.max(1f, midRadius);
             float faceStart = math.min(start + angularBevel, (start + finish) * 0.5f);
             float faceFinish = math.max(finish - angularBevel, (start + finish) * 0.5f);
@@ -3088,6 +3401,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                                           uint hash, int direction,
                                           uint attributes, float voxelSize)
         {
+            // A shallow skirt hangs only over a genuinely exposed ledge. Its extent varies
+            // deterministically, while world occupancy decides direction.
             float3 tangent = float3.zero;
             float3 outward = float3.zero;
             if (direction < 2)
@@ -3329,6 +3644,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
         private SurfaceGeometryArena GetGeometryArena()
         {
+            // Scheduler workers receive an eagerly allocated shared arena. Standalone caches
+            // remain cheap until they actually publish their first piece of geometry.
             if (_geometryArena == null)
                 _geometryArena = new SurfaceGeometryArena(256 * 1024, 768 * 1024, 512);
             return _geometryArena;
@@ -3347,6 +3664,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private void RecycleEntry(Entry entry)
         {
             if (entry == null) return;
+            // Dispose is the one place Ready goes false, so it is a drawable-set change even when
+            // the dictionary removal happened somewhere else.
             _readySetVersion++;
             entry.Dispose();
             _entryPool.Push(entry);
@@ -3380,6 +3699,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
             GpuSurfaceArenaBuild completed = _gpuBuild;
             entry.PublishCompletedGpuLease(completed.Lease, completed.IndexCount);
+            // Ownership moved into Entry; clear the staging record before reset so cleanup cannot
+            // release the now-live lease.
             _gpuBuild = default;
             _gpuBuildPending = false;
             entry.LastUsedFrame = frame;
@@ -3412,6 +3733,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 return;
             }
 
+            // An empty result is complete immediately because there is no GPU payload to
+            // publish. Removing an old ready entry is the atomic publication of "air".
             if (_indices.Length == 0)
             {
                 if (_entries.TryGetValue(_build.Coordinate, out Entry stale))
@@ -3440,9 +3763,16 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 _entries.Add(_build.Coordinate, entry);
             }
 
+            // CPU geometry is complete, but GPU publication is a scheduler-owned phase.
+            // Keep the build payload and any previous ready Entry alive until the global
+            // upload budget admits this replacement.
             _pendingUpload = true;
         }
 
+        /// <summary>
+        /// Advances one pending GPU publication by at most <paramref name="byteBudget"/>
+        /// payload bytes. Returns true only when the replacement became visible.
+        /// </summary>
         public bool TryPublishPending(int frame, int byteBudget, out int uploadedBytes)
         {
             uploadedBytes = 0;
@@ -3518,6 +3848,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _gpuBuild = default;
             _gpuBuildPending = false;
 
+            // A build abandoned mid-count or mid-write still owns mirror pins, an outstanding
+            // readback, and possibly a staging lease. None of them belong to the next chunk.
             if (_gpuStageLease.IsValid)
                 GetGeometryArena().Release(in _gpuStageLease);
             _gpuStageLease = default;
@@ -3590,6 +3922,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     }
                 }
 
+                // Continuous movement in the same direction simply extends the outgoing slab.
+                // Keep the existing cursor so already-checked edge coordinates are not revisited.
                 if (sameDirection)
                 {
                     _clipmapRetirementToCenter = toCenter;
@@ -3643,6 +3977,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                         : _clipmapRetirementRadius - _clipmapRetirementDepth;
                     remaining--;
 
+                    // Diagonal movement makes edge planes overlap. Current-window ownership and
+                    // _known membership make those duplicates free without another hash set.
                     if (WithinClipmapWindow(coordinate) || !OwnsShard(coordinate)
                         || !_known.Contains(coordinate))
                         continue;
@@ -3670,6 +4006,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
         private bool TrackKnown(int3 chunk)
         {
+            // Surface discovery/change feeds can cover a much larger resident Storage window than
+            // this LOD ring draws. Render residency is admitted only inside the camera clipmap;
+            // otherwise _known and, critically, the build queue would grow with world streaming
+            // rather than the fixed view footprint.
             if (!WithinClipmapWindow(chunk)) return false;
             if (_known.Contains(chunk)) return true;
             if (!_slotGrid.TryAcquire(chunk, out _)) return false;
@@ -3712,10 +4052,21 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     continue;
                 }
 
+                // Out-of-window or non-resident chunks both retire incrementally. In-flight
+                // geometry is never waited on, and BuildOwnsCurrentSlot prevents an out-of-window
+                // generation from publishing while it waits for this cleanup pass. If removal is deferred, put the chunk
+                // back in the liveness queue and recheck it on a later frame.
                 if (!TryRemoveChunk(chunk)) RequeueResidency(chunk);
             }
         }
 
+        /// <summary>
+        /// Whether every Storage region intersecting the chunk's unpadded owned core is
+        /// currently resident. Exact extraction may optimistically treat an unavailable halo as
+        /// empty, but a missing core region can never satisfy exact-snapshot completeness and
+        /// must not remain active build demand merely because its halo touches resident Storage.
+        /// A later residency publication re-runs surface discovery and readmits the chunk.
+        /// </summary>
         private bool AllOwnedCoreRegionsResident(IRegionReadSource source, int3 chunk)
         {
             int3 minVoxel = chunk * VoxelsPerAxis;
@@ -3734,6 +4085,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             return true;
         }
 
+
         internal bool TryEvictOneForArenaPressure(Camera camera, float voxelSize)
         {
             if (_entries.Count == 0) return false;
@@ -3746,6 +4098,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
             foreach (var pair in _entries)
             {
+                // Keep current replacement geometry alive. Arena pressure may only retire a
+                // different, already-published, offscreen lease.
                 if (_build.Active && pair.Key.Equals(_build.Coordinate)) continue;
                 Bounds bounds = ChunkWorldBounds(pair.Key, voxelSize);
                 if (camera != null && GeometryUtility.TestPlanesAABB(_frustumPlanes, bounds))
@@ -3766,6 +4120,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             return true;
         }
 
+        /// <summary>
+        /// Squared camera distance of the chunk this worker is waiting to publish, if any. The
+        /// scheduler uses the nearest such chunk to decide which resident leases may be retired
+        /// when the arena has no offscreen geometry left to give up.
+        /// </summary>
         internal bool TryGetPendingPublishDistanceSq(Camera camera, float voxelSize,
                                                      out float distanceSq)
         {
@@ -3775,6 +4134,20 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             return true;
         }
 
+        /// <summary>
+        /// Retires up to <paramref name="maxEvictions"/> of the farthest eligible leases in a single
+        /// pass over the entry table.
+        ///
+        /// Relief used to answer "give me one victim", so freeing N chunks meant N full scans of the
+        /// table with a frustum test per entry every time. Under pressure that is the dominant cost
+        /// in SchedulerPrepare — the same scan repeated, on every frame, over a table holding
+        /// thousands of leases. One pass that selects N victims costs what one old call did.
+        ///
+        /// With <paramref name="offscreenOnly"/> the pass gives up only geometry outside the frustum,
+        /// which is the cheap choice and always the first one tried. Otherwise it retires anything
+        /// published that sits farther than <paramref name="minDistanceSq"/>, which is how a fully
+        /// on-screen resident set still makes room for the chunk nearest the camera.
+        /// </summary>
         internal int EvictFarthest(Camera camera, float voxelSize, bool offscreenOnly,
                                    float minDistanceSq, int maxEvictions)
         {
@@ -3793,6 +4166,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
             foreach (var pair in _entries)
             {
+                // Keep current replacement geometry alive. Relief may only retire a different,
+                // already-published lease.
                 if (_build.Active && pair.Key.Equals(_build.Coordinate)) continue;
                 if (offscreenOnly)
                 {
@@ -3809,6 +4184,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 if (!offscreenOnly && distance <= minDistanceSq) continue;
                 if (found == wanted && distance <= _evictionVictimDistances[found - 1]) continue;
 
+                // Keep the running selection ordered farthest-first; it is at most a few entries.
                 int slot = found < wanted ? found++ : wanted - 1;
                 while (slot > 0 && _evictionVictimDistances[slot - 1] < distance)
                 {
@@ -3855,6 +4231,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
             foreach (var pair in _entries)
             {
+                // Capacity pressure is also bounded: at most one offscreen lease retires from
+                // this workspace per Prepare call. Repeated eviction loops turn a cache miss into
+                // a frame spike exactly when streaming is already under pressure.
                 if (camera != null && GeometryUtility.TestPlanesAABB(
                         _frustumPlanes, ChunkWorldBounds(pair.Key, voxelSize)))
                     continue;
@@ -3876,6 +4255,21 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             MarkDirty(victim);
         }
 
+        /// <summary>
+        /// Whether a chunk falls in this ring's band.
+        ///
+        /// <para>The band is an axis-aligned box shell, not a sphere. That is deliberate and
+        /// load-bearing: a spherical boundary cuts across chunk faces, so a coarse chunk would
+        /// meet a finer neighbour over part of one face and a same-resolution neighbour over
+        /// the rest, and a transition cell has nowhere to attach. Snapping the boundary to the
+        /// coarse ring's own chunk grid means every LOD change happens exactly on a chunk face,
+        /// which is the precondition for stitching it. This is the standard clipmap
+        /// arrangement.</para>
+        ///
+        /// <para>The inner cut tests the chunk's farthest corner and the outer cut its nearest,
+        /// so the bands overlap by up to one chunk rather than leaving a gap when the viewer
+        /// moves between frames.</para>
+        /// </summary>
         private bool WithinRingBand(Bounds bounds, Vector3 cameraPosition)
         {
             if (RingSuspended) return false;
@@ -3885,6 +4279,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             float nearX = Mathf.Max(0f, Mathf.Abs(delta.x) - extents.x);
             float nearY = Mathf.Max(0f, Mathf.Abs(delta.y) - extents.y);
             float nearZ = Mathf.Max(0f, Mathf.Abs(delta.z) - extents.z);
+            // Chebyshev distance: the box shell's defining metric.
             float near = Mathf.Max(nearX, Mathf.Max(nearY, nearZ));
             if (near > MaxViewDistanceMetres) return false;
             if (MinViewDistanceMetres <= 0f) return true;
@@ -3895,6 +4290,15 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             return far > MinViewDistanceMetres;
         }
 
+        /// <summary>
+        /// Whether the neighbour across <paramref name="face"/> belongs to a finer ring, which
+        /// is where this chunk must emit transition geometry. Faces are indexed as
+        /// 0=-X, 1=+X, 2=-Y, 3=+Y, 4=-Z, 5=+Z.
+        ///
+        /// A finer neighbour exists exactly when this chunk sits on the inner edge of the band:
+        /// the neighbour in that direction lies wholly inside <see cref="MinViewDistanceMetres"/>
+        /// and is therefore owned by the ring one step finer.
+        /// </summary>
         public bool FaceNeedsTransition(int3 coordinate, int face, float voxelSize,
                                         Vector3 cameraPosition)
         {
@@ -3911,21 +4315,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             float far = Mathf.Max(Mathf.Abs(delta.x) + extents.x,
                         Mathf.Max(Mathf.Abs(delta.y) + extents.y,
                                   Mathf.Abs(delta.z) + extents.z));
+            // Wholly inside the inner cut means the finer ring owns it outright.
             return far <= MinViewDistanceMetres;
-        }
-
-        /// <summary>
-        /// Builds the GPU transition mask using the exact same finer-neighbour ownership test as
-        /// the CPU Transvoxel seam path. Bit order is 0=-X, 1=+X, 2=-Y, 3=+Y, 4=-Z, 5=+Z.
-        /// </summary>
-        internal int BuildGpuTransitionFaceMask(int3 coordinate, float voxelSize,
-                                                Vector3 cameraPosition)
-        {
-            int mask = 0;
-            for (int face = 0; face < 6; face++)
-                if (FaceNeedsTransition(coordinate, face, voxelSize, cameraPosition))
-                    mask |= 1 << face;
-            return mask;
         }
 
         private Bounds ChunkWorldBounds(int3 coordinate, float voxelSize)
@@ -3955,6 +4346,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             return true;
         }
 
+        /// <summary>
+        /// Removes a no-longer-resident chunk only when doing so cannot wait for worker
+        /// geometry. If its build is still running, residency pruning defers removal to
+        /// a later frame instead of converting eviction pressure into a frame barrier.
+        /// </summary>
         private bool TryRemoveChunk(int3 chunk)
         {
             if (_build.Active && _build.Coordinate.Equals(chunk)
@@ -3963,6 +4359,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             if (_build.Active && _build.Coordinate.Equals(chunk)
                 && (_pinnedReadBlocks.Length > 0 || _pinnedRegionCount > 0))
             {
+                // All handles were observed complete above. Metadata leases are a fixed <=27 and
+                // can release immediately; physical mixed-brick pins drain later under deadline.
                 CompleteJobs();
                 ReleasePinnedRegionMetadataImmediate();
                 _discardBuildAfterPinRelease = true;
@@ -3985,6 +4383,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             }
             if (_build.Active && _build.Coordinate.Equals(chunk))
             {
+                // Every handle was observed complete above, so these Complete calls only
+                // release job safety dependencies; none can stall the frame.
                 CompleteJobs();
                 ReleasePendingGpuBuild();
                 _pendingUpload = false;
@@ -3997,6 +4397,21 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             return true;
         }
 
+
+        /// <summary>
+        /// Batch size that keeps one extraction job inside a bounded slice of the job pool.
+        ///
+        /// These jobs run over a whole 64-cell chunk, so a batch of 64 produces some four thousand
+        /// batches for a single build. Unity has no notion of background work: those batches queue
+        /// ahead of everything the frame itself needs, including URP's culling, so one build is
+        /// enough to make the main thread wait even though nothing ever calls Complete on it. The
+        /// frame cost of extraction is entirely this — a converged view measured 49 ms a frame with
+        /// the scheduler's own timings totalling three.
+        ///
+        /// Splitting into a handful of large batches keeps the same total work and the same
+        /// parallelism across concurrent builds, while leaving workers free for the rest of the
+        /// frame. Concurrency across builds, not within one, is what fills a cold view.
+        /// </summary>
         private const int ExtractionBatchesPerJob = 4;
 
         private static int ExtractionBatchSize(int count, int minimumBatch) =>
@@ -4006,17 +4421,17 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         {
             if (_exactMetadataJobScheduled)
             {
-                _exactMetadataJobHandle.Complete();
+                _exactMetadataJobHandle.Complete(); // teardown may synchronize
                 _exactMetadataJobScheduled = false;
             }
             if (_exactClassificationJobScheduled)
             {
-                _exactClassificationJobHandle.Complete();
+                _exactClassificationJobHandle.Complete(); // teardown may synchronize
                 _exactClassificationJobScheduled = false;
             }
             if (_hlodJobScheduled)
             {
-                _hlodJobHandle.Complete();
+                _hlodJobHandle.Complete(); // teardown may synchronize
                 _hlodJobScheduled = false;
             }
             if (_densityJobScheduled)
@@ -4045,6 +4460,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             }
         }
 
+        /// <summary>
+        /// Maps a chunk coordinate in this ring's own coordinate space to the region that
+        /// contains its origin. Derived from the voxel origin rather than a chunks-per-region
+        /// shift, because a coarse ring's chunk can be as large as, or larger than, a region.
+        /// </summary>
         private int3 ChunkRegion(int3 chunk)
         {
             int3 originVoxel = chunk * VoxelsPerAxis;
@@ -4052,6 +4472,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                             FloorDiv(originVoxel.y, VoxelGrid.RegionVoxelEdge),
                             FloorDiv(originVoxel.z, VoxelGrid.RegionVoxelEdge));
         }
+
 
         private struct RegionSampleCursor
         {
