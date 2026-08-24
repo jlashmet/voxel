@@ -1,0 +1,22 @@
+source_commit=315dec0805e45c5bef20a96fb5c921f228563060
+unity_version=6000.5.6f1
+configuration=tools/unity-run.sh; production macOS player; GPU enabled
+scene=Assets/Scenes/VoxelShowcase.unity
+camera_fixture=Showcase Camera @ (101.44347381591797,113.22681427001953,-51.74753952026367), fov=70
+capture_resolution=1293x718
+run_seconds=40
+selected_screenshot=showcase-002-t036.6s-stationary.png
+preserved_as=verification-lod2-material-fix.png
+sha256=034e99b6fb1395a550a96635fdb5af6ad8033ba865feb1d9cd5aceb222625f15
+player_exit_status=0
+captured_frames=3
+settled_visible_sections=425
+settled_missing_sections=0
+
+SCENEISSUE camera replay armed for Showcase Camera
+SCENEISSUE camera pinned at (101.44, 113.23, -51.75) fov=70
+
+Visual comparison against screenshot-001.png:
+- broad blue/grey near-field material bands: absent
+- exposed terrain material: predominantly green as intended
+- remaining contouring: aligned with coarse voxel geometry, without the prior buried blue material

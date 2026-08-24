@@ -23,8 +23,9 @@ camera replay, then resolve the capture before moving to the next open SceneIssu
 - Preserve deterministic integer authoritative state and CPU/GPU derivation from the same cells.
 - The three-attempt rule has already been met: the checked-in layered-slope fixture is the required
   bare-bones reproduction.
-- Final validation uses only `ci-test/fixes`; local Unity runs are diagnostic evidence and cannot
-  establish completion under the current AGENTS.md workflow.
+- The direct regression has targeted-CI evidence. Per the developer's local-Unity direction and
+  current `CLAUDE.md`, graphics-dependent final validation uses `tools/unity-run.sh`; never invoke
+  the Unity binary directly.
 - The feature commit and the later `issue.json` resolution commit must remain separate.
 
 ## Evidence and findings
@@ -52,6 +53,11 @@ camera replay, then resolve the capture before moving to the next open SceneIssu
   limitation rather than a production failure (experiment 009).
 - An attempted local exact-camera build was interrupted before producing a screenshot; no visual
   conclusion can be drawn from it.
+- The current-head real-player replay produced three exact 1293×718 frames. In the settled frame,
+  broad blue/grey buried-material bands are gone; remaining green contouring follows the intended
+  coarse voxel geometry (experiment 010).
+- Current-head graphics-enabled validation passed all 12 focused density, material, normal,
+  ownership, and cutover cases (experiment 011).
 
 ## Failed or deprioritized hypotheses
 
@@ -92,9 +98,10 @@ camera replay, then resolve the capture before moving to the next open SceneIssu
       regression, and confirm 1/1 passed in 58 seconds (experiment 008).
 - [x] Investigate the broader mixed-field CI failure and record that `-nographics` prevents compute
       kernel loading before either parameterized oracle case can compare results (experiment 009).
-- [ ] Run broader focused CI validation if the smallest regression does not cover the repaired
-      mixed-field and vertex-parity paths.
-- [ ] Produce and inspect a current-head exact-camera replay without committing temporary wiring.
+- [x] Run broader focused graphics validation locally: 12/12 mixed-field, vertex-parity, boundary,
+      and cutover cases passed on the merged head (experiment 011).
+- [x] Produce and inspect a current-head exact-camera replay without committing temporary wiring;
+      the incorrect blue/grey near-field bands are gone (experiment 010).
 - [ ] If the replay is clean, resolve `issue.json` in a separate commit, push, and delete
       `ci-test/fixes`; otherwise update this plan before further production changes.
 - [ ] Advance to `20260823-014108-038-VoxelShowcase` only after 014011 is fully resolved.

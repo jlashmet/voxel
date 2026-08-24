@@ -1,0 +1,13 @@
+source_commit=315dec0805e45c5bef20a96fb5c921f228563060
+unity_version=6000.5.6f1
+configuration=tools/unity-run.sh; EditMode; Metal graphics enabled
+filters=GpuSurfaceExtractorOracleTests.MixedSampleFieldMatchesTheCpuJob;TransvoxelChunkBoundaryOwnershipTests;GpuLod2CutoverPolicyTests;SceneIssue014011GpuVertexAttributeParityTests
+unity_exit_status=0
+executed_test_cases=12
+passed_test_cases=12
+failed_test_cases=0
+nunit_duration_seconds=0.2230965
+
+The passed cases include source steps 1 and 2 for both the mixed-field CPU/GPU density oracle and
+GPU vertex material/normal parity, plus the SceneIssue 014011 exposed-cap boundary and shader
+cutover guards.
