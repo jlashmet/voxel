@@ -115,4 +115,4 @@ Remove the non-smooth staircase silhouette in the four marked regions along the 
 - [x] Build and diagnose the required bare-bones reproduction after three failed fix attempts.
 - [x] Implement the smallest proven geometry fix from the isolated cause.
 - [x] Run affected Unity tests and final exact-pose replay.
-- [ ] Review, commit, push, and resolve the manifest separately.
+- [x] Review, commit, push, and resolve the manifest separately.
