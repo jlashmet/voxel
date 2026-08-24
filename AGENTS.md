@@ -10,7 +10,9 @@ Use this skill whenever working on **`jlashmet/voxel`**.
 
 ## Planning
 
-If a task is more than a trivial one-step edit, create or update a durable Markdown plan in **`.claude/plans/`** before implementation begins.
+If a task is more than a trivial one-step edit, create or update a durable Markdown plan before
+implementation begins. Keep it next to the work it documents: scene-issue plans and experiment
+notes live in the capture directory under `SceneIssues/` — see `SceneIssues/README.md`.
 
 - Resume an existing relevant plan instead of creating a duplicate.
 - State the goal, scope, important constraints, and concrete acceptance criteria.
@@ -22,8 +24,14 @@ If a task is more than a trivial one-step edit, create or update a durable Markd
 
 ## Branch discipline
 
-A task uses **exactly two branches for its entire lifetime**: one feature branch and one CI
-request branch. Both names are fixed when the task starts and never change.
+**Scene issues are the exception: they all go on `fixes`.** If the task is a capture under
+`SceneIssues/`, the feature branch is the single shared branch named `fixes` — not a new branch,
+and never one per capture. Read `SceneIssues/README.md` and follow its fixing process. Its CI
+request branch is `ci-test/fixes`. Everything below about reuse and forbidden suffixes still
+applies.
+
+For every other task, a task uses **exactly two branches for its entire lifetime**: one feature
+branch and one CI request branch. Both names are fixed when the task starts and never change.
 
 ```
 <feature-branch>          the work
@@ -43,11 +51,6 @@ superseded.
 Never push a placeholder, probe, or scratch branch (`tmp-*`, `temp-*`, `noop-*`, `__*`,
 `do-not-use-*`). If a ref would not be meaningful to a human reviewer a week later, it does not
 belong on `origin`.
-
-Delete `ci-test/<feature-branch>` as soon as the task's validation is green; delete the feature
-branch once it merges. The agent that pushed a branch is responsible for removing it. Leaving
-unmerged branches on `origin` is a defect, not housekeeping — it is unreviewed work that looks
-abandoned and consumes self-hosted runner capacity.
 
 ## Validation loop
 
@@ -104,7 +107,6 @@ Before declaring the task complete:
 - Review the final diff.
 - Verify it follows **`CLAUDE.md`** and relevant specs.
 - Confirm the relevant CI jobs are green.
-- Delete the task's `ci-test/<feature-branch>` from `origin`.
 - Confirm the task created no branches on `origin` beyond its one feature branch and that one CI branch.
 - State what was changed and what CI validation actually passed.
 

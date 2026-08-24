@@ -1,0 +1,109 @@
+{
+    "formatVersion": 3,
+    "id": "20260824-025344-286-KentridgePlayableSlice",
+    "capturedUtc": "2026-08-24T02:53:44.2863330Z",
+    "note": "looks like houses and other things may be3 overlapping.  make sure things are appropriately spaced.  also there is a staircase here going backwards into nothing.",
+    "status": "open",
+    "resolvedUtc": "",
+    "resolutionSummary": "",
+    "regressionTest": "",
+    "fixCommit": "",
+    "unityVersion": "6000.5.6f1",
+    "platform": "OSXEditor",
+    "sceneName": "KentridgePlayableSlice",
+    "scenePath": "Assets/Scenes/KentridgePlayableSlice.unity",
+    "sceneBuildIndex": 0,
+    "captures": [
+        {
+            "screenshot": "screenshot-001.png",
+            "capturedUtc": "2026-08-24T02:53:44.2864550Z",
+            "frameCount": 103651,
+            "timeSinceLevelLoad": 156.45228576660157,
+            "screenWidth": 1637,
+            "screenHeight": 1140,
+            "poseAnchor": {
+                "hierarchyPath": "Kentridge Player Camera",
+                "position": {
+                    "x": 129.67404174804688,
+                    "y": 26.35004997253418,
+                    "z": 60.39565658569336
+                },
+                "rotation": {
+                    "x": 0.003708292730152607,
+                    "y": -0.9944265484809876,
+                    "z": -0.03744158893823624,
+                    "w": -0.09849006682634354
+                },
+                "localScale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                }
+            },
+            "camera": {
+                "hierarchyPath": "Kentridge Player Camera",
+                "position": {
+                    "x": 129.67404174804688,
+                    "y": 26.35004997253418,
+                    "z": 60.39565658569336
+                },
+                "rotation": {
+                    "x": 0.003708292730152607,
+                    "y": -0.9944265484809876,
+                    "z": -0.03744158893823624,
+                    "w": -0.09849006682634354
+                },
+                "fieldOfView": 58.0,
+                "orthographic": false,
+                "orthographicSize": 5.0,
+                "nearClipPlane": 0.05000000074505806,
+                "farClipPlane": 16000.0
+            },
+            "circles": []
+        }
+    ],
+    "screenshot": "screenshot-001.png",
+    "frameCount": 103651,
+    "timeSinceLevelLoad": 156.45228576660157,
+    "screenWidth": 1637,
+    "screenHeight": 1140,
+    "poseAnchor": {
+        "hierarchyPath": "Kentridge Player Camera",
+        "position": {
+            "x": 129.67404174804688,
+            "y": 26.35004997253418,
+            "z": 60.39565658569336
+        },
+        "rotation": {
+            "x": 0.003708292730152607,
+            "y": -0.9944265484809876,
+            "z": -0.03744158893823624,
+            "w": -0.09849006682634354
+        },
+        "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+        }
+    },
+    "camera": {
+        "hierarchyPath": "Kentridge Player Camera",
+        "position": {
+            "x": 129.67404174804688,
+            "y": 26.35004997253418,
+            "z": 60.39565658569336
+        },
+        "rotation": {
+            "x": 0.003708292730152607,
+            "y": -0.9944265484809876,
+            "z": -0.03744158893823624,
+            "w": -0.09849006682634354
+        },
+        "fieldOfView": 58.0,
+        "orthographic": false,
+        "orthographicSize": 5.0,
+        "nearClipPlane": 0.05000000074505806,
+        "farClipPlane": 16000.0
+    },
+    "circles": []
+}

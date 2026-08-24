@@ -74,3 +74,9 @@ Server/secrets/
 # Machine-local agent state, not shared project config
 .claude/settings.local.json
 .claude/.autonomous_loop_exit
+
+# Unity test-runner output, regenerated per run
+TestResults/
+
+# Python bytecode from tools/character-factory
+__pycache__/

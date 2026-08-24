@@ -66,13 +66,56 @@ When an agent is asked to work through captured issues:
 4. Replay the issue and step through every captured viewpoint. Confirm the failure in the marked regions and determine the smallest responsible subsystem before editing production code.
 5. Add or extend a focused regression using the saved scene/pose fixture. For transient problems, use all captured frames that are materially different rather than arbitrarily choosing one screenshot.
 6. Implement the smallest fix that resolves the reproduced problem without weakening coverage, performance budgets, or unrelated assertions.
-7. **Three-attempt rule:** if the issue is still not solved after three genuine fix attempts, stop guessing in the full scene and build a bare-bones reproduction that isolates the failing behavior with the minimum geometry, data, systems, and configuration needed to reproduce it. Use that reproduction to understand the root cause before making more production changes. The reproduction may be checked in temporarily on `fixes` and may run in the normal CI build so the behavior is repeatable while debugging. **Remove the temporary bare-bones reproduction and any CI-only wiring for it before merging `fixes` to `master`.**
-8. Run the new regression plus the smallest relevant existing test set. Follow the repository's Unity-running rules in `CLAUDE.md`; never bypass `tools/unity-run.sh` or start a second editor unsafely.
-9. Replay the original capture again after the fix. For multi-frame issues, check every recorded viewpoint and every marked region.
-10. Commit the production/test fix on `fixes` with a message that names the capture, for example `Fix scene issue 20260822-...: prevent far-field flicker`. This gives the fix a real commit SHA.
-11. Update that issue's `issue.json`: set `status` to `fixed`, fill `resolvedUtc`, summarize the resolution in `resolutionSummary`, record the regression test in `regressionTest`, and put the production/test commit SHA from the previous step in `fixCommit`. If the issue cannot be reproduced or is blocked, record that explicitly instead of pretending it is fixed.
-12. Commit that issue bookkeeping on the same `fixes` branch, for example `Resolve scene issue 20260822-...`. The extra bookkeeping commit is deliberate: it avoids inventing the SHA of a commit before that commit exists.
-13. Only after that issue is reproduced, fixed, regressed, replay-verified, documented, and committed should the agent move to the next open issue — **still on the same `fixes` branch**.
-14. Push `fixes` after each completed issue so each fix remains inspectable. A single PR can accumulate the sequential fixes; do not create one PR/branch pair per capture unless the developer explicitly changes this policy.
+7. Write an experiment file for every attempt as soon as it produces a result — see **Document every experiment** below. The numbered experiment files are what makes the three-attempt count in the next step objective rather than a matter of recollection.
+8. **Three-attempt rule:** if the issue is still not solved after three genuine fix attempts, stop guessing in the full scene and build a bare-bones reproduction that isolates the failing behavior with the minimum geometry, data, systems, and configuration needed to reproduce it. Use that reproduction to understand the root cause before making more production changes. The reproduction may be checked in temporarily on `fixes` and may run in the normal CI build so the behavior is repeatable while debugging. **Remove the temporary bare-bones reproduction and any CI-only wiring for it before merging `fixes` to `master`.**
+9. Run the new regression plus the smallest relevant existing test set. Follow the repository's Unity-running rules in `CLAUDE.md`; never bypass `tools/unity-run.sh` or start a second editor unsafely.
+10. Replay the original capture again after the fix. For multi-frame issues, check every recorded viewpoint and every marked region.
+11. Commit the production/test fix on `fixes` with a message that names the capture, for example `Fix scene issue 20260822-...: prevent far-field flicker`. This gives the fix a real commit SHA.
+12. Update that issue's `issue.json`: set `status` to `fixed`, fill `resolvedUtc`, summarize the resolution in `resolutionSummary`, record the regression test in `regressionTest`, and put the production/test commit SHA from the previous step in `fixCommit`. If the issue cannot be reproduced or is blocked, record that explicitly instead of pretending it is fixed.
+13. Commit that issue bookkeeping on the same `fixes` branch, for example `Resolve scene issue 20260822-...`. The extra bookkeeping commit is deliberate: it avoids inventing the SHA of a commit before that commit exists.
+14. Only after that issue is reproduced, fixed, regressed, replay-verified, documented, and committed should the agent move to the next open issue — **still on the same `fixes` branch**.
+15. Push `fixes` after each completed issue so each fix remains inspectable. A single PR can accumulate the sequential fixes; do not create one PR/branch pair per capture unless the developer explicitly changes this policy.
+
+## Document every experiment
+
+An experiment is any attempt to learn something about the issue: a replay, a diagnostic build, a
+targeted CI run, a probe, a hypothesis tested in code. **Every experiment gets its own Markdown
+file in the issue's own capture directory**, whether it succeeded or failed:
+
+```text
+SceneIssues/<timestamp>-<scene>/
+  issue.json
+  screenshot-001.png
+  experiment-001-gpu-boundary-ownership.md
+  experiment-002-coarse-lod-phase.md
+  ...
+```
+
+Number them in the order they were run and give each a short slug naming the hypothesis. Keep
+each file concise — a screenful, not an essay — and write it immediately after the experiment
+finishes, while the result is still known. Each file states:
+
+- **Hypothesis** — what was believed to be wrong, in one or two sentences.
+- **What was performed** — the change, replay, or test that was actually run, and the source
+  commit SHA it ran against so the run can be reproduced.
+- **Result** — what actually came back. Cite the concrete evidence: test names and pass/fail,
+  captured metrics, or the `verification-*.png` / `.txt` replay artifacts saved beside it.
+- **What was learned** — the conclusion, stated as a verdict: hypothesis confirmed, disproven,
+  or inconclusive and why.
+- **Next** — what the result implies for the following experiment.
+
+A disproven hypothesis is a required result, not a wasted file. Recording that a cause was ruled
+out is what stops the next agent from re-running the same experiment, and it is the only durable
+trace of the reasoning once the branch history has been squashed or the diagnostic wiring
+removed. Never delete an experiment file after the fix lands; it stays with the capture as the
+record of how the cause was found.
+
+Save replay screenshots, logs, and telemetry produced by an experiment into the same capture
+directory as `verification-<slug>.png` / `verification-<slug>.txt`, and reference them from the
+experiment file. Include the source commit and any non-default configuration (for example
+`gpu_cutover_disabled=1`) at the top of the text artifact.
+
+The per-issue `resolutionSummary` in `issue.json` remains the terminal one-paragraph answer. The
+experiment files are the working record behind it, and both are expected on a resolved issue.
 
 The point of the shared branch is to make visual cleanup an ordered queue: reproduce → inspect marked regions → test → fix → verify → document → commit → resolve, then advance to the next issue.
