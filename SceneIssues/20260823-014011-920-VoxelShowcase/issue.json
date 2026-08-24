@@ -4,7 +4,7 @@
     "capturedUtc": "2026-08-23T01:40:11.9206760Z",
     "note": "terrain from above looks aweful.  near terrain is blueish and spiraly",
     "status": "open",
-    "workInProgress": "2026-08-23: Developer explicitly chose to extend the new GPU surface-extraction path to sourceStep/LOD2 and use that path to eliminate the remaining LOD-specific terrain artifact. Preserve HLOD for farther terrain unless evidence says otherwise. Verify GPU LOD2 parity/performance and replay this captured view before resolving.",
+    "workInProgress": "2026-08-23: GPU surface extraction was extended to sourceStep/LOD2 while preserving step4 CPU fallback and step8 HLOD. Focused GPU LOD2 policy/seam tests and existing Transvoxel boundary tests pass. Exact real-player replay at the saved Showcase Camera pose completed and converged, but visual attempt 1 FAILED: the noisy blue/spiral breakup changed into a still-blue-gray near patch with obvious grid/contour-loop artifacts. Keep this issue open. Next work is to compare LOD2 GPU density/material sampling against the CPU exact-density path; do not mark fixed until the saved view is visually clean. This is visual attempt 1 of 3 before the required bare-bones reproduction escalation.",
     "resolvedUtc": "",
     "resolutionSummary": "",
     "regressionTest": "",
