@@ -59,10 +59,9 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
             TreeBranchSegment cutBranch = skeleton.Branches[cut.BranchIndex];
             bool levelZeroCut = cutBranch.Level == 0;
 
-            // BranchCut is fired after the direct cut has entered TreeWorldReadRegistry.Current. Build the debris
-            // from the current cut's connected subtree, then subtract geometry that had already been
-            // removed by previous cuts. This matters when a player comes back and destroys a stump:
-            // the already-fallen crown must never be spawned a second time.
+            // BranchCut is fired after the direct cut has entered TreeWorldReadRegistry.Current.
+            // Subtract geometry removed by earlier branch cuts so already-fallen limbs never spawn
+            // a second time when the remaining tree is later severed.
             var previousCuts = new HashSet<int>(TreeWorldReadRegistry.Current.RemovedBranches(cut.TreeIndex));
             previousCuts.Remove(cut.BranchIndex);
             bool hadPreviousTrunkCut = false;
@@ -76,14 +75,26 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
                 }
             }
 
-            var subtree = new HashSet<int> { cut.BranchIndex };
-            IReadOnlyList<int> parents = skeleton.BranchParents;
-            if (parents != null)
+            bool fallingCrown = levelZeroCut && !hadPreviousTrunkCut;
+            var subtree = new HashSet<int>();
+            if (fallingCrown)
             {
-                for (int i = cut.BranchIndex + 1; i < parents.Count; i++)
+                // A structural trunk sever retires the rooted tree completely. Move the entire
+                // remaining skeleton into one falling body rather than leaving the lower trunk as
+                // a second standing presentation (SceneIssue 20260825-033015-205).
+                for (int i = 0; i < skeleton.Branches.Count; i++) subtree.Add(i);
+            }
+            else
+            {
+                subtree.Add(cut.BranchIndex);
+                IReadOnlyList<int> parents = skeleton.BranchParents;
+                if (parents != null)
                 {
-                    int parent = parents[i];
-                    if (parent >= 0 && subtree.Contains(parent)) subtree.Add(i);
+                    for (int i = cut.BranchIndex + 1; i < parents.Count; i++)
+                    {
+                        int parent = parents[i];
+                        if (parent >= 0 && subtree.Contains(parent)) subtree.Add(i);
+                    }
                 }
             }
 
@@ -95,10 +106,13 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
             }
             if (subtree.Count == 0) return;
 
-            // Author the detached mesh directly around the cut pivot. The old path built it around
-            // the tree root, read the entire Mesh.vertices array back from Unity, rewrote every
-            // vertex, and uploaded it again. Avoiding that copy removes a large destruction spike.
-            Vector3 cutLocal = (Vector3)cutBranch.Start;
+            // Author around the actual sever point for the whole-tree fall. The direct branch
+            // index still records which trunk segment was hit, but the physics pivot must match
+            // the shot rather than the root of that segment.
+            bool hasHitPoint = math.lengthsq(cut.HitPointMetres) > 1e-8f;
+            Vector3 cutLocal = fallingCrown && hasHitPoint
+                ? (Vector3)(cut.HitPointMetres - instance.PositionMetres)
+                : (Vector3)cutBranch.Start;
             Mesh mesh = ProceduralTreeMeshBuilder.BuildSubsetMesh(
                 skeleton, 0, subtree, -cutLocal);
             if (mesh == null || mesh.vertexCount == 0)
@@ -128,10 +142,6 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
             renderer.reflectionProbeUsage = ReflectionProbeUsage.Off;
 
             Bounds bounds = mesh.bounds;
-            // Only the first structural trunk sever represents the full crown. Later level-zero
-            // cuts are stump chunks, so treating them as ordinary debris is both cheaper and avoids
-            // repeatedly pinning tiny pieces to a fake felling hinge.
-            bool fallingCrown = levelZeroCut && !hadPreviousTrunkCut;
             if (fallingCrown)
                 AddTrunkCollider(go, in cutBranch, bounds);
             else
@@ -155,9 +165,8 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
 
             if (fallingCrown)
             {
-                // The sever point is the body origin. Pin that point briefly while leaving rotation
-                // unconstrained so the upper tree visibly hinges from the stump before it becomes
-                // ordinary falling debris.
+                // The sever point is the body origin. Pin it briefly while leaving rotation free
+                // so the whole remaining tree visibly hinges from the shot before ordinary fall.
                 body.constraints = RigidbodyConstraints.FreezePositionX
                                  | RigidbodyConstraints.FreezePositionY
                                  | RigidbodyConstraints.FreezePositionZ;
