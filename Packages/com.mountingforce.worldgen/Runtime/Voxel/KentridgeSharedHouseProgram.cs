@@ -30,6 +30,8 @@ namespace MountingForce.WorldGen.Voxel
         private const int PubCounterTopThicknessDm = 2;
         private const int PubCounterGatheringGapDm = 6;
         private const int DoorSideClearanceDm = 7;
+        private const int FrontageOpeningGapDm = 3;
+        private const int FrontageSideMarginDm = 6;
 
         internal readonly struct Program
         {
@@ -109,6 +111,17 @@ namespace MountingForce.WorldGen.Voxel
             frontDoors.ExplicitOffsets.Add(localDoorX);
             config.FrontDoors = frontDoors;
 
+            // Kentridge owns the facade rhythm while the selected shared-house preset still owns
+            // the window opening style and dimensions. Convert the architecture rhythm to explicit
+            // offsets so no window can collide with the public entrance or another frontage bay.
+            ConfigureFrontWindows(
+                ref config,
+                form.FrontageRhythm,
+                width,
+                localDoorX,
+                config.MainDoor.Width,
+                scale);
+
             // Keep the shared compiler's supported bounded roof family. Steep/twin Kentridge forms
             // retain their requested height through the pitch ratio; annex/secondary roof hooks can
             // be layered later without restoring a private main-house geometry path.
@@ -174,6 +187,111 @@ namespace MountingForce.WorldGen.Voxel
                         "Kentridge settlement palette selected an unsupported house preset: " + presetId);
             }
         }
+
+        private static void ConfigureFrontWindows(
+            ref HouseConfig config,
+            FrontageRhythm rhythm,
+            int width,
+            int localDoorX,
+            int doorWidth,
+            int scale)
+        {
+            HouseWindowLayoutConfig windows = config.FrontWindows;
+            int count = rhythm == FrontageRhythm.ThreeBay ? 3 : 2;
+            int windowWidth = windows.Opening.Width;
+            if (windowWidth <= 0)
+                throw new InvalidOperationException(
+                    "Generated Kentridge house preset must provide a positive frontage window width.");
+
+            int sideMargin = FrontageSideMarginDm * scale;
+            int openingGap = FrontageOpeningGapDm * scale;
+            int minimumWindowX = sideMargin;
+            int maximumWindowX = width - sideMargin - windowWidth;
+            if (maximumWindowX < minimumWindowX)
+                throw new InvalidOperationException(
+                    "Generated Kentridge structure is too narrow for its authored frontage windows.");
+
+            int reservedDoorMin = localDoorX - openingGap;
+            int reservedDoorMax = localDoorX + doorWidth + openingGap;
+            var chosenOffsets = new int[count];
+
+            for (int i = 0; i < count; i++)
+            {
+                int preferredX = PreferredFrontageCenter(rhythm, i, width) - windowWidth / 2;
+                int bestX = int.MinValue;
+                int bestDistance = int.MaxValue;
+
+                for (int candidateX = minimumWindowX; candidateX <= maximumWindowX; candidateX++)
+                {
+                    if (SpansOverlap(
+                        candidateX,
+                        candidateX + windowWidth,
+                        reservedDoorMin,
+                        reservedDoorMax))
+                        continue;
+
+                    bool collidesWithWindow = false;
+                    for (int placed = 0; placed < i; placed++)
+                    {
+                        if (SpansOverlap(
+                            candidateX,
+                            candidateX + windowWidth,
+                            chosenOffsets[placed] - openingGap,
+                            chosenOffsets[placed] + windowWidth + openingGap))
+                        {
+                            collidesWithWindow = true;
+                            break;
+                        }
+                    }
+
+                    if (collidesWithWindow)
+                        continue;
+
+                    int distance = Math.Abs(candidateX - preferredX);
+                    if (distance < bestDistance)
+                    {
+                        bestDistance = distance;
+                        bestX = candidateX;
+                    }
+                }
+
+                if (bestX == int.MinValue)
+                    throw new InvalidOperationException(
+                        "Generated Kentridge structure cannot fit its authored frontage rhythm " +
+                        "around the public entrance.");
+
+                chosenOffsets[i] = bestX;
+            }
+
+            windows.Facade = HouseFacade.Front;
+            windows.Placement = HouseFacadePlacementMode.ExplicitOffsets;
+            windows.Count = count;
+            windows.ExplicitOffsets = default;
+            for (int i = 0; i < chosenOffsets.Length; i++)
+                windows.ExplicitOffsets.Add(chosenOffsets[i]);
+            config.FrontWindows = windows;
+        }
+
+        private static int PreferredFrontageCenter(
+            FrontageRhythm rhythm,
+            int index,
+            int width)
+        {
+            switch (rhythm)
+            {
+                case FrontageRhythm.ThreeBay:
+                    if (index == 0) return width / 5;
+                    if (index == 1) return width / 2;
+                    return 4 * width / 5;
+                case FrontageRhythm.Asymmetric:
+                    return index == 0 ? width / 4 : 2 * width / 3;
+                default:
+                    return index == 0 ? width / 4 : 3 * width / 4;
+            }
+        }
+
+        private static bool SpansOverlap(int minA, int maxA, int minB, int maxB) =>
+            minA < maxB && maxA > minB;
 
         private static int[] AddPubCounter(
             int[] program,

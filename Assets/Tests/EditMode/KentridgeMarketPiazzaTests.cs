@@ -36,9 +36,10 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.AreEqual(FeatureKind.Infrastructure, definition.Kind);
                 Assert.AreEqual(KentridgeMarketPiazzaCatalogue.PiazzaPrecedence,
                     definition.Precedence);
-                Assert.AreEqual(plaza.SizeDm.X, definition.Footprint.x,
-                    "Test settings use one voxel per decimetre.");
-                Assert.AreEqual(plaza.SizeDm.Y, definition.Footprint.z);
+                Assert.AreEqual(plaza.SizeDm.X + 1, definition.Footprint.x,
+                    "Inclusive authored plaza bounds require one voxel for both endpoints.");
+                Assert.AreEqual(plaza.SizeDm.Y + 1, definition.Footprint.z,
+                    "Inclusive authored plaza bounds require one voxel for both endpoints.");
                 Assert.AreEqual(KentridgeMarketPiazzaCatalogue.SurfaceThicknessDm,
                     definition.Footprint.y);
                 Assert.AreEqual(plaza.CentreDm.X - plaza.SizeDm.X / 2,
@@ -58,6 +59,65 @@ namespace VoxelEngine.Tests.EditMode
             finally
             {
                 catalogue.Dispose();
+            }
+        }
+
+        [Test]
+        public void HardAndGradedPiazzaOwnTheSameInclusiveAuthoredBoundary()
+        {
+            SettlementPlan settlement = KentridgeDefinition.Build(Seed);
+            PlannedPlaza plaza = settlement.Plaza;
+            int expectedMinX = plaza.CentreDm.X - plaza.SizeDm.X / 2;
+            int expectedMinZ = plaza.CentreDm.Y - plaza.SizeDm.Y / 2;
+            int expectedMaxX = plaza.CentreDm.X + plaza.SizeDm.X / 2;
+            int expectedMaxZ = plaza.CentreDm.Y + plaza.SizeDm.Y / 2;
+
+            FeatureCatalogue hard = KentridgeMarketPiazzaCatalogue.Build(
+                Seed, BuildSettings(), Allocator.Temp);
+            FeatureCatalogue graded = KentridgeVerticalTownSurfaceCatalogue.Build(
+                Seed, BuildSettings(), Allocator.Temp);
+            try
+            {
+                int gradedIndex = -1;
+                for (int i = 0; i < graded.Definitions.Length; i++)
+                {
+                    if (graded.Definitions[i].Name.ToString() == "kentridge-vertical-market-square")
+                    {
+                        gradedIndex = i;
+                        break;
+                    }
+                }
+
+                Assert.GreaterOrEqual(gradedIndex, 0,
+                    "Expected the vertical town surface catalogue to contain Market Square.");
+
+                FeatureDefinition hardDefinition = hard.Definitions[0];
+                ExplicitPlacement hardPlacement = hard.ExplicitPlacements[0];
+                FeatureDefinition gradedDefinition = graded.Definitions[gradedIndex];
+                ExplicitPlacement gradedPlacement = graded.ExplicitPlacements[gradedIndex];
+
+                Assert.AreEqual(expectedMinX, hardPlacement.Position.x);
+                Assert.AreEqual(expectedMinZ, hardPlacement.Position.z);
+                Assert.AreEqual(expectedMinX, gradedPlacement.Position.x);
+                Assert.AreEqual(expectedMinZ, gradedPlacement.Position.z);
+
+                Assert.AreEqual(expectedMaxX,
+                    hardPlacement.Position.x + hardDefinition.Footprint.x - 1,
+                    "Hard piazza must own its authored +X endpoint.");
+                Assert.AreEqual(expectedMaxZ,
+                    hardPlacement.Position.z + hardDefinition.Footprint.z - 1,
+                    "Hard piazza must own its authored +Z endpoint; the saved scene seam is on this row.");
+                Assert.AreEqual(expectedMaxX,
+                    gradedPlacement.Position.x + gradedDefinition.Footprint.x - 1,
+                    "Graded piazza must own the same authored +X endpoint.");
+                Assert.AreEqual(expectedMaxZ,
+                    gradedPlacement.Position.z + gradedDefinition.Footprint.z - 1,
+                    "Graded piazza must own the same authored +Z endpoint as the hard surface.");
+            }
+            finally
+            {
+                hard.Dispose();
+                graded.Dispose();
             }
         }
 

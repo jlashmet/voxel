@@ -9,19 +9,16 @@ using VoxelEngine.Structures.Api;
 namespace MountingForce.WorldGen.Voxel
 {
     /// <summary>
-    /// Built circulation and retaining architecture for Kentridge's authored hillside.
+    /// Built retaining architecture for Kentridge's authored hillside.
     ///
-    /// Smooth district landforms provide the earth mass. This stage supplies the crisp civic fabric
-    /// that makes those elevation changes read as a town: hard stone stair flights on the main
-    /// ascent, short arcaded retaining walls at important landings, and a narrow summit campanile.
-    /// All of these are Infrastructure, not gameplay Structures, so stable building identity remains
-    /// exactly the original seventeen roles.
+    /// Smooth district landforms provide the earth mass and the directed town-surface stage already
+    /// owns the continuous main-road climb. This stage supplies short arcaded retaining walls at
+    /// important landings and a narrow summit campanile without overlaying a second stair route on
+    /// the same carriageway. These are Infrastructure, not gameplay Structures, so stable building
+    /// identity remains exactly the original seventeen roles.
     /// </summary>
     public static class KentridgeVerticalConnectorCatalogue
     {
-        private const int StairWidthDm = 16;
-        private const int TreadThicknessDm = 2;
-        private const int SideInsetDm = 5;
         private const int RetainingDepthDm = 22;
 
         private sealed class CompiledBuild
@@ -34,40 +31,16 @@ namespace MountingForce.WorldGen.Voxel
             public int MaxPrimitives;
         }
 
-        private readonly struct FlightBuild
-        {
-            public readonly string Name;
-            public readonly int NorthZDm;
-            public readonly int SouthZDm;
-            public readonly int LowY;
-            public readonly int Rise;
-            public readonly int Steps;
-
-            public FlightBuild(string name, int northZDm, int southZDm,
-                               int lowY, int rise, int steps)
-            {
-                Name = name;
-                NorthZDm = northZDm;
-                SouthZDm = southZDm;
-                LowY = lowY;
-                Rise = rise;
-                Steps = steps;
-            }
-        }
-
         public static FeatureCatalogue Build(uint seed, VoxelWorldGenSettings settings,
                                              Allocator allocator)
         {
-            int scale = settings.VoxelsPerDecimetre;
-            var builds = new List<CompiledBuild>(9);
+            var builds = new List<CompiledBuild>(5);
 
-            AddStairFlight(builds, BuildFlight("south-rise", 760, 900, 10, seed, scale), settings);
-            AddStairFlight(builds, BuildFlight("lower-market-rise", 620, 760, 14, seed, scale), settings);
-            AddStairFlight(builds, BuildFlight("market-upper-rise", 300, 440, 17, seed, scale), settings);
-            AddStairFlight(builds, BuildFlight("civic-rise", 160, 300, 15, seed, scale), settings);
+            // The directed town-surface catalogue already realizes the main spine as one continuous,
+            // supported climb. Do not add a second hard-stone stair ribbon inside that carriageway.
 
             // Walls deliberately stop short of the main carriageway. The gaps are not mistakes:
-            // they expose the road/stair penetration through each terrace and turn it into a clear
+            // they expose the road penetration through each terrace and turn it into a clear
             // compositional ascent instead of hiding circulation behind one continuous wall.
             builds.Add(BuildRetainingWall(
                 "market-retaining-west",
@@ -178,29 +151,6 @@ namespace MountingForce.WorldGen.Voxel
             return catalogue;
         }
 
-        private static void AddStairFlight(List<CompiledBuild> result,
-                                           FlightBuild flight,
-                                           VoxelWorldGenSettings settings)
-        {
-            int scale = settings.VoxelsPerDecimetre;
-            int xDm = KentridgeTownPlanner.MainSpineXDm
-                    - KentridgeTownPlanner.MainRoadWidthDm / 2
-                    + SideInsetDm;
-            int length = (flight.SouthZDm - flight.NorthZDm) * scale;
-            result.Add(new CompiledBuild
-            {
-                Name = new FixedString64Bytes("kentridge-stair-" + flight.Name),
-                Position = new int3(xDm * scale, flight.LowY, flight.NorthZDm * scale),
-                Footprint = new int3(
-                    StairWidthDm * scale,
-                    flight.Rise + TreadThicknessDm * scale + 1,
-                    length),
-                Program = StairProgram(flight, settings),
-                Precedence = 30,
-                MaxPrimitives = flight.Steps,
-            });
-        }
-
         private static CompiledBuild BuildRetainingWall(
             string name,
             int xDm, int southEdgeZDm, int widthDm, int heightDm, int bays,
@@ -253,45 +203,6 @@ namespace MountingForce.WorldGen.Voxel
                 Precedence = 90,
                 MaxPrimitives = 24,
             };
-        }
-
-        private static FlightBuild BuildFlight(string name, int northZ, int southZ, int steps,
-                                               uint seed, int scale)
-        {
-            int xDm = KentridgeTownPlanner.MainSpineXDm;
-            int highY = KentridgeVerticalProfile.SurfaceYAtDm(xDm, northZ, seed, scale);
-            int lowY = KentridgeVerticalProfile.SurfaceYAtDm(xDm, southZ, seed, scale);
-            int rise = highY - lowY;
-            if (rise <= 0)
-                throw new InvalidOperationException(
-                    "Kentridge stair flight does not climb northward: " + name);
-
-            return new FlightBuild(name, northZ, southZ, lowY, rise, steps);
-        }
-
-        private static int[] StairProgram(FlightBuild flight,
-                                          VoxelWorldGenSettings settings)
-        {
-            int s = settings.VoxelsPerDecimetre;
-            int width = StairWidthDm * s;
-            int thickness = TreadThicknessDm * s;
-            int length = (flight.SouthZDm - flight.NorthZDm) * s;
-            byte stone = settings.Materials.Resolve(MaterialRole.FoundationStone);
-            var b = new ProgramBuilder();
-
-            for (int i = 0; i < flight.Steps; i++)
-            {
-                int z0 = length * i / flight.Steps;
-                int z1 = length * (i + 1) / flight.Steps;
-                int depth = Math.Max(1, z1 - z0);
-                int y = flight.Steps <= 1
-                    ? flight.Rise
-                    : flight.Rise * (flight.Steps - 1 - i) / (flight.Steps - 1);
-
-                b.Box(0, y, z0, width, thickness, depth, stone);
-            }
-
-            return b.Finish();
         }
 
         private static int[] RetainingWallProgram(int widthDm, int heightDm, int bays,

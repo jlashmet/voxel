@@ -28,8 +28,8 @@ namespace MountingForce.WorldGen.Voxel
             SettlementPlan settlement = SettlementVoxelPlan.Resolve(seed, in settings);
             PlannedPlaza plaza = settlement.Plaza;
             int s = settings.VoxelsPerDecimetre;
-            int width = plaza.SizeDm.X * s;
-            int depth = plaza.SizeDm.Y * s;
+            int width = plaza.SizeDm.X * s + 1;
+            int depth = plaza.SizeDm.Y * s + 1;
             int thickness = SurfaceThicknessDm * s;
             int[] program = PiazzaProgram(width, depth, settings);
 

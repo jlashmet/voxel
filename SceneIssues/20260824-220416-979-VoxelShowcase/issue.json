@@ -1,0 +1,121 @@
+{
+    "formatVersion": 3,
+    "id": "20260824-220416-979-VoxelShowcase",
+    "capturedUtc": "2026-08-24T22:04:16.9824760Z",
+    "note": "this house has a weird looking door seems to be merged with the window.  there needs to be a constraint not allowing overlap",
+    "status": "fixed",
+    "resolvedUtc": "2026-08-25T09:25:29Z",
+    "resolutionSummary": "The live generated Kentridge house path was using the architecture-owned off-centre door position but generic preset-owned frontage-window placement, allowing Medrare House's entrance and a frontage window to occupy the same facade region. KentridgeSharedHouseProgram now translates FrontageRhythm into explicit shared-house window offsets and deterministically reflows frontage bays so they retain at least 3 dm of visible wall from the public door and one another while preserving the authored window count. The failed legacy KentridgeGrammarVoxelCatalogue attempt was removed. Focused and affected entrance regressions pass, and standalone exact saved-view replay in Actions run 32831102139 reached the recorded frozen camera pose and visually shows a masonry pier separating the entrance from the left frontage window while retaining the right frontage window.",
+    "regressionTest": "VoxelEngine.Tests.EditMode.KentridgeGeneratedEntranceAlignmentTests.MedrareHouseKeepsBothFrontageWindowsClearOfDoor; VoxelEngine.Tests.EditMode.KentridgeGeneratedEntranceAlignmentTests.PubPhysicalDoorAndAnchorsHonorArchitectureDoorOffset",
+    "fixCommit": "cd4480b134461b1eddb33a05c78735e4489bf4f5",
+    "unityVersion": "6000.5.6f1",
+    "platform": "OSXEditor",
+    "sceneName": "VoxelShowcase",
+    "scenePath": "Assets/Scenes/VoxelShowcase.unity",
+    "sceneBuildIndex": 2,
+    "captures": [
+        {
+            "screenshot": "screenshot-001.png",
+            "capturedUtc": "2026-08-24T22:04:16.9833060Z",
+            "frameCount": 80111,
+            "timeSinceLevelLoad": 415.5003356933594,
+            "screenWidth": 1364,
+            "screenHeight": 836,
+            "poseAnchor": {
+                "hierarchyPath": "Showcase Camera",
+                "position": {
+                    "x": 104.67137908935547,
+                    "y": 21.65000343322754,
+                    "z": 92.26952362060547
+                },
+                "rotation": {
+                    "x": -0.032108187675476077,
+                    "y": -0.00877122487872839,
+                    "z": 0.0002817842469085008,
+                    "w": -0.999445915222168
+                },
+                "localScale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                }
+            },
+            "camera": {
+                "hierarchyPath": "Showcase Camera",
+                "position": {
+                    "x": 104.67137908935547,
+                    "y": 21.65000343322754,
+                    "z": 92.26952362060547
+                },
+                "rotation": {
+                    "x": -0.032108187675476077,
+                    "y": -0.00877122487872839,
+                    "z": 0.0002817842469085008,
+                    "w": -0.999445915222168
+                },
+                "fieldOfView": 70.0,
+                "orthographic": false,
+                "orthographicSize": 5.0,
+                "nearClipPlane": 0.05000000074505806,
+                "farClipPlane": 16000.0
+            },
+            "circles": [
+                {
+                    "centerX": 0.36016950011253359,
+                    "centerY": 0.3721007704734802,
+                    "radius": 0.24799780547618867
+                }
+            ]
+        }
+    ],
+    "screenshot": "screenshot-001.png",
+    "frameCount": 80111,
+    "timeSinceLevelLoad": 415.5003356933594,
+    "screenWidth": 1364,
+    "screenHeight": 836,
+    "poseAnchor": {
+        "hierarchyPath": "Showcase Camera",
+        "position": {
+            "x": 104.67137908935547,
+            "y": 21.65000343322754,
+            "z": 92.26952362060547
+        },
+        "rotation": {
+            "x": -0.032108187675476077,
+            "y": -0.00877122487872839,
+            "z": 0.0002817842469085008,
+            "w": -0.999445915222168
+        },
+        "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+        }
+    },
+    "camera": {
+        "hierarchyPath": "Showcase Camera",
+        "position": {
+            "x": 104.67137908935547,
+            "y": 21.65000343322754,
+            "z": 92.26952362060547
+        },
+        "rotation": {
+            "x": -0.032108187675476077,
+            "y": -0.00877122487872839,
+            "z": 0.0002817842469085008,
+            "w": -0.999445915222168
+        },
+        "fieldOfView": 70.0,
+        "orthographic": false,
+        "orthographicSize": 5.0,
+        "nearClipPlane": 0.05000000074505806,
+        "farClipPlane": 16000.0
+    },
+    "circles": [
+        {
+            "centerX": 0.36016950011253359,
+            "centerY": 0.3721007704734802,
+            "radius": 0.24799780547618867
+        }
+    ]
+}

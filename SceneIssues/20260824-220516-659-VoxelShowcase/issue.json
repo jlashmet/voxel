@@ -1,0 +1,109 @@
+{
+    "formatVersion": 3,
+    "id": "20260824-220516-659-VoxelShowcase",
+    "capturedUtc": "2026-08-24T22:05:16.6593960Z",
+    "note": "we need a more coherent translation from town description to geometry.  there are multiple overlapping staircases, buildings are too close together, some are floating, etc.",
+    "status": "fixed",
+    "resolvedUtc": "2026-08-25T11:32:59Z",
+    "resolutionSummary": "Kentridge had redundant lower-town circulation ownership: a parallel lower stair street and semantic stair chain duplicated the already-walkable main spine, while KentridgeVerticalConnectorCatalogue also overlaid dedicated stair definitions on the continuous supported main-road climb. The production fix retires that duplicate lower route/semantic landing and dedicated main-road stair overlays while preserving the coherent upper-west stair route, retaining walls, and campanile. Investigation then found that VoxelShowcase defaults to a baked startup image whose binary schema has no authored-content freshness fingerprint; exact replays were therefore still showing an August 22 bake and masking all current generator changes. The startup world was regenerated and committed in 70ef06ec585e79001e8253efd2ceab53d8a696e7. Actions run 32841982576 built the ordinary standalone scene from that committed bake, verified the exact saved camera pose, and visually shows the former three overlapping foreground stair ribbons replaced by one coherent central climb with separated side access and no apparent floating uphill structures. After temporary diagnostics were removed, Actions run 32842583635 passed all three permanent circulation-coherence regressions. The borrowed 014011 workflow was restored byte-for-byte to its original blob.",
+    "regressionTest": "VoxelEngine.Tests.EditMode.KentridgeCirculationCoherenceTests.SecondaryParallelStairStreetsKeepTownSpacingFromMainSpine; VoxelEngine.Tests.EditMode.KentridgeCirculationCoherenceTests.LowerTownSkeletonDoesNotAdvertiseDuplicateSecondaryStairChain; VoxelEngine.Tests.EditMode.KentridgeCirculationCoherenceTests.VerticalInfrastructureDoesNotOverlayDedicatedStairsOnContinuousMainRoad",
+    "fixCommit": "fdf2406a93a7f799e6ee72ea95b2a4e5a679cf8a",
+    "unityVersion": "6000.5.6f1",
+    "platform": "OSXEditor",
+    "sceneName": "VoxelShowcase",
+    "scenePath": "Assets/Scenes/VoxelShowcase.unity",
+    "sceneBuildIndex": 2,
+    "captures": [
+        {
+            "screenshot": "screenshot-001.png",
+            "capturedUtc": "2026-08-24T22:05:16.6594710Z",
+            "frameCount": 97159,
+            "timeSinceLevelLoad": 430.1985778808594,
+            "screenWidth": 1364,
+            "screenHeight": 836,
+            "poseAnchor": {
+                "hierarchyPath": "Showcase Camera",
+                "position": {
+                    "x": 115.36602020263672,
+                    "y": 21.650163650512697,
+                    "z": 93.74148559570313
+                },
+                "rotation": {
+                    "x": 0.006791500374674797,
+                    "y": -0.9931644797325134,
+                    "z": -0.08695525676012039,
+                    "w": -0.07756952196359635
+                },
+                "localScale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                }
+            },
+            "camera": {
+                "hierarchyPath": "Showcase Camera",
+                "position": {
+                    "x": 115.36602020263672,
+                    "y": 21.650163650512697,
+                    "z": 93.74148559570313
+                },
+                "rotation": {
+                    "x": 0.006791500374674797,
+                    "y": -0.9931644797325134,
+                    "z": -0.08695525676012039,
+                    "w": -0.07756952196359635
+                },
+                "fieldOfView": 70.0,
+                "orthographic": false,
+                "orthographicSize": 5.0,
+                "nearClipPlane": 0.05000000074505806,
+                "farClipPlane": 16000.0
+            },
+            "circles": []
+        }
+    ],
+    "screenshot": "screenshot-001.png",
+    "frameCount": 97159,
+    "timeSinceLevelLoad": 430.1985778808594,
+    "screenWidth": 1364,
+    "screenHeight": 836,
+    "poseAnchor": {
+        "hierarchyPath": "Showcase Camera",
+        "position": {
+            "x": 115.36602020263672,
+            "y": 21.650163650512697,
+            "z": 93.74148559570313
+        },
+        "rotation": {
+            "x": 0.006791500374674797,
+            "y": -0.9931644797325134,
+            "z": -0.08695525676012039,
+            "w": -0.07756952196359635
+        },
+        "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+        }
+    },
+    "camera": {
+        "hierarchyPath": "Showcase Camera",
+        "position": {
+            "x": 115.36602020263672,
+            "y": 21.650163650512697,
+            "z": 93.74148559570313
+        },
+        "rotation": {
+            "x": 0.006791500374674797,
+            "y": -0.9931644797325134,
+            "z": -0.08695525676012039,
+            "w": -0.07756952196359635
+        },
+        "fieldOfView": 70.0,
+        "orthographic": false,
+        "orthographicSize": 5.0,
+        "nearClipPlane": 0.05000000074505806,
+        "farClipPlane": 16000.0
+    },
+    "circles": []
+}
