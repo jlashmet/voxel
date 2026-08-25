@@ -1,4 +1,4 @@
-name: One-shot SceneIssue 220516 fresh-bake validation
+name: One-shot SceneIssue 220516 commit fresh bake
 
 on:
   push:
@@ -7,10 +7,10 @@ on:
       - .github/workflows/one-shot-sceneissue-014011-core-only-topology.yml
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  fresh-bake-replay:
+  commit-and-replay:
     runs-on: [self-hosted, macOS]
     timeout-minutes: 45
     steps:
@@ -60,7 +60,7 @@ jobs:
         shell: bash
         run: |
           set -uo pipefail
-          ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue220516FreshBake"
+          ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue220516CommittedBake"
           BAKE="Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes"
           mkdir -p "$ROOT"
           shasum -a 256 "$BAKE" | tee "$ROOT/bake-before.sha256"
@@ -74,7 +74,7 @@ jobs:
             -logFile "$ROOT/bake.log" || status=$?
 
           if (( status != 0 )); then
-            echo "ERROR: fresh showcase bake failed with status $status." >&2
+            echo "ERROR: showcase bake failed with status $status." >&2
             tail -240 "$ROOT/bake.log" >&2 || true
             exit "$status"
           fi
@@ -82,13 +82,29 @@ jobs:
           shasum -a 256 "$BAKE" | tee "$ROOT/bake-after.sha256"
           before="$(awk '{print $1}' "$ROOT/bake-before.sha256")"
           after="$(awk '{print $1}' "$ROOT/bake-after.sha256")"
-          echo "SCENE_220516_BAKE_HASH_BEFORE $before"
-          echo "SCENE_220516_BAKE_HASH_AFTER $after"
+          echo "SCENE_220516_COMMIT_BAKE_HASH_BEFORE $before"
+          echo "SCENE_220516_COMMIT_BAKE_HASH_AFTER $after"
           if [[ "$before" == "$after" ]]; then
-            echo "ERROR: fresh bake is byte-identical to committed startup image; stale-bake hypothesis not proven." >&2
+            echo "ERROR: expected stale committed bake to change." >&2
             exit 2
           fi
-          git diff --check
+
+      - name: Commit refreshed startup image
+        shell: bash
+        run: |
+          set -euo pipefail
+          BAKE="Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$BAKE"
+          if git diff --cached --quiet; then
+            echo "ERROR: rebake produced no staged startup-image change." >&2
+            exit 2
+          fi
+          git commit -m "Refresh VoxelShowcase bake for Kentridge scene fixes"
+          git push origin HEAD:fixes
+          git diff --exit-code -- "$BAKE"
+          git rev-parse HEAD | tee Artifacts/SceneIssue220516CommittedBake/committed-bake-head.txt
 
       - name: Wait for Unity after bake
         shell: bash
@@ -103,11 +119,12 @@ jobs:
             sleep 5
           done
 
-      - name: Replay saved VoxelShowcase view from fresh bake
+      - name: Replay ordinary scene from committed bake
         shell: bash
         run: |
           set -euo pipefail
-          ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue220516FreshBake"
+          ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue220516CommittedBake"
+          test -z "$(git status --porcelain -- Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes)"
 
           set +e
           bash tools/showcase-player-capture.sh \
@@ -135,21 +152,22 @@ jobs:
           latest="$(find "$ROOT/Screenshots" -type f -name '*.png' -size +1k | sort | tail -1)"
           test -n "$latest"
           sips -s format jpeg --setProperty formatOptions 80 -Z 1364 "$latest" --out "$ROOT/replay-latest.jpg" >/dev/null
-          echo "SCENE_220516_FRESH_BAKE_FRAME $(basename "$latest")"
+          echo "SCENE_220516_COMMITTED_BAKE_FRAME $(basename "$latest")"
 
-      - name: Upload fresh-bake evidence
+      - name: Upload committed-bake evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: scene-220516-fresh-bake
+          name: scene-220516-committed-bake
           path: |
             SceneIssues/20260824-220516-659-VoxelShowcase/screenshot-001.png
-            Artifacts/SceneIssue220516FreshBake/bake-before.sha256
-            Artifacts/SceneIssue220516FreshBake/bake-after.sha256
-            Artifacts/SceneIssue220516FreshBake/bake.log
-            Artifacts/SceneIssue220516FreshBake/Screenshots/*.png
-            Artifacts/SceneIssue220516FreshBake/replay-latest.jpg
-            Artifacts/SceneIssue220516FreshBake/player-build.log
-            Artifacts/SceneIssue220516FreshBake/player-run.log
+            Artifacts/SceneIssue220516CommittedBake/bake-before.sha256
+            Artifacts/SceneIssue220516CommittedBake/bake-after.sha256
+            Artifacts/SceneIssue220516CommittedBake/committed-bake-head.txt
+            Artifacts/SceneIssue220516CommittedBake/bake.log
+            Artifacts/SceneIssue220516CommittedBake/Screenshots/*.png
+            Artifacts/SceneIssue220516CommittedBake/replay-latest.jpg
+            Artifacts/SceneIssue220516CommittedBake/player-build.log
+            Artifacts/SceneIssue220516CommittedBake/player-run.log
           if-no-files-found: warn
           retention-days: 3
