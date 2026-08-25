@@ -122,6 +122,39 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void HardPiazzaUsesContinuousBackingSlabUnderBorderBands()
+        {
+            VoxelWorldGenSettings settings = BuildSettings();
+            FeatureCatalogue catalogue = KentridgeMarketPiazzaCatalogue.Build(
+                Seed, settings, Allocator.Temp);
+            try
+            {
+                FeatureDefinition definition = catalogue.Definitions[0];
+                int o = definition.ProgramOffset;
+
+                Assert.AreEqual((int)ShapeOp.EmitBox, catalogue.Program[o]);
+                Assert.AreEqual(0, catalogue.Program[o + 2]);
+                Assert.AreEqual(0, catalogue.Program[o + 3]);
+                Assert.AreEqual(0, catalogue.Program[o + 4]);
+                Assert.AreEqual(definition.Footprint.x, catalogue.Program[o + 5],
+                    "The backing slab must span the full piazza width so internal border/centre interfaces cannot expose empty cells.");
+                Assert.AreEqual(definition.Footprint.y, catalogue.Program[o + 6]);
+                Assert.AreEqual(definition.Footprint.z, catalogue.Program[o + 7],
+                    "The backing slab must span the full piazza depth so the saved-view seam cannot depend on exact-touch primitive ownership.");
+                Assert.AreEqual(settings.Materials.Resolve(MaterialRole.FoundationStone),
+                    catalogue.Program[o + 8],
+                    "Foundation stone should provide continuous occupancy beneath the decorative dark border bands.");
+                Assert.AreEqual((int)PrimitiveMode.Fill, catalogue.Program[o + 11]);
+                Assert.AreEqual(5, definition.MaxPrimitives,
+                    "Backing slab plus four border overlays should not increase the primitive budget.");
+            }
+            finally
+            {
+                catalogue.Dispose();
+            }
+        }
+
+        [Test]
         public void PiazzaRemainsAThinSharedSpaceBelowStreetDressingAndGameplayArchitecture()
         {
             Assert.AreEqual(5, KentridgeMarketPiazzaCatalogue.BorderWidthDm);
