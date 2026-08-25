@@ -1,4 +1,4 @@
-name: One-shot SceneIssue 220416 standalone saved-view replay
+name: One-shot SceneIssue 014011 core-only CPU topology diagnostic
 
 on:
   push:
@@ -7,27 +7,42 @@ on:
       - .github/workflows/one-shot-sceneissue-014011-core-only-topology.yml
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  replay:
+  diagnostic:
     runs-on: [self-hosted, macOS]
-    timeout-minutes: 30
+    timeout-minutes: 6
     steps:
       - uses: actions/checkout@v4
         with:
           ref: fixes
           clean: true
-          fetch-depth: 1
+          fetch-depth: 0
 
-      - name: Verify replay plumbing is present
+      - name: Disable CPU negative shell only in diagnostic workspace
         shell: bash
         run: |
           set -euo pipefail
-          grep -q 'ReplayRequestCommandLineArgument = "-voxel-scene-issue"' Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs
-          grep -q 'Verified standalone frozen pose' Assets/DeveloperTools/SceneIssueCapture/SceneIssueReplayVerification.cs
-          grep -q -- '--scene-issue)' tools/showcase-player-capture.sh
-          grep -q -- 'BUILD_ARGS+=(-voxelDevelopment)' tools/showcase-player-capture.sh
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelTopologyJob.cs')
+          s = p.read_text()
+          old = '''            PolygoniseCell(new int3(x, y, z));
+            if (x == 0) PolygoniseCell(new int3(-1, y, z));
+            if (y == 0) PolygoniseCell(new int3(x, -1, z));
+            if (z == 0) PolygoniseCell(new int3(x, y, -1));
+            if (x == 0 && y == 0) PolygoniseCell(new int3(-1, -1, z));
+            if (x == 0 && z == 0) PolygoniseCell(new int3(-1, y, -1));
+            if (y == 0 && z == 0) PolygoniseCell(new int3(x, -1, -1));
+            if (x == 0 && y == 0 && z == 0) PolygoniseCell(new int3(-1, -1, -1));
+'''
+          new = '''            PolygoniseCell(new int3(x, y, z));
+'''
+          if s.count(old) != 1:
+              raise SystemExit(f'expected one shell block, found {s.count(old)}')
+          p.write_text(s.replace(old, new, 1))
+          PY
           git diff --check
 
       - name: Resolve Unity
@@ -44,7 +59,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          deadline=$((SECONDS + 900))
+          deadline=$((SECONDS + 60))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
               pgrep -alf '/Unity.app/Contents/MacOS/Unity' || true
@@ -53,64 +68,58 @@ jobs:
             sleep 5
           done
 
-      - name: Replay saved VoxelShowcase view in a development player
+      - name: Run mixed topology oracle against core-only CPU
+        shell: bash
+        env:
+          TEST_FILTER: VoxelEngine.Tests.EditMode.GpuSurfaceExtractorOracleTests.MixedBricksWithAuthoredBoundariesAndCoatingsMatchTheCpu
+        run: |
+          set -uo pipefail
+          ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue014011CoreOnlyTopology"
+          OUT="$GITHUB_WORKSPACE/SceneIssues/20260823-014011-920-VoxelShowcase/notes-core-only-topology.txt"
+          mkdir -p "$ROOT" "$(dirname "$OUT")"
+          status=0
+          UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=4 \
+          UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
+            -batchmode -job-worker-count 1 \
+            -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform EditMode \
+            -testFilter "$TEST_FILTER" \
+            -testResults "$ROOT/results.xml" -logFile "$ROOT/unity.log" || status=$?
+          {
+            echo "status=$status"
+            echo "diagnostic=CPU negative shell disabled; core cells only"
+            if [[ -s "$ROOT/results.xml" ]]; then
+              python3 - "$ROOT/results.xml" <<'PY'
+          import sys, xml.etree.ElementTree as ET
+          root=ET.parse(sys.argv[1]).getroot()
+          for c in root.findall('.//test-case'):
+              print(f"{c.get('result')}: {c.get('fullname') or c.get('name')}")
+              f=c.find('failure')
+              if f is not None:
+                  print((f.findtext('message') or '').strip())
+          PY
+            fi
+          } | tee "$OUT"
+          printf '%s\n' "$status" > "$ROOT/status.txt"
+
+      - name: Commit diagnostic result only
+        if: always()
         shell: bash
         run: |
           set -euo pipefail
-          ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue220416"
-
-          set +e
-          bash tools/showcase-player-capture.sh \
-            --unity "${{ steps.unity.outputs.path }}" \
-            --output "$ROOT" \
-            --scene Assets/Scenes/VoxelShowcase.unity \
-            --scene-issue SceneIssues/20260824-220416-979-VoxelShowcase/issue.json \
-            --run-seconds 60
-          capture_status=$?
-          set -e
-
-          if (( capture_status != 0 )); then
-            echo "ERROR: standalone replay capture failed with status $capture_status." >&2
-            if [[ -s "$ROOT/player-build.log" ]]; then
-              echo "=== PLAYER BUILD LOG TAIL ===" >&2
-              tail -200 "$ROOT/player-build.log" >&2
-            fi
-            if [[ -s "$ROOT/player-run.log" ]]; then
-              echo "=== PLAYER RUN LOG TAIL ===" >&2
-              tail -160 "$ROOT/player-run.log" >&2
-            fi
-            exit "$capture_status"
+          git restore -- Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelTopologyJob.cs
+          OUT=SceneIssues/20260823-014011-920-VoxelShowcase/notes-core-only-topology.txt
+          test -s "$OUT"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "$OUT"
+          if ! git diff --cached --quiet; then
+            git commit -m 'SceneIssue 014011: record core-only topology diagnostic'
+            git pull --rebase origin fixes
+            git push origin HEAD:fixes
           fi
 
-          grep -q 'Verified standalone frozen pose' "$ROOT/player-run.log" || {
-            echo "ERROR: standalone scene-issue replay never verified the recorded frozen camera pose." >&2
-            tail -160 "$ROOT/player-run.log" >&2 || true
-            exit 1
-          }
-
-          latest="$(find "$ROOT/Screenshots" -type f -name '*.png' -size +1k | sort | tail -1)"
-          test -n "$latest"
-          sips -s format jpeg --setProperty formatOptions 70 -Z 1200 "$latest" --out "$ROOT/replay-latest.jpg" >/dev/null
-          echo "SCENE_220416_REPLAY_FRAME $(basename "$latest")"
-
-      - name: Upload replay diagnostics
+      - name: Preserve status
         if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: scene-220416-replay-diagnostics
-          path: |
-            Artifacts/SceneIssue220416/player-build.log
-            Artifacts/SceneIssue220416/player-run.log
-          if-no-files-found: warn
-          retention-days: 3
-
-      - name: Upload replay frames
-        uses: actions/upload-artifact@v4
-        with:
-          name: scene-220416-replay
-          path: |
-            Artifacts/SceneIssue220416/Screenshots/*.png
-            Artifacts/SceneIssue220416/replay-latest.jpg
-            Artifacts/SceneIssue220416/player-run.log
-          if-no-files-found: error
-          retention-days: 3
+        shell: bash
+        run: |
+          exit "$(cat Artifacts/SceneIssue014011CoreOnlyTopology/status.txt 2>/dev/null || echo 1)"
