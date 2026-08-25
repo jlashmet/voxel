@@ -57,15 +57,14 @@ namespace Game.Composition.Kentridge.Runtime
         public static KentridgeCampaignSession CreateSession(
             CampaignBlueprint blueprint,
             KentridgeCampaignGenerationPlan generation,
-            ISettlementSiteRealizationFacts siteFacts,
+            KentridgeCampaignRealizationFacts realizationFacts,
             IKentridgeCampaignActorHost actors,
             ICutscenePresentation presentation,
-            IHiddenSpaceRealizationFacts hiddenSpaceFacts = null,
             IKentridgeCampaignSecretHost secretHost = null)
         {
             if (blueprint == null) throw new ArgumentNullException(nameof(blueprint));
             if (generation == null) throw new ArgumentNullException(nameof(generation));
-            if (siteFacts == null) throw new ArgumentNullException(nameof(siteFacts));
+            if (realizationFacts == null) throw new ArgumentNullException(nameof(realizationFacts));
             if (actors == null) throw new ArgumentNullException(nameof(actors));
             if (presentation == null) throw new ArgumentNullException(nameof(presentation));
             if (!ReferenceEquals(blueprint, generation.Blueprint))
@@ -73,10 +72,9 @@ namespace Game.Composition.Kentridge.Runtime
                     "Kentridge session blueprint does not own the supplied campaign generation plan.");
 
             KentridgeCampaignWorldRealization world =
-                KentridgeCampaignWorldRealizer.Realize(
+                KentridgeCampaignWorldRealizationBoundary.Realize(
                     generation,
-                    siteFacts,
-                    hiddenSpaceFacts);
+                    realizationFacts);
 
             // Finish every non-mutating integration preflight before touching gameplay-owned state.
             if (world.Secrets.Count > 0 && secretHost == null)
