@@ -4,13 +4,16 @@ using Unity.Mathematics;
 namespace Game.Structures.Runtime
 {
     /// <summary>
-    /// World-builder-facing preset for the SDF dragon statue. The coarse decoration family remains
-    /// Fountain because that family already represents large floor-mounted civic/exterior ornaments;
-    /// VariantId is the stable identity consumed by the voxel-stamp backend.
+    /// World-builder-facing preset for the production dragon statue. Shape construction is the same
+    /// deterministic implicit/SDF-style authoring used by Model Viewer Dragon A, sampled into the
+    /// canonical voxel grid by the voxel-stamp backend.
     /// </summary>
     public static class DragonStatueWorldBuilderObject
     {
         public const uint VariantId = 0x4452474Eu; // "DRGN"
+
+        public static int3 LocalMin => DragonStatueDetailedVoxelAuthoring.LocalMin;
+        public static int3 LocalSize => DragonStatueDetailedVoxelAuthoring.LocalSize;
 
         public static DecorationPropDescriptor Descriptor => new DecorationPropDescriptor
         {
@@ -19,7 +22,7 @@ namespace Game.Structures.Runtime
             MountMode = DecorationMountMode.Floor,
             Backend = DecorationRenderBackend.VoxelStamp,
             Interaction = DecorationInteractionFlags.BlocksNavigation | DecorationInteractionFlags.Destructible,
-            Size = DragonStatueAuthoring.LocalSize,
+            Size = LocalSize,
             Clearance = new int3(4, 4, 4),
             Variant = VariantId,
         };
@@ -31,7 +34,7 @@ namespace Game.Structures.Runtime
             int3 origin,
             int3 facing)
         {
-            int3 min = origin + DragonStatueAuthoring.LocalMin;
+            int3 min = origin + LocalMin;
             return new DecorationPlacement
             {
                 Id = id,
@@ -45,7 +48,7 @@ namespace Game.Structures.Runtime
                 Bounds = new DecorationBounds
                 {
                     Min = min,
-                    MaxExclusive = min + DragonStatueAuthoring.LocalSize,
+                    MaxExclusive = min + LocalSize,
                 },
                 Facing = facing,
                 Variant = VariantId,
@@ -58,6 +61,6 @@ namespace Game.Structures.Runtime
             placement.Variant == VariantId;
 
         public static int3 ResolveAuthoringOrigin(in DecorationPlacement placement) =>
-            placement.Bounds.Min - DragonStatueAuthoring.LocalMin;
+            placement.Bounds.Min - LocalMin;
     }
 }
