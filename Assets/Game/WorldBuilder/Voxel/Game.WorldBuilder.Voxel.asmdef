@@ -1,0 +1,20 @@
+{
+  "name": "Game.WorldBuilder.Voxel",
+  "rootNamespace": "Game.WorldBuilder.Voxel",
+  "references": [
+    "Game.WorldBuilder.Api",
+    "MountingForce.WorldGen.Core",
+    "MountingForce.WorldGen.Voxel",
+    "VoxelEngine.Structures.Api",
+    "Unity.Collections"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
