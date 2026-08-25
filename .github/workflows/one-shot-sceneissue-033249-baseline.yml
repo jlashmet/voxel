@@ -1,4 +1,4 @@
-name: One-shot SceneIssue 033249 master replay
+name: One-shot SceneIssue 033249 capture-source replay
 
 on:
   push:
@@ -22,9 +22,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: master
+          ref: 760dc909138088a46778f026501c17dd25f1b86d
           clean: true
           fetch-depth: 1
+
+      - name: Restore saved capture fixture from trigger commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --depth=1 origin "$GITHUB_SHA"
+          ISSUE_DIR="SceneIssues/open/20260825-033249-397-VoxelShowcase"
+          mkdir -p "$ISSUE_DIR"
+          git show "$GITHUB_SHA:$ISSUE_DIR/issue.json" > "$ISSUE_DIR/issue.json"
+          git show "$GITHUB_SHA:$ISSUE_DIR/screenshot-001.png" > "$ISSUE_DIR/screenshot-001.png"
 
       - name: Publish pending status
         uses: actions/github-script@v7
@@ -38,7 +48,7 @@ jobs:
               sha: context.sha,
               state: 'pending',
               context: 'ci/sceneissue-033249-baseline',
-              description: 'Master floating-tower replay is running',
+              description: 'Capture-source floating-tower replay is running',
               target_url: process.env.RUN_URL,
             });
 
@@ -65,11 +75,11 @@ jobs:
             sleep 5
           done
 
-      - name: Bake fresh Voxel Showcase startup world from master
+      - name: Bake fresh Voxel Showcase startup world from capture source
         shell: bash
         run: |
           set -euo pipefail
-          ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue033249Master"
+          ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue033249CaptureSource"
           mkdir -p "$ROOT"
           git rev-parse HEAD > "$ROOT/source-commit.txt"
           UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=4 \
@@ -97,7 +107,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue033249Master/RealPlayer"
+          ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue033249CaptureSource/RealPlayer"
           python3 - <<'PY'
           from pathlib import Path
           path = Path('tools/showcase-player-capture.sh')
@@ -120,8 +130,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue033249Master/RealPlayer"
-          PREVIEW="$GITHUB_WORKSPACE/Artifacts/SceneIssue033249Master/Preview"
+          ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue033249CaptureSource/RealPlayer"
+          PREVIEW="$GITHUB_WORKSPACE/Artifacts/SceneIssue033249CaptureSource/Preview"
           mkdir -p "$PREVIEW"
           cp SceneIssues/open/20260825-033249-397-VoxelShowcase/screenshot-001.png "$PREVIEW/original.png"
           if [[ -d "$ROOT/Screenshots" ]]; then
@@ -131,11 +141,11 @@ jobs:
             fi
           fi
           {
-            echo "checked_out_source_commit=$(cat "$GITHUB_WORKSPACE/Artifacts/SceneIssue033249Master/source-commit.txt" 2>/dev/null || true)"
+            echo "checked_out_source_commit=$(cat "$GITHUB_WORKSPACE/Artifacts/SceneIssue033249CaptureSource/source-commit.txt" 2>/dev/null || true)"
             echo "trigger_commit=$GITHUB_SHA"
             echo "issue=SceneIssues/open/20260825-033249-397-VoxelShowcase/issue.json"
             echo "scene=Assets/Scenes/VoxelShowcase.unity"
-            echo "startup_bake=fresh-master"
+            echo "startup_bake=fresh-capture-source"
             echo "capture_resolution=1364x836"
             echo "original_capture_time_seconds=222.4276580810547"
             echo "replay_duration_seconds=240"
@@ -151,18 +161,18 @@ jobs:
           } > "$PREVIEW/replay.txt"
           cat "$PREVIEW/replay.txt"
 
-      - name: Upload master evidence
+      - name: Upload capture-source evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: sceneissue-033249-master-${{ github.run_id }}
+          name: sceneissue-033249-capture-source-${{ github.run_id }}
           path: |
-            Artifacts/SceneIssue033249Master/Preview/**
-            Artifacts/SceneIssue033249Master/RealPlayer/Screenshots/**
-            Artifacts/SceneIssue033249Master/RealPlayer/player-run.log
-            Artifacts/SceneIssue033249Master/RealPlayer/fps.txt
-            Artifacts/SceneIssue033249Master/showcase-bake.log
-            Artifacts/SceneIssue033249Master/source-commit.txt
+            Artifacts/SceneIssue033249CaptureSource/Preview/**
+            Artifacts/SceneIssue033249CaptureSource/RealPlayer/Screenshots/**
+            Artifacts/SceneIssue033249CaptureSource/RealPlayer/player-run.log
+            Artifacts/SceneIssue033249CaptureSource/RealPlayer/fps.txt
+            Artifacts/SceneIssue033249CaptureSource/showcase-bake.log
+            Artifacts/SceneIssue033249CaptureSource/source-commit.txt
           if-no-files-found: error
           retention-days: 2
 
@@ -181,6 +191,6 @@ jobs:
               sha: context.sha,
               state: success ? 'success' : 'failure',
               context: 'ci/sceneissue-033249-baseline',
-              description: success ? 'Master floating-tower replay complete' : 'Master floating-tower replay failed',
+              description: success ? 'Capture-source floating-tower replay complete' : 'Capture-source floating-tower replay failed',
               target_url: process.env.RUN_URL,
             });
