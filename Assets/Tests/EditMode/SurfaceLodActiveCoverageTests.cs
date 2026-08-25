@@ -82,6 +82,62 @@ namespace VoxelEngine.Tests.EditMode
             }
         }
 
+        [Test]
+        public void VisibleDrawOwnershipKeepsCoarseParentAcrossPartialFinerOverlap()
+        {
+            var ownership = new SurfaceLodVisibleOwnership();
+            var parent = new SurfaceLodNodeKey(4, new int3(-2, 3, -5));
+            var child = new SurfaceLodNodeKey(
+                2, SurfaceLodHierarchy.ChildCoordinate(parent.Coordinate, 6));
+
+            ownership.Add(parent);
+            ownership.Add(child);
+
+            Assert.True(ownership.ShouldDraw(parent));
+            Assert.False(ownership.ShouldDraw(child),
+                "A visible coarse fallback must own the overlap instead of being double-drawn with a finer descendant.");
+        }
+
+        [Test]
+        public void VisibleDrawOwnershipHandsOffAfterCoarseParentLeavesVisibleSet()
+        {
+            var ownership = new SurfaceLodVisibleOwnership();
+            var parent = new SurfaceLodNodeKey(4, new int3(1, -2, 3));
+
+            for (int childIndex = 0; childIndex < SurfaceLodHierarchy.ChildrenPerParent; childIndex++)
+            {
+                ownership.Add(new SurfaceLodNodeKey(
+                    2, SurfaceLodHierarchy.ChildCoordinate(parent.Coordinate, childIndex)));
+            }
+
+            Assert.False(ownership.ShouldDraw(parent));
+            for (int childIndex = 0; childIndex < SurfaceLodHierarchy.ChildrenPerParent; childIndex++)
+            {
+                var child = new SurfaceLodNodeKey(
+                    2, SurfaceLodHierarchy.ChildCoordinate(parent.Coordinate, childIndex));
+                Assert.True(ownership.ShouldDraw(child));
+            }
+        }
+
+        [Test]
+        public void VisibleDrawOwnershipRetainedAncestorSuppressesNestedDescendants()
+        {
+            var ownership = new SurfaceLodVisibleOwnership();
+            var coarse = new SurfaceLodNodeKey(8, new int3(-1, 0, 2));
+            var middle = new SurfaceLodNodeKey(
+                4, SurfaceLodHierarchy.ChildCoordinate(coarse.Coordinate, 3));
+            var fine = new SurfaceLodNodeKey(
+                2, SurfaceLodHierarchy.ChildCoordinate(middle.Coordinate, 5));
+
+            ownership.Add(coarse);
+            ownership.Add(middle);
+            ownership.Add(fine);
+
+            Assert.True(ownership.ShouldDraw(coarse));
+            Assert.False(ownership.ShouldDraw(middle));
+            Assert.False(ownership.ShouldDraw(fine));
+        }
+
         private static void Complete(SurfaceLodCoverageState state, SurfaceLodNodeKey key,
                                      ulong generation, SurfaceLodCompletionKind kind)
         {
