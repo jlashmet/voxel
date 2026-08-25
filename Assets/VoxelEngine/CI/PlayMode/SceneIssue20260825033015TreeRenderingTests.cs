@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using NUnit.Framework;
 using Unity.Mathematics;
 using UnityEngine;
@@ -18,6 +19,8 @@ namespace VoxelEngine.CI
     {
         private const float StartupTimeoutSeconds = 30f;
         private const float DamageTimeoutSeconds = 4f;
+        private const int CaptureWidth = 682;
+        private const int CaptureHeight = 418;
         private static readonly Vector3 CapturedPosition = new(
             35.10783767700195f, 25.95001983642578f, 68.67037200927735f);
         private static readonly Quaternion CapturedRotation = new(
@@ -27,11 +30,12 @@ namespace VoxelEngine.CI
         private const float CapturedAspect = 1364f / 836f;
         private const float MarkedX = 0.5381355881690979f;
         private const float MarkedY = 0.48502078652381899f;
+        private const float MarkedRadius = 0.03643718734383583f;
         private const float PlayerBlastRadiusMetres = 1.2f;
         private const float TreeSweepRadiusMetres = 0.28f;
 
         [UnityTest]
-        public IEnumerator CapturedPlayerShot_ReportsTreeCutAndStandingPresentation()
+        public IEnumerator CapturedPlayerShot_ClearsStandingTreeFromMarkedRegion()
         {
             TreeWorldRuntime.Clear();
 #if UNITY_EDITOR
@@ -60,85 +64,215 @@ namespace VoxelEngine.CI
             Assert.That(renderer, Is.Not.Null);
             for (int frame = 0; frame < 8; frame++) yield return null;
 
-            var cameraObject = new GameObject("CI SceneIssue captured tree ray");
-            Camera camera = cameraObject.AddComponent<Camera>();
-            camera.enabled = false;
-            camera.fieldOfView = CapturedFov;
-            camera.aspect = CapturedAspect;
-            camera.nearClipPlane = 0.05f;
-            camera.farClipPlane = 16000f;
-            cameraObject.transform.SetPositionAndRotation(CapturedPosition, CapturedRotation);
-
-            Ray ray = camera.ViewportPointToRay(new Vector3(MarkedX, MarkedY, 0f));
-            float3 from = ray.origin;
-            float3 to = ray.origin + ray.direction * 250f;
-            Assert.That(ProceduralTreeDamageService.TrySweepImpact(
-                            from, to, TreeSweepRadiusMetres,
-                            out float3 hitMetres, out int treeIndex),
-                        Is.True,
-                        "The saved SceneIssue camera/marked region no longer intersects a procedural tree.");
-            Assert.That(treeIndex, Is.GreaterThanOrEqualTo(0));
-            Assert.That(treeIndex, Is.LessThan(TreeWorldRuntime.Instances.Count));
-
-            TreeInstance instance = TreeWorldRuntime.Instances[treeIndex];
-            TreeSkeletonSnapshot skeleton = ProceduralTreeSkeletonBuilder.Generate(in instance);
-            var cutsBefore = new HashSet<int>(TreeWorldRuntime.RemovedBranches(treeIndex));
-            bool beganBatched = !renderer.TryGetDynamicPresentationRoot(treeIndex, out _);
-            int releaseBefore = renderer.LastDamageBatchReleaseCount;
-
-            Mesh baseline = ProceduralTreeMeshBuilder.BuildMesh(skeleton, 0);
-            int barkBefore = (int)baseline.GetIndexCount(0) / 3;
-            int leavesBefore = (int)baseline.GetIndexCount(1) / 3;
-
-            ProceduralTreeDamageService.ApplyBlast(
-                hitMetres, PlayerBlastRadiusMetres, (float3)ray.direction);
-
-            float damageDeadline = Time.realtimeSinceStartup + DamageTimeoutSeconds;
-            while (TreeWorldRuntime.RemovedBranches(treeIndex).Count <= cutsBefore.Count
-                   && Time.realtimeSinceStartup < damageDeadline)
-                yield return null;
-            for (int frame = 0; frame < 4; frame++) yield return null;
-
-            var cutsAfter = new HashSet<int>(TreeWorldRuntime.RemovedBranches(treeIndex));
-            Assert.That(cutsAfter.Count, Is.GreaterThan(cutsBefore.Count),
-                        "The saved shot intersects a tree but creates no structural cut.");
-            Assert.That(renderer.TryGetDynamicPresentationRoot(treeIndex, out Transform treeRoot), Is.True,
-                        "The damaged saved tree did not leave the healthy batch for dynamic presentation.");
-            Assert.That(renderer.LastDamageBatchReleaseCount, Is.GreaterThan(releaseBefore),
-                        "The saved tree remained in the intact healthy batch after structural damage.");
-
-            Transform lod0 = treeRoot.Find("LOD0");
-            Assert.That(lod0, Is.Not.Null);
-            Mesh liveMesh = lod0.GetComponent<MeshFilter>().sharedMesh;
-            Assert.That(liveMesh, Is.Not.Null);
-            int barkAfter = (int)liveMesh.GetIndexCount(0) / 3;
-            int leavesAfter = (int)liveMesh.GetIndexCount(1) / 3;
-            Assert.That(barkAfter, Is.LessThan(barkBefore));
-            Assert.That(leavesAfter, Is.LessThan(leavesBefore));
-
-            var newCuts = new List<int>();
-            int trunkCuts = 0;
-            foreach (int cut in cutsAfter)
+            GameObject cameraObject = null;
+            RenderTexture target = null;
+            Texture2D before = null;
+            Texture2D beforeWithoutStandingTrees = null;
+            Texture2D after = null;
+            Texture2D afterWithoutStandingTrees = null;
+            Mesh baseline = null;
+            try
             {
-                if (cutsBefore.Contains(cut)) continue;
-                newCuts.Add(cut);
-                if ((uint)cut < (uint)skeleton.Branches.Count && skeleton.Branches[cut].Level == 0)
-                    trunkCuts++;
+                cameraObject = new GameObject("CI SceneIssue captured tree camera");
+                Camera camera = cameraObject.AddComponent<Camera>();
+                camera.enabled = false;
+                camera.fieldOfView = CapturedFov;
+                camera.aspect = CapturedAspect;
+                camera.nearClipPlane = 0.05f;
+                camera.farClipPlane = 16000f;
+                cameraObject.transform.SetPositionAndRotation(CapturedPosition, CapturedRotation);
+
+                target = new RenderTexture(CaptureWidth, CaptureHeight, 24, RenderTextureFormat.ARGB32)
+                {
+                    name = "CI SceneIssue 033015 capture",
+                    antiAliasing = 1,
+                };
+                target.Create();
+                camera.targetTexture = target;
+
+                Ray ray = camera.ViewportPointToRay(new Vector3(MarkedX, MarkedY, 0f));
+                float3 from = ray.origin;
+                float3 to = ray.origin + ray.direction * 250f;
+                Assert.That(ProceduralTreeDamageService.TrySweepImpact(
+                                from, to, TreeSweepRadiusMetres,
+                                out float3 hitMetres, out int treeIndex),
+                            Is.True,
+                            "The saved SceneIssue camera/marked region no longer intersects a procedural tree.");
+                Assert.That(treeIndex, Is.GreaterThanOrEqualTo(0));
+                Assert.That(treeIndex, Is.LessThan(TreeWorldRuntime.Instances.Count));
+
+                TreeInstance instance = TreeWorldRuntime.Instances[treeIndex];
+                TreeSkeletonSnapshot skeleton = ProceduralTreeSkeletonBuilder.Generate(in instance);
+                var cutsBefore = new HashSet<int>(TreeWorldRuntime.RemovedBranches(treeIndex));
+                bool beganBatched = !renderer.TryGetDynamicPresentationRoot(treeIndex, out _);
+                int releaseBefore = renderer.LastDamageBatchReleaseCount;
+
+                baseline = ProceduralTreeMeshBuilder.BuildMesh(skeleton, 0);
+                int barkBefore = (int)baseline.GetIndexCount(0) / 3;
+                int leavesBefore = (int)baseline.GetIndexCount(1) / 3;
+
+                before = Capture(camera, target);
+                beforeWithoutStandingTrees = CaptureWithoutStandingTrees(camera, target, renderer);
+                int standingPixelsBefore = CountChangedPixelsInMarkedCircle(
+                    before, beforeWithoutStandingTrees);
+                Assert.That(standingPixelsBefore, Is.GreaterThan(32),
+                            "The saved marked region does not visibly contain the target standing tree before damage.");
+
+                ProceduralTreeDamageService.ApplyBlast(
+                    hitMetres, PlayerBlastRadiusMetres, (float3)ray.direction);
+
+                float damageDeadline = Time.realtimeSinceStartup + DamageTimeoutSeconds;
+                while (TreeWorldRuntime.RemovedBranches(treeIndex).Count <= cutsBefore.Count
+                       && Time.realtimeSinceStartup < damageDeadline)
+                    yield return null;
+                for (int frame = 0; frame < 4; frame++) yield return null;
+
+                var cutsAfter = new HashSet<int>(TreeWorldRuntime.RemovedBranches(treeIndex));
+                Assert.That(cutsAfter.Count, Is.GreaterThan(cutsBefore.Count),
+                            "The saved shot intersects a tree but creates no structural cut.");
+                Assert.That(renderer.TryGetDynamicPresentationRoot(treeIndex, out Transform treeRoot), Is.True,
+                            "The damaged saved tree did not leave the healthy batch for dynamic presentation.");
+                Assert.That(renderer.LastDamageBatchReleaseCount, Is.GreaterThan(releaseBefore),
+                            "The saved tree remained in the intact healthy batch after structural damage.");
+
+                Transform lod0 = treeRoot.Find("LOD0");
+                Assert.That(lod0, Is.Not.Null);
+                Mesh liveMesh = lod0.GetComponent<MeshFilter>().sharedMesh;
+                Assert.That(liveMesh, Is.Not.Null);
+                int barkAfter = (int)liveMesh.GetIndexCount(0) / 3;
+                int leavesAfter = (int)liveMesh.GetIndexCount(1) / 3;
+                Assert.That(barkAfter, Is.LessThan(barkBefore));
+                Assert.That(leavesAfter, Is.LessThan(leavesBefore));
+
+                after = Capture(camera, target);
+                afterWithoutStandingTrees = CaptureWithoutStandingTrees(camera, target, renderer);
+                int standingPixelsAfter = CountChangedPixelsInMarkedCircle(
+                    after, afterWithoutStandingTrees);
+                Assert.That(standingPixelsAfter, Is.LessThan(standingPixelsBefore),
+                            "The marked region still receives at least as many standing-tree pixels after the trunk sever as before it.");
+
+                var newCuts = new List<int>();
+                int trunkCuts = 0;
+                foreach (int cut in cutsAfter)
+                {
+                    if (cutsBefore.Contains(cut)) continue;
+                    newCuts.Add(cut);
+                    if ((uint)cut < (uint)skeleton.Branches.Count && skeleton.Branches[cut].Level == 0)
+                        trunkCuts++;
+                }
+
+                string outputDirectory = Path.Combine(
+                    Directory.GetParent(Application.dataPath)!.FullName,
+                    "Artifacts", "SingleTest", "SceneIssue20260825-033015-205");
+                Directory.CreateDirectory(outputDirectory);
+                File.WriteAllBytes(Path.Combine(outputDirectory, "verification-after.png"), after.EncodeToPNG());
+                File.WriteAllText(Path.Combine(outputDirectory, "verification-metrics.txt"),
+                    $"standingPixelsBefore={standingPixelsBefore}\n" +
+                    $"standingPixelsAfter={standingPixelsAfter}\n" +
+                    $"markedRadius={MarkedRadius:F6}\n" +
+                    $"barkBefore={barkBefore}\n" +
+                    $"barkAfter={barkAfter}\n" +
+                    $"leavesBefore={leavesBefore}\n" +
+                    $"leavesAfter={leavesAfter}\n");
+
+                TreeDamageState damage = TreeWorldRuntime.Damage[treeIndex];
+                float localImpactY = hitMetres.y - instance.PositionMetres.y;
+                Debug.Log(
+                    "SCENEISSUE 20260825-033015-205 " +
+                    $"treeIndex={treeIndex} species={instance.Species} beganBatched={beganBatched} " +
+                    $"treePosition={instance.PositionMetres} impact={hitMetres} localImpactY={localImpactY:F3} " +
+                    $"height={skeleton.Height:F3} newCuts=[{string.Join(",", newCuts)}] trunkCuts={trunkCuts} " +
+                    $"severed={damage.Severed} barkBefore={barkBefore} barkAfter={barkAfter} " +
+                    $"leavesBefore={leavesBefore} leavesAfter={leavesAfter} " +
+                    $"standingPixelsBefore={standingPixelsBefore} standingPixelsAfter={standingPixelsAfter} " +
+                    $"batchReleaseDelta={renderer.LastDamageBatchReleaseCount - releaseBefore}");
             }
+            finally
+            {
+                if (cameraObject != null)
+                {
+                    Camera camera = cameraObject.GetComponent<Camera>();
+                    if (camera != null) camera.targetTexture = null;
+                }
+                if (baseline != null) Object.Destroy(baseline);
+                if (before != null) Object.Destroy(before);
+                if (beforeWithoutStandingTrees != null) Object.Destroy(beforeWithoutStandingTrees);
+                if (after != null) Object.Destroy(after);
+                if (afterWithoutStandingTrees != null) Object.Destroy(afterWithoutStandingTrees);
+                if (target != null)
+                {
+                    target.Release();
+                    Object.Destroy(target);
+                }
+                if (cameraObject != null) Object.Destroy(cameraObject);
+            }
+        }
 
-            TreeDamageState damage = TreeWorldRuntime.Damage[treeIndex];
-            float localImpactY = hitMetres.y - instance.PositionMetres.y;
-            Debug.Log(
-                "SCENEISSUE 20260825-033015-205 " +
-                $"treeIndex={treeIndex} species={instance.Species} beganBatched={beganBatched} " +
-                $"treePosition={instance.PositionMetres} impact={hitMetres} localImpactY={localImpactY:F3} " +
-                $"height={skeleton.Height:F3} newCuts=[{string.Join(",", newCuts)}] trunkCuts={trunkCuts} " +
-                $"severed={damage.Severed} barkBefore={barkBefore} barkAfter={barkAfter} " +
-                $"leavesBefore={leavesBefore} leavesAfter={leavesAfter} " +
-                $"batchReleaseDelta={renderer.LastDamageBatchReleaseCount - releaseBefore}");
+        private static Texture2D Capture(Camera camera, RenderTexture target)
+        {
+            RenderTexture previous = RenderTexture.active;
+            try
+            {
+                camera.Render();
+                RenderTexture.active = target;
+                var capture = new Texture2D(
+                    CaptureWidth, CaptureHeight, TextureFormat.RGBA32, false, false);
+                capture.ReadPixels(new Rect(0, 0, CaptureWidth, CaptureHeight), 0, 0, false);
+                capture.Apply(false, false);
+                return capture;
+            }
+            finally
+            {
+                RenderTexture.active = previous;
+            }
+        }
 
-            Object.Destroy(baseline);
-            Object.Destroy(cameraObject);
+        private static Texture2D CaptureWithoutStandingTrees(
+            Camera camera, RenderTexture target, ProceduralTreeRenderer renderer)
+        {
+            MeshRenderer[] standingRenderers =
+                renderer.GetComponentsInChildren<MeshRenderer>(true);
+            var enabled = new bool[standingRenderers.Length];
+            try
+            {
+                for (int i = 0; i < standingRenderers.Length; i++)
+                {
+                    enabled[i] = standingRenderers[i].enabled;
+                    standingRenderers[i].enabled = false;
+                }
+                return Capture(camera, target);
+            }
+            finally
+            {
+                for (int i = 0; i < standingRenderers.Length; i++)
+                    if (standingRenderers[i] != null) standingRenderers[i].enabled = enabled[i];
+            }
+        }
+
+        private static int CountChangedPixelsInMarkedCircle(Texture2D withTrees, Texture2D withoutTrees)
+        {
+            Color32[] a = withTrees.GetPixels32();
+            Color32[] b = withoutTrees.GetPixels32();
+            Assert.That(a.Length, Is.EqualTo(b.Length));
+
+            float centerX = MarkedX * CaptureWidth;
+            float centerY = MarkedY * CaptureHeight;
+            float radius = MarkedRadius * Mathf.Min(CaptureWidth, CaptureHeight);
+            float radiusSq = radius * radius;
+            int changed = 0;
+            for (int y = 0; y < CaptureHeight; y++)
+            for (int x = 0; x < CaptureWidth; x++)
+            {
+                float dx = x + 0.5f - centerX;
+                float dy = y + 0.5f - centerY;
+                if (dx * dx + dy * dy > radiusSq) continue;
+                int i = y * CaptureWidth + x;
+                int delta = Mathf.Max(
+                    Mathf.Abs(a[i].r - b[i].r),
+                    Mathf.Max(Mathf.Abs(a[i].g - b[i].g), Mathf.Abs(a[i].b - b[i].b)));
+                if (delta >= 8) changed++;
+            }
+            return changed;
         }
 
         private static ProceduralTreeRenderer FindRuntimeRenderer()
