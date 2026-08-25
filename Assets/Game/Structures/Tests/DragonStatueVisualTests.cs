@@ -11,8 +11,8 @@ namespace Game.Structures.Tests
         [Test]
         public void DragonStatue_WritesIsolatedRenderedGeometryPng()
         {
-            int3 min = DragonStatueAuthoring.LocalMin + new int3(-4, -4, -4);
-            int3 size = DragonStatueAuthoring.LocalSize + new int3(8, 8, 8);
+            int3 min = DragonStatueWorldBuilderObject.LocalMin + new int3(-4, -4, -4);
+            int3 size = DragonStatueWorldBuilderObject.LocalSize + new int3(8, 8, 8);
             var capture = new VisualStructureCapture(min, size);
             var placement = DragonStatueWorldBuilderObject.CreatePlacement(
                 new GeneratedPropId(0xD12A60UL),
