@@ -41,13 +41,21 @@ For this issue, moving the former package implementation under `Assets/Game/Worl
 - [x] Record the baseline architecture experiment.
 - [x] Add or extend a focused regression.
 - [x] Implement the primary ownership/API consolidation.
-- [ ] Migrate remaining stale scene/test callers exposed by Unity compilation.
-- [ ] Run targeted CI and iterate until green.
-- [ ] Review the final diff against `CLAUDE.md`, relevant specs, and the Game-vs-VoxelEngine destination above.
-- [ ] Record verification evidence and resolution details.
+- [x] Migrate remaining stale scene/test callers exposed by Unity compilation.
+- [x] Run targeted CI and iterate until green.
+- [x] Review the final diff against `CLAUDE.md`, relevant specs, and the Game-vs-VoxelEngine destination above.
+- [x] Record verification evidence and resolution details.
 - [ ] Move the verified capture to `SceneIssues/closed/` in terminal bookkeeping.
 
-## Initial findings
+## Final verification
+- Verified production/test source commit: `433bbe8ed24ce43627d4ff547d46e53930121f9e`.
+- Focused regression: `VoxelEngine.Tests.EditMode.WorldBuilderAuthoringVisibilityTests.KentridgeTownAuthoringUsesOnlyWorldBuilderPublicBoundary`.
+- Targeted CI request commit `c5243ad758f2e6349fb64268dbd3dbc447893616` completed with `ci/single-test = success` in Actions run `32882777952`; exactly one test case executed.
+- Exact SceneIssue replay run `32883739976` fresh-baked `Assets/Scenes/VoxelShowcase.unity`, loaded the saved issue/camera at the original 1364×836 resolution, ran for 70 seconds, and completed successfully.
+- All six replay frames were inspected. The first frame is still loading; the 24.4s through 64.4s frames are stable and show the expected Kentridge street corridor/architecture. From t=51s through t=70s the surface telemetry remains `visible=544`, `min=544`, `max=544`, `missingMax=0`, with no coverage drops.
+- Replay artifact `sceneissue-040805-replay-32883739976` (artifact id `9576969385`, digest `sha256:dd5054c0af40b0c27260e4919e97cb9e29e81ec0e111c6795b6467d6b516f7c2`) bundled the original capture, replay frames, player log, FPS telemetry, and fresh-bake log for inspection.
+
+## Findings
 - The capture contains one frame and no circled sub-region; the issue note defines an architectural acceptance condition rather than a localized rendering blemish.
-- No prior plan or experiment file was present in the capture directory when this assignment started.
-- The current `Game/WorldBuilder` tree mixes semantic WorldBuilder responsibilities with the relocated physical generation backend. That is acceptable only as an intermediate consolidation for this issue; the long-term boundary is Game semantic intent over reusable VoxelEngine physical generation.
+- The former package-owned implementation is consolidated under WorldBuilder ownership and Kentridge construction is forced through `WorldBuilderTownAuthoring` rather than parallel authoring entry points.
+- The current `Game/WorldBuilder` tree still mixes semantic WorldBuilder responsibilities with the relocated physical generation backend. That is intentionally temporary for this issue. The documented end state remains `Game.WorldBuilder` semantic intent over reusable `VoxelEngine.WorldGen` physical generation.
