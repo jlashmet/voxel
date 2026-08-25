@@ -1,12 +1,28 @@
 using System;
+using System.IO;
 using System.Linq;
+using Game.Composition.Kentridge.Runtime;
 using Game.WorldBuilder.Api;
+using Game.WorldBuilder.Runtime;
 using NUnit.Framework;
 
 namespace VoxelEngine.Tests.EditMode
 {
     public sealed class WorldBuilderAuthoringVisibilityTests
     {
+        private static string RepoRoot
+        {
+            get
+            {
+                var directory = new DirectoryInfo(Directory.GetCurrentDirectory());
+                while (directory != null && !Directory.Exists(Path.Combine(directory.FullName, "Packages")))
+                    directory = directory.Parent;
+
+                Assert.NotNull(directory, "Could not locate project root containing Packages/.");
+                return directory.FullName;
+            }
+        }
+
         [Test]
         public void StableSemanticRefsHaveNoPublicStringConstructors()
         {
@@ -68,11 +84,53 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void KentridgeTownAuthoringUsesOnlyWorldBuilderPublicBoundary()
+        {
+            Type authoringType = typeof(BlueprintCompiler).Assembly.GetType(
+                "Game.WorldBuilder.Runtime.WorldBuilderTownAuthoring");
+            string showcaseAsmdef = File.ReadAllText(Path.Combine(
+                RepoRoot,
+                "Assets",
+                "Game",
+                "Composition",
+                "Showcase",
+                "Game.Composition.Showcase.asmdef"));
+            Type[] publicPlanParameterTypes = typeof(KentridgeCampaignSessionBootstrap)
+                .GetMethods()
+                .Where(method => method.Name == "Plan")
+                .SelectMany(method => method.GetParameters())
+                .Select(parameter => parameter.ParameterType)
+                .ToArray();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(
+                    authoringType,
+                    Is.Not.Null,
+                    "Town authoring must enter through Game.WorldBuilder.Runtime rather than a content-specific generator.");
+                StringAssert.DoesNotContain(
+                    "MountingForce.WorldGen",
+                    showcaseAsmdef,
+                    "VoxelShowcase must depend on WorldBuilder's public/runtime boundary, not the legacy backend assemblies.");
+                Assert.That(
+                    publicPlanParameterTypes.Any(IsLegacyWorldGenType),
+                    Is.False,
+                    "Kentridge's public campaign bootstrap must not expose a MountingForce.WorldGen planning type.");
+            });
+        }
+
+        [Test]
         public void EditModeFriendAssemblyRetainsTestOnlyIdentityConstruction()
         {
             Assert.That(new RegionRef("test-region").Id, Is.EqualTo("test-region"));
             Assert.That(new SiteRef("test-site").Id, Is.EqualTo("test-site"));
             Assert.That(new NpcRef("test-npc").Id, Is.EqualTo("test-npc"));
+        }
+
+        private static bool IsLegacyWorldGenType(Type type)
+        {
+            string ns = type.Namespace ?? string.Empty;
+            return ns.StartsWith("MountingForce.WorldGen", StringComparison.Ordinal);
         }
     }
 }
