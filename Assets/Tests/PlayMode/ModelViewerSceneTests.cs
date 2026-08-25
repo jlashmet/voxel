@@ -1,6 +1,7 @@
 using System.Collections;
 using System.IO;
 using Game.ModelViewer;
+using Game.Structures.Runtime;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -19,6 +20,8 @@ namespace VoxelEngine.Tests.PlayMode
     [NUnit.Framework.Explicit("Visual acceptance for human review; run by name.")]
     public sealed class ModelViewerSceneTests
     {
+        private const float VoxelSize = 0.1f;
+
         [UnityTest, Timeout(180000)]
         public IEnumerator DragonStatueConvergesThroughProductionSurfacePath()
         {
@@ -41,17 +44,25 @@ namespace VoxelEngine.Tests.PlayMode
             Camera camera = lookdev.GetComponent<Camera>();
             Assert.NotNull(camera);
 
-            yield return CaptureVariant(
-                lookdev, camera, modelIndex: 0, outputName: "dragon-a-detailed-production.png");
-            yield return CaptureVariant(
-                lookdev, camera, modelIndex: 1, outputName: "dragon-b-organic-production.png");
+            yield return SelectAndConverge(lookdev, camera, modelIndex: 0);
+            CaptureFrame(camera, "dragon-a-detailed-production.png");
+
+            // AAA review cannot rely on one flattering angle. Keep the hero capture above for direct
+            // iteration history, then inspect the opposite quarter and rear wing/tail joins using the
+            // exact same converged production surface.
+            SetDragonInspectionView(camera, yaw: 38f, pitch: 6f, distance: 47f);
+            CaptureFrame(camera, "dragon-a-opposite-production.png");
+            SetDragonInspectionView(camera, yaw: 142f, pitch: 8f, distance: 48f);
+            CaptureFrame(camera, "dragon-a-rear-production.png");
+
+            yield return SelectAndConverge(lookdev, camera, modelIndex: 1);
+            CaptureFrame(camera, "dragon-b-organic-production.png");
         }
 
-        private static IEnumerator CaptureVariant(
+        private static IEnumerator SelectAndConverge(
             ModelViewerLookdev lookdev,
             Camera camera,
-            int modelIndex,
-            string outputName)
+            int modelIndex)
         {
             lookdev.SelectModelForAutomation(modelIndex);
             yield return null;
@@ -102,7 +113,22 @@ namespace VoxelEngine.Tests.PlayMode
                 convergenceTarget.Release();
                 Object.Destroy(convergenceTarget);
             }
+        }
 
+        private static void SetDragonInspectionView(Camera camera, float yaw, float pitch, float distance)
+        {
+            Vector3 focus = new Vector3(
+                DragonStatueWorldBuilderObject.LocalSize.x * 0.5f * VoxelSize,
+                DragonStatueWorldBuilderObject.LocalSize.y * 0.5f * VoxelSize - 0.25f,
+                DragonStatueWorldBuilderObject.LocalSize.z * 0.5f * VoxelSize - 0.25f);
+            Quaternion orbit = Quaternion.Euler(pitch, yaw, 0f);
+            camera.transform.position = focus + orbit * (Vector3.back * distance);
+            camera.transform.rotation = orbit;
+            camera.fieldOfView = 30f;
+        }
+
+        private static void CaptureFrame(Camera camera, string outputName)
+        {
             var target = new RenderTexture(1440, 1100, 24, RenderTextureFormat.ARGB32);
             target.Create();
             camera.targetTexture = target;
