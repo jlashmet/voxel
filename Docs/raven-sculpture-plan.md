@@ -50,3 +50,12 @@ isolated render for visual review.
 - 2026-08-24: Added stable `RAVN` voxel-stamp routing and a focused EditMode visual/invariant test.
   The image is copied to `Artifacts/SingleTest` because the targeted workflow does not upload
   `TestResults/WorldbuildingVisuals`.
+- 2026-08-24: First targeted run compiled and executed one test in 62 seconds, then correctly failed
+  the footprint invariant because two occupied voxels touched a declared boundary. The sculpt
+  itself is unchanged; the declared horizontal and upper padding is enlarged by four voxels before
+  rerunning.
+- 2026-08-24: Four concurrent commits added alternate `RavenStatue...` classes on the same feature
+  branch. Their placement initializer referenced a nonexistent `MountMode` field and their float
+  authorer duplicated the same stable `RAVN` identity. Preserved both public class names as thin
+  compatibility facades over the single integer `RavenSculpture...` implementation so callers do
+  not split between two geometries.

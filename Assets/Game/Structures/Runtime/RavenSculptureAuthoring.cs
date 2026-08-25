@@ -21,8 +21,8 @@ namespace Game.Structures.Runtime
         private const byte Talon = GameMaterialIds.Stone;
         private const byte Eye = GameMaterialIds.Gold;
 
-        public static readonly int3 LocalMin = new int3(-72, 0, -82);
-        public static readonly int3 LocalSize = new int3(144, 168, 174);
+        public static readonly int3 LocalMin = new int3(-76, 0, -86);
+        public static readonly int3 LocalSize = new int3(152, 172, 182);
 
         public static void Author(IStructureAuthoringSession authoring, int3 origin)
         {
