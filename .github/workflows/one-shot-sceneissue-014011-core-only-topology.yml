@@ -62,11 +62,37 @@ jobs:
           test -x "$UNITY_PATH"
           echo "path=$UNITY_PATH" >> "$GITHUB_OUTPUT"
 
-      - name: Wait for Unity
+      - name: Wait for Unity before bake
         shell: bash
         run: |
           set -euo pipefail
           deadline=$((SECONDS + 600))
+          while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
+            if (( SECONDS >= deadline )); then
+              pgrep -alf '/Unity.app/Contents/MacOS/Unity' || true
+              exit 1
+            fi
+            sleep 5
+          done
+
+      - name: Bake fresh Voxel Showcase startup world
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue221508NoCircles"
+          UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=8 \
+          UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
+            -batchmode -nographics -job-worker-count 1 -quit \
+            -projectPath "$GITHUB_WORKSPACE" \
+            -executeMethod VoxelEngine.Showcase.Editor.ShowcaseWorldBaker.BakeShowcaseWorld \
+            -logFile "$ROOT/showcase-bake.log"
+          test -s "$GITHUB_WORKSPACE/Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes"
+
+      - name: Wait for Unity after bake
+        shell: bash
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 120))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
               pgrep -alf '/Unity.app/Contents/MacOS/Unity' || true
@@ -111,9 +137,11 @@ jobs:
           name: scene-221508-unobscured-view
           path: |
             SceneIssues/20260824-221508-896-VoxelShowcase/screenshot-001.png
+            Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes
             Artifacts/SceneIssue221508NoCircles/issue-no-circles.json
             Artifacts/SceneIssue221508NoCircles/replay-latest.png
             Artifacts/SceneIssue221508NoCircles/replay-latest.jpg
+            Artifacts/SceneIssue221508NoCircles/showcase-bake.log
             Artifacts/SceneIssue221508NoCircles/player-build.log
             Artifacts/SceneIssue221508NoCircles/player-run.log
           if-no-files-found: warn
