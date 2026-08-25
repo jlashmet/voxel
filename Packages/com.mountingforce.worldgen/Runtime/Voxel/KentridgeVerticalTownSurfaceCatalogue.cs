@@ -312,8 +312,8 @@ namespace MountingForce.WorldGen.Voxel
             int fillHeight = (PlazaFillDepthDm + SurfaceThicknessDm) * scale;
             int supportDepth = Math.Max(0, target - minNatural) + PlazaBuriedFootingDm * scale;
             int clearHeight = ClearAboveDm * scale + Math.Max(0, maxNatural - target);
-            int width = plaza.SizeDm.X * scale;
-            int depth = plaza.SizeDm.Y * scale;
+            int width = plaza.SizeDm.X * scale + 1;
+            int depth = plaza.SizeDm.Y * scale + 1;
 
             return new PlazaBuild(
                 new int3(width, supportDepth + fillHeight + clearHeight, depth),
