@@ -19,6 +19,7 @@ namespace Game.Structures.Runtime
             Clear(a, origin, new int3(-18, 0, -86), new int3(126, 58, 146));
 
             DragonStatueReferenceVoxelArt.Author(a, origin);
+            DragonStatueConceptSilhouettePass.Apply(a, origin);
         }
 
         private static void Clear(IStructureAuthoringSession a, int3 o, int3 min, int3 size)
