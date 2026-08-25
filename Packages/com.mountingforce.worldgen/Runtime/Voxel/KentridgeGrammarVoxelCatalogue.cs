@@ -31,6 +31,13 @@ namespace MountingForce.WorldGen.Voxel
     {
         private const int DefinitionCount = 17;
         private const int FoundationSinkDm = 5;
+        private const int EntranceFacadeGapDm = 3;
+        private const int EntranceFrameThicknessDm = 2;
+        private const int InnCanopyHalfWidthDm = 25;
+        private const int PubSignExtensionDm = 25;
+        private const int MayorPorticoHalfWidthDm = 24;
+        private const int HomeCanopyHalfWidthDm = 16;
+        private const int FrontageSideMarginDm = 6;
 
         private sealed class CompiledProgram
         {
@@ -292,7 +299,7 @@ namespace MountingForce.WorldGen.Voxel
                     glass, timber, cloth, s);
             else
                 AddFrontageWindows(b, form, x0, z0, w, f, t, floor, 0,
-                    glass, s, doorX, doorW);
+                    glass, s, doorX, doorW, variant);
 
             for (int storey = 1; storey < form.Storeys; storey++)
             {
@@ -302,7 +309,7 @@ namespace MountingForce.WorldGen.Voxel
                     upperX, upperZ, upperW,
                     y, t, theme.WindowHeightDm * s,
                     glass, form.WindowStyle, s,
-                    int.MinValue, 0);
+                    int.MinValue, 0, int.MinValue, int.MinValue);
             }
 
             AddRearAndSideWindows(
@@ -417,8 +424,8 @@ namespace MountingForce.WorldGen.Voxel
             {
                 case KentridgeRole.Inn:
                     // A deep, supported arrival canopy reads from both street level and the survey.
-                    b.Box(centre - 25 * s, foundationY + 27 * s, frontZ - 8 * s,
-                        50 * s, 3 * s, 14 * s, timber);
+                    b.Box(centre - InnCanopyHalfWidthDm * s, foundationY + 27 * s, frontZ - 8 * s,
+                        2 * InnCanopyHalfWidthDm * s, 3 * s, 14 * s, timber);
                     b.Box(centre - 23 * s, foundationY, frontZ - 7 * s,
                         4 * s, 29 * s, 4 * s, timber);
                     b.Box(centre + 19 * s, foundationY, frontZ - 7 * s,
@@ -435,8 +442,8 @@ namespace MountingForce.WorldGen.Voxel
                     break;
                 case KentridgeRole.MayorHouse:
                     // Formal stone portico and balcony separate the civic residence from houses.
-                    b.Box(centre - 24 * s, foundationY + 29 * s, frontZ - 4 * s,
-                        48 * s, 4 * s, 12 * s, stone);
+                    b.Box(centre - MayorPorticoHalfWidthDm * s, foundationY + 29 * s, frontZ - 4 * s,
+                        2 * MayorPorticoHalfWidthDm * s, 4 * s, 12 * s, stone);
                     b.Box(centre - 21 * s, foundationY, frontZ,
                         5 * s, 31 * s, 5 * s, stone);
                     b.Box(centre + 16 * s, foundationY, frontZ,
@@ -469,14 +476,14 @@ namespace MountingForce.WorldGen.Voxel
                 default:
                     // Named homes get deterministic planter/porch rhythms instead of sharing an
                     // unmodified grammar façade. Role identity chooses the offset and width.
-                    int variant = ((int)role * 7) % 13;
-                    int planterWidth = (16 + variant) * s;
-                    int planterX = x0 + (8 + variant) * s;
+                    int roleVariant = ((int)role * 7) % 13;
+                    int planterWidth = (16 + roleVariant) * s;
+                    int planterX = x0 + (8 + roleVariant) * s;
                     planterX = math.min(planterX, x0 + width - planterWidth - 8 * s);
                     b.Box(planterX, foundationY + 16 * s, frontZ,
                         planterWidth, 3 * s, 5 * s, timber);
-                    b.Box(centre - 16 * s, foundationY + 25 * s, frontZ,
-                        32 * s, 3 * s, 8 * s, roof);
+                    b.Box(centre - HomeCanopyHalfWidthDm * s, foundationY + 25 * s, frontZ,
+                        2 * HomeCanopyHalfWidthDm * s, 3 * s, 8 * s, roof);
                     break;
             }
         }
@@ -585,15 +592,77 @@ namespace MountingForce.WorldGen.Voxel
             byte glass,
             int s,
             int doorX,
-            int doorW)
+            int doorW,
+            KentridgeArchitectureVariant variant)
         {
             int y = foundationY + storey * floor + 20 * s;
+            ResolveEntranceWindowReservation(
+                (KentridgeRole)form.RoleId,
+                variant,
+                doorX,
+                doorW,
+                s,
+                out int reservedMinX,
+                out int reservedMaxX);
             AddFrontageWindowsAtY(
                 b, form.FrontageRhythm,
                 x0, z0, w,
                 y, thickness, 12 * s,
                 glass, form.WindowStyle, s,
-                doorX, doorW);
+                doorX, doorW, reservedMinX, reservedMaxX);
+        }
+
+        private static void ResolveEntranceWindowReservation(
+            KentridgeRole role,
+            KentridgeArchitectureVariant variant,
+            int doorX,
+            int doorW,
+            int s,
+            out int reservedMinX,
+            out int reservedMaxX)
+        {
+            if (variant != KentridgeArchitectureVariant.Current)
+            {
+                reservedMinX = doorX - EntranceFacadeGapDm * s;
+                reservedMaxX = doorX + doorW + EntranceFacadeGapDm * s;
+                return;
+            }
+
+            int treatmentMinX = doorX - EntranceFrameThicknessDm * s;
+            int treatmentMaxX = doorX + doorW + EntranceFrameThicknessDm * s;
+            int centre = doorX + doorW / 2;
+
+            switch (role)
+            {
+                case KentridgeRole.Inn:
+                    treatmentMinX = math.min(
+                        treatmentMinX, centre - InnCanopyHalfWidthDm * s);
+                    treatmentMaxX = math.max(
+                        treatmentMaxX, centre + InnCanopyHalfWidthDm * s);
+                    break;
+                case KentridgeRole.Pub:
+                    treatmentMaxX = math.max(
+                        treatmentMaxX, doorX + doorW + PubSignExtensionDm * s);
+                    break;
+                case KentridgeRole.MayorHouse:
+                    treatmentMinX = math.min(
+                        treatmentMinX, centre - MayorPorticoHalfWidthDm * s);
+                    treatmentMaxX = math.max(
+                        treatmentMaxX, centre + MayorPorticoHalfWidthDm * s);
+                    break;
+                case KentridgeRole.AbandonedHouse:
+                    // Its damaged braces are façade texture rather than part of the entrance.
+                    break;
+                default:
+                    treatmentMinX = math.min(
+                        treatmentMinX, centre - HomeCanopyHalfWidthDm * s);
+                    treatmentMaxX = math.max(
+                        treatmentMaxX, centre + HomeCanopyHalfWidthDm * s);
+                    break;
+            }
+
+            reservedMinX = treatmentMinX - EntranceFacadeGapDm * s;
+            reservedMaxX = treatmentMaxX + EntranceFacadeGapDm * s;
         }
 
         private static void AddFrontageWindowsAtY(
@@ -605,7 +674,9 @@ namespace MountingForce.WorldGen.Voxel
             KentridgeWindowStyle style,
             int s,
             int doorX,
-            int doorW)
+            int doorW,
+            int reservedMinX,
+            int reservedMaxX)
         {
             int windowW = 11 * s;
             int[] centres;
@@ -639,9 +710,25 @@ namespace MountingForce.WorldGen.Voxel
             {
                 int wx = centres[i] - windowW / 2;
                 if (doorX != int.MinValue
-                    && wx < doorX + doorW + 3 * s
-                    && wx + windowW > doorX - 3 * s)
-                    continue;
+                    && wx < reservedMaxX
+                    && wx + windowW > reservedMinX)
+                {
+                    if (centres[i] <= doorX)
+                        wx = reservedMinX - windowW;
+                    else if (centres[i] >= doorX + doorW)
+                        wx = reservedMaxX;
+                    else
+                        continue;
+                }
+
+                if (doorX != int.MinValue)
+                {
+                    int minimumWindowX = x0 + FrontageSideMarginDm * s;
+                    int maximumWindowX = x0 + w - FrontageSideMarginDm * s - windowW;
+                    if (wx < minimumWindowX || wx > maximumWindowX)
+                        continue;
+                }
+
                 AddWindowZ(b, wx, y, z0, windowW, windowH,
                     thickness + s, glass, style);
             }
