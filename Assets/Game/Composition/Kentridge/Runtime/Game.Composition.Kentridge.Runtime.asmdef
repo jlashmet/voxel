@@ -8,9 +8,7 @@
     "Game.Composition.WorldBuilderWorldGen",
     "Game.Composition.WorldBuilderWorldGen.Runtime",
     "Game.Cutscenes.Api",
-    "Game.WorldBuilder.Api",
-    "MountingForce.WorldGen.Core",
-    "MountingForce.WorldGen.Architecture"
+    "Game.WorldBuilder.Api"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
