@@ -44,13 +44,6 @@ namespace MountingForce.WorldGen.Content.Kentridge
         public const int UpperContourZDm = 340;
         public const int UpperContourWidthDm = 40;
 
-        // Kept temporarily while the urban skeleton's duplicate lower-west stair chain is validated
-        // and retired. The circulation plan intentionally no longer emits a connector at this pose.
-        public const int LowerWestStairXDm = 1125;
-        public const int LowerWestStairSouthZDm = 900;
-        public const int LowerWestStairNorthZDm = 590;
-        public const int LowerWestStairWidthDm = 22;
-
         // Tuck the Market-to-Upper stair into the urban fabric: west of the upper-west block's x=850
         // edge but far enough east to read as a stair street between buildings rather than a detached
         // hillside stair at the capture/world edge.
