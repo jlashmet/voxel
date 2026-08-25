@@ -26,15 +26,20 @@ jobs:
           clean: true
           fetch-depth: 1
 
-      - name: Restore saved capture fixture from trigger commit
+      - name: Restore saved capture fixture and current replay-only harness
         shell: bash
         run: |
           set -euo pipefail
           git fetch --no-tags --depth=1 origin "$GITHUB_SHA"
           ISSUE_DIR="SceneIssues/open/20260825-033249-397-VoxelShowcase"
-          mkdir -p "$ISSUE_DIR"
+          mkdir -p "$ISSUE_DIR" Assets/DeveloperTools/SceneIssueCapture tools
           git show "$GITHUB_SHA:$ISSUE_DIR/issue.json" > "$ISSUE_DIR/issue.json"
           git show "$GITHUB_SHA:$ISSUE_DIR/screenshot-001.png" > "$ISSUE_DIR/screenshot-001.png"
+          # Diagnostic-only overlay: capture-time production/worldgen source remains historical.
+          # These two files are the standalone saved-view replay harness introduced after capture.
+          git show "$GITHUB_SHA:Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs" > Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs
+          git show "$GITHUB_SHA:tools/showcase-player-capture.sh" > tools/showcase-player-capture.sh
+          chmod +x tools/showcase-player-capture.sh
 
       - name: Publish pending status
         uses: actions/github-script@v7
@@ -146,6 +151,7 @@ jobs:
             echo "issue=SceneIssues/open/20260825-033249-397-VoxelShowcase/issue.json"
             echo "scene=Assets/Scenes/VoxelShowcase.unity"
             echo "startup_bake=fresh-capture-source"
+            echo "replay_harness=current-two-file-overlay"
             echo "capture_resolution=1364x836"
             echo "original_capture_time_seconds=222.4276580810547"
             echo "replay_duration_seconds=240"
