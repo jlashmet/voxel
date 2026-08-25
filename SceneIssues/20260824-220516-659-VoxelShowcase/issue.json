@@ -1,0 +1,109 @@
+{
+    "formatVersion": 3,
+    "id": "20260824-220516-659-VoxelShowcase",
+    "capturedUtc": "2026-08-24T22:05:16.6593960Z",
+    "note": "we need a more coherent translation from town description to geometry.  there are multiple overlapping staircases, buildings are too close together, some are floating, etc.",
+    "status": "open",
+    "resolvedUtc": "",
+    "resolutionSummary": "",
+    "regressionTest": "",
+    "fixCommit": "",
+    "unityVersion": "6000.5.6f1",
+    "platform": "OSXEditor",
+    "sceneName": "VoxelShowcase",
+    "scenePath": "Assets/Scenes/VoxelShowcase.unity",
+    "sceneBuildIndex": 2,
+    "captures": [
+        {
+            "screenshot": "screenshot-001.png",
+            "capturedUtc": "2026-08-24T22:05:16.6594710Z",
+            "frameCount": 97159,
+            "timeSinceLevelLoad": 430.1985778808594,
+            "screenWidth": 1364,
+            "screenHeight": 836,
+            "poseAnchor": {
+                "hierarchyPath": "Showcase Camera",
+                "position": {
+                    "x": 115.36602020263672,
+                    "y": 21.650163650512697,
+                    "z": 93.74148559570313
+                },
+                "rotation": {
+                    "x": 0.006791500374674797,
+                    "y": -0.9931644797325134,
+                    "z": -0.08695525676012039,
+                    "w": -0.07756952196359635
+                },
+                "localScale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                }
+            },
+            "camera": {
+                "hierarchyPath": "Showcase Camera",
+                "position": {
+                    "x": 115.36602020263672,
+                    "y": 21.650163650512697,
+                    "z": 93.74148559570313
+                },
+                "rotation": {
+                    "x": 0.006791500374674797,
+                    "y": -0.9931644797325134,
+                    "z": -0.08695525676012039,
+                    "w": -0.07756952196359635
+                },
+                "fieldOfView": 70.0,
+                "orthographic": false,
+                "orthographicSize": 5.0,
+                "nearClipPlane": 0.05000000074505806,
+                "farClipPlane": 16000.0
+            },
+            "circles": []
+        }
+    ],
+    "screenshot": "screenshot-001.png",
+    "frameCount": 97159,
+    "timeSinceLevelLoad": 430.1985778808594,
+    "screenWidth": 1364,
+    "screenHeight": 836,
+    "poseAnchor": {
+        "hierarchyPath": "Showcase Camera",
+        "position": {
+            "x": 115.36602020263672,
+            "y": 21.650163650512697,
+            "z": 93.74148559570313
+        },
+        "rotation": {
+            "x": 0.006791500374674797,
+            "y": -0.9931644797325134,
+            "z": -0.08695525676012039,
+            "w": -0.07756952196359635
+        },
+        "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+        }
+    },
+    "camera": {
+        "hierarchyPath": "Showcase Camera",
+        "position": {
+            "x": 115.36602020263672,
+            "y": 21.650163650512697,
+            "z": 93.74148559570313
+        },
+        "rotation": {
+            "x": 0.006791500374674797,
+            "y": -0.9931644797325134,
+            "z": -0.08695525676012039,
+            "w": -0.07756952196359635
+        },
+        "fieldOfView": 70.0,
+        "orthographic": false,
+        "orthographicSize": 5.0,
+        "nearClipPlane": 0.05000000074505806,
+        "farClipPlane": 16000.0
+    },
+    "circles": []
+}
