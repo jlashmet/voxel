@@ -6,7 +6,7 @@ Three production geometry attempts and a post-limit stage-isolation experiment a
 
 The post-limit `BuildPlotSurfaces` isolation was especially diagnostic: Actions run `32839747298` removed `KentridgeVerticalPlacementAdapter.BuildPlotSurfaces(...)` from `KentridgeCombinedVoxelCatalogueCanonical.Core.cs` **in the CI checkout only**, successfully built the real standalone player, verified the frozen SceneIssue pose, and produced artifact `9560093798`. The rendered world was still unchanged.
 
-That result falsifies the assumption that the exact VoxelShowcase replay is rasterising the current canonical catalogue into its startup neighborhood.
+That result falsified the assumption that the exact VoxelShowcase replay was rasterising the current canonical catalogue into its startup neighborhood.
 
 ## Runtime path traced
 
@@ -39,11 +39,11 @@ It contains no Kentridge/catalogue/world-generation content revision or fingerpr
 
 Therefore an old startup image can deserialize successfully even when the source that would generate the town has changed substantially.
 
-Repository history supports that this is happening here: the current `ShowcaseWorld.bytes` blob was last refreshed by commit `c9fac2bbb4a049e8260c33a88cda23da8a8e39c9` on 2026-08-22 (`Refresh VoxelShowcase bake for broad terrain relief`). The SceneIssue and the Kentridge catalogue work being validated are from 2026-08-24/25.
+Repository history supports that this happened here: the committed `ShowcaseWorld.bytes` had last been refreshed by commit `c9fac2bbb4a049e8260c33a88cda23da8a8e39c9` on 2026-08-22 (`Refresh VoxelShowcase bake for broad terrain relief`). The SceneIssue and Kentridge catalogue work being validated are from 2026-08-24/25.
 
-## Current falsifiable check
+## Fresh-bake causal check
 
-One-shot workflow commit `bc5563a416c938d706755ebe1ca360f2ee8c618b` runs this sequence without committing generated world bytes:
+One-shot workflow commit `bc5563a416c938d706755ebe1ca360f2ee8c618b` ran this sequence without committing generated world bytes:
 
 1. hash the committed `Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes`;
 2. run `VoxelEngine.Showcase.Editor.ShowcaseWorldBaker.BakeShowcaseWorld` against the current checkout;
@@ -52,14 +52,38 @@ One-shot workflow commit `bc5563a416c938d706755ebe1ca360f2ee8c618b` runs this se
 5. replay the exact saved SceneIssue camera and verify the frozen pose;
 6. capture fresh-bake visual evidence.
 
-Actions run: `32841171118`.
+Actions run `32841171118` completed successfully. Artifact: `9560706809` (`scene-220516-fresh-bake`), digest `sha256:41a10efffa462b2e1689f59d8092091f0e567d88eca960c5a87b6271e0f8decb`.
 
-At the time this note was written, the full eight-region-radius rebake was still running.
+The committed and freshly generated startup images are different:
 
-## Interpretation / next decision
+- committed bake SHA-256: `080eaf82fc003cfa677f1efa933e46a9301e59141f4e343010b1ebdb05ed0e59`
+- fresh bake SHA-256: `f4b347d61a3f4fc04f6c8d951c82de5f7780fd25c45c8832c3d078ba5300f4b4`
 
-If the fresh bake hash changes **and** the exact world image changes, the stale startup image is proven to have invalidated all prior visual geometry checks. Subsequent scene work must validate against freshly generated/baked content, and the repository needs a build/test invariant that prevents shipping a bake whose authored-content identity is stale.
+The full eight-region-radius rebake completed in 202 seconds and the normal standalone player then built and ran successfully. The frozen pose was verified and the final evidence frame was `showcase-004-t055.5s-stationary.png`.
 
-If the fresh bake changes but the exact world image is still identical, the bake itself is not the remaining explanation and diagnosis must move below the catalogue-to-storage rasterisation boundary.
+## Pixel and visual result
 
-No new production geometry attempt is permitted until this check resolves. The SceneIssue remains `open`.
+The fresh-bake exact replay is materially different from the stale-bake exact replay, not just in HUD text:
+
+- full-frame mean absolute RGB difference: `15.98`
+- pixels differing by more than 20 RGB levels: `33.88%` of the full frame
+- below the replay/HUD area (`y >= 180`): `43.06%` differ by more than 20
+- foreground: approximately `54.08%` differ by more than 20
+
+The old replay's three conspicuous foreground stair ribbons are gone. The current generator presents one broad central climb with separated side-access flights/terraced edges rather than overlapping staircases occupying the same foreground. The named buildings visible uphill no longer read as floating over those foreground stair forms, and no unsupported structure is apparent in the saved view.
+
+This is the first exact-camera evidence in this issue that legitimately evaluates the current Kentridge generator. The earlier no-op visual results were evaluating an August 22 baked world image instead.
+
+## Conclusion
+
+The stale startup image invalidated the earlier visual geometry checks. The current generator passes the captured SceneIssue view substantially better, including the reported overlapping-stair and floating-building symptoms.
+
+The SceneIssue is **not closed yet** because the repository still contains the stale committed `ShowcaseWorld.bytes`. Closure requires:
+
+1. regenerate and commit the VoxelShowcase startup bake from current source;
+2. build/replay the normal scene from that committed bake, without an in-job replacement;
+3. verify the exact saved camera still matches the fresh-bake passing view;
+4. restore temporary diagnostic workflow/test state;
+5. only then set `issue.json` to `fixed`.
+
+A separate build/tooling follow-up is also warranted: the bake format has no authored-content freshness identity, so source changes can silently leave a schema-valid but visually stale startup world.
