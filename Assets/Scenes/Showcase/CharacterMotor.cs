@@ -232,13 +232,12 @@ namespace VoxelEngine.Showcase
         private Vector3 FootMax(Vector3 feet, float height) => new(feet.x + Radius, feet.y + height, feet.z + Radius);
 
         /// <summary>
-        /// True when authoritative voxel or semantic-tree geometry overlaps the character box.
+        /// True when authoritative voxel or semantic-tree wood overlaps the character box.
         ///
         /// Non-resident voxel regions read as empty, which means the character would fall through a
         /// region that has not finished generating — the driver holds physics until the region
-        /// under the character exists rather than letting that happen. Trees are queried in metres
-        /// through the same semantic damage service used by Showcase projectiles, so a cut branch
-        /// stops blocking as soon as it stops existing in the tree world.
+        /// under the character exists rather than letting that happen. Tree collision is branch-only:
+        /// foliage remains traversable and a branch stops blocking as soon as damage removes it.
         /// </summary>
         private static bool IsBlocked(ShowcaseWorld world, Vector3 min, Vector3 max)
         {
@@ -259,12 +258,9 @@ namespace VoxelEngine.Showcase
                     return true;
             }
 
-            float radius = Mathf.Max((max.x - min.x) * 0.5f, (max.z - min.z) * 0.5f);
-            float3 centreBottom = new((min.x + max.x) * 0.5f, min.y,
-                                      (min.z + max.z) * 0.5f);
-            float3 centreTop = new(centreBottom.x, max.y, centreBottom.z);
-            return VegetationComposition.TreeDamage.TrySweepImpact(
-                centreBottom, centreTop, radius, out _, out _);
+            return VegetationComposition.TreeDamage.OverlapsWoodAabb(
+                new float3(min.x, min.y, min.z),
+                new float3(max.x, max.y, max.z));
         }
     }
 }
