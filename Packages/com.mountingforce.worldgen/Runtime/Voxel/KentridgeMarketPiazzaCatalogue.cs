@@ -117,17 +117,14 @@ namespace MountingForce.WorldGen.Voxel
             byte dark = settings.Materials.Resolve(MaterialRole.DarkMasonry);
             var b = new ProgramBuilder();
 
-            // Four flush dark perimeter bands bound the public room. The lighter stone centre is a
-            // single shared surface: road movement still passes through it without a geometric curb.
+            // Keep occupancy continuous across the public room. The decorative perimeter bands
+            // overlay one shared backing slab so adjacent primitive boundaries cannot expose a row
+            // of empty voxels between the dark border and lighter stone centre.
+            b.Box(0, 0, 0, width, thickness, depth, stone);
             b.Box(0, 0, 0, width, thickness, border, dark);
             b.Box(0, 0, depth - border, width, thickness, border, dark);
             b.Box(0, 0, border, border, thickness, depth - border * 2, dark);
             b.Box(width - border, 0, border, border, thickness, depth - border * 2, dark);
-            b.Box(border, 0, border,
-                width - border * 2,
-                thickness,
-                depth - border * 2,
-                stone);
 
             return b.Finish();
         }
