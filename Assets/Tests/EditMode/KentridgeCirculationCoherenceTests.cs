@@ -47,6 +47,41 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void LowerTownSkeletonDoesNotAdvertiseDuplicateSecondaryStairChain()
+        {
+            KentridgeUrbanSkeletonPlan plan = KentridgeUrbanSkeleton.Build(Seed);
+            bool retainedUpperWestStair = false;
+
+            for (int i = 0; i < plan.Nodes.Count; i++)
+            {
+                Assert.AreNotEqual(
+                    KentridgeUrbanNodeId.WestMarketLanding,
+                    plan.Nodes[i].Id,
+                    "The retired lower-west stair must not survive as a semantic landing after its "
+                    + "geometry is removed; the primary spine already connects Residential Junction "
+                    + "to Market Square.");
+            }
+
+            for (int i = 0; i < plan.Links.Count; i++)
+            {
+                KentridgeUrbanLink link = plan.Links[i];
+                Assert.IsFalse(
+                    link.Kind == KentridgeUrbanLinkKind.SecondaryStair
+                    && (link.From == KentridgeUrbanNodeId.ResidentialJunction
+                        || link.To == KentridgeUrbanNodeId.ResidentialJunction),
+                    link.Id + " duplicates the primary lower-town route with a second stair chain.");
+
+                retainedUpperWestStair |=
+                    link.Kind == KentridgeUrbanLinkKind.SecondaryStair
+                    && link.From == KentridgeUrbanNodeId.WestMarketJunction
+                    && link.To == KentridgeUrbanNodeId.WestUpperLanding;
+            }
+
+            Assert.IsTrue(retainedUpperWestStair,
+                "Retiring the duplicate lower stair must not erase the coherent upper-west route.");
+        }
+
+        [Test]
         public void VerticalInfrastructureDoesNotOverlayDedicatedStairsOnContinuousMainRoad()
         {
             FeatureCatalogue catalogue = KentridgeVerticalConnectorCatalogue.Build(
