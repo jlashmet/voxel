@@ -50,8 +50,47 @@ jobs:
           UNITY_VERSION="$(awk '/m_EditorVersion:/ { print $2 }' ProjectSettings/ProjectVersion.txt)"
           UNITY_PATH="/Applications/Unity/Hub/Editor/${UNITY_VERSION}/Unity.app/Contents/MacOS/Unity"
           test -x "$UNITY_PATH"
-          test -s "$GITHUB_WORKSPACE/Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes"
           echo "path=$UNITY_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for Unity before bake
+        shell: bash
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 90))
+          while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
+            if (( SECONDS >= deadline )); then
+              pgrep -alf '/Unity.app/Contents/MacOS/Unity' || true
+              exit 1
+            fi
+            sleep 5
+          done
+
+      - name: Bake fresh Voxel Showcase startup world
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue040805"
+          mkdir -p "$ROOT"
+          UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=4 \
+          UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
+            -batchmode -nographics -job-worker-count 1 -quit \
+            -projectPath "$GITHUB_WORKSPACE" \
+            -executeMethod VoxelEngine.Showcase.Editor.ShowcaseWorldBaker.BakeShowcaseWorld \
+            -logFile "$ROOT/showcase-bake.log"
+          test -s "$GITHUB_WORKSPACE/Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes"
+
+      - name: Wait for Unity after bake
+        shell: bash
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 90))
+          while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
+            if (( SECONDS >= deadline )); then
+              pgrep -alf '/Unity.app/Contents/MacOS/Unity' || true
+              exit 1
+            fi
+            sleep 5
+          done
 
       - name: Replay exact saved SceneIssue view
         shell: bash
@@ -90,6 +129,7 @@ jobs:
             echo "source_commit=$GITHUB_SHA"
             echo "issue=SceneIssues/open/20260825-040805-194-VoxelShowcase/issue.json"
             echo "scene=Assets/Scenes/VoxelShowcase.unity"
+            echo "startup_bake=fresh"
             echo
             echo "=== camera replay ==="
             grep 'SCENEISSUE camera' "$ROOT/player-run.log" || true
@@ -115,6 +155,7 @@ jobs:
             Artifacts/SceneIssue040805/RealPlayer/Screenshots/**
             Artifacts/SceneIssue040805/RealPlayer/player-run.log
             Artifacts/SceneIssue040805/RealPlayer/fps.txt
+            Artifacts/SceneIssue040805/showcase-bake.log
           if-no-files-found: error
           retention-days: 2
 
