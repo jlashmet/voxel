@@ -12,22 +12,24 @@ If the backend-facing WorldBuilderWorldGen integration assembly wraps the two le
 - Migrated `KentridgeCampaignSessionBootstrap.CreateSession` to accept the integration-owned facts bundle and migrated the confirmed EditMode session tests through `WorldBuilderTownAuthoring` plus that bundle.
 - Source tip for the first CI attempt was `558cb2489d6e3f7d35d138744ff4cbc65b0eadd9`; request commit `2bbb748c732ac34343c29c268f56d0688e3b0b65`, Actions run `32879973521`, failed on stale PlayMode callers.
 - Migrated `KentridgePubExitPlayTests` and `KentridgeOpeningVerticalSlicePlayTests` through WorldBuilder authoring and the integration-owned realization bundle. Source tip became `cdfcd8d9db95751bbae8c8fe30aee4be0a8277bb`.
-- Retried `VoxelEngine.Tests.EditMode.WorldBuilderAuthoringVisibilityTests.KentridgeTownAuthoringUsesOnlyWorldBuilderPublicBoundary` through CI commit `0e12f4a8ba5e4e50a9c417302fa208f7811e682c`, GitHub Actions run `32880386099`.
+- Retried the ownership regression through CI commit `0e12f4a8ba5e4e50a9c417302fa208f7811e682c`, Actions run `32880386099`; that exposed the stale EditMode secret-bootstrap caller.
+- Migrated `KentridgeCampaignSecretBootstrapTests` through `WorldBuilderTownAuthoring` and one integration-owned realization bundle. Source tip became `087fa065da2e823afbaab8ca1a1de5e0f4d181fa`.
+- Retried the same ownership regression through CI commit `652a49a780a0c4ed91dd6efab8a669eb42b664d9`, Actions run `32880681029`, and inspected the uploaded `single-test-32880681029` artifact to recover compiler diagnostics hidden by the warning-heavy inline log tail.
 
 ## Result
 
-The second CI attempt still failed at Unity compilation before the requested ownership assertion executed. The previously reported production and PlayMode caller errors are gone. The remaining errors are confined to `Assets/Tests/EditMode/KentridgeCampaignSecretBootstrapTests.cs`:
+The third CI attempt still failed at Unity compilation before the requested ownership assertion executed. The previously reported secret-bootstrap errors are gone. The remaining compiler errors are:
 
-- its campaign plan still passes raw `SettlementPlan` instead of the WorldBuilder-authored `AuthoredTownPlan`;
-- its missing-host path passes `KentridgeVoxelSiteRealizationFacts` directly where `KentridgeCampaignRealizationFacts` is now required and passes hidden facts in the old secret-host argument position;
-- its success path still uses the removed seven-argument `CreateSession` shape instead of bundling site and hidden-space realization facts before supplying the `IKentridgeCampaignSecretHost`.
+- `Assets/Tests/EditMode/KentridgeCampaignWorldRealizationTests.cs` lines 61, 143, and 158 still pass raw `SettlementPlan` into `KentridgeCampaignWorldPlanner.Plan` instead of a WorldBuilder-authored `AuthoredTownPlan`.
+- `Assets/Scenes/Kentridge/KentridgePlayableSlice.cs` line 140 still passes raw `SettlementPlan` into `KentridgeCampaignSessionBootstrap.Plan`.
+- `Assets/Scenes/Kentridge/KentridgePlayableSlice.cs` line 214 still passes `KentridgeVoxelSiteRealizationFacts` directly to `CreateSession` instead of the integration-owned `KentridgeCampaignRealizationFacts` handoff.
 
 `ci/single-test` correctly reported failure. No ownership assertion has passed yet.
 
 ## What learned
 
-Experiment 003’s second compile failure was an architectural signal: commit `d6191178d3b242eeac747700204845eb87dcfe01` deliberately removed legacy worldgen references from Kentridge runtime. Re-adding them would regress the intended boundary. The integration-owned handoff is now compiling through production plus the migrated PlayMode callers; the only remaining compile fallout reported by Unity is a stale EditMode secret-bootstrap caller. This confirms the production boundary itself is no longer the source of the compile failures.
+The integration-owned handoff is compiling through production Kentridge composition and the previously migrated test callers. The remaining production failure is the playable Kentridge scene itself, which still constructs and passes a legacy settlement directly into the campaign path. Merely changing the method argument while continuing to rebuild Kentridge independently for voxel realization would satisfy the compiler but preserve the exact duplicated-authoring risk this capture targets. The playable slice should therefore receive its campaign plan and Kentridge realization facts from the same WorldBuilder-authored town, with any legacy settlement use confined behind an integration adapter.
 
 ## Next
 
-Migrate `KentridgeCampaignSecretBootstrapTests` through `WorldBuilderTownAuthoring.Author(WorldBuilderTownIds.Kentridge, Seed)` and one `KentridgeCampaignRealizationFacts` bundle containing both the concrete site and hidden-space facts. Then repin `ci-test/fixes/agent-1` to the new source tip and rerun the exact ownership regression. After green CI, replay the original VoxelShowcase capture and inspect the verification artifact before terminal bookkeeping.
+Migrate `KentridgeCampaignWorldRealizationTests` through `WorldBuilderTownAuthoring`. For `KentridgePlayableSlice`, author Kentridge once through WorldBuilder and route campaign/voxel/realization consumers through that same authored plan rather than creating a second Kentridge plan for rendering. Then repin `ci-test/fixes/agent-1` and rerun the exact ownership regression. After green CI, replay the original VoxelShowcase capture and inspect the verification artifact before terminal bookkeeping.
