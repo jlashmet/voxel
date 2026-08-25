@@ -14,6 +14,8 @@ The live generated-house path is:
 
 The earlier production change in `KentridgeGrammarVoxelCatalogue` targeted a superseded Kentridge geometry path and therefore could not fix the live VoxelShowcase output. The focused regression also initially searched for filled glazing/detail boxes; the shared house compiler represents facade openings as `ShapeOp.EmitBox` carve operations.
 
+The production geometry fix and its affected Kentridge entrance-fixture validation are now green. The remaining blocker is the required fresh replay of the captured VoxelShowcase viewpoint. The existing `SceneIssueCapture` runtime already owns exact replay semantics: it resolves the recorded pose anchor, freezes both anchor and camera in `LateUpdate`, and restores the recorded projection settings. Replay is currently entered only through an EditorPrefs request, while the repository's visual-evidence path captures a development standalone player. The next implementation step is therefore to expose the existing replay behavior to that standalone path through an opt-in command-line issue-file argument, rather than adding a second camera-replay implementation.
+
 ## Intended invariant
 
 - Kentridge remains the owner of frontage rhythm and door placement.
@@ -23,6 +25,7 @@ The earlier production change in `KentridgeGrammarVoxelCatalogue` targeted a sup
 - Front windows also keep at least 3 dm from one another and remain inside a 6 dm facade side margin.
 - Collision handling reflows a bay to the nearest deterministic legal position instead of silently dropping the bay.
 - No captured world coordinate or Medrare-specific special case is introduced.
+- Scene replay uses the existing `SceneIssueCapture` frozen-pose implementation; standalone capture plumbing must not alter ordinary VoxelShowcase camera behavior when no replay argument is supplied.
 
 ## Work / validation
 
@@ -32,7 +35,10 @@ The earlier production change in `KentridgeGrammarVoxelCatalogue` targeted a sup
 - [x] Implement architecture-owned frontage placement in `KentridgeSharedHouseProgram` using shared `ExplicitOffsets`.
 - [x] Correct the regression to inspect emitted front-wall carve openings and verify the physical door against the published door anchor.
 - [x] Run the focused EditMode regression through `ci-test/fixes` and require `ci/single-test` success (`32819100852`, 1 test, 63 s).
-- [ ] Run broader affected Kentridge/worldgen validation if the focused regression passes.
+- [x] Run broader affected Kentridge/worldgen validation (`experiment-006-entrance-fixture-ci.md`: Pub alignment + Medrare clearance both passed).
+- [ ] Add opt-in development-player scene-issue replay input that delegates to the existing frozen replay behavior.
+- [ ] Thread the issue path through `tools/showcase-player-capture.sh` without changing its default behavior.
+- [ ] Run the smallest relevant validation for the replay plumbing through `ci-test/fixes`.
 - [ ] Review the final net diff against the pre-issue baseline and remove obsolete one-shot CI wiring.
 - [ ] Produce a fresh VoxelShowcase replay/render of the captured view and visually confirm the facade is no longer merged.
 - [ ] Only after CI and fresh visual replay, update `issue.json` as fixed and record the final commit/evidence.
@@ -42,7 +48,7 @@ The earlier production change in `KentridgeGrammarVoxelCatalogue` targeted a sup
 1. `1f8b92d00ec2e286379b153ab0828c977c498248` — reflowed windows in `KentridgeGrammarVoxelCatalogue`; later proven to target the superseded path.
 2. `cd4480b134461b1eddb33a05c78735e4489bf4f5` — moved the invariant to the live shared-house adapter, translated Kentridge frontage rhythm to explicit shared-house offsets, corrected the bytecode regression, and reverted the dead-path change.
 
-Three production attempts is the escalation threshold; the current live-path implementation is attempt 2.
+Three production attempts is the escalation threshold; the current live-path implementation is attempt 2. Replay/capture tooling changes are validation infrastructure, not additional production geometry attempts.
 
 ## Acceptance
 
@@ -52,6 +58,8 @@ Three production attempts is the escalation threshold; the current live-path imp
 - The published door anchor identifies that same physical door opening.
 - Existing affected Kentridge architecture/worldgen tests remain green.
 - Final source contains one active implementation of the invariant, not parallel legacy/shared fixes.
+- Standalone replay consumes the saved issue record and uses the same frozen camera/anchor semantics as editor replay.
+- With no replay argument, standalone capture behavior is unchanged.
 - A fresh VoxelShowcase replay of the reported camera/scene no longer shows a merged door/window facade.
 
 The issue remains open until the fresh replay requirement is satisfied; structural and CI evidence alone is not labelled visual verification.
