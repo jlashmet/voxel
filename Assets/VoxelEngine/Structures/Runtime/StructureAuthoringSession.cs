@@ -12,6 +12,8 @@ namespace VoxelEngine.Structures.Runtime
     public sealed class StructureAuthoringSession : IStructureAuthoringSession
     {
         private VoxelBrush _brush;
+        private readonly IMaterialAuthoringCatalogue _materials;
+        private readonly IMaterialPlacementCatalogue _placement;
 
         public StructureAuthoringSession(
             IRegionReadSource reads,
@@ -20,6 +22,8 @@ namespace VoxelEngine.Structures.Runtime
             int writeBudget)
         {
             _brush = new VoxelBrush(reads, mutations, materials, writeBudget);
+            _materials = materials;
+            _placement = materials as IMaterialPlacementCatalogue;
         }
 
         public bool BudgetExceeded => _brush.BudgetExceeded;
@@ -32,6 +36,22 @@ namespace VoxelEngine.Structures.Runtime
 
         public void Set(int x, int y, int z, byte material) =>
             _brush.Set(x, y, z, material);
+
+        public void SetWithPlacementStyle(int x, int y, int z, byte material)
+        {
+            ushort style = _placement != null
+                ? _placement.GetPlacementSurfaceStyle(material)
+                : material == VoxelGrid.MaterialEmpty
+                    ? SurfaceStyles.MaterialDefault
+                    : SurfaceStyles.Planar;
+
+            byte coating = _brush.GetCoating(x, y, z);
+            if (coating != Coatings.None && _materials != null
+                && !_materials.AllowsCoating(material, coating))
+                coating = Coatings.None;
+
+            _brush.SetStyled(x, y, z, material, style, coating);
+        }
 
         public void SetStyled(
             int x,
