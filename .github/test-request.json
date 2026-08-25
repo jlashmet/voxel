@@ -1,5 +1,5 @@
 {
-  "platform": "EditMode",
-  "test": "VoxelEngine.Tests.EditMode.ArchitectureShapeProgramBuilderTests.PrimitiveOverridesRejectNegativeCornerRadius",
-  "request_id": "template"
+  "platform": "PlayMode",
+  "test": "VoxelEngine.Tests.PlayMode.ModelViewerSceneTests.DragonStatueConvergesThroughProductionSurfacePath",
+  "request_id": "dragon-v10-hard-surface-20260824-1938"
 }
