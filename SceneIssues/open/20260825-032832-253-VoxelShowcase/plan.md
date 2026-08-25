@@ -20,10 +20,17 @@ At every rendered location, the solid voxel surface must expose exactly one logi
 
 ## Tasks
 
-- [ ] Trace active LOD coverage into render-visible solid chunk publication and identify the overlap path.
-- [ ] Record each diagnostic/replay/CI experiment in a numbered `experiment-*.md` file.
-- [ ] Add a focused regression that fails on the overlapping-coverage behavior before the fix.
-- [ ] Implement the smallest invariant-preserving fix.
-- [ ] Push production/test work to `fixes/agent-4` and validate the exact regression with targeted CI.
-- [ ] Replay the original capture and verify all marked regions.
-- [ ] Record final evidence, set terminal `issue.json` bookkeeping, and move the entire capture to `SceneIssues/closed/` in a separate commit.
+- [x] Trace active LOD coverage into render-visible solid chunk publication and identify the overlap path.
+- [x] Record each diagnostic/replay/CI experiment in a numbered `experiment-*.md` file as results are obtained.
+- [x] Add a focused regression that is red before the ownership mechanism exists.
+- [x] Implement the smallest invariant-preserving fix: keep residency overlap, but give final solid draw staging exclusive hierarchy ownership.
+- [x] Push production/test work to `fixes/agent-4` and validate the exact ownership regression with targeted CI (`66768a1a93fb92c468590925f3a07603e1dbdec6`, success).
+- [ ] Replay the original capture in the real standalone player and verify all three marked regions.
+- [ ] Record final replay evidence, set terminal `issue.json` bookkeeping, and move the entire capture to `SceneIssues/closed/` in a separate commit.
+
+## Current verification state
+
+- Pre-fix targeted run `32887385236` / request `86d3e4325f3536bb90bf5454081b68d1da6f66fe` was red because `SurfaceLodVisibleOwnership` did not yet exist.
+- Post-fix targeted run `32887616593` / request `66768a1a93fb92c468590925f3a07603e1dbdec6` passed the exact focused ownership regression.
+- First exact-view replay run `32890369760` / request `e83d91c68aaf90a257a5a81a8dd69d795f2368a9` was inconclusive: the runner was occupied by an interactive Unity editor before tests started, and the new replay filter had not yet been mapped into the shared standalone-player capture script.
+- Next step is a fresh replay request using the shared player path with the saved issue fixture and original 1364x836 framing. Do not close the issue unless that replay is clean.

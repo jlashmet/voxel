@@ -42,6 +42,8 @@ SURVEY_HEIGHT=""
 SURVEY_SPIN=""
 STATIONARY_SAMPLE=""
 SCENE_ISSUE=""
+SCREEN_WIDTH=1600
+SCREEN_HEIGHT=900
 KENTRIDGE_EVIDENCE=0
 IF_CONFIGURED=0
 
@@ -112,6 +114,19 @@ if [[ -n "$TEST_FILTER" ]]; then
       SCENE="Assets/Scenes/VoxelShowcase.unity"
       : "${RUN_SECONDS:=120}"
       : "${STATIONARY_SAMPLE:=10}"
+      ;;
+    VoxelEngine.Tests.PlayMode.ShowcaseSceneIssue032832ReplayTests|VoxelEngine.Tests.PlayMode.ShowcaseSceneIssue032832ReplayTests.*)
+      # SceneIssue 032832 must be judged from the same standalone VoxelShowcase player and saved
+      # camera fixture as the report, not from the PlayMode RenderTexture diagnostic alone. Keep
+      # the original aspect ratio so the normalized circle annotations identify the same regions.
+      SCENE="Assets/Scenes/VoxelShowcase.unity"
+      : "${RUN_SECONDS:=60}"
+      SCENE_ISSUE="SceneIssues/open/20260825-032832-253-VoxelShowcase/issue.json"
+      if [[ ! -f "$SCENE_ISSUE" ]]; then
+        SCENE_ISSUE="SceneIssues/closed/20260825-032832-253-VoxelShowcase/issue.json"
+      fi
+      SCREEN_WIDTH=1364
+      SCREEN_HEIGHT=836
       ;;
     VoxelEngine.Tests.PlayMode.ShowcaseTraversalPerformanceTests.ContinuousPlayerTraversalNeverStuttersOrOpensNearFarGap)
       # The PlayMode version is valuable for coverage/blocking assertions and now gets a bounded
@@ -222,7 +237,7 @@ BIN="$(find "$APP_BIN_DIR" -maxdepth 1 -type f -perm -111 -print -quit)"
 
 PLAYER_ARGS=(
   -logFile "$PLAYER_LOG"
-  -screen-width 1600 -screen-height 900 -screen-fullscreen 0
+  -screen-width "$SCREEN_WIDTH" -screen-height "$SCREEN_HEIGHT" -screen-fullscreen 0
   -voxel-uncapped
 )
 
