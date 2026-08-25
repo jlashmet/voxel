@@ -9,12 +9,19 @@ namespace VoxelEngine.Tests.EditMode
     public sealed class GpuLod2CutoverPolicyTests
     {
         [Test]
+        public void ProductionSurfaceExtractionUsesCpuMesherForEveryRing()
+        {
+            Assert.True(CpuTransvoxelChunkCache.GpuCutoverDisabled,
+                "The production scheduler must not instantiate the GPU extraction backend.");
+        }
+
+        [Test]
         public void SceneIssue20260823014011920GpuCutoverTargetsOnlyNearExactRings()
         {
             Assert.True(CpuTransvoxelChunkCache.SupportsGpuSurfaceStep(1),
-                "The existing full-resolution GPU cutover must remain enabled.");
+                "The dormant GPU oracle still supports full-resolution extraction.");
             Assert.True(CpuTransvoxelChunkCache.SupportsGpuSurfaceStep(2),
-                "LOD2 is the intended extension for this SceneIssue.");
+                "The dormant GPU oracle still supports the LOD2 implementation.");
             Assert.False(CpuTransvoxelChunkCache.SupportsGpuSurfaceStep(4),
                 "The step-4 feature-preserving exact/fallback ring must stay on the CPU path.");
             Assert.False(CpuTransvoxelChunkCache.SupportsGpuSurfaceStep(8),
