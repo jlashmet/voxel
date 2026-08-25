@@ -4,8 +4,8 @@ using VoxelEngine.Structures.Api;
 namespace Game.Structures.Runtime
 {
     /// <summary>
-    /// Stable production entry point for Dragon A. V10 is a clean hard-surface rebuild from empty
-    /// authoritative voxel state; V3-V9 remain only as iteration history and are not composed.
+    /// Stable production entry point for Dragon A. V11 is the current reference-silhouette sculpt;
+    /// V3-V10 remain iteration history and are not composed directly by production callers.
     /// </summary>
     public static class DragonStatueDetailedVoxelAuthoring
     {
@@ -14,7 +14,7 @@ namespace Game.Structures.Runtime
 
         public static void Author(IStructureAuthoringSession authoring, int3 origin)
         {
-            DragonStatueConceptV10HardSurfaceAuthoring.Author(authoring, origin);
+            DragonStatueConceptV11ReferenceSilhouetteAuthoring.Author(authoring, origin);
         }
     }
 }
