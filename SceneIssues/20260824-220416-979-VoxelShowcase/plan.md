@@ -31,7 +31,7 @@ The earlier production change in `KentridgeGrammarVoxelCatalogue` targeted a sup
 - [x] Remove the ineffective legacy-path entrance/window reflow change.
 - [x] Implement architecture-owned frontage placement in `KentridgeSharedHouseProgram` using shared `ExplicitOffsets`.
 - [x] Correct the regression to inspect emitted front-wall carve openings and verify the physical door against the published door anchor.
-- [ ] Run the focused EditMode regression through `ci-test/fixes` and require `ci/single-test` success.
+- [x] Run the focused EditMode regression through `ci-test/fixes` and require `ci/single-test` success (`32819100852`, 1 test, 63 s).
 - [ ] Run broader affected Kentridge/worldgen validation if the focused regression passes.
 - [ ] Review the final net diff against the pre-issue baseline and remove obsolete one-shot CI wiring.
 - [ ] Produce a fresh VoxelShowcase replay/render of the captured view and visually confirm the facade is no longer merged.
