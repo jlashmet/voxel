@@ -14,7 +14,9 @@ The live generated-house path is:
 
 The earlier production change in `KentridgeGrammarVoxelCatalogue` targeted a superseded Kentridge geometry path and therefore could not fix the live VoxelShowcase output. The focused regression also initially searched for filled glazing/detail boxes; the shared house compiler represents facade openings as `ShapeOp.EmitBox` carve operations.
 
-The production geometry fix and its affected Kentridge entrance-fixture validation are now green. The remaining blocker is the required fresh replay of the captured VoxelShowcase viewpoint. The existing `SceneIssueCapture` runtime already owns exact replay semantics: it resolves the recorded pose anchor, freezes both anchor and camera in `LateUpdate`, and restores the recorded projection settings. Replay is currently entered only through an EditorPrefs request, while the repository's visual-evidence path captures a development standalone player. The next implementation step is therefore to expose the existing replay behavior to that standalone path through an opt-in command-line issue-file argument, rather than adding a second camera-replay implementation.
+The production geometry fix and its affected Kentridge entrance-fixture validation are green. Standalone saved-view replay plumbing is also now implemented: `SceneIssueCapture` consumes the opt-in `-voxel-scene-issue` argument in development players and delegates to the same replay path used by editor replay, while `tools/showcase-player-capture.sh --scene-issue` builds a development player and forwards the issue path without changing its default behavior.
+
+A successful standalone replay artifact was captured by Actions run `32828066040` from source `550cee76ab9bcb3ad5b4ea6aeceecd89a29a4480`; the output visibly contains the scene-issue replay banner/circle at the saved view. However, the explicit `SceneIssueReplayVerification` frozen-pose observer was added later at `46db0f71fd4fb328f9db951ebf276bc1d98a3dd0`, so that earlier green run cannot prove the verifier itself executed. The next validation must run from the current head and require the verifier's success log before the issue can be closed.
 
 ## Intended invariant
 
@@ -36,11 +38,12 @@ The production geometry fix and its affected Kentridge entrance-fixture validati
 - [x] Correct the regression to inspect emitted front-wall carve openings and verify the physical door against the published door anchor.
 - [x] Run the focused EditMode regression through `ci-test/fixes` and require `ci/single-test` success (`32819100852`, 1 test, 63 s).
 - [x] Run broader affected Kentridge/worldgen validation (`experiment-006-entrance-fixture-ci.md`: Pub alignment + Medrare clearance both passed).
-- [ ] Add opt-in development-player scene-issue replay input that delegates to the existing frozen replay behavior.
-- [ ] Thread the issue path through `tools/showcase-player-capture.sh` without changing its default behavior.
-- [ ] Run the smallest relevant validation for the replay plumbing through `ci-test/fixes`.
+- [x] Add opt-in development-player scene-issue replay input that delegates to the existing frozen replay behavior.
+- [x] Thread the issue path through `tools/showcase-player-capture.sh` without changing its default behavior.
+- [ ] Run a current-head standalone replay and require `SceneIssueReplayVerification` to confirm the recorded camera position, rotation, and FOV were reached.
+- [ ] Record the fresh replay experiment and retain its screenshot/log evidence with the issue.
 - [ ] Review the final net diff against the pre-issue baseline and remove obsolete one-shot CI wiring.
-- [ ] Produce a fresh VoxelShowcase replay/render of the captured view and visually confirm the facade is no longer merged.
+- [ ] Produce/review the fresh VoxelShowcase replay render and visually confirm the facade is no longer merged.
 - [ ] Only after CI and fresh visual replay, update `issue.json` as fixed and record the final commit/evidence.
 
 ## Production attempts
@@ -60,6 +63,6 @@ Three production attempts is the escalation threshold; the current live-path imp
 - Final source contains one active implementation of the invariant, not parallel legacy/shared fixes.
 - Standalone replay consumes the saved issue record and uses the same frozen camera/anchor semantics as editor replay.
 - With no replay argument, standalone capture behavior is unchanged.
-- A fresh VoxelShowcase replay of the reported camera/scene no longer shows a merged door/window facade.
+- A fresh current-head VoxelShowcase replay of the reported camera/scene reaches the recorded frozen pose and no longer shows a merged door/window facade.
 
 The issue remains open until the fresh replay requirement is satisfied; structural and CI evidence alone is not labelled visual verification.
