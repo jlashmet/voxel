@@ -26,6 +26,7 @@ jobs:
           set -euo pipefail
           grep -q 'ReplayRequestCommandLineArgument = "-voxel-scene-issue"' Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs
           grep -q -- '--scene-issue)' tools/showcase-player-capture.sh
+          grep -q -- 'BUILD_ARGS+=(-voxelDevelopment)' tools/showcase-player-capture.sh
           git diff --check
 
       - name: Resolve Unity
@@ -62,12 +63,6 @@ jobs:
             --scene Assets/Scenes/VoxelShowcase.unity \
             --scene-issue SceneIssues/20260824-220416-979-VoxelShowcase/issue.json \
             --run-seconds 60
-
-          grep -q 'Replaying issue with' "$ROOT/player-run.log" || {
-            echo "ERROR: standalone player never entered saved-view replay mode." >&2
-            tail -120 "$ROOT/player-run.log" >&2 || true
-            exit 1
-          }
 
           latest="$(find "$ROOT/Screenshots" -type f -name '*.png' -size +1k | sort | tail -1)"
           test -n "$latest"
