@@ -1,11 +1,12 @@
-name: One-shot SceneIssue 220516 spatial diagnostic
+name: One-shot SceneIssue 220516 terrace coherence
 
 on:
   push:
     branches: [fixes]
     paths:
       - .github/workflows/one-shot-sceneissue-014011-core-only-topology.yml
-      - Assets/Tests/EditMode/KentridgeScene220516SpatialDiagnosticsTests.cs
+      - Assets/Tests/EditMode/KentridgeTerraceCoherenceTests.cs
+      - Packages/com.mountingforce.worldgen/Runtime/Voxel/KentridgeDistrictTerraceCatalogue.cs
 
 permissions:
   contents: read
@@ -44,13 +45,13 @@ jobs:
             sleep 5
           done
 
-      - name: Print combined placements in captured corridor
+      - name: Run terrace coherence regression
         shell: bash
         env:
-          TEST_FILTER: VoxelEngine.Tests.EditMode.KentridgeScene220516SpatialDiagnosticsTests.PrintCombinedPlacementsIntersectingCapturedLowerTownCorridor
+          TEST_FILTER: VoxelEngine.Tests.EditMode.KentridgeTerraceCoherenceTests
         run: |
           set -uo pipefail
-          ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue220516Spatial"
+          ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue220516Terrace"
           mkdir -p "$ROOT"
           status=0
           UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=7 \
@@ -60,20 +61,36 @@ jobs:
             -testFilter "$TEST_FILTER" \
             -testResults "$ROOT/results.xml" -logFile "$ROOT/unity.log" || status=$?
 
-          grep 'SCENE220516_PLACEMENT' "$ROOT/unity.log" || true
-          if [[ ! -s "$ROOT/results.xml" ]]; then
+          if [[ -s "$ROOT/results.xml" ]]; then
+            python3 - "$ROOT/results.xml" <<'PY'
+          import sys, xml.etree.ElementTree as ET
+          root = ET.parse(sys.argv[1]).getroot()
+          cases = root.findall('.//test-case')
+          print(f"SCENE_220516_TERRACE_TEST_COUNT {len(cases)}")
+          for case in cases:
+              print(f"{case.get('result')}: {case.get('fullname') or case.get('name')}")
+              failure = case.find('failure')
+              if failure is not None:
+                  print((failure.findtext('message') or '').strip())
+          if len(cases) != 1:
+              print(f"ERROR: expected exactly 1 terrace test, got {len(cases)}", file=sys.stderr)
+              sys.exit(2)
+          PY
+            parse_status=$?
+            if (( parse_status != 0 )); then status=$parse_status; fi
+          else
             echo "ERROR: Unity produced no test results." >&2
-            exit 3
+            status=3
           fi
           exit "$status"
 
-      - name: Upload spatial diagnostic
+      - name: Upload terrace diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: scene-220516-spatial-diagnostic
+          name: scene-220516-terrace-tests
           path: |
-            Artifacts/SceneIssue220516Spatial/results.xml
-            Artifacts/SceneIssue220516Spatial/unity.log
+            Artifacts/SceneIssue220516Terrace/results.xml
+            Artifacts/SceneIssue220516Terrace/unity.log
           if-no-files-found: warn
           retention-days: 3
