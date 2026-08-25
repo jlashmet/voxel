@@ -1,5 +1,5 @@
 {
   "platform": "EditMode",
-  "test": "VoxelEngine.Tests.EditMode.ArchitectureShapeProgramBuilderTests.PrimitiveOverridesRejectNegativeCornerRadius",
-  "request_id": "template"
+  "test": "Game.Structures.Tests.RavenSculptureVisualTests.RavenSculpture_WritesHighResolutionTexturedPng",
+  "request_id": "raven-sculpture-20260824-007"
 }
