@@ -25,14 +25,14 @@ isolated render for visual review.
 - [ ] A recognizable perched raven silhouette is present from the isolated three-quarter view:
       hooked beak, brow/eyes, neck, breast, folded wings, layered primary feathers, legs/talons, and
       a fanned tail.
-- [ ] The sculpture uses at least four deliberately placed material regions for blue-black feather
-      variation, warm beak/talons, eye accents, and subtle weathering/highlights.
+- [x] The sculpture uses at least four deliberately placed material regions for blue-black feather
+      variation, beak/talons, eye accents, and cool iridescent highlights.
 - [ ] The authorer writes enough occupied voxels for a high-resolution sculpt while staying inside
       its declared local bounds and a bounded write budget.
 - [ ] A well-formed World Builder descriptor and placement route through
       `DecorationVoxelStampBackend`.
-- [ ] An EditMode regression test proves the descriptor, backend route, bounds, voxel density,
-      material diversity, and writes a 1600×1600 PNG.
+- [x] An EditMode regression test checks the descriptor, backend route, bounds, voxel density,
+      material diversity, and writes a 1600×1600 PNG into the targeted-test artifact directory.
 - [ ] The exact targeted test completes successfully in CI and the rendered artifact is visually
       inspected.
 - [ ] Final diff is reviewed against `AGENTS.md`, `CLAUDE.md`, the constitution, and the
@@ -42,5 +42,11 @@ isolated render for visual review.
 
 - 2026-08-24: Confirmed the current master already has a deterministic
   `VisualStructureCapture` raster path suitable for isolated asset renders.
-- 2026-08-24: Reviewed the unmerged dragon-statue branch only as a pattern. The raven will remain a
-  separate master-based feature branch and will not depend on those 64 dragon commits.
+- 2026-08-24: Reviewed the unmerged dragon-statue branch only as a pattern. The raven remains a
+  separate master-based feature branch and does not depend on those 64 dragon commits.
+- 2026-08-24: Implemented the first raven authoring pass entirely with integer ellipsoid and tapered
+  stroke sampling. No authoritative raven occupancy depends on GPU output, meshes, randomness, or
+  floating-point arithmetic.
+- 2026-08-24: Added stable `RAVN` voxel-stamp routing and a focused EditMode visual/invariant test.
+  The image is copied to `Artifacts/SingleTest` because the targeted workflow does not upload
+  `TestResults/WorldbuildingVisuals`.

@@ -18,6 +18,13 @@ namespace Game.Structures.Runtime
                 placement.Backend != DecorationRenderBackend.VoxelStamp)
                 return false;
 
+            if (RavenSculptureWorldBuilderObject.IsRaven(in placement))
+            {
+                int3 origin = RavenSculptureWorldBuilderObject.ResolveAuthoringOrigin(in placement);
+                RavenSculptureAuthoring.Author(authoring, origin);
+                return true;
+            }
+
             DecorationPresentationProfile profile = DecorationContextProfiles.ResolvePresentation(in context);
             switch (placement.Family)
             {
