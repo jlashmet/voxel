@@ -9,31 +9,47 @@ Evidence:
 - artifact `9561358817` — `scene-221508-exact-view`
 - digest `sha256:2aecf9b4c7fff5ff35f6ef0df39cf2c03d9cc66a5a868e0d730ad9dd999fa034`
 
-## Original versus current view
+A second diagnostic removed only the circle annotations from a temporary copy of the replay request while preserving the saved camera and pose exactly. Actions run `32843924710` succeeded and produced unobscured evidence:
+
+- artifact `9561637234` — `scene-221508-unobscured-view`
+- digest `sha256:d47e47f379a71d4707ff1235d178ba81cdea4f963a77949b112b6eb8d59e88fa`
+
+## Corrected original-versus-current assessment
 
 The original capture has four marked locations.
 
-Three small lower marks lie along one conspicuous light/sky-coloured diagonal crack through the dark street surface. In the current exact replay those normalized locations land on a continuous road/piazza edge; the original street crack no longer reproduces. This is consistent with the refreshed Kentridge startup world committed while resolving the preceding SceneIssue.
+The first marked replay was too obstructed by its own red annotations to judge the lower seam reliably. The unobscured replay corrects that initial assessment: **the three small lower defects still reproduce**. They lie along one pale/sky-coloured straight strip cutting through the dark street/plaza surface.
 
-The large mark is centred on one of the covered market stalls, around a timber support and its stone shoe/plinth. The current replay's red annotation overlaps most of this join, so visual inspection alone cannot yet establish whether a remaining physical gap exists.
+Projecting the three saved screen positions through the recorded camera onto plausible horizontal plaza heights gives varying world X but almost identical world Z. At a representative Y=8.0 m plane, the three hits are approximately:
 
-## Ownership trace
+- X=122.34 m, Z=58.91 m
+- X=121.84 m, Z=58.93 m
+- X=121.36 m, Z=58.95 m
+
+Changing the assumed surface height from roughly 7.0–8.5 m moves the absolute Z together but preserves the same constant-Z relationship. This is strong evidence that all three visible lower marks are one authored world-space boundary around **Z≈590 dm**, not unrelated screen-space cracks.
+
+The large mark is centred on one covered market stall. In the unobscured replay the central timber post visibly seats into its dark stone shoe; the tiny pale vertical openings beside it are views through the open stall/background rather than a post-to-plinth air gap. The marked feature may still involve another beam/post alignment detail, but the local post/shoe contract itself is not broken.
+
+## Market-stall ownership trace
 
 The covered stalls are authored by `KentridgeTownDressingCatalogue.MarketStallProgram`.
 
-The local support geometry already has an explicit overlap contract:
+The local support geometry already has explicit overlap contracts:
 
 - each stone shoe is 5 dm × 3 dm × 5 dm;
 - each timber post is 3 dm × 23 dm × 3 dm;
 - the post is inset by 1 dm on X/Z inside its shoe;
-- the shoe spans local Y `[0,3)` while the post begins at Y `2`, giving 1 dm of vertical overlap.
+- the shoe spans local Y `[0,3)` while the post begins at Y `2`, giving 1 dm of vertical overlap;
+- the roof begins at Y=24 while the post reaches Y=25, again overlapping by 1 dm.
 
-Therefore there is no authored post-to-shoe air gap in the market-stall program. A production edit that merely enlarges one of those primitives would be unsupported by the source facts and risks hiding a rendering/annotation/perspective issue.
+Therefore a production edit that merely enlarges the shoe/post would not be supported by the source facts.
 
 ## Next diagnostic
 
-Replay the exact same camera with `circles` removed from a temporary copy of `issue.json` in the CI checkout only. The camera/pose remains unchanged; only the red overlay is suppressed. Inspect the market-stall join unobscured.
+Trace the constant-Z lower-town seam through the authoritative town-surface / road / piazza plan. Determine which adjacent authored surfaces own the two sides of the Z≈590 dm join and whether their voxel bounds leave an uncovered row, disagree in elevation, or are geometrically contiguous but rendered with a topology crack.
 
-If a real slit remains despite the source overlap, trace below the feature program into placement/rasterisation/rendering. If the join is visually continuous, treat the large mark as already resolved and close this SceneIssue based on current committed world state rather than making a speculative production edit.
+Only after that ownership boundary is proven should a regression and production fix be written. The lower three circles likely share one causal invariant and should be fixed together.
+
+The large market-stall mark should be reassessed after the broad seam is fixed; it may be a separate issue or may simply have been highlighting the same nearby background gap.
 
 Production attempts used: **0 / 3**.
