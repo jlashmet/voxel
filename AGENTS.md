@@ -40,6 +40,16 @@ An agent works on only its assigned capture until it reaches a documented termin
 different agent slots may handle different captures concurrently. Read `SceneIssues/README.md` and
 follow its fixing process. Everything below about reuse and forbidden suffixes still applies.
 
+**Keep long-lived feature branches current with master.** Fetch `origin` and merge current
+`origin/master` into the assigned feature branch periodically while work is in progress, not only at
+the final promotion step. At minimum, refresh at assignment/task start, before beginning a new
+substantial implementation attempt after other work may have landed, before the final targeted-CI
+request, and immediately before promotion to `master`. Preserve both sides of the history: use a
+normal merge/fast-forward as appropriate, never discard unmerged feature work, and never force-push
+the feature branch merely to catch up with master. If a master merge changes production code, tests,
+scene data, or another input relevant to the behavior under test, treat the integrated feature head
+as a new testable state and rerun the affected targeted CI before relying on older green evidence.
+
 **Queue admission is master-first.** Every capture directory must already exist on `origin/master`
 under `SceneIssues/open/` before a fixing agent may claim or edit it. New
 `SceneIssues/open/<capture>/` directories are intake and must be committed and pushed through
