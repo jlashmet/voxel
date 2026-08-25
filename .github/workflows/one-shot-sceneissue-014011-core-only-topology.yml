@@ -45,7 +45,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          SOURCE=SceneIssues/20260824-221508-896-VoxelShowcase/issue.json
+          SOURCE=SceneIssues/open/20260824-221508-896-VoxelShowcase/issue.json
           ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue221508NoCircles"
           mkdir -p "$ROOT"
           test -s "$SOURCE"
@@ -157,7 +157,7 @@ jobs:
         with:
           name: scene-221508-unobscured-view
           path: |
-            SceneIssues/20260824-221508-896-VoxelShowcase/screenshot-001.png
+            SceneIssues/open/20260824-221508-896-VoxelShowcase/screenshot-001.png
             Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes
             Artifacts/SceneIssue221508NoCircles/issue-no-circles.json
             Artifacts/SceneIssue221508NoCircles/replay-latest.png

@@ -37,7 +37,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ISSUE='SceneIssues/20260823-014011-920-VoxelShowcase'
+          ISSUE='SceneIssues/closed/20260823-014011-920-VoxelShowcase'
           mkdir -p Artifacts/SceneIssue014011Comparison
           cp "$ISSUE/screenshot-001.png" Artifacts/SceneIssue014011Comparison/original.png
           cp "$ISSUE/diagnostic-cpu-lod2.png" Artifacts/SceneIssue014011Comparison/cpu-lod2.png

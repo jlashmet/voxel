@@ -19,13 +19,35 @@ This directory is intentionally outside `Assets/` so screenshots and JSON fixtur
 A multi-frame capture is written to:
 
 ```text
-SceneIssues/<timestamp>-<scene>/
+SceneIssues/open/<timestamp>-<scene>/
   issue.json
   screenshot-001.png
   screenshot-002.png
   screenshot-003.png
   ...
 ```
+
+### Publish captures to the queue
+
+Every new capture is saved beneath `SceneIssues/open/` and must be committed and pushed through
+`master` before an agent can work on it. `origin/master:SceneIssues/open/` is the authoritative
+intake queue. Never add a new capture on `fixes`, `fixes/agent-N`, or a CI request branch; those
+branches may only modify captures that already exist on `origin/master`.
+
+From an up-to-date local `master`, publish every newly saved capture with:
+
+```sh
+./push_scene_issues.sh
+```
+
+The command refuses to run off `master`, requires local and remote master to match, validates that
+each new capture is open, stages only brand-new directories beneath `SceneIssues/open/`, creates one
+intake commit, and pushes it to `origin/master`. It never folds edits to existing tickets or other
+staged work into the intake commit.
+
+Only `status: fixed` captures belong under `SceneIssues/closed/`. A blocked capture remains under
+`SceneIssues/open/`; blocked is not a terminal queue state. Keep `issue.json.status` consistent with
+folder membership so it remains a useful audit check rather than replacing the directory queue.
 
 The PNGs remain clean, unmodified captures. The circles are stored as structured normalized screen-space data in the matching frame inside `issue.json`. This keeps the original evidence suitable for visual regression work while still preserving exactly which region the developer was pointing at.
 
@@ -68,6 +90,8 @@ Agents reuse those branches across assignments and never create a branch per cap
 agent works on exactly one assigned capture at a time; separate slots may work on separate captures
 concurrently. The coordinator's atomic local registry is the claim authority, so an agent must not
 self-select another open capture or continue into the queue after finishing its assignment.
+The coordinator reads only `origin/master:SceneIssues/open/` and rejects completion from a worker
+branch that introduces a capture ID absent from master.
 
 When the coordinator assigns an agent a captured issue:
 
@@ -77,7 +101,7 @@ When the coordinator assigns an agent a captured issue:
    use the former shared `fixes` branch.
 2. Work only on the capture named by the coordinator. Queue order and exclusive claims belong to
    the coordinator; do not select another open directory yourself.
-3. Work on exactly that one issue until it is terminal. Read its note and inspect **all** of its screenshots and circled regions before changing code.
+3. Work on exactly that one open issue until it is fixed or concretely blocked. Read its note and inspect **all** of its screenshots and circled regions before changing code.
 4. Replay the issue and step through every captured viewpoint. Confirm the failure in the marked regions and determine the smallest responsible subsystem before editing production code.
 5. Add or extend a focused regression using the saved scene/pose fixture. For transient problems, use all captured frames that are materially different rather than arbitrarily choosing one screenshot.
 6. Implement the smallest fix that resolves the reproduced problem without weakening coverage, performance budgets, or unrelated assertions.
@@ -89,11 +113,12 @@ When the coordinator assigns an agent a captured issue:
    `tools/unity-run.sh` or start a second editor unsafely.
 10. Replay the original capture again after the fix. For multi-frame issues, check every recorded viewpoint and every marked region.
 11. Commit the production/test fix on the assigned `fixes/agent-N` branch with a message that names the capture, for example `Fix scene issue 20260822-...: prevent far-field flicker`. This gives the fix a real commit SHA.
-12. Update that issue's `issue.json`: set `status` to `fixed`, fill `resolvedUtc`, summarize the resolution in `resolutionSummary`, record the regression test in `regressionTest`, and put the production/test commit SHA from the previous step in `fixCommit`. If the issue cannot be reproduced or is blocked, record that explicitly instead of pretending it is fixed.
-13. Commit that issue bookkeeping on the same assigned `fixes/agent-N` branch, for example `Resolve scene issue 20260822-...`. The extra bookkeeping commit is deliberate: it avoids inventing the SHA of a commit before that commit exists.
+12. For a verified fix, update `issue.json`: set `status` to `fixed`, fill `resolvedUtc`, summarize the resolution in `resolutionSummary`, record the regression test in `regressionTest`, and put the production/test commit SHA from the previous step in `fixCommit`. Then move the entire capture directory from `SceneIssues/open/` to `SceneIssues/closed/`. If the issue is blocked, document the blocker and experiments but keep it in `open/`; blocked is not closed or complete.
+13. Commit the issue update and open-to-closed move on the same assigned `fixes/agent-N` branch, for example `Resolve scene issue 20260822-...`. The extra bookkeeping commit is deliberate: it avoids inventing the SHA of a commit before that commit exists.
 14. Push the assigned feature branch after the issue is reproduced, fixed, regressed,
     replay-verified, documented, and committed. The coordinator verifies the terminal `issue.json`
-    directly from that remote branch, including that a fixed issue's `fixCommit` is on the branch.
+    directly from `SceneIssues/closed/` on that remote branch, including that the open path is gone
+    and the fixed issue's `fixCommit` is on the branch.
     It also requires `ci/single-test` success on the assigned CI request branch and verifies that
     branch contains the recorded fix commit.
 15. Stop after pushing the terminal bookkeeping and wait for the coordinator. It will assign the
@@ -107,13 +132,16 @@ targeted CI run, a probe, a hypothesis tested in code. **Every experiment gets i
 file in the issue's own capture directory**, whether it succeeded or failed:
 
 ```text
-SceneIssues/<timestamp>-<scene>/
+SceneIssues/open/<timestamp>-<scene>/
   issue.json
   screenshot-001.png
   experiment-001-gpu-boundary-ownership.md
   experiment-002-coarse-lod-phase.md
   ...
 ```
+
+These files move together to the matching `SceneIssues/closed/<timestamp>-<scene>/` directory when
+the issue is fixed. Historical evidence must not be split across open and closed paths.
 
 Number them in the order they were run and give each a short slug naming the hypothesis. Keep
 each file concise — a screenful, not an essay — and write it immediately after the experiment

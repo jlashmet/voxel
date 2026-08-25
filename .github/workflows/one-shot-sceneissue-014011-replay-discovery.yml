@@ -22,7 +22,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          out=SceneIssues/20260823-014011-920-VoxelShowcase/notes-replay-discovery.txt
+          out=SceneIssues/closed/20260823-014011-920-VoxelShowcase/notes-replay-discovery.txt
           {
             echo '=== Real capture / visual test classes ==='
             grep -RIl --include='*.cs' -E 'GoldenShowcaseRealCaptureTests|GoldenShowcaseVisualTests|GpuSurfaceScaleCollapseTests' Assets | sort || true

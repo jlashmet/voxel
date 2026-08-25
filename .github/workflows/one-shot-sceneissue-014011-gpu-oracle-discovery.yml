@@ -22,7 +22,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          out=SceneIssues/20260823-014011-920-VoxelShowcase/notes-gpu-oracle-discovery.txt
+          out=SceneIssues/closed/20260823-014011-920-VoxelShowcase/notes-gpu-oracle-discovery.txt
           {
             echo '=== tests using GPU surface readbacks ==='
             grep -RIn --include='*.cs' -E 'ReadDensity\(|ReadSampleMaterials\(|ReadCellCounts\(|GpuSurfaceExtractor' Assets/Tests Assets/VoxelEngine/CI 2>/dev/null || true

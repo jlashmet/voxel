@@ -22,8 +22,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ISSUE='SceneIssues/20260823-014011-920-VoxelShowcase'
-          OUT='SceneIssues/20260823-014011-920-VoxelShowcase/previews'
+          ISSUE='SceneIssues/closed/20260823-014011-920-VoxelShowcase'
+          OUT='SceneIssues/closed/20260823-014011-920-VoxelShowcase/previews'
           rm -rf "$OUT"
           mkdir -p "$OUT"
           for pair in before:screenshot-001.png after:verification-lod2-attempt2.png; do

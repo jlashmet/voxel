@@ -22,7 +22,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          OUT=SceneIssues/20260823-014011-920-VoxelShowcase/notes-boundary-source.txt
+          OUT=SceneIssues/closed/20260823-014011-920-VoxelShowcase/notes-boundary-source.txt
           mkdir -p "$(dirname "$OUT")"
           {
             echo '=== matching files ==='

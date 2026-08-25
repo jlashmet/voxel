@@ -12,7 +12,8 @@ Use this skill whenever working on **`jlashmet/voxel`**.
 
 If a task is more than a trivial one-step edit, create or update a durable Markdown plan before
 implementation begins. Keep it next to the work it documents: scene-issue plans and experiment
-notes live in the capture directory under `SceneIssues/` — see `SceneIssues/README.md`.
+notes live in their capture directory under `SceneIssues/open/` while active and move with the
+capture to `SceneIssues/closed/` when fixed — see `SceneIssues/README.md`.
 
 - Resume an existing relevant plan instead of creating a duplicate.
 - State the goal, scope, important constraints, and concrete acceptance criteria.
@@ -38,6 +39,17 @@ by that agent; never create a branch per capture, and never push to the former s
 An agent works on only its assigned capture until it reaches a documented terminal state, although
 different agent slots may handle different captures concurrently. Read `SceneIssues/README.md` and
 follow its fixing process. Everything below about reuse and forbidden suffixes still applies.
+
+**Queue admission is master-first.** Every capture directory must already exist on `origin/master`
+under `SceneIssues/open/` before a fixing agent may claim or edit it. New
+`SceneIssues/open/<capture>/` directories are intake and must be committed and pushed through
+`master`; never introduce a new capture on `fixes/agent-N`, `ci-test/fixes/agent-N`, or the retired
+shared `fixes` branch. If an assigned directory is absent from `origin/master`, stop and report the
+invalid assignment.
+
+Folder membership is queue state. Only a verified fixed issue moves from `SceneIssues/open/` to
+`SceneIssues/closed/`, in the separate bookkeeping commit after the production/test fix commit.
+Blocked work stays in `open/`; it is neither closed nor complete.
 
 For every other task, a task uses **exactly two branches for its entire lifetime**: one feature
 branch and one CI request branch. Both names are fixed when the task starts and never change.

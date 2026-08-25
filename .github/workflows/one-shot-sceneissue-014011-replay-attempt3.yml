@@ -57,7 +57,7 @@ jobs:
           python3 - <<'PY'
           import json
           from pathlib import Path
-          issue = json.loads(Path('SceneIssues/20260823-014011-920-VoxelShowcase/issue.json').read_text())
+          issue = json.loads(Path('SceneIssues/closed/20260823-014011-920-VoxelShowcase/issue.json').read_text())
           camera = issue['captures'][0]['camera']
           fixture = {
               'hierarchyPath': camera['hierarchyPath'],
@@ -123,7 +123,7 @@ jobs:
         run: |
           set -euo pipefail
           ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue014011Attempt3/RealPlayer"
-          ISSUE="SceneIssues/20260823-014011-920-VoxelShowcase"
+          ISSUE="SceneIssues/closed/20260823-014011-920-VoxelShowcase"
           final="$(find "$ROOT/Screenshots" -type f -name '*.png' -size +1k | sort | tail -1)"
           test -n "$final"
           cp "$final" "$ISSUE/verification-lod2-attempt3.png"

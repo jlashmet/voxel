@@ -98,6 +98,7 @@ namespace MountingForce.DeveloperTools
 
         private const KeyCode CaptureKey = KeyCode.F8;
         private const string CaptureDirectoryName = "SceneIssues";
+        private const string OpenCaptureDirectoryName = "open";
         private const string RecordFileName = "issue.json";
         private const int CircleSegments = 40;
 
@@ -160,6 +161,11 @@ namespace MountingForce.DeveloperTools
                 return Path.Combine(projectDirectory.FullName, CaptureDirectoryName);
 #endif
             return Path.Combine(Application.persistentDataPath, CaptureDirectoryName);
+        }
+
+        public static string GetOpenCaptureRootPath()
+        {
+            return Path.Combine(GetCaptureRootPath(), OpenCaptureDirectoryName);
         }
 
         private void Awake()
@@ -611,7 +617,7 @@ namespace MountingForce.DeveloperTools
 
             try
             {
-                string root = GetCaptureRootPath();
+                string root = GetOpenCaptureRootPath();
                 string captureDirectory = Path.Combine(root, _pendingRecord.id);
                 Directory.CreateDirectory(captureDirectory);
 
