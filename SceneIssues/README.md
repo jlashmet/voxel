@@ -93,11 +93,21 @@ self-select another open capture or continue into the queue after finishing its 
 The coordinator reads only `origin/master:SceneIssues/open/` and rejects completion from a worker
 branch that introduces a capture ID absent from master.
 
+Because these are persistent branches and several workers may merge fixes concurrently, a scene-
+issue worker must **periodically fetch `origin` and merge current `origin/master` into
+`fixes/agent-N` while the assignment is still in progress**. Do this at assignment start, before a
+new substantial fix attempt when other work may have landed, before the final targeted-CI request,
+and immediately before merging the verified result to master. Resolve conflicts by preserving both
+the assigned issue's work and intervening master changes; never reset away unmerged work or
+force-push the feature branch simply to catch up. If the merge changes tested inputs, validate the
+new integrated feature head rather than relying on CI from the pre-merge state.
+
 When the coordinator assigns an agent a captured issue:
 
 1. Fetch `origin` and use only the feature and CI branches named in the assignment. If the feature
    branch does not exist, create it from current `origin/master`. If it already exists, resume it
-   without discarding unmerged work and bring it up to date with `origin/master` as needed. Never
+   without discarding unmerged work and merge current `origin/master` into it before continuing.
+   Continue refreshing from master periodically during the assignment as described above. Never
    use the former shared `fixes` branch.
 2. Work only on the capture named by the coordinator. Queue order and exclusive claims belong to
    the coordinator; do not select another open directory yourself.
