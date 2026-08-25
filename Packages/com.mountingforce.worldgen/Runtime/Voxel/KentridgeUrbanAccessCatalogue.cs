@@ -9,11 +9,9 @@ using VoxelEngine.Structures.Api;
 namespace MountingForce.WorldGen.Voxel
 {
     /// <summary>
-    /// Pedestrian circulation for Kentridge's inhabited block faces. Deep terrace changes become
-    /// hard stair streets; shallow Lower Ward changes remain graded so a minor level transition does
-    /// not read as another monumental staircase beside the town's primary ascent. Each route also
-    /// lays an L-shaped lower contour walk in front of the embedded facades and marks the deliberate
-    /// court opening with a small gateway.
+    /// Hard pedestrian circulation for Kentridge's inhabited block faces. Each route cuts a narrow
+    /// stair slot through the terrace, lays an L-shaped lower contour walk in front of the embedded
+    /// facades, and marks the deliberate court opening with a small gateway.
     /// </summary>
     public static class KentridgeUrbanAccessCatalogue
     {
@@ -24,7 +22,6 @@ namespace MountingForce.WorldGen.Voxel
         private const int GatePierDm = 4;
         private const int CheekWallWidthDm = 2;
         private const int CheekWallHeightDm = 8;
-        private const int ShallowGradeThresholdDm = 15;
 
         private sealed class CompiledAccess
         {
@@ -162,7 +159,6 @@ namespace MountingForce.WorldGen.Voxel
             int heightDm = Math.Max(
                 route.DoorLevelBelowShelfDm + WalkThicknessDm + StairClearanceDm + 2,
                 WalkThicknessDm + GateHeightDm + GateRoofHeightDm + 2);
-            bool shallowGrade = IsShallowGrade(route);
 
             return new CompiledAccess
             {
@@ -172,21 +168,16 @@ namespace MountingForce.WorldGen.Voxel
                     (maxXDm - minXDm) * s,
                     heightDm * s,
                     (maxZDm - minZDm) * s),
-                Program = AccessProgram(route, minXDm, minZDm, rise, shallowGrade, settings),
-                MaxPrimitives = shallowGrade ? 14 : 16 + route.StairSteps * 3,
+                Program = AccessProgram(route, minXDm, minZDm, rise, settings),
+                MaxPrimitives = 16 + route.StairSteps * 3,
             };
         }
-
-        private static bool IsShallowGrade(KentridgeUrbanAccessRoute route) =>
-            route.Band == KentridgeUrbanBand.LowerWard
-            && route.DoorLevelBelowShelfDm <= ShallowGradeThresholdDm;
 
         private static int[] AccessProgram(
             KentridgeUrbanAccessRoute route,
             int originXDm,
             int originZDm,
             int rise,
-            bool shallowGrade,
             VoxelWorldGenSettings settings)
         {
             int s = settings.VoxelsPerDecimetre;
@@ -223,7 +214,7 @@ namespace MountingForce.WorldGen.Voxel
                 : settings.Materials.Resolve(MaterialRole.RoofTile);
             var b = new ProgramBuilder();
 
-            // Cut headroom first; the final grade/stair and walk primitives become the exposed surface.
+            // Cut headroom first; later hard stair/walk primitives become the final exposed surfaces.
             b.Carve(
                 slotX,
                 0,
@@ -239,37 +230,23 @@ namespace MountingForce.WorldGen.Voxel
             b.Box(returnX, 0, returnZ,
                 walk, thickness, returnLength, paving);
 
+            // The court stair begins on the lower contour and reaches the authored shelf surface.
             int cheekW = CheekWallWidthDm * s;
-            if (shallowGrade)
+            int cheekH = CheekWallHeightDm * s;
+            for (int i = 0; i < route.StairSteps; i++)
             {
-                // Lower Ward blocks are intentionally landscape-led. A roughly one-metre elevation
-                // change should read as a graded court approach, not as another monumental stone
-                // staircase competing with the primary town climb. The filled base keeps the ramp
-                // supported after the access slot is carved.
-                b.Box(stairX, 0, stairZ,
-                    stairWidth, thickness, stairLength, stone);
-                b.Ramp(stairX, thickness, stairZ,
-                    stairWidth, rise, stairLength, 2, stone);
-            }
-            else
-            {
-                // Deep market/upper/civic transitions remain hard stair streets with cheek walls.
-                int cheekH = CheekWallHeightDm * s;
-                for (int i = 0; i < route.StairSteps; i++)
-                {
-                    int z0 = stairZ + stairLength * i / route.StairSteps;
-                    int z1 = stairZ + stairLength * (i + 1) / route.StairSteps;
-                    int depth = Math.Max(1, z1 - z0);
-                    int y = route.StairSteps <= 1
-                        ? rise
-                        : rise * i / (route.StairSteps - 1);
+                int z0 = stairZ + stairLength * i / route.StairSteps;
+                int z1 = stairZ + stairLength * (i + 1) / route.StairSteps;
+                int depth = Math.Max(1, z1 - z0);
+                int y = route.StairSteps <= 1
+                    ? rise
+                    : rise * i / (route.StairSteps - 1);
 
-                    b.Box(stairX, y, z0, stairWidth, thickness, depth, stone);
-                    b.Box(stairX - cheekW, y, z0,
-                        cheekW, cheekH, depth, dark);
-                    b.Box(stairX + stairWidth, y, z0,
-                        cheekW, cheekH, depth, dark);
-                }
+                b.Box(stairX, y, z0, stairWidth, thickness, depth, stone);
+                b.Box(stairX - cheekW, y, z0,
+                    cheekW, cheekH, depth, dark);
+                b.Box(stairX + stairWidth, y, z0,
+                    cheekW, cheekH, depth, dark);
             }
 
             int topZ = stairZ + stairLength;
@@ -315,17 +292,6 @@ namespace MountingForce.WorldGen.Voxel
                 int sx, int sy, int sz)
             {
                 Box(x, y, z, sx, sy, sz, 0, PrimitiveMode.Carve);
-            }
-
-            public void Ramp(
-                int x, int y, int z,
-                int sx, int sy, int sz,
-                byte axis,
-                byte material)
-            {
-                if (sx <= 0 || sy <= 0 || sz <= 0) return;
-                Op(ShapeOp.EmitRamp, x, y, z, sx, sy, sz,
-                    axis, material, 0, 0, (int)PrimitiveMode.Fill);
             }
 
             public void Prism(
