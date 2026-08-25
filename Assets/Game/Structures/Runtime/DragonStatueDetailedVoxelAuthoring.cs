@@ -5,8 +5,8 @@ namespace Game.Structures.Runtime
 {
     /// <summary>
     /// Stable Model Viewer entry point for Dragon A. The sculpture is authored on the 10 cm
-    /// canonical voxel grid: V3 owns the coherent base anatomy and V4 replaces the silhouette
-    /// forms that failed production review without reviving the retired legacy stack.
+    /// canonical voxel grid. Each production-reviewed pass owns a tightly scoped replacement;
+    /// rejected silhouettes are removed before their successors are authored.
     /// </summary>
     public static class DragonStatueDetailedVoxelAuthoring
     {
@@ -17,6 +17,7 @@ namespace Game.Structures.Runtime
         {
             DragonStatueConceptV3Authoring.Author(authoring, origin);
             DragonStatueConceptV4SilhouettePass.Apply(authoring, origin);
+            DragonStatueConceptV5ProportionPass.Apply(authoring, origin);
         }
     }
 }
