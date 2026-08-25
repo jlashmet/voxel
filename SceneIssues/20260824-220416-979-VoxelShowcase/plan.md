@@ -48,7 +48,7 @@ A final net-diff review against pre-issue baseline `a2c8ab9427ed245450099d06f476
 - [x] Record the fresh replay experiment and retain its screenshot/log evidence with the issue (`experiment-008-current-head-replay-success.md`, artifact `9556851106`).
 - [x] Review the final net diff against the pre-issue baseline and remove obsolete 220416 one-shot CI wiring.
 - [x] Produce/review the fresh VoxelShowcase replay render and visually confirm the facade is no longer merged.
-- [ ] Update `issue.json` as fixed in a separate bookkeeping commit.
+- [x] Update `issue.json` as fixed in a separate bookkeeping commit (`aafd9e8382a444ce537990b09e55883f412eb948`).
 
 ## Production attempts
 
@@ -69,4 +69,4 @@ Three production attempts is the escalation threshold; the accepted live-path im
 - [x] With no replay argument, standalone capture behavior is unchanged.
 - [x] A fresh current-head VoxelShowcase replay of the reported camera/scene reaches the recorded frozen pose and no longer shows a merged door/window facade.
 
-The technical and visual acceptance requirements are satisfied. Only the separate `issue.json` resolution bookkeeping remains.
+Issue `20260824-220416-979-VoxelShowcase` is resolved and all acceptance criteria are satisfied.
