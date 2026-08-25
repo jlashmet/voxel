@@ -142,9 +142,9 @@ namespace Game.ModelViewer
         {
             if (index == 0)
                 return new ModelEntry(
-                    "Dragon A · Reference Voxels",
-                    DragonStatueDetailedVoxelAuthoring.LocalMin,
-                    DragonStatueDetailedVoxelAuthoring.LocalSize,
+                    "Dragon A · World Builder Production",
+                    DragonStatueWorldBuilderObject.LocalMin,
+                    DragonStatueWorldBuilderObject.LocalSize,
                     FeatureKind.Structure);
             if (index == 1)
                 return new ModelEntry(
@@ -186,9 +186,7 @@ namespace Game.ModelViewer
             {
                 IStructureAuthoringSession authoring = VoxelEngineBootstrap.CreateStructureAuthoring(
                     _storage, writeBudget: 5_000_000);
-                int3 origin = -model.LocalMin;
-                DragonStatueDetailedVoxelAuthoring.Author(authoring, origin);
-                DragonStatueReferenceRefinement.Apply(authoring, origin);
+                AuthorProductionDragon(authoring, -model.LocalMin);
                 voxelsWritten = authoring.TotalVoxelsWritten;
                 _activeLocalMin = int3.zero;
                 _activeLocalSize = model.LocalSize;
@@ -262,7 +260,7 @@ namespace Game.ModelViewer
             return raster.VoxelsWritten;
         }
 
-        private static void AuthorLegacyDragon(IStructureAuthoringSession authoring, int3 origin)
+        private static void AuthorProductionDragon(IStructureAuthoringSession authoring, int3 origin)
         {
             var placement = DragonStatueWorldBuilderObject.CreatePlacement(
                 new GeneratedPropId(0xD12A60UL), 1, 1, origin, new int3(0, 0, -1));
@@ -280,6 +278,12 @@ namespace Game.ModelViewer
             };
             if (!DecorationVoxelStampBackend.TryAuthor(authoring, in placement, in context))
                 throw new InvalidOperationException("Dragon Statue World Builder backend refused its placement.");
+        }
+
+        private static void AuthorLegacyDragon(IStructureAuthoringSession authoring, int3 origin)
+        {
+            DragonStatueSculptAuthoring.Author(authoring, origin);
+            DragonStatueDetailPass.Apply(authoring, origin);
         }
 
         private static void RegisterViewerMaterials(IVoxelStorageRuntime storage)
