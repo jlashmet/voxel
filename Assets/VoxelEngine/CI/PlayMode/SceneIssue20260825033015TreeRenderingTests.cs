@@ -126,9 +126,22 @@ namespace VoxelEngine.CI
                 Assert.That(cutsAfter.Count, Is.GreaterThan(cutsBefore.Count));
                 Assert.That(renderer.LastDamageBatchReleaseCount, Is.GreaterThan(releaseBefore));
 
+                var newCuts = new List<int>();
+                int trunkCuts = 0;
+                foreach (int cut in cutsAfter)
+                {
+                    if (cutsBefore.Contains(cut)) continue;
+                    newCuts.Add(cut);
+                    if ((uint)cut < (uint)skeleton.Branches.Count && skeleton.Branches[cut].Level == 0)
+                        trunkCuts++;
+                }
+                Assert.That(trunkCuts, Is.GreaterThan(0),
+                            "The saved shot no longer performs the structural trunk sever exercised by this capture.");
+
+                bool targetStandingAfter = renderer.TryGetDynamicPresentationRoot(treeIndex, out Transform treeRoot);
                 int barkAfter = 0;
                 int leavesAfter = 0;
-                if (renderer.TryGetDynamicPresentationRoot(treeIndex, out Transform treeRoot))
+                if (targetStandingAfter)
                 {
                     Transform lod0 = treeRoot.Find("LOD0");
                     Assert.That(lod0, Is.Not.Null);
@@ -143,20 +156,6 @@ namespace VoxelEngine.CI
                 after = Capture(camera, target);
                 afterWithoutStandingTrees = CaptureWithoutStandingTrees(camera, target, renderer);
                 int standingPixelsAfter = CountChangedPixelsInMarkedCircle(after, afterWithoutStandingTrees);
-                int allowedStandingPixels = Mathf.Max(32, Mathf.CeilToInt(standingPixelsBefore * 0.10f));
-                Assert.That(standingPixelsAfter, Is.LessThanOrEqualTo(allowedStandingPixels),
-                            $"The severed tree still leaves a rooted trunk in the captured marked region: " +
-                            $"standing pixels {standingPixelsBefore}->{standingPixelsAfter}, allowed {allowedStandingPixels}.");
-
-                var newCuts = new List<int>();
-                int trunkCuts = 0;
-                foreach (int cut in cutsAfter)
-                {
-                    if (cutsBefore.Contains(cut)) continue;
-                    newCuts.Add(cut);
-                    if ((uint)cut < (uint)skeleton.Branches.Count && skeleton.Branches[cut].Level == 0)
-                        trunkCuts++;
-                }
 
                 string outputDirectory = Path.Combine(
                     Directory.GetParent(Application.dataPath)!.FullName,
@@ -165,13 +164,18 @@ namespace VoxelEngine.CI
                 File.WriteAllBytes(Path.Combine(outputDirectory, "verification-after.png"), after.EncodeToPNG());
                 File.WriteAllText(Path.Combine(outputDirectory, "verification-metrics.txt"),
                     $"standingPixelsBefore={standingPixelsBefore}\n" +
-                    $"standingPixelsAfter={standingPixelsAfter}\n" +
-                    $"allowedStandingPixels={allowedStandingPixels}\n" +
+                    $"standingPixelsAfterAllProceduralTrees={standingPixelsAfter}\n" +
+                    $"targetStandingPresentationAfter={targetStandingAfter}\n" +
                     $"markedRadius={MarkedRadius:F6}\n" +
                     $"barkBefore={barkBefore}\n" +
                     $"barkAfter={barkAfter}\n" +
                     $"leavesBefore={leavesBefore}\n" +
                     $"leavesAfter={leavesAfter}\n");
+
+                Assert.That(targetStandingAfter, Is.False,
+                            "The captured level-zero sever left the target tree's rooted dynamic presentation active.");
+                Assert.That(standingPixelsAfter, Is.LessThan(standingPixelsBefore),
+                            "The saved marked region did not lose any standing-tree contribution after the target sever.");
 
                 TreeDamageState damage = TreeWorldRuntime.Damage[treeIndex];
                 float localImpactY = hitMetres.y - instance.PositionMetres.y;
@@ -180,8 +184,9 @@ namespace VoxelEngine.CI
                     $"treeIndex={treeIndex} species={instance.Species} beganBatched={beganBatched} " +
                     $"impact={hitMetres} localImpactY={localImpactY:F3} height={skeleton.Height:F3} " +
                     $"newCuts=[{string.Join(",", newCuts)}] trunkCuts={trunkCuts} severed={damage.Severed} " +
-                    $"barkBefore={barkBefore} barkAfter={barkAfter} leavesBefore={leavesBefore} leavesAfter={leavesAfter} " +
-                    $"standingPixelsBefore={standingPixelsBefore} standingPixelsAfter={standingPixelsAfter} " +
+                    $"targetStandingAfter={targetStandingAfter} barkBefore={barkBefore} barkAfter={barkAfter} " +
+                    $"leavesBefore={leavesBefore} leavesAfter={leavesAfter} " +
+                    $"standingPixelsBefore={standingPixelsBefore} standingPixelsAfterAllTrees={standingPixelsAfter} " +
                     $"batchReleaseDelta={renderer.LastDamageBatchReleaseCount - releaseBefore}");
             }
             finally
