@@ -62,14 +62,14 @@ jobs:
           test -x "$UNITY_PATH"
           echo "path=$UNITY_PATH" >> "$GITHUB_OUTPUT"
 
-      - name: Wait for Unity before bake
+      - name: Wait for workspace Unity before bake
         shell: bash
         run: |
           set -euo pipefail
           deadline=$((SECONDS + 90))
-          while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
+          while pgrep -af '/Unity.app/Contents/MacOS/Unity' | grep -F -- "$GITHUB_WORKSPACE" >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
-              pgrep -alf '/Unity.app/Contents/MacOS/Unity' || true
+              pgrep -af '/Unity.app/Contents/MacOS/Unity' | grep -F -- "$GITHUB_WORKSPACE" || true
               exit 1
             fi
             sleep 5
@@ -90,14 +90,14 @@ jobs:
             -logFile "$ROOT/showcase-bake.log"
           test -s "$GITHUB_WORKSPACE/Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes"
 
-      - name: Wait for Unity after bake
+      - name: Wait for workspace Unity after bake
         shell: bash
         run: |
           set -euo pipefail
           deadline=$((SECONDS + 90))
-          while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
+          while pgrep -af '/Unity.app/Contents/MacOS/Unity' | grep -F -- "$GITHUB_WORKSPACE" >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
-              pgrep -alf '/Unity.app/Contents/MacOS/Unity' || true
+              pgrep -af '/Unity.app/Contents/MacOS/Unity' | grep -F -- "$GITHUB_WORKSPACE" || true
               exit 1
             fi
             sleep 5
