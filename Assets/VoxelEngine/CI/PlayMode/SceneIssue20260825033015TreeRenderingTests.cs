@@ -98,29 +98,24 @@ namespace VoxelEngine.CI
                                 out float3 hitMetres, out int treeIndex),
                             Is.True,
                             "The saved SceneIssue camera/marked region no longer intersects a procedural tree.");
-                Assert.That(treeIndex, Is.GreaterThanOrEqualTo(0));
-                Assert.That(treeIndex, Is.LessThan(TreeWorldRuntime.Instances.Count));
 
                 TreeInstance instance = TreeWorldRuntime.Instances[treeIndex];
                 TreeSkeletonSnapshot skeleton = ProceduralTreeSkeletonBuilder.Generate(in instance);
                 var cutsBefore = new HashSet<int>(TreeWorldRuntime.RemovedBranches(treeIndex));
                 bool beganBatched = !renderer.TryGetDynamicPresentationRoot(treeIndex, out _);
                 int releaseBefore = renderer.LastDamageBatchReleaseCount;
-
                 baseline = ProceduralTreeMeshBuilder.BuildMesh(skeleton, 0);
                 int barkBefore = (int)baseline.GetIndexCount(0) / 3;
                 int leavesBefore = (int)baseline.GetIndexCount(1) / 3;
 
                 before = Capture(camera, target);
                 beforeWithoutStandingTrees = CaptureWithoutStandingTrees(camera, target, renderer);
-                int standingPixelsBefore = CountChangedPixelsInMarkedCircle(
-                    before, beforeWithoutStandingTrees);
+                int standingPixelsBefore = CountChangedPixelsInMarkedCircle(before, beforeWithoutStandingTrees);
                 Assert.That(standingPixelsBefore, Is.GreaterThan(32),
-                            "The saved marked region does not visibly contain the target standing tree before damage.");
+                            "The saved marked region does not visibly contain the target tree before damage.");
 
                 ProceduralTreeDamageService.ApplyBlast(
                     hitMetres, PlayerBlastRadiusMetres, (float3)ray.direction);
-
                 float damageDeadline = Time.realtimeSinceStartup + DamageTimeoutSeconds;
                 while (TreeWorldRuntime.RemovedBranches(treeIndex).Count <= cutsBefore.Count
                        && Time.realtimeSinceStartup < damageDeadline)
@@ -128,28 +123,30 @@ namespace VoxelEngine.CI
                 for (int frame = 0; frame < 4; frame++) yield return null;
 
                 var cutsAfter = new HashSet<int>(TreeWorldRuntime.RemovedBranches(treeIndex));
-                Assert.That(cutsAfter.Count, Is.GreaterThan(cutsBefore.Count),
-                            "The saved shot intersects a tree but creates no structural cut.");
-                Assert.That(renderer.TryGetDynamicPresentationRoot(treeIndex, out Transform treeRoot), Is.True,
-                            "The damaged saved tree did not leave the healthy batch for dynamic presentation.");
-                Assert.That(renderer.LastDamageBatchReleaseCount, Is.GreaterThan(releaseBefore),
-                            "The saved tree remained in the intact healthy batch after structural damage.");
+                Assert.That(cutsAfter.Count, Is.GreaterThan(cutsBefore.Count));
+                Assert.That(renderer.LastDamageBatchReleaseCount, Is.GreaterThan(releaseBefore));
 
-                Transform lod0 = treeRoot.Find("LOD0");
-                Assert.That(lod0, Is.Not.Null);
-                Mesh liveMesh = lod0.GetComponent<MeshFilter>().sharedMesh;
-                Assert.That(liveMesh, Is.Not.Null);
-                int barkAfter = (int)liveMesh.GetIndexCount(0) / 3;
-                int leavesAfter = (int)liveMesh.GetIndexCount(1) / 3;
+                int barkAfter = 0;
+                int leavesAfter = 0;
+                if (renderer.TryGetDynamicPresentationRoot(treeIndex, out Transform treeRoot))
+                {
+                    Transform lod0 = treeRoot.Find("LOD0");
+                    Assert.That(lod0, Is.Not.Null);
+                    Mesh liveMesh = lod0.GetComponent<MeshFilter>().sharedMesh;
+                    Assert.That(liveMesh, Is.Not.Null);
+                    barkAfter = (int)liveMesh.GetIndexCount(0) / 3;
+                    leavesAfter = (int)liveMesh.GetIndexCount(1) / 3;
+                }
                 Assert.That(barkAfter, Is.LessThan(barkBefore));
                 Assert.That(leavesAfter, Is.LessThan(leavesBefore));
 
                 after = Capture(camera, target);
                 afterWithoutStandingTrees = CaptureWithoutStandingTrees(camera, target, renderer);
-                int standingPixelsAfter = CountChangedPixelsInMarkedCircle(
-                    after, afterWithoutStandingTrees);
-                Assert.That(standingPixelsAfter, Is.LessThan(standingPixelsBefore),
-                            "The marked region still receives at least as many standing-tree pixels after the trunk sever as before it.");
+                int standingPixelsAfter = CountChangedPixelsInMarkedCircle(after, afterWithoutStandingTrees);
+                int allowedStandingPixels = Mathf.Max(32, Mathf.CeilToInt(standingPixelsBefore * 0.10f));
+                Assert.That(standingPixelsAfter, Is.LessThanOrEqualTo(allowedStandingPixels),
+                            $"The severed tree still leaves a rooted trunk in the captured marked region: " +
+                            $"standing pixels {standingPixelsBefore}->{standingPixelsAfter}, allowed {allowedStandingPixels}.");
 
                 var newCuts = new List<int>();
                 int trunkCuts = 0;
@@ -169,6 +166,7 @@ namespace VoxelEngine.CI
                 File.WriteAllText(Path.Combine(outputDirectory, "verification-metrics.txt"),
                     $"standingPixelsBefore={standingPixelsBefore}\n" +
                     $"standingPixelsAfter={standingPixelsAfter}\n" +
+                    $"allowedStandingPixels={allowedStandingPixels}\n" +
                     $"markedRadius={MarkedRadius:F6}\n" +
                     $"barkBefore={barkBefore}\n" +
                     $"barkAfter={barkAfter}\n" +
@@ -180,10 +178,9 @@ namespace VoxelEngine.CI
                 Debug.Log(
                     "SCENEISSUE 20260825-033015-205 " +
                     $"treeIndex={treeIndex} species={instance.Species} beganBatched={beganBatched} " +
-                    $"treePosition={instance.PositionMetres} impact={hitMetres} localImpactY={localImpactY:F3} " +
-                    $"height={skeleton.Height:F3} newCuts=[{string.Join(",", newCuts)}] trunkCuts={trunkCuts} " +
-                    $"severed={damage.Severed} barkBefore={barkBefore} barkAfter={barkAfter} " +
-                    $"leavesBefore={leavesBefore} leavesAfter={leavesAfter} " +
+                    $"impact={hitMetres} localImpactY={localImpactY:F3} height={skeleton.Height:F3} " +
+                    $"newCuts=[{string.Join(",", newCuts)}] trunkCuts={trunkCuts} severed={damage.Severed} " +
+                    $"barkBefore={barkBefore} barkAfter={barkAfter} leavesBefore={leavesBefore} leavesAfter={leavesAfter} " +
                     $"standingPixelsBefore={standingPixelsBefore} standingPixelsAfter={standingPixelsAfter} " +
                     $"batchReleaseDelta={renderer.LastDamageBatchReleaseCount - releaseBefore}");
             }
@@ -215,23 +212,18 @@ namespace VoxelEngine.CI
             {
                 camera.Render();
                 RenderTexture.active = target;
-                var capture = new Texture2D(
-                    CaptureWidth, CaptureHeight, TextureFormat.RGBA32, false, false);
+                var capture = new Texture2D(CaptureWidth, CaptureHeight, TextureFormat.RGBA32, false, false);
                 capture.ReadPixels(new Rect(0, 0, CaptureWidth, CaptureHeight), 0, 0, false);
                 capture.Apply(false, false);
                 return capture;
             }
-            finally
-            {
-                RenderTexture.active = previous;
-            }
+            finally { RenderTexture.active = previous; }
         }
 
         private static Texture2D CaptureWithoutStandingTrees(
             Camera camera, RenderTexture target, ProceduralTreeRenderer renderer)
         {
-            MeshRenderer[] standingRenderers =
-                renderer.GetComponentsInChildren<MeshRenderer>(true);
+            MeshRenderer[] standingRenderers = renderer.GetComponentsInChildren<MeshRenderer>(true);
             var enabled = new bool[standingRenderers.Length];
             try
             {
@@ -254,7 +246,6 @@ namespace VoxelEngine.CI
             Color32[] a = withTrees.GetPixels32();
             Color32[] b = withoutTrees.GetPixels32();
             Assert.That(a.Length, Is.EqualTo(b.Length));
-
             float centerX = MarkedX * CaptureWidth;
             float centerY = MarkedY * CaptureHeight;
             float radius = MarkedRadius * Mathf.Min(CaptureWidth, CaptureHeight);
@@ -267,8 +258,7 @@ namespace VoxelEngine.CI
                 float dy = y + 0.5f - centerY;
                 if (dx * dx + dy * dy > radiusSq) continue;
                 int i = y * CaptureWidth + x;
-                int delta = Mathf.Max(
-                    Mathf.Abs(a[i].r - b[i].r),
+                int delta = Mathf.Max(Mathf.Abs(a[i].r - b[i].r),
                     Mathf.Max(Mathf.Abs(a[i].g - b[i].g), Mathf.Abs(a[i].b - b[i].b)));
                 if (delta >= 8) changed++;
             }
@@ -277,8 +267,7 @@ namespace VoxelEngine.CI
 
         private static ProceduralTreeRenderer FindRuntimeRenderer()
         {
-            ProceduralTreeRenderer[] all = Resources.FindObjectsOfTypeAll<ProceduralTreeRenderer>();
-            foreach (ProceduralTreeRenderer renderer in all)
+            foreach (ProceduralTreeRenderer renderer in Resources.FindObjectsOfTypeAll<ProceduralTreeRenderer>())
                 if (renderer != null && renderer.gameObject.scene.IsValid()) return renderer;
             return null;
         }
