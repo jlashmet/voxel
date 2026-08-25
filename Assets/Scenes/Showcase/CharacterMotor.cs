@@ -1,17 +1,18 @@
 using Unity.Mathematics;
 using UnityEngine;
+using VoxelEngine.Composition;
 using VoxelEngine.Storage.Api;
 
 namespace VoxelEngine.Showcase
 {
     /// <summary>
-    /// A walking character resolved directly against voxels — gravity, ground contact, step-up,
-    /// jumping, and wall sliding, with no Unity colliders anywhere.
+    /// A walking character resolved directly against authoritative world data — gravity, ground
+    /// contact, step-up, jumping, and wall sliding, with no Unity colliders anywhere.
     ///
-    /// Colliders are not an option here: voxels have no GameObject representation, and giving
-    /// them one would create a second copy of the world that has to be kept in sync with the
-    /// brickmap. Collision reads the same storage the renderer meshes (Constitution
-    /// Principle II), so what you stand on is exactly what you see.
+    /// Unity colliders are not an option for the voxel world, and semantic trees deliberately have
+    /// no per-tree GameObject while healthy/batched. Collision therefore queries the same voxel
+    /// storage and semantic tree state that presentation consumes instead of maintaining a second
+    /// physics copy of either world.
     ///
     /// This does *not* use the existing brick-space swept-AABB helper, and that is worth explaining:
     /// that helper interprets its AABB in **brick** coordinates, so its finest resolution is
@@ -231,11 +232,13 @@ namespace VoxelEngine.Showcase
         private Vector3 FootMax(Vector3 feet, float height) => new(feet.x + Radius, feet.y + height, feet.z + Radius);
 
         /// <summary>
-        /// True when any voxel overlapping the box is solid.
+        /// True when authoritative voxel or semantic-tree geometry overlaps the character box.
         ///
-        /// Non-resident regions read as empty, which means the character would fall through a
+        /// Non-resident voxel regions read as empty, which means the character would fall through a
         /// region that has not finished generating — the driver holds physics until the region
-        /// under the character exists rather than letting that happen.
+        /// under the character exists rather than letting that happen. Trees are queried in metres
+        /// through the same semantic damage service used by Showcase projectiles, so a cut branch
+        /// stops blocking as soon as it stops existing in the tree world.
         /// </summary>
         private static bool IsBlocked(ShowcaseWorld world, Vector3 min, Vector3 max)
         {
@@ -256,7 +259,12 @@ namespace VoxelEngine.Showcase
                     return true;
             }
 
-            return false;
+            float radius = Mathf.Max((max.x - min.x) * 0.5f, (max.z - min.z) * 0.5f);
+            float3 centreBottom = new((min.x + max.x) * 0.5f, min.y,
+                                      (min.z + max.z) * 0.5f);
+            float3 centreTop = new(centreBottom.x, max.y, centreBottom.z);
+            return VegetationComposition.TreeDamage.TrySweepImpact(
+                centreBottom, centreTop, radius, out _, out _);
         }
     }
 }
