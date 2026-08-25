@@ -24,6 +24,8 @@ namespace Game.Kentridge.PlayableSlice
         public const string Id = WorldBuilderTownIds.Kentridge;
         public static readonly Int2 TownCentreDm = LegacyKentridgeDefinition.TownCentreDm;
         public static ArchitectureTheme Theme => LegacyKentridgeDefinition.Theme;
+        public static Int3 FootprintDm(StructureArchetype archetype) =>
+            LegacyKentridgeDefinition.FootprintDm(archetype);
 
         public static SettlementPlan Build(uint seed)
         {
