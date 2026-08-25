@@ -24,6 +24,55 @@ namespace Game.Structures.Tests
             int width = 1280,
             int height = 900)
         {
+            // Preserve the original diagnostic projection exactly for existing callers.
+            return RenderInternal(
+                capture,
+                min,
+                size,
+                fileStem,
+                new Vector3(0.8660254f, 0f, -0.8660254f),
+                new Vector3(-0.5f, 1f, -0.5f),
+                new Vector3(1f, 1f, 1f),
+                width,
+                height);
+        }
+
+        /// <summary>
+        /// Renders from an explicit object-to-camera direction. This is useful for visual proofs
+        /// where the default isometric view happens to look down an important feature axis (for
+        /// example, the raven's bill). The authored voxels are not rotated or otherwise changed.
+        /// </summary>
+        public static string Render(
+            VisualStructureCapture capture,
+            int3 min,
+            int3 size,
+            string fileStem,
+            Vector3 viewDirection,
+            int width = 1280,
+            int height = 900)
+        {
+            Vector3 view = viewDirection.sqrMagnitude > 0.0001f
+                ? viewDirection.normalized
+                : new Vector3(1f, 1f, 1f).normalized;
+            Vector3 helper = Mathf.Abs(Vector3.Dot(view, Vector3.up)) > 0.98f
+                ? Vector3.forward
+                : Vector3.up;
+            Vector3 right = Vector3.Cross(helper, view).normalized;
+            Vector3 screenUp = Vector3.Cross(view, right).normalized;
+            return RenderInternal(capture, min, size, fileStem, right, screenUp, view, width, height);
+        }
+
+        private static string RenderInternal(
+            VisualStructureCapture capture,
+            int3 min,
+            int3 size,
+            string fileStem,
+            Vector3 right,
+            Vector3 screenUp,
+            Vector3 view,
+            int width,
+            int height)
+        {
             if (capture == null) throw new ArgumentNullException(nameof(capture));
             if (math.any(size <= 0)) throw new ArgumentOutOfRangeException(nameof(size));
 
@@ -62,7 +111,7 @@ namespace Game.Structures.Tests
             if (!hasVoxel || faces.Count == 0)
                 throw new InvalidOperationException("Cannot render an empty diagnostic capture.");
 
-            Vector4 projected = ProjectedBounds(occupiedMin, occupiedMax);
+            Vector4 projected = ProjectedBounds(occupiedMin, occupiedMax, right, screenUp);
             const float margin = 28f;
             float scaleX = (width - margin * 2f) / math.max(1f, projected.z - projected.x);
             float scaleY = (height - margin * 2f) / math.max(1f, projected.w - projected.y);
@@ -74,15 +123,15 @@ namespace Game.Structures.Tests
             var background = new Color32(236, 239, 242, 255);
             for (int i = 0; i < pixels.Length; i++) pixels[i] = background;
 
-            // Projection looks toward -X/-Y/-Z, so larger x+y+z is nearer. Paint far to near.
-            faces.Sort((a, b) => a.Depth.CompareTo(b.Depth));
+            // Larger dot(position, view) is nearer to the camera. Paint far to near.
+            faces.Sort((a, b) => FaceDepth(a, view).CompareTo(FaceDepth(b, view)));
             for (int i = 0; i < faces.Count; i++)
             {
                 Face face = faces[i];
-                Vector2 a = Screen(face.A, scale, offsetX, offsetY, height);
-                Vector2 b = Screen(face.B, scale, offsetX, offsetY, height);
-                Vector2 c = Screen(face.C, scale, offsetX, offsetY, height);
-                Vector2 d = Screen(face.D, scale, offsetX, offsetY, height);
+                Vector2 a = Screen(face.A, right, screenUp, scale, offsetX, offsetY, height);
+                Vector2 b = Screen(face.B, right, screenUp, scale, offsetX, offsetY, height);
+                Vector2 c = Screen(face.C, right, screenUp, scale, offsetX, offsetY, height);
+                Vector2 d = Screen(face.D, right, screenUp, scale, offsetX, offsetY, height);
                 FillTriangle(pixels, width, height, a, b, c, face.Color);
                 FillTriangle(pixels, width, height, a, c, d, face.Color);
             }
@@ -102,7 +151,11 @@ namespace Game.Structures.Tests
             return path;
         }
 
-        private static Vector4 ProjectedBounds(int3 min, int3 max)
+        private static Vector4 ProjectedBounds(
+            int3 min,
+            int3 max,
+            Vector3 right,
+            Vector3 screenUp)
         {
             float minX = float.MaxValue, minY = float.MaxValue;
             float maxX = float.MinValue, maxY = float.MinValue;
@@ -110,10 +163,13 @@ namespace Game.Structures.Tests
             for (int iy = 0; iy < 2; iy++)
             for (int iz = 0; iz < 2; iz++)
             {
-                Vector2 p = Project(new Vector3(
-                    ix == 0 ? min.x : max.x,
-                    iy == 0 ? min.y : max.y,
-                    iz == 0 ? min.z : max.z));
+                Vector2 p = Project(
+                    new Vector3(
+                        ix == 0 ? min.x : max.x,
+                        iy == 0 ? min.y : max.y,
+                        iz == 0 ? min.z : max.z),
+                    right,
+                    screenUp);
                 minX = math.min(minX, p.x);
                 minY = math.min(minY, p.y);
                 maxX = math.max(maxX, p.x);
@@ -122,16 +178,26 @@ namespace Game.Structures.Tests
             return new Vector4(minX, minY, maxX, maxY);
         }
 
-        private static Vector2 Project(Vector3 p)
+        private static Vector2 Project(Vector3 p, Vector3 right, Vector3 screenUp) =>
+            new Vector2(Vector3.Dot(p, right), -Vector3.Dot(p, screenUp));
+
+        private static Vector2 Screen(
+            Vector3 p,
+            Vector3 right,
+            Vector3 screenUp,
+            float scale,
+            float ox,
+            float oy,
+            int height)
         {
-            const float cos30 = 0.8660254f;
-            return new Vector2((p.x - p.z) * cos30, (p.x + p.z) * 0.5f - p.y);
+            Vector2 projected = Project(p, right, screenUp);
+            return new Vector2(projected.x * scale + ox, height - (projected.y * scale + oy));
         }
 
-        private static Vector2 Screen(Vector3 p, float scale, float ox, float oy, int height)
+        private static float FaceDepth(Face face, Vector3 view)
         {
-            Vector2 projected = Project(p);
-            return new Vector2(projected.x * scale + ox, height - (projected.y * scale + oy));
+            Vector3 centre = (face.A + face.B + face.C + face.D) * 0.25f;
+            return Vector3.Dot(centre, view);
         }
 
         private static Color32 MaterialColor(byte material)
@@ -189,14 +255,15 @@ namespace Game.Structures.Tests
         private readonly struct Face
         {
             public readonly Vector3 A, B, C, D;
-            public readonly float Depth;
             public readonly Color32 Color;
 
             private Face(Vector3 a, Vector3 b, Vector3 c, Vector3 d, Color32 color)
             {
-                A = a; B = b; C = c; D = d; Color = color;
-                Vector3 centre = (a + b + c + d) * 0.25f;
-                Depth = centre.x + centre.y + centre.z;
+                A = a;
+                B = b;
+                C = c;
+                D = d;
+                Color = color;
             }
 
             public static Face Create(int x, int y, int z, FaceDirection direction, Color32 color)
