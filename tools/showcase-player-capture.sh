@@ -25,6 +25,7 @@ Options:
   --survey-height N        Survey camera height
   --survey-spin N          Survey spin degrees/second
   --stationary-sample N    Measure N settled seconds with no motion or screenshots
+  --scene-issue PATH       Replay a saved SceneIssues/.../issue.json camera/view
 EOF
 }
 
@@ -40,6 +41,7 @@ SURVEY_AFTER=""
 SURVEY_HEIGHT=""
 SURVEY_SPIN=""
 STATIONARY_SAMPLE=""
+SCENE_ISSUE=""
 KENTRIDGE_EVIDENCE=0
 IF_CONFIGURED=0
 
@@ -58,6 +60,7 @@ while (( $# > 0 )); do
     --survey-height) SURVEY_HEIGHT="$2"; shift 2 ;;
     --survey-spin) SURVEY_SPIN="$2"; shift 2 ;;
     --stationary-sample) STATIONARY_SAMPLE="$2"; shift 2 ;;
+    --scene-issue) SCENE_ISSUE="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "ERROR: unknown argument '$1'" >&2; usage >&2; exit 2 ;;
   esac
@@ -145,6 +148,10 @@ fi
 [[ -n "$OUTPUT_ROOT" ]] || { echo "ERROR: --output is required." >&2; exit 2; }
 [[ -n "$SCENE" ]] || { echo "ERROR: --scene or --test-filter is required." >&2; exit 2; }
 [[ -f "$SCENE" ]] || { echo "ERROR: scene does not exist: $SCENE" >&2; exit 2; }
+if [[ -n "$SCENE_ISSUE" ]]; then
+  if [[ "$SCENE_ISSUE" != /* ]]; then SCENE_ISSUE="$PWD/$SCENE_ISSUE"; fi
+  [[ -f "$SCENE_ISSUE" ]] || { echo "ERROR: scene issue does not exist: $SCENE_ISSUE" >&2; exit 2; }
+fi
 if [[ -n "$STATIONARY_SAMPLE" ]]; then
   : "${RUN_SECONDS:=120}"
   if [[ -n "$AUTOWALK_AFTER" || -n "$SURVEY_AFTER" ]]; then
@@ -217,6 +224,10 @@ PLAYER_ARGS=(
   -screen-width 1600 -screen-height 900 -screen-fullscreen 0
   -voxel-uncapped
 )
+
+if [[ -n "$SCENE_ISSUE" ]]; then
+  PLAYER_ARGS+=( -voxel-scene-issue "$SCENE_ISSUE" )
+fi
 
 if [[ -n "$STATIONARY_SAMPLE" ]]; then
   PLAYER_ARGS+=(

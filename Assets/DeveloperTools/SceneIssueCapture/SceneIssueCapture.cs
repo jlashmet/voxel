@@ -94,6 +94,7 @@ namespace MountingForce.DeveloperTools
     public sealed class SceneIssueCapture : MonoBehaviour
     {
         public const string ReplayRequestEditorPrefsKey = "MountingForce.SceneIssueCapture.ReplayRequest";
+        private const string ReplayRequestCommandLineArgument = "-voxel-scene-issue";
 
         private const KeyCode CaptureKey = KeyCode.F8;
         private const string CaptureDirectoryName = "SceneIssues";
@@ -175,7 +176,7 @@ namespace MountingForce.DeveloperTools
 
         private void Start()
         {
-#if UNITY_EDITOR
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
             StartCoroutine(ConsumeReplayRequest());
 #endif
         }
@@ -1014,14 +1015,41 @@ namespace MountingForce.DeveloperTools
             ShowToast("Replay camera released at the captured location.");
         }
 
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        private static string ConsumeReplayRequestPath()
+        {
 #if UNITY_EDITOR
+            string editorPath = UnityEditor.EditorPrefs.GetString(ReplayRequestEditorPrefsKey, string.Empty);
+            if (!string.IsNullOrEmpty(editorPath))
+            {
+                UnityEditor.EditorPrefs.DeleteKey(ReplayRequestEditorPrefsKey);
+                return editorPath;
+            }
+#endif
+
+            string[] arguments = Environment.GetCommandLineArgs();
+            for (int i = 0; i < arguments.Length; i++)
+            {
+                if (!string.Equals(arguments[i], ReplayRequestCommandLineArgument, StringComparison.Ordinal))
+                    continue;
+
+                if (i + 1 >= arguments.Length || string.IsNullOrWhiteSpace(arguments[i + 1]))
+                {
+                    Debug.LogWarning($"{ReplayRequestCommandLineArgument} requires an issue.json path.");
+                    return string.Empty;
+                }
+
+                return arguments[i + 1];
+            }
+
+            return string.Empty;
+        }
+
         private IEnumerator ConsumeReplayRequest()
         {
-            string path = UnityEditor.EditorPrefs.GetString(ReplayRequestEditorPrefsKey, string.Empty);
+            string path = ConsumeReplayRequestPath();
             if (string.IsNullOrEmpty(path))
                 yield break;
-
-            UnityEditor.EditorPrefs.DeleteKey(ReplayRequestEditorPrefsKey);
 
             SceneIssueCaptureRecord record;
             try
