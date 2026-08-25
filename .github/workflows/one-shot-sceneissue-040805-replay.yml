@@ -97,12 +97,22 @@ jobs:
         run: |
           set -euo pipefail
           ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue040805/RealPlayer"
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('tools/showcase-player-capture.sh')
+          text = path.read_text()
+          old = '-screen-width 1600 -screen-height 900 -screen-fullscreen 0'
+          new = '-screen-width 1364 -screen-height 836 -screen-fullscreen 0'
+          if text.count(old) != 1:
+              raise SystemExit(f'expected one capture-size target, found {text.count(old)}')
+          path.write_text(text.replace(old, new, 1))
+          PY
           bash tools/showcase-player-capture.sh \
             --unity "${{ steps.unity.outputs.path }}" \
             --output "$ROOT" \
             --scene Assets/Scenes/VoxelShowcase.unity \
             --scene-issue SceneIssues/open/20260825-040805-194-VoxelShowcase/issue.json \
-            --run-seconds 40
+            --run-seconds 70
 
       - name: Prepare replay evidence
         if: always()
@@ -130,6 +140,9 @@ jobs:
             echo "issue=SceneIssues/open/20260825-040805-194-VoxelShowcase/issue.json"
             echo "scene=Assets/Scenes/VoxelShowcase.unity"
             echo "startup_bake=fresh"
+            echo "capture_resolution=1364x836"
+            echo "capture_reference_time_seconds=58.97969436645508"
+            echo "replay_duration_seconds=70"
             echo
             echo "=== camera replay ==="
             grep 'SCENEISSUE camera' "$ROOT/player-run.log" || true
