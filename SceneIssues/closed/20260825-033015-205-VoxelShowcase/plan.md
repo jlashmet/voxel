@@ -43,7 +43,7 @@ Fix the VoxelShowcase tree-destruction defect where detached branches/crown fall
 - [x] The batching/query regression passes and executes exactly one test.
 - [x] The original capture is replay/saved-pose verified after the fix, including its circled region, with durable evidence in the capture.
 - [x] Production/test work is committed first and its SHA is recorded for `fixCommit`.
-- [ ] A separate bookkeeping commit marks the issue fixed and moves the complete capture from `SceneIssues/open/` to `SceneIssues/closed/`.
+- [x] A separate bookkeeping commit marks the issue fixed and moves the complete capture from `SceneIssues/open/` to `SceneIssues/closed/`.
 
 ## Tasks
 - [x] Fetch current `origin/master`, resume the assigned feature branch, and read repository workflow instructions.
@@ -60,4 +60,4 @@ Fix the VoxelShowcase tree-destruction defect where detached branches/crown fall
 - [x] Obtain batching/query `ci/single-test` success with exactly one executed test.
 - [x] Replay/saved-pose verify the original capture and preserve durable verification evidence.
 - [x] Update this plan with final evidence.
-- [ ] Create the separate fixed-status/open-to-closed bookkeeping commit and push it.
+- [x] Create the separate fixed-status/open-to-closed bookkeeping commit and push it.
