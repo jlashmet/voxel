@@ -121,7 +121,9 @@ jobs:
           set -euo pipefail
           ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue040805/RealPlayer"
           PREVIEW="$GITHUB_WORKSPACE/Artifacts/SceneIssue040805/Preview"
+          ISSUE="SceneIssues/open/20260825-040805-194-VoxelShowcase"
           mkdir -p "$PREVIEW"
+          cp "$ISSUE/screenshot-001.png" "$PREVIEW/original.png"
 
           if [[ -d "$ROOT/Screenshots" ]]; then
             final="$(find "$ROOT/Screenshots" -type f -name '*.png' -size +1k | sort | tail -1)"
@@ -137,7 +139,7 @@ jobs:
 
           {
             echo "source_commit=$GITHUB_SHA"
-            echo "issue=SceneIssues/open/20260825-040805-194-VoxelShowcase/issue.json"
+            echo "issue=$ISSUE/issue.json"
             echo "scene=Assets/Scenes/VoxelShowcase.unity"
             echo "startup_bake=fresh"
             echo "capture_resolution=1364x836"
