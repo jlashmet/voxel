@@ -121,7 +121,7 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void MedrareHouseKeepsBothFrontageWindowsClearOfEntranceCanopy()
+        public void MedrareHouseKeepsBothFrontageWindowsClearOfDoor()
         {
             VoxelWorldGenSettings settings = BuildSettings();
             SettlementPlan plan = SettlementVoxelPlan.Resolve(Seed, in settings);
@@ -136,13 +136,11 @@ namespace VoxelEngine.Tests.EditMode
 
             int scale = settings.VoxelsPerDecimetre;
             int foundation = plan.Theme.FoundationHeightDm * scale;
-            int windowY = foundation + plan.Theme.WindowBaseDm * scale;
-            int windowWidth = 11 * scale;
-            int windowHeight = plan.Theme.WindowHeightDm * scale;
-            int windowDepth = (plan.Theme.WallThicknessDm + 1) * scale;
+            int doorHeight = plan.Theme.DoorHeightDm * scale;
+            int doorWidth = 13 * scale;
+            int wallThickness = plan.Theme.WallThicknessDm * scale;
             int z0 = 10 * scale;
             int minimumFacadeGap = 3 * scale;
-            int homeCanopyHalfWidth = 16 * scale;
 
             FeatureCatalogue catalogue = KentridgeSharedStructureVoxelCatalogue.Build(
                 Seed, settings, Allocator.Temp);
@@ -152,10 +150,10 @@ namespace VoxelEngine.Tests.EditMode
                 AnchorSpec publishedDoor = catalogue.Anchors[medrare.AnchorOffset];
                 Assert.AreEqual("door", publishedDoor.Name.ToString());
                 Assert.AreEqual(z0, publishedDoor.LocalPosition.z);
-                HorizontalSpan entranceCanopy = new HorizontalSpan(
-                    publishedDoor.LocalPosition.x - homeCanopyHalfWidth,
-                    publishedDoor.LocalPosition.x + homeCanopyHalfWidth);
+
                 var frontWindows = new List<HorizontalSpan>();
+                HorizontalSpan physicalDoor = default;
+                bool foundPhysicalDoor = false;
                 int3 transform = int3.zero;
                 var transformStack = new Stack<int3>();
 
@@ -182,7 +180,7 @@ namespace VoxelEngine.Tests.EditMode
                         transform = transformStack.Pop();
                     }
                     else if (op == ShapeOp.EmitBox
-                             && (PrimitiveMode)catalogue.Program[pc + 11] == PrimitiveMode.Fill)
+                             && (PrimitiveMode)catalogue.Program[pc + 11] == PrimitiveMode.Carve)
                     {
                         int x = catalogue.Program[pc + 2] + transform.x;
                         int y = catalogue.Program[pc + 3] + transform.y;
@@ -190,16 +188,20 @@ namespace VoxelEngine.Tests.EditMode
                         int width = catalogue.Program[pc + 5];
                         int height = catalogue.Program[pc + 6];
                         int depth = catalogue.Program[pc + 7];
-                        byte material = (byte)catalogue.Program[pc + 8];
 
-                        if ((material == 4 || material == 15)
-                            && y == windowY
-                            && z == z0
-                            && width == windowWidth
-                            && height == windowHeight
-                            && depth == windowDepth)
+                        if (z == z0 && depth == wallThickness)
                         {
-                            frontWindows.Add(new HorizontalSpan(x, x + width));
+                            if (y == foundation
+                                && width == doorWidth
+                                && height == doorHeight)
+                            {
+                                physicalDoor = new HorizontalSpan(x, x + width);
+                                foundPhysicalDoor = true;
+                            }
+                            else if (y > foundation)
+                            {
+                                frontWindows.Add(new HorizontalSpan(x, x + width));
+                            }
                         }
                     }
 
@@ -209,16 +211,21 @@ namespace VoxelEngine.Tests.EditMode
 
                 Assert.IsEmpty(transformStack,
                     "Generated Medrare House program must balance its local transform stack.");
+                Assert.IsTrue(foundPhysicalDoor,
+                    "Generated Medrare House program must contain its physical front-door carve.");
+                Assert.AreEqual(publishedDoor.LocalPosition.x,
+                    physicalDoor.Min + (physicalDoor.Max - physicalDoor.Min) / 2,
+                    "The published Medrare door anchor must identify the same physical opening used by the collision constraint.");
                 Assert.AreEqual(2, frontWindows.Count,
-                    "An asymmetric two-bay frontage should retain both first-storey windows; " +
-                    "entrance collision handling should reflow a bay rather than silently delete it.");
+                    "An asymmetric frontage should retain both frontage windows; entrance collision handling " +
+                    "should reflow a bay rather than merge it with the door or silently delete it.");
 
                 for (int i = 0; i < frontWindows.Count; i++)
                 {
-                    int gap = frontWindows[i].GapTo(entranceCanopy);
+                    int gap = frontWindows[i].GapTo(physicalDoor);
                     Assert.GreaterOrEqual(gap, minimumFacadeGap,
-                        "First-storey glazing must keep at least 3 dm of visible wall from the " +
-                        "complete entrance treatment so the door and window do not read as merged.");
+                        "A frontage window must keep at least 3 dm of visible wall from the public entrance " +
+                        "so the door and window do not read as merged.");
                 }
             }
             finally
