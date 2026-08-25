@@ -1,0 +1,183 @@
+name: One-shot SceneIssue 033249 baseline replay
+
+on:
+  push:
+    branches:
+      - fixes/agent-1
+    paths:
+      - .github/workflows/one-shot-sceneissue-033249-baseline.yml
+
+permissions:
+  contents: read
+  statuses: write
+
+concurrency:
+  group: sceneissue-033249-baseline
+  cancel-in-progress: true
+
+jobs:
+  replay:
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fixes/agent-1
+          clean: true
+          fetch-depth: 1
+
+      - name: Publish pending status
+        uses: actions/github-script@v7
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        with:
+          script: |
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: context.sha,
+              state: 'pending',
+              context: 'ci/sceneissue-033249-baseline',
+              description: 'Floating-tower baseline replay is running',
+              target_url: process.env.RUN_URL,
+            });
+
+      - name: Resolve Unity
+        id: unity
+        shell: bash
+        run: |
+          set -euo pipefail
+          UNITY_VERSION="$(awk '/m_EditorVersion:/ { print $2 }' ProjectSettings/ProjectVersion.txt)"
+          UNITY_PATH="/Applications/Unity/Hub/Editor/${UNITY_VERSION}/Unity.app/Contents/MacOS/Unity"
+          test -x "$UNITY_PATH"
+          echo "path=$UNITY_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for Unity before bake
+        shell: bash
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 90))
+          while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
+            if (( SECONDS >= deadline )); then
+              pgrep -alf '/Unity.app/Contents/MacOS/Unity' || true
+              exit 1
+            fi
+            sleep 5
+          done
+
+      - name: Bake fresh Voxel Showcase startup world
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue033249"
+          mkdir -p "$ROOT"
+          UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=4 \
+          UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
+            -batchmode -nographics -job-worker-count 1 -quit \
+            -projectPath "$GITHUB_WORKSPACE" \
+            -executeMethod VoxelEngine.Showcase.Editor.ShowcaseWorldBaker.BakeShowcaseWorld \
+            -logFile "$ROOT/showcase-bake.log"
+          test -s "$GITHUB_WORKSPACE/Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes"
+
+      - name: Wait for Unity after bake
+        shell: bash
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 90))
+          while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
+            if (( SECONDS >= deadline )); then
+              pgrep -alf '/Unity.app/Contents/MacOS/Unity' || true
+              exit 1
+            fi
+            sleep 5
+          done
+
+      - name: Replay exact saved SceneIssue view
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue033249/RealPlayer"
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('tools/showcase-player-capture.sh')
+          text = path.read_text()
+          old = '-screen-width 1600 -screen-height 900 -screen-fullscreen 0'
+          new = '-screen-width 1364 -screen-height 836 -screen-fullscreen 0'
+          if text.count(old) != 1:
+              raise SystemExit(f'expected one capture-size target, found {text.count(old)}')
+          path.write_text(text.replace(old, new, 1))
+          PY
+          bash tools/showcase-player-capture.sh \
+            --unity "${{ steps.unity.outputs.path }}" \
+            --output "$ROOT" \
+            --scene Assets/Scenes/VoxelShowcase.unity \
+            --scene-issue SceneIssues/open/20260825-033249-397-VoxelShowcase/issue.json \
+            --run-seconds 90
+
+      - name: Prepare evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue033249/RealPlayer"
+          PREVIEW="$GITHUB_WORKSPACE/Artifacts/SceneIssue033249/Preview"
+          mkdir -p "$PREVIEW"
+          cp SceneIssues/open/20260825-033249-397-VoxelShowcase/screenshot-001.png "$PREVIEW/original.png"
+          if [[ -d "$ROOT/Screenshots" ]]; then
+            final="$(find "$ROOT/Screenshots" -type f -name '*.png' -size +1k | sort | tail -1)"
+            if [[ -n "$final" ]]; then
+              cp "$final" "$PREVIEW/replay-final.png"
+            fi
+          fi
+          {
+            echo "source_commit=$GITHUB_SHA"
+            echo "issue=SceneIssues/open/20260825-033249-397-VoxelShowcase/issue.json"
+            echo "scene=Assets/Scenes/VoxelShowcase.unity"
+            echo "startup_bake=fresh"
+            echo "capture_resolution=1364x836"
+            echo "original_capture_time_seconds=222.4276580810547"
+            echo "replay_duration_seconds=90"
+            echo
+            echo "=== camera replay ==="
+            grep 'SCENEISSUE camera' "$ROOT/player-run.log" || true
+            echo
+            echo "=== surface tail ==="
+            grep 'SURFACE t=' "$ROOT/player-run.log" | tail -30 || true
+            echo
+            echo "=== rings tail ==="
+            grep 'RINGS ' "$ROOT/player-run.log" | tail -30 || true
+          } > "$PREVIEW/replay.txt"
+          cat "$PREVIEW/replay.txt"
+
+      - name: Upload baseline evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sceneissue-033249-baseline-${{ github.run_id }}
+          path: |
+            Artifacts/SceneIssue033249/Preview/**
+            Artifacts/SceneIssue033249/RealPlayer/Screenshots/**
+            Artifacts/SceneIssue033249/RealPlayer/player-run.log
+            Artifacts/SceneIssue033249/RealPlayer/fps.txt
+            Artifacts/SceneIssue033249/showcase-bake.log
+          if-no-files-found: error
+          retention-days: 2
+
+      - name: Publish final status
+        if: always()
+        uses: actions/github-script@v7
+        env:
+          JOB_STATUS: ${{ job.status }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        with:
+          script: |
+            const success = process.env.JOB_STATUS === 'success';
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: context.sha,
+              state: success ? 'success' : 'failure',
+              context: 'ci/sceneissue-033249-baseline',
+              description: success ? 'Floating-tower baseline replay complete' : 'Floating-tower baseline replay failed',
+              target_url: process.env.RUN_URL,
+            });
