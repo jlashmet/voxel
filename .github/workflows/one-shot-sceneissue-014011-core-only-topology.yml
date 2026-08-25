@@ -1,34 +1,26 @@
-name: One-shot SceneIssue 220516 exact-view validation
+name: One-shot SceneIssue 220516 circulation coherence
 
 on:
   push:
     branches: [fixes]
     paths:
       - .github/workflows/one-shot-sceneissue-014011-core-only-topology.yml
+      - Assets/Tests/EditMode/KentridgeCirculationCoherenceTests.cs
+      - Packages/com.mountingforce.worldgen/Runtime/Voxel/KentridgeUrbanAccessCatalogue.cs
 
 permissions:
   contents: read
 
 jobs:
-  replay:
+  editmode:
     runs-on: [self-hosted, macOS]
-    timeout-minutes: 30
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
           ref: fixes
           clean: true
           fetch-depth: 1
-
-      - name: Verify replay plumbing
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -s SceneIssues/20260824-220516-659-VoxelShowcase/screenshot-001.png
-          grep -q 'ReplayRequestCommandLineArgument = "-voxel-scene-issue"' Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs
-          grep -q 'Verified standalone frozen pose' Assets/DeveloperTools/SceneIssueCapture/SceneIssueReplayVerification.cs
-          grep -q -- '--scene-issue)' tools/showcase-player-capture.sh
-          git diff --check
 
       - name: Resolve Unity
         id: unity
@@ -44,7 +36,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          deadline=$((SECONDS + 900))
+          deadline=$((SECONDS + 180))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
               pgrep -alf '/Unity.app/Contents/MacOS/Unity' || true
@@ -53,50 +45,54 @@ jobs:
             sleep 5
           done
 
-      - name: Replay saved VoxelShowcase view
+      - name: Run circulation coherence regressions
         shell: bash
+        env:
+          TEST_FILTER: VoxelEngine.Tests.EditMode.KentridgeCirculationCoherenceTests
         run: |
-          set -euo pipefail
-          ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue220516"
+          set -uo pipefail
+          ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue220516Circulation"
+          mkdir -p "$ROOT"
+          status=0
+          UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=7 \
+          UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
+            -batchmode -job-worker-count 1 \
+            -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform EditMode \
+            -testFilter "$TEST_FILTER" \
+            -testResults "$ROOT/results.xml" -logFile "$ROOT/unity.log" || status=$?
 
-          set +e
-          bash tools/showcase-player-capture.sh \
-            --unity "${{ steps.unity.outputs.path }}" \
-            --output "$ROOT" \
-            --scene Assets/Scenes/VoxelShowcase.unity \
-            --scene-issue SceneIssues/20260824-220516-659-VoxelShowcase/issue.json \
-            --run-seconds 60
-          capture_status=$?
-          set -e
-
-          if (( capture_status != 0 )); then
-            echo "ERROR: standalone replay capture failed with status $capture_status." >&2
-            [[ ! -s "$ROOT/player-build.log" ]] || { echo '=== PLAYER BUILD LOG TAIL ===' >&2; tail -200 "$ROOT/player-build.log" >&2; }
-            [[ ! -s "$ROOT/player-run.log" ]] || { echo '=== PLAYER RUN LOG TAIL ===' >&2; tail -160 "$ROOT/player-run.log" >&2; }
-            exit "$capture_status"
+          if [[ -s "$ROOT/results.xml" ]]; then
+            python3 - "$ROOT/results.xml" <<'PY'
+          import sys, xml.etree.ElementTree as ET
+          root = ET.parse(sys.argv[1]).getroot()
+          cases = root.findall('.//test-case')
+          print(f"SCENE_220516_TEST_COUNT {len(cases)}")
+          for case in cases:
+              name = case.get('fullname') or case.get('name')
+              print(f"{case.get('result')}: {name}")
+              failure = case.find('failure')
+              if failure is not None:
+                  print((failure.findtext('message') or '').strip())
+          if len(cases) != 4:
+              print(f"ERROR: expected exactly 4 circulation tests, got {len(cases)}", file=sys.stderr)
+              sys.exit(2)
+          PY
+            parse_status=$?
+            if (( parse_status != 0 )); then status=$parse_status; fi
+          else
+            echo "ERROR: Unity produced no test results." >&2
+            status=3
           fi
 
-          grep -q 'Verified standalone frozen pose' "$ROOT/player-run.log" || {
-            echo "ERROR: standalone replay never verified the saved camera pose." >&2
-            tail -160 "$ROOT/player-run.log" >&2 || true
-            exit 1
-          }
+          exit "$status"
 
-          latest="$(find "$ROOT/Screenshots" -type f -name '*.png' -size +1k | sort | tail -1)"
-          test -n "$latest"
-          sips -s format jpeg --setProperty formatOptions 80 -Z 1364 "$latest" --out "$ROOT/replay-latest.jpg" >/dev/null
-          echo "SCENE_220516_REPLAY_FRAME $(basename "$latest")"
-
-      - name: Upload exact-view evidence
+      - name: Upload circulation diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: scene-220516-attempt-1-exact-view
+          name: scene-220516-circulation-tests
           path: |
-            SceneIssues/20260824-220516-659-VoxelShowcase/screenshot-001.png
-            Artifacts/SceneIssue220516/Screenshots/*.png
-            Artifacts/SceneIssue220516/replay-latest.jpg
-            Artifacts/SceneIssue220516/player-build.log
-            Artifacts/SceneIssue220516/player-run.log
-          if-no-files-found: error
+            Artifacts/SceneIssue220516Circulation/results.xml
+            Artifacts/SceneIssue220516Circulation/unity.log
+          if-no-files-found: warn
           retention-days: 3
