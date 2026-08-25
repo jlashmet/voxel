@@ -3,6 +3,7 @@ using MountingForce.WorldGen.Content.Kentridge;
 using MountingForce.WorldGen.Voxel;
 using NUnit.Framework;
 using Unity.Collections;
+using UnityEngine;
 using VoxelEngine.Structures.Api;
 
 namespace VoxelEngine.Tests.EditMode
@@ -44,7 +45,7 @@ namespace VoxelEngine.Tests.EditMode
                         if (!intersects) continue;
 
                         hits++;
-                        TestContext.Progress.WriteLine(
+                        Debug.Log(
                             "SCENE220516_PLACEMENT "
                             + definition.Name + " kind=" + definition.Kind
                             + " precedence=" + definition.Precedence
@@ -55,7 +56,7 @@ namespace VoxelEngine.Tests.EditMode
                     }
                 }
 
-                TestContext.Progress.WriteLine("SCENE220516_PLACEMENT_COUNT " + hits);
+                Debug.Log("SCENE220516_PLACEMENT_COUNT " + hits);
                 Assert.Greater(hits, 0, "Captured lower-town corridor unexpectedly has no explicit placements.");
             }
             finally
