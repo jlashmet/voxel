@@ -8,6 +8,11 @@ on:
 
 permissions:
   contents: read
+  statuses: write
+
+concurrency:
+  group: scene-221508-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   unobscured-replay:
@@ -19,6 +24,22 @@ jobs:
           ref: fixes
           clean: true
           fetch-depth: 1
+
+      - name: Publish pending scene status
+        uses: actions/github-script@v7
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        with:
+          script: |
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: context.sha,
+              state: 'pending',
+              context: 'ci/scene-221508',
+              description: 'Fresh-bake exact-view verification is running',
+              target_url: process.env.RUN_URL,
+            });
 
       - name: Prepare exact replay request without annotations
         shell: bash
@@ -146,3 +167,24 @@ jobs:
             Artifacts/SceneIssue221508NoCircles/player-run.log
           if-no-files-found: warn
           retention-days: 3
+
+      - name: Publish final scene status
+        if: always()
+        uses: actions/github-script@v7
+        env:
+          JOB_STATUS: ${{ job.status }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        with:
+          script: |
+            const success = process.env.JOB_STATUS === 'success';
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: context.sha,
+              state: success ? 'success' : 'failure',
+              context: 'ci/scene-221508',
+              description: success
+                ? 'Fresh-bake exact-view verification passed'
+                : 'Fresh-bake exact-view verification failed',
+              target_url: process.env.RUN_URL,
+            });
