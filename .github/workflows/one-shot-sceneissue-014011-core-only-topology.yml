@@ -58,12 +58,29 @@ jobs:
         run: |
           set -euo pipefail
           ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue220416"
+
+          set +e
           bash tools/showcase-player-capture.sh \
             --unity "${{ steps.unity.outputs.path }}" \
             --output "$ROOT" \
             --scene Assets/Scenes/VoxelShowcase.unity \
             --scene-issue SceneIssues/20260824-220416-979-VoxelShowcase/issue.json \
             --run-seconds 60
+          capture_status=$?
+          set -e
+
+          if (( capture_status != 0 )); then
+            echo "ERROR: standalone replay capture failed with status $capture_status." >&2
+            if [[ -s "$ROOT/player-build.log" ]]; then
+              echo "=== PLAYER BUILD LOG TAIL ===" >&2
+              tail -200 "$ROOT/player-build.log" >&2
+            fi
+            if [[ -s "$ROOT/player-run.log" ]]; then
+              echo "=== PLAYER RUN LOG TAIL ===" >&2
+              tail -160 "$ROOT/player-run.log" >&2
+            fi
+            exit "$capture_status"
+          fi
 
           grep -q 'Verified standalone frozen pose' "$ROOT/player-run.log" || {
             echo "ERROR: standalone scene-issue replay never verified the recorded frozen camera pose." >&2
@@ -75,6 +92,17 @@ jobs:
           test -n "$latest"
           sips -s format jpeg --setProperty formatOptions 70 -Z 1200 "$latest" --out "$ROOT/replay-latest.jpg" >/dev/null
           echo "SCENE_220416_REPLAY_FRAME $(basename "$latest")"
+
+      - name: Upload replay diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scene-220416-replay-diagnostics
+          path: |
+            Artifacts/SceneIssue220416/player-build.log
+            Artifacts/SceneIssue220416/player-run.log
+          if-no-files-found: warn
+          retention-days: 3
 
       - name: Upload replay frames
         uses: actions/upload-artifact@v4
