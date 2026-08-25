@@ -6,17 +6,16 @@ namespace Game.Structures.Runtime
 {
     /// <summary>
     /// V14 enforces a deliberately block-authored material language. Previous passes selected some
-    /// rows for colour even though their authored surface style was Smooth, which undermined the
-    /// voxel sculpture and softened otherwise intentional facets. All visible cool structure is
-    /// rewritten as Slate/Planar; warm armor, horns, teeth and claws are Gold/Sharp. Moss survives
-    /// only as a coating over a planar Slate substrate, never as a smooth solid voxel material.
+    /// rows for colour even though their material defaults produced smooth-looking surfaces. The
+    /// final visible sculpt is rewritten to Slate for the cool body/wings and Gold for the warm
+    /// armor, horns, teeth and claws. Those catalogue materials use the intended block-authored
+    /// Planar/Sharp placement styles through the supported structure authoring API.
     /// </summary>
     public static class DragonStatueConceptV14BlockSurfaceAuthoring
     {
         private const byte Empty = GameMaterialIds.Empty;
         private const byte Slate = GameMaterialIds.Slate;
         private const byte Gold = GameMaterialIds.Gold;
-        private const byte Moss = GameMaterialIds.Moss;
 
         public static void Author(IStructureAuthoringSession a, int3 o)
         {
@@ -47,18 +46,14 @@ namespace Game.Structures.Runtime
                 if (material == Empty)
                     continue;
 
-                bool moss = material == Moss || a.GetCoating(wx, wy, wz) == Coatings.Moss;
-
-                // Gold is the only warm visible solid. Everything else is a cool Slate block.
-                // This intentionally removes Smooth Stone, DarkStone, Dirt and solid Moss from
-                // the dragon even if an older authored layer introduced one of those rows.
+                // Gold is the only warm visible solid. Everything else becomes Slate. Using the
+                // normal structure Set API preserves assembly boundaries while allowing each
+                // material's catalogue placement style (Slate=Planar, Gold=Sharp) to define the
+                // block surface correctly.
                 if (material == Gold || material == GameMaterialIds.Dirt)
-                    a.SetStyled(wx, wy, wz, Gold, SurfaceStyles.Sharp);
+                    a.Set(wx, wy, wz, Gold);
                 else
-                    a.SetStyled(wx, wy, wz, Slate, SurfaceStyles.Planar);
-
-                if (moss)
-                    a.Coat(wx, wy, wz, Coatings.Moss);
+                    a.Set(wx, wy, wz, Slate);
             }
         }
     }
