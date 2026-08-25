@@ -10,6 +10,7 @@ Improve the grass visible in the captured WorldbuildingGalleryShowcase viewpoint
 - Treat the capture note as the requested rendering direction: instanced billboard-style blades, alpha cutout, per-instance size/color/phase variation, world-space patch/wind noise, non-synchronized sway, displacement hooks, and stylized/toon lighting where compatible with the existing renderer.
 - Connector-only validation must use `ci-test/fixes/agent-8`; `.github/test-request.json` must never be changed on the feature branch.
 - Every replay/probe/test/fix attempt gets an immediate numbered experiment file.
+- Post-fix visual verification uses the existing real-player `--scene-issue` fixture replay path. Any capture-specific CI routing needed to expose that path is temporary and must be removed before terminal bookkeeping.
 
 ## Acceptance criteria
 - The responsible grass implementation is identified from current repository source, not guessed from stale workflow paths.
@@ -23,12 +24,13 @@ Improve the grass visible in the captured WorldbuildingGalleryShowcase viewpoint
 - [x] Re-read `CLAUDE.md`, `AGENTS.md`, `SceneIssues/README.md`, and the assigned `issue.json`.
 - [x] Confirm `fixes/agent-8` is at the assigned intake commit and contains no unmerged agent-8 work.
 - [x] Inspect the saved capture metadata, camera pose, note, and marked region; document remote binary-view limitation rather than claiming pixel inspection.
-- [ ] Locate the current WorldbuildingGalleryShowcase scene assembly and responsible grass/vegetation renderer, shader/material, and tests.
-- [ ] Establish/replay the baseline through the repository-supported remote validation path and document the result.
-- [ ] Add/extend the focused regression.
-- [ ] Implement the smallest production fix.
-- [ ] Commit/push production + regression changes on `fixes/agent-8`.
-- [ ] Reset/reuse `ci-test/fixes/agent-8`, add the targeted request only there, and obtain green `ci/single-test`.
-- [ ] Replay/verify the original fixture after the fix and document evidence.
+- [x] Locate the current WorldbuildingGalleryShowcase scene assembly and responsible grass/vegetation renderer, shader/material, and tests.
+- [x] Establish the red baseline through the repository-supported targeted-CI path and document the result.
+- [x] Add/extend the focused regression.
+- [x] Implement the smallest production fix.
+- [x] Commit/push production + regression changes on `fixes/agent-8`.
+- [x] Reset/reuse `ci-test/fixes/agent-8`, add the targeted request only there, and obtain green `ci/single-test`.
+- [ ] Replay/verify the original fixture after the fix through real-player `--scene-issue` capture and document evidence.
+- [ ] Remove any temporary replay-routing change and confirm the feature branch contains only durable production/test/evidence changes.
 - [ ] Review final diff and architecture constraints.
 - [ ] Commit terminal `issue.json` bookkeeping and open→closed move, push, and verify remote terminal state.
