@@ -1,0 +1,45 @@
+name: Dragon mesh bake (temporary)
+
+on:
+  push:
+    branches:
+      - 'ci-test/dragon-mesh-bake'
+    paths:
+      - '.github/dragon-mesh-bake-request'
+
+permissions:
+  contents: read
+
+jobs:
+  bake:
+    runs-on: self-hosted
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          clean: true
+          fetch-depth: 1
+      - name: Fetch CC0 source mesh
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p Artifacts/DragonMesh
+          curl --fail --location --retry 3 \
+            'https://raw.githubusercontent.com/Subject-314159/here-be-dragons/main/blender_files/dragon.dae' \
+            -o Artifacts/DragonMesh/dragon-cc0.dae
+      - name: Bake dense voxel runs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/bake-dragon-mesh.py \
+            --input Artifacts/DragonMesh/dragon-cc0.dae \
+            --output Artifacts/DragonMesh/DragonStatueMeshVoxelData.cs \
+            --height 160 \
+            --thickness 1 \
+            --diagnostics Artifacts/DragonMesh/diagnostics \
+            | tee Artifacts/DragonMesh/bake.log
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dragon-mesh-bake
+          path: Artifacts/DragonMesh/**
+          if-no-files-found: error
