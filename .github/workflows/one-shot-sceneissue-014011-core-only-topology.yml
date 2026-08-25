@@ -1,4 +1,4 @@
-name: One-shot SceneIssue 221508 exact-view reproduction
+name: One-shot SceneIssue 221508 unobscured exact view
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 jobs:
-  exact-replay:
+  unobscured-replay:
     runs-on: [self-hosted, macOS]
     timeout-minutes: 20
     steps:
@@ -20,15 +20,36 @@ jobs:
           clean: true
           fetch-depth: 1
 
-      - name: Verify replay plumbing
+      - name: Prepare exact replay request without annotations
         shell: bash
         run: |
           set -euo pipefail
-          test -s SceneIssues/20260824-221508-896-VoxelShowcase/screenshot-001.png
-          test -s Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes
+          SOURCE=SceneIssues/20260824-221508-896-VoxelShowcase/issue.json
+          ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue221508NoCircles"
+          mkdir -p "$ROOT"
+          test -s "$SOURCE"
+          python3 - "$SOURCE" "$ROOT/issue-no-circles.json" <<'PY'
+          import json, sys
+          src, dst = sys.argv[1], sys.argv[2]
+          data = json.load(open(src))
+          data['circles'] = []
+          for capture in data.get('captures', []):
+              capture['circles'] = []
+          with open(dst, 'w') as f:
+              json.dump(data, f, indent=2)
+              f.write('\n')
+          PY
+          python3 - "$SOURCE" "$ROOT/issue-no-circles.json" <<'PY'
+          import json, sys
+          a, b = map(lambda p: json.load(open(p)), sys.argv[1:])
+          assert a['camera'] == b['camera']
+          assert a['poseAnchor'] == b['poseAnchor']
+          assert len(a['circles']) == 4 and b['circles'] == []
+          assert len(a['captures'][0]['circles']) == 4 and b['captures'][0]['circles'] == []
+          print('SCENE_221508_UNOBSCURED_REQUEST camera and pose preserved; annotations removed')
+          PY
           grep -q 'ReplayRequestCommandLineArgument = "-voxel-scene-issue"' Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs
           grep -q 'Verified standalone frozen pose' Assets/DeveloperTools/SceneIssueCapture/SceneIssueReplayVerification.cs
-          grep -q -- '--scene-issue)' tools/showcase-player-capture.sh
           git diff --check
 
       - name: Resolve Unity
@@ -54,17 +75,17 @@ jobs:
             sleep 5
           done
 
-      - name: Replay exact saved VoxelShowcase view
+      - name: Replay saved VoxelShowcase camera without circle overlay
         shell: bash
         run: |
           set -euo pipefail
-          ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue221508Exact"
+          ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue221508NoCircles"
           set +e
           bash tools/showcase-player-capture.sh \
             --unity "${{ steps.unity.outputs.path }}" \
             --output "$ROOT" \
             --scene Assets/Scenes/VoxelShowcase.unity \
-            --scene-issue SceneIssues/20260824-221508-896-VoxelShowcase/issue.json \
+            --scene-issue "$ROOT/issue-no-circles.json" \
             --run-seconds 60
           capture_status=$?
           set -e
@@ -81,18 +102,19 @@ jobs:
           test -n "$latest"
           cp "$latest" "$ROOT/replay-latest.png"
           sips -s format jpeg --setProperty formatOptions 85 -Z 1364 "$latest" --out "$ROOT/replay-latest.jpg" >/dev/null
-          echo "SCENE_221508_EXACT_FRAME $(basename "$latest")"
+          echo "SCENE_221508_UNOBSCURED_FRAME $(basename "$latest")"
 
-      - name: Upload exact-view evidence
+      - name: Upload unobscured evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: scene-221508-exact-view
+          name: scene-221508-unobscured-view
           path: |
             SceneIssues/20260824-221508-896-VoxelShowcase/screenshot-001.png
-            Artifacts/SceneIssue221508Exact/replay-latest.png
-            Artifacts/SceneIssue221508Exact/replay-latest.jpg
-            Artifacts/SceneIssue221508Exact/player-build.log
-            Artifacts/SceneIssue221508Exact/player-run.log
+            Artifacts/SceneIssue221508NoCircles/issue-no-circles.json
+            Artifacts/SceneIssue221508NoCircles/replay-latest.png
+            Artifacts/SceneIssue221508NoCircles/replay-latest.jpg
+            Artifacts/SceneIssue221508NoCircles/player-build.log
+            Artifacts/SceneIssue221508NoCircles/player-run.log
           if-no-files-found: warn
           retention-days: 3
