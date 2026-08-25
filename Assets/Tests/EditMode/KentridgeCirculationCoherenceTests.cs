@@ -82,6 +82,42 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void ShallowLowerWardAccessGradesInsteadOfBuildingHardStairFlight()
+        {
+            KentridgeUrbanAccessPlan plan = KentridgeUrbanAccessPlanner.Build(Seed);
+            KentridgeUrbanAccessRoute lower = FindRoute(plan, "lower-west-neighbourhood-access");
+            KentridgeUrbanAccessRoute market = FindRoute(plan, "market-lower-block-access");
+
+            Assert.LessOrEqual(lower.DoorLevelBelowShelfDm, 15,
+                "The lower neighbourhood is expected to be a shallow grade transition.");
+            Assert.Greater(market.DoorLevelBelowShelfDm, 15,
+                "The market block is the control case for a genuinely deep stair transition.");
+
+            FeatureCatalogue catalogue = KentridgeUrbanAccessCatalogue.Build(
+                Seed, BuildSettings(), Allocator.Temp);
+            try
+            {
+                FeatureDefinition lowerDefinition = FindDefinition(
+                    catalogue, "kentridge-access-lower-west-neighbourhood-access");
+                FeatureDefinition marketDefinition = FindDefinition(
+                    catalogue, "kentridge-access-market-lower-block-access");
+
+                Assert.IsTrue(
+                    ContainsOp(catalogue, lowerDefinition, ShapeOp.EmitRamp),
+                    "A 1.1 m Lower Ward elevation change should grade into its court rather than "
+                    + "becoming a monumental hard-stone stair flight beside the main ascent.");
+                Assert.IsFalse(
+                    ContainsOp(catalogue, marketDefinition, ShapeOp.EmitRamp),
+                    "Deep market access should remain a legible stair; grading is only for shallow "
+                    + "Lower Ward transitions.");
+            }
+            finally
+            {
+                catalogue.Dispose();
+            }
+        }
+
+        [Test]
         public void VerticalInfrastructureDoesNotOverlayDedicatedStairsOnContinuousMainRoad()
         {
             FeatureCatalogue catalogue = KentridgeVerticalConnectorCatalogue.Build(
@@ -112,6 +148,46 @@ namespace VoxelEngine.Tests.EditMode
             {
                 catalogue.Dispose();
             }
+        }
+
+        private static KentridgeUrbanAccessRoute FindRoute(
+            KentridgeUrbanAccessPlan plan,
+            string id)
+        {
+            for (int i = 0; i < plan.Routes.Count; i++)
+                if (plan.Routes[i].Id == id) return plan.Routes[i];
+            Assert.Fail("Missing Kentridge access route: " + id);
+            return default;
+        }
+
+        private static FeatureDefinition FindDefinition(
+            FeatureCatalogue catalogue,
+            string name)
+        {
+            for (int i = 0; i < catalogue.Definitions.Length; i++)
+                if (catalogue.Definitions[i].Name.ToString() == name)
+                    return catalogue.Definitions[i];
+            Assert.Fail("Missing Kentridge access definition: " + name);
+            return default;
+        }
+
+        private static bool ContainsOp(
+            FeatureCatalogue catalogue,
+            FeatureDefinition definition,
+            ShapeOp target)
+        {
+            int cursor = definition.ProgramOffset;
+            int end = cursor + definition.ProgramLength;
+            while (cursor < end)
+            {
+                ShapeOp op = (ShapeOp)catalogue.Program[cursor];
+                if (op == target) return true;
+                int length = ShapeOps.InstructionLength(op);
+                Assert.Greater(length, 0, "Invalid shape instruction while scanning " + definition.Name);
+                cursor += length;
+            }
+            Assert.AreEqual(end, cursor, "Shape program ended on a partial instruction.");
+            return false;
         }
 
         private static VoxelWorldGenSettings BuildSettings()
