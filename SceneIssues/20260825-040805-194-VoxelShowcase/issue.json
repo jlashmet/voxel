@@ -1,0 +1,109 @@
+{
+    "formatVersion": 3,
+    "id": "20260825-040805-194-VoxelShowcase",
+    "capturedUtc": "2026-08-25T04:08:05.1977400Z",
+    "note": "There are a lot of problems with construction of Kentridge But the main thing that I want you to review is if we have significant code duplication.  I see countries related stuff in multiple folders And some of it mixed up with world gen and some of it not. Whenever we want to rent your Kentridge in any scene, it should be done the exact same way.  I'm concerned that we split some functionality between a couple different folders.  There's something in the packages folder called Mounting Force World Generation That package shouldn't exist, at least not in that folder.  The way this whole thing should work is we should have really two top-level folders One which is Game and one which is Voxel Engine.  Boxle engine should contain things that are not specific to our game.  There could be general structures and things that we define there, but most of the geometry and the game-specific structures would be defined in the game folder.  I want you to move the code from Mountain Force World Generation into It's an appropriate place either within game or within the voxel engine.  Within the voxel engine I see something called structures, but I don't see anything that's called world builder.  Maybe it's as simple as moving the stuff from packages into there.  Regardless, World Builder should have its own API and runtime Exposing only what's needed to the outside.  In order to call this issue complete we need to have a single way to author a town from the world builder.",
+    "status": "open",
+    "resolvedUtc": "",
+    "resolutionSummary": "",
+    "regressionTest": "",
+    "fixCommit": "",
+    "unityVersion": "6000.5.6f1",
+    "platform": "OSXEditor",
+    "sceneName": "VoxelShowcase",
+    "scenePath": "Assets/Scenes/VoxelShowcase.unity",
+    "sceneBuildIndex": 2,
+    "captures": [
+        {
+            "screenshot": "screenshot-001.png",
+            "capturedUtc": "2026-08-25T04:08:05.1986760Z",
+            "frameCount": 10130,
+            "timeSinceLevelLoad": 58.97969436645508,
+            "screenWidth": 1364,
+            "screenHeight": 836,
+            "poseAnchor": {
+                "hierarchyPath": "Showcase Camera",
+                "position": {
+                    "x": 117.43243408203125,
+                    "y": 27.350093841552736,
+                    "z": 60.19492721557617
+                },
+                "rotation": {
+                    "x": -0.25189584493637087,
+                    "y": -0.006381407380104065,
+                    "z": 0.0016610489692538977,
+                    "w": -0.9677318930625916
+                },
+                "localScale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                }
+            },
+            "camera": {
+                "hierarchyPath": "Showcase Camera",
+                "position": {
+                    "x": 117.43243408203125,
+                    "y": 27.350093841552736,
+                    "z": 60.19492721557617
+                },
+                "rotation": {
+                    "x": -0.25189584493637087,
+                    "y": -0.006381407380104065,
+                    "z": 0.0016610489692538977,
+                    "w": -0.9677318930625916
+                },
+                "fieldOfView": 70.0,
+                "orthographic": false,
+                "orthographicSize": 5.0,
+                "nearClipPlane": 0.05000000074505806,
+                "farClipPlane": 16000.0
+            },
+            "circles": []
+        }
+    ],
+    "screenshot": "screenshot-001.png",
+    "frameCount": 10130,
+    "timeSinceLevelLoad": 58.97969436645508,
+    "screenWidth": 1364,
+    "screenHeight": 836,
+    "poseAnchor": {
+        "hierarchyPath": "Showcase Camera",
+        "position": {
+            "x": 117.43243408203125,
+            "y": 27.350093841552736,
+            "z": 60.19492721557617
+        },
+        "rotation": {
+            "x": -0.25189584493637087,
+            "y": -0.006381407380104065,
+            "z": 0.0016610489692538977,
+            "w": -0.9677318930625916
+        },
+        "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+        }
+    },
+    "camera": {
+        "hierarchyPath": "Showcase Camera",
+        "position": {
+            "x": 117.43243408203125,
+            "y": 27.350093841552736,
+            "z": 60.19492721557617
+        },
+        "rotation": {
+            "x": -0.25189584493637087,
+            "y": -0.006381407380104065,
+            "z": 0.0016610489692538977,
+            "w": -0.9677318930625916
+        },
+        "fieldOfView": 70.0,
+        "orthographic": false,
+        "orthographicSize": 5.0,
+        "nearClipPlane": 0.05000000074505806,
+        "farClipPlane": 16000.0
+    },
+    "circles": []
+}
