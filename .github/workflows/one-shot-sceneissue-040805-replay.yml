@@ -1,0 +1,138 @@
+name: One-shot SceneIssue 040805 exact replay
+
+on:
+  push:
+    branches:
+      - fixes/agent-1
+    paths:
+      - .github/workflows/one-shot-sceneissue-040805-replay.yml
+
+permissions:
+  contents: read
+  statuses: write
+
+concurrency:
+  group: sceneissue-040805-replay
+  cancel-in-progress: true
+
+jobs:
+  replay:
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fixes/agent-1
+          clean: true
+          fetch-depth: 1
+
+      - name: Publish pending status
+        uses: actions/github-script@v7
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        with:
+          script: |
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: context.sha,
+              state: 'pending',
+              context: 'ci/sceneissue-040805-replay',
+              description: 'Exact VoxelShowcase replay is running',
+              target_url: process.env.RUN_URL,
+            });
+
+      - name: Resolve Unity
+        id: unity
+        shell: bash
+        run: |
+          set -euo pipefail
+          UNITY_VERSION="$(awk '/m_EditorVersion:/ { print $2 }' ProjectSettings/ProjectVersion.txt)"
+          UNITY_PATH="/Applications/Unity/Hub/Editor/${UNITY_VERSION}/Unity.app/Contents/MacOS/Unity"
+          test -x "$UNITY_PATH"
+          test -s "$GITHUB_WORKSPACE/Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes"
+          echo "path=$UNITY_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Replay exact saved SceneIssue view
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue040805/RealPlayer"
+          bash tools/showcase-player-capture.sh \
+            --unity "${{ steps.unity.outputs.path }}" \
+            --output "$ROOT" \
+            --scene Assets/Scenes/VoxelShowcase.unity \
+            --scene-issue SceneIssues/open/20260825-040805-194-VoxelShowcase/issue.json \
+            --run-seconds 40
+
+      - name: Prepare replay evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue040805/RealPlayer"
+          PREVIEW="$GITHUB_WORKSPACE/Artifacts/SceneIssue040805/Preview"
+          mkdir -p "$PREVIEW"
+
+          if [[ -d "$ROOT/Screenshots" ]]; then
+            final="$(find "$ROOT/Screenshots" -type f -name '*.png' -size +1k | sort | tail -1)"
+            if [[ -n "$final" ]]; then
+              cp "$final" "$PREVIEW/replay-final.png"
+              sips -s format jpeg -s formatOptions 70 -Z 800 "$final" \
+                --out "$PREVIEW/replay-final-preview.jpg" >/dev/null
+              echo 'SCENEISSUE_040805_PREVIEW_BEGIN'
+              base64 < "$PREVIEW/replay-final-preview.jpg" | fold -w 120
+              echo 'SCENEISSUE_040805_PREVIEW_END'
+            fi
+          fi
+
+          {
+            echo "source_commit=$GITHUB_SHA"
+            echo "issue=SceneIssues/open/20260825-040805-194-VoxelShowcase/issue.json"
+            echo "scene=Assets/Scenes/VoxelShowcase.unity"
+            echo
+            echo "=== camera replay ==="
+            grep 'SCENEISSUE camera' "$ROOT/player-run.log" || true
+            echo
+            echo "=== fps tail ==="
+            tail -20 "$ROOT/fps.txt" 2>/dev/null || true
+            echo
+            echo "=== surface tail ==="
+            grep 'SURFACE t=' "$ROOT/player-run.log" | tail -20 || true
+            echo
+            echo "=== rings tail ==="
+            grep 'RINGS ' "$ROOT/player-run.log" | tail -20 || true
+          } > "$PREVIEW/replay.txt"
+          cat "$PREVIEW/replay.txt"
+
+      - name: Upload replay evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sceneissue-040805-replay-${{ github.run_id }}
+          path: |
+            Artifacts/SceneIssue040805/Preview/**
+            Artifacts/SceneIssue040805/RealPlayer/Screenshots/**
+            Artifacts/SceneIssue040805/RealPlayer/player-run.log
+            Artifacts/SceneIssue040805/RealPlayer/fps.txt
+          if-no-files-found: error
+          retention-days: 2
+
+      - name: Publish final status
+        if: always()
+        uses: actions/github-script@v7
+        env:
+          JOB_STATUS: ${{ job.status }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        with:
+          script: |
+            const success = process.env.JOB_STATUS === 'success';
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: context.sha,
+              state: success ? 'success' : 'failure',
+              context: 'ci/sceneissue-040805-replay',
+              description: success ? 'Exact VoxelShowcase replay passed' : 'Exact VoxelShowcase replay failed',
+              target_url: process.env.RUN_URL,
+            });
