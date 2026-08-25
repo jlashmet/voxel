@@ -1,4 +1,4 @@
-name: One-shot SceneIssue 033249 baseline replay
+name: One-shot SceneIssue 033249 master replay
 
 on:
   push:
@@ -18,11 +18,11 @@ concurrency:
 jobs:
   replay:
     runs-on: [self-hosted, macOS]
-    timeout-minutes: 8
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: fixes/agent-1
+          ref: master
           clean: true
           fetch-depth: 1
 
@@ -38,7 +38,7 @@ jobs:
               sha: context.sha,
               state: 'pending',
               context: 'ci/sceneissue-033249-baseline',
-              description: 'Floating-tower baseline replay is running',
+              description: 'Master floating-tower replay is running',
               target_url: process.env.RUN_URL,
             });
 
@@ -65,12 +65,13 @@ jobs:
             sleep 5
           done
 
-      - name: Bake fresh Voxel Showcase startup world
+      - name: Bake fresh Voxel Showcase startup world from master
         shell: bash
         run: |
           set -euo pipefail
-          ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue033249"
+          ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue033249Master"
           mkdir -p "$ROOT"
+          git rev-parse HEAD > "$ROOT/source-commit.txt"
           UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=4 \
           UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
             -batchmode -nographics -job-worker-count 1 -quit \
@@ -92,11 +93,11 @@ jobs:
             sleep 5
           done
 
-      - name: Replay exact saved SceneIssue view
+      - name: Replay exact saved SceneIssue view through original capture time
         shell: bash
         run: |
           set -euo pipefail
-          ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue033249/RealPlayer"
+          ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue033249Master/RealPlayer"
           python3 - <<'PY'
           from pathlib import Path
           path = Path('tools/showcase-player-capture.sh')
@@ -112,15 +113,15 @@ jobs:
             --output "$ROOT" \
             --scene Assets/Scenes/VoxelShowcase.unity \
             --scene-issue SceneIssues/open/20260825-033249-397-VoxelShowcase/issue.json \
-            --run-seconds 90
+            --run-seconds 240
 
       - name: Prepare evidence
         if: always()
         shell: bash
         run: |
           set -euo pipefail
-          ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue033249/RealPlayer"
-          PREVIEW="$GITHUB_WORKSPACE/Artifacts/SceneIssue033249/Preview"
+          ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue033249Master/RealPlayer"
+          PREVIEW="$GITHUB_WORKSPACE/Artifacts/SceneIssue033249Master/Preview"
           mkdir -p "$PREVIEW"
           cp SceneIssues/open/20260825-033249-397-VoxelShowcase/screenshot-001.png "$PREVIEW/original.png"
           if [[ -d "$ROOT/Screenshots" ]]; then
@@ -130,36 +131,38 @@ jobs:
             fi
           fi
           {
-            echo "source_commit=$GITHUB_SHA"
+            echo "checked_out_source_commit=$(cat "$GITHUB_WORKSPACE/Artifacts/SceneIssue033249Master/source-commit.txt" 2>/dev/null || true)"
+            echo "trigger_commit=$GITHUB_SHA"
             echo "issue=SceneIssues/open/20260825-033249-397-VoxelShowcase/issue.json"
             echo "scene=Assets/Scenes/VoxelShowcase.unity"
-            echo "startup_bake=fresh"
+            echo "startup_bake=fresh-master"
             echo "capture_resolution=1364x836"
             echo "original_capture_time_seconds=222.4276580810547"
-            echo "replay_duration_seconds=90"
+            echo "replay_duration_seconds=240"
             echo
             echo "=== camera replay ==="
             grep 'SCENEISSUE camera' "$ROOT/player-run.log" || true
             echo
             echo "=== surface tail ==="
-            grep 'SURFACE t=' "$ROOT/player-run.log" | tail -30 || true
+            grep 'SURFACE t=' "$ROOT/player-run.log" | tail -40 || true
             echo
             echo "=== rings tail ==="
-            grep 'RINGS ' "$ROOT/player-run.log" | tail -30 || true
+            grep 'RINGS ' "$ROOT/player-run.log" | tail -40 || true
           } > "$PREVIEW/replay.txt"
           cat "$PREVIEW/replay.txt"
 
-      - name: Upload baseline evidence
+      - name: Upload master evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: sceneissue-033249-baseline-${{ github.run_id }}
+          name: sceneissue-033249-master-${{ github.run_id }}
           path: |
-            Artifacts/SceneIssue033249/Preview/**
-            Artifacts/SceneIssue033249/RealPlayer/Screenshots/**
-            Artifacts/SceneIssue033249/RealPlayer/player-run.log
-            Artifacts/SceneIssue033249/RealPlayer/fps.txt
-            Artifacts/SceneIssue033249/showcase-bake.log
+            Artifacts/SceneIssue033249Master/Preview/**
+            Artifacts/SceneIssue033249Master/RealPlayer/Screenshots/**
+            Artifacts/SceneIssue033249Master/RealPlayer/player-run.log
+            Artifacts/SceneIssue033249Master/RealPlayer/fps.txt
+            Artifacts/SceneIssue033249Master/showcase-bake.log
+            Artifacts/SceneIssue033249Master/source-commit.txt
           if-no-files-found: error
           retention-days: 2
 
@@ -178,6 +181,6 @@ jobs:
               sha: context.sha,
               state: success ? 'success' : 'failure',
               context: 'ci/sceneissue-033249-baseline',
-              description: success ? 'Floating-tower baseline replay complete' : 'Floating-tower baseline replay failed',
+              description: success ? 'Master floating-tower replay complete' : 'Master floating-tower replay failed',
               target_url: process.env.RUN_URL,
             });
