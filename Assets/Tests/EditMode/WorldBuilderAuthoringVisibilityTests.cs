@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using Game.Composition.Kentridge.Runtime;
+using Game.Composition.WorldBuilderWorldGen.Runtime;
 using Game.WorldBuilder.Api;
 using Game.WorldBuilder.Runtime;
 using NUnit.Framework;
@@ -95,12 +96,30 @@ namespace VoxelEngine.Tests.EditMode
                 "Composition",
                 "Showcase",
                 "Game.Composition.Showcase.asmdef"));
+            string showcaseSource = File.ReadAllText(Path.Combine(
+                RepoRoot,
+                "Assets",
+                "Game",
+                "Composition",
+                "Showcase",
+                "ShowcaseCatalogue.cs"));
             Type[] publicPlanParameterTypes = typeof(KentridgeCampaignSessionBootstrap)
                 .GetMethods()
                 .Where(method => method.Name == "Plan")
                 .SelectMany(method => method.GetParameters())
                 .Select(parameter => parameter.ParameterType)
                 .ToArray();
+            Type[] publicGenerationPropertyTypes = typeof(KentridgeCampaignGenerationPlan)
+                .GetProperties()
+                .Select(property => property.PropertyType)
+                .ToArray();
+            string legacyPackage = Path.Combine(RepoRoot, "Packages", "com.mountingforce.worldgen");
+            string worldBuilderGeneration = Path.Combine(
+                RepoRoot,
+                "Assets",
+                "Game",
+                "WorldBuilder",
+                "Generation");
 
             Assert.Multiple(() =>
             {
@@ -112,10 +131,26 @@ namespace VoxelEngine.Tests.EditMode
                     "MountingForce.WorldGen",
                     showcaseAsmdef,
                     "VoxelShowcase must depend on WorldBuilder's public/runtime boundary, not the legacy backend assemblies.");
+                StringAssert.DoesNotContain(
+                    "KentridgeCombinedVoxelCatalogue",
+                    showcaseSource,
+                    "VoxelShowcase must realize its WorldBuilder-authored town through the WorldBuilder voxel adapter.");
                 Assert.That(
                     publicPlanParameterTypes.Any(IsLegacyWorldGenType),
                     Is.False,
                     "Kentridge's public campaign bootstrap must not expose a MountingForce.WorldGen planning type.");
+                Assert.That(
+                    publicGenerationPropertyTypes.Any(IsLegacyWorldGenType),
+                    Is.False,
+                    "Kentridge's public generation plan must not expose a MountingForce.WorldGen implementation type.");
+                Assert.That(
+                    Directory.Exists(legacyPackage),
+                    Is.False,
+                    "Game-owned world generation must not remain as a parallel embedded package under Packages/.");
+                Assert.That(
+                    Directory.Exists(worldBuilderGeneration),
+                    Is.True,
+                    "The legacy world-generation implementation must live under Game/WorldBuilder ownership.");
             });
         }
 
