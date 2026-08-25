@@ -67,6 +67,7 @@ namespace VoxelEngine.Rendering.Runtime
         private const int SolidDrawMetadataBufferCount = 3;
 
         private VoxelSurfaceScheduler _scheduler;
+        private readonly SurfaceLodVisibleOwnership _solidLodOwnership = new();
         // Draw staging is bounded by the fixed arena args capacities. Allocate once with the
         // render pass; camera motion may change counts but can never resize managed arrays.
         private readonly CpuTransvoxelChunkCache.Entry[] _transvoxelDrawEntries =
@@ -349,7 +350,7 @@ namespace VoxelEngine.Rendering.Runtime
             data.SolidDrawBucketVertexCounts = _solidDrawBucketVertexCounts;
             data.TransvoxelEntryCount = solidDrawCount;
             data.SolidStagingMs = solidStagingMs;
-            data.VisibleSolidCount = transvoxelVisible.Count;
+            data.VisibleSolidCount = solidDrawCount;
             data.WaterEntries = _waterDrawEntries;
             data.WaterEntryCount = waterVisible.Count;
 
@@ -470,10 +471,21 @@ namespace VoxelEngine.Rendering.Runtime
             Array.Clear(_solidDrawBucketVertexCounts, 0,
                 _solidDrawBucketVertexCounts.Length);
 
+            _solidLodOwnership.Clear();
+            for (int i = 0; i < visible.Count; i++)
+            {
+                CpuTransvoxelChunkCache.Entry entry = visible[i];
+                _solidLodOwnership.Add(
+                    new SurfaceLodNodeKey(entry.SourceStep, entry.Coordinate));
+            }
+
             int drawCount = 0;
             for (int i = 0; i < visible.Count; i++)
             {
-                if (!visible[i].TryGetDrawMetadata(out SurfaceDrawMetadata metadata))
+                CpuTransvoxelChunkCache.Entry entry = visible[i];
+                var key = new SurfaceLodNodeKey(entry.SourceStep, entry.Coordinate);
+                if (!_solidLodOwnership.ShouldDraw(key)) continue;
+                if (!entry.TryGetDrawMetadata(out SurfaceDrawMetadata metadata))
                     continue;
                 int bucket = SolidDrawBucket((int)metadata.IndexCount);
                 _solidDrawBucketCounts[bucket]++;
@@ -495,7 +507,10 @@ namespace VoxelEngine.Rendering.Runtime
                 _activeSolidDrawMetadata.BeginWrite<SurfaceDrawMetadata>(0, drawCount);
             for (int i = 0; i < visible.Count; i++)
             {
-                if (!visible[i].TryGetDrawMetadata(out SurfaceDrawMetadata metadata))
+                CpuTransvoxelChunkCache.Entry entry = visible[i];
+                var key = new SurfaceLodNodeKey(entry.SourceStep, entry.Coordinate);
+                if (!_solidLodOwnership.ShouldDraw(key)) continue;
+                if (!entry.TryGetDrawMetadata(out SurfaceDrawMetadata metadata))
                     continue;
                 int bucket = SolidDrawBucket((int)metadata.IndexCount);
                 destination[_solidDrawBucketCursors[bucket]++] = metadata;
@@ -549,6 +564,7 @@ namespace VoxelEngine.Rendering.Runtime
             _scheduler.Dispose();
             _scheduler = null;
             ReleaseSolidDrawMetadata();
+            _solidLodOwnership.Clear();
             Array.Clear(_transvoxelDrawEntries, 0, _transvoxelDrawEntries.Length);
             Array.Clear(_waterDrawEntries, 0, _waterDrawEntries.Length);
         }
@@ -560,6 +576,7 @@ namespace VoxelEngine.Rendering.Runtime
             _scheduler?.Dispose();
             _scheduler = null;
             ReleaseSolidDrawMetadata();
+            _solidLodOwnership.Clear();
             CoreUtils.Destroy(_surfaceMaterial);
             CoreUtils.Destroy(_waterMaterial);
             CoreUtils.Destroy(_albedoTextures);
