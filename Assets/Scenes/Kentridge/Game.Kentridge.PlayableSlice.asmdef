@@ -18,6 +18,7 @@
         "Game.Cutscenes.Api",
         "Game.Cutscenes.Content",
         "Game.WorldBuilder.Api",
+        "Game.WorldBuilder.Runtime",
         "MountingForce.WorldGen.Core",
         "MountingForce.WorldGen.Architecture",
         "MountingForce.WorldGen.Voxel",
