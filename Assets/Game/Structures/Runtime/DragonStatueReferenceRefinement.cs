@@ -10,15 +10,15 @@ namespace Game.Structures.Runtime
         {
             if (a == null) throw new System.ArgumentNullException(nameof(a));
 
-            Clear(a, origin, new int3(-38, 74, -92), new int3(76, 100, 98));
-            Clear(a, origin, new int3(-50, 0, -48), new int3(100, 102, 122));
-            Clear(a, origin, new int3(-110, 30, 0), new int3(88, 118, 54));
-            Clear(a, origin, new int3(22, 30, 0), new int3(88, 118, 54));
-            Clear(a, origin, new int3(-18, 0, -86), new int3(126, 58, 146));
+            // Remove the previous Dragon A envelopes without brute-force clearing the whole model
+            // bounds. The reference voxel sculpture below then owns all visible anatomy.
+            Clear(a, origin, new int3(-42, 72, -98), new int3(84, 106, 108));
+            Clear(a, origin, new int3(-58, 0, -72), new int3(116, 108, 154));
+            Clear(a, origin, new int3(-112, 28, -2), new int3(92, 124, 62));
+            Clear(a, origin, new int3(20, 28, -2), new int3(92, 124, 62));
+            Clear(a, origin, new int3(-58, 0, -94), new int3(168, 64, 166));
 
-            DragonStatueAAAAuthoring.Author(a, origin);
-            DragonStatueAAAPolish.Apply(a, origin);
-            DragonStatueAAAAnatomyFix.Apply(a, origin);
+            DragonStatueReferenceVoxelArt.Author(a, origin);
         }
 
         private static void Clear(IStructureAuthoringSession a, int3 o, int3 min, int3 size)
