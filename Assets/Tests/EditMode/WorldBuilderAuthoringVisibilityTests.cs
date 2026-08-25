@@ -103,9 +103,9 @@ namespace VoxelEngine.Tests.EditMode
                 "Composition",
                 "Showcase",
                 "ShowcaseCatalogue.cs"));
-            Type[] publicPlanParameterTypes = typeof(KentridgeCampaignSessionBootstrap)
+            Type[] publicBootstrapParameterTypes = typeof(KentridgeCampaignSessionBootstrap)
                 .GetMethods()
-                .Where(method => method.Name == "Plan")
+                .Where(method => method.DeclaringType == typeof(KentridgeCampaignSessionBootstrap))
                 .SelectMany(method => method.GetParameters())
                 .Select(parameter => parameter.ParameterType)
                 .ToArray();
@@ -136,9 +136,9 @@ namespace VoxelEngine.Tests.EditMode
                     showcaseSource,
                     "VoxelShowcase must realize its WorldBuilder-authored town through the WorldBuilder voxel adapter.");
                 Assert.That(
-                    publicPlanParameterTypes.Any(IsLegacyWorldGenType),
+                    publicBootstrapParameterTypes.Any(IsLegacyWorldGenType),
                     Is.False,
-                    "Kentridge's public campaign bootstrap must not expose a MountingForce.WorldGen planning type.");
+                    "Kentridge's public campaign bootstrap must not expose any MountingForce.WorldGen implementation type.");
                 Assert.That(
                     publicGenerationPropertyTypes.Any(IsLegacyWorldGenType),
                     Is.False,
