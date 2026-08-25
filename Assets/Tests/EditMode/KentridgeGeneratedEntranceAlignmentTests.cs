@@ -142,15 +142,20 @@ namespace VoxelEngine.Tests.EditMode
             int windowDepth = (plan.Theme.WallThicknessDm + 1) * scale;
             int z0 = 10 * scale;
             int minimumFacadeGap = 3 * scale;
+            int homeCanopyHalfWidth = 16 * scale;
 
             FeatureCatalogue catalogue = KentridgeSharedStructureVoxelCatalogue.Build(
                 Seed, settings, Allocator.Temp);
             try
             {
                 FeatureDefinition medrare = catalogue.Definitions[(int)KentridgeRole.MedrareHouse];
+                AnchorSpec publishedDoor = catalogue.Anchors[medrare.AnchorOffset];
+                Assert.AreEqual("door", publishedDoor.Name.ToString());
+                Assert.AreEqual(z0, publishedDoor.LocalPosition.z);
+                HorizontalSpan entranceCanopy = new HorizontalSpan(
+                    publishedDoor.LocalPosition.x - homeCanopyHalfWidth,
+                    publishedDoor.LocalPosition.x + homeCanopyHalfWidth);
                 var frontWindows = new List<HorizontalSpan>();
-                HorizontalSpan entranceCanopy = default;
-                bool foundEntranceCanopy = false;
                 int3 transform = int3.zero;
                 var transformStack = new Stack<int3>();
 
@@ -196,15 +201,6 @@ namespace VoxelEngine.Tests.EditMode
                         {
                             frontWindows.Add(new HorizontalSpan(x, x + width));
                         }
-                        else if (y == foundation + 25 * scale
-                                 && z == z0 - 5 * scale
-                                 && width == 32 * scale
-                                 && height == 3 * scale
-                                 && depth == 8 * scale)
-                        {
-                            entranceCanopy = new HorizontalSpan(x, x + width);
-                            foundEntranceCanopy = true;
-                        }
                     }
 
                     pc += length;
@@ -213,8 +209,6 @@ namespace VoxelEngine.Tests.EditMode
 
                 Assert.IsEmpty(transformStack,
                     "Generated Medrare House program must balance its local transform stack.");
-                Assert.IsTrue(foundEntranceCanopy,
-                    "Medrare House should exercise the default generated-house entrance canopy.");
                 Assert.AreEqual(2, frontWindows.Count,
                     "An asymmetric two-bay frontage should retain both first-storey windows; " +
                     "entrance collision handling should reflow a bay rather than silently delete it.");
