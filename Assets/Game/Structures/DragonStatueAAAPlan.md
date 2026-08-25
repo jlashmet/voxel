@@ -2,56 +2,51 @@
 
 ## Goal
 
-Make Model Viewer **Dragon A** visually match the established voxel dragon concept at a professional/AAA showcase bar using the authoritative 10 cm voxel grid and the normal production surface renderer, with the exact same authored object used by World Builder placement.
+Make Model Viewer **Dragon A** visually match the established studio-reference dragon at a professional showcase bar using the authoritative 10 cm voxel grid and the normal production surface renderer, with the exact same authored object used by World Builder placement.
 
 ## Reference read
 
-The target is the generated studio concept used in this work: a powerful seated/crouched dragon with a graceful S-neck, low angular skull, layered swept horns, open mouth, broad overlapping chest armor, massive but anatomically articulated limbs, four separated claws per foot, a thick foreground tail, and two large raised bat wings with arched leading edges, curved structural fingers, warm membranes, and deep scalloped trailing edges. The primary silhouette must feel elegant and predatory rather than squat, gorilla-like, skeletal, curtain-winged, or assembled from primitives.
+The target is a powerful seated/crouched dragon with a diagonal body gesture, graceful S-neck, low angular skull, integrated layered crown horns, open mouth, broad overlapping chest armor, compact articulated limbs, four separated claws per foot, a controlled foreground tail, and two huge raised bat wings with curved leading edges, depth sweep, structural fingers, warm membranes, and broad shallow scallops. The silhouette must feel elegant and predatory rather than upright, goat-like, gorilla-like, snake-tailed, curtain-winged, or assembled from primitive blobs.
 
-## Constraints
+## Hard constraints
 
 - Authoritative geometry remains canonical CPU-authored voxel cells; no mesh renderer or GPU-derived authoritative state.
 - Shape construction remains deterministic implicit/SDF-style authoring sampled into the canonical 10 cm voxel grid.
-- Model Viewer must render through the normal production voxel surface path.
-- Model Viewer Dragon A and the World Builder dragon object must invoke the same authoring entry point; there may not be a separate viewer-only hero sculpt.
-- 10 cm voxels are the modeling resolution; prefer deliberate voxel-scale secondary/tertiary forms over broad corrective blobs.
-- Keep Dragon B as the fallback/legacy sculpt.
-- Do not accept a pass merely because it is recognizable as a dragon; compare silhouette and anatomy to the concept.
-- Reuse the existing feature branch `feature/sdf-dragon-statue` and CI branch `ci-test/dragon-model-viewer`.
-- Every visual pass is judged from a fresh production capture artifact, not from source-code intent.
+- Model Viewer renders through the normal production voxel surface path.
+- Model Viewer Dragon A and the World Builder dragon object invoke the same authoring entry point.
+- Every visual pass is judged from a fresh production capture artifact, not source-code intent.
+- The production visual gate captures hero, opposite three-quarter, and rear/wing views. One flattering angle cannot approve the model.
+- Do not accept a pass merely because it is recognizable as a dragon.
 
 ## Acceptance criteria
 
-- [ ] Head reads as a dragon at thumbnail scale: compact wedge muzzle, visible jaw opening, brows/eyes, cheek fins, and swept crown horns that do not read as antlers.
-- [ ] Neck has a graceful S-curve, broad shoulder transition, and layered ventral armor rather than a vertical tube.
-- [ ] Forelimbs have shoulder/elbow/wrist articulation, connected hands, and four separated digits with long claws without dominating the torso.
-- [ ] Rear legs/haunches carry the seated weight and feet have four separated toes/claws with a compact feline/reptilian silhouette rather than elephant feet.
-- [ ] Wings frame the body with a broad arched leading edge, curved/fanned structural fingers, warm readable membranes, deep V/U scallops, and no curtain/venetian-blind/rib-cage read.
-- [ ] Tail is thick at the base, makes one elegant open foreground sweep fully visible in the hero framing, tapers continuously, and has visible ridge/spine detail without forming a closed ring.
-- [ ] Ventral armor reads as 5–7 large overlapping pointed shields flowing from jaw to belly, not many horizontal ribs/slabs.
-- [ ] Surface detail includes readable scales/plates/spines at 10 cm resolution without turning the dragon into masonry.
-- [x] Production capture has no missing chunks and passes `ModelViewerSceneTests.DragonStatueConvergesThroughProductionSurfacePath` for v5 (`32797911327`) and v6 (`32798951633`).
-- [x] Model Viewer Dragon A is authored by `DragonStatueWorldBuilderObject` through `DecorationVoxelStampBackend`, with bounds owned by the detailed production sculpt.
-- [ ] Production capture contains no detached digits, floating remnants, accidental isolated strips, or obvious clear/rebuild seams.
-- [ ] Hero camera framing contains the entire tail, wing tips, claws, and horns with intentional breathing room.
-- [ ] Final render is judged against the concept after every pass; failed passes are documented below.
+- [ ] Head reads as a dragon at thumbnail scale: compact wedge muzzle, open jaw, brows/eyes, layered cheek fins, and integrated swept crown horns with no goat/antler read.
+- [ ] Neck has a graceful S-curve and broad shoulder transition rather than a vertical tube.
+- [ ] Torso is crouched/diagonal and chest-to-pelvis masses read anatomically rather than as one vertical sausage.
+- [ ] Forelimbs visibly bend at shoulder/elbow/wrist, stay compact, and end in four separated long claws without hanging-column/gorilla proportions.
+- [ ] Rear legs/haunches carry the seated weight; hocks and feet tuck under the body and four toes read cleanly.
+- [ ] Both wings meaningfully frame the hero silhouette, sweep in depth, and have arched leading edges, curved structural fingers, broad warm membranes, and shallow scallops without flat panels, torn sheets, or dangling wires.
+- [ ] Tail is thick only at the root, forms one elegant open foreground sweep, tapers continuously, shows armor/ridge detail, and never dominates the composition or leaves detached tip fragments.
+- [ ] Ventral armor reads as 5–7 large overlapping shields, not ribs or a striped turtle belly.
+- [ ] Surface detail includes readable scale/plate/spine hierarchy at 10 cm without masonry noise.
+- [x] Model Viewer Dragon A is authored through `DragonStatueWorldBuilderObject` -> `DecorationVoxelStampBackend` -> `DragonStatueDetailedVoxelAuthoring`.
+- [x] Production path converges with no missing visible chunks for V5, V6, V7 and V8 targeted runs.
+- [ ] No detached digits, floating remnants, isolated strips, clear/rebuild seams, or hidden rear-view failures in any capture angle.
+- [ ] Hero framing contains the full silhouette with intentional breathing room.
 
 ## Iteration log
 
-- [x] Existing primitive-heavy passes reviewed. Latest old production image rejected: crocodilian/goat-like head, blunt hands/feet, bead-like chest accents, overly flat rectangular wing membranes, and weak horn silhouette.
-- [x] Built `DragonStatueReferenceVoxelArt`, a reference-driven 10 cm voxel pass with explicit jaw/teeth, horn tiers, throat shields, articulated digits, five wing fingers, scalloped bays, tail spines, and scale bands.
-- [x] Literal-voxel pass 1c production capture: **rejected despite technical success**. It is substantially cleaner and the wings finally read, but compared with the concept it is too tall/lanky; crown horns read like giant antlers; forelimbs are too long/thin; paws are blunt; chest shields read like horizontal ribs; haunches need more mass; foreground tail becomes a thin hoop instead of a thick armored/spined tail.
-- [x] V3/V4/V5 established the canonical authored-object path and progressively replaced the worst silhouette defects.
-- [x] V5 production capture (`32797911327`) harsh review: **rejected**. The dominant visible wing is a tall rectangular slab with nearly parallel vertical ribs; the opposite wing contributes almost nothing to the silhouette. The neck is too straight and thin relative to the torso. The front hands are visibly disconnected. The right-side rear foot is malformed. Chest plates are broad horizontal bands. The tail is a short rounded loop. Crown horns read as antlers. Floating remnants remain. Body masses are too gorilla-like.
-- [x] Source-path audit found viewer/world-builder divergence. Fixed it: World Builder and Model Viewer Dragon A now route through the same detailed production authoring and bounds; Dragon B explicitly remains the old organic fallback.
-- [x] V6 hero-silhouette rebuild implemented with full neck/head/wing/tail/distal-limb ownership, four front digits, a larger open tail, and rebuilt chest armor.
-- [x] V6 targeted production run `32798951633`: **green technically, rejected visually**. Improvements: forelimb continuity is fixed, four front claws read, the tail has substantial mass, and the World Builder path converges correctly. Remaining visual failures are still severe: visible wing remains a near-rectangular black curtain; only one wing meaningfully frames the body; torso and forelimbs remain gorilla-like; head is undersized and horse/croc-like; crown still reads as antlers; ventral armor reads as many narrow ribs; rear foot remains weak/elephant-like; the foreground tail is clipped by hero framing; sparse inherited details/remnants still prevent a clean premium silhouette.
-- [x] Critical strategy correction after V6: stop stacking corrective passes. V3→V6 inheritance is now itself an art-quality risk. V7 will be a **single-owner clean hero authoring from an empty object**, built directly from the reference. No old head, wing, limb, tail, armor, or surface geometry will survive beneath it.
-- [ ] V7 clean hero authoring: compact broad body; shorter articulated forelimbs; powerful haunches; graceful S-neck; larger low wedge head; short swept layered horns; two deliberately asymmetric hero-visible wings; warm membrane bays built with explicit inward notches instead of carving a rectangular sheet; 5–7 large ventral shields; one full foreground tail sweep with blade tip and dorsal spines.
-- [ ] Route `DragonStatueDetailedVoxelAuthoring` exclusively to V7, retaining V3–V6 only as historical source until final cleanup.
-- [ ] Increase/retune Dragon A hero framing so the complete V7 silhouette is visible.
-- [ ] Capture V7 through production Model Viewer and perform harsh reference comparison.
-- [ ] Iterate clean V7 anatomy/silhouette until accepted before tertiary detailing.
-- [ ] Add/rework tertiary scales, dorsal spines, moss/weathering, wing membrane accents, and material breakup only after silhouette/anatomy is accepted.
-- [ ] Remove temporary mesh-bake workflow/tool detour before completion; it currently forces all 7 test assemblies in affected CI.
-- [ ] Final diff + targeted CI + affected CI review, distinguishing branch-preexisting architecture failures from dragon regressions.
+- [x] Early primitive/reference-voxel attempts rejected for crocodilian/goat-like head, blunt feet, ribbed chest, weak tail and rectangular membranes.
+- [x] V3/V4/V5 progressively corrected the original authoring but accumulated inherited anatomy. V5 production run `32797911327` was technically green and visually rejected.
+- [x] V6 rebuilt head/neck/wings/tail/distal limbs and unified the actual World Builder path with Model Viewer. Production run `32798951633` was green but still visibly gorilla-like with a curtain wing, antler crown and damaged silhouette.
+- [x] Strategy correction: stopped composing V3-V6 and created clean V7 from empty state.
+- [x] V7 production run `32799735270`: **major improvement but rejected**. It finally reads as one coherent authored dragon with attached claws, warm membrane and substantial tail. Against the reference it remains far below AAA: visible wing is flat and toothy; far wing almost disappears; front legs hang too straight/heavy; rear stance sprawls; tail is oversized and snake-smooth; crown horns remain goat-like; chest plates are dark/striped; detached ground fragment remains.
+- [x] Added multi-angle production acceptance (`dragon-a-detailed`, `dragon-a-opposite`, `dragon-a-rear`) specifically to expose hidden joins and rear-view cheats.
+- [x] Removed abandoned temporary mesh-bake workflow/tool so it no longer forces every dragon edit into all seven affected-test assemblies.
+- [x] V8 targeted-form correction production run `32800291348`: **rejected, including from new multi-angle evidence**. Hero wing scallops improve, but the model still has an upright sausage torso, hanging-column forelimbs, torn-panel far wing, goat/dog head, oversized loop tail, weak rear anatomy and the detached fragment. Rear capture exposes giant haunch/tail-root blobs and wing fingers that read as wires. V8 proves V7's base proportions are still wrong; more regional surgery would be wasteful.
+- [x] Strategy correction: V9 is another clean-from-empty rebuild and is now the sole production sculpt. V7/V8 remain historical only.
+- [x] V9 changes: lower diagonal torso; smaller/tucked limbs; shorter integrated horns; larger wedge skull; symmetric huge wings swept strongly backward in Z; scallops constructed as shallow five-point concave arcs rather than carved holes; slimmer non-looping tail with connected tip; broad warm ventral shields; explicit secondary scales and leading-edge armor.
+- [ ] Capture V9 through all three production review angles and perform harsh comparison against the reference.
+- [ ] If V9 primary anatomy/silhouette passes, tune camera composition and then add tertiary scale, membrane, horn and weathering polish.
+- [ ] If V9 still has structural failures, replace the failed primary form rather than decorating it.
+- [ ] Final cleanup: remove historical dead authoring passes no longer needed, run targeted production visual gate, affected CI, architecture boundary gate, and inspect final PR diff.
