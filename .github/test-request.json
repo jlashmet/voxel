@@ -1,5 +1,5 @@
 {
   "platform": "PlayMode",
   "test": "VoxelEngine.Tests.PlayMode.ModelViewerSceneTests.DragonStatueConvergesThroughProductionSurfacePath",
-  "request_id": "dragon-v11-reference-silhouette-20260824-2008"
+  "request_id": "dragon-v12-palette-scale-20260824-2020"
 }
