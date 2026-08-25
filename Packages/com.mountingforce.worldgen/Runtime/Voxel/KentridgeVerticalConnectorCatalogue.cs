@@ -9,13 +9,13 @@ using VoxelEngine.Structures.Api;
 namespace MountingForce.WorldGen.Voxel
 {
     /// <summary>
-    /// Built circulation and retaining architecture for Kentridge's authored hillside.
+    /// Built retaining architecture for Kentridge's authored hillside.
     ///
-    /// Smooth district landforms provide the earth mass. This stage supplies the crisp civic fabric
-    /// that makes those elevation changes read as a town: hard stone stair flights on the main
-    /// ascent, short arcaded retaining walls at important landings, and a narrow summit campanile.
-    /// All of these are Infrastructure, not gameplay Structures, so stable building identity remains
-    /// exactly the original seventeen roles.
+    /// Smooth district landforms provide the earth mass and the directed town-surface stage already
+    /// owns the continuous main-road climb. This stage supplies short arcaded retaining walls at
+    /// important landings and a narrow summit campanile without overlaying a second stair route on
+    /// the same carriageway. These are Infrastructure, not gameplay Structures, so stable building
+    /// identity remains exactly the original seventeen roles.
     /// </summary>
     public static class KentridgeVerticalConnectorCatalogue
     {
@@ -58,16 +58,13 @@ namespace MountingForce.WorldGen.Voxel
         public static FeatureCatalogue Build(uint seed, VoxelWorldGenSettings settings,
                                              Allocator allocator)
         {
-            int scale = settings.VoxelsPerDecimetre;
-            var builds = new List<CompiledBuild>(9);
+            var builds = new List<CompiledBuild>(5);
 
-            AddStairFlight(builds, BuildFlight("south-rise", 760, 900, 10, seed, scale), settings);
-            AddStairFlight(builds, BuildFlight("lower-market-rise", 620, 760, 14, seed, scale), settings);
-            AddStairFlight(builds, BuildFlight("market-upper-rise", 300, 440, 17, seed, scale), settings);
-            AddStairFlight(builds, BuildFlight("civic-rise", 160, 300, 15, seed, scale), settings);
+            // The directed town-surface catalogue already realizes the main spine as one continuous,
+            // supported climb. Do not add a second hard-stone stair ribbon inside that carriageway.
 
             // Walls deliberately stop short of the main carriageway. The gaps are not mistakes:
-            // they expose the road/stair penetration through each terrace and turn it into a clear
+            // they expose the road penetration through each terrace and turn it into a clear
             // compositional ascent instead of hiding circulation behind one continuous wall.
             builds.Add(BuildRetainingWall(
                 "market-retaining-west",
