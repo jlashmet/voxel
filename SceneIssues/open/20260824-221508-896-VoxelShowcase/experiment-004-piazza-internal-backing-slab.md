@@ -13,31 +13,55 @@ The smallest structural correction is to make occupancy continuous: emit one ful
 - Production-fix attempts before this experiment: **1/3**
 - Attempt 1 (`+1` authored +X/+Z endpoints) is present in this baseline and its focused boundary regression is present, but the fresh exact-pose replay recorded in experiment 003 still shows the crack.
 
-## Planned red regression
+## Regression and red evidence
 
-Add `KentridgeMarketPiazzaTests.HardPiazzaUsesContinuousBackingSlabUnderBorderBands`.
+Added `KentridgeMarketPiazzaTests.HardPiazzaUsesContinuousBackingSlabUnderBorderBands` in feature commit `f7906cd0143d489628d16d69d8e620c659d57a3b`.
 
-The test will inspect the emitted shape program and require the first primitive to be a FoundationStone `EmitBox` spanning the complete hard-piazza footprint. On the baseline implementation the first primitive is a DarkMasonry north/south border strip, so the test should fail before any production change.
+The test requires the first piazza primitive to be a FoundationStone `EmitBox` spanning the complete hard-piazza footprint. Targeted CI run `32882314780` executed exactly one test and failed for the predicted reason:
 
-## Production change if red is confirmed
+- expected full depth `141`;
+- actual first-primitive depth `5`.
 
-Change only `KentridgeMarketPiazzaCatalogue.PiazzaProgram`:
+This proved that the baseline program depended on independently touching perimeter/centre primitives rather than continuous backing occupancy.
+
+## Production attempt 2
+
+Production commit: `5a025ac0f668d786bb1399e11e967a716a33e858`.
+
+Changed only `KentridgeMarketPiazzaCatalogue.PiazzaProgram`:
 
 1. emit one full-width/full-depth FoundationStone box;
 2. emit the four existing DarkMasonry perimeter bands over it;
 3. remove the separate centre-only stone box;
 4. keep `MaxPrimitives = 5` and all placement/footprint/precedence values unchanged.
 
-This counts as production attempt **2/3** only when the production behavior change is committed.
+Production-fix attempt: **2/3**.
 
-## Verification required
+## Structural verification
 
-- targeted red CI for the new regression on `ci-test/fixes/agent-2`;
-- production/test commit on `fixes/agent-2`;
-- targeted green CI for the regression and relevant piazza test class;
-- regenerate the VoxelShowcase artifact and replay the original saved camera/circles using the existing replay workflow, without creating a new SceneIssues capture;
-- close the issue only if all marked seams are absent in the fresh replay and the terminal bookkeeping commit records the verified fix commit.
+- Focused regression run `32882528039`: **pass**.
+- Full `VoxelEngine.Tests.EditMode.KentridgeMarketPiazzaTests` run `32882857196`: **pass**.
+
+The change therefore establishes the intended continuous-backing contract without breaking the existing authored-boundary, height, precedence, or shared-space tests.
+
+## Fresh-bake replay verification
+
+Verification ran from `ci-test/fixes/agent-2` using the existing assigned SceneIssue replay fixture; no new capture was created.
+
+- Replay workflow run: `32883086329`.
+- Workflow commit: `e6ea4de81aee96ddd74edc8846f62eb68ed728e9` (CI-branch-only replay wiring).
+- Fresh VoxelShowcase bake: **pass**.
+- Standalone saved-pose replay: **pass** (`Verified standalone frozen pose`).
+- Evidence artifact: `scene-221508-unobscured-view`, artifact `9576720440`.
+
+Manual inspection of the fresh `replay-latest.png` against the original screenshot shows the reported defect still present: the broad light-blue strip remains through the three lower marked regions, and light-blue exposure remains adjacent to the market-stall feet.
 
 ## Result
 
-Pending.
+**Hypothesis disproven as the SceneIssue owner.** The hard piazza now has a stronger continuous-occupancy contract and all focused tests are green, but that change does not alter the captured visual seam. The visible strip is therefore not caused by exact-touch ownership between the piazza border and centre primitives.
+
+Attempt 2 is unsuccessful for the SceneIssue and counts as **2/3**.
+
+## Next
+
+Do not make another piazza-geometry expansion or screenshot-coordinate patch. With only one production attempt remaining before the three-attempt reproduction rule, first inspect the actual fresh baked world at the saved seam row and identify whether the light-blue pixels correspond to empty density/material cells, a later writer, a region/chunk boundary, or renderer/mesher output despite occupied cells. Attempt 3 must target that proven final owner.
