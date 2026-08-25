@@ -67,3 +67,8 @@ isolated render for visual review.
 - 2026-08-24: A concurrent follow-up added a small asymmetric branch and lichen through the same
   integer authoring primitives. Retained it because it gives the talons a readable perch, and added
   semantic brown/green presentation colors for those two existing material IDs.
+- 2026-08-24: Third targeted run passed with the independent renderer and semantic palette. The
+  image was solid and correctly colored, but the renderer's fixed camera viewed the raven from
+  behind. Added a render-only 180-degree display copy so the final artifact exposes the brow, eyes,
+  beak profile, breast, and camera-side wing. The backend-authored source capture remains the one
+  used for all invariants.

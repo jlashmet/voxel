@@ -67,8 +67,9 @@ namespace Game.Structures.Tests
             });
             AssertPaddingIsEmpty(capture, min, size);
 
+            VisualStructureCapture displayCapture = RotateForDisplay(capture, min, size, out int3 displayMin);
             string path = VisualStructureDiagnosticRenderer.Render(
-                capture, min, size, "raven-sculpture-high-resolution", 1600, 1600);
+                displayCapture, displayMin, size, "raven-sculpture-high-resolution", 1600, 1600);
             ApplyRavenPalette(path);
             Assert.That(File.Exists(path), Is.True, $"Expected visual artifact at {path}");
             Assert.That(new FileInfo(path).Length, Is.GreaterThan(8192),
@@ -80,6 +81,26 @@ namespace Game.Structures.Tests
             string artifactPath = Path.Combine(artifactDirectory, "raven-sculpture-high-resolution.png");
             File.Copy(path, artifactPath, true);
             TestContext.WriteLine($"Generated high-resolution voxel raven: {artifactPath}");
+        }
+
+        private static VisualStructureCapture RotateForDisplay(
+            VisualStructureCapture source,
+            int3 min,
+            int3 size,
+            out int3 displayMin)
+        {
+            int3 max = min + size;
+            displayMin = new int3(1 - max.x, min.y, 1 - max.z);
+            var display = new VisualStructureCapture(displayMin, size);
+            for (int y = min.y; y < max.y; y++)
+            for (int z = min.z; z < max.z; z++)
+            for (int x = min.x; x < max.x; x++)
+            {
+                byte material = source.Get(x, y, z);
+                if (material != GameMaterialIds.Empty)
+                    display.Set(-x, y, -z, material);
+            }
+            return display;
         }
 
         private static void ApplyRavenPalette(string path)
