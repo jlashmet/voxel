@@ -57,19 +57,32 @@ namespace Game.Structures.Tests
             {
                 Assert.That(occupied, Is.GreaterThan(160000),
                     "The raven should retain dense anatomy and layered feather forms.");
-                Assert.That(materials.Count, Is.GreaterThanOrEqualTo(7),
-                    "The sculpture should preserve its deliberately textured material regions.");
+                Assert.That(materials.Count, Is.GreaterThanOrEqualTo(9),
+                    "The sculpture should preserve feather, anatomy, eye, branch, and lichen material regions.");
                 Assert.That(materials, Does.Contain(GameMaterialIds.DarkStone));
                 Assert.That(materials, Does.Contain(GameMaterialIds.Slate));
                 Assert.That(materials, Does.Contain(GameMaterialIds.Crystal));
                 Assert.That(materials, Does.Contain(GameMaterialIds.Glass));
+                Assert.That(materials, Does.Contain(GameMaterialIds.Bedrock));
+                Assert.That(materials, Does.Contain(GameMaterialIds.Stone));
                 Assert.That(materials, Does.Contain(GameMaterialIds.Gold));
+                Assert.That(materials, Does.Contain(GameMaterialIds.Wood),
+                    "The raven should remain visibly perched on its authored branch.");
+                Assert.That(materials, Does.Contain(GameMaterialIds.Moss),
+                    "The branch should retain sparse lichen/moss texture accents.");
             });
             AssertPaddingIsEmpty(capture, min, size);
 
-            VisualStructureCapture displayCapture = RotateForDisplay(capture, min, size, out int3 displayMin);
+            // The raven faces -Z. A side-biased +X camera exposes the bill profile and near eye;
+            // the default isometric direction looks too closely down the bill axis to judge them.
             string path = VisualStructureDiagnosticRenderer.Render(
-                displayCapture, displayMin, size, "raven-sculpture-high-resolution", 1600, 1600);
+                capture,
+                min,
+                size,
+                "raven-sculpture-high-resolution",
+                new Vector3(1f, 0.55f, 0.15f),
+                1600,
+                1600);
             ApplyRavenPalette(path);
             Assert.That(File.Exists(path), Is.True, $"Expected visual artifact at {path}");
             Assert.That(new FileInfo(path).Length, Is.GreaterThan(8192),
@@ -81,26 +94,6 @@ namespace Game.Structures.Tests
             string artifactPath = Path.Combine(artifactDirectory, "raven-sculpture-high-resolution.png");
             File.Copy(path, artifactPath, true);
             TestContext.WriteLine($"Generated high-resolution voxel raven: {artifactPath}");
-        }
-
-        private static VisualStructureCapture RotateForDisplay(
-            VisualStructureCapture source,
-            int3 min,
-            int3 size,
-            out int3 displayMin)
-        {
-            int3 max = min + size;
-            displayMin = new int3(1 - max.x, min.y, 1 - max.z);
-            var display = new VisualStructureCapture(displayMin, size);
-            for (int y = min.y; y < max.y; y++)
-            for (int z = min.z; z < max.z; z++)
-            for (int x = min.x; x < max.x; x++)
-            {
-                byte material = source.Get(x, y, z);
-                if (material != GameMaterialIds.Empty)
-                    display.Set(-x, y, -z, material);
-            }
-            return display;
         }
 
         private static void ApplyRavenPalette(string path)
@@ -124,7 +117,7 @@ namespace Game.Structures.Tests
                 new Color32(54, 82, 109, 255),
                 new Color32(73, 58, 102, 255),
                 new Color32(20, 23, 28, 255),
-                new Color32(105, 91, 75, 255),
+                new Color32(58, 63, 69, 255),
                 new Color32(211, 157, 47, 255),
                 new Color32(91, 59, 38, 255),
                 new Color32(62, 79, 45, 255),
