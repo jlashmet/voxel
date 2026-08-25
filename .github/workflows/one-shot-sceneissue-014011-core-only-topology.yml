@@ -1,4 +1,4 @@
-name: One-shot SceneIssue 220516 exact-view validation
+name: One-shot SceneIssue 220516 stage isolation
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 jobs:
-  replay:
+  no-plot-surfaces:
     runs-on: [self-hosted, macOS]
     timeout-minutes: 30
     steps:
@@ -29,6 +29,23 @@ jobs:
           grep -q 'Verified standalone frozen pose' Assets/DeveloperTools/SceneIssueCapture/SceneIssueReplayVerification.cs
           grep -q -- '--scene-issue)' tools/showcase-player-capture.sh
           git diff --check
+
+      - name: Isolate named plot-surface stage in checkout only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('Packages/com.mountingforce.worldgen/Runtime/Voxel/KentridgeCombinedVoxelCatalogueCanonical.Core.cs')
+          text = path.read_text()
+          needle = '            Add(stageList, KentridgeVerticalPlacementAdapter.BuildPlotSurfaces(seed, settings, Allocator.Temp));\n'
+          if text.count(needle) != 1:
+              raise SystemExit(f'expected exactly one plot-surface stage, found {text.count(needle)}')
+          text = text.replace(needle, '            // SceneIssue 220516 diagnostic: named plot-surface stage isolated in CI checkout.\n')
+          path.write_text(text)
+          PY
+          git diff --check
+          git diff -- Packages/com.mountingforce.worldgen/Runtime/Voxel/KentridgeCombinedVoxelCatalogueCanonical.Core.cs
 
       - name: Resolve Unity
         id: unity
@@ -53,11 +70,11 @@ jobs:
             sleep 5
           done
 
-      - name: Replay saved VoxelShowcase view
+      - name: Replay saved VoxelShowcase view without plot surfaces
         shell: bash
         run: |
           set -euo pipefail
-          ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue220516"
+          ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue220516NoPlotSurfaces"
 
           set +e
           bash tools/showcase-player-capture.sh \
@@ -85,18 +102,18 @@ jobs:
           latest="$(find "$ROOT/Screenshots" -type f -name '*.png' -size +1k | sort | tail -1)"
           test -n "$latest"
           sips -s format jpeg --setProperty formatOptions 80 -Z 1364 "$latest" --out "$ROOT/replay-latest.jpg" >/dev/null
-          echo "SCENE_220516_REPLAY_FRAME $(basename "$latest")"
+          echo "SCENE_220516_NO_PLOT_SURFACES_FRAME $(basename "$latest")"
 
-      - name: Upload exact-view evidence
+      - name: Upload stage-isolation evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: scene-220516-attempt-3-exact-view
+          name: scene-220516-no-plot-surfaces
           path: |
             SceneIssues/20260824-220516-659-VoxelShowcase/screenshot-001.png
-            Artifacts/SceneIssue220516/Screenshots/*.png
-            Artifacts/SceneIssue220516/replay-latest.jpg
-            Artifacts/SceneIssue220516/player-build.log
-            Artifacts/SceneIssue220516/player-run.log
+            Artifacts/SceneIssue220516NoPlotSurfaces/Screenshots/*.png
+            Artifacts/SceneIssue220516NoPlotSurfaces/replay-latest.jpg
+            Artifacts/SceneIssue220516NoPlotSurfaces/player-build.log
+            Artifacts/SceneIssue220516NoPlotSurfaces/player-run.log
           if-no-files-found: error
           retention-days: 3
