@@ -11,7 +11,7 @@ The fix must identify the shared placement / boundary-ownership rule behind thos
 - [x] Replay the exact saved camera against the current committed VoxelShowcase bake and compare all four marked locations with the original capture.
 - [x] If the defect still reproduces, identify the physical pieces visible at each mark and trace them to their authoritative generator/catalogue definitions.
 - [x] Determine whether the gaps come from placement arithmetic, footprint/envelope mismatch, facade alignment, road/plot boundary ownership, or voxel rasterisation at touching boundaries.
-- [ ] Add the smallest regression that fails on the causal alignment invariant.
+- [x] Add the smallest regression that fails on the causal alignment invariant.
 - [ ] Implement the smallest production fix in the owning planner/compiler rather than screenshot-specific coordinates.
 - [ ] Run the focused regression and the smallest affected Kentridge/worldgen suite.
 - [ ] Regenerate the showcase startup bake if the fix changes baked geometry, then replay the exact saved camera from the committed bake.
@@ -26,7 +26,9 @@ Kentridge roads already convert inclusive authored spans to counted voxel footpr
 
 The active VoxelShowcase composition uses the same `KentridgeVerticalProfile` for the town surface, hard piazza, and vertically adapted dressing, so the earlier height-source hypothesis is rejected for this scene.
 
-See `experiment-002-positive-edge-ownership.md` for the red/green regression plan. Production-fix attempts remain 0 / 3 until the geometry change lands.
+The focused regression is now proven red on source commit `e7789e5e28bc570ec4e2de25457b845db0c8f7fa`: CI run `32851636363` executed exactly one test, `VoxelEngine.Tests.EditMode.KentridgeMarketPiazzaTests.HardAndGradedPiazzaOwnTheSameInclusiveAuthoredBoundary`, and failed on the hard piazza +X endpoint (`Expected: 1280`, `But was: 1279`). This is the predicted one-voxel omission rather than a setup or unrelated runtime failure.
+
+See `experiment-002-positive-edge-ownership.md` for the red/green regression record. Production-fix attempts remain 0 / 3 until the geometry change lands.
 
 ## Three-attempt rule
 

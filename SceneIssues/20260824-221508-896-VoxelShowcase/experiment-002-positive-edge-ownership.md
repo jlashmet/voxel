@@ -4,6 +4,7 @@
 
 - Source branch: `fixes`
 - Baseline commit: `937bfd19736e6e6f889b1c85af8715e7fe8b32a7`
+- Regression commit: `e7789e5e28bc570ec4e2de25457b845db0c8f7fa`
 - Scene issue: `20260824-221508-896-VoxelShowcase`
 - Production-fix attempts before this experiment: 0 / 3
 
@@ -21,19 +22,31 @@ The lower saved-view seam is an endpoint-ownership bug, not a height mismatch. K
 6. The engine's feature/raster tests treat footprints as half-open counted volumes: primitive maxima must remain strictly below `origin + footprint`, and raster sub-volume maxima are exclusive. A footprint of 140 starting at Z=450 owns Z=450..589, not Z=590.
 7. The canonical VoxelShowcase composition already adapts the graded town surface, hard piazza, and dressing to the same `KentridgeVerticalProfile`; the earlier height-source hypothesis is therefore rejected for this scene.
 
-## Verdict
-
-Confirmed boundary-contract mismatch. The saved seam sits on the exact authored positive-Z row omitted by both plaza footprints.
-
 ## Regression
 
-Add a focused `KentridgeMarketPiazzaTests` assertion that both the hard piazza and the graded Market Square:
+Added `VoxelEngine.Tests.EditMode.KentridgeMarketPiazzaTests.HardAndGradedPiazzaOwnTheSameInclusiveAuthoredBoundary`, which requires both the hard piazza and graded Market Square to:
 
 - start at the semantic authored minimum,
 - end at the semantic authored maximum after converting footprint count back to an inclusive coordinate (`origin + footprint - 1`), and
 - therefore own the same positive X/Z endpoints.
 
-The regression is expected to fail on the baseline at +X/+Z because both footprints are one voxel short.
+### Red result
+
+- CI request commit: `2564d3d422adda9c0cb9032136dc95209ad47e9a`
+- Workflow run: `32851636363`
+- Source under test: `e7789e5e28bc570ec4e2de25457b845db0c8f7fa`
+- Platform: `EditMode`
+- Executed: exactly 1 test case
+- Result: failed as predicted
+- Assertion: `Hard piazza must own its authored +X endpoint.`
+- Expected: `1280`
+- Actual: `1279`
+
+This is the exact one-voxel positive-edge omission predicted by the hypothesis; Unity setup, compilation, and request resolution all completed successfully before the assertion failure.
+
+## Verdict
+
+Confirmed boundary-contract mismatch. The saved seam sits on the exact authored positive-Z row omitted by both plaza footprints, and the focused regression independently proves the same off-by-one contract on +X.
 
 ## Candidate production fix
 
@@ -44,10 +57,6 @@ For both plaza builders, preserve the authored minimum placement and convert inc
 
 This matches the road-span convention and does not add camera- or screenshot-specific geometry.
 
-## Validation sequence
+## Next
 
-1. Run the focused regression against this baseline and require a red result.
-2. Apply the candidate fix as production attempt 1 / 3.
-3. Rerun the same regression and the smallest affected Kentridge suite.
-4. Replay the exact saved camera from a fresh committed bake and verify the exposed strip is gone.
-5. Reassess the market-stall marked location after the underlying plaza boundary is corrected.
+Apply the candidate fix as production attempt 1 / 3, rerun the same regression to green, then run the smallest affected Kentridge/worldgen checks before regenerating/replaying the saved VoxelShowcase view.
