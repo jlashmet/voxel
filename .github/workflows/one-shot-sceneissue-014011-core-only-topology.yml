@@ -5,7 +5,7 @@ on:
     branches: [fixes]
     paths:
       - .github/workflows/one-shot-sceneissue-014011-core-only-topology.yml
-      - Packages/com.mountingforce.worldgen/Runtime/Voxel/KentridgeVerticalConnectorCatalogue.cs
+      - Packages/com.mountingforce.worldgen/Runtime/Content/Kentridge/KentridgeUrbanSkeleton.cs
 
 permissions:
   contents: read
@@ -72,8 +72,8 @@ jobs:
               failure = case.find('failure')
               if failure is not None:
                   print((failure.findtext('message') or '').strip())
-          if len(cases) != 2:
-              print(f"ERROR: expected exactly 2 circulation tests, got {len(cases)}", file=sys.stderr)
+          if len(cases) != 3:
+              print(f"ERROR: expected exactly 3 circulation tests, got {len(cases)}", file=sys.stderr)
               sys.exit(2)
           PY
             parse_status=$?
