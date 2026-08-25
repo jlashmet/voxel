@@ -45,7 +45,7 @@ For this issue, moving the former package implementation under `Assets/Game/Worl
 - [x] Run targeted CI and iterate until green.
 - [x] Review the final diff against `CLAUDE.md`, relevant specs, and the Game-vs-VoxelEngine destination above.
 - [x] Record verification evidence and resolution details.
-- [ ] Move the verified capture to `SceneIssues/closed/` in terminal bookkeeping.
+- [x] Move the verified capture to `SceneIssues/closed/` in terminal bookkeeping.
 
 ## Final verification
 - Verified production/test source commit: `433bbe8ed24ce43627d4ff547d46e53930121f9e`.
@@ -59,3 +59,4 @@ For this issue, moving the former package implementation under `Assets/Game/Worl
 - The capture contains one frame and no circled sub-region; the issue note defines an architectural acceptance condition rather than a localized rendering blemish.
 - The former package-owned implementation is consolidated under WorldBuilder ownership and Kentridge construction is forced through `WorldBuilderTownAuthoring` rather than parallel authoring entry points.
 - The current `Game/WorldBuilder` tree still mixes semantic WorldBuilder responsibilities with the relocated physical generation backend. That is intentionally temporary for this issue. The documented end state remains `Game.WorldBuilder` semantic intent over reusable `VoxelEngine.WorldGen` physical generation.
+- Terminal bookkeeping records `status: fixed`, the focused regression, and source fix commit `433bbe8ed24ce43627d4ff547d46e53930121f9e`; the capture is closed without starting a new issue.
