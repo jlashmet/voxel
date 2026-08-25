@@ -4,10 +4,6 @@ using VoxelEngine.Structures.Api;
 
 namespace Game.Structures.Runtime
 {
-    /// <summary>
-    /// Version-A replacement pass. The failed prototype is erased by occupied-part envelopes before
-    /// the reference-driven rebuild and render-reviewed destructive polish are authored.
-    /// </summary>
     public static class DragonStatueReferenceRefinement
     {
         public static void Apply(IStructureAuthoringSession a, int3 origin)
@@ -22,6 +18,7 @@ namespace Game.Structures.Runtime
 
             DragonStatueAAAAuthoring.Author(a, origin);
             DragonStatueAAAPolish.Apply(a, origin);
+            DragonStatueAAAAnatomyFix.Apply(a, origin);
         }
 
         private static void Clear(IStructureAuthoringSession a, int3 o, int3 min, int3 size)
