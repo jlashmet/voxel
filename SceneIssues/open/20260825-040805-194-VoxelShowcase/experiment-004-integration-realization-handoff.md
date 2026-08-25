@@ -14,22 +14,26 @@ If the backend-facing WorldBuilderWorldGen integration assembly wraps the two le
 - Migrated `KentridgePubExitPlayTests` and `KentridgeOpeningVerticalSlicePlayTests` through WorldBuilder authoring and the integration-owned realization bundle. Source tip became `cdfcd8d9db95751bbae8c8fe30aee4be0a8277bb`.
 - Retried the ownership regression through CI commit `0e12f4a8ba5e4e50a9c417302fa208f7811e682c`, Actions run `32880386099`; that exposed the stale EditMode secret-bootstrap caller.
 - Migrated `KentridgeCampaignSecretBootstrapTests` through `WorldBuilderTownAuthoring` and one integration-owned realization bundle. Source tip became `087fa065da2e823afbaab8ca1a1de5e0f4d181fa`.
-- Retried the same ownership regression through CI commit `652a49a780a0c4ed91dd6efab8a669eb42b664d9`, Actions run `32880681029`, and inspected the uploaded `single-test-32880681029` artifact to recover compiler diagnostics hidden by the warning-heavy inline log tail.
+- Retried the same ownership regression through CI commit `652a49a780a0c4ed91dd6efab8a669eb42b664d9`, Actions run `32880681029`, and inspected the uploaded artifact to recover compiler diagnostics hidden by the warning-heavy inline log tail.
+- Migrated `KentridgeCampaignWorldRealizationTests` through WorldBuilder authoring and added a scene-local Kentridge compatibility bridge so the playable slice's existing unqualified `KentridgeDefinition.Build` entry point now calls `WorldBuilderTownAuthoring.Author` and reuses that authored backend plan for its legacy physical adapters instead of authoring Kentridge independently.
+- Added the intentionally narrow `Game.Kentridge.PlayableSlice` friend access needed for the scene bridge to unwrap `AuthoredTownPlan.BackendPlan`, and added `Game.WorldBuilder.Runtime` to the playable-slice assembly reference list.
+- Updated the durable plan at source commit `e870d61f480cd6b7c1aae032408976b8470499f5` to document the intended end state: `Game.WorldBuilder` owns semantic game intent, while reusable generic physical generation is a follow-on extraction target for `VoxelEngine.WorldGen`.
+- Retried the same ownership regression through CI commit `a5861391395776984581f0127385c05dce83d022`, Actions run `32882316548`, and inspected uploaded artifact `single-test-32882316548` (artifact id `9576332031`).
 
 ## Result
 
-The third CI attempt still failed at Unity compilation before the requested ownership assertion executed. The previously reported secret-bootstrap errors are gone. The remaining compiler errors are:
+Still failing at Unity compilation before the requested ownership assertion executes, but the prior raw-plan/raw-realization caller errors are gone. The uploaded `single.log` contains one compiler error repeated across Unity compile passes:
 
-- `Assets/Tests/EditMode/KentridgeCampaignWorldRealizationTests.cs` lines 61, 143, and 158 still pass raw `SettlementPlan` into `KentridgeCampaignWorldPlanner.Plan` instead of a WorldBuilder-authored `AuthoredTownPlan`.
-- `Assets/Scenes/Kentridge/KentridgePlayableSlice.cs` line 140 still passes raw `SettlementPlan` into `KentridgeCampaignSessionBootstrap.Plan`.
-- `Assets/Scenes/Kentridge/KentridgePlayableSlice.cs` line 214 still passes `KentridgeVoxelSiteRealizationFacts` directly to `CreateSession` instead of the integration-owned `KentridgeCampaignRealizationFacts` handoff.
+- `Assets/Scenes/Kentridge/KentridgeOpeningPresentation.cs(244,53)`: `CS0117: 'KentridgeDefinition' does not contain a definition for 'FootprintDm'`.
 
-`ci/single-test` correctly reported failure. No ownership assertion has passed yet.
+The scene-local compatibility type intentionally shadows the relocated legacy `KentridgeDefinition` for the whole `Game.Kentridge.PlayableSlice` namespace. `KentridgeOpeningPresentation` therefore resolves the new compatibility facade too, and that facade currently forwards `Id`, `TownCentreDm`, `Theme`, and `Build` but not the non-authoring `FootprintDm` geometry helper. `ci/single-test` correctly reported failure; no ownership assertion has passed yet.
 
 ## What learned
 
-The integration-owned handoff is compiling through production Kentridge composition and the previously migrated test callers. The remaining production failure is the playable Kentridge scene itself, which still constructs and passes a legacy settlement directly into the campaign path. Merely changing the method argument while continuing to rebuild Kentridge independently for voxel realization would satisfy the compiler but preserve the exact duplicated-authoring risk this capture targets. The playable slice should therefore receive its campaign plan and Kentridge realization facts from the same WorldBuilder-authored town, with any legacy settlement use confined behind an integration adapter.
+The WorldBuilder/integration migration is now compiling past every previously identified raw legacy plan/facts caller. The latest failure is not a second authoring path or a dependency-direction problem; it is an incomplete compatibility facade caused by normal C# namespace/type resolution. Forwarding `FootprintDm` to the relocated physical backend preserves the desired behavior: construction still enters through WorldBuilder, while an existing presentation helper may query backend geometry without independently constructing a town.
+
+The durable architectural destination remains intentionally broader than this capture: semantic authoring stays in `Game.WorldBuilder`, while generic spatial generation, architecture grammars, and voxel realization should later move behind a `VoxelEngine.WorldGen` boundary. The current `Assets/Game/WorldBuilder/Generation` location is an intermediate consolidation, not the final layering goal.
 
 ## Next
 
-Migrate `KentridgeCampaignWorldRealizationTests` through `WorldBuilderTownAuthoring`. For `KentridgePlayableSlice`, author Kentridge once through WorldBuilder and route campaign/voxel/realization consumers through that same authored plan rather than creating a second Kentridge plan for rendering. Then repin `ci-test/fixes/agent-1` and rerun the exact ownership regression. After green CI, replay the original VoxelShowcase capture and inspect the verification artifact before terminal bookkeeping.
+Add only the missing `FootprintDm` forwarding member to the scene compatibility facade, repin `ci-test/fixes/agent-1` to the resulting source tip, and rerun the exact ownership regression. If Unity exposes another missing non-authoring compatibility member, record it before changing source. After the regression is green, replay the original `20260825-040805-194-VoxelShowcase` capture and inspect the saved verification artifact before terminal bookkeeping.
