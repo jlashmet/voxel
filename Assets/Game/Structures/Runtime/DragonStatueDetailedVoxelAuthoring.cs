@@ -4,9 +4,9 @@ using VoxelEngine.Structures.Api;
 namespace Game.Structures.Runtime
 {
     /// <summary>
-    /// Stable production entry point for Dragon A. V14 is the current reference-silhouette sculpt
-    /// and explicitly restricts visible geometry to block-authored Planar/Sharp surfaces: Slate for
-    /// the cool body/wings and Gold for warm armor/bone accents. Earlier versions remain history.
+    /// Stable production entry point for Dragon A. V15 is the current reference-silhouette sculpt
+    /// and forcibly reapplies catalogue placement styles to existing voxels: Slate/Planar for the
+    /// cool body and wings, Gold/Sharp for warm armor and bone accents.
     /// </summary>
     public static class DragonStatueDetailedVoxelAuthoring
     {
@@ -15,7 +15,7 @@ namespace Game.Structures.Runtime
 
         public static void Author(IStructureAuthoringSession authoring, int3 origin)
         {
-            DragonStatueConceptV14BlockSurfaceAuthoring.Author(authoring, origin);
+            DragonStatueConceptV15ForcedBlockSurfaceAuthoring.Author(authoring, origin);
         }
     }
 }
