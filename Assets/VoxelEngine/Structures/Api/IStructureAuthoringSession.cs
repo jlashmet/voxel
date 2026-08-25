@@ -23,6 +23,13 @@ namespace VoxelEngine.Structures.Api
 
         void Set(int x, int y, int z, byte material);
 
+        /// <summary>
+        /// Replaces the material and resets the cell's authored surface style to the placement
+        /// style declared by that material. Unlike <see cref="Set"/>, this intentionally restyles
+        /// an already-solid voxel instead of preserving its previous surface semantics.
+        /// </summary>
+        void SetWithPlacementStyle(int x, int y, int z, byte material);
+
         void SetStyled(
             int x,
             int y,
