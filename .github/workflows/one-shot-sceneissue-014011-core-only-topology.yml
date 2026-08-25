@@ -1,4 +1,4 @@
-name: One-shot SceneIssue 220516 stage isolation
+name: One-shot SceneIssue 220516 fresh-bake validation
 
 on:
   push:
@@ -10,9 +10,9 @@ permissions:
   contents: read
 
 jobs:
-  no-plot-surfaces:
+  fresh-bake-replay:
     runs-on: [self-hosted, macOS]
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with:
@@ -20,32 +20,18 @@ jobs:
           clean: true
           fetch-depth: 1
 
-      - name: Verify replay plumbing
+      - name: Verify replay and bake plumbing
         shell: bash
         run: |
           set -euo pipefail
           test -s SceneIssues/20260824-220516-659-VoxelShowcase/screenshot-001.png
+          test -s Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes
           grep -q 'ReplayRequestCommandLineArgument = "-voxel-scene-issue"' Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs
           grep -q 'Verified standalone frozen pose' Assets/DeveloperTools/SceneIssueCapture/SceneIssueReplayVerification.cs
+          grep -q 'LoadBake(LoadBakeResource' Assets/Game/Composition/Showcase/ShowcaseWorld.GeneratedContent.cs
+          grep -q 'ShowcaseWorldBaker.BakeShowcaseWorld' Assets/Scenes/Showcase/Editor/ShowcaseWorldBaker.cs
           grep -q -- '--scene-issue)' tools/showcase-player-capture.sh
           git diff --check
-
-      - name: Isolate named plot-surface stage in checkout only
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          path = Path('Packages/com.mountingforce.worldgen/Runtime/Voxel/KentridgeCombinedVoxelCatalogueCanonical.Core.cs')
-          text = path.read_text()
-          needle = '            Add(stageList, KentridgeVerticalPlacementAdapter.BuildPlotSurfaces(seed, settings, Allocator.Temp));\n'
-          if text.count(needle) != 1:
-              raise SystemExit(f'expected exactly one plot-surface stage, found {text.count(needle)}')
-          text = text.replace(needle, '            // SceneIssue 220516 diagnostic: named plot-surface stage isolated in CI checkout.\n')
-          path.write_text(text)
-          PY
-          git diff --check
-          git diff -- Packages/com.mountingforce.worldgen/Runtime/Voxel/KentridgeCombinedVoxelCatalogueCanonical.Core.cs
 
       - name: Resolve Unity
         id: unity
@@ -70,11 +56,58 @@ jobs:
             sleep 5
           done
 
-      - name: Replay saved VoxelShowcase view without plot surfaces
+      - name: Rebuild showcase startup bake from current worldgen
+        shell: bash
+        run: |
+          set -uo pipefail
+          ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue220516FreshBake"
+          BAKE="Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes"
+          mkdir -p "$ROOT"
+          shasum -a 256 "$BAKE" | tee "$ROOT/bake-before.sha256"
+
+          status=0
+          UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=25 \
+          UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
+            -batchmode -quit -job-worker-count 1 \
+            -projectPath "$GITHUB_WORKSPACE" \
+            -executeMethod VoxelEngine.Showcase.Editor.ShowcaseWorldBaker.BakeShowcaseWorld \
+            -logFile "$ROOT/bake.log" || status=$?
+
+          if (( status != 0 )); then
+            echo "ERROR: fresh showcase bake failed with status $status." >&2
+            tail -240 "$ROOT/bake.log" >&2 || true
+            exit "$status"
+          fi
+          test -s "$BAKE"
+          shasum -a 256 "$BAKE" | tee "$ROOT/bake-after.sha256"
+          before="$(awk '{print $1}' "$ROOT/bake-before.sha256")"
+          after="$(awk '{print $1}' "$ROOT/bake-after.sha256")"
+          echo "SCENE_220516_BAKE_HASH_BEFORE $before"
+          echo "SCENE_220516_BAKE_HASH_AFTER $after"
+          if [[ "$before" == "$after" ]]; then
+            echo "ERROR: fresh bake is byte-identical to committed startup image; stale-bake hypothesis not proven." >&2
+            exit 2
+          fi
+          git diff --check
+
+      - name: Wait for Unity after bake
         shell: bash
         run: |
           set -euo pipefail
-          ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue220516NoPlotSurfaces"
+          deadline=$((SECONDS + 180))
+          while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
+            if (( SECONDS >= deadline )); then
+              pgrep -alf '/Unity.app/Contents/MacOS/Unity' || true
+              exit 1
+            fi
+            sleep 5
+          done
+
+      - name: Replay saved VoxelShowcase view from fresh bake
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue220516FreshBake"
 
           set +e
           bash tools/showcase-player-capture.sh \
@@ -102,18 +135,21 @@ jobs:
           latest="$(find "$ROOT/Screenshots" -type f -name '*.png' -size +1k | sort | tail -1)"
           test -n "$latest"
           sips -s format jpeg --setProperty formatOptions 80 -Z 1364 "$latest" --out "$ROOT/replay-latest.jpg" >/dev/null
-          echo "SCENE_220516_NO_PLOT_SURFACES_FRAME $(basename "$latest")"
+          echo "SCENE_220516_FRESH_BAKE_FRAME $(basename "$latest")"
 
-      - name: Upload stage-isolation evidence
+      - name: Upload fresh-bake evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: scene-220516-no-plot-surfaces
+          name: scene-220516-fresh-bake
           path: |
             SceneIssues/20260824-220516-659-VoxelShowcase/screenshot-001.png
-            Artifacts/SceneIssue220516NoPlotSurfaces/Screenshots/*.png
-            Artifacts/SceneIssue220516NoPlotSurfaces/replay-latest.jpg
-            Artifacts/SceneIssue220516NoPlotSurfaces/player-build.log
-            Artifacts/SceneIssue220516NoPlotSurfaces/player-run.log
-          if-no-files-found: error
+            Artifacts/SceneIssue220516FreshBake/bake-before.sha256
+            Artifacts/SceneIssue220516FreshBake/bake-after.sha256
+            Artifacts/SceneIssue220516FreshBake/bake.log
+            Artifacts/SceneIssue220516FreshBake/Screenshots/*.png
+            Artifacts/SceneIssue220516FreshBake/replay-latest.jpg
+            Artifacts/SceneIssue220516FreshBake/player-build.log
+            Artifacts/SceneIssue220516FreshBake/player-run.log
+          if-no-files-found: warn
           retention-days: 3
