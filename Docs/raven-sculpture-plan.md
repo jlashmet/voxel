@@ -22,20 +22,20 @@ isolated render for visual review.
 
 ## Acceptance criteria
 
-- [ ] A recognizable perched raven silhouette is present from the isolated three-quarter view:
+- [x] A recognizable perched raven silhouette is present from the isolated three-quarter view:
       hooked beak, brow/eyes, neck, breast, folded wings, layered primary feathers, legs/talons, and
       a fanned tail.
 - [x] The sculpture uses at least four deliberately placed material regions for blue-black feather
       variation, beak/talons, eye accents, and cool iridescent highlights.
-- [ ] The authorer writes enough occupied voxels for a high-resolution sculpt while staying inside
+- [x] The authorer writes enough occupied voxels for a high-resolution sculpt while staying inside
       its declared local bounds and a bounded write budget.
-- [ ] A well-formed World Builder descriptor and placement route through
+- [x] A well-formed World Builder descriptor and placement route through
       `DecorationVoxelStampBackend`.
 - [x] An EditMode regression test checks the descriptor, backend route, bounds, voxel density,
       material diversity, and writes a 1600×1600 PNG into the targeted-test artifact directory.
-- [ ] The exact targeted test completes successfully in CI and the rendered artifact is visually
+- [x] The exact targeted test completes successfully in CI and the rendered artifact is visually
       inspected.
-- [ ] Final diff is reviewed against `AGENTS.md`, `CLAUDE.md`, the constitution, and the
+- [x] Final diff is reviewed against `AGENTS.md`, `CLAUDE.md`, the constitution, and the
       world-feature-authoring spec.
 
 ## Work log
@@ -72,3 +72,22 @@ isolated render for visual review.
   behind. Added a render-only 180-degree display copy so the final artifact exposes the brow, eyes,
   beak profile, breast, and camera-side wing. The backend-authored source capture remains the one
   used for all invariants.
+- 2026-08-24: A concurrent presentation pass generalized the diagnostic renderer with an explicit
+  view direction while preserving its original overload, then selected a side-biased profile that
+  shows the hooked bill and layered near wing without copying or rotating authoritative voxels. It
+  also strengthened the material assertion from seven to all nine semantic regions.
+- 2026-08-24: The first canonical request for feature commit `15a3fa10` was killed by
+  `tools/unity-run.sh` when system free memory fell below the required 8 GB floor. The unchanged
+  commit was requested again after pressure cleared.
+- 2026-08-24: Canonical request commit `f8a5d244`, run `32797010778`, executed the exact
+  `RavenSculpture_WritesHighResolutionTexturedPng` EditMode test and passed. Artifact
+  `single-test-32797010778` contained the inspected 1600×1600 PNG.
+
+## Repository hygiene blocker
+
+Concurrent work created three additional CI refs:
+`ci-test/raven-profile-15a3fa10`, `ci-test/raven-proof-6cc8ab0a`, and
+`ci-test/raven-sculpture-eee7605e`. They are not authoritative. The available GitHub connector can
+move refs but cannot delete them, so branch-count cleanup remains an external repository action.
+The canonical task refs are `feature/sdf-raven-sculpture` and
+`ci-test/feature/sdf-raven-sculpture`.
