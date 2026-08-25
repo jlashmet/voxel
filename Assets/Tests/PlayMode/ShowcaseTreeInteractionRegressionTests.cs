@@ -17,7 +17,7 @@ namespace VoxelEngine.Tests.PlayMode
         }
 
         [Test]
-        public void RepresentativeTreeBlocksPlayerSizedSemanticSweep()
+        public void RepresentativeTreeBlocksPlayerSizedWoodAabb()
         {
             PublishRepresentativeOak();
 
@@ -25,18 +25,19 @@ namespace VoxelEngine.Tests.PlayMode
             TreeSkeletonSnapshot skeleton = read.SkeletonFor(0);
             Assert.That(skeleton, Is.Not.Null);
 
-            TreeBranchSegment trunk = skeleton.Branches.First(branch => branch.Level == 0);
+            TreeBranchSegment trunk = skeleton.Branches
+                .Where(branch => branch.Level == 0)
+                .OrderBy(branch => (branch.Start.y + branch.End.y) * 0.5f)
+                .First();
             float3 root = read.Instances[0].PositionMetres;
             float3 midpoint = root + (trunk.Start + trunk.End) * 0.5f;
-            float3 from = new(midpoint.x, root.y + 0.05f, midpoint.z);
-            float3 to = new(midpoint.x, root.y + 1.80f, midpoint.z);
+            float3 halfExtents = new(0.30f, 0.90f, 0.30f);
 
-            bool blocked = VegetationComposition.TreeDamage.TrySweepImpact(
-                from, to, 0.30f, out _, out int treeIndex);
+            bool blocked = VegetationComposition.TreeDamage.OverlapsWoodAabb(
+                midpoint - halfExtents, midpoint + halfExtents);
 
             Assert.That(blocked, Is.True,
-                "A player-sized semantic sweep through authored tree wood must be blocked.");
-            Assert.That(treeIndex, Is.EqualTo(0));
+                "A player-sized box through authored tree wood must be blocked.");
         }
 
         [Test]
@@ -70,8 +71,10 @@ namespace VoxelEngine.Tests.PlayMode
             string motor = File.ReadAllText("Assets/Scenes/Showcase/CharacterMotor.cs");
             string showcase = File.ReadAllText("Assets/Scenes/Showcase/VoxelShowcase.cs");
 
-            StringAssert.Contains("VegetationComposition.TreeDamage.TrySweepImpact(", motor,
-                "Character movement must query the semantic tree world after voxel collision.");
+            StringAssert.Contains("VegetationComposition.TreeDamage.OverlapsWoodAabb(", motor,
+                "Character movement must query surviving semantic tree wood after voxel collision.");
+            StringAssert.DoesNotContain("VegetationComposition.TreeDamage.TrySweepImpact(", motor,
+                "Character movement must not reuse the leaf-sensitive projectile sweep.");
             StringAssert.Contains("VegetationComposition.TreeDamage.TrySweepImpact(", showcase,
                 "Showcase projectiles must test semantic trees instead of voxel storage only.");
             StringAssert.Contains("VegetationComposition.TreeDamage.ApplyBlast(", showcase,
