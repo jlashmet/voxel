@@ -194,6 +194,7 @@ wait_for_unity_quiet
 
 BUILD_ARGS=(-batchmode -nographics -quit)
 if [[ -n "$STATIONARY_SAMPLE" ]]; then BUILD_ARGS+=(-voxelFrameTimingStats); fi
+if [[ -n "$SCENE_ISSUE" ]]; then BUILD_ARGS+=(-voxelDevelopment); fi
 
 echo "Building real player for $SCENE"
 UNITY_MAX_RSS_MB="${UNITY_MAX_RSS_MB:-12288}" \
