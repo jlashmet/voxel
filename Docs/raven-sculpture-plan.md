@@ -59,3 +59,11 @@ isolated render for visual review.
   authorer duplicated the same stable `RAVN` identity. Preserved both public class names as thin
   compatibility facades over the single integer `RavenSculpture...` implementation so callers do
   not split between two geometries.
+- 2026-08-24: Second targeted run passed, including bounds, density, materials, backend routing, and
+  artifact creation. Visual inspection found that the older three-face preview obscured the sculpt
+  with painter-order slicing and arbitrary hash colors. Switched the proof image to the independent
+  six-face diagnostic renderer and added a render-only raven palette remap; authoritative material
+  IDs and occupancy remain unchanged.
+- 2026-08-24: A concurrent follow-up added a small asymmetric branch and lichen through the same
+  integer authoring primitives. Retained it because it gives the talons a readable perch, and added
+  semantic brown/green presentation colors for those two existing material IDs.

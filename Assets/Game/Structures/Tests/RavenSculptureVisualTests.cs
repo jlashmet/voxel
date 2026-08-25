@@ -5,6 +5,7 @@ using Game.Structures.Api;
 using Game.Structures.Runtime;
 using NUnit.Framework;
 using Unity.Mathematics;
+using UnityEngine;
 
 namespace Game.Structures.Tests
 {
@@ -66,7 +67,9 @@ namespace Game.Structures.Tests
             });
             AssertPaddingIsEmpty(capture, min, size);
 
-            string path = capture.RenderPng("raven-sculpture-high-resolution", 1600, 1600);
+            string path = VisualStructureDiagnosticRenderer.Render(
+                capture, min, size, "raven-sculpture-high-resolution", 1600, 1600);
+            ApplyRavenPalette(path);
             Assert.That(File.Exists(path), Is.True, $"Expected visual artifact at {path}");
             Assert.That(new FileInfo(path).Length, Is.GreaterThan(8192),
                 $"Visual artifact was unexpectedly small: {path}");
@@ -78,6 +81,73 @@ namespace Game.Structures.Tests
             File.Copy(path, artifactPath, true);
             TestContext.WriteLine($"Generated high-resolution voxel raven: {artifactPath}");
         }
+
+        private static void ApplyRavenPalette(string path)
+        {
+            byte[] materials =
+            {
+                GameMaterialIds.DarkStone,
+                GameMaterialIds.Slate,
+                GameMaterialIds.Crystal,
+                GameMaterialIds.Glass,
+                GameMaterialIds.Bedrock,
+                GameMaterialIds.Stone,
+                GameMaterialIds.Gold,
+                GameMaterialIds.Wood,
+                GameMaterialIds.Moss,
+            };
+            Color32[] ravenColors =
+            {
+                new Color32(27, 33, 42, 255),
+                new Color32(42, 57, 72, 255),
+                new Color32(54, 82, 109, 255),
+                new Color32(73, 58, 102, 255),
+                new Color32(20, 23, 28, 255),
+                new Color32(105, 91, 75, 255),
+                new Color32(211, 157, 47, 255),
+                new Color32(91, 59, 38, 255),
+                new Color32(62, 79, 45, 255),
+            };
+            float[] faceShades = { 1.12f, 0.54f, 0.90f, 0.66f, 0.78f, 0.62f };
+            var replacements = new Dictionary<uint, Color32>(materials.Length * faceShades.Length);
+            for (int materialIndex = 0; materialIndex < materials.Length; materialIndex++)
+            for (int shadeIndex = 0; shadeIndex < faceShades.Length; shadeIndex++)
+            {
+                Color32 source = Shade(HashedMaterialColor(materials[materialIndex]), faceShades[shadeIndex]);
+                Color32 target = Shade(ravenColors[materialIndex], faceShades[shadeIndex]);
+                replacements[ColorKey(source)] = target;
+            }
+
+            var texture = new Texture2D(2, 2, TextureFormat.RGBA32, false, true);
+            Assert.That(texture.LoadImage(File.ReadAllBytes(path), false), Is.True);
+            Color32[] pixels = texture.GetPixels32();
+            for (int i = 0; i < pixels.Length; i++)
+                if (replacements.TryGetValue(ColorKey(pixels[i]), out Color32 replacement))
+                    pixels[i] = replacement;
+            texture.SetPixels32(pixels);
+            texture.Apply(false, false);
+            File.WriteAllBytes(path, texture.EncodeToPNG());
+            Object.DestroyImmediate(texture);
+        }
+
+        private static Color32 HashedMaterialColor(byte material)
+        {
+            uint hash = material * 2654435761u;
+            return new Color32(
+                (byte)(96 + ((hash >> 16) & 95)),
+                (byte)(96 + ((hash >> 8) & 95)),
+                (byte)(96 + (hash & 95)),
+                255);
+        }
+
+        private static Color32 Shade(Color32 color, float factor) => new Color32(
+            (byte)math.clamp((int)(color.r * factor), 0, 255),
+            (byte)math.clamp((int)(color.g * factor), 0, 255),
+            (byte)math.clamp((int)(color.b * factor), 0, 255),
+            255);
+
+        private static uint ColorKey(Color32 color) =>
+            ((uint)color.r << 24) | ((uint)color.g << 16) | ((uint)color.b << 8) | color.a;
 
         private static void AssertPaddingIsEmpty(VisualStructureCapture capture, int3 min, int3 size)
         {
