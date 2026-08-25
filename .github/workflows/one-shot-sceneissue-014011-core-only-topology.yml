@@ -7,7 +7,7 @@ on:
       - .github/workflows/one-shot-sceneissue-014011-core-only-topology.yml
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   replay:
@@ -18,89 +18,15 @@ jobs:
         with:
           ref: fixes
           clean: true
-          fetch-depth: 0
+          fetch-depth: 1
 
-      - name: Apply assertion-guarded replay plumbing patch
+      - name: Verify replay plumbing is present
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-
-          def replace_once(text: str, old: str, new: str, label: str) -> str:
-              count = text.count(old)
-              if count != 1:
-                  raise SystemExit(f"{label}: expected exactly one source match, found {count}")
-              return text.replace(old, new, 1)
-
-          capture_path = Path("Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs")
-          capture = capture_path.read_text()
-          capture = replace_once(
-              capture,
-              '        public const string ReplayRequestEditorPrefsKey = "MountingForce.SceneIssueCapture.ReplayRequest";\n',
-              '        public const string ReplayRequestEditorPrefsKey = "MountingForce.SceneIssueCapture.ReplayRequest";\n'
-              '        private const string ReplayRequestCommandLineArgument = "-voxel-scene-issue";\n',
-              "replay CLI constant",
-          )
-          capture = replace_once(
-              capture,
-              '''        private void Start()\n        {\n#if UNITY_EDITOR\n            StartCoroutine(ConsumeReplayRequest());\n#endif\n        }\n''',
-              '''        private void Start()\n        {\n#if UNITY_EDITOR || DEVELOPMENT_BUILD\n            StartCoroutine(ConsumeReplayRequest());\n#endif\n        }\n''',
-              "development-player replay startup",
-          )
-          capture = replace_once(
-              capture,
-              '''#if UNITY_EDITOR\n        private IEnumerator ConsumeReplayRequest()\n        {\n            string path = UnityEditor.EditorPrefs.GetString(ReplayRequestEditorPrefsKey, string.Empty);\n            if (string.IsNullOrEmpty(path))\n                yield break;\n\n            UnityEditor.EditorPrefs.DeleteKey(ReplayRequestEditorPrefsKey);\n\n            SceneIssueCaptureRecord record;\n''',
-              '''#if UNITY_EDITOR || DEVELOPMENT_BUILD\n        private static string ConsumeReplayRequestPath()\n        {\n#if UNITY_EDITOR\n            string editorPath = UnityEditor.EditorPrefs.GetString(ReplayRequestEditorPrefsKey, string.Empty);\n            if (!string.IsNullOrEmpty(editorPath))\n            {\n                UnityEditor.EditorPrefs.DeleteKey(ReplayRequestEditorPrefsKey);\n                return editorPath;\n            }\n#endif\n\n            string[] arguments = Environment.GetCommandLineArgs();\n            for (int i = 0; i < arguments.Length; i++)\n            {\n                if (!string.Equals(arguments[i], ReplayRequestCommandLineArgument, StringComparison.Ordinal))\n                    continue;\n\n                if (i + 1 >= arguments.Length || string.IsNullOrWhiteSpace(arguments[i + 1]))\n                {\n                    Debug.LogWarning($"{ReplayRequestCommandLineArgument} requires an issue.json path.");\n                    return string.Empty;\n                }\n\n                return arguments[i + 1];\n            }\n\n            return string.Empty;\n        }\n\n        private IEnumerator ConsumeReplayRequest()\n        {\n            string path = ConsumeReplayRequestPath();\n            if (string.IsNullOrEmpty(path))\n                yield break;\n\n            SceneIssueCaptureRecord record;\n''',
-              "standalone replay request ingestion",
-          )
-          capture_path.write_text(capture)
-
-          script_path = Path("tools/showcase-player-capture.sh")
-          script = script_path.read_text()
-          script = replace_once(
-              script,
-              '  --stationary-sample N    Measure N settled seconds with no motion or screenshots\nEOF\n',
-              '  --stationary-sample N    Measure N settled seconds with no motion or screenshots\n'
-              '  --scene-issue PATH       Replay a saved SceneIssues/.../issue.json camera/view\nEOF\n',
-              "capture usage",
-          )
-          script = replace_once(
-              script,
-              'STATIONARY_SAMPLE=""\nKENTRIDGE_EVIDENCE=0\n',
-              'STATIONARY_SAMPLE=""\nSCENE_ISSUE=""\nKENTRIDGE_EVIDENCE=0\n',
-              "capture variable",
-          )
-          script = replace_once(
-              script,
-              '    --stationary-sample) STATIONARY_SAMPLE="$2"; shift 2 ;;\n    -h|--help) usage; exit 0 ;;\n',
-              '    --stationary-sample) STATIONARY_SAMPLE="$2"; shift 2 ;;\n'
-              '    --scene-issue) SCENE_ISSUE="$2"; shift 2 ;;\n'
-              '    -h|--help) usage; exit 0 ;;\n',
-              "capture argument parser",
-          )
-          script = replace_once(
-              script,
-              '[[ -n "$SCENE" ]] || { echo "ERROR: --scene or --test-filter is required." >&2; exit 2; }\n[[ -f "$SCENE" ]] || { echo "ERROR: scene does not exist: $SCENE" >&2; exit 2; }\n',
-              '[[ -n "$SCENE" ]] || { echo "ERROR: --scene or --test-filter is required." >&2; exit 2; }\n'
-              '[[ -f "$SCENE" ]] || { echo "ERROR: scene does not exist: $SCENE" >&2; exit 2; }\n'
-              'if [[ -n "$SCENE_ISSUE" ]]; then\n'
-              '  if [[ "$SCENE_ISSUE" != /* ]]; then SCENE_ISSUE="$PWD/$SCENE_ISSUE"; fi\n'
-              '  [[ -f "$SCENE_ISSUE" ]] || { echo "ERROR: scene issue does not exist: $SCENE_ISSUE" >&2; exit 2; }\n'
-              'fi\n',
-              "scene issue validation",
-          )
-          script = replace_once(
-              script,
-              '''PLAYER_ARGS=(\n  -logFile "$PLAYER_LOG"\n  -screen-width 1600 -screen-height 900 -screen-fullscreen 0\n  -voxel-uncapped\n)\n\nif [[ -n "$STATIONARY_SAMPLE" ]]; then\n''',
-              '''PLAYER_ARGS=(\n  -logFile "$PLAYER_LOG"\n  -screen-width 1600 -screen-height 900 -screen-fullscreen 0\n  -voxel-uncapped\n)\n\nif [[ -n "$SCENE_ISSUE" ]]; then\n  PLAYER_ARGS+=( -voxel-scene-issue "$SCENE_ISSUE" )\nfi\n\nif [[ -n "$STATIONARY_SAMPLE" ]]; then\n''',
-              "player replay argument",
-          )
-          script_path.write_text(script)
-          PY
-
+          grep -q 'ReplayRequestCommandLineArgument = "-voxel-scene-issue"' Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs
+          grep -q -- '--scene-issue)' tools/showcase-player-capture.sh
           git diff --check
-          git diff -- Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs tools/showcase-player-capture.sh
 
       - name: Resolve Unity
         id: unity
@@ -158,14 +84,3 @@ jobs:
             Artifacts/SceneIssue220416/player-run.log
           if-no-files-found: error
           retention-days: 3
-
-      - name: Commit validated replay plumbing
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add Assets/DeveloperTools/SceneIssueCapture/SceneIssueCapture.cs tools/showcase-player-capture.sh
-          git commit -m 'dev(scene): allow standalone saved-view replay'
-          git pull --rebase origin fixes
-          git push origin HEAD:fixes
