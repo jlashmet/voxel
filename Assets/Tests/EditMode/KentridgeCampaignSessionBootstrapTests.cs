@@ -9,6 +9,7 @@ using Game.Composition.WorldBuilderWorldGen.Runtime;
 using Game.Cutscenes.Api;
 using Game.Cutscenes.Runtime;
 using Game.WorldBuilder.Api;
+using Game.WorldBuilder.Runtime;
 using MountingForce.WorldGen;
 using MountingForce.WorldGen.Content.Kentridge;
 using MountingForce.WorldGen.Voxel;
@@ -98,10 +99,13 @@ namespace VoxelEngine.Tests.EditMode
         {
             KnownOpeningCampaignContent content = KnownOpeningCampaignContent.Build(
                 DialogueOnly("destination-conversation"));
+            AuthoredTownPlan town = WorldBuilderTownAuthoring.Author(WorldBuilderTownIds.Kentridge, Seed);
             SettlementPlan settlement = KentridgeDefinition.Build(Seed);
             KentridgeCampaignGenerationPlan generation = KentridgeCampaignSessionBootstrap.Plan(
                 content.Blueprint,
-                settlement);
+                town);
+            var realizationFacts = new KentridgeCampaignRealizationFacts(
+                new KentridgeVoxelSiteRealizationFacts(settlement, 1));
 
             var actors = new ActorHost();
             var player = new Actor(new CutsceneInt3(-999, -999, -999));
@@ -110,7 +114,7 @@ namespace VoxelEngine.Tests.EditMode
             KentridgeCampaignSession session = KentridgeCampaignSessionBootstrap.CreateSession(
                 content.Blueprint,
                 generation,
-                new KentridgeVoxelSiteRealizationFacts(settlement, 1),
+                realizationFacts,
                 actors,
                 Presentation());
 
@@ -164,17 +168,20 @@ namespace VoxelEngine.Tests.EditMode
         {
             KnownOpeningCampaignContent content = KnownOpeningCampaignContent.Build(
                 DialogueOnly("destination-conversation"));
+            AuthoredTownPlan town = WorldBuilderTownAuthoring.Author(WorldBuilderTownIds.Kentridge, Seed);
             SettlementPlan settlement = KentridgeDefinition.Build(Seed);
             KentridgeCampaignGenerationPlan generation = KentridgeCampaignSessionBootstrap.Plan(
                 content.Blueprint,
-                settlement);
+                town);
+            var realizationFacts = new KentridgeCampaignRealizationFacts(
+                new KentridgeVoxelSiteRealizationFacts(settlement, 1));
             var actors = new ActorHost();
 
             InvalidOperationException error = Assert.Throws<InvalidOperationException>(() =>
                 KentridgeCampaignSessionBootstrap.CreateSession(
                     content.Blueprint,
                     generation,
-                    new KentridgeVoxelSiteRealizationFacts(settlement, 1),
+                    realizationFacts,
                     actors,
                     Presentation()));
 
