@@ -20,6 +20,8 @@ namespace Game.Structures.Runtime
         private const byte Beak = GameMaterialIds.Bedrock;
         private const byte Talon = GameMaterialIds.Stone;
         private const byte Eye = GameMaterialIds.Gold;
+        private const byte PerchWood = GameMaterialIds.Wood;
+        private const byte PerchMoss = GameMaterialIds.Moss;
 
         public static readonly int3 LocalMin = new int3(-76, 0, -86);
         public static readonly int3 LocalSize = new int3(152, 172, 182);
@@ -28,6 +30,7 @@ namespace Game.Structures.Runtime
         {
             if (authoring == null) throw new ArgumentNullException(nameof(authoring));
 
+            Perch(authoring, origin);
             Body(authoring, origin);
             Tail(authoring, origin);
             FoldedWing(authoring, origin, -1);
@@ -38,6 +41,22 @@ namespace Game.Structures.Runtime
             LegsAndTalons(authoring, origin, 1);
             BreastFeathers(authoring, origin);
             IridescentAccents(authoring, origin);
+        }
+
+        private static void Perch(IStructureAuthoringSession a, int3 o)
+        {
+            // A broken, asymmetric branch gives the talons something to visibly wrap and keeps
+            // the sculpture from reading like a bird floating above a generic pedestal.
+            Stroke(a, o, new int3(-61, 11, -3), new int3(61, 12, 4), 7, 5, PerchWood);
+            Stroke(a, o, new int3(-48, 11, -2), new int3(-61, 22, 5), 4, 1, PerchWood);
+            Stroke(a, o, new int3(43, 12, 3), new int3(57, 24, 11), 4, 1, PerchWood);
+            Stroke(a, o, new int3(29, 12, 2), new int3(40, 7, -8), 3, 1, PerchWood);
+            Stroke(a, o, new int3(-32, 11, -1), new int3(-41, 8, -10), 3, 1, PerchWood);
+
+            // Sparse lichen patches add natural texture without turning the perch into a moss prop.
+            Ellipsoid(a, o, new int3(-34, 16, 1), new int3(7, 2, 4), PerchMoss);
+            Ellipsoid(a, o, new int3(48, 17, 7), new int3(5, 2, 3), PerchMoss);
+            Ellipsoid(a, o, new int3(4, 16, 1), new int3(6, 1, 4), PerchMoss);
         }
 
         private static void Body(IStructureAuthoringSession a, int3 o)
