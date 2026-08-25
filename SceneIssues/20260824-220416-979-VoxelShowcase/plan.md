@@ -1,30 +1,57 @@
 # Plan — prevent Kentridge entrance/window overlap
 
-## Capture
+## Goal
 
-`20260824-220416-979-VoxelShowcase`: a generated house entrance appears merged into a first-storey window. The requested invariant is that facade openings/treatments must not overlap.
+Fix `20260824-220416-979-VoxelShowcase`: Medrare House reads as though its public entrance and a frontage window are merged. Generated Kentridge facades must preserve a visible wall gap between the door opening and frontage-window openings without deleting the architecture-owned frontage rhythm.
 
-The connector cannot render the 1.16 MB captured PNG inline, so this plan does not claim a fresh visual replay. The capture note, camera pose, and production geometry are sufficient to reproduce the layout failure structurally.
+## Current diagnosis
 
-## Reproduction / diagnosis
+The live generated-house path is:
 
-The live VoxelShowcase Kentridge path is `Packages/com.mountingforce.worldgen`, specifically `KentridgeGrammarVoxelCatalogue.GeneratedHouseProgram`.
+`KentridgeSharedStructureVoxelCatalogue` → `KentridgeSharedHouseProgram.Build` → `HouseProgramCompiler.BuildProgram`.
 
-First-storey frontage windows currently reject a bay only when its aperture intersects the raw door interval expanded by 3 dm. In the current architecture variant, entrance treatment is authored later and can be much wider than that interval. Anonymous fabric falls through `AddRoleSignature`'s default case and receives a 32 dm canopy centered on the door; named roles can own still wider entrance/signature spans.
+`StructureForm` owns the Kentridge `FrontageRhythm` and `DoorOffsetDm`, but before the current fix the shared-house adapter only translated the door offset. Front windows continued to use the selected generic house preset's count/placement. That meant an off-centre Kentridge entrance and a preset-owned frontage window could occupy the same facade region.
 
-For an off-centre anonymous door, a neighbouring bay can therefore clear the raw door + 3 dm test while still intersecting the later 32 dm canopy. This is the structural reproduction of the reported merged entrance/window facade.
+The earlier production change in `KentridgeGrammarVoxelCatalogue` targeted a superseded Kentridge geometry path and therefore could not fix the live VoxelShowcase output. The focused regression also initially searched for filled glazing/detail boxes; the shared house compiler represents facade openings as `ShapeOp.EmitBox` carve operations.
 
-## Intended fix
+## Intended invariant
 
-1. Add an EditMode regression around generated Kentridge facade layout. It should prove that a first-storey glazing aperture cannot intersect the horizontal span reserved by its entrance treatment. Include anonymous fabric/off-centre frontage, because that is the smallest deterministic reproduction of the current gap.
-2. Move the exclusion decision from a hard-coded raw-door clearance to a facade-level reserved span computed from the complete entrance treatment for the current role/variant.
-3. Feed that reserved span into first-storey window placement. Upper-storey, rear, and side windows remain unchanged.
-4. Keep the production change local to Kentridge facade compilation; do not special-case the captured world coordinates or alter settlement placement.
-5. Run the focused EditMode regression and affected architecture/worldgen CI. Record red/green evidence under this issue.
+- Kentridge remains the owner of frontage rhythm and door placement.
+- The shared house preset remains the owner of the window opening's dimensions/style/material policy.
+- The Kentridge adapter converts `FrontageRhythm` to explicit front-window offsets before invoking the generic `HouseProgramCompiler`.
+- Every front window keeps at least 3 dm of visible facade from the public door opening.
+- Front windows also keep at least 3 dm from one another and remain inside a 6 dm facade side margin.
+- Collision handling reflows a bay to the nearest deterministic legal position instead of silently dropping the bay.
+- No captured world coordinate or Medrare-specific special case is introduced.
+
+## Work / validation
+
+- [x] Reproduce the issue structurally with Medrare House's deterministic asymmetric frontage and `DoorOffsetDm = -8`.
+- [x] Discover the live shared-house compilation path and distinguish it from the legacy grammar path.
+- [x] Remove the ineffective legacy-path entrance/window reflow change.
+- [x] Implement architecture-owned frontage placement in `KentridgeSharedHouseProgram` using shared `ExplicitOffsets`.
+- [x] Correct the regression to inspect emitted front-wall carve openings and verify the physical door against the published door anchor.
+- [ ] Run the focused EditMode regression through `ci-test/fixes` and require `ci/single-test` success.
+- [ ] Run broader affected Kentridge/worldgen validation if the focused regression passes.
+- [ ] Review the final net diff against the pre-issue baseline and remove obsolete one-shot CI wiring.
+- [ ] Produce a fresh VoxelShowcase replay/render of the captured view and visually confirm the facade is no longer merged.
+- [ ] Only after CI and fresh visual replay, update `issue.json` as fixed and record the final commit/evidence.
+
+## Production attempts
+
+1. `1f8b92d00ec2e286379b153ab0828c977c498248` — reflowed windows in `KentridgeGrammarVoxelCatalogue`; later proven to target the superseded path.
+2. `cd4480b134461b1eddb33a05c78735e4489bf4f5` — moved the invariant to the live shared-house adapter, translated Kentridge frontage rhythm to explicit shared-house offsets, corrected the bytecode regression, and reverted the dead-path change.
+
+Three production attempts is the escalation threshold; the current live-path implementation is attempt 2.
 
 ## Acceptance
 
-- A deterministic pre-fix regression demonstrates a first-storey window intersecting its entrance-reserved span.
-- After the production change, generated first-storey windows do not intersect the complete entrance-reserved span.
-- Existing Kentridge generation/architecture tests remain green.
-- The issue is not declared visually verified unless a replay/render of the captured view is actually available; connector-only evidence will be labelled as such.
+- `MedrareHouseKeepsBothFrontageWindowsClearOfDoor` executes at least one test and passes in Unity CI.
+- The emitted Medrare program contains exactly two front-window openings for its asymmetric frontage.
+- Each front-window opening is separated from the physical public door by at least 3 dm.
+- The published door anchor identifies that same physical door opening.
+- Existing affected Kentridge architecture/worldgen tests remain green.
+- Final source contains one active implementation of the invariant, not parallel legacy/shared fixes.
+- A fresh VoxelShowcase replay of the reported camera/scene no longer shows a merged door/window facade.
+
+The issue remains open until the fresh replay requirement is satisfied; structural and CI evidence alone is not labelled visual verification.
