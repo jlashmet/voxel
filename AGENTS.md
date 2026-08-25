@@ -112,6 +112,27 @@ This CI-branch separation is intentional: targeted request commits never update 
 
 Do not stop after implementing a plausible fix. Continue iterating through CI until the goal is complete or a concrete blocker remains.
 
+### Scene-issue promotion to master
+
+For coordinator-assigned scene issues, green targeted CI is the gate to promotion, **not** the
+stopping point. After the production/test fix is green and the terminal `issue.json` plus
+open-to-closed bookkeeping commit has been pushed to `fixes/agent-N`, the worker must integrate that
+verified branch into current `origin/master` before declaring the assignment complete.
+
+- Fetch `origin` immediately before promotion. If `origin/master` advanced, integrate it into the
+  assigned feature branch without discarding either side and push the updated feature branch.
+- If that integration changes production code, test code, scene data, or any input relevant to the
+  regression, reset the assigned CI request branch to the integrated feature head and run the
+  targeted test again. A bookkeeping-only merge that changes no tested inputs does not require a
+  redundant rerun.
+- Advance `master` only with a normal non-force fast-forward or merge that preserves all intervening
+  master commits. **Never force-push or overwrite `master`.** If `master` moves again before the
+  promotion lands, refetch, integrate, and retry instead of forcing the ref.
+- Verify the remote `origin/master` contains the fix commit and terminal bookkeeping commit, the
+  capture exists only under `SceneIssues/closed/`, and the required `ci/single-test` result is green.
+- Only after that remote-master verification may the scene-issue worker stop and wait for the next
+  coordinator assignment.
+
 ## Testing
 
 - Start with the smallest test that proves the behavior being worked on.
@@ -128,8 +149,11 @@ Before declaring the task complete:
 - Review the final diff.
 - Verify it follows **`CLAUDE.md`** and relevant specs.
 - Confirm the relevant CI jobs are green.
+- For a coordinator-assigned scene issue, confirm the verified terminal branch has been integrated
+  into `origin/master` and that remote master contains the closed capture and recorded fix commit.
 - Confirm the task created no branches on `origin` beyond its assigned feature branch and matching
   CI branch.
-- State what was changed and what CI validation actually passed.
+- State what was changed, what CI validation actually passed, and—for scene issues—the master commit
+  that now contains the fix.
 
 **Try in chat**
