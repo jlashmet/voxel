@@ -4,8 +4,9 @@ using VoxelEngine.Structures.Api;
 namespace Game.Structures.Runtime
 {
     /// <summary>
-    /// Stable production entry point for Dragon A. V11 is the current reference-silhouette sculpt;
-    /// V3-V10 remain iteration history and are not composed directly by production callers.
+    /// Stable production entry point for Dragon A. V12 is the current reference-silhouette sculpt
+    /// with coherent slate scale relief and warm bone accents; earlier versions remain iteration
+    /// history and are not invoked directly by production callers.
     /// </summary>
     public static class DragonStatueDetailedVoxelAuthoring
     {
@@ -14,7 +15,7 @@ namespace Game.Structures.Runtime
 
         public static void Author(IStructureAuthoringSession authoring, int3 origin)
         {
-            DragonStatueConceptV11ReferenceSilhouetteAuthoring.Author(authoring, origin);
+            DragonStatueConceptV12PaletteAndScaleAuthoring.Author(authoring, origin);
         }
     }
 }
