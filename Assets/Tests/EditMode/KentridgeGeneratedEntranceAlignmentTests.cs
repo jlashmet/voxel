@@ -19,7 +19,7 @@ namespace VoxelEngine.Tests.EditMode
         {
             VoxelWorldGenSettings settings = BuildSettings();
             SettlementPlan plan = SettlementVoxelPlan.Resolve(Seed, in settings);
-            BuildingPlot pubPlot = FindPub(plan);
+            BuildingPlot pubPlot = FindRole(plan, KentridgeRole.Pub);
             StructureIntent intent = KentridgeDefinition.StructureIntent(pubPlot);
             StructureForm form = ArchitectureCompiler.Resolve(intent, plan.Theme, Seed);
 
@@ -120,13 +120,145 @@ namespace VoxelEngine.Tests.EditMode
             }
         }
 
-        private static BuildingPlot FindPub(SettlementPlan plan)
+        [Test]
+        public void MedrareHouseKeepsBothFrontageWindowsClearOfEntranceCanopy()
+        {
+            VoxelWorldGenSettings settings = BuildSettings();
+            SettlementPlan plan = SettlementVoxelPlan.Resolve(Seed, in settings);
+            BuildingPlot medrarePlot = FindRole(plan, KentridgeRole.MedrareHouse);
+            StructureIntent intent = KentridgeDefinition.StructureIntent(medrarePlot);
+            StructureForm form = ArchitectureCompiler.Resolve(intent, plan.Theme, Seed);
+
+            Assert.AreEqual(FrontageRhythm.Asymmetric, form.FrontageRhythm,
+                "The captured regression depends on Medrare House's asymmetric two-bay frontage.");
+            Assert.AreEqual(-8, form.DoorOffsetDm,
+                "The captured regression depends on Medrare House's left-shifted entrance.");
+
+            int scale = settings.VoxelsPerDecimetre;
+            int foundation = plan.Theme.FoundationHeightDm * scale;
+            int windowY = foundation + plan.Theme.WindowBaseDm * scale;
+            int windowWidth = 11 * scale;
+            int windowHeight = plan.Theme.WindowHeightDm * scale;
+            int windowDepth = (plan.Theme.WallThicknessDm + 1) * scale;
+            int z0 = 10 * scale;
+            int minimumFacadeGap = 3 * scale;
+
+            FeatureCatalogue catalogue = KentridgeSharedStructureVoxelCatalogue.Build(
+                Seed, settings, Allocator.Temp);
+            try
+            {
+                FeatureDefinition medrare = catalogue.Definitions[(int)KentridgeRole.MedrareHouse];
+                var frontWindows = new List<HorizontalSpan>();
+                HorizontalSpan entranceCanopy = default;
+                bool foundEntranceCanopy = false;
+                int3 transform = int3.zero;
+                var transformStack = new Stack<int3>();
+
+                int pc = medrare.ProgramOffset;
+                int end = medrare.ProgramOffset + medrare.ProgramLength;
+                while (pc < end)
+                {
+                    ShapeOp op = (ShapeOp)catalogue.Program[pc];
+                    int length = ShapeOps.InstructionLength(op);
+                    Assert.GreaterOrEqual(length, 2);
+
+                    if (op == ShapeOp.PushTransform)
+                    {
+                        transformStack.Push(transform);
+                        transform += new int3(
+                            catalogue.Program[pc + 2],
+                            catalogue.Program[pc + 3],
+                            catalogue.Program[pc + 4]);
+                    }
+                    else if (op == ShapeOp.PopTransform)
+                    {
+                        Assert.IsNotEmpty(transformStack,
+                            "Translated Medrare House program popped an empty transform stack.");
+                        transform = transformStack.Pop();
+                    }
+                    else if (op == ShapeOp.EmitBox
+                             && (PrimitiveMode)catalogue.Program[pc + 11] == PrimitiveMode.Fill)
+                    {
+                        int x = catalogue.Program[pc + 2] + transform.x;
+                        int y = catalogue.Program[pc + 3] + transform.y;
+                        int z = catalogue.Program[pc + 4] + transform.z;
+                        int width = catalogue.Program[pc + 5];
+                        int height = catalogue.Program[pc + 6];
+                        int depth = catalogue.Program[pc + 7];
+                        byte material = (byte)catalogue.Program[pc + 8];
+
+                        if ((material == 4 || material == 15)
+                            && y == windowY
+                            && z == z0
+                            && width == windowWidth
+                            && height == windowHeight
+                            && depth == windowDepth)
+                        {
+                            frontWindows.Add(new HorizontalSpan(x, x + width));
+                        }
+                        else if (y == foundation + 25 * scale
+                                 && z == z0 - 5 * scale
+                                 && width == 32 * scale
+                                 && height == 3 * scale
+                                 && depth == 8 * scale)
+                        {
+                            entranceCanopy = new HorizontalSpan(x, x + width);
+                            foundEntranceCanopy = true;
+                        }
+                    }
+
+                    pc += length;
+                    if (op == ShapeOp.End) break;
+                }
+
+                Assert.IsEmpty(transformStack,
+                    "Generated Medrare House program must balance its local transform stack.");
+                Assert.IsTrue(foundEntranceCanopy,
+                    "Medrare House should exercise the default generated-house entrance canopy.");
+                Assert.AreEqual(2, frontWindows.Count,
+                    "An asymmetric two-bay frontage should retain both first-storey windows; " +
+                    "entrance collision handling should reflow a bay rather than silently delete it.");
+
+                for (int i = 0; i < frontWindows.Count; i++)
+                {
+                    int gap = frontWindows[i].GapTo(entranceCanopy);
+                    Assert.GreaterOrEqual(gap, minimumFacadeGap,
+                        "First-storey glazing must keep at least 3 dm of visible wall from the " +
+                        "complete entrance treatment so the door and window do not read as merged.");
+                }
+            }
+            finally
+            {
+                catalogue.Dispose();
+            }
+        }
+
+        private readonly struct HorizontalSpan
+        {
+            public readonly int Min;
+            public readonly int Max;
+
+            public HorizontalSpan(int min, int max)
+            {
+                Min = min;
+                Max = max;
+            }
+
+            public int GapTo(HorizontalSpan other)
+            {
+                if (Max <= other.Min) return other.Min - Max;
+                if (other.Max <= Min) return Min - other.Max;
+                return 0;
+            }
+        }
+
+        private static BuildingPlot FindRole(SettlementPlan plan, KentridgeRole role)
         {
             for (int i = 0; i < plan.Plots.Count; i++)
-                if (plan.Plots[i].RoleId == (int)KentridgeRole.Pub)
+                if (plan.Plots[i].RoleId == (int)role)
                     return plan.Plots[i];
 
-            Assert.Fail("Kentridge settlement must contain its stable Pub role.");
+            Assert.Fail("Kentridge settlement must contain its stable " + role + " role.");
             return default;
         }
 
