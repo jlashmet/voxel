@@ -2,10 +2,11 @@
 
 A destructible and buildable multiplayer voxel world, built in Unity.
 
-`AGENTS.md` targets a different agent tool and does not apply to Claude Code. Ignore it — this
-file, the specs it references, and the constitution are authoritative. In particular its
-validation loop, which assumes Unity cannot be run locally and drives everything through
-push-triggered CI, is not the workflow here: use `tools/unity-run.sh` as described below.
+`AGENTS.md` defines the workflow for remote coding agents, including agents assigned scene issues
+by the local browser coordinator. Those remote agents use its push-triggered targeted-CI loop and
+must not assume they can run Unity locally. For a local Claude Code session, this file, the specs it
+references, and the constitution are authoritative, and Unity must be run through
+`tools/unity-run.sh` as described below.
 
 ## Active feature
 

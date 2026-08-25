@@ -54,27 +54,51 @@ The original screenshots are evidence of the bug, not expected golden images. Af
 4. If pixel comparison is appropriate, capture the *fixed* view as the expected baseline; never use the broken screenshot as the golden image.
 5. Keep all original screenshots and circle annotations with the issue after it is resolved so the regression has historical evidence of the failure it guards.
 
-## Agent fixing process — one `fixes` branch
+## Agent fixing process — persistent per-agent branches
 
-Captured scene issues are intentionally fixed **one at a time on one shared branch named `fixes`**. Do not create a branch per issue.
+The local coordinator assigns each open capture to one browser-agent slot. Each slot owns exactly
+two persistent branches for its lifetime:
 
-When an agent is asked to work through captured issues:
+```text
+fixes/agent-N
+ci-test/fixes/agent-N
+```
 
-1. Start from current `master`. If `fixes` does not exist, create `fixes` from current `master`. If it already exists, continue on that branch and bring it up to date with `master` only as needed.
-2. Find the open captures under `SceneIssues/`. Unless the developer gives a different priority, work oldest open issue first.
-3. Work on exactly one issue at a time. Read its note and inspect **all** of its screenshots and circled regions before changing code.
+Agents reuse those branches across assignments and never create a branch per capture. An individual
+agent works on exactly one assigned capture at a time; separate slots may work on separate captures
+concurrently. The coordinator's atomic local registry is the claim authority, so an agent must not
+self-select another open capture or continue into the queue after finishing its assignment.
+
+When the coordinator assigns an agent a captured issue:
+
+1. Fetch `origin` and use only the feature and CI branches named in the assignment. If the feature
+   branch does not exist, create it from current `origin/master`. If it already exists, resume it
+   without discarding unmerged work and bring it up to date with `origin/master` as needed. Never
+   use the former shared `fixes` branch.
+2. Work only on the capture named by the coordinator. Queue order and exclusive claims belong to
+   the coordinator; do not select another open directory yourself.
+3. Work on exactly that one issue until it is terminal. Read its note and inspect **all** of its screenshots and circled regions before changing code.
 4. Replay the issue and step through every captured viewpoint. Confirm the failure in the marked regions and determine the smallest responsible subsystem before editing production code.
 5. Add or extend a focused regression using the saved scene/pose fixture. For transient problems, use all captured frames that are materially different rather than arbitrarily choosing one screenshot.
 6. Implement the smallest fix that resolves the reproduced problem without weakening coverage, performance budgets, or unrelated assertions.
 7. Write an experiment file for every attempt as soon as it produces a result — see **Document every experiment** below. The numbered experiment files are what makes the three-attempt count in the next step objective rather than a matter of recollection.
-8. **Three-attempt rule:** if the issue is still not solved after three genuine fix attempts, stop guessing in the full scene and build a bare-bones reproduction that isolates the failing behavior with the minimum geometry, data, systems, and configuration needed to reproduce it. Use that reproduction to understand the root cause before making more production changes. The reproduction may be checked in temporarily on `fixes` and may run in the normal CI build so the behavior is repeatable while debugging. **Remove the temporary bare-bones reproduction and any CI-only wiring for it before merging `fixes` to `master`.**
-9. Run the new regression plus the smallest relevant existing test set. Follow the repository's Unity-running rules in `CLAUDE.md`; never bypass `tools/unity-run.sh` or start a second editor unsafely.
+8. **Three-attempt rule:** if the issue is still not solved after three genuine fix attempts, stop guessing in the full scene and build a bare-bones reproduction that isolates the failing behavior with the minimum geometry, data, systems, and configuration needed to reproduce it. Use that reproduction to understand the root cause before making more production changes. The reproduction may be checked in temporarily on the assigned `fixes/agent-N` branch and may run in the normal CI build so the behavior is repeatable while debugging. **Remove the temporary bare-bones reproduction and any CI-only wiring before merging the assigned branch to `master`.**
+9. Run the new regression plus the smallest relevant existing test set. Coordinator-assigned remote
+   agents use the push-triggered targeted-CI process in `AGENTS.md` and do not invoke Unity. A local
+   Claude Code session follows the Unity-running rules in `CLAUDE.md`; it must never bypass
+   `tools/unity-run.sh` or start a second editor unsafely.
 10. Replay the original capture again after the fix. For multi-frame issues, check every recorded viewpoint and every marked region.
-11. Commit the production/test fix on `fixes` with a message that names the capture, for example `Fix scene issue 20260822-...: prevent far-field flicker`. This gives the fix a real commit SHA.
+11. Commit the production/test fix on the assigned `fixes/agent-N` branch with a message that names the capture, for example `Fix scene issue 20260822-...: prevent far-field flicker`. This gives the fix a real commit SHA.
 12. Update that issue's `issue.json`: set `status` to `fixed`, fill `resolvedUtc`, summarize the resolution in `resolutionSummary`, record the regression test in `regressionTest`, and put the production/test commit SHA from the previous step in `fixCommit`. If the issue cannot be reproduced or is blocked, record that explicitly instead of pretending it is fixed.
-13. Commit that issue bookkeeping on the same `fixes` branch, for example `Resolve scene issue 20260822-...`. The extra bookkeeping commit is deliberate: it avoids inventing the SHA of a commit before that commit exists.
-14. Only after that issue is reproduced, fixed, regressed, replay-verified, documented, and committed should the agent move to the next open issue — **still on the same `fixes` branch**.
-15. Push `fixes` after each completed issue so each fix remains inspectable. A single PR can accumulate the sequential fixes; do not create one PR/branch pair per capture unless the developer explicitly changes this policy.
+13. Commit that issue bookkeeping on the same assigned `fixes/agent-N` branch, for example `Resolve scene issue 20260822-...`. The extra bookkeeping commit is deliberate: it avoids inventing the SHA of a commit before that commit exists.
+14. Push the assigned feature branch after the issue is reproduced, fixed, regressed,
+    replay-verified, documented, and committed. The coordinator verifies the terminal `issue.json`
+    directly from that remote branch, including that a fixed issue's `fixCommit` is on the branch.
+    It also requires `ci/single-test` success on the assigned CI request branch and verifies that
+    branch contains the recorded fix commit.
+15. Stop after pushing the terminal bookkeeping and wait for the coordinator. It will assign the
+    next capture to the same tab and branch. One PR may accumulate that agent's sequential fixes;
+    do not create one PR/branch pair per capture.
 
 ## Document every experiment
 
@@ -118,4 +142,6 @@ experiment file. Include the source commit and any non-default configuration (fo
 The per-issue `resolutionSummary` in `issue.json` remains the terminal one-paragraph answer. The
 experiment files are the working record behind it, and both are expected on a resolved issue.
 
-The point of the shared branch is to make visual cleanup an ordered queue: reproduce → inspect marked regions → test → fix → verify → document → commit → resolve, then advance to the next issue.
+The point of persistent agent branches plus coordinator-owned claims is to make visual cleanup a
+safe parallel queue: each worker follows reproduce → inspect marked regions → test → fix → verify →
+document → commit → resolve, then waits for its next exclusive assignment.

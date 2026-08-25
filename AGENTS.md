@@ -24,11 +24,20 @@ notes live in the capture directory under `SceneIssues/` — see `SceneIssues/RE
 
 ## Branch discipline
 
-**Scene issues are the exception: they all go on `fixes`.** If the task is a capture under
-`SceneIssues/`, the feature branch is the single shared branch named `fixes` — not a new branch,
-and never one per capture. Read `SceneIssues/README.md` and follow its fixing process. Its CI
-request branch is `ci-test/fixes`. Everything below about reuse and forbidden suffixes still
-applies.
+**Scene issues use coordinator-assigned agent branches.** When the local scene-issue coordinator
+assigns a capture, each agent slot has exactly one persistent feature branch and one persistent CI
+request branch:
+
+```
+fixes/agent-N
+ci-test/fixes/agent-N
+```
+
+The coordinator supplies the concrete `N`. Reuse those same two branches for every capture handled
+by that agent; never create a branch per capture, and never push to the former shared `fixes` branch.
+An agent works on only its assigned capture until it reaches a documented terminal state, although
+different agent slots may handle different captures concurrently. Read `SceneIssues/README.md` and
+follow its fixing process. Everything below about reuse and forbidden suffixes still applies.
 
 For every other task, a task uses **exactly two branches for its entire lifetime**: one feature
 branch and one CI request branch. Both names are fixed when the task starts and never change.
@@ -107,7 +116,8 @@ Before declaring the task complete:
 - Review the final diff.
 - Verify it follows **`CLAUDE.md`** and relevant specs.
 - Confirm the relevant CI jobs are green.
-- Confirm the task created no branches on `origin` beyond its one feature branch and that one CI branch.
+- Confirm the task created no branches on `origin` beyond its assigned feature branch and matching
+  CI branch.
 - State what was changed and what CI validation actually passed.
 
 **Try in chat**
