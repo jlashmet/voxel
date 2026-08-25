@@ -27,7 +27,7 @@ Identify why the tower visible in the saved VoxelShowcase pose is unsupported/fl
 - [x] The requested targeted CI test executes at least one test and `ci/single-test` is green.
 - [x] A fresh replay of the original saved pose is inspected after the fix and retained as verification evidence.
 - [x] The production fix exists as commit `416522e1816fd4e6a315f9831e523156304e1c18` on the persistent feature branch and the verification evidence is committed before terminal bookkeeping.
-- [ ] Terminal bookkeeping sets `status=fixed`, `resolvedUtc`, `resolutionSummary`, `regressionTest`, and `fixCommit`, then moves the entire capture from `SceneIssues/open/` to `SceneIssues/closed/`.
+- [x] Terminal bookkeeping sets `status=fixed`, `resolvedUtc`, `resolutionSummary`, `regressionTest`, and `fixCommit`, then moves the entire capture from `SceneIssues/open/` to `SceneIssues/closed/`.
 
 ## Tasks
 - [x] Verify assignment exists on `origin/master` and persistent branch is current with master.
@@ -41,7 +41,7 @@ Identify why the tower visible in the saved VoxelShowcase pose is unsupported/fl
 - [x] Replay every captured viewpoint after the fix and inspect the reported defect area (single saved viewpoint; current-source run `32886508286`).
 - [x] Review the causal source diff against repository architecture/spec constraints; the fix removes a parallel authoring path and reinforces the single-source boundary.
 - [x] Record verification evidence in experiment 006.
-- [ ] Remove the temporary replay-only workflow, push separate open→closed terminal bookkeeping, verify remote state, and stop.
+- [x] Remove the temporary replay-only workflow, push separate open→closed terminal bookkeeping, verify remote state, and stop.
 
 ## Final findings
 - The original frame is `1364x836`, captured at ~`222.43s` after scene load, so the report is from a settled scene rather than startup noise.
