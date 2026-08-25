@@ -1,5 +1,6 @@
 name: One-shot SceneIssue 220416 entrance window validation
 
+# Retriggered after decoupling the regression from detail-box opcode realization.
 on:
   push:
     branches: [fixes]
