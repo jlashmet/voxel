@@ -1,5 +1,3 @@
-using System;
-using System.IO;
 using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
@@ -23,7 +21,8 @@ namespace VoxelEngine.Tests.EditMode
                 int backing = Index(1, 1, 1, gridSize);
                 int emptyAbove = Index(1, 2, 1, gridSize);
                 materials[backing] = 1;
-                surfaces[backing] = SurfaceStyles.MasonryJoint;
+                surfaces[backing] = TransvoxelDensityJob.WithAuthoritativeOccupancy(
+                    SurfaceStyles.MasonryJoint, solid: true);
 
                 // A rounded veneer beside the backing can leave its in-plane halo on this empty
                 // cell. That halo describes the veneer, not the backing's exact planar top face.
@@ -116,42 +115,103 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void MixedContinuousChunksUseSnapshotOccupancyForFacetedFaces()
+        public void DensityPresentationHaloCannotEraseAuthoritativePlanarCap()
         {
-            string cache = File.ReadAllText(Path.Combine(
-                RepoRoot,
-                "Assets",
-                "VoxelEngine",
-                "Rendering",
-                "Runtime",
-                "SurfaceExtraction",
-                "CpuTransvoxelChunkCache.cs"));
-
-            const string topologySchedule =
-                "ScheduleTopologyJob(voxelSize, _densityJobHandle);";
-            int topology = cache.IndexOf(topologySchedule, StringComparison.Ordinal);
-            Assert.That(topology, Is.GreaterThanOrEqualTo(0),
-                "The mixed continuous extraction path must still schedule topology from density.");
-
-            int length = Math.Min(320, cache.Length - topology);
-            string mixedScheduling = cache.Substring(topology, length);
-            StringAssert.Contains("ScheduleSnapshotFacetedMaskJob();", mixedScheduling,
-                "Mixed Smooth/Rounded + Planar chunks must decide exact faceted exposure from "
-              + "authoritative snapshot occupancy, not the presentation-material density lattice.");
-            StringAssert.DoesNotContain("ScheduleFacetedMaskJob(_densityJobHandle);", mixedScheduling,
-                "Presentation material may be carried onto an air-centered density sample and "
-              + "must never suppress an authoritative Planar occupancy face.");
-        }
-
-        private static string RepoRoot
-        {
-            get
+            const int gridSize = 3;
+            const int brickVoxelCount = 8 * 8 * 8;
+            var bricks = new NativeArray<TransvoxelDensityBrick>(1, Allocator.Temp);
+            var voxels = new NativeArray<byte>(brickVoxelCount, Allocator.Temp);
+            var storedSurfaces = new NativeArray<ushort>(brickVoxelCount, Allocator.Temp);
+            var storedBoundaries = new NativeArray<byte>(brickVoxelCount, Allocator.Temp);
+            var density = new NativeArray<float>(gridSize * gridSize * gridSize, Allocator.Temp);
+            var materials = new NativeArray<byte>(density.Length, Allocator.Temp);
+            var latticeSurfaces = new NativeArray<uint>(density.Length, Allocator.Temp);
+            var latticeBoundaries = new NativeArray<byte>(density.Length, Allocator.Temp);
+            var masks = new NativeArray<uint>(6, Allocator.Temp);
+            try
             {
-                var dir = new DirectoryInfo(Directory.GetCurrentDirectory());
-                while (dir != null && !Directory.Exists(Path.Combine(dir.FullName, "Assets")))
-                    dir = dir.Parent;
-                Assert.NotNull(dir, "Could not locate project root containing Assets/.");
-                return dir.FullName;
+                bricks[0] = new TransvoxelDensityBrick { Kind = 2, MixedOffset = 0 };
+
+                // Planar backing with authoritative air above it. A rounded solid beside that air
+                // sample contributes presentation identity to the smooth density field.
+                int backing = BrickIndex(1, 1, 1);
+                voxels[backing] = 1;
+                storedSurfaces[backing] = new VoxelSurfaceSemantics
+                {
+                    StyleId = SurfaceStyles.MasonryJoint,
+                }.PackedStorage;
+
+                int roundedBesideAir = BrickIndex(2, 2, 1);
+                voxels[roundedBesideAir] = 2;
+                storedSurfaces[roundedBesideAir] = new VoxelSurfaceSemantics
+                {
+                    StyleId = SurfaceStyles.Rounded,
+                }.PackedStorage;
+
+                var densityJob = new TransvoxelDensityJob
+                {
+                    Bricks = bricks,
+                    MixedVoxels = voxels,
+                    MixedSurfaceSemantics = storedSurfaces,
+                    MixedBoundarySamples = storedBoundaries,
+                    Palette = default,
+                    Catalogue = SurfaceCatalogueView.CreateBuiltIns(),
+                    Coatings = CoatingCatalogueView.CreateBuiltIns(),
+                    Density = density,
+                    Materials = materials,
+                    SurfaceSemantics = latticeSurfaces,
+                    BoundarySamples = latticeBoundaries,
+                    ChunkOriginVoxel = new int3(1, 1, 1),
+                    BrickCacheOrigin = int3.zero,
+                    BrickCacheEdge = 1,
+                    GridSize = gridSize,
+                    Padding = 1,
+                    SourceStep = 1,
+                };
+                for (int i = 0; i < density.Length; i++) densityJob.Execute(i);
+
+                int backingSample = Index(1, 1, 1, gridSize);
+                int airAboveSample = Index(1, 2, 1, gridSize);
+                Assert.That(materials[airAboveSample], Is.EqualTo(2),
+                    "The fixture must reproduce the production presentation halo: an air-centred "
+                  + "sample carries the rounded neighbour's solid material identity.");
+                Assert.That(density[airAboveSample], Is.LessThan(0f),
+                    "The halo sample must remain on the outside of the continuous scalar field.");
+                Assert.That(TransvoxelDensityJob.IsAuthoritativelySolid(latticeSurfaces[backingSample]),
+                    Is.True, "The occupied Planar centre must retain authoritative occupancy.");
+                Assert.That(TransvoxelDensityJob.IsAuthoritativelySolid(latticeSurfaces[airAboveSample]),
+                    Is.False, "Presentation material must not turn authoritative air into occupancy.");
+
+                var maskJob = new FacetedMaskJob
+                {
+                    Materials = materials,
+                    SurfaceSemantics = latticeSurfaces,
+                    BoundarySamples = latticeBoundaries,
+                    Catalogue = SurfaceCatalogueView.CreateBuiltIns(),
+                    Coatings = CoatingCatalogueView.CreateBuiltIns(),
+                    CellsPerAxis = 1,
+                    GridSize = gridSize,
+                    Padding = 1,
+                    FaceMasks = masks,
+                };
+                maskJob.Execute(0);
+
+                const int positiveYFace = 3;
+                Assert.That(masks[positiveYFace], Is.Not.Zero,
+                    "The mixed continuous density -> faceted-mask path must preserve the exact "
+                  + "Planar cap when its authoritative neighbour is air.");
+            }
+            finally
+            {
+                masks.Dispose();
+                latticeBoundaries.Dispose();
+                latticeSurfaces.Dispose();
+                materials.Dispose();
+                density.Dispose();
+                storedBoundaries.Dispose();
+                storedSurfaces.Dispose();
+                voxels.Dispose();
+                bricks.Dispose();
             }
         }
 
