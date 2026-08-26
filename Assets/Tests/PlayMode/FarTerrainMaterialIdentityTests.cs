@@ -62,7 +62,7 @@ namespace VoxelEngine.Tests.PlayMode
         {
             yield return LoadShowcase();
 
-            var far = Object.FindFirstObjectByType<VoxelFarTerrain>();
+            var far = UnityEngine.Object.FindFirstObjectByType<VoxelFarTerrain>();
             Assert.That(far, Is.Not.Null, "VoxelShowcase did not create VoxelFarTerrain.");
 
             for (int frame = 0; frame < 600 && !far.HasSampledHeightsForEveryRing; frame++)
