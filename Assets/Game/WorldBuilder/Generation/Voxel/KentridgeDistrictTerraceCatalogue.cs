@@ -11,7 +11,7 @@ namespace MountingForce.WorldGen.Voxel
     /// <summary>
     /// Turns Kentridge's macro height profile into neighbourhood-scale urban shelves.
     /// District character controls transition depth: green edges stay compact while dense urban
-    /// shelves receive broad stepped contour bands that can read as real intermediate terraces.
+    /// shelves receive broad sloped contour transitions that meet the authored core continuously.
     /// Urban shoulders also compile a sparse crisp masonry retaining skin on their strongest downhill
     /// edges so the vertical city reads as built hillside infrastructure rather than brown plinths.
     /// </summary>
@@ -513,32 +513,13 @@ namespace MountingForce.WorldGen.Voxel
 
             if (rise <= 0) return;
 
-            int axisLength = axis == AxisX ? width : depth;
-            for (int step = 0; step < ShoulderStepCount; step++)
-            {
-                int start = axisLength * step / ShoulderStepCount;
-                int end = axisLength * (step + 1) / ShoulderStepCount;
-                int slice = Math.Max(1, end - start);
-                int targetY = edgeY
-                    + (coreY - edgeY) * (step + 1) / ShoulderStepCount;
-                int fillHeight = targetY - lowY;
-                if (fillHeight <= 0) continue;
-
-                if (axis == AxisX)
-                {
-                    int px = outerAtNegativeAxis
-                        ? x + start
-                        : x + axisLength - end;
-                    b.Box(px, lowY, z, slice, fillHeight, depth, material);
-                }
-                else
-                {
-                    int pz = outerAtNegativeAxis
-                        ? z + start
-                        : z + axisLength - end;
-                    b.Box(x, lowY, pz, width, fillHeight, slice, material);
-                }
-            }
+            // A single authoritative wedge preserves the exact authored edge/core elevations while
+            // removing the six metre-scale plateaus that were visible at Dirt/grass boundaries.
+            // ReverseRampBit means the high end lies at the negative side of the selected axis.
+            bool highAtNegativeAxis = (coreY > edgeY) != outerAtNegativeAxis;
+            byte rampAxis = (byte)(axis
+                | (highAtNegativeAxis ? ShapeOps.ReverseRampBit : 0));
+            b.Ramp(x, lowY, z, width, rise, depth, rampAxis, material);
         }
 
         private static void AddRetainingTiers(
@@ -607,6 +588,14 @@ namespace MountingForce.WorldGen.Voxel
 
             public void Carve(int x, int y, int z, int sx, int sy, int sz) =>
                 Box(x, y, z, sx, sy, sz, 0, PrimitiveMode.Carve);
+
+            public void Ramp(int x, int y, int z, int sx, int sy, int sz,
+                             byte axis, byte material)
+            {
+                if (sx <= 0 || sy <= 0 || sz <= 0) return;
+                Op(ShapeOp.EmitRamp, x, y, z, sx, sy, sz,
+                   axis, material, 0, 0, (int)PrimitiveMode.Fill);
+            }
 
             public int[] Finish()
             {
