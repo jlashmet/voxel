@@ -8,7 +8,7 @@
 
 The original `issue.json` pose was replayed in the real VoxelShowcase player by request `b2944662de402c9e25aac749d1adddceaeaab709` (run `33021624676`). The PlayMode assertion, real-player capture, screenshot upload, screenshot-presence gate, and final-status publication steps all completed successfully. The job was subsequently marked cancelled when post-run cleanup crossed the workflow's five-minute job timeout; this occurred after the replay screenshots had already been uploaded.
 
-A shorter identical replay request (`cce9004b1f39f7d2891ba4acc456778481eda599`, run `33022161812`) was also issued to avoid that CI-budget overrun, but remained queued with the shared self-hosted runner unavailable during this verification session.
+The shorter identical replay request `cce9004b1f39f7d2891ba4acc456778481eda599` (run `33022161812`) then completed successfully. The requested PlayMode test, real-player saved-camera capture, screenshot preview/upload, artifact classification, and final status publication all passed, and the exact commit status `ci/single-test` is `success`.
 
 ## Visual inspection
 
