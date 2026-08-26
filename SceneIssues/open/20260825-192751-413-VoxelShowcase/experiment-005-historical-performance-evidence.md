@@ -1,0 +1,11 @@
+# Experiment 005 — historical performance evidence does not justify another speculative source change
+
+**Hypothesis** — While targeted CI is blocked, repository history might identify an additional already-proven rendering or scheduler change that should be applied before retrying the assigned VoxelShowcase capture.
+
+**What was performed** — Reviewed current `fixes/agent-2` at `92b39be509bfb9e4b1d7bca9af9502a142d7c5d9`, current `master` at `bfccb29f34f2373ae7cafac5a38e21a7c2e9ba86`, the CPU rollback `760dc909`, the validated LOD2 GPU cutover/oracle history, and real-player Showcase performance commits including the arena SubUpdates fix and later traversal measurements. Rechecked the latest CI request `9ce7b8049f65108bf2134679f35f26a98f1cc161`; it still has no `ci/single-test` status and no Actions run.
+
+**Result** — History strongly supports re-enabling the existing exact-ring GPU path for build throughput and visible-hole convergence, but does not support layering on another unmeasured renderer rewrite. Earlier player work reduced the full Showcase from 10–17 FPS with persistent missing chunks to converged ~5–6 ms frames by fixing arena buffer renaming, and later SmallVoxelShowcase measurements reached roughly 920 FPS stationary and 770 FPS walking after LOD/visibility fixes. GPU density, topology, material, boundary-ownership, and arena-bridge defects were subsequently found and repaired before the production cutover was later hard-disabled. No newer branch evidence proves a remaining source-level change that should be made without a fresh player measurement.
+
+**What was learned** — The current production change remains the smallest evidence-backed attempt. The next decision must come from current Unity CI/player replay: confirm that GPU builds occur, missing-visible geometry converges, and measure frame timing. Without that evidence, additional optimization would be guesswork and would violate the repository workflow.
+
+**Next** — Keep the capture open. Obtain an authenticated CI trigger for the focused cutover test, then run the GPU oracle/arena coverage and the original VoxelShowcase replay/performance harness before deciding whether another production optimization is required.
