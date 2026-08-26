@@ -3,16 +3,11 @@ Shader "VoxelEngine/FarTerrain"
     // Shading for the clipmap rings that stand in for the voxel world beyond the streaming
     // radius.
     //
-    // The one thing this must do that URP/Lit does not is respect vertex colour. The rings carry
-    // their material in COLOR, sampled from the same VoxelPresentationCatalogue albedo the near
-    // field reads, because the far field previously had no material channel at all and rendered
-    // the entire range as one flat grey.
-    //
-    // The lighting deliberately matches ProceduralTreeBark rather than going through the full URP
-    // lit path: the far field is thousands of square kilometres of terrain that is never closer
-    // than the streaming radius, so a sun term plus a sky-gradient ambient is all the fidelity
-    // that survives the distance, and it keeps the horizon consistent with the foliage in front
-    // of it.
+    // Ring vertices still carry the authoritative material albedo in COLOR so the startup
+    // fallback and distant colour contract remain cheap. The shader resolves that colour back to
+    // the renderer's material table and samples the same texture array, world-space basis, scale,
+    // and distance attenuation as SmoothSurface. This keeps the near/far handoff from becoming a
+    // second grass-texturing system with visibly different scale.
     Properties
     {
         _SunDirection ("Sun Direction", Vector) = (-0.48, 0.76, -0.44, 0)
@@ -35,6 +30,7 @@ Shader "VoxelEngine/FarTerrain"
             Tags { "LightMode"="UniversalForward" }
 
             HLSLPROGRAM
+            #pragma target 4.5
             #pragma vertex Vert
             #pragma fragment Frag
 
@@ -45,6 +41,14 @@ Shader "VoxelEngine/FarTerrain"
             float4 _SkyZenith;
             float4 _AerialColour;
             float _AerialDistance;
+
+            // These are renderer-owned globals populated by VoxelRenderPass for the near surface.
+            // Far terrain consumes them rather than carrying a second texture/presentation setup.
+            float4 _MaterialAlbedo[32];
+            float4 _MaterialSampling[32];
+            float4 _MaterialSurface[32];
+            TEXTURE2D_ARRAY(_AlbedoTextures); SAMPLER(sampler_AlbedoTextures);
+            float _VoxelSize;
 
             struct Attributes
             {
@@ -72,6 +76,52 @@ Shader "VoxelEngine/FarTerrain"
                 return output;
             }
 
+            uint ResolveMaterialFromAlbedo(float3 vertexAlbedo)
+            {
+                uint bestMaterial = 0u;
+                float bestError = 1e20;
+                [unroll]
+                for (uint material = 0u; material < 32u; material++)
+                {
+                    float3 delta = _MaterialAlbedo[material].rgb - vertexAlbedo;
+                    float error = dot(delta, delta);
+                    if (error < bestError)
+                    {
+                        bestError = error;
+                        bestMaterial = material;
+                    }
+                }
+                return bestMaterial;
+            }
+
+            float2 SurfaceUV(float3 normal, float3 hitVoxel)
+            {
+                float3 a = abs(normal);
+                if (a.y >= a.x && a.y >= a.z) return hitVoxel.xz;
+                if (a.x >= a.z) return hitVoxel.zy;
+                return hitVoxel.xy;
+            }
+
+            float3 SampleAlbedoLayer(float layer, float2 uv)
+            {
+                return SAMPLE_TEXTURE2D_ARRAY(_AlbedoTextures, sampler_AlbedoTextures,
+                                              uv, layer).rgb;
+            }
+
+            float3 SampleMaterialAlbedo(float4 sampling, float4 surface,
+                                        float3 hitVoxel, float3 normal)
+            {
+                float layer = sampling.x;
+                float scale = surface.x;
+                float3 face = SampleAlbedoLayer(layer, SurfaceUV(normal, hitVoxel) * scale);
+                float3 weights = pow(abs(normal), 4.0);
+                weights /= max(weights.x + weights.y + weights.z, 0.0001);
+                float3 triplanar = SampleAlbedoLayer(layer, hitVoxel.zy * scale) * weights.x
+                                 + SampleAlbedoLayer(layer, hitVoxel.xz * scale) * weights.y
+                                 + SampleAlbedoLayer(layer, hitVoxel.xy * scale) * weights.z;
+                return lerp(face, triplanar, saturate(sampling.z));
+            }
+
             half4 Frag(Varyings input) : SV_Target
             {
                 float3 n = normalize(input.normalWS);
@@ -80,13 +130,23 @@ Shader "VoxelEngine/FarTerrain"
                 float skyT = saturate(n.y * 0.5 + 0.5);
                 float3 ambient = lerp(_SkyHorizon.rgb, _SkyZenith.rgb, skyT);
 
-                float3 lit = input.color.rgb * (ambient * 0.42 + (0.34 + ndl * 0.66));
+                uint material = ResolveMaterialFromAlbedo(input.color.rgb);
+                float4 materialSampling = _MaterialSampling[material];
+                float4 materialSurface = _MaterialSurface[material];
+                float3 hitVoxel = input.positionWS / max(_VoxelSize, 1e-4);
+                float3 textured = SampleMaterialAlbedo(materialSampling, materialSurface,
+                                                       hitVoxel, n);
+                float hitDistance = length(input.positionWS - GetCameraPositionWS());
+                float textureWeight = materialSampling.w
+                                    * lerp(1.0, 0.44, saturate(hitDistance / 350.0));
+                float3 albedo = lerp(input.color.rgb, textured, textureWeight);
+                float3 lit = albedo * (ambient * 0.42 + (0.34 + ndl * 0.66));
 
                 // Aerial perspective. Without it a 5 km summit reads as a cardboard cutout at
                 // the same contrast as ground a hundred metres away, and the range loses all
                 // sense of depth. Distance is measured to the camera, so it also hides the
                 // outermost ring's low sample rate.
-                float distance = length(input.positionWS - _WorldSpaceCameraPos);
+                float distance = hitDistance;
                 float haze = saturate(distance / max(1.0, _AerialDistance));
                 haze = haze * haze * 0.82;
                 lit = lerp(lit, _AerialColour.rgb, haze);
