@@ -9,42 +9,41 @@ The fix must identify the shared placement / boundary-ownership rule behind thos
 ## Investigation / validation
 
 - [x] Replay the exact saved camera against the current committed VoxelShowcase bake and compare all four marked locations with the original capture.
-- [x] If the defect still reproduces, identify the physical pieces visible at each mark and trace them to their authoritative generator/catalogue definitions.
-- [x] Determine whether the initial plaza endpoint mismatch comes from placement arithmetic / footprint semantics.
-- [x] Add the smallest regression that proves the inclusive authored plaza-boundary contract.
-- [x] Apply production attempt 1: include the authored positive X/Z endpoint in both plaza layers.
-- [x] Run the focused regression and `KentridgeMarketPiazzaTests`; both are green.
-- [x] Regenerate the showcase startup bake and replay the exact saved camera for production attempt 1.
-- [ ] Trace the actual surviving light-blue seam after the fresh bake to its final voxel/material/mesh owner.
-- [ ] Implement the next smallest production fix only after that owner is proven.
-- [ ] Run the focused regression and smallest affected Kentridge/worldgen suite for the final fix.
-- [ ] Regenerate the showcase startup bake again and replay the exact saved camera from the corrected source.
-- [ ] Remove temporary diagnostics/workflow wiring and restore any borrowed one-shot CI file exactly.
-- [ ] Mark `issue.json` fixed only when structural and visual checks both pass.
+- [x] Identify the authoritative generators for the Market Square hard surface and market-stall dressing.
+- [x] Correct the real inclusive +X/+Z plaza endpoint mismatch (attempt 1); focused tests passed, fresh replay still failed.
+- [x] Give the hard piazza one continuous backing slab (attempt 2); focused tests passed, fresh replay still failed.
+- [x] Inspect the fresh-bake replay and project the marked seam back into authored world coordinates.
+- [x] Trace the surviving seam to zero-thickness authored interfaces rather than missing backing occupancy.
+- [ ] Add a focused red regression requiring material-only border paint and physical overlap at market-stall supports.
+- [ ] Apply production attempt 3: keep one geometric piazza slab, paint its border material, and sink market stalls one authored decimetre into the shared surface.
+- [ ] Run the focused regression and `KentridgeMarketPiazzaTests`.
+- [ ] Regenerate the showcase startup bake and replay this assigned issue's exact saved camera.
+- [ ] If the replay passes, move the capture to `SceneIssues/closed/` with terminal fixed bookkeeping; if it fails, stop production changes and record terminal blocked bookkeeping because all three attempts are exhausted.
+- [ ] Restore/remove any CI-only request or replay wiring as required by the repository workflow.
+- [ ] Do not start another capture; the user explicitly prohibited it.
 
 ## Findings
 
-The exact replay collapses the three lower marks to one straight exposed row near `Z = 590 dm`. Market Square is centred at `Z = 520 dm` with semantic depth `140 dm`, making `590 dm` its authored positive-Z endpoint.
+Attempt 1 proved and fixed a real count-vs-inclusive-bound mismatch in both hard and graded Market Square footprints. Attempt 2 proved that the piazza previously depended on exactly touching centre/border occupancy and replaced that with a full backing slab. Both changes are structurally valid, but neither changed the fresh standalone replay, so missing piazza volume is not the final visual owner.
 
-Kentridge roads convert inclusive authored spans to counted voxel footprints with `max - min + 1`. Both the graded Market Square and hard piazza originally used `plaza.SizeDm * scale` while placing at the authored minimum. Engine footprint/raster contracts are half-open/count-based, so the original 140-voxel depth owned Z=450..589 and omitted the authored Z=590 row. The same mismatch existed on +X.
+The attempt-2 artifact was then inspected directly. The three lower circles are one continuous light-blue crack, and exact camera projection puts that crack at about `Z = 58.4–58.5 m`. The Market Square is centred at `Z = 52.0 m`, has depth `14.0 m`, and its north decorative border begins at `Z = 58.5 m`. The visible line therefore matches the authored dark-border/light-centre material transition, not the plaza's outer +Z endpoint and not a 6.4 m renderer chunk boundary.
 
-The active VoxelShowcase composition uses the same `KentridgeVerticalProfile` for the town surface, hard piazza, and vertically adapted dressing, so the earlier height-source hypothesis is rejected for this scene.
+The current piazza program emits one full FoundationStone `Fill` slab followed by four coplanar DarkMasonry `Fill` boxes. `PrimitiveMode.PaintSolid` exists specifically to repaint existing solid voxels without changing occupancy. The authored-boundary contract also states that paint is not geometry: a material-only operation must not create a second boundary field over geometry another primitive already owns. Attempt 2 left that coplanar boundary ownership intact even though it strengthened occupancy underneath.
 
-The focused regression was proven red on source commit `e7789e5e28bc570ec4e2de25457b845db0c8f7fa`: CI run `32851636363` executed exactly one test, `VoxelEngine.Tests.EditMode.KentridgeMarketPiazzaTests.HardAndGradedPiazzaOwnTheSameInclusiveAuthoredBoundary`, and failed on the hard piazza +X endpoint (`Expected: 1280`, `But was: 1279`). After production commit `971cf8371d95be29fff59675d2c31c2f4d94af65`, the same regression and the full `KentridgeMarketPiazzaTests` class both passed.
+The remaining marked area is at market-stall feet. `KentridgeTownDressingCatalogue` places the stall at the vertically adapted piazza surface, and its four stone shoes begin at local `y = 0`. Thus the shoes merely touch the hard piazza top; they do not penetrate it. The screenshot shows light-blue exposure around those contact patches. The smallest corresponding support contract is to sink the stall placement by one authored decimetre, so the structural feet overlap the supporting surface instead of relying on exact contact between separately authored solids.
 
-However, fresh-bake exact-view run `32853747303` disproved the endpoint mismatch as the complete visual cause. The workflow regenerated `ShowcaseWorld.bytes` from the fixed source, successfully replayed the saved frozen pose in a standalone player, and the resulting frame still shows the broad light-blue seam through all three lower marked regions plus exposure around the market-stall foot. The endpoint fix is therefore structurally correct but visually insufficient. See `experiment-003-fresh-bake-positive-edge-fix.md`.
-
-The next investigation must identify what the surviving light-blue pixels actually represent after final composition: empty/background, a material written by another catalogue, a later precedence overwrite, or a mesh/raster boundary. Do not make another geometry expansion until that owner is proven.
+Attempt 3 therefore targets one shared rule: **do not model a visual/material junction as an independent coplanar solid, and do not make supported solids depend on a zero-overlap contact plane.** The hard piazza remains the sole geometric owner of its floor; its dark perimeter becomes paint, while market stalls overlap that floor by one decimetre.
 
 ## Three-attempt rule
 
-Production-fix attempts: **1 / 3**. Attempt 1 corrected the real plaza endpoint mismatch but failed fresh visual verification. Diagnostics, exact replays, measurement probes, and CI-only stage isolation do not increment the count. After three unsuccessful production fixes, stop modifying the full scene and build a minimal reproduction before another production change.
+Production-fix attempts: **2 / 3 completed**. Attempt 3 described above is the final allowed substantive production change. Diagnostics, regression authoring, exact replays, and CI-only request wiring do not increment the count. If attempt 3 fails the fresh exact-camera replay, do not make a fourth production fix; record the issue blocked/open with the failed evidence.
 
 ## Acceptance
 
 - All four marked seams/gaps in the saved view are absent after a fresh bake and exact-pose replay.
-- Pieces that are intended to meet share a clear boundary contract: no visible hole, overlap, or unsupported sliver at the join.
+- Piazza border material does not introduce an independent geometric boundary over the continuous slab.
+- Market-stall feet overlap their supporting shared surface instead of merely touching it.
 - Nearby unmarked structures retain their intended spacing and silhouette.
 - No camera-, screenshot-, or hard-coded issue-coordinate special case is introduced.
-- A focused regression proves the causal alignment invariant for the final owner.
+- A focused regression proves the final authored-interface contract.
 - A fresh standalone exact-camera replay from the regenerated startup bake visually passes.
