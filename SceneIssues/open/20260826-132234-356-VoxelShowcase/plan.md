@@ -1,42 +1,27 @@
 # Plan — 20260826-132234-356-VoxelShowcase
 
-## Goal
-Remove the visibly jagged dirt/grass boundary highlighted in the captured VoxelShowcase view while preserving one deterministic authoritative voxel representation for rendering and collision.
+## Observed defect and acceptance
+The saved VoxelShowcase pose has two marked Dirt/grass contacts. Exact replay of the first attempt left a large rectangular notch in the upper circle; the lower circle improved but acceptance requires both regions to read as continuous terrain rather than broad authored steps. Rendering/residency telemetry was stable during that replay.
 
-## Scope
-- Kentridge road-shoulder voxel authoring responsible for the dirt/grass seam.
-- Focused geometry regression covering the captured boundary behavior.
-- Scene issue documentation and required CI/bookkeeping only.
+## Competing hypotheses
+1. **Inactive road-shoulder quantization.** `KentridgeTownSurfaceCatalogue` used coarse shoulder bands. Experiment 002 disproved this as the complete cause: its change passed CI but the upper defect remained.
+2. **Live district-terrace shoulder quantization.** The VoxelShowcase catalogue composition actually includes `KentridgeDistrictTerraceCatalogue`, whose four shoulders are emitted as six broad Box slices. Urban shoulders are 72 dm wide, so each authored tread can span roughly 12 dm and visually matches the captured notch/stepping.
+3. **Streaming/LOD churn or RegionCorridor overlap.** Exact replay was stable (`visible=714`, `missingMax=0`) and the suspected alternate catalogues are not in this scene's live composition, reducing these hypotheses.
 
-## Constraints
-- Preserve determinism, single source of truth, and server authority.
-- Refine the deterministic CPU-authored shoulder geometry; do not add a rendering-only surface that can disagree with collision/world state.
-- Do not invoke Unity directly; validate with targeted CI.
-- Do not create a new scene capture.
-- Keep targeted CI under five minutes.
+## Discriminator and result
+Tracing `ShowcaseCatalogue` → `WorldBuilderVoxelCatalogue` → `KentridgeCombinedVoxelCatalogue` established the runtime owner. `BoxEmitter` already provides an authoritative integer `Ramp` primitive intended for terrain skirts, including reversible rise direction. This falsifies the need for a rendering-only blend or a new geometry system.
 
-## Acceptance
-- Both marked dirt/grass boundaries are addressed by the same deterministic road-shoulder rule.
-- The grassy shoulder begins flush with the Dirt carriageway, uses one-decimetre cross-slope bands, and no adjacent authored band rises by more than one decimetre at the regression scale.
-- The existing 3 m shoulder width and 2 m outer rise are preserved.
-- A focused regression fails on the previous five-band behavior and passes with the fix.
-- `ci/single-test` is green on the requested commit.
-- The issue is moved to `closed` with terminal fields referencing the production fix SHA.
+## Selected fix
+Replace each non-flat district shoulder's six Fill boxes with one `EmitRamp`, preserving the same carve envelope, edge/core elevations, material, footprint, precedence, retaining tiers, and surface-paint passes. Reverse the ramp only when the high endpoint lies on the negative axis. Restore the earlier inactive `KentridgeTownSurfaceCatalogue` experiment to master.
 
-## Checklist
-- [x] Verify assignment exists on master and branch is current with master.
-- [x] Inspect capture metadata/circled regions and relevant terrain surface code.
-- [x] Record experiment 001 identifying road-shoulder quantization.
-- [ ] Add a focused regression for shoulder granularity and flush contact.
-- [ ] Implement the smallest deterministic authoring fix.
-- [ ] Push production/test fix head.
-- [ ] Reset CI branch, submit targeted test request, and verify green.
-- [ ] Record CI experiment result and finalize findings.
-- [ ] Commit terminal bookkeeping and move open → closed.
-- [ ] Integrate to current master and verify remote state.
+## Regression and blast radius
+The focused EditMode regression builds the live `upper-shoulder` district feature, decodes its production ramp, and rasterizes it with `BoxEmitter.RampContains`. It requires more than six surface levels on a meaningful rise and rejects plateau widths inconsistent with a linear voxel ramp. Only Kentridge district shoulder massing changes; primitive count decreases substantially versus six boxes per non-flat edge.
 
-## Findings
-- Assignment began from `bfccb29f34f2373ae7cafac5a38e21a7c2e9ba86`, matching master at assignment time; the feature branch remains ahead only by this issue's documentation.
-- Capture note identifies jagged dirt/grass contacts in two marked regions near the Kentridge main-spine road corridor.
-- Current source is `Assets/Game/WorldBuilder/Generation/Voxel/KentridgeTownSurfaceCatalogue.cs`; it authors five 6 dm Moss bands per side, each 4 dm higher than the previous band. The first grass strip is therefore 4 dm above the Dirt core and the 3 m shoulder has only five cross-slope levels.
-- Because this catalogue writes the authoritative generated voxels, a rendering-only blend would violate the single-source-of-truth boundary. The implementation direction is therefore a deterministic CPU authoring refinement: thirty 1 dm bands spanning the same 3 m width, integer-interpolated from 0 dm at the road edge to the existing 20 dm outer rise.
+## Remaining gates
+- [x] Live owner identified and competing hypotheses recorded.
+- [x] Small production fix implemented.
+- [x] Focused behavioral regression added.
+- [ ] Exact feature SHA targeted CI green.
+- [ ] Exact saved pose replayed; both circles visually accepted.
+- [ ] Commit `verification-final.png`, terminal metadata, and move open → pending in separate bookkeeping commit.
+- [ ] Stop and wait for coordinator; do not close or push master.
