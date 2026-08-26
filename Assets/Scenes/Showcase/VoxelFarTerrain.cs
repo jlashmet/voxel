@@ -71,6 +71,7 @@ namespace VoxelEngine.Showcase
         private readonly List<int> _indicesScratch = new();
         private Vector3[] _positionsScratch;
         private Color[] _coloursScratch;
+        private Vector2[] _materialIdsScratch;
         private MeshRenderer _renderer;
         private Camera _camera;
         private bool _ownsMaterial;
@@ -543,6 +544,7 @@ namespace VoxelEngine.Showcase
             {
                 _positionsScratch = new Vector3[sampleCount];
                 _coloursScratch = new Color[sampleCount];
+                _materialIdsScratch = new Vector2[sampleCount];
                 _indicesScratch.Clear();
                 _indicesScratch.Capacity = Math.Max(
                     _indicesScratch.Capacity, m_Resolution * m_Resolution * 6);
@@ -647,7 +649,9 @@ namespace VoxelEngine.Showcase
                 ShowcaseWorld.BaseHeightVoxels, ShowcaseWorld.BaseHeightVoxels);
             Vector4 albedo = RenderingComposition.GetMaterialAlbedo(material);
             Color colour = new(albedo.x, albedo.y, albedo.z, 1f);
+            Vector2 materialData = new(material, 0f);
             mesh.colors = new[] { colour, colour, colour, colour };
+            mesh.uv2 = new[] { materialData, materialData, materialData, materialData };
             mesh.SetTriangles(new[] { 0, 1, 2, 2, 1, 3 }, 0, false);
             mesh.RecalculateNormals();
             mesh.bounds = new Bounds(
@@ -695,6 +699,7 @@ namespace VoxelEngine.Showcase
             NativeArray<int> heights = _ringHeights[ring];
             Vector3[] positions = _positionsScratch;
             Color[] colours = _coloursScratch;
+            Vector2[] materialIds = _materialIdsScratch;
             Vector3 centre = new((origin.x + spacing * m_Resolution / 2) * 0.1f, 0f,
                                  (origin.y + spacing * m_Resolution / 2) * 0.1f);
             float structureProxyHoleSq = _requestedHoleRadiusMetres
@@ -743,6 +748,7 @@ namespace VoxelEngine.Showcase
                     : MaterialRoles.SurfaceAt(height, ShowcaseWorld.BaseHeightVoxels);
                 Vector4 albedo = RenderingComposition.GetMaterialAlbedo(material);
                 colours[i] = new Color(albedo.x, albedo.y, albedo.z, 1f);
+                materialIds[i] = new Vector2(material, 0f);
             }
 
             // Every ring is a full square centred on its independently snapped sample lattice.
@@ -799,6 +805,7 @@ namespace VoxelEngine.Showcase
             // the index buffer we deliberately retain between presentation refreshes.
             mesh.vertices = positions;
             mesh.colors = colours;
+            mesh.uv2 = materialIds;
             if (topologyDirty)
             {
                 mesh.SetTriangles(_indicesScratch, 0, false);

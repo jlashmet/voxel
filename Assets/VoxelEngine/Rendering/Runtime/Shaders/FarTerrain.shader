@@ -3,11 +3,9 @@ Shader "VoxelEngine/FarTerrain"
     // Shading for the clipmap rings that stand in for the voxel world beyond the streaming
     // radius.
     //
-    // Ring vertices still carry the authoritative material albedo in COLOR so the startup
-    // fallback and distant colour contract remain cheap. The shader resolves that colour back to
-    // the renderer's material table and samples the same texture array, world-space basis, scale,
-    // and distance attenuation as SmoothSurface. This keeps the near/far handoff from becoming a
-    // second grass-texturing system with visibly different scale.
+    // Ring vertices carry authoritative material albedo in COLOR plus the application-owned
+    // semantic material ID in uv2. The shader uses that explicit ID to select the same texture
+    // sampling row as SmoothSurface, avoiding a second grass-texturing policy at the near/far handoff.
     Properties
     {
         _SunDirection ("Sun Direction", Vector) = (-0.48, 0.76, -0.44, 0)
@@ -44,7 +42,6 @@ Shader "VoxelEngine/FarTerrain"
 
             // These are renderer-owned globals populated by VoxelRenderPass for the near surface.
             // Far terrain consumes them rather than carrying a second texture/presentation setup.
-            float4 _MaterialAlbedo[32];
             float4 _MaterialSampling[32];
             float4 _MaterialSurface[32];
             TEXTURE2D_ARRAY(_AlbedoTextures); SAMPLER(sampler_AlbedoTextures);
@@ -55,6 +52,7 @@ Shader "VoxelEngine/FarTerrain"
                 float4 positionOS : POSITION;
                 float3 normalOS : NORMAL;
                 float4 color : COLOR;
+                float2 materialData : TEXCOORD1;
             };
 
             struct Varyings
@@ -62,6 +60,7 @@ Shader "VoxelEngine/FarTerrain"
                 float4 positionCS : SV_POSITION;
                 float3 normalWS : TEXCOORD0;
                 float3 positionWS : TEXCOORD1;
+                nointerpolation float material : TEXCOORD2;
                 float4 color : COLOR;
             };
 
@@ -72,26 +71,9 @@ Shader "VoxelEngine/FarTerrain"
                 output.positionCS = pos.positionCS;
                 output.positionWS = pos.positionWS;
                 output.normalWS = TransformObjectToWorldNormal(input.normalOS);
+                output.material = input.materialData.x;
                 output.color = input.color;
                 return output;
-            }
-
-            uint ResolveMaterialFromAlbedo(float3 vertexAlbedo)
-            {
-                uint bestMaterial = 0u;
-                float bestError = 1e20;
-                [unroll]
-                for (uint material = 0u; material < 32u; material++)
-                {
-                    float3 delta = _MaterialAlbedo[material].rgb - vertexAlbedo;
-                    float error = dot(delta, delta);
-                    if (error < bestError)
-                    {
-                        bestError = error;
-                        bestMaterial = material;
-                    }
-                }
-                return bestMaterial;
             }
 
             float2 SurfaceUV(float3 normal, float3 hitVoxel)
@@ -130,7 +112,7 @@ Shader "VoxelEngine/FarTerrain"
                 float skyT = saturate(n.y * 0.5 + 0.5);
                 float3 ambient = lerp(_SkyHorizon.rgb, _SkyZenith.rgb, skyT);
 
-                uint material = ResolveMaterialFromAlbedo(input.color.rgb);
+                uint material = min((uint)round(input.material), 31u);
                 float4 materialSampling = _MaterialSampling[material];
                 float4 materialSurface = _MaterialSurface[material];
                 float3 hitVoxel = input.positionWS / max(_VoxelSize, 1e-4);
