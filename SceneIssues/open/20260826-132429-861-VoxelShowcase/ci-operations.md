@@ -1,7 +1,10 @@
 # CI operations
 
 - The final integrated EditMode request was published once as `3bc7f76ac452f737f50d1643465cb1df2781936b`, sourcing feature commit `f31a9c2c02f25c7e21cc0a0447a9e765947ddeee`.
-- Exact run `33003343182` remained queued while shared self-hosted runner work completed, including Showcase Performance runs `33002880787` and `33002941583` plus intervening master workflow activity.
-- The known queued run was left untouched; no replacement, retry branch, no-op commit, custom workflow, or second CI-ref update was issued.
-- Once admitted, the requested test ran and completed successfully. Final `ci/single-test` status is `success`.
+- Exact run `33003343182` remained queued while shared self-hosted runner work completed, including Showcase Performance runs `33002880787` and `33002941583` plus intervening master workflow activity. The known queued run was left untouched; no replacement, retry branch, no-op commit, custom workflow, or second CI-ref update was issued.
+- Once admitted, the requested framed-glazing EditMode test ran and completed successfully. Final `ci/single-test` status is `success`.
 - Subsequent master changes through `78fa0ea38baeb4a68b13c66fb4927d62fad00b71` were CI/process cleanup plus unrelated SceneIssue bookkeeping, not glazing production/test or captured-scene inputs. They were reconciled into `fixes/agent-3` before the final saved-camera replay.
+- The exact SceneIssue replay request was published once as `8286526f9baed716ba983d8fcd1c4a43c5bbda4f`, sourcing feature commit `ecb8fc1de735d4bd2eabbc7eec267fc2d9517578`, run `33004782593`.
+- Its first job attempt populated a previously missing VoxelShowcase bake cache. The 211-second bake caused the five-minute workflow budget to expire after the requested test, standalone replay, screenshots, and artifact upload had succeeded. GitHub concluded the job `cancelled` and the final commit status was `failure`; per repository rules that attempt is not accepted as verification.
+- One infrastructure retry of the same exact run/job was issued, with no source/request change. The cached startup world restored successfully; PlayMode test, exact standalone replay, screenshot previews, required artifact upload, and final status publication all completed successfully in retry job `98299454658`.
+- The authoritative replay result is therefore run `33004782593`, request SHA `8286526f9baed716ba983d8fcd1c4a43c5bbda4f`, workflow conclusion `success`, `ci/single-test=success`, successful artifact id `9620696687`.

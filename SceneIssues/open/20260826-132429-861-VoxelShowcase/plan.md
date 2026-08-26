@@ -18,6 +18,8 @@ The captured facade uses the shared rectangular `ArchitectureVoxelPatterns.Glaze
 
 Attempt 2 therefore targets the facade composition rather than only pane depth. Large rectangular openings retain masonry at the perimeter and through a central mullion, producing two inset thin planar panes. Small openings keep the simpler single-pane construction. The original facade normal is preserved explicitly while emitting split cells so both X-normal and Z-normal windows retain correct pane depth.
 
+The integrated framed-glazing contract is green, and the successful exact saved-camera replay now shows distinct inset panes with masonry between and around them. The only remaining product gate before terminal bookkeeping is explicit human approval of that subjective visual result.
+
 ## Acceptance criteria
 
 - [x] Inspect the assigned capture metadata and all annotation circles (none present).
@@ -28,9 +30,9 @@ Attempt 2 therefore targets the facade composition rather than only pane depth. 
 - [x] Commit and push attempt-2 production/test work to `fixes/agent-3` before issue bookkeeping.
 - [x] Periodically reconcile current `master` into `fixes/agent-3`, including the shared SceneIssue replay and CI-dedup process updates.
 - [x] Re-run the focused framed-glazing regression from the integrated product/test state through `ci-test/fixes/agent-3`; run `33003343182` and `ci/single-test` are green.
-- [ ] Use the shared `scene_issue` targeted-CI request to replay the exact saved camera in the standalone player. Showcase startup data must use the shared content-fingerprinted bake cache; do not force a custom fresh bake.
-- [ ] Persist the successful final replay image in this capture directory as `verification-final.png` and preserve the original `screenshot-001.png` as the before evidence for subjective review.
-- [ ] Record the attempt-2 replay result in a numbered experiment file; keep runner/queue observations consolidated in `ci-operations.md`.
+- [x] Use the shared `scene_issue` targeted-CI request to replay the exact saved camera in the standalone player; authoritative run `33004782593` is green after the one permitted infrastructure retry.
+- [x] Persist the successful final replay image in this capture directory as `verification-final.jpg` and preserve the original `screenshot-001.png` as before evidence for subjective review.
+- [x] Record the attempt-2 replay result in `experiment-006-exact-saved-camera-framed-glazing-replay.md`; keep runner/cache/timeout observations consolidated in `ci-operations.md`.
 - [ ] Obtain explicit human approval that the subjective window-quality complaint is resolved before marking the capture fixed.
 - [ ] Immediately before terminal bookkeeping, recheck current `master`; integrate any newer changes and rerun affected validation only if tested inputs changed.
 - [ ] In a separate bookkeeping commit after approval, set `issue.json` to `fixed`, fill `resolvedUtc`, `resolutionSummary`, `regressionTest`, and the valid production/test `fixCommit`, then move the entire capture to `SceneIssues/closed/20260826-132429-861-VoxelShowcase`.
