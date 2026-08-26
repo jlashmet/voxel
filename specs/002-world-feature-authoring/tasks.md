@@ -302,7 +302,7 @@ built it, and time them.
 - [ ] T115 [P] Add editor-lifecycle leak checks for any native or GPU resource introduced by this feature in `Assets/Tests/EditMode/FeatureResourceLifetimeTests.cs`
 - [ ] T116 [P] Add cross-hardware parity to the continuous test set rather than a milestone check, in `Assets/Tests/Parity/` (Constitution I)
 - [ ] T117 [P] Record the design reasoning that outgrew plan.md in `specs/002-world-feature-authoring/architecture-notes.md`
-- [ ] T118 Update `CLAUDE.md` standing constraints if any invariant here proves load-bearing enough to belong there
+- [ ] T118 Update `AGENTS.md` standing constraints if any invariant here proves load-bearing enough to belong there
 
 ---
 

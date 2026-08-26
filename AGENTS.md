@@ -1,169 +1,75 @@
-Voxel Development Skill
-Use this skill whenever working on **`jlashmet/voxel`**.
+# Voxel development instructions
 
-## Instructions
+These instructions apply throughout `jlashmet/voxel`. Inspect the relevant implementation, tests,
+specs, and existing plan before editing. Prefer proven causes and durable invariants over speculative
+changes.
 
-- Read the repository root **`CLAUDE.md`** before doing work.
-- Treat its architectural constraints and referenced specs as binding.
-- Inspect the relevant implementation, tests, and plans before making changes.
-- Prefer fixing proven causes and invariants over speculative changes.
+## Architecture
+
+The active feature is [World Feature Authoring](specs/002-world-feature-authoring/plan.md), built on
+the [destructible voxel engine](specs/001-destructible-voxel-engine/plan.md). The project
+[constitution](.specify/memory/constitution.md) is binding, and the
+[device matrix](specs/001-destructible-voxel-engine/device-matrix.md) is authoritative for numeric
+budgets.
+
+- Authoritative state is deterministic integer CPU/Burst work; never derive it from GPU output or
+  floating point.
+- Visuals and collision derive from the same voxel cells. Collision uses discrete occupancy;
+  curvature is presentation only.
+- The server is authoritative; client prediction is presentation.
+- Device tiers may change presentation, never world truth, interest radius, tick rate, collision,
+  or `Core` jobs. Supported mobile targets are high-end only.
+- Use Burst, Collections, Jobs, and custom Unity Transport replication. Do not add
+  `com.unity.entities` or Netcode for GameObjects.
 
 ## Planning
 
-If a task is more than a trivial one-step edit, create or update a durable Markdown plan before
-implementation begins. Keep it next to the work it documents: scene-issue plans and experiment
-notes live in their capture directory under `SceneIssues/open/` while active and move with the
-capture to `SceneIssues/closed/` when fixed — see `SceneIssues/README.md`.
+For nontrivial work, keep one durable Markdown plan beside the work. Resume it instead of creating
+a duplicate. Keep it short and current—normally no more than 500 words—with:
 
-- Resume an existing relevant plan instead of creating a duplicate.
-- State the goal, scope, important constraints, and concrete acceptance criteria.
-- Break the work into a checkable task list using Markdown checkboxes.
-- Check items off as they are completed and keep the plan current while work is in progress.
-- Record material findings, failed hypotheses, blockers, and validation evidence so another agent can resume the work without reconstructing the investigation from chat history.
-- If the implementation direction changes, update the plan before continuing so it remains the authoritative record of the work.
-- A tiny edit that can be implemented and validated in one straightforward step does not require a separate plan.
+- observed behavior and acceptance criteria;
+- two plausible hypotheses and the next discriminating experiment;
+- material results, including falsified hypotheses;
+- selected fix and remaining validation gates.
 
-## Branch discipline
+Replace obsolete detail with a one-line result instead of growing an investigation diary. Chat is
+not the durable record. SceneIssue plans and evidence follow the canonical
+[SceneIssue workflow](SceneIssues/README.md).
 
-**Scene issues use coordinator-assigned agent branches.** When the local scene-issue coordinator
-assigns a capture, each agent slot has exactly one persistent feature branch and one persistent CI
-request branch:
+## Branches and CI
 
-```
-fixes/agent-N
-ci-test/fixes/agent-N
-```
+For ordinary work, use one feature branch and `ci-test/<feature-branch>` for its targeted request.
+Reuse those refs for the task; do not create retry, baseline, temporary, probe, or no-op branches.
+Do not create custom workflows or pull requests merely to trigger CI. The dedicated human-review
+branch and PR authorized by the SceneIssue workflow are the only SceneIssue exception.
 
-The coordinator supplies the concrete `N`. Reuse those same two branches for every capture handled
-by that agent; never create a branch per capture, and never push to the former shared `fixes` branch.
-An agent works on only its assigned capture until it reaches a documented terminal state, although
-different agent slots may handle different captures concurrently. Read `SceneIssues/README.md` and
-follow its fixing process. Everything below about reuse and forbidden suffixes still applies.
+Create the request commit directly on the exact feature SHA, changing
+`.github/test-request.json` only on the CI branch, then force-update that CI ref once. Monitor the
+exact request SHA. Leave queued or running work alone. A missing run may be replaced only after the
+documented admission window, and only once. Product failures require a fix; runner contention,
+delayed admission, an open interactive editor, or native import crashes are infrastructure results.
 
-**Keep long-lived feature branches current with master.** Fetch `origin` and merge current
-`origin/master` into the assigned feature branch periodically while work is in progress, not only at
-the final promotion step. At minimum, refresh at assignment/task start, before beginning a new
-substantial implementation attempt after other work may have landed, before the final targeted-CI
-request, and immediately before promotion to `master`. Preserve both sides of the history: use a
-normal merge/fast-forward as appropriate, never discard unmerged feature work, and never force-push
-the feature branch merely to catch up with master. If a master merge changes production code, tests,
-scene data, or another input relevant to the behavior under test, treat the integrated feature head
-as a new testable state and rerun the affected targeted CI before relying on older green evidence.
+Targeted tests must finish within five minutes after starting. Use the smallest behavioral test
+that proves the invariant; a source-string assertion or a zero-test run is not sufficient evidence.
+Never call a failed, cancelled, or timed-out run successful because it produced an intermediate
+artifact.
 
-**Queue admission is master-first.** Every capture directory must already exist on `origin/master`
-under `SceneIssues/open/` before a fixing agent may claim or edit it. New
-`SceneIssues/open/<capture>/` directories are intake and must be committed and pushed through
-`master`; never introduce a new capture on `fixes/agent-N`, `ci-test/fixes/agent-N`, or the retired
-shared `fixes` branch. If an assigned directory is absent from `origin/master`, stop and report the
-invalid assignment.
+Coordinator-assigned SceneIssues have stricter branch, evidence, closure, and batched-promotion
+rules. Follow [SceneIssues/README.md](SceneIssues/README.md); it is the sole workflow authority for
+those tasks.
 
-Folder membership is queue state. Only a verified fixed issue moves from `SceneIssues/open/` to
-`SceneIssues/closed/`, in the separate bookkeeping commit after the production/test fix commit.
-Blocked work stays in `open/`; it is neither closed nor complete.
+## Running Unity locally
 
-For every other task, a task uses **exactly two branches for its entire lifetime**: one feature
-branch and one CI request branch. Both names are fixed when the task starts and never change.
+Never invoke Unity directly. Use `tools/unity-run.sh`, which prevents a second editor from freezing
+the shared-memory Mac and enforces memory/time limits. Ask before running Unity when the developer's
+editor might be open.
 
-```
-<feature-branch>          the work
-ci-test/<feature-branch>  the CI request branch, force-reset each iteration
-```
-
-Iterating means **force-updating these two refs, never creating a third**. Do not create a new
-branch to retry a test, try a variant, capture a baseline, or hold evidence. Suffixes such as
-`-v2`, `-latest`, `-retry`, `-resume`, `-baseline`, `-small`, `-clean`, `-temp`, `-final`, or a
-date/SHA fragment are forbidden. A distinct `request_id` is what makes a run unique — not a
-distinct branch.
-
-Reuse is what makes the latest-request-wins cancellation below work. Pushing each retry to a
-new branch defeats it: every stale attempt keeps its own runner slot instead of being
-superseded.
-
-Never push a placeholder, probe, or scratch branch (`tmp-*`, `temp-*`, `noop-*`, `__*`,
-`do-not-use-*`). If a ref would not be meaningful to a human reviewer a week later, it does not
-belong on `origin`.
-
-## Validation loop
-
-Assume you cannot execute Unity, **`tools/ci-test`**, or manually dispatch GitHub workflows.
-
-Use the repository's push-triggered targeted-test mechanism on the task's single CI request
-branch defined above. Do **not** update `.github/test-request.json` on the feature/PR branch:
-that would create a PR synchronize event and fan out normal PR CI again.
-
-A requested single test is a fast-feedback path and must complete in **less than 5 minutes** once its workflow job starts. Keep the requested test narrow enough to fit that budget; if it does not, split or narrow the test instead of extending the single-test timeout.
-
-Each `ci-test/...` branch is latest-request-wins. When a newer request is pushed to the same CI branch, GitHub Actions cancels any older queued or running single-test workflow for that branch rather than allowing requests to queue up. Only the newest request on that branch should be monitored as authoritative.
-
-For each iteration:
-
-1. Make the code/test changes on the feature branch, commit them, and push the feature branch.
-2. Force-reset the task's **`ci-test/<feature-branch>`** to the exact feature commit that should be tested. Create it only on the first iteration; every later iteration reuses and resets that same ref.
-   - Connector-only agents create the branch when absent, and otherwise move it with a forced ref update. Reuse is mandatory, not an option.
-   - The CI branch must point at the exact source commit before the request-file commit is added.
-3. On the `ci-test/...` branch only, update **`.github/test-request.json`** with the smallest relevant Unity test:
-   - `platform`: `EditMode` or `PlayMode`
-   - `test`: the fully qualified test name or exact filter
-   - `request_id`: a new unique string for every requested run
-4. Commit/push that request-file change on the `ci-test/...` branch and record the resulting request commit SHA.
-5. Monitor commit status **`ci/single-test`** on the newest request commit until it reaches a terminal state.
-   - A missing status means the self-hosted job is queued/not started yet.
-   - `pending` means the workflow has started.
-   - `success` means the requested test actually passed.
-   - `failure`/`error` means the requested test or its setup failed.
-   - If a shell with authenticated `gh` is available, `tools/ci-wait --sha <request-commit>` polls continuously (5 seconds by default).
-   - `tools/ci-wait` automatically honors `Retry-After` for HTTP 429/rate-limit 403 responses and otherwise exponentially backs off before retrying the API.
-   - Connector-only agents should poll the same commit-status context through the GitHub connector/API.
-   - If a newer request is pushed to the same `ci-test/...` branch, stop monitoring the superseded request and monitor only the newest request commit.
-6. On failure, follow the status target URL and inspect the failed-step logs and uploaded `single-test-*` artifact. Determine the cause, modify the feature branch, commit/push it, reset the CI branch to the new feature head, create a new request commit, and repeat.
-7. Continue this loop until the target behavior is proven and CI is green.
-
-This CI-branch separation is intentional: targeted request commits never update the open PR head, so they do not start the affected PR suite, architecture gate, or other pull-request workflows.
-
-Do not stop after implementing a plausible fix. Continue iterating through CI until the goal is complete or a concrete blocker remains.
-
-### Scene-issue promotion to master
-
-For coordinator-assigned scene issues, green targeted CI is the gate to promotion, **not** the
-stopping point. After the production/test fix is green and the terminal `issue.json` plus
-open-to-closed bookkeeping commit has been pushed to `fixes/agent-N`, the worker must integrate that
-verified branch into current `origin/master` before declaring the assignment complete.
-
-- Fetch `origin` immediately before promotion. If `origin/master` advanced, integrate it into the
-  assigned feature branch without discarding either side and push the updated feature branch.
-- If that integration changes production code, test code, scene data, or any input relevant to the
-  regression, reset the assigned CI request branch to the integrated feature head and run the
-  targeted test again. A bookkeeping-only merge that changes no tested inputs does not require a
-  redundant rerun.
-- Advance `master` only with a normal non-force fast-forward or merge that preserves all intervening
-  master commits. **Never force-push or overwrite `master`.** If `master` moves again before the
-  promotion lands, refetch, integrate, and retry instead of forcing the ref.
-- Verify the remote `origin/master` contains the fix commit and terminal bookkeeping commit, the
-  capture exists only under `SceneIssues/closed/`, and the required `ci/single-test` result is green.
-- Only after that remote-master verification may the scene-issue worker stop and wait for the next
-  coordinator assignment.
-
-## Testing
-
-- Start with the smallest test that proves the behavior being worked on.
-- A single requested test must fit the **under-5-minute** CI budget; do not make the single-test workflow slower to accommodate an oversized test.
-- Add or improve regression tests when an invariant was previously untested.
-- After targeted validation passes, run the appropriate broader affected tests when warranted.
-- Never interpret a CI run that executed zero tests as success.
-- Do not claim a test passed unless its GitHub Actions run actually completed successfully.
+Batchmode PlayMode tests do not cover editor lifecycle behavior such as repeated `OnEnable`, domain
+reloads, or renderer-feature creation. Test those cases in EditMode by looping the lifecycle (see
+`Assets/Tests/EditMode/RenderResourceLifetimeTests.cs`). Remote SceneIssue workers use targeted CI
+and do not assume local Unity access.
 
 ## Completion
 
-Before declaring the task complete:
-
-- Review the final diff.
-- Verify it follows **`CLAUDE.md`** and relevant specs.
-- Confirm the relevant CI jobs are green.
-- For a coordinator-assigned scene issue, confirm the verified terminal branch has been integrated
-  into `origin/master` and that remote master contains the closed capture and recorded fix commit.
-- Confirm the task created no branches on `origin` beyond its assigned feature branch and matching
-  CI branch.
-- State what was changed, what CI validation actually passed, and—for scene issues—the master commit
-  that now contains the fix.
-
-**Try in chat**
+Review the final diff, confirm relevant tests actually passed, and report exactly what was
+validated. Do not weaken performance budgets or unrelated assertions to make a test pass.

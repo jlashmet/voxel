@@ -66,7 +66,37 @@ while (( $# > 0 )); do
   esac
 done
 
-if [[ -n "$TEST_FILTER" ]]; then
+if [[ -n "$SCENE_ISSUE" ]]; then
+  case "$SCENE_ISSUE" in
+    SceneIssues/open/*/issue.json|SceneIssues/pending/*/issue.json|SceneIssues/closed/*/issue.json) ;;
+    /*) ;;
+    *)
+      echo "ERROR: --scene-issue must name SceneIssues/open|pending|closed/<id>/issue.json." >&2
+      exit 2
+      ;;
+  esac
+  if [[ "$SCENE_ISSUE" != /* ]]; then SCENE_ISSUE="$PWD/$SCENE_ISSUE"; fi
+  [[ -f "$SCENE_ISSUE" ]] || { echo "ERROR: scene issue does not exist: $SCENE_ISSUE" >&2; exit 2; }
+  ISSUE_SCENE="$(python3 - "$SCENE_ISSUE" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding='utf-8') as handle:
+    value = json.load(handle)
+scene = value.get('scenePath') or ''
+if not isinstance(scene, str) or not scene.startswith('Assets/Scenes/') or not scene.endswith('.unity'):
+    raise SystemExit('ERROR: scene issue has no valid scenePath')
+print(scene)
+PY
+)"
+  if [[ -n "$SCENE" && "$SCENE" != "$ISSUE_SCENE" ]]; then
+    echo "ERROR: --scene does not match scene issue scenePath '$ISSUE_SCENE'." >&2
+    exit 2
+  fi
+  SCENE="$ISSUE_SCENE"
+fi
+
+if [[ -n "$TEST_FILTER" && -z "$SCENE_ISSUE" ]]; then
   if [[ -n "$SCENE" ]]; then
     echo "ERROR: use either --scene or --test-filter, not both." >&2
     exit 2
@@ -148,10 +178,6 @@ fi
 [[ -n "$OUTPUT_ROOT" ]] || { echo "ERROR: --output is required." >&2; exit 2; }
 [[ -n "$SCENE" ]] || { echo "ERROR: --scene or --test-filter is required." >&2; exit 2; }
 [[ -f "$SCENE" ]] || { echo "ERROR: scene does not exist: $SCENE" >&2; exit 2; }
-if [[ -n "$SCENE_ISSUE" ]]; then
-  if [[ "$SCENE_ISSUE" != /* ]]; then SCENE_ISSUE="$PWD/$SCENE_ISSUE"; fi
-  [[ -f "$SCENE_ISSUE" ]] || { echo "ERROR: scene issue does not exist: $SCENE_ISSUE" >&2; exit 2; }
-fi
 if [[ -n "$STATIONARY_SAMPLE" ]]; then
   : "${RUN_SECONDS:=120}"
   if [[ -n "$AUTOWALK_AFTER" || -n "$SURVEY_AFTER" ]]; then
@@ -339,6 +365,16 @@ if (( shots < 2 )); then
   echo "ERROR: expected at least 2 real-player screenshots, found $shots." >&2
   echo "A runner without a logged-in window server can launch the player but render no screenshots." >&2
   exit 1
+fi
+
+if [[ -n "$SCENE_ISSUE" ]]; then
+  FINAL_SHOT="$(find "$SHOTS_DIR" -type f -name '*.png' -size +1k | sort | tail -1)"
+  [[ -n "$FINAL_SHOT" ]] || {
+    echo "ERROR: scene-issue replay produced no final verification frame." >&2
+    exit 1
+  }
+  cp "$FINAL_SHOT" "$OUTPUT_ROOT/verification-final.png"
+  echo "scene-issue final verification: $OUTPUT_ROOT/verification-final.png"
 fi
 
 # Artifact quota exhaustion can make otherwise successful Kentridge capture opaque to a remote

@@ -54,6 +54,8 @@ namespace VoxelEngine.Tests.PlayMode
             public float LastBlastRadius { get; private set; }
             public float3 LastImpulse { get; private set; }
 
+            public bool OverlapsWoodAabb(float3 minMetres, float3 maxMetres) => false;
+
             public bool TrySweepImpact(
                 float3 fromMetres,
                 float3 toMetres,

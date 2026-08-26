@@ -66,11 +66,12 @@ INERT_PATHS = (
     "docs/",
     "specs/",
     "References/",
+    "SceneIssues/",
     ".github/ISSUE_TEMPLATE/",
     ".gitignore",
     ".gitattributes",
     "README.md",
-    "CLAUDE.md",
+    "AGENTS.md",
 )
 
 
