@@ -66,7 +66,10 @@ namespace VoxelEngine.Tests.PlayMode
             }
 
             ApplySavedCamera(camera, frame.camera);
-            yield return new WaitForEndOfFrame();
+            if (Application.isBatchMode)
+                yield return null;
+            else
+                yield return new WaitForEndOfFrame();
             ApplySavedCamera(camera, frame.camera);
 
             string artifactRoot = Path.Combine(ProjectRoot(), "Artifacts", "SingleTest", "SceneIssue032832");
