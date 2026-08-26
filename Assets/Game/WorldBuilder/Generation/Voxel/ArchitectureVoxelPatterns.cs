@@ -40,7 +40,10 @@ namespace MountingForce.WorldGen.Voxel
         /// <summary>
         /// Authors a visible aperture and its infill as separate geometry decisions. The reveal uses
         /// the structure's opening profile; the pane defaults to zero-radius planar geometry so a soft
-        /// masonry city style does not accidentally bevel or round the glass itself.
+        /// masonry city style does not accidentally bevel or round the glass itself. The glazing is
+        /// deliberately thinner than the carved wall depth so the aperture keeps a readable reveal.
+        /// Large facade windows retain masonry around the perimeter and through a central mullion so
+        /// the glazing reads as inset architectural panes instead of one uninterrupted material slab.
         /// </summary>
         public static void GlazedOpening(
             ArchitectureShapeProgramBuilder builder,
@@ -54,15 +57,105 @@ namespace MountingForce.WorldGen.Voxel
             if (builder == null) throw new ArgumentNullException(nameof(builder));
             if (width <= 0 || height <= 0 || depth <= 0) return;
 
-            builder.OpeningCarve(x, y, z, width, height, depth);
-            if (!fillPane) return;
+            if (!fillPane)
+            {
+                builder.OpeningCarve(x, y, z, width, height, depth);
+                return;
+            }
 
-            builder.DetailBox(
-                x, y, z,
-                width, height, depth,
-                glazingMaterial,
-                cornerRadiusDm: paneCornerRadiusDm,
-                surface: paneSurface);
+            bool xNormal = width <= depth;
+            int wallDepth = Math.Min(width, depth);
+            int facadeSpan = Math.Max(width, depth);
+            int paneThickness = Math.Max(1, wallDepth / 3);
+
+            // Small apertures do not have enough masonry to subdivide without collapsing the clear
+            // opening. Keep the simple reveal + thin pane construction for those cases.
+            if (facadeSpan < 10 || height < 10)
+            {
+                EmitGlazedCell(
+                    builder,
+                    x, y, z,
+                    width, height, depth,
+                    glazingMaterial,
+                    xNormal,
+                    paneThickness,
+                    paneCornerRadiusDm,
+                    paneSurface);
+                return;
+            }
+
+            int sideFrame = Math.Min(2, Math.Max(1, facadeSpan / 6));
+            int verticalFrame = Math.Min(2, Math.Max(1, height / 6));
+            const int Mullion = 2;
+            int clearHeight = height - 2 * verticalFrame;
+            int splitSpan = facadeSpan - 2 * sideFrame - Mullion;
+
+            // Defensive fallback for unusual dimensions near the threshold. The public contract is
+            // still a valid glazed opening even when there is not room for two framed cells.
+            if (clearHeight <= 0 || splitSpan < 2)
+            {
+                EmitGlazedCell(
+                    builder,
+                    x, y, z,
+                    width, height, depth,
+                    glazingMaterial,
+                    xNormal,
+                    paneThickness,
+                    paneCornerRadiusDm,
+                    paneSurface);
+                return;
+            }
+
+            int firstSpan = splitSpan / 2;
+            int secondSpan = splitSpan - firstSpan;
+            int cellY = y + verticalFrame;
+
+            if (xNormal)
+            {
+                int firstZ = z + sideFrame;
+                int secondZ = firstZ + firstSpan + Mullion;
+                EmitGlazedCell(
+                    builder,
+                    x, cellY, firstZ,
+                    width, clearHeight, firstSpan,
+                    glazingMaterial,
+                    xNormal,
+                    paneThickness,
+                    paneCornerRadiusDm,
+                    paneSurface);
+                EmitGlazedCell(
+                    builder,
+                    x, cellY, secondZ,
+                    width, clearHeight, secondSpan,
+                    glazingMaterial,
+                    xNormal,
+                    paneThickness,
+                    paneCornerRadiusDm,
+                    paneSurface);
+            }
+            else
+            {
+                int firstX = x + sideFrame;
+                int secondX = firstX + firstSpan + Mullion;
+                EmitGlazedCell(
+                    builder,
+                    firstX, cellY, z,
+                    firstSpan, clearHeight, depth,
+                    glazingMaterial,
+                    xNormal,
+                    paneThickness,
+                    paneCornerRadiusDm,
+                    paneSurface);
+                EmitGlazedCell(
+                    builder,
+                    secondX, cellY, z,
+                    secondSpan, clearHeight, depth,
+                    glazingMaterial,
+                    xNormal,
+                    paneThickness,
+                    paneCornerRadiusDm,
+                    paneSurface);
+            }
         }
 
         /// <summary>
@@ -125,9 +218,7 @@ namespace MountingForce.WorldGen.Voxel
                 x + width / 2 - overlap,
                 y,
                 z,
-                half,
-                height,
-                depth,
+                half, height, depth,
                 PrismProfile.Gable,
                 material);
         }
@@ -196,6 +287,41 @@ namespace MountingForce.WorldGen.Voxel
                 PrismProfile.Arch,
                 glazingMaterial,
                 StructureSurfaceTreatment.Planar);
+        }
+
+        private static void EmitGlazedCell(
+            ArchitectureShapeProgramBuilder builder,
+            int x, int y, int z,
+            int width, int height, int depth,
+            byte glazingMaterial,
+            bool xNormal,
+            int paneThickness,
+            int paneCornerRadiusDm,
+            StructureSurfaceTreatment paneSurface)
+        {
+            builder.OpeningCarve(x, y, z, width, height, depth);
+
+            int paneX = x;
+            int paneZ = z;
+            int paneWidth = width;
+            int paneDepth = depth;
+            if (xNormal)
+            {
+                paneWidth = Math.Min(width, paneThickness);
+                paneX += (width - paneWidth) / 2;
+            }
+            else
+            {
+                paneDepth = Math.Min(depth, paneThickness);
+                paneZ += (depth - paneDepth) / 2;
+            }
+
+            builder.DetailBox(
+                paneX, y, paneZ,
+                paneWidth, height, paneDepth,
+                glazingMaterial,
+                cornerRadiusDm: paneCornerRadiusDm,
+                surface: paneSurface);
         }
 
         private static void EmitFrameLevel(
