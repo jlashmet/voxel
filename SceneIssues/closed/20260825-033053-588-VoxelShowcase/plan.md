@@ -50,5 +50,5 @@ Restore the VoxelShowcase tree gameplay contract: nearby semantic trees must blo
 - [x] Remove temporary capture-specific replay test wiring from the final production/test tree.
 - [x] Run the permanent regression again from the final cleanup production/test head and require `ci/single-test` success (3/3 passed in run `33000528711`; experiment 018).
 - [x] Integrate current `master` without changing tested gameplay inputs (`56f1b3f6ae5a83dd5583deccee86c7dd4b258581`).
-- [ ] Complete terminal `issue.json`, move the entire capture to `SceneIssues/closed/`, and push the separate resolution commit.
+- [x] Complete terminal `issue.json`, move the entire capture to `SceneIssues/closed/`, and push the separate resolution commit.
 - [ ] Promote the integrated terminal branch to `master` non-force and verify terminal remote `master` state.
