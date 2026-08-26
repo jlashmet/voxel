@@ -11,6 +11,7 @@ Historical player profiling already showed that settled drawing is not the domin
 - [x] Trace the active Showcase surface path and identify the unconditional production rollback.
 - [x] Add/confirm a focused policy regression for exact-ring GPU cutover.
 - [x] Restore the previously validated GPU cutover default while retaining `VOXEL_DISABLE_GPU_CUTOVER=1` and existing CPU fallbacks.
+- [x] Confirm branch freshness: current `master` is an ancestor of `fixes/agent-2`; feature is 21 commits ahead and 0 behind.
 - [ ] Obtain a real green `ci/single-test` result for `SceneIssue20260825192751413ProductionGpuCutoverIsEnabledForExactRings`.
 - [ ] Run additional GPU density/topology oracle and arena-bridge coverage if the focused run or current branch changes require it.
 - [ ] Replay/benchmark the assigned VoxelShowcase pose and verify missing geometry converges correctly; record measured performance rather than claiming the aspirational 1000-FPS target without evidence.
@@ -19,7 +20,7 @@ Historical player profiling already showed that settled drawing is not the domin
 
 ## Current blocker
 
-Connector-authored commits on `ci-test/fixes/agent-2` are not emitting the repository's push-triggered `Tests (single)` workflow. Fresh request commit `6c0317b29b13f165235c936f31565e113f0eab25`, based directly on production fix commit `0fcaf3b98b92f4906c2027dd0b9104d664e01f90`, has no `ci/single-test` status and no workflow run; the earlier request `1ad552ec0d42187eb660525848b8815bc3aa7297` behaved the same way. Older human-authored pushes on this same branch did trigger the workflow, so closure is blocked on an accepted push event rather than on a test failure.
+The connected GitHub write paths do not emit the repository's push-triggered `Tests (single)` workflow. Contents-API request commits `1ad552ec0d42187eb660525848b8815bc3aa7297` and `6c0317b29b13f165235c936f31565e113f0eab25` produced no run. A separate low-level Git commit/ref-update retry, request commit `9ce7b8049f65108bf2134679f35f26a98f1cc161` based on source `793dfffed3cb890b8d1eb69b3152f46c729f6f36`, also has no `ci/single-test` status and zero Actions runs for its exact head SHA. Older human-authored pushes on this same CI branch did trigger `.github/workflows/tests-single.yml`, so closure is blocked on an accepted Actions trigger rather than a test failure. The connected GitHub capability exposes no workflow-dispatch action.
 
 ## Constraints
 
