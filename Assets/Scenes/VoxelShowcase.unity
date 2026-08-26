@@ -229,7 +229,7 @@ MonoBehaviour:
   m_LoadRadiusRegions: 8
   m_UnloadRadiusRegions: 11
   m_GenerateBudgetMs: 3
-  m_DetailBandScale: 0.6
+  m_DetailBandScale: 1
   m_DisableLod: 0
   m_FlyMode: 0
   m_WalkSpeed: 5.5

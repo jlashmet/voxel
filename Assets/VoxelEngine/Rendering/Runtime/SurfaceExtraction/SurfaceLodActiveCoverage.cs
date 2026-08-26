@@ -125,4 +125,37 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             return sourceStep == ancestor.SourceStep && coordinate.Equals(ancestor.Coordinate);
         }
     }
+
+    /// <summary>
+    /// Resolves the intentionally overlapping clipmap ring candidates into one draw owner per
+    /// hierarchy location. A visible coarse ancestor remains the render fallback for its full cell;
+    /// finer descendants take ownership only after that ancestor has left the visible candidate set.
+    /// This keeps final GPU submissions an antichain without changing streaming/build ring overlap.
+    /// </summary>
+    public sealed class SurfaceLodVisibleOwnership
+    {
+        private readonly HashSet<SurfaceLodNodeKey> _visible = new();
+
+        public int Count => _visible.Count;
+
+        public void Add(in SurfaceLodNodeKey key) => _visible.Add(key);
+
+        public bool ShouldDraw(in SurfaceLodNodeKey key)
+        {
+            if (!_visible.Contains(key)) return false;
+
+            SurfaceLodNodeKey cursor = key;
+            while (SurfaceLodHierarchy.TryGetParentSourceStep(
+                       cursor.SourceStep, out int parentStep))
+            {
+                cursor = new SurfaceLodNodeKey(
+                    parentStep, SurfaceLodHierarchy.ParentCoordinate(cursor.Coordinate));
+                if (_visible.Contains(cursor)) return false;
+            }
+
+            return true;
+        }
+
+        public void Clear() => _visible.Clear();
+    }
 }
