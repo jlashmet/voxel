@@ -14,8 +14,8 @@ namespace VoxelEngine.CI
     /// <summary>
     /// Performance/correctness contract for tree batching and damage. Healthy trees stay data-only.
     /// First damage must punch only the affected tree out of its existing batch index buffers -- no
-    /// batch root or batch Mesh may be rebuilt. Severed trees must continue colliding with their
-    /// remaining stump until the root-most standing segment is removed.
+    /// batch root or batch Mesh may be rebuilt. A structural trunk sever retires the rooted semantic
+    /// tree immediately; detached presentation owns the falling tree from that point onward.
     /// </summary>
     public sealed class TreeBatchRenderingTests
     {
@@ -61,11 +61,9 @@ namespace VoxelEngine.CI
                 Assert.That(renderer.PresentationCount, Is.EqualTo(instances.Length));
                 Assert.That(renderer.BatchCount, Is.EqualTo(2));
                 Assert.That(renderer.BatchedTreeCount, Is.EqualTo(instances.Length));
-                Assert.That(renderer.DynamicPresentationCount, Is.EqualTo(0),
-                            "Healthy batched trees must not retain per-tree GameObjects.");
+                Assert.That(renderer.DynamicPresentationCount, Is.EqualTo(0));
                 Assert.That(renderer.DynamicMeshCount, Is.EqualTo(0));
-                Assert.That(renderer.ResidentSkeletonCount, Is.EqualTo(0),
-                            "Healthy batch construction must release streamed skeletons.");
+                Assert.That(renderer.ResidentSkeletonCount, Is.EqualTo(0));
                 Assert.That(renderer.PeakResidentSkeletonCountDuringLastRebuild,
                             Is.LessThanOrEqualTo(1));
                 Assert.That(renderer.GeneratedMeshCount, Is.EqualTo(8));
@@ -94,12 +92,8 @@ namespace VoxelEngine.CI
                     Assert.That(touchedMeshes[i].subMeshCount, Is.EqualTo(i < 3 ? 2 : 1));
                     touchedVertices += touchedMeshes[i].vertexCount;
                 }
-                Assert.That(touchedVertices, Is.GreaterThan(0),
-                            "Healthy batch exists but contains no real geometry.");
+                Assert.That(touchedVertices, Is.GreaterThan(0));
 
-                // Foliage damage alone is enough to release a tree from the static batch. This path
-                // used to synchronously rebuild all three meshes for every healthy neighbour in the
-                // same 32 m cell, producing visible frame hitches.
                 TreeWorldRuntime.SetDamage(0, 0.70f, false, float3.zero, float3.zero, -1);
                 for (int frame = 0;
                      frame < 60 && (renderer.BatchedTreeCount != instances.Length - 1
@@ -119,10 +113,8 @@ namespace VoxelEngine.CI
 
                 Transform preservedTouchedBatch = FindBatchRoot(renderer, new Vector2Int(0, 0));
                 Transform preservedUntouchedBatch = FindBatchRoot(renderer, new Vector2Int(1, 0));
-                Assert.That(object.ReferenceEquals(preservedTouchedBatch, touchedBatch), Is.True,
-                            "Damage replaced the touched batch root instead of updating its indices in place.");
-                Assert.That(object.ReferenceEquals(preservedUntouchedBatch, untouchedBatch), Is.True,
-                            "Damage touched an unrelated spatial batch.");
+                Assert.That(object.ReferenceEquals(preservedTouchedBatch, touchedBatch), Is.True);
+                Assert.That(object.ReferenceEquals(preservedUntouchedBatch, untouchedBatch), Is.True);
 
                 MeshFilter[] afterFilters = preservedTouchedBatch.GetComponentsInChildren<MeshFilter>(true);
                 Assert.That(afterFilters.Length, Is.EqualTo(4));
@@ -134,11 +126,8 @@ namespace VoxelEngine.CI
                 Assert.That(damagedRoot, Is.Not.Null);
                 Assert.That(damagedRoot.GetComponentsInChildren<MeshRenderer>(true).Length, Is.EqualTo(4));
                 for (int i = 1; i < instances.Length; i++)
-                    Assert.That(renderer.TryGetDynamicPresentationRoot(i, out _), Is.False,
-                                $"Healthy neighbour {i} was unnecessarily materialized.");
+                    Assert.That(renderer.TryGetDynamicPresentationRoot(i, out _), Is.False);
 
-                // Gameplay broadphase and exact skeleton residency must remain bounded independently
-                // of renderer residency.
                 var sparseTrees = new TreeInstance[80];
                 for (int i = 0; i < sparseTrees.Length; i++)
                 {
@@ -176,9 +165,9 @@ namespace VoxelEngine.CI
                 Assert.That(ProceduralTreeDamageService.ResidentSkeletonCount,
                             Is.EqualTo(ProceduralTreeDamageService.SkeletonCacheCapacity));
 
-                // Regression for the immortal-stump bug. First sever the crown above the base, then
-                // prove the remaining lower trunk still participates in collision and can itself be
-                // destroyed. Once its root-most segment is cut, no semantic tree geometry may hit.
+                // Structural sever regression. A lower-trunk hit records its exact segment, but
+                // topology must retire the entire rooted tree in one transition. This prevents both
+                // the visible standing trunk from SceneIssue 033015 and an invisible ghost collider.
                 var destructibleTree = new TreeInstance
                 {
                     PositionMetres = new float3(0f, 0f, 0f),
@@ -191,55 +180,37 @@ namespace VoxelEngine.CI
                 Assert.That(skeleton, Is.Not.Null);
                 Assert.That(skeleton.Branches.Count, Is.GreaterThan(4));
 
-                int upperLowerTrunk = FindLowerTrunkSegment(skeleton, minimumIndex: 2);
-                Assert.That(upperLowerTrunk, Is.GreaterThanOrEqualTo(2));
-                TreeBranchSegment firstSegment = skeleton.Branches[upperLowerTrunk];
-                float3 firstImpact = destructibleTree.PositionMetres
-                                   + (firstSegment.Start + firstSegment.End) * 0.5f;
+                int lowerTrunk = FindLowerTrunkSegment(skeleton, minimumIndex: 2);
+                Assert.That(lowerTrunk, Is.GreaterThanOrEqualTo(2));
+                TreeBranchSegment segment = skeleton.Branches[lowerTrunk];
+                float3 impact = destructibleTree.PositionMetres
+                              + (segment.Start + segment.End) * 0.5f;
                 ProceduralTreeDamageService.ApplyBlast(
-                    firstImpact, 0.10f, new float3(1f, 0f, 0f));
+                    impact, 0.10f, new float3(1f, 0f, 0f));
 
-                Assert.That(TreeWorldRuntime.Damage[0].Severed, Is.True,
-                            "The first lower-trunk impact did not sever the crown.");
-                IReadOnlyCollection<int> firstCuts = TreeWorldRuntime.RemovedBranches(0);
-                Assert.That(firstCuts.Count, Is.GreaterThan(0));
-
-                int stumpBranch = FindLowestStandingTrunkSegment(skeleton, firstCuts);
-                Assert.That(stumpBranch, Is.GreaterThanOrEqualTo(0),
-                            "Test sever unexpectedly removed the entire root; no stump remained to exercise.");
-                TreeBranchSegment stump = skeleton.Branches[stumpBranch];
-                float3 stumpMid = destructibleTree.PositionMetres
-                                + (stump.Start + stump.End) * 0.5f;
-                bool stumpHit = ProceduralTreeDamageService.TrySweepImpact(
-                    stumpMid + new float3(-1.5f, 0f, 0f),
-                    stumpMid + new float3(1.5f, 0f, 0f),
-                    0.20f, out _, out int stumpTreeIndex);
-                Assert.That(stumpHit, Is.True,
-                            "A severed tree's visible stump became non-collidable.");
-                Assert.That(stumpTreeIndex, Is.EqualTo(0));
-
-                ProceduralTreeDamageService.ApplyBlast(
-                    stumpMid, 0.10f, new float3(1f, 0f, 0f));
-                IReadOnlyCollection<int> finalCuts = TreeWorldRuntime.RemovedBranches(0);
+                Assert.That(TreeWorldRuntime.Damage[0].Severed, Is.True);
+                IReadOnlyCollection<int> cuts = TreeWorldRuntime.RemovedBranches(0);
+                Assert.That(cuts.Count, Is.EqualTo(1),
+                            "A structural sever should preserve one exact direct-cut event.");
                 for (int branch = 0; branch < skeleton.Branches.Count; branch++)
                 {
-                    Assert.That(TreeSkeletonTopology.IsBranchRemoved(
-                                    skeleton, finalCuts, branch), Is.True,
-                                $"Branch {branch} survived the root-most stump destruction.");
+                    Assert.That(TreeSkeletonTopology.IsBranchRemoved(skeleton, cuts, branch), Is.True,
+                                $"Rooted branch {branch} survived a level-zero trunk sever.");
                 }
 
+                TreeBranchSegment rootSegment = skeleton.Branches[0];
+                float3 rootMid = destructibleTree.PositionMetres
+                               + (rootSegment.Start + rootSegment.End) * 0.5f;
                 bool ghostHit = ProceduralTreeDamageService.TrySweepImpact(
-                    stumpMid + new float3(-1.5f, 0f, 0f),
-                    stumpMid + new float3(1.5f, 0f, 0f),
+                    rootMid + new float3(-1.5f, 0f, 0f),
+                    rootMid + new float3(1.5f, 0f, 0f),
                     0.20f, out _, out _);
                 Assert.That(ghostHit, Is.False,
-                            "Fully destroyed tree still has semantic collision after its root is gone.");
+                            "A severed tree remained collision-queryable after its rooted presentation retired.");
 
-                // Let presentation consume the final BranchCut. There should be no standing dynamic
-                // tree left; only temporary detached physics debris may remain.
                 for (int frame = 0; frame < 10; frame++) yield return null;
                 Assert.That(renderer.DynamicPresentationCount, Is.EqualTo(0),
-                            "Fully destroyed root left a standing dynamic tree presentation.");
+                            "Structural sever left a standing dynamic tree presentation.");
             }
             finally
             {
@@ -259,17 +230,6 @@ namespace VoxelEngine.CI
                 result = i;
             }
             return result;
-        }
-
-        private static int FindLowestStandingTrunkSegment(
-            TreeSkeletonSnapshot skeleton, IReadOnlyCollection<int> cuts)
-        {
-            for (int i = 0; i < skeleton.Branches.Count; i++)
-            {
-                if (skeleton.Branches[i].Level != 0) continue;
-                if (!TreeSkeletonTopology.IsBranchRemoved(skeleton, cuts, i)) return i;
-            }
-            return -1;
         }
 
         private static Transform FindBatchRoot(ProceduralTreeRenderer renderer, Vector2Int key)
