@@ -152,6 +152,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
                                            facePlane, slabDepth);
                 float3 local = p0 * t0 + p1 * t1;
                 float3 position = (ChunkOriginVoxel + local + 0.5f) * VoxelSize;
+                float3 normal = math.normalizesafe(
+                    FaceDensityNormal(c0, cellU, cellV, uAxis, vAxis, wAxis) * t0
+                    + FaceDensityNormal(c1, cellU, cellV, uAxis, vAxis, wAxis) * t1,
+                    -(float3)wAxis);
 
                 int selected = d0 > d1 ? c0 : c1;
                 byte material = materials[selected];
@@ -161,8 +165,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
                 Vertices.Add(new SmoothSurfaceVertex
                 {
                     Position = (UnityEngine.Vector3)position,
-                    Normal = (UnityEngine.Vector3)(float3)math.normalizesafe(
-                        -(float3)wAxis, new float3(0f, 1f, 0f)),
+                    Normal = (UnityEngine.Vector3)normal,
                     Material = PackSurfaceAttributes(material, surface),
                     Active = 0x0000FF00u,
                 });
@@ -201,9 +204,51 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
                                       int3 uAxis, int3 vAxis, int3 wAxis,
                                       float3 facePlane, float slabDepth)
         {
-            int du, dv;
-            bool coarse = sample >= 9;
-            if (coarse)
+            int2 faceCoordinate = SampleFaceCoordinate(sample, cellU, cellV);
+
+            // Half-stride units along the face.
+            float half = SourceStep * 0.5f;
+            float3 onFace = facePlane
+                          + (float3)uAxis * (faceCoordinate.x * half)
+                          + (float3)vAxis * (faceCoordinate.y * half);
+            return sample >= 9 ? onFace + (float3)wAxis * slabDepth : onFace;
+        }
+
+        /// <summary>
+        /// Reconstruct the part of the density gradient available in the finer-neighbour face
+        /// snapshot. The snapshot has no off-face samples, so preserve the previous outward
+        /// face-axis component while adding the same negative-density-gradient convention used
+        /// by regular Transvoxel topology in the two tangential directions.
+        /// </summary>
+        private float3 FaceDensityNormal(int sample, int cellU, int cellV,
+                                         int3 uAxis, int3 vAxis, int3 wAxis)
+        {
+            int2 faceCoordinate = SampleFaceCoordinate(sample, cellU, cellV);
+            int minU = math.max(faceCoordinate.x - 1, 0);
+            int maxU = math.min(faceCoordinate.x + 1, FaceSamplesPerAxis - 1);
+            int minV = math.max(faceCoordinate.y - 1, 0);
+            int maxV = math.min(faceCoordinate.y + 1, FaceSamplesPerAxis - 1);
+
+            // Preserve the scale of a two-sample central difference while using the actual
+            // one-sided span at snapshot edges. Without the span correction an edge component
+            // is halved relative to an interior component, rotating the reconstructed slope.
+            float du = 2f * (FaceDensity[FaceIndex(minU, faceCoordinate.y)]
+                           - FaceDensity[FaceIndex(maxU, faceCoordinate.y)])
+                     / math.max(1, maxU - minU);
+            float dv = 2f * (FaceDensity[FaceIndex(faceCoordinate.x, minV)]
+                           - FaceDensity[FaceIndex(faceCoordinate.x, maxV)])
+                     / math.max(1, maxV - minV);
+            float3 outward = -(float3)wAxis;
+            return math.normalizesafe(
+                outward + (float3)uAxis * du + (float3)vAxis * dv,
+                outward);
+        }
+
+        private static int2 SampleFaceCoordinate(int sample, int cellU, int cellV)
+        {
+            int du;
+            int dv;
+            if (sample >= 9)
             {
                 int corner = sample - 9;
                 du = (corner & 1) * 2;
@@ -215,12 +260,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
                 dv = sample / 3;
             }
 
-            // Half-stride units along the face.
-            float half = SourceStep * 0.5f;
-            float3 onFace = facePlane
-                          + (float3)uAxis * ((cellU * 2 + du) * half)
-                          + (float3)vAxis * ((cellV * 2 + dv) * half);
-            return coarse ? onFace + (float3)wAxis * slabDepth : onFace;
+            return new int2(cellU * 2 + du, cellV * 2 + dv);
         }
 
         private int FaceIndex(int u, int v)
