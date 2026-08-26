@@ -141,10 +141,10 @@ jobs:
               issue_path = PurePosixPath(scene_issue)
               parts = issue_path.parts
               if (issue_path.is_absolute() or '..' in parts or len(parts) != 4 or
-                      parts[0] != 'SceneIssues' or parts[1] not in ('open', 'closed') or
+                      parts[0] != 'SceneIssues' or parts[1] not in ('open', 'pending', 'closed') or
                       parts[3] != 'issue.json'):
                   raise SystemExit(
-                      'ERROR: "scene_issue" must be SceneIssues/open|closed/<id>/issue.json')
+                      'ERROR: "scene_issue" must be SceneIssues/open|pending|closed/<id>/issue.json')
               issue_file = Path(scene_issue)
               if not issue_file.is_file():
                   raise SystemExit('ERROR: scene issue does not exist: ' + scene_issue)
