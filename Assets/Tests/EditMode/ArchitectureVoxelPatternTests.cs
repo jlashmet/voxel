@@ -28,13 +28,86 @@ namespace VoxelEngine.Tests.EditMode
             int[] code = builder.Finish();
 
             Assert.AreEqual(ShapeOp.EmitRoundedBox, (ShapeOp)code[0]);
+            Assert.AreEqual(3, code[7], "The reveal carve must retain the full wall depth.");
             Assert.AreEqual(SurfaceStyles.ArchitecturalRounded, (ushort)code[10]);
             Assert.AreEqual(PrimitiveMode.Carve, (PrimitiveMode)code[12]);
 
             int pane = ShapeOps.InstructionLength(ShapeOp.EmitRoundedBox);
             Assert.AreEqual(ShapeOp.EmitBox, (ShapeOp)code[pane]);
+            Assert.AreEqual(1, code[pane + 4], "The Z-normal pane should be centered inside the reveal.");
+            Assert.AreEqual(1, code[pane + 7], "The pane must be thinner than the wall reveal.");
             Assert.AreEqual((byte)4, (byte)code[pane + 8]);
             Assert.AreEqual(SurfaceStyles.Planar, (ushort)code[pane + 9]);
+        }
+
+        [Test]
+        public void GlazedOpeningUsesThinCenteredPaneAcrossFacadeOrientations()
+        {
+            var builder = new ArchitectureShapeProgramBuilder(
+                StructureGeometryProfile.Sharp, 1);
+
+            ArchitectureVoxelPatterns.GlazedOpening(
+                builder,
+                20, 5, 30,
+                3, 12, 10,
+                glazingMaterial: 15);
+            int[] code = builder.Finish();
+
+            Assert.AreEqual(ShapeOp.EmitBox, (ShapeOp)code[0]);
+            Assert.AreEqual(31, code[4], "Large X-normal windows should retain a one-voxel facade border.");
+            Assert.AreEqual(3, code[5], "The X-normal reveal must retain the full wall depth.");
+            Assert.AreEqual(PrimitiveMode.Carve, (PrimitiveMode)code[11]);
+
+            int pane = ShapeOps.InstructionLength(ShapeOp.EmitBox);
+            Assert.AreEqual(ShapeOp.EmitBox, (ShapeOp)code[pane]);
+            Assert.AreEqual(21, code[pane + 2], "The X-normal pane should be centered inside the reveal.");
+            Assert.AreEqual(1, code[pane + 5], "The pane must be thinner than the wall reveal.");
+            Assert.AreEqual(3, code[pane + 7], "A mullion should split the facade span instead of leaving one slab.");
+            Assert.AreEqual((byte)15, (byte)code[pane + 8]);
+            Assert.AreEqual(SurfaceStyles.Planar, (ushort)code[pane + 9]);
+        }
+
+        [Test]
+        public void GlazedOpeningFramesAndSubdividesLargeFacadePane()
+        {
+            var builder = new ArchitectureShapeProgramBuilder(
+                StructureGeometryProfile.Sharp, 1);
+
+            ArchitectureVoxelPatterns.GlazedOpening(
+                builder,
+                10, 4, 30,
+                12, 14, 3,
+                glazingMaterial: 15);
+            int[] code = builder.Finish();
+
+            int carveLength = ShapeOps.InstructionLength(ShapeOp.EmitBox);
+            int firstPane = carveLength;
+            int secondCarve = firstPane + ShapeOps.InstructionLength(ShapeOp.EmitBox);
+            int secondPane = secondCarve + carveLength;
+
+            Assert.AreEqual(ShapeOp.EmitBox, (ShapeOp)code[0]);
+            Assert.AreEqual(12, code[2], "The outer two voxels should remain facade material as a left frame.");
+            Assert.AreEqual(6, code[3], "The top and bottom two voxels should remain facade material as frame.");
+            Assert.AreEqual(3, code[5], "The first glazed cell should occupy half of the inset facade span.");
+            Assert.AreEqual(10, code[6], "The framed opening should be vertically inset by two voxels.");
+            Assert.AreEqual(3, code[7], "The carve must still cross the complete wall depth.");
+            Assert.AreEqual(PrimitiveMode.Carve, (PrimitiveMode)code[11]);
+
+            Assert.AreEqual(ShapeOp.EmitBox, (ShapeOp)code[firstPane]);
+            Assert.AreEqual(31, code[firstPane + 4], "The first pane should remain centered in wall depth.");
+            Assert.AreEqual(1, code[firstPane + 7], "The pane should stay thin after facade framing.");
+            Assert.AreEqual((byte)15, (byte)code[firstPane + 8]);
+
+            Assert.AreEqual(ShapeOp.EmitBox, (ShapeOp)code[secondCarve]);
+            Assert.AreEqual(17, code[secondCarve + 2], "A two-voxel masonry mullion should separate the glazed cells.");
+            Assert.AreEqual(3, code[secondCarve + 5]);
+            Assert.AreEqual(PrimitiveMode.Carve, (PrimitiveMode)code[secondCarve + 11]);
+
+            Assert.AreEqual(ShapeOp.EmitBox, (ShapeOp)code[secondPane]);
+            Assert.AreEqual(17, code[secondPane + 2]);
+            Assert.AreEqual(31, code[secondPane + 4]);
+            Assert.AreEqual(1, code[secondPane + 7]);
+            Assert.AreEqual((byte)15, (byte)code[secondPane + 8]);
         }
 
         [Test]
