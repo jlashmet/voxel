@@ -1,0 +1,19 @@
+Scene issue: 20260825-193517-651-WorldbuildingGalleryShowcase
+Replay source commit: a9ab8118eba4ccf711fe6d0fe31ce07b13cb2472
+Durable grass source under replay: 6656a720e45a5f621389478977c9cdb388a7e919 and parents
+CI request commit: b0763ffe26360df363610c4af73e4bf0c94cb5a2
+GitHub Actions browser run: 32904045185
+Artifact: single-test-32904045185 (artifact id 9584943904)
+Saved-pose screenshots in artifact:
+- RealPlayer/Screenshots/showcase-000-t006.7s-stationary.png
+- RealPlayer/Screenshots/showcase-001-t016.7s-stationary.png
+- RealPlayer/Screenshots/showcase-002-t026.8s-stationary.png
+
+Observed replay evidence:
+- The standalone player loaded WorldbuildingGalleryShowcase with the saved scene-issue camera/annotation overlay.
+- The marked grass region renders as intersecting upright blade/billboard planes with cutout silhouettes and varied blade heights rather than relying only on the terrain surface.
+- The scene finished its 30 second real-player harness with `HARNESS done after 30.0s, assertion failures 0` and `PASSES t=30.0 featureCreates=1 skyNoMaterial=0`.
+- The later settled samples reported roughly 492-537 FPS with p95 frame times around 2.8-3.3 ms.
+- The Unity PlayMode smoke test that shares this request filter failed separately at `WorldbuildingGalleryShowcaseSmokeTests.cs:57` with `Worldbuilding gallery never bound its production rendering world.` The built-player replay still completed and produced the saved-pose screenshots. That smoke assertion is not part of the authored grass-style regression and was not caused by the temporary replay router.
+
+Dynamic grass mechanisms (quantized wind, multi-sample world noise, per-instance variation, view sway, toon-band smoothing, UV bending, and bounded 64-character displacement) are covered deterministically by the already-green focused EditMode regression; the 10-second replay screenshot cadence is visual evidence of the resulting scene/pose, not a reliable animation-difference test.
