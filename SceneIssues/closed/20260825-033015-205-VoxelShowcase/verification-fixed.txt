@@ -1,0 +1,22 @@
+SceneIssue 20260825-033015-205-VoxelShowcase fixed-view verification
+
+Source production/test commit: eaead8ede86cbf90e36ead8d92ddbc4a34083aa9
+Focused CI request commit: 766e212f78c6d8fa16eb142a930ad0924587c4cf
+Focused workflow: 32895976717
+Focused test: VoxelEngine.CI.SceneIssue20260825033015TreeRenderingTests.CapturedPlayerShot_ClearsStandingTreeFromMarkedRegion
+Executed tests: 1
+Result: Passed
+
+Replay used the original saved VoxelShowcase camera pose, FOV, and marked circle from issue.json.
+Target: Willow tree index 12.
+Structural cut: level 0.
+Standing target presentation after sever: False.
+Target LOD0 bark triangles: 5888 -> 0.
+Target LOD0 leaf triangles: 4200 -> 0.
+All-procedural-tree pixels inside the marked circle: 712 before -> 178 after.
+
+The residual marked-circle pixels are not the shot Willow. Visual inspection of the fixed CI framebuffer shows the shot tree as a detached falling body with no thick rooted stump. A separate pink-leaf procedural tree stands behind it and accounts for the residual all-tree pixel metric. This is why the regression gates on target presentation ownership rather than requiring an arbitrary percentage reduction across every procedural tree in the circle.
+
+Additional verified contracts:
+- Showcase destruction lifecycle workflow 32896212772: Passed, exactly 1 test. The branch debris falls/expires; structural trunk sever leaves rootedPresentationAfterTrunk=False; the whole-tree body remains visible while toppling and expires.
+- Tree batch/query workflow 32896511398: Passed, exactly 1 test. Healthy batching and one-tree release remain intact; the structurally severed root is no longer collision-queryable and no rooted dynamic presentation remains.

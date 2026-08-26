@@ -1,0 +1,121 @@
+{
+    "formatVersion": 3,
+    "id": "20260825-193517-651-WorldbuildingGalleryShowcase",
+    "capturedUtc": "2026-08-25T19:35:17.6545590Z",
+    "note": "the grass looks bad.  use these techniques Instanced billboard quads via MultiMesh\nGrass sprite + alpha scissor\nWorld-space noise for color patches\nInstance ID randomness for size/color/sprite variation\nWorld-space noise drives wind bending\nMultiple offset noise samples reduce repetition\nSmall view-space sway adds liveliness\nUV scaling fakes perspective/bending\nQuantized time gives low-FPS animation style\nPer-instance phase offsets prevent synchronized motion\nCharacter proximity causes grass displacement\nFixed shader array supports up to 64 characters\nHybrid toon shading smooths lighting-band transitions",
+    "status": "open",
+    "resolvedUtc": "",
+    "resolutionSummary": "",
+    "regressionTest": "",
+    "fixCommit": "",
+    "unityVersion": "6000.5.6f1",
+    "platform": "OSXEditor",
+    "sceneName": "WorldbuildingGalleryShowcase",
+    "scenePath": "Assets/Scenes/WorldbuildingGalleryShowcase.unity",
+    "sceneBuildIndex": 1,
+    "captures": [
+        {
+            "screenshot": "screenshot-001.png",
+            "capturedUtc": "2026-08-25T19:35:17.6553840Z",
+            "frameCount": 1848,
+            "timeSinceLevelLoad": 9.810728073120118,
+            "screenWidth": 1364,
+            "screenHeight": 836,
+            "poseAnchor": {
+                "hierarchyPath": "Worldbuilding Gallery Camera",
+                "position": {
+                    "x": -104.15459442138672,
+                    "y": 23.850000381469728,
+                    "z": -6.114660739898682
+                },
+                "rotation": {
+                    "x": 0.1393219530582428,
+                    "y": -0.1841307133436203,
+                    "z": 0.02637561410665512,
+                    "w": 0.9726200103759766
+                },
+                "localScale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                }
+            },
+            "camera": {
+                "hierarchyPath": "Worldbuilding Gallery Camera",
+                "position": {
+                    "x": -104.15459442138672,
+                    "y": 23.850000381469728,
+                    "z": -6.114660739898682
+                },
+                "rotation": {
+                    "x": 0.1393219530582428,
+                    "y": -0.1841307133436203,
+                    "z": 0.02637561410665512,
+                    "w": 0.9726200103759766
+                },
+                "fieldOfView": 70.0,
+                "orthographic": false,
+                "orthographicSize": 5.0,
+                "nearClipPlane": 0.05000000074505806,
+                "farClipPlane": 15000.0
+            },
+            "circles": [
+                {
+                    "centerX": 0.4901129901409149,
+                    "centerY": 0.6647709608078003,
+                    "radius": 0.040312111377716067
+                }
+            ]
+        }
+    ],
+    "screenshot": "screenshot-001.png",
+    "frameCount": 1848,
+    "timeSinceLevelLoad": 9.810728073120118,
+    "screenWidth": 1364,
+    "screenHeight": 836,
+    "poseAnchor": {
+        "hierarchyPath": "Worldbuilding Gallery Camera",
+        "position": {
+            "x": -104.15459442138672,
+            "y": 23.850000381469728,
+            "z": -6.114660739898682
+        },
+        "rotation": {
+            "x": 0.1393219530582428,
+            "y": -0.1841307133436203,
+            "z": 0.02637561410665512,
+            "w": 0.9726200103759766
+        },
+        "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+        }
+    },
+    "camera": {
+        "hierarchyPath": "Worldbuilding Gallery Camera",
+        "position": {
+            "x": -104.15459442138672,
+            "y": 23.850000381469728,
+            "z": -6.114660739898682
+        },
+        "rotation": {
+            "x": 0.1393219530582428,
+            "y": -0.1841307133436203,
+            "z": 0.02637561410665512,
+            "w": 0.9726200103759766
+        },
+        "fieldOfView": 70.0,
+        "orthographic": false,
+        "orthographicSize": 5.0,
+        "nearClipPlane": 0.05000000074505806,
+        "farClipPlane": 15000.0
+    },
+    "circles": [
+        {
+            "centerX": 0.4901129901409149,
+            "centerY": 0.6647709608078003,
+            "radius": 0.040312111377716067
+        }
+    ]
+}

@@ -93,11 +93,21 @@ self-select another open capture or continue into the queue after finishing its 
 The coordinator reads only `origin/master:SceneIssues/open/` and rejects completion from a worker
 branch that introduces a capture ID absent from master.
 
+Because these are persistent branches and several workers may merge fixes concurrently, a scene-
+issue worker must **periodically fetch `origin` and merge current `origin/master` into
+`fixes/agent-N` while the assignment is still in progress**. Do this at assignment start, before a
+new substantial fix attempt when other work may have landed, before the final targeted-CI request,
+and immediately before merging the verified result to master. Resolve conflicts by preserving both
+the assigned issue's work and intervening master changes; never reset away unmerged work or
+force-push the feature branch simply to catch up. If the merge changes tested inputs, validate the
+new integrated feature head rather than relying on CI from the pre-merge state.
+
 When the coordinator assigns an agent a captured issue:
 
 1. Fetch `origin` and use only the feature and CI branches named in the assignment. If the feature
    branch does not exist, create it from current `origin/master`. If it already exists, resume it
-   without discarding unmerged work and bring it up to date with `origin/master` as needed. Never
+   without discarding unmerged work and merge current `origin/master` into it before continuing.
+   Continue refreshing from master periodically during the assignment as described above. Never
    use the former shared `fixes` branch.
 2. Work only on the capture named by the coordinator. Queue order and exclusive claims belong to
    the coordinator; do not select another open directory yourself.
@@ -116,14 +126,27 @@ When the coordinator assigns an agent a captured issue:
 12. For a verified fix, update `issue.json`: set `status` to `fixed`, fill `resolvedUtc`, summarize the resolution in `resolutionSummary`, record the regression test in `regressionTest`, and put the production/test commit SHA from the previous step in `fixCommit`. Then move the entire capture directory from `SceneIssues/open/` to `SceneIssues/closed/`. If the issue is blocked, document the blocker and experiments but keep it in `open/`; blocked is not closed or complete.
 13. Commit the issue update and open-to-closed move on the same assigned `fixes/agent-N` branch, for example `Resolve scene issue 20260822-...`. The extra bookkeeping commit is deliberate: it avoids inventing the SHA of a commit before that commit exists.
 14. Push the assigned feature branch after the issue is reproduced, fixed, regressed,
-    replay-verified, documented, and committed. The coordinator verifies the terminal `issue.json`
-    directly from `SceneIssues/closed/` on that remote branch, including that the open path is gone
-    and the fixed issue's `fixCommit` is on the branch.
-    It also requires `ci/single-test` success on the assigned CI request branch and verifies that
-    branch contains the recorded fix commit.
-15. Stop after pushing the terminal bookkeeping and wait for the coordinator. It will assign the
-    next capture to the same tab and branch. One PR may accumulate that agent's sequential fixes;
-    do not create one PR/branch pair per capture.
+    replay-verified, documented, and committed. Verify the terminal `issue.json` directly from
+    `SceneIssues/closed/` on that remote branch, including that the open path is gone and the fixed
+    issue's `fixCommit` is on the branch. Also require `ci/single-test` success on the assigned CI
+    request branch and verify that branch contains the recorded fix commit.
+15. **Merge the verified fix to `master`; do not stop on `fixes/agent-N`.** Fetch `origin`
+    immediately before promotion. If `origin/master` advanced while the issue was being fixed,
+    integrate current `origin/master` into the assigned feature branch without discarding either
+    side, then push that integrated feature branch. If the integration changes production code,
+    tests, scene data, or another input relevant to the regression, reset `ci-test/fixes/agent-N`
+    to the integrated feature head and run the focused CI test again before promotion. A merge that
+    changes only terminal SceneIssue bookkeeping does not require a redundant test rerun.
+16. Advance `master` with a normal non-force fast-forward or merge that preserves every intervening
+    master commit. **Never force-push or overwrite `master`.** If another worker advances master
+    before this promotion lands, fetch again, integrate the new master tip, rerun CI when relevant
+    tested inputs changed, and retry the non-force promotion.
+17. Verify the final remote state on `origin/master`: the production/test fix and terminal
+    bookkeeping commits are ancestors of master, the capture is absent from `SceneIssues/open/`,
+    the matching `SceneIssues/closed/` directory has terminal `issue.json` fields, and the required
+    `ci/single-test` result is green. Only then is the assignment complete.
+18. Stop after verified master integration and wait for the coordinator. It will assign the next
+    capture to the same tab and persistent branches. Do not self-select or start another capture.
 
 ## Document every experiment
 
@@ -172,4 +195,4 @@ experiment files are the working record behind it, and both are expected on a re
 
 The point of persistent agent branches plus coordinator-owned claims is to make visual cleanup a
 safe parallel queue: each worker follows reproduce → inspect marked regions → test → fix → verify →
-document → commit → resolve, then waits for its next exclusive assignment.
+document → commit → resolve → merge to master, then waits for its next exclusive assignment.

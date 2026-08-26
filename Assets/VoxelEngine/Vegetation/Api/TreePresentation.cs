@@ -186,6 +186,19 @@ namespace VoxelEngine.Vegetation.Api
             resolved.Clear();
             if (skeleton == null || directCuts == null || directCuts.Count == 0) return;
 
+            // A structural level-zero cut means the tree is no longer rooted. Preserve the exact
+            // authored segment in directCuts for debris/presentation events, but treat the entire
+            // remaining skeleton as disconnected for rendering and collision queries. Keeping the
+            // lower trunk as a rooted semantic stump is what left the SceneIssue 033015 trunk
+            // standing while the crown fell.
+            foreach (int cut in directCuts)
+            {
+                if ((uint)cut >= (uint)skeleton.Branches.Count) continue;
+                if (skeleton.Branches[cut].Level != 0) continue;
+                for (int i = 0; i < skeleton.Branches.Count; i++) resolved.Add(i);
+                return;
+            }
+
             foreach (int cut in directCuts)
                 if ((uint)cut < (uint)skeleton.Branches.Count)
                     resolved.Add(cut);
@@ -204,6 +217,15 @@ namespace VoxelEngine.Vegetation.Api
             int branchIndex)
         {
             if (skeleton == null || directCuts == null || directCuts.Count == 0) return false;
+
+            // Match ResolveRemovedBranches: once a level-zero segment has severed, there is no
+            // rooted procedural tree left to collide with. Detached debris owns the falling body.
+            foreach (int cut in directCuts)
+            {
+                if ((uint)cut < (uint)skeleton.Branches.Count
+                    && skeleton.Branches[cut].Level == 0)
+                    return true;
+            }
 
             int current = branchIndex;
             while (current >= 0)
