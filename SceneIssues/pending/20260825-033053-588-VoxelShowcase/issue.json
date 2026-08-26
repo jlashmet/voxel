@@ -3,8 +3,7 @@
     "id": "20260825-033053-588-VoxelShowcase",
     "capturedUtc": "2026-08-25T03:30:53.5888680Z",
     "note": "these trees don't break when i shoot them.  Also, all trees no longer have collision with the player",
-    "status": "fixed",
-    "resolvedUtc": "2026-08-26T18:59:09Z",
+    "status": "pending",
     "resolutionSummary": "Restored player collision for semantic VoxelShowcase trees by adding a surviving-wood AABB query at the vegetation interaction boundary and having CharacterMotor consult semantic wood after voxel collision checks; foliage remains traversable and removed branches stop blocking immediately. The projectile tree-damage path was already correctly wired and is now protected together with collision by the permanent three-case regression. Exact replay of the original saved camera against the current authoritative startup bake shows the capture-era north-field tree visuals are no longer present; those visuals came from the older stale startup bake rather than a current non-semantic tree population.",
     "regressionTest": "VoxelEngine.Tests.PlayMode.ShowcaseTreeInteractionRegressionTests",
     "fixCommit": "fdc54b765714c5b6df5787ecc57640be2d356381",
@@ -23,36 +22,14 @@
             "screenHeight": 836,
             "poseAnchor": {
                 "hierarchyPath": "Showcase Camera",
-                "position": {
-                    "x": 30.713180541992189,
-                    "y": 23.950254440307618,
-                    "z": 154.71759033203126
-                },
-                "rotation": {
-                    "x": 0.0947750136256218,
-                    "y": -0.2117554098367691,
-                    "z": -0.020636681467294694,
-                    "w": -0.9724975824356079
-                },
-                "localScale": {
-                    "x": 1.0,
-                    "y": 1.0,
-                    "z": 1.0
-                }
+                "position": {"x": 30.713180541992189, "y": 23.950254440307618, "z": 154.71759033203126},
+                "rotation": {"x": 0.0947750136256218, "y": -0.2117554098367691, "z": -0.020636681467294694, "w": -0.9724975824356079},
+                "localScale": {"x": 1.0, "y": 1.0, "z": 1.0}
             },
             "camera": {
                 "hierarchyPath": "Showcase Camera",
-                "position": {
-                    "x": 30.713180541992189,
-                    "y": 23.950254440307618,
-                    "z": 154.71759033203126
-                },
-                "rotation": {
-                    "x": 0.0947750136256218,
-                    "y": -0.2117554098367691,
-                    "z": -0.020636681467294694,
-                    "w": -0.9724975824356079
-                },
+                "position": {"x": 30.713180541992189, "y": 23.950254440307618, "z": 154.71759033203126},
+                "rotation": {"x": 0.0947750136256218, "y": -0.2117554098367691, "z": -0.020636681467294694, "w": -0.9724975824356079},
                 "fieldOfView": 70.0,
                 "orthographic": false,
                 "orthographicSize": 5.0,
@@ -69,36 +46,14 @@
     "screenHeight": 836,
     "poseAnchor": {
         "hierarchyPath": "Showcase Camera",
-        "position": {
-            "x": 30.713180541992189,
-            "y": 23.950254440307618,
-            "z": 154.71759033203126
-        },
-        "rotation": {
-            "x": 0.0947750136256218,
-            "y": -0.2117554098367691,
-            "z": -0.020636681467294694,
-            "w": -0.9724975824356079
-        },
-        "localScale": {
-            "x": 1.0,
-            "y": 1.0,
-            "z": 1.0
-        }
+        "position": {"x": 30.713180541992189, "y": 23.950254440307618, "z": 154.71759033203126},
+        "rotation": {"x": 0.0947750136256218, "y": -0.2117554098367691, "z": -0.020636681467294694, "w": -0.9724975824356079},
+        "localScale": {"x": 1.0, "y": 1.0, "z": 1.0}
     },
     "camera": {
         "hierarchyPath": "Showcase Camera",
-        "position": {
-            "x": 30.713180541992189,
-            "y": 23.950254440307618,
-            "z": 154.71759033203126
-        },
-        "rotation": {
-            "x": 0.0947750136256218,
-            "y": -0.2117554098367691,
-            "z": -0.020636681467294694,
-            "w": -0.9724975824356079
-        },
+        "position": {"x": 30.713180541992189, "y": 23.950254440307618, "z": 154.71759033203126},
+        "rotation": {"x": 0.0947750136256218, "y": -0.2117554098367691, "z": -0.020636681467294694, "w": -0.9724975824356079},
         "fieldOfView": 70.0,
         "orthographic": false,
         "orthographicSize": 5.0,
