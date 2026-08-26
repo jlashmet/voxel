@@ -1,0 +1,109 @@
+{
+    "formatVersion": 3,
+    "id": "20260826-133143-247-VoxelShowcase",
+    "capturedUtc": "2026-08-26T13:31:43.2475740Z",
+    "note": "We still need a lot more spacing between the houses They're very cramped.",
+    "status": "open",
+    "resolvedUtc": "",
+    "resolutionSummary": "",
+    "regressionTest": "",
+    "fixCommit": "",
+    "unityVersion": "6000.5.6f1",
+    "platform": "OSXEditor",
+    "sceneName": "VoxelShowcase",
+    "scenePath": "Assets/Scenes/VoxelShowcase.unity",
+    "sceneBuildIndex": 2,
+    "captures": [
+        {
+            "screenshot": "screenshot-001.png",
+            "capturedUtc": "2026-08-26T13:31:43.2476640Z",
+            "frameCount": 175309,
+            "timeSinceLevelLoad": 527.0018310546875,
+            "screenWidth": 1928,
+            "screenHeight": 836,
+            "poseAnchor": {
+                "hierarchyPath": "Showcase Camera",
+                "position": {
+                    "x": 158.64889526367188,
+                    "y": 82.72476196289063,
+                    "z": 74.2815933227539
+                },
+                "rotation": {
+                    "x": -0.028611142188310624,
+                    "y": 0.8675870895385742,
+                    "z": -0.49391117691993716,
+                    "w": -0.050257328897714618
+                },
+                "localScale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                }
+            },
+            "camera": {
+                "hierarchyPath": "Showcase Camera",
+                "position": {
+                    "x": 158.64889526367188,
+                    "y": 82.72476196289063,
+                    "z": 74.2815933227539
+                },
+                "rotation": {
+                    "x": -0.028611142188310624,
+                    "y": 0.8675870895385742,
+                    "z": -0.49391117691993716,
+                    "w": -0.050257328897714618
+                },
+                "fieldOfView": 70.0,
+                "orthographic": false,
+                "orthographicSize": 5.0,
+                "nearClipPlane": 0.05000000074505806,
+                "farClipPlane": 16000.0
+            },
+            "circles": []
+        }
+    ],
+    "screenshot": "screenshot-001.png",
+    "frameCount": 175309,
+    "timeSinceLevelLoad": 527.0018310546875,
+    "screenWidth": 1928,
+    "screenHeight": 836,
+    "poseAnchor": {
+        "hierarchyPath": "Showcase Camera",
+        "position": {
+            "x": 158.64889526367188,
+            "y": 82.72476196289063,
+            "z": 74.2815933227539
+        },
+        "rotation": {
+            "x": -0.028611142188310624,
+            "y": 0.8675870895385742,
+            "z": -0.49391117691993716,
+            "w": -0.050257328897714618
+        },
+        "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+        }
+    },
+    "camera": {
+        "hierarchyPath": "Showcase Camera",
+        "position": {
+            "x": 158.64889526367188,
+            "y": 82.72476196289063,
+            "z": 74.2815933227539
+        },
+        "rotation": {
+            "x": -0.028611142188310624,
+            "y": 0.8675870895385742,
+            "z": -0.49391117691993716,
+            "w": -0.050257328897714618
+        },
+        "fieldOfView": 70.0,
+        "orthographic": false,
+        "orthographicSize": 5.0,
+        "nearClipPlane": 0.05000000074505806,
+        "farClipPlane": 16000.0
+    },
+    "circles": []
+}

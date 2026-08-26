@@ -1,0 +1,131 @@
+{
+    "formatVersion": 3,
+    "id": "20260826-132234-356-VoxelShowcase",
+    "capturedUtc": "2026-08-26T13:22:34.3565480Z",
+    "note": "look at where the dirt meets the grass its all jagged.",
+    "status": "open",
+    "resolvedUtc": "",
+    "resolutionSummary": "",
+    "regressionTest": "",
+    "fixCommit": "",
+    "unityVersion": "6000.5.6f1",
+    "platform": "OSXEditor",
+    "sceneName": "VoxelShowcase",
+    "scenePath": "Assets/Scenes/VoxelShowcase.unity",
+    "sceneBuildIndex": 2,
+    "captures": [
+        {
+            "screenshot": "screenshot-001.png",
+            "capturedUtc": "2026-08-26T13:22:34.3566320Z",
+            "frameCount": 65198,
+            "timeSinceLevelLoad": 185.4831085205078,
+            "screenWidth": 1928,
+            "screenHeight": 836,
+            "poseAnchor": {
+                "hierarchyPath": "Showcase Camera",
+                "position": {
+                    "x": 98.66827392578125,
+                    "y": 24.050031661987306,
+                    "z": 29.30876922607422
+                },
+                "rotation": {
+                    "x": -0.15829446911811829,
+                    "y": 0.7390101552009583,
+                    "z": -0.18634727597236634,
+                    "w": -0.6277592182159424
+                },
+                "localScale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                }
+            },
+            "camera": {
+                "hierarchyPath": "Showcase Camera",
+                "position": {
+                    "x": 98.66827392578125,
+                    "y": 24.050031661987306,
+                    "z": 29.30876922607422
+                },
+                "rotation": {
+                    "x": -0.15829446911811829,
+                    "y": 0.7390101552009583,
+                    "z": -0.18634727597236634,
+                    "w": -0.6277592182159424
+                },
+                "fieldOfView": 70.0,
+                "orthographic": false,
+                "orthographicSize": 5.0,
+                "nearClipPlane": 0.05000000074505806,
+                "farClipPlane": 16000.0
+            },
+            "circles": [
+                {
+                    "centerX": 0.5579096078872681,
+                    "centerY": 0.3648190200328827,
+                    "radius": 0.11516552418470383
+                },
+                {
+                    "centerX": 0.6652542352676392,
+                    "centerY": 0.599349856376648,
+                    "radius": 0.0806487649679184
+                }
+            ]
+        }
+    ],
+    "screenshot": "screenshot-001.png",
+    "frameCount": 65198,
+    "timeSinceLevelLoad": 185.4831085205078,
+    "screenWidth": 1928,
+    "screenHeight": 836,
+    "poseAnchor": {
+        "hierarchyPath": "Showcase Camera",
+        "position": {
+            "x": 98.66827392578125,
+            "y": 24.050031661987306,
+            "z": 29.30876922607422
+        },
+        "rotation": {
+            "x": -0.15829446911811829,
+            "y": 0.7390101552009583,
+            "z": -0.18634727597236634,
+            "w": -0.6277592182159424
+        },
+        "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+        }
+    },
+    "camera": {
+        "hierarchyPath": "Showcase Camera",
+        "position": {
+            "x": 98.66827392578125,
+            "y": 24.050031661987306,
+            "z": 29.30876922607422
+        },
+        "rotation": {
+            "x": -0.15829446911811829,
+            "y": 0.7390101552009583,
+            "z": -0.18634727597236634,
+            "w": -0.6277592182159424
+        },
+        "fieldOfView": 70.0,
+        "orthographic": false,
+        "orthographicSize": 5.0,
+        "nearClipPlane": 0.05000000074505806,
+        "farClipPlane": 16000.0
+    },
+    "circles": [
+        {
+            "centerX": 0.5579096078872681,
+            "centerY": 0.3648190200328827,
+            "radius": 0.11516552418470383
+        },
+        {
+            "centerX": 0.6652542352676392,
+            "centerY": 0.599349856376648,
+            "radius": 0.0806487649679184
+        }
+    ]
+}

@@ -1,0 +1,109 @@
+{
+    "formatVersion": 3,
+    "id": "20260826-140248-088-KentridgePlayableSlice",
+    "capturedUtc": "2026-08-26T14:02:48.0889920Z",
+    "note": "we need to start wiring up the combat system.  First it needs some changes.   Implement the plan located on branch design/combat-input-modules.  Then make 3 bandits in the forest that initiate combat when the player gets close",
+    "status": "open",
+    "resolvedUtc": "",
+    "resolutionSummary": "",
+    "regressionTest": "",
+    "fixCommit": "",
+    "unityVersion": "6000.5.6f1",
+    "platform": "OSXEditor",
+    "sceneName": "KentridgePlayableSlice",
+    "scenePath": "Assets/Scenes/KentridgePlayableSlice.unity",
+    "sceneBuildIndex": 0,
+    "captures": [
+        {
+            "screenshot": "screenshot-001.png",
+            "capturedUtc": "2026-08-26T14:02:48.0927850Z",
+            "frameCount": 34070,
+            "timeSinceLevelLoad": 95.704833984375,
+            "screenWidth": 1928,
+            "screenHeight": 836,
+            "poseAnchor": {
+                "hierarchyPath": "Kentridge Player Camera",
+                "position": {
+                    "x": 116.61006164550781,
+                    "y": 24.25033187866211,
+                    "z": 155.19740295410157
+                },
+                "rotation": {
+                    "x": -0.04198448359966278,
+                    "y": -0.0027246689423918726,
+                    "z": -0.00011449519661255181,
+                    "w": 0.9991145730018616
+                },
+                "localScale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                }
+            },
+            "camera": {
+                "hierarchyPath": "Kentridge Player Camera",
+                "position": {
+                    "x": 116.61006164550781,
+                    "y": 24.25033187866211,
+                    "z": 155.19740295410157
+                },
+                "rotation": {
+                    "x": -0.04198448359966278,
+                    "y": -0.0027246689423918726,
+                    "z": -0.00011449519661255181,
+                    "w": 0.9991145730018616
+                },
+                "fieldOfView": 58.0,
+                "orthographic": false,
+                "orthographicSize": 5.0,
+                "nearClipPlane": 0.05000000074505806,
+                "farClipPlane": 16000.0
+            },
+            "circles": []
+        }
+    ],
+    "screenshot": "screenshot-001.png",
+    "frameCount": 34070,
+    "timeSinceLevelLoad": 95.704833984375,
+    "screenWidth": 1928,
+    "screenHeight": 836,
+    "poseAnchor": {
+        "hierarchyPath": "Kentridge Player Camera",
+        "position": {
+            "x": 116.61006164550781,
+            "y": 24.25033187866211,
+            "z": 155.19740295410157
+        },
+        "rotation": {
+            "x": -0.04198448359966278,
+            "y": -0.0027246689423918726,
+            "z": -0.00011449519661255181,
+            "w": 0.9991145730018616
+        },
+        "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+        }
+    },
+    "camera": {
+        "hierarchyPath": "Kentridge Player Camera",
+        "position": {
+            "x": 116.61006164550781,
+            "y": 24.25033187866211,
+            "z": 155.19740295410157
+        },
+        "rotation": {
+            "x": -0.04198448359966278,
+            "y": -0.0027246689423918726,
+            "z": -0.00011449519661255181,
+            "w": 0.9991145730018616
+        },
+        "fieldOfView": 58.0,
+        "orthographic": false,
+        "orthographicSize": 5.0,
+        "nearClipPlane": 0.05000000074505806,
+        "farClipPlane": 16000.0
+    },
+    "circles": []
+}
