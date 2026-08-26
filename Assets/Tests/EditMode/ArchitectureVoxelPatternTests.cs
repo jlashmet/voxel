@@ -28,12 +28,41 @@ namespace VoxelEngine.Tests.EditMode
             int[] code = builder.Finish();
 
             Assert.AreEqual(ShapeOp.EmitRoundedBox, (ShapeOp)code[0]);
+            Assert.AreEqual(3, code[6], "The reveal carve must retain the full wall depth.");
             Assert.AreEqual(SurfaceStyles.ArchitecturalRounded, (ushort)code[10]);
             Assert.AreEqual(PrimitiveMode.Carve, (PrimitiveMode)code[12]);
 
             int pane = ShapeOps.InstructionLength(ShapeOp.EmitRoundedBox);
             Assert.AreEqual(ShapeOp.EmitBox, (ShapeOp)code[pane]);
+            Assert.AreEqual(1, code[pane + 3], "The Z-normal pane should be centered inside the reveal.");
+            Assert.AreEqual(1, code[pane + 6], "The pane must be thinner than the wall reveal.");
             Assert.AreEqual((byte)4, (byte)code[pane + 8]);
+            Assert.AreEqual(SurfaceStyles.Planar, (ushort)code[pane + 9]);
+        }
+
+        [Test]
+        public void GlazedOpeningUsesThinCenteredPaneAcrossFacadeOrientations()
+        {
+            var builder = new ArchitectureShapeProgramBuilder(
+                StructureGeometryProfile.Sharp, 1);
+
+            ArchitectureVoxelPatterns.GlazedOpening(
+                builder,
+                20, 5, 30,
+                3, 12, 10,
+                glazingMaterial: 15);
+            int[] code = builder.Finish();
+
+            Assert.AreEqual(ShapeOp.EmitBox, (ShapeOp)code[0]);
+            Assert.AreEqual(3, code[4], "The X-normal reveal must retain the full wall depth.");
+            Assert.AreEqual(PrimitiveMode.Carve, (PrimitiveMode)code[11]);
+
+            int pane = ShapeOps.InstructionLength(ShapeOp.EmitBox);
+            Assert.AreEqual(ShapeOp.EmitBox, (ShapeOp)code[pane]);
+            Assert.AreEqual(21, code[pane + 1], "The X-normal pane should be centered inside the reveal.");
+            Assert.AreEqual(1, code[pane + 4], "The pane must be thinner than the wall reveal.");
+            Assert.AreEqual(10, code[pane + 6], "The facade width must remain unchanged.");
+            Assert.AreEqual((byte)15, (byte)code[pane + 8]);
             Assert.AreEqual(SurfaceStyles.Planar, (ushort)code[pane + 9]);
         }
 
