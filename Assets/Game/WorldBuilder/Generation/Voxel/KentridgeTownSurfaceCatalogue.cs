@@ -16,8 +16,8 @@ namespace MountingForce.WorldGen.Voxel
     /// endpoint heights come from TerrainQuery, and adjacent pieces share the same endpoint.
     /// This follows broad terrain without either failure mode of the earlier prototypes: independent
     /// flat tiles produced longitudinal steps, while one giant end-to-end ramp cut deep trenches
-    /// through intervening hills. A Dirt carriageway keeps the authored width while five grassy
-    /// shoulder bands per side feather its cut/fill edge back into the surrounding terrain.
+    /// through intervening hills. A Dirt carriageway keeps the authored width while thirty
+    /// one-decimetre grassy bands per side grade its cut/fill edge back into the surrounding terrain.
     /// </summary>
     public static class KentridgeTownSurfaceCatalogue
     {
@@ -27,9 +27,9 @@ namespace MountingForce.WorldGen.Voxel
         private const int SurfaceThicknessDm = 4;
         private const int ClearAboveDm = 24;
         private const int PlazaFootprintHeightDm = 52;
-        private const int ShoulderCount = 5;
-        private const int ShoulderWidthDm = 6;
-        private const int ShoulderRiseDm = 4;
+        private const int ShoulderBandCount = 30;
+        private const int ShoulderBandWidthDm = 1;
+        private const int ShoulderTotalRiseDm = 20;
 
         private readonly struct RoadSegmentBuild
         {
@@ -114,7 +114,7 @@ namespace MountingForce.WorldGen.Voxel
                     ProgramLength = program.Length,
                     MaterialOffset = 0,
                     MaterialCount = 0,
-                    MaxPrimitives = 1 + (1 + ShoulderCount * 2) * 2,
+                    MaxPrimitives = 1 + (1 + ShoulderBandCount * 2) * 2,
                 };
 
                 catalogue.ExplicitPlacements[i] = road.Placement;
@@ -208,11 +208,11 @@ namespace MountingForce.WorldGen.Voxel
             Int2 a, Int2 b, uint seed, int scale)
         {
             int carriageWidth = street.WidthDm * scale;
-            int shoulderWidth = ShoulderCount * ShoulderWidthDm * scale;
+            int shoulderWidth = ShoulderBandCount * ShoulderBandWidthDm * scale;
             int totalWidth = carriageWidth + shoulderWidth * 2;
             int fillHeight = (RoadFillDepthDm + SurfaceThicknessDm) * scale;
             int clearAbove = ClearAboveDm * scale;
-            int maxShoulderRise = ShoulderCount * ShoulderRiseDm * scale;
+            int maxShoulderRise = ShoulderTotalRiseDm * scale;
             string name = "kentridge-road-" + street.Id + "-" + semanticSegment + "-" + piece;
 
             if (a.X == b.X)
@@ -301,7 +301,7 @@ namespace MountingForce.WorldGen.Voxel
         {
             int s = settings.VoxelsPerDecimetre;
             int fillHeight = (RoadFillDepthDm + SurfaceThicknessDm) * s;
-            int maxShoulderRise = ShoulderCount * ShoulderRiseDm * s;
+            int maxShoulderRise = ShoulderTotalRiseDm * s;
             int clearHeight = road.HeightDelta + maxShoulderRise + ClearAboveDm * s;
             int crossTotal = road.CarriageWidth + road.ShoulderWidth * 2;
             int sx = road.Axis == 0 ? road.Length : crossTotal;
@@ -314,20 +314,21 @@ namespace MountingForce.WorldGen.Voxel
             // Cut one corridor to the low carriageway endpoint, then fill the centre road and
             // progressively higher grassy shoulder bands back into it. Each strip keeps the same
             // longitudinal ramp as this 12.8 m road segment, so feathering does not reintroduce
-            // tile-to-tile cliffs or a giant end-to-end road grade.
+            // tile-to-tile cliffs or a giant end-to-end road grade. The cross-slope begins flush
+            // with the Dirt core and uses integer interpolation so no one-decimetre band jumps by
+            // more than one decimetre at the canonical scale.
             b.Carve(0, fillHeight, 0, sx, clearHeight, sz);
 
             int centreCross = road.ShoulderWidth;
             AddLongitudinalStrip(
                 b, road, centreCross, road.CarriageWidth, fillHeight, roadSurface);
 
-            int bandWidth = ShoulderWidthDm * s;
-            for (int band = 1; band <= ShoulderCount; band++)
+            int bandWidth = ShoulderBandWidthDm * s;
+            for (int band = 0; band < ShoulderBandCount; band++)
             {
-                int rise = band * ShoulderRiseDm * s;
-                int leftCross = road.ShoulderWidth - band * bandWidth;
-                int rightCross = road.ShoulderWidth + road.CarriageWidth
-                               + (band - 1) * bandWidth;
+                int rise = band * ShoulderTotalRiseDm * s / (ShoulderBandCount - 1);
+                int leftCross = road.ShoulderWidth - (band + 1) * bandWidth;
+                int rightCross = road.ShoulderWidth + road.CarriageWidth + band * bandWidth;
                 AddLongitudinalStrip(
                     b, road, leftCross, bandWidth, fillHeight + rise, shoulderSurface);
                 AddLongitudinalStrip(
