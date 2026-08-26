@@ -1,8 +1,8 @@
 name: Tests (master — full suite)
 
-# Every test, unconditionally, on every merge to master. Pull requests run only
-# the assemblies their changes can affect (see tests-pr.yml); this is the run
-# that makes selection safe, so it must never be filtered or made conditional.
+# Every behavior-changing merge to master runs the full suite. Human approval
+# PRs only move already-tested evidence from pending to closed and are ignored.
+# Pull requests run the assemblies their changes can affect (see tests-pr.yml).
 #
 # Normal EditMode and PlayMode suites share one Unity editor process. Unity Test
 # Framework 1.x cannot execute both modes in one API call, so the editor-side CI
@@ -13,6 +13,9 @@ name: Tests (master — full suite)
 on:
   push:
     branches: [master]
+    paths-ignore:
+      - 'SceneIssues/pending/**'
+      - 'SceneIssues/closed/**'
   workflow_dispatch:
 
 permissions:

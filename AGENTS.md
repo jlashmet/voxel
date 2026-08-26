@@ -40,7 +40,8 @@ not the durable record. SceneIssue plans and evidence follow the canonical
 
 For ordinary work, use one feature branch and `ci-test/<feature-branch>` for its targeted request.
 Reuse those refs for the task; do not create retry, baseline, temporary, probe, or no-op branches.
-Do not create custom workflows or pull requests merely to trigger CI.
+Do not create custom workflows or pull requests merely to trigger CI. The dedicated human-review
+branch and PR authorized by the SceneIssue workflow are the only SceneIssue exception.
 
 Create the request commit directly on the exact feature SHA, changing
 `.github/test-request.json` only on the CI branch, then force-update that CI ref once. Monitor the
