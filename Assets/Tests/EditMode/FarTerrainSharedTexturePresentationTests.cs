@@ -8,16 +8,31 @@ namespace VoxelEngine.Tests.EditMode
     {
         private const string FarTerrainShaderPath =
             "Assets/VoxelEngine/Rendering/Runtime/Shaders/FarTerrain.shader";
+        private const string FarTerrainSourcePath =
+            "Assets/Scenes/Showcase/VoxelFarTerrain.cs";
 
         [Test]
         public void FarTerrainReusesVoxelSurfaceTextureSamplingContract()
         {
             string shader = File.ReadAllText(ProjectPath(FarTerrainShaderPath));
+            string farTerrain = File.ReadAllText(ProjectPath(FarTerrainSourcePath));
 
-            StringAssert.Contains("ResolveMaterialFromAlbedo", shader,
-                "Far terrain must recover the semantic material represented by its authoritative vertex albedo instead of treating interpolated colour as a second grass-texturing system.");
-            StringAssert.Contains("float4 _MaterialAlbedo[32]", shader,
-                "Far terrain must resolve material identity from the same authoritative albedo table as the voxel surface.");
+            StringAssert.Contains("_materialIdsScratch", farTerrain,
+                "Far terrain must retain the exact application-owned material ID instead of discarding it after resolving vertex albedo.");
+            StringAssert.Contains("materialIds[i] = new Vector2(material, 0f)", farTerrain,
+                "Every sampled far vertex must publish its exact semantic material ID alongside colour.");
+            StringAssert.Contains("mesh.uv2 = materialIds", farTerrain,
+                "Far terrain must publish material identity through a dedicated mesh channel rather than reconstructing it from interpolated RGB.");
+            StringAssert.Contains("float2 materialData : TEXCOORD1", shader,
+                "The far shader must read the dedicated per-vertex material channel.");
+            StringAssert.Contains("nointerpolation float material : TEXCOORD2", shader,
+                "Far triangles must use one exact material row instead of interpolating semantic IDs across fragments.");
+            StringAssert.Contains("output.material = input.materialData.x", shader,
+                "The vertex stage must forward the explicit material ID to the fragment stage.");
+            StringAssert.Contains("uint material = min((uint)round(input.material), 31u)", shader,
+                "The fragment stage must select the shared presentation row from the explicit material ID.");
+            StringAssert.DoesNotContain("ResolveMaterialFromAlbedo", shader,
+                "Interpolated vertex colour is presentation data, not a stable semantic material key.");
             StringAssert.Contains("float4 _MaterialSampling[32]", shader,
                 "Far terrain must consume the shared material texture-layer and texture-weight policy.");
             StringAssert.Contains("float4 _MaterialSurface[32]", shader,
