@@ -1,5 +1,7 @@
 using System;
-using MountingForce.WorldGen.Voxel;
+using Game.WorldBuilder.Api;
+using Game.WorldBuilder.Runtime;
+using Game.WorldBuilder.Voxel;
 using Unity.Collections;
 using VoxelEngine.Composition.Api;
 using VoxelEngine.Structures.Api;
@@ -8,15 +10,18 @@ using VoxelEngine.Structures.Runtime;
 namespace VoxelEngine.Showcase
 {
     /// <summary>
-    /// Showcase-side composition root for procedural content. Worldgen receives semantic roles,
-    /// but the material indices occupying those roles are supplied by the application.
+    /// Showcase-side composition root for procedural content. WorldBuilder owns town authoring;
+    /// this composition root supplies only the voxel material roles used to realize that town.
     /// </summary>
     public static class ShowcaseCatalogue
     {
         public static FeatureCatalogue Build(
             uint seed, in ShowcaseMaterialSet materialRoles, Allocator allocator)
         {
-            var materials = new VoxelMaterialMap(
+            AuthoredTownPlan town = WorldBuilderTownAuthoring.Author(
+                WorldBuilderTownIds.Kentridge,
+                seed);
+            var materials = new WorldBuilderVoxelMaterialMap(
                 foundationStone: materialRoles.WorldgenFoundation,
                 masonry: materialRoles.WorldgenMasonry,
                 darkMasonry: materialRoles.WorldgenDarkMasonry,
@@ -30,18 +35,12 @@ namespace VoxelEngine.Showcase
                 water: materialRoles.WorldgenWater,
                 roadSurface: materialRoles.WorldgenRoadSurface);
 
-            var settings = new VoxelWorldGenSettings(
-                voxelsPerDecimetre: 1,
-                materials: materials);
-
-            // Kentridge is the production mixed-city showcase, not a parallel demo planner. Its
-            // SettlementCompositionPolicy preserves the authored roads/roles/frontages while the
-            // generated residential/market forms select district-weighted shared house presets.
-            // Bespoke civic/working landmarks remain in the same catalogue, so one build visibly
-            // exercises houses, shops, inns, a church, warehouse, mansion, well and open civic space.
-            // The detached detailed-house feature below remains a focused deep-override example.
+            // Kentridge is the production mixed-city showcase, not a parallel demo planner. The
+            // town is authored once above through WorldBuilder, and the voxel adapter realizes that
+            // exact authored plan. The detached detailed-house feature below remains a focused
+            // deep-override example composed beside the production town catalogue.
             FeatureCatalogue kentridge =
-                KentridgeCombinedVoxelCatalogue.Build(seed, settings, Allocator.Temp);
+                WorldBuilderVoxelCatalogue.Build(town, in materials, Allocator.Temp);
             try
             {
                 FeatureCatalogue detailedHouse =

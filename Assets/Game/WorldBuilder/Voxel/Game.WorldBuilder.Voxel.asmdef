@@ -1,11 +1,12 @@
 {
-  "name": "Game.WorldBuilder.Runtime",
-  "rootNamespace": "Game.WorldBuilder.Runtime",
+  "name": "Game.WorldBuilder.Voxel",
+  "rootNamespace": "Game.WorldBuilder.Voxel",
   "references": [
     "Game.WorldBuilder.Api",
-    "Game.Cutscenes.Api",
-    "Game.Quests.Api",
-    "MountingForce.WorldGen.Core"
+    "MountingForce.WorldGen.Core",
+    "MountingForce.WorldGen.Voxel",
+    "VoxelEngine.Structures.Api",
+    "Unity.Collections"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
@@ -15,5 +16,5 @@
   "autoReferenced": false,
   "defineConstraints": [],
   "versionDefines": [],
-  "noEngineReferences": true
+  "noEngineReferences": false
 }

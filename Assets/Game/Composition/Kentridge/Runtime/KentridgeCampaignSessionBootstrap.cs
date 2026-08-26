@@ -6,7 +6,6 @@ using Game.Composition.WorldBuilderWorldGen;
 using Game.Composition.WorldBuilderWorldGen.Runtime;
 using Game.Cutscenes.Api;
 using Game.WorldBuilder.Api;
-using MountingForce.WorldGen;
 
 namespace Game.Composition.Kentridge.Runtime
 {
@@ -40,34 +39,32 @@ namespace Game.Composition.Kentridge.Runtime
     /// <summary>
     /// Concrete application-level Kentridge bootstrap. Plan is called before voxel emission so the
     /// backend can include Generation.HiddenSpaces. CreateSession is called after the backend has
-    /// exact site/hidden-space realization facts. Authored content supplies all semantic hierarchy
-    /// ownership through CampaignBlueprint; character, presentation, and secret interaction stay
-    /// behind narrow adapters.
+    /// exact site/hidden-space realization facts. Town authoring enters through WorldBuilder and the
+    /// legacy backend representation stays behind the integration boundary.
     /// </summary>
     public static class KentridgeCampaignSessionBootstrap
     {
         public static KentridgeCampaignGenerationPlan Plan(
             CampaignBlueprint blueprint,
-            SettlementPlan settlement)
+            AuthoredTownPlan town)
         {
             if (blueprint == null) throw new ArgumentNullException(nameof(blueprint));
-            if (settlement == null) throw new ArgumentNullException(nameof(settlement));
+            if (town == null) throw new ArgumentNullException(nameof(town));
 
-            return KentridgeCampaignWorldPlanner.Plan(blueprint, settlement);
+            return KentridgeCampaignWorldPlanner.Plan(blueprint, town);
         }
 
         public static KentridgeCampaignSession CreateSession(
             CampaignBlueprint blueprint,
             KentridgeCampaignGenerationPlan generation,
-            ISettlementSiteRealizationFacts siteFacts,
+            KentridgeCampaignRealizationFacts realizationFacts,
             IKentridgeCampaignActorHost actors,
             ICutscenePresentation presentation,
-            IHiddenSpaceRealizationFacts hiddenSpaceFacts = null,
             IKentridgeCampaignSecretHost secretHost = null)
         {
             if (blueprint == null) throw new ArgumentNullException(nameof(blueprint));
             if (generation == null) throw new ArgumentNullException(nameof(generation));
-            if (siteFacts == null) throw new ArgumentNullException(nameof(siteFacts));
+            if (realizationFacts == null) throw new ArgumentNullException(nameof(realizationFacts));
             if (actors == null) throw new ArgumentNullException(nameof(actors));
             if (presentation == null) throw new ArgumentNullException(nameof(presentation));
             if (!ReferenceEquals(blueprint, generation.Blueprint))
@@ -75,10 +72,9 @@ namespace Game.Composition.Kentridge.Runtime
                     "Kentridge session blueprint does not own the supplied campaign generation plan.");
 
             KentridgeCampaignWorldRealization world =
-                KentridgeCampaignWorldRealizer.Realize(
+                KentridgeCampaignWorldRealizationBoundary.Realize(
                     generation,
-                    siteFacts,
-                    hiddenSpaceFacts);
+                    realizationFacts);
 
             // Finish every non-mutating integration preflight before touching gameplay-owned state.
             if (world.Secrets.Count > 0 && secretHost == null)
