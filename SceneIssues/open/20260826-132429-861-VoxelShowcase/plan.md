@@ -14,7 +14,7 @@ Make the captured Kentridge facade glazing read unmistakably as architectural wi
 
 ## Findings and current hypothesis
 
-The captured facade uses the shared rectangular `ArchitectureVoxelPatterns.GlazedOpening` helper. Attempt 1 proved that restoring glazing through the full wall depth was wrong, but a thin centered pane alone was visually insufficient: the fresh-baked exact-camera replay still read as one uninterrupted amber slab.
+The captured facade uses the shared rectangular `ArchitectureVoxelPatterns.GlazedOpening` helper. Attempt 1 proved that restoring glazing through the full wall depth was wrong, but a thin centered pane alone was visually insufficient: the exact-camera replay still read as one uninterrupted amber slab.
 
 Attempt 2 therefore targets the facade composition rather than only pane depth. Large rectangular openings retain masonry at the perimeter and through a central mullion, producing two inset thin planar panes. Small openings keep the simpler single-pane construction. The original facade normal is preserved explicitly while emitting split cells so both X-normal and Z-normal windows retain correct pane depth.
 
@@ -23,18 +23,19 @@ Attempt 2 therefore targets the facade composition rather than only pane depth. 
 - [x] Inspect the assigned capture metadata and all annotation circles (none present).
 - [x] Trace the captured window semantics from Kentridge generation into voxel authoring.
 - [x] Add focused EditMode coverage for thin centered panes and for retained masonry framing/subdivision across facade orientations.
-- [x] Record attempt 1's failed fresh-baked exact-camera replay and its visual conclusion.
+- [x] Record attempt 1's failed exact-camera replay and its visual conclusion.
 - [x] Implement attempt 2 in the shared glazing pattern without city/material/renderer special-casing.
 - [x] Commit and push attempt-2 production/test work to `fixes/agent-3` before issue bookkeeping.
-- [x] Reconcile current `master` into `fixes/agent-3` after the scene-agent CI/replay workflow update.
-- [ ] Re-run the affected focused regressions from the reconciled feature state through `ci-test/fixes/agent-3` and obtain green `ci/single-test` using the current one-update request workflow.
-- [ ] Use the shared `scene_issue` targeted-CI request to fresh-bake `VoxelShowcase` and replay the exact saved camera in the standalone player.
-- [ ] Persist the successful final replay image in this capture directory as `verification-final.png` (and preserve a before/after comparison for the subjective quality review).
-- [ ] Record the attempt-2 CI and replay results in numbered experiment files; keep runner/queue observations in `ci-operations.md` if needed.
+- [x] Periodically reconcile current `master` into `fixes/agent-3`, including the shared SceneIssue replay and CI-dedup process updates.
+- [x] Re-run the focused framed-glazing regression from the integrated product/test state through `ci-test/fixes/agent-3`; run `33003343182` and `ci/single-test` are green.
+- [ ] Use the shared `scene_issue` targeted-CI request to replay the exact saved camera in the standalone player. Showcase startup data must use the shared content-fingerprinted bake cache; do not force a custom fresh bake.
+- [ ] Persist the successful final replay image in this capture directory as `verification-final.png` and preserve the original `screenshot-001.png` as the before evidence for subjective review.
+- [ ] Record the attempt-2 replay result in a numbered experiment file; keep runner/queue observations consolidated in `ci-operations.md`.
 - [ ] Obtain explicit human approval that the subjective window-quality complaint is resolved before marking the capture fixed.
-- [ ] Immediately before terminal bookkeeping/promotion, recheck current `master`; integrate any newer changes and rerun affected validation if tested inputs changed.
+- [ ] Immediately before terminal bookkeeping, recheck current `master`; integrate any newer changes and rerun affected validation only if tested inputs changed.
 - [ ] In a separate bookkeeping commit after approval, set `issue.json` to `fixed`, fill `resolvedUtc`, `resolutionSummary`, `regressionTest`, and the valid production/test `fixCommit`, then move the entire capture to `SceneIssues/closed/20260826-132429-861-VoxelShowcase`.
-- [ ] Promote the verified terminal branch to current `master` non-force and verify remote master contains the fix/bookkeeping, only the closed capture, and green required CI.
+- [ ] Verify the terminal feature head, closed/open queue state, fix ancestry, and required green `ci/single-test`; then leave the feature head unchanged and enter the coordinator's batched promotion flow. Do not push `master` unless explicitly designated as the batch promoter.
+- [ ] After the coordinator's batch promotion, verify remote `master` contains the fix/bookkeeping and only the closed capture before accepting another assignment.
 
 ## Constraints
 
@@ -42,6 +43,7 @@ Attempt 2 therefore targets the facade composition rather than only pane depth. 
 - Use only `fixes/agent-3` and `ci-test/fixes/agent-3`; do not create another branch, PR, or one-shot replay workflow.
 - `.github/test-request.json` changes belong only to CI request commits, never the feature branch.
 - Build each CI request commit directly on the exact feature SHA, then move the remote CI ref once per iteration.
-- Exact saved-camera replay uses the shared targeted-test workflow with `scene_issue` and `replay_seconds`.
+- Exact saved-camera replay uses the shared targeted-test workflow with `scene_issue` and integer `replay_seconds`.
+- Showcase-dependent CI uses the shared runner-local content-fingerprinted bake cache; do not force or delete it.
 - Remote worker: do not run Unity locally.
 - Do not start or capture another SceneIssue.
