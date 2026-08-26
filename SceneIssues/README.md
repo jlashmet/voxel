@@ -102,6 +102,13 @@ the assigned issue's work and intervening master changes; never reset away unmer
 force-push the feature branch simply to catch up. If the merge changes tested inputs, validate the
 new integrated feature head rather than relying on CI from the pre-merge state.
 
+Before the coordinator assigns another capture to a persistent branch, that branch must contain no
+commits outside `origin/master` from an earlier assignment. A stale lease with branch-only work is
+an explicit handoff, not permission to stack a new capture on top. The new owner must inspect the
+former owner's branch and carry forward its experiment evidence before continuing; the old owner
+must not receive a different capture until its branch has been merged, handed off, or deliberately
+reconciled with master.
+
 When the coordinator assigns an agent a captured issue:
 
 1. Fetch `origin` and use only the feature and CI branches named in the assignment. If the feature
@@ -122,6 +129,13 @@ When the coordinator assigns an agent a captured issue:
    Claude Code session follows the Unity-running rules in `CLAUDE.md`; it must never bypass
    `tools/unity-run.sh` or start a second editor unsafely.
 10. Replay the original capture again after the fix. For multi-frame issues, check every recorded viewpoint and every marked region.
+    Save the final exact-pose frame or a contact sheet as `verification-final.png` (or an equivalent
+    clearly named image) inside the capture directory. A prose description of a remote artifact is
+    not durable visual evidence, and a cancelled, failed, or timed-out replay is never a pass even
+    when it emitted intermediate frames.
+    - For subjective requests such as "looks bad", "AAA quality", or matching a reference image,
+      deterministic contract tests are necessary but insufficient. Preserve before/after crops and
+      obtain explicit human approval before marking the capture fixed.
 11. Commit the production/test fix on the assigned `fixes/agent-N` branch with a message that names the capture, for example `Fix scene issue 20260822-...: prevent far-field flicker`. This gives the fix a real commit SHA.
 12. For a verified fix, update `issue.json`: set `status` to `fixed`, fill `resolvedUtc`, summarize the resolution in `resolutionSummary`, record the regression test in `regressionTest`, and put the production/test commit SHA from the previous step in `fixCommit`. Then move the entire capture directory from `SceneIssues/open/` to `SceneIssues/closed/`. If the issue is blocked, document the blocker and experiments but keep it in `open/`; blocked is not closed or complete.
 13. Commit the issue update and open-to-closed move on the same assigned `fixes/agent-N` branch, for example `Resolve scene issue 20260822-...`. The extra bookkeeping commit is deliberate: it avoids inventing the SHA of a commit before that commit exists.
@@ -150,9 +164,9 @@ When the coordinator assigns an agent a captured issue:
 
 ## Document every experiment
 
-An experiment is any attempt to learn something about the issue: a replay, a diagnostic build, a
-targeted CI run, a probe, a hypothesis tested in code. **Every experiment gets its own Markdown
-file in the issue's own capture directory**, whether it succeeded or failed:
+An experiment is an attempt to test a product hypothesis: a replay, diagnostic build, focused
+behavioral test, or production change. **Every product experiment gets its own Markdown file in
+the issue's own capture directory**, whether it succeeded or failed:
 
 ```text
 SceneIssues/open/<timestamp>-<scene>/
@@ -184,6 +198,11 @@ out is what stops the next agent from re-running the same experiment, and it is 
 trace of the reasoning once the branch history has been squashed or the diagnostic wiring
 removed. Never delete an experiment file after the fix lands; it stays with the capture as the
 record of how the cause was found.
+
+CI delivery and infrastructure observations are not separate product experiments. Keep queue
+times, delayed event admission, editor contention, import crashes, and retry outcomes in one
+`ci-operations.md` file and update it only when the operational conclusion changes. Do not create
+a new experiment file and feature-branch commit for every poll or request delivery probe.
 
 Save replay screenshots, logs, and telemetry produced by an experiment into the same capture
 directory as `verification-<slug>.png` / `verification-<slug>.txt`, and reference them from the
