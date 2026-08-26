@@ -201,7 +201,7 @@ jobs:
       # to a suite that exercises VoxelShowcase.unity. Keep this as a positive list so new unrelated
       # PlayMode suites stay fast by default. Renderer traversal validates the checked-in production
       # bake; the two SmallVoxelShowcase benchmark profiles compose their own smaller world directly.
-      - name: Bake Voxel Showcase startup world
+      - name: Restore or bake Voxel Showcase startup world
         if: >-
           steps.request.outputs.platform == 'PlayMode' &&
           (
@@ -225,14 +225,21 @@ jobs:
         run: |
           set -euo pipefail
           ROOT="$GITHUB_WORKSPACE/Artifacts/SingleTest"
+          BAKE="$GITHUB_WORKSPACE/Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes"
           mkdir -p "$ROOT"
+          if tools/showcase-bake-cache.sh restore "$BAKE"; then
+            exit 0
+          fi
           UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=4 \
           UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
             -batchmode -nographics -job-worker-count 1 -quit \
             -projectPath "$GITHUB_WORKSPACE" \
             -executeMethod VoxelEngine.Showcase.Editor.ShowcaseWorldBaker.BakeShowcaseWorld \
             -logFile "$ROOT/showcase-bake.log"
-          test -s "$GITHUB_WORKSPACE/Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes"
+          test -s "$BAKE"
+          if ! tools/showcase-bake-cache.sh store "$BAKE"; then
+            echo 'WARNING: Showcase bake passed but its runner-local cache could not be updated.' >&2
+          fi
 
       # tools/unity-run.sh deliberately refuses to start while another Unity editor is visible.
       # A successful bake can return a moment before its macOS process disappears, so serialize
