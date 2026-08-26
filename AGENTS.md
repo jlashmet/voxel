@@ -75,6 +75,12 @@ branch to retry a test, try a variant, capture a baseline, or hold evidence. Suf
 date/SHA fragment are forbidden. A distinct `request_id` is what makes a run unique — not a
 distinct branch.
 
+Build the final CI request commit directly on the exact feature SHA to test, then force-update the
+assigned `ci-test/...` ref to that commit **once**. Never publish the feature/template head as an
+intermediate remote reset: that is a second push event, and delayed event admission can allow the
+older template run to cancel the real request. A CI iteration is one remote ref update, not
+"reset, push, edit, push."
+
 Reuse is what makes the latest-request-wins cancellation below work. Pushing each retry to a
 new branch defeats it: every stale attempt keeps its own runner slot instead of being
 superseded.
@@ -82,6 +88,11 @@ superseded.
 Never push a placeholder, probe, or scratch branch (`tmp-*`, `temp-*`, `noop-*`, `__*`,
 `do-not-use-*`). If a ref would not be meaningful to a human reviewer a week later, it does not
 belong on `origin`.
+
+Never create a pull request, empty/no-op commit, custom workflow, or connector permission probe to
+deliver or retrigger CI. Connector/API writes are real repository writes. If the assigned CI ref
+cannot produce a run, document one infrastructure blocker and wait for the normal transport; do
+not invent another branch or delivery mechanism.
 
 ## Validation loop
 
@@ -98,16 +109,20 @@ Each `ci-test/...` branch is latest-request-wins. When a newer request is pushed
 For each iteration:
 
 1. Make the code/test changes on the feature branch, commit them, and push the feature branch.
-2. Force-reset the task's **`ci-test/<feature-branch>`** to the exact feature commit that should be tested. Create it only on the first iteration; every later iteration reuses and resets that same ref.
-   - Connector-only agents create the branch when absent, and otherwise move it with a forced ref update. Reuse is mandatory, not an option.
-   - The CI branch must point at the exact source commit before the request-file commit is added.
-3. On the `ci-test/...` branch only, update **`.github/test-request.json`** with the smallest relevant Unity test:
+2. Create the request commit locally, or through the Git object API, directly on the exact feature
+   commit that should be tested. Do not move the remote CI ref yet.
+3. In that request commit only, update **`.github/test-request.json`** with the smallest relevant Unity test:
    - `platform`: `EditMode` or `PlayMode`
    - `test`: the fully qualified test name or exact filter
    - `request_id`: a new unique string for every requested run
-4. Commit/push that request-file change on the `ci-test/...` branch and record the resulting request commit SHA.
+   - For an exact saved-camera replay, also set `scene_issue` to the assigned
+     `SceneIssues/open|closed/<capture>/issue.json` path and set `replay_seconds` from 20 through 60.
+     Use this shared path; never add or restore a one-shot workflow.
+4. Force-update the assigned `ci-test/...` ref directly to that final request commit in one remote
+   operation and record its SHA. Never publish an intermediate reset/template ref.
 5. Monitor commit status **`ci/single-test`** on the newest request commit until it reaches a terminal state.
-   - A missing status means the self-hosted job is queued/not started yet.
+   - A missing status may mean the self-hosted job is queued/not started yet; inspect the exact-SHA
+     Actions run before deciding that no workflow exists.
    - `pending` means the workflow has started.
    - `success` means the requested test actually passed.
    - `failure`/`error` means the requested test or its setup failed.
@@ -115,12 +130,23 @@ For each iteration:
    - `tools/ci-wait` automatically honors `Retry-After` for HTTP 429/rate-limit 403 responses and otherwise exponentially backs off before retrying the API.
    - Connector-only agents should poll the same commit-status context through the GitHub connector/API.
    - If a newer request is pushed to the same `ci-test/...` branch, stop monitoring the superseded request and monitor only the newest request commit.
-6. On failure, follow the status target URL and inspect the failed-step logs and uploaded `single-test-*` artifact. Determine the cause, modify the feature branch, commit/push it, reset the CI branch to the new feature head, create a new request commit, and repeat.
+   - Query Actions for the exact request SHA before treating a missing commit status as a missing
+     workflow. A known queued or running run must be left alone regardless of queue age or apparent
+     ordering. If no exact-SHA run exists, wait at least 30 minutes before issuing one replacement.
+     Never issue more than one replacement for the same source state.
+6. On a product failure, follow the status target URL and inspect the failed-step logs and uploaded
+   `single-test-*` artifact. Determine the cause, modify and push the feature branch, build one new
+   request commit directly on that source, then force-update the assigned CI ref once and repeat.
 7. Continue this loop until the target behavior is proven and CI is green.
 
 This CI-branch separation is intentional: targeted request commits never update the open PR head, so they do not start the affected PR suite, architecture gate, or other pull-request workflows.
 
 Do not stop after implementing a plausible fix. Continue iterating through CI until the goal is complete or a concrete blocker remains.
+
+Runner contention, a developer's interactive Unity editor, delayed Actions admission, and a native
+import/Burst crash are infrastructure results, not product failures. Record them in the issue's
+single operational CI log, wait for the runner to become healthy, and retry at most once. Do not
+change production code, create another branch/workflow, or emit a burst of requests in response.
 
 ### Scene-issue promotion to master
 
@@ -151,6 +177,8 @@ verified branch into current `origin/master` before declaring the assignment com
 - After targeted validation passes, run the appropriate broader affected tests when warranted.
 - Never interpret a CI run that executed zero tests as success.
 - Do not claim a test passed unless its GitHub Actions run actually completed successfully.
+- A cancelled, failed, or timed-out replay is not successful verification even if intermediate
+  screenshots or logs were emitted.
 
 ## Completion
 
