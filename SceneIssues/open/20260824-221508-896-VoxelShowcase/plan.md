@@ -19,37 +19,33 @@ The fix must identify the shared placement / boundary-ownership rule behind thos
 - [x] Apply production attempt 3 in `9c839dcbbe73bb3f325db8d3dd3ef380d22343cf`: keep one geometric piazza slab, paint its border material, and sink market stalls one authored decimetre into the shared surface.
 - [x] Prove the focused regression green in run `32929986757`.
 - [x] Run the full `VoxelEngine.Tests.EditMode.KentridgeMarketPiazzaTests` class green in run `32930568776`.
-- [ ] Regenerate the showcase startup bake and replay this assigned issue's exact saved camera.
-- [ ] If the replay passes, move the capture to `SceneIssues/closed/` with terminal fixed bookkeeping; if it fails, stop production changes and keep the issue open with the failed evidence because all three attempts are exhausted.
-- [ ] Restore/remove any CI-only request or replay wiring as required by the repository workflow.
+- [x] Fresh-bake and replay the exact saved camera in run `32931218515`; technical replay passed, but visual acceptance failed because the blue strip remains in all three lower circles and blue exposure remains at the stall-foot circle.
+- [x] Record the failed attempt-3 replay in `experiment-006-attempt3-fresh-replay.md` and `verification-attempt3-fresh-replay.txt`.
+- [ ] Build a bare-bones reproduction that isolates the surviving blue exposure with minimum geometry/material/renderer inputs before any further production change.
+- [ ] Use the reproduction to identify the actual boundary/renderer owner, then only after that evidence consider another production fix.
+- [ ] If a later evidence-backed fix passes focused CI and fresh exact-pose replay, move the capture to `SceneIssues/closed/` with terminal fixed bookkeeping; until then keep it open.
+- [ ] Restore/remove any temporary reproduction and CI-only wiring before master integration.
 - [x] Do not start another capture; the user explicitly prohibited it.
 
 ## Findings
 
-Attempt 1 proved and fixed a real count-vs-inclusive-bound mismatch in both hard and graded Market Square footprints. Attempt 2 proved that the piazza previously depended on exactly touching centre/border occupancy and replaced that with a full backing slab. Both changes are structurally valid, but neither changed the fresh standalone replay, so missing piazza volume is not the final visual owner.
+Attempts 1–3 each corrected a real structural weakness but did not remove the assigned visual defect. Attempt 1 fixed the hard/graded Market Square inclusive +X/+Z count mismatch. Attempt 2 gave the piazza one continuous backing slab. Attempt 3 removed coplanar geometry ownership from the dark border material and overlapped market-stall supports one authored decimetre into the piazza.
 
-The attempt-2 artifact was then inspected directly. The three lower circles are one continuous light-blue crack, and exact camera projection puts that crack at about `Z = 58.4–58.5 m`. The Market Square is centred at `Z = 52.0 m`, has depth `14.0 m`, and its north decorative border begins at `Z = 58.5 m`. The visible line therefore matches the authored dark-border/light-centre material transition, not the plaza's outer +Z endpoint and not a 6.4 m renderer chunk boundary.
+Attempt 3 has a complete structural red→green chain: run `32928540659` failed the pre-fix authored program at the intended `PaintSolid` contract; the same focused regression passed after attempt 3 in run `32929986757`; and the full `KentridgeMarketPiazzaTests` class passed in run `32930568776`.
 
-The pre-attempt-3 piazza program emitted one full FoundationStone `Fill` slab followed by four coplanar DarkMasonry `Fill` boxes. `PrimitiveMode.PaintSolid` exists specifically to repaint existing solid voxels without changing occupancy. The authored-boundary contract also states that paint is not geometry: a material-only operation must not create a second boundary field over geometry another primitive already owns. Attempt 2 left that coplanar boundary ownership intact even though it strengthened occupancy underneath.
+The mandatory fresh visual verification disproved attempt 3 as the complete visual cause. Run `32931218515` preserved the saved camera/pose, removed annotations, freshly regenerated `ShowcaseWorld.bytes`, and verified the frozen pose in the standalone player. Its artifact `scene-221508-unobscured-view` / `9593376251` still shows the long light-blue strip through all three lower marked regions. Visible blue exposure also remains in the stall-support marked region. This is a real visual failure, not stale bake or replay drift.
 
-The remaining marked area is at market-stall feet. `KentridgeTownDressingCatalogue` places the stall at the vertically adapted piazza surface, and its four stone shoes begin at local `y = 0`. Thus the shoes merely touched the hard piazza top; they did not penetrate it. The corresponding support contract is to sink the stall placement by one authored decimetre, so the structural feet overlap the supporting surface instead of relying on exact contact between separately authored solids.
-
-Attempt 3 (`9c839dcbbe73bb3f325db8d3dd3ef380d22343cf`) implements that shared rule: **do not model a visual/material junction as an independent coplanar solid, and do not make supported solids depend on a zero-overlap contact plane.** The hard piazza remains the sole geometric owner of its floor; its four dark perimeter boxes are now `PaintSolid`, while only the four market-stall placements overlap that floor by one authored decimetre.
-
-Validation now has a complete structural red→green chain. Run `32928540659` failed the pre-fix authored program at the intended `PaintSolid` contract. The same focused regression passed after attempt 3 in run `32929986757`, and the full `KentridgeMarketPiazzaTests` class passed in run `32930568776`. `origin/master` was unchanged from the master already integrated into this feature branch when those production/test inputs were validated.
-
-The only remaining acceptance gate is a new standalone VoxelShowcase bake plus exact-pose replay of the assigned capture with annotations removed. The existing one-shot replay workflow preserves the saved camera and pose, asserts the frozen standalone pose in the player log, and does not create a new SceneIssue capture.
+The surviving strip is therefore not explained by the three full-scene production hypotheses already tried. Any further production edit would now be guesswork. The next required step is a minimum reproduction that can answer whether the visible blue is produced by voxel boundary extraction/material transitions, independently touching solids, the road/piazza authored relationship, or another renderer input entirely.
 
 ## Three-attempt rule
 
-Production-fix attempts: **3 / 3 applied**. Attempt 3 is the final allowed substantive production change. Diagnostics, regression authoring, exact replays, and CI-only request wiring do not increment the count. If attempt 3 fails the fresh exact-camera replay, do not make a fourth production fix; preserve the failed evidence and keep the issue blocked/open until a bare-bones reproduction isolates the cause before any further production change.
+Production-fix attempts: **3 / 3 completed and visually failed**. No fourth production change is allowed until a bare-bones reproduction isolates the surviving behavior. Diagnostics, reproduction code, regression authoring, exact replays, and CI-only wiring do not themselves count as production-fix attempts, but temporary reproduction/wiring must be removed before merging the eventual verified fix to `master`.
 
 ## Acceptance
 
 - All four marked seams/gaps in the saved view are absent after a fresh bake and exact-pose replay.
-- Piazza border material does not introduce an independent geometric boundary over the continuous slab.
-- Market-stall feet overlap their supporting shared surface instead of merely touching it.
+- The responsible geometry/material/renderer contract is demonstrated by a focused regression or reproduction, rather than inferred from screenshot coordinates.
 - Nearby unmarked structures retain their intended spacing and silhouette.
 - No camera-, screenshot-, or hard-coded issue-coordinate special case is introduced.
-- A focused regression proves the final authored-interface contract.
+- A focused regression proves the final root-cause contract.
 - A fresh standalone exact-camera replay from the regenerated startup bake visually passes.
