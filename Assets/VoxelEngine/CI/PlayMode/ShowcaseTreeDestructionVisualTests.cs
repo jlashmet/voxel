@@ -17,15 +17,9 @@ namespace VoxelEngine.CI
     /// <summary>
     /// Full Showcase destruction lifecycle proof. A targeted hit must remove one connected branch
     /// from the standing mesh, render that exact branch as independently falling debris, then retire
-    /// it. A lower-trunk hit must leave only the stump standing while the remaining crown topples
-    /// from the cut and eventually disappears as well.
+    /// it. A structural lower-trunk hit must retire the rooted tree and topple the entire remaining
+    /// tree from the sever point as one falling body.
     /// </summary>
-    /// <remarks>
-    /// <see cref="NUnit.Framework.ExplicitAttribute"/>: this captures images for a human to
-    /// look at rather than asserting behaviour, and it is one of the slowest things in the
-    /// suite. Run it by name when you want the artefacts:
-    /// <c>tools/unity-run.sh ... -testFilter ShowcaseTreeDestructionVisualTests</c>
-    /// </remarks>
     [NUnit.Framework.Explicit("Artefact capture for human review; run by name.")]
     public sealed class ShowcaseTreeDestructionVisualTests
     {
@@ -47,14 +41,7 @@ namespace VoxelEngine.CI
             Texture2D capture = null;
             Mesh baselineMesh = null;
 
-            // ShowcaseTreePopulation.Completed only resets on SubsystemRegistration, not per
-            // scene load. Retire any previous population so the wait below actually waits for
-            // this scene's trees rather than observing the last test's registry.
             TreeWorldRuntime.Clear();
-
-            // Load by path, not by name: VoxelShowcase is deliberately not in the build profile
-            // (KentridgePlayableSlice is the launch scene), and LoadSceneAsync by name resolves
-            // only against that list. Every other showcase test loads this scene the same way.
 #if UNITY_EDITOR
             UnityEditor.SceneManagement.EditorSceneManager.LoadSceneInPlayMode(
                 "Assets/Scenes/VoxelShowcase.unity",
@@ -147,13 +134,11 @@ namespace VoxelEngine.CI
 
             var cutsAfterBranch = new HashSet<int>(TreeWorldRuntime.RemovedBranches(treeIndex));
             Assert.That(cutsAfterBranch.Count, Is.EqualTo(cutsBeforeBranch.Count + 1),
-                        "A localized branch hit must create one connected semantic cut, not shred several branches at once.");
+                        "A localized branch hit must create one connected semantic cut.");
             int detachedBranchIndex = FindSingleNewCut(cutsBeforeBranch, cutsAfterBranch);
             Assert.That(detachedBranchIndex, Is.GreaterThanOrEqualTo(0));
-            Assert.That(skeleton.Branches[detachedBranchIndex].Level, Is.GreaterThan(0),
-                        "The first targeted hit unexpectedly severed the trunk instead of an individual branch.");
-            Assert.That(renderer.TryGetDynamicPresentationRoot(treeIndex, out Transform treeRoot), Is.True,
-                        "First real damage did not lazily materialize the tree presentation.");
+            Assert.That(skeleton.Branches[detachedBranchIndex].Level, Is.GreaterThan(0));
+            Assert.That(renderer.TryGetDynamicPresentationRoot(treeIndex, out Transform treeRoot), Is.True);
             Assert.That(Quaternion.Angle(treeRoot.localRotation, Quaternion.identity), Is.LessThan(1f));
             if (beganBatched)
                 Assert.That(renderer.DynamicPresentationCount, Is.EqualTo(dynamicBefore + 1));
@@ -167,8 +152,7 @@ namespace VoxelEngine.CI
             int barkAfterBranch = (int)liveMesh.GetIndexCount(0) / 3;
             int leavesAfterBranch = (int)liveMesh.GetIndexCount(1) / 3;
             Assert.That(TreeWorldRuntime.Damage[treeIndex].Severed, Is.False);
-            Assert.That(barkAfterBranch, Is.LessThan(barkBefore - 48),
-                        "The standing tree still contains too much of the severed branch; this looks like twig damage.");
+            Assert.That(barkAfterBranch, Is.LessThan(barkBefore - 48));
             Assert.That(leavesAfterBranch, Is.LessThan(leavesBefore));
 
             Rigidbody branchBody = FindDetachedBody(treeIndex, detachedBranchIndex);
@@ -178,30 +162,25 @@ namespace VoxelEngine.CI
             Assert.That(branchRenderer, Is.Not.Null);
             Assert.That(branchRenderer.enabled, Is.True);
             int branchVisiblePixels = CountExactRendererPixels(camera, target, branchRenderer, 8);
-            Assert.That(branchVisiblePixels, Is.GreaterThan(48),
-                        "The detached branch exists but does not contribute visible pixels to the Showcase frame.");
+            Assert.That(branchVisiblePixels, Is.GreaterThan(48));
 
             Vector3 branchStartPosition = branchBody.position;
             Quaternion branchStartRotation = branchBody.rotation;
             yield return new WaitForSeconds(0.45f);
             float branchTravel = Vector3.Distance(branchStartPosition, branchBody.position);
             float branchRotation = Quaternion.Angle(branchStartRotation, branchBody.rotation);
-            Assert.That(branchTravel + branchBody.linearVelocity.magnitude * 0.08f, Is.GreaterThan(0.08f),
-                        "The detached branch did not visibly fall/move after separation.");
-            Assert.That(branchRotation, Is.GreaterThan(2f),
-                        "The detached branch translated but did not tumble independently.");
+            Assert.That(branchTravel + branchBody.linearVelocity.magnitude * 0.08f, Is.GreaterThan(0.08f));
+            Assert.That(branchRotation, Is.GreaterThan(2f));
             Capture(camera, target, ref capture,
                     Path.Combine(outputDirectory, "02-showcase-branch-falling.png"));
 
             yield return new WaitForSeconds(DetachedLifetimeProofSeconds);
-            Assert.That(branchBody == null, Is.True,
-                        "Detached branch remained resident after its debris lifetime expired.");
-            Assert.That(FindDetachedBody(treeIndex, detachedBranchIndex), Is.Null,
-                        "Expired branch still has a Rigidbody/renderer in the scene.");
+            Assert.That(branchBody == null, Is.True);
+            Assert.That(FindDetachedBody(treeIndex, detachedBranchIndex), Is.Null);
             Capture(camera, target, ref capture,
                     Path.Combine(outputDirectory, "03-showcase-branch-gone.png"));
 
-            // ---- Base hit / remaining crown lifecycle -------------------------
+            // ---- Structural trunk sever / whole-tree fall --------------------
             TreeBranchSegment trunkTarget = skeleton.Branches[trunkTargetIndex];
             float3 trunkTargetMetres = instance.PositionMetres
                                      + (trunkTarget.Start + trunkTarget.End) * 0.5f;
@@ -227,54 +206,58 @@ namespace VoxelEngine.CI
             Assert.That(TreeWorldRuntime.Damage[treeIndex].Severed, Is.True);
             var cutsAfterTrunk = new HashSet<int>(TreeWorldRuntime.RemovedBranches(treeIndex));
             Assert.That(cutsAfterTrunk.Count, Is.EqualTo(cutsBeforeTrunk.Count + 1),
-                        "The base hit should make one connected trunk sever.");
+                        "The structural hit should still record one exact direct trunk cut.");
             int severedTrunkIndex = FindSingleNewCut(cutsBeforeTrunk, cutsAfterTrunk);
             Assert.That(severedTrunkIndex, Is.GreaterThanOrEqualTo(0));
             Assert.That(skeleton.Branches[severedTrunkIndex].Level, Is.EqualTo(0));
-            Assert.That(Quaternion.Angle(treeRoot.localRotation, Quaternion.identity), Is.LessThan(1f),
-                        "The rooted presentation must remain the stump, not rotate as a whole tree.");
 
             for (int frame = 0;
-                 frame < 8 && (int)liveMesh.GetIndexCount(0) / 3 >= barkAfterBranch;
+                 frame < 8 && renderer.TryGetDynamicPresentationRoot(treeIndex, out _);
                  frame++)
                 yield return null;
-
-            int barkAfterTrunk = (int)liveMesh.GetIndexCount(0) / 3;
-            Assert.That(barkAfterTrunk, Is.LessThan(barkAfterBranch));
+            Assert.That(renderer.TryGetDynamicPresentationRoot(treeIndex, out _), Is.False,
+                        "A severed trunk must not leave a rooted procedural stump presentation.");
             Assert.That(CountBreakCaps(), Is.GreaterThan(0));
+
+            // The semantic query topology must agree with rendering: there is no invisible rooted
+            // trunk left after the sever. A sweep through the old trunk should not hit this tree.
+            TreeBranchSegment rootBranch = skeleton.Branches[0];
+            float3 oldRootMid = instance.PositionMetres + (rootBranch.Start + rootBranch.End) * 0.5f;
+            float3 oldRootDirection = PerpendicularSweepDirection(rootBranch.End - rootBranch.Start);
+            Assert.That(ProceduralTreeDamageService.TrySweepImpact(
+                            oldRootMid - oldRootDirection * 1.2f,
+                            oldRootMid + oldRootDirection * 1.2f,
+                            0.05f, out _, out int postSeverTree),
+                        Is.False.Or.Matches<bool>(_ => postSeverTree != treeIndex),
+                        "The retired rooted tree remained collision-queryable after severing.");
 
             Rigidbody crown = FindDetachedBody(treeIndex, severedTrunkIndex);
             Assert.That(crown, Is.Not.Null,
-                        "Base sever removed the upper tree semantically but did not create the falling crown.");
-            Assert.That(crown.GetComponent<CapsuleCollider>(), Is.Not.Null,
-                        "The falling crown should collide like a trunk, not like a giant canopy box.");
+                        "Structural sever retired the rooted tree but did not create the falling whole-tree body.");
+            Assert.That(crown.GetComponent<CapsuleCollider>(), Is.Not.Null);
             MeshRenderer crownRenderer = crown.GetComponent<MeshRenderer>();
             Assert.That(crownRenderer, Is.Not.Null);
             int crownVisiblePixels = CountExactRendererPixels(camera, target, crownRenderer, 8);
             Assert.That(crownVisiblePixels, Is.GreaterThan(128),
-                        "The remaining crown exists but is not visibly rendered after the base hit.");
+                        "The whole-tree debris exists but is not visibly rendered after the sever.");
 
             Vector3 crownStart = crown.position;
             float startTilt = Vector3.Angle(crown.transform.up, Vector3.up);
             yield return new WaitForSeconds(0.70f);
             float crownTravel = Vector3.Distance(crownStart, crown.position);
             float crownTilt = Vector3.Angle(crown.transform.up, Vector3.up);
-            Assert.That(crownTilt, Is.GreaterThan(startTilt + 8f),
-                        "The remaining tree translated but did not visibly topple from the severed base.");
+            Assert.That(crownTilt, Is.GreaterThan(startTilt + 8f));
             Assert.That(crownTravel + crown.linearVelocity.magnitude * 0.1f, Is.GreaterThan(0.10f));
             int crownToppleVisiblePixels = CountExactRendererPixels(camera, target, crownRenderer, 8);
-            Assert.That(crownToppleVisiblePixels, Is.GreaterThan(128),
-                        "The crown toppled numerically but left the camera before the fall could be seen.");
+            Assert.That(crownToppleVisiblePixels, Is.GreaterThan(128));
             Capture(camera, target, ref capture,
-                    Path.Combine(outputDirectory, "04-showcase-crown-toppling.png"));
+                    Path.Combine(outputDirectory, "04-showcase-tree-toppling.png"));
 
             yield return new WaitForSeconds(DetachedLifetimeProofSeconds);
-            Assert.That(crown == null, Is.True,
-                        "Fallen crown remained resident after its debris lifetime expired.");
-            Assert.That(FindDetachedBody(treeIndex, severedTrunkIndex), Is.Null,
-                        "Expired fallen crown still has a Rigidbody/renderer in the scene.");
+            Assert.That(crown == null, Is.True);
+            Assert.That(FindDetachedBody(treeIndex, severedTrunkIndex), Is.Null);
             Capture(camera, target, ref capture,
-                    Path.Combine(outputDirectory, "05-showcase-crown-gone.png"));
+                    Path.Combine(outputDirectory, "05-showcase-tree-gone.png"));
 
             string metadata =
                 $"treeIndex={treeIndex}\n" +
@@ -293,13 +276,13 @@ namespace VoxelEngine.CI
                 $"leafTrianglesAfterBranch={leavesAfterBranch}\n" +
                 $"trunkCutIndex={severedTrunkIndex}\n" +
                 $"severedAfterTrunk={TreeWorldRuntime.Damage[treeIndex].Severed}\n" +
-                $"barkTrianglesAfterTrunk={barkAfterTrunk}\n" +
+                $"rootedPresentationAfterTrunk={renderer.TryGetDynamicPresentationRoot(treeIndex, out _)}\n" +
                 $"breakCaps={CountBreakCaps()}\n" +
-                $"crownVisiblePixels={crownVisiblePixels}\n" +
-                $"crownToppleVisiblePixels={crownToppleVisiblePixels}\n" +
-                $"crownTravelMetres={crownTravel:F3}\n" +
-                $"crownTiltDegrees={crownTilt:F2}\n" +
-                $"crownExpired={FindDetachedBody(treeIndex, severedTrunkIndex) == null}\n" +
+                $"wholeTreeVisiblePixels={crownVisiblePixels}\n" +
+                $"wholeTreeToppleVisiblePixels={crownToppleVisiblePixels}\n" +
+                $"wholeTreeTravelMetres={crownTravel:F3}\n" +
+                $"wholeTreeTiltDegrees={crownTilt:F2}\n" +
+                $"wholeTreeExpired={FindDetachedBody(treeIndex, severedTrunkIndex) == null}\n" +
                 $"activeTornadoesAtEnd={showcase.ActiveTornadoCount}\n";
             File.WriteAllText(Path.Combine(outputDirectory, "showcase-tree-destruction.txt"), metadata);
             Debug.Log($"CI Showcase tornado tree destruction written to {outputDirectory}\n{metadata}");
@@ -337,8 +320,7 @@ namespace VoxelEngine.CI
             for (int branchIndex = 0; branchIndex < skeleton.Branches.Count; branchIndex++)
             {
                 if (skeleton.Branches[branchIndex].Level != 1) continue;
-                TreeSkeletonTopology.ResolveRemovedBranches(
-                    skeleton, new[] { branchIndex }, resolved);
+                TreeSkeletonTopology.ResolveRemovedBranches(skeleton, new[] { branchIndex }, resolved);
                 int leaves = 0;
                 for (int leafIndex = 0; leafIndex < skeleton.Leaves.Count; leafIndex++)
                 {
@@ -460,10 +442,7 @@ namespace VoxelEngine.CI
                 texture.Apply(false, false);
                 return texture;
             }
-            finally
-            {
-                RenderTexture.active = previous;
-            }
+            finally { RenderTexture.active = previous; }
         }
 
         private static int CountChangedPixels(Texture2D a, Texture2D b, int threshold)
@@ -500,10 +479,7 @@ namespace VoxelEngine.CI
                 Assert.That(png.Length, Is.GreaterThan(0));
                 File.WriteAllBytes(path, png);
             }
-            finally
-            {
-                RenderTexture.active = previous;
-            }
+            finally { RenderTexture.active = previous; }
         }
     }
 }

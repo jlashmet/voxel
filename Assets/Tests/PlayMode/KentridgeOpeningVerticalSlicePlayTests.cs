@@ -115,13 +115,14 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(content.Blueprint.Hierarchy.Settlements.Count, Is.EqualTo(1));
             Assert.That(content.Blueprint.Hierarchy.Settlements[0].Ref.Id, Is.EqualTo("kentridge"));
 
+            AuthoredTownPlan town = WorldBuilderTownAuthoring.Author(WorldBuilderTownIds.Kentridge, Seed);
             SettlementPlan settlement = KentridgeDefinition.Build(Seed);
             Assert.That(settlement.Plots.Count, Is.EqualTo(17),
                 "The production Kentridge plan must retain all 17 stable building roles.");
 
             KentridgeCampaignGenerationPlan generation = KentridgeCampaignSessionBootstrap.Plan(
                 content.Blueprint,
-                settlement);
+                town);
             Assert.That(generation.Sites.IsResolved, Is.True,
                 generation.Sites.Diagnostics.Count == 0
                     ? string.Empty
@@ -140,11 +141,13 @@ namespace VoxelEngine.Tests.PlayMode
             var actors = new ActorHost();
             var player = new Actor(new CutsceneInt3(-999, -999, -999));
             actors.AddPlayer(0, player);
+            var realizationFacts = new KentridgeCampaignRealizationFacts(
+                new KentridgeVoxelSiteRealizationFacts(settlement, 1));
 
             KentridgeCampaignSession session = KentridgeCampaignSessionBootstrap.CreateSession(
                 content.Blueprint,
                 generation,
-                new KentridgeVoxelSiteRealizationFacts(settlement, 1),
+                realizationFacts,
                 actors,
                 Presentation());
 

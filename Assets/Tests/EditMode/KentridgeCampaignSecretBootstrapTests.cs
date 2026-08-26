@@ -6,6 +6,7 @@ using Game.Composition.WorldBuilderWorldGen;
 using Game.Composition.WorldBuilderWorldGen.Runtime;
 using Game.Cutscenes.Api;
 using Game.WorldBuilder.Api;
+using Game.WorldBuilder.Runtime;
 using MountingForce.WorldGen;
 using MountingForce.WorldGen.Content.Kentridge;
 using MountingForce.WorldGen.Voxel;
@@ -99,25 +100,26 @@ namespace VoxelEngine.Tests.EditMode
                 .RewardWith(loot));
 
             CampaignBlueprint blueprint = game.Build();
+            AuthoredTownPlan town = WorldBuilderTownAuthoring.Author(WorldBuilderTownIds.Kentridge, Seed);
             SettlementPlan settlement = KentridgeDefinition.Build(Seed);
             KentridgeCampaignGenerationPlan generation = KentridgeCampaignSessionBootstrap.Plan(
                 blueprint,
-                settlement);
+                town);
             var siteFacts = new KentridgeVoxelSiteRealizationFacts(settlement, 1);
             var hiddenFacts = new KentridgeHiddenSpaceVoxelRealizationFacts(
                 settlement,
                 1,
                 generation.HiddenSpaces);
+            var realizationFacts = new KentridgeCampaignRealizationFacts(siteFacts, hiddenFacts);
 
             var missingHostActors = new ActorHost();
             ArgumentNullException missingHost = Assert.Throws<ArgumentNullException>(() =>
                 KentridgeCampaignSessionBootstrap.CreateSession(
                     blueprint,
                     generation,
-                    siteFacts,
+                    realizationFacts,
                     missingHostActors,
-                    new Presentation(),
-                    hiddenFacts));
+                    new Presentation()));
             Assert.That(missingHost.ParamName, Is.EqualTo("secretHost"));
             Assert.That(missingHostActors.PreparedCount, Is.EqualTo(0),
                 "Missing secret runtime wiring must fail before the authoritative NPC batch is mutated.");
@@ -127,10 +129,9 @@ namespace VoxelEngine.Tests.EditMode
             KentridgeCampaignSession session = KentridgeCampaignSessionBootstrap.CreateSession(
                 blueprint,
                 generation,
-                siteFacts,
+                realizationFacts,
                 actors,
                 new Presentation(),
-                hiddenFacts,
                 secrets);
 
             Assert.That(session.World.Secrets.Count, Is.EqualTo(1));

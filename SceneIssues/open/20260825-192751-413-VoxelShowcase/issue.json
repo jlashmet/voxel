@@ -1,0 +1,121 @@
+{
+    "formatVersion": 3,
+    "id": "20260825-192751-413-VoxelShowcase",
+    "capturedUtc": "2026-08-25T19:27:51.4133920Z",
+    "note": "Walking around the voxel showcase often times we get under 100 fps.  It also takes quite a while to load the whole scene. There are spots where geometry is missing until it's chunked and meshed properly.  The way that we're rendering has to be changed drastically.  There was an attempt to move the meshing to the GPU and I think we still have that implementation But the bottom line is we need this scene to run at around a thousand FPS right now.  The reason is we're going to be making a game out of this and there's going to be a lot of game logic and other things going on.  Take a look at how all the systems are rendering their geometry and do whatever is required without breaking the architecture to make this performant.  With trying to get the meshing done on the GPU, use the existing implementation if you can, otherwise redo it.",
+    "status": "open",
+    "resolvedUtc": "",
+    "resolutionSummary": "",
+    "regressionTest": "",
+    "fixCommit": "",
+    "unityVersion": "6000.5.6f1",
+    "platform": "OSXEditor",
+    "sceneName": "VoxelShowcase",
+    "scenePath": "Assets/Scenes/VoxelShowcase.unity",
+    "sceneBuildIndex": 2,
+    "captures": [
+        {
+            "screenshot": "screenshot-001.png",
+            "capturedUtc": "2026-08-25T19:27:51.4134910Z",
+            "frameCount": 17168,
+            "timeSinceLevelLoad": 87.7555923461914,
+            "screenWidth": 1364,
+            "screenHeight": 836,
+            "poseAnchor": {
+                "hierarchyPath": "Showcase Camera",
+                "position": {
+                    "x": 77.95394134521485,
+                    "y": 24.550050735473634,
+                    "z": -3.345813751220703
+                },
+                "rotation": {
+                    "x": -0.011553610675036908,
+                    "y": -0.28760582208633425,
+                    "z": -0.003469750052317977,
+                    "w": 0.9576728940010071
+                },
+                "localScale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                }
+            },
+            "camera": {
+                "hierarchyPath": "Showcase Camera",
+                "position": {
+                    "x": 77.95394134521485,
+                    "y": 24.550050735473634,
+                    "z": -3.345813751220703
+                },
+                "rotation": {
+                    "x": -0.011553610675036908,
+                    "y": -0.28760582208633425,
+                    "z": -0.003469750052317977,
+                    "w": 0.9576728940010071
+                },
+                "fieldOfView": 70.0,
+                "orthographic": false,
+                "orthographicSize": 5.0,
+                "nearClipPlane": 0.05000000074505806,
+                "farClipPlane": 16000.0
+            },
+            "circles": [
+                {
+                    "centerX": 0.028248587623238565,
+                    "centerY": 0.026427296921610833,
+                    "radius": 0.035997286438941959
+                }
+            ]
+        }
+    ],
+    "screenshot": "screenshot-001.png",
+    "frameCount": 17168,
+    "timeSinceLevelLoad": 87.7555923461914,
+    "screenWidth": 1364,
+    "screenHeight": 836,
+    "poseAnchor": {
+        "hierarchyPath": "Showcase Camera",
+        "position": {
+            "x": 77.95394134521485,
+            "y": 24.550050735473634,
+            "z": -3.345813751220703
+        },
+        "rotation": {
+            "x": -0.011553610675036908,
+            "y": -0.28760582208633425,
+            "z": -0.003469750052317977,
+            "w": 0.9576728940010071
+        },
+        "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+        }
+    },
+    "camera": {
+        "hierarchyPath": "Showcase Camera",
+        "position": {
+            "x": 77.95394134521485,
+            "y": 24.550050735473634,
+            "z": -3.345813751220703
+        },
+        "rotation": {
+            "x": -0.011553610675036908,
+            "y": -0.28760582208633425,
+            "z": -0.003469750052317977,
+            "w": 0.9576728940010071
+        },
+        "fieldOfView": 70.0,
+        "orthographic": false,
+        "orthographicSize": 5.0,
+        "nearClipPlane": 0.05000000074505806,
+        "farClipPlane": 16000.0
+    },
+    "circles": [
+        {
+            "centerX": 0.028248587623238565,
+            "centerY": 0.026427296921610833,
+            "radius": 0.035997286438941959
+        }
+    ]
+}
