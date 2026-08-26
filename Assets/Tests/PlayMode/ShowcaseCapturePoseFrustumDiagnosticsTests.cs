@@ -49,7 +49,7 @@ namespace VoxelEngine.Tests.PlayMode
 
             try
             {
-                VoxelSurfaceMetrics last = default;
+                var last = VoxelRenderBridge.SurfaceMetrics;
                 for (int frame = 0; frame < 1200; frame++)
                 {
                     yield return null;
