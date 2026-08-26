@@ -4,6 +4,7 @@ using MountingForce.WorldGen.Content.Kentridge;
 using Unity.Collections;
 using Unity.Mathematics;
 
+using VoxelEngine.Storage.Api;
 using VoxelEngine.Structures.Api;
 
 namespace MountingForce.WorldGen.Voxel
@@ -250,7 +251,11 @@ namespace MountingForce.WorldGen.Voxel
             var b = new ProgramBuilder();
 
             b.Cylinder(4 * s, 0, 4 * s, 3 * s, 4 * s, 1, stone);
-            b.Box(3 * s, 3 * s, 3 * s, 3 * s, 29 * s, 3 * s, dark);
+            // Dark stone is Smooth in the Showcase palette. The 3x3 pole is a deliberately thin
+            // architectural support, so keep its occupancy/material but reconstruct it exactly;
+            // otherwise the smoothed support can collapse while the larger lantern head remains.
+            b.Box(3 * s, 3 * s, 3 * s, 3 * s, 29 * s, 3 * s,
+                  dark, SurfaceStyles.Planar);
             b.Box(1 * s, 31 * s, 1 * s, 7 * s, 7 * s, 7 * s, warm);
             b.Prism(0, 38 * s, 0, 9 * s, 5 * s, 9 * s,
                     PrismProfile.Gable, slate);
@@ -291,9 +296,10 @@ namespace MountingForce.WorldGen.Voxel
         {
             private readonly List<int> _code = new();
 
-            public void Box(int x, int y, int z, int sx, int sy, int sz, byte material) =>
+            public void Box(int x, int y, int z, int sx, int sy, int sz, byte material,
+                            ushort surfaceStyle = 0) =>
                 Op(ShapeOp.EmitBox, x, y, z, sx, sy, sz,
-                   material, 0, 0, (int)PrimitiveMode.Fill);
+                   material, surfaceStyle, 0, (int)PrimitiveMode.Fill);
 
             public void Cylinder(int x, int y, int z, int radius, int height,
                                  byte axis, byte material) =>
