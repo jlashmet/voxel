@@ -2,25 +2,39 @@
 
 ## Reported defect
 
-At the saved VoxelShowcase camera, grass on the right reads as a larger stretched pattern while the left uses the intended tighter texture. The user explicitly calls out two different grass-texturing methods and expects one consistent presentation.
+At the saved VoxelShowcase camera, grass on the right reads as a larger stretched pattern while the left uses the intended tighter texture. The report explicitly calls out two different grass-texturing methods and expects one consistent presentation.
 
 ## Evidence and hypotheses
 
 1. `SmoothSurface.shader` samples the near field from the shared albedo texture array in world/voxel space (`positionWS / _VoxelSize`) using the material sampling/surface tables.
 2. `_VoxelSize` is bound by `VoxelRenderPass` to the constant base voxel size (0.1 m), so near-field LOD cell size does not change the texture coordinate scale. The initial per-LOD `_VoxelSize` hypothesis is falsified.
-3. `VoxelFarTerrain` resolves the same semantic material ID as the near field but discards it after resolving one albedo colour. Its mesh stores only vertex colour, and `FarTerrain.shader` does not sample the shared texture array. A coarse clipmap therefore produces broad interpolated grass colour that can read as a stretched second texture system.
+3. `VoxelFarTerrain` resolves the same semantic surface material as the near field, but its published mesh retained only that material's albedo as vertex colour. `FarTerrain.shader` therefore had no shared texture-array/material-sampling path and rendered a broad coarse colour field where the near surface rendered authored grass texture.
 4. The sibling SceneIssue `20260825-032832-253-VoxelShowcase` separately investigates thin LOD/transition contour artifacts. Its retained experiment shows moving the fine-detail band does not remove those strips, so this capture should not be fixed by another LOD-distance tweak.
 
-## Planned minimal fix
+## Candidate minimal fix
 
-- Preserve the far mesh's semantic material ID in a dedicated UV channel while retaining vertex colour as the base/fallback tone.
-- Bind the renderer-owned albedo texture array plus the authoritative material sampling/surface rows onto the far-terrain material without duplicating texture assets in the showcase.
-- Make `FarTerrain.shader` use the same world-space coordinate basis and material texture scale/weight as `SmoothSurface.shader` when the shared texture array is available; keep existing vertex-colour rendering as the safe startup fallback.
-- Add a focused regression that loads VoxelShowcase and proves every published far ring carries semantic material identity needed for shared texture sampling, plus a shader/material contract assertion for the shared albedo input.
+Implemented in production commit `506d4b37a42639bb1b9d48f1796e7794446d3c40`:
 
-## Verification
+- Keep `VoxelFarTerrain`'s existing authoritative vertex albedo/fallback representation unchanged.
+- Have `FarTerrain.shader` resolve that albedo against the renderer-owned `_MaterialAlbedo` table and consume `_MaterialSampling`, `_MaterialSurface`, `_AlbedoTextures`, and `_VoxelSize`.
+- Reuse the same dominant-axis/triplanar world-space texture basis, base-voxel coordinate system, material texture scale/weight, and `hitDistance / 350.0` attenuation as `SmoothSurface.shader`.
+- Do not introduce a scene-specific grass texture, material, or LOD-distance workaround.
 
-1. Run the focused regression through `ci-test/fixes/agent-5` and verify the worker result is green for the exact source commit.
-2. Replay the existing capture at its saved camera pose using the repository SceneIssue replay harness; do not create a new capture.
-3. Preserve replay/CI evidence in this capture.
-4. Use the repository terminal bookkeeping command to close/move the issue in a separate bookkeeping commit, integrate the verified fix into current `master`, and push the verified terminal state.
+Focused regression authored before production change:
+`VoxelEngine.Tests.EditMode.FarTerrainSharedTexturePresentationTests.FarTerrainReusesVoxelSurfaceTextureSamplingContract`.
+
+## Verification state
+
+- [x] Fetch/resume `fixes/agent-5` and inspect repository workflow/capture.
+- [x] Record root-cause hypothesis before production code.
+- [x] Author focused regression before production code.
+- [x] Commit candidate production shader change (`506d4b37a42639bb1b9d48f1796e7794446d3c40`).
+- [ ] Obtain an executed pre-fix/fix targeted CI result. **Blocked:** four request publications on `ci-test/fixes/agent-5` produced no Actions run/status; see `experiment-002-ci-trigger-blocked.md`.
+- [ ] Replay the existing capture at its saved camera pose. Not attempted because CI verification is a prerequisite.
+- [ ] Preserve green CI/replay evidence.
+- [ ] Create the separate fixed-status/open-to-closed bookkeeping commit.
+- [ ] Integrate verified fix into current `master` and push verified terminal state.
+
+## Blocked-state rule
+
+The capture remains in `SceneIssues/open/` with `issue.json.status` unchanged. Do not populate fixed bookkeeping or move it to `closed/` until `ci/single-test` executes successfully for the exact candidate source and the saved capture is replay-verified.
