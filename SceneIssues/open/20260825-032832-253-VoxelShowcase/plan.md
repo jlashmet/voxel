@@ -11,24 +11,17 @@ Work only `SceneIssues/open/20260825-032832-253-VoxelShowcase` on `fixes/agent-4
 - Changing serialized `m_DetailBandScale` from `0.6` to `1.0` moved the first handoff from 57.6 m to 96 m, but retained exact-replay evidence shows the same marked strips. Band distance alone is falsified.
 - The previous hierarchy-ownership filter also failed to remove the marked strips. Do not revisit scheduler ownership as the next production change.
 
-## Current root-cause question
+## Isolation result
 
-`experiment-11.md` narrowed the remaining failure to geometry/material presentation that survives both ownership filtering and detail-band expansion. The next isolation target is the Transvoxel fine/coarse transition path itself: determine whether regular surface cells and transition cells overlap at the same boundary, or whether transition vertices carry discontinuous normals/material attributes that create the bright/dark serrated bands visible in the saved replay.
+The deterministic transition-boundary regression isolated the visible defect to transition-vertex shading, not overlapping geometry. Transition vertices used a flat face-axis normal while regular Transvoxel vertices followed the density gradient. A first slope-aware implementation exposed a second edge case: clamped central differences at the face snapshot boundary used unequal sample spans and rotated the gradient. The final implementation normalizes each tangential finite difference by its actual clamped sample separation.
 
-## Required isolation before another production change
+## Verification result
 
-The earlier investigation exceeded three implementation attempts, so first add a bare-bones deterministic EditMode reproduction around one transition boundary using production Transvoxel code. It should separate these invariants from scene streaming, camera/frustum selection, and unrelated materials:
+- Behavioral regression: green on `c1cfafb7870ee70b48b46eec1e855b988a9f1100` / run `33021302016`.
+- Saved-camera real-player replay: assertion, capture, screenshot upload, screenshot-presence gate, and status publication all succeeded in run `33021624676`; the workflow was marked cancelled only after those steps when cleanup exceeded its five-minute job budget.
+- Manual inspection of the loaded replay frames and `verification-final.png`: all three marked regions are clean; no coarse transition-shading strip or duplicate coarse surface remains.
+- A shorter replay was reissued as run `33022161812` to avoid the workflow-budget overrun; it remained queued while the shared self-hosted runner was unavailable.
 
-1. Regular topology and transition topology must not publish two coplanar/near-coplanar surfaces for the same boundary region.
-2. Transition vertices that represent the same surface as regular/fine neighbors must preserve compatible position/normal/material attributes.
-3. The reproduction must fail on the current branch before any production behavior changes.
+## Completion
 
-If the isolated boundary is already clean, falsify this hypothesis in a new experiment and move to the next surface-presentation cause rather than changing production code speculatively.
-
-## Verification
-
-- Establish the behavioral red regression first.
-- Apply the smallest production fix tied to the reproduced invariant.
-- Run the focused regression plus the repository fast suite through the prescribed targeted branch `ci-test/fixes/agent-4`.
-- Replay `ShowcaseSceneIssue032832ReplayTests.SavedFixtureIsConfiguredForExactReplay` through targeted CI and inspect the saved 1364x836 standalone evidence for all three marked regions; do not trust the checker alone.
-- Only if the exact replay is visually clean, record terminal `issue.json` fields, move the whole capture to `SceneIssues/closed/`, push the bookkeeping commit, and stop without starting another capture.
+Record the terminal metadata, preserve `verification-final.png`, set the issue to `pending`, and move the capture from `open/` to `pending/` in a separate bookkeeping commit. Do not move it to `closed/`; closure is coordinator/human-owned.
