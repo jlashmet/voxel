@@ -6,9 +6,15 @@ on:
     branches:
       - master
       - refactor/system-boundaries-foundation-storage
+    paths-ignore:
+      - 'SceneIssues/pending/**'
+      - 'SceneIssues/closed/**'
   pull_request:
     branches:
       - master
+    paths-ignore:
+      - 'SceneIssues/pending/**'
+      - 'SceneIssues/closed/**'
 
 permissions:
   contents: read

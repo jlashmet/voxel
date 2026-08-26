@@ -7,6 +7,8 @@ run-name: Single test · ${{ github.ref_name }} · ${{ github.event_name }}
 # tools/ci-test. Agents without workflow-dispatch access use a dedicated ci-test/*
 # branch based on the exact source commit, then update .github/test-request.json
 # there. Keeping request commits off the PR branch prevents normal PR CI fanout.
+# Push the final request commit directly: publishing an intermediate reset/template
+# head creates a second event that can be admitted later and cancel the real request.
 #
 # Visual screenshot suites are still selected exactly like any other test. After
 # the Unity assertion phase, the shared player-capture utility maps those known
@@ -109,6 +111,7 @@ jobs:
             python3 - "$GITHUB_OUTPUT" <<'PY'
           import json
           import os
+          from pathlib import Path, PurePosixPath
           import sys
 
           path = '.github/test-request.json'
@@ -118,6 +121,8 @@ jobs:
           test = request.get('test')
           platform = request.get('platform', 'EditMode')
           request_id = request.get('request_id') or os.environ.get('GITHUB_SHA', '')[:12]
+          scene_issue = request.get('scene_issue') or ''
+          replay_seconds = request.get('replay_seconds')
 
           if not isinstance(test, str) or not test:
               raise SystemExit('ERROR: .github/test-request.json requires a non-empty string "test"')
@@ -125,13 +130,47 @@ jobs:
               raise SystemExit('ERROR: "platform" must be EditMode or PlayMode')
           if not isinstance(request_id, str):
               raise SystemExit('ERROR: "request_id" must be a string when supplied')
-          if any('\n' in value or '\r' in value for value in (test, platform, request_id)):
+          if not isinstance(scene_issue, str):
+              raise SystemExit('ERROR: "scene_issue" must be a string when supplied')
+          if any('\n' in value or '\r' in value
+                 for value in (test, platform, request_id, scene_issue)):
               raise SystemExit('ERROR: request values must be single-line strings')
+
+          scene_path = ''
+          if scene_issue:
+              issue_path = PurePosixPath(scene_issue)
+              parts = issue_path.parts
+              if (issue_path.is_absolute() or '..' in parts or len(parts) != 4 or
+                      parts[0] != 'SceneIssues' or parts[1] not in ('open', 'pending', 'closed') or
+                      parts[3] != 'issue.json'):
+                  raise SystemExit(
+                      'ERROR: "scene_issue" must be SceneIssues/open|pending|closed/<id>/issue.json')
+              issue_file = Path(scene_issue)
+              if not issue_file.is_file():
+                  raise SystemExit('ERROR: scene issue does not exist: ' + scene_issue)
+              with issue_file.open(encoding='utf-8') as handle:
+                  issue = json.load(handle)
+              scene_path = issue.get('scenePath') or ''
+              if not isinstance(scene_path, str) or not scene_path.startswith('Assets/Scenes/') \
+                      or not scene_path.endswith('.unity') or not Path(scene_path).is_file():
+                  raise SystemExit('ERROR: scene issue has no valid existing scenePath')
+              if platform != 'PlayMode':
+                  raise SystemExit('ERROR: scene-issue replay requires platform=PlayMode')
+              if replay_seconds in (None, ''):
+                  replay_seconds = 45
+              if isinstance(replay_seconds, bool) or not isinstance(replay_seconds, int) \
+                      or replay_seconds < 20 or replay_seconds > 60:
+                  raise SystemExit('ERROR: "replay_seconds" must be an integer from 20 to 60')
+          elif replay_seconds not in (None, ''):
+              raise SystemExit('ERROR: "replay_seconds" requires "scene_issue"')
 
           with open(sys.argv[1], 'a', encoding='utf-8') as output:
               output.write(f'test={test}\n')
               output.write(f'platform={platform}\n')
               output.write(f'request_id={request_id}\n')
+              output.write(f'scene_issue={scene_issue}\n')
+              output.write(f'scene_path={scene_path}\n')
+              output.write(f'replay_seconds={replay_seconds or ""}\n')
           PY
           fi
 
@@ -162,10 +201,11 @@ jobs:
       # to a suite that exercises VoxelShowcase.unity. Keep this as a positive list so new unrelated
       # PlayMode suites stay fast by default. Renderer traversal validates the checked-in production
       # bake; the two SmallVoxelShowcase benchmark profiles compose their own smaller world directly.
-      - name: Bake Voxel Showcase startup world
+      - name: Restore or bake Voxel Showcase startup world
         if: >-
           steps.request.outputs.platform == 'PlayMode' &&
           (
+            steps.request.outputs.scene_path == 'Assets/Scenes/VoxelShowcase.unity' ||
             startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.Showcase') ||
             startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.AsyncGeometryStressTests') ||
             startsWith(steps.request.outputs.test, 'VoxelEngine.Tests.PlayMode.CastleAccessTests') ||
@@ -185,14 +225,21 @@ jobs:
         run: |
           set -euo pipefail
           ROOT="$GITHUB_WORKSPACE/Artifacts/SingleTest"
+          BAKE="$GITHUB_WORKSPACE/Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes"
           mkdir -p "$ROOT"
+          if tools/showcase-bake-cache.sh restore "$BAKE"; then
+            exit 0
+          fi
           UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=4 \
           UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
             -batchmode -nographics -job-worker-count 1 -quit \
             -projectPath "$GITHUB_WORKSPACE" \
             -executeMethod VoxelEngine.Showcase.Editor.ShowcaseWorldBaker.BakeShowcaseWorld \
             -logFile "$ROOT/showcase-bake.log"
-          test -s "$GITHUB_WORKSPACE/Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes"
+          test -s "$BAKE"
+          if ! tools/showcase-bake-cache.sh store "$BAKE"; then
+            echo 'WARNING: Showcase bake passed but its runner-local cache could not be updated.' >&2
+          fi
 
       # tools/unity-run.sh deliberately refuses to start while another Unity editor is visible.
       # A successful bake can return a moment before its macOS process disappears, so serialize
@@ -306,13 +353,20 @@ jobs:
         shell: bash
         env:
           TEST_FILTER: ${{ steps.request.outputs.test }}
+          SCENE_ISSUE: ${{ steps.request.outputs.scene_issue }}
+          REPLAY_SECONDS: ${{ steps.request.outputs.replay_seconds }}
         run: |
           set -euo pipefail
-          bash tools/showcase-player-capture.sh \
-            --unity "${{ steps.unity.outputs.path }}" \
-            --output "$GITHUB_WORKSPACE/Artifacts/SingleTest/RealPlayer" \
-            --test-filter "$TEST_FILTER" \
-            --if-configured
+          args=(
+            --unity "${{ steps.unity.outputs.path }}"
+            --output "$GITHUB_WORKSPACE/Artifacts/SingleTest/RealPlayer"
+          )
+          if [[ -n "$SCENE_ISSUE" ]]; then
+            args+=(--scene-issue "$SCENE_ISSUE" --run-seconds "$REPLAY_SECONDS")
+          else
+            args+=(--test-filter "$TEST_FILTER" --if-configured)
+          fi
+          bash tools/showcase-player-capture.sh "${args[@]}"
 
       # Artifact quota exhaustion must not make a visual iteration opaque. These previews are
       # debugging evidence only: visual proof still requires the artifact upload below to succeed.
@@ -348,8 +402,13 @@ jobs:
         shell: bash
         env:
           TEST_FILTER: ${{ steps.request.outputs.test }}
+          SCENE_ISSUE: ${{ steps.request.outputs.scene_issue }}
         run: |
           set -euo pipefail
+          if [[ -n "$SCENE_ISSUE" ]]; then
+            echo "required=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           case "$TEST_FILTER" in
             VoxelEngine.Tests.PlayMode.ArchLookdevSceneTests|VoxelEngine.Tests.PlayMode.ArchLookdevSceneTests.*|\
             VoxelEngine.Tests.PlayMode.TerrainLookdevScreenshotTests|VoxelEngine.Tests.PlayMode.TerrainLookdevScreenshotTests.*|\

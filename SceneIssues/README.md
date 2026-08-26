@@ -1,198 +1,119 @@
-# Scene issue captures
+# SceneIssue workflow
 
-This directory is intentionally outside `Assets/` so screenshots and JSON fixtures are visible to source control and coding agents without Unity importing every PNG.
+The folders on `origin/master` are the queue state:
 
-## Capture a problem
+- `open/`: available or actively assigned;
+- `pending/`: verified fix awaiting human review; and
+- `closed/`: human-approved fix.
 
-1. Run any scene in Play Mode.
-2. Move to the bad view.
-3. Click **Flag issue [F8]** in the upper-right corner, or press `F8`.
-4. The tool freezes the current camera viewpoint, captures a clean screenshot, pauses the game, and opens the annotation UI.
-5. Drag directly on the screenshot to draw one or more circles around the bad area. Right-click removes the nearest circle; **Clear circles** removes all circles from the current frame.
-6. Describe what is wrong in the issue text box.
-7. For a one-frame problem, click **Save issue**.
-8. For flicker, popping, transient holes, LOD transitions, or anything that needs more evidence, click **Keep capturing**. The scene resumes and the issue session stays active.
-9. Press `F8` whenever another useful bad frame appears. Each press adds a screenshot to the same issue and opens that new frame for its own circle annotations.
-10. Use **Previous** / **Next** in the annotation UI to review or edit circles on any captured frame.
-11. Click **Finish issue** when done, review the frames/note if needed, then click **Save issue**.
+Blocked work stays open. Original screenshots remain unmodified; `issue.json` stores exact camera
+poses and normalized annotations.
 
-A multi-frame capture is written to:
+## Capture and publish
 
-```text
-SceneIssues/open/<timestamp>-<scene>/
-  issue.json
-  screenshot-001.png
-  screenshot-002.png
-  screenshot-003.png
-  ...
-```
+In Play Mode, press `F8` or click **Flag issue**. Annotate each bad region, add frames for transient
+problems with **Keep capturing**, then save. Replay with **Tools > Scene Issue Capture** and inspect
+every recorded pose.
 
-### Publish captures to the queue
-
-Every new capture is saved beneath `SceneIssues/open/` and must be committed and pushed through
-`master` before an agent can work on it. `origin/master:SceneIssues/open/` is the authoritative
-intake queue. Never add a new capture on `fixes`, `fixes/agent-N`, or a CI request branch; those
-branches may only modify captures that already exist on `origin/master`.
-
-From an up-to-date local `master`, publish every newly saved capture with:
+New captures must reach `master` before assignment. From an up-to-date local `master`, run:
 
 ```sh
 ./push_scene_issues.sh
 ```
 
-The command refuses to run off `master`, requires local and remote master to match, validates that
-each new capture is open, stages only brand-new directories beneath `SceneIssues/open/`, creates one
-intake commit, and pushes it to `origin/master`. It never folds edits to existing tickets or other
-staged work into the intake commit.
+Never introduce a new capture on a worker or CI branch.
 
-Only `status: fixed` captures belong under `SceneIssues/closed/`. A blocked capture remains under
-`SceneIssues/open/`; blocked is not a terminal queue state. Keep `issue.json.status` consistent with
-folder membership so it remains a useful audit check rather than replacing the directory queue.
+## Assignment and branches
 
-The PNGs remain clean, unmodified captures. The circles are stored as structured normalized screen-space data in the matching frame inside `issue.json`. This keeps the original evidence suitable for visual regression work while still preserving exactly which region the developer was pointing at.
-
-Every screenshot has its own entry in `issue.json`, including its exact world-space camera position and quaternion rotation, conservative movement/pose-anchor transform, screen size, Unity frame number, time-since-scene-load, and zero or more `circles[]` entries.
-
-`formatVersion: 3` uses the `captures[]` array plus per-frame circle annotations. The first frame is also mirrored into the older single-frame fields so existing replay/test helpers can continue to consume a one-frame fixture.
-
-## Replay a problem
-
-Use either:
-
-- **Tools > Scene Issue Capture > Replay Latest Capture**
-- **Tools > Scene Issue Capture > Replay Capture...**
-
-Unity opens the recorded scene, enters Play Mode, waits for an active camera, and pins the camera to the first recorded viewpoint. For a multi-frame issue, use **Previous** and **Next** in the replay banner to move through every captured viewpoint. The circles recorded for the selected frame are drawn back over the game view, so the fixing agent can immediately see the exact region that was reported. The issue note stays visible. Click **Release camera** when you want normal camera control again.
-
-The screenshots are evidence of what was seen. The replay poses are the reproducible fixture. The circles identify the intended problem region without mutating the original screenshots.
-
-## Regression-test workflow
-
-The original screenshots are evidence of the bug, not expected golden images. After a fix:
-
-1. Replay every captured frame and verify the same scene/viewpoints no longer show the defect, paying particular attention to every circled region.
-2. Reuse the relevant `captures[]` entries from `issue.json` as deterministic scene/pose fixtures for focused PlayMode or rendering regressions.
-3. Prefer a direct geometry/material/streaming/state assertion when it is more stable than pixel comparison.
-4. If pixel comparison is appropriate, capture the *fixed* view as the expected baseline; never use the broken screenshot as the golden image.
-5. Keep all original screenshots and circle annotations with the issue after it is resolved so the regression has historical evidence of the failure it guards.
-
-## Agent fixing process — persistent per-agent branches
-
-The local coordinator assigns each open capture to one browser-agent slot. Each slot owns exactly
-two persistent branches for its lifetime:
+The coordinator assigns one capture and two persistent refs to each slot:
 
 ```text
 fixes/agent-N
 ci-test/fixes/agent-N
 ```
 
-Agents reuse those branches across assignments and never create a branch per capture. An individual
-agent works on exactly one assigned capture at a time; separate slots may work on separate captures
-concurrently. The coordinator's atomic local registry is the claim authority, so an agent must not
-self-select another open capture or continue into the queue after finishing its assignment.
-The coordinator reads only `origin/master:SceneIssues/open/` and rejects completion from a worker
-branch that introduces a capture ID absent from master.
+Work only on the assigned capture. Fetch first; create the feature branch from current
+`origin/master` or resume it without discarding work, then merge current master. Refresh before a
+substantial new attempt and final CI. Do not self-select another issue or modify another capture.
 
-Because these are persistent branches and several workers may merge fixes concurrently, a scene-
-issue worker must **periodically fetch `origin` and merge current `origin/master` into
-`fixes/agent-N` while the assignment is still in progress**. Do this at assignment start, before a
-new substantial fix attempt when other work may have landed, before the final targeted-CI request,
-and immediately before merging the verified result to master. Resolve conflicts by preserving both
-the assigned issue's work and intervening master changes; never reset away unmerged work or
-force-push the feature branch simply to catch up. If the merge changes tested inputs, validate the
-new integrated feature head rather than relying on CI from the pre-merge state.
-
-When the coordinator assigns an agent a captured issue:
-
-1. Fetch `origin` and use only the feature and CI branches named in the assignment. If the feature
-   branch does not exist, create it from current `origin/master`. If it already exists, resume it
-   without discarding unmerged work and merge current `origin/master` into it before continuing.
-   Continue refreshing from master periodically during the assignment as described above. Never
-   use the former shared `fixes` branch.
-2. Work only on the capture named by the coordinator. Queue order and exclusive claims belong to
-   the coordinator; do not select another open directory yourself.
-3. Work on exactly that one open issue until it is fixed or concretely blocked. Read its note and inspect **all** of its screenshots and circled regions before changing code.
-4. Replay the issue and step through every captured viewpoint. Confirm the failure in the marked regions and determine the smallest responsible subsystem before editing production code.
-5. Add or extend a focused regression using the saved scene/pose fixture. For transient problems, use all captured frames that are materially different rather than arbitrarily choosing one screenshot.
-6. Implement the smallest fix that resolves the reproduced problem without weakening coverage, performance budgets, or unrelated assertions.
-7. Write an experiment file for every attempt as soon as it produces a result — see **Document every experiment** below. The numbered experiment files are what makes the three-attempt count in the next step objective rather than a matter of recollection.
-8. **Three-attempt rule:** if the issue is still not solved after three genuine fix attempts, stop guessing in the full scene and build a bare-bones reproduction that isolates the failing behavior with the minimum geometry, data, systems, and configuration needed to reproduce it. Use that reproduction to understand the root cause before making more production changes. The reproduction may be checked in temporarily on the assigned `fixes/agent-N` branch and may run in the normal CI build so the behavior is repeatable while debugging. **Remove the temporary bare-bones reproduction and any CI-only wiring before merging the assigned branch to `master`.**
-9. Run the new regression plus the smallest relevant existing test set. Coordinator-assigned remote
-   agents use the push-triggered targeted-CI process in `AGENTS.md` and do not invoke Unity. A local
-   Claude Code session follows the Unity-running rules in `CLAUDE.md`; it must never bypass
-   `tools/unity-run.sh` or start a second editor unsafely.
-10. Replay the original capture again after the fix. For multi-frame issues, check every recorded viewpoint and every marked region.
-11. Commit the production/test fix on the assigned `fixes/agent-N` branch with a message that names the capture, for example `Fix scene issue 20260822-...: prevent far-field flicker`. This gives the fix a real commit SHA.
-12. For a verified fix, update `issue.json`: set `status` to `fixed`, fill `resolvedUtc`, summarize the resolution in `resolutionSummary`, record the regression test in `regressionTest`, and put the production/test commit SHA from the previous step in `fixCommit`. Then move the entire capture directory from `SceneIssues/open/` to `SceneIssues/closed/`. If the issue is blocked, document the blocker and experiments but keep it in `open/`; blocked is not closed or complete.
-13. Commit the issue update and open-to-closed move on the same assigned `fixes/agent-N` branch, for example `Resolve scene issue 20260822-...`. The extra bookkeeping commit is deliberate: it avoids inventing the SHA of a commit before that commit exists.
-14. Push the assigned feature branch after the issue is reproduced, fixed, regressed,
-    replay-verified, documented, and committed. Verify the terminal `issue.json` directly from
-    `SceneIssues/closed/` on that remote branch, including that the open path is gone and the fixed
-    issue's `fixCommit` is on the branch. Also require `ci/single-test` success on the assigned CI
-    request branch and verify that branch contains the recorded fix commit.
-15. **Merge the verified fix to `master`; do not stop on `fixes/agent-N`.** Fetch `origin`
-    immediately before promotion. If `origin/master` advanced while the issue was being fixed,
-    integrate current `origin/master` into the assigned feature branch without discarding either
-    side, then push that integrated feature branch. If the integration changes production code,
-    tests, scene data, or another input relevant to the regression, reset `ci-test/fixes/agent-N`
-    to the integrated feature head and run the focused CI test again before promotion. A merge that
-    changes only terminal SceneIssue bookkeeping does not require a redundant test rerun.
-16. Advance `master` with a normal non-force fast-forward or merge that preserves every intervening
-    master commit. **Never force-push or overwrite `master`.** If another worker advances master
-    before this promotion lands, fetch again, integrate the new master tip, rerun CI when relevant
-    tested inputs changed, and retry the non-force promotion.
-17. Verify the final remote state on `origin/master`: the production/test fix and terminal
-    bookkeeping commits are ancestors of master, the capture is absent from `SceneIssues/open/`,
-    the matching `SceneIssues/closed/` directory has terminal `issue.json` fields, and the required
-    `ci/single-test` result is green. Only then is the assignment complete.
-18. Stop after verified master integration and wait for the coordinator. It will assign the next
-    capture to the same tab and persistent branches. Do not self-select or start another capture.
-
-## Document every experiment
-
-An experiment is any attempt to learn something about the issue: a replay, a diagnostic build, a
-targeted CI run, a probe, a hypothesis tested in code. **Every experiment gets its own Markdown
-file in the issue's own capture directory**, whether it succeeded or failed:
+After the verified pending state reaches master, the coordinator authorizes one additional,
+task-specific review ref:
 
 ```text
-SceneIssues/open/<timestamp>-<scene>/
-  issue.json
-  screenshot-001.png
-  experiment-001-gpu-boundary-ownership.md
-  experiment-002-coarse-lod-phase.md
-  ...
+review/scene-issue/<capture-id>
 ```
 
-These files move together to the matching `SceneIssues/closed/<timestamp>-<scene>/` directory when
-the issue is fixed. Historical evidence must not be split across open and closed paths.
+That branch may only move its capture from `pending/` to `closed/` and update review bookkeeping.
+It must never contain production code, tests, CI requests, or workflows.
 
-Number them in the order they were run and give each a short slug naming the hypothesis. Keep
-each file concise — a screenful, not an essay — and write it immediately after the experiment
-finishes, while the result is still known. Each file states:
+## Investigate and fix
 
-- **Hypothesis** — what was believed to be wrong, in one or two sentences.
-- **What was performed** — the change, replay, or test that was actually run, and the source
-  commit SHA it ran against so the run can be reproduced.
-- **Result** — what actually came back. Cite the concrete evidence: test names and pass/fail,
-  captured metrics, or the `verification-*.png` / `.txt` replay artifacts saved beside it.
-- **What was learned** — the conclusion, stated as a verdict: hypothesis confirmed, disproven,
-  or inconclusive and why.
-- **Next** — what the result implies for the following experiment.
+1. Inspect every screenshot, frame, annotation, and note directly. Treat marked regions as separate
+   defects until evidence proves a shared owner.
+2. Replay every pose and identify the responsible runtime object, profile/material, coordinates,
+   triangle/voxel, or ownership decision. A synthetic repro proves possibility, not causality.
+3. Record at least two plausible hypotheses and run the smallest discriminating experiment. State
+   what would falsify the leading hypothesis.
+4. After three genuine failed fix attempts, isolate the behavior in a minimal reproduction before
+   changing production code again. Remove temporary wiring before promotion.
+5. Add a focused behavioral regression through the production computation. Source-string checks
+   may supplement it but cannot be the sole rendering, geometry, or performance regression.
+6. Implement the smallest proven fix. For shared systems, identify affected consumers, test likely
+   negative regressions, and quantify cost against an existing budget.
+7. Replay every original pose and marked region after the fix.
 
-A disproven hypothesis is a required result, not a wasted file. Recording that a cause was ruled
-out is what stops the next agent from re-running the same experiment, and it is the only durable
-trace of the reasoning once the branch history has been squashed or the diagnostic wiring
-removed. Never delete an experiment file after the fix lands; it stays with the capture as the
-record of how the cause was found.
+## Keep evidence concise
 
-Save replay screenshots, logs, and telemetry produced by an experiment into the same capture
-directory as `verification-<slug>.png` / `verification-<slug>.txt`, and reference them from the
-experiment file. Include the source commit and any non-default configuration (for example
-`gpu_cutover_disabled=1`) at the top of the text artifact.
+Maintain one `plan.md`, normally no more than 500 words: observed defect and acceptance criteria;
+competing hypotheses; next discriminator; material results; selected fix; current commit; and
+remaining gates. Replace stale detail with a one-line conclusion rather than growing a diary.
 
-The per-issue `resolutionSummary` in `issue.json` remains the terminal one-paragraph answer. The
-experiment files are the working record behind it, and both are expected on a resolved issue.
+Record each product experiment as `experiment-NNN-<slug>.md`, limited to a screenful: hypothesis,
+action and source SHA, result, verdict, and next step. Put polling, queue, and runner notes in one
+`ci-operations.md`. Store durable evidence beside the issue as `verification-<slug>.png|txt`.
 
-The point of persistent agent branches plus coordinator-owned claims is to make visual cleanup a
-safe parallel queue: each worker follows reproduce → inspect marked regions → test → fix → verify →
-document → commit → resolve → merge to master, then waits for its next exclusive assignment.
+## Targeted CI
+
+Commit and push production/test work to `fixes/agent-N`. Build the request commit directly on the
+exact feature SHA, changing `.github/test-request.json` on the CI branch only, then force-update
+`ci-test/fixes/agent-N` once. Use the smallest exact EditMode or PlayMode filter; replay requests may
+name the assigned `SceneIssues/open|pending|closed/<id>/issue.json` and 20–60 `replay_seconds`.
+
+Monitor `ci/single-test` for the exact request SHA. Never create another branch, PR, no-op commit,
+custom workflow, or permission probe to trigger it. Leave queued/running requests alone. If no
+exact-SHA run exists after 30 minutes, issue at most one replacement for the same source state. Let
+the shared workflow manage its Showcase bake cache.
+
+Inspect logs and artifacts on failure. Change production code only for a product failure. For an
+infrastructure failure, wait and retry once. Failed, cancelled, or timed-out workflows are
+diagnostic only and cannot satisfy a gate.
+
+## Submit for review
+
+A feature branch is ready for pending promotion only when it has:
+
+- the pushed production/test commit named by `issue.json.fixCommit`;
+- a focused behavioral regression with green exact-SHA targeted CI;
+- every original pose replayed successfully;
+- `verification-final.png` committed in the capture;
+- `status: pending`, `resolutionSummary`, `regressionTest`, and `fixCommit` completed;
+- the entire capture moved from `open/` to `pending/` in a separate bookkeeping commit; and
+- no unrelated capture, CI request file, or workflow in the feature-only diff.
+
+Do not set `resolvedUtc` yet. Green CI and pending bookkeeping make the branch ready; workers do not
+push master independently. The coordinator batches ready branches, designates one promoter, and
+advances master once. The promoter verifies every exact head and uses an isolated worktree from
+current `origin/master`; moved heads, conflicts, or an advancing master stop the batch.
+
+Once the pending capture is on master, create `review/scene-issue/<capture-id>` from current master.
+Move only that capture from `pending/` to `closed/`, set `status: fixed` and `resolvedUtc`, then open
+a non-draft PR titled `Approve SceneIssue <capture-id>`. Include the original and
+`verification-final.png` evidence in its body. Do not merge it yourself.
+
+The coordinator releases the worker for its next ticket after it verifies the clean review branch
+and open PR. The PR merge is human approval and moves the capture to `closed/`. Bookkeeping-only
+review PRs and their merges skip Unity CI because the fix was already tested before pending
+promotion.
+
+If review is rejected, leave the PR unmerged and return the capture to `open/` before reassigning
+it. A PR comment alone does not put it back in the worker queue.
