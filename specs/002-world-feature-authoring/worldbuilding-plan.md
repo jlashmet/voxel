@@ -22,7 +22,7 @@ The central design goal is **extreme configurability with sane presets**:
 
 ## Non-negotiable architecture constraints
 
-These are inherited from `CLAUDE.md`, the feature plan, and the project constitution.
+These are inherited from `AGENTS.md`, the feature plan, and the project constitution.
 
 1. Authoritative generation is deterministic, integer, CPU-side, and Burst-compatible.
 2. The brickmap/voxel cells remain the single gameplay truth; structure/cave definitions and primitives are generation inputs only.
