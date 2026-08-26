@@ -62,7 +62,7 @@ Analysis found 1 CRITICAL, 3 HIGH, 4 MEDIUM, 4 LOW. All CRITICAL and HIGH issues
 | G4 — FR-026 crossplay only implicitly covered | MEDIUM | Task T140 added. |
 | I1 — plan/tasks milestone drift | MEDIUM | plan.md M5–M8 exits now state task ID ranges alongside criteria. |
 
-**Scope change in the same pass**: mobile narrowed to **high-end devices only**. Mid-tier and low-tier phones moved to Out of Scope. This propagated to C-002, Assumptions, Dependencies, the Principal Risk note, R-004, `architecture-notes.md` §8.1 and §10, `plan.md` Technical Context and risk order, `quickstart.md`, and `CLAUDE.md`. Net effect: the project's former top risk drops to fourth.
+**Scope change in the same pass**: mobile narrowed to **high-end devices only**. Mid-tier and low-tier phones moved to Out of Scope. This propagated to C-002, Assumptions, Dependencies, the Principal Risk note, R-004, `architecture-notes.md` §8.1 and §10, `plan.md` Technical Context and risk order, `quickstart.md`, and the root agent instructions. Net effect: the project's former top risk drops to fourth.
 
 **Remaining LOW findings, accepted:**
 

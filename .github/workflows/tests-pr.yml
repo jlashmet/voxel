@@ -1,8 +1,8 @@
 name: Tests (PR — affected only)
 
-# A pull request runs the tests its changes can affect. Merges to master run
-# everything (see tests-master.yml), so selection is a latency optimisation and
-# never the only thing that ever runs.
+# A behavior-changing pull request runs the tests its changes can affect. A
+# pending-to-closed SceneIssue review only approves already-tested evidence and
+# is ignored here and by tests-master.yml.
 #
 # Selection is computed from the .asmdef reference graph, not from file paths.
 # tools/select-tests.py walks the graph and falls back to running everything
@@ -14,6 +14,9 @@ name: Tests (PR — affected only)
 
 on:
   pull_request:
+    paths-ignore:
+      - 'SceneIssues/pending/**'
+      - 'SceneIssues/closed/**'
 
 permissions:
   contents: read
