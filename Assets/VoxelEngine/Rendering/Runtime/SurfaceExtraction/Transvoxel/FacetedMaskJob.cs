@@ -37,7 +37,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
             byte boundary = BoundarySamples[sample];
             SurfaceStyleReadDefinition style = Catalogue.Get((ushort)surface);
             bool displaced = Coatings.Get((byte)(surface >> 16)).Displacement != 0;
-            bool solid = IsSolid(material);
+            bool solid = TransvoxelDensityJob.IsAuthoritativelySolid(surface);
             uint encoded = Pack(material, surface) + 1u;
             var boundarySample = new VoxelBoundarySample { Packed = boundary };
             for (int axis = 0; axis < 3; axis++)
@@ -65,22 +65,25 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
                     int3 neighbourGrid = grid;
                     neighbourGrid[axis] += side == 0 ? -1 : 1;
                     int neighbourSample = GridIndex(neighbourGrid);
-                    byte neighbour = Materials[neighbourSample];
-                    // The occupied cell decides whether its face is continuous or faceted. An
-                    // empty neighbour can carry a halo from a different curved primitive (for
-                    // example rounded veneer in front of planar wall backing); that metadata must
-                    // not steal the exact solid-to-empty occupancy face from this planar cell.
-                    FaceMasks[output] = IsSolid(neighbour) ? 0u : encoded;
+                    uint neighbourSurface = SurfaceSemantics[neighbourSample];
+                    // Materials[] is presentation identity, not occupancy: the density sampler can
+                    // carry a nearby solid material onto an authoritative-air lattice point so the
+                    // continuous surface shades correctly. Exact Planar/Sharp/Cubic exposure must
+                    // instead use the authoritative centre-occupancy bit captured by that sampler.
+                    FaceMasks[output] = TransvoxelDensityJob.IsAuthoritativelySolid(neighbourSurface)
+                        ? 0u : encoded;
                 }
             }
         }
 
         private int GridIndex(int3 p) => p.x + GridSize * (p.y + GridSize * p.z);
-        private static bool IsSolid(byte material) =>
-            material != 0 && material != 11 && material != 16;
-        private static uint Pack(byte material, uint surface) => material
-            | (((surface >> 16) & 0xffu) << 8)
-            | ((surface & 0xffu) << 16)
-            | (((surface >> 24) & 0xffu) << 24);
+        private static uint Pack(byte material, uint surface)
+        {
+            surface = TransvoxelDensityJob.StripAuthoritativeOccupancy(surface);
+            return material
+                | (((surface >> 16) & 0xffu) << 8)
+                | ((surface & 0xffu) << 16)
+                | (((surface >> 24) & 0xffu) << 24);
+        }
     }
 }
