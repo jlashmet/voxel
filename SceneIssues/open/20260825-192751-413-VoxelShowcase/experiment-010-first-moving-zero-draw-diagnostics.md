@@ -1,0 +1,13 @@
+# Experiment 010 — isolate the first moving zero-draw frame
+
+**Hypothesis** — The frame-5 traversal failure is not a generic clipmap discovery failure: current code already re-admits resident surface after clipmap motion. The first zero-draw frame should be classified by the existing visibility funnel before changing production. If known/in-band/frustum candidates remain nonzero while ready draws disappear, the failure is publication/LOD fallback readiness; if the funnel itself collapses, the defect is clipmap/slot/visibility routing.
+
+**What was performed** — On source `1b4dc26a390970ea4be3f8e918eb5330fe1ab361`, re-read the current scheduler, chunk-cache clipmap retirement, toroidal slot grid, ring-band tests, and `SurfaceBrickDiscoveryTests.ClipmapMotionReadmitsAlreadyResidentSurfaceIntoFinerLod`. Confirmed that clipmap motion enqueues newly exposed region slabs and immediate camera discovery, outgoing-edge retirement is guarded by the current clipmap window, and the toroidal grid retains still-owned slots. Also confirmed production visibility is collected independently per ring and does not currently consume `SurfaceLodActiveCoverage`. The prior failed traversal artifact (`c59ca85fc9e81b09577b5a6f6c3d143d42438446`, run `32993732467`) reports only the aggregate `VisibleSolidChunks == 0` assertion, so it cannot distinguish those mechanisms.
+
+Added `ShowcaseTraversalCoverageDiagnosticsTests.ShortFlyTraversalKeepsAtLeastOneDrawableSurface`, a short form of the same first 20 fly-mode movement frames. It waits for four visible frames, reproduces the production 0.5 m/frame + lateral-weave path, and on the first zero-draw frame reports aggregate known/resident/dirty/missing/jobs/upload state, the known→in-band→frustum visibility funnel, and step-4 known/resident/dirty/missing/ready/empty diagnostics. No production scheduler behavior is changed in this experiment.
+
+**Result** — Pending targeted CI. The existing evidence is insufficient to select a production change without this first-frame state split.
+
+**What was learned** — A blanket “rerun discovery on camera move” change would duplicate an existing regression and is not justified. Edge retirement also checks current-window ownership before removing chunks. The remaining plausible branches are (1) visibility/slot routing collapses during movement, or (2) candidates remain visible but independent LOD-band readiness/publication leaves no drawable representation.
+
+**Next** — Run the exact new PlayMode diagnostic through `ci-test/fixes/agent-2`. Use the failure telemetry to write the smallest focused regression and production fix; then rerun the full production traversal and convergence/replay gates. Keep the SceneIssue open until movement coverage is verified.
