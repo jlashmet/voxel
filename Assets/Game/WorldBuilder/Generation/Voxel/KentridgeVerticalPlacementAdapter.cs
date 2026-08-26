@@ -18,6 +18,7 @@ namespace MountingForce.WorldGen.Voxel
         private const int PlotFillDepthDm = 12;
         private const int PlotSurfaceThicknessDm = 1;
         private const int BuildingFoundationSinkDm = 5;
+        private const int MarketStallSupportSinkDm = 1;
 
         public static FeatureCatalogue BuildPlotSurfaces(
             uint seed, VoxelWorldGenSettings settings, Allocator allocator)
@@ -138,11 +139,20 @@ namespace MountingForce.WorldGen.Voxel
             int natural = TerrainQuery.HeightAt(centre.X * scale, centre.Y * scale, seed);
             int target = KentridgeVerticalProfile.SurfaceYAtDm(centre.X, centre.Y, seed, scale);
             int delta = target - natural;
+            PlacementRule marketStalls = catalogue.Rules[0];
+            int marketStallEnd = marketStalls.ExplicitOffset + marketStalls.ExplicitCount;
 
             for (int i = 0; i < catalogue.ExplicitPlacements.Length; i++)
             {
                 ExplicitPlacement placement = catalogue.ExplicitPlacements[i];
                 placement.Position.y += delta;
+
+                // The stall program's structural stone shoes start at local y=0. Give those four
+                // supports one authored decimetre of physical overlap with the shared piazza rather
+                // than relying on a zero-thickness contact plane between independent solids.
+                if (i >= marketStalls.ExplicitOffset && i < marketStallEnd)
+                    placement.Position.y -= MarketStallSupportSinkDm * scale;
+
                 catalogue.ExplicitPlacements[i] = placement;
             }
 
