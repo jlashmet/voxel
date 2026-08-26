@@ -40,7 +40,8 @@ namespace MountingForce.WorldGen.Voxel
         /// <summary>
         /// Authors a visible aperture and its infill as separate geometry decisions. The reveal uses
         /// the structure's opening profile; the pane defaults to zero-radius planar geometry so a soft
-        /// masonry city style does not accidentally bevel or round the glass itself.
+        /// masonry city style does not accidentally bevel or round the glass itself. The glazing is
+        /// deliberately thinner than the carved wall depth so the aperture keeps a readable reveal.
         /// </summary>
         public static void GlazedOpening(
             ArchitectureShapeProgramBuilder builder,
@@ -57,9 +58,31 @@ namespace MountingForce.WorldGen.Voxel
             builder.OpeningCarve(x, y, z, width, height, depth);
             if (!fillPane) return;
 
+            // Façade apertures are wide in one horizontal dimension and wall-thickness-deep in the
+            // other. Keep the full opening carve, but restore only a thin centered pane along the
+            // smaller horizontal axis. This preserves a reveal on both sides instead of turning the
+            // entire wall-depth opening into a solid glass block.
+            int wallDepth = Math.Min(width, depth);
+            int paneThickness = Math.Max(1, wallDepth / 3);
+            int paneX = x;
+            int paneZ = z;
+            int paneWidth = width;
+            int paneDepth = depth;
+
+            if (width <= depth)
+            {
+                paneWidth = paneThickness;
+                paneX += (width - paneThickness) / 2;
+            }
+            else
+            {
+                paneDepth = paneThickness;
+                paneZ += (depth - paneThickness) / 2;
+            }
+
             builder.DetailBox(
-                x, y, z,
-                width, height, depth,
+                paneX, y, paneZ,
+                paneWidth, height, paneDepth,
                 glazingMaterial,
                 cornerRadiusDm: paneCornerRadiusDm,
                 surface: paneSurface);
