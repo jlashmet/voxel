@@ -42,13 +42,16 @@ Production-fix attempt: **3 / 3**.
 
 ## Green verification
 
-The assigned CI branch was reset to feature head `c22c60d3482cbb95f2f3f24e7dccd6d6f61caecc` (production fix plus documentation only), then the same focused regression was requested again.
+Focused green request commit: `387a408849a04297bac8f5ab94c1ebb535141d87`.
+Focused workflow run: `32929986757`.
+Result: **passed**. The same focused regression completed successfully against the attempt-3 production inputs.
 
-Green request commit: `387a408849a04297bac8f5ab94c1ebb535141d87`.
-Workflow run: `32929986757`.
+The CI branch was then reset to durable feature head `840f34efb29d2ec5c3a744445bce75ba70d9e53d` and the full class was requested.
 
-Current result: **queued awaiting the self-hosted macOS runner**. Do not treat this as pass or failure until `ci/single-test` reaches a terminal state.
+Class request commit: `6600fcbe17f96aeea8fa8ceaf70640b12dc9b929`.
+Class workflow run: `32930568776`.
+Result: **passed**. `VoxelEngine.Tests.EditMode.KentridgeMarketPiazzaTests` completed with the requested-test step green.
 
 ## What was learned / next
 
-The red regression confirms that the pre-fix authored program violated the intended material-only boundary contract. If the focused test becomes green, run the full `KentridgeMarketPiazzaTests` class and then the mandatory fresh-bake exact-pose replay of this assigned capture. If any marked defect remains in that replay, do not make a fourth production change; keep the issue open and record the exhausted-attempt result.
+The red→green regression and full class confirm the attempt-3 authored-interface contract structurally. The remaining acceptance gate is the mandatory fresh-bake standalone replay at this issue's exact saved camera. If any marked defect remains in that replay, do not make a fourth production change; keep the issue open and record the exhausted-attempt result.
