@@ -68,10 +68,10 @@ done
 
 if [[ -n "$SCENE_ISSUE" ]]; then
   case "$SCENE_ISSUE" in
-    SceneIssues/open/*/issue.json|SceneIssues/closed/*/issue.json) ;;
+    SceneIssues/open/*/issue.json|SceneIssues/pending/*/issue.json|SceneIssues/closed/*/issue.json) ;;
     /*) ;;
     *)
-      echo "ERROR: --scene-issue must name SceneIssues/open|closed/<id>/issue.json." >&2
+      echo "ERROR: --scene-issue must name SceneIssues/open|pending|closed/<id>/issue.json." >&2
       exit 2
       ;;
   esac
