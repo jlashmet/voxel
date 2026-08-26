@@ -1,0 +1,75 @@
+name: SceneIssue 132038 attempt2 production patch
+
+on:
+  push:
+    branches: [fixes/agent-5]
+    paths:
+      - .github/workflows/one-shot-sceneissue-132038-attempt2-fix.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sceneissue-132038-attempt2-fix
+  cancel-in-progress: false
+
+jobs:
+  patch:
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fixes/agent-5
+          clean: true
+          fetch-depth: 0
+
+      - name: Apply explicit far material identity patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(text, old, new, label):
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected exactly one target, found {count}')
+              return text.replace(old, new, 1)
+
+          far_path = Path('Assets/Scenes/Showcase/VoxelFarTerrain.cs')
+          far = far_path.read_text()
+          far = replace_once(far, '        private Vector3[] _positionsScratch;\n        private Color[] _coloursScratch;\n', '        private Vector3[] _positionsScratch;\n        private Color[] _coloursScratch;\n        private Vector2[] _materialIdsScratch;\n', 'far scratch field')
+          far = replace_once(far, '                _positionsScratch = new Vector3[sampleCount];\n                _coloursScratch = new Color[sampleCount];\n                _indicesScratch.Clear();\n', '                _positionsScratch = new Vector3[sampleCount];\n                _coloursScratch = new Color[sampleCount];\n                _materialIdsScratch = new Vector2[sampleCount];\n                _indicesScratch.Clear();\n', 'far scratch allocation')
+          far = replace_once(far, '            Color colour = new(albedo.x, albedo.y, albedo.z, 1f);\n            mesh.colors = new[] { colour, colour, colour, colour };\n            mesh.SetTriangles(new[] { 0, 1, 2, 2, 1, 3 }, 0, false);\n', '            Color colour = new(albedo.x, albedo.y, albedo.z, 1f);\n            Vector2 materialData = new(material, 0f);\n            mesh.colors = new[] { colour, colour, colour, colour };\n            mesh.uv2 = new[] { materialData, materialData, materialData, materialData };\n            mesh.SetTriangles(new[] { 0, 1, 2, 2, 1, 3 }, 0, false);\n', 'startup material channel')
+          far = replace_once(far, '            Vector3[] positions = _positionsScratch;\n            Color[] colours = _coloursScratch;\n', '            Vector3[] positions = _positionsScratch;\n            Color[] colours = _coloursScratch;\n            Vector2[] materialIds = _materialIdsScratch;\n', 'ring material scratch alias')
+          far = replace_once(far, '                colours[i] = new Color(albedo.x, albedo.y, albedo.z, 1f);\n', '                colours[i] = new Color(albedo.x, albedo.y, albedo.z, 1f);\n                materialIds[i] = new Vector2(material, 0f);\n', 'ring material assignment')
+          far = replace_once(far, '            mesh.vertices = positions;\n            mesh.colors = colours;\n', '            mesh.vertices = positions;\n            mesh.colors = colours;\n            mesh.uv2 = materialIds;\n', 'ring material publication')
+          far_path.write_text(far)
+
+          shader_path = Path('Assets/VoxelEngine/Rendering/Runtime/Shaders/FarTerrain.shader')
+          shader = shader_path.read_text()
+          shader = replace_once(shader, '    // Ring vertices still carry the authoritative material albedo in COLOR so the startup\n    // fallback and distant colour contract remain cheap. The shader resolves that colour back to\n    // the renderer\'s material table and samples the same texture array, world-space basis, scale,\n    // and distance attenuation as SmoothSurface. This keeps the near/far handoff from becoming a\n    // second grass-texturing system with visibly different scale.\n', '    // Ring vertices carry authoritative material albedo in COLOR plus the application-owned\n    // semantic material ID in uv2. The shader uses that explicit ID to select the same texture\n    // sampling row as SmoothSurface, avoiding a second grass-texturing policy at the near/far handoff.\n', 'shader overview')
+          shader = replace_once(shader, '            float4 _MaterialAlbedo[32];\n            float4 _MaterialSampling[32];\n', '            float4 _MaterialSampling[32];\n', 'remove reverse-lookup albedo table')
+          shader = replace_once(shader, '                float3 normalOS : NORMAL;\n                float4 color : COLOR;\n', '                float3 normalOS : NORMAL;\n                float4 color : COLOR;\n                float2 materialData : TEXCOORD1;\n', 'shader material attribute')
+          shader = replace_once(shader, '                float3 normalWS : TEXCOORD0;\n                float3 positionWS : TEXCOORD1;\n                float4 color : COLOR;\n', '                float3 normalWS : TEXCOORD0;\n                float3 positionWS : TEXCOORD1;\n                nointerpolation float material : TEXCOORD2;\n                float4 color : COLOR;\n', 'shader noninterpolated varying')
+          shader = replace_once(shader, '                output.normalWS = TransformObjectToWorldNormal(input.normalOS);\n                output.color = input.color;\n', '                output.normalWS = TransformObjectToWorldNormal(input.normalOS);\n                output.material = input.materialData.x;\n                output.color = input.color;\n', 'shader material forwarding')
+          reverse_lookup = '''            uint ResolveMaterialFromAlbedo(float3 vertexAlbedo)\n            {\n                uint bestMaterial = 0u;\n                float bestError = 1e20;\n                [unroll]\n                for (uint material = 0u; material < 32u; material++)\n                {\n                    float3 delta = _MaterialAlbedo[material].rgb - vertexAlbedo;\n                    float error = dot(delta, delta);\n                    if (error < bestError)\n                    {\n                        bestError = error;\n                        bestMaterial = material;\n                    }\n                }\n                return bestMaterial;\n            }\n\n'''
+          shader = replace_once(shader, reverse_lookup, '', 'remove RGB reverse lookup')
+          shader = replace_once(shader, '                uint material = ResolveMaterialFromAlbedo(input.color.rgb);\n', '                uint material = min((uint)round(input.material), 31u);\n', 'shader explicit material selection')
+          shader_path.write_text(shader)
+          PY
+          git diff --check
+
+      - name: Commit atomic production fix and remove temporary workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/workflows/one-shot-sceneissue-132038-attempt2-fix.yml
+          git add Assets/Scenes/Showcase/VoxelFarTerrain.cs Assets/VoxelEngine/Rendering/Runtime/Shaders/FarTerrain.shader
+          git commit -m 'Fix scene issue 20260826-132038: preserve far material identity'
+          git pull --rebase origin fixes/agent-5
+          git push origin HEAD:fixes/agent-5
+          echo "FIX_SHA=$(git rev-parse HEAD)"
