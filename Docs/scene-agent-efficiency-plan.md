@@ -25,6 +25,9 @@ visual fixes or stacking new assignments over unfinished branch work.
   subjective quality.
 - [x] Stale-assignment documentation requires an explicit branch handoff.
 - [x] Infrastructure observations are consolidated instead of becoming one experiment per poll.
+- [x] Ready feature branches are promoted to master in one coordinator-designated batch.
+- [x] Showcase-dependent targeted tests reuse a content-fingerprinted runner-local bake.
+- [x] Obsolete one-shot workflows are removed and policy prevents their return.
 - [x] Static validation and targeted repository checks pass.
 - [ ] Final diff is reviewed and pushed to `origin`.
 
