@@ -530,11 +530,14 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private BuildState _build;
         private bool _pendingUpload;
         /// <summary>
-        /// Production rollback: every ring uses the CPU mesher. GPU extraction remains isolated
-        /// behind this gate for oracle tests, but the runtime scheduler never creates or dispatches
-        /// a GPU extraction context.
+        /// Forces every ring onto the CPU mesher when <c>VOXEL_DISABLE_GPU_CUTOVER=1</c>.
+        ///
+        /// This exists so the compute path can be measured against the path it replaces in one
+        /// build, with nothing else differing between the two runs. Read once, because a value that
+        /// changed mid-session would split a single measurement across both back ends.
         /// </summary>
-        internal static readonly bool GpuCutoverDisabled = true;
+        internal static readonly bool GpuCutoverDisabled =
+            Environment.GetEnvironmentVariable("VOXEL_DISABLE_GPU_CUTOVER") == "1";
 
         private GpuSurfaceExtractionContext _gpuExtraction;
         private readonly bool _gpuCutoverConfigured;
