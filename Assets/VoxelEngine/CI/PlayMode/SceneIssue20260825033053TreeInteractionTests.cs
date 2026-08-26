@@ -1,5 +1,4 @@
 using System.Collections;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using NUnit.Framework;
@@ -20,7 +19,6 @@ namespace VoxelEngine.CI
         private const float StartupTimeoutSeconds = 30f;
         private const float ShotSweepRadiusMetres = 0.28f;
         private const float ShotBlastRadiusMetres = 1.2f;
-        private const float ShotRangeMetres = 250f;
         private const float CapturedAspect = 1364f / 836f;
         private static readonly Vector3 CapturedPosition = new(
             30.713180541992189f, 23.950254440307618f, 154.71759033203126f);
@@ -71,7 +69,7 @@ namespace VoxelEngine.CI
                                 out int hitTreeIndex, out float3 hitMetres,
                                 out float3 rayDirection, out float viewportX, out float viewportY),
                             Is.True,
-                            "No semantic tree geometry is intersected anywhere in the saved whole-frame camera view.");
+                            "No authored semantic branch geometry is visible and shootable from the saved camera view.");
 
                 TreeInstance instance = TreeWorldRuntime.Instances[hitTreeIndex];
                 TreeSkeletonSnapshot skeleton = ProceduralTreeSkeletonBuilder.Generate(in instance);
@@ -86,7 +84,7 @@ namespace VoxelEngine.CI
                     collisionMidpoint - playerHalfExtents,
                     collisionMidpoint + playerHalfExtents);
                 Assert.That(blocksPlayer, Is.True,
-                    "The authored tree intersected from the saved view must block a player-sized volume at its lower trunk.");
+                    "The authored tree shot from the saved view must block a player-sized volume at its lower trunk.");
 
                 int removedBefore = TreeWorldRuntime.RemovedBranches(hitTreeIndex).Count;
                 treeDamage.ApplyBlast(hitMetres, ShotBlastRadiusMetres, rayDirection);
@@ -139,32 +137,56 @@ namespace VoxelEngine.CI
             viewportX = 0f;
             viewportY = 0f;
             float bestDistanceSquared = float.MaxValue;
+            float3 rayOrigin = (float3)camera.transform.position;
+            Plane[] frustumPlanes = GeometryUtility.CalculateFrustumPlanes(camera);
 
-            const int columns = 19;
-            const int rows = 13;
-            for (int row = 0; row < rows; row++)
+            for (int candidateTreeIndex = 0;
+                 candidateTreeIndex < TreeWorldRuntime.Instances.Count;
+                 candidateTreeIndex++)
             {
-                float y = math.lerp(0.05f, 0.95f, row / (float)(rows - 1));
-                for (int column = 0; column < columns; column++)
+                TreeInstance instance = TreeWorldRuntime.Instances[candidateTreeIndex];
+                TreeSkeletonSnapshot skeleton = ProceduralTreeSkeletonBuilder.Generate(in instance);
+                float3 root = instance.PositionMetres;
+
+                for (int branchIndex = 0; branchIndex < skeleton.Branches.Count; branchIndex++)
                 {
-                    float x = math.lerp(0.05f, 0.95f, column / (float)(columns - 1));
-                    Ray ray = camera.ViewportPointToRay(new Vector3(x, y, 0f));
-                    float3 from = (float3)ray.origin;
-                    float3 direction = (float3)ray.direction;
-                    float3 to = from + direction * ShotRangeMetres;
-                    if (!treeDamage.TrySweepImpact(
-                            from, to, ShotSweepRadiusMetres,
-                            out float3 candidateHit, out int candidateTreeIndex))
+                    TreeBranchSegment branch = skeleton.Branches[branchIndex];
+                    float3 start = root + branch.Start;
+                    float3 end = root + branch.End;
+                    float radius = math.max(0.01f, math.max(branch.RadiusStart, branch.RadiusEnd));
+                    float3 centre = (start + end) * 0.5f;
+                    float3 size = math.abs(end - start) + radius * 2f;
+                    var branchBounds = new Bounds((Vector3)centre, (Vector3)size);
+                    if (!GeometryUtility.TestPlanesAABB(frustumPlanes, branchBounds))
                         continue;
 
-                    float distanceSquared = math.lengthsq(candidateHit - from);
-                    if (distanceSquared >= bestDistanceSquared) continue;
-                    bestDistanceSquared = distanceSquared;
-                    treeIndex = candidateTreeIndex;
-                    hitMetres = candidateHit;
-                    rayDirection = direction;
-                    viewportX = x;
-                    viewportY = y;
+                    const int samples = 5;
+                    for (int sampleIndex = 0; sampleIndex < samples; sampleIndex++)
+                    {
+                        float t = sampleIndex / (float)(samples - 1);
+                        float3 target = math.lerp(start, end, t);
+                        Vector3 viewport = camera.WorldToViewportPoint((Vector3)target);
+                        if (viewport.z <= 0f || viewport.x < 0f || viewport.x > 1f
+                            || viewport.y < 0f || viewport.y > 1f)
+                            continue;
+
+                        float3 direction = math.normalizesafe(
+                            target - rayOrigin, new float3(0f, 0f, 1f));
+                        float3 rayEnd = target + direction * 2f;
+                        if (!treeDamage.TrySweepImpact(
+                                rayOrigin, rayEnd, ShotSweepRadiusMetres,
+                                out float3 candidateHit, out int sweptTreeIndex))
+                            continue;
+
+                        float distanceSquared = math.lengthsq(candidateHit - rayOrigin);
+                        if (distanceSquared >= bestDistanceSquared) continue;
+                        bestDistanceSquared = distanceSquared;
+                        treeIndex = sweptTreeIndex;
+                        hitMetres = candidateHit;
+                        rayDirection = direction;
+                        viewportX = viewport.x;
+                        viewportY = viewport.y;
+                    }
                 }
             }
 
