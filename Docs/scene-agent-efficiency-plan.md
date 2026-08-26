@@ -7,7 +7,8 @@ visual fixes or stacking new assignments over unfinished branch work.
 
 ## Scope and constraints
 
-- Keep the existing persistent `fixes/agent-N` and `ci-test/fixes/agent-N` branch model.
+- Keep persistent `fixes/agent-N` and `ci-test/fixes/agent-N` work refs; isolate each human review
+  on `review/scene-issue/<capture-id>` so the worker can safely continue.
 - Keep targeted CI under its five-minute job budget.
 - Use the shared targeted-test workflow for exact saved-camera replay rather than per-issue workflow
   files.
@@ -28,8 +29,11 @@ visual fixes or stacking new assignments over unfinished branch work.
 - [x] Ready feature branches are promoted to master in one coordinator-designated batch.
 - [x] Showcase-dependent targeted tests reuse a content-fingerprinted runner-local bake.
 - [x] Obsolete one-shot workflows are removed and policy prevents their return.
+- [x] Verified fixes enter `pending/`, then use a bookkeeping-only PR for human approval and closure.
+- [x] Workers are released after the coordinator verifies the pending state and open review PR.
+- [x] Pending-to-closed review-only PRs and merges do not consume Unity runner time.
 - [x] Static validation and targeted repository checks pass.
-- [ ] Final diff is reviewed and pushed to `origin`.
+- [x] Final diff is reviewed and pushed to `origin`.
 
 ## Validation evidence
 
