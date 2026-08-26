@@ -1,4 +1,4 @@
-# Plan — reopened VoxelShowcase LOD presentation issue
+# Plan — reopened VoxelShowcase surface-transition issue
 
 ## Scope
 
@@ -8,29 +8,27 @@ Work only `SceneIssues/open/20260825-032832-253-VoxelShowcase` on `fixes/agent-4
 
 - Independent LOD rings can publish overlapping visible geometry. A previous render-staging ownership filter proved that overlap exists, but the exact saved-view replay still showed the reported coarse/striped patches.
 - The analytic far terrain is not the source of the three marked regions; the saved view places them well inside its published hole.
-- `VoxelShowcase` serialized `m_DetailBandScale = 0.6`, and changing it to `1.0` moved the first handoff from 57.6 m to 96 m. That change passed a focused policy test and a prior replay was judged clean, but the merged result was later rejected and reverted. Treating band distance alone as the root cause is therefore falsified.
+- Changing serialized `m_DetailBandScale` from `0.6` to `1.0` moved the first handoff from 57.6 m to 96 m, but retained exact-replay evidence shows the same marked strips. Band distance alone is falsified.
+- The previous hierarchy-ownership filter also failed to remove the marked strips. Do not revisit scheduler ownership as the next production change.
 
 ## Current root-cause question
 
-The code already defines `SurfaceLodCoverageState` and `SurfaceLodActiveCoverage`, whose invariant is atomic hierarchy ownership: keep a complete coarse parent until all eight finer children are current-complete, then replace the parent with the complete child set. Production visibility currently ignores that logical owner set: each ring independently collects in-band ready entries and `VoxelSurfaceScheduler.CollectVisibility` appends every ring's entries directly to `_visibleSolids`.
-
-The previous visibility fix inferred ownership from only the currently visible entries, which cannot know whether all eight finer children are complete and therefore can choose the coarse parent even after refinement should own the area.
+`experiment-11.md` narrowed the remaining failure to geometry/material presentation that survives both ownership filtering and detail-band expansion. The next isolation target is the Transvoxel fine/coarse transition path itself: determine whether regular surface cells and transition cells overlap at the same boundary, or whether transition vertices carry discontinuous normals/material attributes that create the bright/dark serrated bands visible in the saved replay.
 
 ## Required isolation before another production change
 
-The earlier investigation exceeded three implementation attempts, so first add a bare-bones EditMode reproduction with only one coarse parent, its eight finer children, completion state, and candidate draw keys. It must prove the desired handoff behavior independently of scene streaming, materials, GPU extraction, and camera/frustum complexity:
+The earlier investigation exceeded three implementation attempts, so first add a bare-bones deterministic EditMode reproduction around one transition boundary using production Transvoxel code. It should separate these invariants from scene streaming, camera/frustum selection, and unrelated materials:
 
-1. Partial finer completion keeps the coarse parent as the only drawable owner.
-2. All eight current-complete children atomically retire the parent and become the drawable owners.
-3. Known-empty children count as complete coverage but are not emitted as geometry.
-4. Stale child completions cannot retire a current coarse parent.
+1. Regular topology and transition topology must not publish two coplanar/near-coplanar surfaces for the same boundary region.
+2. Transition vertices that represent the same surface as regular/fine neighbors must preserve compatible position/normal/material attributes.
+3. The reproduction must fail on the current branch before any production behavior changes.
 
-If the existing active-coverage primitive satisfies the isolated invariant, the production fix should wire that same authority into scheduler visibility rather than create a second ownership heuristic.
+If the isolated boundary is already clean, falsify this hypothesis in a new experiment and move to the next surface-presentation cause rather than changing production code speculatively.
 
 ## Verification
 
-- Establish a behavioral red regression against current production visibility integration.
-- Implement the smallest scheduler integration that uses the atomic active coverage as the source of draw ownership while preserving the existing one-chunk ring overlap for residency/build convergence.
-- Run the exact focused regression through `ci-test/fixes/agent-4`.
-- Replay `ShowcaseSceneIssue032832ReplayTests.SavedFixtureIsConfiguredForExactReplay` through the same targeted CI branch and inspect the saved 1364x836 standalone evidence for all three marked regions.
-- Do not close on test success alone. Only after the exact replay is visually/structurally clean, record terminal `issue.json` fields, move the whole capture to `SceneIssues/closed/`, push the bookkeeping commit, and stop without starting another capture.
+- Establish the behavioral red regression first.
+- Apply the smallest production fix tied to the reproduced invariant.
+- Run the focused regression plus the repository fast suite through the prescribed targeted branch `ci-test/fixes/agent-4`.
+- Replay `ShowcaseSceneIssue032832ReplayTests.SavedFixtureIsConfiguredForExactReplay` through targeted CI and inspect the saved 1364x836 standalone evidence for all three marked regions; do not trust the checker alone.
+- Only if the exact replay is visually clean, record terminal `issue.json` fields, move the whole capture to `SceneIssues/closed/`, push the bookkeeping commit, and stop without starting another capture.
