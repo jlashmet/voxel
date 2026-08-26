@@ -104,6 +104,10 @@ that would create a PR synchronize event and fan out normal PR CI again.
 
 A requested single test is a fast-feedback path and must complete in **less than 5 minutes** once its workflow job starts. Keep the requested test narrow enough to fit that budget; if it does not, split or narrow the test instead of extending the single-test timeout.
 
+Showcase-dependent requests use a runner-local, content-fingerprinted startup-bake cache. Do not
+force a fresh bake, delete that cache, or create a custom bake workflow as a retry mechanism. The
+shared workflow invalidates the cache automatically when tracked bake inputs change.
+
 Each `ci-test/...` branch is latest-request-wins. When a newer request is pushed to the same CI branch, GitHub Actions cancels any older queued or running single-test workflow for that branch rather than allowing requests to queue up. Only the newest request on that branch should be monitored as authoritative.
 
 For each iteration:
@@ -150,24 +154,23 @@ change production code, create another branch/workflow, or emit a burst of reque
 
 ### Scene-issue promotion to master
 
-For coordinator-assigned scene issues, green targeted CI is the gate to promotion, **not** the
-stopping point. After the production/test fix is green and the terminal `issue.json` plus
-open-to-closed bookkeeping commit has been pushed to `fixes/agent-N`, the worker must integrate that
-verified branch into current `origin/master` before declaring the assignment complete.
+For coordinator-assigned scene issues, green targeted CI and terminal bookkeeping make the branch
+ready for promotion; they do not authorize every worker to push `master`. Leave the verified
+`fixes/agent-N` head unchanged and wait while the coordinator collects ready branches. The
+coordinator designates one worker to integrate the entire ready batch and update `master` once.
 
-- Fetch `origin` immediately before promotion. If `origin/master` advanced, integrate it into the
-  assigned feature branch without discarding either side and push the updated feature branch.
-- If that integration changes production code, test code, scene data, or any input relevant to the
-  regression, reset the assigned CI request branch to the integrated feature head and run the
-  targeted test again. A bookkeeping-only merge that changes no tested inputs does not require a
-  redundant rerun.
-- Advance `master` only with a normal non-force fast-forward or merge that preserves all intervening
-  master commits. **Never force-push or overwrite `master`.** If `master` moves again before the
-  promotion lands, refetch, integrate, and retry instead of forcing the ref.
+- A worker not designated as batch promoter must not push `master` or move its verified feature
+  head while waiting.
+- The designated promoter must fetch immediately before promotion, verify every listed remote head,
+  and merge all of them in an isolated local worktree based on current `origin/master`. Publish no
+  intermediate integration ref.
+- If a listed head moved, a merge conflicts, or `origin/master` advances before the push, stop and
+  report it so the coordinator can rebuild the batch. Do not silently omit a member.
+- Advance `master` exactly once for the complete batch with a normal non-force update. **Never
+  force-push or overwrite `master`.**
 - Verify the remote `origin/master` contains the fix commit and terminal bookkeeping commit, the
   capture exists only under `SceneIssues/closed/`, and the required `ci/single-test` result is green.
-- Only after that remote-master verification may the scene-issue worker stop and wait for the next
-  coordinator assignment.
+- Only after remote-master verification may each included scene-issue worker receive another task.
 
 ## Testing
 

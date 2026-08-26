@@ -31,3 +31,13 @@ jobs:
             exit 1
           fi
           echo 'All workflows use self-hosted runners.'
+      - name: Reject task-specific one-shot workflows
+        shell: bash
+        run: |
+          set -euo pipefail
+          if find .github/workflows -maxdepth 1 -type f -name 'one-shot*.yml' | grep -q .; then
+            find .github/workflows -maxdepth 1 -type f -name 'one-shot*.yml' -print >&2
+            echo 'Task-specific one-shot workflows are forbidden; use tests-single.yml.' >&2
+            exit 1
+          fi
+          echo 'No task-specific one-shot workflows found.'

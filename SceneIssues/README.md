@@ -97,7 +97,8 @@ Because these are persistent branches and several workers may merge fixes concur
 issue worker must **periodically fetch `origin` and merge current `origin/master` into
 `fixes/agent-N` while the assignment is still in progress**. Do this at assignment start, before a
 new substantial fix attempt when other work may have landed, before the final targeted-CI request,
-and immediately before merging the verified result to master. Resolve conflicts by preserving both
+and immediately before declaring the verified result ready for promotion. Resolve conflicts by
+preserving both
 the assigned issue's work and intervening master changes; never reset away unmerged work or
 force-push the feature branch simply to catch up. If the merge changes tested inputs, validate the
 new integrated feature head rather than relying on CI from the pre-merge state.
@@ -144,22 +145,19 @@ When the coordinator assigns an agent a captured issue:
     `SceneIssues/closed/` on that remote branch, including that the open path is gone and the fixed
     issue's `fixCommit` is on the branch. Also require `ci/single-test` success on the assigned CI
     request branch and verify that branch contains the recorded fix commit.
-15. **Merge the verified fix to `master`; do not stop on `fixes/agent-N`.** Fetch `origin`
-    immediately before promotion. If `origin/master` advanced while the issue was being fixed,
-    integrate current `origin/master` into the assigned feature branch without discarding either
-    side, then push that integrated feature branch. If the integration changes production code,
-    tests, scene data, or another input relevant to the regression, reset `ci-test/fixes/agent-N`
-    to the integrated feature head and run the focused CI test again before promotion. A merge that
-    changes only terminal SceneIssue bookkeeping does not require a redundant test rerun.
-16. Advance `master` with a normal non-force fast-forward or merge that preserves every intervening
-    master commit. **Never force-push or overwrite `master`.** If another worker advances master
-    before this promotion lands, fetch again, integrate the new master tip, rerun CI when relevant
-    tested inputs changed, and retry the non-force promotion.
-17. Verify the final remote state on `origin/master`: the production/test fix and terminal
-    bookkeeping commits are ancestors of master, the capture is absent from `SceneIssues/open/`,
+15. **Enter the coordinator's promotion batch; do not push `master` independently.** After the
+    focused CI request is green and terminal bookkeeping is pushed, leave the verified
+    `fixes/agent-N` head unchanged. The coordinator waits briefly for other ready issues and names
+    one worker as batch promoter. Non-promoters wait and must not race the batch with their own push.
+16. The designated promoter fetches `origin`, verifies every listed exact branch head, and merges
+    all members in an isolated local worktree based on current `origin/master`. If a head moved, a
+    merge conflicts, or master advances, stop and report it. Otherwise advance `master` exactly once
+    for the complete batch with a normal non-force update. **Never force-push or overwrite master.**
+17. Verify the final remote state for every batch member on `origin/master`: the production/test
+    fix and terminal bookkeeping commits are ancestors of master, the capture is absent from `SceneIssues/open/`,
     the matching `SceneIssues/closed/` directory has terminal `issue.json` fields, and the required
     `ci/single-test` result is green. Only then is the assignment complete.
-18. Stop after verified master integration and wait for the coordinator. It will assign the next
+18. Stop after verified batch integration and wait for the coordinator. It will assign the next
     capture to the same tab and persistent branches. Do not self-select or start another capture.
 
 ## Document every experiment
@@ -214,4 +212,5 @@ experiment files are the working record behind it, and both are expected on a re
 
 The point of persistent agent branches plus coordinator-owned claims is to make visual cleanup a
 safe parallel queue: each worker follows reproduce → inspect marked regions → test → fix → verify →
-document → commit → resolve → merge to master, then waits for its next exclusive assignment.
+document → commit → resolve → join a batched master promotion, then waits for its next exclusive
+assignment.
