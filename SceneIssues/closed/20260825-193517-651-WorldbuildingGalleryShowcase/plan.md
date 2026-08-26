@@ -35,6 +35,6 @@ Improve the grass visible in the captured WorldbuildingGalleryShowcase viewpoint
 - [x] Replay/verify the original fixture after the fix through real-player `--scene-issue` capture and document evidence.
 - [x] Remove the temporary replay-routing change and confirm the feature branch contains only durable production/test/evidence changes.
 - [x] Wire existing live actor positions into the bounded grass-interactor bridge without reversing game/engine dependencies, and extend the regression to prove that publisher is present.
-- [ ] Obtain a final green targeted `ci/single-test` on the complete durable source after the publisher wiring.
-- [ ] Review final diff and architecture constraints.
-- [ ] Commit terminal `issue.json` bookkeeping and open→closed move, push, and verify remote terminal state.
+- [x] Obtain a final green targeted `ci/single-test` on the complete durable source after the publisher wiring.
+- [x] Review final diff and architecture constraints.
+- [x] Commit terminal `issue.json` bookkeeping and open→closed move, push, and verify remote terminal state.
