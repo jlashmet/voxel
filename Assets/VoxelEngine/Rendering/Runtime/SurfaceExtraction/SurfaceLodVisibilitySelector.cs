@@ -4,17 +4,18 @@ using System.Collections.Generic;
 namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 {
     /// <summary>
-    /// Chooses one non-overlapping logical LOD coverage set from the chunks the renderer can
-    /// currently fall back to and the chunks whose desired generation is complete.
+    /// Chooses one non-overlapping logical LOD coverage set from drawable fallback chunks and
+    /// chunks whose desired generation is complete.
     ///
     /// A drawable coarse parent remains active while finer coverage is partial. Once every direct
     /// child is complete, the parent is replaced atomically; known-empty children participate in
-    /// that proof even though they have no draw entry. Rebuilding from the current scheduler
-    /// snapshot also drops nodes that have left the clipmap without retaining stale ownership.
+    /// that proof even though they have no draw entry. A known-empty node never becomes a root by
+    /// itself, so logical air cannot suppress finer drawable geometry when there is no coarse
+    /// fallback to show.
     /// </summary>
     internal sealed class SurfaceLodVisibilitySelector
     {
-        private readonly HashSet<SurfaceLodNodeKey> _coverage = new();
+        private readonly HashSet<SurfaceLodNodeKey> _drawable = new();
         private readonly HashSet<SurfaceLodNodeKey> _currentComplete = new();
         private readonly HashSet<SurfaceLodNodeKey> _active = new();
 
@@ -28,26 +29,22 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             if (currentCompleteNodes == null)
                 throw new ArgumentNullException(nameof(currentCompleteNodes));
 
-            _coverage.Clear();
+            _drawable.Clear();
             _currentComplete.Clear();
             _active.Clear();
 
             for (int i = 0; i < drawableNodes.Count; i++)
-                _coverage.Add(drawableNodes[i]);
+                _drawable.Add(drawableNodes[i]);
             for (int i = 0; i < currentCompleteNodes.Count; i++)
-            {
-                SurfaceLodNodeKey node = currentCompleteNodes[i];
-                _currentComplete.Add(node);
-                _coverage.Add(node);
-            }
+                _currentComplete.Add(currentCompleteNodes[i]);
 
-            foreach (SurfaceLodNodeKey node in _coverage)
+            foreach (SurfaceLodNodeKey node in _drawable)
             {
-                if (!HasCoverageAncestor(node)) Expand(node);
+                if (!HasDrawableAncestor(node)) Expand(node);
             }
         }
 
-        private bool HasCoverageAncestor(in SurfaceLodNodeKey node)
+        private bool HasDrawableAncestor(in SurfaceLodNodeKey node)
         {
             SurfaceLodNodeKey cursor = node;
             while (SurfaceLodHierarchy.TryGetParentSourceStep(
@@ -55,7 +52,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             {
                 cursor = new SurfaceLodNodeKey(
                     parentStep, SurfaceLodHierarchy.ParentCoordinate(cursor.Coordinate));
-                if (_coverage.Contains(cursor)) return true;
+                if (_drawable.Contains(cursor)) return true;
             }
             return false;
         }
