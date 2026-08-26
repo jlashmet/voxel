@@ -27,6 +27,8 @@ Restore the VoxelShowcase tree gameplay contract: nearby semantic trees must blo
 - The fix adds a surviving-wood AABB query at the stable vegetation API boundary and uses it after voxel collision checks. Foliage stays traversable and removed branches stop blocking immediately.
 - The capture itself was made against an older startup bake: capture-era `ShowcaseWorld.bytes` was 23,096,216 bytes; the current bake is 11,074,525 bytes and was refreshed after the capture.
 - Exact saved-camera replay against the current checked-in bake (run `32999019598`, artifact `9617959964`) shows sky/fog only and no tree geometry while the scene still publishes 36 semantic trees. The old north-field tree visuals therefore no longer exist in the authoritative saved view.
+- Final cleanup regression run `33000528711` executed exactly 3 PlayMode cases from fix commit `fdc54b765714c5b6df5787ecc57640be2d356381` and published `ci/single-test: success` on request commit `f3bbe8ab5b55e442fb9422496b79ebbeeb350f76`.
+- Current `master` was merged afterward as `56f1b3f6ae5a83dd5583deccee86c7dd4b258581`; the merge changed only scene-agent CI/process files and did not alter production code, tests, scene data, or replay evidence.
 
 ## Acceptance criteria
 
@@ -46,6 +48,7 @@ Restore the VoxelShowcase tree gameplay contract: nearby semantic trees must blo
 - [x] Validate the focused permanent regression through targeted CI on an exact feature head (3/3 passed in run `32927755132`).
 - [x] Replay-verify the original saved camera against the current authoritative bake and record final evidence (experiment 017 / run `32999019598`).
 - [x] Remove temporary capture-specific replay test wiring from the final production/test tree.
-- [ ] Run the permanent regression again through targeted CI from the exact final cleanup/integrated feature head and require `ci/single-test` success.
-- [ ] Review the final diff, complete terminal `issue.json`, move the entire capture to `SceneIssues/closed/`, and push the separate resolution commit.
-- [ ] Integrate current `master` if necessary, promote non-force, and verify terminal remote `master` state.
+- [x] Run the permanent regression again from the final cleanup production/test head and require `ci/single-test` success (3/3 passed in run `33000528711`; experiment 018).
+- [x] Integrate current `master` without changing tested gameplay inputs (`56f1b3f6ae5a83dd5583deccee86c7dd4b258581`).
+- [ ] Complete terminal `issue.json`, move the entire capture to `SceneIssues/closed/`, and push the separate resolution commit.
+- [ ] Promote the integrated terminal branch to `master` non-force and verify terminal remote `master` state.
