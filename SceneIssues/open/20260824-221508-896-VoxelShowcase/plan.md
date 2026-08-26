@@ -17,7 +17,8 @@ The fix must identify the shared placement / boundary-ownership rule behind thos
 - [x] Add a focused red regression requiring material-only border paint and physical overlap at market-stall supports.
 - [x] Prove the regression red in run `32928540659`: one test ran and failed at the intended `PaintSolid` assertion (`expected 3`, `was 0`).
 - [x] Apply production attempt 3 in `9c839dcbbe73bb3f325db8d3dd3ef380d22343cf`: keep one geometric piazza slab, paint its border material, and sink market stalls one authored decimetre into the shared surface.
-- [ ] Run the focused regression green and then the full `KentridgeMarketPiazzaTests` class. Focused green request commit `387a408849a04297bac8f5ab94c1ebb535141d87`, workflow run `32929986757`, is currently queued with no self-hosted macOS runner assigned.
+- [x] Prove the focused regression green in run `32929986757`.
+- [x] Run the full `VoxelEngine.Tests.EditMode.KentridgeMarketPiazzaTests` class green in run `32930568776`.
 - [ ] Regenerate the showcase startup bake and replay this assigned issue's exact saved camera.
 - [ ] If the replay passes, move the capture to `SceneIssues/closed/` with terminal fixed bookkeeping; if it fails, stop production changes and keep the issue open with the failed evidence because all three attempts are exhausted.
 - [ ] Restore/remove any CI-only request or replay wiring as required by the repository workflow.
@@ -31,17 +32,13 @@ The attempt-2 artifact was then inspected directly. The three lower circles are 
 
 The pre-attempt-3 piazza program emitted one full FoundationStone `Fill` slab followed by four coplanar DarkMasonry `Fill` boxes. `PrimitiveMode.PaintSolid` exists specifically to repaint existing solid voxels without changing occupancy. The authored-boundary contract also states that paint is not geometry: a material-only operation must not create a second boundary field over geometry another primitive already owns. Attempt 2 left that coplanar boundary ownership intact even though it strengthened occupancy underneath.
 
-The remaining marked area is at market-stall feet. `KentridgeTownDressingCatalogue` places the stall at the vertically adapted piazza surface, and its four stone shoes begin at local `y = 0`. Thus the shoes merely touched the hard piazza top; they did not penetrate it. The screenshot shows light-blue exposure around those contact patches. The corresponding support contract is to sink the stall placement by one authored decimetre, so the structural feet overlap the supporting surface instead of relying on exact contact between separately authored solids.
+The remaining marked area is at market-stall feet. `KentridgeTownDressingCatalogue` places the stall at the vertically adapted piazza surface, and its four stone shoes begin at local `y = 0`. Thus the shoes merely touched the hard piazza top; they did not penetrate it. The corresponding support contract is to sink the stall placement by one authored decimetre, so the structural feet overlap the supporting surface instead of relying on exact contact between separately authored solids.
 
 Attempt 3 (`9c839dcbbe73bb3f325db8d3dd3ef380d22343cf`) implements that shared rule: **do not model a visual/material junction as an independent coplanar solid, and do not make supported solids depend on a zero-overlap contact plane.** The hard piazza remains the sole geometric owner of its floor; its four dark perimeter boxes are now `PaintSolid`, while only the four market-stall placements overlap that floor by one authored decimetre.
 
-The focused regression is a valid red: run `32928540659` completed after Unity executed exactly one test, and the intended border-ownership assertion failed with `expected 3` (`PaintSolid`) versus `0` (`Fill`). Checkout, request resolution, Unity resolution, and setup all succeeded. This proves the pre-fix authored program violated the contract rather than merely hitting a CI setup error.
+Validation now has a complete structural red→green chain. Run `32928540659` failed the pre-fix authored program at the intended `PaintSolid` contract. The same focused regression passed after attempt 3 in run `32929986757`, and the full `KentridgeMarketPiazzaTests` class passed in run `32930568776`. `origin/master` was unchanged from the master already integrated into this feature branch when those production/test inputs were validated.
 
-## Validation blocker
-
-The CI branch has been reset to the attempt-3 feature state and the same focused regression re-requested for green verification. Request commit `387a408849a04297bac8f5ab94c1ebb535141d87` produced workflow run `32929986757`, but the job remains `queued` with labels `[self-hosted, macOS]` and `runner_id = 0` / no runner name. No production/test input has been changed while that request waits; subsequent feature-branch commits are documentation only.
-
-Per `AGENTS.md`, a missing terminal `ci/single-test` status cannot be reported as pass. Do not supersede this request unnecessarily because the CI branch is latest-request-wins. Resume by monitoring run `32929986757`. If it becomes green, request the full `VoxelEngine.Tests.EditMode.KentridgeMarketPiazzaTests` class on the same assigned CI branch, then run the existing assigned-issue fresh-bake exact-pose replay. That replay strips annotations but preserves this capture's camera/pose and does not create a new SceneIssue.
+The only remaining acceptance gate is a new standalone VoxelShowcase bake plus exact-pose replay of the assigned capture with annotations removed. The existing one-shot replay workflow preserves the saved camera and pose, asserts the frozen standalone pose in the player log, and does not create a new SceneIssue capture.
 
 ## Three-attempt rule
 
