@@ -224,10 +224,20 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
                                          int3 uAxis, int3 vAxis, int3 wAxis)
         {
             int2 faceCoordinate = SampleFaceCoordinate(sample, cellU, cellV);
-            float du = FaceDensity[FaceIndex(faceCoordinate.x - 1, faceCoordinate.y)]
-                     - FaceDensity[FaceIndex(faceCoordinate.x + 1, faceCoordinate.y)];
-            float dv = FaceDensity[FaceIndex(faceCoordinate.x, faceCoordinate.y - 1)]
-                     - FaceDensity[FaceIndex(faceCoordinate.x, faceCoordinate.y + 1)];
+            int minU = math.max(faceCoordinate.x - 1, 0);
+            int maxU = math.min(faceCoordinate.x + 1, FaceSamplesPerAxis - 1);
+            int minV = math.max(faceCoordinate.y - 1, 0);
+            int maxV = math.min(faceCoordinate.y + 1, FaceSamplesPerAxis - 1);
+
+            // Preserve the scale of a two-sample central difference while using the actual
+            // one-sided span at snapshot edges. Without the span correction an edge component
+            // is halved relative to an interior component, rotating the reconstructed slope.
+            float du = 2f * (FaceDensity[FaceIndex(minU, faceCoordinate.y)]
+                           - FaceDensity[FaceIndex(maxU, faceCoordinate.y)])
+                     / math.max(1, maxU - minU);
+            float dv = 2f * (FaceDensity[FaceIndex(faceCoordinate.x, minV)]
+                           - FaceDensity[FaceIndex(faceCoordinate.x, maxV)])
+                     / math.max(1, maxV - minV);
             float3 outward = -(float3)wAxis;
             return math.normalizesafe(
                 outward + (float3)uAxis * du + (float3)vAxis * dv,
