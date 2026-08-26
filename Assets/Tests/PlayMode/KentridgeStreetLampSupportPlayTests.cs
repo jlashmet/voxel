@@ -4,6 +4,7 @@ using NUnit.Framework;
 using Unity.Collections;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Structures.Api;
+using VoxelEngine.Structures.Runtime;
 
 namespace VoxelEngine.Tests.PlayMode
 {
