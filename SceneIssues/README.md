@@ -97,10 +97,18 @@ Because these are persistent branches and several workers may merge fixes concur
 issue worker must **periodically fetch `origin` and merge current `origin/master` into
 `fixes/agent-N` while the assignment is still in progress**. Do this at assignment start, before a
 new substantial fix attempt when other work may have landed, before the final targeted-CI request,
-and immediately before merging the verified result to master. Resolve conflicts by preserving both
+and immediately before declaring the verified result ready for promotion. Resolve conflicts by
+preserving both
 the assigned issue's work and intervening master changes; never reset away unmerged work or
 force-push the feature branch simply to catch up. If the merge changes tested inputs, validate the
 new integrated feature head rather than relying on CI from the pre-merge state.
+
+Before the coordinator assigns another capture to a persistent branch, that branch must contain no
+commits outside `origin/master` from an earlier assignment. A stale lease with branch-only work is
+an explicit handoff, not permission to stack a new capture on top. The new owner must inspect the
+former owner's branch and carry forward its experiment evidence before continuing; the old owner
+must not receive a different capture until its branch has been merged, handed off, or deliberately
+reconciled with master.
 
 When the coordinator assigns an agent a captured issue:
 
@@ -122,6 +130,13 @@ When the coordinator assigns an agent a captured issue:
    Claude Code session follows the Unity-running rules in `CLAUDE.md`; it must never bypass
    `tools/unity-run.sh` or start a second editor unsafely.
 10. Replay the original capture again after the fix. For multi-frame issues, check every recorded viewpoint and every marked region.
+    Save the final exact-pose frame or a contact sheet as `verification-final.png` (or an equivalent
+    clearly named image) inside the capture directory. A prose description of a remote artifact is
+    not durable visual evidence, and a cancelled, failed, or timed-out replay is never a pass even
+    when it emitted intermediate frames.
+    - For subjective requests such as "looks bad", "AAA quality", or matching a reference image,
+      deterministic contract tests are necessary but insufficient. Preserve before/after crops and
+      obtain explicit human approval before marking the capture fixed.
 11. Commit the production/test fix on the assigned `fixes/agent-N` branch with a message that names the capture, for example `Fix scene issue 20260822-...: prevent far-field flicker`. This gives the fix a real commit SHA.
 12. For a verified fix, update `issue.json`: set `status` to `fixed`, fill `resolvedUtc`, summarize the resolution in `resolutionSummary`, record the regression test in `regressionTest`, and put the production/test commit SHA from the previous step in `fixCommit`. Then move the entire capture directory from `SceneIssues/open/` to `SceneIssues/closed/`. If the issue is blocked, document the blocker and experiments but keep it in `open/`; blocked is not closed or complete.
 13. Commit the issue update and open-to-closed move on the same assigned `fixes/agent-N` branch, for example `Resolve scene issue 20260822-...`. The extra bookkeeping commit is deliberate: it avoids inventing the SHA of a commit before that commit exists.
@@ -130,29 +145,26 @@ When the coordinator assigns an agent a captured issue:
     `SceneIssues/closed/` on that remote branch, including that the open path is gone and the fixed
     issue's `fixCommit` is on the branch. Also require `ci/single-test` success on the assigned CI
     request branch and verify that branch contains the recorded fix commit.
-15. **Merge the verified fix to `master`; do not stop on `fixes/agent-N`.** Fetch `origin`
-    immediately before promotion. If `origin/master` advanced while the issue was being fixed,
-    integrate current `origin/master` into the assigned feature branch without discarding either
-    side, then push that integrated feature branch. If the integration changes production code,
-    tests, scene data, or another input relevant to the regression, reset `ci-test/fixes/agent-N`
-    to the integrated feature head and run the focused CI test again before promotion. A merge that
-    changes only terminal SceneIssue bookkeeping does not require a redundant test rerun.
-16. Advance `master` with a normal non-force fast-forward or merge that preserves every intervening
-    master commit. **Never force-push or overwrite `master`.** If another worker advances master
-    before this promotion lands, fetch again, integrate the new master tip, rerun CI when relevant
-    tested inputs changed, and retry the non-force promotion.
-17. Verify the final remote state on `origin/master`: the production/test fix and terminal
-    bookkeeping commits are ancestors of master, the capture is absent from `SceneIssues/open/`,
+15. **Enter the coordinator's promotion batch; do not push `master` independently.** After the
+    focused CI request is green and terminal bookkeeping is pushed, leave the verified
+    `fixes/agent-N` head unchanged. The coordinator waits briefly for other ready issues and names
+    one worker as batch promoter. Non-promoters wait and must not race the batch with their own push.
+16. The designated promoter fetches `origin`, verifies every listed exact branch head, and merges
+    all members in an isolated local worktree based on current `origin/master`. If a head moved, a
+    merge conflicts, or master advances, stop and report it. Otherwise advance `master` exactly once
+    for the complete batch with a normal non-force update. **Never force-push or overwrite master.**
+17. Verify the final remote state for every batch member on `origin/master`: the production/test
+    fix and terminal bookkeeping commits are ancestors of master, the capture is absent from `SceneIssues/open/`,
     the matching `SceneIssues/closed/` directory has terminal `issue.json` fields, and the required
     `ci/single-test` result is green. Only then is the assignment complete.
-18. Stop after verified master integration and wait for the coordinator. It will assign the next
+18. Stop after verified batch integration and wait for the coordinator. It will assign the next
     capture to the same tab and persistent branches. Do not self-select or start another capture.
 
 ## Document every experiment
 
-An experiment is any attempt to learn something about the issue: a replay, a diagnostic build, a
-targeted CI run, a probe, a hypothesis tested in code. **Every experiment gets its own Markdown
-file in the issue's own capture directory**, whether it succeeded or failed:
+An experiment is an attempt to test a product hypothesis: a replay, diagnostic build, focused
+behavioral test, or production change. **Every product experiment gets its own Markdown file in
+the issue's own capture directory**, whether it succeeded or failed:
 
 ```text
 SceneIssues/open/<timestamp>-<scene>/
@@ -185,6 +197,11 @@ trace of the reasoning once the branch history has been squashed or the diagnost
 removed. Never delete an experiment file after the fix lands; it stays with the capture as the
 record of how the cause was found.
 
+CI delivery and infrastructure observations are not separate product experiments. Keep queue
+times, delayed event admission, editor contention, import crashes, and retry outcomes in one
+`ci-operations.md` file and update it only when the operational conclusion changes. Do not create
+a new experiment file and feature-branch commit for every poll or request delivery probe.
+
 Save replay screenshots, logs, and telemetry produced by an experiment into the same capture
 directory as `verification-<slug>.png` / `verification-<slug>.txt`, and reference them from the
 experiment file. Include the source commit and any non-default configuration (for example
@@ -195,4 +212,5 @@ experiment files are the working record behind it, and both are expected on a re
 
 The point of persistent agent branches plus coordinator-owned claims is to make visual cleanup a
 safe parallel queue: each worker follows reproduce → inspect marked regions → test → fix → verify →
-document → commit → resolve → merge to master, then waits for its next exclusive assignment.
+document → commit → resolve → join a batched master promotion, then waits for its next exclusive
+assignment.
