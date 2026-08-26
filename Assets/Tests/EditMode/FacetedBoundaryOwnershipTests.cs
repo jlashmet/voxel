@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using NUnit.Framework;
 using Unity.Collections;
+using Unity.Mathematics;
 using VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel;
 using VoxelEngine.Storage.Api;
 
@@ -58,6 +59,63 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void SnapshotMaskPreservesPlanarCapWhenAuthoritativeNeighbourIsAir()
+        {
+            const int brickVoxelCount = 8 * 8 * 8;
+            var bricks = new NativeArray<TransvoxelDensityBrick>(1, Allocator.Temp);
+            var voxels = new NativeArray<byte>(brickVoxelCount, Allocator.Temp);
+            var surfaces = new NativeArray<ushort>(brickVoxelCount, Allocator.Temp);
+            var boundaries = new NativeArray<byte>(brickVoxelCount, Allocator.Temp);
+            var masks = new NativeArray<uint>(6, Allocator.Temp);
+            try
+            {
+                bricks[0] = new TransvoxelDensityBrick { Kind = 2, MixedOffset = 0 };
+
+                int backing = BrickIndex(1, 1, 1);
+                int authoritativeAirAbove = BrickIndex(1, 2, 1);
+                voxels[backing] = 1;
+                surfaces[backing] = new VoxelSurfaceSemantics
+                {
+                    StyleId = SurfaceStyles.MasonryJoint,
+                }.PackedStorage;
+
+                Assert.That(voxels[authoritativeAirAbove], Is.Zero,
+                    "The regression fixture must keep the neighbour authoritative-air even though "
+                  + "continuous density sampling may carry a nearby solid presentation material there.");
+
+                var job = new SnapshotFacetedMaskJob
+                {
+                    Bricks = bricks,
+                    MixedVoxels = voxels,
+                    MixedSurfaceSemantics = surfaces,
+                    MixedBoundarySamples = boundaries,
+                    Catalogue = SurfaceCatalogueView.CreateBuiltIns(),
+                    Coatings = CoatingCatalogueView.CreateBuiltIns(),
+                    ChunkOriginVoxel = new int3(1, 1, 1),
+                    BrickCacheOrigin = int3.zero,
+                    BrickCacheEdge = 1,
+                    CellsPerAxis = 1,
+                    SourceStep = 1,
+                    FaceMasks = masks,
+                };
+                job.Execute(0);
+
+                const int positiveYFace = 3;
+                Assert.That(masks[positiveYFace], Is.Not.Zero,
+                    "Exact faceted exposure must follow authoritative snapshot occupancy so a "
+                  + "presentation-only solid sample cannot erase a Planar cap.");
+            }
+            finally
+            {
+                masks.Dispose();
+                boundaries.Dispose();
+                surfaces.Dispose();
+                voxels.Dispose();
+                bricks.Dispose();
+            }
+        }
+
+        [Test]
         public void MixedContinuousChunksUseSnapshotOccupancyForFacetedFaces()
         {
             string cache = File.ReadAllText(Path.Combine(
@@ -98,5 +156,6 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         private static int Index(int x, int y, int z, int size) => x + size * (y + size * z);
+        private static int BrickIndex(int x, int y, int z) => x | (y << 3) | (z << 6);
     }
 }
