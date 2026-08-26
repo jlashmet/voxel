@@ -70,7 +70,7 @@ INERT_PATHS = (
     ".gitignore",
     ".gitattributes",
     "README.md",
-    "CLAUDE.md",
+    "AGENTS.md",
 )
 
 
