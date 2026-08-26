@@ -243,9 +243,13 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
         private static bool IsSolid(byte material) =>
             material != 0 && material != 11 && material != 16;
 
-        private static uint Pack(byte material, uint surface) => material
-            | (((surface >> 16) & 0xffu) << 8)
-            | ((surface & 0xffu) << 16)
-            | (((surface >> 24) & 0xffu) << 24);
+        private static uint Pack(byte material, uint surface)
+        {
+            surface = TransvoxelDensityJob.StripAuthoritativeOccupancy(surface);
+            return material
+                | (((surface >> 16) & 0xffu) << 8)
+                | ((surface & 0xffu) << 16)
+                | (((surface >> 24) & 0xffu) << 24);
+        }
     }
 }

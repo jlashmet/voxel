@@ -26,6 +26,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
     [BurstCompile]
     internal struct TransvoxelDensityJob : IJobParallelFor
     {
+        // VoxelSurfaceSemantics storage persists only flag bits 0-1. Flag bit 2 is therefore a
+        // renderer-only transient channel on this density lattice. FacetedMaskJob needs the exact
+        // authoritative centre occupancy because Materials[] intentionally carries presentation
+        // identity onto nearby air-centred smooth samples. Strip this bit before vertex publication.
+        internal const uint AuthoritativeSolidBit = 1u << 26;
+
         [ReadOnly] public NativeArray<TransvoxelDensityBrick> Bricks;
         [NativeDisableContainerSafetyRestriction, ReadOnly]
         public NativeArray<byte> MixedVoxels;
@@ -60,18 +66,29 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
                    + (new int3(gx, gy, gz) - Padding) * SourceStep;
 
             Density[index] = SampleField(
-                p, out byte material, out uint surface, out byte boundary);
+                p, out byte material, out uint surface, out byte boundary,
+                out bool authoritativeSolid);
             Materials[index] = material;
-            SurfaceSemantics[index] = surface;
+            SurfaceSemantics[index] = WithAuthoritativeOccupancy(surface, authoritativeSolid);
             BoundarySamples[index] = boundary;
         }
 
+        internal static bool IsAuthoritativelySolid(uint surface) =>
+            (surface & AuthoritativeSolidBit) != 0;
+
+        internal static uint WithAuthoritativeOccupancy(uint surface, bool solid) =>
+            solid ? surface | AuthoritativeSolidBit : surface & ~AuthoritativeSolidBit;
+
+        internal static uint StripAuthoritativeOccupancy(uint surface) =>
+            surface & ~AuthoritativeSolidBit;
+
         private float SampleField(int3 p, out byte dominantMaterial, out uint dominantSurface,
-                                  out byte dominantBoundary)
+                                  out byte dominantBoundary, out bool authoritativeSolid)
         {
             byte centre = ReadMaterial(p, out uint centreSurface, out byte packedBoundary);
             dominantBoundary = packedBoundary;
             bool centreSolid = IsSolidSample(centre);
+            authoritativeSolid = centreSolid;
             centreSurface = ResolveSurface(centre, centreSurface);
             var boundary = new VoxelBoundarySample { Packed = packedBoundary };
             // An authored sample refines where the surface sits inside this cell; occupancy decides
