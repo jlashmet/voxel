@@ -15,11 +15,14 @@ The fix must identify the shared placement / boundary-ownership rule behind thos
 - [x] Apply production attempt 1: include the authored positive X/Z endpoint in both plaza layers.
 - [x] Run the focused regression and `KentridgeMarketPiazzaTests`; both are green.
 - [x] Regenerate the showcase startup bake and replay the exact saved camera for production attempt 1.
-- [ ] Replay the exact saved camera from the current integrated `fixes/agent-1`/master tree before making attempt 2; the failed attempt-1 replay is now 163 commits behind current master.
-- [ ] If the current-head replay still fails, trace the surviving light-blue seam to its final voxel/material/mesh owner.
-- [ ] Implement the next smallest production fix only after that owner is proven.
-- [ ] Run the focused regression and smallest affected Kentridge/worldgen suite for the final fix.
-- [ ] Regenerate the showcase startup bake again and replay the exact saved camera from the corrected source.
+- [x] Attempt a current-head exact replay before attempt 2. Two repository-supported CI mailbox requests were pushed on `ci-test/fixes/agent-1`; neither produced a workflow run or `ci/single-test` status, so this is recorded as a CI transport failure rather than a visual result. Temporary replay wiring was removed.
+- [x] Trace the surviving seam in the failed fresh bake to final authoritative voxel state: the marked rays land on solid near-field cells, so the remaining defect is presentation/mesh ownership rather than missing authored storage.
+- [x] Narrow renderer ownership: the affected cells are Planar hard-surface cells inside chunks that also contain Smooth/Rounded topology. Pure faceted chunks use snapshot occupancy for face exposure; mixed chunks use the sampled presentation-material lattice.
+- [ ] Add a focused renderer regression proving that a mixed Smooth+Planar chunk must keep a Planar cap when the authoritative neighbor is air even if the presentation-material sample carries a solid material.
+- [ ] Prove the regression red on current mixed-path behavior before production attempt 2.
+- [ ] If red for the expected reason, make mixed faceted face exposure use authoritative snapshot occupancy while leaving continuous density/topology presentation semantics intact.
+- [ ] Run the focused regression and smallest affected renderer suite on `ci-test/fixes/agent-1`.
+- [ ] Regenerate the showcase startup bake and replay the exact saved camera from corrected source.
 - [ ] Remove temporary diagnostics/workflow wiring and restore any borrowed one-shot CI file exactly.
 - [ ] Mark `issue.json` fixed only when structural and visual checks both pass.
 
@@ -35,9 +38,11 @@ The focused regression was proven red on source commit `e7789e5e28bc570ec4e2de25
 
 However, fresh-bake exact-view run `32853747303` disproved the endpoint mismatch as the complete visual cause. The workflow regenerated `ShowcaseWorld.bytes` from the fixed source, successfully replayed the saved frozen pose in a standalone player, and the resulting frame still shows the broad light-blue seam through all three lower marked regions plus exposure around the market-stall foot. The endpoint fix is therefore structurally correct but visually insufficient. See `experiment-003-fresh-bake-positive-edge-fix.md`.
 
-Since that failed replay, current `master` advanced by 163 commits. At resume time, `fixes/agent-1` commit `afc9f718c72a8bc0202fe4b138a8458d04a645a8` and `master` commit `bfccb29f34f2373ae7cafac5a38e21a7c2e9ba86` have the same tree (`392d94d2f0d0f185c6d73d2a1ad0e15da1a51798`), so the feature branch is content-current with master. Intervening changes include Kentridge terrace-surface correction and Showcase composition work. Therefore a current-head exact replay is required before another production change; otherwise attempt 2 could target a defect already removed by intervening integrated work.
+Subsequent artifact inspection mapped the marked rays into that failed fresh `ShowcaseWorld.bytes`. The marked cells are solid at the surface; the long light-blue line is effectively a missing top-surface strip over solid storage. At representative seam coordinates, the top cells are Planar hard-surface material while the cell directly above is authoritative air.
 
-If the current-head replay still shows the defect, the next investigation must identify what the surviving light-blue pixels actually represent after final composition: empty/background, a material written by another catalogue, a later precedence overwrite, or a mesh/raster boundary. Do not make another geometry expansion until that owner is proven.
+The renderer has two distinct faceted exposure paths. Pure faceted chunks use `SnapshotFacetedMaskJob`, which derives neighbor occupancy from authoritative snapshot/storage state. Mixed continuous+faceted chunks use `FacetedMaskJob`, whose solidity decisions are based on the sampled presentation-material lattice used by continuous density/topology. That lattice intentionally may carry a nearby solid material on an air-centered negative-density sample for smooth-surface presentation. Material identity therefore is not authoritative occupancy. In a mixed Smooth+Planar chunk this can suppress a legitimate Planar cap even though the storage neighbor is air. This explains why most of the piazza can remain intact while narrow holes occur where Planar hard surface shares a render chunk with Smooth/Rounded terrain.
+
+This renderer-ownership hypothesis is now the gate for attempt 2. Do not make another Kentridge geometry expansion unless the focused mixed-chunk regression disproves it.
 
 ## Three-attempt rule
 
