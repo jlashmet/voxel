@@ -29,6 +29,7 @@ Restore the VoxelShowcase tree gameplay contract: nearby semantic trees must blo
 - Exact saved-camera replay against the current checked-in bake (run `32999019598`, artifact `9617959964`) shows sky/fog only and no tree geometry while the scene still publishes 36 semantic trees. The old north-field tree visuals therefore no longer exist in the authoritative saved view.
 - Final cleanup regression run `33000528711` executed exactly 3 PlayMode cases from fix commit `fdc54b765714c5b6df5787ecc57640be2d356381` and published `ci/single-test: success` on request commit `f3bbe8ab5b55e442fb9422496b79ebbeeb350f76`.
 - Current `master` was merged afterward as `56f1b3f6ae5a83dd5583deccee86c7dd4b258581`; the merge changed only scene-agent CI/process files and did not alter production code, tests, scene data, or replay evidence.
+- Terminal bookkeeping commit `cafd3cf7e63fa798b40d7433ad40ed3e1b74abd7` was non-force fast-forwarded to `master`; remote verification confirmed the closed issue with `fixCommit=fdc54b7...`, absence of the old open path, fix ancestry, and green `ci/single-test` on `f3bbe8a...`.
 
 ## Acceptance criteria
 
@@ -51,4 +52,4 @@ Restore the VoxelShowcase tree gameplay contract: nearby semantic trees must blo
 - [x] Run the permanent regression again from the final cleanup production/test head and require `ci/single-test` success (3/3 passed in run `33000528711`; experiment 018).
 - [x] Integrate current `master` without changing tested gameplay inputs (`56f1b3f6ae5a83dd5583deccee86c7dd4b258581`).
 - [x] Complete terminal `issue.json`, move the entire capture to `SceneIssues/closed/`, and push the separate resolution commit.
-- [ ] Promote the integrated terminal branch to `master` non-force and verify terminal remote `master` state.
+- [x] Promote the integrated terminal branch to `master` non-force and verify terminal remote `master` state (`cafd3cf7e63fa798b40d7433ad40ed3e1b74abd7`).
