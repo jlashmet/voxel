@@ -1,3 +1,5 @@
+using System;
+using System.IO;
 using NUnit.Framework;
 using Unity.Collections;
 using VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel;
@@ -52,6 +54,46 @@ namespace VoxelEngine.Tests.EditMode
                 boundaries.Dispose();
                 surfaces.Dispose();
                 materials.Dispose();
+            }
+        }
+
+        [Test]
+        public void MixedContinuousChunksUseSnapshotOccupancyForFacetedFaces()
+        {
+            string cache = File.ReadAllText(Path.Combine(
+                RepoRoot,
+                "Assets",
+                "VoxelEngine",
+                "Rendering",
+                "Runtime",
+                "SurfaceExtraction",
+                "CpuTransvoxelChunkCache.cs"));
+
+            const string topologySchedule =
+                "ScheduleTopologyJob(voxelSize, _densityJobHandle);";
+            int topology = cache.IndexOf(topologySchedule, StringComparison.Ordinal);
+            Assert.That(topology, Is.GreaterThanOrEqualTo(0),
+                "The mixed continuous extraction path must still schedule topology from density.");
+
+            int length = Math.Min(320, cache.Length - topology);
+            string mixedScheduling = cache.Substring(topology, length);
+            StringAssert.Contains("ScheduleSnapshotFacetedMaskJob();", mixedScheduling,
+                "Mixed Smooth/Rounded + Planar chunks must decide exact faceted exposure from "
+              + "authoritative snapshot occupancy, not the presentation-material density lattice.");
+            StringAssert.DoesNotContain("ScheduleFacetedMaskJob(_densityJobHandle);", mixedScheduling,
+                "Presentation material may be carried onto an air-centered density sample and "
+              + "must never suppress an authoritative Planar occupancy face.");
+        }
+
+        private static string RepoRoot
+        {
+            get
+            {
+                var dir = new DirectoryInfo(Directory.GetCurrentDirectory());
+                while (dir != null && !Directory.Exists(Path.Combine(dir.FullName, "Assets")))
+                    dir = dir.Parent;
+                Assert.NotNull(dir, "Could not locate project root containing Assets/.");
+                return dir.FullName;
             }
         }
 
