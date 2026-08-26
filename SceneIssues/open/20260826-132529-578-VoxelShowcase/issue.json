@@ -1,0 +1,109 @@
+{
+    "formatVersion": 3,
+    "id": "20260826-132529-578-VoxelShowcase",
+    "capturedUtc": "2026-08-26T13:25:29.5782210Z",
+    "note": "the houses are all completely empty.  we should have a catalogue of props that are decorating the houses",
+    "status": "open",
+    "resolvedUtc": "",
+    "resolutionSummary": "",
+    "regressionTest": "",
+    "fixCommit": "",
+    "unityVersion": "6000.5.6f1",
+    "platform": "OSXEditor",
+    "sceneName": "VoxelShowcase",
+    "scenePath": "Assets/Scenes/VoxelShowcase.unity",
+    "sceneBuildIndex": 2,
+    "captures": [
+        {
+            "screenshot": "screenshot-001.png",
+            "capturedUtc": "2026-08-26T13:25:29.5783060Z",
+            "frameCount": 96972,
+            "timeSinceLevelLoad": 305.2117614746094,
+            "screenWidth": 1928,
+            "screenHeight": 836,
+            "poseAnchor": {
+                "hierarchyPath": "Showcase Camera",
+                "position": {
+                    "x": 168.8964080810547,
+                    "y": 25.550138473510743,
+                    "z": 76.69457244873047
+                },
+                "rotation": {
+                    "x": -0.007082100957632065,
+                    "y": 0.9527831673622131,
+                    "z": -0.02228807844221592,
+                    "w": -0.3027496039867401
+                },
+                "localScale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                }
+            },
+            "camera": {
+                "hierarchyPath": "Showcase Camera",
+                "position": {
+                    "x": 168.8964080810547,
+                    "y": 25.550138473510743,
+                    "z": 76.69457244873047
+                },
+                "rotation": {
+                    "x": -0.007082100957632065,
+                    "y": 0.9527831673622131,
+                    "z": -0.02228807844221592,
+                    "w": -0.3027496039867401
+                },
+                "fieldOfView": 70.0,
+                "orthographic": false,
+                "orthographicSize": 5.0,
+                "nearClipPlane": 0.05000000074505806,
+                "farClipPlane": 16000.0
+            },
+            "circles": []
+        }
+    ],
+    "screenshot": "screenshot-001.png",
+    "frameCount": 96972,
+    "timeSinceLevelLoad": 305.2117614746094,
+    "screenWidth": 1928,
+    "screenHeight": 836,
+    "poseAnchor": {
+        "hierarchyPath": "Showcase Camera",
+        "position": {
+            "x": 168.8964080810547,
+            "y": 25.550138473510743,
+            "z": 76.69457244873047
+        },
+        "rotation": {
+            "x": -0.007082100957632065,
+            "y": 0.9527831673622131,
+            "z": -0.02228807844221592,
+            "w": -0.3027496039867401
+        },
+        "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+        }
+    },
+    "camera": {
+        "hierarchyPath": "Showcase Camera",
+        "position": {
+            "x": 168.8964080810547,
+            "y": 25.550138473510743,
+            "z": 76.69457244873047
+        },
+        "rotation": {
+            "x": -0.007082100957632065,
+            "y": 0.9527831673622131,
+            "z": -0.02228807844221592,
+            "w": -0.3027496039867401
+        },
+        "fieldOfView": 70.0,
+        "orthographic": false,
+        "orthographicSize": 5.0,
+        "nearClipPlane": 0.05000000074505806,
+        "farClipPlane": 16000.0
+    },
+    "circles": []
+}

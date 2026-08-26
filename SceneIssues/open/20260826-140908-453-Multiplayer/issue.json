@@ -1,0 +1,109 @@
+{
+    "formatVersion": 3,
+    "id": "20260826-140908-453-Multiplayer",
+    "capturedUtc": "2026-08-26T14:09:08.4565860Z",
+    "note": "This is a new scene.  We haven't really exercised our netcode yet that makes the voxel world multiplayer.  I want you to set up this scene so that two players can join the server.  They should be able to see each other move around and also when the terrain or trees are destroyed they should both be able to see that",
+    "status": "open",
+    "resolvedUtc": "",
+    "resolutionSummary": "",
+    "regressionTest": "",
+    "fixCommit": "",
+    "unityVersion": "6000.5.6f1",
+    "platform": "OSXEditor",
+    "sceneName": "Multiplayer",
+    "scenePath": "Assets/Scenes/Multiplayer.unity",
+    "sceneBuildIndex": 2,
+    "captures": [
+        {
+            "screenshot": "screenshot-001.png",
+            "capturedUtc": "2026-08-26T14:09:08.4574360Z",
+            "frameCount": 1520,
+            "timeSinceLevelLoad": 1.9465034008026124,
+            "screenWidth": 1928,
+            "screenHeight": 836,
+            "poseAnchor": {
+                "hierarchyPath": "Main Camera",
+                "position": {
+                    "x": 0.0,
+                    "y": 1.0,
+                    "z": -10.0
+                },
+                "rotation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0,
+                    "w": 1.0
+                },
+                "localScale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                }
+            },
+            "camera": {
+                "hierarchyPath": "Main Camera",
+                "position": {
+                    "x": 0.0,
+                    "y": 1.0,
+                    "z": -10.0
+                },
+                "rotation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0,
+                    "w": 1.0
+                },
+                "fieldOfView": 60.0,
+                "orthographic": false,
+                "orthographicSize": 5.0,
+                "nearClipPlane": 0.30000001192092898,
+                "farClipPlane": 1000.0
+            },
+            "circles": []
+        }
+    ],
+    "screenshot": "screenshot-001.png",
+    "frameCount": 1520,
+    "timeSinceLevelLoad": 1.9465034008026124,
+    "screenWidth": 1928,
+    "screenHeight": 836,
+    "poseAnchor": {
+        "hierarchyPath": "Main Camera",
+        "position": {
+            "x": 0.0,
+            "y": 1.0,
+            "z": -10.0
+        },
+        "rotation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+        },
+        "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+        }
+    },
+    "camera": {
+        "hierarchyPath": "Main Camera",
+        "position": {
+            "x": 0.0,
+            "y": 1.0,
+            "z": -10.0
+        },
+        "rotation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+        },
+        "fieldOfView": 60.0,
+        "orthographic": false,
+        "orthographicSize": 5.0,
+        "nearClipPlane": 0.30000001192092898,
+        "farClipPlane": 1000.0
+    },
+    "circles": []
+}

@@ -1,0 +1,109 @@
+{
+    "formatVersion": 3,
+    "id": "20260826-135858-051-ArchLookdev",
+    "capturedUtc": "2026-08-26T13:58:58.0519950Z",
+    "note": "The arch here is getting good.  however, its not used anywhere.  hook it into the Kentridge town.",
+    "status": "open",
+    "resolvedUtc": "",
+    "resolutionSummary": "",
+    "regressionTest": "",
+    "fixCommit": "",
+    "unityVersion": "6000.5.6f1",
+    "platform": "OSXEditor",
+    "sceneName": "ArchLookdev",
+    "scenePath": "Assets/Scenes/ArchLookdev.unity",
+    "sceneBuildIndex": 2,
+    "captures": [
+        {
+            "screenshot": "screenshot-001.png",
+            "capturedUtc": "2026-08-26T13:58:58.0520190Z",
+            "frameCount": 29688,
+            "timeSinceLevelLoad": 51.32561111450195,
+            "screenWidth": 1928,
+            "screenHeight": 836,
+            "poseAnchor": {
+                "hierarchyPath": "Hero Arch Camera",
+                "position": {
+                    "x": -0.8572818636894226,
+                    "y": 8.398122787475586,
+                    "z": -9.309617042541504
+                },
+                "rotation": {
+                    "x": 0.09724781662225723,
+                    "y": -0.013895801268517971,
+                    "z": 0.0013579054502770305,
+                    "w": 0.995162308216095
+                },
+                "localScale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                }
+            },
+            "camera": {
+                "hierarchyPath": "Hero Arch Camera",
+                "position": {
+                    "x": -0.8572818636894226,
+                    "y": 8.398122787475586,
+                    "z": -9.309617042541504
+                },
+                "rotation": {
+                    "x": 0.09724781662225723,
+                    "y": -0.013895801268517971,
+                    "z": 0.0013579054502770305,
+                    "w": 0.995162308216095
+                },
+                "fieldOfView": 34.0,
+                "orthographic": false,
+                "orthographicSize": 5.0,
+                "nearClipPlane": 0.10000000149011612,
+                "farClipPlane": 80.0
+            },
+            "circles": []
+        }
+    ],
+    "screenshot": "screenshot-001.png",
+    "frameCount": 29688,
+    "timeSinceLevelLoad": 51.32561111450195,
+    "screenWidth": 1928,
+    "screenHeight": 836,
+    "poseAnchor": {
+        "hierarchyPath": "Hero Arch Camera",
+        "position": {
+            "x": -0.8572818636894226,
+            "y": 8.398122787475586,
+            "z": -9.309617042541504
+        },
+        "rotation": {
+            "x": 0.09724781662225723,
+            "y": -0.013895801268517971,
+            "z": 0.0013579054502770305,
+            "w": 0.995162308216095
+        },
+        "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+        }
+    },
+    "camera": {
+        "hierarchyPath": "Hero Arch Camera",
+        "position": {
+            "x": -0.8572818636894226,
+            "y": 8.398122787475586,
+            "z": -9.309617042541504
+        },
+        "rotation": {
+            "x": 0.09724781662225723,
+            "y": -0.013895801268517971,
+            "z": 0.0013579054502770305,
+            "w": 0.995162308216095
+        },
+        "fieldOfView": 34.0,
+        "orthographic": false,
+        "orthographicSize": 5.0,
+        "nearClipPlane": 0.10000000149011612,
+        "farClipPlane": 80.0
+    },
+    "circles": []
+}

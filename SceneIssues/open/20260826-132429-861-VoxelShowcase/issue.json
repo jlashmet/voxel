@@ -1,0 +1,109 @@
+{
+    "formatVersion": 3,
+    "id": "20260826-132429-861-VoxelShowcase",
+    "capturedUtc": "2026-08-26T13:24:29.8616700Z",
+    "note": "are these windows?  they look aweful",
+    "status": "open",
+    "resolvedUtc": "",
+    "resolutionSummary": "",
+    "regressionTest": "",
+    "fixCommit": "",
+    "unityVersion": "6000.5.6f1",
+    "platform": "OSXEditor",
+    "sceneName": "VoxelShowcase",
+    "scenePath": "Assets/Scenes/VoxelShowcase.unity",
+    "sceneBuildIndex": 2,
+    "captures": [
+        {
+            "screenshot": "screenshot-001.png",
+            "capturedUtc": "2026-08-26T13:24:29.8617810Z",
+            "frameCount": 85930,
+            "timeSinceLevelLoad": 260.3614196777344,
+            "screenWidth": 1928,
+            "screenHeight": 836,
+            "poseAnchor": {
+                "hierarchyPath": "Showcase Camera",
+                "position": {
+                    "x": 172.89834594726563,
+                    "y": 35.65000915527344,
+                    "z": 18.4508056640625
+                },
+                "rotation": {
+                    "x": 0.003495647804811597,
+                    "y": 0.996486485004425,
+                    "z": 0.05610386282205582,
+                    "w": -0.062087807804346088
+                },
+                "localScale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                }
+            },
+            "camera": {
+                "hierarchyPath": "Showcase Camera",
+                "position": {
+                    "x": 172.89834594726563,
+                    "y": 35.65000915527344,
+                    "z": 18.4508056640625
+                },
+                "rotation": {
+                    "x": 0.003495647804811597,
+                    "y": 0.996486485004425,
+                    "z": 0.05610386282205582,
+                    "w": -0.062087807804346088
+                },
+                "fieldOfView": 70.0,
+                "orthographic": false,
+                "orthographicSize": 5.0,
+                "nearClipPlane": 0.05000000074505806,
+                "farClipPlane": 16000.0
+            },
+            "circles": []
+        }
+    ],
+    "screenshot": "screenshot-001.png",
+    "frameCount": 85930,
+    "timeSinceLevelLoad": 260.3614196777344,
+    "screenWidth": 1928,
+    "screenHeight": 836,
+    "poseAnchor": {
+        "hierarchyPath": "Showcase Camera",
+        "position": {
+            "x": 172.89834594726563,
+            "y": 35.65000915527344,
+            "z": 18.4508056640625
+        },
+        "rotation": {
+            "x": 0.003495647804811597,
+            "y": 0.996486485004425,
+            "z": 0.05610386282205582,
+            "w": -0.062087807804346088
+        },
+        "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+        }
+    },
+    "camera": {
+        "hierarchyPath": "Showcase Camera",
+        "position": {
+            "x": 172.89834594726563,
+            "y": 35.65000915527344,
+            "z": 18.4508056640625
+        },
+        "rotation": {
+            "x": 0.003495647804811597,
+            "y": 0.996486485004425,
+            "z": 0.05610386282205582,
+            "w": -0.062087807804346088
+        },
+        "fieldOfView": 70.0,
+        "orthographic": false,
+        "orthographicSize": 5.0,
+        "nearClipPlane": 0.05000000074505806,
+        "farClipPlane": 16000.0
+    },
+    "circles": []
+}

@@ -1,0 +1,121 @@
+{
+    "formatVersion": 3,
+    "id": "20260826-135433-808-WorldbuildingGalleryShowcase",
+    "capturedUtc": "2026-08-26T13:54:33.8111230Z",
+    "note": "the grass still looks aweful.  you were supposed to have fixed it in issue 20260825-032832-253-VoxelShowcase.  \n\nThis project implements exactly what I want: https://github.com/DylearnDev/Dylearn-3D-Pixel-Art-Grass-Demo/tree/main",
+    "status": "open",
+    "resolvedUtc": "",
+    "resolutionSummary": "",
+    "regressionTest": "",
+    "fixCommit": "",
+    "unityVersion": "6000.5.6f1",
+    "platform": "OSXEditor",
+    "sceneName": "WorldbuildingGalleryShowcase",
+    "scenePath": "Assets/Scenes/WorldbuildingGalleryShowcase.unity",
+    "sceneBuildIndex": 1,
+    "captures": [
+        {
+            "screenshot": "screenshot-001.png",
+            "capturedUtc": "2026-08-26T13:54:33.8120030Z",
+            "frameCount": 3105,
+            "timeSinceLevelLoad": 17.685041427612306,
+            "screenWidth": 1928,
+            "screenHeight": 836,
+            "poseAnchor": {
+                "hierarchyPath": "Worldbuilding Gallery Camera",
+                "position": {
+                    "x": -98.94783782958985,
+                    "y": 23.65003776550293,
+                    "z": 0.38304123282432558
+                },
+                "rotation": {
+                    "x": 0.2068670243024826,
+                    "y": -0.193331778049469,
+                    "z": 0.041740018874406818,
+                    "w": 0.9581683874130249
+                },
+                "localScale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                }
+            },
+            "camera": {
+                "hierarchyPath": "Worldbuilding Gallery Camera",
+                "position": {
+                    "x": -98.94783782958985,
+                    "y": 23.65003776550293,
+                    "z": 0.38304123282432558
+                },
+                "rotation": {
+                    "x": 0.2068670243024826,
+                    "y": -0.193331778049469,
+                    "z": 0.041740018874406818,
+                    "w": 0.9581683874130249
+                },
+                "fieldOfView": 70.0,
+                "orthographic": false,
+                "orthographicSize": 5.0,
+                "nearClipPlane": 0.05000000074505806,
+                "farClipPlane": 15000.0
+            },
+            "circles": [
+                {
+                    "centerX": 0.48022598028182986,
+                    "centerY": 0.6677547097206116,
+                    "radius": 0.06902249902486801
+                }
+            ]
+        }
+    ],
+    "screenshot": "screenshot-001.png",
+    "frameCount": 3105,
+    "timeSinceLevelLoad": 17.685041427612306,
+    "screenWidth": 1928,
+    "screenHeight": 836,
+    "poseAnchor": {
+        "hierarchyPath": "Worldbuilding Gallery Camera",
+        "position": {
+            "x": -98.94783782958985,
+            "y": 23.65003776550293,
+            "z": 0.38304123282432558
+        },
+        "rotation": {
+            "x": 0.2068670243024826,
+            "y": -0.193331778049469,
+            "z": 0.041740018874406818,
+            "w": 0.9581683874130249
+        },
+        "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+        }
+    },
+    "camera": {
+        "hierarchyPath": "Worldbuilding Gallery Camera",
+        "position": {
+            "x": -98.94783782958985,
+            "y": 23.65003776550293,
+            "z": 0.38304123282432558
+        },
+        "rotation": {
+            "x": 0.2068670243024826,
+            "y": -0.193331778049469,
+            "z": 0.041740018874406818,
+            "w": 0.9581683874130249
+        },
+        "fieldOfView": 70.0,
+        "orthographic": false,
+        "orthographicSize": 5.0,
+        "nearClipPlane": 0.05000000074505806,
+        "farClipPlane": 15000.0
+    },
+    "circles": [
+        {
+            "centerX": 0.48022598028182986,
+            "centerY": 0.6677547097206116,
+            "radius": 0.06902249902486801
+        }
+    ]
+}
