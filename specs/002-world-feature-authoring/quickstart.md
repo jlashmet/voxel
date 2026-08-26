@@ -346,7 +346,7 @@ Milestone order in [plan.md](./plan.md) is also the reading order:
 ## Running anything in Unity
 
 Use `tools/unity-run.sh`. Never invoke the Unity binary directly, and check whether an editor is
-already open — the wrapper will refuse, and it refuses for a reason recorded in `CLAUDE.md`.
+already open — the wrapper will refuse, and it refuses for a reason recorded in `AGENTS.md`.
 
 Note that batchmode play-mode tests do not exercise the editor lifecycle. Anything touching
 `OnEnable`, domain reload, or GPU resource lifetime needs an EditMode test that loops the
