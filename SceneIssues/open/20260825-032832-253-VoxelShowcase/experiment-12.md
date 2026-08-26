@@ -25,11 +25,13 @@ Requested test:
 
 Actions run: `32997768169`
 
-At the time this experiment record was created, the run was queued behind another repository job on the self-hosted macOS runner. Do not alter production code until this request completes and the failure is confirmed to be the intended normal-gradient assertion rather than compile/setup failure.
+**Result: confirmed red for the intended behavioral assertion.** Unity executed exactly one test case. The fixture emitted transition geometry, then failed at vertex 0 because its normal was `float3(0f, 0f, 1f)`: the tangential component length was `0.0`, below the required `> 0.2`. Setup, checkout, request resolution, and Unity startup all succeeded; the failure came from the requested test itself, not compile or runner setup.
+
+This confirms the isolated invariant violation: a slanted density field reaches `TransitionMeshJob`, but the emitted transition shading normal discards that slope.
 
 ## Next
 
-1. Confirm the isolated test fails on unchanged production `TransitionMeshJob` for the expected missing tangential normal component.
+1. Merge current `master` into `fixes/agent-4` before the production change, preserving the confirmed red regression.
 2. Implement the smallest transition-normal change that derives normals from the transition density samples and remains consistent with the regular surface gradient convention.
 3. Re-run this exact focused regression through `ci-test/fixes/agent-4` with a new request id.
 4. Run the exact saved-camera replay and inspect the retained 1364x836 evidence at all three marked regions. A green unit test is not sufficient to close this capture.
