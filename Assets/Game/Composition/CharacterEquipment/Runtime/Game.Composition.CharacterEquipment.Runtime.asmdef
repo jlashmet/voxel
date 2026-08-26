@@ -1,7 +1,9 @@
 {
   "name": "Game.Composition.CharacterEquipment.Runtime",
   "rootNamespace": "MountingForce.Game.Composition.CharacterEquipment",
-  "references": [],
+  "references": [
+    "VoxelEngine.Rendering.Runtime"
+  ],
   "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": false,

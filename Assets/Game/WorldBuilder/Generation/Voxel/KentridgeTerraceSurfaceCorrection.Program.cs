@@ -49,13 +49,14 @@ namespace MountingForce.WorldGen.Voxel
         {
             int s = settings.VoxelsPerDecimetre;
             byte stone = settings.Materials.Resolve(MaterialRole.FoundationStone);
-            byte moss = settings.Materials.Resolve(MaterialRole.Moss);
+            byte surface = settings.Materials.Resolve(
+                patch.UrbanCore ? MaterialRole.RoadSurface : MaterialRole.Moss);
             byte paving = settings.Materials.Resolve(MaterialRole.DarkMasonry);
             var b = new ProgramBuilder();
             b.Box(0, 0, 0, footprint.x, footprint.y, footprint.z,
                   stone, PrimitiveMode.PaintSolid);
             b.Box(0, 0, 0, footprint.x, footprint.y, footprint.z,
-                  moss, PrimitiveMode.PaintSurface);
+                  surface, PrimitiveMode.PaintSurface);
             if (patch.UrbanCore)
                 b.Box(patch.ShoulderDm * s, 0, patch.ShoulderDm * s,
                       patch.WidthDm * s, footprint.y, patch.DepthDm * s,

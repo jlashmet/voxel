@@ -1,9 +1,12 @@
 using UnityEngine;
+using VoxelEngine.Rendering.Runtime.Vegetation;
 
 namespace MountingForce.Game.Composition.CharacterEquipment
 {
     public sealed class CharacterEquipmentController : MonoBehaviour
     {
+        private const float GrassInteractionRadius = 0.65f;
+
         [SerializeField] private CharacterPartCatalogue catalogue;
         [SerializeField] private ModularCharacterAssembler assembler;
 
@@ -13,6 +16,21 @@ namespace MountingForce.Game.Composition.CharacterEquipment
         private void Awake()
         {
             ResolveAssembler();
+        }
+
+        private void OnEnable()
+        {
+            GrassInteractorRegistry.Register(transform, GrassInteractionRadius);
+        }
+
+        private void LateUpdate()
+        {
+            GrassInteractorRegistry.Publish();
+        }
+
+        private void OnDisable()
+        {
+            GrassInteractorRegistry.Unregister(transform);
         }
 
         public void Configure(

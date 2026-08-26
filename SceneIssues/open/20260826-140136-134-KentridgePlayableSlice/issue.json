@@ -1,0 +1,109 @@
+{
+    "formatVersion": 3,
+    "id": "20260826-140136-134-KentridgePlayableSlice",
+    "capturedUtc": "2026-08-26T14:01:36.1347870Z",
+    "note": "this is where the player gets put right after the cutscene.  i'm literally on the roof.  i should be in the pub.",
+    "status": "open",
+    "resolvedUtc": "",
+    "resolutionSummary": "",
+    "regressionTest": "",
+    "fixCommit": "",
+    "unityVersion": "6000.5.6f1",
+    "platform": "OSXEditor",
+    "sceneName": "KentridgePlayableSlice",
+    "scenePath": "Assets/Scenes/KentridgePlayableSlice.unity",
+    "sceneBuildIndex": 0,
+    "captures": [
+        {
+            "screenshot": "screenshot-001.png",
+            "capturedUtc": "2026-08-26T14:01:36.1348610Z",
+            "frameCount": 17051,
+            "timeSinceLevelLoad": 40.62511444091797,
+            "screenWidth": 1928,
+            "screenHeight": 836,
+            "poseAnchor": {
+                "hierarchyPath": "Kentridge Player Camera",
+                "position": {
+                    "x": 137.6999969482422,
+                    "y": 32.350013732910159,
+                    "z": 74.80000305175781
+                },
+                "rotation": {
+                    "x": 0.0,
+                    "y": 0.7071068286895752,
+                    "z": 0.0,
+                    "w": 0.7071068286895752
+                },
+                "localScale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                }
+            },
+            "camera": {
+                "hierarchyPath": "Kentridge Player Camera",
+                "position": {
+                    "x": 137.6999969482422,
+                    "y": 32.350013732910159,
+                    "z": 74.80000305175781
+                },
+                "rotation": {
+                    "x": 0.0,
+                    "y": 0.7071068286895752,
+                    "z": 0.0,
+                    "w": 0.7071068286895752
+                },
+                "fieldOfView": 58.0,
+                "orthographic": false,
+                "orthographicSize": 5.0,
+                "nearClipPlane": 0.05000000074505806,
+                "farClipPlane": 16000.0
+            },
+            "circles": []
+        }
+    ],
+    "screenshot": "screenshot-001.png",
+    "frameCount": 17051,
+    "timeSinceLevelLoad": 40.62511444091797,
+    "screenWidth": 1928,
+    "screenHeight": 836,
+    "poseAnchor": {
+        "hierarchyPath": "Kentridge Player Camera",
+        "position": {
+            "x": 137.6999969482422,
+            "y": 32.350013732910159,
+            "z": 74.80000305175781
+        },
+        "rotation": {
+            "x": 0.0,
+            "y": 0.7071068286895752,
+            "z": 0.0,
+            "w": 0.7071068286895752
+        },
+        "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+        }
+    },
+    "camera": {
+        "hierarchyPath": "Kentridge Player Camera",
+        "position": {
+            "x": 137.6999969482422,
+            "y": 32.350013732910159,
+            "z": 74.80000305175781
+        },
+        "rotation": {
+            "x": 0.0,
+            "y": 0.7071068286895752,
+            "z": 0.0,
+            "w": 0.7071068286895752
+        },
+        "fieldOfView": 58.0,
+        "orthographic": false,
+        "orthographicSize": 5.0,
+        "nearClipPlane": 0.05000000074505806,
+        "farClipPlane": 16000.0
+    },
+    "circles": []
+}

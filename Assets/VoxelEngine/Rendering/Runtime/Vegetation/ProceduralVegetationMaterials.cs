@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using VoxelEngine.Vegetation.Api;
 
@@ -49,7 +50,10 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
         public const string FoliageShaderName = "VoxelEngine/ProceduralVegetationFoliage";
         public const string SurfaceShaderName = "VoxelEngine/ProceduralVegetationSurface";
         public const string VineShaderName = "VoxelEngine/ProceduralVine";
+        public const int MaxGrassInteractors = 64;
 
+        private static readonly Vector4[] s_GrassInteractors = new Vector4[MaxGrassInteractors];
+        private static int s_GrassInteractorCount;
         private static Material s_Foliage;
         private static Material s_Surface;
         private static Material s_Vine;
@@ -114,12 +118,29 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
             block.SetFloat("_Leafiness", style.ShaderClass == VegetationShaderClass.Vine ? 0.62f : 0.35f);
         }
 
+        /// <summary>
+        /// Publishes nearby character positions to the shared foliage shader. W stores each
+        /// character's influence radius so callers can use capsule radius or another authored value.
+        /// Extra entries are deliberately truncated to the fixed shader-array budget.
+        /// </summary>
+        public static void SetGrassInteractors(IReadOnlyList<Vector4> interactors)
+        {
+            int count = interactors == null ? 0 : Mathf.Min(interactors.Count, MaxGrassInteractors);
+            for (int i = 0; i < count; i++)
+                s_GrassInteractors[i] = interactors[i];
+            for (int i = count; i < s_GrassInteractorCount; i++)
+                s_GrassInteractors[i] = Vector4.zero;
+            s_GrassInteractorCount = count;
+        }
+
         public static void ApplyLighting()
         {
             if (!Ensure()) return;
             ApplyLighting(s_Foliage);
             ApplyLighting(s_Surface);
             ApplyLighting(s_Vine);
+            s_Foliage.SetInt("_GrassInteractorCount", s_GrassInteractorCount);
+            s_Foliage.SetVectorArray("_GrassInteractorPositions", s_GrassInteractors);
         }
 
         public static VegetationRenderStyle StyleFor(VegetationKind kind)

@@ -1,0 +1,22 @@
+SceneIssue: 20260824-221554-001-VoxelShowcase
+Production/test fix commit: d9e0d893795147cfcd9580495358dd173ee77176
+Focused CI run: 32928906165
+Focused CI head: f8c15cf0ee15c5e4ae2e96728a78ae2a309d8560
+Focused regression: VoxelEngine.Tests.EditMode.KentridgeTerraceSurfaceCorrectionTests.MarketMainUrbanShoulderUsesRoadSurfaceInsteadOfMoss
+Focused CI result: success
+
+Replay CI run: 32930014899
+Replay CI head: bd53f8d3f0378666d073b8cfd43457a596736511
+Replay workflow result: success
+Replay fixture: SceneIssues/open/20260824-221554-001-VoxelShowcase/issue.json
+Replay invocation: tools/showcase-player-capture.sh --scene-issue <fixture>
+Capture size: 1364x836
+Saved camera: Showcase Camera
+Saved position: (136.3243408203125, 25.55001449584961, 58.98256301879883)
+Saved FOV: 70
+Fresh bake evidence: Baked Voxel Showcase startup world: 199 regions, 10.6 MiB, seed 0x5EED1234, castle voxels 40,706,400.
+Full-resolution CI screenshot: RealPlayer/Screenshots/showcase-002-t034.7s-stationary.png
+
+Visual verdict: PASS. The captured broad staircase tread surfaces are road/stone-colored rather than grass-green, and the masonry risers/seams remain intact. The screenshot overlay displays the assigned SceneIssue note (`stairs shouldn't be textured as grass`) and Scene issue replay controls.
+
+verification-postfix.png is a 682x418 downscaled copy of the full-resolution replay screenshot for durable repository evidence. The original 1364x836 frame is retained in GitHub Actions artifact `agent3-sceneissue-fixed-replay-integrated-baked-exact` from run 32930014899.

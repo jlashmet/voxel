@@ -1,0 +1,109 @@
+{
+    "formatVersion": 3,
+    "id": "20260826-140635-350-TerrainLookdev",
+    "capturedUtc": "2026-08-26T14:06:35.3537150Z",
+    "note": "keep iterating on the terrain - it looks nothing like the reference image.",
+    "status": "open",
+    "resolvedUtc": "",
+    "resolutionSummary": "",
+    "regressionTest": "",
+    "fixCommit": "",
+    "unityVersion": "6000.5.6f1",
+    "platform": "OSXEditor",
+    "sceneName": "TerrainLookdev",
+    "scenePath": "Assets/Scenes/TerrainLookdev.unity",
+    "sceneBuildIndex": 2,
+    "captures": [
+        {
+            "screenshot": "screenshot-001.png",
+            "capturedUtc": "2026-08-26T14:06:35.3546240Z",
+            "frameCount": 1743,
+            "timeSinceLevelLoad": 3.7877891063690187,
+            "screenWidth": 1928,
+            "screenHeight": 836,
+            "poseAnchor": {
+                "hierarchyPath": "Terrain Lookdev Camera",
+                "position": {
+                    "x": -0.699999988079071,
+                    "y": 18.799999237060548,
+                    "z": -18.5
+                },
+                "rotation": {
+                    "x": 0.207069993019104,
+                    "y": 0.00793157983571291,
+                    "z": -0.001678835484199226,
+                    "w": 0.9782925248146057
+                },
+                "localScale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                }
+            },
+            "camera": {
+                "hierarchyPath": "Terrain Lookdev Camera",
+                "position": {
+                    "x": -0.699999988079071,
+                    "y": 18.799999237060548,
+                    "z": -18.5
+                },
+                "rotation": {
+                    "x": 0.207069993019104,
+                    "y": 0.00793157983571291,
+                    "z": -0.001678835484199226,
+                    "w": 0.9782925248146057
+                },
+                "fieldOfView": 29.0,
+                "orthographic": false,
+                "orthographicSize": 5.0,
+                "nearClipPlane": 0.07999999821186066,
+                "farClipPlane": 160.0
+            },
+            "circles": []
+        }
+    ],
+    "screenshot": "screenshot-001.png",
+    "frameCount": 1743,
+    "timeSinceLevelLoad": 3.7877891063690187,
+    "screenWidth": 1928,
+    "screenHeight": 836,
+    "poseAnchor": {
+        "hierarchyPath": "Terrain Lookdev Camera",
+        "position": {
+            "x": -0.699999988079071,
+            "y": 18.799999237060548,
+            "z": -18.5
+        },
+        "rotation": {
+            "x": 0.207069993019104,
+            "y": 0.00793157983571291,
+            "z": -0.001678835484199226,
+            "w": 0.9782925248146057
+        },
+        "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+        }
+    },
+    "camera": {
+        "hierarchyPath": "Terrain Lookdev Camera",
+        "position": {
+            "x": -0.699999988079071,
+            "y": 18.799999237060548,
+            "z": -18.5
+        },
+        "rotation": {
+            "x": 0.207069993019104,
+            "y": 0.00793157983571291,
+            "z": -0.001678835484199226,
+            "w": 0.9782925248146057
+        },
+        "fieldOfView": 29.0,
+        "orthographic": false,
+        "orthographicSize": 5.0,
+        "nearClipPlane": 0.07999999821186066,
+        "farClipPlane": 160.0
+    },
+    "circles": []
+}
