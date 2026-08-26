@@ -1,5 +1,5 @@
 {
   "platform": "EditMode",
-  "test": "VoxelEngine.Tests.EditMode.ArchitectureShapeProgramBuilderTests.PrimitiveOverridesRejectNegativeCornerRadius",
-  "request_id": "template"
+  "test": "VoxelEngine.Tests.EditMode.KentridgeTerraceSurfaceCorrectionTests.MarketMainUrbanShoulderUsesRoadSurfaceInsteadOfMoss",
+  "request_id": "agent3-20260826-final-d9e0d893-reissue-05"
 }
