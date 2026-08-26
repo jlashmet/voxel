@@ -1,8 +1,8 @@
-name: SceneIssue 221508 current-head exact replay
+name: SceneIssue 014011 exact GPU replay attempt 3
 
 on:
   push:
-    branches: [fixes/agent-1]
+    branches: [fixes]
     paths:
       - .github/workflows/one-shot-sceneissue-014011-replay-attempt3.yml
 
@@ -11,7 +11,7 @@ permissions:
   statuses: write
 
 concurrency:
-  group: sceneissue-221508-current-head-replay
+  group: sceneissue-014011-replay-attempt3
   cancel-in-progress: true
 
 jobs:
@@ -21,7 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: fixes/agent-1
+          ref: fixes
           clean: true
           fetch-depth: 0
 
@@ -34,8 +34,8 @@ jobs:
               repo: context.repo.repo,
               sha: context.sha,
               state: 'pending',
-              context: 'ci/sceneissue-221508-current-head',
-              description: 'Exact saved-camera replay is running',
+              context: 'ci/sceneissue-014011-attempt3',
+              description: 'Exact saved-camera GPU replay is running',
               target_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
             });
 
@@ -57,7 +57,7 @@ jobs:
           python3 - <<'PY'
           import json
           from pathlib import Path
-          issue = json.loads(Path('SceneIssues/open/20260824-221508-896-VoxelShowcase/issue.json').read_text())
+          issue = json.loads(Path('SceneIssues/closed/20260823-014011-920-VoxelShowcase/issue.json').read_text())
           camera = issue['captures'][0]['camera']
           fixture = {
               'hierarchyPath': camera['hierarchyPath'],
@@ -73,7 +73,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue221508CurrentHead"
+          ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue014011Attempt3"
           mkdir -p "$ROOT"
           UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=4 \
           UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
@@ -100,13 +100,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue221508CurrentHead/RealPlayer"
+          ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue014011Attempt3/RealPlayer"
           python3 - <<'PY'
           from pathlib import Path
           path = Path('tools/showcase-player-capture.sh')
           text = path.read_text()
           old = '-screen-width 1600 -screen-height 900 -screen-fullscreen 0'
-          new = '-screen-width 1364 -screen-height 836 -screen-fullscreen 0'
+          new = '-screen-width 1293 -screen-height 718 -screen-fullscreen 0'
           if text.count(old) != 1:
               raise SystemExit(f'expected one capture-size target, found {text.count(old)}')
           path.write_text(text.replace(old, new, 1))
@@ -117,23 +117,24 @@ jobs:
             --scene Assets/Scenes/VoxelShowcase.unity \
             --run-seconds 40
 
-      - name: Persist current-head evidence
+      - name: Persist attempt 3 evidence
         id: evidence
         shell: bash
         run: |
           set -euo pipefail
-          ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue221508CurrentHead/RealPlayer"
-          ISSUE="SceneIssues/open/20260824-221508-896-VoxelShowcase"
+          ROOT="$GITHUB_WORKSPACE/Artifacts/SceneIssue014011Attempt3/RealPlayer"
+          ISSUE="SceneIssues/closed/20260823-014011-920-VoxelShowcase"
           final="$(find "$ROOT/Screenshots" -type f -name '*.png' -size +1k | sort | tail -1)"
           test -n "$final"
-          cp "$final" "$ISSUE/verification-current-head.png"
+          cp "$final" "$ISSUE/verification-lod2-attempt3.png"
+          FIX_SHA="$(git log -1 --format=%H -- Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/GpuSurfaceExtractor.cs)"
           {
             echo "source_commit=$GITHUB_SHA"
-            echo "source_branch=fixes/agent-1"
-            echo "camera_fixture=SceneIssues/open/20260824-221508-896-VoxelShowcase/issue.json captures[0].camera"
-            echo "capture_resolution=1364x836"
+            echo "fix_commit=$FIX_SHA"
+            echo "camera_fixture=Showcase Camera @ (101.44347381591797,113.22681427001953,-51.74753952026367), fov=70"
+            echo "capture_resolution=1293x718"
             echo "selected_screenshot=$(basename "$final")"
-            echo "purpose=current-head baseline before production attempt 2"
+            echo "change_under_test=GPU regular-cell negative-shell ownership parity"
             echo
             echo "=== camera replay ==="
             grep 'SCENEISSUE camera' "$ROOT/player-run.log" || true
@@ -146,24 +147,17 @@ jobs:
             echo
             echo "=== rings tail ==="
             grep 'RINGS ' "$ROOT/player-run.log" | tail -20 || true
-          } > "$ISSUE/verification-current-head.txt"
-          cat "$ISSUE/verification-current-head.txt"
-
-          PREVIEW="$RUNNER_TEMP/scene221508-preview.jpg"
-          sips -s format jpeg -s formatOptions 60 -Z 700 "$final" --out "$PREVIEW" >/dev/null
-          echo 'SCENE221508_PREVIEW_BEGIN'
-          base64 < "$PREVIEW" | fold -w 120
-          echo 'SCENE221508_PREVIEW_END'
-
+          } > "$ISSUE/verification-lod2-attempt3.txt"
+          cat "$ISSUE/verification-lod2-attempt3.txt"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add "$ISSUE/verification-current-head.png" "$ISSUE/verification-current-head.txt"
-          git commit -m 'SceneIssue 221508: record current-head exact replay'
+          git add "$ISSUE/verification-lod2-attempt3.png" "$ISSUE/verification-lod2-attempt3.txt"
+          git commit -m 'SceneIssue 014011: record GPU LOD2 replay attempt 3'
           EVIDENCE_SHA="$(git rev-parse HEAD)"
           git restore --worktree -- .
           git clean -fd -- Assets/Resources/SceneIssueCameraPose.json || true
-          git pull --rebase origin fixes/agent-1
-          git push origin HEAD:fixes/agent-1
+          git pull --rebase origin fixes
+          git push origin HEAD:fixes
           echo "sha=$EVIDENCE_SHA" >> "$GITHUB_OUTPUT"
 
       - name: Publish success status
@@ -178,8 +172,8 @@ jobs:
               repo: context.repo.repo,
               sha: context.sha,
               state: 'success',
-              context: 'ci/sceneissue-221508-current-head',
-              description: `Current-head evidence ${process.env.EVIDENCE_SHA.substring(0, 12)} captured`,
+              context: 'ci/sceneissue-014011-attempt3',
+              description: `Attempt 3 evidence ${process.env.EVIDENCE_SHA.substring(0, 12)} captured`,
               target_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
             });
 
@@ -193,7 +187,7 @@ jobs:
               repo: context.repo.repo,
               sha: context.sha,
               state: 'failure',
-              context: 'ci/sceneissue-221508-current-head',
-              description: 'Current-head exact replay failed',
+              context: 'ci/sceneissue-014011-attempt3',
+              description: 'Exact saved-camera GPU replay failed',
               target_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
             });
