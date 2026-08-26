@@ -8,6 +8,7 @@ using Game.Composition.WorldBuilderWorldGen.Runtime;
 using Game.Cutscenes.Api;
 using Game.Cutscenes.Content.Kentridge;
 using Game.WorldBuilder.Api;
+using Game.WorldBuilder.Runtime;
 using MountingForce.WorldGen;
 using MountingForce.WorldGen.Content.Kentridge;
 using MountingForce.WorldGen.Content.Hightown;
@@ -120,10 +121,11 @@ namespace VoxelEngine.Tests.PlayMode
         {
             KnownOpeningCampaignContent content = KnownOpeningCampaignContent.Build(
                 DialogueOnly("destination-conversation"));
+            AuthoredTownPlan town = WorldBuilderTownAuthoring.Author(WorldBuilderTownIds.Kentridge, Seed);
             SettlementPlan settlement = KentridgeDefinition.Build(Seed);
             KentridgeCampaignGenerationPlan generation = KentridgeCampaignSessionBootstrap.Plan(
                 content.Blueprint,
-                settlement);
+                town);
 
             KentridgeGameplaySiteAccess access;
             Assert.That(
@@ -137,10 +139,12 @@ namespace VoxelEngine.Tests.PlayMode
 
             var motor = new CharacterMotor { WalkSpeed = 5.5f };
             var actors = new ActorHost(motor);
+            var realizationFacts = new KentridgeCampaignRealizationFacts(
+                new KentridgeVoxelSiteRealizationFacts(settlement, 1));
             KentridgeCampaignSession session = KentridgeCampaignSessionBootstrap.CreateSession(
                 content.Blueprint,
                 generation,
-                new KentridgeVoxelSiteRealizationFacts(settlement, 1),
+                realizationFacts,
                 actors,
                 new Presentation());
 
@@ -214,11 +218,12 @@ namespace VoxelEngine.Tests.PlayMode
         {
             KnownOpeningCampaignContent content = KnownOpeningCampaignContent.Build(
                 DialogueOnly("destination-conversation"));
+            AuthoredTownPlan town = WorldBuilderTownAuthoring.Author(WorldBuilderTownIds.Kentridge, Seed);
             SettlementPlan kentridgePlan = KentridgeDefinition.Build(Seed);
             SettlementPlan hightownPlan = HightownDefinition.Build(Seed);
             KentridgeCampaignGenerationPlan generation = KentridgeCampaignSessionBootstrap.Plan(
                 content.Blueprint,
-                kentridgePlan);
+                town);
             VoxelWorldGenSettings kentridgeSettings = BuildProductionSettings(kentridge: true);
             VoxelWorldGenSettings hightownSettings = BuildProductionSettings(kentridge: false);
 

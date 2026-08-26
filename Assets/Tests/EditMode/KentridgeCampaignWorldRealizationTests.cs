@@ -6,6 +6,7 @@ using Game.Composition.WorldBuilderWorldGen.Runtime;
 using Game.Cutscenes.Api;
 using Game.Cutscenes.Content.Kentridge;
 using Game.WorldBuilder.Api;
+using Game.WorldBuilder.Runtime;
 using MountingForce.WorldGen;
 using MountingForce.WorldGen.Content.Kentridge;
 using MountingForce.WorldGen.Voxel;
@@ -54,11 +55,12 @@ namespace VoxelEngine.Tests.EditMode
                 .RewardWith(cacheLoot));
 
             CampaignBlueprint blueprint = game.Build();
+            AuthoredTownPlan town = WorldBuilderTownAuthoring.Author(WorldBuilderTownIds.Kentridge, Seed);
             SettlementPlan settlement = KentridgeDefinition.Build(Seed);
 
             KentridgeCampaignGenerationPlan generation = KentridgeCampaignWorldPlanner.Plan(
                 blueprint,
-                settlement);
+                town);
 
             Assert.That(generation.Sites.IsResolved, Is.True);
             Assert.That(generation.NpcAssignments.Count, Is.EqualTo(3));
@@ -136,11 +138,12 @@ namespace VoxelEngine.Tests.EditMode
                 .Population(100, 200));
             game.World.RequireSite("starting-pub", kentridge, site => site
                 .Archetype(SiteArchetype.Pub));
+            AuthoredTownPlan town = WorldBuilderTownAuthoring.Author(WorldBuilderTownIds.Kentridge, Seed);
 
             InvalidOperationException error = Assert.Throws<InvalidOperationException>(() =>
                 KentridgeCampaignWorldPlanner.Plan(
                     game.Build(),
-                    KentridgeDefinition.Build(Seed)));
+                    town));
 
             Assert.That(error.Message, Does.Contain("population requirement"));
             Assert.That(error.Message, Does.Contain("100..200"));
@@ -152,10 +155,11 @@ namespace VoxelEngine.Tests.EditMode
             KnownOpeningCampaignContent content = KnownOpeningCampaignContent.Build(
                 DialogueOnly("destination-conversation"));
             CampaignBlueprint blueprint = content.Blueprint;
+            AuthoredTownPlan town = WorldBuilderTownAuthoring.Author(WorldBuilderTownIds.Kentridge, Seed);
             SettlementPlan settlement = KentridgeDefinition.Build(Seed);
             KentridgeCampaignGenerationPlan generation = KentridgeCampaignWorldPlanner.Plan(
                 blueprint,
-                settlement);
+                town);
 
             ResolvedSiteId pubSite = generation.Sites.Bindings
                 .Single(value => value.Role.Equals(content.StartingPub)).Site;

@@ -13,14 +13,15 @@ namespace Game.Composition.WorldBuilderWorldGen.Runtime
     /// Pre-voxel campaign realization. This is the complete semantic/architecture result needed by a
     /// backend before it emits world geometry: site roles are selected, NPCs are assigned to concrete
     /// sites, hidden spaces are physically planned, and every gameplay secret owns a distinct candidate.
-    /// HiddenSpaces is intentionally exposed so the Voxel backend can include those rooms in its
-    /// catalogue without taking any dependency on WorldBuilder.Runtime.
+    /// The public game-facing plan retains only the opaque WorldBuilder town; the backend settlement
+    /// remains internal to this integration assembly.
     /// </summary>
     public sealed class KentridgeCampaignGenerationPlan
     {
         public CampaignBlueprint Blueprint { get; }
         public PlanningGraph Graph { get; }
-        public SettlementPlan Settlement { get; }
+        public AuthoredTownPlan Town { get; }
+        internal SettlementPlan Settlement { get; }
         public SiteResolutionResult Sites { get; }
         public IReadOnlyList<NpcSiteAssignment> NpcAssignments { get; }
         public IReadOnlyList<KentridgeHiddenSpaceGeometry> HiddenSpaces { get; }
@@ -29,6 +30,7 @@ namespace Game.Composition.WorldBuilderWorldGen.Runtime
         internal KentridgeCampaignGenerationPlan(
             CampaignBlueprint blueprint,
             PlanningGraph graph,
+            AuthoredTownPlan town,
             SettlementPlan settlement,
             SiteResolutionResult sites,
             IReadOnlyList<NpcSiteAssignment> npcAssignments,
@@ -37,6 +39,7 @@ namespace Game.Composition.WorldBuilderWorldGen.Runtime
         {
             Blueprint = blueprint ?? throw new ArgumentNullException(nameof(blueprint));
             Graph = graph ?? throw new ArgumentNullException(nameof(graph));
+            Town = town ?? throw new ArgumentNullException(nameof(town));
             Settlement = settlement ?? throw new ArgumentNullException(nameof(settlement));
             Sites = sites ?? throw new ArgumentNullException(nameof(sites));
             NpcAssignments = npcAssignments ?? throw new ArgumentNullException(nameof(npcAssignments));
@@ -70,20 +73,29 @@ namespace Game.Composition.WorldBuilderWorldGen.Runtime
     }
 
     /// <summary>
-    /// Composition-owned pre-generation pipeline for one Kentridge settlement. WorldBuilder owns
-    /// compilation/constraint solving; WorldGen owns the settlement, traversal, architecture, and hidden
-    /// geometry; Composition is the only layer allowed to invoke both runtimes and join their results.
-    /// The semantic region/settlement owner comes from the compiled campaign hierarchy rather than a
-    /// second set of bootstrap arguments.
+    /// Composition-owned pre-generation pipeline for one WorldBuilder-authored Kentridge settlement.
+    /// WorldBuilder owns authoring/compilation; the legacy settlement and architecture implementation
+    /// remain private realization details inside this integration assembly.
     /// </summary>
     public static class KentridgeCampaignWorldPlanner
     {
         public static KentridgeCampaignGenerationPlan Plan(
             CampaignBlueprint blueprint,
-            SettlementPlan settlement)
+            AuthoredTownPlan town)
         {
             if (blueprint == null) throw new ArgumentNullException(nameof(blueprint));
-            if (settlement == null) throw new ArgumentNullException(nameof(settlement));
+            if (town == null) throw new ArgumentNullException(nameof(town));
+            if (!string.Equals(town.SettlementId, WorldBuilderTownIds.Kentridge, StringComparison.Ordinal))
+                throw new ArgumentOutOfRangeException(
+                    nameof(town),
+                    town.SettlementId,
+                    "Kentridge campaign planning requires the WorldBuilder Kentridge town plan.");
+            if (!(town.BackendPlan is SettlementPlan settlement))
+                throw new InvalidOperationException(
+                    "The authored Kentridge town does not carry the expected settlement realization.");
+            if (settlement.Seed != town.Seed)
+                throw new InvalidOperationException(
+                    "The authored town seed and backend settlement seed do not match.");
 
             PlanningGraph graph = BlueprintCompiler.Compile(blueprint);
             WorldSettlementPlan semanticSettlement = ResolveSemanticSettlement(graph.HierarchyPlan);
@@ -124,6 +136,7 @@ namespace Game.Composition.WorldBuilderWorldGen.Runtime
             return new KentridgeCampaignGenerationPlan(
                 blueprint,
                 graph,
+                town,
                 settlement,
                 sites,
                 npcAssignments,
