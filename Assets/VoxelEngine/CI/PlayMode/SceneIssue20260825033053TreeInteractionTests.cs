@@ -7,7 +7,6 @@ using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
-using VoxelEngine.Composition;
 using VoxelEngine.Showcase;
 using VoxelEngine.Vegetation.Api;
 using VoxelEngine.Vegetation.Runtime;
@@ -54,6 +53,7 @@ namespace VoxelEngine.CI
             Assert.That(TreeWorldRuntime.Instances.Count, Is.GreaterThan(0),
                 "The captured VoxelShowcase scene published no semantic trees.");
 
+            var treeDamage = new TreeDamageService();
             GameObject cameraObject = new("SceneIssue 033053 captured camera");
             try
             {
@@ -70,7 +70,7 @@ namespace VoxelEngine.CI
                     "No lower trunk from the authored tree population is visible from the saved camera pose.");
 
                 float3 playerHalfExtents = new(0.30f, 0.90f, 0.30f);
-                bool blocksPlayer = VegetationComposition.TreeDamage.OverlapsWoodAabb(
+                bool blocksPlayer = treeDamage.OverlapsWoodAabb(
                     collisionMidpoint - playerHalfExtents,
                     collisionMidpoint + playerHalfExtents);
                 Assert.That(blocksPlayer, Is.True,
@@ -79,15 +79,14 @@ namespace VoxelEngine.CI
                 float3 rayOrigin = (float3)cameraObject.transform.position;
                 float3 rayDirection = math.normalizesafe(collisionMidpoint - rayOrigin, new float3(0f, 0f, 1f));
                 float3 rayEnd = collisionMidpoint + rayDirection * 2f;
-                Assert.That(VegetationComposition.TreeDamage.TrySweepImpact(
+                Assert.That(treeDamage.TrySweepImpact(
                                 rayOrigin, rayEnd, ShotSweepRadiusMetres,
                                 out float3 hitMetres, out int hitTreeIndex),
                             Is.True,
                             "A shot through the saved camera toward a visible lower trunk did not hit semantic tree geometry.");
 
                 int removedBefore = TreeWorldRuntime.RemovedBranches(hitTreeIndex).Count;
-                VegetationComposition.TreeDamage.ApplyBlast(
-                    hitMetres, ShotBlastRadiusMetres, rayDirection);
+                treeDamage.ApplyBlast(hitMetres, ShotBlastRadiusMetres, rayDirection);
                 int removedAfter = TreeWorldRuntime.RemovedBranches(hitTreeIndex).Count;
                 Assert.That(removedAfter, Is.GreaterThan(removedBefore),
                     "A shot from the saved view hit a tree but did not remove any semantic branch geometry.");
