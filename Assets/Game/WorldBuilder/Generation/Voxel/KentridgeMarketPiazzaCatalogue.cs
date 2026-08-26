@@ -117,15 +117,17 @@ namespace MountingForce.WorldGen.Voxel
             byte dark = settings.Materials.Resolve(MaterialRole.DarkMasonry);
             var b = new ProgramBuilder();
 
-            // Keep one geometric owner across the public room. The decorative perimeter is a
-            // material-only repaint of that shared backing slab, so the border/centre transition
-            // cannot introduce a second coplanar boundary field over the real floor geometry.
-            b.Box(0, 0, 0, width, thickness, depth, stone);
-            b.Box(0, 0, 0, width, thickness, border, dark, PrimitiveMode.PaintSolid);
-            b.Box(0, 0, depth - border, width, thickness, border, dark, PrimitiveMode.PaintSolid);
-            b.Box(0, 0, border, border, thickness, depth - border * 2, dark, PrimitiveMode.PaintSolid);
-            b.Box(width - border, 0, border, border, thickness, depth - border * 2, dark,
-                PrimitiveMode.PaintSolid);
+            // Four flush dark perimeter bands bound the public room. The lighter stone centre is a
+            // single shared surface: road movement still passes through it without a geometric curb.
+            b.Box(0, 0, 0, width, thickness, border, dark);
+            b.Box(0, 0, depth - border, width, thickness, border, dark);
+            b.Box(0, 0, border, border, thickness, depth - border * 2, dark);
+            b.Box(width - border, 0, border, border, thickness, depth - border * 2, dark);
+            b.Box(border, 0, border,
+                width - border * 2,
+                thickness,
+                depth - border * 2,
+                stone);
 
             return b.Finish();
         }
@@ -137,8 +139,7 @@ namespace MountingForce.WorldGen.Voxel
             public void Box(
                 int x, int y, int z,
                 int sx, int sy, int sz,
-                byte material,
-                PrimitiveMode mode = PrimitiveMode.Fill)
+                byte material)
             {
                 if (sx <= 0 || sy <= 0 || sz <= 0) return;
                 Op(ShapeOp.EmitBox,
@@ -147,7 +148,7 @@ namespace MountingForce.WorldGen.Voxel
                     material,
                     0,
                     0,
-                    (int)mode);
+                    (int)PrimitiveMode.Fill);
             }
 
             public int[] Finish()
