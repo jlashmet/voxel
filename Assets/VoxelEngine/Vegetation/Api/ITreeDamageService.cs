@@ -9,6 +9,12 @@ namespace VoxelEngine.Vegetation.Api
     /// </summary>
     public interface ITreeDamageService
     {
+        /// <summary>
+        /// True when the axis-aligned metre-space box overlaps surviving tree wood. Foliage is not
+        /// solid and branches removed by damage stop participating immediately.
+        /// </summary>
+        bool OverlapsWoodAabb(float3 minMetres, float3 maxMetres);
+
         bool TrySweepImpact(
             float3 fromMetres,
             float3 toMetres,

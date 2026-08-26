@@ -1,0 +1,12 @@
+sourceCommit=4f785189292f98f9f1e449397503f17a3b3b48f2
+requestCommit=937217546cf0b76bf284b673ef6c19b765598089
+workflowRun=32999019598
+artifactId=9617959964
+artifactSha256=bfb19402e94e4cc7eb3b38553ca74324919a33b8e9e441ca6e22d47f0583385b
+capturedPosition=(30.71, 23.95, 154.72)
+capturedRotation=(0.09478, -0.21176, -0.02064, -0.97250)
+capturedFov=70.0
+semanticTreeCount=36
+replayFrame=Artifacts/SingleTest/SceneIssue20260825-033053-588/verification-current-replay.png
+visualResult=Exact saved-camera frame contains sky/fog only; no tree geometry is visible in the current checked-in startup bake.
+testResult=Executed exactly one PlayMode test; diagnostic assertion failed because no authored semantic branch geometry was visible/shootable from the saved camera view. The replay frame was written before this assertion.

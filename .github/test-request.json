@@ -1,5 +1,7 @@
 {
   "platform": "EditMode",
   "test": "VoxelEngine.Tests.EditMode.ArchitectureShapeProgramBuilderTests.PrimitiveOverridesRejectNegativeCornerRadius",
-  "request_id": "template"
+  "request_id": "template",
+  "scene_issue": "",
+  "replay_seconds": ""
 }
