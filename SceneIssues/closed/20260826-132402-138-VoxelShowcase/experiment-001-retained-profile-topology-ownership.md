@@ -18,3 +18,6 @@ Hypothesis confirmed at the ownership predicate: centroid-only classification is
 
 ## Next
 Add a regression to `ArchProfileStitchTests` for a same-material triangle that bridges from the clear aperture into the retained annulus while its centroid remains inside the aperture. Then extend ownership narrowly to detect that inner-boundary crossing without granting profile ownership to unrelated material, out-of-depth, or out-of-wedge topology.
+
+## Follow-up
+This was an early narrowing experiment, not the final root cause. `experiment-002-projected-surround-carve.md` provides the discriminating baseline: the opening carve stopped at the wall body while the decorative surround projected farther forward. The retained-profile hypothesis is therefore superseded for this capture.
