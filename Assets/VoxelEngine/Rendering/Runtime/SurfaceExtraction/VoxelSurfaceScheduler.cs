@@ -216,7 +216,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             DensityOnlyTiming = solids.DensityOnlyTiming;
             TopologyJobTurnaroundTiming = solids.TopologyJobTurnaroundTiming;
             TopologyCompactTiming = solids.TopologyCompactTiming;
-            FacetedJobTurnaroundTiming = solids.FacetedTurnaroundTiming;
+            FacetedJobTurnaroundTiming = solids.FacetedJobTurnaroundTiming;
             FacetedMergeTiming = solids.FacetedMergeTiming;
             ProfileEmitTiming = solids.ProfileEmitTiming;
             UploadTiming = solids.UploadTiming;
@@ -444,7 +444,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 TopologyCompactTiming = VoxelTimingSummary.WorstOf(
                     TopologyCompactTiming, worker.TopologyCompactTiming);
                 FacetedJobTurnaroundTiming = VoxelTimingSummary.WorstOf(
-                    FacetedJobTurnaroundTiming, worker.FacetedTurnaroundTiming);
+                    FacetedJobTurnaroundTiming, worker.FacetedJobTurnaroundTiming);
                 FacetedMergeTiming = VoxelTimingSummary.WorstOf(
                     FacetedMergeTiming, worker.FacetedMergeTiming);
                 ProfileEmitTiming = VoxelTimingSummary.WorstOf(
@@ -1344,6 +1344,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             bool stableReuse = !hasMissing && samePose;
 
             Vector3 delta = position - _lastVisibilityCameraPosition;
+            // A missing near chunk keeps the far-field fallback open. Reuse that already-covered
+            // view for only the immediately following small-motion frame; the next frame must run
+            // the full funnel again so newly published geometry and newly visible demand surface.
             bool boundedConvergingReuse = hasMissing
                 && _lastMissingVisibleCount > 0
                 && _visibleSolids.Count > 0
