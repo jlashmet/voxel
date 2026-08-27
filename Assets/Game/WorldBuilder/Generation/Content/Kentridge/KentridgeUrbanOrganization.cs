@@ -299,7 +299,7 @@ namespace MountingForce.WorldGen.Content.Kentridge
                     KentridgeBlockEdge.South | KentridgeBlockEdge.East,
                     KentridgeBlockEdge.South,
                     new Int2(1300, 150),
-                    75, 3, 3, 58, 56, 24, 20),
+                    75, 3, 3, 58, 56, 24, 34),
 
                 // Radcliffe's ridge remains a strong secondary urban mass one storey below the civic
                 // crown. The east return stops the ridge reading as an isolated horizontal shelf.
