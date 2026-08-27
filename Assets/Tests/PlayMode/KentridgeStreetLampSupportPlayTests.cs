@@ -107,7 +107,7 @@ namespace VoxelEngine.Tests.PlayMode
                 Assert.AreNotEqual(int.MinValue, generatedGroundSurfaceY,
                     "The production working-yard terrace must generate solid support under the captured lamp column.");
                 Assert.AreEqual(generatedGroundSurfaceY, placement.Position.y,
-                    "The captured lamp must start exactly on the district shoulder generated beneath its sidewalk.");
+                    "The captured lamp origin must remain the first empty voxel above its generated district shoulder.");
                 Assert.AreNotEqual(
                     KentridgeVerticalProfile.SurfaceYAtDm(
                         CapturedLampXDm, CapturedLampZDm, ShowcaseSeed,
@@ -166,13 +166,17 @@ namespace VoxelEngine.Tests.PlayMode
                 Assert.IsTrue(foundLantern,
                     "The captured lamp must retain the warm lantern head that exposed the floating-support defect.");
                 Assert.AreEqual(SurfaceStyles.Planar, foot.SurfaceStyle,
-                    "The visible lamp foot must reconstruct exactly at the terrace contact plane instead of retracting under smoothing.");
+                    "The visible lamp foot must reconstruct exactly instead of inheriting stone smoothing.");
                 Assert.AreEqual(SurfaceStyles.Planar, support.SurfaceStyle,
                     "A 3x3-voxel lamp pole must not inherit dark stone's Smooth reconstruction.");
 
-                foot.Bounds(out var footMin, out _);
-                Assert.AreEqual(generatedGroundSurfaceY, footMin.y,
-                    "The exact lamp foot must begin in the first voxel directly above the highest generated terrace solid.");
+                foot.Bounds(out var footMin, out var footMax);
+                Assert.AreEqual(generatedGroundSurfaceY - 1, footMin.y,
+                    "The exact lamp foot must overlap the terrace's top occupied voxel so Smooth ground reconstruction cannot open a visible seam.");
+                Assert.AreEqual(
+                    placement.Position.y + 4 * settings.VoxelsPerDecimetre - 1,
+                    footMax.y,
+                    "Embedding the foot must preserve its original top plane and therefore leave all upper lamp geometry unchanged.");
 
                 support.Bounds(out _, out var supportMax);
                 lantern.Bounds(out var lanternMin, out _);
