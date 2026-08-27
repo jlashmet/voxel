@@ -216,7 +216,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             DensityOnlyTiming = solids.DensityOnlyTiming;
             TopologyJobTurnaroundTiming = solids.TopologyJobTurnaroundTiming;
             TopologyCompactTiming = solids.TopologyCompactTiming;
-            FacetedJobTurnaroundTiming = solids.FacetedJobTurnaroundTiming;
+            FacetedJobTurnaroundTiming = solids.FacetedTurnaroundTiming;
             FacetedMergeTiming = solids.FacetedMergeTiming;
             ProfileEmitTiming = solids.ProfileEmitTiming;
             UploadTiming = solids.UploadTiming;
@@ -444,7 +444,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 TopologyCompactTiming = VoxelTimingSummary.WorstOf(
                     TopologyCompactTiming, worker.TopologyCompactTiming);
                 FacetedJobTurnaroundTiming = VoxelTimingSummary.WorstOf(
-                    FacetedJobTurnaroundTiming, worker.FacetedJobTurnaroundTiming);
+                    FacetedJobTurnaroundTiming, worker.FacetedTurnaroundTiming);
                 FacetedMergeTiming = VoxelTimingSummary.WorstOf(
                     FacetedMergeTiming, worker.FacetedMergeTiming);
                 ProfileEmitTiming = VoxelTimingSummary.WorstOf(
@@ -1308,49 +1308,79 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             int missingVisibleCount, int buildCeiling) =>
             missingVisibleCount <= 0 && buildCeiling > 0;
 
+        private const float ConvergingVisibilityReuseDistanceMetres = 0.75f;
+        private const float ConvergingVisibilityReuseAngleDegrees = 2f;
         private Vector3 _lastVisibilityCameraPosition;
         private Quaternion _lastVisibilityCameraRotation;
         private ulong _lastVisibilityDemandVersion;
+        private int _lastFullVisibilityFrame = -1;
         private bool _hasVisibilityCache;
         public static bool VisibilityReuseEnabled { get; set; } = true;
 
-        private bool TryReuseVisibility(Camera camera, float voxelSize, int frame)
+        private ulong CurrentVisibilityDemandVersion()
         {
-            if (camera == null || !VisibilityReuseEnabled) return false;
-
             ulong demand = 0;
             for (int i = 0; i < _allWorkers.Length; i++)
-            {
-                CpuTransvoxelChunkCache worker = _allWorkers[i];
-                if (worker.MissingVisibleCount != 0) return false;
-                demand += worker.DemandVersion + worker.ReadySetVersion;
-            }
+                demand += _allWorkers[i].DemandVersion + _allWorkers[i].ReadySetVersion;
+            return demand;
+        }
+
+        private bool TryReuseVisibility(Camera camera, float voxelSize, int frame)
+        {
+            if (camera == null || !VisibilityReuseEnabled || !_hasVisibilityCache) return false;
+
+            ulong demand = CurrentVisibilityDemandVersion();
+            if (demand != _lastVisibilityDemandVersion) return false;
+
+            bool hasMissing = false;
+            for (int i = 0; i < _allWorkers.Length; i++)
+                hasMissing |= _allWorkers[i].MissingVisibleCount != 0;
 
             Transform cameraTransform = camera.transform;
             Vector3 position = cameraTransform.position;
             Quaternion rotation = cameraTransform.rotation;
+            bool samePose = position == _lastVisibilityCameraPosition
+                         && rotation == _lastVisibilityCameraRotation;
+            bool stableReuse = !hasMissing && samePose;
 
-            if (!_hasVisibilityCache
-                || demand != _lastVisibilityDemandVersion
-                || position != _lastVisibilityCameraPosition
-                || rotation != _lastVisibilityCameraRotation)
-            {
-                _hasVisibilityCache = true;
-                _lastVisibilityDemandVersion = demand;
-                _lastVisibilityCameraPosition = position;
-                _lastVisibilityCameraRotation = rotation;
-                return false;
-            }
+            Vector3 delta = position - _lastVisibilityCameraPosition;
+            bool boundedConvergingReuse = hasMissing
+                && _lastMissingVisibleCount > 0
+                && _visibleSolids.Count > 0
+                && frame == _lastFullVisibilityFrame + 1
+                && delta.sqrMagnitude <= ConvergingVisibilityReuseDistanceMetres
+                                       * ConvergingVisibilityReuseDistanceMetres
+                && Quaternion.Angle(rotation, _lastVisibilityCameraRotation)
+                   <= ConvergingVisibilityReuseAngleDegrees;
+            if (!stableReuse && !boundedConvergingReuse) return false;
 
             for (int i = 0; i < _visibleSolids.Count; i++)
                 _visibleSolids[i].LastUsedFrame = frame;
 
             double reuseStart = Time.realtimeSinceStartupAsDouble;
+            _lastVisibilityCandidateChecks = 0;
             _water.CollectVisible(camera, voxelSize);
             TrackReappearances(frame);
             LastVisibilityMainThreadMs = ElapsedMs(reuseStart);
             _visibilityTiming.Add(LastVisibilityMainThreadMs);
             return true;
+        }
+
+        private void RecordFullVisibilityCache(Camera camera, int frame)
+        {
+            if (camera == null || !VisibilityReuseEnabled)
+            {
+                _hasVisibilityCache = false;
+                _lastFullVisibilityFrame = -1;
+                return;
+            }
+
+            Transform cameraTransform = camera.transform;
+            _lastVisibilityDemandVersion = CurrentVisibilityDemandVersion();
+            _lastVisibilityCameraPosition = cameraTransform.position;
+            _lastVisibilityCameraRotation = cameraTransform.rotation;
+            _lastFullVisibilityFrame = frame;
+            _hasVisibilityCache = true;
         }
 
         private void CollectVisibility(Camera camera, float voxelSize, int frame)
@@ -1444,6 +1474,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             for (int i = 0; i < _allWorkers.Length; i++)
                 missingVisible += _allWorkers[i].MissingVisibleCount;
             _lastMissingVisibleCount = missingVisible;
+            RecordFullVisibilityCache(camera, frame);
 
             TrackReappearances(frame);
             LastVisibilityMainThreadMs = ElapsedMs(visibilityStart);
