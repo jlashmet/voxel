@@ -51,6 +51,35 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void SharedPresentationTextureArraySupportsMinification()
+        {
+            var source = new Texture2D(32, 32, TextureFormat.RGBA32, false, false);
+            Texture2DArray array = null;
+            try
+            {
+                var pixels = new Color[32 * 32];
+                for (int y = 0; y < 32; y++)
+                    for (int x = 0; x < 32; x++)
+                        pixels[y * 32 + x] = ((x + y) & 1) == 0 ? Color.white : Color.black;
+                source.SetPixels(pixels);
+                source.Apply(false, false);
+
+                array = VoxelPresentationCatalogue.BuildTextureArray(new[] { source }, linear: false);
+
+                Assert.That(array, Is.Not.Null);
+                Assert.That(array.mipmapCount, Is.GreaterThan(1),
+                    "The shared material texture array needs a mip chain so coarse far-terrain fragments do not minify the full-resolution grass layer into large aliased features.");
+                Assert.That(array.filterMode, Is.EqualTo(FilterMode.Trilinear),
+                    "Far and near surfaces must interpolate between shared mip levels rather than snap between minification levels at the handoff.");
+            }
+            finally
+            {
+                if (array != null) Object.DestroyImmediate(array);
+                Object.DestroyImmediate(source);
+            }
+        }
+
+        [Test]
         public void SharedPresentationPublisherRunsBeforeOpaqueFarTerrain()
         {
             MethodInfo resolver = typeof(VoxelRenderFeature).GetMethod(
