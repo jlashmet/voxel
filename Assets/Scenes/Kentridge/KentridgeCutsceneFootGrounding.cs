@@ -13,7 +13,7 @@ namespace Game.Kentridge.PlayableSlice
     public sealed class KentridgeCutsceneFootGrounding : MonoBehaviour
     {
         private const float AlignmentEpsilonMetres = 0.001f;
-        private readonly HashSet<GameObject> _normalizedRoots = new HashSet<GameObject>();
+        private readonly Dictionary<GameObject, Transform> _visualOffsets = new Dictionary<GameObject, Transform>();
 
         private void LateUpdate()
         {
@@ -24,12 +24,21 @@ namespace Game.Kentridge.PlayableSlice
             {
                 GameObject root = roots[i];
                 if (root == null || root == gameObject || !root.activeInHierarchy) continue;
-                if (_normalizedRoots.Contains(root)) continue;
                 if (root.GetComponentInChildren<Animator>(true) == null) continue;
 
-                if (TryNormalizeVisibleFeet(root, out float correction, out float before, out float after))
+                bool createdOffset = false;
+                if (!_visualOffsets.TryGetValue(root, out Transform offset) || offset == null)
                 {
-                    _normalizedRoots.Add(root);
+                    if (!TryCreateVisualOffset(root, out offset)) continue;
+                    _visualOffsets[root] = offset;
+                    createdOffset = true;
+                }
+
+                if (!TryAlignVisibleFeet(root, offset, out float correction, out float before, out float after))
+                    continue;
+
+                if (createdOffset)
+                {
                     Debug.Log(
                         "KENTRIDGE_FOOT_ALIGNMENT actor=" + root.name
                         + " stageY=" + root.transform.position.y.ToString("F3")
@@ -40,8 +49,28 @@ namespace Game.Kentridge.PlayableSlice
             }
         }
 
-        private static bool TryNormalizeVisibleFeet(
+        private static bool TryCreateVisualOffset(GameObject root, out Transform offset)
+        {
+            offset = null;
+            if (!TryGetVisibleBounds(root, out _)) return false;
+
+            int childCount = root.transform.childCount;
+            var originalChildren = new Transform[childCount];
+            for (var i = 0; i < childCount; i++)
+                originalChildren[i] = root.transform.GetChild(i);
+
+            var offsetObject = new GameObject("Kentridge Visual Foot Offset");
+            offset = offsetObject.transform;
+            offset.SetParent(root.transform, false);
+            for (var i = 0; i < originalChildren.Length; i++)
+                originalChildren[i].SetParent(offset, true);
+
+            return true;
+        }
+
+        private static bool TryAlignVisibleFeet(
             GameObject root,
+            Transform offset,
             out float correction,
             out float beforeMinY,
             out float afterMinY)
@@ -50,7 +79,7 @@ namespace Game.Kentridge.PlayableSlice
             beforeMinY = 0f;
             afterMinY = 0f;
 
-            if (!TryGetVisibleBounds(root, out Bounds beforeBounds)) return false;
+            if (offset == null || !TryGetVisibleBounds(root, out Bounds beforeBounds)) return false;
             beforeMinY = beforeBounds.min.y;
             correction = root.transform.position.y - beforeMinY;
 
@@ -63,18 +92,7 @@ namespace Game.Kentridge.PlayableSlice
             float scaleY = root.transform.lossyScale.y;
             if (Mathf.Abs(scaleY) <= 1e-6f) return false;
 
-            int childCount = root.transform.childCount;
-            var originalChildren = new Transform[childCount];
-            for (var i = 0; i < childCount; i++)
-                originalChildren[i] = root.transform.GetChild(i);
-
-            var offsetObject = new GameObject("Kentridge Visual Foot Offset");
-            Transform offset = offsetObject.transform;
-            offset.SetParent(root.transform, false);
-            for (var i = 0; i < originalChildren.Length; i++)
-                originalChildren[i].SetParent(offset, true);
-
-            offset.localPosition = Vector3.up * (correction / scaleY);
+            offset.localPosition += Vector3.up * (correction / scaleY);
 
             if (!TryGetVisibleBounds(root, out Bounds afterBounds)) return false;
             afterMinY = afterBounds.min.y;
@@ -89,7 +107,7 @@ namespace Game.Kentridge.PlayableSlice
             for (var i = 0; i < renderers.Length; i++)
             {
                 Renderer renderer = renderers[i];
-                if (renderer == null || !renderer.enabled) continue;
+                if (renderer == null || !renderer.enabled || !renderer.gameObject.activeInHierarchy) continue;
                 if (!found)
                 {
                     bounds = renderer.bounds;
