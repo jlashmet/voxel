@@ -9,27 +9,23 @@ namespace VoxelEngine.Tests.EditMode
     public sealed class GpuLod2CutoverPolicyTests
     {
         [Test]
-        public void SceneIssue20260825192751413ProductionGpuCutoverIsEnabledForExactRings()
+        public void ProductionSurfaceExtractionUsesCpuMesherForEveryRing()
         {
-            Assert.False(CpuTransvoxelChunkCache.GpuCutoverDisabled,
-                "Production must not hard-disable the validated GPU extraction backend for exact rings.");
-            Assert.True(CpuTransvoxelChunkCache.SupportsGpuSurfaceStep(1),
-                "The exact base ring must remain eligible for GPU extraction.");
-            Assert.True(CpuTransvoxelChunkCache.SupportsGpuSurfaceStep(2),
-                "LOD2 is an exact ring and must remain eligible for GPU extraction.");
+            Assert.True(CpuTransvoxelChunkCache.GpuCutoverDisabled,
+                "The production scheduler must not instantiate the GPU extraction backend.");
         }
 
         [Test]
         public void SceneIssue20260823014011920GpuCutoverTargetsOnlyNearExactRings()
         {
             Assert.True(CpuTransvoxelChunkCache.SupportsGpuSurfaceStep(1),
-                "The base exact ring should remain on the GPU path.");
+                "The dormant GPU oracle still supports full-resolution extraction.");
             Assert.True(CpuTransvoxelChunkCache.SupportsGpuSurfaceStep(2),
-                "LOD2 should join the GPU cutover after parity is restored.");
+                "The dormant GPU oracle still supports the LOD2 implementation.");
             Assert.False(CpuTransvoxelChunkCache.SupportsGpuSurfaceStep(4),
-                "LOD4 still relies on the feature-preserving CPU fallback.");
+                "The step-4 feature-preserving exact/fallback ring must stay on the CPU path.");
             Assert.False(CpuTransvoxelChunkCache.SupportsGpuSurfaceStep(8),
-                "Block HLOD remains a separate coarse representation.");
+                "Block HLOD must remain the step-8 backend.");
         }
 
         [Test]
@@ -60,7 +56,8 @@ namespace VoxelEngine.Tests.EditMode
                 new int3(1, 0, 0), voxelSize: 1f, cameraPosition: Vector3.zero);
 
             Assert.AreEqual(1 << 0, mask,
-                "LOD2 GPU chunks adjacent to the inner ring must emit the matching transition face.");
+                "At the positive-X inner edge only the -X neighbour belongs to the finer ring; "
+              + "GPU LOD2 must request that transition face with the same bit ordering as Transvoxel.");
         }
     }
 }
