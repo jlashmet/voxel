@@ -46,7 +46,7 @@ namespace MountingForce.WorldGen.Content.Kentridge
             accentStone: MaterialRole.DarkMasonry,
             foundationHeightDm: 7,
             wallThicknessDm: 4,
-            floorHeightDm: 34,
+            floorHeightDm: 40,
             doorHeightDm: 24,
             windowBaseDm: 20,
             windowHeightDm: 12,

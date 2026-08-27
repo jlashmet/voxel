@@ -105,6 +105,13 @@ namespace MountingForce.WorldGen.Architecture
             ArchitectureStyleRegistry styles)
         {
             if (styles == null) throw new ArgumentNullException(nameof(styles));
+            IArchitectureStyleCompiler style = styles.Require(intent.StyleId);
+            int envelopeClearanceDm = style is IStructureEnvelopeClearancePolicy clearancePolicy
+                ? clearancePolicy.GeneratedStructureClearanceDm
+                : 12;
+            if (envelopeClearanceDm < 0)
+                throw new InvalidOperationException(
+                    "Architecture style requested negative structure-envelope clearance.");
 
             if (form.RoleId != intent.RoleId
                 || form.Archetype != intent.Archetype
@@ -127,15 +134,18 @@ namespace MountingForce.WorldGen.Architecture
                 int depthExtent = form.DepthDm
                                 + form.UpperOverhangDm
                                 + 2 * theme.RoofOverhangDm;
-                if (lateralExtent > intent.EnvelopeDm.X - 12
-                    || depthExtent > intent.EnvelopeDm.Z - 12)
+                if (lateralExtent > intent.EnvelopeDm.X - envelopeClearanceDm
+                    || depthExtent > intent.EnvelopeDm.Z - envelopeClearanceDm)
                     throw new InvalidOperationException(
                         "Generated architecture escaped its high-level structure envelope: " +
-                        "lateral " + lateralExtent + " vs " + (intent.EnvelopeDm.X - 12) +
-                        ", depth " + depthExtent + " vs " + (intent.EnvelopeDm.Z - 12) +
+                        "lateral " + lateralExtent + " vs " +
+                        (intent.EnvelopeDm.X - envelopeClearanceDm) +
+                        ", depth " + depthExtent + " vs " +
+                        (intent.EnvelopeDm.Z - envelopeClearanceDm) +
                         " (width " + form.WidthDm + ", depth " + form.DepthDm +
                         ", upperOverhang " + form.UpperOverhangDm +
-                        ", roofOverhang " + theme.RoofOverhangDm + ").");
+                        ", roofOverhang " + theme.RoofOverhangDm +
+                        ", clearance " + envelopeClearanceDm + ").");
 
                 if (form.Footprint == FootprintForm.RearWing && form.WingDepthDm <= 0)
                     throw new InvalidOperationException("Rear-wing form is missing its wing.");
@@ -143,13 +153,15 @@ namespace MountingForce.WorldGen.Architecture
                     throw new InvalidOperationException("Side-wing form is missing its wing.");
             }
 
-            styles.Require(intent.StyleId).ValidateStructure(intent, theme, form);
+            style.ValidateStructure(intent, theme, form);
         }
     }
 
     /// <summary>Kentridge style implementation hidden behind the registered style compiler.</summary>
     internal static class KentridgeStructureCompiler
     {
+        private const int RoomPlanExpansionDm = 8;
+
         public static StructureForm Resolve(
             StructureIntent intent, ArchitectureTheme theme, uint seed)
         {
@@ -253,8 +265,10 @@ namespace MountingForce.WorldGen.Architecture
         {
             return new StructureForm(
                 intent.RoleId, intent.Archetype, intent.District, StructureGenerationMode.Generated,
-                footprint, roof, rhythm, windows, width, depth, storeys, doorOffset,
-                overhang, roofHeight, wingWidth, wingDepth, wingRight, chimneyRight);
+                footprint, roof, rhythm, windows,
+                width + RoomPlanExpansionDm, depth + RoomPlanExpansionDm,
+                storeys, doorOffset, overhang, roofHeight,
+                wingWidth, wingDepth, wingRight, chimneyRight);
         }
 
         private static StructureForm Bespoke(StructureIntent intent)
