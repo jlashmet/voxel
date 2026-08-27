@@ -1,7 +1,0 @@
-# Plan
-
-- Evidence: one saved camera, no marked circles, so the whole captured pub interior is the acceptance region. The capture note requires a female bartender, several tables/chairs, shelves behind the bar, windows, and a somewhat larger room.
-- Hypotheses: (1) Pub-specific furnishing is missing; confirmed because shared hospitality code said Pub kept a pre-existing bar while the Pub role actually emitted only an exterior sign. (2) Wrong role selection; rejected because the settlement resolves the stable `KentridgeRole.Pub` production path. (3) Windowless/undersized shell; windows rejected as root cause because Pub already uses `WindowTreatment.Warm` and the generated shell carves windows; size remains a secondary acceptance gap.
-- Fix/repro: replay the saved Kentridge camera; enlarge only the Pub to 126x104 dm and add a production-program bar, two shelves, three total tables, six chairs, and a female bartender prop behind the bar while preserving the front/central aisle.
-- Regression: production PlayMode coverage asserts Pub dimensions/window treatment and bar/table/chair/shelf/bartender signatures, plus absence of Pub-only bar/staff geometry from the Inn. Existing production coverage evaluates every generated role and enforces each definition's primitive budget.
-- Blast radius/cost: Kentridge Pub only; no generic shell/window or unrelated capture changes. Cost is a bounded set of additional `EmitBox` primitives for one role.
