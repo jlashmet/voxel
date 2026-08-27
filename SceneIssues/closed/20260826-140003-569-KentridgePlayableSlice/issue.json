@@ -1,0 +1,65 @@
+{
+    "formatVersion": 3,
+    "id": "20260826-140003-569-KentridgePlayableSlice",
+    "capturedUtc": "2026-08-26T14:00:03.5718200Z",
+    "note": "the pub is pretty empty.  it should have a bartender (femaile) a few tabless/chairs, shelves behind the bar, windows, etc.  probably make it a bit bigger as well.",
+    "status": "fixed",
+    "resolvedUtc": "2026-08-27T17:54:22Z",
+    "resolutionSummary": "Expanded only the generated Kentridge Pub and added its missing role-specific interior: three table groupings with six chairs, a bar counter, two rear shelves, and a clearly readable female bartender figure while retaining warm windows and the central access aisle.",
+    "regressionTest": "VoxelEngine.Tests.PlayMode.KentridgeHouseInteriorPropPlayModeTests.ProductionPubCarriesCapturedBarInteriorRequirementsWithoutLeakingToInn",
+    "fixCommit": "dcd0bccbef6dc8076a25650acbc3c45df16b42a6",
+    "unityVersion": "6000.5.6f1",
+    "platform": "OSXEditor",
+    "sceneName": "KentridgePlayableSlice",
+    "scenePath": "Assets/Scenes/KentridgePlayableSlice.unity",
+    "sceneBuildIndex": 0,
+    "captures": [
+        {
+            "screenshot": "screenshot-001.png",
+            "capturedUtc": "2026-08-26T14:00:03.5727140Z",
+            "frameCount": 604,
+            "timeSinceLevelLoad": 11.167702674865723,
+            "screenWidth": 1928,
+            "screenHeight": 836,
+            "poseAnchor": {
+                "hierarchyPath": "Kentridge Player Camera",
+                "position": {"x": 137.1999969482422, "y": 30.0, "z": 74.80000305175781},
+                "rotation": {"x": 0.3751024305820465, "y": -0.5994148850440979, "z": 0.3751024305820465, "w": 0.5994149446487427},
+                "localScale": {"x": 1.0, "y": 1.0, "z": 1.0}
+            },
+            "camera": {
+                "hierarchyPath": "Kentridge Player Camera",
+                "position": {"x": 137.1999969482422, "y": 30.0, "z": 74.80000305175781},
+                "rotation": {"x": 0.3751024305820465, "y": -0.5994148850440979, "z": 0.3751024305820465, "w": 0.5994149446487427},
+                "fieldOfView": 58.0,
+                "orthographic": false,
+                "orthographicSize": 5.0,
+                "nearClipPlane": 0.05000000074505806,
+                "farClipPlane": 16000.0
+            },
+            "circles": []
+        }
+    ],
+    "screenshot": "screenshot-001.png",
+    "frameCount": 604,
+    "timeSinceLevelLoad": 11.167702674865723,
+    "screenWidth": 1928,
+    "screenHeight": 836,
+    "poseAnchor": {
+        "hierarchyPath": "Kentridge Player Camera",
+        "position": {"x": 137.1999969482422, "y": 30.0, "z": 74.80000305175781},
+        "rotation": {"x": 0.3751024305820465, "y": -0.5994148850440979, "z": 0.3751024305820465, "w": 0.5994149446487427},
+        "localScale": {"x": 1.0, "y": 1.0, "z": 1.0}
+    },
+    "camera": {
+        "hierarchyPath": "Kentridge Player Camera",
+        "position": {"x": 137.1999969482422, "y": 30.0, "z": 74.80000305175781},
+        "rotation": {"x": 0.3751024305820465, "y": -0.5994148850440979, "z": 0.3751024305820465, "w": 0.5994149446487427},
+        "fieldOfView": 58.0,
+        "orthographic": false,
+        "orthographicSize": 5.0,
+        "nearClipPlane": 0.05000000074505806,
+        "farClipPlane": 16000.0
+    },
+    "circles": []
+}

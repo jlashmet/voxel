@@ -176,7 +176,7 @@ namespace MountingForce.WorldGen.Architecture
                 case KentridgeRole.Pub:
                     return Generated(intent, FootprintForm.SideWing,
                         RoofForm.GableWithLeanTo, FrontageRhythm.Asymmetric,
-                        WindowTreatment.Warm, 112, 92, 2, -12, 2, 24,
+                        WindowTreatment.Warm, 118, 96, 2, -12, 2, 24,
                         28, 42, false, false);
                 case KentridgeRole.WeaponShop:
                     return Generated(intent, FootprintForm.RearWing,

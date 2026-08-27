@@ -13,8 +13,6 @@ namespace MountingForce.WorldGen.Voxel
     /// </summary>
     internal static class KentridgeHouseInteriorPropCatalogue
     {
-        // A deliberately distinctive common table top also serves as the behavioral signature
-        // exercised through KentridgeSharedStructureVoxelCatalogue by the regression test.
         private const int TableWidthDm = 23;
         private const int TableHeightDm = 2;
         private const int TableDepthDm = 13;
@@ -67,38 +65,27 @@ namespace MountingForce.WorldGen.Voxel
             byte timber = settings.Materials.Resolve(theme.Frame);
             byte cloth = settings.Materials.Resolve(MaterialRole.Cloth);
             byte accent = settings.Materials.Resolve(theme.AccentStone);
+            byte warm = settings.Materials.Resolve(MaterialRole.WarmWindow);
 
-            var code = new List<int>(program.Length + 72);
+            var code = new List<int>(program.Length + 420);
             for (int i = 0; i < program.Length - endLength; i++)
                 code.Add(program[i]);
 
             int tableX = left + TableSideInsetDm * scale;
             int tableZ = rear - TableRearOffsetDm * scale;
-            EmitBox(
-                code,
-                tableX + 9 * scale,
-                foundation,
-                tableZ + 4 * scale,
-                TablePedestalDm * scale,
-                TablePedestalHeightDm * scale,
-                TablePedestalDm * scale,
-                timber);
-            EmitBox(
-                code,
-                tableX,
-                foundation + TablePedestalHeightDm * scale,
-                tableZ,
-                TableWidthDm * scale,
-                TableHeightDm * scale,
-                TableDepthDm * scale,
-                timber);
+            AddTable(code, tableX, tableZ, foundation, scale, timber);
 
             if (form.Archetype == StructureArchetype.Shop)
             {
                 AddShopFurniture(code, right, rear, foundation, scale, timber, accent);
             }
-            else if (form.RoleId == (int)KentridgeRole.Inn
-                  || form.RoleId == (int)KentridgeRole.Pub)
+            else if (form.RoleId == (int)KentridgeRole.Pub)
+            {
+                AddPubFurniture(
+                    code, left, right, front, rear, tableX, tableZ,
+                    foundation, scale, timber, cloth, accent, warm);
+            }
+            else if (form.RoleId == (int)KentridgeRole.Inn)
             {
                 AddHospitalityFurniture(code, right, rear, foundation, scale, timber);
             }
@@ -126,8 +113,6 @@ namespace MountingForce.WorldGen.Voxel
             byte timber,
             byte cloth)
         {
-            // A low bed frame and cloth mattress make ordinary homes read as inhabited without
-            // entering the front-door lane or the central hearth strip.
             int bedX = right - 24 * scale;
             int bedZ = rear - 20 * scale;
             EmitBox(code, bedX, foundation, bedZ,
@@ -145,7 +130,6 @@ namespace MountingForce.WorldGen.Voxel
             byte timber,
             byte accent)
         {
-            // Rear counter plus wall shelf: customers keep the central/front circulation space.
             int counterX = right - 28 * scale;
             int counterZ = rear - 18 * scale;
             EmitBox(code, counterX, foundation, counterZ,
@@ -164,13 +148,146 @@ namespace MountingForce.WorldGen.Voxel
             int scale,
             byte timber)
         {
-            // A rear bench complements the shared table; the Pub keeps its pre-existing bar counter.
             int benchX = right - 28 * scale;
             int benchZ = rear - 22 * scale;
             EmitBox(code, benchX, foundation, benchZ,
                 24 * scale, 6 * scale, 6 * scale, timber);
             EmitBox(code, benchX, foundation + 6 * scale, benchZ + 5 * scale,
                 24 * scale, 8 * scale, 3 * scale, timber);
+        }
+
+        private static void AddPubFurniture(
+            List<int> code,
+            int left,
+            int right,
+            int front,
+            int rear,
+            int commonTableX,
+            int commonTableZ,
+            int foundation,
+            int scale,
+            byte timber,
+            byte cloth,
+            byte accent,
+            byte warm)
+        {
+            // Keep a clear front/centre aisle. Tables occupy the left side while the bar anchors
+            // the right rear wall, matching the captured player's approach through the front door.
+            AddChair(code, commonTableX + 8 * scale, commonTableZ - 7 * scale,
+                foundation, scale, timber, false);
+            AddChair(code, commonTableX + 8 * scale, commonTableZ + TableDepthDm * scale,
+                foundation, scale, timber, true);
+            AddTableChairs(code, left + 8 * scale, front + 14 * scale,
+                foundation, scale, timber);
+            AddTableChairs(code, left + 8 * scale, front + 42 * scale,
+                foundation, scale, timber);
+
+            int barX = right - 48 * scale;
+            int barZ = rear - 24 * scale;
+            EmitBox(code, barX, foundation, barZ,
+                44 * scale, 9 * scale, 8 * scale, timber);
+            EmitBox(code, barX - scale, foundation + 9 * scale, barZ - scale,
+                46 * scale, 2 * scale, 10 * scale, accent);
+
+            // Two narrow shelves behind the bartender leave the warm rear windows readable.
+            EmitBox(code, barX + 4 * scale, foundation + 13 * scale, rear - 4 * scale,
+                36 * scale, 2 * scale, 3 * scale, timber);
+            EmitBox(code, barX + 4 * scale, foundation + 22 * scale, rear - 4 * scale,
+                36 * scale, 2 * scale, 3 * scale, timber);
+
+            AddWomanBartender(
+                code, barX + 20 * scale, rear - 14 * scale,
+                foundation, scale, timber, cloth, accent, warm);
+        }
+
+        private static void AddTableChairs(
+            List<int> code,
+            int tableX,
+            int tableZ,
+            int foundation,
+            int scale,
+            byte timber)
+        {
+            AddTable(code, tableX, tableZ, foundation, scale, timber);
+            AddChair(code, tableX + 8 * scale, tableZ - 7 * scale,
+                foundation, scale, timber, false);
+            AddChair(code, tableX + 8 * scale, tableZ + TableDepthDm * scale,
+                foundation, scale, timber, true);
+        }
+
+        private static void AddTable(
+            List<int> code,
+            int tableX,
+            int tableZ,
+            int foundation,
+            int scale,
+            byte timber)
+        {
+            EmitBox(code,
+                tableX + 9 * scale,
+                foundation,
+                tableZ + 4 * scale,
+                TablePedestalDm * scale,
+                TablePedestalHeightDm * scale,
+                TablePedestalDm * scale,
+                timber);
+            EmitBox(code,
+                tableX,
+                foundation + TablePedestalHeightDm * scale,
+                tableZ,
+                TableWidthDm * scale,
+                TableHeightDm * scale,
+                TableDepthDm * scale,
+                timber);
+        }
+
+        private static void AddChair(
+            List<int> code,
+            int x,
+            int z,
+            int foundation,
+            int scale,
+            byte timber,
+            bool backAtRear)
+        {
+            EmitBox(code, x, foundation + 4 * scale, z,
+                6 * scale, 3 * scale, 6 * scale, timber);
+            int backZ = backAtRear ? z + 4 * scale : z;
+            EmitBox(code, x, foundation + 5 * scale, backZ,
+                6 * scale, 8 * scale, 2 * scale, timber);
+        }
+
+        private static void AddWomanBartender(
+            List<int> code,
+            int x,
+            int z,
+            int foundation,
+            int scale,
+            byte timber,
+            byte cloth,
+            byte accent,
+            byte warm)
+        {
+            // Static voxel staff figure: dress/apron and long side hair make the requested woman
+            // bartender legible without introducing an NPC/AI system into a baked furnishing pass.
+            EmitBox(code, x, foundation, z,
+                8 * scale, 8 * scale, 5 * scale, cloth);
+            EmitBox(code, x - scale, foundation + 8 * scale, z,
+                10 * scale, 7 * scale, 5 * scale, cloth);
+            EmitBox(code, x + scale, foundation + 8 * scale, z - scale,
+                6 * scale, 7 * scale, scale, accent);
+            EmitBox(code, x + scale, foundation + 15 * scale, z,
+                6 * scale, 5 * scale, 5 * scale, warm);
+            EmitBox(code, x, foundation + 19 * scale, z - scale,
+                8 * scale, 3 * scale, 6 * scale, timber);
+            EmitBox(code, x - scale, foundation + 13 * scale, z - scale,
+                2 * scale, 7 * scale, 6 * scale, timber);
+            EmitBox(code, x + 7 * scale, foundation + 13 * scale, z - scale,
+                2 * scale, 7 * scale, 6 * scale, timber);
+            EmitBox(code, x - 3 * scale, foundation + 8 * scale, z + scale,
+                2 * scale, 7 * scale, 3 * scale, warm);
+            EmitBox(code, x + 9 * scale, foundation + 8 * scale, z + scale,
+                2 * scale, 7 * scale, 3 * scale, warm);
         }
 
         private static void EmitBox(
