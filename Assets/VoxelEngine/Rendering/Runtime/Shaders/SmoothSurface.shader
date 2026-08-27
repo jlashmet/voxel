@@ -342,12 +342,6 @@ Shader "Hidden/VoxelEngine/SmoothSurface"
                 float gradedLuminance = dot(lit, float3(0.2126, 0.7152, 0.0722));
                 lit = lerp(gradedLuminance.xxx, lit, 0.88);
 
-                float3 viewDirection = normalize(input.positionWS - GetCameraPositionWS());
-                float distanceFog = smoothstep(60.0, 300.0, hitDistance) * 0.40;
-                float lowAltitude = 1.0 - smoothstep(32.0, 72.0, hitVoxel.y * _VoxelSize);
-                distanceFog *= lerp(0.82, 1.12, lowAltitude);
-                lit = lerp(lit, SkyColour(viewDirection), saturate(distanceFog));
-
                 return half4(lit * _BaseColor.rgb, 1.0);
             }
             ENDHLSL
