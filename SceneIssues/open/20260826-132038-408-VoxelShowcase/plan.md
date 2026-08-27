@@ -1,26 +1,17 @@
 # Plan — unify near/far grass presentation
 
-## Reported defect
-At the saved VoxelShowcase camera, grass on the right/far field reads as a second texturing system: the blades are dramatically larger/stretched than the tighter near-field grass on the left.
+## Defect and acceptance
+At the saved VoxelShowcase camera, right/far grass reads as a second texturing system: its grass motifs are roughly an order of magnitude larger than the tighter left/near grass. Accept only when the original pose/FOV shows one consistent grass texel density and the focused runtime regressions are green.
 
-## Evidence and attempt history
-1. `SmoothSurface.shader` samples the renderer-owned texture array using shared material sampling/surface tables and world position in base-voxel units.
-2. `_VoxelSize` is the constant base voxel size (`0.1m`), not an LOD-dependent scale; the initial LOD-scale hypothesis was falsified.
-3. `VoxelFarTerrain` resolves the same application-owned semantic material byte as the near world, but historically discarded it after converting the material to vertex albedo. The far shader therefore had a separate presentation path.
-4. Attempt 1 reused `_AlbedoTextures`, `_MaterialSampling`, `_MaterialSurface`, `SurfaceUV`, base-voxel world coordinates, and the same distance attenuation, but reconstructed material identity from interpolated RGB. Its focused source-contract regression went red→green.
-5. Exact saved-pose real-player replay of attempt 1 still showed oversized/stretched far grass with healthy surface coverage. That disproved RGB reverse lookup as a sufficient material key.
-6. The far mesh already knows the authoritative material byte at each sampled vertex. Attempt 2 will preserve that identity explicitly instead of guessing it back from colour.
+## Competing hypotheses and evidence
+1. **Different material identity/policy.** Attempt 1 shared the texture array and UV math but reverse-looked up material from interpolated RGB; replay still failed. Attempt 2 carries the exact semantic material ID in `uv2`; the behavioral material-ID regression is green on its tested source, but the prior saved-pose replay still showed the scale mismatch.
+2. **Different world-to-voxel scale.** `SmoothSurface` receives `_VoxelSize=0.1` inside `VoxelRenderPass`. `FarTerrain` is a separate `Graphics.DrawMesh` path yet uses the same global to convert world metres to voxel coordinates. If it sees the default/another global value of `1`, its texture is exactly 10x larger, matching the captured symptom. This hypothesis is falsified if a far material with an owned `0.1` scale still replays stretched.
+3. **Different stylized colour treatment.** Far terrain still omits SmoothSurface's luminance-only/material-variation block. That can change contrast/chroma, but not plausibly the observed ~10x motif size; defer unless scale ownership is falsified.
 
-## Minimal attempt-2 fix
-- Reuse one managed `Vector2[]` scratch buffer for far material IDs alongside the existing position/color buffers.
-- Write the exact semantic material byte for each sampled far vertex and publish it through `mesh.uv2`; do the same for the startup fallback.
-- Read that dedicated channel in `FarTerrain.shader` and forward a non-interpolated material ID to the fragment stage.
-- Select `_MaterialSampling` / `_MaterialSurface` directly from that ID and remove `ResolveMaterialFromAlbedo`.
-- Keep vertex color as the authoritative fallback/base tone, and retain the shared world/base-voxel texture basis and distance attenuation from attempt 1.
+## Attempt 3
+- Red-contract source lineage: runtime test `FarTerrainOwnsCanonicalBaseVoxelScaleOnItsMaterial` at `d82cab960822c43f6878da2bbc0cd5c4faa92d21`.
+- Minimal production fix: `ff51504447a4f8644b49776a5fa97a52478fb27c` gives `VoxelEngine/FarTerrain` a material-local `_VoxelSize` default of `0.1`, so ordinary far draws cannot inherit the wrong world-to-voxel scale from render-pass ordering.
+- No new allocations, mesh work, texture samples, or per-frame CPU work.
 
-## Verification
-- Preserve the strengthened focused regression red result before production code.
-- Run the same exact regression green against the attempt-2 production commit.
-- Run the smallest relevant existing far-field regression if needed for mesh publication safety.
-- Replay the original `issue.json` camera/FOV at its 1928x836 aspect in the real player and visually verify the right/far grass no longer has the stretched second presentation.
-- Remove all temporary replay wiring/fixtures before terminal bookkeeping and master promotion.
+## Remaining gates
+Run the exact scale regression and existing material-ID regression on the production source, then replay `issue.json` for 45s and inspect the original 1928x836 view. If the visual still fails, attempt 3 is the third failed production attempt, so isolate the presentation in a minimal render reproduction before changing production again. On visual success, commit `verification-final.png`, complete issue bookkeeping, move the assigned capture to closed per the explicit task, recheck current master, and merge only this branch.
