@@ -9,6 +9,10 @@ namespace MountingForce.WorldGen.Voxel
 {
     public static partial class KentridgeTerraceSurfaceCorrectionCatalogue
     {
+        private const int MarketUpperTransitionBandDm = 2;
+        private const int MarketUpperWestInsetDm = 220;
+        private const int MarketUpperEastInsetDm = 90;
+
         private static void ResolveBounds(Patch patch, uint seed, int scale,
                                           out int3 position, out int3 footprint)
         {
@@ -50,15 +54,15 @@ namespace MountingForce.WorldGen.Voxel
             int s = settings.VoxelsPerDecimetre;
             byte stone = settings.Materials.Resolve(MaterialRole.FoundationStone);
             byte moss = settings.Materials.Resolve(MaterialRole.Moss);
+            byte dirt = settings.Materials.Resolve(MaterialRole.RoadSurface);
             byte paving = settings.Materials.Resolve(MaterialRole.DarkMasonry);
             var b = new ProgramBuilder();
 
             if (patch.UrbanCore)
             {
-                // The district terrace already owns the transition shoulder shape and material.
-                // Repainting this higher-precedence correction across the whole expanded footprint
-                // produces an axis-aligned notch wherever that rectangle crosses authored Dirt.
-                // Restrict the correction to the built core and leave shoulders to their live owner.
+                // The district terrace owns the transition shoulder shape. Keep the correction's
+                // solid/paved repair constrained to the built core so it cannot stamp a rectangular
+                // high-precedence surface across authored roads and natural ground.
                 int coreX = patch.ShoulderDm * s;
                 int coreZ = patch.ShoulderDm * s;
                 int coreWidth = patch.WidthDm * s;
@@ -67,6 +71,10 @@ namespace MountingForce.WorldGen.Voxel
                       stone, PrimitiveMode.PaintSolid);
                 b.Box(coreX, 0, coreZ, coreWidth, footprint.y, coreDepth,
                       paving, PrimitiveMode.PaintSurface);
+
+                if (patch.Id == "market-main")
+                    PaintMarketToUpperTransition(
+                        b, patch, footprint, s, moss, dirt);
             }
             else
             {
@@ -78,6 +86,42 @@ namespace MountingForce.WorldGen.Voxel
             }
 
             return b.Finish();
+        }
+
+        private static void PaintMarketToUpperTransition(
+            ProgramBuilder b, Patch patch, int3 footprint, int scale,
+            byte moss, byte dirt)
+        {
+            int shoulder = patch.ShoulderDm * scale;
+            int bandWidth = MarketUpperTransitionBandDm * scale;
+            int bandCount = patch.ShoulderDm / MarketUpperTransitionBandDm;
+            if (bandCount < 2 || shoulder <= 0)
+                return;
+
+            // market-main is substantially wider than upper-shoulder. Their old rectangular
+            // footprints therefore met at one large 90-degree Dirt/grass notch. First restore the
+            // whole north transition strip to natural surface, then reclaim Dirt in narrow bands
+            // that expand continuously from the upper terrace width to the market terrace width.
+            b.Box(0, 0, 0, footprint.x, footprint.y, shoulder,
+                  moss, PrimitiveMode.PaintSurface);
+
+            int westOuterInset = MarketUpperWestInsetDm * scale;
+            int eastOuterInset = MarketUpperEastInsetDm * scale;
+            int denominator = bandCount - 1;
+            for (int band = 0; band < bandCount; band++)
+            {
+                int remaining = denominator - band;
+                int westInset = westOuterInset * remaining / denominator;
+                int eastInset = eastOuterInset * remaining / denominator;
+                int x = westInset;
+                int width = footprint.x - westInset - eastInset;
+                int z = band * bandWidth;
+                int depth = band == bandCount - 1
+                    ? shoulder - z
+                    : bandWidth;
+                b.Box(x, 0, z, width, footprint.y, depth,
+                      dirt, PrimitiveMode.PaintSurface);
+            }
         }
 
         private sealed class ProgramBuilder
