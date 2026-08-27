@@ -3345,26 +3345,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             float3 centre = block.Centre;
             int profileAxis = block.Axis;
             const float topologyPadding = 0.55f;
-            float3 centroid = (a + b + c) * (1f / 3f);
-            return RetainedProfileOwnsPoint(centroid, centre, axisA, axisB, profileAxis,
-                                            start, finish, inner, outer, front, back,
-                                            topologyPadding)
-                || RetainedProfileOwnsPoint(a, centre, axisA, axisB, profileAxis,
-                                            start, finish, inner, outer, front, back,
-                                            topologyPadding)
-                || RetainedProfileOwnsPoint(b, centre, axisA, axisB, profileAxis,
-                                            start, finish, inner, outer, front, back,
-                                            topologyPadding)
-                || RetainedProfileOwnsPoint(c, centre, axisA, axisB, profileAxis,
-                                            start, finish, inner, outer, front, back,
-                                            topologyPadding);
-        }
-
-        private static bool RetainedProfileOwnsPoint(
-            float3 point, float3 centre, int axisA, int axisB, int profileAxis,
-            float start, float finish, float inner, float outer, float front, float back,
-            float topologyPadding)
-        {
+            float3 point = (a + b + c) * (1f / 3f);
             float da = point[axisA] - centre[axisA];
             float db = point[axisB] - centre[axisB];
             float radius = math.sqrt(da * da + db * db);
