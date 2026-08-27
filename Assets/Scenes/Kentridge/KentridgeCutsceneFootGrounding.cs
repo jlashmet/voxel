@@ -1,4 +1,7 @@
+using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using UnityEngine;
 
 namespace Game.Kentridge.PlayableSlice
@@ -14,6 +17,17 @@ namespace Game.Kentridge.PlayableSlice
     {
         private const float AlignmentEpsilonMetres = 0.001f;
         private readonly Dictionary<GameObject, Transform> _visualOffsets = new Dictionary<GameObject, Transform>();
+
+#if DEVELOPMENT_BUILD
+        [Serializable]
+        private sealed class ReplayDimensions
+        {
+            public int screenWidth;
+            public int screenHeight;
+        }
+
+        private bool _verificationCaptureStarted;
+#endif
 
         private void LateUpdate()
         {
@@ -47,6 +61,10 @@ namespace Game.Kentridge.PlayableSlice
                         + " afterMinY=" + after.ToString("F3"));
                 }
             }
+
+#if DEVELOPMENT_BUILD
+            TryBeginCleanReplayVerification(roots);
+#endif
         }
 
         private static bool TryCreateVisualOffset(GameObject root, out Transform offset)
@@ -121,5 +139,118 @@ namespace Game.Kentridge.PlayableSlice
 
             return found;
         }
+
+#if DEVELOPMENT_BUILD
+        private void TryBeginCleanReplayVerification(GameObject[] roots)
+        {
+            if (_verificationCaptureStarted) return;
+            if (!TryReadArgument("-voxel-scene-issue", out string issuePath)) return;
+            if (!TryReadArgument("-voxel-screenshot-dir", out string screenshotDirectory)) return;
+
+            var slice = GetComponent<KentridgePlayableSlice>();
+            var presentation = GetComponent<KentridgeOpeningPresentation>();
+            if (slice == null || presentation == null || !slice.OpeningCutsceneStarted) return;
+            if (!presentation.OpeningOverheadActive || presentation.FadeAlpha > 0.001f) return;
+            if (!HasVisibleOpeningActor(roots, "Weldon")
+                || !HasVisibleOpeningActor(roots, "Madeline")
+                || !HasVisibleOpeningActor(roots, "Steven"))
+                return;
+
+            ReplayDimensions dimensions;
+            try
+            {
+                dimensions = JsonUtility.FromJson<ReplayDimensions>(File.ReadAllText(issuePath));
+            }
+            catch (Exception exception)
+            {
+                Debug.LogException(exception);
+                return;
+            }
+
+            if (dimensions == null || dimensions.screenWidth <= 0 || dimensions.screenHeight <= 0) return;
+
+            _verificationCaptureStarted = true;
+            StartCoroutine(CaptureCleanReplayVerification(
+                screenshotDirectory,
+                dimensions.screenWidth,
+                dimensions.screenHeight));
+        }
+
+        private static bool HasVisibleOpeningActor(GameObject[] roots, string actorName)
+        {
+            for (var i = 0; i < roots.Length; i++)
+            {
+                GameObject root = roots[i];
+                if (root != null
+                    && root.activeInHierarchy
+                    && string.Equals(root.name, actorName, StringComparison.OrdinalIgnoreCase)
+                    && TryGetVisibleBounds(root, out _))
+                    return true;
+            }
+            return false;
+        }
+
+        private IEnumerator CaptureCleanReplayVerification(string screenshotDirectory, int width, int height)
+        {
+            // Let the current LateUpdate foot reconciliation and replay-camera freeze reach the
+            // rendered frame, then render only the gameplay camera. Camera.Render excludes OnGUI
+            // replay/dialogue controls and the development-player watermark by construction.
+            yield return new WaitForEndOfFrame();
+
+            Camera camera = GetComponent<Camera>();
+            if (camera == null) yield break;
+
+            RenderTexture previousTarget = camera.targetTexture;
+            RenderTexture previousActive = RenderTexture.active;
+            RenderTexture target = null;
+            Texture2D image = null;
+            try
+            {
+                Directory.CreateDirectory(screenshotDirectory);
+                target = RenderTexture.GetTemporary(width, height, 24, RenderTextureFormat.ARGB32);
+                camera.targetTexture = target;
+                camera.Render();
+
+                RenderTexture.active = target;
+                image = new Texture2D(width, height, TextureFormat.RGB24, false);
+                image.ReadPixels(new Rect(0f, 0f, width, height), 0, 0, false);
+                image.Apply(false, false);
+
+                string path = Path.Combine(
+                    screenshotDirectory,
+                    "zzzz-kentridge-grounding-verification.png");
+                File.WriteAllBytes(path, image.EncodeToPNG());
+                Debug.Log(
+                    "KENTRIDGE_CLEAN_VERIFICATION path=" + path
+                    + " width=" + width
+                    + " height=" + height);
+            }
+            catch (Exception exception)
+            {
+                Debug.LogException(exception);
+            }
+            finally
+            {
+                camera.targetTexture = previousTarget;
+                RenderTexture.active = previousActive;
+                if (image != null) Destroy(image);
+                if (target != null) RenderTexture.ReleaseTemporary(target);
+            }
+        }
+
+        private static bool TryReadArgument(string name, out string value)
+        {
+            string[] args = Environment.GetCommandLineArgs();
+            for (var i = 0; i + 1 < args.Length; i++)
+            {
+                if (!string.Equals(args[i], name, StringComparison.Ordinal)) continue;
+                value = args[i + 1];
+                return !string.IsNullOrEmpty(value);
+            }
+
+            value = string.Empty;
+            return false;
+        }
+#endif
     }
 }
