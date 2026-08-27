@@ -28,7 +28,6 @@ namespace VoxelEngine.Tests.PlayMode
             try
             {
                 int multiStoreyCount = 0;
-                int singleStoreyCount = 0;
 
                 for (int roleId = 0; roleId < catalogue.Definitions.Length; roleId++)
                 {
@@ -72,15 +71,9 @@ namespace VoxelEngine.Tests.PlayMode
                         out int3 openingMin,
                         out int3 openingMax);
 
-                    if (form.Storeys <= 1)
-                    {
-                        singleStoreyCount++;
-                        Assert.AreEqual(0, slabCarves,
-                            ((KentridgeRole)roleId) +
-                            " is single-storey and must not receive a synthetic circulation opening.");
-                        continue;
-                    }
-
+                    Assert.Greater(form.Storeys, 1,
+                        ((KentridgeRole)roleId) +
+                        " is a current generated Kentridge consumer and should remain multi-storey.");
                     multiStoreyCount++;
                     Assert.GreaterOrEqual(slabCarves, 2,
                         ((KentridgeRole)roleId) +
@@ -120,10 +113,8 @@ namespace VoxelEngine.Tests.PlayMode
                         " must guard the upper opening while leaving the return-flight egress open.");
                 }
 
-                Assert.Greater(multiStoreyCount, 0,
-                    "The production Kentridge seed must exercise generated multi-storey houses.");
-                Assert.Greater(singleStoreyCount, 0,
-                    "The production Kentridge seed must retain a generated single-storey negative case.");
+                Assert.AreEqual(13, multiStoreyCount,
+                    "All current generated Kentridge houses/shops/inn/pub should exercise circulation.");
             }
             finally
             {
