@@ -361,7 +361,10 @@ namespace MountingForce.WorldGen.Voxel
             byte slate = settings.Materials.Resolve(MaterialRole.Slate);
             var b = new ProgramBuilder();
 
-            b.Cylinder(4 * s, 0, 4 * s, 3 * s, 4 * s, 1, stone);
+            // The base is the visible ground-contact owner. Reconstruct it exactly so the default
+            // rounded stone presentation cannot retract its lower surface and make a correctly
+            // adjacent authored lamp read as floating above the terrace.
+            b.Cylinder(4 * s, 0, 4 * s, 3 * s, 4 * s, 1, stone, SurfaceStyles.Planar);
             // Dark stone is Smooth in the Showcase palette. The 3x3 pole is a deliberately thin
             // architectural support, so keep its occupancy/material but reconstruct it exactly;
             // otherwise the smoothed support can collapse while the larger lantern head remains.
@@ -413,9 +416,9 @@ namespace MountingForce.WorldGen.Voxel
                    material, surfaceStyle, 0, (int)PrimitiveMode.Fill);
 
             public void Cylinder(int x, int y, int z, int radius, int height,
-                                 byte axis, byte material) =>
+                                 byte axis, byte material, ushort surfaceStyle = 0) =>
                 Op(ShapeOp.EmitCylinder, x, y, z, radius, height, axis,
-                   material, 0, 0, (int)PrimitiveMode.Fill);
+                   material, surfaceStyle, 0, (int)PrimitiveMode.Fill);
 
             public void Prism(int x, int y, int z, int sx, int sy, int sz,
                               PrismProfile profile, byte material) =>
