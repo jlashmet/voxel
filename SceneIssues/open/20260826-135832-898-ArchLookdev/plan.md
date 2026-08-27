@@ -14,6 +14,7 @@
 - ArchLookdev only: replace hero ivy/flower stamps with deterministic combined meshes—128 lobed leaves with thin stems and 30 clustered broad-petal flower heads with distinct centres.
 - Keep two small ground ferns on the existing semantic renderer; shared vegetation shaders/catalogue/placement and other scenes are unchanged.
 - Cost contract: 3 hero draws, <=4,096 authored vertices, one CPU mesh build on enable, no per-leaf/flower GameObjects and no per-frame mesh generation.
-- Existing PlayMode regression now proves representation, asymmetric coverage, lifecycle restoration and cost bounds through production `ArchReferenceGrowth`.
+- PlayMode regression proves representation, asymmetric coverage, lifecycle restoration and cost bounds through production `ArchReferenceGrowth`.
 - Exact request `ea56e952` never exercised product behavior: Unity stopped at CS1625 because test cleanup yielded inside `finally`. Cleanup is corrected with synchronous destruction; this is a harness compile failure, not a product attempt or visual result.
+- Merged current master `23691e5f4b0a6cef7b8c6a89b441534cc9ffd7fa` at merge source `80871566047e25ce88eede93946718f40dd7498c`; final CI targets this plan-only successor.
 - Remaining gates: green exact-SHA PlayMode CI + original saved-pose replay and direct visual inspection; reject if it still reads as repeated strips/stars.
