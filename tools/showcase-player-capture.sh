@@ -42,6 +42,9 @@ SURVEY_HEIGHT=""
 SURVEY_SPIN=""
 STATIONARY_SAMPLE=""
 SCENE_ISSUE=""
+SCENE_ISSUE_RELEASE_AFTER=""
+SCREEN_WIDTH=1600
+SCREEN_HEIGHT=900
 KENTRIDGE_EVIDENCE=0
 IF_CONFIGURED=0
 
@@ -89,11 +92,40 @@ if not isinstance(scene, str) or not scene.startswith('Assets/Scenes/') or not s
 print(scene)
 PY
 )"
+  read -r ISSUE_SCREEN_WIDTH ISSUE_SCREEN_HEIGHT < <(python3 - "$SCENE_ISSUE" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding='utf-8') as handle:
+    value = json.load(handle)
+width = value.get('screenWidth') or 0
+height = value.get('screenHeight') or 0
+try:
+    width = int(width)
+    height = int(height)
+except (TypeError, ValueError):
+    raise SystemExit('ERROR: scene issue has invalid screen dimensions')
+print(width, height)
+PY
+)
+  if (( ISSUE_SCREEN_WIDTH > SCREEN_WIDTH )); then SCREEN_WIDTH="$ISSUE_SCREEN_WIDTH"; fi
+  if (( ISSUE_SCREEN_HEIGHT > SCREEN_HEIGHT )); then SCREEN_HEIGHT="$ISSUE_SCREEN_HEIGHT"; fi
   if [[ -n "$SCENE" && "$SCENE" != "$ISSUE_SCENE" ]]; then
     echo "ERROR: --scene does not match scene issue scenePath '$ISSUE_SCENE'." >&2
     exit 2
   fi
   SCENE="$ISSUE_SCENE"
+
+  # Scene-issue requests are authoritative for which scene is replayed, so the test-filter profile
+  # below is intentionally skipped. Kentridge still needs its unattended opening to complete before
+  # the final evidence frame: auto-advance dialogue, keep the run long enough for preload + story,
+  # then release the captured camera late so the production player camera can show the real handoff.
+  if [[ "$SCENE" == "Assets/Scenes/KentridgePlayableSlice.unity" ]]; then
+    : "${AUTO_DIALOGUE:=1.5}"
+    if [[ -z "$RUN_SECONDS" || "${RUN_SECONDS%.*}" -lt 100 ]]; then RUN_SECONDS=100; fi
+    SCENE_ISSUE_RELEASE_AFTER=85
+    KENTRIDGE_EVIDENCE=1
+  fi
 fi
 
 if [[ -n "$TEST_FILTER" && -z "$SCENE_ISSUE" ]]; then
@@ -248,12 +280,15 @@ BIN="$(find "$APP_BIN_DIR" -maxdepth 1 -type f -perm -111 -print -quit)"
 
 PLAYER_ARGS=(
   -logFile "$PLAYER_LOG"
-  -screen-width 1600 -screen-height 900 -screen-fullscreen 0
+  -screen-width "$SCREEN_WIDTH" -screen-height "$SCREEN_HEIGHT" -screen-fullscreen 0
   -voxel-uncapped
 )
 
 if [[ -n "$SCENE_ISSUE" ]]; then
   PLAYER_ARGS+=( -voxel-scene-issue "$SCENE_ISSUE" )
+  if [[ -n "$SCENE_ISSUE_RELEASE_AFTER" ]]; then
+    PLAYER_ARGS+=( -voxel-scene-issue-release-after "$SCENE_ISSUE_RELEASE_AFTER" )
+  fi
 fi
 
 if [[ -n "$STATIONARY_SAMPLE" ]]; then
@@ -289,7 +324,7 @@ else
   if [[ -n "$SURVEY_SPIN" ]]; then
     PLAYER_ARGS+=( -voxel-survey-spin "$SURVEY_SPIN" )
   fi
-  echo "Running real player for ${RUN_SECONDS}s; screenshots every 10s"
+  echo "Running real player for ${RUN_SECONDS}s; screenshots every 10s at ${SCREEN_WIDTH}x${SCREEN_HEIGHT}"
   if [[ -n "$CONVERGING_BUILDS" ]]; then
     echo "Real-player converging build ceiling override: $CONVERGING_BUILDS (converged remains 0)"
   fi
@@ -401,8 +436,8 @@ if (( KENTRIDGE_EVIDENCE )); then
 
   # Preserve the original presented frames for strict artifact proof, but leave small copies in
   # Screenshots so the generic workflow preview step cannot flood the job log by re-encoding every
-  # 1600x900 frame. The artifact upload is recursive, so FullResolutionScreenshots remains part of
-  # the same strict visual artifact whenever GitHub storage is available.
+  # full-resolution frame. The artifact upload is recursive, so FullResolutionScreenshots remains
+  # part of the same strict visual artifact whenever GitHub storage is available.
   FULL_RES_DIR="$OUTPUT_ROOT/FullResolutionScreenshots"
   rm -rf "$FULL_RES_DIR"
   mkdir -p "$FULL_RES_DIR"
