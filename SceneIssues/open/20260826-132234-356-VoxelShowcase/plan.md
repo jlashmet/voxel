@@ -1,29 +1,23 @@
-# Plan — 20260826-132234-356-VoxelShowcase
+# Plan — VoxelShowcase Dirt/grass seam
 
-## Acceptance
-At the exact saved VoxelShowcase camera, both annotated Dirt/grass contacts must read as continuous authored terrain: no metre-scale stair-step edge, rectangular Grass tongue, or missing/streaming surface.
+## Problem
+The saved VoxelShowcase camera has two marked Dirt/Moss terrace boundaries. Fresh real-player replay at source `f981771949542628daf1c35b32929d4f0d512b9d` is residency-stable (`missingMax=0`): the lower mark is clean, but the upper mark still contains a rectangular grass tongue.
 
-## Evidence and discriminators
-- The latest fresh replay is stable (`visible=644`, `missingMax=0`), falsifying streaming/LOD churn as the marked defect.
-- Kentridge's normal authored streets are at z=520/900 or x=1170/1490; the marked contacts resolve to the district-terrace corridor around z=300–380, falsifying the town-road catalogue as owner.
-- Replacing six terrace shoulder tiers with continuous ramps improved the lower circle, proving live district-terrace geometry participates.
-- Restricting the higher-precedence urban surface correction to built cores fixed an overbroad owner but fresh replay still retained the upper rectangle, so that defect was real but insufficient.
-- The `market-main`→`upper-shoulder` 2 dm tapered ownership seam passes its structural regression, yet fresh replay `33035969054` still retained the upper Grass rectangle; that seam is falsified as the final cause.
-- `upper-shoulder` spans 200 dm along z but its west transition originally used one natural-terrain sample at z=340 for the entire edge. The two marks therefore see different natural elevations against one fixed wedge endpoint. This uniquely explains why the lower/central contact improved while the upper contact remained proud and rectangular.
+## Evidence / hypotheses
+- Streaming/LOD: falsified by stable replay telemetry.
+- Inactive road shoulder authoring: falsified by live catalogue tracing and prior replay.
+- District shoulder box steps: real lower-mark cause; reversible ramps removed the metre-scale stairs.
+- Stale showcase bake cache: confirmed and fixed by hashing `Assets/Game/WorldBuilder`.
+- Full-footprint urban surface correction: confirmed overreach; constrained to built cores.
+- Market→upper width jump: confirmed; 2 dm tapered correction cleared the lower mark.
+- Upper west midpoint terrain sample: behavioral test passed, but exact replay still showed the upper rectangle; falsified as the final cause.
+- Active: saved-camera rays place the surviving upper mark in the civic-summit south-shoulder / upper-shoulder west-edge overlap. Those west envelopes differ by exactly 20 dm, matching the hard plan-view notch. Taper that 20 dm ownership change across the existing 72 dm overlap.
 
-## Selected fix
-Only `upper-shoulder` now samples the natural west edge every 5 dm (0.5 m) and emits a local x-axis transition ramp for each bounded strip. Other terraces retain their existing single-edge path. The one profiled terrace receives a bounded 96-primitive budget; all other district terraces remain at 40.
+## Minimal fix / regression
+Keep terrace geometry and authored district footprints unchanged. In the precedence-16 `upper-shoulder` surface correction, restore only its 72×72 dm west overlap to Moss, then reclaim Dirt in 2 dm bands whose west inset moves from 20 dm to 0. PlayMode regression samples every band and asserts Moss immediately outside/Dirt immediately inside, monotonic ≤1 dm boundary movement, and a bounded 40-primitive correction budget.
 
-## Behavioral regression / blast radius / cost
-`KentridgeTerraceSeamRegressionTests.SceneIssue20260826132234356UpperWestShoulderFollowsLocalTerrainWithoutMetreScaleSteps` executes the production district catalogue at seed `0x4B454E54`, requires exactly 40 contiguous <=0.5 m west-edge strips, and verifies every emitted west ramp meets `TerrainQuery` at its local sample. It also requires `upper-shoulder` budget 96 while `market-main` remains 40. Existing correction-ownership, market/upper taper, and terrace-ramp regressions remain unchanged.
+## Blast radius / cost
+Only the upper-shoulder west overlap from world z 24.0–31.2 m is repainted; no terrain occupancy, roads, structures, other captures, or generic rasterizer code changes. Adds 37 paint primitives to that correction (39 total, budget 40), bake-time only; no per-frame work.
 
-Blast radius is one authored west transition only. Cost is at most 40 local baked strips / roughly 93 terrain primitives for one static feature; there is no per-frame loop or global terrain change.
-
-## Remaining gates
-- [x] Every marked region tied to captured runtime evidence.
-- [x] Competing owners and falsified hypotheses recorded.
-- [x] Behavioral regression added with blast-radius and cost assertions.
-- [ ] Exact-SHA targeted CI.
-- [ ] Fresh-bake replay from the saved camera; visually inspect both marks and telemetry.
-- [ ] Commit accepted `verification-final.png` and final metadata.
-- [ ] Close capture and integrate exact verified feature head to current master per user instruction.
+## Verification gate
+Issue remains open until one exact-SHA targeted CI request on `ci-test/fixes/agent-8` passes the new PlayMode regression and the exact saved-camera replay. Inspect both marked regions directly; only a clean replay may be promoted to `verification-final.png`.

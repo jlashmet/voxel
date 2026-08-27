@@ -11,6 +11,65 @@ namespace VoxelEngine.Tests.PlayMode
         private const uint Seed = 0x4B454E54u;
 
         [Test]
+        public void SceneIssue20260826132234356CivicUpperWestJoinTapersDirtGrassBoundary()
+        {
+            FeatureCatalogue corrections = KentridgeTerraceSurfaceCorrectionCatalogue.Build(
+                Seed, BuildSettings(), Allocator.Temp);
+
+            try
+            {
+                int upperIndex = FindIndex(
+                    corrections, "kentridge-terrace-surface-upper-shoulder");
+                FeatureDefinition upper = corrections.Definitions[upperIndex];
+
+                const int shoulder = 72;
+                const int bandWidth = 2;
+                const int bandCount = shoulder / bandWidth;
+                const int outerInset = 20;
+                const byte dirt = 13;
+                const byte moss = 14;
+
+                Assert.AreEqual(40, upper.MaxPrimitives,
+                    "The localized civic/upper transition must stay within a bounded budget.");
+
+                int previousInset = outerInset;
+                for (int band = 0; band < bandCount; band++)
+                {
+                    int denominator = bandCount - 1;
+                    int expectedInset = outerInset * (denominator - band) / denominator;
+                    int z = shoulder + band * bandWidth;
+
+                    Assert.LessOrEqual(previousInset - expectedInset, 1,
+                        "The west Dirt edge may move by at most one decimetre per 0.2 m band.");
+                    previousInset = expectedInset;
+
+                    Assert.AreEqual(dirt, SurfaceMaterialAt(
+                        corrections, upper, expectedInset, z),
+                        "Each transition band must reclaim Dirt at its tapered west edge.");
+
+                    if (expectedInset > 0)
+                    {
+                        Assert.AreEqual(moss, SurfaceMaterialAt(
+                            corrections, upper, expectedInset - 1, z),
+                            "The column immediately outside the tapered edge must remain grass.");
+                    }
+                }
+
+                Assert.AreEqual(outerInset,
+                    WestmostMaterialXAt(corrections, upper, shoulder, dirt, shoulder),
+                    "At the civic side, Dirt must begin at civic-summit's west envelope.");
+                Assert.AreEqual(0,
+                    WestmostMaterialXAt(
+                        corrections, upper, shoulder + shoulder - bandWidth, dirt, shoulder),
+                    "At the upper side, Dirt must reach upper-shoulder's west envelope.");
+            }
+            finally
+            {
+                corrections.Dispose();
+            }
+        }
+
+        [Test]
         public void SceneIssue20260826132234356UpperWestShoulderFollowsLocalTerrain()
         {
             FeatureCatalogue terraces = KentridgeDistrictTerraceCatalogue.Build(
@@ -79,6 +138,51 @@ namespace VoxelEngine.Tests.PlayMode
             {
                 terraces.Dispose();
             }
+        }
+
+        private static byte SurfaceMaterialAt(
+            FeatureCatalogue catalogue, FeatureDefinition target, int x, int z)
+        {
+            byte material = 0;
+            int pc = target.ProgramOffset;
+            int end = pc + target.ProgramLength;
+            while (pc < end)
+            {
+                ShapeOp op = (ShapeOp)catalogue.Program[pc];
+                if (op == ShapeOp.EmitBox)
+                {
+                    int bx = catalogue.Program[pc + 2];
+                    int bz = catalogue.Program[pc + 4];
+                    int sx = catalogue.Program[pc + 5];
+                    int sz = catalogue.Program[pc + 7];
+                    byte candidate = (byte)catalogue.Program[pc + 8];
+                    PrimitiveMode mode = (PrimitiveMode)catalogue.Program[pc + 11];
+                    if (mode == PrimitiveMode.PaintSurface
+                        && x >= bx && x < bx + sx
+                        && z >= bz && z < bz + sz)
+                        material = candidate;
+                }
+
+                pc += ShapeOps.InstructionLength(op);
+                if (op == ShapeOp.End)
+                    break;
+            }
+
+            return material;
+        }
+
+        private static int WestmostMaterialXAt(
+            FeatureCatalogue catalogue, FeatureDefinition target,
+            int z, byte material, int searchWidth)
+        {
+            for (int x = 0; x < searchWidth; x++)
+            {
+                if (SurfaceMaterialAt(catalogue, target, x, z) == material)
+                    return x;
+            }
+
+            Assert.Fail("Expected material " + material + " at z=" + z + ".");
+            return -1;
         }
 
         private static void AssertRampOuterHeight(

@@ -12,6 +12,8 @@ namespace MountingForce.WorldGen.Voxel
         private const int MarketUpperTransitionBandDm = 2;
         private const int MarketUpperWestInsetDm = 220;
         private const int MarketUpperEastInsetDm = 90;
+        private const int CivicUpperTransitionBandDm = 2;
+        private const int CivicUpperWestInsetDm = 20;
 
         private static void ResolveBounds(Patch patch, uint seed, int scale,
                                           out int3 position, out int3 footprint)
@@ -75,6 +77,9 @@ namespace MountingForce.WorldGen.Voxel
                 if (patch.Id == "market-main")
                     PaintMarketToUpperTransition(
                         b, patch, footprint, s, moss, dirt);
+                else if (patch.Id == "upper-shoulder")
+                    PaintCivicToUpperWestTransition(
+                        b, patch, footprint, s, moss, dirt);
             }
             else
             {
@@ -120,6 +125,39 @@ namespace MountingForce.WorldGen.Voxel
                     ? shoulder - z
                     : bandWidth;
                 b.Box(x, 0, z, width, footprint.y, depth,
+                      dirt, PrimitiveMode.PaintSurface);
+            }
+        }
+
+        private static void PaintCivicToUpperWestTransition(
+            ProgramBuilder b, Patch patch, int3 footprint, int scale,
+            byte moss, byte dirt)
+        {
+            int shoulder = patch.ShoulderDm * scale;
+            int bandWidth = CivicUpperTransitionBandDm * scale;
+            int bandCount = patch.ShoulderDm / CivicUpperTransitionBandDm;
+            if (bandCount < 2 || shoulder <= 0)
+                return;
+
+            // civic-summit's west envelope begins 20 dm east of upper-shoulder's. Across the
+            // civic south-shoulder / upper core overlap that difference used to appear as one
+            // rectangular grass tongue. Restore just the upper west shoulder in that overlap, then
+            // reclaim Dirt in narrow bands so the west edge moves continuously from +20 dm to 0.
+            int transitionZ = shoulder;
+            b.Box(0, 0, transitionZ, shoulder, footprint.y, shoulder,
+                  moss, PrimitiveMode.PaintSurface);
+
+            int westOuterInset = CivicUpperWestInsetDm * scale;
+            int denominator = bandCount - 1;
+            for (int band = 0; band < bandCount; band++)
+            {
+                int remaining = denominator - band;
+                int westInset = westOuterInset * remaining / denominator;
+                int z = transitionZ + band * bandWidth;
+                int depth = band == bandCount - 1
+                    ? shoulder - band * bandWidth
+                    : bandWidth;
+                b.Box(westInset, 0, z, shoulder - westInset, footprint.y, depth,
                       dirt, PrimitiveMode.PaintSurface);
             }
         }
