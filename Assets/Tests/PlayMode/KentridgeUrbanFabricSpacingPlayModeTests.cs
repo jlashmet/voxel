@@ -29,17 +29,18 @@ namespace VoxelEngine.Tests.PlayMode
 
                 for (int a = 0; a < catalogue.Definitions.Length; a++)
                 {
-                    BoundsXZ boundsA = Bounds(
-                        in catalogue.Definitions[a], in catalogue.ExplicitPlacements[a]);
+                    FeatureDefinition definitionA = catalogue.Definitions[a];
+                    ExplicitPlacement placementA = catalogue.ExplicitPlacements[a];
+                    BoundsXZ boundsA = Bounds(definitionA, placementA);
 
                     for (int b = a + 1; b < catalogue.Definitions.Length; b++)
                     {
-                        ExplicitPlacement placementA = catalogue.ExplicitPlacements[a];
+                        FeatureDefinition definitionB = catalogue.Definitions[b];
                         ExplicitPlacement placementB = catalogue.ExplicitPlacements[b];
                         if ((placementA.Orientation & 3) != (placementB.Orientation & 3))
                             continue;
 
-                        BoundsXZ boundsB = Bounds(in catalogue.Definitions[b], in placementB);
+                        BoundsXZ boundsB = Bounds(definitionB, placementB);
                         bool horizontalFrontage = (placementA.Orientation & 1) == 0;
                         int clearance;
 
@@ -76,8 +77,8 @@ namespace VoxelEngine.Tests.PlayMode
         }
 
         private static BoundsXZ Bounds(
-            in FeatureDefinition definition,
-            in ExplicitPlacement placement)
+            FeatureDefinition definition,
+            ExplicitPlacement placement)
         {
             bool quarterTurn = (placement.Orientation & 1) != 0;
             int width = quarterTurn ? definition.Footprint.z : definition.Footprint.x;
