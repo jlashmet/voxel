@@ -112,6 +112,69 @@ namespace VoxelEngine.Tests.PlayMode
             }
         }
 
+        [Test]
+        public void ProductionCatalogue_LandmarkEntrancesCarryHeroVoussoirSeams()
+        {
+            FeatureCatalogue catalogue = KentridgeSharedStructureVoxelCatalogue.Build(
+                Seed, BuildSettings(), Allocator.Temp);
+            try
+            {
+                int heroEntranceDefinitions = 0;
+                for (int definitionId = 0; definitionId < catalogue.Definitions.Length; definitionId++)
+                {
+                    FeatureDefinition definition = catalogue.Definitions[definitionId];
+                    int pc = definition.ProgramOffset;
+                    int end = pc + definition.ProgramLength;
+                    int masonrySeams = 0;
+                    bool hasArchedClearance = false;
+
+                    while (pc < end)
+                    {
+                        ShapeOp op = (ShapeOp)catalogue.Program[pc];
+                        if (op == ShapeOp.End) break;
+
+                        int instructionLength = ShapeOps.InstructionLength(op);
+                        Assert.That(instructionLength, Is.GreaterThan(0),
+                            "Production Kentridge emitted an unknown shape opcode in " +
+                            definition.Name + ".");
+
+                        if (op == ShapeOp.EmitCapsule
+                            && (PrimitiveMode)catalogue.Program[pc + 12]
+                                == PrimitiveMode.SurfaceDetail
+                            && catalogue.Program[pc + 10] == SurfaceStyles.MasonryJoint)
+                        {
+                            masonrySeams++;
+                        }
+
+                        if (op == ShapeOp.EmitPrism
+                            && (PrismProfile)catalogue.Program[pc + 8] == PrismProfile.Arch
+                            && (PrimitiveMode)catalogue.Program[pc + 12] == PrimitiveMode.Carve)
+                        {
+                            hasArchedClearance = true;
+                        }
+
+                        pc += instructionLength;
+                    }
+
+                    if (hasArchedClearance && masonrySeams >= 12)
+                    {
+                        Assert.That(masonrySeams, Is.EqualTo(12),
+                            "A landmark entrance should carry the 13-piece hero arch rhythm as " +
+                            "twelve radial joints without multiplying that treatment onto glazing.");
+                        heroEntranceDefinitions++;
+                    }
+                }
+
+                Assert.That(heroEntranceDefinitions, Is.GreaterThanOrEqualTo(3),
+                    "Warehouse, mansion, and church production programs should each carry the " +
+                    "lookdev-derived voussoir treatment while retaining their arched clearance.");
+            }
+            finally
+            {
+                catalogue.Dispose();
+            }
+        }
+
         private static VoxelWorldGenSettings BuildSettings()
         {
             var materials = new VoxelMaterialMap(
