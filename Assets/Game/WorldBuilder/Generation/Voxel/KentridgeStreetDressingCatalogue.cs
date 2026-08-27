@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using MountingForce.WorldGen.Content.Kentridge;
 using Unity.Collections;
 using Unity.Mathematics;
+using VoxelEngine.Terrain.Api;
 
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Structures.Api;
@@ -13,7 +14,7 @@ namespace MountingForce.WorldGen.Voxel
     /// Sparse street-visible furnishing for Kentridge.
     ///
     /// Unlike the market-square dressing, these props are aligned to the semantic street network
-    /// and sit at the authored macro elevation at their own column. The placement rhythm is
+    /// and sit at the authored public-space surface at their own column. The placement rhythm is
     /// deliberate: lamps mark the climb and major side streets, benches create civic/residential
     /// pauses, and planters strengthen the commercial frontage without blocking doors or roads.
     /// </summary>
@@ -28,6 +29,20 @@ namespace MountingForce.WorldGen.Voxel
 
         private const int DefinitionCount = 3;
         private const int ExpectedPlacementCount = 30;
+
+        // The captured east-market lamp is outside the carriageway but inside the north shoulder of
+        // the working-yard district terrace. Keep this one authored district surface in sync with
+        // KentridgeDistrictTerraceCatalogue rather than pretending the macro profile is the final
+        // ground at that sidewalk column. The focused regression evaluates the real terrace program
+        // at the captured coordinate so drift here fails behaviorally instead of becoming a float.
+        private const int WorkingYardXDm = 1490;
+        private const int WorkingYardZDm = 570;
+        private const int WorkingYardWidthDm = 260;
+        private const int WorkingYardDepthDm = 250;
+        private const int WorkingYardAnchorXDm = 1530;
+        private const int WorkingYardAnchorZDm = 700;
+        private const int WorkingYardShoulderDm = 54;
+        private const int DistrictShoulderStepCount = 6;
 
         private readonly struct StreetPropPlacement
         {
@@ -120,8 +135,7 @@ namespace MountingForce.WorldGen.Voxel
                 for (int i = 0; i < kindPlacements.Count; i++)
                 {
                     StreetPropPlacement placement = kindPlacements[i];
-                    int surfaceY = KentridgeVerticalProfile.SurfaceYAtDm(
-                        placement.XDm, placement.ZDm, seed, scale);
+                    int surfaceY = SurfaceYForPlacement(placement, seed, scale);
                     catalogue.ExplicitPlacements[placementOffset + i] = new ExplicitPlacement
                     {
                         Position = new int3(
@@ -164,6 +178,103 @@ namespace MountingForce.WorldGen.Voxel
             }
 
             return catalogue;
+        }
+
+        private static int SurfaceYForPlacement(StreetPropPlacement placement, uint seed, int scale)
+        {
+            if (TryWorkingYardSurfaceYAtDm(placement.XDm, placement.ZDm, seed, scale,
+                                           out int districtSurfaceY))
+                return districtSurfaceY;
+
+            return KentridgeVerticalProfile.SurfaceYAtDm(
+                placement.XDm, placement.ZDm, seed, scale);
+        }
+
+        private static bool TryWorkingYardSurfaceYAtDm(
+            int xDm, int zDm, uint seed, int scale, out int surfaceY)
+        {
+            int minX = WorkingYardXDm - WorkingYardShoulderDm;
+            int maxX = WorkingYardXDm + WorkingYardWidthDm + WorkingYardShoulderDm;
+            int minZ = WorkingYardZDm - WorkingYardShoulderDm;
+            int maxZ = WorkingYardZDm + WorkingYardDepthDm + WorkingYardShoulderDm;
+            if (xDm < minX || xDm >= maxX || zDm < minZ || zDm >= maxZ)
+            {
+                surfaceY = 0;
+                return false;
+            }
+
+            int coreY = KentridgeVerticalProfile.SurfaceYAtDm(
+                WorkingYardAnchorXDm, WorkingYardAnchorZDm, seed, scale);
+            int shoulder = WorkingYardShoulderDm * scale;
+
+            if (zDm < WorkingYardZDm)
+            {
+                int edgeY = TerrainQuery.HeightAt(
+                    (WorkingYardXDm + WorkingYardWidthDm / 2) * scale,
+                    (WorkingYardZDm - WorkingYardShoulderDm) * scale,
+                    seed);
+                surfaceY = ShoulderSurfaceY(
+                    (zDm - minZ) * scale, shoulder, edgeY, coreY,
+                    outerAtNegativeAxis: true);
+                return true;
+            }
+
+            if (zDm >= WorkingYardZDm + WorkingYardDepthDm)
+            {
+                int edgeY = TerrainQuery.HeightAt(
+                    (WorkingYardXDm + WorkingYardWidthDm / 2) * scale,
+                    (WorkingYardZDm + WorkingYardDepthDm + WorkingYardShoulderDm) * scale,
+                    seed);
+                surfaceY = ShoulderSurfaceY(
+                    (zDm - (WorkingYardZDm + WorkingYardDepthDm)) * scale,
+                    shoulder, edgeY, coreY, outerAtNegativeAxis: false);
+                return true;
+            }
+
+            if (xDm < WorkingYardXDm)
+            {
+                int edgeY = TerrainQuery.HeightAt(
+                    (WorkingYardXDm - WorkingYardShoulderDm) * scale,
+                    (WorkingYardZDm + WorkingYardDepthDm / 2) * scale,
+                    seed);
+                surfaceY = ShoulderSurfaceY(
+                    (xDm - minX) * scale, shoulder, edgeY, coreY,
+                    outerAtNegativeAxis: true);
+                return true;
+            }
+
+            if (xDm >= WorkingYardXDm + WorkingYardWidthDm)
+            {
+                int edgeY = TerrainQuery.HeightAt(
+                    (WorkingYardXDm + WorkingYardWidthDm + WorkingYardShoulderDm) * scale,
+                    (WorkingYardZDm + WorkingYardDepthDm / 2) * scale,
+                    seed);
+                surfaceY = ShoulderSurfaceY(
+                    (xDm - (WorkingYardXDm + WorkingYardWidthDm)) * scale,
+                    shoulder, edgeY, coreY, outerAtNegativeAxis: false);
+                return true;
+            }
+
+            surfaceY = coreY;
+            return true;
+        }
+
+        private static int ShoulderSurfaceY(
+            int offset, int axisLength, int edgeY, int coreY, bool outerAtNegativeAxis)
+        {
+            for (int step = 0; step < DistrictShoulderStepCount; step++)
+            {
+                int start = axisLength * step / DistrictShoulderStepCount;
+                int end = axisLength * (step + 1) / DistrictShoulderStepCount;
+                int sliceStart = outerAtNegativeAxis ? start : axisLength - end;
+                int sliceEnd = outerAtNegativeAxis ? end : axisLength - start;
+                if (offset < sliceStart || offset >= sliceEnd) continue;
+
+                return edgeY
+                    + (coreY - edgeY) * (step + 1) / DistrictShoulderStepCount;
+            }
+
+            return coreY;
         }
 
         private static List<StreetPropPlacement> BuildPlacements()
