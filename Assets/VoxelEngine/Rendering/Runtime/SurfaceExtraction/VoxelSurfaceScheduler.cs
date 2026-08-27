@@ -657,6 +657,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private readonly SurfaceRing[] _rings;
         private readonly CpuTransvoxelChunkCache[] _allWorkers;
         private readonly List<CpuTransvoxelChunkCache.Entry> _visibleSolids = new(256);
+        private readonly SurfaceLodVisibilitySelector _lodVisibilitySelector = new();
+        private readonly List<SurfaceLodNodeKey> _lodDrawableNodes = new(256);
+        private readonly List<SurfaceLodNodeKey> _lodCurrentCompleteNodes = new(256);
         private readonly Plane[] _visibilityFrustumPlanes = new Plane[6];
         private int _lastVisibilityCandidateChecks;
         private readonly CpuWaterSurfaceChunkCache _water = new();
@@ -1355,6 +1358,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             if (TryReuseVisibility(camera, voxelSize, frame)) return;
 
             _visibleSolids.Clear();
+            _lodDrawableNodes.Clear();
+            _lodCurrentCompleteNodes.Clear();
             _lastVisibilityCandidateChecks = 0;
             double visibilityStart = Time.realtimeSinceStartupAsDouble;
             using (s_VisibilityMarker.Auto())
@@ -1383,18 +1388,46 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
                             int shard = CpuTransvoxelChunkCache.ShardForChunk(
                                 coordinate, ring.Workers.Length);
-                            ring.Workers[shard].CollectVisibleCoordinate(
+                            CpuTransvoxelChunkCache worker = ring.Workers[shard];
+                            int inBandBefore = worker.LastVisibilityInBandCount;
+                            int frustumBefore = worker.LastVisibilityFrustumCount;
+                            int readyBefore = worker.LastVisibilityReadyCount;
+                            int emptyBefore = worker.LastVisibilityEmptyCount;
+                            int visibleBefore = worker.Visible.Count;
+                            worker.CollectVisibleCoordinate(
                                 coordinate, _visibilityFrustumPlanes, cameraPosition,
                                 voxelSize, frame);
+                            var node = new SurfaceLodNodeKey(ring.SourceStep, coordinate);
+                            if (worker.Visible.Count > visibleBefore)
+                                _lodDrawableNodes.Add(node);
+                            bool inBand = worker.LastVisibilityInBandCount > inBandBefore;
+                            bool inFrustum = worker.LastVisibilityFrustumCount > frustumBefore;
+                            bool currentReady = worker.LastVisibilityReadyCount > readyBefore;
+                            bool currentEmpty = worker.LastVisibilityEmptyCount > emptyBefore;
+                            if (SurfaceLodVisibilitySelector.IsCurrentViewComplete(
+                                    inBand, inFrustum, currentReady, currentEmpty))
+                                _lodCurrentCompleteNodes.Add(node);
                             _lastVisibilityCandidateChecks++;
                         }
+                    }
 
+                    _lodVisibilitySelector.Rebuild(
+                        _lodDrawableNodes, _lodCurrentCompleteNodes);
+                    for (int r = 0; r < _rings.Length; r++)
+                    {
+                        SurfaceRing ring = _rings[r];
                         for (int w = 0; w < ring.Workers.Length; w++)
                         {
                             IReadOnlyList<CpuTransvoxelChunkCache.Entry> visible =
                                 ring.Workers[w].Visible;
                             for (int i = 0; i < visible.Count; i++)
-                                _visibleSolids.Add(visible[i]);
+                            {
+                                CpuTransvoxelChunkCache.Entry entry = visible[i];
+                                var node = new SurfaceLodNodeKey(
+                                    entry.SourceStep, entry.Coordinate);
+                                if (_lodVisibilitySelector.IsActive(node))
+                                    _visibleSolids.Add(entry);
+                            }
                         }
                     }
                 }

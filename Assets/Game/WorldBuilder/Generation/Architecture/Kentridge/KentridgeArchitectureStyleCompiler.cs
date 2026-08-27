@@ -8,6 +8,7 @@ namespace MountingForce.WorldGen.Architecture
     /// </summary>
     internal sealed class KentridgeArchitectureStyleCompiler :
         IArchitectureStyleCompiler,
+        IStructureEnvelopeClearancePolicy,
         IUrbanFabricGeometryProfileResolver
     {
         public static readonly KentridgeArchitectureStyleCompiler Instance =
@@ -18,6 +19,7 @@ namespace MountingForce.WorldGen.Architecture
         }
 
         public string StyleId => KentridgeDefinition.Id;
+        public int GeneratedStructureClearanceDm => 4;
 
         public StructureForm ResolveStructure(
             StructureIntent intent,

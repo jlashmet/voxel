@@ -1,0 +1,198 @@
+{
+    "formatVersion": 3,
+    "id": "20260826-132707-900-VoxelShowcase",
+    "capturedUtc": "2026-08-26T13:27:07.9009930Z",
+    "note": "looks like we are rendering the low res terrain when we shouldn't be.  2nd screenshot shows it disappear after a few seconds",
+    "status": "fixed",
+    "resolvedUtc": "2026-08-27T03:05:20Z",
+    "resolutionSummary": "Use hierarchical LOD visibility ownership so a drawable coarse parent remains the fallback until all in-band visible finer children have current ready or known-empty proof, preventing transient coarse/fine overlap during streaming.",
+    "regressionTest": "VoxelEngine.Tests.EditMode.SurfaceLodVisibilitySelectorTests",
+    "fixCommit": "aff84746021e3afd34298befc34d5373bbb18b58",
+    "unityVersion": "6000.5.6f1",
+    "platform": "OSXEditor",
+    "sceneName": "VoxelShowcase",
+    "scenePath": "Assets/Scenes/VoxelShowcase.unity",
+    "sceneBuildIndex": 2,
+    "captures": [
+        {
+            "screenshot": "screenshot-001.png",
+            "capturedUtc": "2026-08-26T13:27:07.9010660Z",
+            "frameCount": 119421,
+            "timeSinceLevelLoad": 378.10211181640627,
+            "screenWidth": 1928,
+            "screenHeight": 836,
+            "poseAnchor": {
+                "hierarchyPath": "Showcase Camera",
+                "position": {
+                    "x": 95.01178741455078,
+                    "y": 23.650089263916017,
+                    "z": 112.34954833984375
+                },
+                "rotation": {
+                    "x": 0.005359861068427563,
+                    "y": 0.9940679669380188,
+                    "z": -0.05801485478878021,
+                    "w": 0.09183968603610993
+                },
+                "localScale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                }
+            },
+            "camera": {
+                "hierarchyPath": "Showcase Camera",
+                "position": {
+                    "x": 95.01178741455078,
+                    "y": 23.650089263916017,
+                    "z": 112.34954833984375
+                },
+                "rotation": {
+                    "x": 0.005359861068427563,
+                    "y": 0.9940679669380188,
+                    "z": -0.05801485478878021,
+                    "w": 0.09183968603610993
+                },
+                "fieldOfView": 70.0,
+                "orthographic": false,
+                "orthographicSize": 5.0,
+                "nearClipPlane": 0.05000000074505806,
+                "farClipPlane": 16000.0
+            },
+            "circles": [
+                {
+                    "centerX": 0.6652542352676392,
+                    "centerY": 0.7329021692276001,
+                    "radius": 0.16484367847442628
+                },
+                {
+                    "centerX": 0.805084764957428,
+                    "centerY": 0.7524464130401611,
+                    "radius": 0.1689443439245224
+                },
+                {
+                    "centerX": 0.46751412749290469,
+                    "centerY": 0.8697118163108826,
+                    "radius": 0.1531311720609665
+                },
+                {
+                    "centerX": 0.20197740197181703,
+                    "centerY": 0.8241086006164551,
+                    "radius": 0.1806594282388687
+                }
+            ]
+        },
+        {
+            "screenshot": "screenshot-002.png",
+            "capturedUtc": "2026-08-26T13:27:42.0826230Z",
+            "frameCount": 126836,
+            "timeSinceLevelLoad": 383.76165771484377,
+            "screenWidth": 1928,
+            "screenHeight": 836,
+            "poseAnchor": {
+                "hierarchyPath": "Showcase Camera",
+                "position": {
+                    "x": 95.01178741455078,
+                    "y": 23.650089263916017,
+                    "z": 112.34954833984375
+                },
+                "rotation": {
+                    "x": 0.05433302000164986,
+                    "y": 0.9448953866958618,
+                    "z": -0.20779287815093995,
+                    "w": 0.24706824123859406
+                },
+                "localScale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                }
+            },
+            "camera": {
+                "hierarchyPath": "Showcase Camera",
+                "position": {
+                    "x": 95.01178741455078,
+                    "y": 23.650089263916017,
+                    "z": 112.34954833984375
+                },
+                "rotation": {
+                    "x": 0.05433302000164986,
+                    "y": 0.9448953866958618,
+                    "z": -0.20779287815093995,
+                    "w": 0.24706824123859406
+                },
+                "fieldOfView": 70.0,
+                "orthographic": false,
+                "orthographicSize": 5.0,
+                "nearClipPlane": 0.05000000074505806,
+                "farClipPlane": 16000.0
+            },
+            "circles": []
+        }
+    ],
+    "screenshot": "screenshot-001.png",
+    "frameCount": 119421,
+    "timeSinceLevelLoad": 378.10211181640627,
+    "screenWidth": 1928,
+    "screenHeight": 836,
+    "poseAnchor": {
+        "hierarchyPath": "Showcase Camera",
+        "position": {
+            "x": 95.01178741455078,
+            "y": 23.650089263916017,
+            "z": 112.34954833984375
+        },
+        "rotation": {
+            "x": 0.005359861068427563,
+            "y": 0.9940679669380188,
+            "z": -0.05801485478878021,
+            "w": 0.09183968603610993
+        },
+        "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+        }
+    },
+    "camera": {
+        "hierarchyPath": "Showcase Camera",
+        "position": {
+            "x": 95.01178741455078,
+            "y": 23.650089263916017,
+            "z": 112.34954833984375
+        },
+        "rotation": {
+            "x": 0.005359861068427563,
+            "y": 0.9940679669380188,
+            "z": -0.05801485478878021,
+            "w": 0.09183968603610993
+        },
+        "fieldOfView": 70.0,
+        "orthographic": false,
+        "orthographicSize": 5.0,
+        "nearClipPlane": 0.05000000074505806,
+        "farClipPlane": 16000.0
+    },
+    "circles": [
+        {
+            "centerX": 0.6652542352676392,
+            "centerY": 0.7329021692276001,
+            "radius": 0.16484367847442628
+        },
+        {
+            "centerX": 0.805084764957428,
+            "centerY": 0.7524464130401611,
+            "radius": 0.1689443439245224
+        },
+        {
+            "centerX": 0.46751412749290469,
+            "centerY": 0.8697118163108826,
+            "radius": 0.1531311720609665
+        },
+        {
+            "centerX": 0.20197740197181703,
+            "centerY": 0.8241086006164551,
+            "radius": 0.1806594282388687
+        }
+    ]
+}
