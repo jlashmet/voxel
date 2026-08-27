@@ -1,3 +1,4 @@
 # CI operations
 
 - `66905ed3812838a19c0f46ad207c671434198ba8` — final request for feature `6c4e149839a1205c6111929fd13c192a27ae7b04`; admitted as run `33110323331`, queued until runner availability, then failed during Unity compilation. Root cause: new regression mixed compatibility `VoxelEngine.Showcase.CastlePlan` with `Game.Structures.Api.CastleLayout`; replay build failed from the same compiler error. Product/test source corrected on `fixes/agent-6`; no queued request was replaced.
+- `e6df5ac9c99efa2daff5fb78973318616e3d1534` — retry for feature `ee9a6a68ed3a6d3e3743ab5085243603c0640369`; run `33118103870` compiled and completed the assigned real-player replay, but the focused PlayMode assertion found the expected retained open leaf `Empty`. This is a source/test failure, not infrastructure. The static reveal is removed and replaced with a time-based gate animation; no queued request was replaced.
