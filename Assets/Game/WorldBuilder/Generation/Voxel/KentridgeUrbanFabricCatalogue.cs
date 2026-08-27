@@ -22,8 +22,9 @@ namespace MountingForce.WorldGen.Voxel
     public static class KentridgeUrbanFabricCatalogue
     {
         // Density policy remains a Kentridge choice. Segment splitting, site counts and stable centre
-        // placement are city-independent and live in SettlementPlotLayout.PackFrontage.
-        private const int ModulePitchDm = 80;
+        // placement are city-independent and live in SettlementPlotLayout.PackFrontage. Keep enough
+        // pitch for the 72-dm safety envelopes to leave a pedestrian-scale gap between neighbours.
+        private const int ModulePitchDm = 160;
 
         private readonly struct FabricSite
         {
