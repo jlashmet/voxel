@@ -3,8 +3,8 @@
 The folders on `origin/master` are the queue state:
 
 - `open/`: available or actively assigned;
-- `pending/`: verified fix awaiting human review; and
-- `closed/`: human-approved fix.
+- `pending/`: verified fix awaiting final bookkeeping and merge; and
+- `closed/`: completed fix on master.
 
 Blocked work stays open. Original screenshots remain unmodified; `issue.json` stores exact camera
 poses and normalized annotations.
@@ -36,16 +36,6 @@ Work only on the assigned capture. Fetch first; create the feature branch from c
 `origin/master` or resume it without discarding work, then merge current master. Refresh before a
 substantial new attempt and final CI. Do not self-select another issue or modify another capture.
 
-After the verified pending state reaches master, the coordinator authorizes one additional,
-task-specific review ref:
-
-```text
-review/scene-issue/<capture-id>
-```
-
-That branch may only move its capture from `pending/` to `closed/` and update review bookkeeping.
-It must never contain production code, tests, CI requests, or workflows.
-
 ## Investigate and fix
 
 1. Inspect every screenshot, frame, annotation, and note directly. Treat marked regions as separate
@@ -62,6 +52,18 @@ It must never contain production code, tests, CI requests, or workflows.
    negative regressions, and quantify cost against an existing budget.
 7. Replay every original pose and marked region after the fix.
 
+Visual fixes must meet the repository's AAA art and layout bar, not merely add the named primitive
+types. Inspect construction detail, proportions, material readability, physical support, useful
+placement, circulation, clearance, and intersections. Reject placeholder-quality assemblies,
+missing structural parts, floating props, and unintended overlaps even when an automated test finds
+the expected object counts.
+
+Fix reusable generation at the semantic and constraint level. Describe what the authored place
+needs and the relationships it must satisfy; do not hard-code the capture's object coordinates. For
+example, a pub program should request a bar, back-bar storage, kitchen/service space, seating, and
+clear circulation, while generic placement resolves those requirements against bounds, openings,
+adjacency, clearance, and non-overlap rules.
+
 ## Keep evidence concise
 
 Maintain one `plan.md`, normally no more than 500 words: observed defect and acceptance criteria;
@@ -71,6 +73,14 @@ remaining gates. Replace stale detail with a one-line conclusion rather than gro
 Record each product experiment as `experiment-NNN-<slug>.md`, limited to a screenful: hypothesis,
 action and source SHA, result, verdict, and next step. Put polling, queue, and runner notes in one
 `ci-operations.md`. Store durable evidence beside the issue as `verification-<slug>.png|txt`.
+
+`verification-final.png` must be a clean, native-resolution replay of the original pose with at
+least the original capture's pixel dimensions and visual detail. Hide replay, dialogue, debug, and
+editor overlays unless an overlay is itself the evidence. Do not use a thumbnail, palette-reduced
+image, or a collage that makes each view harder to inspect than the original. Every claimed visual
+acceptance criterion must be clearly judgeable in the evidence; add separate full-resolution
+`verification-detail-*.png` views when the original pose cannot show necessary art or layout detail.
+Compare the final evidence directly with every original capture before promotion.
 
 ## Targeted CI
 
@@ -88,32 +98,25 @@ Inspect logs and artifacts on failure. Change production code only for a product
 infrastructure failure, wait and retry once. Failed, cancelled, or timed-out workflows are
 diagnostic only and cannot satisfy a gate.
 
-## Submit for review
+## Complete and merge
 
 A feature branch is ready for pending promotion only when it has:
 
 - the pushed production/test commit named by `issue.json.fixCommit`;
 - a focused behavioral regression with green exact-SHA targeted CI;
 - every original pose replayed successfully;
-- `verification-final.png` committed in the capture;
+- inspection-quality `verification-final.png` evidence, plus any necessary detail views, committed
+  in the capture;
 - `status: pending`, `resolutionSummary`, `regressionTest`, and `fixCommit` completed;
 - the entire capture moved from `open/` to `pending/` in a separate bookkeeping commit; and
 - no unrelated capture, CI request file, or workflow in the feature-only diff.
 
-Do not set `resolvedUtc` yet. Green CI and pending bookkeeping make the branch ready; workers do not
-push master independently. The coordinator batches ready branches, designates one promoter, and
-advances master once. The promoter verifies every exact head and uses an isolated worktree from
-current `origin/master`; moved heads, conflicts, or an advancing master stop the batch.
+Do not set `resolvedUtc` before targeted CI passes. Once the exact request is green, move only the
+assigned capture from `pending/` to `closed/`, set `status: fixed` and `resolvedUtc`, and commit the
+final bookkeeping on the same feature branch. Do not create a review branch or pull request.
 
-Once the pending capture is on master, create `review/scene-issue/<capture-id>` from current master.
-Move only that capture from `pending/` to `closed/`, set `status: fixed` and `resolvedUtc`, then open
-a non-draft PR titled `Approve SceneIssue <capture-id>`. Include the original and
-`verification-final.png` evidence in its body. Do not merge it yourself.
-
-The coordinator releases the worker for its next ticket after it verifies the clean review branch
-and open PR. The PR merge is human approval and moves the capture to `closed/`. Bookkeeping-only
-review PRs and their merges skip Unity CI because the fix was already tested before pending
-promotion.
-
-If review is rejected, leave the PR unmerged and return the capture to `open/` before reassigning
-it. A PR comment alone does not put it back in the worker queue.
+Fetch current `origin/master`, merge it into the feature branch, and stop for any conflict outside
+the assigned work. Push the updated feature branch, verify its exact head, then push that head to
+`origin/master` non-force. If another worker advanced master, fetch, merge, and retry. Never force
+push master. The coordinator releases the worker for its next ticket after it observes the fixed
+capture under `SceneIssues/closed/` on master.
