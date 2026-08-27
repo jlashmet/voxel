@@ -17,21 +17,21 @@ namespace VoxelEngine.Tests.PlayMode
             {
                 // Reproduce the real ownership condition from the captured Hero Arch pose: the
                 // lookdev/growth host is the movable camera, while hero foliage coordinates are
-                // authored in the arch's world-space metre frame.
+                // authored in the arch's world-space metre frame. Install the production lifecycle
+                // anchor before growth, then prove no test-only manual repair is needed.
                 host.transform.SetPositionAndRotation(
                     new Vector3(-0.85728186f, 8.398123f, -9.309617f),
                     new Quaternion(0.09724782f, -0.01389580f, 0.00135791f, 0.9951624f));
                 Camera camera = host.AddComponent<Camera>();
+                ArchReferenceGrowthWorldSpace.EnsureInstalled(camera);
                 ArchReferenceGrowth growth = host.AddComponent<ArchReferenceGrowth>();
                 yield return null;
 
-                Transform cameraLocalHero = host.transform.Find("Arch Reference Hero Growth");
-                Assert.That(cameraLocalHero, Is.Not.Null,
-                    "The regression must reproduce the camera-hosted hero root before presentation anchoring.");
-                Assert.That(ArchReferenceGrowthWorldSpace.AnchorCamera(camera), Is.True,
-                    "The production anchor must recognize the camera-hosted ArchReferenceGrowth presentation.");
-
-                Transform heroRoot = cameraLocalHero;
+                Transform heroRoot = FindHeroRoot();
+                Assert.That(heroRoot, Is.Not.Null,
+                    "The authored hero root must exist after ArchReferenceGrowth enables.");
+                Assert.That(host.transform.Find("Arch Reference Hero Growth"), Is.Null,
+                    "Production lifecycle anchoring must detach the hero root without a manual test repair.");
                 Assert.That(heroRoot.parent, Is.Null,
                     "Hero foliage must be detached from the movable Hero Arch Camera before rendering.");
                 Assert.That(heroRoot.position.sqrMagnitude, Is.LessThan(0.000001f),
@@ -77,8 +77,12 @@ namespace VoxelEngine.Tests.PlayMode
 
                 growth.enabled = true;
                 yield return null;
-                Assert.That(ArchReferenceGrowthWorldSpace.AnchorCamera(camera), Is.True,
-                    "Re-enabled hero growth must return to the same world-space presentation contract.");
+                Transform restoredHeroRoot = FindHeroRoot();
+                Assert.That(restoredHeroRoot, Is.Not.Null);
+                Assert.That(host.transform.Find("Arch Reference Hero Growth"), Is.Null,
+                    "Re-enabled growth must be re-anchored automatically by the lifecycle listener.");
+                Assert.That(restoredHeroRoot.parent, Is.Null);
+                Assert.That(restoredHeroRoot.position.sqrMagnitude, Is.LessThan(0.000001f));
                 Assert.That(growth.HeroLeafCount, Is.EqualTo(128));
                 Assert.That(growth.HeroFlowerHeadCount, Is.EqualTo(30));
                 Assert.That(growth.SemanticInstanceCount, Is.EqualTo(2),
@@ -91,6 +95,16 @@ namespace VoxelEngine.Tests.PlayMode
             {
                 Object.DestroyImmediate(host);
             }
+        }
+
+        private static Transform FindHeroRoot()
+        {
+            Transform[] transforms = Object.FindObjectsByType<Transform>(
+                FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+            foreach (Transform candidate in transforms)
+                if (candidate != null && candidate.name == "Arch Reference Hero Growth")
+                    return candidate;
+            return null;
         }
     }
 }
