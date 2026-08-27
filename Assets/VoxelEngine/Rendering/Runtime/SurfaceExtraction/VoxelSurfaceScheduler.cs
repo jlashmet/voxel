@@ -1035,7 +1035,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             if (camera != null)
             {
                 Vector3 cameraPosition = camera.transform.position;
-                bool clipmapMoved = false;
+                bool clipmapChanged = false;
                 for (int r = 0; r < _rings.Length; r++)
                 {
                     SurfaceRing ring = _rings[r];
@@ -1046,14 +1046,15 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                         out int3 previousMaxExclusive,
                         out int3 currentMin,
                         out int3 currentMaxExclusive);
-                    if (!changed || !hadPrevious) continue;
-                    clipmapMoved = true;
+                    if (!changed) continue;
+                    clipmapChanged = true;
+                    if (!hadPrevious) continue;
                     EnqueueClipmapRegionDifference(
                         previousMin, previousMaxExclusive,
                         currentMin, currentMaxExclusive);
                 }
 
-                if (clipmapMoved)
+                if (clipmapChanged)
                     AddImmediateCameraDiscoveryRegions(storage, cameraPosition, voxelSize);
                 StepClipmapAdmissionDiscovery(storage);
             }
