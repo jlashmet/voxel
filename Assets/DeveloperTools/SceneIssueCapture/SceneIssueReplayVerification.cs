@@ -123,11 +123,14 @@ namespace MountingForce.DeveloperTools
                             yield break;
                         }
 
-                        // Reuse the capture tool's existing Release camera transition so replay mode,
-                        // frozen pose state, and overlay state are cleared exactly as in interactive replay.
+                        // Reuse the capture tool's existing Release camera transition so replay mode and
+                        // frozen pose state are cleared exactly as in interactive replay. Then disable this
+                        // development-only component so its normal F8 capture overlay cannot contaminate
+                        // the clean verification frame after replay has served its purpose.
                         capture.SendMessage("ReleaseReplayCamera", SendMessageOptions.DontRequireReceiver);
+                        capture.enabled = false;
                         Debug.Log(
-                            $"Scene issue replay released through SceneIssueCapture after {releaseAfter:0.###}s.");
+                            $"Scene issue replay released and capture overlay disabled after {releaseAfter:0.###}s.");
                     }
 
                     yield break;
