@@ -108,26 +108,25 @@ namespace VoxelEngine.Tests.PlayMode
         }
 
         [UnityTest]
-        public IEnumerator FarTerrainOwnsCanonicalBaseVoxelScale()
+        public IEnumerator FarTerrainOwnsCanonicalBaseVoxelScalePerDraw()
         {
             yield return LoadShowcase();
 
             var far = UnityEngine.Object.FindFirstObjectByType<VoxelFarTerrain>();
             Assert.That(far, Is.Not.Null, "VoxelShowcase did not create VoxelFarTerrain.");
 
-            FieldInfo materialField = typeof(VoxelFarTerrain).GetField(
-                "m_Material", BindingFlags.NonPublic | BindingFlags.Instance);
-            Assert.That(materialField, Is.Not.Null, "VoxelFarTerrain material field must be available.");
-            var material = materialField.GetValue(far) as Material;
-            Assert.That(material, Is.Not.Null, "VoxelFarTerrain did not create its draw material.");
-            Assert.That(material.HasProperty("_VoxelSize"), Is.True,
-                "Far terrain is drawn outside VoxelRenderPass, so its material must own the base-voxel scale instead of inheriting a render-pass global.");
+            FieldInfo propertiesField = typeof(VoxelFarTerrain).GetField(
+                "_drawProperties", BindingFlags.NonPublic | BindingFlags.Instance);
+            Assert.That(propertiesField, Is.Not.Null,
+                "Far terrain must carry per-draw shader properties instead of depending on VoxelRenderPass global state.");
+            var properties = propertiesField.GetValue(far) as MaterialPropertyBlock;
+            Assert.That(properties, Is.Not.Null, "Far-terrain per-draw shader properties were not created.");
 
             float previousGlobal = Shader.GetGlobalFloat("_VoxelSize");
             Shader.SetGlobalFloat("_VoxelSize", 1f);
             try
             {
-                Assert.That(material.GetFloat("_VoxelSize"),
+                Assert.That(properties.GetFloat(Shader.PropertyToID("_VoxelSize")),
                     Is.EqualTo(ShowcaseWorld.VoxelSize).Within(0.0001f),
                     "Far-terrain world-to-voxel UV conversion must remain 0.1 m per voxel even if unrelated global shader state changes.");
             }
