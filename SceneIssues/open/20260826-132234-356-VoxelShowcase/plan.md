@@ -1,27 +1,25 @@
 # Plan — 20260826-132234-356-VoxelShowcase
 
 ## Observed defect and acceptance
-The saved VoxelShowcase pose has two marked Dirt/grass contacts. Exact replay of the first attempt left a large rectangular notch in the upper circle; the lower circle improved but acceptance requires both regions to read as continuous terrain rather than broad authored steps. Rendering/residency telemetry was stable during that replay.
+The saved VoxelShowcase pose marks two jagged Dirt/grass contacts. Acceptance requires both circles to read as continuous authored terrain with no metre-scale shoulder treads or rectangular material notch.
 
 ## Competing hypotheses
-1. **Inactive road-shoulder quantization.** `KentridgeTownSurfaceCatalogue` used coarse shoulder bands. Experiment 002 disproved this as the complete cause: its change passed CI but the upper defect remained.
-2. **Live district-terrace shoulder quantization.** The VoxelShowcase catalogue composition actually includes `KentridgeDistrictTerraceCatalogue`, whose four shoulders are emitted as six broad Box slices. Urban shoulders are 72 dm wide, so each authored tread can span roughly 12 dm and visually matches the captured notch/stepping.
-3. **Streaming/LOD churn or RegionCorridor overlap.** Exact replay was stable (`visible=714`, `missingMax=0`) and the suspected alternate catalogues are not in this scene's live composition, reducing these hypotheses.
+1. **Inactive road-shoulder quantization.** Disproved as complete owner: that catalogue is not on the live Showcase path.
+2. **Live district-terrace shoulder quantization/material ownership.** `KentridgeDistrictTerraceCatalogue` owns the captured urban terrace; its old six-step shoulders were a plausible geometry source. Current product source replaces those treads with one reversible ramp and tests the live `upper-shoulder`. A follow-up surface experiment changes the correction shoulder from Dirt to Moss while retaining the paved core.
+3. **Streaming/LOD churn.** Reduced by stable replay telemetry (`missingMax=0`).
+4. **Stale startup bake.** Confirmed by experiment 004: two exact green replays before/after a visible WorldBuilder source change differed only in runtime overlay pixels. `showcase-bake-cache.sh` omitted `Assets/Game/WorldBuilder` from its fingerprint.
 
-## Discriminator and result
-Tracing `ShowcaseCatalogue` → `WorldBuilderVoxelCatalogue` → `KentridgeCombinedVoxelCatalogue` established the runtime owner. `BoxEmitter` already provides an authoritative integer `Ramp` primitive intended for terrain skirts, including reversible rise direction. This falsifies the need for a rendering-only blend or a new geometry system.
-
-## Selected fix
-Replace each non-flat district shoulder's six Fill boxes with one `EmitRamp`, preserving the same carve envelope, edge/core elevations, material, footprint, precedence, retaining tiers, and surface-paint passes. Reverse the ramp only when the high endpoint lies on the negative axis. Restore the earlier inactive `KentridgeTownSurfaceCatalogue` experiment to master.
+## Current discriminator
+Do not change product geometry again until a replay proves it is rendering the current source. Add `Assets/Game/WorldBuilder` to the Showcase bake fingerprint, then request a fresh exact saved-camera replay. The cache must miss/store a new bake; the resulting frame must materially differ from the stale replay in the terrace region.
 
 ## Regression and blast radius
-The focused EditMode regression builds the live `upper-shoulder` district feature, decodes its production ramp, and rasterizes it with `BoxEmitter.RampContains`. It requires more than six surface levels on a meaningful rise and rejects plateau widths inconsistent with a linear voxel ramp. Only Kentridge district shoulder massing changes; primitive count decreases substantially versus six boxes per non-flat edge.
+The focused EditMode regression exercises the live district ramp through `BoxEmitter.RampContains`; the surface-correction regression exercises the captured `upper-shoulder` program. The cache fix only broadens invalidation inputs: runtime behavior is unchanged and cost is limited to additional correct bake misses when WorldBuilder changes, explicitly preferred by the cache contract.
 
 ## Remaining gates
-- [x] Live owner identified and competing hypotheses recorded.
-- [x] Small production fix implemented.
-- [x] Focused behavioral regression added.
-- [ ] Exact feature SHA targeted CI green.
-- [ ] Exact saved pose replayed; both circles visually accepted.
-- [ ] Commit `verification-final.png`, terminal metadata, and move open → pending in separate bookkeeping commit.
-- [ ] Stop and wait for coordinator; do not close or push master.
+- [x] Live owner and competing hypotheses recorded.
+- [x] Product regressions green on the prior exact source state.
+- [x] Stale replay/cache-key defect identified.
+- [ ] Fresh-bake exact targeted CI on current feature head.
+- [ ] Replay both marked regions and accept or revise product fix.
+- [ ] Commit accepted `verification-final.png` and final metadata.
+- [ ] Per user instruction, move this capture to closed and merge only `fixes/agent-8` to current master.
