@@ -14,6 +14,8 @@ namespace MountingForce.WorldGen.Voxel
     /// </summary>
     public static class ArchitectureVoxelPatterns
     {
+        private const int HeroArchVoussoirCount = 13;
+
         public static void HollowShell(
             ArchitectureShapeProgramBuilder builder,
             int x, int y, int z,
@@ -225,9 +227,10 @@ namespace MountingForce.WorldGen.Voxel
 
         /// <summary>
         /// Builds a structural surround and a genuinely curved opening while preserving a full
-        /// rectangular body-clearance zone below the spring line. The surround is authored first,
-        /// then the two opening primitives are authored last so later façade decoration cannot
-        /// refill the public entrance.
+        /// rectangular body-clearance zone below the spring line. Production entrance arches also
+        /// inherit the hero-lookdev's thirteen-piece voussoir rhythm as non-destructive radial
+        /// masonry seams on the projecting face. The surround and two carves keep their existing
+        /// dimensions, so adopting the lookdev vocabulary does not narrow or lower traversal.
         /// </summary>
         public static void FramedArchedOpening(
             ArchitectureShapeProgramBuilder builder,
@@ -235,6 +238,54 @@ namespace MountingForce.WorldGen.Voxel
             int width, int clearHeight, int archRise, int depth,
             int frameThickness,
             byte frameMaterial)
+        {
+            FramedArchedOpeningCore(
+                builder, x, y, z,
+                width, clearHeight, archRise, depth,
+                frameThickness, frameMaterial,
+                addHeroVoussoirSeams: true);
+        }
+
+        /// <summary>An arched opening with planar glazing restored after the structural carve.</summary>
+        public static void FramedArchedGlazedOpening(
+            ArchitectureShapeProgramBuilder builder,
+            int x, int y, int z,
+            int width, int straightHeight, int archRise, int depth,
+            int frameThickness,
+            byte frameMaterial,
+            byte glazingMaterial)
+        {
+            // Window-scale arches keep their existing continuous frame. The hero voussoir treatment
+            // is intentionally reserved for entrances so church glazing does not multiply primitive
+            // cost or turn every small aperture into a miniature landmark portal.
+            FramedArchedOpeningCore(
+                builder, x, y, z,
+                width, straightHeight, archRise, depth,
+                frameThickness, frameMaterial,
+                addHeroVoussoirSeams: false);
+
+            int paneDepth = Math.Max(1, Math.Min(depth, frameThickness));
+            builder.DetailBox(
+                x, y, z,
+                width, straightHeight, paneDepth,
+                glazingMaterial,
+                cornerRadiusDm: 0,
+                surface: StructureSurfaceTreatment.Planar);
+            builder.Prism(
+                x, y + straightHeight, z,
+                width, archRise, paneDepth,
+                PrismProfile.Arch,
+                glazingMaterial,
+                StructureSurfaceTreatment.Planar);
+        }
+
+        private static void FramedArchedOpeningCore(
+            ArchitectureShapeProgramBuilder builder,
+            int x, int y, int z,
+            int width, int clearHeight, int archRise, int depth,
+            int frameThickness,
+            byte frameMaterial,
+            bool addHeroVoussoirSeams)
         {
             if (builder == null) throw new ArgumentNullException(nameof(builder));
             if (width <= 0 || clearHeight <= 0 || archRise <= 0 || depth <= 0) return;
@@ -258,35 +309,71 @@ namespace MountingForce.WorldGen.Voxel
             builder.OpeningArchCarve(
                 x, y + clearHeight, outerZ,
                 width, archRise, outerDepth);
+
+            if (addHeroVoussoirSeams)
+                EmitHeroVoussoirSeams(
+                    builder, x, y, outerZ,
+                    width, clearHeight, archRise, frameThickness,
+                    frameMaterial);
         }
 
-        /// <summary>An arched opening with planar glazing restored after the structural carve.</summary>
-        public static void FramedArchedGlazedOpening(
+        private static void EmitHeroVoussoirSeams(
             ArchitectureShapeProgramBuilder builder,
-            int x, int y, int z,
-            int width, int straightHeight, int archRise, int depth,
-            int frameThickness,
-            byte frameMaterial,
-            byte glazingMaterial)
+            int x, int y, int frontZ,
+            int width, int clearHeight, int archRise, int frameThickness,
+            byte material)
         {
-            FramedArchedOpening(
-                builder, x, y, z,
-                width, straightHeight, archRise, depth,
-                frameThickness, frameMaterial);
+            int centreX = x + width / 2;
+            int centreY = y + clearHeight;
+            int innerRadiusX = Math.Max(1, width / 2 + 1);
+            int innerRadiusY = Math.Max(1, archRise + 1);
+            int outerRadiusX = innerRadiusX + frameThickness;
+            int outerRadiusY = innerRadiusY + frameThickness;
 
-            int paneDepth = Math.Max(1, Math.Min(depth, frameThickness));
-            builder.DetailBox(
-                x, y, z,
-                width, straightHeight, paneDepth,
-                glazingMaterial,
-                cornerRadiusDm: 0,
-                surface: StructureSurfaceTreatment.Planar);
-            builder.Prism(
-                x, y + straightHeight, z,
-                width, archRise, paneDepth,
-                PrismProfile.Arch,
-                glazingMaterial,
-                StructureSurfaceTreatment.Planar);
+            for (int i = 1; i < HeroArchVoussoirCount; i++)
+            {
+                int directionX = HeroArchVoussoirCount - i * 2;
+                int directionY = 4 * i * (HeroArchVoussoirCount - i) / HeroArchVoussoirCount;
+                long lengthSq = (long)directionX * directionX
+                              + (long)directionY * directionY;
+                int length = Math.Max(1, IntegerSqrt(lengthSq));
+
+                int innerX = centreX + DivideRounded(directionX * innerRadiusX, length);
+                int innerY = centreY + DivideRounded(directionY * innerRadiusY, length);
+                int outerX = centreX + DivideRounded(directionX * outerRadiusX, length);
+                int outerY = centreY + DivideRounded(directionY * outerRadiusY, length);
+
+                builder.RawCapsule(
+                    innerX, innerY, frontZ,
+                    outerX, outerY, frontZ,
+                    radius: 0,
+                    material,
+                    PrimitiveMode.SurfaceDetail,
+                    SurfaceStyles.MasonryJoint);
+            }
+        }
+
+        private static int DivideRounded(int numerator, int denominator) => numerator >= 0
+            ? (numerator + denominator / 2) / denominator
+            : (numerator - denominator / 2) / denominator;
+
+        private static int IntegerSqrt(long value)
+        {
+            ulong n = value > 0 ? (ulong)value : 0UL;
+            ulong result = 0;
+            ulong bit = 1UL << 62;
+            while (bit > n) bit >>= 2;
+            while (bit != 0)
+            {
+                if (n >= result + bit)
+                {
+                    n -= result + bit;
+                    result = (result >> 1) + bit;
+                }
+                else result >>= 1;
+                bit >>= 2;
+            }
+            return (int)result;
         }
 
         private static void EmitGlazedCell(
