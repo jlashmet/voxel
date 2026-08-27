@@ -125,15 +125,51 @@ namespace VoxelEngine.Showcase
         {
             // Ground against the complete capsule footprint. Sampling only the centre column
             // embeds an edge of the player whenever the terrain rises by one voxel beneath its
-            // 60 cm width—the exact failure an oblique hillside spawn exposed.
+            // 60 cm width—the exact failure an oblique hillside spawn exposed. A composed
+            // structure can also have several occupied surfaces at one X/Z (floor, upper floor,
+            // roof), so the authored Y is a ceiling: "below" must never mean the roof above it.
             int minX = Mathf.FloorToInt((near.x - Radius) / VoxelSize);
             int maxX = Mathf.FloorToInt((near.x + Radius - 1e-4f) / VoxelSize);
             int minZ = Mathf.FloorToInt((near.z - Radius) / VoxelSize);
             int maxZ = Mathf.FloorToInt((near.z + Radius - 1e-4f) / VoxelSize);
+            int ceilingY = Mathf.FloorToInt(near.y / VoxelSize);
             int surface = int.MinValue;
+            IVoxelSurfaceQuery surfaceQuery = world.SurfaceQuery;
+
             for (int z = minZ; z <= maxZ; z++)
             for (int x = minX; x <= maxX; x++)
-                surface = Mathf.Max(surface, world.OccupiedSurfaceHeight(x, z));
+            {
+                int columnTop = world.OccupiedSurfaceHeight(x, z);
+                if (columnTop <= ceilingY)
+                {
+                    surface = Mathf.Max(surface, columnTop);
+                    continue;
+                }
+
+                // This world keeps authoritative voxel content in its y=0 region layer. Only
+                // columns whose highest occupied voxel is above the authored point need this
+                // bounded downward scan; ordinary terrain snaps keep the O(footprint) fast path.
+                for (int y = ceilingY; y >= 0; y--)
+                {
+                    if (!surfaceQuery.TryRead(new int3(x, y, z), out VoxelCell cell)
+                        || cell.BaseMaterialId == VoxelGrid.MaterialEmpty)
+                        continue;
+
+                    surface = Mathf.Max(surface, y);
+                    break;
+                }
+            }
+
+            // Preserve the old fallback when a caller gives a position with no occupied voxel at
+            // or below it. Existing callers therefore keep a usable landing rather than inheriting
+            // an invalid sentinel position, while valid interior points obey the documented
+            // below-the-given-position contract.
+            if (surface == int.MinValue)
+            {
+                for (int z = minZ; z <= maxZ; z++)
+                for (int x = minX; x <= maxX; x++)
+                    surface = Mathf.Max(surface, world.OccupiedSurfaceHeight(x, z));
+            }
 
             Position = new Vector3(near.x, (surface + 2) * VoxelSize, near.z);
             Velocity = Vector3.zero;
