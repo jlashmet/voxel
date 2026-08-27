@@ -87,6 +87,15 @@ Shader "VoxelEngine/ProceduralVegetationFoliage"
                 return floor(AnimationTime() * framesPerSecond) / framesPerSecond;
             }
 
+            float GrassAnimationTime(float instanceVariation)
+            {
+                // Dylearn's reference deliberately updates grass at a low stepped frame rate.
+                // Offset each instance before quantizing so the whole field never ticks in lockstep.
+                const float framesPerSecond = 5.0;
+                float phaseOffset = instanceVariation / framesPerSecond;
+                return floor((AnimationTime() + phaseOffset) * framesPerSecond) / framesPerSecond;
+            }
+
             float Hash21(float2 p)
             {
                 p = frac(p * float2(123.34, 456.21));
@@ -164,6 +173,67 @@ Shader "VoxelEngine/ProceduralVegetationFoliage"
                 return p + float2(0.5, 0.0);
             }
 
+            float3 CameraFacingGrassPosition(
+                float3 localPosition,
+                float3 instanceOriginWS,
+                float instanceVariation,
+                out float3 billboardNormalWS,
+                out float windNoise)
+            {
+                // Preserve authored instance scale and ground-normal tilt, but flatten the tuft's
+                // radial cards into one camera-facing pixel-art cluster. This is the presentation
+                // model used by the reference project: readable card silhouettes at every azimuth,
+                // rather than a small 3D starburst whose leaves alternately face and edge the camera.
+                float3 objectRight = TransformObjectToWorld(float3(1.0, 0.0, 0.0)) - instanceOriginWS;
+                float3 objectUp = TransformObjectToWorld(float3(0.0, 1.0, 0.0)) - instanceOriginWS;
+                float3 objectForward = TransformObjectToWorld(float3(0.0, 0.0, 1.0)) - instanceOriginWS;
+                float scaleX = max(length(objectRight), 0.0001);
+                float scaleY = max(length(objectUp), 0.0001);
+                float scaleZ = max(length(objectForward), 0.0001);
+                float3 upWS = objectUp / scaleY;
+
+                float3 toCamera = normalize(GetCameraPositionWS() - instanceOriginWS);
+                float3 cameraRight = cross(upWS, toCamera);
+                float cameraRightLengthSq = dot(cameraRight, cameraRight);
+                float3 fallbackRight = cross(upWS, float3(0.0, 0.0, 1.0));
+                if (dot(fallbackRight, fallbackRight) < 0.0001)
+                    fallbackRight = cross(upWS, float3(1.0, 0.0, 0.0));
+                cameraRight = cameraRightLengthSq > 0.0001
+                    ? cameraRight * rsqrt(cameraRightLengthSq)
+                    : normalize(fallbackRight);
+
+                billboardNormalWS = normalize(cross(cameraRight, upWS));
+                if (dot(billboardNormalWS, toCamera) < 0.0)
+                    billboardNormalWS = -billboardNormalWS;
+
+                // The shared tuft mesh contains seven radial cards. Flatten their X/Z offsets into
+                // the billboard plane instead of discarding six cards: instance count/draw cost stay
+                // unchanged while the cards read as one layered pixel-grass sprite.
+                float horizontal = localPosition.x * scaleX
+                    + localPosition.z * scaleZ * lerp(0.28, 0.42, instanceVariation);
+                float height = max(localPosition.y * scaleY, 0.0);
+
+                float time = GrassAnimationTime(instanceVariation);
+                windNoise = SecondaryWindNoise(instanceOriginWS.xz, time);
+                float secondary = WorldNoise(
+                    instanceOriginWS.xz * 0.19 + float2(-time * 0.09, time * 0.06)) - 0.5;
+                float phase = instanceVariation * 6.2831853 + time * 1.35;
+                float swaySignal = (windNoise - 0.5) * 1.55
+                    + secondary * 0.55
+                    + sin(phase) * 0.12;
+                float swayAngle = swaySignal
+                    * radians(46.0)
+                    * saturate(_WindStrength * 2.4);
+
+                float3 windDirection = normalize(float3(0.82 + secondary * 0.35, 0.0, 0.57 - secondary * 0.25));
+                float3 positionWS = instanceOriginWS
+                    + cameraRight * horizontal
+                    + upWS * (height * cos(swayAngle))
+                    + windDirection * (height * sin(swayAngle));
+
+                return positionWS;
+            }
+
             Varyings Vert(Attributes input)
             {
                 Varyings output;
@@ -180,28 +250,57 @@ Shader "VoxelEngine/ProceduralVegetationFoliage"
                 localPosition.x *= widthScale;
                 localPosition.y *= heightScale;
 
-                float3 positionWS = TransformObjectToWorld(localPosition);
-                float bend = saturate(input.uv.y);
-                float windNoise = SecondaryWindNoise(positionWS.xz, time);
-                float phase = variation * 6.2831853 + time * 1.55;
-                float gust = (windNoise - 0.5) * 1.55 + sin(phase) * 0.18;
-                float secondary = WorldNoise(positionWS.xz * 0.19 + float2(-time * 0.09, time * 0.06)) - 0.5;
-                float bendAmount = _WindStrength * bend * bend;
-                positionWS.x += (gust * 0.15 + secondary * 0.08) * bendAmount;
-                positionWS.z += (secondary * 0.13 - gust * 0.06) * bendAmount;
+                float grassBlade = 1.0 - step(0.5, _Shape);
+                float3 presentationNormalWS;
+                float windNoise;
+                float3 positionWS;
+                if (grassBlade > 0.5)
+                {
+                    positionWS = CameraFacingGrassPosition(
+                        localPosition,
+                        instanceOriginWS,
+                        variation,
+                        presentationNormalWS,
+                        windNoise);
+                    time = GrassAnimationTime(variation);
+                }
+                else
+                {
+                    positionWS = TransformObjectToWorld(localPosition);
+                    presentationNormalWS = TransformObjectToWorldNormal(input.normalOS);
+                    windNoise = SecondaryWindNoise(positionWS.xz, time);
+                    float phase = variation * 6.2831853 + time * 1.55;
+                    float gust = (windNoise - 0.5) * 1.55 + sin(phase) * 0.18;
+                    float secondary = WorldNoise(positionWS.xz * 0.19 + float2(-time * 0.09, time * 0.06)) - 0.5;
+                    float bend = saturate(input.uv.y);
+                    float bendAmount = _WindStrength * bend * bend;
+                    positionWS.x += (gust * 0.15 + secondary * 0.08) * bendAmount;
+                    positionWS.z += (secondary * 0.13 - gust * 0.06) * bendAmount;
 
-                float2 viewSway = ViewSway(positionWS, variation, time);
-                positionWS.xz += viewSway * bend * _WindStrength;
-                positionWS = ApplyCharacterDisplacement(positionWS, bend);
+                    float2 viewSway = ViewSway(positionWS, variation, time);
+                    positionWS.xz += viewSway * bend * _WindStrength;
+                }
+
+                positionWS = ApplyCharacterDisplacement(positionWS, saturate(input.uv.y));
 
                 output.positionCS = TransformWorldToHClip(positionWS);
                 output.positionWS = positionWS;
-                output.normalWS = TransformObjectToWorldNormal(input.normalOS);
+                output.normalWS = presentationNormalWS;
                 output.uv = input.uv;
                 output.color = input.color;
                 output.instanceVariation = variation;
                 output.windNoise = windNoise;
                 return output;
+            }
+
+            float2 PixelGrassUv(float2 uv)
+            {
+                // Quantize the procedural mask onto a deliberately coarse grid. The reference uses
+                // nearest-filtered pixel art; this keeps the same crisp stepped silhouette without
+                // importing or coupling the runtime to an external texture asset.
+                const float2 pixelGrid = float2(12.0, 18.0);
+                float2 clamped = saturate(uv);
+                return (floor(clamped * pixelGrid) + 0.5) / pixelGrid;
             }
 
             float Ellipse(float2 p, float2 radius)
@@ -254,6 +353,8 @@ Shader "VoxelEngine/ProceduralVegetationFoliage"
             {
                 UNITY_SETUP_INSTANCE_ID(input);
                 float2 maskUv = BentMaskUv(input.uv, input.windNoise, input.instanceVariation);
+                if (_Shape < 0.5)
+                    maskUv = PixelGrassUv(maskUv);
                 float mask = PlantMask(maskUv, _Shape);
                 clip(mask - lerp(-0.04, 0.16, _Cutoff));
 
