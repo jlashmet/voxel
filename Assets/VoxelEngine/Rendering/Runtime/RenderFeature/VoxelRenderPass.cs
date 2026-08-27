@@ -246,8 +246,16 @@ namespace VoxelEngine.Rendering.Runtime
             _scheduler.LodEnabled = VoxelRenderBridge.SurfaceLodEnabled;
             _scheduler.MaxResidentChunksPerRing = Math.Max(
                 1, VoxelRenderBridge.SurfaceMaxResidentChunksPerRing);
-            _scheduler.MaxConcurrentBuildsConverging = Math.Max(
+            int configuredConvergingBuilds = Math.Max(
                 1, VoxelRenderBridge.SurfaceMaxConcurrentBuildsConverging);
+            // Several idle shards used to enter phase-0 exact snapshot preparation in the same
+            // frame. Profiling for SceneIssue 20260825-192751-413 showed those synchronous
+            // schedule/setup bursts dominate traversal p95/p99. Ramp the exposed build slots by
+            // one from the previous frame's observed in-flight solid jobs; active builds are never
+            // cancelled, and once the worker pool is full this reaches the configured ceiling.
+            _scheduler.MaxConcurrentBuildsConverging = Math.Min(
+                configuredConvergingBuilds,
+                Math.Max(1, _scheduler.Metrics.RunningSolidJobs + 1));
             _scheduler.MaxConcurrentBuildsConverged = Math.Max(
                 0, VoxelRenderBridge.SurfaceMaxConcurrentBuildsConverged);
             _scheduler.SolidArenaMaxActiveLeases = Math.Max(
