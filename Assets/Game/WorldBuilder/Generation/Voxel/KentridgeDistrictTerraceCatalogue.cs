@@ -24,7 +24,9 @@ namespace MountingForce.WorldGen.Voxel
         private const int MixedShoulderWidthDm = 54;
         private const int UrbanShoulderWidthDm = 72;
         private const int ShoulderStepCount = 6;
-        private const int UpperWestProfileStepDm = 25;
+        private const int UpperWestProfileStepDm = 5;
+        private const int StandardTerrainMaxPrimitives = 40;
+        private const int UpperShoulderMaxPrimitives = 96;
         private const int RetainingTierStride = 3;
         private const int RetainingFaceThicknessDm = 3;
         private const int RetainingEndInsetDm = 12;
@@ -186,7 +188,9 @@ namespace MountingForce.WorldGen.Voxel
                     ProgramLength = program.Length,
                     MaterialOffset = 0,
                     MaterialCount = 0,
-                    MaxPrimitives = 40,
+                    MaxPrimitives = build.Seed.Id == "upper-shoulder"
+                        ? UpperShoulderMaxPrimitives
+                        : StandardTerrainMaxPrimitives,
                 };
 
                 catalogue.ExplicitPlacements[i] = Placement(build.Position);
