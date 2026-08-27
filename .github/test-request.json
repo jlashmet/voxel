@@ -1,7 +1,6 @@
 {
-  "platform": "EditMode",
-  "test": "VoxelEngine.Tests.EditMode.ArchitectureShapeProgramBuilderTests.PrimitiveOverridesRejectNegativeCornerRadius",
-  "request_id": "template",
-  "scene_issue": "",
-  "replay_seconds": ""
+  "platform": "PlayMode",
+  "test": "VoxelEngine.Tests.PlayMode.ShowcaseBakeHeightPipelineTests.PipelinedHeightPreparationPreservesOrderedSemanticRegionBytes",
+  "request_id": "ci-runtime-reduction-overlap-002",
+  "scene_issue": "SceneIssues/closed/20260826-132429-861-VoxelShowcase/issue.json"
 }
