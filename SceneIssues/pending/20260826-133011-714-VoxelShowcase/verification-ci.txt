@@ -1,0 +1,9 @@
+SceneIssue: 20260826-133011-714-VoxelShowcase
+Tested source SHA: 6d8edbf62512b4495982c5a52704c811d035e67c
+CI request SHA: 5bb99265224e31c195b1556f8cb38c83c7629b14
+Workflow run: 33040329581
+Artifact: 9633954143
+Regression: VoxelEngine.Tests.PlayMode.KentridgeInteriorScaleTests.ProductionBuildingsMeetExpandedRoomAndCeilingMinimums
+single.xml: total=1 passed=1 failed=0
+Real-player log: Replaying issue with 1 screenshot(s). Verified standalone frozen pose.
+Full-resolution CI verification-final.png SHA-256: f6d59c3b2a9c7194a34319be8f39e20d392f63564a3deab6117ba66826a52dbd

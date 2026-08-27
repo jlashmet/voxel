@@ -1,0 +1,65 @@
+{
+    "formatVersion": 3,
+    "id": "20260826-133011-714-VoxelShowcase",
+    "capturedUtc": "2026-08-26T13:30:11.7149890Z",
+    "note": "rooms in all buildings need to be larger with higher celings.",
+    "status": "pending",
+    "resolvedUtc": "",
+    "resolutionSummary": "Kentridge generated buildings now expand room plans by 8 dm in width/depth and use a 40 dm floor height. A Kentridge-owned 4 dm generated-structure envelope clearance keeps the larger shells inside existing plots while other architecture styles retain the conservative 12 dm default; the room-bearing bespoke landmarks already exceeded the new minimums. Exact-SHA PlayMode regression and the original saved-camera VoxelShowcase pose both passed.",
+    "regressionTest": "VoxelEngine.Tests.PlayMode.KentridgeInteriorScaleTests.ProductionBuildingsMeetExpandedRoomAndCeilingMinimums",
+    "fixCommit": "6d8edbf62512b4495982c5a52704c811d035e67c",
+    "unityVersion": "6000.5.6f1",
+    "platform": "OSXEditor",
+    "sceneName": "VoxelShowcase",
+    "scenePath": "Assets/Scenes/VoxelShowcase.unity",
+    "sceneBuildIndex": 2,
+    "captures": [
+        {
+            "screenshot": "screenshot-001.png",
+            "capturedUtc": "2026-08-26T13:30:11.7150860Z",
+            "frameCount": 159462,
+            "timeSinceLevelLoad": 473.6253967285156,
+            "screenWidth": 1928,
+            "screenHeight": 836,
+            "poseAnchor": {
+                "hierarchyPath": "Showcase Camera",
+                "position": { "x": 24.480892181396486, "y": 26.55031394958496, "z": 39.71734619140625 },
+                "rotation": { "x": -0.03318790718913078, "y": -0.25133538246154787, "z": 0.008623343892395497, "w": -0.9672924876213074 },
+                "localScale": { "x": 1.0, "y": 1.0, "z": 1.0 }
+            },
+            "camera": {
+                "hierarchyPath": "Showcase Camera",
+                "position": { "x": 24.480892181396486, "y": 26.55031394958496, "z": 39.71734619140625 },
+                "rotation": { "x": -0.03318790718913078, "y": -0.25133538246154787, "z": 0.008623343892395497, "w": -0.9672924876213074 },
+                "fieldOfView": 70.0,
+                "orthographic": false,
+                "orthographicSize": 5.0,
+                "nearClipPlane": 0.05000000074505806,
+                "farClipPlane": 16000.0
+            },
+            "circles": []
+        }
+    ],
+    "screenshot": "screenshot-001.png",
+    "frameCount": 159462,
+    "timeSinceLevelLoad": 473.6253967285156,
+    "screenWidth": 1928,
+    "screenHeight": 836,
+    "poseAnchor": {
+        "hierarchyPath": "Showcase Camera",
+        "position": { "x": 24.480892181396486, "y": 26.55031394958496, "z": 39.71734619140625 },
+        "rotation": { "x": -0.03318790718913078, "y": -0.25133538246154787, "z": 0.008623343892395497, "w": -0.9672924876213074 },
+        "localScale": { "x": 1.0, "y": 1.0, "z": 1.0 }
+    },
+    "camera": {
+        "hierarchyPath": "Showcase Camera",
+        "position": { "x": 24.480892181396486, "y": 26.55031394958496, "z": 39.71734619140625 },
+        "rotation": { "x": -0.03318790718913078, "y": -0.25133538246154787, "z": 0.008623343892395497, "w": -0.9672924876213074 },
+        "fieldOfView": 70.0,
+        "orthographic": false,
+        "orthographicSize": 5.0,
+        "nearClipPlane": 0.05000000074505806,
+        "farClipPlane": 16000.0
+    },
+    "circles": []
+}
