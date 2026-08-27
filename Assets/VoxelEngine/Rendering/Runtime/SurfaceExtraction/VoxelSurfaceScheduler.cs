@@ -1641,9 +1641,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                             int shard = CpuTransvoxelChunkCache.ShardForChunk(
                                 coordinate, ring.Workers.Length);
                             CpuTransvoxelChunkCache worker = ring.Workers[shard];
+                            int inBandBefore = worker.LastVisibilityInBandCount;
+                            int frustumBefore = worker.LastVisibilityFrustumCount;
                             int readyBefore = worker.LastVisibilityReadyCount;
                             int emptyBefore = worker.LastVisibilityEmptyCount;
-                            int frustumBefore = worker.LastVisibilityFrustumCount;
                             int visibleBefore = worker.Visible.Count;
                             worker.CollectVisibleCoordinate(
                                 coordinate, _visibilityFrustumPlanes, cameraPosition,
@@ -1651,9 +1652,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                             var node = new SurfaceLodNodeKey(ring.SourceStep, coordinate);
                             if (worker.Visible.Count > visibleBefore)
                                 _lodDrawableNodes.Add(node);
-                            if (worker.LastVisibilityFrustumCount == frustumBefore
-                                || worker.LastVisibilityReadyCount > readyBefore
-                                || worker.LastVisibilityEmptyCount > emptyBefore)
+                            bool inBand = worker.LastVisibilityInBandCount > inBandBefore;
+                            bool inFrustum = worker.LastVisibilityFrustumCount > frustumBefore;
+                            bool currentReady = worker.LastVisibilityReadyCount > readyBefore;
+                            bool currentEmpty = worker.LastVisibilityEmptyCount > emptyBefore;
+                            if (SurfaceLodVisibilitySelector.IsCurrentViewComplete(
+                                    inBand, inFrustum, currentReady, currentEmpty))
                                 _lodCurrentCompleteNodes.Add(node);
                             _lastVisibilityCandidateChecks++;
                         }
