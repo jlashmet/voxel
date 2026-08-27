@@ -1,29 +1,23 @@
-# Plan — SceneIssue 20260825-192751-413 VoxelShowcase performance/coverage
+# Plan — SceneIssue 20260825-192751-413 VoxelShowcase
 
 ## Defect / acceptance
-The capture reports sub-100 FPS while walking, slow surface fill, and missing geometry. Acceptance requires saved-pose and moving traversal coverage, green exact-SHA production-path regression, saved-pose replay evidence, no relaxed budgets, and measured evidence identifying the dominant remaining frame-time bottleneck.
+The marked showcase capture reports sub-100 FPS while walking, slow surface fill, and missing geometry. Every marked region/pose has been replayed. Acceptance is the unchanged production-path traversal regression plus saved-pose RealPlayer replay: p95 <= 18 ms, p99 <= 25 ms, no frame-path blocking completions, streamed-region movement proven, visible solids present, and near/far coverage gap <= 5 cm.
 
-## Evidence / selected fix
-GPU cutover was partly missing: restoring the validated exact-ring GPU extractor for source steps 1/2 improved saved-pose replay to ~168 FPS with no late missing geometry. Arena pressure was not the first moving failure. Exact-pose experiment 012 proved Unity camera/frustum math valid while production had no usable surface candidates. The causal startup defect was initial camera-window discovery starvation.
+## Competing hypotheses / evidence
+**H1 — movement rebuild work.** Supported. Settled saved-pose replay is clean (~418 FPS; p95 8.70 ms; zero missing/reappeared/assertions), while moving exact-SHA CI failed at p95 18.57 ms / p99 28.01 ms. Stage profiling attributes the dominant synchronous overrun to `Voxel.Surface.Snapshot`; one observed worker spent ~70.83/70.86 ms there. Reducing broad convergence from 12 to 8 reduced snapshot spikes but did not pass acceptance, so concurrency amplifies rather than fully explains the cost.
 
-Commit `20a32987b0273e6f8f2718e4bb169648cf7e3dae` makes initial clipmap creation trigger camera-near priority discovery while preserving region-difference admission for later movement. It changes no build, upload, arena, LOD, or frame-time budget. Focused exact-pose regression `ShowcaseCapturePoseFrustumDiagnosticsTests.CapturePoseFrustumContainsForwardProbeAndSurfaceCandidates` passed exact-SHA CI `3a06a96f...`. Moving acceptance remains `ShowcaseTraversalPerformanceTests.ContinuousPlayerTraversalNeverStuttersOrOpensNearFarGap` with unchanged p95/p99 limits.
+**H2 — draw/upload/GPU/GC.** Disfavored by settled replay and stage A/B evidence: upload/GC are small and draw-only steady state is fast.
 
-## Executable bottleneck investigation
-After exact request `6da72281f0f741c0b254681b337fe1f807c47b29` completes, measure the same saved pose and deterministic traversal with temporary test-scoped counters/timers. Record p50/p95 frame time plus work/queue counts for: camera discovery/scheduler, GPU extraction dispatch/completion, CPU fallback/step-4 meshing, mesh upload, culling/draw submission, resident/visible chunks, and pending build/upload work.
+Startup coverage was a separate defect: `20a32987...` made initial discovery camera/LOD-aware and its exact-pose production regression passed. It remains required because traversal cannot be considered fixed by hiding geometry.
 
-Run one-variable A/B discriminators against that baseline:
-1. **Freeze discovery/generation after warm-up** while rendering the settled resident set. A large frame-time drop implicates ongoing discovery/build work; little change points downstream.
-2. **Suppress draw submission while continuing discovery/meshing/upload.** A large drop implicates culling/render/GPU draw cost; little change points to world/surface work.
-3. **Disable CPU fallback/step-4 surface work** while retaining validated GPU exact-ring extraction. Improvement quantifies fallback cost and reveals whether it is stealing frame budget.
-4. **Disable coarse/HLOD fallback only.** Improvement isolates far/coarse rendering versus near-ring work.
-5. **Simplified content runs:** terrain-only, castle-only, then the full showcase at identical camera/resident bounds. Normalize against visible/resident chunk counts to distinguish per-chunk pipeline overhead from content/triangle complexity.
+## Selected discriminator / fix
+Production commit `36eeeace938f801063bd0aa6d57074c3bacaf9b2` smooths only **new** solid build admission: each rendered frame exposes at most one convergence slot beyond the previous frame's observed running solid jobs. Already-active builds continue and the configured steady-state ceiling is unchanged. This prevents multiple idle shards entering exact snapshot setup together without changing storage, extraction, LOD, arena, upload, or frame-time limits.
 
-Each experiment gets a concise `experiment-NNN-*.md` with source SHA, exact toggles, counters, frame-time deltas, and falsification result. Temporary instrumentation/toggles must be reverted before promotion. Optimize only the stage whose controlled removal produces the dominant reproducible delta, then rerun the exact-pose regression, moving traversal, and final replay.
+Falsifier: unchanged traversal still exceeds p95/p99 or opens the coverage assertion. If so, reject this scheduling fix and return to eliminating the CPU exact-snapshot boundary for GPU-supported near rings.
 
-## Blast radius / remaining gates
-Shared surface scheduler only; priority checks inspect the existing 3×3×3 resident-region neighborhood with no persistent allocation/job/budget increase. Current master has advanced with unrelated compiled WorldBuilder changes and must be merged before final promotion; product-changing overlap requires re-verification.
+## Blast radius / remaining gate
+Shared solid-render admission only; no allocation or geometry-semantic change. Cost is at most one additional exposed build slot per rendered frame during ramp-up; coverage regression measures unacceptable deferral.
 
-- [ ] Exact traversal/replay request `6da72281...` completes and artifact is inspected.
-- [ ] Execute bottleneck measurement + at least one discriminating A/B pair; record result.
-- [ ] Commit `verification-final.png`; complete `issue.json`; close per task authorization.
-- [ ] Merge current master, reverify as required, then non-force advance `master`.
+- [ ] Green exact-SHA traversal + 45 s saved-pose replay.
+- [ ] Commit `verification-final.png`; set pending metadata and move open -> pending.
+- [ ] Under task authorization, close capture, merge latest master, and non-force advance master.
