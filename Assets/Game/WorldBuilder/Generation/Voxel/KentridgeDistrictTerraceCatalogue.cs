@@ -24,6 +24,7 @@ namespace MountingForce.WorldGen.Voxel
         private const int MixedShoulderWidthDm = 54;
         private const int UrbanShoulderWidthDm = 72;
         private const int ShoulderStepCount = 6;
+        private const int UpperWestProfileStepDm = 25;
         private const int RetainingTierStride = 3;
         private const int RetainingFaceThicknessDm = 3;
         private const int RetainingEndInsetDm = 12;
@@ -82,10 +83,11 @@ namespace MountingForce.WorldGen.Voxel
             public readonly int SouthEdgeY;
             public readonly int WestEdgeY;
             public readonly int EastEdgeY;
+            public readonly int[] WestEdgeProfileY;
 
             public TerraceBuild(TerraceSeed seed, int3 position, int3 footprint,
                                 int coreSurfaceY, int northEdgeY, int southEdgeY,
-                                int westEdgeY, int eastEdgeY)
+                                int westEdgeY, int eastEdgeY, int[] westEdgeProfileY)
             {
                 Seed = seed;
                 Position = position;
@@ -95,6 +97,7 @@ namespace MountingForce.WorldGen.Voxel
                 SouthEdgeY = southEdgeY;
                 WestEdgeY = westEdgeY;
                 EastEdgeY = eastEdgeY;
+                WestEdgeProfileY = westEdgeProfileY;
             }
         }
 
@@ -120,7 +123,7 @@ namespace MountingForce.WorldGen.Voxel
                     SurfaceCharacter.Urban),
                 new TerraceSeed("civic-summit", 920, 40, 470, 200, 1170, 150,
                     SurfaceCharacter.Urban),
-                new TerraceSeed("noble-ridge", 1490, 90, 340, 320, 1530, 250,
+                new TerraceSeed("noble-ridge", 1490, 90, 340, 320, 72, 1530,
                     SurfaceCharacter.Urban),
             };
 
@@ -299,12 +302,44 @@ namespace MountingForce.WorldGen.Voxel
                 centreZDm * scale,
                 seed);
 
+            int[] westProfile = null;
+            if (terrace.Id == "upper-shoulder")
+            {
+                int count = (terrace.DepthDm + UpperWestProfileStepDm - 1)
+                          / UpperWestProfileStepDm;
+                westProfile = new int[count];
+                int westXDm = terrace.XDm - shoulderDm;
+                for (int i = 0; i < count; i++)
+                {
+                    int startDm = i * UpperWestProfileStepDm;
+                    int depthDm = Math.Min(UpperWestProfileStepDm,
+                                           terrace.DepthDm - startDm);
+                    int sampleZDm = terrace.ZDm + startDm + depthDm / 2;
+                    westProfile[i] = TerrainQuery.HeightAt(
+                        westXDm * scale, sampleZDm * scale, seed);
+                }
+            }
+
             int lowestRelevant = Math.Min(targetSurface,
                 Math.Min(Math.Min(northEdge, southEdge), Math.Min(westEdge, eastEdge)));
             int highestRelevant = Math.Max(targetSurface,
                 Math.Max(Math.Max(northEdge, southEdge), Math.Max(westEdge, eastEdge)));
+            if (westProfile != null)
+            {
+                for (int i = 0; i < westProfile.Length; i++)
+                {
+                    lowestRelevant = Math.Min(lowestRelevant, westProfile[i]);
+                    highestRelevant = Math.Max(highestRelevant, westProfile[i]);
+                }
+            }
+
             int originY = Math.Min(lowestRelevant, naturalMin) - BuriedFootingDm * scale;
             int topY = Math.Max(highestRelevant, naturalMax) + ClearAboveDm * scale;
+            if (westProfile != null)
+            {
+                for (int i = 0; i < westProfile.Length; i++)
+                    westProfile[i] -= originY;
+            }
 
             return new TerraceBuild(
                 terrace,
@@ -320,7 +355,8 @@ namespace MountingForce.WorldGen.Voxel
                 northEdge - originY,
                 southEdge - originY,
                 westEdge - originY,
-                eastEdge - originY);
+                eastEdge - originY,
+                westProfile);
         }
 
         private static void TerrainRange(TerraceSeed terrace, uint seed, int scale,
@@ -401,12 +437,33 @@ namespace MountingForce.WorldGen.Voxel
                 AxisZ,
                 outerAtNegativeAxis: false,
                 clearTop, earth);
-            AddShoulder(b,
-                0, coreInset, shoulder, coreDepth,
-                build.WestEdgeY, build.CoreSurfaceY,
-                AxisX,
-                outerAtNegativeAxis: true,
-                clearTop, earth);
+
+            if (build.WestEdgeProfileY != null && build.WestEdgeProfileY.Length > 0)
+            {
+                int stripDepth = UpperWestProfileStepDm * s;
+                for (int i = 0; i < build.WestEdgeProfileY.Length; i++)
+                {
+                    int z = coreInset + i * stripDepth;
+                    int depthForStrip = Math.Min(stripDepth,
+                        coreInset + coreDepth - z);
+                    AddShoulder(b,
+                        0, z, shoulder, depthForStrip,
+                        build.WestEdgeProfileY[i], build.CoreSurfaceY,
+                        AxisX,
+                        outerAtNegativeAxis: true,
+                        clearTop, earth);
+                }
+            }
+            else
+            {
+                AddShoulder(b,
+                    0, coreInset, shoulder, coreDepth,
+                    build.WestEdgeY, build.CoreSurfaceY,
+                    AxisX,
+                    outerAtNegativeAxis: true,
+                    clearTop, earth);
+            }
+
             AddShoulder(b,
                 coreInset + coreWidth, coreInset, shoulder, coreDepth,
                 build.EastEdgeY, build.CoreSurfaceY,
