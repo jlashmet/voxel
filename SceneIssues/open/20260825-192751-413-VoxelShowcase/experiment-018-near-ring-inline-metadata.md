@@ -12,10 +12,10 @@ Mixed-payload pinning/classification, coarse-ring snapshot work, GPU count/write
 The change does not alter Storage pin/version checks, mixed-payload COW ownership, classification, surface/coating/profile rules, GPU eligibility, GPU count/write behavior, geometry publication, LOD coverage, build concurrency, or acceptance thresholds.
 
 ## Falsifier
-Reject the change if the exact production traversal still exceeds p95 18 ms or p99 25 ms, loses all visible solids, opens the near/far fallback gap, reports a frame-path blocking completion, or the saved-pose RealPlayer replay materially regresses.
+Reject the change as the complete fix if the exact production traversal still exceeds p95 18 ms or p99 25 ms, loses all visible solids, opens the near/far fallback gap, reports a frame-path blocking completion, or the saved-pose RealPlayer replay materially regresses.
 
 ## Blast radius / cost
 Render extraction only, limited by metadata-grid size to the two GPU-capable near rings in production. Worst-case synchronous metadata work is 5832 clear/map entries plus one 5832-entry compact scan for a step-2 snapshot; coarse grids remain jobs. No gameplay/collision authority, storage format, GPU format, geometry semantics, or allocations are changed.
 
 ## Result
-Pending exact-SHA traversal and 45-second saved-pose RealPlayer replay.
+Supported as a partial fix, not sufficient alone. Exact-SHA traversal reduced snapshot p95 to about 1.76 ms, but the unchanged moving traversal still failed at about 20.16 ms p95 / 28.33 ms p99. Keep the bounded snapshot change because it removes the measured snapshot scheduler burst; continue discriminating the remaining worker/job-pool pressure rather than weakening the regression.
