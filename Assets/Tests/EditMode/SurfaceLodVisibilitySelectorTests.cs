@@ -78,5 +78,24 @@ namespace VoxelEngine.Tests.EditMode
             Assert.False(selector.IsActive(parent));
             Assert.AreEqual(8, selector.Count);
         }
+
+        [Test]
+        public void KnownEmptyAncestorDoesNotSuppressDrawableChildWithoutFallbackGeometry()
+        {
+            var selector = new SurfaceLodVisibilitySelector();
+            var parent = new SurfaceLodNodeKey(4, new int3(0, 0, 0));
+            Assert.True(SurfaceLodHierarchy.TryGetChildSourceStep(parent.SourceStep,
+                                                                  out int childStep));
+            var child = new SurfaceLodNodeKey(
+                childStep, SurfaceLodHierarchy.ChildCoordinate(parent.Coordinate, 0));
+
+            selector.Rebuild(
+                new List<SurfaceLodNodeKey> { child },
+                new List<SurfaceLodNodeKey> { parent, child });
+
+            Assert.True(selector.IsActive(child));
+            Assert.AreEqual(1, selector.Count,
+                "Logical empty completion is proof, not drawable fallback coverage.");
+        }
     }
 }
