@@ -51,6 +51,9 @@ namespace VoxelEngine.Showcase
             heroRoot.SetParent(null, false);
             heroRoot.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
             heroRoot.localScale = Vector3.one;
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+            Debug.Log("ARCH_REFERENCE_ANCHOR world-identity hero root applied.");
+#endif
             return true;
         }
 
