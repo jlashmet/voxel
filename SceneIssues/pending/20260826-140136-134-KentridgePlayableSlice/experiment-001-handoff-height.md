@@ -2,10 +2,10 @@
 
 **Hypothesis:** the roof spawn is caused by `CharacterMotor.SnapToGround` choosing the highest occupied surface in a stacked pub column instead of respecting the generated interior approach's authored Y.
 
-**Action / source:** traced `ReleasePlayerForGameplay` from `_pubAccess.InteriorApproach` into `SnapToGround`, compared the pre-fix unbounded `OccupiedSurfaceHeight` selection with the production-scene regression, then inspected the exact green real-player artifact from request `41740715ea52d62260492991c36fe7254b3bd8a6`.
+**Action / source:** traced `ReleasePlayerForGameplay` from `_pubAccess.InteriorApproach` into `SnapToGround`, compared the pre-fix unbounded `OccupiedSurfaceHeight` selection with the production-scene regression, then replayed the original capture in the real player. Earlier evidence isolated a second, tooling-only problem: command-line replay remained frozen through handoff and later exposed the capture UI after release.
 
-**Result:** X/Z already come from the generated pub approach; pre-fix grounding admitted roof occupancy above authored Y. The regression now passes. The green artifact still showed the roof and replay overlay at ~94 s; frame ~84 s was opening line 27 and frame ~94 s had gameplay control, proving the command-line replay freeze overlapped the actual handoff. `SceneIssueReplayVerification` only observed the frozen pose; `SceneIssueCapture.LateUpdate` remained the owner applying it.
+**Result:** X/Z already come from the generated pub approach; pre-fix grounding admitted roof occupancy above authored Y. Exact request `6805aba87c04caac16dd84df93246c688036ed6f` passed the focused production regression and the real-player capture. Its 1928×900 final frame shows the player inside the pub looking through the doorway with replay/F8 overlays absent. The log confirms frozen-pose verification followed by replay release and capture-overlay disable at 85 s.
 
-**Verdict:** grounding hypothesis selected for the product defect. The remaining visual-evidence failure is replay-tool state, not a second gameplay cause. Keep the 85 s release point (between opening line 27 and gameplay control) and make the development verifier invoke the capture tool's existing `ReleaseReplayCamera` transition at that opt-in deadline.
+**Verdict:** grounding hypothesis confirmed for the product defect. Replay freeze/UI were evidence-tool state only; the development verifier now reuses `ReleaseReplayCamera` and disables only the development capture component after release.
 
-**Next:** rerun the same focused production regression plus real-player replay on the exact new feature SHA; accept only a clean native-resolution post-opening frame inside the pub.
+**Next:** commit the exact clean native-resolution final frame, then perform fixed/closed bookkeeping and merge current master.
