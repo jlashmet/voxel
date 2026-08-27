@@ -1,5 +1,4 @@
 using System.Collections;
-using System.Linq;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
@@ -10,63 +9,60 @@ namespace VoxelEngine.Tests.PlayMode
 {
     public sealed class ArchReferenceGrowthTests
     {
-        [UnityTest]
-        public IEnumerator AuthoredGrowthCoversLeftPierCrownAndRightCounterweight()
+        [UnityTest, Timeout(30000)]
+        public IEnumerator HeroGrowthUsesAuthoredLeavesAndFlowerClustersWithinBudget()
         {
-            var root = new GameObject("Arch reference growth contract");
+            var root = new GameObject("Arch reference growth regression");
             try
             {
                 ArchReferenceGrowth growth = root.AddComponent<ArchReferenceGrowth>();
                 yield return null;
 
-                Assert.That(growth.Instances, Has.Count.EqualTo(60));
-                Assert.That(growth.InstanceCount, Is.EqualTo(growth.Instances.Count),
-                    "Every authored plant must be submitted through the production batch renderer.");
+                Assert.That(growth.HeroLeafCount, Is.EqualTo(128),
+                    "The reference hero should be built from individual lobed ivy leaves, not generic vine stamps.");
+                Assert.That(growth.HeroFlowerHeadCount, Is.EqualTo(30),
+                    "Reference flowers should remain clustered multi-head blossoms rather than isolated semantic cards.");
+                Assert.That(growth.SemanticInstanceCount, Is.EqualTo(2),
+                    "Only the two small ground ferns should remain on the shared semantic vegetation renderer.");
+                Assert.That(growth.Instances, Has.Count.EqualTo(2));
+                Assert.That(growth.Instances[0].Kind, Is.EqualTo(VegetationKind.Fern));
+                Assert.That(growth.Instances[1].Kind, Is.EqualTo(VegetationKind.Fern));
 
-                int leftPierIvy = growth.Instances.Count(instance =>
-                    instance.Kind == VegetationKind.Ivy
-                    && instance.PositionMetres.x < -1.1f
-                    && instance.PositionMetres.y < 6.1f);
-                int leftPierFlowers = growth.Instances.Count(instance =>
-                    instance.Kind == VegetationKind.Flower
-                    && instance.PositionMetres.x < -1.1f
-                    && instance.PositionMetres.y > 2f
-                    && instance.PositionMetres.y < 6.1f);
-                int crownIvy = growth.Instances.Count(instance =>
-                    instance.Kind == VegetationKind.Ivy
-                    && instance.PositionMetres.x < 0.6f
-                    && instance.PositionMetres.y >= 6.1f);
-                int crownFlowers = growth.Instances.Count(instance =>
-                    instance.Kind == VegetationKind.Flower
-                    && instance.PositionMetres.x < 0.6f
-                    && instance.PositionMetres.y >= 6.1f);
-                int rightIvy = growth.Instances.Count(instance =>
-                    instance.Kind == VegetationKind.Ivy
-                    && instance.PositionMetres.x > 1f
-                    && instance.PositionMetres.y > 1f);
+                Assert.That(growth.HeroDrawCallCount, Is.EqualTo(3),
+                    "Hero presentation is budgeted as ivy, petals, and flower centres only.");
+                Assert.That(growth.HeroVertexCount, Is.GreaterThan(1500));
+                Assert.That(growth.HeroVertexCount, Is.LessThanOrEqualTo(4096),
+                    "The close-up art-directed mesh must stay inside its one-time 4k-vertex budget.");
 
-                Assert.That(leftPierIvy, Is.EqualTo(21));
-                Assert.That(leftPierFlowers, Is.EqualTo(5));
-                Assert.That(crownIvy, Is.EqualTo(15));
-                Assert.That(crownFlowers, Is.EqualTo(4));
-                Assert.That(rightIvy, Is.EqualTo(8));
+                Mesh ivy = growth.HeroIvyMesh;
+                Mesh petals = growth.HeroFlowerPetalMesh;
+                Assert.That(ivy, Is.Not.Null);
+                Assert.That(petals, Is.Not.Null);
+                Assert.That(ivy.bounds.size.x, Is.GreaterThan(3.5f),
+                    "Ivy must keep the sparse right-hand counterweight as well as the dense left mass.");
+                Assert.That(ivy.bounds.size.y, Is.GreaterThan(7.0f),
+                    "Ivy must climb from the lower pier across the crown.");
+                Assert.That(petals.bounds.max.y, Is.GreaterThan(7.8f),
+                    "Flowers must reach the upper crown where the reference is most lush.");
 
-                Assert.That(growth.Instances.Where(instance =>
-                        instance.Kind == VegetationKind.Flower
-                        && instance.SurfaceNormal.z < -0.9f)
-                    .All(instance => instance.Scale >= 0.48f), Is.True,
-                    "Wall flower heads must remain large enough to survive the saved hero-camera distance.");
+                MeshRenderer[] renderers = root.GetComponentsInChildren<MeshRenderer>();
+                Assert.That(renderers, Has.Length.EqualTo(3),
+                    "The hero mesh must not introduce per-leaf or per-flower GameObjects/draws.");
 
                 growth.enabled = false;
                 Assert.That(growth.InstanceCount, Is.Zero,
-                    "Disabling the authoring component must release its renderer submission.");
+                    "Disabling the authoring component must release semantic and hero growth.");
                 growth.enabled = true;
-                Assert.That(growth.InstanceCount, Is.EqualTo(60),
-                    "Re-enabling after a scene lifecycle transition must restore all authored growth.");
+                yield return null;
+                Assert.That(growth.HeroLeafCount, Is.EqualTo(128));
+                Assert.That(growth.HeroFlowerHeadCount, Is.EqualTo(30));
+                Assert.That(growth.SemanticInstanceCount, Is.EqualTo(2),
+                    "Re-enabling after a scene lifecycle transition must restore the bounded presentation.");
             }
             finally
             {
-                Object.DestroyImmediate(root);
+                Object.Destroy(root);
+                yield return null;
             }
         }
     }
