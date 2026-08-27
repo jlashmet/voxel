@@ -13,6 +13,7 @@ using VoxelEngine.Storage.Api;
 using VoxelEngine.Structures.Api;
 using VoxelEngine.Structures.Runtime;
 using Mat = Game.Materials.Api.GameMaterialIds;
+using Object = UnityEngine.Object;
 
 namespace VoxelEngine.Tests.PlayMode
 {
