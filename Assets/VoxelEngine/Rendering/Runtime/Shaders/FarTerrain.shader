@@ -13,6 +13,7 @@ Shader "VoxelEngine/FarTerrain"
         _SkyZenith ("Sky Zenith", Color) = (0.24, 0.45, 0.76, 1)
         _AerialColour ("Aerial Perspective", Color) = (0.62, 0.72, 0.86, 1)
         _AerialDistance ("Aerial Full Distance", Float) = 9000
+        _VoxelSize ("Base Voxel Size", Float) = 0.1
     }
 
     SubShader
