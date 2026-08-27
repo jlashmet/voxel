@@ -5,21 +5,22 @@ The saved VoxelShowcase pose marks two jagged Dirt/grass contacts. Acceptance re
 
 ## Competing hypotheses
 1. **Inactive road-shoulder quantization.** Disproved as complete owner: that catalogue is not on the live Showcase path.
-2. **Live district-terrace shoulder quantization/material ownership.** `KentridgeDistrictTerraceCatalogue` owns the captured urban terrace; its old six-step shoulders were a plausible geometry source. Current product source replaces those treads with one reversible ramp and tests the live `upper-shoulder`. A follow-up surface experiment changes the correction shoulder from Dirt to Moss while retaining the paved core.
-3. **Streaming/LOD churn.** Reduced by stable replay telemetry (`missingMax=0`).
-4. **Stale startup bake.** Confirmed by experiment 004: two exact green replays before/after a visible WorldBuilder source change differed only in runtime overlay pixels. `showcase-bake-cache.sh` omitted `Assets/Game/WorldBuilder` from its fingerprint.
+2. **Live district terrace geometry/material ownership.** Confirmed in part. Replacing six stepped shoulders with one reversible ramp materially improved the lower circle.
+3. **Streaming/LOD churn.** Disfavored by stable replay telemetry (`missingMax=0`).
+4. **Stale startup bake.** Confirmed and fixed: `showcase-bake-cache.sh` omitted `Assets/Game/WorldBuilder`; fresh run `33031105049` rebuilt the world after adding that input.
+5. **Overbroad terrace surface correction.** Confirmed by the fresh replay: changing its full urban footprint from Dirt to Moss preserved the same axis-aligned upper notch and only flipped its color.
 
-## Current discriminator
-Do not change product geometry again until a replay proves it is rendering the current source. Add `Assets/Game/WorldBuilder` to the Showcase bake fingerprint, then request a fresh exact saved-camera replay. The cache must miss/store a new bake; the resulting frame must materially differ from the stale replay in the terrace region.
+## Selected fix / discriminator
+Urban surface-correction patches now repair only the built core (foundation solid + paved surface). Their expanded transition shoulders are left to the district terrace and circulation owners. Non-urban corrections retain their existing full-patch natural-material repair. Exact CI must prove both the ownership regression and the saved camera.
 
 ## Regression and blast radius
-The focused EditMode regression exercises the live district ramp through `BoxEmitter.RampContains`; the surface-correction regression exercises the captured `upper-shoulder` program. The cache fix only broadens invalidation inputs: runtime behavior is unchanged and cost is limited to additional correct bake misses when WorldBuilder changes, explicitly preferred by the cache contract.
+`KentridgeTerraceSurfaceCorrectionRegressionTests` asserts the captured `upper-shoulder` emits no full-footprint correction primitive while retaining core solid/paving repair, and also checks a residential patch still receives full solid/Moss repair. The existing ramp regression guards the lower-circle geometry. Cache invalidation cost changes only when WorldBuilder inputs change.
 
 ## Remaining gates
 - [x] Live owner and competing hypotheses recorded.
-- [x] Product regressions green on the prior exact source state.
-- [x] Stale replay/cache-key defect identified.
-- [ ] Fresh-bake exact targeted CI on current feature head.
-- [ ] Replay both marked regions and accept or revise product fix.
+- [x] Stale replay/cache-key defect identified and fresh bake proven.
+- [x] Fresh replay isolated the upper rectangle to correction ownership.
+- [ ] Exact targeted CI for the revised ownership regression.
+- [ ] Exact fresh-bake replay; inspect both marked regions.
 - [ ] Commit accepted `verification-final.png` and final metadata.
-- [ ] Per user instruction, move this capture to closed and merge only `fixes/agent-8` to current master.
+- [ ] Per user instruction, close this capture and merge only `fixes/agent-8` to current master.
