@@ -44,8 +44,23 @@ namespace VoxelEngine.Showcase
             };
             var replay = root.AddComponent<Replay>();
             replay.Fixture = fixture;
+            replay.ReleaseAfterSeconds = ReadPositiveFloatArgument("-voxel-scene-issue-release-after");
             UnityEngine.Object.DontDestroyOnLoad(root);
             Debug.Log($"SCENEISSUE camera replay armed for {fixture.hierarchyPath}");
+        }
+
+        private static float ReadPositiveFloatArgument(string name)
+        {
+            string[] args = Environment.GetCommandLineArgs();
+            for (int i = 0; i < args.Length - 1; i++)
+            {
+                if (!string.Equals(args[i], name, StringComparison.Ordinal)) continue;
+                if (float.TryParse(args[i + 1], out float seconds) && seconds > 0f)
+                    return seconds;
+                Debug.LogError($"SCENEISSUE invalid {name} value '{args[i + 1]}'.");
+                return 0f;
+            }
+            return 0f;
         }
 
         [Serializable]
@@ -61,11 +76,26 @@ namespace VoxelEngine.Showcase
         private sealed class Replay : MonoBehaviour
         {
             internal PoseFixture Fixture;
+            internal float ReleaseAfterSeconds;
             private Camera _camera;
             private bool _reported;
+            private float _startedAt;
+
+            private void Awake()
+            {
+                _startedAt = Time.realtimeSinceStartup;
+            }
 
             private void LateUpdate()
             {
+                if (ReleaseAfterSeconds > 0f
+                    && Time.realtimeSinceStartup - _startedAt >= ReleaseAfterSeconds)
+                {
+                    Debug.Log($"SCENEISSUE camera released after {ReleaseAfterSeconds:0.###}s");
+                    Destroy(this);
+                    return;
+                }
+
                 if (_camera == null)
                     _camera = FindCamera(Fixture.hierarchyPath);
                 if (_camera == null) return;
