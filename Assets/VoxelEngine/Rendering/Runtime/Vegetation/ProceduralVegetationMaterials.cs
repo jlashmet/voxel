@@ -201,6 +201,10 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
 
         private static float ShapeFor(VegetationKind kind, VegetationGrowthForm growthForm)
         {
+            // Grass gets a dedicated presentation discriminator. Several other tuft-like species
+            // intentionally share shape 0, so specializing shape 0 would silently restyle clover,
+            // weeds, nettles, reeds, and related foliage along with the captured grass defect.
+            if (kind == VegetationKind.Grass) return 5f;
             if (kind == VegetationKind.Flower || kind == VegetationKind.ManaBloom) return 2f;
             if (growthForm == VegetationGrowthForm.Fungus) return 3f;
             if (growthForm == VegetationGrowthForm.Shrub) return 4f;
@@ -213,6 +217,9 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
             if ((traits & VegetationTraits.Dead) != 0) return new Color(0.34f, 0.27f, 0.14f, 1f);
             switch (kind)
             {
+                // The grass sprite needs to read as a lit pixel-art accent over the already-green
+                // terrain rather than as the near-black vertical bars seen in the captured replay.
+                case VegetationKind.Grass: return new Color(0.31f, 0.62f, 0.18f, 1f);
                 case VegetationKind.Flower: return new Color(0.84f, 0.28f, 0.46f, 1f);
                 case VegetationKind.Mushroom: return new Color(0.58f, 0.34f, 0.20f, 1f);
                 case VegetationKind.BerryBush: return new Color(0.20f, 0.39f, 0.13f, 1f);
@@ -240,6 +247,7 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
         {
             switch (kind)
             {
+                case VegetationKind.Grass: return new Color(0.56f, 0.79f, 0.27f, 1f);
                 case VegetationKind.Flower: return new Color(1.00f, 0.73f, 0.28f, 1f);
                 case VegetationKind.Ivy:
                 case VegetationKind.Vine:

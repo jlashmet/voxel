@@ -46,6 +46,15 @@ namespace MountingForce.WorldGen.Architecture
     }
 
     /// <summary>
+    /// Optional style policy for generated-structure clearance inside the settlement envelope.
+    /// Styles that do not implement this retain the architecture layer's conservative 12 dm margin.
+    /// </summary>
+    public interface IStructureEnvelopeClearancePolicy
+    {
+        int GeneratedStructureClearanceDm { get; }
+    }
+
+    /// <summary>
     /// Immutable lookup of architecture style compilers. Compose one registry at a world/content
     /// boundary, then pass it through generation. The registry deliberately contains no Unity or
     /// voxel types, so the same style catalogue can drive voxel, mesh, SDF, or editor realizers.
