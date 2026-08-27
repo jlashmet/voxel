@@ -141,16 +141,11 @@ namespace MountingForce.WorldGen.Voxel
             int firstOpenStep = Math.Min(
                 firstFlightSteps - 1,
                 clearanceThreshold / stair.StepRise);
-            int secondOpenStep = Math.Max(
-                0,
-                clearanceThreshold / stair.StepRise - firstFlightSteps);
-            secondOpenStep = Math.Min(secondFlightSteps - 1, secondOpenStep);
 
             int firstStartZ = landingMinZ - firstRun;
             int firstOpeningMinZ = firstStartZ + firstOpenStep * stair.StepRun;
             int firstOpeningLength = northZ - firstOpeningMinZ;
             int secondSouthZ = landingMinZ - secondRun;
-            int secondOpeningMaxZ = landingMinZ - secondOpenStep * stair.StepRun;
             int secondOpeningLength = northZ - secondSouthZ;
             int guardHeight = GuardHeightDm * scale;
             int guardThickness = Math.Max(1, GuardThicknessDm * scale);
@@ -166,8 +161,9 @@ namespace MountingForce.WorldGen.Voxel
                 int lowerFloorY = foundation + level * floorHeight;
                 int upperFloorY = lowerFloorY + floorHeight;
 
-                // The opening follows the portions of both flights and the landing that fail the
-                // configured headroom test; it is not an independent decorative hole.
+                // The first-flight carve begins exactly where remaining ceiling clearance drops
+                // below required headroom. The return flight and half-storey landing are already
+                // above that threshold, so their bounded shaft remains open through the slab.
                 EmitBox(
                     code,
                     firstFlightX - openingSideClearance,
