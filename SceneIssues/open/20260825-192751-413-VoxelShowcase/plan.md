@@ -1,22 +1,29 @@
 # Plan — SceneIssue 20260825-192751-413 VoxelShowcase performance/coverage
 
 ## Defect / acceptance
-The capture reports sub-100 FPS while walking, slow surface fill, and missing geometry. Acceptance requires the saved pose and moving traversal to retain voxel coverage, the focused production-path regression to pass on exact-SHA CI, saved-pose replay evidence, and no relaxation of existing frame-time or geometry budgets.
+The capture reports sub-100 FPS while walking, slow surface fill, and missing geometry. Acceptance requires saved-pose and moving traversal coverage, green exact-SHA production-path regression, saved-pose replay evidence, no relaxed budgets, and measured evidence identifying the dominant remaining frame-time bottleneck.
 
-## Evidence / competing hypotheses
-1. **GPU cutover was disabled or too narrow.** Partly supported: restoring the existing validated exact-ring GPU extractor for source steps 1/2 improved the saved-pose replay to about 168 FPS with no late missing geometry; step 4/HLOD and fallback paths remain CPU/coarse.
-2. **Arena pressure removes visible geometry during motion.** Rejected as the first-failure cause: long real-player traversal remained mostly 150–330 FPS while pressure rose later, but the deterministic production traversal lost all draws at movement frame 5.
-3. **Camera/frustum math rejects the captured view.** Rejected by experiment 012: Unity's frustum accepted a forward probe at the exact saved pose while production reported `known/inBand/frustum=170/38/0` and step1 `res=0 known=0`.
-4. **Surface discovery starves the initial camera window.** Supported by code and captured telemetry. Camera-near priority discovery was only activated after a clipmap had a previous window and moved, so first-window startup fell back to the global resident sweep and could leave the near ring completely unknown.
+## Evidence / selected fix
+GPU cutover was partly missing: restoring the validated exact-ring GPU extractor for source steps 1/2 improved saved-pose replay to ~168 FPS with no late missing geometry. Arena pressure was not the first moving failure. Exact-pose experiment 012 proved Unity camera/frustum math valid while production had no usable surface candidates. The causal startup defect was initial camera-window discovery starvation.
 
-## Selected fix / regression
-Commit `20a32987b0273e6f8f2718e4bb169648cf7e3dae` treats initial clipmap creation as a priority-discovery event while retaining region-difference admission only for later movement. It changes no build, upload, arena, LOD, or frame-time budget. `ShowcaseCapturePoseFrustumDiagnosticsTests.CapturePoseFrustumContainsForwardProbeAndSurfaceCandidates` is the focused behavioral regression through the production scheduler at the exact captured pose. The existing `ShowcaseTraversalPerformanceTests.ContinuousPlayerTraversalNeverStuttersOrOpensNearFarGap` remains the moving acceptance with its original p95/p99 limits.
+Commit `20a32987b0273e6f8f2718e4bb169648cf7e3dae` makes initial clipmap creation trigger camera-near priority discovery while preserving region-difference admission for later movement. It changes no build, upload, arena, LOD, or frame-time budget. Focused exact-pose regression `ShowcaseCapturePoseFrustumDiagnosticsTests.CapturePoseFrustumContainsForwardProbeAndSurfaceCandidates` passed exact-SHA CI `3a06a96f...`. Moving acceptance remains `ShowcaseTraversalPerformanceTests.ContinuousPlayerTraversalNeverStuttersOrOpensNearFarGap` with unchanged p95/p99 limits.
 
-## Blast radius / cost
-Shared surface scheduler only; camera-near priority checks at clipmap changes inspect at most the existing 3×3×3 resident-region neighborhood. No new persistent allocation, job, mesh path, or budget increase is introduced. Current master `9a633c15...` was merged cleanly as `0660116400...`; its delta was limited to another closed SceneIssue.
+## Executable bottleneck investigation
+After exact request `6da72281f0f741c0b254681b337fe1f807c47b29` completes, measure the same saved pose and deterministic traversal with temporary test-scoped counters/timers. Record p50/p95 frame time plus work/queue counts for: camera discovery/scheduler, GPU extraction dispatch/completion, CPU fallback/step-4 meshing, mesh upload, culling/draw submission, resident/visible chunks, and pending build/upload work.
 
-## Remaining gates
-- [ ] Focused exact-SHA CI `3a06a96f...` passes (currently queued on shared macOS runner).
-- [ ] Final exact-head traversal + saved-pose replay passes; inspect artifact and commit `verification-final.png`.
-- [ ] Complete `issue.json`, move `open/`→`pending/` in separate bookkeeping commit, then close per task authorization.
-- [ ] Refresh/merge current master if it advances, then non-force fast-forward verified branch to `master`.
+Run one-variable A/B discriminators against that baseline:
+1. **Freeze discovery/generation after warm-up** while rendering the settled resident set. A large frame-time drop implicates ongoing discovery/build work; little change points downstream.
+2. **Suppress draw submission while continuing discovery/meshing/upload.** A large drop implicates culling/render/GPU draw cost; little change points to world/surface work.
+3. **Disable CPU fallback/step-4 surface work** while retaining validated GPU exact-ring extraction. Improvement quantifies fallback cost and reveals whether it is stealing frame budget.
+4. **Disable coarse/HLOD fallback only.** Improvement isolates far/coarse rendering versus near-ring work.
+5. **Simplified content runs:** terrain-only, castle-only, then the full showcase at identical camera/resident bounds. Normalize against visible/resident chunk counts to distinguish per-chunk pipeline overhead from content/triangle complexity.
+
+Each experiment gets a concise `experiment-NNN-*.md` with source SHA, exact toggles, counters, frame-time deltas, and falsification result. Temporary instrumentation/toggles must be reverted before promotion. Optimize only the stage whose controlled removal produces the dominant reproducible delta, then rerun the exact-pose regression, moving traversal, and final replay.
+
+## Blast radius / remaining gates
+Shared surface scheduler only; priority checks inspect the existing 3×3×3 resident-region neighborhood with no persistent allocation/job/budget increase. Current master has advanced with unrelated compiled WorldBuilder changes and must be merged before final promotion; product-changing overlap requires re-verification.
+
+- [ ] Exact traversal/replay request `6da72281...` completes and artifact is inspected.
+- [ ] Execute bottleneck measurement + at least one discriminating A/B pair; record result.
+- [ ] Commit `verification-final.png`; complete `issue.json`; close per task authorization.
+- [ ] Merge current master, reverify as required, then non-force advance `master`.
