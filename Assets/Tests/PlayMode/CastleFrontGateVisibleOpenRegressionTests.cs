@@ -93,7 +93,7 @@ namespace VoxelEngine.Tests.PlayMode
             int half = CastleLayout.FrontGateWidth / 2;
             for (int d = 0; d < CastleLayout.FrontGateDepth; d++)
             {
-                Assert.AreEqual(Mat.Empty, Get(world, plan.Centre.x, min.y + 8, min.z + d),
+                Assert.AreEqual(VoxelGrid.MaterialEmpty, Get(world, plan.Centre.x, min.y + 8, min.z + d),
                     $"The completed doorway still blocks its centre at front depth {d}.");
             }
 
@@ -129,7 +129,7 @@ namespace VoxelEngine.Tests.PlayMode
 
             for (int z = min.z + CastleLayout.FrontGateDepth; z <= deepestZ; z++)
             for (int x = plan.Centre.x - 2; x <= plan.Centre.x + 1; x++)
-                Assert.AreEqual(Mat.Empty, Get(world, x, min.y + 8, z),
+                Assert.AreEqual(VoxelGrid.MaterialEmpty, Get(world, x, min.y + 8, z),
                     $"Opened leaves intrude into the player lane at {x},{min.y + 8},{z}.");
 
             Assert.That(showcase.TryInteract(), Is.False,
@@ -164,6 +164,7 @@ namespace VoxelEngine.Tests.PlayMode
 
             Vector3 originalPosition = camera.transform.position;
             Quaternion originalRotation = camera.transform.rotation;
+            float originalFieldOfView = camera.fieldOfView;
             RenderTexture originalTarget = camera.targetTexture;
             RenderTexture previousActive = RenderTexture.active;
 
@@ -177,6 +178,7 @@ namespace VoxelEngine.Tests.PlayMode
                     new Vector3(25.616580963134767f, 26.35015869140625f, 11.290130615234375f),
                     new Quaternion(0.10458954423666f, -0.007642569486051798f,
                                    -0.000803764967713505f, -0.9944857954978943f));
+                camera.fieldOfView = 70f;
                 camera.targetTexture = target;
                 camera.Render();
                 RenderTexture.active = target;
@@ -199,6 +201,7 @@ namespace VoxelEngine.Tests.PlayMode
             finally
             {
                 camera.targetTexture = originalTarget;
+                camera.fieldOfView = originalFieldOfView;
                 camera.transform.SetPositionAndRotation(originalPosition, originalRotation);
                 RenderTexture.active = previousActive;
                 target.Release();
