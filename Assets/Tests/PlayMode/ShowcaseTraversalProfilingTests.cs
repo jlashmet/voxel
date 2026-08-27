@@ -202,6 +202,30 @@ namespace VoxelEngine.Tests.PlayMode
                   + $"admission={admission.Valid} worker={worker.Valid} upload={upload.Valid} "
                   + $"gc={gcCollect.Valid} main={mainThread.Valid} renderThread={renderThread.Valid}");
 
+                VoxelSurfaceMetrics stageMetrics = VoxelRenderBridge.SurfaceMetrics;
+                LogStageTiming("scheduler", in stageMetrics.SchedulerPrepareTiming);
+                LogStageTiming("journal", in stageMetrics.ChangeJournalTiming);
+                LogStageTiming("invalidation", in stageMetrics.InvalidationTiming);
+                LogStageTiming("discovery", in stageMetrics.SurfaceDiscoveryTiming);
+                LogStageTiming("worker", in stageMetrics.WorkerPrepareTiming);
+                LogStageTiming("visibility", in stageMetrics.VisibilityTiming);
+                LogStageTiming("rule-sync", in stageMetrics.RuleSyncTiming);
+                LogStageTiming("residency-prune", in stageMetrics.ResidencyPruneTiming);
+                LogStageTiming("capacity", in stageMetrics.CapacityTiming);
+                LogStageTiming("build-selection", in stageMetrics.BuildSelectionTiming);
+                LogStageTiming("snapshot", in stageMetrics.SnapshotTiming);
+                LogStageTiming("density-only", in stageMetrics.DensityOnlyTiming);
+                LogStageTiming("density-turnaround", in stageMetrics.DensityJobTurnaroundTiming);
+                LogStageTiming("topology-turnaround", in stageMetrics.TopologyJobTurnaroundTiming);
+                LogStageTiming("topology-compact", in stageMetrics.TopologyCompactTiming);
+                LogStageTiming("faceted-turnaround", in stageMetrics.FacetedJobTurnaroundTiming);
+                LogStageTiming("faceted-merge", in stageMetrics.FacetedMergeTiming);
+                LogStageTiming("profile-emit", in stageMetrics.ProfileEmitTiming);
+                LogStageTiming("upload", in stageMetrics.UploadTiming);
+                LogStageTiming("queue-latency", in stageMetrics.QueueLatencyTiming);
+                LogStageTiming("build-latency", in stageMetrics.BuildLatencyTiming);
+                LogStageTiming("gpu-build-latency", in stageMetrics.GpuBuildLatencyTiming);
+
                 Assert.AreEqual(TraversalFrames, samples.Count,
                     "Diagnostic traversal did not capture the expected frame count.");
             }
@@ -268,6 +292,14 @@ namespace VoxelEngine.Tests.PlayMode
               + $"profP95[scheduler={Percentile(scheduler, 0.95):F3} "
               + $"admission={Percentile(admission, 0.95):F3} worker={Percentile(worker, 0.95):F3} "
               + $"upload={Percentile(upload, 0.95):F3} gc={Percentile(gc, 0.95):F3}]");
+        }
+
+        private static void LogStageTiming(string stage, in VoxelTimingSummary timing)
+        {
+            UnityEngine.Debug.Log(
+                $"### SHOWCASE_TRAVERSAL_STAGE stage={stage} samples={timing.SampleCount} "
+              + $"last={timing.LastMs:F3}ms p50={timing.P50Ms:F3}ms "
+              + $"p95={timing.P95Ms:F3}ms p99={timing.P99Ms:F3}ms max={timing.MaxMs:F3}ms");
         }
 
         private static double RecorderMs(in ProfilerRecorder recorder) =>
