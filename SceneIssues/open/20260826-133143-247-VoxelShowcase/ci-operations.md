@@ -1,7 +1,8 @@
 # CI operations — 20260826-133143-247-VoxelShowcase
 
-- Run `33072410408`: exact request failed before test execution on test compile error (`CS8156`); diagnostic only, no visual verification.
-- Run `33091322901`: request parsing and saved-pose replay/player build succeeded, but the first behavioral spacing assertion failed; this established that CI/replay plumbing was healthy.
-- Run `33093457984`, job `98592135830`: exact source `b2d6240b7a6f1442eb64afa4b49495476438485c`, request `8f5397ba6be7966c3b2bd6876fafeb6fc91ec829`. The 45-second real-player replay, final screenshot preview, and Linux player build succeeded. The exact PlayMode test failed with runtime evidence: `orientation 0 at cross-axis 218 leaves only 13 voxels ... expected at least 20`.
-- Root cause from that exact failure: cross-axis 218 is `civic-east-block-south`; its 20-dm court-access gap forces one packed site on each short segment. Module pitch cannot fix the minimum-one-per-segment case. The content fix widens that authored access to 34 dm, which yields 20 dm envelope clearance while preserving the two flanking houses and real court route.
-- Final gate still required after refreshing current `origin/master`: one new exact-SHA request for `VoxelEngine.Tests.PlayMode.KentridgeUrbanFabricSpacingPlayModeTests.ProductionAnonymousFrontagesLeavePedestrianClearanceBetweenHouses`, with this capture replayed for 45 seconds. No queued/running request is to be replaced.
+- Earlier diagnostic requests exposed two actionable failures: first a regression compile error, then exact run `33091322901` showed a real product failure of 13 dm clearance versus the 20 dm requirement at orientation 0 / cross-axis 218. Those failed runs do not satisfy verification.
+- Root-cause correction: widen only `civic-east-block` court access 20→34 dm after tracing z=218 to its 150-dm south frontage and the packer's minimum-one-site-per-segment behavior.
+- Final exact source: `00ca989651ebe5228d065d39135af4b6aaeb8a45`.
+- Final request: `8f8aed4476bef7ffbc32bfa43b3b793b409afe3a`, request id `agent3-133143-final-00ca9896`; `H..R` changes only `.github/test-request.json`.
+- Actions run `33095828697`, job `98600348372`: exact PlayMode regression succeeded; saved-pose real-player capture succeeded; screenshot previews and result artifact upload succeeded; final `ci/single-test=success`.
+- Artifact: `single-test-33095828697` (id `9656609875`, digest `sha256:e46c3cb139d1fe9bef9acdd24be5501452656a2ba0f6888b2586d985c652484e`). Final replay image inspected and committed as `verification-final.png`.
