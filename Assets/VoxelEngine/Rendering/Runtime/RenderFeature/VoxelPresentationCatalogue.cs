@@ -161,23 +161,32 @@ namespace VoxelEngine.Rendering.Runtime
             int width = Mathf.Min(first.width, 1024);
             int height = Mathf.Min(first.height, 1024);
             var array = new Texture2DArray(width, height, sources.Length,
-                TextureFormat.RGBA32, false, linear)
+                TextureFormat.RGBA32, true, linear)
             {
                 name = linear ? "Voxel normal texture array" : "Voxel albedo texture array",
                 wrapMode = TextureWrapMode.Repeat,
-                filterMode = FilterMode.Bilinear,
+                filterMode = FilterMode.Trilinear,
             };
 
-            RenderTexture temporary = RenderTexture.GetTemporary(width, height, 0,
-                RenderTextureFormat.ARGB32, linear ? RenderTextureReadWrite.Linear
-                                                  : RenderTextureReadWrite.sRGB);
+            var descriptor = new RenderTextureDescriptor(width, height,
+                RenderTextureFormat.ARGB32, 0)
+            {
+                msaaSamples = 1,
+                useMipMap = true,
+                autoGenerateMips = false,
+                sRGB = !linear,
+            };
+            RenderTexture temporary = RenderTexture.GetTemporary(descriptor);
             try
             {
                 for (int layer = 0; layer < sources.Length; layer++)
                 {
                     Texture source = sources[layer] != null ? sources[layer] : first;
                     Graphics.Blit(source, temporary);
-                    Graphics.CopyTexture(temporary, 0, 0, array, layer, 0);
+                    temporary.GenerateMips();
+                    int mipCount = Mathf.Min(array.mipmapCount, temporary.mipmapCount);
+                    for (int mip = 0; mip < mipCount; mip++)
+                        Graphics.CopyTexture(temporary, 0, mip, array, layer, mip);
                 }
             }
             finally
