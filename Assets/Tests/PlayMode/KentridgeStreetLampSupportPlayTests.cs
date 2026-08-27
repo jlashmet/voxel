@@ -17,9 +17,12 @@ namespace VoxelEngine.Tests.PlayMode
         [Test]
         public void CapturedEastMarketLampKeepsPlanarSupportUnderLantern()
         {
+            VoxelWorldGenSettings settings = BuildSettings();
             FeatureCatalogue catalogue = KentridgeStreetDressingCatalogue.Build(
-                ShowcaseSeed, BuildSettings(), Allocator.Temp);
-            var primitives = new NativeList<Primitive>(8, Allocator.Temp);
+                ShowcaseSeed, settings, Allocator.Temp);
+            FeatureCatalogue districtCatalogue = KentridgeDistrictTerraceCatalogue.Build(
+                ShowcaseSeed, settings, Allocator.Temp);
+            var primitives = new NativeList<Primitive>(48, Allocator.Temp);
             var anchors = new NativeList<ResolvedAnchor>(1, Allocator.Temp);
 
             try
@@ -44,6 +47,76 @@ namespace VoxelEngine.Tests.PlayMode
 
                 Assert.IsTrue(found,
                     "The exact east-market lamp visible from SceneIssue 20260826-132505 must remain authored.");
+
+                PlacementRule districtRule = default;
+                FeatureDefinition districtDefinition = default;
+                bool foundWorkingYard = false;
+                for (int i = 0; i < districtCatalogue.Rules.Length; i++)
+                {
+                    PlacementRule candidateRule = districtCatalogue.Rules[i];
+                    FeatureDefinition candidateDefinition =
+                        districtCatalogue.Definitions[candidateRule.DefinitionId];
+                    if (candidateDefinition.Name.ToString()
+                        != "kentridge-district-terrace-working-yard")
+                        continue;
+
+                    districtRule = candidateRule;
+                    districtDefinition = candidateDefinition;
+                    foundWorkingYard = true;
+                    break;
+                }
+
+                Assert.IsTrue(foundWorkingYard,
+                    "The working-yard district terrace that owns the captured sidewalk must remain authored.");
+                Assert.AreEqual(1, districtRule.ExplicitCount);
+
+                ExplicitPlacement districtPlacement =
+                    districtCatalogue.ExplicitPlacements[districtRule.ExplicitOffset];
+                ParameterSet districtParameters = FeatureGeneration.ResolveParameters(
+                    in districtCatalogue, in districtDefinition, in districtPlacement,
+                    districtRule.DefinitionId, districtPlacement.Position, ShowcaseSeed);
+                ulong districtInstanceSeed = FeatureGeneration.InstanceSeed(
+                    ShowcaseSeed, districtRule.DefinitionId, districtPlacement.Position);
+
+                EvaluationResult districtResult = ShapeProgram.Evaluate(
+                    in districtCatalogue, districtRule.DefinitionId, in districtParameters,
+                    districtPlacement.Position, districtPlacement.Orientation,
+                    ShowcaseSeed, districtInstanceSeed, primitives, anchors);
+                Assert.AreEqual(EvaluationResult.Ok, districtResult);
+
+                int worldX = CapturedLampXDm * settings.VoxelsPerDecimetre;
+                int worldZ = CapturedLampZDm * settings.VoxelsPerDecimetre;
+                int generatedGroundSurfaceY = int.MinValue;
+                for (int i = 0; i < primitives.Length; i++)
+                {
+                    Primitive primitive = primitives[i];
+                    if (primitive.Mode != PrimitiveMode.Fill
+                        || primitive.Shape != PrimitiveShape.Box)
+                        continue;
+
+                    primitive.Bounds(out var min, out var max);
+                    if (worldX < min.x || worldX > max.x
+                        || worldZ < min.z || worldZ > max.z)
+                        continue;
+
+                    int candidateSurfaceY = max.y + 1;
+                    if (candidateSurfaceY > generatedGroundSurfaceY)
+                        generatedGroundSurfaceY = candidateSurfaceY;
+                }
+
+                Assert.AreNotEqual(int.MinValue, generatedGroundSurfaceY,
+                    "The production working-yard terrace must generate solid support under the captured lamp column.");
+                Assert.AreEqual(generatedGroundSurfaceY, placement.Position.y,
+                    "The captured lamp must start exactly on the district shoulder generated beneath its sidewalk.");
+                Assert.AreNotEqual(
+                    KentridgeVerticalProfile.SurfaceYAtDm(
+                        CapturedLampXDm, CapturedLampZDm, ShowcaseSeed,
+                        settings.VoxelsPerDecimetre),
+                    placement.Position.y,
+                    "This regression must exercise the captured shoulder/macro mismatch rather than a flat macro column.");
+
+                primitives.Clear();
+                anchors.Clear();
 
                 ParameterSet parameters = FeatureGeneration.ResolveParameters(
                     in catalogue, in lampDefinition, in placement, lampRule.DefinitionId,
@@ -95,6 +168,7 @@ namespace VoxelEngine.Tests.PlayMode
             {
                 anchors.Dispose();
                 primitives.Dispose();
+                districtCatalogue.Dispose();
                 catalogue.Dispose();
             }
         }
