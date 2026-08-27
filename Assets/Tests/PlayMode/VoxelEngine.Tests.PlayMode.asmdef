@@ -46,6 +46,7 @@
         "Game.Structures.Api",
         "Game.Structures.Runtime",
         "Game.Materials.Api",
+        "Game.Materials.Runtime",
         "Game.Composition.Showcase"
     ],
     "includePlatforms": [],
