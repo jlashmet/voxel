@@ -1,5 +1,6 @@
 using System;
 using MountingForce.WorldGen.Architecture;
+using VoxelEngine.Storage.Api;
 using VoxelEngine.Structures.Api;
 
 namespace MountingForce.WorldGen.Voxel
