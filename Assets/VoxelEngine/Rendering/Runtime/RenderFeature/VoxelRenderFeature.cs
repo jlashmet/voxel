@@ -81,20 +81,6 @@ namespace VoxelEngine.Rendering.Runtime
                          m_DarkStoneTexture, m_DarkStoneNormal, m_SkyTexture);
         }
 
-        /// <summary>
-        /// The continuous-surface pass publishes the renderer-owned material tables and texture
-        /// arrays as global GPU state before drawing the near surface. Ordinary opaque consumers
-        /// such as VoxelFarTerrain read that exact state in their own draw, so the publishing pass
-        /// cannot be scheduled after URP's opaque phase. Preserve any intentionally earlier event,
-        /// but clamp later configuration to the latest safe boundary.
-        /// </summary>
-        private static RenderPassEvent ResolveSurfacePassEvent(RenderPassEvent configuredEvent)
-        {
-            return configuredEvent <= RenderPassEvent.BeforeRenderingOpaques
-                ? configuredEvent
-                : RenderPassEvent.BeforeRenderingOpaques;
-        }
-
         public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
         {
             if (!m_Enabled || m_Pass == null) return;
@@ -109,7 +95,7 @@ namespace VoxelEngine.Rendering.Runtime
                 renderer.EnqueuePass(m_SkyPass);
             }
 
-            m_Pass.renderPassEvent = ResolveSurfacePassEvent(m_Event);
+            m_Pass.renderPassEvent = m_Event;
             m_Pass.Enabled = m_Enabled;
             m_Pass.RenderScale = m_RenderScale;
             m_Pass.VoxelSize = m_VoxelSize;
