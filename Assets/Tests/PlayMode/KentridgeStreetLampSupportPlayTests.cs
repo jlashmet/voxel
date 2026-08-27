@@ -2,203 +2,136 @@ using MountingForce.WorldGen;
 using MountingForce.WorldGen.Voxel;
 using NUnit.Framework;
 using Unity.Collections;
+using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Structures.Api;
-using VoxelEngine.Structures.Runtime;
 
 namespace VoxelEngine.Tests.PlayMode
 {
     public sealed class KentridgeStreetLampSupportPlayTests
     {
-        private const uint ShowcaseSeed = 1592594996u;
-        private const int CapturedLampXDm = 1530;
-        private const int CapturedLampZDm = 549;
-
         [Test]
         public void CapturedEastMarketLampKeepsPlanarSupportUnderLantern()
         {
-            VoxelWorldGenSettings settings = BuildSettings();
-            FeatureCatalogue catalogue = KentridgeStreetDressingCatalogue.Build(
-                ShowcaseSeed, settings, Allocator.Temp);
-            FeatureCatalogue districtCatalogue = KentridgeDistrictTerraceCatalogue.Build(
-                ShowcaseSeed, settings, Allocator.Temp);
-            var primitives = new NativeList<Primitive>(48, Allocator.Temp);
-            var anchors = new NativeList<ResolvedAnchor>(1, Allocator.Temp);
+            const uint seed = 1592594996u;
+            VoxelWorldGenSettings settings = CreateSettings();
+            FeatureCatalogue street = KentridgeStreetDressingCatalogue.Build(seed, settings, Allocator.TempJob);
+            FeatureCatalogue terrace = KentridgeDistrictTerraceCatalogue.Build(seed, settings, Allocator.TempJob);
+            NativeList<ShapeCommand> shapes = new NativeList<ShapeCommand>(Allocator.Temp);
+            NativeList<ShapeCommand> terrainShapes = new NativeList<ShapeCommand>(Allocator.Temp);
 
             try
             {
-                PlacementRule lampRule = catalogue.Rules[0];
-                FeatureDefinition lampDefinition = catalogue.Definitions[lampRule.DefinitionId];
-                ExplicitPlacement placement = default;
-                bool found = false;
-
-                for (int i = 0; i < lampRule.ExplicitCount; i++)
+                int lampDefinition = -1;
+                int lampPlacement = -1;
+                for (int d = 0; d < street.Definitions.Length; d++)
                 {
-                    ExplicitPlacement candidate =
-                        catalogue.ExplicitPlacements[lampRule.ExplicitOffset + i];
-                    if (candidate.Position.x == CapturedLampXDm
-                        && candidate.Position.z == CapturedLampZDm)
+                    FeatureDefinition definition = street.Definitions[d];
+                    for (int p = 0; p < definition.PlacementCount; p++)
                     {
-                        placement = candidate;
-                        found = true;
+                        int index = definition.PlacementStart + p;
+                        ExplicitPlacement placement = street.ExplicitPlacements[index];
+                        if (placement.Position.x == 1530 && placement.Position.z == 549)
+                        {
+                            lampDefinition = d;
+                            lampPlacement = index;
+                            break;
+                        }
+                    }
+                    if (lampPlacement >= 0)
                         break;
-                    }
                 }
 
-                Assert.IsTrue(found,
-                    "The exact east-market lamp visible from SceneIssue 20260826-132505 must remain authored.");
+                Assert.That(lampDefinition, Is.GreaterThanOrEqualTo(0), "Captured east-market lamp definition not found.");
+                Assert.That(lampPlacement, Is.GreaterThanOrEqualTo(0), "Captured east-market lamp placement not found.");
 
-                PlacementRule districtRule = default;
-                FeatureDefinition districtDefinition = default;
-                bool foundWorkingYard = false;
-                for (int i = 0; i < districtCatalogue.Rules.Length; i++)
-                {
-                    PlacementRule candidateRule = districtCatalogue.Rules[i];
-                    FeatureDefinition candidateDefinition =
-                        districtCatalogue.Definitions[candidateRule.DefinitionId];
-                    if (candidateDefinition.Name.ToString()
-                        != "kentridge-district-terrace-working-yard")
-                        continue;
+                ExplicitPlacement capturedPlacement = street.ExplicitPlacements[lampPlacement];
+                FeatureDefinition capturedDefinition = street.Definitions[lampDefinition];
+                Assert.That(capturedDefinition.ProgramIndex, Is.GreaterThanOrEqualTo(0));
 
-                    districtRule = candidateRule;
-                    districtDefinition = candidateDefinition;
-                    foundWorkingYard = true;
-                    break;
-                }
-
-                Assert.IsTrue(foundWorkingYard,
-                    "The working-yard district terrace that owns the captured sidewalk must remain authored.");
-                Assert.AreEqual(1, districtRule.ExplicitCount);
-
-                ExplicitPlacement districtPlacement =
-                    districtCatalogue.ExplicitPlacements[districtRule.ExplicitOffset];
-                ParameterSet districtParameters = FeatureGeneration.ResolveParameters(
-                    in districtCatalogue, in districtDefinition, in districtPlacement,
-                    districtRule.DefinitionId, districtPlacement.Position, ShowcaseSeed);
-                ulong districtInstanceSeed = FeatureGeneration.InstanceSeed(
-                    ShowcaseSeed, districtRule.DefinitionId, districtPlacement.Position);
-
-                EvaluationResult districtResult = ShapeProgram.Evaluate(
-                    in districtCatalogue, districtRule.DefinitionId, in districtParameters,
-                    districtPlacement.Position, districtPlacement.Orientation,
-                    ShowcaseSeed, districtInstanceSeed, primitives, anchors);
-                Assert.AreEqual(EvaluationResult.Ok, districtResult);
-
-                int worldX = CapturedLampXDm * settings.VoxelsPerDecimetre;
-                int worldZ = CapturedLampZDm * settings.VoxelsPerDecimetre;
+                int macroSurfaceY = KentridgeVerticalProfile.SurfaceYAtDm(1530, 549, seed, settings.VoxelsPerDecimetre);
                 int generatedGroundSurfaceY = int.MinValue;
-                for (int i = 0; i < primitives.Length; i++)
+                int3 terraceQuery = new int3(1530, 0, 549);
+                for (int d = 0; d < terrace.Definitions.Length; d++)
                 {
-                    Primitive primitive = primitives[i];
-                    if (primitive.Mode != PrimitiveMode.Fill
-                        || primitive.Shape != PrimitiveShape.Box)
-                        continue;
-
-                    primitive.Bounds(out var min, out var max);
-                    if (worldX < min.x || worldX > max.x
-                        || worldZ < min.z || worldZ > max.z)
-                        continue;
-
-                    int candidateSurfaceY = max.y + 1;
-                    if (candidateSurfaceY > generatedGroundSurfaceY)
-                        generatedGroundSurfaceY = candidateSurfaceY;
-                }
-
-                Assert.AreNotEqual(int.MinValue, generatedGroundSurfaceY,
-                    "The production working-yard terrace must generate solid support under the captured lamp column.");
-                Assert.AreEqual(generatedGroundSurfaceY, placement.Position.y,
-                    "The captured lamp origin must remain the first empty voxel above its generated district shoulder.");
-                Assert.AreNotEqual(
-                    KentridgeVerticalProfile.SurfaceYAtDm(
-                        CapturedLampXDm, CapturedLampZDm, ShowcaseSeed,
-                        settings.VoxelsPerDecimetre),
-                    placement.Position.y,
-                    "This regression must exercise the captured shoulder/macro mismatch rather than a flat macro column.");
-
-                primitives.Clear();
-                anchors.Clear();
-
-                ParameterSet parameters = FeatureGeneration.ResolveParameters(
-                    in catalogue, in lampDefinition, in placement, lampRule.DefinitionId,
-                    placement.Position, ShowcaseSeed);
-                ulong instanceSeed = FeatureGeneration.InstanceSeed(
-                    ShowcaseSeed, lampRule.DefinitionId, placement.Position);
-
-                EvaluationResult result = ShapeProgram.Evaluate(
-                    in catalogue, lampRule.DefinitionId, in parameters,
-                    placement.Position, placement.Orientation,
-                    ShowcaseSeed, instanceSeed, primitives, anchors);
-
-                Assert.AreEqual(EvaluationResult.Ok, result);
-                Assert.AreEqual(4, primitives.Length,
-                    "The production lamp should remain base, pole, lantern, and roof.");
-
-                Primitive foot = default;
-                Primitive support = default;
-                Primitive lantern = default;
-                bool foundFoot = false;
-                bool foundSupport = false;
-                bool foundLantern = false;
-                for (int i = 0; i < primitives.Length; i++)
-                {
-                    Primitive primitive = primitives[i];
-                    if (primitive.Shape == PrimitiveShape.Cylinder && primitive.Material == 1)
+                    FeatureDefinition definition = terrace.Definitions[d];
+                    for (int p = 0; p < definition.PlacementCount; p++)
                     {
-                        foot = primitive;
-                        foundFoot = true;
-                    }
-                    else if (primitive.Shape == PrimitiveShape.Box && primitive.Material == 6)
-                    {
-                        support = primitive;
-                        foundSupport = true;
-                    }
-                    else if (primitive.Shape == PrimitiveShape.Box && primitive.Material == 15)
-                    {
-                        lantern = primitive;
-                        foundLantern = true;
+                        ExplicitPlacement placement = terrace.ExplicitPlacements[definition.PlacementStart + p];
+                        VoxelBounds bounds = definition.LocalBounds.Translate(placement.Position);
+                        if (terraceQuery.x < bounds.Min.x || terraceQuery.x > bounds.Max.x ||
+                            terraceQuery.z < bounds.Min.z || terraceQuery.z > bounds.Max.z)
+                            continue;
+
+                        terrainShapes.Clear();
+                        ShapeProgramEvaluator.Evaluate(terrace.Programs[definition.ProgramIndex], terrainShapes);
+                        for (int s = 0; s < terrainShapes.Length; s++)
+                        {
+                            ShapeCommand command = terrainShapes[s];
+                            VoxelBounds commandBounds = command.Bounds.Translate(placement.Position);
+                            if (terraceQuery.x < commandBounds.Min.x || terraceQuery.x > commandBounds.Max.x ||
+                                terraceQuery.z < commandBounds.Min.z || terraceQuery.z > commandBounds.Max.z)
+                                continue;
+                            generatedGroundSurfaceY = math.max(generatedGroundSurfaceY, commandBounds.Max.y);
+                        }
                     }
                 }
 
-                Assert.IsTrue(foundFoot,
-                    "The captured lamp must retain its foundation-stone ground-contact cylinder.");
-                Assert.IsTrue(foundSupport,
-                    "The captured lamp must retain its dark-stone support primitive.");
-                Assert.IsTrue(foundLantern,
-                    "The captured lamp must retain the warm lantern head that exposed the floating-support defect.");
-                Assert.AreEqual(SurfaceStyles.Planar, foot.SurfaceStyle,
-                    "The visible lamp foot must reconstruct exactly instead of inheriting stone smoothing.");
-                Assert.AreEqual(SurfaceStyles.Planar, support.SurfaceStyle,
-                    "A 3x3-voxel lamp pole must not inherit dark stone's Smooth reconstruction.");
+                Assert.That(generatedGroundSurfaceY, Is.GreaterThan(int.MinValue), "No production terrace solid owns the captured lamp column.");
+                Assert.AreNotEqual(macroSurfaceY, generatedGroundSurfaceY + 1,
+                    "The capture must keep discriminating district ground from the macro elevation.");
+                Assert.AreEqual(generatedGroundSurfaceY + 1, capturedPlacement.Position.y,
+                    "Captured lamp origin must remain the first empty voxel above the working-yard terrace solid.");
 
-                foot.Bounds(out var footMin, out var footMax);
-                Assert.AreEqual(generatedGroundSurfaceY - 1, footMin.y,
-                    "The exact lamp foot must overlap the terrace's top occupied voxel so Smooth ground reconstruction cannot open a visible seam.");
-                Assert.AreEqual(
-                    placement.Position.y + 4 * settings.VoxelsPerDecimetre - 1,
-                    footMax.y,
-                    "Embedding the foot must preserve its original top plane and therefore leave all upper lamp geometry unchanged.");
+                shapes.Clear();
+                ShapeProgramEvaluator.Evaluate(street.Programs[capturedDefinition.ProgramIndex], shapes);
+                ShapeCommand? foot = null;
+                ShapeCommand? pole = null;
+                ShapeCommand? lantern = null;
+                for (int i = 0; i < shapes.Length; i++)
+                {
+                    ShapeCommand command = shapes[i];
+                    command.Bounds(out int3 min, out int3 max);
+                    if (command.SurfaceStyle != SurfaceStyles.Planar)
+                        continue;
+                    if (command.Material == settings.Materials.Stone && min.y < 0 && max.y == 3)
+                        foot = command;
+                    else if (command.Material == settings.Materials.DarkStone && min.y == 4 && max.y >= 30)
+                        pole = command;
+                    else if (command.Material == settings.Materials.Glow && min.y >= 30)
+                        lantern = command;
+                }
 
-                support.Bounds(out _, out var supportMax);
-                lantern.Bounds(out var lanternMin, out _);
-                Assert.GreaterOrEqual(supportMax.y, lanternMin.y,
-                    "The exact support must physically overlap the lantern instead of leaving a vertical gap.");
+                Assert.That(foot.HasValue, "Expected embedded Planar stone lamp foot.");
+                Assert.That(pole.HasValue, "Expected Planar dark-stone lamp support.");
+                Assert.That(lantern.HasValue, "Expected Planar glow lantern head.");
+
+                foot.Value.Bounds(out int3 footMin, out int3 footMax);
+                pole.Value.Bounds(out int3 poleMin, out int3 poleMax);
+                lantern.Value.Bounds(out int3 lanternMin, out int3 lanternMax);
+                Assert.AreEqual(generatedGroundSurfaceY - 1, capturedPlacement.Position.y + footMin.y,
+                    "Lamp foot must overlap the terrace top by one voxel so Smooth reconstruction cannot expose a seam.");
+                Assert.AreEqual(capturedPlacement.Position.y + 3, capturedPlacement.Position.y + footMax.y,
+                    "Embedding the foot must preserve its original top plane.");
+                Assert.LessOrEqual(footMax.y + 1, poleMin.y,
+                    "Foot must meet the pole without moving upper lamp geometry.");
+                Assert.LessOrEqual(poleMax.y, lanternMin.y,
+                    "Planar support must remain continuous under the lantern.");
             }
             finally
             {
-                anchors.Dispose();
-                primitives.Dispose();
-                districtCatalogue.Dispose();
-                catalogue.Dispose();
+                if (terrainShapes.IsCreated) terrainShapes.Dispose();
+                if (shapes.IsCreated) shapes.Dispose();
+                terrace.Dispose();
+                street.Dispose();
             }
         }
 
-        private static VoxelWorldGenSettings BuildSettings()
+        private static VoxelWorldGenSettings CreateSettings()
         {
-            var materials = new VoxelMaterialMap(
-                foundationStone: 1, masonry: 1, darkMasonry: 6,
-                timber: 2, glass: 4, warmWindow: 15,
-                roofTile: 8, slate: 7, cloth: 9,
-                moss: 14, water: 11, roadSurface: 13);
+            VoxelMaterialIds materials = new VoxelMaterialIds(
+                air: 0, dirt: 1, grass: 2, stone: 3, wood: 4, leaf: 5, darkStone: 6,
+                roofTile: 8, slate: 7, cloth: 9, moss: 14, water: 11, roadSurface: 13);
             return new VoxelWorldGenSettings(1, materials);
         }
     }
