@@ -463,6 +463,11 @@ namespace VoxelEngine.Showcase
             if (_gen.Active) FinishRegionForced();
 
             BeginRegion(regionCoord);
+            CompleteRegionBlocking(regionCoord);
+        }
+
+        private void CompleteRegionBlocking(int3 regionCoord)
+        {
             while (!StepRegion()) { }
             FinishRegion();
 
@@ -769,21 +774,32 @@ namespace VoxelEngine.Showcase
 
         private void BeginRegion(int3 regionCoord)
         {
-            _gen.Active = true;
-            _gen.Coord = regionCoord;
-            _gen.Region = _table.LoadRegion(regionCoord);
-            _gen.Heights = new NativeArray<int>(RegionVoxelEdge * RegionVoxelEdge, Allocator.Persistent);
-            _gen.Phase = 0;
-            _gen.Cursor = 0;
+            var heights =
+                new NativeArray<int>(RegionVoxelEdge * RegionVoxelEdge, Allocator.Persistent);
             int3 originVoxel = regionCoord * RegionVoxelEdge;
-            _gen.HeightJob = new ShowcaseHeightJob
+            JobHandle heightJob = new ShowcaseHeightJob
             {
-                Heights = _gen.Heights,
+                Heights = heights,
                 Origin = new int2(originVoxel.x, originVoxel.z),
                 Edge = RegionVoxelEdge,
                 Seed = Seed,
-            }.Schedule(_gen.Heights.Length, 256);
+            }.Schedule(heights.Length, 256);
+            BeginRegion(regionCoord, heights, heightJob);
+        }
+
+        private void BeginRegion(
+            int3 regionCoord,
+            NativeArray<int> preparedHeights,
+            JobHandle preparedHeightJob)
+        {
+            _gen.Active = true;
+            _gen.Coord = regionCoord;
+            _gen.Region = _table.LoadRegion(regionCoord);
+            _gen.Heights = preparedHeights;
+            _gen.HeightJob = preparedHeightJob;
             _gen.HeightJobScheduled = true;
+            _gen.Phase = 0;
+            _gen.Cursor = 0;
         }
 
         /// <summary>Advances the in-flight region by one slice. Returns true when it is complete.</summary>

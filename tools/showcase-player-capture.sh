@@ -216,22 +216,39 @@ rm -rf "$BUILD_DIR" "$SHOTS_DIR"
 mkdir -p "$OUTPUT_ROOT" "$BUILD_DIR"
 if [[ -z "$STATIONARY_SAMPLE" ]]; then mkdir -p "$SHOTS_DIR"; fi
 
-wait_for_unity_quiet
-
 BUILD_ARGS=(-batchmode -nographics -quit)
 if [[ -n "$STATIONARY_SAMPLE" ]]; then BUILD_ARGS+=(-voxelFrameTimingStats); fi
 if [[ -n "$SCENE_ISSUE" ]]; then BUILD_ARGS+=(-voxelDevelopment); fi
 
-echo "Building real player for $SCENE"
-UNITY_MAX_RSS_MB="${UNITY_MAX_RSS_MB:-12288}" \
-UNITY_MAX_MINUTES="${UNITY_MAX_MINUTES:-25}" \
-UNITY_BIN="$UNITY_PATH" tools/unity-run.sh \
-  "${BUILD_ARGS[@]}" \
-  -projectPath "$PWD" \
-  -executeMethod VoxelEngine.Showcase.Editor.ShowcasePlayerBuild.Build \
-  -voxelScene "$SCENE" \
-  -voxelBuildOutput "$BUILD_DIR" \
-  -logFile "$BUILD_LOG"
+BUILD_MODE=release
+if [[ -n "$STATIONARY_SAMPLE" ]]; then
+  BUILD_MODE=frame-timing
+fi
+if [[ -n "$SCENE_ISSUE" && "$BUILD_MODE" == frame-timing ]]; then
+  BUILD_MODE=development-frame-timing
+elif [[ -n "$SCENE_ISSUE" ]]; then
+  BUILD_MODE=development
+fi
+SHOWCASE_BAKE=""
+if [[ -s Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes ]]; then
+  SHOWCASE_BAKE=Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes
+fi
+PLAYER_FINGERPRINT="$(tools/showcase-player-cache.sh fingerprint "$SCENE" "$BUILD_MODE" "$SHOWCASE_BAKE")"
+
+if ! tools/showcase-player-cache.sh restore "$PLAYER_FINGERPRINT" "$BUILD_DIR"; then
+  wait_for_unity_quiet
+  echo "Building real player for $SCENE"
+  UNITY_MAX_RSS_MB="${UNITY_MAX_RSS_MB:-12288}" \
+  UNITY_MAX_MINUTES="${UNITY_MAX_MINUTES:-25}" \
+  UNITY_BIN="$UNITY_PATH" tools/unity-run.sh \
+    "${BUILD_ARGS[@]}" \
+    -projectPath "$PWD" \
+    -executeMethod VoxelEngine.Showcase.Editor.ShowcasePlayerBuild.Build \
+    -voxelScene "$SCENE" \
+    -voxelBuildOutput "$BUILD_DIR" \
+    -logFile "$BUILD_LOG"
+  tools/showcase-player-cache.sh store "$PLAYER_FINGERPRINT" "$BUILD_DIR"
+fi
 
 APP="$(find "$BUILD_DIR" -maxdepth 1 -type d -name '*.app' -print -quit)"
 [[ -n "$APP" && -d "$APP" ]] || {

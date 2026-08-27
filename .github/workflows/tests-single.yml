@@ -157,7 +157,7 @@ jobs:
               if platform != 'PlayMode':
                   raise SystemExit('ERROR: scene-issue replay requires platform=PlayMode')
               if replay_seconds in (None, ''):
-                  replay_seconds = 45
+                  replay_seconds = 30
               if isinstance(replay_seconds, bool) or not isinstance(replay_seconds, int) \
                       or replay_seconds < 20 or replay_seconds > 60:
                   raise SystemExit('ERROR: "replay_seconds" must be an integer from 20 to 60')

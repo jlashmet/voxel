@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using Unity.Collections;
+using Unity.Jobs;
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
 
@@ -11,6 +12,7 @@ namespace VoxelEngine.Showcase
     public sealed partial class ShowcaseWorld
     {
         private const int BakeMaxRegionSnapshotBytes = ShowcaseWorldBakeCodec.MaxRawRegionPayloadBytes;
+        private const int BakeHeightPipelineDepth = 4;
         private static readonly TimeSpan BakeCastleTimeout = TimeSpan.FromMinutes(10);
 
         /// <summary>
@@ -99,6 +101,7 @@ namespace VoxelEngine.Showcase
 
         private void MaterialiseStartupDisc(int3 centre, int radius)
         {
+            var orderedRegions = new List<int3>();
             for (int dx = -radius; dx <= radius; dx++)
             for (int dz = -radius; dz <= radius; dz++)
             {
@@ -111,10 +114,116 @@ namespace VoxelEngine.Showcase
                     maxLayer = minLayer + MaxSurfaceLayersPerColumn;
 
                 for (int ry = minLayer; ry <= maxLayer; ry++)
-                    GenerateRegionBlocking(new int3(rx, ry, rz));
+                    orderedRegions.Add(new int3(rx, ry, rz));
 
                 if (centre.y < minLayer || centre.y > maxLayer)
-                    GenerateRegionBlocking(new int3(rx, centre.y, rz));
+                    orderedRegions.Add(new int3(rx, centre.y, rz));
+            }
+
+            GenerateTerrainRegionsForBakeBlocking(orderedRegions, BakeHeightPipelineDepth);
+        }
+
+        /// <summary>
+        /// Overlaps the independent Burst height jobs for a small bounded group of regions, then
+        /// performs all storage and feature mutation in the original deterministic order.
+        /// </summary>
+        internal void GenerateTerrainRegionsForBakeBlocking(
+            IReadOnlyList<int3> orderedRegions,
+            int pipelineDepth)
+        {
+            if (orderedRegions == null) throw new ArgumentNullException(nameof(orderedRegions));
+            if (pipelineDepth < 1 || pipelineDepth > 16)
+                throw new ArgumentOutOfRangeException(nameof(pipelineDepth));
+
+            var pending = new List<int3>(orderedRegions.Count);
+            var seen = new HashSet<int3>();
+            for (int i = 0; i < orderedRegions.Count; i++)
+            {
+                int3 coord = orderedRegions[i];
+                if (_generated.Contains(coord) || !seen.Add(coord)) continue;
+                pending.Add(coord);
+            }
+
+            for (int start = 0; start < pending.Count; start += pipelineDepth)
+            {
+                int count = math.min(pipelineDepth, pending.Count - start);
+                var prepared = new PreparedBakeRegionHeight[count];
+                try
+                {
+                    for (int i = 0; i < count; i++)
+                        prepared[i] = PrepareBakeRegionHeight(pending[start + i]);
+                    JobHandle.ScheduleBatchedJobs();
+
+                    for (int i = 0; i < count; i++)
+                        GeneratePreparedRegionBlocking(prepared[i]);
+                }
+                finally
+                {
+                    for (int i = 0; i < count; i++)
+                        prepared[i]?.Dispose();
+                }
+            }
+        }
+
+        private PreparedBakeRegionHeight PrepareBakeRegionHeight(int3 coord)
+        {
+            var heights =
+                new NativeArray<int>(RegionVoxelEdge * RegionVoxelEdge, Allocator.Persistent);
+            int3 originVoxel = coord * RegionVoxelEdge;
+            JobHandle job = new ShowcaseHeightJob
+            {
+                Heights = heights,
+                Origin = new int2(originVoxel.x, originVoxel.z),
+                Edge = RegionVoxelEdge,
+                Seed = Seed,
+            }.Schedule(heights.Length, 256);
+            return new PreparedBakeRegionHeight(coord, heights, job);
+        }
+
+        private void GeneratePreparedRegionBlocking(PreparedBakeRegionHeight prepared)
+        {
+            if (_gen.Active) FinishRegionForced();
+            BeginRegion(prepared.Coord, prepared.Heights, prepared.HeightJob);
+            prepared.TransferOwnership();
+            try
+            {
+                CompleteRegionBlocking(prepared.Coord);
+            }
+            catch
+            {
+                FinishRegionForced();
+                throw;
+            }
+        }
+
+        private sealed class PreparedBakeRegionHeight : IDisposable
+        {
+            private bool _transferred;
+
+            public PreparedBakeRegionHeight(
+                int3 coord,
+                NativeArray<int> heights,
+                JobHandle heightJob)
+            {
+                Coord = coord;
+                Heights = heights;
+                HeightJob = heightJob;
+            }
+
+            public int3 Coord { get; }
+            public NativeArray<int> Heights { get; }
+            public JobHandle HeightJob { get; }
+
+            public void TransferOwnership()
+            {
+                _transferred = true;
+            }
+
+            public void Dispose()
+            {
+                if (_transferred) return;
+                HeightJob.Complete();
+                if (Heights.IsCreated) Heights.Dispose();
             }
         }
 

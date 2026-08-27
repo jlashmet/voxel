@@ -41,3 +41,6 @@ jobs:
             exit 1
           fi
           echo 'No task-specific one-shot workflows found.'
+      - name: Validate Showcase CI cache contracts
+        shell: bash
+        run: tools/test-showcase-ci-cache.sh

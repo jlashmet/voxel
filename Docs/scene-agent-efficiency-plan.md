@@ -2,45 +2,49 @@
 
 ## Goal
 
-Reduce self-hosted Unity runner congestion and prevent scene-issue agents from closing unverifiable
-visual fixes or stacking new assignments over unfinished branch work.
+Keep exact SceneIssue validation below the five-minute targeted-job budget without weakening the
+semantic bake, behavioral assertion, saved-pose replay, or evidence gates.
 
 ## Scope and constraints
 
-- Keep persistent `fixes/agent-N` and `ci-test/fixes/agent-N` work refs; isolate each human review
-  on `review/scene-issue/<capture-id>` so the worker can safely continue.
 - Keep targeted CI under its five-minute job budget.
 - Use the shared targeted-test workflow for exact saved-camera replay rather than per-issue workflow
   files.
-- Do not change production rendering, world generation, gameplay, or active SceneIssue contents.
-- The external browser coordinator is updated separately in `/Users/jlashmet/automation`.
+- Preserve deterministic integer world output: bake optimizations must prove byte-identical output.
+- Do not reduce the eight-region startup image or weaken behavioral/visual assertions.
+
+## Observed behavior and hypotheses
+
+Four recent cold saved-pose requests took 363–378 seconds. Each spent 200–208 seconds baking, 36–38
+seconds in the requested test, and 109–125 seconds building/running the player. Cache hits cost under
+one second, but the key hashes all rendering and composition sources. A 30-second replay already
+produced the required two settled frames at 15.7 and 25.7 seconds.
+
+- **H1:** presentation-only changes unnecessarily invalidate the semantic bake. Discriminator:
+  change a rendering-only fixture and prove the semantic fingerprint remains stable while a world
+  authoring fixture changes it.
+- **H2:** cold generation is serialized across regions. Discriminator: compare bake bytes and
+  elapsed time between the existing path and a bounded pipeline that overlaps independent height
+  jobs while committing regions in the same order.
+
+Results: H1 confirmed by inspection: the key includes all `Assets/VoxelEngine` and
+`Assets/Scenes/Showcase`. H2 confirmed: `MaterialiseStartupDisc` calls
+`GenerateRegionBlocking` sequentially and each region immediately waits for its height job.
 
 ## Acceptance criteria
 
-- [x] Agent instructions require one final CI request commit and one remote ref update per iteration.
-- [x] Agent instructions prohibit PR/temporary-branch/no-op/custom-workflow CI transports.
-- [x] Exact SceneIssue replay can be requested through `.github/test-request.json`.
-- [x] Exact replay validates the issue path, derives the scene from `issue.json`, and caps duration.
-- [x] Exact replay publishes a predictable final verification image in its artifact.
-- [x] Visual closure rules reject cancelled/failed replay evidence and require human approval for
-  subjective quality.
-- [x] Stale-assignment documentation requires an explicit branch handoff.
-- [x] Infrastructure observations are consolidated instead of becoming one experiment per poll.
-- [x] Ready feature branches are promoted to master in one coordinator-designated batch.
-- [x] Showcase-dependent targeted tests reuse a content-fingerprinted runner-local bake.
-- [x] Obsolete one-shot workflows are removed and policy prevents their return.
-- [x] Verified fixes enter `pending/`, then use a bookkeeping-only PR for human approval and closure.
-- [x] Workers are released after the coordinator verifies the pending state and open review PR.
-- [x] Pending-to-closed review-only PRs and merges do not consume Unity runner time.
-- [x] Static validation and targeted repository checks pass.
-- [x] Final diff is reviewed and pushed to `origin`.
+- [x] Semantic bake key excludes rendering/tests and changes for tested authoritative inputs.
+- [x] Static saved-pose replay defaults to 30 seconds; explicit 20–60 second requests remain valid.
+- [x] Development players are cached outside the checkout by exact build-input fingerprint.
+- [x] SceneIssue builds omit automatic profiler connection while retaining replay instrumentation.
+- [ ] The cold baker pipelines independent height work and produces byte-identical output.
+- [ ] Focused tests, exact targeted CI, final diff review, and origin promotion pass.
 
-## Validation evidence
+## Selected fix and remaining gates
 
-- `bash -n tools/showcase-player-capture.sh`: passed.
-- `.github/test-request.json` parsed with `jq`: passed.
-- `.github/workflows/tests-single.yml` parsed as YAML: passed.
-- SceneIssue-derived scene resolution reached the expected missing-Unity validation boundary using
-  an existing open capture.
-- The workflow request resolver produced the expected scene path and replay duration for a
-  representative PlayMode SceneIssue request.
+Use explicit versioned manifests for semantic-bake and player-build fingerprints, a runner-local
+atomic player cache, a 30-second default, and a bounded height-job pipeline that preserves ordered
+storage mutation. Add source-level contract tests for routing plus behavioral byte-equivalence and
+cache-key tests. Shell cache contracts, YAML parsing, `git diff --check`, and the complete offline
+assembly compile passed. Remaining gates are the Unity byte-equivalence test, a measured cold exact
+replay, final diff review, and safe master promotion.

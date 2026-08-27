@@ -78,6 +78,8 @@ Commit and push production/test work to `fixes/agent-N`. Build the request commi
 exact feature SHA, changing `.github/test-request.json` on the CI branch only, then force-update
 `ci-test/fixes/agent-N` once. Use the smallest exact EditMode or PlayMode filter; replay requests may
 name the assigned `SceneIssues/open|pending|closed/<id>/issue.json` and 20–60 `replay_seconds`.
+Omit `replay_seconds` for the 30-second static-pose default; request longer only when a transient
+defect or multi-frame capture needs a later observation.
 
 Monitor `ci/single-test` for the exact request SHA. Never create another branch, PR, no-op commit,
 custom workflow, or permission probe to trigger it. Leave queued/running requests alone. If no

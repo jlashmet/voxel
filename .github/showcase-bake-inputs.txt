@@ -1,0 +1,27 @@
+# Versioned semantic inputs for Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes.
+# Keep this list conservative, but do not add presentation-only rendering or tests: those cannot
+# alter deterministic voxel cells and should reuse the same startup image.
+ProjectSettings/ProjectVersion.txt
+Packages/manifest.json
+Packages/packages-lock.json
+Assets/Scenes/VoxelShowcase.unity
+Assets/Scenes/Showcase/Editor/ShowcaseWorldBaker.cs
+Assets/Scenes/Showcase/VoxelShowcase.cs
+Assets/Game/Composition/Materials/GameMaterialComposition.cs
+Assets/Game/Composition/Showcase
+Assets/Game/Composition/WorldObjects
+Assets/Game/Materials/Api
+Assets/Game/Materials/Runtime
+Assets/Game/Structures/Api
+Assets/Game/Structures/Runtime
+Assets/Game/WorldBuilder
+Assets/VoxelEngine/Composition
+Assets/VoxelEngine/Edits
+Assets/VoxelEngine/Foundation
+Assets/VoxelEngine/Rendering/Api
+Assets/VoxelEngine/Simulation
+Assets/VoxelEngine/Storage
+Assets/VoxelEngine/Structures
+Assets/VoxelEngine/Terrain
+Assets/VoxelEngine/Tiering
+Assets/VoxelEngine/Vegetation

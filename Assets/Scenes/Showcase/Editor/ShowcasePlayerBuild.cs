@@ -16,7 +16,7 @@ namespace VoxelEngine.Showcase.Editor
     ///
     ///   -voxelScene <path>        scene to build, default Assets/Scenes/SmallVoxelShowcase.unity
     ///   -voxelBuildOutput <dir>   output directory for the .app
-    ///   -voxelDevelopment         development build, so the profiler can attach
+    ///   -voxelDevelopment         development build for SceneIssue replay instrumentation
     ///   -voxelFrameTimingStats    enable Unity CPU/GPU FrameTiming data in this player only
     /// </summary>
     public static class ShowcasePlayerBuild
@@ -50,7 +50,7 @@ namespace VoxelEngine.Showcase.Editor
                 target = BuildTarget.StandaloneOSX,
                 targetGroup = BuildTargetGroup.Standalone,
                 options = development
-                    ? BuildOptions.Development | BuildOptions.ConnectWithProfiler
+                    ? BuildOptions.Development
                     : BuildOptions.None
             };
 
