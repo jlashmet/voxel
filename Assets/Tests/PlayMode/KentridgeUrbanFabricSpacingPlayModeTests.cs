@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using MountingForce.WorldGen.Voxel;
 using NUnit.Framework;
 using Unity.Collections;
@@ -14,59 +15,68 @@ namespace VoxelEngine.Tests.PlayMode
         public void ProductionAnonymousFrontagesLeavePedestrianClearanceBetweenHouses()
         {
             VoxelWorldGenSettings settings = BuildSettings();
-            FeatureCatalogue catalogue = KentridgeFrontageAlignedUrbanFabricCatalogue.Build(
+            FeatureCatalogue catalogue = KentridgeUrbanFabricCatalogue.Build(
                 Seed, settings, Allocator.Temp);
 
             try
             {
                 Assert.Greater(catalogue.Definitions.Length, 0,
                     "Production Kentridge anonymous fabric must remain populated.");
-                Assert.AreEqual(catalogue.Definitions.Length, catalogue.ExplicitPlacements.Length,
-                    "Each anonymous fabric definition should keep its production explicit placement.");
+
+                var frontageLines = new Dictionary<long, FrontageLine>();
+                for (int ruleIndex = 0; ruleIndex < catalogue.Rules.Length; ruleIndex++)
+                {
+                    PlacementRule rule = catalogue.Rules[ruleIndex];
+                    Assert.AreEqual(1, rule.ExplicitCount,
+                        "Each anonymous fabric definition should keep one production explicit placement.");
+
+                    FeatureDefinition definition = catalogue.Definitions[rule.DefinitionId];
+                    ExplicitPlacement placement = catalogue.ExplicitPlacements[rule.ExplicitOffset];
+                    int orientation = placement.Orientation & 3;
+                    bool horizontalFrontage = (orientation & 1) == 0;
+                    bool quarterTurn = (orientation & 1) != 0;
+                    int worldWidth = quarterTurn ? definition.Footprint.z : definition.Footprint.x;
+                    int worldDepth = quarterTurn ? definition.Footprint.x : definition.Footprint.z;
+                    int alongStart = horizontalFrontage ? placement.Position.x : placement.Position.z;
+                    int alongSize = horizontalFrontage ? worldWidth : worldDepth;
+                    int crossAxis = horizontalFrontage ? placement.Position.z : placement.Position.x;
+                    long lineKey = ((long)orientation << 32) | (uint)crossAxis;
+
+                    if (!frontageLines.TryGetValue(lineKey, out FrontageLine line))
+                    {
+                        line = new FrontageLine(orientation, crossAxis);
+                        frontageLines.Add(lineKey, line);
+                    }
+
+                    line.Intervals.Add(new Interval(alongStart, alongStart + alongSize));
+                }
 
                 int minimumClearance = MinimumClearanceDm * settings.VoxelsPerDecimetre;
+                int comparedFrontages = 0;
                 int comparedNeighbours = 0;
-
-                for (int a = 0; a < catalogue.Definitions.Length; a++)
+                foreach (FrontageLine line in frontageLines.Values)
                 {
-                    FeatureDefinition definitionA = catalogue.Definitions[a];
-                    ExplicitPlacement placementA = catalogue.ExplicitPlacements[a];
-                    BoundsXZ boundsA = Bounds(definitionA, placementA);
+                    if (line.Intervals.Count < 2)
+                        continue;
 
-                    for (int b = a + 1; b < catalogue.Definitions.Length; b++)
+                    comparedFrontages++;
+                    line.Intervals.Sort((left, right) => left.Start.CompareTo(right.Start));
+                    for (int index = 1; index < line.Intervals.Count; index++)
                     {
-                        FeatureDefinition definitionB = catalogue.Definitions[b];
-                        ExplicitPlacement placementB = catalogue.ExplicitPlacements[b];
-                        if ((placementA.Orientation & 3) != (placementB.Orientation & 3))
-                            continue;
-
-                        BoundsXZ boundsB = Bounds(definitionB, placementB);
-                        bool horizontalFrontage = (placementA.Orientation & 1) == 0;
-                        int clearance;
-
-                        if (horizontalFrontage)
-                        {
-                            if (!Overlaps(boundsA.MinZ, boundsA.MaxZ, boundsB.MinZ, boundsB.MaxZ))
-                                continue;
-                            clearance = IntervalClearance(
-                                boundsA.MinX, boundsA.MaxX, boundsB.MinX, boundsB.MaxX);
-                        }
-                        else
-                        {
-                            if (!Overlaps(boundsA.MinX, boundsA.MaxX, boundsB.MinX, boundsB.MaxX))
-                                continue;
-                            clearance = IntervalClearance(
-                                boundsA.MinZ, boundsA.MaxZ, boundsB.MinZ, boundsB.MaxZ);
-                        }
-
+                        Interval previous = line.Intervals[index - 1];
+                        Interval current = line.Intervals[index];
+                        int clearance = current.Start - previous.End;
                         comparedNeighbours++;
                         Assert.GreaterOrEqual(clearance, minimumClearance,
-                            $"Anonymous fabric {a} and {b} leave only {clearance} voxels of lateral " +
-                            $"clearance; production Kentridge frontage requires at least " +
-                            $"{minimumClearance} voxels ({MinimumClearanceDm} dm at scale 1)." );
+                            $"Anonymous frontage orientation {line.Orientation} at cross-axis " +
+                            $"{line.CrossAxis} leaves only {clearance} voxels between adjacent " +
+                            $"production envelopes; expected at least {minimumClearance} voxels " +
+                            $"({MinimumClearanceDm} dm at scale 1)." );
                     }
                 }
 
+                Assert.Greater(comparedFrontages, 0,
+                    "Regression must exercise at least one production frontage with multiple houses.");
                 Assert.Greater(comparedNeighbours, 0,
                     "Regression must exercise at least one pair of neighbouring production houses.");
             }
@@ -76,43 +86,28 @@ namespace VoxelEngine.Tests.PlayMode
             }
         }
 
-        private static BoundsXZ Bounds(
-            FeatureDefinition definition,
-            ExplicitPlacement placement)
+        private sealed class FrontageLine
         {
-            bool quarterTurn = (placement.Orientation & 1) != 0;
-            int width = quarterTurn ? definition.Footprint.z : definition.Footprint.x;
-            int depth = quarterTurn ? definition.Footprint.x : definition.Footprint.z;
-            return new BoundsXZ(
-                placement.Position.x,
-                placement.Position.x + width,
-                placement.Position.z,
-                placement.Position.z + depth);
-        }
+            public readonly int Orientation;
+            public readonly int CrossAxis;
+            public readonly List<Interval> Intervals = new List<Interval>();
 
-        private static bool Overlaps(int minA, int maxA, int minB, int maxB) =>
-            maxA > minB && maxB > minA;
-
-        private static int IntervalClearance(int minA, int maxA, int minB, int maxB)
-        {
-            if (maxA <= minB) return minB - maxA;
-            if (maxB <= minA) return minA - maxB;
-            return -System.Math.Min(maxA - minB, maxB - minA);
-        }
-
-        private readonly struct BoundsXZ
-        {
-            public readonly int MinX;
-            public readonly int MaxX;
-            public readonly int MinZ;
-            public readonly int MaxZ;
-
-            public BoundsXZ(int minX, int maxX, int minZ, int maxZ)
+            public FrontageLine(int orientation, int crossAxis)
             {
-                MinX = minX;
-                MaxX = maxX;
-                MinZ = minZ;
-                MaxZ = maxZ;
+                Orientation = orientation;
+                CrossAxis = crossAxis;
+            }
+        }
+
+        private readonly struct Interval
+        {
+            public readonly int Start;
+            public readonly int End;
+
+            public Interval(int start, int end)
+            {
+                Start = start;
+                End = end;
             }
         }
 
