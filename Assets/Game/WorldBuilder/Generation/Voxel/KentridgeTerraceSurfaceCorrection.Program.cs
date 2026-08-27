@@ -49,17 +49,34 @@ namespace MountingForce.WorldGen.Voxel
         {
             int s = settings.VoxelsPerDecimetre;
             byte stone = settings.Materials.Resolve(MaterialRole.FoundationStone);
-            byte surface = settings.Materials.Resolve(MaterialRole.Moss);
+            byte moss = settings.Materials.Resolve(MaterialRole.Moss);
             byte paving = settings.Materials.Resolve(MaterialRole.DarkMasonry);
             var b = new ProgramBuilder();
-            b.Box(0, 0, 0, footprint.x, footprint.y, footprint.z,
-                  stone, PrimitiveMode.PaintSolid);
-            b.Box(0, 0, 0, footprint.x, footprint.y, footprint.z,
-                  surface, PrimitiveMode.PaintSurface);
+
             if (patch.UrbanCore)
-                b.Box(patch.ShoulderDm * s, 0, patch.ShoulderDm * s,
-                      patch.WidthDm * s, footprint.y, patch.DepthDm * s,
+            {
+                // The district terrace already owns the transition shoulder shape and material.
+                // Repainting this higher-precedence correction across the whole expanded footprint
+                // produces an axis-aligned notch wherever that rectangle crosses authored Dirt.
+                // Restrict the correction to the built core and leave shoulders to their live owner.
+                int coreX = patch.ShoulderDm * s;
+                int coreZ = patch.ShoulderDm * s;
+                int coreWidth = patch.WidthDm * s;
+                int coreDepth = patch.DepthDm * s;
+                b.Box(coreX, 0, coreZ, coreWidth, footprint.y, coreDepth,
+                      stone, PrimitiveMode.PaintSolid);
+                b.Box(coreX, 0, coreZ, coreWidth, footprint.y, coreDepth,
                       paving, PrimitiveMode.PaintSurface);
+            }
+            else
+            {
+                // Green/mixed residential corrections still repair the full natural-ground patch.
+                b.Box(0, 0, 0, footprint.x, footprint.y, footprint.z,
+                      stone, PrimitiveMode.PaintSolid);
+                b.Box(0, 0, 0, footprint.x, footprint.y, footprint.z,
+                      moss, PrimitiveMode.PaintSurface);
+            }
+
             return b.Finish();
         }
 
