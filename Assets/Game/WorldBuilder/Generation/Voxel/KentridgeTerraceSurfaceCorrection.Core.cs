@@ -9,6 +9,8 @@ namespace MountingForce.WorldGen.Voxel
     public static partial class KentridgeTerraceSurfaceCorrectionCatalogue
     {
         private const int VerticalPaddingDm = 16;
+        private const int StandardMaxPrimitives = 3;
+        private const int MarketTransitionMaxPrimitives = 40;
 
         private readonly struct Patch
         {
@@ -73,7 +75,9 @@ namespace MountingForce.WorldGen.Voxel
                     Precedence = 16,
                     ProgramOffset = programOffset,
                     ProgramLength = programs[i].Length,
-                    MaxPrimitives = 3,
+                    MaxPrimitives = patches[i].Id == "market-main"
+                        ? MarketTransitionMaxPrimitives
+                        : StandardMaxPrimitives,
                 };
                 c.ExplicitPlacements[i] = new ExplicitPlacement
                 {
