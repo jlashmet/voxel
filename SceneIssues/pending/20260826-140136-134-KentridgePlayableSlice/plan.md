@@ -10,16 +10,16 @@
 - **Wrong pub route/XZ:** rejected; release derives X/Z directly from `_pubAccess.InteriorApproach`, and the behavioral regression preserves them.
 - **Cutscene/controller residue raises the player:** rejected as initiating cause; `SnapToGround` assigns the bad elevation before normal gameplay resumes.
 - **Highest-surface grounding crosses the roof:** selected and covered by the production-scene regression.
-- **Green CI artifact still proves closure:** rejected. Exact request `41740715ea52d62260492991c36fe7254b3bd8a6` passed the regression, but its 1928×900 final frame still showed the roof pose plus `Scene issue replay` overlay. Runtime evidence showed command-line `SceneIssueCapture` continued applying the frozen pose after the verifier succeeded.
+- **Replay tooling masks the fix:** confirmed only as an evidence problem. Earlier green replay stayed frozen through handoff; a later replay released correctly but exposed the F8 capture UI. The development verifier now uses `SceneIssueCapture`'s existing release transition at 85 s and disables only that development capture component afterward.
 
 ## Fix / regression
 
 - `SnapToGround` now honors “below the given position”: ordinary columns retain the footprint fast path; stacked columns scan authoritative voxels downward from authored Y and preserve the old top-surface fallback only when nothing exists below.
 - `KentridgeInteriorHandoffRegressionTests.OpeningRelease_StaysAtAuthoredInteriorElevationUnderPubRoof` loads the production scene, invokes production release, and requires authored X/Z plus Y within 0.5 m of `InteriorApproach`.
-- Replay proof now reuses `SceneIssueCapture`'s existing `ReleaseReplayCamera` transition when the real-player runner requests delayed release. Kentridge keeps the captured pose through line 27 at ~84 s, releases at 85 s, then lets the real opening handoff run before the ~94 s final frame.
+- Exact request `6805aba87c04caac16dd84df93246c688036ed6f` is green. Its real-player artifact is 1928×900, shows the player inside the pub looking through the doorway, and has neither replay nor F8 capture overlays. The player log confirms frozen-pose verification followed by replay release/capture-overlay disable at 85 s.
 
 ## Blast radius / cost / gates
 
-- Gameplay cost is unchanged from the grounding fix: O(footprint) normally, bounded downward scan only on stacked explicit snaps. Replay release logic is `DEVELOPMENT_BUILD`-only and opt-in via the existing command-line delay.
-- The unrelated temporary `SceneIssueCameraReplayHarness` release workaround is reverted; no production camera behavior is changed by evidence tooling.
-- Production/test fix commit remains `4aee470afe601a6ceb073a0e89229fff1aff8872`. Remaining gates: green exact-SHA targeted CI on the replay-evidence correction, clean native-resolution final replay, then close/merge bookkeeping.
+- Gameplay cost is unchanged from the grounding fix: O(footprint) normally, bounded downward scan only on stacked explicit snaps. Replay release/overlay suppression is `DEVELOPMENT_BUILD`-only and opt-in via the existing command-line delay.
+- Production/test fix commit remains `4aee470afe601a6ceb073a0e89229fff1aff8872`; evidence-tool source is `60a97a77e832260fee014f5e373323d6f01d20c8`.
+- Remaining gate: commit the exact clean native-resolution `verification-final.png`, then fixed/closed bookkeeping and current-master merge. Do not substitute a degraded or pointer image if binary transfer is unavailable.
