@@ -61,8 +61,7 @@ namespace VoxelEngine.Tests.PlayMode
             }
             finally
             {
-                Object.Destroy(root);
-                yield return null;
+                Object.DestroyImmediate(root);
             }
         }
     }
