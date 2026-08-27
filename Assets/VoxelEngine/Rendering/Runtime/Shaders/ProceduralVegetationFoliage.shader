@@ -6,7 +6,7 @@ Shader "VoxelEngine/ProceduralVegetationFoliage"
         _TipColor ("Tip Color", Color) = (0.42, 0.70, 0.24, 1)
         _EmissionColor ("Emission Color", Color) = (0, 0, 0, 1)
         _EmissionStrength ("Emission Strength", Range(0, 8)) = 0
-        _Shape ("Shape", Range(0, 4)) = 0
+        _Shape ("Shape", Range(0, 5)) = 0
         _WindStrength ("Wind Strength", Range(0, 1)) = 0.22
         _Cutoff ("Cutoff", Range(0, 1)) = 0.42
         _SunDirection ("Sun Direction", Vector) = (-0.48, 0.76, -0.44, 0)
@@ -89,8 +89,8 @@ Shader "VoxelEngine/ProceduralVegetationFoliage"
 
             float GrassAnimationTime(float instanceVariation)
             {
-                // Dylearn's reference deliberately updates grass at a low stepped frame rate.
-                // Offset each instance before quantizing so the whole field never ticks in lockstep.
+                // Match the reference's deliberately stepped motion without making the whole field
+                // tick in lockstep: each instance offsets its phase before the 5 Hz quantization.
                 const float framesPerSecond = 5.0;
                 float phaseOffset = instanceVariation / framesPerSecond;
                 return floor((AnimationTime() + phaseOffset) * framesPerSecond) / framesPerSecond;
@@ -174,22 +174,20 @@ Shader "VoxelEngine/ProceduralVegetationFoliage"
             }
 
             float3 CameraFacingGrassPosition(
-                float3 localPosition,
+                float2 uv,
                 float3 instanceOriginWS,
                 float instanceVariation,
-                out float3 billboardNormalWS,
+                out float3 presentationNormalWS,
                 out float windNoise)
             {
-                // Preserve authored instance scale and ground-normal tilt, but flatten the tuft's
-                // radial cards into one camera-facing pixel-art cluster. This is the presentation
-                // model used by the reference project: readable card silhouettes at every azimuth,
-                // rather than a small 3D starburst whose leaves alternately face and edge the camera.
+                // The shared Tuft mesh has seven radial cards, but Dylearn's grass is one
+                // camera-facing pixel sprite per instance. Reconstruct position from UV rather than
+                // authored card orientation, which collapses those seven cards onto the same sprite
+                // without changing mesh/batch/instance counts or affecting any non-grass species.
                 float3 objectRight = TransformObjectToWorld(float3(1.0, 0.0, 0.0)) - instanceOriginWS;
                 float3 objectUp = TransformObjectToWorld(float3(0.0, 1.0, 0.0)) - instanceOriginWS;
-                float3 objectForward = TransformObjectToWorld(float3(0.0, 0.0, 1.0)) - instanceOriginWS;
                 float scaleX = max(length(objectRight), 0.0001);
                 float scaleY = max(length(objectUp), 0.0001);
-                float scaleZ = max(length(objectForward), 0.0001);
                 float3 upWS = objectUp / scaleY;
 
                 float3 toCamera = normalize(GetCameraPositionWS() - instanceOriginWS);
@@ -202,16 +200,14 @@ Shader "VoxelEngine/ProceduralVegetationFoliage"
                     ? cameraRight * rsqrt(cameraRightLengthSq)
                     : normalize(fallbackRight);
 
-                billboardNormalWS = normalize(cross(cameraRight, upWS));
-                if (dot(billboardNormalWS, toCamera) < 0.0)
-                    billboardNormalWS = -billboardNormalWS;
+                // Stylised grass should shade as an upward-facing ground accent rather than as a
+                // dark vertical wall. This is also stable as the billboard rotates with the camera.
+                presentationNormalWS = upWS;
 
-                // The shared tuft mesh contains seven radial cards. Flatten their X/Z offsets into
-                // the billboard plane instead of discarding six cards: instance count/draw cost stay
-                // unchanged while the cards read as one layered pixel-grass sprite.
-                float horizontal = localPosition.x * scaleX
-                    + localPosition.z * scaleZ * lerp(0.28, 0.42, instanceVariation);
-                float height = max(localPosition.y * scaleY, 0.0);
+                float widthVariation = lerp(0.90, 1.10, instanceVariation);
+                float heightVariation = lerp(0.86, 1.14, frac(instanceVariation * 7.13));
+                float horizontal = (uv.x - 0.5) * scaleX * 1.18 * widthVariation;
+                float height = uv.y * scaleY * 0.64 * heightVariation;
 
                 float time = GrassAnimationTime(instanceVariation);
                 windNoise = SecondaryWindNoise(instanceOriginWS.xz, time);
@@ -226,12 +222,10 @@ Shader "VoxelEngine/ProceduralVegetationFoliage"
                     * saturate(_WindStrength * 2.4);
 
                 float3 windDirection = normalize(float3(0.82 + secondary * 0.35, 0.0, 0.57 - secondary * 0.25));
-                float3 positionWS = instanceOriginWS
+                return instanceOriginWS
                     + cameraRight * horizontal
                     + upWS * (height * cos(swayAngle))
                     + windDirection * (height * sin(swayAngle));
-
-                return positionWS;
             }
 
             Varyings Vert(Attributes input)
@@ -250,14 +244,14 @@ Shader "VoxelEngine/ProceduralVegetationFoliage"
                 localPosition.x *= widthScale;
                 localPosition.y *= heightScale;
 
-                float grassBlade = 1.0 - step(0.5, _Shape);
+                float grassSprite = step(4.5, _Shape);
                 float3 presentationNormalWS;
                 float windNoise;
                 float3 positionWS;
-                if (grassBlade > 0.5)
+                if (grassSprite > 0.5)
                 {
                     positionWS = CameraFacingGrassPosition(
-                        localPosition,
+                        input.uv,
                         instanceOriginWS,
                         variation,
                         presentationNormalWS,
@@ -295,12 +289,34 @@ Shader "VoxelEngine/ProceduralVegetationFoliage"
 
             float2 PixelGrassUv(float2 uv)
             {
-                // Quantize the procedural mask onto a deliberately coarse grid. The reference uses
-                // nearest-filtered pixel art; this keeps the same crisp stepped silhouette without
-                // importing or coupling the runtime to an external texture asset.
-                const float2 pixelGrid = float2(12.0, 18.0);
+                // Dylearn's grass uses a nearest-filtered low-resolution sprite. Quantizing the
+                // procedural mask before evaluating it gives the same stable stepped silhouette
+                // while keeping this implementation asset-independent.
+                const float2 pixelGrid = float2(16.0, 16.0);
                 float2 clamped = saturate(uv);
                 return (floor(clamped * pixelGrid) + 0.5) / pixelGrid;
+            }
+
+            float GrassBladeMask(float2 uv, float rootX, float lean, float bladeHeight, float bladeWidth)
+            {
+                float t = uv.y / max(bladeHeight, 0.001);
+                float withinY = min(uv.y, bladeHeight - uv.y);
+                float centre = rootX + lean * t * t;
+                float profile = sin(saturate(t) * 3.14159265);
+                float halfWidth = bladeWidth
+                    * (0.34 + profile * 0.82)
+                    * (1.0 - saturate(t) * 0.82);
+                return min(withinY, halfWidth - abs(uv.x - centre));
+            }
+
+            float GrassPixelMask(float2 uv)
+            {
+                // Three rooted, pointed leaves reproduce the composition of the referenced
+                // grassleaf sprite: one tall centre blade with shorter leaves fanning left/right.
+                float left = GrassBladeMask(uv, 0.46, -0.27, 0.74, 0.105);
+                float centre = GrassBladeMask(uv, 0.50, 0.035, 0.98, 0.105);
+                float right = GrassBladeMask(uv, 0.54, 0.28, 0.79, 0.110);
+                return max(left, max(centre, right));
             }
 
             float Ellipse(float2 p, float2 radius)
@@ -352,11 +368,19 @@ Shader "VoxelEngine/ProceduralVegetationFoliage"
             half4 Frag(Varyings input) : SV_Target
             {
                 UNITY_SETUP_INSTANCE_ID(input);
-                float2 maskUv = BentMaskUv(input.uv, input.windNoise, input.instanceVariation);
-                if (_Shape < 0.5)
-                    maskUv = PixelGrassUv(maskUv);
-                float mask = PlantMask(maskUv, _Shape);
-                clip(mask - lerp(-0.04, 0.16, _Cutoff));
+                if (_Shape > 4.5)
+                {
+                    // For grass the pixel grid is the alpha silhouette; do not run the generic
+                    // foliage cutoff over it, which was what collapsed the first candidate into
+                    // the narrow dark bars captured by the saved-camera replay.
+                    clip(GrassPixelMask(PixelGrassUv(input.uv)));
+                }
+                else
+                {
+                    float2 maskUv = BentMaskUv(input.uv, input.windNoise, input.instanceVariation);
+                    float mask = PlantMask(maskUv, _Shape);
+                    clip(mask - lerp(-0.04, 0.16, _Cutoff));
+                }
 
                 float3 n = normalize(input.normalWS);
                 float3 sun = normalize(_SunDirection.xyz);
