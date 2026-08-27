@@ -11,7 +11,6 @@ namespace MountingForce.WorldGen.Voxel
         private const int VerticalPaddingDm = 16;
         private const int StandardMaxPrimitives = 3;
         private const int MarketTransitionMaxPrimitives = 40;
-        private const int UpperTransitionMaxPrimitives = 40;
 
         private readonly struct Patch
         {
@@ -78,9 +77,7 @@ namespace MountingForce.WorldGen.Voxel
                     ProgramLength = programs[i].Length,
                     MaxPrimitives = patches[i].Id == "market-main"
                         ? MarketTransitionMaxPrimitives
-                        : patches[i].Id == "upper-shoulder"
-                            ? UpperTransitionMaxPrimitives
-                            : StandardMaxPrimitives,
+                        : StandardMaxPrimitives,
                 };
                 c.ExplicitPlacements[i] = new ExplicitPlacement
                 {

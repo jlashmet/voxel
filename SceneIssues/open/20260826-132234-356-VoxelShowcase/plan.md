@@ -1,23 +1,18 @@
 # Plan — VoxelShowcase Dirt/grass seam
 
-## Problem
-The saved VoxelShowcase camera has two marked Dirt/Moss terrace boundaries. Fresh real-player replay at source `f981771949542628daf1c35b32929d4f0d512b9d` is residency-stable (`missingMax=0`): the lower mark is clean, but the upper mark still contains a rectangular grass tongue.
+## Observed / acceptance
+Saved camera has two marked Dirt/Moss boundaries. Fresh real-player replays show the lower mark clean after the market→upper taper, but the upper mark retains a metre-scale axis-aligned grass tongue. Acceptance: both marked regions read as continuous, non-jagged Dirt/grass joins at the saved pose with resident surface sections.
 
-## Evidence / hypotheses
-- Streaming/LOD: falsified by stable replay telemetry.
-- Inactive road shoulder authoring: falsified by live catalogue tracing and prior replay.
-- District shoulder box steps: real lower-mark cause; reversible ramps removed the metre-scale stairs.
-- Stale showcase bake cache: confirmed and fixed by hashing `Assets/Game/WorldBuilder`.
-- Full-footprint urban surface correction: confirmed overreach; constrained to built cores.
-- Market→upper width jump: confirmed; 2 dm tapered correction cleared the lower mark.
-- Upper west midpoint terrain sample: behavioral test passed, but exact replay still showed the upper rectangle; falsified as the final cause.
-- Active: saved-camera rays place the surviving upper mark in the civic-summit south-shoulder / upper-shoulder west-edge overlap. Those west envelopes differ by exactly 20 dm, matching the hard plan-view notch. Taper that 20 dm ownership change across the existing 72 dm overlap.
+## Hypotheses / discriminators
+1. **Streaming/LOD artifact.** Falsified by prior fresh replay `f981771...` with `missingMax=0`; upper rectangle persisted while lower was clean.
+2. **Authored terrace ownership.** Earlier ramp, cache, full-footprint correction, market seam, and local-height hypotheses were individually tested/falsified or retained as regressions. Exact-SHA run `33092740624` then falsified the civic→upper taper visually: test passed, replay succeeded, but direct inspection still shows the upper rectangle.
+3. **Active: correction manufactures the grass tongue.** Source discriminator: both urban district shoulders paint Dirt at precedence 15; `PaintCivicToUpperWestTransition` then repaints a 72×72 dm upper-shoulder block Moss at precedence 16 before selectively restoring Dirt. That higher-precedence Moss is unnecessary and matches the surviving rectangle.
 
-## Minimal fix / regression
-Keep terrace geometry and authored district footprints unchanged. In the precedence-16 `upper-shoulder` surface correction, restore only its 72×72 dm west overlap to Moss, then reclaim Dirt in 2 dm bands whose west inset moves from 20 dm to 0. PlayMode regression samples every band and asserts Moss immediately outside/Dirt immediately inside, monotonic ≤1 dm boundary movement, and a bounded 40-primitive correction budget.
+## Selected fix / regression
+Remove only the civic/upper shoulder override; keep upper correction constrained to its built core. New PlayMode regression samples the real civic/upper world join: district terraces must already provide Dirt at 83/84/85 m x, while the upper correction must emit no surface override there and must still pave its core. Upper correction returns to the 3-primitive bound.
 
 ## Blast radius / cost
-Only the upper-shoulder west overlap from world z 24.0–31.2 m is repainted; no terrain occupancy, roads, structures, other captures, or generic rasterizer code changes. Adds 37 paint primitives to that correction (39 total, budget 40), bake-time only; no per-frame work.
+Only the synthetic precedence-16 civic/upper shoulder repaint is removed. Terrace geometry, roads, structures, market taper, other patches/captures, and generic rasterization are unchanged. Primitive count decreases (upper correction 40→3); no per-frame cost.
 
 ## Verification gate
-Issue remains open until one exact-SHA targeted CI request on `ci-test/fixes/agent-8` passes the new PlayMode regression and the exact saved-camera replay. Inspect both marked regions directly; only a clean replay may be promoted to `verification-final.png`.
+Keep open until exact-SHA targeted CI passes the new PlayMode regression and a fresh saved-camera replay is directly inspected at both circles. Only a clean replay becomes `verification-final.png`.
