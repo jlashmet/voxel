@@ -1,21 +1,25 @@
 # Plan — 20260826-132505-873 VoxelShowcase
 
 ## Defect / acceptance
-Capture note: `there is a floating mailbox`; no circles, so the whole saved pose is acceptance. The camera looks almost directly at the east market lamp at `(153.0 m, *, 54.9 m)`. Accept only when the saved-camera replay shows that lamp grounded on its sidewalk and continuously supported through the lantern head, with no nearby streetscape regression.
+Capture note: `there is a floating mailbox`; no circles, so the whole saved pose is acceptance. The camera looks almost directly at the east-market street lamp at `(1530,549)` dm. Accept only when the saved-camera replay shows that lamp grounded on the working-yard shoulder and continuously supported through the lantern head, with no nearby streetscape regression.
 
-## Competing hypotheses / results
-1. **Wrong elevation / sidewalk ownership. Confirmed after replay.** Attempt-1 evidence from request `6d16727f3651fc041c50f96b459c8c11634765a5` still floats the whole lamp. `(1530,549)` is outside the road and inside the working-yard north terrace shoulder. Showcase seed: macro Y `256`; generated shoulder Y `232`.
-2. **A plot sign/mailbox is floating. Falsified.** Nearest market sign is outside the saved view; the east-market lamp is the camera-forward object.
-3. **Thin smooth pole collapses. Confirmed secondary defect.** Material 6 is Smooth; the 3×3 pole now explicitly uses `SurfaceStyles.Planar`, preserving occupancy/material while reconstructing exactly.
+## Competing hypotheses / evidence
+1. **Wrong authored elevation. Confirmed primary cause.** The lamp used the macro profile near Y `256` while its column is owned by the stepped working-yard shoulder near Y `232`. Street dressing now derives that placement from the same deterministic shoulder math as the district terrace.
+2. **A plot sign/mailbox is floating. Falsified.** The saved camera points at the east-market lamp; the market sign is outside the captured view.
+3. **Thin smooth pole collapses. Confirmed secondary cause.** Material 6 is Smooth; the 3×3 pole now explicitly uses `SurfaceStyles.Planar`.
+4. **Residual one-voxel-looking gap is placement off-by-one. Falsified by production bounds.** The terrace shoulder fills through `targetY - 1`; `surfaceY == targetY` is the first immediately adjacent voxel, and the lamp cylinder begins at local Y 0. The mechanically-green replay at source `5ad460559b1c1e32ea2babaffa7b55c729617699` still showed the gray base visually retracted above that correct occupancy contact.
+5. **Ground-contact cylinder inherits smoothing and retracts visually. Selected.** The foundation-stone base cylinder still emitted surface style 0 while the pole was exact. The fix explicitly marks the visible base `SurfaceStyles.Planar` without moving occupancy.
 
 ## Fix / regression / blast radius
-Keep the Planar pole fix. For street dressing, use the deterministic working-yard stepped shoulder surface when a placement lies inside that terrace; all other placements retain the existing macro Y. Only the captured `(1530,549)` placement currently intersects that terrace.
+`KentridgeStreetDressingCatalogue` keeps the corrected working-yard surface ownership, keeps the thin pole Planar, and now emits the lamp's ground-contact cylinder Planar. `ProgramBuilder.Cylinder` accepts an optional surface style; no global cylinder or renderer behavior changes.
 
-`KentridgeStreetLampSupportPlayTests.CapturedEastMarketLampKeepsPlanarSupportUnderLantern` now builds both production catalogues, evaluates the actual working-yard terrace program at the captured column, requires lamp origin Y to equal the generated solid surface, proves the macro Y differs, then verifies the Planar pole overlaps the lantern.
+`KentridgeStreetLampSupportPlayTests.CapturedEastMarketLampKeepsPlanarSupportUnderLantern` builds both production catalogues and requires: generated working-yard terrain directly below the captured column; lamp origin at the first adjacent voxel; the base cylinder beginning at that exact contact plane with `SurfaceStyles.Planar`; the pole also Planar; and pole/lantern vertical continuity.
 
-Current source: `ff16ed4b19e7672f0b6267692bac9152dd9ddb9a`.
+Current source: `badfa4e447e5c61616032b0f48f63d51c2bf73c3`.
 
-Blast radius: one Kentridge street-lamp placement plus the existing Planar style on all 24 poles. No road/terrace geometry, materials, renderer-wide behavior, allocations, storage reads, or jobs added; placement work adds only bounded integer terrain/profile queries for the one matching working-yard point.
+Blast radius: Kentridge street-lamp presentation only. Placement math remains bounded deterministic integer work; no terrain/road geometry, renderer-wide semantics, storage reads, allocations, jobs, or workflow files changed.
 
-## Remaining gates
-The user-specified old exact request `6d16727f...` remains queued and must not be replaced while queued. Its first artifact is diagnostic only because visual acceptance failed and current source has advanced. After it reaches a terminal state, request the updated focused PlayMode test + 30 s saved-pose replay on the exact current feature SHA; inspect the fresh artifact; commit `verification-final.png`, complete metadata, move `open -> pending -> closed`, merge current master, and advance master non-force.
+## Verification history / remaining gates
+Old exact request `6d16727f3651fc041c50f96b459c8c11634765a5` eventually succeeded but predates the grounding correction. Exact request `5d55cc0e8e0eef11b531e65e696ac00140610812`, run `33028479281`, passed its focused test/replay mechanically, but direct inspection of its fresh artifact rejected visual acceptance because the gray base still appeared suspended.
+
+Request a new exact-head focused PlayMode test + 30 s saved-pose replay from the current feature SHA. Inspect the fresh artifact directly. Only if the visible gap is gone: commit fresh `verification-final.png`, complete metadata, move `open -> pending -> closed`, set `status=fixed`/`resolvedUtc`, refresh/merge latest master if needed, and advance master non-force.
