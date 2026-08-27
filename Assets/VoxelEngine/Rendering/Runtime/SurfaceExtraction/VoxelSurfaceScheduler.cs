@@ -614,6 +614,15 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             }
         }
 
+        /// <summary>
+        /// LOD bands, in metres from the viewer.
+        ///
+        /// <para>The innermost band was briefly narrowed to 80 m on the theory that the arena
+        /// was thrashing — it does fill to 98% in the full showcase. That measured no improvement
+        /// at all, because the arena's cost was never its occupancy but the driver renaming the
+        /// buffer on every partial write (see SurfaceGeometryArena). The band is back at 96 m;
+        /// narrowing it only coarsened ground between 80 m and 96 m for nothing.</para>
+        /// </summary>
         private static readonly (int SourceStep, float Inner, float Outer)[] s_RingLayout =
         {
             (1, 0f, 96f),
@@ -622,11 +631,31 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             (8, 288f, MaxVoxelRingRadiusMetresDefault),
         };
 
+        /// <summary>
+        /// Resolves one ring's live band against the radius the world actually streams.
+        ///
+        /// <para>Bands are truncated against that radius, never rescaled into it. Rescaling cut
+        /// chunk counts sharply but dragged the fine ring inward — at a 102 m streaming radius
+        /// the finest step only reached 24 m, so a building 38 m away was meshed at half
+        /// resolution and rendered as a grey blob.</para>
+        ///
+        /// <para>A ring truncated past its own inner radius must be <em>suspended</em>, not
+        /// collapsed to zero width. The band tolerates a chunk straddling either cut, so that
+        /// adjacent rings overlap by one chunk rather than gapping while the viewer moves; with
+        /// inner == outer that tolerance becomes the entire band, and the ring keeps a
+        /// one-chunk-thick shell of its own step just inside the cut, over ground a finer ring
+        /// already covers. SmallVoxelShowcase caps rings at 51.2 m, which left step-2, step-4 and
+        /// step-8 shells drawn on top of the near field at once.</para>
+        ///
+        /// <para>Only a ring with a non-zero inner cut can produce that shell, so the innermost
+        /// ring is never suspended.</para>
+        /// </summary>
         internal static (float Inner, float Outer, bool Suspended) ResolveRingBand(
             float configuredInner, float configuredOuter, float ringCap, bool lodEnabled)
         {
             if (!lodEnabled)
             {
+                // Finest ring takes everything; the rest are off, not narrow.
                 bool isFinest = configuredInner <= 0f;
                 return (0f, ringCap, !isFinest);
             }
@@ -636,6 +665,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             return (inner, outer, inner > 0f && inner >= outer);
         }
 
+        /// <summary>
+        /// Applies the presentation-only detail scale without changing world view distance.
+        /// The scale moves hand-offs between LODs; the last ring always reaches the streamed
+        /// voxel radius. Scaling its outer edge made distant structures disappear and falsely
+        /// improved frame time by rendering less world.
+        /// </summary>
         internal static (float Inner, float Outer, bool Suspended) ResolveScaledRingBand(
             float configuredInner, float configuredOuter, float detailBandScale,
             float ringCap, bool lodEnabled, bool isOutermost)
@@ -648,6 +683,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         }
 
         public const float MaxVoxelRingRadiusMetresDefault = 409.6f;
+        /// <summary>
+        /// Indices emitted per vertex by the solid extractor. The surface is faceted, so vertices are
+        /// barely shared and production measures a steady 1.51; the arena provisions 1.75 for headroom.
+        /// The previous fixed 3.0 split spent twice the index memory the extractor can ever use, and
+        /// starved the vertex buffer that actually runs out first.
+        /// </summary>
         private const double SurfaceArenaIndicesPerVertex = 1.75;
         private const int SurfaceArenaMinVertexCapacity = 256 * 1024;
         public const int SurfaceArenaDrawCapacity = 16 * 1024;
@@ -669,6 +710,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private const int ChangeRecoverySlotsPerFrame = 32;
         private readonly List<VoxelChangeRecord> _changeScratch = new(ChangeReadRecordsPerFrame);
         private NativeArray<int3> _changeRecoveryRegions;
+        // Regions whose surface has already been handed to discovery. Rebuilt each full sweep so
+        // an evicted-then-regenerated region is discovered again rather than skipped forever.
         private readonly HashSet<int3> _sweptResidentRegions = new();
         private int _initialSurfaceDiscoveryCursor;
         private int _changeRecordIndex;
@@ -692,9 +735,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private readonly List<int3>[] _ownedDiscoveryShardBuckets =
             new List<int3>[NearSolidWorkerCount];
         private readonly Queue<int3> _surfaceDiscoveryQueue = new();
-        private readonly Queue<int3> _prioritySurfaceDiscoveryQueue = new();
         private readonly HashSet<int3> _queuedSurfaceDiscoveryRegions = new();
-        private readonly HashSet<int3> _queuedPrioritySurfaceDiscoveryRegions = new();
         private readonly HashSet<int3> _surfaceDiscoveryRescanRegions = new();
 
         private readonly struct ClipmapRegionBox
@@ -721,7 +762,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private JobHandle _surfaceDiscoveryJobHandle;
         private bool _surfaceDiscoveryJobScheduled;
         private bool _hasActiveSurfaceDiscovery;
-        private bool _activeSurfaceDiscoveryPriority;
         private int3 _activeSurfaceDiscoveryRegion;
         private int _surfaceDiscoveryPublishIndex;
         private ulong _changeCursor;
@@ -745,15 +785,46 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private long _lastFrameManagedAllocationBytes;
 
         public double SolidBuildBudgetMs { get; set; } = 0.20;
+
+        /// <summary>
+        /// Multiplier applied to the solid build/upload budgets while the frustum still contains
+        /// chunks without geometry. One means "spend the steady-state budget"; see
+        /// <see cref="VoxelRenderBridge.SurfaceConvergenceBudgetScale"/> for why this is not a single
+        /// fixed number.
+        /// </summary>
         public double ConvergenceBudgetScale { get; set; } = 1.0;
+
+        /// <summary>
+        /// Missing visible chunks observed by the previous frame's visibility pass. Visibility runs
+        /// after admission, so the budget for this frame is chosen from the last completed answer;
+        /// coverage does not change fast enough for the one-frame lag to matter.
+        /// </summary>
         private int _lastMissingVisibleCount;
+
+        /// <summary>True while the player can see somewhere geometry has not landed yet.</summary>
         private double CurrentBudgetScale =>
             _lastMissingVisibleCount > 0 ? Math.Max(1.0, ConvergenceBudgetScale) : 1.0;
+
+        /// <summary>
+        /// Ceiling on arena evictions per frame. Each one costs a scan of a worker's entry table, so
+        /// this bounds the relief work while still letting it keep pace with a frame's worth of
+        /// failed publications.
+        /// </summary>
         private const int MaxArenaEvictionsPerFrame = 16;
+
+        /// <summary>
+        /// Counts chunks that stop being drawn and start again within a few frames.
+        ///
+        /// A count of drawn chunks cannot detect a flicker while the viewer is moving, because
+        /// chunks legitimately leave the frustum every frame and the two are indistinguishable in
+        /// aggregate. A flicker is specifically a chunk that was on screen, left, and returned —
+        /// geometry the renderer already had and gave up. Tracking identity is the only way to
+        /// see it, so this is opt-in and off unless a diagnostic asks for it.
+        /// </summary>
         public static bool TrackSurfaceReappearance;
+
         private const int ReappearanceWindowFrames = 12;
         private const int ReappearancePruneFrames = 240;
-
         private readonly struct SurfaceChunkIdentity : IEquatable<SurfaceChunkIdentity>
         {
             public readonly int3 Coordinate;
@@ -767,14 +838,18 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
             public bool Equals(SurfaceChunkIdentity other) =>
                 SourceStep == other.SourceStep && Coordinate.Equals(other.Coordinate);
+
             public override bool Equals(object obj) =>
                 obj is SurfaceChunkIdentity other && Equals(other);
+
             public override int GetHashCode() =>
                 unchecked(((int)math.hash(Coordinate) * 397) ^ SourceStep);
         }
 
         private readonly Dictionary<SurfaceChunkIdentity, int> _lastDrawnFrame = new();
         private int _lastPruneFrame;
+
+        /// <summary>Chunks that left the drawn set and returned within a few frames.</summary>
         public int LastFrameReappearances { get; private set; }
         public ulong TotalReappearances { get; private set; }
 
@@ -797,6 +872,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
             LastFrameReappearances = reappeared;
             TotalReappearances += (ulong)reappeared;
+
+            // Bound the map: anything not drawn for a long time is gone, not flickering.
             if (frame - _lastPruneFrame < ReappearancePruneFrames) return;
             _lastPruneFrame = frame;
             _pruneScratch.Clear();
@@ -806,18 +883,80 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         }
 
         private readonly List<SurfaceChunkIdentity> _pruneScratch = new();
+
+
+        /// <summary>
+        /// Frames between arena relief passes once the view is complete. Relief costs a scan of a
+        /// worker's entry table, and outside convergence the only thing waiting is prefetch, so it
+        /// runs rarely enough to be free and often enough that a publication backlog still drains.
+        /// </summary>
         private const int SteadyArenaReliefInterval = 8;
+
+        /// <summary>
+        /// Chunk builds allowed in flight at once.
+        ///
+        /// Each concurrent build costs roughly 6 ms of main-thread time, measured on a converged
+        /// stationary showcase view:
+        ///
+        ///     builds in flight   0      1-2     10
+        ///     frame median      10.7    16.8    49.4 ms
+        ///
+        /// Converging keeps enough parallelism to fill a cold view in a bounded number of frames.
+        /// Converged drops to one, which still drains the prefetch shell — slowly, since nothing is
+        /// waiting on it — without handing the job pool to work the player cannot see.
+        /// </summary>
+        /// <summary>
+        /// Chunks each ring may keep resident.
+        ///
+        /// This has to be reconcilable with what the shared arena can actually hold. Allowing more
+        /// than fits does not buy coverage — the arena refuses the overflow and evicts to make room,
+        /// the evicted chunk goes dirty, and the extractor rebuilds it forever. Residency that
+        /// exceeds arena capacity converts spare prefetch into permanent churn.
+        /// </summary>
+        /// <summary>
+        /// Outer limit of voxel-meshed rings, in metres.
+        ///
+        /// A ring can only mesh chunks whose regions are resident, so this has to track the world's
+        /// actual streaming radius rather than a constant sized for one scene. Set too wide, the
+        /// outer rings claim a band they have no voxels for and the far field is left as holes and
+        /// floating slabs instead of being handed to the analytic clipmap.
+        /// </summary>
         public float MaxVoxelRingRadiusMetres { get; set; } = MaxVoxelRingRadiusMetresDefault;
+
+        /// <summary>
+        /// Scales where each LOD step hands over to the next. 1 keeps the shipped layout, in which
+        /// the finest step reaches 96 m. This never changes the outer voxel render radius.
+        ///
+        /// This is a presentation parameter and it is a real trade, not a free win: the drawn set
+        /// is dominated by the finest ring, so pulling it in is the only lever that meaningfully
+        /// reduces draw submission — and everything past the new boundary is meshed at half
+        /// resolution. <see cref="ResolveRingBand"/> documents what that looks like when it goes
+        /// too far: a building beyond the fine band renders as a grey blob. Scale the whole layout
+        /// rather than only the first band so the coarser rings close ranks behind it instead of
+        /// leaving a gap.
+        /// </summary>
         public static float DetailBandScale
         {
             get => s_DetailBandScale;
             set => s_DetailBandScale = Math.Max(0.05f, value);
         }
+
         private static float s_DetailBandScale = 1f;
+
+        /// <summary>
+        /// Whether coarse LOD rings are used at all.
+        ///
+        /// False gives the finest ring the entire streamed radius and collapses the rest. A world
+        /// small enough that the coarse rings cover only a sliver gains nothing from them but
+        /// still pays for the resolution seam where the bands meet.
+        /// </summary>
         public bool LodEnabled { get; set; } = true;
+
         public int MaxResidentChunksPerRing { get; set; } = 4096;
+
         public int MaxConcurrentBuildsConverging { get; set; } = 12;
         public int MaxConcurrentBuildsConverged { get; set; } = 0;
+
         private static int ScaleBudget(int budget, double scale) =>
             (int)Math.Min(int.MaxValue, Math.Max(0L, (long)(budget * scale)));
         public double SurfaceDiscoveryBudgetMs { get; set; } = 0.10;
@@ -836,7 +975,19 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             get => _geometryArena.MaxActiveLeases;
             set => _geometryArena.MaxActiveLeases = value;
         }
+        /// <summary>
+        /// Resident and known chunk counts per LOD step, with each ring's current band, as one
+        /// line. Bands are computed per frame from the streamed radius, so a ring whose
+        /// configured band lies entirely outside that radius is not visible in the static ring
+        /// layout — only here.
+        /// </summary>
+        /// <summary>Main-thread milliseconds the last Prepare consumed, whole-frame.</summary>
         public double LastPrepareMainThreadMs { get; private set; }
+
+        /// <summary>
+        /// Whole-frame main-thread milliseconds per Prepare phase. Per-build percentiles cannot
+        /// say which phase owns a frame; these can.
+        /// </summary>
         public double LastInvalidationMs { get; private set; }
         public double LastDiscoveryMs { get; private set; }
         public double LastAdmissionMs { get; private set; }
@@ -894,7 +1045,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             }
             return count;
         }
-
         public bool ChangeFeedBacklogged => _changeFeedHasMore
             || _changeRecordIndex < _changeScratch.Count || _changeExpansionActive;
         public bool RecoveringChangeFeedOverflow => _recoveringChangeOverflow;
@@ -913,11 +1063,16 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public double WaterUploadBudgetMs { get; set; } = 0.10;
         public int LastFrameWaterUploadedBytes { get; private set; }
         private ulong _observedWaterArenaAllocationFailures;
+
         public IReadOnlyList<CpuTransvoxelChunkCache.Entry> VisibleSolids => _visibleSolids;
+
+        /// <summary>
+        /// The shared solid geometry buffers. Every visible chunk draws out of these, so the render
+        /// pass binds them once for the whole pass instead of per draw.
+        /// </summary>
         internal ComputeBuffer SolidGeometryVertices => _geometryArena.Vertices;
         internal ComputeBuffer SolidGeometryIndices => _geometryArena.Indices;
         public IReadOnlyList<CpuWaterSurfaceChunkCache.Entry> VisibleWater => _water.Visible;
-
         public VoxelSurfaceMetrics Metrics => new(
             _allWorkers, _water, _lastChangeRecords, _discoveredSurfaceBricks.Count,
             _visibleSolids.Count, SolidUploadBudgetBytes, _lastFrameSolidUploadedBytes,
@@ -934,6 +1089,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _framePathBlockingCompletionViolations,
             _lastFrameManagedAllocationBytes);
 
+
+        /// <summary>
+        /// Splits a GPU byte budget into vertex and index capacities at the extractor's measured
+        /// emission ratio, so neither buffer runs out while the other still has room.
+        /// </summary>
         internal static void SplitSurfaceArenaBudget(long budgetBytes,
                                                      out int vertexCapacity,
                                                      out int indexCapacity)
@@ -980,7 +1140,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             {
                 var layout = s_RingLayout[i];
                 SurfaceRing ring = new(layout.SourceStep, layout.Inner, layout.Outer,
-                                       4096, _geometryArena, _lookupTables);
+                                           4096, _geometryArena, _lookupTables);
                 _rings[i] = ring;
                 for (int worker = 0; worker < ring.Workers.Length; worker++)
                     _allWorkers[workerIndex++] = ring.Workers[worker];
@@ -1022,6 +1182,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
             long managedAllocationStart = GC.GetAllocatedBytesForCurrentThread();
             _lastAdvancedFrame = frame;
+
+            // Hand back ranges the GPU has finished with, before anything acquires this frame.
+            // Publication releases a chunk's previous range the moment it swaps, but earlier
+            // frames still in flight are drawing from it; the arena quarantines those ranges and
+            // this is where they come back.
             _geometryArena.RetireExpiredLeases(frame);
 
             double prepareStart = Time.realtimeSinceStartupAsDouble;
@@ -1038,7 +1203,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             if (camera != null)
             {
                 Vector3 cameraPosition = camera.transform.position;
-                bool clipmapChanged = false;
+                bool clipmapMoved = false;
                 for (int r = 0; r < _rings.Length; r++)
                 {
                     SurfaceRing ring = _rings[r];
@@ -1049,15 +1214,14 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                         out int3 previousMaxExclusive,
                         out int3 currentMin,
                         out int3 currentMaxExclusive);
-                    if (!changed) continue;
-                    clipmapChanged = true;
-                    if (!hadPrevious) continue;
+                    if (!changed || !hadPrevious) continue;
+                    clipmapMoved = true;
                     EnqueueClipmapRegionDifference(
                         previousMin, previousMaxExclusive,
                         currentMin, currentMaxExclusive);
                 }
 
-                if (clipmapChanged)
+                if (clipmapMoved)
                     AddImmediateCameraDiscoveryRegions(storage, cameraPosition, voxelSize);
                 StepClipmapAdmissionDiscovery(storage);
             }
@@ -1092,6 +1256,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             LastDiscoveryMs = ElapsedMs(discoveryStart);
             _discoveryTiming.Add(LastDiscoveryMs);
 
+            // Solid discovery establishes authoritative chunk ownership, not halo invalidation.
+            // Canonicalize each discovered block into the interior of the same ring-local chunk,
+            // then route it directly to the shard that owns that chunk. Previously every shard
+            // rescanned the same publication batch even though all but one rejected each chunk by
+            // hash ownership. With 22 workers that multiplied this main-thread admission work for
+            // no semantic gain. Water and mutation invalidation keep the original coordinates.
             for (int r = 0; r < _rings.Length; r++)
             {
                 SurfaceRing ring = _rings[r];
@@ -1113,6 +1283,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 SurfaceRing ring = _rings[r];
                 CpuTransvoxelChunkCache[] ringWorkers = ring.Workers;
                 int perWorker = Math.Max(1, MaxResidentChunksPerRing / ringWorkers.Length);
+                // Bands are truncated against the streamed radius, never rescaled into it.
+                // Rescaling cut chunk counts sharply but dragged the fine ring inward — at a
+                // 102 m streaming radius the finest step only reached 24 m, so a building 38 m
+                // away was meshed at half resolution or worse and rendered as a grey blob.
+                // A coarse ring collapsing to a sliver is the correct outcome: there is no
+                // terrain out there to mesh, and the analytic far field already covers it.
                 (float inner, float outer, bool suspended) = ResolveScaledRingBand(
                     ring.InnerRadiusMetres, ring.OuterRadiusMetres, DetailBandScale,
                     ringCap, LodEnabled, isOutermost: r == _rings.Length - 1);
@@ -1132,7 +1308,17 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             int admittedWorkers = 0;
             double admissionStart = Time.realtimeSinceStartupAsDouble;
             using var workersScope = s_WorkersMarker.Auto();
+
             int workerCount = _allWorkers.Length;
+
+            // Extraction is Burst work, so its cost lands on the job workers rather than in this
+            // loop's own budget: a converged view still measured tens of milliseconds a frame with
+            // the scheduler itself accounting for three, because ten builds were permanently in
+            // flight and the main thread spent the difference waiting on a saturated job pool.
+            // Prefetch reaches 360 degrees and never runs out of chunks, so the only thing that
+            // bounds it is a ceiling on how many builds may be running at once. While the player can
+            // see a hole that ceiling is high; once the view is complete the remaining work is
+            // prefetch nobody is waiting on, and it gets a much smaller share of the machine.
             int buildCeiling = ResolveBuildCeiling(
                 _lastMissingVisibleCount,
                 MaxConcurrentBuildsConverging,
@@ -1151,6 +1337,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
                 int index = (_workerAdmissionCursor + offset) % workerCount;
                 CpuTransvoxelChunkCache worker = _allWorkers[index];
+
                 bool wasBuilding = worker.HasActiveBuild;
                 worker.CanStartNewBuild = wasBuilding || activeBuilds < buildCeiling;
                 worker.AllowBackgroundBuilds = allowBackgroundBuilds;
@@ -1206,12 +1393,26 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                                         + Math.Max(1, uploadScanAdvance)) % workerCount;
             double solidAdmissionMs = ElapsedMs(admissionStart);
 
+            // Arena pressure exists so geometry the player is waiting on can publish. Both passes
+            // below scan a worker's whole entry table and frustum-test every entry, which is far too
+            // much to spend on a frame that has nothing to gain from it.
+            //
+            // A converged view keeps failing allocations indefinitely: prefetch reaches 360 degrees
+            // around the camera and always wants more than the arena holds, so the failure counter
+            // rises every frame forever. Evicting for that only churns published geometry the player
+            // can see, to admit a chunk behind them. Once nothing visible is missing, a prefetch
+            // chunk that cannot get a lease simply waits.
             double arenaReliefStart = Time.realtimeSinceStartupAsDouble;
             ulong arenaFailures = _geometryArena.AllocationFailureCount;
             int workersAwaitingPublication = 0;
             for (int i = 0; i < workerCount; i++)
                 if (_allWorkers[i].PendingUploadCount > 0) workersAwaitingPublication++;
 
+            // A build that finished but cannot obtain a lease stays pending forever, so relief has
+            // to consider publication backlog and not only visible holes: gating on holes alone left
+            // completed meshes stranded on a full arena with the view already complete. Outside
+            // convergence that backlog is prefetch the player is not waiting on, so relief runs on a
+            // slow cadence there — enough to drain, too little to cost a scan every frame.
             bool converging = _lastMissingVisibleCount > 0;
             bool relievePeriodically = workersAwaitingPublication > 0
                                     && frame % SteadyArenaReliefInterval == 0;
@@ -1221,6 +1422,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _observedArenaAllocationFailures = arenaFailures;
             if (needsArenaRelief)
             {
+                // One eviction a frame cannot reshape an arena holding thousands of leases:
+                // publication fails many times per frame under pressure, so relief that frees a
+                // single chunk falls further behind every frame and the last visible holes never
+                // close. Free as many as there are publications waiting — in one pass per worker,
+                // because a scan per victim is what made this the dominant cost in Prepare.
                 int evictionBudget = Math.Clamp(
                     workersAwaitingPublication, 1, MaxArenaEvictionsPerFrame);
 
@@ -1245,6 +1451,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     _arenaPressureCursor = (index + 1) % workerCount;
                 }
 
+                // Offscreen geometry is the cheapest thing to give up, but once the whole resident
+                // set is in frustum the pass above can never succeed again. Pending publications
+                // then fail to acquire a lease every frame, builds stop, and the view keeps the
+                // chunks it happens to have — a permanent hole wherever geometry had not landed
+                // yet. Fall back to retiring published leases that sit behind the nearest chunk
+                // waiting to publish: that always trades a more distant chunk for a nearer one.
                 if (VoxelRenderBridge.SurfaceEvictVisibleUnderArenaPressure
                     && freed < evictionBudget && nearestPending < float.MaxValue)
                 {
@@ -1295,95 +1507,102 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 frame, LastAdmissionMs, solidAdmissionMs, arenaReliefMs,
                 waterMs, scheduleBatchedJobsMs);
             _prepareTiming.Add(ElapsedMs(prepareStart));
+            // Whole-frame main-thread total, not a per-build percentile. Frame cost scales with
+            // concurrent builds, so the question is how much of a frame this call consumes
+            // outright, which a per-build P95 cannot answer. Measured separately rather than
+            // hoisted into a local because GeometryPipelineArchitectureTests locates the frame
+            // accounting boundary by matching the line above as text.
             LastPrepareMainThreadMs = ElapsedMs(prepareStart);
             _lastFrameManagedAllocationBytes = Math.Max(
                 0L, GC.GetAllocatedBytesForCurrentThread() - managedAllocationStart);
         }
 
+        /// <summary>
+        /// Chooses visible convergence over background prefetch. Zero is a valid settled ceiling:
+        /// the next frame that observes a visible hole switches straight back to the converging
+        /// value, while a complete view stops consuming job workers and arena leases off screen.
+        /// </summary>
         internal static int ResolveBuildCeiling(
             int missingVisibleCount, int convergingCeiling, int convergedCeiling) =>
             Math.Max(0, missingVisibleCount > 0 ? convergingCeiling : convergedCeiling);
 
+        /// <summary>
+        /// Prefetch is allowed only after visible convergence. Otherwise a worker whose shard has
+        /// no on-screen hole can fill the shared arena with off-screen geometry while a different
+        /// shard is blocked trying to publish geometry the player is waiting for.
+        /// </summary>
         internal static bool ShouldAllowBackgroundBuilds(
             int missingVisibleCount, int buildCeiling) =>
             missingVisibleCount <= 0 && buildCeiling > 0;
 
-        private const float ConvergingVisibilityReuseDistanceMetres = 0.75f;
-        private const float ConvergingVisibilityReuseAngleDegrees = 2f;
         private Vector3 _lastVisibilityCameraPosition;
         private Quaternion _lastVisibilityCameraRotation;
         private ulong _lastVisibilityDemandVersion;
-        private int _lastFullVisibilityFrame = -1;
         private bool _hasVisibilityCache;
-        public static bool VisibilityReuseEnabled { get; set; } = true;
 
-        private ulong CurrentVisibilityDemandVersion()
-        {
-            ulong demand = 0;
-            for (int i = 0; i < _allWorkers.Length; i++)
-                demand += _allWorkers[i].DemandVersion + _allWorkers[i].ReadySetVersion;
-            return demand;
-        }
+        /// <summary>
+        /// Reuses the previous frame's drawn set when nothing it depends on has moved.
+        ///
+        /// The traversal below costs roughly two milliseconds of main thread on a settled world:
+        /// several thousand candidates a frame, each paying four hash lookups and a managed
+        /// frustum test to re-derive an answer that is bit-for-bit the answer it gave last frame.
+        /// That is most of the frame budget of a stationary camera.
+        ///
+        /// The reuse condition is deliberately conservative rather than clever. A shard is taken
+        /// on trust only when it wants nothing (<c>MissingVisibleCount</c>), is building nothing
+        /// and uploading nothing — so no chunk can turn ready and need to enter the set — and when
+        /// its admission/invalidation counter is unchanged, which covers every authoritative voxel
+        /// edit and every newly streamed region. Any of those, or a camera that moved at all, and
+        /// the full pass runs. A chunk rebuilt in place needs no help from here: the drawn set
+        /// holds entry references and each draw reads the entry's live arena lease.
+        /// </summary>
+        public static bool VisibilityReuseEnabled { get; set; } = true;
 
         private bool TryReuseVisibility(Camera camera, float voxelSize, int frame)
         {
-            if (camera == null || !VisibilityReuseEnabled || !_hasVisibilityCache) return false;
+            if (camera == null || !VisibilityReuseEnabled) return false;
 
-            ulong demand = CurrentVisibilityDemandVersion();
-            if (demand != _lastVisibilityDemandVersion) return false;
-
-            bool hasMissing = false;
+            ulong demand = 0;
             for (int i = 0; i < _allWorkers.Length; i++)
-                hasMissing |= _allWorkers[i].MissingVisibleCount != 0;
+            {
+                CpuTransvoxelChunkCache worker = _allWorkers[i];
+                // Background prefetch is deliberately 360 degrees, so some shard is almost always
+                // building something out of shot. Waiting for that to go quiet meant this never
+                // engaged. What matters is narrower: nothing the camera can see is waiting. With
+                // MissingVisibleCount at zero, every in-frustum chunk that wants to be drawn is
+                // drawn, so a prefetch build landing behind the viewer cannot change the set.
+                if (worker.MissingVisibleCount != 0) return false;
+                demand += worker.DemandVersion + worker.ReadySetVersion;
+            }
 
             Transform cameraTransform = camera.transform;
             Vector3 position = cameraTransform.position;
             Quaternion rotation = cameraTransform.rotation;
-            bool samePose = position == _lastVisibilityCameraPosition
-                         && rotation == _lastVisibilityCameraRotation;
-            bool stableReuse = !hasMissing && samePose;
 
-            Vector3 delta = position - _lastVisibilityCameraPosition;
-            // A missing near chunk keeps the far-field fallback open. Reuse that already-covered
-            // view for only the immediately following small-motion frame; the next frame must run
-            // the full funnel again so newly published geometry and newly visible demand surface.
-            bool boundedConvergingReuse = hasMissing
-                && _lastMissingVisibleCount > 0
-                && _visibleSolids.Count > 0
-                && frame == _lastFullVisibilityFrame + 1
-                && delta.sqrMagnitude <= ConvergingVisibilityReuseDistanceMetres
-                                       * ConvergingVisibilityReuseDistanceMetres
-                && Quaternion.Angle(rotation, _lastVisibilityCameraRotation)
-                   <= ConvergingVisibilityReuseAngleDegrees;
-            if (!stableReuse && !boundedConvergingReuse) return false;
+            if (!_hasVisibilityCache
+                || demand != _lastVisibilityDemandVersion
+                || position != _lastVisibilityCameraPosition
+                || rotation != _lastVisibilityCameraRotation)
+            {
+                _hasVisibilityCache = true;
+                _lastVisibilityDemandVersion = demand;
+                _lastVisibilityCameraPosition = position;
+                _lastVisibilityCameraRotation = rotation;
+                return false;
+            }
 
+            // Eviction ages a chunk by the frame it was last drawn. Skipping the traversal must
+            // not make geometry that is on screen every frame look untouched, or the arena will
+            // eventually evict exactly what the camera is looking at.
             for (int i = 0; i < _visibleSolids.Count; i++)
                 _visibleSolids[i].LastUsedFrame = frame;
 
             double reuseStart = Time.realtimeSinceStartupAsDouble;
-            _lastVisibilityCandidateChecks = 0;
             _water.CollectVisible(camera, voxelSize);
             TrackReappearances(frame);
             LastVisibilityMainThreadMs = ElapsedMs(reuseStart);
             _visibilityTiming.Add(LastVisibilityMainThreadMs);
             return true;
-        }
-
-        private void RecordFullVisibilityCache(Camera camera, int frame)
-        {
-            if (camera == null || !VisibilityReuseEnabled)
-            {
-                _hasVisibilityCache = false;
-                _lastFullVisibilityFrame = -1;
-                return;
-            }
-
-            Transform cameraTransform = camera.transform;
-            _lastVisibilityDemandVersion = CurrentVisibilityDemandVersion();
-            _lastVisibilityCameraPosition = cameraTransform.position;
-            _lastVisibilityCameraRotation = cameraTransform.rotation;
-            _lastFullVisibilityFrame = frame;
-            _hasVisibilityCache = true;
         }
 
         private void CollectVisibility(Camera camera, float voxelSize, int frame)
@@ -1477,7 +1696,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             for (int i = 0; i < _allWorkers.Length; i++)
                 missingVisible += _allWorkers[i].MissingVisibleCount;
             _lastMissingVisibleCount = missingVisible;
-            RecordFullVisibilityCache(camera, frame);
 
             TrackReappearances(frame);
             LastVisibilityMainThreadMs = ElapsedMs(visibilityStart);
@@ -1512,7 +1730,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             {
                 int3 region = cameraRegion + new int3(x, y, z);
                 if (storage.IsRegionResident(region))
-                    EnqueuePrioritySurfaceDiscovery(region);
+                    _surfaceDiscoveryRegions.Add(region);
             }
         }
 
@@ -1585,17 +1803,37 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             }
         }
 
+        /// <summary>
+        /// Hands newly resident regions to surface discovery.
+        ///
+        /// This used to run once and latch off, which is correct only when residency is complete on
+        /// the first frame — the baked startup path. A world that generates during play becomes
+        /// resident a region at a time, so a single sweep discovered whatever existed on frame one
+        /// and silently left every later region unmeshed: terrain generated, and nothing drew it.
+        ///
+        /// The sweep is cursor-batched, so restarting it costs a bounded copy per frame, and only
+        /// regions not already seen are enqueued.
+        /// </summary>
         private void StepInitialSurfaceDiscovery(IRegionReadSource storage)
         {
             bool complete = storage.CopyResidentRegionCoords(
                 ref _initialSurfaceDiscoveryCursor, _changeRecoveryRegions, out int count);
             for (int i = 0; i < count; i++)
             {
+                // Additive: a region is handed to discovery once. Re-enqueueing one that is
+                // already queued marks it for rescan, and a sweep that re-offered everything every
+                // frame kept discovery restarting forever without ever publishing a result.
                 int3 region = _changeRecoveryRegions[i];
                 if (_sweptResidentRegions.Add(region))
                     _surfaceDiscoveryRegions.Add(region);
             }
             if (!complete) return;
+
+            // The record is additive. Rebuilding it each sweep looked tidier but residency changes
+            // while a cursor-batched sweep is in flight, so a region that simply was not reached
+            // this pass dropped out and was rediscovered — re-admitting chunks that were already
+            // built and keeping a third of the world permanently dirty. Regions that genuinely
+            // change publish a change record, which enqueues discovery on its own.
             _initialSurfaceDiscoveryCursor = 0;
         }
 
@@ -1743,20 +1981,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             }
         }
 
-        private void EnqueuePrioritySurfaceDiscovery(int3 region)
-        {
-            if (_hasActiveSurfaceDiscovery && region.Equals(_activeSurfaceDiscoveryRegion))
-            {
-                _activeSurfaceDiscoveryPriority = true;
-                _surfaceDiscoveryRescanRegions.Add(region);
-                return;
-            }
-
-            _queuedSurfaceDiscoveryRegions.Add(region);
-            if (_queuedPrioritySurfaceDiscoveryRegions.Add(region))
-                _prioritySurfaceDiscoveryQueue.Enqueue(region);
-        }
-
         private void EnqueueSurfaceDiscovery(HashSet<int3> regions)
         {
             foreach (int3 region in regions)
@@ -1770,31 +1994,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 if (_hasActiveSurfaceDiscovery && region.Equals(_activeSurfaceDiscoveryRegion))
                     _surfaceDiscoveryRescanRegions.Add(region);
             }
-        }
-
-        private bool TryDequeueSurfaceDiscovery(out int3 region, out bool priority)
-        {
-            while (_prioritySurfaceDiscoveryQueue.Count > 0)
-            {
-                region = _prioritySurfaceDiscoveryQueue.Dequeue();
-                _queuedPrioritySurfaceDiscoveryRegions.Remove(region);
-                if (!_queuedSurfaceDiscoveryRegions.Contains(region)) continue;
-                priority = true;
-                return true;
-            }
-
-            while (_surfaceDiscoveryQueue.Count > 0)
-            {
-                region = _surfaceDiscoveryQueue.Dequeue();
-                if (!_queuedSurfaceDiscoveryRegions.Contains(region)) continue;
-                if (_queuedPrioritySurfaceDiscoveryRegions.Contains(region)) continue;
-                priority = false;
-                return true;
-            }
-
-            region = default;
-            priority = false;
-            return false;
         }
 
         private void ProcessSurfaceDiscovery(IRegionReadSource storage,
@@ -1846,11 +2045,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     continue;
                 }
 
-                if (!TryDequeueSurfaceDiscovery(
-                        out _activeSurfaceDiscoveryRegion,
-                        out _activeSurfaceDiscoveryPriority))
+                if (_surfaceDiscoveryQueue.Count == 0)
                     break;
 
+                _activeSurfaceDiscoveryRegion = _surfaceDiscoveryQueue.Dequeue();
                 _hasActiveSurfaceDiscovery = true;
                 _surfaceDiscoveryPublishIndex = 0;
                 _surfaceDiscoveryResults.Clear();
@@ -1887,26 +2085,14 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private void FinishSurfaceDiscovery(bool requeue)
         {
             int3 region = _activeSurfaceDiscoveryRegion;
-            bool priority = _activeSurfaceDiscoveryPriority;
             _surfaceDiscoveryRescanRegions.Remove(region);
             _queuedSurfaceDiscoveryRegions.Remove(region);
-            _queuedPrioritySurfaceDiscoveryRegions.Remove(region);
             _hasActiveSurfaceDiscovery = false;
-            _activeSurfaceDiscoveryPriority = false;
             _surfaceDiscoveryPublishIndex = 0;
             _surfaceDiscoveryResults.Clear();
 
-            if (!requeue || !_queuedSurfaceDiscoveryRegions.Add(region)) return;
-
-            if (priority)
-            {
-                _queuedPrioritySurfaceDiscoveryRegions.Add(region);
-                _prioritySurfaceDiscoveryQueue.Enqueue(region);
-            }
-            else
-            {
+            if (requeue && _queuedSurfaceDiscoveryRegions.Add(region))
                 _surfaceDiscoveryQueue.Enqueue(region);
-            }
         }
 
         public void Dispose()

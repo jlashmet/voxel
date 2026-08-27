@@ -67,9 +67,6 @@ namespace VoxelEngine.Rendering.Runtime
         private const int SolidDrawMetadataBufferCount = 3;
 
         private VoxelSurfaceScheduler _scheduler;
-        private int _lastPreparedCameraId = int.MinValue;
-        private Vector3 _lastPreparedCameraPosition;
-        private Quaternion _lastPreparedCameraRotation;
         // Draw staging is bounded by the fixed arena args capacities. Allocate once with the
         // render pass; camera motion may change counts but can never resize managed arrays.
         private readonly CpuTransvoxelChunkCache.Entry[] _transvoxelDrawEntries =
@@ -256,25 +253,10 @@ namespace VoxelEngine.Rendering.Runtime
             _scheduler.SolidArenaMaxActiveLeases = Math.Max(
                 1, VoxelRenderBridge.SolidArenaMaxActiveLeases);
             _scheduler.WaterBuildBudgetMs = Math.Max(0.0, VoxelRenderBridge.WaterBuildBudgetMs);
-            Transform cameraTransform = camera.transform;
-            Vector3 cameraPosition = cameraTransform.position;
-            Quaternion cameraRotation = cameraTransform.rotation;
-            int cameraId = camera.GetInstanceID();
-            int frame = Time.frameCount;
-            bool samePreparedView = _scheduler.LastAdvancedFrame == frame
-                                 && _lastPreparedCameraId == cameraId
-                                 && _lastPreparedCameraPosition == cameraPosition
-                                 && _lastPreparedCameraRotation == cameraRotation;
-            if (!samePreparedView)
-            {
-                _scheduler.Prepare(world.Storage, in world.Palette,
-                                   in world.SurfaceCatalogueView, in world.CoatingCatalogueView,
-                                   world.ProfileBlocks, VoxelRenderBridge.Changes,
-                                   camera, VoxelSize, frame);
-                _lastPreparedCameraId = cameraId;
-                _lastPreparedCameraPosition = cameraPosition;
-                _lastPreparedCameraRotation = cameraRotation;
-            }
+            _scheduler.Prepare(world.Storage, in world.Palette,
+                               in world.SurfaceCatalogueView, in world.CoatingCatalogueView,
+                               world.ProfileBlocks, VoxelRenderBridge.Changes,
+                               camera, VoxelSize, Time.frameCount);
             VoxelRenderBridge.SurfaceMetrics = _scheduler.Metrics;
             VoxelRenderBridge.DescribeRings = _scheduler.DescribeRingResidency;
             VoxelRenderBridge.SurfaceReappearances = () => _scheduler.TotalReappearances;
@@ -332,6 +314,7 @@ namespace VoxelEngine.Rendering.Runtime
             data.SunDirection = VoxelRenderBridge.SunDirection;
             data.SkyHorizon = VoxelRenderBridge.SkyHorizon;
             data.SkyZenith = VoxelRenderBridge.SkyZenith;
+            Vector3 cameraPosition = camera.transform.position;
             data.CameraPosition = new Vector4(cameraPosition.x, cameraPosition.y,
                                               cameraPosition.z, 1f);
             data.WaterTime = Time.time;
@@ -565,7 +548,6 @@ namespace VoxelEngine.Rendering.Runtime
             // with the next arena and turns repeated scene loads into process-wide memory growth.
             _scheduler.Dispose();
             _scheduler = null;
-            _lastPreparedCameraId = int.MinValue;
             ReleaseSolidDrawMetadata();
             Array.Clear(_transvoxelDrawEntries, 0, _transvoxelDrawEntries.Length);
             Array.Clear(_waterDrawEntries, 0, _waterDrawEntries.Length);
@@ -577,7 +559,6 @@ namespace VoxelEngine.Rendering.Runtime
             VoxelRenderBridge.UnregisterWorldReleaseHandler(ReleaseWorldResources);
             _scheduler?.Dispose();
             _scheduler = null;
-            _lastPreparedCameraId = int.MinValue;
             ReleaseSolidDrawMetadata();
             CoreUtils.Destroy(_surfaceMaterial);
             CoreUtils.Destroy(_waterMaterial);
