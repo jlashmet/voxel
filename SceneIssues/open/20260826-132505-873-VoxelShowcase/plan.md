@@ -1,20 +1,16 @@
 # Plan — 20260826-132505-873 VoxelShowcase
 
 ## Defect / acceptance
-Capture note: `there is a floating mailbox`; no circles, so the whole saved pose is acceptance. The camera looks directly at the east-market street lamp at `(1530,549)` dm. Accept only when replay shows its gray foot visually contacting the working-yard shoulder, with the pole/lantern continuous and nearby streetscape unchanged.
+Capture note: `there is a floating mailbox`; no circles, so the whole saved pose is acceptance. The foreground object is the east-market street lamp near authored `(1530,549)` dm. Accept only when a clean native-resolution replay of the saved pose shows its gray foot visually contacting the working-yard shoulder, with pole/lantern continuous and nearby streetscape unchanged.
 
 ## Competing hypotheses / evidence
-1. **Wrong authored elevation — confirmed primary cause, fixed.** The lamp used macro Y≈256 while the stepped working-yard shoulder owns the column near Y≈232. Placement now derives from the same deterministic shoulder math as the district terrace.
-2. **Thin Smooth pole collapses — confirmed secondary cause, fixed.** The 3×3 dark-stone pole is now `SurfaceStyles.Planar`.
-3. **Smooth lamp foot causes the residual gap — falsified.** Exact request `d453a2c8f095d027488121fb255afaa65d71e194` (source `b8a26fce06967699f89ad2f8788ec6e17b8c53dd`, run `33029508745`) passed mechanically, but direct inspection of its fresh replay still shows the Planar gray foot about one reconstructed voxel above the brown shoulder.
-4. **Adjacent occupancy is insufficient across a smoothed terrain seam — selected.** The terrace fills through `surfaceY-1`, while the exact lamp starts at `surfaceY`; Smooth terrain can visually retract below that voxel boundary. Falsifier: a one-voxel foot embed that preserves the foot top and all upper lamp geometry still shows a gap.
+1. **Lamp uses the wrong district elevation — confirmed and fixed.** The authored macro elevation differs from the generated working-yard terrace surface; placement now follows that district surface.
+2. **Thin reconstructed support disappears — confirmed and fixed.** The dark pole and stone foot use `SurfaceStyles.Planar`.
+3. **A boundary seam remains between terrace and foot — selected product fix.** The foot is embedded one voxel while preserving its top/upper lamp geometry. The behavioral regression evaluates both production catalogues and proves generated-surface overlap plus foot→pole→lantern continuity.
+4. **The latest visually failing replay proves more embed is needed — rejected as evidence.** Request `d633741fe940c31b783b01f912d55839527d5208` (source `e4f952ad29118443bbf487f786e98583df73204d`, run `33107330590`) passed the regression, but the job restored cached `ShowcaseWorld.bytes`. The bake-cache fingerprint omitted `Assets/Game/WorldBuilder`, where the lamp fix lives, so that replay could be stale.
 
 ## Fix / regression / blast radius
-Keep the corrected district ownership and Planar pole/base. Extend only the lamp foot downward one voxel, increasing its cylinder height by one so its top is unchanged. The lamp (precedence 80) overlaps one top terrace layer (precedence 15), closing the reconstruction seam without moving pole or lantern.
-
-Strengthen `CapturedEastMarketLampKeepsPlanarSupportUnderLantern` through both production catalogues: require lamp origin at the generated first-air Y; require the foot minimum at `surfaceY-1`, its maximum unchanged at `surfaceY+4*s-1`, Planar base/pole, and pole/lantern continuity.
-
-Blast radius: Kentridge lamp foot only; same primitive count and deterministic integer work. Cost is one extra cylinder voxel layer per lamp (no new allocations/jobs or renderer-wide behavior).
+Keep the district-surface placement, Planar support, and one-voxel foot embed. `CapturedEastMarketLampKeepsPlanarSupportUnderLantern` remains the behavioral regression through current catalogue/program evaluation. Add `Assets/Game/WorldBuilder` to the reusable VoxelShowcase bake-cache fingerprint so world-generation source changes invalidate startup bakes. This changes verification caching only: no runtime allocations/jobs and no renderer-wide behavior.
 
 ## Current / gates
-Current merged head before this attempt: `7de3fc926d485ad5963b9d7cae3d7287366b1ac2`, already contains current master `94d390cac3fda5199a87033e2cae5bbd5f65287f`. Implement regression + minimal foot embed, refresh master, run one final exact-head PlayMode + saved-pose replay on `ci-test/fixes/agent-1`, inspect the artifact directly, then perform canonical pending bookkeeping only if visually accepted.
+Feature head `e4f952ad29118443bbf487f786e98583df73204d` contains current master `314d0dc4b3b88167bdc5eefbc43bf31e45c10eb1`. Commit the cache-fingerprint correction plus experiment evidence, request exact-head PlayMode + saved-pose replay, confirm the run uses a bake keyed by the current WorldBuilder state, then inspect the image directly. Only after green CI and visually accepted clean replay should the capture advance through pending→closed and the verified feature head be merged to master.

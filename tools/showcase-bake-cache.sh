@@ -21,6 +21,7 @@ fingerprint="$({
     Assets/Scenes/VoxelShowcase.unity \
     Assets/Scenes/Showcase \
     Assets/Game/Composition \
+    Assets/Game/WorldBuilder \
     Assets/VoxelEngine
 } | grep -v 'Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes$' | shasum -a 256 | awk '{print $1}')"
 
