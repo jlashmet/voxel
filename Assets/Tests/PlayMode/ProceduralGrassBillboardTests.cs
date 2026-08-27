@@ -12,10 +12,13 @@ namespace VoxelEngine.Tests.PlayMode
         {
             VegetationRenderStyle grassStyle = ProceduralVegetationMaterials.StyleFor(VegetationKind.Grass);
             VegetationRenderStyle cloverStyle = ProceduralVegetationMaterials.StyleFor(VegetationKind.Clover);
+            VegetationRenderStyle waterGrassStyle = ProceduralVegetationMaterials.StyleFor(VegetationKind.WaterGrass);
             Assert.That(grassStyle.Shape, Is.EqualTo(5f),
-                "Grass needs its dedicated pixel-sprite presentation discriminator.");
-            Assert.That(cloverStyle.Shape, Is.Not.EqualTo(grassStyle.Shape),
-                "The grass specialization must not restyle other tuft-like vegetation.");
+                "Semantic Grass keeps its dedicated pixel-sprite presentation discriminator.");
+            Assert.That(cloverStyle.Shape, Is.EqualTo(0f),
+                "Mundane grass-like tufts must remain on the production foliage shape-0 bucket.");
+            Assert.That(waterGrassStyle.Shape, Is.EqualTo(0f),
+                "WaterGrass must exercise the same grass-like shape-0 presentation path.");
 
             Shader shader = Shader.Find(ProceduralVegetationMaterials.FoliageShaderName);
             Assert.That(shader, Is.Not.Null, "Production foliage shader must be available in PlayMode.");
@@ -37,7 +40,11 @@ namespace VoxelEngine.Tests.PlayMode
             {
                 filter.sharedMesh = mesh;
                 renderer.sharedMaterial = material;
-                ProceduralVegetationMaterials.Configure(block, VegetationKind.Grass);
+
+                // Render Clover rather than semantic Grass here: the saved gallery replay proved
+                // that the marked patch can be any ecology-selected grass-like tuft. Shape 0 is the
+                // production path shared by clover/weeds/nettles/reeds/cattails/dead/water grass.
+                ProceduralVegetationMaterials.Configure(block, VegetationKind.Clover);
                 block.SetFloat("_WindStrength", 0f);
                 renderer.SetPropertyBlock(block);
 
