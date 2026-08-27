@@ -2,18 +2,19 @@
 
 ## Evidence
 - One marked region: normalized centre `(0.4802, 0.6678)`, radius `0.0690`, from the saved `Worldbuilding Gallery Camera` pose. The note explicitly points to Dylearn's 3D Pixel Art Grass Demo as the target.
-- The cited older issue fixed Transvoxel transition normals, not grass presentation. Gallery grass runs through `GalleryLifePopulation -> ProceduralVegetationBatchRenderer -> ProceduralVegetationFoliage.shader`.
+- The cited older issue fixed Transvoxel transition normals, not grass presentation. Gallery ground cover runs through `GalleryLifePopulation -> ProceduralVegetationBatchRenderer -> ProceduralVegetationFoliage.shader`.
 - Density is already high and bounded: 1.1 m sampling over an 80 m radius, capped at 14,000 instances. Adding more instances would add cost without fixing silhouette.
-- Existing tuft geometry is already seven radial cards, so a single authored card accidentally going edge-on is not the root cause. The reference instead uses a nearest-filtered compact grass sprite, camera-facing billboarding, stepped animation, rotational sway, and stylized lighting.
-- First candidate exact-SHA replay reproduced the marked area as tall dark vertical bars. Its test failure was separately traced to `WaitForEndOfFrame` being unsupported in Unity batchmode, so both the implementation and harness required correction.
+- Existing tuft geometry is seven radial cards, while the reference uses a compact nearest-filtered camera-facing grass sprite with stepped animation, rotational sway, and stylized lighting.
+- First candidate replay showed tall dark bars; its test also exposed a separate batchmode-harness error (`WaitForEndOfFrame`). After fixing both, exact-SHA CI/test passed but manual inspection of `verification-final.png` still showed tall dark bars inside the marked circle, so the issue was correctly kept open.
+- Catalogue inspection explains that replay: gallery ground can select Clover/Weed/Nettle/Reed/Cattail/DeadGrass/WaterGrass as well as semantic Grass. Those grass-like foliage kinds converge on shader shape `0`; semantic Grass has shape `5`. Flowers/fronds/shrubs/fungi use distinct shapes and surfaces/vines/woody growth use different shaders.
 
 ## Hypotheses / discriminators
-1. **Presentation mismatch — confirmed.** Specialize only `VegetationKind.Grass` as a compact camera-facing pixel sprite with a three-leaf procedural mask, base-anchored sway, and upward stylized lighting. Regression must retain compact filled silhouette and three separated blade runs across a 90° camera azimuth change.
+1. **Grass-like foliage presentation — confirmed.** Shapes `0` and `5` must use the compact pixel sprite; regression renders the production shape-0 Clover path and requires compact three-blade silhouette plus 90° camera-azimuth invariance.
 2. **Low scatter density — falsified.** Existing sampling/count budget is already dense; no placement or count change is needed.
-3. **All tuft-like foliage needs the same treatment — falsified.** Shape `0` is shared by clover/weeds/reeds/etc.; grass now has a dedicated render discriminator so those species keep their prior path.
+3. **All vegetation needs restyling — falsified.** Only the foliage shader's grass-like buckets change; flowers, fronds, shrubs, fungi, surface growth, vines, woody growth, trees, and semantic placement remain on existing paths.
 
 ## Fix / blast radius / cost
-- Grass-only shader/material specialization; no placement changes, no added semantic instances, and no new draw batches or source mesh assets.
-- Existing tuft cards collapse in shader to the same camera-facing sprite, keeping vertex/instance budgets unchanged.
-- PlayMode framebuffer regression uses explicit `Camera.Render()` so it is batchmode-safe and checks the grass-only discriminator, compact multi-blade silhouette, and azimuth invariance.
-- Final exact-SHA CI runs that regression plus the saved scene-issue replay; acceptance requires the marked region to read as short leafy pixel grass rather than dark vertical bars.
+- Reconstruct grass-like radial cards as one camera-facing 16×16 procedural three-blade pixel sprite with base-anchored stepped sway and upward stylized lighting.
+- No new assets, instances, batches, draw calls, or placement work; existing mesh/instance budgets are unchanged.
+- PlayMode framebuffer regression uses explicit `Camera.Render()` for batchmode and now exercises shape `0`, the path the saved replay proved was missing.
+- Final acceptance requires green exact-SHA regression plus saved-camera replay whose marked region no longer contains tall dark radial-card bars.
