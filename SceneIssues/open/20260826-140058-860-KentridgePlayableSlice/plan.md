@@ -1,20 +1,18 @@
 # Plan
 
 ## Acceptance region
-The capture has no marked circles, so the acceptance region is the visible opening ensemble. The reported defect is that the humanoid characters read as sunk through the pub floor; preserve the recovered opening camera and unobstructed pub interior while correcting their visible foot contact.
+No circles are marked, so acceptance is the visible opening ensemble at the captured pub camera. Preserve the recovered camera/interior while keeping humanoid feet on the generated stage plane.
 
-## Evidence and hypotheses
-- `issue.json` records the production `KentridgePlayableSlice` at frame 4205 / 21.844 s from `Kentridge Player Camera` (1928x836, FOV 58), after the opening has had time to stage its cast.
-- Opening stage points are realized from backend settlement geometry (`KentridgeCampaignWorldRealizer` -> `CutsceneStageRealizer`), so changing terrain or hard-coding pub Y would bypass the architecture-owned placement contract.
-- `PlayerActor` and `NpcActor` currently copy those semantic stage positions directly into imported humanoid prefab roots. The code explicitly assumes those roots are authored at the soles; that assumption is not verified against renderer bounds.
-- The fixed opening camera already has a captured-pose line-of-sight regression, making camera/occlusion a competing but already-covered explanation rather than the likely grounding source.
-
-Discriminator: run the real opening and compare each initial participant's semantic stage-plane Y to the minimum enabled renderer bound. If the stage plane is correct but renderer bounds extend below it, fix presentation/root-to-feet alignment; only revisit world realization if the semantic stage plane itself is wrong.
+## Evidence / discriminator
+- Capture: production `KentridgePlayableSlice`, frame 4205 / 21.844 s, 1928x836, `Kentridge Player Camera`, FOV 58.
+- Stage points come from settlement geometry (`KentridgeCampaignWorldRealizer` -> `CutsceneStageRealizer`); changing terrain or hard-coding pub Y would bypass architecture-owned placement.
+- Imported humanoid renderer bounds are independent of the semantic actor root used by story/collision/camera.
+- Exact targeted CI proved the semantic stage root stayed at Y=21.900. Weldon first normalized from rendererMinY=21.897 to 21.900, but after the idle animator advanced the renderer minimum became 21.871 (delta -0.029 m). That falsifies a bad stage-plane hypothesis and shows the one-time visual correction becomes stale under animation.
 
 ## Fix / regression
-Normalize each cutscene body's visual root-to-feet offset once from its renderer bounds, then apply that cached offset whenever the actor is placed or moved. Keep the motor/NPC semantic positions unchanged so story, collision, interaction, and camera calculations still use architecture-owned coordinates.
+Keep each actor root unchanged. Put only its visual children under a Kentridge-only offset and reconcile current enabled renderer minimum to semantic root Y in `LateUpdate`, after animation. Do not weaken the 0.025 m acceptance threshold.
 
-Add a PlayMode regression beside `KentridgeOpeningCameraReadabilityTests` that loads the production scene to the captured first dialogue beat and asserts Weldon, Madeline, and Steven renderer bottoms coincide with their semantic stage planes within a small tolerance. Log the measured offsets as repro evidence.
+Behavioral regression: `VoxelEngine.Tests.PlayMode.KentridgeOpeningGroundingTests.InitialOpeningCastRendererFeetRestOnSemanticStagePlane` loads the production scene to the first opening dialogue beat and checks Weldon, Madeline, and Steven renderer bottoms against their semantic stage roots.
 
 ## Blast radius / cost
-Scope is Kentridge cutscene presentation only. No voxel generation, stage realization, gameplay grounding, interaction distance, or global character prefab changes. Offset measurement happens once per cutscene body; per-frame movement adds only one cached scalar Y offset.
+Kentridge cutscene presentation only: no voxel generation, stage realization, gameplay grounding, interactions, camera math, or shared character prefabs. Cost is one scene-root scan plus renderer-bounds reconciliation per active humanoid per `LateUpdate` in this playable slice; the opening cast is small and no physics/story coordinates move.
