@@ -123,7 +123,7 @@ namespace MountingForce.WorldGen.Voxel
                     SurfaceCharacter.Urban),
                 new TerraceSeed("civic-summit", 920, 40, 470, 200, 1170, 150,
                     SurfaceCharacter.Urban),
-                new TerraceSeed("noble-ridge", 1490, 90, 340, 320, 72, 1530,
+                new TerraceSeed("noble-ridge", 1490, 90, 340, 320, 1530, 250,
                     SurfaceCharacter.Urban),
             };
 
