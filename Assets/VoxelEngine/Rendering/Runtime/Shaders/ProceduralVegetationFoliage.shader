@@ -183,7 +183,7 @@ Shader "VoxelEngine/ProceduralVegetationFoliage"
                 // The shared Tuft mesh has seven radial cards, but Dylearn's grass is one
                 // camera-facing pixel sprite per instance. Reconstruct position from UV rather than
                 // authored card orientation, which collapses those seven cards onto the same sprite
-                // without changing mesh/batch/instance counts or affecting any non-grass species.
+                // without changing mesh/batch/instance counts.
                 float3 objectRight = TransformObjectToWorld(float3(1.0, 0.0, 0.0)) - instanceOriginWS;
                 float3 objectUp = TransformObjectToWorld(float3(0.0, 1.0, 0.0)) - instanceOriginWS;
                 float scaleX = max(length(objectRight), 0.0001);
@@ -244,7 +244,9 @@ Shader "VoxelEngine/ProceduralVegetationFoliage"
                 localPosition.x *= widthScale;
                 localPosition.y *= heightScale;
 
-                float grassSprite = step(4.5, _Shape);
+                // Shape 0 is the foliage shader's grass-like bucket (mundane tufts and water grass);
+                // shape 5 is semantic Grass' dedicated discriminator. Both use the pixel sprite.
+                float grassSprite = max(1.0 - step(0.5, _Shape), step(4.5, _Shape));
                 float3 presentationNormalWS;
                 float windNoise;
                 float3 positionWS;
@@ -368,11 +370,10 @@ Shader "VoxelEngine/ProceduralVegetationFoliage"
             half4 Frag(Varyings input) : SV_Target
             {
                 UNITY_SETUP_INSTANCE_ID(input);
-                if (_Shape > 4.5)
+                if (_Shape < 0.5 || _Shape > 4.5)
                 {
-                    // For grass the pixel grid is the alpha silhouette; do not run the generic
-                    // foliage cutoff over it, which was what collapsed the first candidate into
-                    // the narrow dark bars captured by the saved-camera replay.
+                    // For grass-like ground cover the pixel grid is the alpha silhouette; do not
+                    // run the generic foliage cutoff over it, which creates narrow vertical bars.
                     clip(GrassPixelMask(PixelGrassUv(input.uv)));
                 }
                 else
