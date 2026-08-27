@@ -192,7 +192,7 @@ namespace VoxelEngine.Rendering.Runtime
 
         public static int SurfaceMaxResidentChunksPerRing = 4096;
 
-        public static int SurfaceMaxConcurrentBuildsConverging = 8;
+        public static int SurfaceMaxConcurrentBuildsConverging = 12;
 
         /// <summary>
         /// Chunk builds allowed in flight once the current view is complete.
