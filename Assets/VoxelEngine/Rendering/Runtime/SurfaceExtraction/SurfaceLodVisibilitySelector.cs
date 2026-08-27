@@ -22,6 +22,15 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public int Count => _active.Count;
         public bool IsActive(in SurfaceLodNodeKey key) => _active.Contains(key);
 
+        /// <summary>
+        /// A direct child can satisfy the current camera's handoff only if the finer ring owns the
+        /// coordinate. Once owned, off-frustum coverage is irrelevant to this frame; in-frustum
+        /// coverage must be current-ready or current-known-empty before the coarse fallback leaves.
+        /// </summary>
+        internal static bool IsCurrentViewComplete(bool inBand, bool inFrustum,
+                                                   bool currentReady, bool currentEmpty) =>
+            inBand && (!inFrustum || currentReady || currentEmpty);
+
         public void Rebuild(IReadOnlyList<SurfaceLodNodeKey> drawableNodes,
                             IReadOnlyList<SurfaceLodNodeKey> currentCompleteNodes)
         {
