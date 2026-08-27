@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using Unity.Mathematics;
 using VoxelEngine.Edits.Api;
 using VoxelEngine.Storage.Api;
+using VoxelEngine.Storage.Runtime;
 
 namespace VoxelEngine.Showcase
 {
@@ -32,9 +33,9 @@ namespace VoxelEngine.Showcase
                 : 1f);
 
         /// <summary>
-        /// Called before the showcase interaction Update. Capturing the already-authored cells here
-        /// means the first animated frame restores exactly the gate the player just saw rather than
-        /// a second runtime approximation of its art.
+        /// Snapshots the already-authored closed gate. The showcase runtime driver calls this
+        /// while the gate is closed, so the animation reuses the real authored timber, iron and
+        /// latch cells rather than approximating the art a second time in gameplay code.
         /// </summary>
         public void PrepareCastleFrontGateAnimation()
         {
@@ -64,13 +65,13 @@ namespace VoxelEngine.Showcase
             }
 
             // During async castle construction the gate volume can be temporarily empty. Retry on
-            // a later Update rather than caching that transient state as the closed gate forever.
+            // a later frame rather than caching that transient state as the closed gate forever.
             if (pose.Count > CastleLayout.FrontGateWidth * 8)
                 _castleFrontGateClosedPose = pose;
         }
 
         /// <summary>
-        /// Advances after the normal showcase Update. When E has just been accepted the legacy
+        /// Advances after the showcase's normal Update. When E has just been accepted the legacy
         /// interaction has already cleared the leaf; pose zero is therefore restored in LateUpdate
         /// before that empty state can be rendered, and subsequent poses swing both leaves inward.
         /// </summary>
