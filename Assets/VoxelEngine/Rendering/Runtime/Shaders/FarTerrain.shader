@@ -45,6 +45,7 @@ Shader "VoxelEngine/FarTerrain"
             // Far terrain consumes them rather than carrying a second texture/presentation setup.
             float4 _MaterialSampling[32];
             float4 _MaterialSurface[32];
+            float4 _MaterialVariation[32];
             TEXTURE2D_ARRAY(_AlbedoTextures); SAMPLER(sampler_AlbedoTextures);
             float _VoxelSize;
 
@@ -116,13 +117,37 @@ Shader "VoxelEngine/FarTerrain"
                 uint material = min((uint)round(input.material), 31u);
                 float4 materialSampling = _MaterialSampling[material];
                 float4 materialSurface = _MaterialSurface[material];
+                float4 materialVariation = _MaterialVariation[material];
                 float3 hitVoxel = input.positionWS / max(_VoxelSize, 1e-4);
                 float3 textured = SampleMaterialAlbedo(materialSampling, materialSurface,
                                                        hitVoxel, n);
                 float hitDistance = length(input.positionWS - GetCameraPositionWS());
+
+                // Match SmoothSurface's base-material presentation exactly. In particular,
+                // stylized terrain marks itself luminance-only: its source texture contributes
+                // shape/detail while the authored material albedo remains the hue owner. The old
+                // far path ignored that flag and blended raw grass RGB, which created a visibly
+                // different, oversized-looking grass treatment at the clipmap handoff.
                 float textureWeight = materialSampling.w
                                     * lerp(1.0, 0.44, saturate(hitDistance / 350.0));
-                float3 albedo = lerp(input.color.rgb, textured, textureWeight);
+                float3 directTexture = lerp(input.color.rgb, textured, textureWeight);
+                float textureLuminance = dot(textured, float3(0.2126, 0.7152, 0.0722));
+                float detail = clamp(textureLuminance / max(materialVariation.x, 0.08),
+                                     0.68, 1.24);
+                float3 chroma = textured / max(textureLuminance, 0.08);
+                float3 luminanceTexture = input.color.rgb
+                                        * lerp(1.0, detail, materialVariation.y)
+                                        * lerp(1.0, chroma, materialVariation.z);
+                float3 albedo = lerp(directTexture, luminanceTexture,
+                                     saturate(materialSurface.w));
+
+                float fineNoise = sin(dot(hitVoxel, float3(0.33, 0.27, 0.39)) + material * 0.71)
+                                * sin(dot(hitVoxel, float3(-0.21, 0.43, 0.17)) - material * 0.37);
+                float macroNoise = sin(dot(hitVoxel, float3(0.041, 0.029, 0.037)) + material)
+                                 * sin(dot(hitVoxel, float3(-0.023, 0.035, 0.031)));
+                albedo *= 1.0 + fineNoise * materialVariation.w * 0.24
+                              + macroNoise * materialVariation.w;
+
                 float3 lit = albedo * (ambient * 0.42 + (0.34 + ndl * 0.66));
 
                 // Aerial perspective. Without it a 5 km summit reads as a cardboard cutout at
