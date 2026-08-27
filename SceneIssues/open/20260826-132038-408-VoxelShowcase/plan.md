@@ -1,19 +1,20 @@
 # Plan — 20260826-132038-408-VoxelShowcase
 
 ## Observed defect / acceptance
-The single captured pose has no annotation circles. At the visible near/far terrain handoff, the left/near grass is finely tiled while the right/far grass shows the same texture at a much larger apparent scale. Acceptance: replay the saved 1928×836 pose with no texturing discontinuity at that handoff and keep the far terrain on the same game-owned grass presentation as the near surface.
+The single captured pose has no annotation circles. At the visible near/far terrain handoff, the left/near grass is finely textured and dark green while the right/far grass shows pale, oversized blade/flower texture. Acceptance: replay the saved 1928×836 pose with no presentation discontinuity at that handoff.
 
 ## Competing hypotheses and evidence
-- **Material identity/policy differs.** Disproved. The far mesh carries the exact application-owned material ID and selects the same `_MaterialSampling`/`_MaterialSurface` row; targeted tests went green, but saved-pose replay still showed the defect.
-- **World/voxel coordinate scale differs.** Disproved. Near extracted vertices are already world metres; both shaders divide world position by the 0.1 m voxel size. Explicitly binding far `_VoxelSize = 0.1` still reproduced the defect in saved-pose replay.
-- **Shared presentation state is published too late.** Disproved by the original saved-pose replay after the ordering fix. The focused scheduling regression passed, but the visual mismatch remained.
-- **Texture-array minification/mip policy.** Selected. Near and far shaders use the same world-space UV and sampling functions, but `BuildTextureArray` created the shared arrays with no mip chain and bilinear filtering. The far clipmap heavily minifies the base texture while the near surface does not, matching the captured scale/aliasing discontinuity.
+- **Material identity differs.** Disproved: far vertices carry the exact application-owned surface material ID.
+- **World/voxel UV scale differs.** Disproved: both paths use world metres / 0.1 m and explicit far `_VoxelSize = 0.1` still failed visually.
+- **Presentation publication order differs.** Disproved: earlier publication passed its regression but the saved pose remained broken.
+- **Texture-array minification differs.** Disproved: exact-source mip/trilinear regression passed, but replay run `33087477898` still showed the original handoff; the ~21 MiB mip change was reverted.
+- **Post-sample material presentation differs.** Selected. Grass is authored `luminanceOnly: true` with detail/chroma/macro variation. `SmoothSurface` applies that policy; `FarTerrain` directly blended raw texture RGB and ignored `_MaterialVariation` / the luminance-only flag.
 
 ## Minimal discriminator / regression
-`SharedPresentationTextureArraySupportsMinification` builds the production shared texture array and requires a real mip chain plus trilinear filtering. This directly covers the resource contract that differs under far-field minification without encoding grass identity or a second far-only texturing path. Final saved-pose replay remains the causal rendering gate.
+`VoxelEngine.Tests.PlayMode.FarTerrainMaterialIdentityTests.FarTerrainHonorsLuminanceOnlyMaterialPresentation` renders the production `VoxelEngine/FarTerrain` shader offscreen with a green authored albedo and white source texture. A luminance-only row must stay strongly green; the old raw-texture path renders nearly neutral. Saved-pose replay remains the final causal rendering gate.
 
 ## Selected fix / blast radius / cost
-Generate the shared albedo/normal texture-array mip pyramids once during catalogue construction: blit each normalized source into a mipmapped temporary render texture, generate its mips on the GPU, copy every mip into the array layer, and sample the array trilinearly. This adds no shader pass, draw, mesh work, or per-frame allocation. Mip pyramids add ~33% texture memory; with the existing 1024 cap and two 8-layer RGBA32 arrays the incremental worst-case is roughly 21 MiB.
+Far terrain now applies the same base-material sequence as `SmoothSurface`: distance texture weighting, luminance/detail/chroma reconstruction, and fine/macro variation. Near-only normal relief, coatings/style overlays, and far aerial perspective remain representation-specific. Cost is one existing row lookup plus scalar/noise math; no new textures, passes, draws, allocations, meshes, or world work.
 
 ## Current state / remaining gates
-Feature was refreshed from current master before this attempt. Candidate source/test and experiment are pushed on `fixes/agent-5`. Remaining: re-check/integrate master if it advanced; exact-SHA targeted EditMode regression; exact-SHA saved-pose PlayMode replay; inspect the artifact against the original handoff; commit `verification-final.png`; complete `issue.json`; move the capture to `closed`; merge current master into the feature if needed and push the verified feature head to master non-force.
+Current master `3cf4487681515d24b514b6e0efabb48333aa252e` is already integrated. Candidate and framebuffer regression are pushed on `fixes/agent-5`; next: exact-SHA focused PlayMode CI, exact-SHA saved-pose replay, inspect `verification-final.png`, then only if clean complete metadata/move to closed and merge the verified head to current master.
