@@ -1,25 +1,26 @@
 # Plan — SceneIssue 20260825-192751-413 VoxelShowcase
 
 ## Defect / acceptance
-The only capture is `screenshot-001.png`; its only marked circle covers the top-left FPS/surface telemetry at the saved `Showcase Camera` pose. Replay ties the complaint to moving-player rendering/streaming cost. Acceptance is the unchanged production traversal regression plus 45 s saved-pose replay: p95 < 18 ms, p99 < 25 ms, zero frame-path blocking completions, streamed-region movement proven, visible solids every frame, and near/far gap <= 5 cm.
+The only capture is `screenshot-001.png`; its only marked circle covers the top-left FPS/surface telemetry at the saved `Showcase Camera` pose. Replay ties the complaint to moving-player rendering/streaming cost and visible chunk convergence. Acceptance is the unchanged production traversal regression plus 45 s saved-pose replay: p95 < 18 ms, p99 < 25 ms, zero frame-path blocking completions, streamed-region movement proven, visible solids every moving frame, and near/far gap <= 5 cm.
 
 ## Competing hypotheses / evidence
-**Exact near-ring snapshot overhead — supported but insufficient alone.** Profiling attributed a sampled ~70.83/70.86 ms worker overrun to `Voxel.Surface.Snapshot`. Inlining the existing clear/map/compact metadata bodies only for bounded step-1/2 exact grids reduced snapshot p95 to ~1.76 ms, but exact traversal remained above budget.
+**Exact near-ring snapshot overhead — supported, retained, insufficient alone.** Profiling attributed a sampled ~70.83/70.86 ms worker overrun to `Voxel.Surface.Snapshot`. Inlining the existing clear/map/compact metadata bodies only for bounded step-1/2 exact grids reduced snapshot p95 to ~1.76 ms, but exact traversal still failed at ~20.16 ms p95 / ~28.33 ms p99.
 
-**Draw/upload/GPU/GC and admission — disfavored/rejected.** Settled replay and stage attribution keep upload/GC small and stationary draw throughput much faster. Two admission variants either lost visible geometry or still missed the unchanged 18/25 ms tail limits.
+**Draw/upload/GC and visibility-cache variants — disfavored/rejected.** Upload/GC remain small in stage telemetry and stationary draw throughput is much faster. Historical inline-frustum and cadence-throttled visibility experiments did not help. The bounded moving-visibility exact run preserved coverage but regressed to p95 23.40 ms; it is removed. A provisional same-frame guard was rejected before CI because coroutine `yield return null` advances the measured traversal across player frames, so its causal premise did not match the timed path.
 
-**Cross-frame converging visibility reuse — rejected as closing fix.** Exact request `agent-2-192751-final-bounded-visibility-reuse-v2-20260827-1219` preserved coverage but failed at p95 23.40 ms. Historical profiling already ruled out inline frustum math and cadence-throttled 360-degree demand as fixes.
+**Admission shape — ramps rejected; static concurrency is an amplifier.** Exact completion-count ramping lost every visible draw by frame 5. Monotonic ramping preserved coverage but still failed at p95 20.73 / p99 25.10 and worsened replay FPS. Separately, a 12→8 diagnostic reduced worker/snapshot pressure by ~27%, but the older cap-only configuration was red. The later snapshot fix removed another ~2.7 ms from the same worker path, so the untried combination of bounded near-ring snapshot work plus a static convergence cap of 8 is the selected final discriminator.
 
-**Duplicate same-frame visibility — selected fix.** The behavioral regression advances the player, yields one player frame, then explicitly renders the same camera before stopping its timer. `VoxelSurfaceScheduler.Prepare` advances world/change/build state once per `Time.frameCount`; a second Prepare in that frame only reruns visibility. During convergence that is another ~4–6 ms full slot/LOD sweep even when camera identity and pose are unchanged. `VoxelRenderPass` now reuses the already-prepared scheduler result only for the same camera instance, exact position/rotation, and same frame. A different camera or changed same-frame pose still invokes scheduler visibility.
+**Existing GPU mesher — validated historically, not blindly re-enabled.** The retained step-1/2 GPU extractor previously passed graphics-enabled CPU/GPU density/material/normal/ownership parity and a production-player replay with zero missing sections. Production was later hard-disabled by a dedicated rollback commit without a checked-in failing GPU reproduction. Re-enabling that hard gate would broaden this change beyond the measured current CPU path; keep it as the next architectural direction only if the bounded CPU candidate is falsified.
 
 ## Regression / blast radius / cost
-`ContinuousPlayerTraversalNeverStuttersOrOpensNearFarGap` moves 0.5 m per rendered frame for 420 frames across >=4 region boundaries and asserts visible solids, <=5 cm fallback coverage while near geometry is incomplete, zero blocking completions, streaming activity, and the unchanged 18/25 ms tails.
+`VoxelEngine.Tests.PlayMode.ShowcaseTraversalPerformanceTests.ContinuousPlayerTraversalNeverStuttersOrOpensNearFarGap` moves ~0.5 m per rendered frame for 420 frames across streamed regions and asserts visible solids, <=5 cm fallback coverage while near geometry is incomplete, zero blocking completions, streaming progress, p95 <18 ms, p99 <25 ms, max <80 ms, then a low-cost stationary tail.
 
-Rendering only. No cross-frame reuse is added; no clipmap/prefetch, Storage, gameplay/collision authority, build admission, publication, geometry semantics, or thresholds change. Draw staging/submission still executes for every render; only an identical second preparation in one Unity frame is suppressed.
+Final candidate is render/extraction scheduling only: retain bounded step-1/2 exact metadata inlining; restore `VoxelRenderPass.cs` and `VoxelSurfaceScheduler.cs` to current `origin/master`; change only `SurfaceMaxConcurrentBuildsConverging` 12→8. Converged background ceiling stays 1. No Storage, gameplay/collision authority, world generation, geometry/material/topology semantics, LOD layout, upload/discovery budgets, arena capacity, or acceptance threshold changes. Cost is up to one-third less cold-view CPU extraction parallelism; the traversal regression directly catches any resulting coverage/load regression.
 
-- [x] Inspect the sole marked region and saved-pose evidence.
-- [x] Discriminate snapshot, draw/upload/GPU/GC, admission, and visibility hypotheses.
-- [x] Retain the moving traversal behavioral regression.
-- [x] Implement bounded snapshot work and same-frame identical-view preparation reuse.
+- [x] Inspect the sole marked region and tie it to saved-pose/runtime telemetry.
+- [x] Retain the moving traversal behavioral regression and unchanged performance/coverage gates.
+- [x] Discriminate snapshot, draw/upload/GC, admission, visibility, and GPU alternatives.
+- [x] Retain the measured near-ring snapshot fix; remove falsified visibility experiments.
+- [x] Apply the untried snapshot + static-8 convergence combination.
 - [ ] Green exact-SHA targeted CI plus 45 s saved-pose replay.
 - [ ] Commit `verification-final.png`, complete pending metadata, close, merge latest master, and non-force advance master.
