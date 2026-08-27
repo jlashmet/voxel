@@ -361,10 +361,10 @@ namespace MountingForce.WorldGen.Voxel
             byte slate = settings.Materials.Resolve(MaterialRole.Slate);
             var b = new ProgramBuilder();
 
-            // The base is the visible ground-contact owner. Reconstruct it exactly so the default
-            // rounded stone presentation cannot retract its lower surface and make a correctly
-            // adjacent authored lamp read as floating above the terrace.
-            b.Cylinder(4 * s, 0, 4 * s, 3 * s, 4 * s, 1, stone, SurfaceStyles.Planar);
+            // The terrace's Smooth reconstruction can retract below its top occupied voxel. Keep
+            // the visible Planar foot top unchanged, but embed its bottom by one voxel so the two
+            // reconstructed surfaces overlap instead of exposing a seam at an occupancy boundary.
+            b.Cylinder(4 * s, -1, 4 * s, 3 * s, 4 * s + 1, 1, stone, SurfaceStyles.Planar);
             // Dark stone is Smooth in the Showcase palette. The 3x3 pole is a deliberately thin
             // architectural support, so keep its occupancy/material but reconstruct it exactly;
             // otherwise the smoothed support can collapse while the larger lantern head remains.
