@@ -170,6 +170,26 @@ namespace MountingForce.WorldGen.Voxel
         }
 
         /// <summary>
+        /// Raw capsule access for architecture patterns that need a deterministic line-like detail
+        /// primitive. Radius zero is intentional and is used for authored masonry joints without
+        /// changing structural occupancy.
+        /// </summary>
+        public void RawCapsule(
+            int ax, int ay, int az,
+            int bx, int by, int bz,
+            int radius,
+            byte material,
+            PrimitiveMode mode = PrimitiveMode.Fill,
+            ushort surfaceStyle = SurfaceStyles.MaterialDefault,
+            byte coating = Coatings.None)
+        {
+            if (radius < 0) throw new ArgumentOutOfRangeException(nameof(radius));
+            Op(ShapeOp.EmitCapsule,
+                ax, ay, az, bx, by, bz,
+                radius, material, surfaceStyle, coating, (int)mode);
+        }
+
+        /// <summary>
         /// Emits a roof/massing prism. Unless a treatment is supplied explicitly, roof
         /// reconstruction comes from the structure geometry profile so roofs participate in the
         /// same city-independent style policy as walls, openings and details.
