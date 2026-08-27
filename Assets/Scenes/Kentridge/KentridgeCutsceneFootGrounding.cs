@@ -13,7 +13,7 @@ namespace Game.Kentridge.PlayableSlice
     public sealed class KentridgeCutsceneFootGrounding : MonoBehaviour
     {
         private const float AlignmentEpsilonMetres = 0.001f;
-        private readonly HashSet<int> _normalizedRoots = new HashSet<int>();
+        private readonly HashSet<GameObject> _normalizedRoots = new HashSet<GameObject>();
 
         private void LateUpdate()
         {
@@ -24,12 +24,12 @@ namespace Game.Kentridge.PlayableSlice
             {
                 GameObject root = roots[i];
                 if (root == null || root == gameObject || !root.activeInHierarchy) continue;
-                if (_normalizedRoots.Contains(root.GetInstanceID())) continue;
+                if (_normalizedRoots.Contains(root)) continue;
                 if (root.GetComponentInChildren<Animator>(true) == null) continue;
 
                 if (TryNormalizeVisibleFeet(root, out float correction, out float before, out float after))
                 {
-                    _normalizedRoots.Add(root.GetInstanceID());
+                    _normalizedRoots.Add(root);
                     Debug.Log(
                         "KENTRIDGE_FOOT_ALIGNMENT actor=" + root.name
                         + " stageY=" + root.transform.position.y.ToString("F3")
