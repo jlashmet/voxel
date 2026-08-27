@@ -1,30 +1,22 @@
 # Plan — SceneIssue 20260825-192751-413 VoxelShowcase performance/coverage
 
 ## Defect / acceptance
-The capture reports sub-100 FPS walking, slow fill, and missing geometry until meshing completes. Acceptance requires every saved pose plus moving traversal to retain coverage, focused behavioral CI to be green, and measured performance to improve without bypassing renderer architecture.
+The capture reports sub-100 FPS while walking, slow surface fill, and missing geometry. Acceptance requires the saved pose and moving traversal to retain voxel coverage, the focused production-path regression to pass on exact-SHA CI, saved-pose replay evidence, and no relaxation of existing frame-time or geometry budgets.
 
-## Proven results
-- Restored the existing validated GPU exact-ring extractor for steps 1/2; step 4/HLOD and hardware/content fallbacks remain CPU/coarse.
-- Exact cutover regression green: request `8bb029535005fbb9fde1365e39c7b41461ecc407`, run `32991459621`.
-- Saved-pose replay green: `c7bc806567c007f3cbc0310942a8a799ad88627a`, run `32991641843`; converged with no missing geometry, late-window average about 168 FPS versus captured ~105 FPS.
-- Production moving traversal `c59ca85fc9e81b09577b5a6f6c3d143d42438446`, run `32993732467`, reached visible coverage then lost all voxel draws on movement frame 5.
-- Throughput test `e540607dacc49c840fe230878c5cab87172c1de6`, run `33006475923`, failed before timing because background work had not converged.
-- Experiment 010 was inconclusive: setup ended at `123/31/0` known/in-band/frustum candidates.
-- Experiment 011 exact saved pose also failed before movement: `144/36/0`; therefore no movement/scheduler fix is yet proven. Scene YAML confirms `VoxelShowcase`, `Camera`, and captured `Showcase Camera` are the same GameObject.
+## Evidence / competing hypotheses
+1. **GPU cutover was disabled or too narrow.** Partly supported: restoring the existing validated exact-ring GPU extractor for source steps 1/2 improved the saved-pose replay to about 168 FPS with no late missing geometry; step 4/HLOD and fallback paths remain CPU/coarse.
+2. **Arena pressure removes visible geometry during motion.** Rejected as the first-failure cause: long real-player traversal remained mostly 150–330 FPS while pressure rose later, but the deterministic production traversal lost all draws at movement frame 5.
+3. **Camera/frustum math rejects the captured view.** Rejected by experiment 012: Unity's frustum accepted a forward probe at the exact saved pose while production reported `known/inBand/frustum=170/38/0` and step1 `res=0 known=0`.
+4. **Surface discovery starves the initial camera window.** Supported by code and captured telemetry. Camera-near priority discovery was only activated after a clipmap had a previous window and moved, so first-window startup fell back to the global resident sweep and could leave the near ring completely unknown.
 
-## Competing hypotheses
-1. The diagnostic render path constructs an invalid/stale camera frustum at the saved pose.
-2. Camera frustum math is correct, but discovery/ring ownership supplies in-band chunks outside the captured view.
-3. Only after initial visibility is proven: movement can expose an independent LOD publication/readiness gap.
+## Selected fix / regression
+Commit `20a32987b0273e6f8f2718e4bb169648cf7e3dae` treats initial clipmap creation as a priority-discovery event while retaining region-difference admission only for later movement. It changes no build, upload, arena, LOD, or frame-time budget. `ShowcaseCapturePoseFrustumDiagnosticsTests.CapturePoseFrustumContainsForwardProbeAndSurfaceCandidates` is the focused behavioral regression through the production scheduler at the exact captured pose. The existing `ShowcaseTraversalPerformanceTests.ContinuousPlayerTraversalNeverStuttersOrOpensNearFarGap` remains the moving acceptance with its original p95/p99 limits.
 
-## Current discriminator
-Experiment 012 leaves production unchanged. At the exact saved pose it checks whether Unity's calculated frustum accepts a small AABB directly in front of the camera while production visibility remains zero; failure also reports `DescribeRings()`.
+## Blast radius / cost
+Shared surface scheduler only; camera-near priority checks at clipmap changes inspect at most the existing 3×3×3 resident-region neighborhood. No new persistent allocation, job, mesh path, or budget increase is introduced. Current master `9a633c15...` was merged cleanly as `0660116400...`; its delta was limited to another closed SceneIssue.
 
 ## Remaining gates
-- [ ] Run experiment 012 exact-SHA CI and classify zero-frustum state.
-- [ ] Implement only the smallest causal production fix plus focused behavioral regression.
-- [ ] Re-run moving traversal, throughput/convergence, and every original pose; record actual timings.
-- [ ] Commit `verification-final.png`; move capture `open/`→`pending/`, set pending bookkeeping with `resolvedUtc` empty.
-- [ ] Push verified branch and wait for coordinator; do not push master, create review branch, or start another capture.
-
-Current master ancestor: `025e88ef6e2d097143607c3018184ddc99cb747c`. Production fix lineage remains rooted at `0fcaf3b98b92f4906c2027dd0b9104d664e01f90`.
+- [ ] Focused exact-SHA CI `3a06a96f...` passes (currently queued on shared macOS runner).
+- [ ] Final exact-head traversal + saved-pose replay passes; inspect artifact and commit `verification-final.png`.
+- [ ] Complete `issue.json`, move `open/`→`pending/` in separate bookkeeping commit, then close per task authorization.
+- [ ] Refresh/merge current master if it advances, then non-force fast-forward verified branch to `master`.
