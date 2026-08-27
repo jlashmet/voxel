@@ -254,10 +254,10 @@ namespace MountingForce.WorldGen.Voxel
                 frameMaterial,
                 StructureSurfaceTreatment.Beveled);
 
-            builder.OpeningCarve(x, y, z, width, clearHeight, depth);
+            builder.OpeningCarve(x, y, outerZ, width, clearHeight, outerDepth);
             builder.OpeningArchCarve(
-                x, y + clearHeight, z,
-                width, archRise, depth);
+                x, y + clearHeight, outerZ,
+                width, archRise, outerDepth);
         }
 
         /// <summary>An arched opening with planar glazing restored after the structural carve.</summary>
