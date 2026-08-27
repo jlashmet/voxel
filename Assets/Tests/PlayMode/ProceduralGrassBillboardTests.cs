@@ -1,7 +1,5 @@
-using System.Collections;
 using NUnit.Framework;
 using UnityEngine;
-using UnityEngine.TestTools;
 using VoxelEngine.Rendering.Runtime.Vegetation;
 using VoxelEngine.Vegetation.Api;
 
@@ -9,9 +7,16 @@ namespace VoxelEngine.Tests.PlayMode
 {
     public sealed class ProceduralGrassBillboardTests
     {
-        [UnityTest, Timeout(30000)]
-        public IEnumerator GrassSilhouetteRemainsReadableAcrossCameraAzimuths()
+        [Test, Timeout(30000)]
+        public void GrassSilhouetteRemainsCompactAndReadableAcrossCameraAzimuths()
         {
+            VegetationRenderStyle grassStyle = ProceduralVegetationMaterials.StyleFor(VegetationKind.Grass);
+            VegetationRenderStyle cloverStyle = ProceduralVegetationMaterials.StyleFor(VegetationKind.Clover);
+            Assert.That(grassStyle.Shape, Is.EqualTo(5f),
+                "Grass needs its dedicated pixel-sprite presentation discriminator.");
+            Assert.That(cloverStyle.Shape, Is.Not.EqualTo(grassStyle.Shape),
+                "The grass specialization must not restyle other tuft-like vegetation.");
+
             Shader shader = Shader.Find(ProceduralVegetationMaterials.FoliageShaderName);
             Assert.That(shader, Is.Not.Null, "Production foliage shader must be available in PlayMode.");
 
@@ -49,37 +54,47 @@ namespace VoxelEngine.Tests.PlayMode
                 camera.farClipPlane = 10f;
 
                 SetView(camera.transform, new Vector3(0f, 0.52f, -3f));
-                yield return null;
-                yield return new WaitForEndOfFrame();
-                Read(target, front);
+                Render(camera, target, front);
 
                 SetView(camera.transform, new Vector3(3f, 0.52f, 0f));
-                yield return null;
-                yield return new WaitForEndOfFrame();
-                Read(target, side);
+                Render(camera, target, side);
 
-                int frontPixels = CountGrassPixels(front);
-                int sidePixels = CountGrassPixels(side);
+                GrassPixelStats frontStats = AnalyzeGrass(front);
+                GrassPixelStats sideStats = AnalyzeGrass(side);
 
-                Assert.That(frontPixels, Is.GreaterThan(350),
-                    $"Front view produced only {frontPixels} readable grass pixels.");
-                Assert.That(sidePixels, Is.GreaterThan(frontPixels * 0.72f),
-                    $"A camera-facing grass card must retain its silhouette when viewed from the side; "
-                    + $"front={frontPixels}, side={sidePixels}.");
+                AssertReadablePixelGrass(frontStats, "front");
+                AssertReadablePixelGrass(sideStats, "side");
+                Assert.That(sideStats.PixelCount, Is.InRange(
+                        Mathf.RoundToInt(frontStats.PixelCount * 0.80f),
+                        Mathf.RoundToInt(frontStats.PixelCount * 1.25f)),
+                    $"Camera-facing grass should keep nearly the same filled silhouette area across a 90-degree "
+                    + $"camera change; front={frontStats.PixelCount}, side={sideStats.PixelCount}.");
             }
             finally
             {
                 RenderTexture.active = previousActive;
                 camera.targetTexture = null;
                 target.Release();
-                Object.Destroy(target);
-                Object.Destroy(front);
-                Object.Destroy(side);
-                Object.Destroy(material);
-                Object.Destroy(mesh);
-                Object.Destroy(bladeObject);
-                Object.Destroy(cameraObject);
+                Object.DestroyImmediate(target);
+                Object.DestroyImmediate(front);
+                Object.DestroyImmediate(side);
+                Object.DestroyImmediate(material);
+                Object.DestroyImmediate(mesh);
+                Object.DestroyImmediate(bladeObject);
+                Object.DestroyImmediate(cameraObject);
             }
+        }
+
+        private static void AssertReadablePixelGrass(GrassPixelStats stats, string view)
+        {
+            Assert.That(stats.PixelCount, Is.GreaterThan(300),
+                $"The {view} view produced only {stats.PixelCount} readable grass pixels.");
+            Assert.That(stats.Width, Is.GreaterThanOrEqualTo(Mathf.RoundToInt(stats.Height * 0.72f)),
+                $"The {view} silhouette is too narrow and reads as vertical bars instead of a compact leaf fan; "
+                + $"bounds={stats.Width}x{stats.Height}.");
+            Assert.That(stats.MaxHorizontalRuns, Is.GreaterThanOrEqualTo(3),
+                $"The {view} silhouette must expose at least three separated blade runs through its middle; "
+                + $"maxRuns={stats.MaxHorizontalRuns}.");
         }
 
         private static Mesh BuildQuad()
@@ -108,27 +123,79 @@ namespace VoxelEngine.Tests.PlayMode
         private static void SetView(Transform cameraTransform, Vector3 position)
         {
             cameraTransform.position = position;
-            cameraTransform.LookAt(new Vector3(0f, 0.52f, 0f), Vector3.up);
+            cameraTransform.LookAt(new Vector3(0f, 0.34f, 0f), Vector3.up);
         }
 
-        private static void Read(RenderTexture target, Texture2D destination)
+        private static void Render(Camera camera, RenderTexture target, Texture2D destination)
         {
+            camera.Render();
             RenderTexture.active = target;
             destination.ReadPixels(new Rect(0, 0, target.width, target.height), 0, 0, false);
             destination.Apply(false, false);
         }
 
-        private static int CountGrassPixels(Texture2D image)
+        private static GrassPixelStats AnalyzeGrass(Texture2D image)
         {
             Color32[] pixels = image.GetPixels32();
+            int width = image.width;
+            int height = image.height;
+            int minX = width;
+            int minY = height;
+            int maxX = -1;
+            int maxY = -1;
             int count = 0;
-            for (int i = 0; i < pixels.Length; i++)
+
+            for (int y = 0; y < height; y++)
+            for (int x = 0; x < width; x++)
             {
-                Color32 pixel = pixels[i];
-                if (pixel.g > 24 && pixel.g > pixel.r + 4 && pixel.g > pixel.b + 4)
-                    count++;
+                if (!IsGrass(pixels[y * width + x])) continue;
+                count++;
+                minX = Mathf.Min(minX, x);
+                minY = Mathf.Min(minY, y);
+                maxX = Mathf.Max(maxX, x);
+                maxY = Mathf.Max(maxY, y);
             }
-            return count;
+
+            if (count == 0)
+                return new GrassPixelStats(0, 0, 0, 0);
+
+            int boundsHeight = maxY - minY + 1;
+            int firstRow = minY + Mathf.RoundToInt(boundsHeight * 0.32f);
+            int lastRow = minY + Mathf.RoundToInt(boundsHeight * 0.72f);
+            int maxRuns = 0;
+            for (int y = firstRow; y <= lastRow; y++)
+            {
+                int runs = 0;
+                bool inside = false;
+                for (int x = minX; x <= maxX; x++)
+                {
+                    bool grass = IsGrass(pixels[y * width + x]);
+                    if (grass && !inside) runs++;
+                    inside = grass;
+                }
+                maxRuns = Mathf.Max(maxRuns, runs);
+            }
+
+            return new GrassPixelStats(count, maxX - minX + 1, boundsHeight, maxRuns);
+        }
+
+        private static bool IsGrass(Color32 pixel) =>
+            pixel.g > 24 && pixel.g > pixel.r + 4 && pixel.g > pixel.b + 4;
+
+        private readonly struct GrassPixelStats
+        {
+            public readonly int PixelCount;
+            public readonly int Width;
+            public readonly int Height;
+            public readonly int MaxHorizontalRuns;
+
+            public GrassPixelStats(int pixelCount, int width, int height, int maxHorizontalRuns)
+            {
+                PixelCount = pixelCount;
+                Width = width;
+                Height = height;
+                MaxHorizontalRuns = maxHorizontalRuns;
+            }
         }
     }
 }
