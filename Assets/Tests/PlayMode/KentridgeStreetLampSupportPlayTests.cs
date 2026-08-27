@@ -113,7 +113,7 @@ namespace VoxelEngine.Tests.PlayMode
                 Assert.LessOrEqual(lanternMin.y, poleMax.y + 1,
                     "Planar pole must remain continuous under the lantern head.");
 
-                ExportFreshShowcaseBakeForDiagnostic();
+                ExportDiagnosticInputs();
             }
             finally
             {
@@ -124,12 +124,18 @@ namespace VoxelEngine.Tests.PlayMode
             }
         }
 
-        private static void ExportFreshShowcaseBakeForDiagnostic()
+        private static void ExportDiagnosticInputs()
         {
-            string source = Path.Combine(Application.dataPath, "Resources/VoxelShowcase/ShowcaseWorld.bytes");
             string artifactRoot = Path.GetFullPath(Path.Combine(Application.dataPath, "../Artifacts/SingleTest"));
             Directory.CreateDirectory(artifactRoot);
-            File.Copy(source, Path.Combine(artifactRoot, "ShowcaseWorld.bytes"), true);
+
+            string bake = Path.Combine(Application.dataPath, "Resources/VoxelShowcase/ShowcaseWorld.bytes");
+            File.Copy(bake, Path.Combine(artifactRoot, "ShowcaseWorld.bytes"), true);
+
+            string capture = Path.GetFullPath(Path.Combine(
+                Application.dataPath,
+                "../SceneIssues/open/20260826-132505-873-VoxelShowcase/screenshot-001.png"));
+            File.Copy(capture, Path.Combine(artifactRoot, "original-screenshot-001.png"), true);
         }
 
         private static int FindGeneratedGroundSurfaceY(
