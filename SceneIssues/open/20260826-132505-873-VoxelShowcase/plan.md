@@ -1,19 +1,21 @@
 # Plan — 20260826-132505-873 VoxelShowcase
 
 ## Defect / acceptance
-The capture note is `there is a floating mailbox`; there are no annotation circles, so the entire saved pose is the acceptance region. Camera `(152.18 m, 25.25 m, 59.43 m)` looks almost directly at the east market lamp at `(153.0 m, *, 54.9 m)`, about 4.6 m away. Accept only when the saved-camera replay shows that lamp visibly supported from road surface to lantern head, with no nearby streetscape regression.
+Capture note: `there is a floating mailbox`; no circles, so the whole saved pose is acceptance. The camera looks almost directly at the east market lamp at `(153.0 m, *, 54.9 m)`. Accept only when the saved-camera replay shows that lamp grounded on its sidewalk and continuously supported through the lantern head, with no nearby streetscape regression.
 
-## Competing hypotheses / discriminator
-1. **Wrong lamp elevation / later sidewalk overwrite.** Falsified: lamp Y and the vertical road top both use `KentridgeVerticalProfile.SurfaceYAtDm`; sidewalk dressing is precedence 59 while lamps are 80.
-2. **A plot sign/mailbox is floating.** Falsified for this capture: the nearest market sign is ~27 m away and outside the saved horizontal view; the east market lamp is ~7° from camera forward.
-3. **The lamp pole inherits an unsuitable smooth surface style.** Selected. `ShowcaseWorld` registers dark stone (material 6) as `Smooth`; `LampProgram` used it for a 3×3-voxel, 29-voxel-tall pole beneath a 7×7 lantern head.
+## Competing hypotheses / results
+1. **Wrong elevation / sidewalk ownership. Confirmed after replay.** Attempt-1 evidence from request `6d16727f3651fc041c50f96b459c8c11634765a5` still floats the whole lamp. `(1530,549)` is outside the road and inside the working-yard north terrace shoulder. Showcase seed: macro Y `256`; generated shoulder Y `232`.
+2. **A plot sign/mailbox is floating. Falsified.** Nearest market sign is outside the saved view; the east-market lamp is the camera-forward object.
+3. **Thin smooth pole collapses. Confirmed secondary defect.** Material 6 is Smooth; the 3×3 pole now explicitly uses `SurfaceStyles.Planar`, preserving occupancy/material while reconstructing exactly.
 
 ## Fix / regression / blast radius
-The lamp pole now explicitly uses `SurfaceStyles.Planar`, preserving its dark-stone material, dimensions, occupancy, and placement. `KentridgeStreetLampSupportPlayTests.CapturedEastMarketLampKeepsPlanarSupportUnderLantern` builds the production catalogue, resolves/evaluates the exact `(1530, 549)` lamp, and requires its dark support to be planar and physically overlap the lantern.
+Keep the Planar pole fix. For street dressing, use the deterministic working-yard stepped shoulder surface when a placement lies inside that terrace; all other placements retain the existing macro Y. Only the captured `(1530,549)` placement currently intersects that terrace.
 
-Code/test head: `c3f8bfebbc1695574a019317094892a2c34b10b5`.
+`KentridgeStreetLampSupportPlayTests.CapturedEastMarketLampKeepsPlanarSupportUnderLantern` now builds both production catalogues, evaluates the actual working-yard terrace program at the captured column, requires lamp origin Y to equal the generated solid surface, proves the macro Y differs, then verifies the Planar pole overlaps the lantern.
 
-Blast radius: all 24 Kentridge street lamp poles only; no placement, occupancy, collision, material palette, road generation, benches, planters, or renderer-wide behavior changes. Cost: one existing primitive carries a nonzero style id; no added primitives, allocations, storage reads, or jobs.
+Current source: `ff16ed4b19e7672f0b6267692bac9152dd9ddb9a`.
+
+Blast radius: one Kentridge street-lamp placement plus the existing Planar style on all 24 poles. No road/terrace geometry, materials, renderer-wide behavior, allocations, storage reads, or jobs added; placement work adds only bounded integer terrain/profile queries for the one matching working-yard point.
 
 ## Remaining gates
-Green exact-SHA PlayMode CI with 30 s saved-pose replay; inspect final artifact; commit `verification-final.png` and pending metadata; separate `open -> pending`, then approved `pending -> closed`; merge current master and advance master non-force.
+The user-specified old exact request `6d16727f...` remains queued and must not be replaced while queued. Its first artifact is diagnostic only because visual acceptance failed and current source has advanced. After it reaches a terminal state, request the updated focused PlayMode test + 30 s saved-pose replay on the exact current feature SHA; inspect the fresh artifact; commit `verification-final.png`, complete metadata, move `open -> pending -> closed`, merge current master, and advance master non-force.
