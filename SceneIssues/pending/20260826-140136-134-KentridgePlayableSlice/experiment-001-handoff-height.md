@@ -2,10 +2,10 @@
 
 **Hypothesis:** the roof spawn is caused by `CharacterMotor.SnapToGround` choosing the highest occupied surface in a stacked pub column instead of respecting the generated interior approach's authored Y.
 
-**Action / source:** inspected the captured note and production handoff at `4aee470afe601a6ceb073a0e89229fff1aff8872`; traced `ReleasePlayerForGameplay` from `_pubAccess.InteriorApproach` into `SnapToGround`, and compared the pre-fix unbounded `OccupiedSurfaceHeight` selection with the generated-scene behavioral regression.
+**Action / source:** traced `ReleasePlayerForGameplay` from `_pubAccess.InteriorApproach` into `SnapToGround`, compared the pre-fix unbounded `OccupiedSurfaceHeight` selection with the production-scene regression, then inspected the exact green real-player artifact from request `41740715ea52d62260492991c36fe7254b3bd8a6`.
 
-**Result:** X/Z already come from the generated pub interior approach. The pre-fix grounding query had no Y ceiling, so roof occupancy above that approach was eligible and could replace the authored interior elevation. The regression exercises the production scene/handoff and fails if release rises away from the realized interior Y.
+**Result:** X/Z already come from the generated pub approach; pre-fix grounding admitted roof occupancy above authored Y. The regression now passes. The green artifact still showed the roof and replay overlay at ~94 s; frame ~84 s was opening line 27 and frame ~94 s had gameplay control, proving the command-line replay freeze overlapped the actual handoff. `SceneIssueReplayVerification` only observed the frozen pose; `SceneIssueCapture.LateUpdate` remained the owner applying it.
 
-**Verdict:** hypothesis selected; route/camera-residue alternatives rejected as initiating causes. Fix grounding semantics at the shared contract boundary while retaining the ordinary-column fast path and no-below-surface fallback.
+**Verdict:** grounding hypothesis selected for the product defect. The remaining visual-evidence failure is replay-tool state, not a second gameplay cause. Keep the 85 s release point (between opening line 27 and gameplay control) and make the development verifier invoke the capture tool's existing `ReleaseReplayCamera` transition at that opt-in deadline.
 
-**Next:** exact-SHA PlayMode CI, then replay the original pose and capture native-resolution verification.
+**Next:** rerun the same focused production regression plus real-player replay on the exact new feature SHA; accept only a clean native-resolution post-opening frame inside the pub.

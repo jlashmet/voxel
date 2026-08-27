@@ -1,6 +1,7 @@
 #if DEVELOPMENT_BUILD
 using System;
 using System.Collections;
+using System.Globalization;
 using System.IO;
 using System.Text;
 using UnityEngine;
@@ -10,11 +11,13 @@ namespace MountingForce.DeveloperTools
 {
     /// <summary>
     /// Development-player proof for command-line SceneIssue replay. This does not move the camera;
-    /// it only verifies that SceneIssueCapture has frozen the active camera at the recorded pose.
+    /// it verifies that SceneIssueCapture reached the recorded pose and, when the capture runner
+    /// explicitly requests it, releases that same replay after a bounded real-time delay.
     /// </summary>
     internal static class SceneIssueReplayVerification
     {
         private const string ReplayArgument = "-voxel-scene-issue";
+        private const string ReleaseAfterArgument = "-voxel-scene-issue-release-after";
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Install()
@@ -38,6 +41,28 @@ namespace MountingForce.DeveloperTools
                 if (string.Equals(args[i], ReplayArgument, StringComparison.Ordinal))
                     return args[i + 1];
             return string.Empty;
+        }
+
+        private static float ReleaseAfterSeconds()
+        {
+            string[] args = Environment.GetCommandLineArgs();
+            for (int i = 0; i + 1 < args.Length; i++)
+            {
+                if (!string.Equals(args[i], ReleaseAfterArgument, StringComparison.Ordinal))
+                    continue;
+
+                if (float.TryParse(
+                        args[i + 1],
+                        NumberStyles.Float,
+                        CultureInfo.InvariantCulture,
+                        out float seconds) && seconds > 0f)
+                    return seconds;
+
+                Debug.LogWarning($"Scene issue replay ignored invalid {ReleaseAfterArgument} value '{args[i + 1]}'.");
+                return 0f;
+            }
+
+            return 0f;
         }
 
         private sealed class Verifier : MonoBehaviour
@@ -83,6 +108,28 @@ namespace MountingForce.DeveloperTools
 
                     Debug.Log(
                         $"Replaying issue with {frames.Length} screenshot(s). Verified standalone frozen pose.");
+
+                    float releaseAfter = ReleaseAfterSeconds();
+                    if (releaseAfter > 0f)
+                    {
+                        float remaining = releaseAfter - Time.realtimeSinceStartup;
+                        if (remaining > 0f)
+                            yield return new WaitForSecondsRealtime(remaining);
+
+                        SceneIssueCapture capture = UnityEngine.Object.FindFirstObjectByType<SceneIssueCapture>();
+                        if (capture == null)
+                        {
+                            Debug.LogWarning("Scene issue replay could not find SceneIssueCapture to release.");
+                            yield break;
+                        }
+
+                        // Reuse the capture tool's existing Release camera transition so replay mode,
+                        // frozen pose state, and overlay state are cleared exactly as in interactive replay.
+                        capture.SendMessage("ReleaseReplayCamera", SendMessageOptions.DontRequireReceiver);
+                        Debug.Log(
+                            $"Scene issue replay released through SceneIssueCapture after {releaseAfter:0.###}s.");
+                    }
+
                     yield break;
                 }
 

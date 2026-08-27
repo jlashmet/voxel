@@ -2,23 +2,24 @@
 
 ## Evidence and acceptance
 
-- The capture has one native 1928×836 Game View pose and no circle annotations. Its note says the opening cutscene hands control back with the player on the pub roof; acceptance is to hand control back inside the generated pub at its architecture-owned `InteriorApproach`.
-- `KentridgePlayableSlice.ReleasePlayerForGameplay` already preserves the generated pub's authored `InteriorApproach` X/Z and calls `CharacterMotor.SnapToGround` for Y.
-- Before the fix, `SnapToGround` chose `OccupiedSurfaceHeight` across the whole player footprint with no authored-Y bound. In a stacked building column that can select roof occupancy above the interior approach even though the method's contract says “surface below the given position.”
+- The capture has one native 1928×836 Game View pose and no circle annotations. Its note says the opening hands control back with the player on the pub roof; acceptance is a clean post-opening replay with the player inside the generated pub at its architecture-owned `InteriorApproach`.
+- `KentridgePlayableSlice.ReleasePlayerForGameplay` preserves generated `InteriorApproach` X/Z and calls `CharacterMotor.SnapToGround` for Y. Pre-fix `SnapToGround` selected the highest occupied surface with no authored-Y bound, making a stacked pub roof eligible.
 
 ## Competing hypotheses / discriminator
 
-- **Wrong pub route/XZ:** rejected because release derives X/Z directly from generated `_pubAccess.InteriorApproach`; the regression preserves those coordinates.
-- **Cutscene camera/controller residue pushes the player upward:** rejected as initiating cause because the motor position is assigned by `SnapToGround` before normal gameplay movement resumes.
-- **Highest-surface grounding crosses a stacked roof:** selected. Falsifier: if production release remains near the authored interior Y while using the generated pub and the unbounded highest-surface query, this diagnosis is wrong.
+- **Wrong pub route/XZ:** rejected; release derives X/Z directly from `_pubAccess.InteriorApproach`, and the behavioral regression preserves them.
+- **Cutscene/controller residue raises the player:** rejected as initiating cause; `SnapToGround` assigns the bad elevation before normal gameplay resumes.
+- **Highest-surface grounding crosses the roof:** selected and covered by the production-scene regression.
+- **Green CI artifact still proves closure:** rejected. Exact request `41740715ea52d62260492991c36fe7254b3bd8a6` passed the regression, but its 1928×900 final frame still showed the roof pose plus `Scene issue replay` overlay. Runtime evidence showed command-line `SceneIssueCapture` continued applying the frozen pose after the verifier succeeded.
 
 ## Fix / regression
 
-- Make `SnapToGround` honor its existing “below the given position” contract: retain the footprint fast path when each column top is already below the authored Y; only stacked columns scan downward through authoritative voxel storage to the first occupied surface at/below that Y. Preserve the old highest-surface fallback when nothing exists below the authored point.
-- PlayMode regression `KentridgeInteriorHandoffRegressionTests.OpeningRelease_StaysAtAuthoredInteriorElevationUnderPubRoof` loads the production scene, reads realized `InteriorApproach`, invokes the production release, and asserts X/Z stay authored and Y remains within 0.5 m of the interior elevation.
+- `SnapToGround` now honors “below the given position”: ordinary columns retain the footprint fast path; stacked columns scan authoritative voxels downward from authored Y and preserve the old top-surface fallback only when nothing exists below.
+- `KentridgeInteriorHandoffRegressionTests.OpeningRelease_StaysAtAuthoredInteriorElevationUnderPubRoof` loads the production scene, invokes production release, and requires authored X/Z plus Y within 0.5 m of `InteriorApproach`.
+- Replay proof now reuses `SceneIssueCapture`'s existing `ReleaseReplayCamera` transition when the real-player runner requests delayed release. Kentridge keeps the captured pose through line 27 at ~84 s, releases at 85 s, then lets the real opening handoff run before the ~94 s final frame.
 
 ## Blast radius / cost / gates
 
-- Shared motor behavior changes only for stacked columns whose top lies above the caller's authored Y; ordinary terrain keeps the existing footprint query. Fallback semantics are retained for malformed/no-below-surface inputs.
-- Cost remains O(footprint) normally; stacked columns add a bounded downward scan only on explicit snap calls, not per frame.
-- Production/test source state: `4aee470afe601a6ceb073a0e89229fff1aff8872`. Remaining gates: green exact-SHA targeted CI, native-resolution replay evidence, then close/merge bookkeeping.
+- Gameplay cost is unchanged from the grounding fix: O(footprint) normally, bounded downward scan only on stacked explicit snaps. Replay release logic is `DEVELOPMENT_BUILD`-only and opt-in via the existing command-line delay.
+- The unrelated temporary `SceneIssueCameraReplayHarness` release workaround is reverted; no production camera behavior is changed by evidence tooling.
+- Production/test fix commit remains `4aee470afe601a6ceb073a0e89229fff1aff8872`. Remaining gates: green exact-SHA targeted CI on the replay-evidence correction, clean native-resolution final replay, then close/merge bookkeeping.
