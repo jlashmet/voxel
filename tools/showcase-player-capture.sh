@@ -42,6 +42,8 @@ SURVEY_HEIGHT=""
 SURVEY_SPIN=""
 STATIONARY_SAMPLE=""
 SCENE_ISSUE=""
+PLAYER_WIDTH=1600
+PLAYER_HEIGHT=900
 KENTRIDGE_EVIDENCE=0
 IF_CONFIGURED=0
 
@@ -77,7 +79,7 @@ if [[ -n "$SCENE_ISSUE" ]]; then
   esac
   if [[ "$SCENE_ISSUE" != /* ]]; then SCENE_ISSUE="$PWD/$SCENE_ISSUE"; fi
   [[ -f "$SCENE_ISSUE" ]] || { echo "ERROR: scene issue does not exist: $SCENE_ISSUE" >&2; exit 2; }
-  ISSUE_SCENE="$(python3 - "$SCENE_ISSUE" <<'PY'
+  ISSUE_METADATA="$(python3 - "$SCENE_ISSUE" <<'PY'
 import json
 import sys
 
@@ -86,9 +88,16 @@ with open(sys.argv[1], encoding='utf-8') as handle:
 scene = value.get('scenePath') or ''
 if not isinstance(scene, str) or not scene.startswith('Assets/Scenes/') or not scene.endswith('.unity'):
     raise SystemExit('ERROR: scene issue has no valid scenePath')
-print(scene)
+frames = value.get('captures') or []
+frame = frames[0] if frames else value
+width = frame.get('screenWidth') or value.get('screenWidth') or 0
+height = frame.get('screenHeight') or value.get('screenHeight') or 0
+if not isinstance(width, int) or not isinstance(height, int) or width <= 0 or height <= 0:
+    raise SystemExit('ERROR: scene issue has no valid captured screen dimensions')
+print(f'{scene}\t{width}\t{height}')
 PY
 )"
+  IFS=$'\t' read -r ISSUE_SCENE PLAYER_WIDTH PLAYER_HEIGHT <<< "$ISSUE_METADATA"
   if [[ -n "$SCENE" && "$SCENE" != "$ISSUE_SCENE" ]]; then
     echo "ERROR: --scene does not match scene issue scenePath '$ISSUE_SCENE'." >&2
     exit 2
@@ -220,7 +229,6 @@ wait_for_unity_quiet
 
 BUILD_ARGS=(-batchmode -nographics -quit)
 if [[ -n "$STATIONARY_SAMPLE" ]]; then BUILD_ARGS+=(-voxelFrameTimingStats); fi
-if [[ -n "$SCENE_ISSUE" ]]; then BUILD_ARGS+=(-voxelDevelopment); fi
 
 echo "Building real player for $SCENE"
 UNITY_MAX_RSS_MB="${UNITY_MAX_RSS_MB:-12288}" \
@@ -248,7 +256,7 @@ BIN="$(find "$APP_BIN_DIR" -maxdepth 1 -type f -perm -111 -print -quit)"
 
 PLAYER_ARGS=(
   -logFile "$PLAYER_LOG"
-  -screen-width 1600 -screen-height 900 -screen-fullscreen 0
+  -screen-width "$PLAYER_WIDTH" -screen-height "$PLAYER_HEIGHT" -screen-fullscreen 0
   -voxel-uncapped
 )
 
@@ -290,6 +298,9 @@ else
     PLAYER_ARGS+=( -voxel-survey-spin "$SURVEY_SPIN" )
   fi
   echo "Running real player for ${RUN_SECONDS}s; screenshots every 10s"
+  if [[ -n "$SCENE_ISSUE" ]]; then
+    echo "Scene-issue replay resolution: ${PLAYER_WIDTH}x${PLAYER_HEIGHT}"
+  fi
   if [[ -n "$CONVERGING_BUILDS" ]]; then
     echo "Real-player converging build ceiling override: $CONVERGING_BUILDS (converged remains 0)"
   fi
@@ -368,13 +379,27 @@ if (( shots < 2 )); then
 fi
 
 if [[ -n "$SCENE_ISSUE" ]]; then
+  if ! grep -q 'SCENEISSUE camera pinned' "$PLAYER_LOG" 2>/dev/null; then
+    echo "ERROR: scene-issue player never confirmed the recorded camera was pinned." >&2
+    tail -80 "$PLAYER_LOG" >&2 || true
+    exit 1
+  fi
+
   FINAL_SHOT="$(find "$SHOTS_DIR" -type f -name '*.png' -size +1k | sort | tail -1)"
   [[ -n "$FINAL_SHOT" ]] || {
     echo "ERROR: scene-issue replay produced no final verification frame." >&2
     exit 1
   }
+
+  SHOT_WIDTH="$(sips -g pixelWidth "$FINAL_SHOT" 2>/dev/null | awk '/pixelWidth:/ {print $2}')"
+  SHOT_HEIGHT="$(sips -g pixelHeight "$FINAL_SHOT" 2>/dev/null | awk '/pixelHeight:/ {print $2}')"
+  if [[ -z "$SHOT_WIDTH" || -z "$SHOT_HEIGHT" ]] || (( SHOT_WIDTH < PLAYER_WIDTH || SHOT_HEIGHT < PLAYER_HEIGHT )); then
+    echo "ERROR: scene-issue verification frame ${SHOT_WIDTH:-?}x${SHOT_HEIGHT:-?} is smaller than captured ${PLAYER_WIDTH}x${PLAYER_HEIGHT}." >&2
+    exit 1
+  fi
+
   cp "$FINAL_SHOT" "$OUTPUT_ROOT/verification-final.png"
-  echo "scene-issue final verification: $OUTPUT_ROOT/verification-final.png"
+  echo "scene-issue final verification: $OUTPUT_ROOT/verification-final.png (${SHOT_WIDTH}x${SHOT_HEIGHT})"
 fi
 
 # Artifact quota exhaustion can make otherwise successful Kentridge capture opaque to a remote

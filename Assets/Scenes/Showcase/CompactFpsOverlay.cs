@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using VoxelEngine.Composition;
 using VoxelEngine.Rendering.Api;
@@ -27,6 +28,10 @@ namespace VoxelEngine.Showcase
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void InstallForShowcase()
         {
+            // SceneIssue evidence must be a clean saved-pose render rather than a diagnostics HUD.
+            // Normal showcase players keep the overlay; only the explicit replay path suppresses it.
+            if (HasFlag("-voxel-scene-issue")) return;
+
             // Keyed on the showcase component rather than one hard-coded scene name. The name
             // check silently skipped SmallVoxelShowcase, which is the same showcase with less
             // world in it and is precisely where a frame-rate readout is wanted.
@@ -38,6 +43,14 @@ namespace VoxelEngine.Showcase
                 hideFlags = HideFlags.DontSave
             };
             root.AddComponent<CompactFpsOverlay>();
+        }
+
+        private static bool HasFlag(string name)
+        {
+            string[] args = Environment.GetCommandLineArgs();
+            for (int i = 0; i < args.Length; i++)
+                if (string.Equals(args[i], name, StringComparison.Ordinal)) return true;
+            return false;
         }
 
         private void Update()
