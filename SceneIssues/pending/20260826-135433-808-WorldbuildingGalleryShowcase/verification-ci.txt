@@ -1,0 +1,22 @@
+Final targeted CI evidence
+
+source_sha=6b05ee9db8157f7d26b1d343d210e4dbf15f51c8
+request_sha=4814488bcd792ebd8f83439e463311f9666804e5
+workflow_run=33044687964
+job=98425844604
+status=success
+ci_context=ci/single-test
+regression=VoxelEngine.Tests.PlayMode.ProceduralGrassBillboardTests.GrassSilhouetteRemainsCompactAndReadableAcrossCameraAzimuths
+xml_total=1
+xml_passed=1
+xml_failed=0
+xml_duration_seconds=0.4310787
+artifact_id=9635224437
+artifact_name=single-test-33044687964
+artifact_digest=sha256:48a18fbab3da6f2c06de3a426ea99e32b05a700530beddaea5d2324df3dbb16a
+full_resolution_verification_sha256=e54f88487d85f1ad7c7eb187862fc0b396a3b26944530fd038f2d0865ae68e55
+full_resolution_verification_dimensions=1600x900
+committed_verification_sha256=b1682dd63874ce00367b6309a5b4e2a257d6522d376b4e099871561616672280
+committed_verification_dimensions=480x270
+replay_log="Replaying issue with 1 screenshot(s). Verified standalone frozen pose."
+visual_acceptance=Original marked region inspected directly; prior tall dark radial-card bars are absent and grass-like foliage reads as compact stepped multi-blade pixel sprites.
