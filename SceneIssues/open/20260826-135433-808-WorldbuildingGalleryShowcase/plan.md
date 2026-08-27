@@ -1,17 +1,19 @@
 # Plan — 20260826-135433-808 WorldbuildingGallery grass
 
 ## Evidence
-- Capture note says the grass is still unacceptable and points to Dylearn's 3D Pixel Art Grass Demo. The capture has one marked region at normalized centre (0.4802, 0.6678), radius 0.0690, from the saved `Worldbuilding Gallery Camera` pose.
-- The issue it cites (`20260825-032832-253-VoxelShowcase`) fixed Transvoxel transition normals, not the vegetation renderer.
-- Gallery grass is production `GalleryLifePopulation -> IVegetationBatchRenderer -> ProceduralVegetationBatchRenderer -> ProceduralVegetationFoliage.shader`. Population is already dense (1.1 m candidates over an 80 m radius, bounded at 14,000).
-- The current renderer already falsifies the “single static card edge-on” explanation: tuft instances are seven radial cards with seeded yaw. The remaining mismatch is presentation. Dylearn uses camera-facing pixel-art cards with low-rate quantized animation and rotational sway; ours renders a seven-card 3D starburst with an analytic smooth mask and translational sway.
-- The connector preserves the original PNG/blob but cannot decode that 2 MB repository image here; final acceptance will inspect the exact saved-camera CI replay with the same one-circle overlay rather than claim unseen pixels were inspected.
+- One marked region: normalized centre `(0.4802, 0.6678)`, radius `0.0690`, from the saved `Worldbuilding Gallery Camera` pose. The note explicitly points to Dylearn's 3D Pixel Art Grass Demo as the target.
+- The cited older issue fixed Transvoxel transition normals, not grass presentation. Gallery grass runs through `GalleryLifePopulation -> ProceduralVegetationBatchRenderer -> ProceduralVegetationFoliage.shader`.
+- Density is already high and bounded: 1.1 m sampling over an 80 m radius, capped at 14,000 instances. Adding more instances would add cost without fixing silhouette.
+- Existing tuft geometry is already seven radial cards, so a single authored card accidentally going edge-on is not the root cause. The reference instead uses a nearest-filtered compact grass sprite, camera-facing billboarding, stepped animation, rotational sway, and stylized lighting.
+- First candidate exact-SHA replay reproduced the marked area as tall dark vertical bars. Its test failure was separately traced to `WaitForEndOfFrame` being unsupported in Unity batchmode, so both the implementation and harness required correction.
 
-## Hypotheses / discriminator
-1. **Primary — tuft presentation is the defect.** Flatten grass-like `_Shape == 0` cards into a camera-facing layered billboard, quantize the mask to a pixel grid, and keep the base anchored while wind changes blade angle. A framebuffer regression must retain silhouette area across a 90° camera azimuth change.
-2. **Alternative — scatter density is too low.** Falsified by the existing 1.1 m sampling/14k budget and prior population inspection; changing density would add cost without addressing the reference-style mismatch.
+## Hypotheses / discriminators
+1. **Presentation mismatch — confirmed.** Specialize only `VegetationKind.Grass` as a compact camera-facing pixel sprite with a three-leaf procedural mask, base-anchored sway, and upward stylized lighting. Regression must retain compact filled silhouette and three separated blade runs across a 90° camera azimuth change.
+2. **Low scatter density — falsified.** Existing sampling/count budget is already dense; no placement or count change is needed.
+3. **All tuft-like foliage needs the same treatment — falsified.** Shape `0` is shared by clover/weeds/reeds/etc.; grass now has a dedicated render discriminator so those species keep their prior path.
 
 ## Fix / blast radius / cost
-- Change only the foliage shader’s grass-like shape path; flowers, fronds, fungi, shrubs, surfaces, vines, placement, and instance counts remain unchanged.
-- Reuse the existing seven-card mesh as one flattened layered billboard, so draw calls, batches, mesh vertex count, and semantic world state do not grow.
-- Add a PlayMode framebuffer regression through the production foliage shader. Final exact-SHA CI will run that test plus the saved scene-issue replay.
+- Grass-only shader/material specialization; no placement changes, no added semantic instances, and no new draw batches or source mesh assets.
+- Existing tuft cards collapse in shader to the same camera-facing sprite, keeping vertex/instance budgets unchanged.
+- PlayMode framebuffer regression uses explicit `Camera.Render()` so it is batchmode-safe and checks the grass-only discriminator, compact multi-blade silhouette, and azimuth invariance.
+- Final exact-SHA CI runs that regression plus the saved scene-issue replay; acceptance requires the marked region to read as short leafy pixel grass rather than dark vertical bars.
