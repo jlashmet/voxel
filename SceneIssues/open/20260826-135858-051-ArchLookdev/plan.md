@@ -8,12 +8,12 @@
 ## Hypotheses / results
 1. **Lookdev construction never reaches production Kentridge. Supported:** production and lookdev use separate authoring paths.
 2. **Production already uses the same construction but presentation/parameters hide it. Falsified:** Kentridge emitted the simpler primitive path.
-- Exact request `4655349e97d904ded223cf562b011503d446db17` reached the real runner but Unity compile-aborted before regression/replay: `ArchitectureVoxelPatterns.cs:352` could not resolve `SurfaceStyles`. Neighboring `ArchitectureShapeProgramBuilder` resolves the same type via `VoxelEngine.Storage.Api`; commit `cdfbce730207ee478d22e7750dfba96569afa212` adds only that missing import.
+- Two exact CI attempts then exposed compile-scope defects before runtime validation: missing `VoxelEngine.Storage.Api` imports in production and the regression. They are isolated in `cdfbce730207ee478d22e7750dfba96569afa212` and `b925d43c62aba29855c3d32033bcf401a6ef8264`; details are in `experiment-001-compile-scope.md` and `ci-operations.md`.
 
 ## Fix / regression / remaining gates
 - Reuse Kentridge's existing shape-program catalogue to add the hero entrance vocabulary: preserve the arched clearance/surround, add twelve non-destructive radial masonry joints for a 13-piece voussoir rhythm, and keep window-scale glazed arches on their existing continuous treatment.
 - Behavioral regression: `VoxelEngine.Tests.PlayMode.KentridgeInteriorScaleTests.ProductionCatalogue_LandmarkEntrancesCarryHeroVoussoirSeams` proves production warehouse, mansion, and church entrance programs retain an arch carve and exactly twelve hero masonry seams.
-- Remaining: green exact-SHA targeted CI, clean native-resolution saved-pose replay, direct comparison with `screenshot-001.png`, `verification-final.png`, pending metadata, close, current-master merge, non-force master push.
+- Current production/test commit: `b925d43c62aba29855c3d32033bcf401a6ef8264`. Remaining: green exact-SHA CI, clean native-resolution saved-pose replay, direct comparison with the capture, `verification-final.png`, pending metadata, close, current-master merge, non-force master push.
 
 ## Blast radius / cost
 - Only Kentridge landmark entrances using the shared arched-opening pattern gain the treatment; glazed windows, generated houses, Hightown, castle authoring, and unrelated catalogues remain unchanged.
