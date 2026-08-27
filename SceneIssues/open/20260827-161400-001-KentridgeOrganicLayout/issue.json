@@ -1,0 +1,23 @@
+{
+    "formatVersion": 3,
+    "id": "20260827-161400-001-KentridgeOrganicLayout",
+    "capturedUtc": "2026-08-27T16:14:00.0010000Z",
+    "note": "Kentridge currently authors fixed street axes and places named buildings relative to those roads. Replace that road-led macro layout with deterministic spatial intent: districts, landmarks, open spaces, density and terrain suitability. Kentridge content must not author roads or explicit Connect(A, B) edges. Infer circulation from the realized arrangement while preserving gameplay-level ReachableFrom validation and the existing architecture-to-voxel pipeline.",
+    "status": "open",
+    "resolvedUtc": "",
+    "resolutionSummary": "",
+    "regressionTest": "",
+    "fixCommit": "",
+    "unityVersion": "",
+    "platform": "",
+    "sceneName": "KentridgePlayableSlice",
+    "scenePath": "Assets/Scenes/KentridgePlayableSlice.unity",
+    "sceneBuildIndex": 0,
+    "captures": [],
+    "screenshot": "",
+    "frameCount": 0,
+    "timeSinceLevelLoad": 0.0,
+    "screenWidth": 0,
+    "screenHeight": 0,
+    "circles": []
+}
