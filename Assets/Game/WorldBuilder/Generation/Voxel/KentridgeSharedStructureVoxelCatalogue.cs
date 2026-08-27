@@ -174,7 +174,8 @@ namespace MountingForce.WorldGen.Voxel
                 KentridgeSharedHouseProgram.Build(plot, form, theme, settings, seed);
             return new CompiledProgram
             {
-                Code = program.Code,
+                Code = KentridgeHouseInteriorPropCatalogue.Decorate(
+                    form, theme, settings, program.Code),
                 Door = program.Door,
                 Hearth = program.Hearth,
                 HasHearth = true,
