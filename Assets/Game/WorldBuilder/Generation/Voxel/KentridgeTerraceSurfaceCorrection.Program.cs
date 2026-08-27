@@ -12,6 +12,7 @@ namespace MountingForce.WorldGen.Voxel
         private const int MarketUpperTransitionBandDm = 2;
         private const int MarketUpperWestInsetDm = 220;
         private const int MarketUpperEastInsetDm = 90;
+        private const int CivicUpperWestMismatchDm = 20;
 
         private static void ResolveBounds(Patch patch, uint seed, int scale,
                                           out int3 position, out int3 footprint)
@@ -75,6 +76,9 @@ namespace MountingForce.WorldGen.Voxel
                 if (patch.Id == "market-main")
                     PaintMarketToUpperTransition(
                         b, patch, footprint, s, moss, dirt);
+                else if (patch.Id == "upper-shoulder")
+                    PaintCivicToUpperWestJoin(
+                        b, patch, footprint, s, dirt);
             }
             else
             {
@@ -122,6 +126,23 @@ namespace MountingForce.WorldGen.Voxel
                 b.Box(x, 0, z, width, footprint.y, depth,
                       dirt, PrimitiveMode.PaintSurface);
             }
+        }
+
+        private static void PaintCivicToUpperWestJoin(
+            ProgramBuilder b, Patch patch, int3 footprint, int scale, byte dirt)
+        {
+            int shoulder = patch.ShoulderDm * scale;
+            int mismatch = CivicUpperWestMismatchDm * scale;
+            if (shoulder <= 0 || mismatch <= 0 || mismatch >= shoulder)
+                return;
+
+            // The saved camera looks directly at the 20 dm difference between the west envelopes of
+            // upper-shoulder (82.8 m) and civic-summit (84.8 m). That strip is already part of the
+            // urban transition geometry; leaving its material to natural ground exposes a hard,
+            // rectangular Moss tongue. Reclaim only that mismatch as Dirt. Unlike the former taper,
+            // this pass never synthesizes Moss and does not alter height, occupancy, or either core.
+            b.Box(0, 0, shoulder, mismatch, footprint.y, shoulder,
+                  dirt, PrimitiveMode.PaintSurface);
         }
 
         private sealed class ProgramBuilder

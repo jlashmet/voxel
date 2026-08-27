@@ -11,7 +11,7 @@ namespace VoxelEngine.Tests.PlayMode
         private const uint Seed = 0x4B454E54u;
 
         [Test]
-        public void SceneIssue20260826132234356CivicUpperOverlapPreservesDistrictDirtShoulder()
+        public void SceneIssue20260826132234356CivicUpperWestJoinReclaimsMismatchAsDirt()
         {
             VoxelWorldGenSettings settings = BuildSettings();
             FeatureCatalogue terraces = KentridgeDistrictTerraceCatalogue.Build(
@@ -35,28 +35,28 @@ namespace VoxelEngine.Tests.PlayMode
                 const byte dirt = 13;
                 const byte paving = 6;
                 const int overlapWorldZ = 260;
-                int[] sampleWorldX = { 830, 840, 850 };
+                int[] mismatchWorldX = { 830, 840 };
 
-                for (int i = 0; i < sampleWorldX.Length; i++)
+                for (int i = 0; i < mismatchWorldX.Length; i++)
                 {
-                    int worldX = sampleWorldX[i];
-                    byte upperMaterial = SurfaceMaterialAtWorld(
-                        terraces, upperTerraceIndex, upperTerrace, worldX, overlapWorldZ);
-                    byte civicMaterial = SurfaceMaterialAtWorld(
-                        terraces, civicTerraceIndex, civicTerrace, worldX, overlapWorldZ);
-
-                    Assert.IsTrue(upperMaterial == dirt || civicMaterial == dirt,
-                        "District terraces must already own the civic/upper join as Dirt at x="
-                        + worldX + "dm.");
+                    int worldX = mismatchWorldX[i];
+                    Assert.AreEqual(dirt, SurfaceMaterialAtWorld(
+                        terraces, upperTerraceIndex, upperTerrace, worldX, overlapWorldZ),
+                        "The underlying upper terrace must own the 82.8-84.8 m west mismatch as Dirt.");
                     Assert.AreEqual(0, SurfaceMaterialAtWorld(
+                        terraces, civicTerraceIndex, civicTerrace, worldX, overlapWorldZ),
+                        "The civic terrace must still begin at its authored 84.8 m west envelope.");
+                    Assert.AreEqual(dirt, SurfaceMaterialAtWorld(
                         corrections, upperCorrectionIndex, upperCorrection,
                         worldX, overlapWorldZ),
-                        "The higher-precedence correction must not repaint the Dirt shoulder at x="
-                        + worldX + "dm.");
+                        "The higher-precedence correction must reclaim the exposed mismatch as Dirt.");
                 }
 
+                Assert.AreEqual(0, SurfaceMaterialAtWorld(
+                    corrections, upperCorrectionIndex, upperCorrection, 850, overlapWorldZ),
+                    "The repair must stop at the civic envelope rather than widening the whole shoulder.");
                 Assert.AreEqual(3, upperCorrection.MaxPrimitives,
-                    "Without a shoulder override, upper correction returns to the bounded core budget.");
+                    "The localized Dirt repair must fit the existing bounded correction budget.");
                 Assert.AreEqual(paving, SurfaceMaterialAtWorld(
                     corrections, upperCorrectionIndex, upperCorrection, 950, 300),
                     "The correction must still repair the upper built core surface.");

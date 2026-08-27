@@ -1,18 +1,18 @@
 # Plan — VoxelShowcase Dirt/grass seam
 
 ## Observed / acceptance
-Saved camera has two marked Dirt/Moss boundaries. Fresh real-player replays show the lower mark clean after the market→upper taper, but the upper mark retains a metre-scale axis-aligned grass tongue. Acceptance: both marked regions read as continuous, non-jagged Dirt/grass joins at the saved pose with resident surface sections.
+Saved camera has two marked Dirt/Moss joins. Fresh replay from exact source `44a410690af445de3f723e19472d80b7697637a3` (run `33094358010`) has resident terrain and a clean lower mark, but direct inspection still shows the upper mark as a hard rectangular grass tongue. Acceptance: both marks read as continuous Dirt/grass joins at the saved pose.
 
 ## Hypotheses / discriminators
-1. **Streaming/LOD artifact.** Falsified by prior fresh replay `f981771...` with `missingMax=0`; upper rectangle persisted while lower was clean.
-2. **Authored terrace ownership.** Earlier ramp, cache, full-footprint correction, market seam, and local-height hypotheses were individually tested/falsified or retained as regressions. Exact-SHA run `33092740624` then falsified the civic→upper taper visually: test passed, replay succeeded, but direct inspection still shows the upper rectangle.
-3. **Active: correction manufactures the grass tongue.** Source discriminator: both urban district shoulders paint Dirt at precedence 15; `PaintCivicToUpperWestTransition` then repaints a 72×72 dm upper-shoulder block Moss at precedence 16 before selectively restoring Dirt. That higher-precedence Moss is unnecessary and matches the surviving rectangle.
+1. **Streaming/LOD or stale bake.** Falsified: replay is resident and the bake cache fingerprints `Assets/Game/WorldBuilder`; the source-changing run produced a distinct fresh input key.
+2. **Road/market seam.** Lower mark is now clean; the surviving upper mark projects to the civic/upper west overlap, so the market taper is retained but is not the remaining owner.
+3. **Civic/upper correction removed the wrong thing.** Confirmed. `upper-shoulder` starts at x=82.8 m while `civic-summit` starts at x=84.8 m. The former taper synthesized Moss in that 2 m mismatch; removing it stopped manufacturing Moss but left the higher-precedence correction with no ownership of the exposed strip. The fresh replay still shows exactly that axis-aligned 2 m tongue.
 
 ## Selected fix / regression
-Remove only the civic/upper shoulder override; keep upper correction constrained to its built core. New PlayMode regression samples the real civic/upper world join: district terraces must already provide Dirt at 83/84/85 m x, while the upper correction must emit no surface override there and must still pave its core. Upper correction returns to the 3-primitive bound.
+At precedence 16, repaint only the 20 dm west-envelope mismatch (x=82.8–84.8 m across the civic/upper overlap) Dirt. Do not emit Moss, change height/occupancy, move either terrace core, or widen the repair beyond the civic envelope. The PlayMode regression samples the production world coordinates and also checks the correction remains within its 3-primitive budget and still paves the upper core.
 
 ## Blast radius / cost
-Only the synthetic precedence-16 civic/upper shoulder repaint is removed. Terrace geometry, roads, structures, market taper, other patches/captures, and generic rasterization are unchanged. Primitive count decreases (upper correction 40→3); no per-frame cost.
+One existing terrace-correction definition gains one bounded `PaintSurface` box over a 20×72 dm strip. Geometry, roads, structures, market taper, other districts/captures, and generic rasterization are unchanged; no per-frame work is added.
 
 ## Verification gate
-Keep open until exact-SHA targeted CI passes the new PlayMode regression and a fresh saved-camera replay is directly inspected at both circles. Only a clean replay becomes `verification-final.png`.
+Keep open until exact-SHA targeted CI passes `SceneIssue20260826132234356CivicUpperWestJoinReclaimsMismatchAsDirt`, player compilation succeeds, and a fresh saved-camera replay is directly inspected at both marked circles. Only that clean frame becomes `verification-final.png`.
