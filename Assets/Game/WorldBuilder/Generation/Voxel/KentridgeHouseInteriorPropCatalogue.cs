@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using MountingForce.WorldGen.Architecture;
+using MountingForce.WorldGen.Content.Kentridge;
 using VoxelEngine.Structures.Api;
 
 namespace MountingForce.WorldGen.Voxel
@@ -13,7 +14,7 @@ namespace MountingForce.WorldGen.Voxel
     internal static class KentridgeHouseInteriorPropCatalogue
     {
         // A deliberately distinctive common table top also serves as the behavioral signature
-        // exercised by KentridgeHouseInteriorPropTests through the production catalogue.
+        // exercised through KentridgeSharedStructureVoxelCatalogue by the regression test.
         private const int TableWidthDm = 23;
         private const int TableHeightDm = 2;
         private const int TableDepthDm = 13;
@@ -92,12 +93,19 @@ namespace MountingForce.WorldGen.Voxel
                 TableDepthDm * scale,
                 timber);
 
-            if (form.IsShop)
+            if (form.Archetype == StructureArchetype.Shop)
+            {
                 AddShopFurniture(code, right, rear, foundation, scale, timber, accent);
-            else if (form.IsHospitality)
+            }
+            else if (form.RoleId == (int)KentridgeRole.Inn
+                  || form.RoleId == (int)KentridgeRole.Pub)
+            {
                 AddHospitalityFurniture(code, right, rear, foundation, scale, timber);
+            }
             else
+            {
                 AddHomeFurniture(code, right, rear, foundation, scale, timber, cloth);
+            }
 
             for (int i = program.Length - endLength; i < program.Length; i++)
                 code.Add(program[i]);

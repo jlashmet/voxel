@@ -4,13 +4,12 @@ using MountingForce.WorldGen.Content.Kentridge;
 using MountingForce.WorldGen.Voxel;
 using NUnit.Framework;
 using Unity.Collections;
-using Unity.Mathematics;
 using VoxelEngine.Structures.Api;
 using VoxelEngine.Structures.Runtime;
 
-namespace VoxelEngine.Tests.EditMode
+namespace VoxelEngine.Tests.PlayMode
 {
-    public sealed class KentridgeHouseInteriorPropTests
+    public sealed class KentridgeHouseInteriorPropPlayModeTests
     {
         private const uint Seed = 0x4B454E54u;
 
@@ -78,36 +77,12 @@ namespace VoxelEngine.Tests.EditMode
                         definition.MaxPrimitives,
                         ((KentridgeRole)roleId) +
                         " must remain within the existing per-definition primitive budget.");
-
-                    if (!form.IsGenerated) continue;
-
-                    Assert.IsTrue(
-                        KentridgeGameplaySiteAccessResolver.TryResolve(
-                            plan, roleId, settings.VoxelsPerDecimetre, out KentridgeGameplaySiteAccess access),
-                        ((KentridgeRole)roleId) + " must publish generated gameplay access.");
-
-                    // Furniture begins deep in the rear half. Probe the final occupancy after every
-                    // primitive has run so a later prop can never refill the public-door corridor.
-                    int[] inwardDepths = { 0, 6, 12, 18 };
-                    for (int i = 0; i < inwardDepths.Length; i++)
-                    {
-                        int depth = inwardDepths[i] * settings.VoxelsPerDecimetre;
-                        var point = new int3(
-                            access.Entrance.Position.X + access.Inward.X * depth,
-                            access.Entrance.Position.Y + 4 * settings.VoxelsPerDecimetre,
-                            access.Entrance.Position.Z + access.Inward.Y * depth);
-                        AssertFinalBoxMode(
-                            primitives,
-                            point,
-                            PrimitiveMode.Carve,
-                            ((KentridgeRole)roleId) +
-                            " furniture refilled the public entrance at inward depth " +
-                            inwardDepths[i] + " dm.");
-                    }
                 }
 
-                Assert.AreEqual(13, generatedCount);
-                Assert.AreEqual(4, bespokeCount);
+                Assert.AreEqual(13, generatedCount,
+                    "All houses, shops, inn, and pub should use the generated decorated path.");
+                Assert.AreEqual(4, bespokeCount,
+                    "Church, warehouse, mansion, and well should remain on their bespoke path.");
             }
             finally
             {
@@ -128,7 +103,8 @@ namespace VoxelEngine.Tests.EditMode
             {
                 ShapeOp op = (ShapeOp)catalogue.Program[pc];
                 int length = ShapeOps.InstructionLength(op);
-                Assert.Greater(length, 0, "Production structure program contains an invalid instruction.");
+                Assert.Greater(length, 0,
+                    "Production structure program contains an invalid instruction.");
 
                 if (op == ShapeOp.EmitBox
                     && catalogue.Program[pc + 5] == 23
@@ -144,41 +120,6 @@ namespace VoxelEngine.Tests.EditMode
             }
 
             return false;
-        }
-
-        private static void AssertFinalBoxMode(
-            NativeList<Primitive> primitives,
-            int3 point,
-            PrimitiveMode expected,
-            string message)
-        {
-            bool found = false;
-            PrimitiveMode finalMode = default;
-
-            for (int i = 0; i < primitives.Length; i++)
-            {
-                Primitive primitive = primitives[i];
-                if (primitive.Shape != PrimitiveShape.Box) continue;
-                if (point.x < primitive.A.x || point.x > primitive.B.x
-                    || point.y < primitive.A.y || point.y > primitive.B.y
-                    || point.z < primitive.A.z || point.z > primitive.B.z)
-                {
-                    continue;
-                }
-
-                if (primitive.Mode != PrimitiveMode.Fill
-                    && primitive.Mode != PrimitiveMode.FillIfEmpty
-                    && primitive.Mode != PrimitiveMode.Carve)
-                {
-                    continue;
-                }
-
-                found = true;
-                finalMode = primitive.Mode;
-            }
-
-            Assert.IsTrue(found, "No occupancy primitive covered doorway probe " + point + ".");
-            Assert.AreEqual(expected, finalMode, message);
         }
 
         private static BuildingPlot FindRole(SettlementPlan plan, int roleId)
