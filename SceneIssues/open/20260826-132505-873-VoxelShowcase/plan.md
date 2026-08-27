@@ -1,16 +1,15 @@
 # Plan — 20260826-132505-873 VoxelShowcase
 
 ## Defect / acceptance
-Capture note: `there is a floating mailbox`; no circles, so the whole saved pose is acceptance. The foreground object is the east-market street lamp near authored `(1530,549)` dm. Accept only when a clean replay of the saved `1928x836` pose shows its gray foot visually contacting the working-yard shoulder, with pole/lantern continuous and nearby streetscape unchanged.
+The capture note is `there is a floating mailbox`; there are no circles, so the whole `1928x836` saved pose is acceptance. Direct inspection of the immutable original shows the reported object is the orange-topped east-market street fixture: its gray foot is visibly suspended above the working-yard shoulder. Accept when an exact native-resolution current replay contains no floating or unsupported fixture in that region; the behavioral regression separately guarantees that if the authored east-market lamp is generated, its support overlaps the generated terrace and remains continuous to the lantern.
 
-## Competing hypotheses / evidence
-1. **Wrong district elevation — confirmed/fixed.** Lamp placement now derives from the generated working-yard terrace rather than macro elevation.
-2. **Thin reconstructed support — confirmed/fixed.** Dark pole and stone foot use `SurfaceStyles.Planar`.
-3. **Terrain/foot seam — confirmed/fixed.** The foot embeds one voxel while preserving the upper lamp. `CapturedEastMarketLampKeepsPlanarSupportUnderLantern` evaluates both production catalogues and proves generated-surface overlap plus foot→pole→lantern continuity.
-4. **Green replay still proves product failure — rejected twice as evidence.** Run `33107330590` restored a stale bake because WorldBuilder was absent from the cache fingerprint; feature `1ce0c43a...` fixed that. Run `33117731124` then logged a cache miss/fresh bake and passed the regression, but its generic `1600x900` Development-Build screenshot changed framing and included replay/FPS/debug overlays. Runtime verification did match the recorded camera transform/FOV.
+## Hypotheses / evidence
+1. **Wrong authored elevation — confirmed/fixed.** The `(1530,549)` dm fixture now derives Y from the working-yard terrace instead of macro elevation.
+2. **Thin Smooth support / terrain seam — confirmed/fixed.** Foot and pole are Planar and the foot embeds one voxel across the Smooth terrace seam while preserving its visible top.
+3. **Current authoritative pose still contains the defect — falsified.** Diagnostic source `6b4133eb...`, exact request `bd9c2397...`, run `33123201112` passed the production-path regression and replayed the exact camera at `1928x836`; direct original/current comparison shows the original floating fixture and no floating fixture in the current pose.
 
-## Current fix / blast radius
-Keep lamp geometry unchanged. `tools/showcase-bake-cache.sh` now invalidates on `Assets/Game/WorldBuilder`. For clean evidence, make the existing non-development `SceneIssueCameraReplayHarness` consume `-voxel-scene-issue` directly, launch the player at the recorded dimensions, suppress the FPS HUD on that explicit replay path, require `SCENEISSUE camera pinned`, and reject undersized final frames. Normal showcase players retain their overlay and default resolution; runtime game/world behavior is unchanged.
+## Fix / blast radius
+Production change is limited to Kentridge street-lamp placement/support. `CapturedEastMarketLampKeepsPlanarSupportUnderLantern` evaluates both production catalogues and proves generated-ground ownership, boundary overlap, preserved foot top, and foot→pole→lantern continuity. No renderer-wide behavior or allocations are added. Diagnostic artifact-export wiring is removed before promotion.
 
 ## Remaining gates
-Commit the replay-evidence correction, request exact-head PlayMode + saved-pose replay, confirm fresh/current bake semantics, green behavioral test, normal-player camera pin, native-resolution clean artifact, and direct visual contact at the target. Only then commit `verification-final.png`, complete metadata, move open→pending→closed, merge current master into `fixes/agent-1`, and push that exact head to master non-force.
+Merge current master, run exact-head PlayMode plus 30 s saved-pose replay, inspect the clean `1928x836` artifact, commit `verification-final.png`, then perform canonical open→pending→closed bookkeeping and push the final feature head to master non-force.

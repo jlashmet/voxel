@@ -1,10 +1,8 @@
-using System.IO;
 using MountingForce.WorldGen;
 using MountingForce.WorldGen.Voxel;
 using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
-using UnityEngine;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Structures.Api;
 using VoxelEngine.Structures.Runtime;
@@ -112,8 +110,6 @@ namespace VoxelEngine.Tests.PlayMode
                     "Planar foot must meet the pole without a vertical support gap.");
                 Assert.LessOrEqual(lanternMin.y, poleMax.y + 1,
                     "Planar pole must remain continuous under the lantern head.");
-
-                ExportDiagnosticInputs();
             }
             finally
             {
@@ -122,20 +118,6 @@ namespace VoxelEngine.Tests.PlayMode
                 terrace.Dispose();
                 street.Dispose();
             }
-        }
-
-        private static void ExportDiagnosticInputs()
-        {
-            string artifactRoot = Path.GetFullPath(Path.Combine(Application.dataPath, "../Artifacts/SingleTest"));
-            Directory.CreateDirectory(artifactRoot);
-
-            string bake = Path.Combine(Application.dataPath, "Resources/VoxelShowcase/ShowcaseWorld.bytes");
-            File.Copy(bake, Path.Combine(artifactRoot, "ShowcaseWorld.bytes"), true);
-
-            string capture = Path.GetFullPath(Path.Combine(
-                Application.dataPath,
-                "../SceneIssues/open/20260826-132505-873-VoxelShowcase/screenshot-001.png"));
-            File.Copy(capture, Path.Combine(artifactRoot, "original-screenshot-001.png"), true);
         }
 
         private static int FindGeneratedGroundSurfaceY(
