@@ -38,7 +38,7 @@ namespace VoxelEngine.Tests.PlayMode
             const int cz = ShowcaseWorld.RegionVoxelEdge / 2 + 120;
             int ground = world.SurfaceHeight(cx, cz);
             var plan = StructuresComposition.PlanCastle(new int3(cx, ground, cz), world.Seed);
-            int3 min = Game.Structures.Api.CastleLayout.FrontGateMinimum(in plan);
+            int3 min = CastleLayout.FrontGateMinimum(in plan);
 
             Assert.AreEqual(Mat.Wood, Get(world, min.x + 6, min.y + 8, min.z),
                 "The captured interaction must begin from a visibly closed timber gate.");
@@ -48,17 +48,17 @@ namespace VoxelEngine.Tests.PlayMode
 
             // The old regression stopped here and required the whole gate to disappear. Preserve
             // that collision guarantee only for the former closed-leaf plane.
-            for (int d = 0; d < Game.Structures.Api.CastleLayout.FrontGateDepth; d++)
+            for (int d = 0; d < CastleLayout.FrontGateDepth; d++)
                 Assert.AreEqual(Mat.Empty,
                     Get(world, plan.Centre.x, min.y + 8, min.z + d),
                     $"The opened doorway still blocks its centre at depth {d}.");
 
-            int half = Game.Structures.Api.CastleLayout.FrontGateWidth / 2;
+            int half = CastleLayout.FrontGateWidth / 2;
             int availableDepth = plan.WallThickness * 2
                                - 2
-                               - Game.Structures.Api.CastleLayout.FrontGateDepth
+                               - CastleLayout.FrontGateDepth
                                - 2;
-            int leafLength = math.min(Game.Structures.Api.CastleLayout.FrontGateWidth / 2 - 2,
+            int leafLength = math.min(CastleLayout.FrontGateWidth / 2 - 2,
                                       availableDepth);
             Assert.That(leafLength, Is.GreaterThanOrEqualTo(8),
                 "The shipped gatehouse must have room to show the opened leaves.");
@@ -66,7 +66,7 @@ namespace VoxelEngine.Tests.PlayMode
             int sampleStep = leafLength / 2;
             float t = sampleStep / (float)(leafLength - 1);
             int inward = (int)math.round(t * math.max(3, math.min(8, half - 6)));
-            int z = min.z + Game.Structures.Api.CastleLayout.FrontGateDepth + sampleStep;
+            int z = min.z + CastleLayout.FrontGateDepth + sampleStep;
             int leftX = plan.Centre.x - half + inward;
             int rightX = plan.Centre.x + half - 2 - inward;
 
@@ -84,7 +84,7 @@ namespace VoxelEngine.Tests.PlayMode
             for (int i = 0; i < leafLength; i++)
                 Assert.AreEqual(Mat.Empty,
                     Get(world, plan.Centre.x, min.y + 8,
-                        min.z + Game.Structures.Api.CastleLayout.FrontGateDepth + i),
+                        min.z + CastleLayout.FrontGateDepth + i),
                     $"Opened leaves intrude into the centre passage at step {i}.");
 
             Assert.That(world.TryOpenCastleFrontGate(world.CastleFrontGatePosition), Is.False,
