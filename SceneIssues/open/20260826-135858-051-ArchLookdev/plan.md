@@ -1,19 +1,20 @@
 # Plan
 
-## Captured evidence
+## Captured evidence / acceptance
 - `screenshot-001.png` has no marked regions (`circles: []`), so the whole-frame note is the defect: the tuned hero arch must reach production Kentridge.
-- Replaying the saved `Hero Arch Camera` pose through targeted CI shows the lookdev target as a tall masonry bay with a recessed opening, visibly segmented/projecting voussoirs, stout piers, and weathered/grown-over stone. The captured controls are approximately span 28, pier 64, ring 7, 13 voussoirs, depth 12, shoulder 4, top margin 4.
-- Code ownership matches the note: `ArchLookdev` calls `StructuresComposition.BuildArchLookdev`, which routes to `ArchBayAuthoringPipeline`/`ArchFeatureDefinition`. Kentridge landmarks instead call `ArchitectureVoxelPatterns.FramedArchedOpening`, which emits one arch prism surround plus two carves.
+- Saved `Hero Arch Camera` replay identifies the target as a tall recessed masonry bay with projecting segmented voussoirs and stout piers. Approximate lookdev controls: span 28, pier 64, ring 7, 13 voussoirs, depth 12, shoulder 4, top margin 4.
+- Ownership discriminator: `ArchLookdev` routes through `ArchBayAuthoringPipeline`/`ArchFeatureDefinition`; Kentridge landmarks used `ArchitectureVoxelPatterns.FramedArchedOpening`, a separate one-piece surround/carve path.
 
-## Competing hypotheses / discriminator
-1. **Isolated lookdev ownership**: Kentridge never consumes the authored hero-arch construction. **Supported** by the separate production call paths above.
-2. **Shared construction, wrong parameters/overlay**: Kentridge already consumes the same arch but presentation makes it drift. **Falsified** because its current entrance is a different one-piece primitive path, not `ArchFeatureDefinition`/the lookdev construction.
+## Hypotheses / results
+1. **Lookdev construction never reaches production Kentridge. Supported:** production and lookdev use separate authoring paths.
+2. **Production already uses the same construction but presentation/parameters hide it. Falsified:** Kentridge emitted the simpler primitive path.
+- Exact request `4655349e97d904ded223cf562b011503d446db17` reached the real runner but Unity compile-aborted before regression/replay: `ArchitectureVoxelPatterns.cs:352` could not resolve `SurfaceStyles`. Neighboring `ArchitectureShapeProgramBuilder` resolves the same type via `VoxelEngine.Storage.Api`; commit `cdfbce730207ee478d22e7750dfba96569afa212` adds only that missing import.
 
-## Fix and regression
-- Add the smallest reusable production bridge that lets Kentridge author the hero-arch vocabulary through its existing shape-program catalogue, then use it for the landmark arched entrances already selected by Kentridge. Do not copy scene-only policy into the town.
-- Add a behavioral regression through the production Kentridge catalogue/program that proves a landmark entrance emits the hero treatment (segmented ring/projection plus preserved walkable carve), rather than asserting source text/constants.
-- Re-run the saved ArchLookdev replay and the focused regression on the exact feature SHA.
+## Fix / regression / remaining gates
+- Reuse Kentridge's existing shape-program catalogue to add the hero entrance vocabulary: preserve the arched clearance/surround, add twelve non-destructive radial masonry joints for a 13-piece voussoir rhythm, and keep window-scale glazed arches on their existing continuous treatment.
+- Behavioral regression: `VoxelEngine.Tests.PlayMode.KentridgeInteriorScaleTests.ProductionCatalogue_LandmarkEntrancesCarryHeroVoussoirSeams` proves production warehouse, mansion, and church entrance programs retain an arch carve and exactly twelve hero masonry seams.
+- Remaining: green exact-SHA targeted CI, clean native-resolution saved-pose replay, direct comparison with `screenshot-001.png`, `verification-final.png`, pending metadata, close, current-master merge, non-force master push.
 
 ## Blast radius / cost
-- Consumers: Kentridge landmark entrance programs using the shared arched-opening pattern; generated houses, Hightown, castle authoring, and unrelated feature catalogues remain unchanged.
-- Cost is bounded generation-time work per selected landmark entrance; no per-frame/runtime-update cost. Keep primitive growth within existing `MaxPrimitives`/feature budgets and preserve door anchors and clearances.
+- Only Kentridge landmark entrances using the shared arched-opening pattern gain the treatment; glazed windows, generated houses, Hightown, castle authoring, and unrelated catalogues remain unchanged.
+- Cost is bounded generation-time primitive growth (12 surface-detail capsules per selected landmark entrance), no per-frame work; preserve existing primitive budgets, door anchors, and clearances.
