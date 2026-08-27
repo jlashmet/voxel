@@ -107,6 +107,92 @@ namespace VoxelEngine.Tests.PlayMode
                 "No non-structure far-terrain vertices were checked.");
         }
 
+        [UnityTest, Timeout(30000)]
+        public IEnumerator FarTerrainHonorsLuminanceOnlyMaterialPresentation()
+        {
+            Shader shader = Shader.Find("VoxelEngine/FarTerrain");
+            Assert.That(shader, Is.Not.Null, "Production far-terrain shader must be available in PlayMode.");
+
+            var cameraObject = new GameObject("Far terrain presentation regression camera");
+            var surfaceObject = new GameObject("Far terrain presentation regression surface");
+            var camera = cameraObject.AddComponent<Camera>();
+            var filter = surfaceObject.AddComponent<MeshFilter>();
+            var renderer = surfaceObject.AddComponent<MeshRenderer>();
+            var mesh = BuildPresentationQuad();
+            var material = new Material(shader);
+            var textureArray = new Texture2DArray(4, 4, 1, TextureFormat.RGBA32, false, false)
+            {
+                wrapMode = TextureWrapMode.Repeat,
+                filterMode = FilterMode.Bilinear,
+            };
+            var target = new RenderTexture(64, 64, 24, RenderTextureFormat.ARGB32);
+            var image = new Texture2D(64, 64, TextureFormat.RGBA32, false);
+            RenderTexture previousActive = RenderTexture.active;
+
+            try
+            {
+                var white = new Color[16];
+                for (int i = 0; i < white.Length; i++) white[i] = Color.white;
+                textureArray.SetPixels(white, 0, 0);
+                textureArray.Apply(false, false);
+
+                var sampling = new Vector4[32];
+                var surface = new Vector4[32];
+                var variation = new Vector4[32];
+                sampling[0] = new Vector4(0f, 0f, 1f, 1f);
+                surface[0] = new Vector4(1f, 0f, 0.88f, 1f);
+                variation[0] = new Vector4(0.66f, 0.58f, 0.10f, 0f);
+
+                material.SetTexture("_AlbedoTextures", textureArray);
+                material.SetVectorArray("_MaterialSampling", sampling);
+                material.SetVectorArray("_MaterialSurface", surface);
+                material.SetVectorArray("_MaterialVariation", variation);
+                material.SetFloat("_VoxelSize", 0.1f);
+                material.SetFloat("_AerialDistance", 100000f);
+
+                filter.sharedMesh = mesh;
+                renderer.sharedMaterial = material;
+
+                target.Create();
+                camera.targetTexture = target;
+                camera.clearFlags = CameraClearFlags.SolidColor;
+                camera.backgroundColor = Color.black;
+                camera.orthographic = true;
+                camera.orthographicSize = 0.8f;
+                camera.nearClipPlane = 0.01f;
+                camera.farClipPlane = 10f;
+                camera.transform.position = new Vector3(0f, 2f, 0f);
+                camera.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
+
+                yield return null;
+                yield return new WaitForEndOfFrame();
+
+                RenderTexture.active = target;
+                image.ReadPixels(new Rect(0, 0, target.width, target.height), 0, 0, false);
+                image.Apply(false, false);
+                Color pixel = image.GetPixel(target.width / 2, target.height / 2);
+
+                Assert.That(pixel.maxColorComponent, Is.GreaterThan(0.05f),
+                    "Far-terrain regression quad did not render a visible center pixel.");
+                Assert.That(pixel.g / Mathf.Max(pixel.r, 0.001f), Is.GreaterThan(1.35f),
+                    $"A luminance-only material must retain its authored green hue when the source texture is white; got {pixel}. "
+                  + "Direct raw-texture blending turns this pixel nearly neutral and recreates the near/far grass presentation split.");
+            }
+            finally
+            {
+                RenderTexture.active = previousActive;
+                camera.targetTexture = null;
+                target.Release();
+                UnityEngine.Object.Destroy(target);
+                UnityEngine.Object.Destroy(image);
+                UnityEngine.Object.Destroy(textureArray);
+                UnityEngine.Object.Destroy(material);
+                UnityEngine.Object.Destroy(mesh);
+                UnityEngine.Object.Destroy(surfaceObject);
+                UnityEngine.Object.Destroy(cameraObject);
+            }
+        }
+
         [UnityTest]
         public IEnumerator FarTerrainOwnsCanonicalBaseVoxelScaleOnItsMaterial()
         {
@@ -135,6 +221,25 @@ namespace VoxelEngine.Tests.PlayMode
             {
                 Shader.SetGlobalFloat("_VoxelSize", previousGlobal);
             }
+        }
+
+        private static Mesh BuildPresentationQuad()
+        {
+            var mesh = new Mesh { name = "Far terrain presentation regression quad" };
+            mesh.vertices = new[]
+            {
+                new Vector3(-1f, 0f, -1f),
+                new Vector3( 1f, 0f, -1f),
+                new Vector3( 1f, 0f,  1f),
+                new Vector3(-1f, 0f,  1f),
+            };
+            mesh.normals = new[] { Vector3.up, Vector3.up, Vector3.up, Vector3.up };
+            Color grass = new Color(0.28f, 0.46f, 0.20f, 1f);
+            mesh.colors = new[] { grass, grass, grass, grass };
+            mesh.uv2 = new[] { Vector2.zero, Vector2.zero, Vector2.zero, Vector2.zero };
+            mesh.triangles = new[] { 0, 2, 1, 0, 3, 2 };
+            mesh.RecalculateBounds();
+            return mesh;
         }
     }
 }
