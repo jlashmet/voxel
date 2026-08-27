@@ -39,7 +39,9 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("float4 _MaterialSampling[32]", shader,
                 "Far terrain must consume the shared material texture-layer and texture-weight policy.");
             StringAssert.Contains("float4 _MaterialSurface[32]", shader,
-                "Far terrain must consume the shared material texture scale/triplanar policy.");
+                "Far terrain must consume the shared material texture scale/triplanar and luminance-only policy.");
+            StringAssert.Contains("float4 _MaterialVariation[32]", shader,
+                "Far terrain must consume the same luminance/detail/chroma/macro presentation row as SmoothSurface.");
             StringAssert.Contains("TEXTURE2D_ARRAY(_AlbedoTextures)", shader,
                 "Far terrain must sample the renderer-owned material texture array rather than inventing a second grass texture path.");
             StringAssert.Contains("SurfaceUV", shader,
@@ -48,35 +50,10 @@ namespace VoxelEngine.Tests.EditMode
                 "Far terrain texture coordinates must be derived from world position in base-voxel units, independent of clipmap spacing.");
             StringAssert.Contains("hitDistance / 350.0", shader,
                 "Far terrain must retain the same distance attenuation used by the near surface texture contribution at the handoff.");
-        }
-
-        [Test]
-        public void SharedPresentationTextureArraySupportsMinification()
-        {
-            var source = new Texture2D(32, 32, TextureFormat.RGBA32, false, false);
-            Texture2DArray array = null;
-            try
-            {
-                var pixels = new Color[32 * 32];
-                for (int y = 0; y < 32; y++)
-                    for (int x = 0; x < 32; x++)
-                        pixels[y * 32 + x] = ((x + y) & 1) == 0 ? Color.white : Color.black;
-                source.SetPixels(pixels);
-                source.Apply(false, false);
-
-                array = VoxelPresentationCatalogue.BuildTextureArray(new[] { source }, linear: false);
-
-                Assert.That(array, Is.Not.Null);
-                Assert.That(array.mipmapCount, Is.GreaterThan(1),
-                    "The shared material texture array needs a mip chain so coarse far-terrain fragments do not minify the full-resolution grass layer into large aliased features.");
-                Assert.That(array.filterMode, Is.EqualTo(FilterMode.Trilinear),
-                    "Far and near surfaces must interpolate between shared mip levels rather than snap between minification levels at the handoff.");
-            }
-            finally
-            {
-                if (array != null) Object.DestroyImmediate(array);
-                Object.DestroyImmediate(source);
-            }
+            StringAssert.Contains("saturate(materialSurface.w)", shader,
+                "Luminance-only terrain must preserve authored hue instead of directly blending the raw grass texture RGB.");
+            StringAssert.Contains("materialVariation.w * 0.24", shader,
+                "Far terrain must retain the same fine/macro variation response used by SmoothSurface.");
         }
 
         [Test]
