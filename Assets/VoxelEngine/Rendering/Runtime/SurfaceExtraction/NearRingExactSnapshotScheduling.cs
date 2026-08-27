@@ -1,58 +1,59 @@
+using System;
 using Unity.Jobs;
 using VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel;
 
 namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 {
     /// <summary>
-    /// Keeps exact-snapshot metadata setup off the Unity job scheduler for the two tiny near-ring
-    /// caches that are eligible for GPU extraction. Their complete padded metadata grids are only
-    /// 10^3 (step 1) and 18^3 (step 2) entries. Scheduling clear + region fan-out + compaction for
-    /// those grids costs more player-frame time than executing the same Burst-job bodies directly.
+    /// Keeps the two small exact near-ring metadata snapshots asynchronous while reducing the
+    /// number of work-stealing batches they inject into Unity's already-busy geometry job pool.
     ///
-    /// Coarser exact rings are intentionally excluded: step 4 has 34^3 entries and step 8 has
-    /// 66^3. Those retain the existing asynchronous Burst pipeline so a large snapshot can never
-    /// become a main-thread scan again.
+    /// Step 1 and step 2 have only 10^3 and 18^3 padded metadata entries. The production
+    /// scheduler used four batches for every clear and every intersecting region copy, multiplying
+    /// a single snapshot into dozens of tiny worker-queue records. Running those jobs inline was
+    /// rejected by the traversal regression because it delayed visible convergence. Instead this
+    /// adapter preserves real JobHandles/dependencies and uses one batch per tiny parallel-for.
+    ///
+    /// Coarser exact rings keep the original batching. A thread-local flag is safe here because
+    /// ScheduleExactMetadataSnapshot emits clear -> all region copies -> compact synchronously on
+    /// the scheduling thread before another worker can enter this adapter sequence.
     /// </summary>
     internal static class NearRingExactSnapshotScheduling
     {
-        internal const int InlineMetadataEntryLimit = 6000;
+        internal const int CoalescedMetadataEntryLimit = 6000;
+
+        [ThreadStatic]
+        private static bool s_CoalesceCurrentSnapshot;
 
         internal static JobHandle Schedule(this ExactBrickMetadataClearJob job,
                                             int arrayLength, int innerloopBatchCount)
         {
-            if (arrayLength >= 0 && arrayLength <= InlineMetadataEntryLimit)
-            {
-                for (int i = 0; i < arrayLength; i++) job.Execute(i);
-                return default;
-            }
-
-            return IJobParallelForExtensions.Schedule(job, arrayLength, innerloopBatchCount);
+            s_CoalesceCurrentSnapshot =
+                arrayLength > 0 && arrayLength <= CoalescedMetadataEntryLimit;
+            int batch = s_CoalesceCurrentSnapshot ? arrayLength : innerloopBatchCount;
+            return IJobParallelForExtensions.Schedule(job, arrayLength, batch);
         }
 
         internal static JobHandle Schedule(this ExactBrickMetadataRegionJob job,
                                             int arrayLength, int innerloopBatchCount,
                                             JobHandle dependsOn)
         {
-            if (dependsOn.Equals(default(JobHandle)))
-            {
-                for (int i = 0; i < arrayLength; i++) job.Execute(i);
-                return default;
-            }
-
-            return IJobParallelForExtensions.Schedule(
-                job, arrayLength, innerloopBatchCount, dependsOn);
+            int batch = s_CoalesceCurrentSnapshot && arrayLength > 0
+                ? arrayLength : innerloopBatchCount;
+            return IJobParallelForExtensions.Schedule(job, arrayLength, batch, dependsOn);
         }
 
         internal static JobHandle Schedule(this ExactMixedBrickCompactJob job,
                                             JobHandle dependsOn)
         {
-            if (dependsOn.Equals(default(JobHandle)))
+            try
             {
-                job.Execute();
-                return default;
+                return IJobExtensions.Schedule(job, dependsOn);
             }
-
-            return IJobExtensions.Schedule(job, dependsOn);
+            finally
+            {
+                s_CoalesceCurrentSnapshot = false;
+            }
         }
     }
 }
