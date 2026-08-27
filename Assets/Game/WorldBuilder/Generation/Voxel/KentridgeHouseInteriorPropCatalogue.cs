@@ -173,7 +173,10 @@ namespace MountingForce.WorldGen.Voxel
         {
             // Keep a clear front/centre aisle. Tables occupy the left side while the bar anchors
             // the right rear wall, matching the captured player's approach through the front door.
-            AddTableChairs(code, commonTableX, commonTableZ, foundation, scale, timber);
+            AddChair(code, commonTableX + 8 * scale, commonTableZ - 7 * scale,
+                foundation, scale, timber, false);
+            AddChair(code, commonTableX + 8 * scale, commonTableZ + TableDepthDm * scale,
+                foundation, scale, timber, true);
             AddTableChairs(code, left + 8 * scale, front + 14 * scale,
                 foundation, scale, timber);
             AddTableChairs(code, left + 8 * scale, front + 42 * scale,
