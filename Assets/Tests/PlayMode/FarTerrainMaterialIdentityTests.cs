@@ -164,8 +164,8 @@ namespace VoxelEngine.Tests.PlayMode
                 camera.transform.position = new Vector3(0f, 2f, 0f);
                 camera.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
 
+                camera.Render();
                 yield return null;
-                yield return new WaitForEndOfFrame();
 
                 RenderTexture.active = target;
                 image.ReadPixels(new Rect(0, 0, target.width, target.height), 0, 0, false);
