@@ -1,23 +1,18 @@
 # Experiment 020 — bounded convergence after snapshot fix
 
 ## Question
-Does reducing visible-convergence build concurrency from 12 to 8 close the remaining traversal tail *after* the proven near-ring snapshot scheduling reduction, without reopening visible holes or slowing convergence enough to violate the same behavioral regression?
-
-## Evidence selecting this discriminator
-Per-frame profiling before the snapshot fix showed worker admission/prepare and exact snapshot dominating spikes; a diagnostic 12→8 cap reduced snapshot/worker pressure by roughly 27%, establishing concurrency as an amplifier. That older cap-only configuration still failed, so 8 is not accepted on its own.
-
-Experiment 018 subsequently reduced exact near-ring snapshot p95 from roughly 4.5 ms to ~1.76 ms while keeping coarse snapshot work asynchronous, but snapshot-only exact traversal remained ~20.16 ms p95 / ~28.33 ms p99. The untried combination is therefore: keep that measured snapshot reduction and reduce simultaneous visible-convergence build pressure. Admission ramps are explicitly excluded because exact runs either lost all visible geometry by frame 5 or still failed at 20.73/25.10 with worse replay FPS.
+Does reducing visible-convergence build concurrency from 12 to 8 close the remaining traversal tail without reopening visible holes?
 
 ## Change
-`VoxelRenderBridge.SurfaceMaxConcurrentBuildsConverging` changes from 12 to 8. `SurfaceMaxConcurrentBuildsConverged` remains 1; build/upload/discovery budgets, LOD layout, geometry semantics, scheduler admission order, publication, visibility, and regression thresholds are unchanged.
+`VoxelRenderBridge.SurfaceMaxConcurrentBuildsConverging` changed 12→8. The near-ring metadata helper remained enabled; all acceptance thresholds were unchanged.
 
-The failed bounded moving-visibility reuse and the unsupported same-frame guard are removed; `VoxelSurfaceScheduler.cs` and `VoxelRenderPass.cs` match current `origin/master`. The only retained extraction source change is the bounded near-ring exact snapshot helper from experiment 018.
+## Exact result — rejected
+Targeted request `agent-2-192751-final-snapshot-bounded-20260827-1535`, transport `13530d725a008217a29f5e69f6fefd593fb74467`, run `33123159073`, job `98694823144`, failed the behavioral regression because **visible voxel draw dropped to zero on traversal frame 5**. The required 45 s replay later converged to roughly 400–452 FPS with zero missing geometry, but late recovery does not satisfy moving coverage.
 
-## Falsifier
-Reject if exact-SHA `ContinuousPlayerTraversalNeverStuttersOrOpensNearFarGap` exceeds p95 18 ms or p99 25 ms, loses visible solids, opens the near/far fallback gap beyond 5 cm, reports a frame-path blocking completion, fails to stream across the traversal, or the 45 s saved-pose player replay shows missing/stale geometry or materially worse frame rate.
+The 8-build cap is therefore falsified and restored to 12 in `0c3d0f01faa60cf47d5e85e87589d6956182cd5c`.
+
+## Attribution correction
+Audit after the run found the long-lived feature branch still differed from production in `CpuTransvoxelChunkCache.GpuCutoverDisabled`: production hard-disables GPU extraction, while the tested branch re-enabled it unless `VOXEL_DISABLE_GPU_CUTOVER=1`. Therefore this run cannot attribute timing to the snapshot helper alone. `d1b458b2d796a84a9ba7cd91e7586c0040fff229` restores `CpuTransvoxelChunkCache.cs` byte-for-byte from current master while retaining the separate near-ring metadata scheduling helper.
 
 ## Blast radius / cost
-Rendering/extraction scheduling only. At most eight CPU surface builds may be in flight while visible geometry is missing, reducing job-pool pressure at the cost of up to one-third less cold-view extraction parallelism. The behavioral regression directly measures both sides of that trade: sustained movement must stay within frame budget *and* preserve visible/fallback coverage while streaming. No Storage, gameplay, collision, authoritative voxel state, GPU format, world generation, material/topology rules, or arena capacity changes.
-
-## Result
-Pending one final exact-SHA targeted CI request and 45 s saved-pose replay.
+The rejected cap affected extraction admission only and is gone. The next candidate changes only scheduling of the bounded step-1/2 exact metadata jobs; Storage authority, gameplay/collision, geometry/material/topology semantics, LOD layout, visibility, upload/discovery budgets, arena capacity, and regression thresholds remain unchanged.
