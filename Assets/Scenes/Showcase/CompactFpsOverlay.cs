@@ -1,4 +1,3 @@
-using System;
 using UnityEngine;
 using VoxelEngine.Composition;
 using VoxelEngine.Rendering.Api;
@@ -47,9 +46,9 @@ namespace VoxelEngine.Showcase
 
         private static bool HasFlag(string name)
         {
-            string[] args = Environment.GetCommandLineArgs();
+            string[] args = System.Environment.GetCommandLineArgs();
             for (int i = 0; i < args.Length; i++)
-                if (string.Equals(args[i], name, StringComparison.Ordinal)) return true;
+                if (string.Equals(args[i], name, System.StringComparison.Ordinal)) return true;
             return false;
         }
 
