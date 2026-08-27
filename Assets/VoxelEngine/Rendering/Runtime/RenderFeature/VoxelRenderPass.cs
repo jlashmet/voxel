@@ -67,7 +67,6 @@ namespace VoxelEngine.Rendering.Runtime
         private const int SolidDrawMetadataBufferCount = 3;
 
         private VoxelSurfaceScheduler _scheduler;
-        private int _convergingBuildCeiling = 1;
         // Draw staging is bounded by the fixed arena args capacities. Allocate once with the
         // render pass; camera motion may change counts but can never resize managed arrays.
         private readonly CpuTransvoxelChunkCache.Entry[] _transvoxelDrawEntries =
@@ -247,27 +246,8 @@ namespace VoxelEngine.Rendering.Runtime
             _scheduler.LodEnabled = VoxelRenderBridge.SurfaceLodEnabled;
             _scheduler.MaxResidentChunksPerRing = Math.Max(
                 1, VoxelRenderBridge.SurfaceMaxResidentChunksPerRing);
-            int configuredConvergingBuilds = Math.Max(
+            _scheduler.MaxConcurrentBuildsConverging = Math.Max(
                 1, VoxelRenderBridge.SurfaceMaxConcurrentBuildsConverging);
-            // Exact-snapshot scheduling is the dominant synchronous traversal cost, so do not let
-            // every idle shard enter phase 0 in the same rendered frame. The previous attempt used
-            // RunningSolidJobs as the ramp state; short jobs could finish between frames and collapse
-            // that ceiling back toward one, which starved publication and produced a zero-draw frame.
-            // Keep an explicit monotonic convergence ramp instead. Two slots preserve presentation
-            // continuity, then one additional slot is exposed per frame while visible coverage is
-            // incomplete. The configured steady-state ceiling and active builds remain untouched.
-            VoxelSurfaceMetrics previousMetrics = _scheduler.Metrics;
-            if (previousMetrics.MissingVisibleSolidChunks > 0)
-            {
-                _convergingBuildCeiling = Math.Min(
-                    configuredConvergingBuilds,
-                    Math.Max(1, _convergingBuildCeiling + 1));
-            }
-            else
-            {
-                _convergingBuildCeiling = Math.Min(configuredConvergingBuilds, 2);
-            }
-            _scheduler.MaxConcurrentBuildsConverging = _convergingBuildCeiling;
             _scheduler.MaxConcurrentBuildsConverged = Math.Max(
                 0, VoxelRenderBridge.SurfaceMaxConcurrentBuildsConverged);
             _scheduler.SolidArenaMaxActiveLeases = Math.Max(
@@ -558,7 +538,6 @@ namespace VoxelEngine.Rendering.Runtime
         private void ReleaseWorldResources()
         {
             VoxelSolidRenderTelemetry.Reset();
-            _convergingBuildCeiling = 1;
             if (_scheduler == null) return;
 
             // Dispose is deliberately synchronous here: world teardown is a lifecycle boundary,
@@ -580,7 +559,6 @@ namespace VoxelEngine.Rendering.Runtime
             VoxelRenderBridge.UnregisterWorldReleaseHandler(ReleaseWorldResources);
             _scheduler?.Dispose();
             _scheduler = null;
-            _convergingBuildCeiling = 1;
             ReleaseSolidDrawMetadata();
             CoreUtils.Destroy(_surfaceMaterial);
             CoreUtils.Destroy(_waterMaterial);
