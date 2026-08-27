@@ -1,6 +1,7 @@
 using Game.Materials.Api;
 using Game.Materials.Runtime;
 using NUnit.Framework;
+using VoxelEngine.Rendering.Api;
 using VoxelEngine.Rendering.Runtime;
 
 namespace VoxelEngine.Tests.PlayMode
