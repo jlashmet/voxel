@@ -1,6 +1,9 @@
 using System.IO;
+using System.Reflection;
 using NUnit.Framework;
 using UnityEngine;
+using UnityEngine.Rendering.Universal;
+using VoxelEngine.Rendering.Runtime;
 
 namespace VoxelEngine.Tests.EditMode
 {
@@ -45,6 +48,25 @@ namespace VoxelEngine.Tests.EditMode
                 "Far terrain texture coordinates must be derived from world position in base-voxel units, independent of clipmap spacing.");
             StringAssert.Contains("hitDistance / 350.0", shader,
                 "Far terrain must retain the same distance attenuation used by the near surface texture contribution at the handoff.");
+        }
+
+        [Test]
+        public void SharedPresentationPublisherRunsBeforeOpaqueFarTerrain()
+        {
+            MethodInfo resolver = typeof(VoxelRenderFeature).GetMethod(
+                "ResolveSurfacePassEvent", BindingFlags.NonPublic | BindingFlags.Static);
+            Assert.That(resolver, Is.Not.Null,
+                "The renderer must own one explicit scheduling rule for shared presentation state.");
+
+            var lateConfigured = (RenderPassEvent)resolver.Invoke(
+                null, new object[] { RenderPassEvent.BeforeRenderingTransparents });
+            Assert.That(lateConfigured, Is.EqualTo(RenderPassEvent.BeforeRenderingOpaques),
+                "A late configured near-surface pass would publish material tables only after ordinary far-terrain opaque draws.");
+
+            var alreadyEarly = (RenderPassEvent)resolver.Invoke(
+                null, new object[] { RenderPassEvent.AfterRenderingPrePasses });
+            Assert.That(alreadyEarly, Is.EqualTo(RenderPassEvent.AfterRenderingPrePasses),
+                "An intentionally earlier renderer event must not be delayed just to satisfy far-terrain consumers.");
         }
 
         private static string ProjectPath(string relativePath)
