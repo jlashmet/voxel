@@ -27,9 +27,11 @@ produced the required two settled frames at 15.7 and 25.7 seconds.
   elapsed time between the existing path and a bounded pipeline that overlaps independent height
   jobs while committing regions in the same order.
 
-Results: H1 confirmed by inspection: the key includes all `Assets/VoxelEngine` and
-`Assets/Scenes/Showcase`. H2 confirmed: `MaterialiseStartupDisc` calls
-`GenerateRegionBlocking` sequentially and each region immediately waits for its height job.
+Results: H1 confirmed: the old key included presentation sources; cache contracts now prove those
+do not invalidate semantic output. H2 partly confirmed: height jobs were serialized, but exact run
+33029083067 still took 204 seconds on a cold bake and timed out at 5m27s. Its log showed 59 seconds
+of initial import, leaving about 145 seconds in generation. The castle already builds on a private
+worker, but the baker waited for it before generating the remaining disjoint startup terrain.
 
 ## Acceptance criteria
 
@@ -37,14 +39,15 @@ Results: H1 confirmed by inspection: the key includes all `Assets/VoxelEngine` a
 - [x] Static saved-pose replay defaults to 30 seconds; explicit 20–60 second requests remain valid.
 - [x] Development players are cached outside the checkout by exact build-input fingerprint.
 - [x] SceneIssue builds omit automatic profiler connection while retaining replay instrumentation.
-- [ ] The cold baker pipelines independent height work and produces byte-identical output.
+- [x] The cold baker pipelines independent height work and produces byte-identical output.
 - [ ] Focused tests, exact targeted CI, final diff review, and origin promotion pass.
 
 ## Selected fix and remaining gates
 
 Use explicit versioned manifests for semantic-bake and player-build fingerprints, a runner-local
-atomic player cache, a 30-second default, and a bounded height-job pipeline that preserves ordered
-storage mutation. Add source-level contract tests for routing plus behavioral byte-equivalence and
-cache-key tests. Shell cache contracts, YAML parsing, `git diff --check`, and the complete offline
-assembly compile passed. Remaining gates are the Unity byte-equivalence test, a measured cold exact
-replay, final diff review, and safe master promotion.
+atomic player cache, a 30-second default, and bounded bake concurrency. Height jobs retain ordered
+storage mutation; castle authoring stays isolated in its private worker store while disjoint startup
+terrain is generated, then publishes on the main thread before sorted bake capture. Shell cache
+contracts, YAML parsing, `git diff --check`, the complete offline assembly compile, and Unity's
+height-pipeline byte-equivalence test passed. Remaining gates are a measured exact replay below five
+minutes, final diff review, and safe master promotion.

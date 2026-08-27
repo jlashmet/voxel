@@ -32,13 +32,13 @@ namespace VoxelEngine.Showcase
             for (int i = 0; i < _castleRegions.Count; i++)
                 GenerateRegionBlocking(_castleRegions[i]);
 
-            // The existing castle implementation intentionally runs its heavy authoring on a
-            // worker. In gameplay its session is polled once per frame; the baker has no player
-            // loop, so block here while still yielding CPU time to that worker. A tight million-
-            // iteration poll could hit its guard before a perfectly healthy build completed.
-            WaitForCastleDuringBake();
-
+            // Castle authoring uses a private store until publication, so let that worker overlap
+            // the remaining, disjoint startup terrain. Castle-owned terrain is already resident
+            // and MaterialiseStartupDisc de-duplicates it; publication still happens afterwards
+            // on the main thread, while sorted bake capture preserves authoritative output order.
+            StartCastleDuringBake();
             MaterialiseStartupDisc(RegionAt(SpawnPosition()), radius);
+            WaitForCastleDuringBake();
 
             if (_pendingFeatureRegions.Count != 0 || _featureBuild != null)
                 throw new InvalidOperationException(
@@ -97,6 +97,14 @@ namespace VoxelEngine.Showcase
                 if (_castleBuild != null && _castleBuild.StageNumber == 2)
                     Thread.Sleep(1);
             }
+        }
+
+        private void StartCastleDuringBake()
+        {
+            if (_hasCastlePlan) return;
+            if (!StepLandmarks() || _castleBuild == null)
+                throw new InvalidOperationException(
+                    "Showcase castle worker could not start during offline baking.");
         }
 
         private void MaterialiseStartupDisc(int3 centre, int radius)
