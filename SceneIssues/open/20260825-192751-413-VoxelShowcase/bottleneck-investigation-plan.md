@@ -6,6 +6,8 @@ Identify the dominant cause of low frame rate and traversal stalls in `VoxelShow
 
 The working fix for initial clipmap discovery remains independently verified. This plan is for finding the next real performance bottleneck and should be executed without weakening existing coverage/performance assertions.
 
+The current evidence changes the expected direction of the work: build-concurrency tuning is useful for reducing hitches, but it is not expected to close the order-of-magnitude gap to the rendering target. The primary rendering direction is now a GPU-resident meshing pipeline fed by changes from the CPU-authoritative voxel world. CPU ownership of collision, game logic, destruction, save/replication state, and voxel queries remains unchanged.
+
 ## Measurement protocol
 
 For every experiment:
@@ -16,6 +18,15 @@ For every experiment:
 4. Run the baseline immediately before or after the variant on the same source SHA and hardware.
 5. Change one variable at a time. Experimental switches must default off and must not become production behavior without separate evidence.
 6. Save the raw test/log artifact and write the observed delta in an `experiment-*.md` file. A result with no measurable delta is still useful evidence.
+
+## Evidence already established
+
+The traversal profiling work has now produced two independent signals in the same subsystem:
+
+- Per-frame worker profiling identified `Voxel.Surface.Snapshot` as the dominant synchronous worker overrun during traversal. Snapshot p95 was about 4.50 ms, and the worst observed worker frame was about 70.86 ms with about 70.83 ms inside snapshot work.
+- Reducing the test-only converging-build ceiling from 12 to 8 on an 8-job-worker CI run reduced snapshot p95 to about 3.77 ms, worker p95 by roughly 27%, and the worst snapshot spike to about 14.31 ms. The unchanged traversal gate still missed its p99 target, so concurrency is a real amplifier but not a sufficient architectural fix.
+
+This means scheduler/job-count tuning should remain available as a bounded-hitch fix, but it should not become the main strategy for reaching the rendering target.
 
 ## Phase 1 — Cost attribution by subsystem subtraction
 
@@ -84,18 +95,144 @@ When traversal or background work is implicated:
 
 Any cap that improves frame time by allowing visible holes is not a valid fix; it only identifies the expensive stage.
 
+## Phase 5 — GPU-resident rendering direction
+
+### Architectural boundary
+
+Keep the CPU voxel world authoritative. Rendering must not become the owner of gameplay state.
+
+CPU remains responsible for:
+
+- authoritative voxel occupancy/material/surface state;
+- destruction and edits;
+- collision and gameplay queries;
+- AI/pathing inputs that consume voxel state;
+- save/load, networking, replication and versioning.
+
+GPU rendering owns only derived presentation state:
+
+- a persistent mirror/cache of voxel brick data needed for rendering;
+- surface classification needed only for rendering;
+- density sampling and Transvoxel/transition evaluation;
+- geometry sizing/allocation;
+- vertex/index emission;
+- indirect draw arguments and GPU-resident render geometry.
+
+The desired data flow is:
+
+```text
+CPU authoritative voxel world
+    |
+    +-- collision / game logic / destruction / persistence
+    |
+    `-- changed brick/version records
+             |
+             v
+       shared persistent GPU voxel mirror
+             |
+             v
+       GPU lookup/classification
+             |
+             v
+       GPU density + Transvoxel/transition work
+             |
+             v
+       GPU allocation/prefix/geometry emission
+             |
+             v
+       GPU indirect draw arguments
+```
+
+The GPU mirror is a rendering cache, never the source of truth. CPU collision and gameplay must not depend on a GPU readback.
+
+### Why the existing GPU path is not enough
+
+Preserve the useful existing GPU work, but do not mistake the current cutover for the target architecture. The current path still depends on the CPU exact-snapshot pipeline before compute can begin:
+
+1. CPU pins region metadata.
+2. CPU schedules/compacts exact brick metadata.
+3. CPU pins mixed payloads and validates coherency.
+4. CPU runs render-eligibility/classification.
+5. CPU builds a dense per-chunk brick-cache description.
+6. Only then does the GPU sample/count/write geometry.
+7. CPU still observes per-chunk count/completion data to reserve/publish geometry.
+
+That boundary leaves the measured snapshot/preparation cost on the CPU. The current GPU extractor should therefore be treated as a useful GPU polygonizer/backend, not yet as an end-to-end GPU-resident surface pipeline.
+
+### Components worth retaining
+
+Prefer evolving, not discarding, the existing GPU implementation:
+
+- GPU Transvoxel regular-cell kernels;
+- GPU transition-face kernels;
+- `GpuVoxelBrickMirror` data layouts and version concepts where they remain useful;
+- GPU-resident vertex/index output;
+- shared surface geometry arena and indirect drawing;
+- asynchronous completion instead of blocking GPU flushes;
+- atomic replacement that keeps old geometry visible until new geometry is complete;
+- correctness fallback while GPU-v2 coverage is incomplete.
+
+### GPU-v2 prototype
+
+Before a broad production rewrite, build a narrow prototype alongside the current path for plain continuous near-field terrain.
+
+The prototype should:
+
+1. Keep authoritative voxels on CPU.
+2. Push changed mixed-brick payloads/version metadata into one persistent rendering mirror, shared across surface workers rather than reconstructed independently for each chunk where practical.
+3. Submit chunk coordinate + LOD/transition information as the primary per-build request.
+4. Avoid CPU construction of a complete per-chunk immutable brick neighbourhood where the GPU can resolve the mirrored bricks itself.
+5. Perform render-only classification on GPU when possible.
+6. Count many requested chunks in batches, then use a GPU-side prefix/allocation step or equivalent so CPU does not sit between count and write for every chunk.
+7. Emit vertices, indices, transition geometry and indirect args directly into GPU-resident arenas.
+8. Do not read generated geometry back to CPU.
+9. Target zero blocking GPU waits and ideally zero per-chunk counter readbacks on the player-frame path.
+
+Do not require GPU-v2 to support every authored surface feature in the first prototype. Plain smooth/rounded terrain is sufficient to validate the architectural hypothesis, but unsupported chunks must continue to render correctly through the existing path.
+
+### Collision/gameplay acceptance
+
+GPU-v2 is acceptable only if it preserves CPU authority and gameplay consistency:
+
+- voxel collision/query results must come from CPU-authoritative state, not render triangles;
+- a voxel edit must become visible to gameplay immediately according to current CPU semantics;
+- render lag may be asynchronous but must be versioned so stale GPU geometry cannot overwrite a newer voxel generation;
+- if any gameplay feature currently depends on generated `MeshCollider` data, treat collision meshing as a separate CPU pipeline rather than reading GPU render geometry back;
+- explicitly measure/render-test edit-to-visible latency so asynchronous GPU rendering does not create long-lived visual/collision disagreement.
+
+### GPU-v2 success metrics
+
+Do not judge the prototype only by aggregate FPS. Record:
+
+- CPU microseconds per newly requested/render-dirty chunk;
+- main-thread p50/p95/p99 during deterministic traversal;
+- chunks meshed per second;
+- GPU compute time per chunk and per batch;
+- changed voxel/brick bytes uploaded CPU -> GPU;
+- GPU readbacks per frame and per chunk;
+- main-thread synchronization/wait time;
+- visible holes/missing coverage and edit-to-visible latency;
+- stationary render cost separately from traversal/meshing cost.
+
+The key architectural success criterion is that CPU cost of producing a newly visible render chunk collapses. If CPU snapshot/preparation remains a multi-millisecond frame cost, the experiment has not moved the meshing boundary far enough onto the GPU even if its compute shader itself is fast.
+
 ## Decision rules
 
 - **Stable scene still slow + voxel draws off becomes fast:** focus on draw submission/GPU path.
 - **Stable scene becomes fast when meshing/streaming freezes:** eliminate unnecessary steady-state background work/churn.
-- **Stationary fast, traversal slow:** focus on discovery/meshing/upload pipeline and burst control.
+- **Stationary fast, traversal slow:** focus on discovery/meshing pipeline and GPU-v2 rather than attempting to reach the target through job-count tuning alone.
+- **Reducing build concurrency materially reduces snapshot spikes but does not make the unchanged traversal gate green:** retain concurrency as a bounded-hitch lever, but do not treat it as the target architecture.
+- **GPU-v2 plain-terrain prototype collapses CPU time per new chunk and materially improves traversal while preserving coverage:** expand GPU-resident meshing coverage incrementally.
+- **GPU-v2 still spends substantial CPU time constructing per-chunk snapshots/cache descriptions:** move the brick lookup/classification/allocation boundary further onto the GPU before optimizing compute kernels.
 - **Resolution reduction helps strongly:** investigate GPU shader/fill/bandwidth before CPU scheduler changes.
 - **Resolution reduction barely helps, but draw-count reduction helps:** investigate CPU render submission/batching/indirect rendering.
-- **Simplified voxel scenes are fast but full showcase is slow:** identify the first added scene/system category that creates the regression; do not rewrite the renderer first.
+- **Simplified voxel scenes are fast but full showcase is slow:** identify the first added scene/system category that creates the regression; do not rewrite unrelated renderer pieces first.
 - **Single-region/simple scene is already expensive:** profile the core render path before content/streaming work.
 
 ## Evidence required before choosing the next optimization
 
 Do not select the next production change until at least one experiment produces a repeatable, material delta (target >=15% frame-time change or a clearly dominant profiler/counter cost) and a second discriminator points to the same subsystem. Record competing hypotheses and falsifying results as well as the winner.
+
+The current snapshot profiling plus build-concurrency A/B satisfies that evidence bar for the conclusion that CPU snapshot/build preparation is a real traversal bottleneck and concurrency pressure amplifies it. It does **not** establish that simply lowering concurrency can reach the target. The next architectural experiment should therefore test whether eliminating the CPU snapshot boundary for a narrow GPU-v2 terrain path produces a substantially larger reduction in CPU cost.
 
 The eventual fix must then pass the existing exact-pose surface regression, continuous traversal coverage/performance regression, and final saved-pose replay without increasing holes, relaxing thresholds, or hiding work outside the measured window.
