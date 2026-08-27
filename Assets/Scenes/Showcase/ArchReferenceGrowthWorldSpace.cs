@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
 
 namespace VoxelEngine.Showcase
@@ -19,7 +20,7 @@ namespace VoxelEngine.Showcase
         {
             SceneManager.sceneLoaded -= OnSceneLoaded;
             SceneManager.sceneLoaded += OnSceneLoaded;
-            Camera.onPreCull -= AnchorOnPreCull;
+            RenderPipelineManager.beginCameraRendering -= AnchorOnBeginCameraRendering;
         }
 
         private static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
@@ -30,8 +31,8 @@ namespace VoxelEngine.Showcase
 
         public static void ArmForNextRender()
         {
-            Camera.onPreCull -= AnchorOnPreCull;
-            Camera.onPreCull += AnchorOnPreCull;
+            RenderPipelineManager.beginCameraRendering -= AnchorOnBeginCameraRendering;
+            RenderPipelineManager.beginCameraRendering += AnchorOnBeginCameraRendering;
         }
 
         public static bool AnchorCamera(Camera camera)
@@ -53,10 +54,10 @@ namespace VoxelEngine.Showcase
             return true;
         }
 
-        private static void AnchorOnPreCull(Camera camera)
+        private static void AnchorOnBeginCameraRendering(ScriptableRenderContext context, Camera camera)
         {
             if (!AnchorCamera(camera)) return;
-            Camera.onPreCull -= AnchorOnPreCull;
+            RenderPipelineManager.beginCameraRendering -= AnchorOnBeginCameraRendering;
         }
     }
 }
