@@ -12,11 +12,32 @@ namespace VoxelEngine.Tests.PlayMode
         [UnityTest, Timeout(30000)]
         public IEnumerator HeroGrowthUsesAuthoredLeavesAndFlowerClustersWithinBudget()
         {
-            var root = new GameObject("Arch reference growth regression");
+            var host = new GameObject("Arch reference growth regression");
             try
             {
-                ArchReferenceGrowth growth = root.AddComponent<ArchReferenceGrowth>();
+                // Reproduce the real ownership condition from the captured Hero Arch pose: the
+                // lookdev/growth host is the movable camera, while hero foliage coordinates are
+                // authored in the arch's world-space metre frame.
+                host.transform.SetPositionAndRotation(
+                    new Vector3(-0.85728186f, 8.398123f, -9.309617f),
+                    new Quaternion(0.09724782f, -0.01389580f, 0.00135791f, 0.9951624f));
+                Camera camera = host.AddComponent<Camera>();
+                ArchReferenceGrowth growth = host.AddComponent<ArchReferenceGrowth>();
                 yield return null;
+
+                Transform cameraLocalHero = host.transform.Find("Arch Reference Hero Growth");
+                Assert.That(cameraLocalHero, Is.Not.Null,
+                    "The regression must reproduce the camera-hosted hero root before presentation anchoring.");
+                Assert.That(ArchReferenceGrowthWorldSpace.AnchorCamera(camera), Is.True,
+                    "The production anchor must recognize the camera-hosted ArchReferenceGrowth presentation.");
+
+                Transform heroRoot = cameraLocalHero;
+                Assert.That(heroRoot.parent, Is.Null,
+                    "Hero foliage must be detached from the movable Hero Arch Camera before rendering.");
+                Assert.That(heroRoot.position.sqrMagnitude, Is.LessThan(0.000001f),
+                    "Authored ivy/flower coordinates are world-space arch coordinates and require a world-identity root.");
+                Assert.That(Quaternion.Angle(heroRoot.rotation, Quaternion.identity), Is.LessThan(0.01f));
+                Assert.That((heroRoot.localScale - Vector3.one).sqrMagnitude, Is.LessThan(0.000001f));
 
                 Assert.That(growth.HeroLeafCount, Is.EqualTo(128),
                     "The reference hero should be built from individual lobed ivy leaves, not generic vine stamps.");
@@ -45,23 +66,30 @@ namespace VoxelEngine.Tests.PlayMode
                 Assert.That(petals.bounds.max.y, Is.GreaterThan(7.8f),
                     "Flowers must reach the upper crown where the reference is most lush.");
 
-                MeshRenderer[] renderers = root.GetComponentsInChildren<MeshRenderer>();
+                MeshRenderer[] renderers = heroRoot.GetComponentsInChildren<MeshRenderer>();
                 Assert.That(renderers, Has.Length.EqualTo(3),
                     "The hero mesh must not introduce per-leaf or per-flower GameObjects/draws.");
 
                 growth.enabled = false;
                 Assert.That(growth.InstanceCount, Is.Zero,
                     "Disabling the authoring component must release semantic and hero growth.");
+                yield return null;
+
                 growth.enabled = true;
                 yield return null;
+                Assert.That(ArchReferenceGrowthWorldSpace.AnchorCamera(camera), Is.True,
+                    "Re-enabled hero growth must return to the same world-space presentation contract.");
                 Assert.That(growth.HeroLeafCount, Is.EqualTo(128));
                 Assert.That(growth.HeroFlowerHeadCount, Is.EqualTo(30));
                 Assert.That(growth.SemanticInstanceCount, Is.EqualTo(2),
                     "Re-enabling after a scene lifecycle transition must restore the bounded presentation.");
+
+                growth.enabled = false;
+                yield return null;
             }
             finally
             {
-                Object.DestroyImmediate(root);
+                Object.DestroyImmediate(host);
             }
         }
     }
