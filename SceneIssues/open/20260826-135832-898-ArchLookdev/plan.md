@@ -1,18 +1,18 @@
 # Plan — 20260826-135832-898 ArchLookdev foliage
 
 ## Evidence / acceptance
-- The capture has no circles: acceptance is global in the saved `Hero Arch` pose. The note says both flowers and ivy remain unlike the reference despite prior changes.
-- `ArchLookdev` auto-attaches `ArchReferenceGrowth`; that component currently art-directs positions but still submits hero growth as generic `VegetationInstance` stamps through the shared vegetation renderer.
-- History confirms repeated same-strategy attempts: ivy was changed to climber rendering, then clustered into leafy masses, then given color variation; flowers received a shader readability pass. The new capture says that family of fixes still misses.
-- The reference-match notes call for close-up trailing ivy, broad leaves and flowers, with lush asymmetric growth on the left/crown and sparse right-side masonry.
+- No circles: acceptance is global in the saved `Hero Arch` pose. The note says both flowers and ivy remain unlike `References/arch_reference.png` despite prior changes.
+- `ArchLookdev` auto-attaches `ArchReferenceGrowth`; the captured runtime still expressed hero growth as shared semantic vegetation stamps.
+- History shows the same strategy already tried ivy climber rendering, leafy clustering, color variation, flower shader readability, head scale and placement. The new capture says those passes still miss.
+- Reference-match notes require close-up trailing ivy, broad leaves/flowers, lush asymmetric left/crown growth and sparse right-side masonry.
 
-## Hypotheses / discriminator
-1. **Generic vegetation stamps are the limiting representation — selected.** Their shared card meshes must serve world-scale species and cannot directly author the reference's individual lobed leaves and clustered flower heads. Falsifier: a bounded scene-owned hero mesh still reads like repeated strips/stars in the saved pose.
-2. **Only density/color/scale is wrong — rejected.** Those variables were already changed repeatedly without satisfying the capture; another constant-only pass repeats failed experiments.
+## Hypotheses / result
+1. **Generic vegetation stamps limit the close-up — confirmed by history/runtime ownership.** Shared card meshes must serve world-scale species and cannot directly author the target's individual lobed leaves and clustered blossoms.
+2. **Only density/color/scale is wrong — rejected.** Those variables were already changed repeatedly without satisfying the capture.
 
 ## Fix / blast radius / cost
-- Replace only ArchLookdev's hero ivy/flower stamps with deterministic combined mesh presentation: lobed leaves plus thin stems, and clustered broad-petal flowers with distinct centers.
-- Keep the two small ground ferns on the existing semantic renderer. Do not change shared vegetation shaders, catalogue, placement, or other scenes.
-- Budget: <= 4 hero draw calls, <= 4,096 authored hero vertices, deterministic CPU build once on enable; no per-leaf GameObjects or per-frame mesh generation.
-- Add a PlayMode behavioral regression through `ArchReferenceGrowth` that proves dense asymmetric hero leaves/flowers, bounded mesh/draw cost, and only ground ferns remain semantic.
-- Final gate: exact-SHA regression green plus replay of the original saved pose with direct visual inspection against the reference intent.
+- ArchLookdev only: replace hero ivy/flower stamps with deterministic combined meshes—128 lobed leaves with thin stems and 30 clustered broad-petal flower heads with distinct centres.
+- Keep two small ground ferns on the existing semantic renderer; shared vegetation shaders/catalogue/placement and other scenes are unchanged.
+- Cost contract: 3 hero draws, <=4,096 authored vertices, one CPU mesh build on enable, no per-leaf/flower GameObjects and no per-frame mesh generation.
+- Updated existing PlayMode regression now proves representation, asymmetric coverage, lifecycle restoration and cost bounds through production `ArchReferenceGrowth`.
+- Candidate source is the next feature head after this plan update. Remaining gates: exact-SHA PlayMode CI + original saved-pose replay and direct visual inspection; reject if it still reads as repeated strips/stars.
