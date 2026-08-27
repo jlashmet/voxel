@@ -22,6 +22,28 @@ budgets.
 - Use Burst, Collections, Jobs, and custom Unity Transport replication. Do not add
   `com.unity.entities` or Netcode for GameObjects.
 
+## World authoring quality
+
+AAA game quality is the acceptance bar for both art and spatial composition. A generated scene is
+not complete merely because the requested object categories or primitive counts exist.
+
+- Final furniture, architecture, props, and characters must have intentional silhouettes,
+  believable proportions, construction detail, material separation, and visible support/contact.
+  Placeholder boxes or featureless primitives are not final art. For example, a final chair needs
+  a readable seat, back, legs/support, and usable scale rather than two intersecting slabs.
+- Layout must communicate the room's purpose and support its use. Preserve circulation, entrances,
+  work zones, sightlines, reachability, facing, and clearances. Objects must not intersect, float,
+  block doors or windows, or overlap other fixtures unless the relationship is intentional and
+  physically credible.
+- Review the rendered result, not just emitted data. Counts and semantic signatures can support a
+  regression, but cannot prove visual finish, good composition, or absence of intersections.
+- Keep builders generic and constraint-driven. Express semantic requirements such as "a pub has a
+  bar, back-bar storage, a kitchen/service area, and customer seating," then place them from room
+  bounds, openings, circulation, adjacency, clearance, and non-overlap constraints. Do not encode
+  captured-scene coordinates or one-off arrangements in reusable builders.
+- Prefer reusable parametric assemblies and placement rules. Role-specific programs may select and
+  configure them, but should not duplicate bespoke geometry that only works in one captured room.
+
 ## Planning
 
 For nontrivial work, keep one durable Markdown plan beside the work. Resume it instead of creating
@@ -40,8 +62,7 @@ not the durable record. SceneIssue plans and evidence follow the canonical
 
 For ordinary work, use one feature branch and `ci-test/<feature-branch>` for its targeted request.
 Reuse those refs for the task; do not create retry, baseline, temporary, probe, or no-op branches.
-Do not create custom workflows or pull requests merely to trigger CI. The dedicated human-review
-branch and PR authorized by the SceneIssue workflow are the only SceneIssue exception.
+Do not create custom workflows or pull requests merely to trigger CI.
 
 Create the request commit directly on the exact feature SHA, changing
 `.github/test-request.json` only on the CI branch, then force-update that CI ref once. Monitor the
@@ -54,9 +75,8 @@ that proves the invariant; a source-string assertion or a zero-test run is not s
 Never call a failed, cancelled, or timed-out run successful because it produced an intermediate
 artifact.
 
-Coordinator-assigned SceneIssues have stricter branch, evidence, closure, and batched-promotion
-rules. Follow [SceneIssues/README.md](SceneIssues/README.md); it is the sole workflow authority for
-those tasks.
+Coordinator-assigned SceneIssues have stricter branch, evidence, and closure rules. Follow
+[SceneIssues/README.md](SceneIssues/README.md); it is the sole workflow authority for those tasks.
 
 ## Running Unity locally
 
