@@ -97,5 +97,18 @@ namespace VoxelEngine.Tests.EditMode
             Assert.AreEqual(1, selector.Count,
                 "Logical empty completion is proof, not drawable fallback coverage.");
         }
+
+        [TestCase(false, false, false, false, false, TestName = "OutOfBandDoesNotCompleteViewHandoff")]
+        [TestCase(true, false, false, false, true, TestName = "OffFrustumInBandChildIsViewComplete")]
+        [TestCase(true, true, false, false, false, TestName = "MissingVisibleChildKeepsFallback")]
+        [TestCase(true, true, true, false, true, TestName = "CurrentReadyVisibleChildCompletesHandoff")]
+        [TestCase(true, true, false, true, true, TestName = "CurrentEmptyVisibleChildCompletesHandoff")]
+        public void CurrentViewCompletionRequiresRingOwnershipAndVisibleProof(
+            bool inBand, bool inFrustum, bool currentReady, bool currentEmpty, bool expected)
+        {
+            Assert.AreEqual(expected,
+                SurfaceLodVisibilitySelector.IsCurrentViewComplete(
+                    inBand, inFrustum, currentReady, currentEmpty));
+        }
     }
 }
