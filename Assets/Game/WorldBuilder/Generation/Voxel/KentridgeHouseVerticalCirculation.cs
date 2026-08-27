@@ -12,9 +12,11 @@ namespace MountingForce.WorldGen.Voxel
     /// </summary>
     internal static class KentridgeHouseVerticalCirculation
     {
-        private const int StairWidthDm = 10;
+        private const int StairWidthDm = 9;
+        private const int StairGapDm = 2;
+        private const int LandingLengthDm = 3;
         private const int PreferredStepRiseDm = 2;
-        private const int SideInsetDm = 5;
+        private const int SideInsetDm = 4;
         private const int FrontInsetDm = 5;
         private const int OpeningSideClearanceDm = 1;
         private const int MinimumHeadroomDm = 19;
@@ -59,93 +61,141 @@ namespace MountingForce.WorldGen.Voxel
             int front = z0 + wall;
             int rear = z0 + depth - wall;
             int interiorWidth = right - left;
-            int interiorDepth = rear - front;
 
             int stepRise = PreferredStepRiseDm * scale;
             if (floorHeight % stepRise != 0)
                 stepRise = scale;
             int stepCount = floorHeight / stepRise;
             int stepRun = stepRise;
+            int firstFlightSteps = stepCount / 2;
+            int secondFlightSteps = stepCount - firstFlightSteps;
+            int stairWidth = StairWidthDm * scale;
+            int stairGap = StairGapDm * scale;
+            int landingLength = LandingLengthDm * scale;
             int openingSideClearance = OpeningSideClearanceDm * scale;
-            int stairWidth = Math.Min(
-                StairWidthDm * scale,
-                interiorWidth - (SideInsetDm * 2 * scale));
+            int layoutWidth = stairWidth * 2 + stairGap;
 
             var stair = new StairConfig
             {
                 Direction = StructureRunDirection.PositiveZ,
-                Layout = StructureStairLayout.Straight,
+                Layout = StructureStairLayout.Switchback,
                 Width = stairWidth,
                 StepCount = stepCount,
                 StepRise = stepRise,
                 StepRun = stepRun,
-                StepsPerFlight = 0,
-                Landing = default,
+                StepsPerFlight = firstFlightSteps,
+                Landing = new LandingConfig
+                {
+                    Width = layoutWidth,
+                    Length = landingLength,
+                    Thickness = stepRise,
+                    MaterialRole = StructureMaterialRole.Trim,
+                },
                 MaterialRole = StructureMaterialRole.Trim,
             };
-            if (!stair.IsWellFormed || stair.TotalRise != floorHeight)
+            if (!stair.IsWellFormed
+                || stair.TotalRise != floorHeight
+                || firstFlightSteps <= 0
+                || secondFlightSteps <= 0)
+            {
                 throw new InvalidOperationException(
                     "Generated Kentridge floor height cannot produce a bounded shared stair run.");
+            }
 
-            int runLength = stair.TotalRun;
-            int stairMinX = right - SideInsetDm * scale - stair.Width;
+            int firstRun = firstFlightSteps * stair.StepRun;
+            int secondRun = secondFlightSteps * stair.StepRun;
+            int flightRun = Math.Max(firstRun, secondRun);
             int southZ = front + FrontInsetDm * scale;
-            int northZ = southZ + runLength;
-            if (stairMinX - openingSideClearance < left
+            int landingMinZ = southZ + flightRun;
+            int northZ = landingMinZ + stair.Landing.Length;
+
+            // Keep the public entrance approach open by putting the stair against the side opposite
+            // the authored door bias. The return flight sits toward the room centre.
+            bool firstFlightOnRight = form.DoorOffsetDm <= 0;
+            int firstFlightX;
+            int secondFlightX;
+            if (firstFlightOnRight)
+            {
+                firstFlightX = right - SideInsetDm * scale - stair.Width;
+                secondFlightX = firstFlightX - stairGap - stair.Width;
+            }
+            else
+            {
+                firstFlightX = left + SideInsetDm * scale;
+                secondFlightX = firstFlightX + stair.Width + stairGap;
+            }
+
+            int layoutMinX = Math.Min(firstFlightX, secondFlightX);
+            int layoutMaxX = Math.Max(firstFlightX, secondFlightX) + stair.Width;
+            if (layoutWidth + SideInsetDm * scale > interiorWidth
+                || layoutMinX - openingSideClearance < left
+                || layoutMaxX + openingSideClearance > right
                 || northZ + openingSideClearance > rear)
             {
                 throw new InvalidOperationException(
-                    "Generated Kentridge interior is too small for its constrained stairwell.");
+                    "Generated Kentridge interior is too small for its constrained switchback stairwell.");
             }
 
             int headroom = Math.Min(MinimumHeadroomDm * scale, floorHeight - slabThickness);
             int clearanceThreshold = Math.Max(0, floorHeight - slabThickness - headroom);
             int firstOpenStep = Math.Min(
-                stair.StepCount - 1,
+                firstFlightSteps - 1,
                 clearanceThreshold / stair.StepRise);
-            int openingOffset = firstOpenStep * stair.StepRun;
-            int openingLength = stair.TotalRun - openingOffset;
-            int openingMinX = stairMinX - openingSideClearance;
-            int openingWidth = stair.Width + openingSideClearance * 2;
+            int secondOpenStep = Math.Max(
+                0,
+                clearanceThreshold / stair.StepRise - firstFlightSteps);
+            secondOpenStep = Math.Min(secondFlightSteps - 1, secondOpenStep);
+
+            int firstStartZ = landingMinZ - firstRun;
+            int firstOpeningMinZ = firstStartZ + firstOpenStep * stair.StepRun;
+            int firstOpeningLength = northZ - firstOpeningMinZ;
+            int secondSouthZ = landingMinZ - secondRun;
+            int secondOpeningMaxZ = landingMinZ - secondOpenStep * stair.StepRun;
+            int secondOpeningLength = northZ - secondSouthZ;
             int guardHeight = GuardHeightDm * scale;
             int guardThickness = Math.Max(1, GuardThicknessDm * scale);
             byte timber = settings.Materials.Resolve(theme.Frame);
 
             var code = new List<int>(
-                program.Length + (form.Storeys - 1) * (stair.StepCount + 4) * 12);
+                program.Length + (form.Storeys - 1) * (stair.StepCount + 8) * 12);
             for (int i = 0; i < program.Length - endLength; i++)
                 code.Add(program[i]);
 
             for (int level = 0; level < form.Storeys - 1; level++)
             {
-                bool ascendNorth = (level & 1) == 0;
                 int lowerFloorY = foundation + level * floorHeight;
                 int upperFloorY = lowerFloorY + floorHeight;
-                int openingMinZ = ascendNorth
-                    ? southZ + openingOffset
-                    : southZ;
 
+                // The opening follows the portions of both flights and the landing that fail the
+                // configured headroom test; it is not an independent decorative hole.
                 EmitBox(
                     code,
-                    openingMinX,
+                    firstFlightX - openingSideClearance,
                     upperFloorY - slabThickness,
-                    openingMinZ,
-                    openingWidth,
+                    firstOpeningMinZ,
+                    stair.Width + openingSideClearance * 2,
                     slabThickness,
-                    openingLength,
+                    firstOpeningLength,
+                    0,
+                    PrimitiveMode.Carve);
+                EmitBox(
+                    code,
+                    secondFlightX - openingSideClearance,
+                    upperFloorY - slabThickness,
+                    secondSouthZ,
+                    stair.Width + openingSideClearance * 2,
+                    slabThickness,
+                    secondOpeningLength,
                     0,
                     PrimitiveMode.Carve);
 
-                for (int step = 0; step < stair.StepCount; step++)
+                for (int step = 0; step < firstFlightSteps; step++)
                 {
-                    int stepZ = ascendNorth
-                        ? southZ + step * stair.StepRun
-                        : northZ - (step + 1) * stair.StepRun;
                     EmitBox(
                         code,
-                        stairMinX,
+                        firstFlightX,
                         lowerFloorY,
-                        stepZ,
+                        firstStartZ + step * stair.StepRun,
                         stair.Width,
                         (step + 1) * stair.StepRise,
                         stair.StepRun,
@@ -153,35 +203,49 @@ namespace MountingForce.WorldGen.Voxel
                         PrimitiveMode.Fill);
                 }
 
-                // Guard both long sides and the edge opposite the stair's upper-floor egress.
                 EmitBox(
                     code,
-                    openingMinX,
-                    upperFloorY,
-                    openingMinZ,
-                    guardThickness,
-                    guardHeight,
-                    openingLength,
+                    layoutMinX,
+                    lowerFloorY,
+                    landingMinZ,
+                    layoutMaxX - layoutMinX,
+                    firstFlightSteps * stair.StepRise,
+                    stair.Landing.Length,
                     timber,
                     PrimitiveMode.Fill);
+
+                for (int step = 0; step < secondFlightSteps; step++)
+                {
+                    EmitBox(
+                        code,
+                        secondFlightX,
+                        lowerFloorY,
+                        landingMinZ - (step + 1) * stair.StepRun,
+                        stair.Width,
+                        (firstFlightSteps + step + 1) * stair.StepRise,
+                        stair.StepRun,
+                        timber,
+                        PrimitiveMode.Fill);
+                }
+
+                int guardMinX = layoutMinX - openingSideClearance;
+                int guardWidth = layoutMaxX - layoutMinX + openingSideClearance * 2;
+                int guardMinZ = Math.Min(firstOpeningMinZ, secondSouthZ);
+                int guardLength = northZ - guardMinZ;
+
+                // Perimeter guards leave only the return flight's south-end upper-floor egress open.
+                EmitBox(code, guardMinX, upperFloorY, guardMinZ,
+                    guardThickness, guardHeight, guardLength, timber, PrimitiveMode.Fill);
+                EmitBox(code, guardMinX + guardWidth - guardThickness, upperFloorY, guardMinZ,
+                    guardThickness, guardHeight, guardLength, timber, PrimitiveMode.Fill);
+                EmitBox(code, guardMinX, upperFloorY, northZ - guardThickness,
+                    guardWidth, guardHeight, guardThickness, timber, PrimitiveMode.Fill);
                 EmitBox(
                     code,
-                    openingMinX + openingWidth - guardThickness,
+                    firstFlightX - openingSideClearance,
                     upperFloorY,
-                    openingMinZ,
-                    guardThickness,
-                    guardHeight,
-                    openingLength,
-                    timber,
-                    PrimitiveMode.Fill);
-                EmitBox(
-                    code,
-                    openingMinX,
-                    upperFloorY,
-                    ascendNorth
-                        ? openingMinZ
-                        : openingMinZ + openingLength - guardThickness,
-                    openingWidth,
+                    firstOpeningMinZ,
+                    stair.Width + openingSideClearance * 2,
                     guardHeight,
                     guardThickness,
                     timber,
