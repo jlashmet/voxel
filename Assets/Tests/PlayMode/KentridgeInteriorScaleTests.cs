@@ -7,7 +7,7 @@ using Unity.Mathematics;
 using VoxelEngine.Structures.Api;
 using VoxelEngine.Structures.Runtime;
 
-namespace VoxelEngine.Tests.EditMode
+namespace VoxelEngine.Tests.PlayMode
 {
     public sealed class KentridgeInteriorScaleTests
     {

@@ -110,7 +110,11 @@ namespace MountingForce.WorldGen.Voxel
             for (int i = program.Length - endLength; i < program.Length; i++)
                 code.Add(program[i]);
 
-            return code.ToArray();
+            return KentridgeHouseVerticalCirculation.Decorate(
+                form,
+                theme,
+                settings,
+                code.ToArray());
         }
 
         private static void AddHomeFurniture(

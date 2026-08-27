@@ -14,7 +14,7 @@
 ## Fix + regression
 - Expand every generated Kentridge form by 8 dm in width/depth while retaining 4 dm envelope clearance; raise shared floor height to 40 dm.
 - Leave bespoke landmark massing unchanged; mansion inherits the taller shared theme, while church/warehouse already exceed the ceiling target. Leave the open well out of the room contract.
-- Add an EditMode behavioral regression through `KentridgeSharedStructureVoxelCatalogue` for all 16 room-bearing roles: minimum 64 dm horizontal interior carve, minimum 40 dm vertical carve, raised 40 dm generated storeys, and X/Z footprint containment for every emitted primitive.
+- Add a PlayMode behavioral regression through `KentridgeSharedStructureVoxelCatalogue` for all 16 room-bearing roles: minimum 64 dm horizontal interior carve, minimum 40 dm vertical carve, raised 40 dm generated storeys, and X/Z footprint containment for every emitted primitive. PlayMode is required so the same exact-SHA request can perform the saved-camera scene replay.
 
 ## Blast radius / cost
 Settlement plot positions/envelopes, rule counts, primitive limits, and generation topology remain unchanged. Generated shell volume grows inside existing plots but primitive count does not; style-owned clearance preserves the conservative 12 dm default for other architecture styles.
