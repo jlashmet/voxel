@@ -133,14 +133,21 @@ namespace VoxelEngine.Tests.PlayMode
                 Assert.AreEqual(4, primitives.Length,
                     "The production lamp should remain base, pole, lantern, and roof.");
 
+                Primitive foot = default;
                 Primitive support = default;
                 Primitive lantern = default;
+                bool foundFoot = false;
                 bool foundSupport = false;
                 bool foundLantern = false;
                 for (int i = 0; i < primitives.Length; i++)
                 {
                     Primitive primitive = primitives[i];
-                    if (primitive.Shape == PrimitiveShape.Box && primitive.Material == 6)
+                    if (primitive.Shape == PrimitiveShape.Cylinder && primitive.Material == 1)
+                    {
+                        foot = primitive;
+                        foundFoot = true;
+                    }
+                    else if (primitive.Shape == PrimitiveShape.Box && primitive.Material == 6)
                     {
                         support = primitive;
                         foundSupport = true;
@@ -152,12 +159,20 @@ namespace VoxelEngine.Tests.PlayMode
                     }
                 }
 
+                Assert.IsTrue(foundFoot,
+                    "The captured lamp must retain its foundation-stone ground-contact cylinder.");
                 Assert.IsTrue(foundSupport,
                     "The captured lamp must retain its dark-stone support primitive.");
                 Assert.IsTrue(foundLantern,
                     "The captured lamp must retain the warm lantern head that exposed the floating-support defect.");
+                Assert.AreEqual(SurfaceStyles.Planar, foot.SurfaceStyle,
+                    "The visible lamp foot must reconstruct exactly at the terrace contact plane instead of retracting under smoothing.");
                 Assert.AreEqual(SurfaceStyles.Planar, support.SurfaceStyle,
                     "A 3x3-voxel lamp pole must not inherit dark stone's Smooth reconstruction.");
+
+                foot.Bounds(out var footMin, out _);
+                Assert.AreEqual(generatedGroundSurfaceY, footMin.y,
+                    "The exact lamp foot must begin in the first voxel directly above the highest generated terrace solid.");
 
                 support.Bounds(out _, out var supportMax);
                 lantern.Bounds(out var lanternMin, out _);
