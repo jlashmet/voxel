@@ -1,21 +1,21 @@
-# Plan — VoxelShowcase dirt/grass seam
+# Plan
 
-## Observed / acceptance
-The capture has one pose with two marked Dirt/grass transitions. Direct inspection of the latest exact-pose built-player replay shows the lower mark now has a continuous diagonal edge, while the upper mark still has a large axis-aligned grass tongue intruding into the Dirt route. Acceptance requires both original marks clean in a fresh replay with full residency and no startup/runtime exceptions.
+## Captured evidence
+The note is the Dirt/grass join being visibly jagged. I inspected both circles separately at the saved 1928x836 pose. The lower transition is a route-edge staircase; the upper circle contains the larger axis-aligned grass tongue around the corrected ray envelope `X≈91.0..93.8m, Z≈28.6..30.4m`.
 
-## Hypotheses / discriminators
-1. **Stale bake / streaming:** falsified by repeated fresh fully resident replays.
-2. **District terrace/civic/correction stages:** falsified because VoxelShowcase seed `1592594996` selects organic Kentridge; those district-only stages are not composed.
-3. **Organic route square stamps:** falsified by exact-SHA run `33214166946`: the focused regression found zero live route placements overlapping the corrected upper envelope, while the built-player replay still showed the defect.
-4. **Organic plot grading:** supported by the minimal exact-seed reproduction. MayorHouse (`WideHouse`) owns parcel `X=91.0..104.2m, Z=25.0..38.2m`, containing the upper mark at its west edge. Its generic plot program expands 12 progressively higher moss-capped rectangles to the parcel boundary, reaching ~233–234 while natural terrain at `(910,295)` is `223` and the frontage target is `221`.
+Exact replay `33215984995` after the plot-only change rebuilt `ShowcaseWorld.bytes`, passed the focused PlayMode test, built `VoxelShowcase`, and ran 45 s, but direct inspection of `verification-final.png` still showed the upper right-angle tongue. It is therefore not promotable despite green CI.
 
-## Selected fix / regression
-Revert the falsified route-shape candidate. Grade each non-well plot only inside its real building-envelope pad: one clearance carve, one Dirt fill, one Moss surface at the existing frontage target. Parcel-edge terrain remains deterministic natural terrain.
+## Competing hypotheses / discrimination
+1. **Organic-route square stamps.** Production `KentridgeOrganicCirculationCatalogue` emits overlapping axis-aligned box stamps along diagonal routes. This directly predicts the repeated horizontal/vertical staircase visible on both road edges. Earlier rounded-route replay `33214166946` improved the lower transition but left the upper mark.
+2. **Plot feather over the route/natural edge.** Exact seed `1592594996` places MayorHouse/WideHouse at `(910,250)` dm; the upper ray crosses its west parcel edge where the old 12-step Moss feather expanded beyond the real building pad. The route-only experiment left this later precedence-40 owner intact. Conversely, the plot-only replay left the precedence-20 square route geometry intact.
+3. **Stale bake/streaming.** Falsified by fresh WorldBuilder cache misses and successful saved-camera real-player replays; the marked geometry is stable.
 
-`VoxelEngine.Tests.PlayMode.KentridgePlotSurfaceSceneIssueRegressionTests.SceneIssue20260826132234356MayorHousePlotEdgePreservesNaturalTerrain` builds the production plot catalogue with the exact Showcase seed, locates the WideHouse definition and MayorHouse placement without editor-only dependencies, proves the marked parcel edge is outside all plot primitives, preserves target/natural heights, and enforces the 3-primitive pad budget.
+The single-owner experiments were therefore incomplete: the two rectangular owners stack at the captured transition, so removing only one leaves a hard edge.
+
+## Fix / regression
+Keep plot grading inside each archetype's real `PadFor` envelope and leave parcel edges natural. Keep organic route centers, widths, height samples, precedence, placement count, and two-primitive budget, but replace square carve/fill stamps with vertical cylinders of the same half-width.
+
+`SceneIssue20260826132234356CapturedDirtGrassEdgesAvoidRectangularOwners` builds both production catalogues at the exact showcase seed, proves the MayorHouse marked parcel edge is outside grading, and proves every live organic route definition emits only the bounded round carve/fill pair.
 
 ## Blast radius / cost
-All organic Kentridge non-well plot placements keep the same positions, orientations, frontage target, precedence, and building-envelope dimensions. Only the artificial parcel feather is removed. Per-placement plot work drops from 39 primitives to 3 and vertical definition extent drops by 1.2 m; no per-frame cost is added.
-
-## Gate
-Use only `ci-test/fixes/agent-8`. Final exact-SHA PlayMode CI must pass the focused regression plus the built-player 45-second VoxelShowcase replay, then both original marks must be inspected directly.
+Route change is organic Kentridge only; legacy/district roads are untouched and primitive count is unchanged. Plot grading affects non-well Kentridge plots but reduces each program from 39 primitives to 3 and reduces spatial ownership. No per-frame work is added. Final gate is exact-SHA PlayMode + built-player replay with both original circles clean.
