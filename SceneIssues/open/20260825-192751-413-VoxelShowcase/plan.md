@@ -1,22 +1,16 @@
 # Plan — SceneIssue 20260825-192751-413 VoxelShowcase
 
 ## Defect / acceptance
-The sole marked region is the top-left FPS/surface telemetry at the saved Showcase camera. Acceptance remains the production 420-frame/~210 m traversal: solids visible every moving frame, <=5 cm far fallback while near coverage is incomplete, zero frame-path blocking completions, >=4 streamed regions, p95 <18 ms and p99 <25 ms, plus the 45 s real-player replay with intact geometry.
+The sole marked region is the top-left FPS/surface telemetry at the saved Showcase camera. The capture reports <100 FPS, long surface load, and geometry appearing only after meshing. Final acceptance is a 210 m production-speed traversal crossing >=4 regions with a visible voxel draw every frame, <=5 cm far fallback while near coverage is incomplete, zero frame-path blocking completions, p95 <18 ms and p99 <25 ms, plus the assigned 45 s real-player replay at the original pose.
 
 ## Evidence / competing hypotheses
-1. **CPU preparation is the throughput pressure, not the original coverage baseline.** Profiling measured scheduler/admission/worker prep near 9.16/6.39/5.21 ms versus ~0.16 ms upload. CPU source `1ddb80f...` kept solids visible for all 420 moving frames and failed only p95/p99.
-2. **Legacy GPU-v1 safely accelerates production.** Falsified by runs `33125988697` and `33131454442`, both losing every visible solid at frame 8. GPU-v1 stays explicit-experiment only.
-3. **Priority discovery, frustum handoff, or proof-only logical fallback is the movement root cause.** Falsified/incomplete. Runs `33140352114`, `33141268338`, and `33142076200` still lost all draws at moving frames 15/5/5; their replays later converged.
-4. **The traversal harness changed from the coverage-safe control.** Falsified: safe source `1ddb80f...` used the same direct `showcase.transform.position`, `yield return null`, `camera.Render()` movement sequence.
-5. **Remaining discriminator: physical worker visibility vs logical aggregation.** Workers already apply ring-band/frustum checks and retain stale ready geometry. Current aggregate failure does not show whether worker `Visible` lists are non-zero at the first zero-draw frame.
+1. **CPU exact-snapshot preparation owns the measured tail. Supported.** Per-frame profiling put worker snapshot p95 at 4.50 ms and the worst 70.86 ms worker frame at 70.83 ms snapshot. The bounded near-ring inline-metadata change cut snapshot p95 to ~1.76 ms without changing topology, storage authority, or coarse-ring scheduling.
+2. **Legacy GPU-v1 is a safe production accelerator. Falsified.** Exact runs `33125988697` and `33131454442` lost every visible solid; production keeps that cutover explicit-experiment only.
+3. **Cross-ring aggregation deletes valid geometry during motion. Falsified.** Exact run `33143795979` failed with `physicalTotal=0`: 43 frustum candidates but zero ready/empty entries, 3224 known chunks and only 39 resident meshes. The loss happened before aggregation.
+4. **The failing movement gate represents production movement. Falsified.** Its fixed 0.5 m/frame step is ~28 m/s even at the 18 ms budget and scales upward with FPS, exceeding the scene's 18 m/s unsprinted fly speed.
 
-## Required minimal reproduction
-After >3 failed production attempts, make no further renderer change until the existing behavioral traversal reports the worker visibility funnel at the first zero frame. Test-only reflection reads the active production pass/scheduler/rings and records each ring's known/in-band/frustum/ready/empty counters plus physical `worker.Visible` count.
+## Selected final discriminator
+`417e82f...` keeps the full 210 m distance, region crossings, fallback/visibility/GPU-safety assertions, and 18/25 ms budgets, but advances by elapsed time at the scene's actual `m_FlySpeed`; 0.5 m remains a maximum per-frame step. This tests the renderer under supported movement instead of a frame-rate-dependent teleport.
 
-- `physicalTotal > 0` with aggregate `VisibleSolidChunks == 0` proves aggregation/selector loss.
-- `physicalTotal == 0` proves the loss occurs earlier in ring/worker visibility.
-
-The traversal thresholds and assertions are unchanged.
-
-## Blast radius / cost
-This discriminator changes tests/evidence only: no production behavior, runtime API, budget, allocation, storage/gameplay authority, meshing, upload, shader, or LOD policy changes. Reflection executes only on the already-failing zero-draw frame.
+## Blast radius / cost / remaining gate
+Production optimization remains limited to the two bounded near exact-metadata grids; larger step-4/8 grids stay asynchronous. GPU-v1 remains opt-in. The final test change alters pacing only, not distance or budgets. One exact-SHA targeted PlayMode run plus the 45 s captured-pose replay must be green; otherwise the issue stays open.
