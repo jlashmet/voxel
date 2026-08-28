@@ -18,7 +18,7 @@
 ## Blast radius / cost
 - ArchLookdev presentation only; shared vegetation/world truth unchanged.
 - 3 hero draws, <=4,096 vertices, one-shot CPU mesh mutation after build, no per-leaf/flower GameObjects and no steady-state geometry work.
-- Current master through the binary-evidence workflow clarification is merged; no product overlap.
+- Current master `682aff09` is merged; only the SceneIssue workflow changed and there was no product overlap.
 
 ## Remaining gates
-Run fresh exact-SHA targeted PlayMode CI with the assigned 45-second scene replay. Reject unless direct reference comparison shows layered ivy and readable clustered blossoms. Produce clean quality-40 JPEG evidence at exactly 771×334 with overlays hidden, commit pending metadata/move, then after green CI set fixed/resolvedUtc, move to closed, merge current master and non-force push the exact feature head to master.
+Run fresh exact-SHA targeted PlayMode CI with the assigned 45-second scene replay. Reject unless direct reference comparison shows layered ivy and readable clustered blossoms. Record durable text verification, populate pending metadata/move, then after the exact request is green set fixed/resolvedUtc, move to closed, merge current master and non-force push the exact feature head to master.
