@@ -106,10 +106,16 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
     }
 
     /// <summary>
-    /// Derives build-routing facts previously discovered by a main-thread 287k-brick scan:
+    /// Derives build-routing facts previously discovered by a main-thread 287k-voxel scan:
     /// whether the chunk owns solid geometry, whether it needs continuous topology, and whether
     /// it contains geometry the GPU cutover does not yet represent. Mixed payloads are immutable
     /// COW-pinned Storage versions.
+    ///
+    /// The two exact GPU rings deliberately do not repeat that raw-voxel scan on the CPU. Their
+    /// compute sample/count dispatch classifies every dense-cache brick directly from the GPU
+    /// mirror and returns zero count for an unsupported semantic, which routes the build through
+    /// the existing full CPU fallback. These three flags are therefore only routing defaults for
+    /// that fast path, not a claim that the CPU inspected the chunk.
     /// </summary>
     [BurstCompile]
     internal struct ExactSnapshotClassificationJob : IJob
@@ -132,6 +138,18 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
 
         public void Execute()
         {
+            // CellsPerAxis is 64 and Storage bricks are 8 voxels wide, so the exact GPU rings have
+            // 8 (step 1) or 16 (step 2) core bricks per axis. Profile geometry is still CPU-owned.
+            // Mark these builds as candidates without touching Bricks/MixedVoxels: the compute
+            // count pass now performs the all-voxel support classification from the resident mirror.
+            if (!HasProfiles && (BricksPerAxis == 8 || BricksPerAxis == 16))
+            {
+                Flags[0] = 1;
+                Flags[1] = 1;
+                Flags[2] = 0;
+                return;
+            }
+
             bool hasOwnedSolid = false;
             bool requiresContinuous = HasProfiles;
             bool gpuUnsupported = HasProfiles;
