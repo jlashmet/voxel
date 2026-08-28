@@ -201,11 +201,14 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
     /// <summary>
     /// Shared low-cost source meshes. Multiple cards per growth form give plants readable internal
     /// silhouette detail without sacrificing species batching or introducing authored prefabs.
+    /// Meadow grass is the exception: it uses one packed mesh of solid, segmented ribbon blades so
+    /// the silhouette is world-fixed and never depends on transparency or camera-facing cards.
     /// </summary>
     internal static class ProceduralVegetationMeshLibrary
     {
         private const int GrowthFormCount = 10;
         private static readonly Mesh[] s_Foliage = new Mesh[GrowthFormCount];
+        private static Mesh s_Grass;
         private static Mesh s_Surface;
         private static Mesh s_Vine;
         private static Mesh s_Woody;
@@ -214,6 +217,8 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
         {
             switch (shaderClass)
             {
+                case VegetationShaderClass.Grass:
+                    return s_Grass != null ? s_Grass : (s_Grass = BuildGrassRibbonCluster());
                 case VegetationShaderClass.Surface:
                     return s_Surface != null ? s_Surface : (s_Surface = BuildSurfacePatch());
                 case VegetationShaderClass.Vine:
@@ -225,6 +230,77 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
                     if (s_Foliage[index] == null) s_Foliage[index] = BuildFoliageCluster(growthForm);
                     return s_Foliage[index];
             }
+        }
+
+        private static Mesh BuildGrassRibbonCluster()
+        {
+            const int bladeCount = 11;
+            const int segments = 4;
+            var vertices = new List<Vector3>(bladeCount * (segments + 1) * 2);
+            var normals = new List<Vector3>(vertices.Capacity);
+            var uv = new List<Vector2>(vertices.Capacity);
+            var bladeData = new List<Vector2>(vertices.Capacity);
+            var triangles = new List<int>(bladeCount * segments * 6);
+
+            for (int blade = 0; blade < bladeCount; blade++)
+            {
+                float goldenAngle = blade * 137.50776f;
+                float variation = Hash01((uint)(blade + 1) * 0x9E3779B9u);
+                float phase = Hash01((uint)(blade + 7) * 0x85EBCA6Bu);
+                float radius = 0.31f * Mathf.Sqrt((blade + 0.35f) / bladeCount);
+                float rootAngle = (goldenAngle + (variation - 0.5f) * 24f) * Mathf.Deg2Rad;
+                Vector3 root = new Vector3(Mathf.Cos(rootAngle) * radius, 0f, Mathf.Sin(rootAngle) * radius);
+
+                float yaw = (goldenAngle + 23f + (phase - 0.5f) * 34f) * Mathf.Deg2Rad;
+                Vector3 right = new Vector3(Mathf.Cos(yaw), 0f, -Mathf.Sin(yaw));
+                Vector3 forward = new Vector3(Mathf.Sin(yaw), 0f, Mathf.Cos(yaw));
+                float height = Mathf.Lerp(0.68f, 1.14f, variation);
+                float width = Mathf.Lerp(0.115f, 0.205f, phase);
+                float lean = Mathf.Lerp(-0.20f, 0.24f, Hash01((uint)(blade + 17) * 0xC2B2AE35u));
+                int start = vertices.Count;
+
+                for (int segment = 0; segment <= segments; segment++)
+                {
+                    float t = segment / (float)segments;
+                    float curve = t * t;
+                    Vector3 centre = root + Vector3.up * (height * t) + forward * (lean * curve);
+                    float halfWidth = width * 0.5f * Mathf.Lerp(1f, 0.055f, t);
+                    vertices.Add(centre - right * halfWidth);
+                    vertices.Add(centre + right * halfWidth);
+                    normals.Add(forward);
+                    normals.Add(forward);
+                    uv.Add(new Vector2(0f, t));
+                    uv.Add(new Vector2(1f, t));
+                    bladeData.Add(new Vector2(phase, variation));
+                    bladeData.Add(new Vector2(phase, variation));
+                }
+
+                for (int segment = 0; segment < segments; segment++)
+                {
+                    int row = start + segment * 2;
+                    triangles.Add(row);
+                    triangles.Add(row + 1);
+                    triangles.Add(row + 3);
+                    triangles.Add(row);
+                    triangles.Add(row + 3);
+                    triangles.Add(row + 2);
+                }
+            }
+
+            Mesh mesh = BuildMesh("Vegetation Solid Meadow Grass Ribbons", vertices, normals, uv, triangles);
+            mesh.SetUVs(1, bladeData);
+            return mesh;
+        }
+
+        private static float Hash01(uint seed)
+        {
+            uint x = seed == 0u ? 0xA511E9B3u : seed;
+            x ^= x >> 16;
+            x *= 0x7FEB352Du;
+            x ^= x >> 15;
+            x *= 0x846CA68Bu;
+            x ^= x >> 16;
+            return (x & 0x00FFFFFFu) / 16777215f;
         }
 
         private static Mesh BuildFoliageCluster(VegetationGrowthForm form)
