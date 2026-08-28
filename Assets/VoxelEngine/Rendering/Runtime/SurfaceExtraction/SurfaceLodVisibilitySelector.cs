@@ -31,8 +31,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         internal static bool IsCurrentViewComplete(bool inBand, bool inFrustum,
                                                    bool currentReady, bool currentEmpty)
         {
-            _ = inFrustum;
-            return inBand && (currentReady || currentEmpty);
+            return inBand && inFrustum && (currentReady || currentEmpty);
         }
 
         public void Rebuild(IReadOnlyList<SurfaceLodNodeKey> drawableNodes,

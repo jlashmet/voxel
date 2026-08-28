@@ -101,11 +101,11 @@ namespace VoxelEngine.Tests.EditMode
         [TestCase(false, false, false, false, false, TestName = "OutOfBandDoesNotCompleteViewHandoff")]
         [TestCase(true, false, false, false, false, TestName = "OffFrustumMissingChildKeepsFallback")]
         [TestCase(true, true, false, false, false, TestName = "MissingVisibleChildKeepsFallback")]
-        [TestCase(true, false, true, false, true, TestName = "OffFrustumCurrentReadyChildCompletesHandoff")]
-        [TestCase(true, false, false, true, true, TestName = "OffFrustumCurrentEmptyChildCompletesHandoff")]
+        [TestCase(true, false, true, false, false, TestName = "OffFrustumCurrentReadyChildKeepsFallback")]
+        [TestCase(true, false, false, true, false, TestName = "OffFrustumCurrentEmptyChildKeepsFallback")]
         [TestCase(true, true, true, false, true, TestName = "CurrentReadyVisibleChildCompletesHandoff")]
         [TestCase(true, true, false, true, true, TestName = "CurrentEmptyVisibleChildCompletesHandoff")]
-        public void CurrentViewCompletionRequiresRingOwnershipAndPublishedProof(
+        public void CurrentViewCompletionRequiresOwnedVisiblePublishedProof(
             bool inBand, bool inFrustum, bool currentReady, bool currentEmpty, bool expected)
         {
             Assert.AreEqual(expected,
