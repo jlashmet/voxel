@@ -88,6 +88,34 @@ namespace VoxelEngine.Tests.PlayMode
             }
         }
 
+        [Test]
+        public void OrdinaryMeadowTuftsDoNotUseLegacyThreeBladeSpriteShape()
+        {
+            VegetationKind[] accents =
+            {
+                VegetationKind.Clover,
+                VegetationKind.Weed,
+                VegetationKind.Nettle,
+                VegetationKind.Reed,
+                VegetationKind.Cattail,
+                VegetationKind.DeadGrass,
+                VegetationKind.WaterGrass,
+            };
+
+            for (int i = 0; i < accents.Length; i++)
+            {
+                VegetationRenderStyle style = ProceduralVegetationMaterials.StyleFor(accents[i]);
+                Assert.That(style.ShaderClass, Is.EqualTo(VegetationShaderClass.Foliage), accents[i].ToString());
+                Assert.That(style.Shape, Is.InRange(0.5f, 0.99f),
+                    $"{accents[i]} must use its authored multi-card accent geometry, not the legacy Shape 0 three-blade billboard.");
+            }
+
+            VegetationRenderStyle grass = ProceduralVegetationMaterials.StyleFor(VegetationKind.Grass);
+            Assert.That(grass.ShaderClass, Is.EqualTo(VegetationShaderClass.Grass));
+            Assert.That(grass.Shape, Is.EqualTo(5f),
+                "Semantic Grass must stay on the dedicated packed renderer while accent tufts leave the legacy billboard shape.");
+        }
+
         private static List<VegetationInstance> FindFormerCoverageHoles(MethodInfo legacyCoverage, int count)
         {
             var instances = new List<VegetationInstance>(count);
