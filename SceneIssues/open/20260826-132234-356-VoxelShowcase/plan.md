@@ -1,20 +1,21 @@
-# Plan — VoxelShowcase civic west terrace seam
+# Plan — VoxelShowcase civic south-west dirt/grass seam
 
 ## Observed / acceptance
-The immutable capture has two marked world hits: upper `(X=92.15m, Z=11.57m)` and lower `(X=89.03m, Z=20.91m)`. The exact-SHA fresh bake/replay for `4179a07d…` still showed the same axis-aligned civic approach/terrace defects. Acceptance is a continuous west transition into the civic summit at both marks, without the broad rectangular shelf/tongue.
+Exact request `c11d015e…` passed one PlayMode test and a fresh 45-second saved-camera replay, and the player converged to `missingVisible=0`; direct inspection still shows a hard rectangular green tongue in the upper circle while the lower circle is clean. Reprojecting the immutable camera with Unity convention (+Z forward, +X right, top-down screen Y) puts the upper marked envelope at approximately `X=91.0..93.8m, Z=28.6..30.4m`. The later `Z≈11.6m/20.9m` interpretation used the wrong camera/screen orientation. Acceptance: both original circles are visually clean with no rectangular/notched Dirt/grass boundary.
 
 ## Competing hypotheses / evidence
-1. **Stale bake or streaming/LOD:** falsified. CI rebuilt `ShowcaseWorld.bytes`, the real player converged to `missingVisible=0`, and the defects remained.
-2. **Material-only correction:** falsified. Restricting the later correction layer away from urban shoulders changed ownership but did not remove the geometry.
-3. **Civic south shoulder:** falsified by coordinates. The prior repair only touched `Z=24.0..31.2m`; the saved hits are `Z=11.57m` and `20.91m`. That off-target geometry repair is removed.
-4. **Late civic-west court fill:** falsified by coordinates. The court is `X=92.8..108.2m, Z=25.4..29.8m`, so neither saved hit lies inside it. Restore the court to its prior behavior rather than broadening this issue.
-5. **Civic-summit west shoulder reuses one edge sample:** supported. The civic core begins at `X=92.0m`; its 7.2m west shoulder spans `X=84.8..92.0m` across `Z=4.0..24.0m`. Both marks lie on that transition. `KentridgeDistrictTerraceCatalogue` sampled its whole west edge once at `Z=14.0m` and emitted one 20m-deep X ramp, even though local natural height varies along Z. The adjacent `upper-shoulder` already solves the same problem with 0.5m Z strips sampled at each local west-edge segment.
+1. **Stale bake or streaming/LOD:** falsified. WorldBuilder inputs were freshly baked and the replay reached full residency.
+2. **Road shoulder quantization:** incomplete. Granular road shoulders cleaned the lower mark but the upper tongue persisted.
+3. **Civic west-edge profiling:** falsified. `c6a4a89c…` profiled that west edge and its fresh replay retained the same upper tongue.
+4. **Civic south edge + late civic-west court:** supported. The civic south shoulder reaches outer `Z=31.2m`; its old whole-width ramp reused one centreline terrain sample, flattening the marked west corner. The precedence-85 `civic-west-block-court` spans `X=92.8..108.2m, Z=25.4..29.8m`, so its Fill overlaps the marked envelope and can re-stamp a rectangular shelf after the terrace repair.
 
 ## Selected fix / regression
-Use the existing profiled-west-edge path for `civic-summit` as well as `upper-shoulder`; no new generation stage. The civic definition uses the same existing profiled-terrace primitive ceiling (`96`). The PlayMode regression builds `KentridgeCombinedVoxelCatalogue` and checks the production civic placement/program at both captured Z values (`116dm`, `209dm`), proving each west ramp meets its own local `TerrainQuery` edge sample rather than the old single centre-Z sample.
+Rebuild only the first `9.6m × 7.2m` civic south-west shoulder as eight `1.2m` strips, each meeting a local `TerrainQuery` outer-edge sample. Make only `civic-west-block-court` surface-only so it keeps material ownership without owning height; all other courts retain Fill behavior. Keep the obsolete upper material repaint absent.
+
+`SceneIssue20260826132234356CivicSouthWestShoulderFollowsLocalTerrainProfile` builds `KentridgeCombinedVoxelCatalogue`, verifies all eight ramp outer elevations, requires PaintSurface/no Fill at the marked court overlap, preserves civic paving, and keeps primitive budgets at civic `18` / court `2`.
 
 ## Blast radius / cost
-Geometry change is limited to the 7.2m × 20m west shoulder of `civic-summit`; other district edges and all courts keep their prior behavior. The civic west edge grows from one ramp/carve pair to at most 40 pairs (5dm strips), matching the already-established upper-shoulder strategy and existing `96` primitive budget. Sampling happens once during catalogue build; no per-frame work.
+Geometry changes only the observed civic corner; the court mode change is limited to the one overlapping civic-west court. The repair adds at most 16 civic primitives within its `18` cap; the court remains one emitted primitive within its existing `2` cap. Sampling is catalogue-build-only with no per-frame work.
 
 ## Gate
-Keep the issue open until the exact final feature SHA passes `SceneIssue20260826132234356CivicWestShoulderFollowsLocalTerrainAlongBothMarkedRegions` through the single `ci-test/fixes/agent-8` transport and its fresh saved-camera replay visually clears both original marks.
+Merge current `origin/master` before the final request. Use only `ci-test/fixes/agent-8`. The exact request SHA must execute the one behavioral test in under five minutes, then a fresh 45-second saved-camera replay must clear the upper mark while keeping the lower mark clean.
