@@ -6,7 +6,8 @@
     "MountingForce.WorldGen.Core",
     "MountingForce.WorldGen.Voxel",
     "VoxelEngine.Structures.Api",
-    "Unity.Collections"
+    "Unity.Collections",
+    "Unity.Mathematics"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
