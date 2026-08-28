@@ -418,7 +418,7 @@ namespace Game.Composition.Kentridge.Playable
 
                 if (_animator == null || _animator.runtimeAnimatorController == null) return;
                 string stateName = state == CharacterLocomotionState.Walk ? "Walk" : "Idle";
-                int stateHash = Animator.StringToHash(stateName);
+                int stateHash = Animator.StringToHash("Base Layer." + stateName);
                 if (_animator.HasState(0, stateHash))
                     _animator.CrossFadeInFixedTime(stateHash, 0.08f, 0);
             }
@@ -447,13 +447,20 @@ namespace Game.Composition.Kentridge.Playable
                     GameObject fallback = GameObject.CreatePrimitive(PrimitiveType.Capsule);
                     fallback.name = identity;
                     fallback.transform.localScale = new Vector3(0.6f, 0.9f, 0.6f);
-                    CharacterVisualFootGrounding.Attach(fallback);
                     return fallback;
                 }
 
-                GameObject body = UnityEngine.Object.Instantiate(prefab);
-                body.name = madeline ? "Madeline" : identity;
-                Animator animator = body.GetComponentInChildren<Animator>(true);
+                // Preserve the imported Animator/skeleton hierarchy exactly as-authored. Grounding
+                // offsets the complete visual prefab under this actor root instead of inserting a
+                // transform between the Animator and its bound bones.
+                GameObject body = new GameObject(madeline ? "Madeline" : identity);
+                GameObject visual = UnityEngine.Object.Instantiate(prefab, body.transform, false);
+                visual.name = madeline ? "Madeline Visual" : identity + " Visual";
+                visual.transform.localPosition = Vector3.zero;
+                visual.transform.localRotation = Quaternion.identity;
+                visual.transform.localScale = Vector3.one;
+
+                Animator animator = visual.GetComponentInChildren<Animator>(true);
                 if (animator != null) animator.applyRootMotion = false;
                 CharacterVisualFootGrounding.Attach(body);
                 return body;
