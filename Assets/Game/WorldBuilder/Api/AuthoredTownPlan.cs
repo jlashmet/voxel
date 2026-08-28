@@ -9,6 +9,7 @@ namespace Game.WorldBuilder.Api
     public static class WorldBuilderTownIds
     {
         public const string Kentridge = "kentridge";
+        public const string Hightown = "hightown";
     }
 
     /// <summary>
