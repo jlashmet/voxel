@@ -174,18 +174,18 @@ namespace VoxelEngine.Showcase
             _ivyMaterial = CreateMaterial(
                 shader,
                 "Arch Reference Ivy",
-                new Color(0.10f, 0.27f, 0.055f, 1f),
-                new Color(0.48f, 0.67f, 0.16f, 1f));
+                new Color(0.14f, 0.34f, 0.075f, 1f),
+                new Color(0.58f, 0.72f, 0.20f, 1f));
             _petalMaterial = CreateMaterial(
                 shader,
                 "Arch Reference Flower Petals",
-                new Color(0.88f, 0.54f, 0.50f, 1f),
-                new Color(1.00f, 0.93f, 0.82f, 1f));
+                new Color(0.91f, 0.54f, 0.58f, 1f),
+                new Color(1.00f, 0.92f, 0.87f, 1f));
             _centreMaterial = CreateMaterial(
                 shader,
                 "Arch Reference Flower Centres",
-                new Color(0.96f, 0.55f, 0.08f, 1f),
-                new Color(1.00f, 0.84f, 0.20f, 1f));
+                new Color(0.88f, 0.47f, 0.10f, 1f),
+                new Color(1.00f, 0.78f, 0.32f, 1f));
 
             _heroRoot = new GameObject("Arch Reference Hero Growth");
             _heroRoot.hideFlags = HideFlags.DontSave;
@@ -227,11 +227,11 @@ namespace VoxelEngine.Showcase
 
         private static Mesh BuildIvyMesh(out int leafCount)
         {
-            var vertices = new List<Vector3>(2200);
-            var normals = new List<Vector3>(2200);
-            var uv = new List<Vector2>(2200);
-            var colors = new List<Color>(2200);
-            var triangles = new List<int>(4200);
+            var vertices = new List<Vector3>(2600);
+            var normals = new List<Vector3>(2600);
+            var uv = new List<Vector2>(2600);
+            var colors = new List<Color>(2600);
+            var triangles = new List<int>(5000);
             leafCount = 0;
 
             AddIvyPath(s_LeftIvy, vertices, normals, uv, colors, triangles, ref leafCount);
@@ -269,17 +269,17 @@ namespace VoxelEngine.Showcase
                     uint seed = cluster.Seed + (uint)(leaf * 97 + 11);
                     float angle = leaf * 137.50776f + SignedRandom(seed ^ 0xB5297A4Du) * 24f;
                     float radians = angle * Mathf.Deg2Rad;
-                    float radial = cluster.Scale * Mathf.Lerp(0.12f, 0.46f, Random01(seed ^ 0x68E31DA4u));
+                    float radial = cluster.Scale * Mathf.Lerp(0.10f, 0.42f, Random01(seed ^ 0x68E31DA4u));
                     float verticalBias = cluster.Scale * Mathf.Lerp(-0.12f, 0.18f, Random01(seed ^ 0x1B56C4E9u));
                     Vector3 leafCentre = centre + new Vector3(
                         Mathf.Cos(radians) * radial,
                         Mathf.Sin(radians) * radial + verticalBias,
                         -0.004f * (leaf % 3));
-                    float leafScale = cluster.Scale * Mathf.Lerp(0.38f, 0.58f, Random01(seed ^ 0x9E3779B9u));
+                    float leafScale = cluster.Scale * Mathf.Lerp(0.34f, 0.50f, Random01(seed ^ 0x9E3779B9u));
                     float leafRotation = angle + SignedRandom(seed ^ 0x85EBCA6Bu) * 34f;
                     Color color = Color.Lerp(
-                        new Color(0.12f, 0.39f, 0.065f, 1f),
-                        new Color(0.52f, 0.68f, 0.14f, 1f),
+                        new Color(0.18f, 0.42f, 0.09f, 1f),
+                        new Color(0.54f, 0.69f, 0.18f, 1f),
                         Random01(seed ^ 0xC2B2AE35u));
                     AddLobedLeaf(
                         vertices, normals, uv, colors, triangles,
@@ -308,23 +308,26 @@ namespace VoxelEngine.Showcase
             float rotationDegrees,
             Color color)
         {
-            // Twelve perimeter points make a broad, recognisably ivy-like five-lobed silhouette.
-            // A simple fan keeps the mesh deterministic and cheap while avoiding the repeated card
-            // outline that the captured hero view rejected.
+            // A broad, shallow-notched ivy silhouette keeps the characteristic pointed crown and
+            // shoulder lobes without the hard starburst shape exposed by the standalone replay.
             Vector2[] shape =
             {
-                new( 0.00f, -0.46f),
-                new(-0.20f, -0.18f),
-                new(-0.52f, -0.04f),
-                new(-0.25f,  0.12f),
-                new(-0.43f,  0.34f),
-                new(-0.12f,  0.28f),
-                new( 0.00f,  0.54f),
-                new( 0.12f,  0.28f),
-                new( 0.43f,  0.34f),
-                new( 0.25f,  0.12f),
-                new( 0.52f, -0.04f),
-                new( 0.20f, -0.18f),
+                new( 0.00f, -0.48f),
+                new(-0.22f, -0.28f),
+                new(-0.43f, -0.18f),
+                new(-0.55f,  0.00f),
+                new(-0.48f,  0.18f),
+                new(-0.34f,  0.29f),
+                new(-0.18f,  0.30f),
+                new(-0.08f,  0.26f),
+                new( 0.00f,  0.52f),
+                new( 0.08f,  0.26f),
+                new( 0.18f,  0.30f),
+                new( 0.34f,  0.29f),
+                new( 0.48f,  0.18f),
+                new( 0.55f,  0.00f),
+                new( 0.43f, -0.18f),
+                new( 0.22f, -0.28f),
             };
 
             int start = vertices.Count;
@@ -371,7 +374,7 @@ namespace VoxelEngine.Showcase
             Vector2 perpendicular = new(-delta.y, delta.x);
             Vector3 half = new(perpendicular.x * width * 0.5f, perpendicular.y * width * 0.5f, 0f);
             int start = vertices.Count;
-            Color stemColor = new(0.055f, 0.20f, 0.035f, 1f);
+            Color stemColor = new(0.07f, 0.24f, 0.04f, 1f);
             vertices.Add(from - half);
             vertices.Add(from + half);
             vertices.Add(to + half);
@@ -388,11 +391,11 @@ namespace VoxelEngine.Showcase
 
         private static Mesh BuildFlowerPetalMesh(out int flowerHeadCount)
         {
-            var vertices = new List<Vector3>(1500);
-            var normals = new List<Vector3>(1500);
-            var uv = new List<Vector2>(1500);
-            var colors = new List<Color>(1500);
-            var triangles = new List<int>(2700);
+            var vertices = new List<Vector3>(1200);
+            var normals = new List<Vector3>(1200);
+            var uv = new List<Vector2>(1200);
+            var colors = new List<Color>(1200);
+            var triangles = new List<int>(2200);
             flowerHeadCount = 0;
 
             foreach (FlowerCluster cluster in s_Flowers)
@@ -402,16 +405,16 @@ namespace VoxelEngine.Showcase
                     uint seed = cluster.Seed + (uint)(head * 131 + 7);
                     Vector2 offset = head switch
                     {
-                        0 => new Vector2(-0.15f, -0.04f),
-                        1 => new Vector2( 0.13f,  0.04f),
-                        _ => new Vector2( 0.01f,  0.20f),
+                        0 => new Vector2(-0.16f, -0.05f),
+                        1 => new Vector2( 0.15f,  0.03f),
+                        _ => new Vector2( 0.01f,  0.22f),
                     } * cluster.Scale;
                     Vector3 centre = new(
                         cluster.X + offset.x,
                         cluster.Y + offset.y,
                         -0.145f - head * 0.004f);
-                    float radius = cluster.Scale * Mathf.Lerp(0.28f, 0.35f, Random01(seed));
-                    float rotation = Random01(seed ^ 0x9E3779B9u) * 60f;
+                    float radius = cluster.Scale * Mathf.Lerp(0.22f, 0.29f, Random01(seed));
+                    float rotation = Random01(seed ^ 0x9E3779B9u) * 72f;
                     AddFlowerHeadPetals(vertices, normals, uv, colors, triangles, centre, radius, rotation, seed);
                     flowerHeadCount++;
                 }
@@ -435,17 +438,17 @@ namespace VoxelEngine.Showcase
                     uint seed = cluster.Seed + (uint)(head * 131 + 7);
                     Vector2 offset = head switch
                     {
-                        0 => new Vector2(-0.15f, -0.04f),
-                        1 => new Vector2( 0.13f,  0.04f),
-                        _ => new Vector2( 0.01f,  0.20f),
+                        0 => new Vector2(-0.16f, -0.05f),
+                        1 => new Vector2( 0.15f,  0.03f),
+                        _ => new Vector2( 0.01f,  0.22f),
                     } * cluster.Scale;
                     Vector3 centre = new(
                         cluster.X + offset.x,
                         cluster.Y + offset.y,
                         -0.158f - head * 0.004f);
-                    float radius = cluster.Scale * Mathf.Lerp(0.28f, 0.35f, Random01(seed));
-                    AddDisc(vertices, normals, uv, colors, triangles, centre, radius * 0.27f, 8,
-                        new Color(1.0f, 0.72f, 0.08f, 1f));
+                    float radius = cluster.Scale * Mathf.Lerp(0.22f, 0.29f, Random01(seed));
+                    AddDisc(vertices, normals, uv, colors, triangles, centre, radius * 0.18f, 8,
+                        new Color(0.95f, 0.60f, 0.16f, 1f));
                 }
             }
 
@@ -463,24 +466,26 @@ namespace VoxelEngine.Showcase
             float rotationDegrees,
             uint seed)
         {
-            const int petalCount = 6;
+            const int petalCount = 5;
             for (int petal = 0; petal < petalCount; petal++)
             {
-                float angle = rotationDegrees + petal * (360f / petalCount);
+                uint petalSeed = seed + (uint)petal * 53u;
+                float angle = rotationDegrees + petal * (360f / petalCount)
+                    + SignedRandom(petalSeed ^ 0x85EBCA6Bu) * 7f;
                 float radians = angle * Mathf.Deg2Rad;
                 Vector2 direction = new(Mathf.Cos(radians), Mathf.Sin(radians));
-                Vector3 petalCentre = centre + new Vector3(direction.x, direction.y, 0f) * (radius * 0.48f);
-                float length = radius * Mathf.Lerp(0.92f, 1.10f, Random01(seed + (uint)petal * 17u));
-                float width = radius * Mathf.Lerp(0.42f, 0.54f, Random01(seed + (uint)petal * 31u));
+                Vector3 petalCentre = centre + new Vector3(direction.x, direction.y, 0f) * (radius * 0.38f);
+                float length = radius * Mathf.Lerp(0.84f, 1.04f, Random01(petalSeed ^ 0x68E31DA4u));
+                float width = radius * Mathf.Lerp(0.44f, 0.60f, Random01(petalSeed ^ 0x1B56C4E9u));
                 Color color = Color.Lerp(
-                    new Color(0.92f, 0.53f, 0.50f, 1f),
-                    new Color(1.00f, 0.91f, 0.80f, 1f),
-                    Random01(seed + (uint)petal * 47u));
-                AddEllipse(vertices, normals, uv, colors, triangles, petalCentre, direction, length, width, color);
+                    new Color(0.93f, 0.55f, 0.59f, 1f),
+                    new Color(1.00f, 0.91f, 0.86f, 1f),
+                    Random01(petalSeed ^ 0xC2B2AE35u));
+                AddTaperedPetal(vertices, normals, uv, colors, triangles, petalCentre, direction, length, width, color);
             }
         }
 
-        private static void AddEllipse(
+        private static void AddTaperedPetal(
             List<Vector3> vertices,
             List<Vector3> normals,
             List<Vector2> uv,
@@ -492,29 +497,36 @@ namespace VoxelEngine.Showcase
             float width,
             Color color)
         {
-            const int segments = 6;
             Vector2 side = new(-direction.y, direction.x);
+            Vector2[] outline =
+            {
+                direction * (-0.46f * length),
+                direction * (-0.17f * length) + side * (0.43f * width),
+                direction * ( 0.18f * length) + side * (0.52f * width),
+                direction * ( 0.52f * length),
+                direction * ( 0.18f * length) - side * (0.52f * width),
+                direction * (-0.17f * length) - side * (0.43f * width),
+            };
+
             int start = vertices.Count;
             vertices.Add(centre);
             normals.Add(Vector3.back);
             uv.Add(new Vector2(0.5f, 0.5f));
             colors.Add(color);
 
-            for (int i = 0; i < segments; i++)
+            for (int i = 0; i < outline.Length; i++)
             {
-                float angle = i * (Mathf.PI * 2f / segments);
-                Vector2 offset = direction * (Mathf.Cos(angle) * length * 0.5f)
-                               + side * (Mathf.Sin(angle) * width * 0.5f);
+                Vector2 offset = outline[i];
                 vertices.Add(centre + new Vector3(offset.x, offset.y, 0f));
                 normals.Add(Vector3.back);
                 uv.Add(new Vector2(0.5f, 0.5f));
                 colors.Add(color);
             }
-            for (int i = 0; i < segments; i++)
+            for (int i = 0; i < outline.Length; i++)
             {
                 triangles.Add(start);
                 triangles.Add(start + 1 + i);
-                triangles.Add(start + 1 + ((i + 1) % segments));
+                triangles.Add(start + 1 + ((i + 1) % outline.Length));
             }
         }
 
