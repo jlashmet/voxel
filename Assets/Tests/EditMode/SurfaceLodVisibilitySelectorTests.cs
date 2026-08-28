@@ -27,8 +27,9 @@ namespace VoxelEngine.Tests.EditMode
 
             selector.Rebuild(drawable, current);
             Assert.True(selector.IsActive(parent));
-            Assert.AreEqual(1, selector.Count,
-                "Partial finer coverage must not draw over the fallback coarse parent.");
+            Assert.True(selector.IsLogicallyActive(parent));
+            Assert.AreEqual(1, selector.DrawCount,
+                "Partial finer coverage must keep the fallback coarse parent drawable.");
 
             int last = SurfaceLodHierarchy.ChildrenPerParent - 1;
             var knownEmptyChild = new SurfaceLodNodeKey(
@@ -36,15 +37,45 @@ namespace VoxelEngine.Tests.EditMode
             current.Add(knownEmptyChild); // logical completion with no drawable geometry
 
             selector.Rebuild(drawable, current);
-            Assert.False(selector.IsActive(parent));
+            Assert.False(selector.IsLogicallyActive(parent));
+            Assert.False(selector.IsActive(parent),
+                "Physical finer replacements exist, so the coarse parent can retire.");
             Assert.AreEqual(8, selector.Count,
-                "Known-empty coverage must complete the atomic parent-to-children handoff.");
-            for (int i = 0; i < SurfaceLodHierarchy.ChildrenPerParent; i++)
+                "Known-empty coverage still participates in the logical atomic handoff.");
+            Assert.AreEqual(7, selector.DrawCount,
+                "Proof-only empty coverage is not emitted as geometry.");
+            for (int i = 0; i < SurfaceLodHierarchy.ChildrenPerParent - 1; i++)
             {
                 var child = new SurfaceLodNodeKey(
                     childStep, SurfaceLodHierarchy.ChildCoordinate(parent.Coordinate, i));
                 Assert.True(selector.IsActive(child));
             }
+            Assert.True(selector.IsLogicallyActive(knownEmptyChild));
+            Assert.False(selector.IsActive(knownEmptyChild));
+        }
+
+        [Test]
+        public void ProofOnlyReplacementKeepsCoarsePhysicalFallback()
+        {
+            var selector = new SurfaceLodVisibilitySelector();
+            var parent = new SurfaceLodNodeKey(4, new int3(1, 2, -2));
+            var current = new List<SurfaceLodNodeKey>();
+
+            Assert.True(SurfaceLodHierarchy.TryGetChildSourceStep(parent.SourceStep,
+                                                                  out int childStep));
+            for (int i = 0; i < SurfaceLodHierarchy.ChildrenPerParent; i++)
+            {
+                current.Add(new SurfaceLodNodeKey(
+                    childStep, SurfaceLodHierarchy.ChildCoordinate(parent.Coordinate, i)));
+            }
+
+            selector.Rebuild(new List<SurfaceLodNodeKey> { parent }, current);
+
+            Assert.False(selector.IsLogicallyActive(parent),
+                "The logical selector may prove the child coverage complete.");
+            Assert.True(selector.IsActive(parent),
+                "Logical proof without any physical replacement must not erase drawable fallback.");
+            Assert.AreEqual(1, selector.DrawCount);
         }
 
         [Test]
@@ -77,6 +108,7 @@ namespace VoxelEngine.Tests.EditMode
 
             Assert.False(selector.IsActive(parent));
             Assert.AreEqual(8, selector.Count);
+            Assert.AreEqual(7, selector.DrawCount);
         }
 
         [Test]
@@ -94,18 +126,16 @@ namespace VoxelEngine.Tests.EditMode
                 new List<SurfaceLodNodeKey> { parent, child });
 
             Assert.True(selector.IsActive(child));
-            Assert.AreEqual(1, selector.Count,
+            Assert.AreEqual(1, selector.DrawCount,
                 "Logical empty completion is proof, not drawable fallback coverage.");
         }
 
         [TestCase(false, false, false, false, false, TestName = "OutOfBandDoesNotCompleteViewHandoff")]
-        [TestCase(true, false, false, false, false, TestName = "OffFrustumMissingChildKeepsFallback")]
+        [TestCase(true, false, false, false, true, TestName = "OffFrustumInBandChildIsViewComplete")]
         [TestCase(true, true, false, false, false, TestName = "MissingVisibleChildKeepsFallback")]
-        [TestCase(true, false, true, false, false, TestName = "OffFrustumCurrentReadyChildKeepsFallback")]
-        [TestCase(true, false, false, true, false, TestName = "OffFrustumCurrentEmptyChildKeepsFallback")]
         [TestCase(true, true, true, false, true, TestName = "CurrentReadyVisibleChildCompletesHandoff")]
         [TestCase(true, true, false, true, true, TestName = "CurrentEmptyVisibleChildCompletesHandoff")]
-        public void CurrentViewCompletionRequiresOwnedVisiblePublishedProof(
+        public void CurrentViewCompletionRequiresRingOwnershipAndVisibleProof(
             bool inBand, bool inFrustum, bool currentReady, bool currentEmpty, bool expected)
         {
             Assert.AreEqual(expected,
