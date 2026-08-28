@@ -44,15 +44,17 @@ namespace VoxelEngine.Tests.PlayMode
 
                 Mesh ivy = growth.HeroIvyMesh;
                 int vertexBudget = growth.HeroVertexCount;
+                Assert.That(ivy.vertexCount, Is.EqualTo(ArchReferenceGrowthTopologyCleanupPass.ExpectedIvyVertexCount),
+                    "The regression must observe the exact production ivy topology, including its one omitted near-zero leaf stem.");
                 Assert.That(ArchReferenceGrowthTopologyCleanupPass.TryBuildTopology(
                     ivy.vertexCount, out int[,] leafStarts, out int[] stemStarts), Is.True);
-                Assert.That(stemStarts.Length, Is.EqualTo(78));
+                Assert.That(stemStarts.Length, Is.EqualTo(ArchReferenceGrowthTopologyCleanupPass.ExpectedStemQuadCount));
 
                 ArchReferenceGrowthTopologyCleanupPass cleanup = host.AddComponent<ArchReferenceGrowthTopologyCleanupPass>();
                 for (int frame = 0; frame < 56 && !cleanup.TopologyCleanupApplied; frame++) yield return null;
                 Assert.That(cleanup.TopologyCleanupApplied, Is.True);
                 Assert.That(MaximumStemSpan(ivy, stemStarts), Is.LessThan(0.001f),
-                    "Every deterministic stem quad must be degenerate; the player frame must contain no legacy diagonal vine.");
+                    "Every authored deterministic stem quad must be degenerate; the player frame must contain no legacy diagonal vine.");
 
                 Vector3[] clusters = MeasureClusterCentres(ivy, leafStarts);
                 for (int cluster = 0; cluster < IvyClusterCount; cluster++)
@@ -88,8 +90,10 @@ namespace VoxelEngine.Tests.PlayMode
 
                 Mesh rebuiltIvy = growth.HeroIvyMesh;
                 Assert.That(rebuiltIvy, Is.Not.Null.And.Not.SameAs(firstIvy));
+                Assert.That(rebuiltIvy.vertexCount, Is.EqualTo(ArchReferenceGrowthTopologyCleanupPass.ExpectedIvyVertexCount));
                 Assert.That(ArchReferenceGrowthTopologyCleanupPass.TryBuildTopology(
                     rebuiltIvy.vertexCount, out int[,] rebuiltLeaves, out int[] rebuiltStems), Is.True);
+                Assert.That(rebuiltStems.Length, Is.EqualTo(ArchReferenceGrowthTopologyCleanupPass.ExpectedStemQuadCount));
                 Assert.That(MaximumStemSpan(rebuiltIvy, rebuiltStems), Is.LessThan(0.001f));
                 Vector3[] rebuiltClusters = MeasureClusterCentres(rebuiltIvy, rebuiltLeaves);
                 Assert.That(Vector3.Distance(rebuiltClusters[13], expectedCrown), Is.LessThan(0.015f));
