@@ -9,6 +9,7 @@
         "VoxelEngine.Structures.Api",
         "VoxelEngine.Structures.Runtime",
         "VoxelEngine.Tiering.Api",
+        "VoxelEngine.Rendering.Api",
         "VoxelEngine.Rendering.Runtime",
         "MountingForce.WorldGen.Core",
         "MountingForce.WorldGen.Architecture",
@@ -51,6 +52,7 @@
         "Game.Structures.Api",
         "Game.Structures.Runtime",
         "Game.Materials.Api",
+        "Game.Materials.Runtime",
         "Game.Composition.Showcase"
     ],
     "includePlatforms": [],
