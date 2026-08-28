@@ -14,24 +14,26 @@ namespace VoxelEngine.Tests.PlayMode
         public void SceneIssue20260826132234356CivicSouthWestShoulderFollowsLocalTerrainProfile()
         {
             VoxelWorldGenSettings settings = BuildSettings();
-            FeatureCatalogue corrections = KentridgeTerraceSurfaceCorrectionCatalogue.Build(
+            FeatureCatalogue production = KentridgeCombinedVoxelCatalogue.Build(
                 Seed, settings, Allocator.Temp);
 
             try
             {
                 int civicIndex = FindIndex(
-                    corrections, "kentridge-terrace-surface-civic-summit");
+                    production, "kentridge-terrace-surface-civic-summit");
                 int upperIndex = FindIndex(
-                    corrections, "kentridge-terrace-surface-upper-shoulder");
-                FeatureDefinition civic = corrections.Definitions[civicIndex];
-                FeatureDefinition upper = corrections.Definitions[upperIndex];
+                    production, "kentridge-terrace-surface-upper-shoulder");
+                FeatureDefinition civic = production.Definitions[civicIndex];
+                FeatureDefinition upper = production.Definitions[upperIndex];
 
-                Assert.AreEqual(16, civic.MaxPrimitives,
+                Assert.AreEqual(18, civic.MaxPrimitives,
                     "The localized civic corner repair must stay within its bounded generation budget.");
 
-                // civic-summit: authored west envelope = 92.0m - 7.2m = 84.8m,
-                // south shoulder = 24.0m..31.2m. The marked upper defect lies in this corner.
-                int[] sampleWorldX = { 854, 866, 878, 890, 902, 914 };
+                // Saved-camera ray projection at local natural height puts the marked upper circle
+                // across roughly X=91.0..93.8m, Z=28.6..30.4m. The first six samples cover the
+                // original west shoulder; the final two prove the production repair continues east
+                // of X=92.0m through the marked part of the civic south edge.
+                int[] sampleWorldX = { 854, 866, 878, 890, 902, 914, 926, 938 };
                 const int outerSouthWorldZ = 312;
                 const int localSouthZ = 272;
                 const int stripWidth = 12;
@@ -43,27 +45,27 @@ namespace VoxelEngine.Tests.PlayMode
                     int expectedEdgeY = TerrainQuery.HeightAt(
                         sampleWorldX[i], outerSouthWorldZ, Seed);
                     int actualEdgeY = CivicRampOuterEdgeYAtWorldX(
-                        corrections, civicIndex, civic,
+                        production, civicIndex, civic,
                         sampleWorldX[i], localSouthZ, stripWidth, shoulderDepth,
                         ref rampCount);
 
                     Assert.AreEqual(expectedEdgeY, actualEdgeY,
-                        "Each west-corner strip must meet the locally sampled natural terrain instead of reusing the civic centreline edge height.");
+                        "Each marked-corner strip must meet locally sampled natural terrain instead of reusing the civic centreline edge height.");
                 }
 
                 Assert.AreEqual(sampleWorldX.Length, rampCount,
-                    "The 7.2m marked corner should compile to six 1.2m locally sampled ramp strips.");
+                    "The 9.6m marked envelope should compile to eight 1.2m locally sampled ramp strips.");
 
                 Assert.AreEqual(0, SurfaceMaterialAtWorld(
-                    corrections, upperIndex, upper, 840, 260),
+                    production, upperIndex, upper, 840, 260),
                     "The superseded upper-patch material repaint must not remain after the geometric repair.");
                 Assert.AreEqual(6, SurfaceMaterialAtWorld(
-                    corrections, civicIndex, civic, 950, 150),
+                    production, civicIndex, civic, 950, 150),
                     "The civic correction must continue to preserve the built core paving.");
             }
             finally
             {
-                corrections.Dispose();
+                production.Dispose();
             }
         }
 

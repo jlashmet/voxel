@@ -10,7 +10,7 @@ namespace MountingForce.WorldGen.Voxel
     {
         private const int VerticalPaddingDm = 16;
         private const int StandardMaxPrimitives = 3;
-        private const int CivicSouthWestMaxPrimitives = 16;
+        private const int CivicSouthWestMaxPrimitives = 18;
         private const int MarketTransitionMaxPrimitives = 40;
 
         private readonly struct Patch

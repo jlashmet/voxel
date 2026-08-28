@@ -13,6 +13,7 @@ namespace MountingForce.WorldGen.Voxel
         private const int MarketUpperWestInsetDm = 220;
         private const int MarketUpperEastInsetDm = 90;
         private const int CivicSouthWestProfileStepDm = 12;
+        private const int CivicSouthWestRepairWidthDm = 96;
         private const byte AxisZ = 2;
 
         private static void ResolveBounds(Patch patch, uint seed, int scale,
@@ -135,22 +136,24 @@ namespace MountingForce.WorldGen.Voxel
         {
             int shoulder = patch.ShoulderDm * scale;
             int stripWidthDm = CivicSouthWestProfileStepDm;
-            int stripCount = (patch.ShoulderDm + stripWidthDm - 1) / stripWidthDm;
+            int repairWidthDm = Math.Min(
+                CivicSouthWestRepairWidthDm, patch.ShoulderDm + patch.WidthDm);
+            int stripCount = (repairWidthDm + stripWidthDm - 1) / stripWidthDm;
             int southZ = (patch.ShoulderDm + patch.DepthDm) * scale;
             int outerSouthDm = patch.ZDm + patch.DepthDm + patch.ShoulderDm;
             int westDm = patch.XDm - patch.ShoulderDm;
             int coreY = KentridgeVerticalProfile.SurfaceYAtDm(
                 patch.AnchorXDm, patch.AnchorZDm, seed, scale) - position.y;
 
-            // The upper marked region sits in the civic summit's south-west shoulder. The district
-            // terrace builds that whole 61.4 m south edge from one centreline terrain sample, which
-            // flattens this 7.2 m corner into the rectangular shelf visible in the captured replay.
-            // Re-realize only the western shoulder-width as narrow ramps whose outer elevations are
-            // sampled locally. This changes height/occupancy, not merely the material label.
+            // The upper marked circle ray footprint reaches east of the 7.2 m west shoulder into
+            // the civic south edge (roughly world X 91.0..93.8 m at local natural height). The
+            // district terrace builds that entire 61.4 m south edge from one centreline terrain
+            // sample, flattening the marked corner into a rectangular shelf. Re-realize only the
+            // 9.6 m observed corner envelope as 1.2 m ramps with locally sampled outer elevations.
             for (int strip = 0; strip < stripCount; strip++)
             {
                 int startDm = strip * stripWidthDm;
-                int widthDm = Math.Min(stripWidthDm, patch.ShoulderDm - startDm);
+                int widthDm = Math.Min(stripWidthDm, repairWidthDm - startDm);
                 if (widthDm <= 0)
                     break;
 
