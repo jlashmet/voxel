@@ -1,21 +1,20 @@
 # Plan — 20260826-135832-898 ArchLookdev foliage
 
 ## Evidence / acceptance
-- No circles: acceptance is global in saved 1928×836 `Hero Arch` pose. Ivy must read as asymmetric masonry-supported left/crown masses with overlapping English-ivy leaves/drapes; blossoms as layered bouquets; right masonry stays sparse.
-- Preserve 128 leaves, 30 flower heads, 3 combined draws, <=4,096 vertices, two semantic ground ferns.
-- Green geometry is not visual proof. Experiment 016 source `f8d79180...`, exact request `75815c0e...`, run `33145729562` passed its regression and 45-second replay, but direct final-frame inspection rejected a dominant leaf/flower mass floating inside the arch opening plus isolated pier blobs.
+- No circles: acceptance is global in saved 1928×836 `Hero Arch` pose. Ivy must read as asymmetric masonry-supported lower/upper/crown masses with overlapping English-ivy leaves and a few drapes; flowers as layered bouquets; right masonry stays sparse.
+- Preserve 128 leaves, 30 flower heads, 3 combined draws, <=4,096 vertices, and two semantic ground ferns. Automated geometry is not visual acceptance.
+- Experiment 017 source `5fe1c7d8...`, request `2d6cee06...`, run `33146173563` passed the focused regression and 45-second replay, but direct final-frame inspection rejected horizontal green shelves, repeated small flower icons, and an unreadable crown.
 
-## Proven causes / discriminator
-1. Missing render data / camera placement — rejected/fixed earlier; authored meshes render and world-space anchoring survives rebuilds.
-2. Stem removal / relative path compression — rejected by experiments 014–016; a wrong inherited path centroid can remain compact while still floating off masonry.
-3. Experiment 015 parser — rejected as evidence: `Infinity` came from assuming stem spacing rather than positively locating leaves.
-4. Experiment 017 — current: retain positive 128-leaf parsing, but recompose the same left clusters around stable world-space lower-pier, upper-pier, and left-crown masonry anchors; place all three bouquet zones on those supports; keep rounded overlapping petals with stronger readable pastel material separation.
+## Hypotheses / discriminator
+1. Render/camera/stem/lifecycle failures — rejected earlier: authored meshes render, stems are collapsed, and the world-space rewrite survives rebuild.
+2. Masonry x/y anchors alone are sufficient — falsified by experiment 017: correct centroids still produced shelves because oversized translated cards remained densely packed.
+3. Current: rewrite each existing left leaf into a smaller varied pointed ivy card with vertical/sloped packing and front-layer depth; place each existing flower head independently into asymmetric lower/upper/crown bouquet footprints. Falsified if the regression sees shelf-like spans/opening drift or the saved frame still reads as shelves/icons.
 
 ## Behavioral regression
-`ArchReferenceGrowthMassBreakupPassTests.FinalPassBreaksDiagonalBandIntoMassesAndGathersReadableBouquetsAcrossRebuild` must recover exactly 128 leaves; bound each left foliage/bouquet centroid to its masonry-side world envelope; reject any left cluster drifting into the central opening; require real inter-mass gaps plus rounded/deep flower heads; preserve mesh identity, 3 draws, <=4,096 vertices; and deterministically reapply after production rebuild.
+`ArchReferenceGrowthMassBreakupPassTests.FinalPassBreaksDiagonalBandIntoMassesAndGathersReadableBouquetsAcrossRebuild` must recover exactly 128 leaves; enforce masonry envelopes and no opening drift; require inter-zone gaps, vertical/sloped spans, varied leaf radius/depth, and dispersed rounded varied-size flower heads; preserve mesh identity, 3 draws, <=4,096 vertices; and deterministically reapply after rebuild.
 
 ## Blast radius / cost
-ArchLookdev presentation only. Same meshes/topology/draws/vertex budget; one-shot vertex/material rewrite only, no per-leaf/flower GameObjects or per-frame geometry work.
+ArchLookdev presentation only. Reuses the same meshes/topology; one-shot vertex/material rewrite, no new renderers, GameObjects, vertices, or per-frame geometry work.
 
 ## Remaining gates
-Run the focused regression on the exact feature SHA through the existing `ci-test/fixes/agent-4` transport with 45-second replay. Accept only if green and direct saved-pose inspection shows foliage and bouquets supported by the masonry with organic overlap and no floating opening mass. Then record verification, open→pending metadata, pending→closed `fixed`/`resolvedUtc`, merge current master, and non-force push exact feature head to master.
+Run this exact feature SHA through existing `ci-test/fixes/agent-4` with a 45-second replay. Accept only if the test is green and direct final-frame inspection shows organic masonry-supported ivy/bouquets, a readable crown, sparse right side, and no central floating mass or shelves. Then record verification, complete pending metadata/move, close, merge latest master, and non-force push the exact feature head to master.
