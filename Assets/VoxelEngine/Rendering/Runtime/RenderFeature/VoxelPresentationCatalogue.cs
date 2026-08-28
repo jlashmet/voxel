@@ -110,8 +110,12 @@ namespace VoxelEngine.Rendering.Runtime
                 SetMaterial(i, new VoxelMaterialPresentation(Color.white));
 
             SetCoating(0, new VoxelCoatingPresentation(Color.white));
+            // Layer 5 is the same authored grass artwork used by the ground material. The moss
+            // coating is a tint/response overlay, not a second grass-texturing path: keep the
+            // shared layer/scale metadata for ownership parity but give the independent coating
+            // texture zero visual weight so the already-presented base grass keeps its motif size.
             SetCoating(1, new VoxelCoatingPresentation(new Color(0.25f, 0.39f, 0.12f),
-                MossCoatingTextureLayer, 1f / 22f, 0.86f, 0.66f, 0.03f, 1f, 0.12f, 0.72f));
+                MossCoatingTextureLayer, 1f / 7f, 0f, 0.66f, 0.03f, 1f, 0.12f, 0.72f));
             SetCoating(2, new VoxelCoatingPresentation(new Color(0.88f, 0.91f, 0.94f),
                 blendStrength: 0.88f, verticalFloor: 0f, verticalCeiling: 1f, roughness: 0.72f));
             SetCoating(3, new VoxelCoatingPresentation(new Color(0.08f, 0.07f, 0.06f),
