@@ -1,24 +1,20 @@
 # Plan — Kentridge Kid-in-the-Well Quest + Inventory
 
 ## Observed / acceptance
-`captures` is empty, so there are **0 marked regions**; acceptance is behavioral/architectural. Kentridge already generates a market well, but the live campaign lacked a playable well-quest/reward/inventory flow.
+`captures` is empty, so there are **0 marked regions** to inspect; acceptance is behavioral/architectural. Kentridge already generates its market well, but the live campaign had no playable well quest, completion reward, or inventory viewer.
 
-## Evidence / discriminators
-- **Quest framework missing:** falsified. `QuestRuntime` already owns deterministic start/observe/step/completion; `CampaignRuntime` had parallel quest hash sets instead of composing it.
-- **Well needs scene geometry:** falsified. `KentridgeTownPlanner` emits `KentridgeRole.Well` through the standard `SettlementPlan`.
-- **Legacy behavior unknown:** falsified by `mounting-force/Code/TakeBoyHome.m`: Madeline/boy go to `kentridge-well`; the boy falls/disappears with falling/thud beats; Madeline returns.
-- **First final candidate valid:** falsified by run `33207614927`: bootstrap session-locator API was not a stable scene boundary; zero-capture replay also lacked dimensions.
-- **Repaired candidate compiled:** falsified by run `33211767651`: referencing `Game.Input` made unqualified `Input` in `Game.Kentridge.*` bind to that sibling namespace, breaking both old scene controls and the new panel before tests/player build.
-- **Quest change caused Kentridge topology failure:** falsified. The authored `starting-pub` / `first-destination` world requirements are unchanged from `master`; the feature only adds the well quest story effect. Run `33212072412` passes the focused quest regression but the real player throws `WB3011` because `first-destination` is not reachable from `starting-pub`, leaving `SURFACE visible=0`.
+## Evidence / hypotheses
+- **Missing quest framework:** falsified. `QuestRuntime` already owns start/observe/step/completion; the fix composes it into `CampaignRuntime` instead of adding parallel quest state.
+- **Missing well geometry:** falsified. generated Kentridge already emits `KentridgeRole.Well` through the standard settlement plan.
+- **Legacy scenario uncertain:** falsified by `mounting-force/Code/TakeBoyHome.m`: Madeline and the boy approach `kentridge-well`; the boy disappears with falling/thud beats; Madeline returns. The recovered quest therefore uses well interaction followed by return-to-Madeline.
+- **Feature broke Kentridge topology:** falsified by run `33212072412`: focused quest regression passed while the built scene failed earlier at `WB3011`, before usable surface publication. Current `master` independently repaired shared settlement traversal/intersection handling and added a production Kentridge scene regression; merging it removes the stale topology failure without weakening campaign constraints.
+- Earlier candidates were rejected by run `33207614927` (unstable scene/session boundary and missing replay dimensions) and run `33211767651` (`Game.Input` namespace collision). The retained scene-local Unity input bridge resolves the latter.
 
 ## Selected fix
-Use `QuestRuntime` as Campaign quest authority; author the two-step generated-well -> Madeline quest; keep reusable item ownership in `InventoryRuntime`; let the Kentridge session own exactly-once reward synchronization. Presentation resolves the generated well/session, renders inventory snapshots, and takes the existing `Ui` context lease. A namespace-local Unity-input bridge preserves the slice's existing direct exploration controls while `Game.Input` owns new menu context. Root 1600x900 dimensions make the architecture-only replay runnable.
+Use `QuestRuntime` as campaign quest authority; start the two-step generated-well -> Madeline quest from normal New Game story flow; route well/NPC gameplay observations into it; keep reusable item ownership/querying in `InventoryRuntime`; synchronize one unique reward from the Kentridge session. The thin scene presentation resolves the generated well and live session, opens/closes a read-only inventory under the existing `Ui` input context, and renders 64 px square item tiles. After the master scene-runtime reorganization, the presentation/bridge live under the canonical `Assets/Game/Composition/Kentridge/Playable/SceneRuntime` assembly.
 
-## Required WB3011 startup repair
-Trace `SettlementStreetTraversalFacts` and the generated Kentridge site projections for the canonical scene seed to identify why the standard `starting-pub -> first-destination` `TraversalProfile.NormalParty` requirement has no reachable candidate. Fix the topology/projection/planner layer that is producing the false/unrealizable reachability result; do **not** weaken or remove the campaign reachability constraint, suppress `WB3011`, bypass the production planner, or relax the player harness. Add a behavioral regression for the repaired generated-world reachability/startup invariant and verify the real Kentridge player renders nonzero world surface without startup exceptions.
-
-## Regression / remaining gate
-Focused PlayMode regression drives the authored quest through completion, synchronizes the production reward twice and asserts one item, then checks square inventory tile/context behavior. Add/retain a targeted regression proving the canonical Kentridge generated plan can resolve `starting-pub -> first-destination` for a normal party. Remaining gate: fresh exact-SHA PlayMode CI plus 30-second built Kentridge replay; inspect artifact for scene usability, nonzero rendered surface, no `WB3011`/startup exceptions, and quest/reward/inventory evidence.
+## Regression / final gate
+`KentridgeWellQuestInventoryTests.WellQuestProgressionGrantsExactlyOneVisibleInventoryItem` drives both quest steps, synchronizes completion twice, asserts exactly one reward, and checks inventory open/close, UI context, and square tile size. Master’s `WorldBuilderProductionScenePlayTests` covers the canonical Kentridge startup/surface invariant that previously raised `WB3011`. Final gate: fresh exact-SHA focused PlayMode CI plus the built Kentridge replay; require no startup exception, nonzero usable surface, and quest/inventory runtime evidence.
 
 ## Blast radius / cost
-Shared changes are quest event routing plus a tiny definition-backed inventory dictionary. Any WB3011 repair must stay at the narrow semantic traversal/projection boundary and preserve existing campaign constraints. No voxel storage/generation/rendering/streaming, equipment, persistence, crafting, journal, vendors, or second quest framework. Runtime cost is interaction-time quest scans, one idempotent reward lookup, and inventory IMGUI while present.
+Shared changes are quest event routing and a definition-backed inventory dictionary; scene code is Kentridge-only. No second quest system, equipment, persistence, crafting, vendors, sorting/filtering, or voxel storage/rendering changes. Runtime cost is interaction-time quest scans, one idempotent reward lookup, and inventory IMGUI only while the presentation exists.
