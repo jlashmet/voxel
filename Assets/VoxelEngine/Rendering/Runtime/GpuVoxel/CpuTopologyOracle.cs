@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Mathematics;
@@ -15,14 +16,6 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         public OracleTriangle(float3 a, float3 b, float3 c) { A = a; B = b; C = c; }
 
-        /// <summary>
-        /// A key that ignores which corner the triangle starts from but not its winding.
-        ///
-        /// The two meshers allocate vertices in different orders — the CPU walks cells in sequence,
-        /// the GPU reserves with atomics — so comparing index buffers directly would report a
-        /// difference that is not one. Winding is kept because a flipped triangle is a real defect:
-        /// it faces away and leaves a hole.
-        /// </summary>
         /// <summary>Winding-insensitive key, used only to tell "wrong shape" from "wrong winding".</summary>
         public string UnorderedKey(float quantum = 1e-4f)
         {
@@ -214,29 +207,36 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             for (int cell = 0; cell < cells; cell++)
             {
                 int remaining = reader.BeginForEachIndex(cell);
-                if (remaining <= 0) { reader.EndForEachIndex(); continue; }
-
-                byte status = reader.Read<byte>();
-                byte vertexCount = reader.Read<byte>();
-                byte indexCount = reader.Read<byte>();
-                if (status != 0 || vertexCount == 0 || indexCount == 0)
+                while (remaining >= 3)
                 {
-                    reader.EndForEachIndex();
-                    continue;
+                    byte status = reader.Read<byte>();
+                    int vertexCount = reader.Read<byte>();
+                    int indexCount = reader.Read<byte>();
+                    remaining -= 3;
+                    if (remaining < vertexCount + indexCount)
+                        throw new InvalidOperationException(
+                            $"Malformed CPU topology oracle lane {cell}: record needs "
+                          + $"{vertexCount + indexCount} items but only {remaining} remain.");
+
+                    cellVertices.Clear();
+                    for (int v = 0; v < vertexCount; v++)
+                        cellVertices.Add((float3)(Vector3)reader.Read<SmoothSurfaceVertex>().Position);
+
+                    for (int i = 0; i < indexCount; i += 3)
+                    {
+                        int a = reader.Read<byte>();
+                        int b = reader.Read<byte>();
+                        int c = reader.Read<byte>();
+                        if (status == 0 && vertexCount > 0)
+                            triangles.Add(new OracleTriangle(
+                                cellVertices[a], cellVertices[b], cellVertices[c]));
+                    }
+                    remaining -= vertexCount + indexCount;
                 }
 
-                cellVertices.Clear();
-                for (int v = 0; v < vertexCount; v++)
-                    cellVertices.Add((float3)(Vector3)reader.Read<SmoothSurfaceVertex>().Position);
-
-                for (int i = 0; i < indexCount; i += 3)
-                {
-                    int a = reader.Read<byte>();
-                    int b = reader.Read<byte>();
-                    int c = reader.Read<byte>();
-                    triangles.Add(new OracleTriangle(
-                        cellVertices[a], cellVertices[b], cellVertices[c]));
-                }
+                if (remaining != 0)
+                    throw new InvalidOperationException(
+                        $"Malformed CPU topology oracle lane {cell}: {remaining} trailing items.");
                 reader.EndForEachIndex();
             }
             return triangles;
