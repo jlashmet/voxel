@@ -1,6 +1,7 @@
 using System;
 using Game.Materials.Api;
 using Game.Materials.Runtime;
+using Game.WorldBuilder.Api;
 using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Composition;
@@ -28,8 +29,9 @@ namespace VoxelEngine.Showcase
 
         /// <summary>
         /// Composition entry point for application-owned material definitions and role binding.
-        /// This constructor initializes the world directly: it deliberately does not chain through
-        /// the legacy constructor that still contains the pre-migration hardcoded demo palette.
+        /// Serialized showcase presets are compatibility input only: before any storage/catalogue
+        /// backend is selected they are translated to a WorldBuilder semantic environment request
+        /// and resolved by <see cref="WorldBuilderEnvironmentComposition"/>.
         /// </summary>
         public ShowcaseWorld(uint seed, int brickPoolCapacity, int loadRadiusRegions,
                              int unloadRadiusRegions, MaterialDefinition[] materialDefinitions,
@@ -41,6 +43,15 @@ namespace VoxelEngine.Showcase
         {
             if (materialDefinitions == null)
                 throw new ArgumentNullException(nameof(materialDefinitions));
+
+            WorldEnvironmentSpec semanticSpec =
+                WorldBuilderEnvironmentComposition.SemanticSpec(seed, features);
+            WorldBuilderEnvironmentComposition.Plan composition =
+                WorldBuilderEnvironmentComposition.Resolve(in semanticSpec);
+            if (composition.Seed != seed)
+                throw new InvalidOperationException(
+                    "WorldBuilder environment composition changed the deterministic world seed.");
+            features = composition.ShowcaseContent;
 
             Seed = seed;
             LoadRadiusRegions = math.max(1, loadRadiusRegions);

@@ -1,6 +1,8 @@
 using System;
+using Game.Composition.Kentridge.Api;
 using Game.Cutscenes.Api;
 using Game.Cutscenes.Content.Kentridge;
+using Game.Quests.Api;
 using Game.WorldBuilder.Api;
 
 namespace Game.Composition.Campaign.Content
@@ -35,13 +37,6 @@ namespace Game.Composition.Campaign.Content
         }
     }
 
-    /// <summary>
-    /// Production authoring for the opening story facts that are currently known. The recovered world
-    /// catalog remains the source of semantic ids, but this opening blueprint intentionally authors only
-    /// the Kentridge overworld + Kentridge settlement because the current production generator is a
-    /// single-region/single-settlement vertical-slice generator. The first destination deliberately
-    /// remains a constraint-matched Kentridge-overworld site until its recovered semantic role is resolved.
-    /// </summary>
     public sealed class KnownOpeningCampaignContent
     {
         public CampaignBlueprint Blueprint { get; }
@@ -55,6 +50,7 @@ namespace Game.Composition.Campaign.Content
         public ObjectiveRef TravelObjective { get; }
         public CutsceneRef IntroCutscene { get; }
         public CutsceneRef DestinationCutscene { get; }
+        public QuestRef WellQuest => KentridgeWellQuestDefinition.Ref;
 
         private KnownOpeningCampaignContent(
             CampaignBlueprint blueprint,
@@ -98,9 +94,6 @@ namespace Game.Composition.Campaign.Content
                     site => site.RequireCapability(SiteCapability.PlayerSpawn(4)))
                 .LegacyMap("mounting-force", "kentridge-pub");
 
-            // The known story says only that the party goes somewhere else in the surrounding region.
-            // The generator remains free to choose the concrete site as long as the hard
-            // traversal/content needs are met; it is not forced into the starting settlement.
             SiteHandle firstDestination = kentridgeOverworld.Site(
                 "first-destination",
                 site => site
@@ -141,6 +134,9 @@ namespace Game.Composition.Campaign.Content
             game.Story.Rule("start-intro", rule => rule
                 .When(StoryTrigger.NewGame())
                 .Then(StoryEffect.PlayCutscene(introCutscene)));
+            game.Story.Rule("start-well-quest", rule => rule
+                .When(StoryTrigger.NewGame())
+                .Then(StoryEffect.StartQuest(KentridgeWellQuestDefinition.Ref)));
             game.Story.Rule("start-travel-after-intro", rule => rule
                 .When(StoryTrigger.CutsceneCompleted(introCutscene))
                 .Then(StoryEffect.StartObjective(travelObjective)));

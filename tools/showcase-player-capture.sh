@@ -42,6 +42,7 @@ SURVEY_HEIGHT=""
 SURVEY_SPIN=""
 STATIONARY_SAMPLE=""
 SCENE_ISSUE=""
+ISSUE_CAPTURE_COUNT=0
 PLAYER_WIDTH=1600
 PLAYER_HEIGHT=900
 KENTRIDGE_EVIDENCE=0
@@ -89,15 +90,17 @@ scene = value.get('scenePath') or ''
 if not isinstance(scene, str) or not scene.startswith('Assets/Scenes/') or not scene.endswith('.unity'):
     raise SystemExit('ERROR: scene issue has no valid scenePath')
 frames = value.get('captures') or []
+if not isinstance(frames, list):
+    raise SystemExit('ERROR: scene issue captures must be an array')
 frame = frames[0] if frames else value
 width = frame.get('screenWidth') or value.get('screenWidth') or 0
 height = frame.get('screenHeight') or value.get('screenHeight') or 0
 if not isinstance(width, int) or not isinstance(height, int) or width <= 0 or height <= 0:
     raise SystemExit('ERROR: scene issue has no valid captured screen dimensions')
-print(f'{scene}\t{width}\t{height}')
+print(f'{scene}\t{width}\t{height}\t{len(frames)}')
 PY
 )"
-  IFS=$'\t' read -r ISSUE_SCENE PLAYER_WIDTH PLAYER_HEIGHT <<< "$ISSUE_METADATA"
+  IFS=$'\t' read -r ISSUE_SCENE PLAYER_WIDTH PLAYER_HEIGHT ISSUE_CAPTURE_COUNT <<< "$ISSUE_METADATA"
   if [[ -n "$SCENE" && "$SCENE" != "$ISSUE_SCENE" ]]; then
     echo "ERROR: --scene does not match scene issue scenePath '$ISSUE_SCENE'." >&2
     exit 2
@@ -120,7 +123,8 @@ if [[ -n "$TEST_FILTER" && -z "$SCENE_ISSUE" ]]; then
       SCENE="Assets/Scenes/TerrainLookdev.unity"
       : "${RUN_SECONDS:=30}"
       ;;
-    VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests|VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests.*)
+    VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests|VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests.*|\
+    VoxelEngine.Tests.PlayMode.WorldBuilderProductionScenePlayTests|VoxelEngine.Tests.PlayMode.WorldBuilderProductionScenePlayTests.*)
       # Kentridge is an integration scene, so its visual proof must come from the same standalone
       # player path as the showcase benchmarks rather than a PlayMode RenderTexture. Keep the
       # authored opening camera stationary long enough to survive real-player startup/worldgen and
@@ -379,7 +383,7 @@ if (( shots < 2 )); then
 fi
 
 if [[ -n "$SCENE_ISSUE" ]]; then
-  if ! grep -q 'SCENEISSUE camera pinned' "$PLAYER_LOG" 2>/dev/null; then
+  if (( ISSUE_CAPTURE_COUNT > 0 )) && ! grep -q 'SCENEISSUE camera pinned' "$PLAYER_LOG" 2>/dev/null; then
     echo "ERROR: scene-issue player never confirmed the recorded camera was pinned." >&2
     tail -80 "$PLAYER_LOG" >&2 || true
     exit 1
