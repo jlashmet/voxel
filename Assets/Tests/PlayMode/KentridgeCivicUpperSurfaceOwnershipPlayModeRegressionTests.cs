@@ -1,6 +1,7 @@
 using MountingForce.WorldGen.Voxel;
 using NUnit.Framework;
 using Unity.Collections;
+using Unity.Mathematics;
 using VoxelEngine.Structures.Api;
 using VoxelEngine.Terrain.Api;
 
@@ -23,8 +24,11 @@ namespace VoxelEngine.Tests.PlayMode
                     production, "kentridge-terrace-surface-civic-summit");
                 int upperIndex = FindIndex(
                     production, "kentridge-terrace-surface-upper-shoulder");
+                int courtIndex = FindIndex(
+                    production, "kentridge-civic-west-block-court");
                 FeatureDefinition civic = production.Definitions[civicIndex];
                 FeatureDefinition upper = production.Definitions[upperIndex];
+                FeatureDefinition court = production.Definitions[courtIndex];
 
                 Assert.AreEqual(18, civic.MaxPrimitives,
                     "The localized civic corner repair must stay within its bounded generation budget.");
@@ -56,6 +60,16 @@ namespace VoxelEngine.Tests.PlayMode
                 Assert.AreEqual(sampleWorldX.Length, rampCount,
                     "The 9.6m marked envelope should compile to eight 1.2m locally sampled ramp strips.");
 
+                // The surviving upper mark intersects the civic-west court at X=92.8..93.8m,
+                // Z=28.6..29.8m. The court is later (precedence 85) than the terrace repair, so a
+                // solid court primitive would recreate the rectangular shelf even when the ramp is
+                // correct. The final production catalogue must keep court material ownership while
+                // leaving solid height to the district terrace beneath it.
+                Assert.AreEqual(KentridgeUrbanCourtCatalogue.CourtPrecedence, court.Precedence);
+                Assert.AreEqual(2, court.MaxPrimitives,
+                    "Changing court ownership must not increase its generation budget.");
+                AssertSurfaceOnlyAtWorld(production, courtIndex, court, 934, 290);
+
                 Assert.AreEqual(0, SurfaceMaterialAtWorld(
                     production, upperIndex, upper, 840, 260),
                     "The superseded upper-patch material repaint must not remain after the geometric repair.");
@@ -74,7 +88,8 @@ namespace VoxelEngine.Tests.PlayMode
             int worldX, int expectedLocalZ, int expectedStripWidth, int expectedDepth,
             ref int rampCount)
         {
-            int localX = worldX - catalogue.ExplicitPlacements[definitionIndex].Position.x;
+            ExplicitPlacement placement = PlacementFor(catalogue, definitionIndex);
+            int localX = worldX - placement.Position.x;
             int pc = target.ProgramOffset;
             int end = pc + target.ProgramLength;
             while (pc < end)
@@ -106,8 +121,7 @@ namespace VoxelEngine.Tests.PlayMode
 
                         bool highAtNegative = (axis & ShapeOps.ReverseRampBit) != 0;
                         int localOuterY = highAtNegative ? y : y + sy;
-                        return catalogue.ExplicitPlacements[definitionIndex].Position.y
-                             + localOuterY;
+                        return placement.Position.y + localOuterY;
                     }
                 }
 
@@ -120,12 +134,54 @@ namespace VoxelEngine.Tests.PlayMode
             return int.MinValue;
         }
 
+        private static void AssertSurfaceOnlyAtWorld(
+            FeatureCatalogue catalogue, int definitionIndex, FeatureDefinition target,
+            int worldX, int worldZ)
+        {
+            ExplicitPlacement placement = PlacementFor(catalogue, definitionIndex);
+            int x = worldX - placement.Position.x;
+            int z = worldZ - placement.Position.z;
+            Assert.That(x, Is.GreaterThanOrEqualTo(0).And.LessThan(target.Footprint.x));
+            Assert.That(z, Is.GreaterThanOrEqualTo(0).And.LessThan(target.Footprint.z));
+
+            bool paintsMarkedSurface = false;
+            int pc = target.ProgramOffset;
+            int end = pc + target.ProgramLength;
+            while (pc < end)
+            {
+                ShapeOp op = (ShapeOp)catalogue.Program[pc];
+                if (op == ShapeOp.EmitBox)
+                {
+                    int bx = catalogue.Program[pc + 2];
+                    int bz = catalogue.Program[pc + 4];
+                    int sx = catalogue.Program[pc + 5];
+                    int sz = catalogue.Program[pc + 7];
+                    PrimitiveMode mode = (PrimitiveMode)catalogue.Program[pc + 11];
+                    if (x >= bx && x < bx + sx && z >= bz && z < bz + sz)
+                    {
+                        Assert.AreNotEqual(PrimitiveMode.Fill, mode,
+                            "A late solid court primitive would recreate the raised rectangular tongue over the repaired shoulder.");
+                        if (mode == PrimitiveMode.PaintSurface)
+                            paintsMarkedSurface = true;
+                    }
+                }
+
+                pc += ShapeOps.InstructionLength(op);
+                if (op == ShapeOp.End)
+                    break;
+            }
+
+            Assert.IsTrue(paintsMarkedSurface,
+                "The civic-west court should still own the marked surface material without owning its height.");
+        }
+
         private static byte SurfaceMaterialAtWorld(
             FeatureCatalogue catalogue, int definitionIndex, FeatureDefinition target,
             int worldX, int worldZ)
         {
-            int x = worldX - catalogue.ExplicitPlacements[definitionIndex].Position.x;
-            int z = worldZ - catalogue.ExplicitPlacements[definitionIndex].Position.z;
+            ExplicitPlacement placement = PlacementFor(catalogue, definitionIndex);
+            int x = worldX - placement.Position.x;
+            int z = worldZ - placement.Position.z;
             if (x < 0 || z < 0 || x >= target.Footprint.x || z >= target.Footprint.z)
                 return 0;
 
@@ -155,6 +211,23 @@ namespace VoxelEngine.Tests.PlayMode
             }
 
             return material;
+        }
+
+        private static ExplicitPlacement PlacementFor(
+            FeatureCatalogue catalogue, int definitionIndex)
+        {
+            for (int i = 0; i < catalogue.Rules.Length; i++)
+            {
+                PlacementRule rule = catalogue.Rules[i];
+                if (rule.DefinitionId != definitionIndex || rule.ExplicitCount <= 0)
+                    continue;
+                Assert.That(rule.ExplicitOffset,
+                    Is.GreaterThanOrEqualTo(0).And.LessThan(catalogue.ExplicitPlacements.Length));
+                return catalogue.ExplicitPlacements[rule.ExplicitOffset];
+            }
+
+            Assert.Fail("No explicit placement mapped to definition index " + definitionIndex + ".");
+            return default;
         }
 
         private static int FindIndex(FeatureCatalogue catalogue, string name)
