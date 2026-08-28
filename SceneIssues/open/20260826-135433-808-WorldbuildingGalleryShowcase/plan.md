@@ -1,19 +1,21 @@
 # Plan — 20260826-135433-808 WorldbuildingGalleryShowcase
 
 ## Evidence / acceptance
-- One marked region: `screenshot-001.png`, center `(0.4802, 0.6678)`, radius `0.0690`. Human review against `reference-grass-target.jpg` requires a dense continuous pixel-art meadow, irregular layered silhouette, multiple green regions, and no repeated three-blade icons/dark bars.
-- `VegetationPlacement` owns whether/what grows and emits authoritative `VegetationInstance`; presentation may derive blade geometry from position/normal/seed/scale but must not reject semantic Grass.
+- One marked region: `screenshot-001.png`, center `(0.4802, 0.6678)`, radius `0.0690`. Human review against `reference-grass-target.jpg` requires dense continuous pixel-art meadow, irregular layered silhouette, multiple green regions, no repeated three-blade icons/dark bars, plus local player bend/recovery.
+- `VegetationPlacement` owns whether/what grows and emits authoritative `VegetationInstance`; presentation must not reject semantic Grass.
 
 ## Hypotheses / discriminators
-1. **Generic card geometry caused the stamped grass silhouette — confirmed.** Semantic Grass now bypasses the shared foliage-card mesh and uses packed ribbons.
-2. **Renderer-owned macro coverage is valid ecology — rejected.** `ProceduralGrassBatch` no longer drops semantic Grass using world-space FBM; seed only varies local blade density.
-3. **The packed grass path reached the built player — rejected by first final replay.** Request `f682626a06539df4bab9a65bda7052b9d7409241` passed 2/2 GrassLookdev editor tests and built/launched the real Gallery, but `player-run.log` emitted `Vegetation shader was not found: VoxelEngine/ProceduralVegetationGrass` and the original mark still showed the legacy blocky tuft. Build logs compiled the shader, proving player stripping/runtime lookup—not geometry/ecology—was the discriminator.
+1. **Grass renderer macro coverage caused holes — confirmed/fixed.** `ProceduralGrassBatch` no longer drops semantic Grass; seed varies only local blade density.
+2. **Standalone never reached the grass shader — confirmed/fixed.** First final replay (`f682626...`) passed editor tests but logged `Vegetation shader was not found: VoxelEngine/ProceduralVegetationGrass`; the shader was compiled but stripped, so it is now Always Included.
+3. **Shader retention alone removes the marked icon — rejected.** Corrected run `33201072735` passed 2/2 tests and has no missing-shader error, yet `verification-final.png` still shows the same blocky tuft at the mark.
+4. **A non-Grass semantic accent owns that icon — confirmed by source.** Gallery uses generic `VegetationPlacement.Default`; only `Grass` enters the packed renderer. Foliage `Shape 0` explicitly reconstructs ordinary tuft/aquatic species as the same camera-facing three-rooted-blade sprite. That obsolete path survived the semantic-Grass migration.
 
 ## Selected fix + regression
-- `a04822ae92bd355e74a140fa46a248cb1e8a0cc9`: every semantic Grass placement renders 5–15 deterministic ribbons; former coverage-hole placements are covered by `GrassLookdevTests.KnownSemanticGrassInstancesReachProductionRendererEvenInFormerCoverageHoles`; seeded density determinism is covered separately.
-- `a16c77109bfb95400d531cc4ef6a273cbb5a49e4`: add grass shader GUID `63dcfc6a12854b9c966a3b01d41b69c3` to `GraphicsSettings.m_AlwaysIncludedShaders`, matching the existing foliage/surface/vine retention strategy so `Shader.Find` works in standalone players.
-- Existing `ProceduralGrassBillboardTests` cover spatial chunking, non-grass routing, immutable per-frame meshes, orbit readability, player displacement, and recovery.
+- `a04822ae...`: render every semantic Grass placement as 5–15 deterministic packed ribbons; `GrassLookdevTests` covers former coverage holes and deterministic density.
+- `a16c7710...`: retain the dedicated grass shader in standalone players.
+- `5e2bcd1f...`: ordinary tuft/aquatic accents now use shape `0.75`, preserving their semantic kinds and shared foliage batching but bypassing legacy Shape-0 billboard reconstruction. `Grass` remains dedicated shape `5`.
+- `b3007d87...`: `OrdinaryMeadowTuftsDoNotUseLegacyThreeBladeSpriteShape` locks that routing. Existing `ProceduralGrassBillboardTests` cover local player displacement and recovery.
 
-## Blast radius / cost / gates
-- Only Grass presentation/player shader retention changes. Geometry remains 5–15 ribbons = 50–150 verts / 40–120 tris per semantic instance; meshes rebuild only on `SetInstances`; draw submission remains one per occupied 32 m chunk. Always-including one dedicated shader adds build/runtime shader data but no extra draw work.
-- Remaining gate: fresh exact-SHA GrassLookdev + built Worldbuilding Gallery replay after shader-retention fix; require no missing-grass-shader runtime error and inspect the original marked pose before pending promotion.
+## Blast radius / cost / gate
+- No ecology/density change and no added instances, vertices, materials, or draw calls; only non-Grass tuft/aquatic presentation switches from collapsed billboard reconstruction to its already-built multi-card source geometry. Grass remains 5–15 ribbons (50–150 verts / 40–120 tris per semantic instance), one draw per occupied 32 m chunk.
+- Gate: one fresh exact-SHA `GrassLookdevTests.*` request with built Gallery replay; require green tests, no runtime shader error, and visual removal of the marked repeated icon before promotion/closure.
