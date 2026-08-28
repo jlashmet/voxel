@@ -9,7 +9,8 @@ namespace Game.Story.Api
         NewGame = 0,
         NpcInteracted = 1,
         CutsceneCompleted = 2,
-        QuestCompleted = 3
+        QuestCompleted = 3,
+        SiteEntered = 4
     }
 
     /// <summary>
@@ -22,36 +23,38 @@ namespace Game.Story.Api
         public NpcRef Npc { get; }
         public CutsceneRef Cutscene { get; }
         public QuestRef Quest { get; }
+        public SiteRef Site { get; }
 
         private StoryEvent(
             StoryEventKind kind,
             NpcRef npc,
             CutsceneRef cutscene,
-            QuestRef quest)
+            QuestRef quest,
+            SiteRef site)
         {
             Kind = kind;
             Npc = npc;
             Cutscene = cutscene;
             Quest = quest;
+            Site = site;
         }
 
         public static StoryEvent NewGame() =>
-            new StoryEvent(StoryEventKind.NewGame, default, default, default);
+            new StoryEvent(StoryEventKind.NewGame, default, default, default, default);
 
         public static StoryEvent NpcInteracted(NpcRef npc) =>
-            new StoryEvent(StoryEventKind.NpcInteracted, npc, default, default);
+            new StoryEvent(StoryEventKind.NpcInteracted, npc, default, default, default);
 
         public static StoryEvent CutsceneCompleted(CutsceneRef cutscene) =>
-            new StoryEvent(StoryEventKind.CutsceneCompleted, default, cutscene, default);
+            new StoryEvent(StoryEventKind.CutsceneCompleted, default, cutscene, default, default);
 
         public static StoryEvent QuestCompleted(QuestRef quest) =>
-            new StoryEvent(StoryEventKind.QuestCompleted, default, default, quest);
+            new StoryEvent(StoryEventKind.QuestCompleted, default, default, quest, default);
+
+        public static StoryEvent SiteEntered(SiteRef site) =>
+            new StoryEvent(StoryEventKind.SiteEntered, default, default, default, site);
     }
 
-    /// <summary>
-    /// Read-only story state queried while an event is being evaluated. Dispatch is event-atomic:
-    /// every condition for one incoming event observes this pre-effect state snapshot.
-    /// </summary>
     public interface IStoryStateView
     {
         bool IsObjectiveActive(ObjectiveRef objective);
@@ -60,10 +63,6 @@ namespace Game.Story.Api
         bool IsCutsceneCompleted(CutsceneRef cutscene);
     }
 
-    /// <summary>
-    /// Runtime integration seam. Story decides semantic effects; gameplay systems own how quests,
-    /// legacy objectives, and cutscenes are actually started.
-    /// </summary>
     public interface IStoryEffectSink
     {
         void StartObjective(ObjectiveRef objective);
