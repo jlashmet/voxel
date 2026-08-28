@@ -1,0 +1,10 @@
+Final targeted verification
+
+Source tree/feature source: 3f3500914d31e9a974005b7f473596131b07ec2c
+CI request commit: 1a1c4fcd9951dd046611175705a3913e982ec257
+Workflow run: 33133874979
+Regression: VoxelEngine.Tests.PlayMode.KentridgeCombatEncounterTests.ForestBandits_ApproachBeginsInPlaceCombatThroughProductionModules
+Result: ci/single-test success; requested PlayMode test passed; real-player capture passed.
+Replay: saved KentridgePlayableSlice pose at native 1928x836 after a 60 second replay window.
+Visual inspection: three grounded bandits are readable in the PineForest; runtime gear uses normal player-compatible materials with no magenta/error rendering; no editor/debug/replay overlay obscures the actors.
+Image file intentionally omitted from repository bookkeeping per coordinator instruction; the successful real-player artifact was inspected before promotion.
