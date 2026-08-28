@@ -59,7 +59,6 @@ namespace MountingForce.WorldGen.Content.Kentridge
 
         private static readonly OrganicSiteSpec[] SiteSpecs =
         {
-            // Larger / more constrained landmarks first; order is an algorithmic choice, never role identity.
             new OrganicSiteSpec(KentridgeRole.RadcliffeMansion, StructureArchetype.Mansion, DistrictKind.Noble),
             new OrganicSiteSpec(KentridgeRole.Church, StructureArchetype.Church, DistrictKind.Civic),
             new OrganicSiteSpec(KentridgeRole.Warehouse, StructureArchetype.Warehouse, DistrictKind.Working),
@@ -81,7 +80,6 @@ namespace MountingForce.WorldGen.Content.Kentridge
         public static SettlementPlan Build(uint seed)
         {
             Policy.ValidateBounded();
-
             var plaza = new PlannedPlaza(
                 MarketSquareId,
                 KentridgeDefinition.TownCentreDm,
@@ -90,7 +88,6 @@ namespace MountingForce.WorldGen.Content.Kentridge
             List<BuildingPlot> plots = PlaceNamedSites(seed, plaza);
             List<PlannedRoute> routes = InferCirculation(seed, plots, plaza);
 
-            // The well belongs to the open civic market space but is not itself a circulation terminal.
             Int3 wellFootprint = KentridgeDefinition.FootprintDm(StructureArchetype.Well);
             Int2 wellPosition = new Int2(
                 plaza.CentreDm.X - wellFootprint.X / 2,
@@ -104,8 +101,6 @@ namespace MountingForce.WorldGen.Content.Kentridge
                 new PlannedSiteAccess(SiteAccessKind.Plaza, plaza.Id, plaza.CentreDm),
                 new PublicAccessDirection(0, 1)));
 
-            // Kentridge is intentionally roadless at the semantic layer. Other settlements retain
-            // PlannedStreet compatibility while the voxel backend consumes Routes when present.
             return new SettlementPlan(
                 KentridgeDefinition.Id,
                 seed,
@@ -150,8 +145,6 @@ namespace MountingForce.WorldGen.Content.Kentridge
                 uint h1 = Hash(h0 ^ 0xC2B2AE35u);
                 int x = preferred.X + SignedRange(h0, radius.X);
                 int z = preferred.Y + SignedRange(h1, radius.Y);
-
-                // Five-decimetre quantization keeps integer determinism while avoiding cardinal rows.
                 x = (x / 5) * 5;
                 z = (z / 5) * 5;
 
@@ -194,18 +187,15 @@ namespace MountingForce.WorldGen.Content.Kentridge
         {
             var routes = new List<PlannedRoute>(plots.Count);
             var terminals = new List<Int2>(plots.Count + 1) { plaza.CentreDm };
-
             for (int i = 0; i < plots.Count; i++)
             {
                 BuildingPlot plot = plots[i];
                 Int2 start = plot.Access.NetworkPointDm;
                 Int2 target = NearestTerminal(start, terminals);
                 Int2 bend = OrganicBend(seed, plot.RoleId, start, target);
-                int width = RouteWidth(plot.District);
-                routes.Add(new PlannedRoute(plot.Access.TargetId, width, start, bend, target));
+                routes.Add(new PlannedRoute(plot.Access.TargetId, RouteWidth(plot.District), start, bend, target));
                 terminals.Add(start);
             }
-
             return routes;
         }
 
@@ -243,11 +233,9 @@ namespace MountingForce.WorldGen.Content.Kentridge
 
         private static Int2 PublicNetworkPoint(Int2 centre, Int3 footprint, PublicAccessDirection inward)
         {
-            int halfX = footprint.X / 2 + 12;
-            int halfZ = footprint.Z / 2 + 12;
             return new Int2(
-                centre.X - inward.X * halfX,
-                centre.Y - inward.Z * halfZ);
+                centre.X - inward.X * (footprint.X / 2 + 12),
+                centre.Y - inward.Z * (footprint.Z / 2 + 12));
         }
 
         private static FrontageDirection SnapFrontage(PublicAccessDirection inward)
@@ -271,8 +259,8 @@ namespace MountingForce.WorldGen.Content.Kentridge
                     radius = new Int2(380, 245);
                     break;
                 case DistrictKind.Residential:
-                    centre = new Int2(town.X - 90, town.Y + 360);
-                    radius = new Int2(440, 255);
+                    centre = new Int2(town.X - 90, town.Y + 310);
+                    radius = new Int2(500, 300);
                     break;
                 case DistrictKind.Working:
                     centre = new Int2(town.X + 330, town.Y + 250);
