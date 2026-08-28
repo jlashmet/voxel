@@ -10,7 +10,6 @@ namespace MountingForce.WorldGen.Voxel
     {
         private const int VerticalPaddingDm = 16;
         private const int StandardMaxPrimitives = 3;
-        private const int CivicSouthWestMaxPrimitives = 18;
         private const int MarketTransitionMaxPrimitives = 40;
 
         private readonly struct Patch
@@ -53,8 +52,7 @@ namespace MountingForce.WorldGen.Voxel
             for (int i = 0; i < patches.Length; i++)
             {
                 ResolveBounds(patches[i], seed, scale, out positions[i], out footprints[i]);
-                programs[i] = Program(
-                    patches[i], positions[i], footprints[i], seed, settings);
+                programs[i] = Program(patches[i], footprints[i], settings);
                 programLength += programs[i].Length;
             }
 
@@ -79,9 +77,7 @@ namespace MountingForce.WorldGen.Voxel
                     ProgramLength = programs[i].Length,
                     MaxPrimitives = patches[i].Id == "market-main"
                         ? MarketTransitionMaxPrimitives
-                        : patches[i].Id == "civic-summit"
-                            ? CivicSouthWestMaxPrimitives
-                            : StandardMaxPrimitives,
+                        : StandardMaxPrimitives,
                 };
                 c.ExplicitPlacements[i] = new ExplicitPlacement
                 {
