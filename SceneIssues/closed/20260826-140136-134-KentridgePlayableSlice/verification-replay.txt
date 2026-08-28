@@ -1,0 +1,15 @@
+SceneIssue: 20260826-140136-134-KentridgePlayableSlice
+Fix commit: 4aee470afe601a6ceb073a0e89229fff1aff8872
+Regression: VoxelEngine.Tests.PlayMode.KentridgeInteriorHandoffRegressionTests.OpeningRelease_StaysAtAuthoredInteriorElevationUnderPubRoof
+Exact targeted request: 6805aba87c04caac16dd84df93246c688036ed6f
+Workflow run: 33126743291 (Single test · ci-test/fixes/agent-9 · push)
+Result: success; 1 test passed, 0 failed.
+
+Replay evidence:
+- CI artifact single-test-33126743291 was inspected directly.
+- RealPlayer/verification-final.png is 1928x900, exceeding the original 1928x836 capture dimensions.
+- The final frame places the released player inside the pub looking outward through the doorway rather than on the roof.
+- Replay/F8 capture overlays are absent in the final frame.
+- player-run.log records "Replaying issue with 1 screenshot(s). Verified standalone frozen pose." and later "Scene issue replay released and capture overlay disabled after 85s."
+
+Verdict: original roof-spawn defect is fixed in the production handoff path and the saved SceneIssue replay passes visually and behaviorally.
