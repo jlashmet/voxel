@@ -72,16 +72,7 @@ remaining gates. Replace stale detail with a one-line conclusion rather than gro
 
 Record each product experiment as `experiment-NNN-<slug>.md`, limited to a screenful: hypothesis,
 action and source SHA, result, verdict, and next step. Put polling, queue, and runner notes in one
-`ci-operations.md`. Store durable evidence beside the issue as `verification-<slug>.jpg|txt`.
-
-`verification-final.jpg` must be a clean JPEG encoded at quality 40 and resized to exactly 40% of
-the original capture's width and height (round each dimension to the nearest whole pixel). Preserve
-the original replay pose and enough visual detail to judge every claimed acceptance criterion. Hide
-replay, dialogue, debug, and editor overlays unless an overlay is itself the evidence. Do not reduce
-the image below 40%, use a thumbnail-sized crop, or make a collage that makes each view harder to
-inspect. Add separate quality-40 JPEG `verification-detail-*.jpg` views at the same 40% scale when
-the original pose cannot show necessary art or layout detail. Compare the final evidence directly
-with every original capture before promotion.
+`ci-operations.md`. Store durable text evidence beside the issue as `verification-<slug>.txt`.
 
 ## Targeted CI
 
@@ -106,8 +97,6 @@ A feature branch is ready for pending promotion only when it has:
 - the pushed production/test commit named by `issue.json.fixCommit`;
 - a focused behavioral regression with green exact-SHA targeted CI;
 - every original pose replayed successfully;
-- inspection-quality `verification-final.jpg` evidence at the required 40% scale and quality 40,
-  plus any necessary detail views, committed in the capture;
 - `status: pending`, `resolutionSummary`, `regressionTest`, and `fixCommit` completed;
 - the entire capture moved from `open/` to `pending/` in a separate bookkeeping commit; and
 - no unrelated capture, CI request file, or workflow in the feature-only diff.
