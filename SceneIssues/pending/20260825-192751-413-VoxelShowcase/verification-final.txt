@@ -1,0 +1,21 @@
+SceneIssue 20260825-192751-413-VoxelShowcase final verification
+
+Tested feature source: cb025bdb5b0d4b9e07d8d5f50fa09a2a21fed4c8
+CI transport: b2c59e44594fbb6c77d386287c657f00d0bda026
+Workflow run: 33155534318
+Job: 98797287978
+Artifact: 9679603535
+Result: success
+
+Focused PlayMode regression:
+VoxelEngine.Tests.PlayMode.ShowcaseGpuMigrationTests.MovingShowcaseKeepsLegacyGpuV1OffAndPreservesCoverage
+Executed: 1 test case; Passed
+Traversal: 1533 moving frames, 210.0 m forward / 216.4 m path, 18.0 m/s production speed cap
+Measured p95: 10.914 ms (budget <18 ms)
+Measured p99: 12.468 ms (budget <25 ms)
+The passing regression also requires a visible voxel draw every moving frame, zero frame-path blocking completions, legacy GPU-v1 disabled/no GPU-v1 backends, >=4 streamed region crossings, and <=5 cm far fallback whenever near coverage is incomplete.
+
+Assigned SceneIssue replay:
+SceneIssues/open/20260825-192751-413-VoxelShowcase/issue.json
+45 seconds, Assets/Scenes/VoxelShowcase.unity, player exit 0.
+The replay converged to zero missing surface chunks and retained its solid drawn set. Direct inspection of verification-final.png shows the castle and surrounding terrain present at the captured view without wholesale voxel disappearance or a near/far coverage hole.
