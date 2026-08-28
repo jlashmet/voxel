@@ -137,13 +137,13 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(showcase.TryInteract(), Is.False,
                 "The gate interaction must remain one-shot after the visible opened state completes.");
 
-            // CastleVoxels proves authored storage is complete, not that the presentation scheduler
-            // has extracted and materialized the nearby meshes. The exact-pose real-player replay
-            // from the prior green run was still fallback gray at 14.6 s but fully materialized by
-            // 24.6 s. Wait in real time so uncapped PlayMode cannot compress a frame-count settle
-            // into milliseconds, then capture the exact saved hierarchy camera at native size.
+            // Presentation extraction is view-dependent. The prior attempt waited in real time but
+            // teleported only for the final Render(), so the saved gate view never received a
+            // convergence window. Pin the exact issue camera first (using the same fly-mode escape
+            // as CastleScreenshotTests), hold it through the bounded real-time settle, then capture.
+            Camera verificationCamera = PrepareVerificationCamera(showcase);
             yield return new WaitForSecondsRealtime(VerificationRenderSettleSeconds);
-            CaptureVerificationImage();
+            CaptureVerificationImage(verificationCamera);
         }
 
         private static HashSet<int3> CaptureGateMaterials(ShowcaseWorld world, int3 min)
@@ -161,36 +161,39 @@ namespace VoxelEngine.Tests.PlayMode
             return result;
         }
 
-        private static void CaptureVerificationImage()
+        private static Camera PrepareVerificationCamera(VoxelShowcase showcase)
         {
+            typeof(VoxelShowcase).GetField("m_FlyMode", BindingFlags.NonPublic | BindingFlags.Instance)
+                .SetValue(showcase, true);
+            typeof(VoxelShowcase).GetField("_mouseLook", BindingFlags.NonPublic | BindingFlags.Instance)
+                .SetValue(showcase, false);
+
             GameObject cameraObject = GameObject.Find("Showcase Camera");
             Camera camera = cameraObject != null ? cameraObject.GetComponent<Camera>() : null;
             Assert.NotNull(camera,
                 "Captured hierarchy path 'Showcase Camera' has no camera for verification capture.");
 
-            Vector3 originalPosition = camera.transform.position;
-            Quaternion originalRotation = camera.transform.rotation;
-            float originalFieldOfView = camera.fieldOfView;
-            float originalNearClip = camera.nearClipPlane;
-            float originalFarClip = camera.farClipPlane;
-            bool originalOrthographic = camera.orthographic;
+            camera.transform.SetPositionAndRotation(
+                new Vector3(25.616580963134767f, 26.35015869140625f, 11.290130615234375f),
+                new Quaternion(0.10458954423666f, -0.007642569486051798f,
+                               -0.000803764967713505f, -0.9944857954978943f));
+            camera.fieldOfView = 70f;
+            camera.orthographic = false;
+            camera.nearClipPlane = 0.05f;
+            camera.farClipPlane = 16000f;
+            return camera;
+        }
+
+        private static void CaptureVerificationImage(Camera camera)
+        {
             RenderTexture originalTarget = camera.targetTexture;
             RenderTexture previousActive = RenderTexture.active;
-
             var target = new RenderTexture(
                 VerificationWidth, VerificationHeight, 24, RenderTextureFormat.ARGB32);
             var texture = new Texture2D(
                 VerificationWidth, VerificationHeight, TextureFormat.RGB24, false);
             try
             {
-                camera.transform.SetPositionAndRotation(
-                    new Vector3(25.616580963134767f, 26.35015869140625f, 11.290130615234375f),
-                    new Quaternion(0.10458954423666f, -0.007642569486051798f,
-                                   -0.000803764967713505f, -0.9944857954978943f));
-                camera.fieldOfView = 70f;
-                camera.orthographic = false;
-                camera.nearClipPlane = 0.05f;
-                camera.farClipPlane = 16000f;
                 camera.targetTexture = target;
                 camera.Render();
                 RenderTexture.active = target;
@@ -213,11 +216,6 @@ namespace VoxelEngine.Tests.PlayMode
             finally
             {
                 camera.targetTexture = originalTarget;
-                camera.fieldOfView = originalFieldOfView;
-                camera.nearClipPlane = originalNearClip;
-                camera.farClipPlane = originalFarClip;
-                camera.orthographic = originalOrthographic;
-                camera.transform.SetPositionAndRotation(originalPosition, originalRotation);
                 RenderTexture.active = previousActive;
                 target.Release();
                 Object.DestroyImmediate(target);
