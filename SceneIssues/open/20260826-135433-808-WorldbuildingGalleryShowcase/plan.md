@@ -1,31 +1,21 @@
-# Plan — 20260826-135433-808 WorldbuildingGallery grass
+# Plan — 20260826-135433-808 WorldbuildingGalleryShowcase
 
-## Reopened goal
-The previous implementation is rejected. Replace it by porting the approved browser meadow renderer to Unity. Do not revive the old Dylearn/card experiments. `reference-grass-target.jpg` is historical context only; acceptance is the renderer behavior below plus human visual review.
+## Evidence
+- One marked region: `screenshot-001.png`, normalized center `(0.4802, 0.6678)`, radius `0.0690` (about pixel `(926, 558)` at the captured 1928×836 pose). Human review describes the meadow there as repeated three-blade icons/dark billboard bars instead of the dense layered target in `reference-grass-target.jpg`.
+- The production path batches semantic vegetation through `ProceduralVegetationBatchRenderer`. Ordinary tuft foliage used the generic seven rectangular-card mesh, which explains the repeated stamped silhouettes.
+- The SceneIssue includes `grass-renderer-reference.shader`; its packed root/lateral/height/phase vertex contract, coherent three-wave wind, camera-right reconstruction, local player push, and stateless recovery are the acceptance implementation to migrate.
 
-## Required reference implementation
-Use `grass-renderer-reference.shader` in this SceneIssue as the starting HLSL/ShaderLab implementation for the production URP shader. It contains the approved GPU math for camera-facing reconstruction, coherent wind, local player bend/recovery, fixed color output, and fog. Port it into the appropriate `Assets/` runtime location rather than leaving production dependent on the SceneIssue file.
+## Competing hypotheses
+1. **Wrong grass geometry/presentation — confirmed.** Generic foliage cards cannot reproduce the supplied tapered ribbon meadow. Give the meadow grass family a dedicated packed ribbon mesh and production grass shader.
+2. **Interactor publishing is missing — rejected.** Production already publishes a bounded grass-interactor array; the migrated dedicated shader was not consuming it. Apply the reference push math to the strongest local interactor while leaving the existing publisher intact.
+3. **Whole vegetation renderer/layout is wrong — rejected for this capture.** The defect is isolated to the marked meadow presentation. Keep flowers, aquatic grass, reeds, surfaces, vines, woody vegetation, instance placement, and batching unchanged.
 
-CPU construction must pack the blade mesh exactly enough to drive that shader:
-- `TEXCOORD0 = (rootOS.x, rootOS.z)`
-- `TEXCOORD1 = (rootOS.y, baseLateralOffset)`
-- `TEXCOORD2 = (localVerticalOffset, tipFactor)`
-- `TEXCOORD3 = (randomPhase, reserved)`
-- vertex `COLOR` = final regional/root-to-tip grass color
+## Fix + regression
+- Port `grass-renderer-reference.shader` into `Assets/VoxelEngine/Rendering/Runtime/Shaders/ProceduralVegetationGrass.shader` and keep all per-frame blade deformation on the GPU.
+- Pack 11 tapered, segmented ribbon blades per grass tuft with deterministic root/height/width/phase and regional vertex colors; route only `Grass`, `Clover`, `Weed`, `Nettle`, and `DeadGrass` through that meadow path.
+- PlayMode regression uses the imported production mesh/material/shader: assert packed topology and unaffected non-meadow kinds, render front + 90° orbit views, apply a nearby production interactor, and verify local displacement plus return to the deterministic baseline after the interactor leaves.
+- Replay the saved WorldbuildingGallery camera pose at native 1928×836 for final visual evidence after exact-SHA CI.
 
-Per-frame shader inputs are `_GrassTime`, `_GrassPlayerPositionWS`, `_GrassPushRadius`, and `_GrassCameraRightWS`. Do not rewrite grass vertices on the CPU each frame.
-
-## Renderer behavior to preserve
-- Solid tapered ribbon blades; no alpha-cutout cards. Blades rotate around world Y toward camera-right so a 360° orbit does not materially change apparent width or color.
-- CPU work is construction-only: blade roots, height/width/lean/phase, Perlin placement/density, packed mesh data, and regional colors.
-- Use separate low-frequency Perlin/FBM fields for (1) grass coverage/density, (2) broad grass-color regions, and (3) ground shade/value. Coverage must form coherent dense, sparse, and bare regions.
-- Preserve the approved green family: dark `(0.21,0.44,0.11)`, medium `(0.34,0.62,0.18)`, fresh `(0.49,0.76,0.25)`, sunny `(0.70,0.90,0.40)`, with the existing root-to-tip toon ramp.
-- Ground color must integrate with the same Perlin regions and broad light/dark noise variation.
-- Preserve 11 visibly distinct procedural wildflower species, noise-clustered by region with varied scale/height/sway. Daisies include both upward and camera/player-tilted blossoms. Flowers may animate CPU-first; grass must remain GPU-driven.
-
-## Acceptance / regression
-1. WorldbuildingGallery reads as a continuous stylized meadow with coherent coverage/color patches and visible flower variety.
-2. 360° camera orbit preserves blade silhouette and grass brightness.
-3. Player traversal bends only nearby grass away and it recovers afterward.
-4. Add regressions for deterministic Perlin placement, packed GPU data, shader parameter/update math, and local interaction behavior; replay the saved pose at native resolution.
-5. Record gallery performance cost and reject any implementation that returns to per-frame CPU grass vertex rewrites.
+## Blast radius / cost
+- Shared batching remains one `Graphics.DrawMeshInstanced` path with the same instance/draw count and no per-frame CPU grass vertex rewrites.
+- Meadow tuft geometry rises from the old generic 28 vertices / 14 triangles to 110 vertices / 88 triangles per instance (about 3.9× vertices, 6.3× triangles). This cost is limited to the five meadow kinds above; flowers, wetland plants, and other foliage keep existing meshes/shaders.
