@@ -21,6 +21,7 @@ namespace VoxelEngine.Tests.PlayMode
     public sealed class ShowcaseGpuMigrationTests
     {
         private const string ScenePath = "Assets/Scenes/VoxelShowcase.unity";
+        private const double MaxCoverageWarmupSeconds = 30.0;
         private const double MaxMovingP95FrameMs = 18.0;
         private const double MaxMovingP99FrameMs = 25.0;
 
@@ -54,7 +55,8 @@ namespace VoxelEngine.Tests.PlayMode
 
             try
             {
-                yield return WaitForFallbackSafeVisibleCoverage(camera, far, 1200);
+                yield return WaitForFallbackSafeVisibleCoverage(
+                    camera, far, MaxCoverageWarmupSeconds);
 
                 Vector3 origin = showcase.transform.position;
                 Quaternion originRotation = showcase.transform.rotation;
@@ -140,12 +142,15 @@ namespace VoxelEngine.Tests.PlayMode
         }
 
         private static IEnumerator WaitForFallbackSafeVisibleCoverage(
-            Camera camera, VoxelFarTerrain far, int maxFrames)
+            Camera camera, VoxelFarTerrain far, double maxSeconds)
         {
+            var warmupClock = Stopwatch.StartNew();
+            int renderedFrames = 0;
             int stableFrames = 0;
             VoxelSurfaceMetrics last = default;
-            for (int frame = 0; frame < maxFrames; frame++)
+            while (warmupClock.Elapsed.TotalSeconds < maxSeconds)
             {
+                renderedFrames++;
                 yield return null;
                 camera.Render();
                 last = VoxelRenderBridge.SurfaceMetrics;
@@ -160,7 +165,8 @@ namespace VoxelEngine.Tests.PlayMode
             }
 
             Assert.Fail(
-                $"Showcase never reached fallback-safe visible coverage; "
+                $"Showcase never reached fallback-safe visible coverage within "
+              + $"{maxSeconds:F0}s ({renderedFrames} rendered frames); "
               + $"known={last.SolidKnownChunks} resident={last.SolidResidentChunks} "
               + $"dirty={last.SolidDirtyChunks} visible={last.VisibleSolidChunks} "
               + $"missing={last.MissingVisibleSolidChunks} jobs={last.RunningSolidJobs} "
