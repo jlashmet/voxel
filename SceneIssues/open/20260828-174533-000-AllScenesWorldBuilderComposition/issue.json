@@ -1,0 +1,13 @@
+{
+  "formatVersion": 3,
+  "id": "20260828-174533-000-AllScenesWorldBuilderComposition",
+  "capturedUtc": "2026-08-28T17:45:33.0000000Z",
+  "note": "ARCHITECTURE ISSUE: All scenes must construct their world/environment content through the WorldBuilder API and reusable voxel-engine/game modules. Scene-specific scripts should be orchestration/configuration only; they must not contain bespoke terrain, structure, vegetation, water, prop, voxel-write, procedural-mesh, or other world-generation algorithms that bypass the shared builders/modules.\n\nWorldBuilder must expose the complete set of reusable primitives and semantic building operations required to reproduce the worlds currently assembled by scene-specific code. Those primitives may delegate into the voxel engine and game modules; the important boundary is that scenes request reusable capabilities rather than implement them locally. If a current scene needs a construction operation that WorldBuilder cannot express, add/generalize the primitive in the appropriate reusable module and expose it through WorldBuilder instead of leaving the implementation in the scene.\n\nScenes are allowed and expected to compose the shared primitives differently. Do NOT replace all scenes with one fixed canonical world. For example, the small VoxelShowcase should be able to build its terrain/buildings/vegetation using the same reusable primitives while intentionally omitting the castle; a larger showcase may opt into the castle/fortification composition. Scene composition may choose parameters, locations, seeds, subsets, ordering, and authored layout intent.\n\nBoundary: camera, lighting, post-processing, UI/debug/metrics, bootstrap wiring, and other presentation-only scene configuration may remain scene-local. Anything that is part of the generated world or gameplay environment must be produced through WorldBuilder/reusable engine/game modules.\n\nAcceptance requires an audit of every production/showcase scene and its bootstrap code, migration of world-generation logic out of scene-specific classes, reusable WorldBuilder primitives for every migrated capability, preservation of each scene's intended distinct composition, and behavioral regressions that prove representative scenes build their world through the shared API without reintroducing scene-local generation. Prefer semantic reusable operations over capture-specific coordinates or one-off helpers.",
+  "status": "open",
+  "unityVersion": "6000.5.6f1",
+  "platform": "Architecture",
+  "sceneName": "AllScenes",
+  "scenePath": "Assets/Scenes",
+  "sceneBuildIndex": -1,
+  "captures": []
+}
