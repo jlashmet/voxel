@@ -1,0 +1,13 @@
+Exact-SHA targeted CI verification
+sourceBranch: fixes/agent-1
+sourceSha: a3b0c60880dcc0731c6b9f900c13d9a72e51d91c
+transportBranch: ci-test/fixes/agent-1
+transportSha: 0a4e06f8f40d143bc2197cb1addb6ad0fd9d18b4
+transportParentSha: a3b0c60880dcc0731c6b9f900c13d9a72e51d91c
+workflowRun: 33214102360
+job: 98993762977
+result: success
+ciContext: ci/single-test
+regressionTest: OrdinaryMeadowNettleUsesPackedGrassRendererWhileAquaticTuftsStayGeneric
+visualCaptureStep: success
+visualAcceptance: Captured marked pose no longer shows the prior dark upright generic Nettle card cluster; ordinary meadow Nettle follows packed grass presentation while aquatic WaterGrass remains generic.

@@ -1,21 +1,9 @@
-# Plan
+# Plan — WorldbuildingGalleryTownArchitectureShowcase
 
-## Observed behavior / acceptance
-`WorldbuildingGalleryShowcase` currently authors a generic shed/church/temple/cave collection directly from showcase composition code. The issue has no captured frames or marked regions; evidence is the six complete screenshot prefix sets under `References/MountingForce/map-images/`. Required end state: six labeled, walkable districts (Kentridge, Hightown, Moordell, Rossdam, Fairy Village, Orc Village), each with a palette display plus residential, commercial, civic/communal, and landmark/infrastructure examples through reusable WorldBuilder/shared authoring.
-
-Screenshot evidence inspected by prefix: Kentridge includes church, well, warehouse, inn and houses; Hightown includes church, mayor house, shops, pub and under-church/cave spaces; Moordell includes inn/pub, shops, grave and low rugged buildings; Rossdam includes king chamber, shops and fortified/royal vocabulary; Fairy Village includes treehouse, cave, inn/pub and nature-integrated shops/houses; Orc Village includes armor/magic/weapon shops, pub and rough fortified village forms.
-
-## Competing hypotheses / discriminator
-1. **Gallery-composition defect only:** rearranging/recoloring existing gallery primitives is sufficient. Falsified: current gallery directly authors generic structures and would violate the issue's shared-WorldBuilder boundary and silhouette/role differentiation requirement.
-2. **Existing town realization can be reused for all six:** register missing names and instantiate each town. Falsified: `WorldBuilderTownAuthoring` only registers Kentridge/Hightown and `WorldBuilderVoxelCatalogue` only realizes Kentridge.
-
-## Selected fix
-Add a reusable WorldBuilder town-architecture program describing six style identities, semantic material families, silhouettes, reference evidence, and the four required structure roles. Add shared voxel district authoring that consumes those programs and a material-role palette, producing labels/swatches, distinct residential/commercial/civic/landmark assemblies, street treatment and style props. `ShowcaseWorld` will only select styles, grounded district origins and game-material mappings.
-
-Add a focused EditMode behavioral regression through `WorldBuilderTownArchitecture.Resolve` proving all six programs resolve, expose distinct material families/silhouettes, retain screenshot evidence, and contain all four required roles. Scene validation must use the exact built-application `WorldbuildingGalleryShowcase` harness.
-
-## Blast radius / cost
-No new shader/material IDs: reuse existing game material identities, so shader/material-table cost is unchanged. Geometry is bounded to six compact districts and authored only during gallery bake/generation; no gameplay/world truth or device budgets change. Validate generated write count indirectly through bounded program dimensions and final scene harness; preserve existing gallery bake path.
-
-Current base: `f803d0ad93a6b8c36bfb2909f2e663e04cb96ebc`.
-Remaining gates: implement, focused regression green on exact feature SHA, built-app gallery harness green with six-district evidence, pending metadata/move, close, merge latest master, non-force push master.
+- [x] Read canonical workflow, capture, runtime log, and all 6 complete screenshot prefix sets under `References/MountingForce/map-images/`. The capture records `markers: []` and no scene/redline PNG, so there are zero marked regions to inspect; the cited town reference set plus captured gallery log are the available visual/runtime ground truth.
+- [x] Reproduce from captured evidence: `WorldbuildingGalleryShowcase` logged terrain/road/bridge/structure/vegetation/walkway phases and the generic structure phase reported `commands=857 writes=35713 levels=2`; no architecture phase or town-style authoring step appears.
+- [x] Competing hypotheses/discriminators: **H1 existing Structure is enough** is rejected because it only authors level-shell primitives while the references/acceptance require facade cadence, windows/doors/balconies, arches/arcades, rooflines, towers and civic landmarks. **H2 this is a terrain/layout defect** is rejected because the same capture successfully executes terrain, road, bridge and walkway phases. **H3 the missing abstraction is architecture-level** is supported by reference recurrence across Kentridge/Hightown/Rossdam/Moordell (street walls, stacked floors, roof variation, towers/arches) plus fairy/orc semantic variants (organic/fortified/tent forms).
+- [x] Implement reference-driven `TownArchitectureProgram` contracts and six canonical style programs (Kentridge, Hightown, Moordell, Rossdam, Fairy Village, Orc Village), including semantic material families and residential/commercial/civic/landmark roles grounded to the supplied screenshot evidence.
+- [x] Add shared `IStructureAuthoringSession` voxel realization with terrain-aware grounding, walkable approach/palette/signage, and distinct architecture silhouettes for pastoral timber-frame, vertical/arcaded civic stone, low moorland stone, royal fortified/towered, organic canopy/treehouse, and tribal heavy-timber/tent forms; no baked meshes or hand-authored scene hierarchy.
+- [ ] Add the gallery district call site and behavioral regression, then run targeted tests/repro plus adjacent WorldBuilder checks; record runtime/CI evidence here.
+- [ ] Recheck blast radius and cost after validation: intended surface is additive WorldBuilder API/runtime/canonical voxel authoring plus the showcase call site; cost should remain bounded by six fixed-size deterministic gallery districts and authored voxel primitives, with no idle/polling/background work.

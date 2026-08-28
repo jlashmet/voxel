@@ -3,7 +3,8 @@
   "rootNamespace": "Game.Composition.Kentridge.Api",
   "references": [
     "Game.Composition.Campaign",
-    "Game.Composition.WorldBuilderWorldGen"
+    "Game.Composition.WorldBuilderWorldGen",
+    "Game.Quests.Api"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

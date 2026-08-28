@@ -5,8 +5,9 @@ using VoxelEngine.Vegetation.Api;
 namespace VoxelEngine.Rendering.Runtime.Vegetation
 {
     /// <summary>
-    /// Draws lightweight vegetation directly from semantic instances. Geometry is shared by growth
-    /// form and submitted in GPU-instanced batches; there is no GameObject or prefab per plant.
+    /// Draws lightweight vegetation directly from semantic instances. Ordinary growth forms keep
+    /// the shared GPU-instanced path; semantic grass is packed once into spatial ribbon chunks so
+    /// the dedicated grass shader can reconstruct and deform blades in world space.
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class ProceduralVegetationBatchRenderer : MonoBehaviour
@@ -16,6 +17,7 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
         private readonly Dictionary<VegetationKind, List<Matrix4x4>> _batches =
             new Dictionary<VegetationKind, List<Matrix4x4>>();
         private readonly Matrix4x4[] _scratch = new Matrix4x4[MaxInstancesPerDraw];
+        private readonly ProceduralGrassBatch _grass = new ProceduralGrassBatch();
         private MaterialPropertyBlock _properties;
         private int _instanceCount;
 
@@ -29,6 +31,13 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
             for (int i = 0; i < instances.Count; i++)
             {
                 VegetationInstance instance = instances[i];
+                if (ProceduralGrassBatch.IsGrass(instance.Kind))
+                {
+                    _grass.Add(instance);
+                    _instanceCount++;
+                    continue;
+                }
+
                 if (!_batches.TryGetValue(instance.Kind, out List<Matrix4x4> matrices))
                 {
                     matrices = new List<Matrix4x4>();
@@ -38,13 +47,21 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
                 matrices.Add(BuildMatrix(instance));
                 _instanceCount++;
             }
+
+            _grass.Rebuild();
         }
 
         public void Clear()
         {
             foreach (KeyValuePair<VegetationKind, List<Matrix4x4>> pair in _batches)
                 pair.Value.Clear();
+            _grass.Clear();
             _instanceCount = 0;
+        }
+
+        private void OnDestroy()
+        {
+            _grass.Dispose();
         }
 
         private void LateUpdate()
@@ -57,8 +74,12 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
             if (_instanceCount == 0) return;
             if (_properties == null) _properties = new MaterialPropertyBlock();
 
+            // Sample registered gameplay transforms once per frame before publishing material state.
+            GrassInteractorRegistry.Publish();
             ProceduralVegetationMaterials.ApplyLighting();
             ProceduralTreeMaterials.ApplyLighting();
+
+            _grass.Draw(ProceduralVegetationMaterials.MaterialFor(VegetationKind.Grass));
 
             foreach (KeyValuePair<VegetationKind, List<Matrix4x4>> pair in _batches)
             {
@@ -66,6 +87,8 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
 
                 VegetationProfile profile = VegetationCatalogue.Get(pair.Key);
                 VegetationRenderStyle style = ProceduralVegetationMaterials.StyleFor(pair.Key);
+                if (style.ShaderClass == VegetationShaderClass.Grass) continue;
+
                 Mesh mesh = ProceduralVegetationMeshLibrary.MeshFor(style.ShaderClass, profile.GrowthForm);
                 Material material = ProceduralVegetationMaterials.MaterialFor(pair.Key);
                 if (mesh == null || material == null) continue;
@@ -220,6 +243,9 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
                     return s_Vine != null ? s_Vine : (s_Vine = BuildVineCluster());
                 case VegetationShaderClass.Woody:
                     return s_Woody != null ? s_Woody : (s_Woody = BuildCylinder());
+                case VegetationShaderClass.Grass:
+                    // Semantic grass is construction-time world geometry, not a reusable source mesh.
+                    return null;
                 default:
                     int index = Mathf.Clamp((int)growthForm, 0, GrowthFormCount - 1);
                     if (s_Foliage[index] == null) s_Foliage[index] = BuildFoliageCluster(growthForm);
