@@ -1,0 +1,50 @@
+// Applies compact CPU-side Storage deltas to the persistent GPU brick-coordinate directory.
+// Chunk admission never writes this table. The CPU sends only changed final entries in one
+// contiguous buffer; compute scatters those entries to their stable hash slots on the GPU.
+
+#pragma kernel CSApplyDirectoryDeltas
+#pragma kernel CSClearDirectory
+
+RWStructuredBuffer<uint> _BrickMaterials;
+StructuredBuffer<uint> _DirectoryDeltas;
+
+int _DirectoryWordOffset;
+int _DirectoryCapacity;
+int _DirectoryDeltaCount;
+
+#define DIRECTORY_WORDS_PER_ENTRY 5
+#define DIRECTORY_DELTA_WORDS 6
+
+[numthreads(64, 1, 1)]
+void CSApplyDirectoryDeltas(uint3 id : SV_DispatchThreadID)
+{
+    uint deltaIndex = id.x;
+    if (deltaIndex >= (uint)_DirectoryDeltaCount) return;
+
+    uint source = deltaIndex * DIRECTORY_DELTA_WORDS;
+    uint entryIndex = _DirectoryDeltas[source + 0u];
+    if (entryIndex >= (uint)_DirectoryCapacity) return;
+
+    uint destination = (uint)_DirectoryWordOffset
+                     + entryIndex * DIRECTORY_WORDS_PER_ENTRY;
+    _BrickMaterials[destination + 0u] = _DirectoryDeltas[source + 1u];
+    _BrickMaterials[destination + 1u] = _DirectoryDeltas[source + 2u];
+    _BrickMaterials[destination + 2u] = _DirectoryDeltas[source + 3u];
+    _BrickMaterials[destination + 3u] = _DirectoryDeltas[source + 4u];
+    _BrickMaterials[destination + 4u] = _DirectoryDeltas[source + 5u];
+}
+
+[numthreads(64, 1, 1)]
+void CSClearDirectory(uint3 id : SV_DispatchThreadID)
+{
+    uint entryIndex = id.x;
+    if (entryIndex >= (uint)_DirectoryCapacity) return;
+
+    uint destination = (uint)_DirectoryWordOffset
+                     + entryIndex * DIRECTORY_WORDS_PER_ENTRY;
+    _BrickMaterials[destination + 0u] = 0u;
+    _BrickMaterials[destination + 1u] = 0u;
+    _BrickMaterials[destination + 2u] = 0u;
+    _BrickMaterials[destination + 3u] = 0u;
+    _BrickMaterials[destination + 4u] = 0u;
+}
