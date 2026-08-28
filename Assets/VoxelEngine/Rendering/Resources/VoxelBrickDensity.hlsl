@@ -10,8 +10,9 @@ StructuredBuffer<uint> _BrickSurfaceSemantics;
 StructuredBuffer<uint> _BrickBoundarySamples;
 
 // Legacy mode: one dense entry per brick in the chunk neighbourhood.
-// Persistent mode: entries 0..2 are a tiny immutable header:
-//   [0] magic, [1] directory word offset in _BrickMaterials, [2] directory mask.
+// Persistent mode: entries 0..2 are a tiny classifier-safe header. Values that could look like
+// brick kinds are shifted left by two so the existing raw classifier sees all three as empty:
+//   [0] masked magic, [1] directory word offset << 2, [2] directory mask << 2.
 StructuredBuffer<uint> _BrickCache;
 
 int3 _BrickCacheOrigin;
@@ -37,10 +38,9 @@ StructuredBuffer<uint> _MaterialDefaultStyle;
 #define SURFACE_STYLE_MATERIAL_DEFAULT 0
 #define SURFACE_STYLE_SMOOTH 1
 
-#define PERSISTENT_LOOKUP_MAGIC 0x47505542u
+#define PERSISTENT_LOOKUP_MAGIC 0x47505540u
 #define DIRECTORY_WORDS_PER_ENTRY 5u
 #define DIRECTORY_OCCUPIED 1u
-#define DIRECTORY_MAX_PROBES 16u
 
 struct StyleDefinition
 {
@@ -139,12 +139,15 @@ uint HashBrickCoordinate(int3 coordinate)
 bool TryPersistentBrickEntry(int3 coordinate, out uint entry)
 {
     entry = 0u;
-    uint wordOffset = _BrickCache[1];
-    uint mask = _BrickCache[2];
+    uint wordOffset = _BrickCache[1] >> 2;
+    uint mask = _BrickCache[2] >> 2;
     uint start = HashBrickCoordinate(coordinate) & mask;
 
+    // The CPU directory inserts with the identical linear-probe rule. Ready regions contain every
+    // logical brick, including empty/uniform ones, so normal lookups terminate after very few probes;
+    // the full bound exists only to make collision handling exact rather than probabilistic.
     [loop]
-    for (uint probe = 0u; probe < DIRECTORY_MAX_PROBES; probe++)
+    for (uint probe = 0u; probe <= mask; probe++)
     {
         uint slot = (start + probe) & mask;
         uint word = wordOffset + slot * DIRECTORY_WORDS_PER_ENTRY;
