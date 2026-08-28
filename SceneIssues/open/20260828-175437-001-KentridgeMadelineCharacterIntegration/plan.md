@@ -1,31 +1,24 @@
 # Plan
 
 ## Observed / acceptance
-`KentridgePlayableSlice` owned `CharacterMotor`, campaign actor-host implementation, cutscene player/NPC actors, model selection/animation, and Kentridge-only foot grounding. Madeline therefore flowed through placeholder presentation despite the production `Resources/Characters/Madeline/Madeline.prefab` (Humanoid model GUID `f593982524b374c80b946d9e4670471d`).
+`KentridgePlayableSlice` owned reusable character runtime/presentation policy and Madeline resolved through placeholder presentation despite production `Resources/Characters/Madeline/Madeline.prefab` (model GUID `f593982524b374c80b946d9e4670471d`). This Architecture issue has `captures: []`, so there are no marked image regions or poses to inspect/replay.
 
-Acceptance: scene code chooses scenario/spawn/input only; a Game-owned character host owns movement, campaign actors, model/animation binding and grounding. Authored Madeline resolves to the production Humanoid prefab, opening choreography still runs, gameplay returns, and the exact built Kentridge scene starts without runtime exceptions. This Architecture SceneIssue has `captures: []`, so there are no marked image regions/poses to replay.
+Acceptance: scene code selects scenario/spawn/input; a Game-owned host owns movement, campaign actors, model/animation binding and grounding. Madeline resolves to the production Humanoid prefab. Opening choreography, gameplay handoff, pub traversal and destination interaction remain behavioral invariants, and the exact built Kentridge player launches without runtime exceptions.
 
-## Hypotheses / discriminator
-1. **Falsified:** a reusable Game-owned actor host already existed and the scene only bypassed it. Audit found the interface but no reusable implementation.
-2. **Selected:** reusable lower-level seams existed, but Kentridge implemented them locally. Move ownership behind `KentridgeCharacterHost`; falsifier is any changed choreography, actor position, gameplay handoff, or startup failure.
+## Hypotheses / discriminators
+1. **Falsified:** a reusable Game-owned implementation already existed and Kentridge only bypassed it. Audit found the campaign interface/lower-level seams but no reusable host.
+2. **Selected:** Kentridge had correct lower-level behavior but scene-local ownership. Extract to `KentridgeCharacterHost`; falsifier is changed actor choreography, model binding, traversal, handoff, or startup.
+3. **CI-4 camera failure falsified as host regression:** exact-SHA run `33218551844` captured opening vertical separation `1.72000122 m` against a test threshold `>2.5 m`. Pre-extraction source at `a3acc64d...` has the identical camera formula: focus is `floor + 0.9 m`, while camera height is intentionally capped below the generated pub first-floor slab. The old threshold therefore contradicted production before this issue. The regression now asserts the architecture-derived `>1.3 m` separation plus the existing downward-facing/fixed-camera checks.
 
 ## Fix / regression
-- Extracted motor, campaign actors, model selection and animation driving into `Game.Composition.Kentridge.Playable.KentridgeCharacterHost`.
-- Moved generic foot alignment to `CharacterVisualFootGrounding`, preserving the old script GUID so the scene cannot gain a Missing Script.
-- Madeline identities instantiate the production prefab under an outer actor root; imported Animator/skeleton hierarchy stays intact, root motion is disabled, Idle/Walk remain presentation-only.
-- Scene runtime delegates movement/ticking/actor lookup to one shared host and no longer directly owns `CharacterMotor`.
-- Existing production tests assert shared-host ownership plus the authored Madeline registry entry's Humanoid Animator/controller, production visual hierarchy, root-motion policy and reusable grounding.
-- `KentridgePlayableScenePlayTests.LaunchScene_NewGameCutscene_ReleasesControl_AndPlayerWalksOutIntoKentridge` drives that host through the opening, generated pub exit, destination interaction and control handoffs. Its repository profile builds the exact `KentridgePlayableSlice` standalone player.
+- `KentridgeCharacterHost` owns motor, campaign actors, model selection and animation driving; `KentridgePlayableSlice` delegates to one host.
+- Generic foot alignment is `CharacterVisualFootGrounding`; Madeline instantiates the production prefab intact, with Humanoid avatar/controller present and root motion disabled.
+- `KentridgePlayableScenePlayTests.LaunchScene_NewGameCutscene_ReleasesControl_AndPlayerWalksOutIntoKentridge` is the behavioral regression: production scene, shared-host identity, production Madeline, opening movement/camera, generated pub exit, destination interaction and control handoffs. Its configured profile also builds/launches the exact Kentridge player.
 
-## Evidence / blast radius / cost
-- `experiment-001-final-ci-failure.md`: first request failed before tests because extracted assembly dependencies were incomplete; capture-based replay was invalid for this capture-less Architecture issue.
-- `experiment-002-assembly-dependency-closure.md`: second request proved the configured test selects the exact Kentridge player and exposed the assembly owners required by `NpcRef`/`ShowcaseWorld`.
-- `experiment-003-source-namespace-closure.md`: third request reproduced identical PlayMode/player-build compile failures and discriminated the namespace/assembly split: `ShowcaseWorld` is in `Game.Composition.Showcase`, while `CharacterMotor` is in the separate `VoxelEngine.Showcase` assembly despite sharing `VoxelEngine.Showcase` namespace; `NpcRef` also required the `Game.WorldBuilder.Api` namespace import. Both exact edges are now retained.
-
-Blast radius: Kentridge playable character composition, generic visual grounding, and existing Kentridge production acceptance only. Other placeholder identities are unchanged. Cost remains the existing host tick plus one production Madeline prefab; grounding replaces the prior per-character Kentridge grounding behavior rather than adding a new world/streaming scan.
+## Blast radius / cost
+Only Kentridge playable character composition, reusable visual grounding, Madeline presentation, and this existing production acceptance are touched; other placeholders remain unchanged. Runtime cost is the existing per-character host/animation tick plus one production Madeline prefab; grounding replaces the former Kentridge-only behavior and adds no world/streaming scan.
 
 ## Remaining gates
-- [ ] Refresh/merge current `master` immediately before final request.
-- [ ] Green exact-SHA PlayMode test above **and** its configured real-player Kentridge artifact.
-- [ ] Promote open -> pending with metadata, then pending -> closed/fixed after green gates.
-- [ ] Merge latest `master` and non-force push exact feature head to `master`.
+- [ ] Fresh exact-SHA targeted PlayMode + configured built-player validation.
+- [ ] After green, set pending metadata/move open -> pending, then close/fix with `resolvedUtc`.
+- [ ] Merge latest `master`; non-force push the exact feature head to `master`.
