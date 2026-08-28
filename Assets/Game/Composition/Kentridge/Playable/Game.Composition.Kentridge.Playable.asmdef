@@ -5,7 +5,8 @@
     "Game.Combat.Api",
     "Game.Combat.Runtime",
     "Game.Input.Api",
-    "Game.Input.Runtime"
+    "Game.Input.Runtime",
+    "MountingForce.WorldGen.Core"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

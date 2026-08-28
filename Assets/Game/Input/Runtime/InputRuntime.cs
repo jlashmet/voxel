@@ -91,5 +91,17 @@ namespace Game.Input.Runtime
                 UnityEngine.Input.GetKeyDown(KeyCode.Return) || UnityEngine.Input.GetKeyDown(KeyCode.Space),
                 UnityEngine.Input.GetKeyDown(KeyCode.Escape));
         }
+
+        /// <summary>
+        /// Transitional ownership gate for legacy scene controllers that still read UnityEngine.Input
+        /// directly. Combat samples first, then clears the Unity frame so an older exploration reader
+        /// cannot consume the same physical intent. This lives in Input.Runtime because device-state
+        /// ownership must not leak into Combat or its deterministic simulation.
+        /// </summary>
+        public void SuppressLegacyReadersForCurrentFrame()
+        {
+            if (_contexts.ActiveContext == InputContextId.Combat)
+                UnityEngine.Input.ResetInputAxes();
+        }
     }
 }
