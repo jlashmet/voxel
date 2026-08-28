@@ -86,11 +86,11 @@ with every original capture before promotion.
 Binary verification evidence is a normal repository artifact and is expected to be uploaded and
 committed; do not stop merely because the evidence is an image or another binary file. If the file
 already exists as an uploaded or mounted workspace file, it is valid input for the repository
-commit. Prefer a normal Git checkout (`git add`, commit, push) when available. In connector-based
-environments, use the GitHub repository write action that explicitly accepts a file or file-path
-argument and pass the mounted file directly. It is okay to upload the file. Do not substitute a text
-placeholder for binary evidence, and do not route binary bytes through text-only `create_file` or
-`update_file` actions.
+commit. In connector-based environments, use `GitHub.create_blob` for binary evidence, then attach
+the returned blob SHA with `GitHub.create_tree`, create the commit with `GitHub.create_commit`, and
+advance the intended feature ref with non-force `GitHub.update_ref`. It is okay to upload the file
+through `create_blob`; do not substitute a text placeholder or use text-only `create_file` or
+`update_file` for binary evidence. Verify the resulting blob/file before promotion.
 
 ## Targeted CI
 
