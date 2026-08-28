@@ -1,7 +1,7 @@
 using System;
-using System.Collections.Generic;
 using Game.Composition.Campaign.Content;
 using Game.Composition.Kentridge.Api;
+using Game.Composition.Kentridge.Playable;
 using Game.Composition.Kentridge.Runtime;
 using Game.Composition.WorldBuilderWorldGen;
 using Game.Composition.WorldBuilderWorldGen.Runtime;
@@ -14,7 +14,6 @@ using MountingForce.WorldGen.Content.Kentridge;
 using MountingForce.WorldGen.Voxel;
 using Unity.Collections;
 using UnityEngine;
-using VoxelEngine.Characters.Runtime;
 using VoxelEngine.Composition;
 using VoxelEngine.Showcase;
 using VoxelEngine.Structures.Api;
@@ -61,8 +60,8 @@ namespace Game.Kentridge.PlayableSlice
         [SerializeField] private float m_InteractionRangeMetres = 2.5f;
 
         private ShowcaseWorld _world;
-        private CharacterMotor _motor;
-        private ActorHost _actors;
+        private KentridgeCharacterHost _motor;
+        private KentridgeCharacterHost _actors;
         private SlicePresentation _presentation;
         private KentridgeCampaignSession _session;
         private KentridgeGameplaySiteAccess _pubAccess;
@@ -153,10 +152,6 @@ namespace Game.Kentridge.PlayableSlice
                     m_LoadRadiusRegions,
                     m_UnloadRadiusRegions,
                     tierBytes);
-                // Both towns, in one world. Kentridge carries the campaign — its authored buildings,
-                // NPCs, hidden spaces and the opening cutscene — while Hightown is generated from
-                // its own plan and theme. They are separate settlements sharing one coordinate
-                // space, so the only thing that has to be joined is the catalogue the world takes.
                 FeatureCatalogue kentridgeCatalogue = KentridgeCombinedVoxelCatalogue.Build(
                     settlement,
                     BuildSettings(kentridge: true),
@@ -166,10 +161,6 @@ namespace Game.Kentridge.PlayableSlice
                     ? HightownVoxelCatalogue.Build(
                         hightown, BuildSettings(kentridge: false), Allocator.Temp)
                     : default(FeatureCatalogue);
-
-                // The country between them: the road joining the two towns, the river crossing it,
-                // and the bridge carrying the road over the water. Generated together so the
-                // crossing point is chosen once and all three agree on it.
                 FeatureCatalogue corridorCatalogue = RegionCorridorCatalogue.Build(
                     m_Seed,
                     BuildSettings(kentridge: true),
@@ -192,12 +183,8 @@ namespace Game.Kentridge.PlayableSlice
                     corridorCatalogue.Dispose();
                 }
                 _world.ConfigureGeneratedContentForGameplay(catalogue);
-                catalogue = default(FeatureCatalogue); // ownership transferred to ShowcaseWorld
+                catalogue = default(FeatureCatalogue);
 
-                // The country between the towns is themed, and the theme is what decides what
-                // grows and lives there. Both the forest band and the river crossing are derived
-                // from the same corridor plan, so the pine forest is the wood the bridge stands in
-                // rather than a separate scattering that happens to be nearby.
                 RegionCorridorPlan corridorPlan = RegionCorridorCatalogue.Plan(
                     m_Seed, BuildSettings(kentridge: true),
                     settlement.CentreDm, hightown.CentreDm);
@@ -205,8 +192,8 @@ namespace Game.Kentridge.PlayableSlice
                     settlement.CentreDm.Y, hightown.CentreDm.Y, corridorPlan.CrossingZDm);
                 _corridorPlan = corridorPlan;
 
-                _motor = new CharacterMotor { WalkSpeed = m_WalkSpeed };
-                _actors = new ActorHost(_motor);
+                _motor = new KentridgeCharacterHost(m_WalkSpeed);
+                _actors = _motor;
                 _presentation = new SlicePresentation(ApplyCutsceneCamera);
                 _session = KentridgeCampaignSessionBootstrap.CreateSession(
                     content.Blueprint,
@@ -218,17 +205,8 @@ namespace Game.Kentridge.PlayableSlice
                 RenderingComposition.ResetSurfacePassDiagnostics("kentridge-playable-slice-enabled");
                 RenderingComposition.SetSurfaceBuildEnabled(false);
                 RenderingComposition.SetFarBaseHeight(ShowcaseWorld.BaseHeightVoxels);
-
-                // Cap the LOD rings at what this scene actually streams. Left at the 409.6 m
-                // default the renderer wants chunks for ground three times further out than any
-                // region will ever exist for, so several hundred chunks are permanently "missing",
-                // extraction never converges, and the build budget stays scaled up for visible
-                // incompleteness — which is why the slice ran at 23 fps and never settled.
                 RenderingComposition.SetVoxelRingRadiusMetres(
                     m_LoadRadiusRegions * ShowcaseWorld.RegionMetres);
-
-                // Set explicitly rather than inherited: this is a static on the scheduler, so a
-                // scene that leaves it alone runs with whatever the previously loaded scene chose.
                 RenderingComposition.SetVoxelDetailBandScale(m_DetailBandScale);
                 float streamedMetres = m_LoadRadiusRegions * ShowcaseWorld.RegionMetres;
                 _farTerrain = VoxelFarTerrain.Create(
@@ -255,8 +233,6 @@ namespace Game.Kentridge.PlayableSlice
                 GenerateAt(_pubAccess.ExteriorApproach);
                 RenderingComposition.SetSurfaceBuildEnabled(true);
 
-                // Dress the country once the world is populated: both vegetation and wildlife read
-                // the built surface to decide where not to go, so this has to follow generation.
                 _lifeHost = new GameObject("Kentridge Region Life");
                 _life = _lifeHost.AddComponent<KentridgeRegionLife>();
                 _life.Populate(
@@ -267,10 +243,6 @@ namespace Game.Kentridge.PlayableSlice
                     (hightown.CentreDm.Y - 700) * DecimetresToMetres,
                     halfWidthMetres: 90f);
 
-                // The semantic world and actor host are ready here, but surface
-                // extraction/publication is asynchronous. Do not burn the story clock against a
-                // bare terrain plane: park the player and stage camera, then start New Game only
-                // after the renderer says the visible near set has actually been published.
                 Vector3 openingLeadStart = ToMetres(
                     openingStage.Resolve(KentridgeOpeningCutscene.LeadStart).Position);
                 _motor.Position = openingLeadStart;
@@ -350,9 +322,6 @@ namespace Game.Kentridge.PlayableSlice
             float dt = Time.deltaTime;
             _actors.Tick(dt);
 
-            // New Game is deliberately presentation-gated. Storage generation is synchronous,
-            // surface extraction/publication is not; the recovered opening must not begin until
-            // the generated pub is actually drawable from its establishing camera.
             if (!_openingStarted)
             {
                 TickOpeningPreload();
@@ -367,20 +336,11 @@ namespace Game.Kentridge.PlayableSlice
                 && !_openingGameplayReleased
                 && _session.Runtime.IsCutsceneCompleted(_introCutscene))
             {
-                // Only the opening owns a special gameplay spawn. Later cutscenes must return
-                // control in-place; reusing this handoff for every cutscene teleports the player
-                // all the way back inside the pub after a destination conversation.
                 ReleasePlayerForGameplay();
                 _openingGameplayReleased = true;
             }
             _cutsceneOwnedControl = hasActiveCutscene;
 
-            // Scripted measurement modes deliberately take camera control even if the authored
-            // opening has not finished. A standalone capture can spend tens of wall-clock seconds
-            // streaming its first frame; making it wait for the whole cutscene meant the harness
-            // logged "survey on" while every screenshot still came from the pub staging camera.
-            // These flags are command-line opt-ins, so normal play still gives the cutscene first
-            // refusal exactly as before.
             if (AutoSurvey)
             {
                 StepAutoSurvey(dt);
@@ -391,10 +351,6 @@ namespace Game.Kentridge.PlayableSlice
             }
             else if (AutoWalk)
             {
-                // Walking is the only mode that exercises streaming and collision from eye level,
-                // which is where ground texturing is actually judged. It also has to release the
-                // player from the cutscene first: the opening holds control indefinitely waiting
-                // on a dialogue click that an unattended capture will never provide.
                 if (hasActiveCutscene) ReleaseForScriptedWalk();
                 StepAutoWalk(dt);
                 UpdateExitedPub();
@@ -409,8 +365,6 @@ namespace Game.Kentridge.PlayableSlice
                 HandleKeys();
                 if (_session.Runtime.HasActiveCutscene)
                 {
-                    // An E interaction can start a cutscene in this very frame. Transfer control
-                    // immediately instead of allowing one extra frame of player look/movement.
                     _cutsceneOwnedControl = true;
                     if (!_openingCutsceneCameraActive) ApplyPlayerCameraFacing();
                 }
@@ -422,18 +376,9 @@ namespace Game.Kentridge.PlayableSlice
                 }
             }
 
-            // The opening's establishing camera is a stage camera, not the player's eyes. The
-            // original game held that shot on the pub group while Weldon and then Logan entered
-            // the frame. Once the opening releases, normal first-person follow resumes.
             if (!_openingCutsceneCameraActive)
                 transform.position = _motor.EyePosition;
 
-            // Spend far more of the frame on generation while the player does not have control.
-            // The steady-state budget is sized so walking never stutters, but during the opening
-            // cutscene nobody is walking — and at 3 ms a frame the roughly nine seconds of region
-            // work this world needs takes the better part of a minute of wall clock, which is the
-            // whole of the "takes forever to load" complaint. Once control is handed over the
-            // budget drops back to the walking figure.
             float budget = hasActiveCutscene
                 ? m_LoadingGenerateBudgetMs
                 : m_GenerateBudgetMs;
@@ -449,8 +394,6 @@ namespace Game.Kentridge.PlayableSlice
         private void TickOpeningPreload()
         {
             ApplyOpeningCameraPose();
-
-            // Residency follows Weldon's authored entrance mark, not the detached stage camera.
             _world.StepStreaming(_motor.EyePosition, m_LoadingGenerateBudgetMs);
             if (_farTerrain != null)
             {
@@ -470,6 +413,7 @@ namespace Game.Kentridge.PlayableSlice
             _openingStarted = true;
             _cutsceneOwnedControl = true;
         }
+
         private void HandleKeys()
         {
             if (Input.GetKeyDown(KeyCode.Escape)) SetCursorLocked(!_mouseLook);
@@ -477,11 +421,6 @@ namespace Game.Kentridge.PlayableSlice
             if (Input.GetKeyDown(KeyCode.E)) TryInteractWithNearbyNpc();
         }
 
-        /// <summary>
-        /// Performs the same semantic NPC interaction used by the player-facing E key. Eligibility
-        /// comes from the campaign blueprint's RequiresConversation flag; distance comes from the
-        /// authoritative spawned actor position; story/objective consequences stay in CampaignRuntime.
-        /// </summary>
         public bool TryInteractWithNearbyNpc()
         {
             if (_session == null || _actors == null || _motor == null) return false;
@@ -494,10 +433,6 @@ namespace Game.Kentridge.PlayableSlice
             return true;
         }
 
-        /// <summary>
-        /// Exposes the currently realized destination actor position for navigation/objective-marker
-        /// consumers without leaking the actor GameObject or making authored coordinates authoritative.
-        /// </summary>
         public bool TryGetDestinationNpcWorldPosition(out Vector3 position)
         {
             if (_actors != null && _actors.TryGetNpcPosition(_destinationNpc, out position))
@@ -516,8 +451,6 @@ namespace Game.Kentridge.PlayableSlice
             float bestDistanceSquared = maxDistance * maxDistance;
             bool found = false;
 
-            // Blueprint order is deterministic and is the semantic source of which NPCs are
-            // conversational. The actor host contributes only current physical positions.
             for (int i = 0; i < _session.Blueprint.Npcs.Count; i++)
             {
                 NpcSpec candidate = _session.Blueprint.Npcs[i];
@@ -538,12 +471,6 @@ namespace Game.Kentridge.PlayableSlice
 
         private void ReleasePlayerForGameplay()
         {
-            // Cutscene marks are performance positions, not gameplay-safe spawns. Hand control back
-            // at the architecture-owned interior doorway approach instead. Snap that authored point
-            // to the composed voxel floor so the full capsule is safe, then face the public exit.
-            // The player must cross the generated doorway under normal CharacterMotor collision;
-            // composition is not allowed to teleport across the world/gameplay boundary it claims
-            // to integrate.
             Vector3 interior = ToMetres(_pubAccess.InteriorApproach);
             Vector3 exterior = ToMetres(_pubAccess.ExteriorApproach);
             Vector3 facing = exterior - interior;
@@ -562,11 +489,6 @@ namespace Game.Kentridge.PlayableSlice
             }
         }
 
-        /// <summary>
-        /// Emergency player-facing escape hatch for malformed or partially streamed geometry.
-        /// It intentionally preserves X/Z and sets the feet, rather than the camera, to world
-        /// Y=100 so the character can steer while falling back toward the world.
-        /// </summary>
         public void RescuePlayerToY100()
         {
             if (_motor == null) return;
@@ -577,13 +499,6 @@ namespace Game.Kentridge.PlayableSlice
             transform.position = _motor.EyePosition;
         }
 
-        /// <summary>
-        /// Draws the line currently being spoken and advances it on a click.
-        ///
-        /// Placed at the foot of the screen and sized to the text, so a long line is readable
-        /// rather than clipped. The prompt is explicit because nothing else on screen tells the
-        /// player that the scene is waiting on them rather than stalled.
-        /// </summary>
         private void DrawDialogue()
         {
             DialogueLine line = _presentation?.Pending;
@@ -623,10 +538,6 @@ namespace Game.Kentridge.PlayableSlice
                       "click to continue", prompt);
         }
 
-        /// <summary>
-        /// Advances dialogue. Checked before cutscene camera handling so a click during the scene
-        /// is a reply rather than being swallowed by the locked cutscene camera.
-        /// </summary>
         private bool TryAdvanceDialogue()
         {
             DialogueLine pending = _presentation?.Pending;
@@ -635,11 +546,6 @@ namespace Game.Kentridge.PlayableSlice
             bool clicked = Input.GetMouseButtonDown(0)
                         || Input.GetKeyDown(KeyCode.Space)
                         || Input.GetKeyDown(KeyCode.Return);
-
-            // Waiting for a reader is correct for a player and fatal for an unattended capture:
-            // nobody clicks, so the scene stalls on its first line and the world behind it is
-            // never photographed. The flag exists only so an automated run can read at a fixed
-            // pace; without it the line waits indefinitely, as it should.
             bool timedOut = s_AutoAdvanceSeconds > 0f
                          && Time.realtimeSinceStartup - pending.ShownAt >= s_AutoAdvanceSeconds;
 
@@ -693,13 +599,6 @@ namespace Game.Kentridge.PlayableSlice
             string value = ReadArgument("-voxel-survey-role");
             return int.TryParse(value, out int role) && role >= 0 && role <= 16 ? role : -1;
         }
-
-        // -- scripted measurement camera -----------------------------------------
-        //
-        // The slice had no way to be driven without a person at the keyboard, so a player build of
-        // it could not be photographed or checked. These are the same scripted modes the showcase
-        // scenes expose; the landmark is Kentridge's town centre, so receding from it flies the
-        // corridor toward Hightown and crosses the bridge on the way.
 
         public bool AutoWalk { get; set; }
         public bool AutoSurvey { get; set; }
@@ -761,12 +660,6 @@ namespace Game.Kentridge.PlayableSlice
 
             int x = point.X;
             int z = point.Y;
-            // SurfaceHeight returns zero until the requested region is resident. At Hightown's
-            // low plots that happened to be harmless; at Kentridge's high civic terrace it put
-            // the survey camera beneath the world and produced an all-blue, upside-down capture.
-            // The authored vertical profile is deterministic and available before streaming, so
-            // it is the correct initial camera contract. Once resident, rendering still comes
-            // entirely from the real world and its extracted surface.
             return new Vector3(
                 x * DecimetresToMetres,
                 authoredGround * DecimetresToMetres,
@@ -807,10 +700,6 @@ namespace Game.Kentridge.PlayableSlice
             if (surveyRole != _loggedSurveyRole)
             {
                 _loggedSurveyRole = surveyRole;
-                // Each inspection starts from the authored public frontage. Letting one global
-                // orbit continue across role changes put the camera behind plots — and, in the
-                // dense market, directly through neighbouring roofs — so the resulting real-player
-                // screenshots could not actually be used to judge the requested facade.
                 _yaw = SurveyFrontageYawDegrees(surveyRole);
                 Debug.Log($"SURVEYROLE town={s_SurveyTown ?? KentridgeDefinition.Id} "
                         + $"role={surveyRole} name={(KentridgeRole)surveyRole}");
@@ -865,8 +754,6 @@ namespace Game.Kentridge.PlayableSlice
                 {
                     BuildingPlot plot = plan.Plots[i];
                     if (plot.RoleId != surveyRole) continue;
-                    // StepAutoSurvey places yaw zero south of the target. Frontage values are
-                    // quarter-turns from the grammar's authored south-facing facade.
                     return -90f * ((byte)plot.Frontage & 3);
                 }
             }
@@ -898,16 +785,6 @@ namespace Game.Kentridge.PlayableSlice
             return Mathf.Min(8f, SurveyHeightMetres * 0.35f);
         }
 
-        /// <summary>
-        /// Flies north up the corridor at a height that keeps the road, the river and the bridge
-        /// in frame — the route a player would walk between the towns.
-        /// </summary>
-        /// <summary>
-        /// Ends the opening so a scripted walk can start, without the dialogue beat it would
-        /// otherwise block on. Nothing is skipped that a player would see: an unattended capture
-        /// has nobody to click through the lines, so waiting is an indefinite stall rather than a
-        /// pause. Only the command-line walk modes reach this.
-        /// </summary>
         private void ReleaseForScriptedWalk()
         {
             _presentation?.DismissPending();
@@ -922,15 +799,6 @@ namespace Game.Kentridge.PlayableSlice
             _cutsceneOwnedControl = false;
         }
 
-        /// <summary>
-        /// Walks a slow arc through synthetic input rather than moving the transform.
-        ///
-        /// Driving the motor is the point: a teleport skips collision, ground resolution and the
-        /// streaming that a walk is being measured for, so a capture taken from one proves nothing
-        /// about whether the world is walkable. The steady turn keeps new ground entering frame so
-        /// a stall in extraction shows up as terrain arriving late rather than never being asked
-        /// for.
-        /// </summary>
         private void StepAutoWalk(float dt)
         {
             const float DegreesPerSecond = 18f;
@@ -1016,10 +884,6 @@ namespace Game.Kentridge.PlayableSlice
             Vector3 madeline = ToMetres(stage.Resolve(KentridgeOpeningCutscene.MadelineStage).Position);
             Vector3 steven = ToMetres(stage.Resolve(KentridgeOpeningCutscene.StevenStage).Position);
 
-            // Match the first game's staging rather than the gameplay camera: hold on the pub
-            // conversation area while Weldon walks into it. A modest horizontal offset keeps the
-            // entrance path readable; most of the separation is vertical so the result is the
-            // overhead ensemble shot the original 2D camera naturally provided.
             Vector3 floorFocus = (leadStage + madeline + steven) / 3f;
             Vector3 approach = floorFocus - leadStart;
             approach.y = 0f;
@@ -1034,11 +898,6 @@ namespace Game.Kentridge.PlayableSlice
                     HorizontalDistance(floorFocus, madeline),
                     HorizontalDistance(floorFocus, steven)));
 
-            // The opening is staged on the generated pub's ground floor. Kentridge's hospitality
-            // buildings have an intermediate floor at the first level height, so the previous
-            // 4.2-5.5 m camera sat above that slab and photographed the roof instead of the actors.
-            // Keep the same semantic horizontal framing, but cap the elevated shot below the
-            // architecture-owned first-floor level with enough clearance for the slab itself.
             float groundFloorHeight =
                 KentridgeDefinition.Theme.FloorHeightDm * DecimetresToMetres;
             float maximumInteriorHeight = groundFloorHeight - 0.6f;
@@ -1119,8 +978,6 @@ namespace Game.Kentridge.PlayableSlice
                 return;
             }
 
-            // Automated review frames are evidence of the world, not of the debug HUD. Normal
-            // players never set these modes and retain the authored dialogue and control prompt.
             if (AutoSurvey || AutoRecede) return;
 
             DrawDialogue();
@@ -1170,6 +1027,7 @@ namespace Game.Kentridge.PlayableSlice
                 "Loading Kentridge…",
                 style);
         }
+
         private static Vector3 ToMetres(CutsceneInt3 point) =>
             new Vector3(
                 point.X * DecimetresToMetres,
@@ -1185,18 +1043,8 @@ namespace Game.Kentridge.PlayableSlice
                 point.Position.Z * scale);
         }
 
-        private static CutsceneInt3 ToCutscene(Vector3 metres) =>
-            new CutsceneInt3(
-                Mathf.RoundToInt(metres.x / DecimetresToMetres),
-                Mathf.RoundToInt(metres.y / DecimetresToMetres),
-                Mathf.RoundToInt(metres.z / DecimetresToMetres));
-
         private static VoxelWorldGenSettings BuildSettings(bool kentridge)
         {
-            // Kentridge's small warm masonry and Hightown's cool ashlar are separate material
-            // projections of the same semantic roles. Previously both towns mapped Masonry to the
-            // same neutral stone byte, so their authored themes differed on paper and collapsed to
-            // one grey town in the player.
             var materials = new VoxelMaterialMap(
                 foundationStone: kentridge ? (byte)20 : (byte)6,
                 masonry: kentridge ? (byte)18 : (byte)1,
@@ -1219,414 +1067,6 @@ namespace Game.Kentridge.PlayableSlice
                 CutsceneStageSetupDefinition.Empty,
                 new[] { CutsceneStep.Dialogue(speaker, new CutsceneCueId(id + ".dialogue")) });
 
-        private sealed class PlayerActor : ICutsceneActorRuntime
-        {
-            private readonly CharacterMotor _motor;
-            private readonly GameObject _root;
-            private readonly CharacterAnimationPolicy _animation;
-            private PlayerMoveOperation _move;
-
-            public Vector3 Facing { get; private set; } = Vector3.forward;
-            public CutsceneInt3 Position => ToCutscene(_motor.Position);
-
-            public PlayerActor(CharacterMotor motor)
-            {
-                _motor = motor ?? throw new ArgumentNullException(nameof(motor));
-                _root = CutsceneCast.CreateBody("Weldon");
-                _animation = _root.GetComponentInChildren<CharacterAnimationPolicy>();
-                _root.SetActive(false);
-            }
-
-            public void PlaceAt(CutsceneStagePoint destination)
-            {
-                _move = null;
-                SetPosition(ToMetres(destination.Position));
-                _motor.Velocity = Vector3.zero;
-                SetFacing(destination.Forward);
-                SetCutsceneBodyVisible(true);
-                _animation?.SetLocomotion(CharacterLocomotionState.Idle);
-            }
-
-            public ICutsceneOperation MoveTo(
-                CutsceneStagePoint destination,
-                int durationHintMilliseconds)
-            {
-                _move = new PlayerMoveOperation(
-                    this,
-                    _motor.Position,
-                    ToMetres(destination.Position),
-                    durationHintMilliseconds * 0.001f);
-                return _move;
-            }
-
-            public ICutsceneOperation FaceTowards(CutsceneInt3 targetPosition)
-            {
-                Vector3 direction = ToMetres(targetPosition) - _motor.Position;
-                direction.y = 0f;
-                if (direction.sqrMagnitude > 1e-6f)
-                {
-                    Facing = direction.normalized;
-                    ApplyBodyFacing();
-                }
-                return CompletedCutsceneOperation.Instance;
-            }
-
-            public void Tick(float dt)
-            {
-                _move?.Tick(dt);
-                if (_move != null && _move.IsComplete) _move = null;
-                _animation?.Tick();
-            }
-
-            public void SetCutsceneBodyVisible(bool visible)
-            {
-                if (_root == null) return;
-                _root.SetActive(visible);
-                if (visible)
-                {
-                    _root.transform.position = _motor.Position;
-                    ApplyBodyFacing();
-                }
-            }
-
-            public void Dispose()
-            {
-                if (_root != null) UnityEngine.Object.Destroy(_root);
-            }
-
-            private void SetPosition(Vector3 position)
-            {
-                _motor.Position = position;
-                _motor.Velocity = Vector3.zero;
-                if (_root != null) _root.transform.position = position;
-            }
-
-            private void SetFacing(CutsceneInt3 facing)
-            {
-                Vector3 direction = new Vector3(facing.X, facing.Y, facing.Z);
-                direction.y = 0f;
-                if (direction.sqrMagnitude > 1e-6f)
-                {
-                    Facing = direction.normalized;
-                    ApplyBodyFacing();
-                }
-            }
-
-            private void ApplyBodyFacing()
-            {
-                if (_root == null || Facing.sqrMagnitude < 1e-6f) return;
-                Vector3 flat = new Vector3(Facing.x, 0f, Facing.z).normalized;
-                if (flat.sqrMagnitude > 1e-6f)
-                    _root.transform.rotation = Quaternion.LookRotation(flat, Vector3.up);
-            }
-
-            private sealed class PlayerMoveOperation : ICutsceneOperation
-            {
-                private readonly PlayerActor _actor;
-                private readonly Vector3 _start;
-                private readonly Vector3 _destination;
-                private readonly float _duration;
-                private float _elapsed;
-
-                public bool IsComplete { get; private set; }
-
-                public PlayerMoveOperation(
-                    PlayerActor actor,
-                    Vector3 start,
-                    Vector3 destination,
-                    float duration)
-                {
-                    _actor = actor;
-                    _start = start;
-                    _destination = destination;
-                    _duration = Mathf.Max(0f, duration);
-
-                    Vector3 direction = _destination - _start;
-                    direction.y = 0f;
-                    if (direction.sqrMagnitude > 1e-6f)
-                    {
-                        _actor.Facing = direction.normalized;
-                        _actor.ApplyBodyFacing();
-                    }
-
-                    if (_duration == 0f)
-                    {
-                        _actor.SetPosition(_destination);
-                        _actor._animation?.SetLocomotion(CharacterLocomotionState.Idle);
-                        IsComplete = true;
-                    }
-                    else
-                    {
-                        _actor._animation?.SetLocomotion(CharacterLocomotionState.Walk);
-                    }
-                }
-
-                public void Tick(float dt)
-                {
-                    if (IsComplete) return;
-                    _elapsed = Mathf.Min(_duration, _elapsed + Mathf.Max(0f, dt));
-                    float t = _duration <= 0f ? 1f : _elapsed / _duration;
-                    _actor.SetPosition(Vector3.Lerp(_start, _destination, t));
-                    if (_elapsed >= _duration)
-                    {
-                        _actor._animation?.SetLocomotion(CharacterLocomotionState.Idle);
-                        IsComplete = true;
-                    }
-                }
-            }
-        }
-
-        private sealed class NpcActor : ICutsceneActorRuntime
-        {
-            private readonly GameObject _root;
-            private CutsceneInt3 _position;
-            private CharacterAnimationPolicy _animation;
-            private NpcMoveOperation _move;
-
-            public CutsceneInt3 Position => _position;
-
-            public NpcActor(string name, CutsceneInt3 position)
-            {
-                _root = CutsceneCast.CreateBody(name);
-                SetPosition(position);
-                _animation = _root.GetComponentInChildren<CharacterAnimationPolicy>();
-                _animation?.SetLocomotion(CharacterLocomotionState.Idle);
-            }
-
-            public void PlaceAt(CutsceneStagePoint destination)
-            {
-                _move = null;
-                SetPosition(destination.Position);
-                SetFacing(destination.Forward);
-                _animation?.SetLocomotion(CharacterLocomotionState.Idle);
-            }
-
-            public ICutsceneOperation MoveTo(
-                CutsceneStagePoint destination,
-                int durationHintMilliseconds)
-            {
-                _move = new NpcMoveOperation(
-                    this,
-                    ToMetres(_position),
-                    ToMetres(destination.Position),
-                    durationHintMilliseconds * 0.001f);
-                return _move;
-            }
-
-            public ICutsceneOperation FaceTowards(CutsceneInt3 targetPosition)
-            {
-                Vector3 direction = ToMetres(targetPosition) - ToMetres(_position);
-                direction.y = 0f;
-                if (direction.sqrMagnitude > 1e-6f)
-                    _root.transform.rotation = Quaternion.LookRotation(direction.normalized, Vector3.up);
-                return CompletedCutsceneOperation.Instance;
-            }
-
-            public void Dispose() => UnityEngine.Object.Destroy(_root);
-
-            private void SetPosition(CutsceneInt3 position)
-            {
-                _position = position;
-                // Humanoid models are authored with their origin at the feet, unlike the capsule
-                // that stood here before, which was centred.
-                _root.transform.position = ToMetres(position);
-            }
-
-            private void SetPosition(Vector3 position)
-            {
-                _position = ToCutscene(position);
-                _root.transform.position = position;
-            }
-
-            private void SetFacing(CutsceneInt3 facing)
-            {
-                Vector3 direction = new Vector3(facing.X, facing.Y, facing.Z);
-                direction.y = 0f;
-                if (direction.sqrMagnitude > 1e-6f)
-                    _root.transform.rotation = Quaternion.LookRotation(direction.normalized, Vector3.up);
-            }
-
-            public void Tick(float dt)
-            {
-                _move?.Tick(dt);
-                if (_move != null && _move.IsComplete) _move = null;
-                _animation?.Tick();
-            }
-
-            private sealed class NpcMoveOperation : ICutsceneOperation
-            {
-                private readonly NpcActor _actor;
-                private readonly Vector3 _start;
-                private readonly Vector3 _destination;
-                private readonly float _duration;
-                private float _elapsed;
-
-                public bool IsComplete { get; private set; }
-
-                public NpcMoveOperation(
-                    NpcActor actor,
-                    Vector3 start,
-                    Vector3 destination,
-                    float duration)
-                {
-                    _actor = actor;
-                    _start = start;
-                    _destination = destination;
-                    _duration = Mathf.Max(0f, duration);
-
-                    Vector3 direction = _destination - _start;
-                    direction.y = 0f;
-                    if (direction.sqrMagnitude > 1e-6f)
-                        _actor._root.transform.rotation = Quaternion.LookRotation(direction.normalized, Vector3.up);
-
-                    if (_duration == 0f)
-                    {
-                        _actor.SetPosition(_destination);
-                        _actor._animation?.SetLocomotion(CharacterLocomotionState.Idle);
-                        IsComplete = true;
-                    }
-                    else
-                    {
-                        _actor._animation?.SetLocomotion(CharacterLocomotionState.Walk);
-                    }
-                }
-
-                public void Tick(float dt)
-                {
-                    if (IsComplete) return;
-                    _elapsed = Mathf.Min(_duration, _elapsed + Mathf.Max(0f, dt));
-                    float t = _duration <= 0f ? 1f : _elapsed / _duration;
-                    _actor.SetPosition(Vector3.Lerp(_start, _destination, t));
-                    if (_elapsed >= _duration)
-                    {
-                        _actor._animation?.SetLocomotion(CharacterLocomotionState.Idle);
-                        IsComplete = true;
-                    }
-                }
-            }
-        }
-
-        /// <summary>
-        /// Bodies for cutscene actors.
-        ///
-        /// The opening was staged with capsules, which is enough to prove blocking works and
-        /// nothing else: an actor that turns to face another actor reads as a shape rotating.
-        /// The placeholder humanoids already carry a rig, an idle and a walk, so the choreography
-        /// that was already correct now has something legible performing it.
-        /// </summary>
-        private static class CutsceneCast
-        {
-            private const string MalePrefab = "Characters/placeholder_male";
-            private const string FemalePrefab = "Characters/placeholder_female";
-
-            public static GameObject CreateBody(string name)
-            {
-                // Alternate the two available bodies so a group scene is not four copies of one
-                // person. Keyed on the name so a given character is always the same body.
-                string path = (Hash(name) & 1u) == 0u ? MalePrefab : FemalePrefab;
-                var prefab = Resources.Load<GameObject>(path);
-
-                if (prefab == null)
-                {
-                    // Better a visible shape than an invisible actor: a missing prefab would
-                    // otherwise stage the scene with nobody in it.
-                    Debug.LogError("Cutscene body prefab missing at Resources/" + path);
-                    GameObject fallback = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-                    fallback.name = name;
-                    fallback.transform.localScale = new Vector3(0.6f, 0.9f, 0.6f);
-                    return fallback;
-                }
-
-                GameObject body = UnityEngine.Object.Instantiate(prefab);
-                body.name = name;
-                return body;
-            }
-
-            private static uint Hash(string value)
-            {
-                uint h = 2166136261u;
-                for (int i = 0; i < value.Length; i++)
-                {
-                    h ^= value[i];
-                    h *= 16777619u;
-                }
-                return h;
-            }
-        }
-
-        private sealed class ActorHost : IKentridgeCampaignActorHost, IDisposable
-        {
-            private readonly Dictionary<NpcRef, NpcActor> _npcs = new Dictionary<NpcRef, NpcActor>();
-            public PlayerActor Player { get; }
-
-            public ActorHost(CharacterMotor motor) => Player = new PlayerActor(motor);
-
-            public void PrepareNpcs(IReadOnlyList<ResolvedNpcWorldPlacement> placements)
-            {
-                foreach (NpcActor actor in _npcs.Values) actor.Dispose();
-                _npcs.Clear();
-                for (int i = 0; i < placements.Count; i++)
-                {
-                    ResolvedNpcWorldPlacement placement = placements[i];
-                    Int3 point = placement.Position.Position;
-                    _npcs.Add(
-                        placement.Npc,
-                        new NpcActor(
-                            placement.Npc.ToString(),
-                            new CutsceneInt3(point.X, point.Y, point.Z)));
-                }
-            }
-
-            public bool TryResolveNpc(NpcRef npc, out ICutsceneActorRuntime actor)
-            {
-                NpcActor value;
-                bool found = _npcs.TryGetValue(npc, out value);
-                actor = value;
-                return found;
-            }
-
-            public bool TryGetNpcPosition(NpcRef npc, out Vector3 position)
-            {
-                if (_npcs.TryGetValue(npc, out NpcActor actor))
-                {
-                    position = ToMetres(actor.Position);
-                    return true;
-                }
-
-                position = default;
-                return false;
-            }
-
-            public bool TryResolvePlayer(int playerSlot, out ICutsceneActorRuntime actor)
-            {
-                actor = playerSlot == 0 ? Player : null;
-                return actor != null;
-            }
-
-            public void Tick(float dt)
-            {
-                Player.Tick(dt);
-                // Animated bodies need their policy advanced or they hold a single pose.
-                foreach (NpcActor actor in _npcs.Values) actor.Tick(dt);
-            }
-
-            public void Dispose()
-            {
-                Player.Dispose();
-                foreach (NpcActor actor in _npcs.Values) actor.Dispose();
-                _npcs.Clear();
-            }
-        }
-
-        /// <summary>
-        /// One line of dialogue, waiting to be read.
-        ///
-        /// The cutscene runner advances when the operation it was handed reports complete, so a
-        /// line that returns <see cref="CompletedCutsceneOperation"/> is over on the frame it
-        /// started — which is why the opening played silently straight through. Holding the
-        /// operation open until the player dismisses it is what makes dialogue a beat in the scene
-        /// rather than an instant no-op.
-        /// </summary>
         private sealed class DialogueLine : ICutsceneOperation
         {
             public string Speaker { get; }
@@ -1641,8 +1081,6 @@ namespace Game.Kentridge.PlayableSlice
 
             public bool IsComplete => _dismissed;
             public void Dismiss() => _dismissed = true;
-
-            /// <summary>Realtime seconds since the line appeared, for unattended runs.</summary>
             public float ShownAt { get; set; }
         }
 
@@ -1651,8 +1089,6 @@ namespace Game.Kentridge.PlayableSlice
             private readonly Action<CutsceneCueId> _camera;
 
             public string LastCue { get; private set; } = string.Empty;
-
-            /// <summary>The line currently on screen, or null when nobody is speaking.</summary>
             public DialogueLine Pending { get; private set; }
 
             public SlicePresentation(Action<CutsceneCueId> camera) =>

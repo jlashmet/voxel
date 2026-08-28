@@ -32,26 +32,47 @@ namespace Game.Composition.Kentridge.Playable
             _player = new PlayerActor(_motor);
         }
 
+        // Compatibility-facing surface for scene composition. The scene can still choose spawn,
+        // input and camera values, but the authoritative movement/runtime object is this Game-owned
+        // host rather than CharacterMotor or a scene-local actor implementation.
+        public KentridgeCharacterHost Player => this;
+        public Vector3 Position
+        {
+            get => _motor.Position;
+            set => _motor.Position = value;
+        }
+        public Vector3 Velocity
+        {
+            get => _motor.Velocity;
+            set => _motor.Velocity = value;
+        }
+        public Vector3 EyePosition => _motor.EyePosition;
+        public float EyeHeight => _motor.EyeHeight;
+        public Vector3 Facing => _player.Facing;
+
         public Vector3 PlayerPosition
         {
             get => _motor.Position;
             set => _motor.Position = value;
         }
-
         public Vector3 PlayerVelocity
         {
             get => _motor.Velocity;
             set => _motor.Velocity = value;
         }
-
         public Vector3 PlayerEyePosition => _motor.EyePosition;
         public float PlayerEyeHeight => _motor.EyeHeight;
         public Vector3 PlayerFacing => _player.Facing;
 
+        public void SetCutsceneBodyVisible(bool visible) => _player.SetCutsceneBodyVisible(visible);
         public void SetPlayerCutsceneBodyVisible(bool visible) => _player.SetCutsceneBodyVisible(visible);
 
+        public void Step(ShowcaseWorld world, Vector3 wish, bool sprint, bool jumpHeld, float dt) =>
+            _motor.Step(world, wish, sprint, jumpHeld, dt);
         public void StepPlayer(ShowcaseWorld world, Vector3 wish, bool sprint, bool jumpHeld, float dt) =>
             _motor.Step(world, wish, sprint, jumpHeld, dt);
+        public void SnapToGround(ShowcaseWorld world, Vector3 desiredFeetPosition) =>
+            _motor.SnapToGround(world, desiredFeetPosition);
 
         public void Tick(float dt)
         {
@@ -118,7 +139,7 @@ namespace Game.Composition.Kentridge.Playable
         {
             private readonly CharacterMotor _motor;
             private readonly GameObject _root;
-            private readonly CharacterAnimationPolicy _animation;
+            private readonly CharacterAnimationDriver _animation;
             private PlayerMoveOperation _move;
 
             public Vector3 Facing { get; private set; } = Vector3.forward;
@@ -128,7 +149,7 @@ namespace Game.Composition.Kentridge.Playable
             {
                 _motor = motor ?? throw new ArgumentNullException(nameof(motor));
                 _root = CharacterPresentation.Create("Weldon");
-                _animation = _root.GetComponentInChildren<CharacterAnimationPolicy>();
+                _animation = new CharacterAnimationDriver(_root);
                 _root.SetActive(false);
             }
 
@@ -139,7 +160,7 @@ namespace Game.Composition.Kentridge.Playable
                 _motor.Velocity = Vector3.zero;
                 SetFacing(destination.Forward);
                 SetCutsceneBodyVisible(true);
-                _animation?.SetLocomotion(CharacterLocomotionState.Idle);
+                _animation.SetLocomotion(CharacterLocomotionState.Idle);
             }
 
             public ICutsceneOperation MoveTo(CutsceneStagePoint destination, int durationHintMilliseconds)
@@ -164,7 +185,7 @@ namespace Game.Composition.Kentridge.Playable
             {
                 _move?.Tick(dt);
                 if (_move != null && _move.IsComplete) _move = null;
-                _animation?.Tick();
+                _animation.Tick();
             }
 
             public void SetCutsceneBodyVisible(bool visible)
@@ -233,10 +254,10 @@ namespace Game.Composition.Kentridge.Playable
                     if (_duration == 0f)
                     {
                         _actor.SetPosition(_destination);
-                        _actor._animation?.SetLocomotion(CharacterLocomotionState.Idle);
+                        _actor._animation.SetLocomotion(CharacterLocomotionState.Idle);
                         IsComplete = true;
                     }
-                    else _actor._animation?.SetLocomotion(CharacterLocomotionState.Walk);
+                    else _actor._animation.SetLocomotion(CharacterLocomotionState.Walk);
                 }
 
                 public void Tick(float dt)
@@ -247,7 +268,7 @@ namespace Game.Composition.Kentridge.Playable
                     _actor.SetPosition(Vector3.Lerp(_start, _destination, t));
                     if (_elapsed >= _duration)
                     {
-                        _actor._animation?.SetLocomotion(CharacterLocomotionState.Idle);
+                        _actor._animation.SetLocomotion(CharacterLocomotionState.Idle);
                         IsComplete = true;
                     }
                 }
@@ -257,7 +278,7 @@ namespace Game.Composition.Kentridge.Playable
         private sealed class NpcActor : ICutsceneActorRuntime
         {
             private readonly GameObject _root;
-            private readonly CharacterAnimationPolicy _animation;
+            private readonly CharacterAnimationDriver _animation;
             private CutsceneInt3 _position;
             private NpcMoveOperation _move;
 
@@ -267,10 +288,17 @@ namespace Game.Composition.Kentridge.Playable
             public NpcActor(string identity, CutsceneInt3 position, GameObject root)
             {
                 _root = root ?? throw new ArgumentNullException(nameof(root));
-                UsesProductionMadeline = CharacterPresentation.IsMadeline(identity) && root.name == "Madeline";
+                Animator animator = root.GetComponentInChildren<Animator>(true);
+                UsesProductionMadeline = CharacterPresentation.IsMadeline(identity)
+                    && root.name == "Madeline"
+                    && animator != null
+                    && animator.avatar != null
+                    && animator.avatar.isHuman
+                    && animator.runtimeAnimatorController != null
+                    && !animator.applyRootMotion;
                 SetPosition(position);
-                _animation = _root.GetComponentInChildren<CharacterAnimationPolicy>();
-                _animation?.SetLocomotion(CharacterLocomotionState.Idle);
+                _animation = new CharacterAnimationDriver(_root);
+                _animation.SetLocomotion(CharacterLocomotionState.Idle);
             }
 
             public void PlaceAt(CutsceneStagePoint destination)
@@ -278,7 +306,7 @@ namespace Game.Composition.Kentridge.Playable
                 _move = null;
                 SetPosition(destination.Position);
                 SetFacing(destination.Forward);
-                _animation?.SetLocomotion(CharacterLocomotionState.Idle);
+                _animation.SetLocomotion(CharacterLocomotionState.Idle);
             }
 
             public ICutsceneOperation MoveTo(CutsceneStagePoint destination, int durationHintMilliseconds)
@@ -299,7 +327,7 @@ namespace Game.Composition.Kentridge.Playable
             {
                 _move?.Tick(dt);
                 if (_move != null && _move.IsComplete) _move = null;
-                _animation?.Tick();
+                _animation.Tick();
             }
 
             public void Dispose() => UnityEngine.Object.Destroy(_root);
@@ -344,10 +372,10 @@ namespace Game.Composition.Kentridge.Playable
                     if (_duration == 0f)
                     {
                         _actor.SetPosition(_destination);
-                        _actor._animation?.SetLocomotion(CharacterLocomotionState.Idle);
+                        _actor._animation.SetLocomotion(CharacterLocomotionState.Idle);
                         IsComplete = true;
                     }
-                    else _actor._animation?.SetLocomotion(CharacterLocomotionState.Walk);
+                    else _actor._animation.SetLocomotion(CharacterLocomotionState.Walk);
                 }
 
                 public void Tick(float dt)
@@ -358,11 +386,44 @@ namespace Game.Composition.Kentridge.Playable
                     _actor.SetPosition(Vector3.Lerp(_start, _destination, t));
                     if (_elapsed >= _duration)
                     {
-                        _actor._animation?.SetLocomotion(CharacterLocomotionState.Idle);
+                        _actor._animation.SetLocomotion(CharacterLocomotionState.Idle);
                         IsComplete = true;
                     }
                 }
             }
+        }
+
+        private sealed class CharacterAnimationDriver
+        {
+            private readonly CharacterAnimationPolicy _policy;
+            private readonly Animator _animator;
+            private CharacterLocomotionState _state = (CharacterLocomotionState)(-1);
+
+            public CharacterAnimationDriver(GameObject root)
+            {
+                _policy = root != null ? root.GetComponentInChildren<CharacterAnimationPolicy>(true) : null;
+                _animator = root != null ? root.GetComponentInChildren<Animator>(true) : null;
+                if (_animator != null) _animator.applyRootMotion = false;
+            }
+
+            public void SetLocomotion(CharacterLocomotionState state)
+            {
+                if (_state == state) return;
+                _state = state;
+                if (_policy != null)
+                {
+                    _policy.SetLocomotion(state);
+                    return;
+                }
+
+                if (_animator == null || _animator.runtimeAnimatorController == null) return;
+                string stateName = state == CharacterLocomotionState.Walk ? "Walk" : "Idle";
+                int stateHash = Animator.StringToHash(stateName);
+                if (_animator.HasState(0, stateHash))
+                    _animator.CrossFadeInFixedTime(stateHash, 0.08f, 0);
+            }
+
+            public void Tick() => _policy?.Tick();
         }
 
         private static class CharacterPresentation
@@ -386,13 +447,15 @@ namespace Game.Composition.Kentridge.Playable
                     GameObject fallback = GameObject.CreatePrimitive(PrimitiveType.Capsule);
                     fallback.name = identity;
                     fallback.transform.localScale = new Vector3(0.6f, 0.9f, 0.6f);
+                    CharacterVisualFootGrounding.Attach(fallback);
                     return fallback;
                 }
 
                 GameObject body = UnityEngine.Object.Instantiate(prefab);
                 body.name = madeline ? "Madeline" : identity;
-                Animator animator = body.GetComponentInChildren<Animator>();
+                Animator animator = body.GetComponentInChildren<Animator>(true);
                 if (animator != null) animator.applyRootMotion = false;
+                CharacterVisualFootGrounding.Attach(body);
                 return body;
             }
 
