@@ -1,24 +1,23 @@
 # Plan — 20260826-135832-898 ArchLookdev foliage
 
 ## Evidence / acceptance
-- One 1928×836 `Hero Arch` pose, no circles. Match `References/arch_reference.png`: lush asymmetric masonry-grown English ivy with overlapping leaves and delicate integrated warm-white/blush blossoms; right masonry sparse.
+- One 1928×836 `Hero Arch` pose, no circles. Match `References/arch_reference.png`: lush asymmetric masonry-grown English ivy with overlapping dimensional leaves and delicate integrated warm-white/blush blossoms; right masonry sparse.
 - Preserve 128 leaves, 30 heads, 3 draws, <=4,096 vertices, two ground ferns. Saved-player inspection is the final gate.
-- Green exact runs repeatedly falsified metric-only fixes. `33153293557` still read as a garland. `33154793211` proved three semantic masses, but direct replay showed lower/haunch growth spilling into the opening and the crown mass floating below the ring.
+- Exact replay `33154793211` falsified mass grouping alone: foliage floated inside the opening. Run `33155444806` proved the masonry attachment visually, but its frame remained sparse/pale/flat and its regression caught crown bouquets at 0.819 m (>0.70 m).
 
 ## Hypotheses / discriminator
 1. Camera/lifecycle/count — rejected.
-2. Architectural frame — springline `y=6.4 m`, crown `y=7.8 m` confirmed.
-3. Mutable-color indexing — fixed: exact ivy is 2,484 vertices / 77 stems.
-4. Local shape/spacing and macro grouping — improved/proven but insufficient.
-5. Current: **surface attachment**. Inner-edge semantic supports must be projected outward onto masonry before the reference composition can read physically grounded.
+2. Architectural frame/attachment — confirmed: lower/haunch growth is on left stone; crown is on the ring.
+3. Topology/stems/slivers — fixed and bounded.
+4. Current: **renderer-facing coverage/relief/material contrast** plus the measured crown bouquet spacing. Keep semantic anchors fixed and change only existing leaf/head presentation.
 
 ## Selected fix / regression
-`ArchReferenceGrowthSemanticMassPass` keeps the three derived left masses (lower pier 0–4, upper haunch 5–9, crown 10–14), one sparse right accent, and two bouquets per left mass. Lower/haunch targets shift 0.34 m left onto the stone face. Crown targets project 0.34 m radially outward from the authored opening springline onto the ring.
+`ArchReferenceGrowthSemanticMassPass` tightens the two crown bouquet offsets to +/-0.20 m before the existing radial masonry projection. `ArchReferenceGrowthFinalPresentationPass` then preserves every semantic cluster centre while expanding the existing non-right leaves 22-28%, amplifying their existing Z relief/normals, enlarging existing heads 14%, and restoring green/blush material multipliers.
 
-`ArchReferenceGrowthSemanticMassPassTests.SemanticMassPassBuildsThreeMasonryMassesAcrossRebuild` proves mass envelopes/gaps/crown sweep, lower+haunch `x < -1.45`, crown foliage/blossoms `y > 7.90`, exact 2,484/77 no-stem/no-sliver topology, unchanged 128/30/3-draw/<=4,096 budget, and rebuild stability.
+`ArchReferenceGrowthFinalPresentationPassTests.FinalPresentationKeepsMasonryAttachmentAndBuildsLayeredBotanicalReadAcrossRebuild` proves masonry anchors, integrated crown bouquets, bounded leaf radius/depth/triangle size, green/blush material contrast, collapsed-stem topology, unchanged 128/30/3-draw/<=4,096 budget, and rebuild stability.
 
 ## Blast radius / cost
-ArchLookdev only. One construction-time translation over existing buffers; no new topology, renderers, draws, materials, per-leaf objects, or steady-state work.
+ArchLookdev only. One bounded construction-time rewrite of existing hero buffers/materials; no new hero topology, renderers, draws, per-leaf objects, or steady-state work.
 
 ## Remaining gates
-Exact-SHA CI on existing `ci-test/fixes/agent-4`, then direct saved-frame inspection. Only if both pass: commit verification; open→pending with complete metadata; pending→closed with `fixed`/`resolvedUtc`; merge latest master; non-force push exact head to master.
+One final exact-SHA targeted CI request on existing `ci-test/fixes/agent-4`, then direct saved-player frame inspection. Only if both pass: commit accepted verification; open→pending with complete metadata; pending→closed with `fixed`/`resolvedUtc`; merge latest master; non-force push exact feature head to master.
