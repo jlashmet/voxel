@@ -120,7 +120,6 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
                     float vineTilt = Mathf.Lerp(-15f, 15f, Random01(instance.Seed ^ 0x68E31DA4u));
                     rotation = Quaternion.LookRotation(normal, Vector3.up)
                                * Quaternion.AngleAxis(vineTilt, Vector3.forward);
-                    // Seeded aspect variation prevents repeated climbers from reading as stamps.
                     float vineWidth = Mathf.Lerp(0.58f, 0.78f, vineShape) * scale;
                     float vineHeight = Mathf.Lerp(1.38f, 1.76f, 1f - vineShape) * scale;
                     localScale = new Vector3(vineWidth, direction * vineHeight, 1f);
@@ -145,9 +144,6 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
                                         profile.GrowthForm == VegetationGrowthForm.Tuft);
                     if (wallMounted)
                     {
-                        // Fronds and flowers attached to masonry still grow upward. Aligning local Y
-                        // to the wall normal makes them project straight out of the stone and hides
-                        // their readable leafy silhouette from a frontal camera.
                         float wallTilt = Mathf.Lerp(-18f, 18f, Random01(instance.Seed ^ 0x1B56C4E9u));
                         rotation = Quaternion.LookRotation(normal, Vector3.up)
                                    * Quaternion.AngleAxis(wallTilt, Vector3.forward);
@@ -199,10 +195,8 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
     }
 
     /// <summary>
-    /// Shared low-cost source meshes. Multiple cards per growth form give plants readable internal
-    /// silhouette detail without sacrificing species batching or introducing authored prefabs.
-    /// Meadow grass is the exception: it uses one packed mesh of solid, segmented ribbon blades so
-    /// the silhouette is world-fixed and never depends on transparency or camera-facing cards.
+    /// Shared low-cost source meshes. Meadow grass uses the accepted packed-ribbon vertex contract;
+    /// all other growth forms retain the existing card/cylinder geometry.
     /// </summary>
     internal static class ProceduralVegetationMeshLibrary
     {
@@ -236,43 +230,62 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
         {
             const int bladeCount = 11;
             const int segments = 4;
-            var vertices = new List<Vector3>(bladeCount * (segments + 1) * 2);
-            var normals = new List<Vector3>(vertices.Capacity);
-            var uv = new List<Vector2>(vertices.Capacity);
-            var bladeData = new List<Vector2>(vertices.Capacity);
+            int capacity = bladeCount * (segments + 1) * 2;
+            var vertices = new List<Vector3>(capacity);
+            var normals = new List<Vector3>(capacity);
+            var uv0 = new List<Vector2>(capacity);
+            var uv1 = new List<Vector2>(capacity);
+            var uv2 = new List<Vector2>(capacity);
+            var uv3 = new List<Vector2>(capacity);
+            var colors = new List<Color>(capacity);
             var triangles = new List<int>(bladeCount * segments * 6);
 
             for (int blade = 0; blade < bladeCount; blade++)
             {
                 float goldenAngle = blade * 137.50776f;
                 float variation = Hash01((uint)(blade + 1) * 0x9E3779B9u);
-                float phase = Hash01((uint)(blade + 7) * 0x85EBCA6Bu);
+                float phase01 = Hash01((uint)(blade + 7) * 0x85EBCA6Bu);
                 float radius = 0.31f * Mathf.Sqrt((blade + 0.35f) / bladeCount);
                 float rootAngle = (goldenAngle + (variation - 0.5f) * 24f) * Mathf.Deg2Rad;
                 Vector3 root = new Vector3(Mathf.Cos(rootAngle) * radius, 0f, Mathf.Sin(rootAngle) * radius);
 
-                float yaw = (goldenAngle + 23f + (phase - 0.5f) * 34f) * Mathf.Deg2Rad;
-                Vector3 right = new Vector3(Mathf.Cos(yaw), 0f, -Mathf.Sin(yaw));
-                Vector3 forward = new Vector3(Mathf.Sin(yaw), 0f, Mathf.Cos(yaw));
-                float height = Mathf.Lerp(0.68f, 1.14f, variation);
-                float width = Mathf.Lerp(0.115f, 0.205f, phase);
-                float lean = Mathf.Lerp(-0.20f, 0.24f, Hash01((uint)(blade + 17) * 0xC2B2AE35u));
+                // Construction-only regional fields: coverage/height, color, and value are kept
+                // decorrelated so local clumps do not look like uniformly tinted stamped tufts.
+                float coverageNoise = Mathf.PerlinNoise(root.x * 2.7f + 12.13f, root.z * 2.7f + 7.71f);
+                float colorNoise = Mathf.PerlinNoise(root.x * 2.1f + 31.47f, root.z * 2.1f + 19.29f);
+                float valueNoise = Mathf.PerlinNoise(root.x * 1.7f + 53.03f, root.z * 1.7f + 41.11f);
+                float coverage = Mathf.SmoothStep(0.42f, 1f, coverageNoise);
+
+                float height = Mathf.Lerp(0.62f, 1.12f, variation) * Mathf.Lerp(0.72f, 1.12f, coverage);
+                float width = Mathf.Lerp(0.115f, 0.205f, phase01) * Mathf.Lerp(0.82f, 1.08f, coverage);
+                float lean = Mathf.Lerp(-0.18f, 0.22f, Hash01((uint)(blade + 17) * 0xC2B2AE35u));
+                float phase = phase01 * Mathf.PI * 2f;
                 int start = vertices.Count;
+
+                Color dark = new Color(0.21f, 0.44f, 0.11f, 1f);
+                Color medium = new Color(0.34f, 0.62f, 0.18f, 1f);
+                Color fresh = new Color(0.49f, 0.76f, 0.25f, 1f);
+                Color sunny = new Color(0.70f, 0.90f, 0.40f, 1f);
+                Color regional = colorNoise < 0.5f
+                    ? Color.Lerp(dark, medium, colorNoise * 2f)
+                    : Color.Lerp(medium, fresh, (colorNoise - 0.5f) * 2f);
+                regional = Color.Lerp(regional, sunny, Mathf.SmoothStep(0.72f, 1f, valueNoise) * 0.34f);
 
                 for (int segment = 0; segment <= segments; segment++)
                 {
                     float t = segment / (float)segments;
                     float curve = t * t;
-                    Vector3 centre = root + Vector3.up * (height * t) + forward * (lean * curve);
+                    float centreLateral = lean * curve;
                     float halfWidth = width * 0.5f * Mathf.Lerp(1f, 0.055f, t);
-                    vertices.Add(centre - right * halfWidth);
-                    vertices.Add(centre + right * halfWidth);
-                    normals.Add(forward);
-                    normals.Add(forward);
-                    uv.Add(new Vector2(0f, t));
-                    uv.Add(new Vector2(1f, t));
-                    bladeData.Add(new Vector2(phase, variation));
-                    bladeData.Add(new Vector2(phase, variation));
+                    float localY = height * t;
+                    Color rootColor = Color.Lerp(dark, regional, 0.58f);
+                    Color tipColor = Color.Lerp(regional, sunny, 0.24f + valueNoise * 0.16f);
+                    Color vertexColor = Color.Lerp(rootColor, tipColor, Mathf.SmoothStep(0f, 1f, t));
+
+                    AddGrassVertex(root, centreLateral - halfWidth, localY, t, phase, vertexColor,
+                        vertices, normals, uv0, uv1, uv2, uv3, colors);
+                    AddGrassVertex(root, centreLateral + halfWidth, localY, t, phase, vertexColor,
+                        vertices, normals, uv0, uv1, uv2, uv3, colors);
                 }
 
                 for (int segment = 0; segment < segments; segment++)
@@ -287,9 +300,47 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
                 }
             }
 
-            Mesh mesh = BuildMesh("Vegetation Solid Meadow Grass Ribbons", vertices, normals, uv, triangles);
-            mesh.SetUVs(1, bladeData);
+            Mesh mesh = NewMesh("Vegetation Packed Meadow Grass Ribbons");
+            mesh.SetVertices(vertices);
+            mesh.SetNormals(normals);
+            mesh.SetUVs(0, uv0);
+            mesh.SetUVs(1, uv1);
+            mesh.SetUVs(2, uv2);
+            mesh.SetUVs(3, uv3);
+            mesh.SetColors(colors);
+            mesh.SetTriangles(triangles, 0);
+            mesh.RecalculateBounds();
+            // Shader reconstructs blades toward camera-right and can push tips by ~0.22 m.
+            Bounds bounds = mesh.bounds;
+            bounds.Expand(new Vector3(0.60f, 0.16f, 0.60f));
+            mesh.bounds = bounds;
             return mesh;
+        }
+
+        private static void AddGrassVertex(
+            Vector3 root,
+            float baseLateral,
+            float localY,
+            float tipFactor,
+            float phase,
+            Color color,
+            List<Vector3> vertices,
+            List<Vector3> normals,
+            List<Vector2> uv0,
+            List<Vector2> uv1,
+            List<Vector2> uv2,
+            List<Vector2> uv3,
+            List<Color> colors)
+        {
+            // positionOS is an authored-bounds approximation only; the shader reconstructs the
+            // final camera-right ribbon from the packed root/lateral/height fields below.
+            vertices.Add(root + new Vector3(baseLateral, localY, 0f));
+            normals.Add(Vector3.up);
+            uv0.Add(new Vector2(root.x, root.z));
+            uv1.Add(new Vector2(root.y, baseLateral));
+            uv2.Add(new Vector2(localY, tipFactor));
+            uv3.Add(new Vector2(phase, 0f));
+            colors.Add(color);
         }
 
         private static float Hash01(uint seed)
