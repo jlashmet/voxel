@@ -4,18 +4,9 @@ using Game.Cutscenes.Api;
 
 namespace Game.Cutscenes.Content.Kentridge
 {
-    /// <summary>
-    /// Spoken content for the Kentridge opening.
-    ///
-    /// Lines 1-31 preserve the spoken text from the original MountingForce Art/Opening.txt.
-    /// Speaker labels from that source file are represented by the cutscene dialogue steps rather
-    /// than repeated in the displayed text. The choreography consumes stable cue ids while
-    /// presentation resolves those ids here, keeping dialogue content separate from staging.
-    /// </summary>
     public static class KentridgeOpeningScript
     {
         public const int OriginalOpeningLineCount = 31;
-
         private const string OpeningCuePrefix = "kentridge.pub.opening.line-";
 
         private static readonly string[] OriginalOpeningLines =
@@ -55,35 +46,29 @@ namespace Game.Cutscenes.Content.Kentridge
 
         private static readonly Dictionary<string, string> AdditionalLines = new Dictionary<string, string>
         {
-            {
-                "destination-conversation.dialogue",
-                "You made it. Tell me what you found on the road."
-            },
+            { "destination-conversation.dialogue", "You made it. Tell me what you found on the road." },
+            { "kentridge.logan.opening.introduction", "You can call me Logan." },
+            { "kentridge.logan.opening.instructions", "Visit your father Awon first, then find Medrare before we continue with Kentridge." },
+            { "kentridge.awon.opening.tournament", "There's a tournament for adventurers in Kentridge. You should hear what they have planned." },
+            { "kentridge.medrare.opening.rumor", "Travelers have been talking about Logan and Kentridge. There may be more to those rumors than it seems." }
         };
 
         public static CutsceneCueId CueForOriginalLine(int oneBasedLineNumber)
         {
             if (oneBasedLineNumber < 1 || oneBasedLineNumber > OriginalOpeningLineCount)
                 throw new ArgumentOutOfRangeException(nameof(oneBasedLineNumber));
-
             return new CutsceneCueId(OpeningCuePrefix + oneBasedLineNumber.ToString("00"));
         }
 
-        /// <summary>
-        /// The spoken text for a cue, or a visible placeholder naming the cue.
-        /// </summary>
         public static string LineFor(CutsceneCueId cue)
         {
             string id = cue.Value ?? string.Empty;
             if (id.StartsWith(OpeningCuePrefix, StringComparison.Ordinal))
             {
                 string suffix = id.Substring(OpeningCuePrefix.Length);
-                if (int.TryParse(suffix, out int lineNumber)
-                    && lineNumber >= 1
-                    && lineNumber <= OriginalOpeningLineCount)
+                if (int.TryParse(suffix, out int lineNumber) && lineNumber >= 1 && lineNumber <= OriginalOpeningLineCount)
                     return OriginalOpeningLines[lineNumber - 1];
             }
-
             return AdditionalLines.TryGetValue(id, out string line) ? line : "[" + id + "]";
         }
     }
