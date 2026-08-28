@@ -279,6 +279,15 @@ namespace Game.WorldBuilder.Voxel
                 spec.PathWidth, endY + 1, finalZSize,
                 mountainMaterial,
                 PrimitiveMode.FillIfEmpty);
+            // The final ascent changes from the alternating X ramps to a Z ramp. Keep the same
+            // explicit flat path landing used by the earlier turns so integer ramp rasterization
+            // cannot leave the direction change connected only by a narrow edge.
+            EmitBox(
+                program,
+                lastHighX, endY, lastRampZ,
+                spec.PathWidth, 1, spec.PathWidth,
+                pathMaterial,
+                PrimitiveMode.Fill);
             EmitRamp(
                 program,
                 lastHighX, endY, finalZMin,
