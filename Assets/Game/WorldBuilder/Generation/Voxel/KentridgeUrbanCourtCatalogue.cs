@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using MountingForce.WorldGen.Content.Kentridge;
 using Unity.Collections;
 using Unity.Mathematics;
+using VoxelEngine.Terrain.Api;
 
 using VoxelEngine.Structures.Api;
 
@@ -13,6 +14,7 @@ namespace MountingForce.WorldGen.Voxel
         public const int CourtEdgeInsetDm = 4;
         public const int SurfaceThicknessDm = 2;
         public const byte CourtPrecedence = 85;
+        private const int SurfacePaintPaddingDm = 4;
 
         private readonly struct CourtBuild
         {
@@ -36,6 +38,8 @@ namespace MountingForce.WorldGen.Voxel
             KentridgeUrbanMassingPlan plan = KentridgeUrbanOrganizer.Build(seed);
             var builds = new CourtBuild[plan.Blocks.Count];
             var programs = new int[plan.Blocks.Count][];
+            var baseY = new int[plan.Blocks.Count];
+            var paintHeight = new int[plan.Blocks.Count];
             int programLength = 0;
             byte stone = settings.Materials.Resolve(MaterialRole.FoundationStone);
             int s = settings.VoxelsPerDecimetre;
@@ -44,7 +48,8 @@ namespace MountingForce.WorldGen.Voxel
                 builds[i] = new CourtBuild(plan.Blocks[i]);
                 if (builds[i].WidthDm <= 0 || builds[i].DepthDm <= 0)
                     throw new InvalidOperationException("Kentridge court inset consumed protected void: " + builds[i].Id);
-                programs[i] = CourtProgram(builds[i], stone, s);
+                ResolvePaintBounds(builds[i], seed, s, out baseY[i], out paintHeight[i]);
+                programs[i] = CourtProgram(builds[i], stone, s, paintHeight[i]);
                 programLength += programs[i].Length;
             }
 
@@ -61,17 +66,16 @@ namespace MountingForce.WorldGen.Voxel
                     Kind = FeatureKind.Infrastructure,
                     BasePlane = BasePlaneRule.FixedAltitude,
                     FixedAltitude = 0,
-                    Footprint = new int3(build.WidthDm * s, SurfaceThicknessDm * s, build.DepthDm * s),
+                    Footprint = new int3(build.WidthDm * s, paintHeight[i], build.DepthDm * s),
                     MaxSlope = 32,
                     Precedence = CourtPrecedence,
                     ProgramOffset = programOffset,
                     ProgramLength = program.Length,
                     MaxPrimitives = 2,
                 };
-                int shelfY = KentridgeVerticalProfile.SurfaceYAtDm(build.Block.ElevationSampleDm.X, build.Block.ElevationSampleDm.Y, seed, s);
                 catalogue.ExplicitPlacements[i] = new ExplicitPlacement
                 {
-                    Position = new int3(build.MinDm.X * s, shelfY - SurfaceThicknessDm * s, build.MinDm.Y * s),
+                    Position = new int3(build.MinDm.X * s, baseY[i], build.MinDm.Y * s),
                     Orientation = 0,
                     OverrideOffset = 0,
                     OverrideCount = 0,
@@ -99,10 +103,47 @@ namespace MountingForce.WorldGen.Voxel
             return catalogue;
         }
 
-        private static int[] CourtProgram(CourtBuild build, byte material, int scale)
+        private static void ResolvePaintBounds(
+            CourtBuild build, uint seed, int scale, out int baseY, out int height)
+        {
+            int shelfY = KentridgeVerticalProfile.SurfaceYAtDm(
+                build.Block.ElevationSampleDm.X,
+                build.Block.ElevationSampleDm.Y,
+                seed,
+                scale);
+            int minY = shelfY;
+            int maxY = shelfY;
+            SampleNatural(build.MinDm.X, build.MinDm.Y, seed, scale, ref minY, ref maxY);
+            SampleNatural(build.MaxDm.X, build.MinDm.Y, seed, scale, ref minY, ref maxY);
+            SampleNatural(build.MinDm.X, build.MaxDm.Y, seed, scale, ref minY, ref maxY);
+            SampleNatural(build.MaxDm.X, build.MaxDm.Y, seed, scale, ref minY, ref maxY);
+            SampleNatural((build.MinDm.X + build.MaxDm.X) / 2,
+                (build.MinDm.Y + build.MaxDm.Y) / 2,
+                seed, scale, ref minY, ref maxY);
+
+            int padding = SurfacePaintPaddingDm * scale;
+            baseY = Math.Max(0, minY - padding);
+            int topY = Math.Min(TerrainQuery.MaxHeight, maxY + padding);
+            height = Math.Max(1, topY - baseY + 1);
+        }
+
+        private static void SampleNatural(
+            int xDm, int zDm, uint seed, int scale, ref int minY, ref int maxY)
+        {
+            int y = TerrainQuery.HeightAt(xDm * scale, zDm * scale, seed);
+            minY = Math.Min(minY, y);
+            maxY = Math.Max(maxY, y);
+        }
+
+        private static int[] CourtProgram(CourtBuild build, byte material, int scale, int height)
         {
             var code = new List<int>(16);
-            Op(code, ShapeOp.EmitBox, 0, 0, 0, build.WidthDm * scale, SurfaceThicknessDm * scale, build.DepthDm * scale, material, 0, 0, (int)PrimitiveMode.Fill);
+            // District terraces own height and shoulder continuity. Courts are a later surface
+            // treatment only; emitting a flat Fill here would stamp the block's single shelf sample
+            // back over those transitions and recreate rectangular overhangs at court edges.
+            Op(code, ShapeOp.EmitBox, 0, 0, 0,
+                build.WidthDm * scale, height, build.DepthDm * scale,
+                material, 0, 0, (int)PrimitiveMode.PaintSurface);
             Op(code, ShapeOp.End);
             return code.ToArray();
         }
