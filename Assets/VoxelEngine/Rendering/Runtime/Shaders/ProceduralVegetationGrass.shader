@@ -6,6 +6,8 @@ Shader "VoxelEngine/ProceduralVegetationGrass"
         _GrassCameraRightWS ("Camera Right WS", Vector) = (1,0,0,0)
         _GrassPushRadius ("Interaction Radius", Float) = 0
         _GrassTime ("Grass Time", Float) = 0
+        [HideInInspector] _UseValidationAnimationTime ("Use Validation Animation Time", Float) = 0
+        [HideInInspector] _ValidationAnimationTime ("Validation Animation Time", Float) = 0
     }
 
     SubShader
@@ -40,7 +42,7 @@ Shader "VoxelEngine/ProceduralVegetationGrass"
             {
                 float3 positionOS : POSITION;
                 float4 color : COLOR;
-                // CPU construction packing from the accepted reference:
+                // Packed by the CPU construction path, matching the supplied reference:
                 // uv0 = (rootOS.x, rootOS.z)
                 float2 uv0 : TEXCOORD0;
                 // uv1 = (rootOS.y, baseLateralOffset)
@@ -65,7 +67,15 @@ Shader "VoxelEngine/ProceduralVegetationGrass"
                 float4 _GrassCameraRightWS;
                 float _GrassPushRadius;
                 float _GrassTime;
+                float _UseValidationAnimationTime;
+                float _ValidationAnimationTime;
             CBUFFER_END
+
+            // The gallery can contain more than one player. The existing production bridge already
+            // publishes this bounded array, so the migrated single-player reference math is applied
+            // independently and the strongest local influence wins.
+            int _GrassInteractorCount;
+            float4 _GrassInteractorPositions[64];
 
             float Smooth01(float x)
             {
@@ -79,6 +89,8 @@ Shader "VoxelEngine/ProceduralVegetationGrass"
                 UNITY_SETUP_INSTANCE_ID(input);
                 UNITY_TRANSFER_INSTANCE_ID(input, output);
 
+                // CPU emits the root once and packs it into UV channels. The per-frame blade shape
+                // is reconstructed in world space here, exactly like the supplied browser shader.
                 float3 rootOS = float3(input.uv0.x, input.uv1.x, input.uv0.y);
                 float3 rootWS = TransformObjectToWorld(rootOS);
 
@@ -87,31 +99,50 @@ Shader "VoxelEngine/ProceduralVegetationGrass"
                 float tip = input.uv2.y;
                 float phase = input.uv3.x;
 
-                float2 rightWS = _GrassCameraRightWS.xz;
-                float rightLen = max(length(rightWS), 1e-4);
-                rightWS /= rightLen;
+                // The reference receives camera-right from the browser host. In Unity derive the
+                // same world-space direction from the active camera so ribbons remain readable as
+                // the player orbits the gallery without adding a per-camera CPU update path.
+                float2 toCamera = _WorldSpaceCameraPos.xz - rootWS.xz;
+                float cameraDistance = max(length(toCamera), 1e-4);
+                float2 rightWS = float2(toCamera.y, -toCamera.x) / cameraDistance;
 
-                float2 playerDelta = rootWS.xz - _GrassPlayerPositionWS.xz;
-                float playerDistance = length(playerDelta) + 1e-4;
-                float push = 1.0 - playerDistance / max(_GrassPushRadius, 1e-4);
-                push = Smooth01(push);
-                float2 away = playerDelta / playerDistance;
-                float awaySide = dot(away, rightWS);
+                float strongestPush = 0.0;
+                float strongestAwaySide = 0.0;
+                [loop]
+                for (int i = 0; i < 64; i++)
+                {
+                    if (i >= _GrassInteractorCount) break;
+                    float4 interactor = _GrassInteractorPositions[i];
+                    float radius = max(interactor.w, 1e-4);
+                    float2 playerDelta = rootWS.xz - interactor.xz;
+                    float playerDistance = length(playerDelta) + 1e-4;
+                    float push = Smooth01(1.0 - playerDistance / radius);
+                    if (push > strongestPush)
+                    {
+                        float2 away = playerDelta / playerDistance;
+                        strongestPush = push;
+                        strongestAwaySide = dot(away, rightWS);
+                    }
+                }
 
-                // Coherent-wave constants intentionally match the accepted capture reference.
-                float gust = sin(_GrassTime * 0.82 + rootWS.x * 0.26 + rootWS.z * 0.10) * 0.050;
-                float wave = sin(_GrassTime * 0.46 - rootWS.x * 0.08 + rootWS.z * 0.18) * 0.024;
-                float local = sin(_GrassTime * 1.06 + phase) * 0.005;
+                float grassTime = _UseValidationAnimationTime > 0.5
+                    ? _ValidationAnimationTime
+                    : _Time.y;
+
+                // Exact coherent-wave constants from the supplied/approved reference.
+                float gust = sin(grassTime * 0.82 + rootWS.x * 0.26 + rootWS.z * 0.10) * 0.050;
+                float wave = sin(grassTime * 0.46 - rootWS.x * 0.08 + rootWS.z * 0.18) * 0.024;
+                float local = sin(grassTime * 1.06 + phase) * 0.005;
                 float wind = gust + wave + local;
 
                 float lateral =
                     baseLateral +
                     wind * tip +
-                    awaySide * push * 0.22 * tip;
+                    strongestAwaySide * strongestPush * 0.22 * tip;
 
                 float3 finalWS = float3(
                     rootWS.x + rightWS.x * lateral,
-                    rootWS.y + localY - push * 0.055 * tip,
+                    rootWS.y + localY - strongestPush * 0.055 * tip,
                     rootWS.z + rightWS.y * lateral);
 
                 output.positionCS = TransformWorldToHClip(finalWS);
@@ -123,6 +154,8 @@ Shader "VoxelEngine/ProceduralVegetationGrass"
             half4 Frag(Varyings input) : SV_Target
             {
                 UNITY_SETUP_INSTANCE_ID(input);
+                // Camera/light-invariant stylized output matching the supplied reference. Regional
+                // variation is baked into vertex colors by the construction-only CPU mesh step.
                 float3 c = input.color.rgb;
                 c = c * float3(1.08, 1.10, 1.03) + float3(0.015, 0.018, 0.004);
                 c = saturate(c);
