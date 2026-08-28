@@ -49,9 +49,11 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private NativeArray<BrickMetadata> _metadataStaging;
         private NativeArray<uint> _directoryStaging;
         private readonly bool[] _dirtySlots;
+        private readonly bool[] _dirtyDirectoryEntries;
         private int _dirtyMin = int.MaxValue;
         private int _dirtyMax = -1;
-        private bool _directoryDirty;
+        private int _directoryDirtyMin = int.MaxValue;
+        private int _directoryDirtyMax = -1;
         private bool _disposed;
 
         public int SlotCapacity { get; }
@@ -68,6 +70,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         public ulong RejectedStale => _slots.StaleCount;
         public ulong Evictions => _slots.EvictionCount;
         public ulong DirectoryRefusals { get; private set; }
+        public ulong DirectoryUploadBytes { get; private set; }
+        public ulong DirectoryUploadRanges { get; private set; }
 
         public ComputeBuffer Materials => FlushAndGet(_materials);
         public ComputeBuffer SurfaceSemantics => FlushAndGet(_surfaceSemantics);
@@ -115,12 +119,35 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 DirectoryCapacity * DirectoryWordsPerEntry,
                 Allocator.Persistent, NativeArrayOptions.ClearMemory);
             _dirtySlots = new bool[slotCapacity];
+            _dirtyDirectoryEntries = new bool[DirectoryCapacity];
         }
 
         public bool TryGetSlot(int3 coordinate, out int slot) => _slots.TryGetSlot(coordinate, out slot);
         public bool Pin(int3 coordinate) => _slots.Pin(coordinate);
         public bool Unpin(int3 coordinate) => _slots.Unpin(coordinate);
         public void Touch(int3 coordinate) => _slots.Touch(coordinate);
+
+        /// <summary>
+        /// Drops all logical residency without reallocating the large GPU buffers. Payload words may
+        /// remain physically present, but clearing the directory makes them unreachable. This is a
+        /// world/recovery-boundary operation, never a per-frame path.
+        /// </summary>
+        public void Clear()
+        {
+            ThrowIfDisposed();
+            _slots.Clear();
+            Array.Clear(_dirtySlots, 0, _dirtySlots.Length);
+            _dirtyMin = int.MaxValue;
+            _dirtyMax = -1;
+
+            for (int i = 0; i < _directoryStaging.Length; i++)
+                _directoryStaging[i] = 0u;
+            Array.Clear(_dirtyDirectoryEntries, 0, _dirtyDirectoryEntries.Length);
+            for (int i = 0; i < _dirtyDirectoryEntries.Length; i++)
+                _dirtyDirectoryEntries[i] = true;
+            _directoryDirtyMin = 0;
+            _directoryDirtyMax = DirectoryCapacity - 1;
+        }
 
         public GpuBrickPublish Publish(in VoxelBrickDelta delta, in PinnedVoxelReadBlock payload)
         {
@@ -149,6 +176,13 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 case GpuBrickAdmission.Full:
                     return GpuBrickPublish.NoSlot;
                 case GpuBrickAdmission.NoPayload:
+                    // Absence from a ready region is the canonical GPU representation of empty.
+                    // Uniform bricks still need one compact directory entry; empty bricks do not.
+                    if (delta.Content == VoxelBrickContent.Empty)
+                    {
+                        RemoveLookup(delta.Coordinate);
+                        return GpuBrickPublish.MetadataOnly;
+                    }
                     if (!PublishLookup(delta, -1)) return GpuBrickPublish.NoSlot;
                     return GpuBrickPublish.MetadataOnly;
                 case GpuBrickAdmission.Resident:
@@ -212,7 +246,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _directoryStaging[word + 3] = GpuSurfaceExtractor.PackBrickCacheEntry(
                 delta.Content, delta.UniformMaterial, slot);
             _directoryStaging[word + 4] = DirectoryOccupied;
-            _directoryDirty = true;
+            MarkDirectoryDirty(index);
             return true;
         }
 
@@ -221,7 +255,14 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             int index = FindDirectoryIndex(coordinate, forInsert: false);
             if (index < 0) return;
             _directoryStaging[index * DirectoryWordsPerEntry + 4] = DirectoryTombstone;
-            _directoryDirty = true;
+            MarkDirectoryDirty(index);
+        }
+
+        private void MarkDirectoryDirty(int index)
+        {
+            _dirtyDirectoryEntries[index] = true;
+            if (index < _directoryDirtyMin) _directoryDirtyMin = index;
+            if (index > _directoryDirtyMax) _directoryDirtyMax = index;
         }
 
         private int FindDirectoryIndex(int3 coordinate, bool forInsert)
@@ -333,11 +374,30 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 _dirtyMax = -1;
             }
 
-            if (_directoryDirty)
+            if (_directoryDirtyMax >= _directoryDirtyMin)
             {
-                _materials.SetData(_directoryStaging, 0, DirectoryWordOffset,
-                                   _directoryStaging.Length);
-                _directoryDirty = false;
+                int entry = _directoryDirtyMin;
+                while (entry <= _directoryDirtyMax)
+                {
+                    while (entry <= _directoryDirtyMax && !_dirtyDirectoryEntries[entry]) entry++;
+                    if (entry > _directoryDirtyMax) break;
+                    int first = entry;
+                    while (entry <= _directoryDirtyMax && _dirtyDirectoryEntries[entry])
+                    {
+                        _dirtyDirectoryEntries[entry] = false;
+                        entry++;
+                    }
+
+                    int entryCount = entry - first;
+                    int sourceWord = first * DirectoryWordsPerEntry;
+                    int wordCount = entryCount * DirectoryWordsPerEntry;
+                    _materials.SetData(_directoryStaging, sourceWord,
+                                       DirectoryWordOffset + sourceWord, wordCount);
+                    DirectoryUploadRanges++;
+                    DirectoryUploadBytes += (ulong)wordCount * sizeof(uint);
+                }
+                _directoryDirtyMin = int.MaxValue;
+                _directoryDirtyMax = -1;
             }
         }
 
