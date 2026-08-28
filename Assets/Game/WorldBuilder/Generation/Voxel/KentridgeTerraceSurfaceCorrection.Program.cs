@@ -12,7 +12,8 @@ namespace MountingForce.WorldGen.Voxel
         private const int MarketUpperTransitionBandDm = 2;
         private const int MarketUpperWestInsetDm = 220;
         private const int MarketUpperEastInsetDm = 90;
-        private const int CivicUpperWestMismatchDm = 20;
+        private const int CivicSouthWestProfileStepDm = 12;
+        private const byte AxisZ = 2;
 
         private static void ResolveBounds(Patch patch, uint seed, int scale,
                                           out int3 position, out int3 footprint)
@@ -49,8 +50,8 @@ namespace MountingForce.WorldGen.Voxel
             maxY = Math.Max(maxY, y);
         }
 
-        private static int[] Program(Patch patch, int3 footprint,
-                                     VoxelWorldGenSettings settings)
+        private static int[] Program(Patch patch, int3 position, int3 footprint,
+                                     uint seed, VoxelWorldGenSettings settings)
         {
             int s = settings.VoxelsPerDecimetre;
             byte stone = settings.Materials.Resolve(MaterialRole.FoundationStone);
@@ -76,9 +77,9 @@ namespace MountingForce.WorldGen.Voxel
                 if (patch.Id == "market-main")
                     PaintMarketToUpperTransition(
                         b, patch, footprint, s, moss, dirt);
-                else if (patch.Id == "upper-shoulder")
-                    PaintCivicToUpperWestJoin(
-                        b, patch, footprint, s, dirt);
+                else if (patch.Id == "civic-summit")
+                    RepairCivicSouthWestShoulder(
+                        b, patch, position, footprint, seed, s, dirt);
             }
             else
             {
@@ -128,21 +129,49 @@ namespace MountingForce.WorldGen.Voxel
             }
         }
 
-        private static void PaintCivicToUpperWestJoin(
-            ProgramBuilder b, Patch patch, int3 footprint, int scale, byte dirt)
+        private static void RepairCivicSouthWestShoulder(
+            ProgramBuilder b, Patch patch, int3 position, int3 footprint,
+            uint seed, int scale, byte dirt)
         {
             int shoulder = patch.ShoulderDm * scale;
-            int mismatch = CivicUpperWestMismatchDm * scale;
-            if (shoulder <= 0 || mismatch <= 0 || mismatch >= shoulder)
-                return;
+            int stripWidthDm = CivicSouthWestProfileStepDm;
+            int stripCount = (patch.ShoulderDm + stripWidthDm - 1) / stripWidthDm;
+            int southZ = (patch.ShoulderDm + patch.DepthDm) * scale;
+            int outerSouthDm = patch.ZDm + patch.DepthDm + patch.ShoulderDm;
+            int westDm = patch.XDm - patch.ShoulderDm;
+            int coreY = KentridgeVerticalProfile.SurfaceYAtDm(
+                patch.AnchorXDm, patch.AnchorZDm, seed, scale) - position.y;
 
-            // The saved camera looks directly at the 20 dm difference between the west envelopes of
-            // upper-shoulder (82.8 m) and civic-summit (84.8 m). That strip is already part of the
-            // urban transition geometry; leaving its material to natural ground exposes a hard,
-            // rectangular Moss tongue. Reclaim only that mismatch as Dirt. Unlike the former taper,
-            // this pass never synthesizes Moss and does not alter height, occupancy, or either core.
-            b.Box(0, 0, shoulder, mismatch, footprint.y, shoulder,
-                  dirt, PrimitiveMode.PaintSurface);
+            // The upper marked region sits in the civic summit's south-west shoulder. The district
+            // terrace builds that whole 61.4 m south edge from one centreline terrain sample, which
+            // flattens this 7.2 m corner into the rectangular shelf visible in the captured replay.
+            // Re-realize only the western shoulder-width as narrow ramps whose outer elevations are
+            // sampled locally. This changes height/occupancy, not merely the material label.
+            for (int strip = 0; strip < stripCount; strip++)
+            {
+                int startDm = strip * stripWidthDm;
+                int widthDm = Math.Min(stripWidthDm, patch.ShoulderDm - startDm);
+                if (widthDm <= 0)
+                    break;
+
+                int sampleXDm = westDm + startDm + widthDm / 2;
+                int edgeY = TerrainQuery.HeightAt(
+                    sampleXDm * scale, outerSouthDm * scale, seed) - position.y;
+                int lowY = Math.Min(edgeY, coreY);
+                int rise = Math.Abs(coreY - edgeY);
+                int x = startDm * scale;
+                int width = widthDm * scale;
+
+                b.Carve(x, lowY, southZ,
+                        width, Math.Max(1, footprint.y - lowY), shoulder);
+                if (rise <= 0)
+                    continue;
+
+                bool highAtNegativeAxis = coreY > edgeY;
+                byte rampAxis = (byte)(AxisZ
+                    | (highAtNegativeAxis ? ShapeOps.ReverseRampBit : 0));
+                b.Ramp(x, lowY, southZ, width, rise, shoulder, rampAxis, dirt);
+            }
         }
 
         private sealed class ProgramBuilder
@@ -152,16 +181,33 @@ namespace MountingForce.WorldGen.Voxel
             public void Box(int x, int y, int z, int sx, int sy, int sz,
                             byte material, PrimitiveMode mode)
             {
-                _code.Add((int)ShapeOp.EmitBox); _code.Add(0);
-                _code.Add(x); _code.Add(y); _code.Add(z);
-                _code.Add(sx); _code.Add(sy); _code.Add(sz);
-                _code.Add(material); _code.Add(0); _code.Add(0); _code.Add((int)mode);
+                if (sx <= 0 || sy <= 0 || sz <= 0) return;
+                Op(ShapeOp.EmitBox, x, y, z, sx, sy, sz,
+                   material, 0, 0, (int)mode);
+            }
+
+            public void Carve(int x, int y, int z, int sx, int sy, int sz) =>
+                Box(x, y, z, sx, sy, sz, 0, PrimitiveMode.Carve);
+
+            public void Ramp(int x, int y, int z, int sx, int sy, int sz,
+                             byte axis, byte material)
+            {
+                if (sx <= 0 || sy <= 0 || sz <= 0) return;
+                Op(ShapeOp.EmitRamp, x, y, z, sx, sy, sz,
+                   axis, material, 0, 0, (int)PrimitiveMode.Fill);
             }
 
             public int[] Finish()
             {
-                _code.Add((int)ShapeOp.End); _code.Add(0);
+                Op(ShapeOp.End);
                 return _code.ToArray();
+            }
+
+            private void Op(ShapeOp op, params int[] operands)
+            {
+                _code.Add((int)op);
+                _code.Add(0);
+                _code.AddRange(operands);
             }
         }
     }
