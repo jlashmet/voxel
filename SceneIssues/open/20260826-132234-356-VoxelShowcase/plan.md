@@ -1,21 +1,21 @@
 # Plan — VoxelShowcase dirt/grass seam
 
 ## Observed / acceptance
-The immutable capture marks two Dirt/grass transitions. Fresh built-player replays reached full residency. The earlier road-shoulder granularity change cleaned the lower circle, but the upper circle still contains a hard rectangular grass tongue at about X=91.0..93.8 m, Z=28.6..30.4 m. Acceptance requires both original circles clean in a fresh saved-pose replay.
+The capture has one pose with two marked Dirt/grass transitions. Direct inspection of the latest exact-pose built-player replay shows the lower mark now has a continuous diagonal edge, while the upper mark still has a large axis-aligned grass tongue intruding into the Dirt route. Acceptance requires both original marks clean in a fresh replay with full residency and no startup/runtime exceptions.
 
 ## Hypotheses / discriminators
 1. **Stale bake / streaming:** falsified by repeated fresh fully resident replays.
-2. **District terrace/civic/correction ownership:** falsified by replay evidence and, decisively, by composition: VoxelShowcase seed `1592594996` selects organic Kentridge, so those district-only stages are absent.
-3. **Organic plot grading:** falsified. Exact-seed plot regression passed, but the real-player ground plane remained pixel-identical to the rejected replay.
-4. **Organic route rasterization:** supported. `KentridgeDirectedTownSurfaceCatalogue` is live for this seed; its sampled route points currently carve/fill axis-aligned square stamps, and live route placement bounds overlap the corrected upper marked envelope. The square union produces the captured plan-view step/tongue.
+2. **District terrace/civic/correction stages:** falsified because VoxelShowcase seed `1592594996` selects organic Kentridge; those district-only stages are not composed.
+3. **Organic route square stamps:** falsified by exact-SHA run `33214166946`: the focused regression found zero live route placements overlapping the corrected upper envelope, while the built-player replay still showed the defect.
+4. **Organic plot grading:** supported by the minimal exact-seed reproduction. MayorHouse (`WideHouse`) owns parcel `X=91.0..104.2m, Z=25.0..38.2m`, containing the upper mark at its west edge. Its generic plot program expands 12 progressively higher moss-capped rectangles to the parcel boundary, reaching ~233–234 while natural terrain at `(910,295)` is `223` and the frontage target is `221`.
 
 ## Selected fix / regression
-Keep route centers, widths, terrain-following heights, precedence, and the two-primitive budget unchanged; replace each square route carve/fill stamp with a vertical cylinder of the same half-width. This removes square corners without changing route extent or introducing scene-specific geometry.
+Revert the falsified route-shape candidate. Grade each non-well plot only inside its real building-envelope pad: one clearance carve, one Dirt fill, one Moss surface at the existing frontage target. Parcel-edge terrain remains deterministic natural terrain.
 
-`VoxelEngine.Tests.PlayMode.KentridgeOrganicRouteSceneIssueRegressionTests.SceneIssue20260826132234356OrganicRouteEdgesUseRoundSurfaceStamps` builds the production directed-town catalogue at seed `1592594996`, proves the organic backend is selected, proves live route placements overlap the corrected marked envelope, and verifies every route uses the bounded round carve/fill pair.
+`VoxelEngine.Tests.EditMode.KentridgePlotSurfaceSceneIssueRegressionTests.SceneIssue20260826132234356MayorHousePlotEdgePreservesNaturalTerrain` builds the production plot catalogue with the exact Showcase seed, locates MayorHouse, proves the marked parcel edge is outside all plot primitives, preserves target/natural heights, and enforces the 3-primitive pad budget.
 
 ## Blast radius / cost
-The change is limited to organic Kentridge circulation. Placement count, footprint, precedence, primitive count, and per-frame work are unchanged; only primitive shape changes from box to cylinder. District/legacy roads are untouched.
+All organic Kentridge non-well plot placements keep the same positions, orientations, frontage target, precedence, and building-envelope dimensions. Only the artificial parcel feather is removed. Per-placement plot work drops from 39 primitives to 3 and vertical definition extent drops by 1.2 m; no per-frame cost is added.
 
 ## Gate
-Use only `ci-test/fixes/agent-8`. Exact-SHA PlayMode CI must pass the focused regression and the built-player harness must replay the saved VoxelShowcase pose for 45 seconds, reach full residency, and show the lower circle still clean and the upper rectangular tongue gone.
+Use only `ci-test/fixes/agent-8`. Final exact-SHA CI must pass the focused EditMode regression plus the built-player 45-second VoxelShowcase replay, then both original marks must be inspected directly.
