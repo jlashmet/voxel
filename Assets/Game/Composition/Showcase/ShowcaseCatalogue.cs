@@ -10,8 +10,8 @@ using VoxelEngine.Structures.Runtime;
 namespace VoxelEngine.Showcase
 {
     /// <summary>
-    /// Showcase-side composition root for procedural content. WorldBuilder owns town authoring;
-    /// this composition root supplies only the voxel material roles used to realize that town.
+    /// Showcase-side composition root for procedural content. WorldBuilder owns town and landmark
+    /// authoring; this composition root supplies only scene parameters and voxel material roles.
     /// </summary>
     public static class ShowcaseCatalogue
     {
@@ -35,10 +35,6 @@ namespace VoxelEngine.Showcase
                 water: materialRoles.WorldgenWater,
                 roadSurface: materialRoles.WorldgenRoadSurface);
 
-            // Kentridge is the production mixed-city showcase, not a parallel demo planner. The
-            // town is authored once above through WorldBuilder, and the voxel adapter realizes that
-            // exact authored plan. The detached detailed-house feature below remains a focused
-            // deep-override example composed beside the production town catalogue.
             FeatureCatalogue kentridge =
                 WorldBuilderVoxelCatalogue.Build(town, in materials, Allocator.Temp);
             try
@@ -47,12 +43,33 @@ namespace VoxelEngine.Showcase
                     ShowcaseDetailedHouseCatalogue.Build(seed, in materialRoles, Allocator.Temp);
                 try
                 {
-                    // VoxelEngine.Structures.Api also declares a FeatureCatalogueComposer. The
-                    // Runtime one is named explicitly: it copies each source program blob verbatim
-                    // and rebases the offset, where the Api one repacks per definition and would
-                    // drop or duplicate program bytes that definitions do not own one-to-one.
-                    return VoxelEngine.Structures.Runtime.FeatureCatalogueComposer.Combine(
-                        in kentridge, in detailedHouse, allocator);
+                    MountainLandmarkSpec mountainSpec =
+                        ShowcaseMountainDragonLayout.CreateLandmark(seed);
+                    FeatureCatalogue mountain = WorldBuilderMountainLandmarkCatalogue.Build(
+                        in mountainSpec,
+                        mountainMaterial: materialRoles.WorldgenFoundation,
+                        pathMaterial: materialRoles.WorldgenRoadSurface,
+                        placeholderMaterial: materialRoles.WorldgenDarkMasonry,
+                        allocator: Allocator.Temp);
+                    try
+                    {
+                        FeatureCatalogue townAndHouse =
+                            VoxelEngine.Structures.Runtime.FeatureCatalogueComposer.Combine(
+                                in kentridge, in detailedHouse, Allocator.Temp);
+                        try
+                        {
+                            return VoxelEngine.Structures.Runtime.FeatureCatalogueComposer.Combine(
+                                in townAndHouse, in mountain, allocator);
+                        }
+                        finally
+                        {
+                            townAndHouse.Dispose();
+                        }
+                    }
+                    finally
+                    {
+                        mountain.Dispose();
+                    }
                 }
                 finally
                 {
