@@ -55,10 +55,25 @@ namespace Game.Quests.Api
         }
     }
 
+    public sealed class InteractionQuestCompletionSpec : IQuestCompletionSpec
+    {
+        public string SubjectId { get; }
+
+        internal InteractionQuestCompletionSpec(string subjectId)
+        {
+            if (string.IsNullOrWhiteSpace(subjectId))
+                throw new ArgumentException("Interaction subject id is required.", nameof(subjectId));
+            SubjectId = subjectId;
+        }
+    }
+
     public static class QuestCompletion
     {
         public static IQuestCompletionSpec InteractWith(string npcId) =>
             new NpcInteractionQuestCompletionSpec(npcId);
+
+        public static IQuestCompletionSpec InteractWithSubject(string subjectId) =>
+            new InteractionQuestCompletionSpec(subjectId);
     }
 
     public sealed class QuestStepDefinition
@@ -128,7 +143,8 @@ namespace Game.Quests.Api
 
     public enum QuestObservationKind
     {
-        NpcInteracted = 0
+        NpcInteracted = 0,
+        Interacted = 1
     }
 
     /// <summary>
@@ -150,6 +166,9 @@ namespace Game.Quests.Api
 
         public static QuestObservation NpcInteracted(string npcId) =>
             new QuestObservation(QuestObservationKind.NpcInteracted, npcId);
+
+        public static QuestObservation Interacted(string subjectId) =>
+            new QuestObservation(QuestObservationKind.Interacted, subjectId);
     }
 
     public enum QuestEventKind
