@@ -1,4 +1,3 @@
-using MountingForce.WorldGen.Content.Kentridge;
 using MountingForce.WorldGen.Voxel;
 using NUnit.Framework;
 using Unity.Collections;
@@ -21,7 +20,7 @@ namespace VoxelEngine.Tests.PlayMode
 
             try
             {
-                int definitionId = (int)StructureArchetype.WideHouse;
+                int definitionId = FindDefinitionId(plots, "kentridge-plot-widehouse");
                 FeatureDefinition definition = plots.Definitions[definitionId];
                 PlacementRule rule = plots.Rules[definitionId];
 
@@ -105,6 +104,18 @@ namespace VoxelEngine.Tests.PlayMode
             {
                 plots.Dispose();
             }
+        }
+
+        private static int FindDefinitionId(FeatureCatalogue catalogue, string name)
+        {
+            for (int i = 0; i < catalogue.Definitions.Length; i++)
+            {
+                if (catalogue.Definitions[i].Name.ToString() == name)
+                    return i;
+            }
+
+            Assert.Fail("Plot surface catalogue did not emit " + name + ".");
+            return -1;
         }
 
         private static VoxelWorldGenSettings BuildSettings()
