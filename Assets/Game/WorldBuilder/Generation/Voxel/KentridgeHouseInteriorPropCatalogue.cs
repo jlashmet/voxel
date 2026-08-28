@@ -67,7 +67,7 @@ namespace MountingForce.WorldGen.Voxel
             byte accent = settings.Materials.Resolve(theme.AccentStone);
             byte warm = settings.Materials.Resolve(MaterialRole.WarmWindow);
 
-            var code = new List<int>(program.Length + 420);
+            var code = new List<int>(program.Length + 900);
             for (int i = 0; i < program.Length - endLength; i++)
                 code.Add(program[i]);
 
@@ -189,11 +189,25 @@ namespace MountingForce.WorldGen.Voxel
             EmitBox(code, barX - scale, foundation + 9 * scale, barZ - scale,
                 46 * scale, 2 * scale, 10 * scale, accent);
 
+            // Customer stools sit wholly in front of the bar with a two-decimetre service gap.
+            AddBarStool(code, barX + 5 * scale, barZ - 9 * scale,
+                foundation, scale, timber);
+            AddBarStool(code, barX + 18 * scale, barZ - 9 * scale,
+                foundation, scale, timber);
+            AddBarStool(code, barX + 31 * scale, barZ - 9 * scale,
+                foundation, scale, timber);
+
             // Two narrow shelves behind the bartender leave the warm rear windows readable.
             EmitBox(code, barX + 4 * scale, foundation + 13 * scale, rear - 4 * scale,
                 36 * scale, 2 * scale, 3 * scale, timber);
             EmitBox(code, barX + 4 * scale, foundation + 22 * scale, rear - 4 * scale,
                 36 * scale, 2 * scale, 3 * scale, timber);
+
+            // Framed wall art breaks up the otherwise empty side walls without entering circulation.
+            AddWallPainting(code, left, foundation + 16 * scale, front + 29 * scale,
+                scale, cloth, accent);
+            AddWallPainting(code, right - scale, foundation + 16 * scale, front + 29 * scale,
+                scale, warm, accent);
 
             AddWomanBartender(
                 code, barX + 20 * scale, rear - 14 * scale,
@@ -250,11 +264,54 @@ namespace MountingForce.WorldGen.Voxel
             byte timber,
             bool backAtRear)
         {
-            EmitBox(code, x, foundation + 4 * scale, z,
-                6 * scale, 3 * scale, 6 * scale, timber);
             int backZ = backAtRear ? z + 4 * scale : z;
-            EmitBox(code, x, foundation + 5 * scale, backZ,
-                6 * scale, 8 * scale, 2 * scale, timber);
+            int frontZ = backAtRear ? z : z + 4 * scale;
+
+            // Rear posts reach the floor and become the back legs; front legs make the seat visibly
+            // supported instead of the prior floating slab. A top rail reads as an open chair back.
+            EmitBox(code, x, foundation, backZ,
+                2 * scale, 13 * scale, 2 * scale, timber);
+            EmitBox(code, x + 4 * scale, foundation, backZ,
+                2 * scale, 13 * scale, 2 * scale, timber);
+            EmitBox(code, x, foundation, frontZ,
+                2 * scale, 5 * scale, 2 * scale, timber);
+            EmitBox(code, x + 4 * scale, foundation, frontZ,
+                2 * scale, 5 * scale, 2 * scale, timber);
+            EmitBox(code, x, foundation + 5 * scale, z,
+                6 * scale, 2 * scale, 6 * scale, timber);
+            EmitBox(code, x, foundation + 11 * scale, backZ,
+                6 * scale, 2 * scale, 2 * scale, timber);
+        }
+
+        private static void AddBarStool(
+            List<int> code,
+            int x,
+            int z,
+            int foundation,
+            int scale,
+            byte timber)
+        {
+            EmitBox(code, x, foundation, z,
+                7 * scale, scale, 7 * scale, timber);
+            EmitBox(code, x + 2 * scale, foundation + scale, z + 2 * scale,
+                2 * scale, 6 * scale, 2 * scale, timber);
+            EmitBox(code, x, foundation + 7 * scale, z,
+                7 * scale, 2 * scale, 7 * scale, timber);
+        }
+
+        private static void AddWallPainting(
+            List<int> code,
+            int x,
+            int y,
+            int z,
+            int scale,
+            byte canvas,
+            byte frame)
+        {
+            EmitBox(code, x, y, z,
+                scale, 16 * scale, 20 * scale, frame);
+            EmitBox(code, x, y + 2 * scale, z + 2 * scale,
+                scale, 12 * scale, 16 * scale, canvas);
         }
 
         private static void AddWomanBartender(
