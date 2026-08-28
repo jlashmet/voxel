@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using MountingForce.WorldGen.Content.Kentridge;
 using Unity.Collections;
 using Unity.Mathematics;
+using VoxelEngine.Terrain.Api;
 
 using VoxelEngine.Structures.Api;
 
@@ -62,11 +63,13 @@ namespace MountingForce.WorldGen.Voxel
                 MaxPrimitives = 5,
             };
 
-            int surfaceY = KentridgeVerticalProfile.SurfaceYAtDm(
-                plaza.CentreDm.X,
-                plaza.CentreDm.Y,
-                seed,
-                s);
+            int surfaceY = settlement.Routes.Count > 0
+                ? TerrainQuery.HeightAt(plaza.CentreDm.X * s, plaza.CentreDm.Y * s, seed)
+                : KentridgeVerticalProfile.SurfaceYAtDm(
+                    plaza.CentreDm.X,
+                    plaza.CentreDm.Y,
+                    seed,
+                    s);
             catalogue.ExplicitPlacements[0] = new ExplicitPlacement
             {
                 Position = new int3(
