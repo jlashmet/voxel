@@ -8,8 +8,26 @@ namespace VoxelEngine.Tests.EditMode
 {
     public sealed class WorldBuilderSceneCompositionTests
     {
+        private static readonly string[] ForbiddenSceneGenerationMarkers =
+        {
+            "VoxelEngineBootstrap.CreateStorage",
+            "new ShowcaseWorld(",
+            "ShowcaseVoxelAuthoringSession(",
+            "VegetationPlacement.Generate(",
+            "VegetationComposition.ReplaceTreeWorld(",
+            "KentridgeCombinedVoxelCatalogue.Build(",
+            "HightownVoxelCatalogue.Build(",
+            "RegionCorridorCatalogue.Build(",
+            "SettlementCatalogueCombiner.Combine(",
+            "ConfigureGeneratedContentForGameplay(",
+            "FeatureCatalogue",
+            "AuthorTerrain(",
+            "SetVoxel(",
+            "new Mesh(",
+        };
+
         [Test]
-        public void RepresentativeEnvironmentRecipesRemainDistinctAndSceneRuntimeOwnsNoGenerationCode()
+        public void RepresentativeEnvironmentRecipesRemainDistinctAndSceneSourceOwnsNoGenerationBackends()
         {
             const uint seed = 0x5EED1234u;
 
@@ -49,11 +67,19 @@ namespace VoxelEngine.Tests.EditMode
                 WorldBuilderEnvironmentComposition.Resolve(in unsupported);
             });
 
-            AssertNoRuntimeGenerationSource("Assets/Scenes/Showcase");
-            AssertNoRuntimeGenerationSource("Assets/Scenes/Kentridge");
+            Assert.That(
+                File.Exists("Assets/Game/Composition/Showcase/SceneRuntime/VoxelShowcase.cs"),
+                Is.True,
+                "Showcase runtime composition must live under reusable Game composition ownership.");
+            Assert.That(
+                File.Exists("Assets/Game/Composition/Kentridge/Playable/SceneRuntime/KentridgePlayableSlice.cs"),
+                Is.True,
+                "Kentridge runtime composition must live under reusable Game composition ownership.");
+
+            AssertSceneSourceContainsNoGenerationBackends("Assets/Scenes");
         }
 
-        private static void AssertNoRuntimeGenerationSource(string sceneDirectory)
+        private static void AssertSceneSourceContainsNoGenerationBackends(string sceneDirectory)
         {
             if (!Directory.Exists(sceneDirectory)) return;
 
@@ -64,9 +90,14 @@ namespace VoxelEngine.Tests.EditMode
                 if (normalized.Contains("/Editor/", StringComparison.Ordinal))
                     continue;
 
-                Assert.Fail(
-                    $"Scene runtime source must be orchestration/configuration only and live in " +
-                    $"reusable composition ownership; found {normalized}.");
+                string source = File.ReadAllText(path);
+                foreach (string marker in ForbiddenSceneGenerationMarkers)
+                {
+                    Assert.That(
+                        source.Contains(marker, StringComparison.Ordinal),
+                        Is.False,
+                        $"Scene source may orchestrate/present but must not own generated world backend '{marker}': {normalized}");
+                }
             }
         }
     }
