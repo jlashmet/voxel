@@ -21,6 +21,8 @@ namespace VoxelEngine.Showcase
         private const int TerrainZMin = -70;
         private const int TerrainZMax = 560;
 
+        public const int CapturedCompositionLandmarkCount = 5;
+
         private IVoxelStorageRuntime _storage;
         private bool _built;
 
@@ -149,29 +151,47 @@ namespace VoxelEngine.Showcase
 
         private static void BuildPath(IStructureAuthoringSession writer)
         {
-            var rng = new Unity.Mathematics.Random(Seed ^ 0x2231u);
-            int z = -60;
-            while (z < 285)
+            // The captured replay camera looks steeply across the meadow. Sparse isolated pavers
+            // collapse to beige dots from that pose, so establish one continuous, tapered ground
+            // ribbon first. The irregular edge keeps the route organic while preserving an S-curve
+            // that reads from foreground through the far valley.
+            for (int z = -55; z <= 355; z++)
             {
-                float progress = math.saturate((z + 60f) / 345f);
+                float progress = math.saturate((z + 55f) / 410f);
                 int centreX = PathCenterVoxel(z);
-                int halfWidth = math.max(4, (int)math.round(math.lerp(15f, 5f, progress)));
-
-                for (int lateral = -halfWidth; lateral <= halfWidth; lateral += 3)
+                int halfWidth = math.max(4, (int)math.round(math.lerp(16f, 5f, progress)));
+                for (int lateral = -halfWidth; lateral <= halfWidth; lateral++)
                 {
-                    if (rng.NextFloat() < math.lerp(0.07f, 0.32f, progress)) continue;
-                    int px = centreX + lateral + rng.NextInt(-2, 3);
-                    int pz = z + rng.NextInt(-2, 3);
-                    int hx = rng.NextInt(1, progress < 0.30f ? 4 : 3);
-                    int hz = rng.NextInt(1, progress < 0.30f ? 4 : 3);
+                    int x = centreX + lateral;
+                    if (x <= TerrainXMin || x >= TerrainXMax) continue;
+                    int edge = halfWidth - math.abs(lateral);
+                    if (edge < 2 && Hash01(x, z) < 0.36f) continue;
+                    writer.SetStyled(x, HeightVoxel(x, z), z, Mat.Sand, SurfaceStyles.Smooth);
+                }
+            }
+
+            // Retain a restrained cobble rhythm on top of the readable earth ribbon.
+            var rng = new Unity.Mathematics.Random(Seed ^ 0x2231u);
+            int paverZ = -48;
+            while (paverZ < 315)
+            {
+                float progress = math.saturate((paverZ + 48f) / 363f);
+                int centreX = PathCenterVoxel(paverZ);
+                int halfWidth = math.max(4, (int)math.round(math.lerp(14f, 5f, progress)));
+
+                for (int lateral = -halfWidth; lateral <= halfWidth; lateral += 5)
+                {
+                    if (rng.NextFloat() < math.lerp(0.20f, 0.46f, progress)) continue;
+                    int px = centreX + lateral + rng.NextInt(-1, 2);
+                    int pz = paverZ + rng.NextInt(-1, 2);
+                    int hx = rng.NextInt(1, progress < 0.30f ? 3 : 2);
+                    int hz = rng.NextInt(1, progress < 0.30f ? 3 : 2);
                     int py = HeightVoxel(px, pz);
-                    // One-voxel-thick pavers overlap the terrain surface so they read as embedded
-                    // cobbles, not a heap of beige rubble sitting on top of the path.
                     StampRoundedBox(writer, new int3(px, py + 1, pz),
                         new int3(hx, 1, hz), 1, Mat.TerrainPathStone,
                         SurfaceStyles.Planar, false);
                 }
-                z += rng.NextInt(4, 8) + (int)math.round(progress * 3f);
+                paverZ += rng.NextInt(7, 12) + (int)math.round(progress * 3f);
             }
         }
 
@@ -179,75 +199,101 @@ namespace VoxelEngine.Showcase
         {
             var rng = new Unity.Mathematics.Random(Seed);
 
-            // The old field used long runs of wide, shallow boxes centred partly below the local
-            // surface. On a sloped heightfield those boxes were intersected by the terrain and
-            // appeared as huge parallel limestone contour bands. The reference instead contains
-            // many discrete squat cuboids. Keep clusters, but make them shorter and place every
-            // rock clearly above its local terrain surface.
-            for (int cluster = 0; cluster < 78; cluster++)
+            // The reference depends on a few strong rock masses framing a readable valley, not an
+            // even carpet of equally important blocks. Keep incidental side clusters sparse and
+            // leave the path corridor visually quiet.
+            for (int cluster = 0; cluster < 28; cluster++)
             {
-                int z = rng.NextInt(-48, 548);
+                int z = rng.NextInt(45, 440);
                 float zm = z * 0.1f;
                 int centre = Mathf.RoundToInt(ValleyCenterMetres(zm) * 10f);
                 int side = rng.NextBool() ? -1 : 1;
-                int distance = rng.NextInt(38, 150);
+                int distance = rng.NextInt(62, 150);
                 int centreX = centre + side * distance;
                 if (centreX < TerrainXMin + 10 || centreX > TerrainXMax - 10) continue;
 
-                int count = rng.NextInt(2, 6);
-                int stride = rng.NextInt(5, 10);
+                int count = rng.NextInt(2, 4);
+                int stride = rng.NextInt(7, 12);
                 for (int i = 0; i < count; i++)
                 {
                     int x = centreX + (i - count / 2) * stride + rng.NextInt(-2, 3);
-                    int zz = z + rng.NextInt(-5, 6) + (i - count / 2) / 2;
+                    int zz = z + rng.NextInt(-5, 6);
                     if (x <= TerrainXMin + 5 || x >= TerrainXMax - 5) continue;
 
-                    int maxHalf = z < 150 ? 6 : (z < 330 ? 5 : 4);
+                    int maxHalf = z < 190 ? 6 : (z < 330 ? 5 : 4);
                     int hx = rng.NextInt(2, maxHalf + 1);
                     int hz = rng.NextInt(2, maxHalf + 1);
-                    int hy = rng.NextInt(1, z < 170 ? 4 : 3);
+                    int hy = rng.NextInt(1, z < 190 ? 4 : 3);
                     int y = HeightVoxel(x, zz) + hy;
                     StampRoundedBox(writer, new int3(x, y, zz), new int3(hx, hy, hz),
                         1, Mat.TerrainLimestone, SurfaceStyles.Planar,
                         rng.NextFloat() < 0.58f);
-
-                    if (z < 230 && rng.NextFloat() < 0.16f)
-                    {
-                        int upperHx = math.max(2, hx - 1);
-                        int upperHz = math.max(2, hz - 1);
-                        StampRoundedBox(writer,
-                            new int3(x + rng.NextInt(-2, 3), y + hy + 1, zz + rng.NextInt(-2, 3)),
-                            new int3(upperHx, 1, upperHz), 1,
-                            Mat.TerrainLimestone, SurfaceStyles.Planar,
-                            rng.NextFloat() < 0.62f);
-                    }
                 }
             }
 
-            // Independent blocks create the reference's scattered stone rhythm without forming
-            // coherent contour lines. Density falls with distance and rock size shrinks slightly.
-            for (int i = 0; i < 240; i++)
+            for (int i = 0; i < 72; i++)
             {
-                int z = rng.NextInt(-58, 545);
+                int z = rng.NextInt(35, 455);
                 int x = rng.NextInt(TerrainXMin + 7, TerrainXMax - 7);
                 int path = PathCenterVoxel(z);
-                if (z < 255 && math.abs(x - path) < 11)
-                    x += x < path ? -14 : 14;
+                if (math.abs(x - path) < 28)
+                    x += x < path ? -32 : 32;
+                if (x <= TerrainXMin + 6 || x >= TerrainXMax - 6) continue;
 
-                int maxHalf = z > 360 ? 4 : (z > 180 ? 5 : 6);
+                int maxHalf = z > 330 ? 4 : (z > 175 ? 5 : 6);
                 int hx = rng.NextInt(2, maxHalf + 1);
                 int hz = rng.NextInt(2, maxHalf + 1);
-                int hy = rng.NextInt(1, z > 300 ? 3 : 4);
+                int hy = rng.NextInt(1, z > 280 ? 3 : 4);
                 int y = HeightVoxel(x, z) + hy;
                 StampRoundedBox(writer, new int3(x, y, z), new int3(hx, hy, hz),
                     1, Mat.TerrainLimestone, SurfaceStyles.Planar,
                     rng.NextFloat() < 0.42f);
             }
 
-            BuildForegroundOutcrop(writer, new int3(-106, 0, -46), 15, ref rng);
-            BuildForegroundOutcrop(writer, new int3(104, 0, -38), 14, ref rng);
-            BuildForegroundOutcrop(writer, new int3(-130, 0, 32), 11, ref rng);
-            BuildForegroundOutcrop(writer, new int3(125, 0, 66), 10, ref rng);
+            for (int i = 0; i < CapturedCompositionLandmarkCount; i++)
+            {
+                int3 anchor = CapturedCompositionLandmarkVoxel(i);
+                BuildForegroundOutcrop(writer, anchor, CapturedCompositionLandmarkScale(i), ref rng);
+            }
+        }
+
+        public static Vector3 CapturedCompositionLandmarkWorld(int index)
+        {
+            int3 anchor = CapturedCompositionLandmarkVoxel(index);
+            return new Vector3(anchor.x * 0.1f, HeightVoxel(anchor.x, anchor.z) * 0.1f + 1.0f,
+                anchor.z * 0.1f);
+        }
+
+        private static int3 CapturedCompositionLandmarkVoxel(int index)
+        {
+            switch (index)
+            {
+                case 0: return new int3(-105, 0, 65);
+                case 1: return new int3(108, 0, 88);
+                case 2: return new int3(-78, 0, 165);
+                case 3: return new int3(72, 0, 205);
+                case 4: return new int3(-48, 0, 285);
+                default: throw new System.ArgumentOutOfRangeException(nameof(index));
+            }
+        }
+
+        private static int CapturedCompositionLandmarkScale(int index)
+        {
+            switch (index)
+            {
+                case 0: return 16;
+                case 1: return 15;
+                case 2: return 11;
+                case 3: return 10;
+                case 4: return 8;
+                default: throw new System.ArgumentOutOfRangeException(nameof(index));
+            }
+        }
+
+        public static Vector3 CapturedPathProbeWorld(int zVoxel)
+        {
+            int x = PathCenterVoxel(zVoxel);
+            return new Vector3(x * 0.1f, HeightVoxel(x, zVoxel) * 0.1f + 0.05f, zVoxel * 0.1f);
         }
 
         private static void BuildForegroundOutcrop(IStructureAuthoringSession writer, int3 centre, int scale,
@@ -263,8 +309,6 @@ namespace VoxelEngine.Showcase
                     int hx = rng.NextInt(3, math.max(5, scale / 2 + 1));
                     int hy = rng.NextInt(2, 5);
                     int hz = rng.NextInt(3, math.max(5, scale / 2 + 1));
-                    // Keep foreground stones above the terrain rather than slicing them through a
-                    // slope. Stacking still gives the chunky ruins/outcrop silhouette in the target.
                     int y = HeightVoxel(x, z) + layer * 2 + hy;
                     StampRoundedBox(writer, new int3(x, y, z), new int3(hx, hy, hz),
                         1, Mat.TerrainLimestone, SurfaceStyles.Planar,
@@ -277,25 +321,25 @@ namespace VoxelEngine.Showcase
         {
             var rng = new Unity.Mathematics.Random(Seed ^ 0x7B19u);
 
-            for (int i = 0; i < 820; i++)
+            for (int i = 0; i < 520; i++)
             {
-                int z = rng.NextInt(-58, 545);
+                int z = rng.NextInt(-48, 525);
                 int x = rng.NextInt(TerrainXMin + 4, TerrainXMax - 4);
-                if (z < 245 && math.abs(x - PathCenterVoxel(z)) < 8) continue;
+                if (z < 315 && math.abs(x - PathCenterVoxel(z)) < 22) continue;
                 int rx = rng.NextInt(2, 6);
                 int rz = rng.NextInt(2, 7);
-                int ry = rng.NextFloat() < 0.30f ? 2 : 1;
+                int ry = rng.NextFloat() < 0.25f ? 2 : 1;
                 StampEllipsoid(writer, new int3(x, HeightVoxel(x, z) + ry, z),
                     new int3(rx, ry, rz), TurfMaterial(x, z), SurfaceStyles.Smooth);
             }
 
-            for (int i = 0; i < 170; i++)
+            for (int i = 0; i < 90; i++)
             {
-                int z = rng.NextInt(-50, 525);
+                int z = rng.NextInt(-35, 500);
                 int x = rng.NextInt(TerrainXMin + 8, TerrainXMax - 8);
-                if (z < 240 && math.abs(x - PathCenterVoxel(z)) < 10) continue;
-                int rx = rng.NextInt(5, 10);
-                int rz = rng.NextInt(4, 9);
+                if (z < 315 && math.abs(x - PathCenterVoxel(z)) < 24) continue;
+                int rx = rng.NextInt(5, 9);
+                int rz = rng.NextInt(4, 8);
                 int ry = rng.NextInt(1, 3);
                 StampEllipsoid(writer, new int3(x, HeightVoxel(x, z) + ry, z),
                     new int3(rx, ry, rz), TurfMaterial(x, z), SurfaceStyles.Smooth);
@@ -311,7 +355,7 @@ namespace VoxelEngine.Showcase
                 float distance = math.saturate((z + 55f) / 590f);
                 if (rng.NextFloat() < distance * 0.08f) continue;
                 int x = rng.NextInt(TerrainXMin + 5, TerrainXMax - 5);
-                if (z < 240 && math.abs(x - PathCenterVoxel(z)) < 7) continue;
+                if (z < 315 && math.abs(x - PathCenterVoxel(z)) < 18) continue;
                 int y = HeightVoxel(x, z) + 2;
                 byte flower = Mat.FlowerWhite;
                 float colour = rng.NextFloat();
@@ -417,7 +461,6 @@ namespace VoxelEngine.Showcase
             VoxelEngineBootstrap.CreateStructureAuthoring(_storage, budget);
 
         private void PublishAllResidentRegions() => _storage.PublishAllResidentRegions();
-
 
         public void Shutdown()
         {
