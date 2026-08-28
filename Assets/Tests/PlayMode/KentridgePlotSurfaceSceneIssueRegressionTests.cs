@@ -1,11 +1,10 @@
-using MountingForce.WorldGen.Content.Kentridge;
 using MountingForce.WorldGen.Voxel;
 using NUnit.Framework;
 using Unity.Collections;
 using VoxelEngine.Structures.Api;
 using VoxelEngine.Terrain.Api;
 
-namespace VoxelEngine.Tests.EditMode
+namespace VoxelEngine.Tests.PlayMode
 {
     public sealed class KentridgePlotSurfaceSceneIssueRegressionTests
     {
@@ -25,11 +24,31 @@ namespace VoxelEngine.Tests.EditMode
                     Assert.AreEqual(3, plots.Definitions[i].MaxPrimitives,
                         plots.Definitions[i].Name + " must use one bounded carve/fill/surface pad.");
 
-                int definitionId = (int)StructureArchetype.WideHouse;
-                FeatureDefinition definition = plots.Definitions[definitionId];
-                PlacementRule rule = plots.Rules[definitionId];
+                int definitionId = -1;
+                for (int i = 0; i < plots.Definitions.Length; i++)
+                {
+                    if (plots.Definitions[i].Name.ToString() == "kentridge-plot-widehouse")
+                    {
+                        definitionId = i;
+                        break;
+                    }
+                }
+                Assert.GreaterOrEqual(definitionId, 0,
+                    "The production plot catalogue must retain the WideHouse definition.");
 
-                Assert.AreEqual(definitionId, rule.DefinitionId);
+                FeatureDefinition definition = plots.Definitions[definitionId];
+                PlacementRule rule = default;
+                bool foundRule = false;
+                for (int i = 0; i < plots.Rules.Length; i++)
+                {
+                    if (plots.Rules[i].DefinitionId == definitionId)
+                    {
+                        rule = plots.Rules[i];
+                        foundRule = true;
+                        break;
+                    }
+                }
+                Assert.IsTrue(foundRule, "The WideHouse plot definition must retain its placement rule.");
                 Assert.AreEqual(40, definition.Precedence,
                     "Plot grading must remain in its established generation stage.");
 
