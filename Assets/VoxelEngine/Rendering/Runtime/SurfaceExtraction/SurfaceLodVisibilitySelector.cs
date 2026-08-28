@@ -23,13 +23,17 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public bool IsActive(in SurfaceLodNodeKey key) => _active.Contains(key);
 
         /// <summary>
-        /// A direct child can satisfy the current camera's handoff only if the finer ring owns the
-        /// coordinate. Once owned, off-frustum coverage is irrelevant to this frame; in-frustum
-        /// coverage must be current-ready or current-known-empty before the coarse fallback leaves.
+        /// A direct child can satisfy an atomic handoff only when the finer ring owns the
+        /// coordinate and its desired generation is current-ready or current-known-empty.
+        /// Off-frustum children are still prefetched, but they cannot retire the coarse fallback:
+        /// camera motion can expose them before their replacement geometry publishes.
         /// </summary>
         internal static bool IsCurrentViewComplete(bool inBand, bool inFrustum,
-                                                   bool currentReady, bool currentEmpty) =>
-            inBand && (!inFrustum || currentReady || currentEmpty);
+                                                   bool currentReady, bool currentEmpty)
+        {
+            _ = inFrustum;
+            return inBand && (currentReady || currentEmpty);
+        }
 
         public void Rebuild(IReadOnlyList<SurfaceLodNodeKey> drawableNodes,
                             IReadOnlyList<SurfaceLodNodeKey> currentCompleteNodes)
