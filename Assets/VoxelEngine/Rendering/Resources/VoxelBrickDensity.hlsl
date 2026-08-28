@@ -15,7 +15,7 @@
 // -- authoritative brick payload (the mirror) --------------------------------
 
 StructuredBuffer<uint> _BrickMaterials;        // 4 material bytes per word
-StructuredBuffer<uint> _BrickSurfaceSemantics; // 2 surface ushorts per word
+StructuredBuffer<uint> _BrickSurfaceSemantics; // 2 PackedStorage ushorts per word
 StructuredBuffer<uint> _BrickBoundarySamples;  // 4 boundary bytes per word
 
 // One entry per brick in the meshed chunk's neighbourhood, mirroring the CPU brick cache:
@@ -129,6 +129,19 @@ uint ResolveSurface(uint material, uint surface)
     return (surface & 0xFFFF0000u) | style;
 }
 
+// Storage keeps surface semantics in a compact ushort while every reconstruction path consumes the
+// runtime 32-bit layout. Mirror uploads intentionally preserve Storage bytes, so decode at the GPU
+// read boundary exactly as VoxelSurfaceSemantics.FromStorage does on the CPU:
+// style 0..4, coating 5..8, flags 9..10, detail 11..15.
+uint DecodeSurfaceStorage(uint packedStorage)
+{
+    uint style = packedStorage & 0x1Fu;
+    uint coating = (packedStorage >> 5) & 0x0Fu;
+    uint flags = (packedStorage >> 9) & 0x03u;
+    uint detail = (packedStorage >> 11) & 0x1Fu;
+    return style | (coating << 16) | ((flags | (detail << 3)) << 24);
+}
+
 // Arithmetic shift for floor division, so the half of the world at negative coordinates does not
 // fold onto the origin. HLSL's >> on int is arithmetic, which is what this relies on.
 int3 WorldBrickOf(int3 p) { return int3(p.x >> 3, p.y >> 3, p.z >> 3); }
@@ -158,7 +171,8 @@ uint ReadMaterial(int3 p, out uint surface, out uint boundary)
     uint material = (materialWord >> ((voxel & 3u) * 8u)) & 0xFFu;
 
     uint surfaceWord = _BrickSurfaceSemantics[slot * 256u + (voxel >> 1)];
-    surface = (surfaceWord >> ((voxel & 1u) * 16u)) & 0xFFFFu;
+    uint packedStorage = (surfaceWord >> ((voxel & 1u) * 16u)) & 0xFFFFu;
+    surface = DecodeSurfaceStorage(packedStorage);
 
     uint boundaryWord = _BrickBoundarySamples[slot * 128u + (voxel >> 2)];
     boundary = (boundaryWord >> ((voxel & 3u) * 8u)) & 0xFFu;
