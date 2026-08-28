@@ -1,4 +1,7 @@
 using System.Collections;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Reflection;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -12,12 +15,14 @@ namespace VoxelEngine.Tests.PlayMode
     /// <summary>
     /// Regression for SceneIssue 20260825-192751-413: the legacy per-worker GPU-v1 cutover must
     /// stay out of production after two exact traversal runs lost every visible voxel draw. The
-    /// optimized CPU renderer remains authoritative for production presentation while GPU-v1 stays
-    /// available only through the explicit diagnostic opt-in used by future GPU-v2 work.
+    /// optimized CPU renderer must preserve the same moving coverage and frame-time gates while
+    /// GPU-v1 remains available only through explicit diagnostic opt-in.
     /// </summary>
     public sealed class ShowcaseGpuMigrationTests
     {
         private const string ScenePath = "Assets/Scenes/VoxelShowcase.unity";
+        private const double MaxMovingP95FrameMs = 18.0;
+        private const double MaxMovingP99FrameMs = 25.0;
 
         [UnityTest, Timeout(900000)]
         public IEnumerator MovingShowcaseKeepsLegacyGpuV1OffAndPreservesCoverage()
@@ -27,11 +32,16 @@ namespace VoxelEngine.Tests.PlayMode
             yield return null;
 
             VoxelShowcase showcase = Object.FindFirstObjectByType<VoxelShowcase>();
+            VoxelFarTerrain far = Object.FindFirstObjectByType<VoxelFarTerrain>();
             Camera camera = Camera.main;
             Assert.NotNull(showcase);
+            Assert.NotNull(far);
             Assert.NotNull(camera);
             Assert.True(CpuTransvoxelChunkCache.GpuCutoverDisabled,
                 "Production startup did not apply the legacy GPU-v1 safety gate.");
+
+            SetShowcaseField(showcase, "m_FlyMode", true);
+            SetShowcaseField(showcase, "_mouseLook", false);
 
             var target = new RenderTexture(320, 180, 24, RenderTextureFormat.ARGB32)
             {
@@ -44,19 +54,40 @@ namespace VoxelEngine.Tests.PlayMode
 
             try
             {
+                yield return WaitForFallbackSafeVisibleCoverage(camera, far, 1200);
+
                 Vector3 origin = showcase.transform.position;
+                Quaternion originRotation = showcase.transform.rotation;
                 ulong initialGpuCompleted = VoxelRenderBridge.SurfaceMetrics.GpuCompletedSolidBuilds;
+                var frameTimesMs = new List<double>(420);
+                var frameClock = new Stopwatch();
+                bool sawStreamingWork = false;
+                int crossedRegionBoundaries = 0;
+                int previousRegionX = Mathf.FloorToInt(origin.x / ShowcaseWorld.RegionMetres);
                 VoxelSurfaceMetrics last = default;
 
                 for (int frame = 0; frame < 420; frame++)
                 {
-                    showcase.transform.position = origin + new Vector3(
+                    float progress = frame / 419f;
+                    Vector3 position = origin + new Vector3(
                         frame * 0.5f,
                         0f,
-                        Mathf.Sin(frame * 0.04f) * 12f);
+                        Mathf.Sin(progress * Mathf.PI * 6f) * 18f);
+                    showcase.transform.position = position;
+                    showcase.transform.rotation = originRotation;
 
+                    int regionX = Mathf.FloorToInt(position.x / ShowcaseWorld.RegionMetres);
+                    if (regionX != previousRegionX)
+                    {
+                        crossedRegionBoundaries++;
+                        previousRegionX = regionX;
+                    }
+
+                    frameClock.Restart();
                     yield return null;
                     camera.Render();
+                    frameClock.Stop();
+                    frameTimesMs.Add(frameClock.Elapsed.TotalMilliseconds);
                     last = VoxelRenderBridge.SurfaceMetrics;
 
                     Assert.AreEqual(0ul, last.FramePathBlockingCompletionViolations,
@@ -65,12 +96,40 @@ namespace VoxelEngine.Tests.PlayMode
                         $"Production safety frame {frame} lost every visible voxel draw.");
                     Assert.AreEqual(0, last.GpuResidentBackends,
                         $"Production safety frame {frame} allocated a legacy GPU-v1 backend.");
+
+                    if (NearCoverageIsIncomplete(in last))
+                    {
+                        Assert.LessOrEqual(far.HoleRadiusMetres, 0.05f,
+                            $"Production safety frame {frame} had incomplete near coverage but "
+                          + $"opened a {far.HoleRadiusMetres:F2} m far-field hole.");
+                    }
+
+                    sawStreamingWork |= last.SolidDirtyChunks > 0
+                                     || last.RunningSolidJobs > 0
+                                     || last.SolidMeshesAwaitingUpload > 0
+                                     || last.SolidPendingUploadBytes > 0
+                                     || last.LastFrameSolidUploadedBytes > 0;
                 }
 
+                Assert.GreaterOrEqual(crossedRegionBoundaries, 4,
+                    "Production safety traversal did not cross enough region boundaries.");
+                Assert.True(sawStreamingWork,
+                    "Production safety traversal never exercised streaming/publication work.");
                 Assert.False(last.GpuCutoverAvailable,
                     "Production workers still advertised the legacy GPU-v1 cutover.");
                 Assert.AreEqual(initialGpuCompleted, last.GpuCompletedSolidBuilds,
                     "Production completed GPU-v1 surface builds despite the safety rollback.");
+
+                frameTimesMs.Sort();
+                double p95 = Percentile(frameTimesMs, 0.95);
+                double p99 = Percentile(frameTimesMs, 0.99);
+                UnityEngine.Debug.Log(
+                    $"### SHOWCASE_GPU_ROLLBACK_TRAVERSAL p95={p95:F3}ms p99={p99:F3}ms "
+                  + $"max={frameTimesMs[^1]:F3}ms");
+                Assert.Less(p95, MaxMovingP95FrameMs,
+                    $"Production CPU traversal p95 regressed to {p95:F3} ms.");
+                Assert.Less(p99, MaxMovingP99FrameMs,
+                    $"Production CPU traversal p99 regressed to {p99:F3} ms.");
             }
             finally
             {
@@ -78,6 +137,58 @@ namespace VoxelEngine.Tests.PlayMode
                 target.Release();
                 Object.DestroyImmediate(target);
             }
+        }
+
+        private static IEnumerator WaitForFallbackSafeVisibleCoverage(
+            Camera camera, VoxelFarTerrain far, int maxFrames)
+        {
+            int stableFrames = 0;
+            VoxelSurfaceMetrics last = default;
+            for (int frame = 0; frame < maxFrames; frame++)
+            {
+                yield return null;
+                camera.Render();
+                last = VoxelRenderBridge.SurfaceMetrics;
+                Assert.AreEqual(0ul, last.FramePathBlockingCompletionViolations,
+                    "Geometry work blocked while preparing production traversal coverage.");
+
+                bool nearIncomplete = NearCoverageIsIncomplete(in last);
+                bool fallbackSafe = !nearIncomplete || far.HoleRadiusMetres <= 0.05f;
+                stableFrames = last.VisibleSolidChunks > 0 && fallbackSafe
+                    ? stableFrames + 1 : 0;
+                if (stableFrames >= 4) yield break;
+            }
+
+            Assert.Fail(
+                $"Showcase never reached fallback-safe visible coverage; "
+              + $"known={last.SolidKnownChunks} resident={last.SolidResidentChunks} "
+              + $"dirty={last.SolidDirtyChunks} visible={last.VisibleSolidChunks} "
+              + $"missing={last.MissingVisibleSolidChunks} jobs={last.RunningSolidJobs} "
+              + $"farHole={far.HoleRadiusMetres:F2}m.");
+        }
+
+        private static bool NearCoverageIsIncomplete(in VoxelSurfaceMetrics metrics) =>
+            metrics.MissingVisibleSolidChunks > 0
+            || metrics.SolidDirtyChunks > 0
+            || metrics.RunningSolidJobs > 0
+            || metrics.SolidMeshesAwaitingUpload > 0
+            || metrics.SolidPendingUploadBytes > 0;
+
+        private static double Percentile(List<double> sorted, double percentile)
+        {
+            if (sorted.Count == 0) return 0.0;
+            int index = Mathf.Clamp(
+                Mathf.CeilToInt((float)(percentile * sorted.Count)) - 1,
+                0, sorted.Count - 1);
+            return sorted[index];
+        }
+
+        private static void SetShowcaseField<T>(VoxelShowcase showcase, string name, T value)
+        {
+            FieldInfo field = typeof(VoxelShowcase).GetField(
+                name, BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.NotNull(field, $"VoxelShowcase field '{name}' was not found.");
+            field.SetValue(showcase, value);
         }
     }
 }
