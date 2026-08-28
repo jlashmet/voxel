@@ -5,9 +5,9 @@ using UnityEngine.SceneManagement;
 namespace VoxelEngine.Showcase
 {
     /// <summary>
-    /// Final composition correction for the ArchLookdev reference growth. It contracts the existing
-    /// left-side ivy clusters into three distinct masonry-supported masses and gathers the existing
-    /// flower heads into a few richer bouquets. No renderers, vertices, or steady-state work are added.
+    /// Final one-shot composition correction for the ArchLookdev hero growth. It preserves the
+    /// authored combined meshes while gathering the left ivy into discrete masonry-supported masses
+    /// and rebuilding the existing flower topology into overlapping rounded rosette bouquets.
     /// </summary>
     [DisallowMultipleComponent]
     [DefaultExecutionOrder(1300)]
@@ -17,7 +17,6 @@ namespace VoxelEngine.Showcase
         private const string HeroRootName = "Arch Reference Hero Growth";
         private const int IvyLeavesPerCluster = 8;
         private const int IvyLeafVertexCount = 17;
-        private const int IvyStemVertexCount = 4;
         private const int LeftIvyClusterCount = 12;
         private const int RightIvyClusterCount = 4;
         private const int TotalIvyClusterCount = LeftIvyClusterCount + RightIvyClusterCount;
@@ -26,6 +25,8 @@ namespace VoxelEngine.Showcase
         private const int FlowerPetalsPerHead = 5;
         private const int FlowerPetalVertexCount = 7;
         private const int FlowerCentreVertexCount = 9;
+
+        private static readonly Color StemColor = new(0.07f, 0.24f, 0.04f, 1f);
 
         private Coroutine _applyRoutine;
         private Mesh _composedIvy;
@@ -103,7 +104,7 @@ namespace VoxelEngine.Showcase
                 if (heroRoot == null || centres == null) continue;
 
                 BreakIvyIntoMasses(ivy);
-                GatherFlowerBouquets(petals, centres);
+                GatherRoundedBouquets(petals, centres);
 
                 _composedIvy = ivy;
                 _composedPetals = petals;
@@ -118,12 +119,14 @@ namespace VoxelEngine.Showcase
         private static void BreakIvyIntoMasses(Mesh mesh)
         {
             Vector3[] vertices = mesh.vertices;
-            if (vertices == null || vertices.Length == 0) return;
-            if (!TryParseIvyLeafStarts(vertices.Length, out int[,] starts)) return;
+            if (vertices == null || vertices.Length == 0 || !TryFindIvyLeafStarts(mesh, out int[,] starts))
+                return;
 
-            ContractIvyZone(vertices, starts, 0, 2, 0.42f, 0xA11u);
-            ContractIvyZone(vertices, starts, 3, 6, 0.34f, 0xB22u);
-            ContractIvyZone(vertices, starts, 7, 11, 0.31f, 0xC33u);
+            // Keep the source's semantic vertical progression, but gather neighbouring authored
+            // clusters far enough that the eye reads three masses with true masonry gaps, not a path.
+            ContractIvyZone(vertices, starts, 0, 2, 0.18f, 0.72f, 0xA11u);
+            ContractIvyZone(vertices, starts, 3, 6, 0.15f, 0.70f, 0xB22u);
+            ContractIvyZone(vertices, starts, 7, 11, 0.14f, 0.68f, 0xC33u);
 
             mesh.vertices = vertices;
             mesh.RecalculateBounds();
@@ -135,6 +138,7 @@ namespace VoxelEngine.Showcase
             int firstCluster,
             int lastCluster,
             float clusterCompression,
+            float leafCompression,
             uint seed)
         {
             int count = lastCluster - firstCluster + 1;
@@ -153,59 +157,71 @@ namespace VoxelEngine.Showcase
                 int cluster = firstCluster + localCluster;
                 Vector3 sourceCluster = clusterCentres[localCluster];
                 Vector3 compressed = zoneCentre + (sourceCluster - zoneCentre) * clusterCompression;
-                float xJitter = SignedRandom(seed + (uint)(localCluster * 67 + 11)) * 0.055f;
-                float yJitter = SignedRandom(seed + (uint)(localCluster * 89 + 31)) * 0.045f;
-                Vector3 targetCluster = compressed + new Vector3(xJitter, yJitter, 0f);
+                float angle = (localCluster * 137.50776f + SignedRandom(seed + 5u) * 18f) * Mathf.Deg2Rad;
+                float ring = 0.035f + 0.015f * (localCluster % 3);
+                Vector3 targetCluster = compressed + new Vector3(
+                    Mathf.Cos(angle) * ring,
+                    Mathf.Sin(angle) * ring,
+                    SignedRandom(seed + (uint)(localCluster * 83 + 17)) * 0.020f);
 
                 for (int leaf = 0; leaf < IvyLeavesPerCluster; leaf++)
                 {
                     int start = starts[cluster, leaf];
                     Vector3 sourceLeaf = vertices[start];
                     Vector3 local = sourceLeaf - sourceCluster;
-                    Vector3 targetLeaf = targetCluster + new Vector3(local.x * 0.84f, local.y * 0.80f, local.z);
+                    Vector3 targetLeaf = targetCluster + new Vector3(
+                        local.x * leafCompression,
+                        local.y * leafCompression,
+                        local.z + SignedRandom(seed + (uint)(localCluster * 271 + leaf * 31 + 29)) * 0.018f);
                     TranslateRange(vertices, start, IvyLeafVertexCount, targetLeaf - sourceLeaf);
                 }
             }
         }
 
-        private static bool TryParseIvyLeafStarts(int vertexCount, out int[,] starts)
+        private static bool TryFindIvyLeafStarts(Mesh mesh, out int[,] starts)
         {
             starts = new int[TotalIvyClusterCount, IvyLeavesPerCluster];
+            if (mesh == null) return false;
+            Color[] colors = mesh.colors;
+            int vertexCount = mesh.vertexCount;
+            if (colors == null || colors.Length != vertexCount) return false;
+
             int cursor = 0;
-            int globalCluster = 0;
-            if (!ParseIvyPath(vertexCount, LeftIvyClusterCount, ref cursor, ref globalCluster, starts))
-                return false;
-            return ParseIvyPath(vertexCount, RightIvyClusterCount, ref cursor, ref globalCluster, starts);
-        }
-
-        private static bool ParseIvyPath(
-            int vertexCount,
-            int clusterCount,
-            ref int cursor,
-            ref int globalCluster,
-            int[,] starts)
-        {
-            for (int cluster = 0; cluster < clusterCount; cluster++, globalCluster++)
+            int found = 0;
+            int expected = TotalIvyClusterCount * IvyLeavesPerCluster;
+            while (cursor < vertexCount && found < expected)
             {
-                if (cluster > 0)
-                {
-                    if (cursor + IvyStemVertexCount > vertexCount) return false;
-                    cursor += IvyStemVertexCount;
-                }
+                while (cursor < vertexCount && IsStemColor(colors[cursor])) cursor++;
+                if (cursor + IvyLeafVertexCount > vertexCount) return false;
 
-                for (int leaf = 0; leaf < IvyLeavesPerCluster; leaf++)
+                bool leafRun = true;
+                for (int i = 0; i < IvyLeafVertexCount; i++)
                 {
-                    if (cursor + IvyLeafVertexCount > vertexCount) return false;
-                    starts[globalCluster, leaf] = cursor;
-                    cursor += IvyLeafVertexCount;
-                    if ((leaf & 1) == 0)
+                    if (IsStemColor(colors[cursor + i]))
                     {
-                        if (cursor + IvyStemVertexCount > vertexCount) return false;
-                        cursor += IvyStemVertexCount;
+                        leafRun = false;
+                        break;
                     }
                 }
+                if (!leafRun)
+                {
+                    cursor++;
+                    continue;
+                }
+
+                starts[found / IvyLeavesPerCluster, found % IvyLeavesPerCluster] = cursor;
+                found++;
+                cursor += IvyLeafVertexCount;
             }
-            return true;
+            return found == expected;
+        }
+
+        private static bool IsStemColor(Color color)
+        {
+            const float tolerance = 0.006f;
+            return Mathf.Abs(color.r - StemColor.r) < tolerance &&
+                   Mathf.Abs(color.g - StemColor.g) < tolerance &&
+                   Mathf.Abs(color.b - StemColor.b) < tolerance;
         }
 
         private static Vector3 MeasureIvyClusterCentre(Vector3[] vertices, int[,] starts, int cluster)
@@ -216,68 +232,167 @@ namespace VoxelEngine.Showcase
             return centre / IvyLeavesPerCluster;
         }
 
-        private static void GatherFlowerBouquets(Mesh petals, Mesh centres)
+        private static void GatherRoundedBouquets(Mesh petals, Mesh centres)
         {
             Vector3[] petalVertices = petals.vertices;
+            Vector3[] petalNormals = petals.normals;
+            Color[] petalColors = petals.colors;
             Vector3[] centreVertices = centres.vertices;
+            Vector3[] centreNormals = centres.normals;
+            Color[] centreColors = centres.colors;
             int headVertexCount = FlowerPetalsPerHead * FlowerPetalVertexCount;
             int expectedHeads = FlowerClusterCount * FlowerHeadsPerCluster;
-            if (petalVertices == null || centreVertices == null ||
-                petalVertices.Length != expectedHeads * headVertexCount ||
-                centreVertices.Length != expectedHeads * FlowerCentreVertexCount)
+            if (petalVertices == null || petalVertices.Length != expectedHeads * headVertexCount ||
+                centreVertices == null || centreVertices.Length != expectedHeads * FlowerCentreVertexCount)
                 return;
 
             var clusterCentres = new Vector3[FlowerClusterCount];
-            for (int cluster = 0; cluster < FlowerClusterCount; cluster++)
-                clusterCentres[cluster] = MeasureFlowerClusterCentre(petalVertices, cluster, headVertexCount);
-
             var zoneCentres = new Vector3[3];
             var zoneCounts = new int[3];
             for (int cluster = 0; cluster < FlowerClusterCount; cluster++)
             {
+                clusterCentres[cluster] = MeasureFlowerClusterCentre(petalVertices, cluster, headVertexCount);
                 int zone = FlowerZone(cluster);
                 zoneCentres[zone] += clusterCentres[cluster];
                 zoneCounts[zone]++;
             }
-            for (int zone = 0; zone < zoneCentres.Length; zone++)
+            for (int zone = 0; zone < 3; zone++)
                 zoneCentres[zone] /= Mathf.Max(1, zoneCounts[zone]);
 
             for (int cluster = 0; cluster < FlowerClusterCount; cluster++)
             {
                 int zone = FlowerZone(cluster);
                 int ordinal = FlowerZoneOrdinal(cluster);
-                Vector3 sourceCluster = clusterCentres[cluster];
-                Vector3 targetCluster = zoneCentres[zone] + (sourceCluster - zoneCentres[zone]) * 0.12f;
-                float angle = (ordinal * 137.50776f + zone * 31f) * Mathf.Deg2Rad;
-                float ring = 0.075f + 0.018f * ordinal;
-                targetCluster += new Vector3(Mathf.Cos(angle) * ring, Mathf.Sin(angle) * ring, -0.012f * ordinal);
+                float clusterAngle = (ordinal * 137.50776f + zone * 29f) * Mathf.Deg2Rad;
+                float clusterRing = 0.070f + 0.022f * ordinal;
+                Vector3 targetCluster = zoneCentres[zone] + new Vector3(
+                    Mathf.Cos(clusterAngle) * clusterRing,
+                    Mathf.Sin(clusterAngle) * clusterRing,
+                    -0.016f * ordinal);
 
                 for (int localHead = 0; localHead < FlowerHeadsPerCluster; localHead++)
                 {
                     int head = cluster * FlowerHeadsPerCluster + localHead;
-                    int petalStart = head * headVertexCount;
-                    int centreStart = head * FlowerCentreVertexCount;
-                    Vector3 sourceHead = MeasureHeadCentre(petalVertices, petalStart);
-                    Vector3 localHeadOffset = sourceHead - sourceCluster;
+                    Vector2 headOffset = localHead switch
+                    {
+                        0 => new Vector2(-0.060f, -0.035f),
+                        1 => new Vector2( 0.060f, -0.025f),
+                        _ => new Vector2( 0.000f,  0.065f),
+                    };
+                    float radius = Mathf.Lerp(0.155f, 0.185f, Random01((uint)(head * 593 + 43)));
                     Vector3 targetHead = targetCluster + new Vector3(
-                        localHeadOffset.x * 0.88f,
-                        localHeadOffset.y * 0.88f,
-                        localHeadOffset.z - 0.006f * localHead);
+                        headOffset.x,
+                        headOffset.y,
+                        -0.013f * localHead);
+                    Color blossom = BlossomColor(zone, ordinal, localHead);
 
-                    float scale = 1.30f + 0.05f * SignedRandom((uint)(head * 593 + 43));
-                    ScaleAndTranslateRange(petalVertices, petalStart, headVertexCount, sourceHead, targetHead, scale);
-
-                    Vector3 sourceCentre = centreVertices[centreStart];
-                    Vector3 targetCentre = targetHead + (sourceCentre - sourceHead);
-                    ScaleAndTranslateRange(
-                        centreVertices, centreStart, FlowerCentreVertexCount, sourceCentre, targetCentre, scale);
+                    RewriteRoundedRosette(
+                        petalVertices, petalNormals, petalColors,
+                        head * headVertexCount, head, targetHead, radius, blossom);
+                    RewriteFlowerCentre(
+                        centreVertices, centreNormals, centreColors,
+                        head * FlowerCentreVertexCount, targetHead, radius * 0.22f);
                 }
             }
 
             petals.vertices = petalVertices;
+            if (petalNormals != null && petalNormals.Length == petalVertices.Length) petals.normals = petalNormals;
+            if (petalColors != null && petalColors.Length == petalVertices.Length) petals.colors = petalColors;
             petals.RecalculateBounds();
+
             centres.vertices = centreVertices;
+            if (centreNormals != null && centreNormals.Length == centreVertices.Length) centres.normals = centreNormals;
+            if (centreColors != null && centreColors.Length == centreVertices.Length) centres.colors = centreColors;
             centres.RecalculateBounds();
+        }
+
+        private static void RewriteRoundedRosette(
+            Vector3[] vertices,
+            Vector3[] normals,
+            Color[] colors,
+            int headStart,
+            int headIndex,
+            Vector3 headCentre,
+            float radius,
+            Color blossom)
+        {
+            float rotation = SignedRandom((uint)(headIndex * 829 + 71)) * 16f * Mathf.Deg2Rad;
+            for (int petal = 0; petal < FlowerPetalsPerHead; petal++)
+            {
+                int start = headStart + petal * FlowerPetalVertexCount;
+                float angle = rotation + petal * (Mathf.PI * 2f / FlowerPetalsPerHead);
+                Vector2 radial = new(Mathf.Cos(angle), Mathf.Sin(angle));
+                Vector2 tangent = new(-radial.y, radial.x);
+                Vector3 lobeCentre = headCentre + new Vector3(
+                    radial.x * radius * 0.22f,
+                    radial.y * radius * 0.22f,
+                    -0.018f + 0.004f * (petal & 1));
+
+                vertices[start] = lobeCentre;
+                if (normals != null && normals.Length == vertices.Length) normals[start] = Vector3.back;
+                if (colors != null && colors.Length == vertices.Length) colors[start] = blossom;
+
+                for (int rim = 0; rim < 6; rim++)
+                {
+                    float theta = rim * Mathf.PI * 2f / 6f;
+                    float tangentAmount = Mathf.Cos(theta) * radius * 0.48f;
+                    float radialAmount = Mathf.Sin(theta) * radius * 0.42f;
+                    Vector2 offset = tangent * tangentAmount + radial * radialAmount;
+                    float bowl = 0.010f + 0.006f * Mathf.Cos(theta);
+                    vertices[start + 1 + rim] = new Vector3(
+                        lobeCentre.x + offset.x,
+                        lobeCentre.y + offset.y,
+                        headCentre.z + bowl);
+                    if (normals != null && normals.Length == vertices.Length)
+                    {
+                        normals[start + 1 + rim] = new Vector3(
+                            offset.x * 0.55f,
+                            offset.y * 0.55f,
+                            -1f).normalized;
+                    }
+                    if (colors != null && colors.Length == vertices.Length)
+                        colors[start + 1 + rim] = Color.Lerp(blossom, Color.white, 0.18f);
+                }
+            }
+        }
+
+        private static void RewriteFlowerCentre(
+            Vector3[] vertices,
+            Vector3[] normals,
+            Color[] colors,
+            int start,
+            Vector3 headCentre,
+            float radius)
+        {
+            if (start < 0 || start + FlowerCentreVertexCount > vertices.Length) return;
+            vertices[start] = headCentre + new Vector3(0f, 0f, -0.026f);
+            if (normals != null && normals.Length == vertices.Length) normals[start] = Vector3.back;
+            if (colors != null && colors.Length == vertices.Length)
+                colors[start] = new Color(0.95f, 0.58f, 0.12f, 1f);
+
+            for (int i = 0; i < 8; i++)
+            {
+                float angle = i * Mathf.PI * 2f / 8f;
+                vertices[start + 1 + i] = headCentre + new Vector3(
+                    Mathf.Cos(angle) * radius,
+                    Mathf.Sin(angle) * radius,
+                    -0.020f);
+                if (normals != null && normals.Length == vertices.Length) normals[start + 1 + i] = Vector3.back;
+                if (colors != null && colors.Length == vertices.Length)
+                    colors[start + 1 + i] = new Color(1.00f, 0.74f, 0.22f, 1f);
+            }
+        }
+
+        private static Color BlossomColor(int zone, int ordinal, int localHead)
+        {
+            int variant = (zone * 5 + ordinal + localHead) % 4;
+            return variant switch
+            {
+                0 => new Color(0.96f, 0.78f, 0.84f, 1f),
+                1 => new Color(0.88f, 0.84f, 0.98f, 1f),
+                2 => new Color(0.94f, 0.91f, 0.78f, 1f),
+                _ => new Color(0.80f, 0.88f, 0.98f, 1f),
+            };
         }
 
         private static int FlowerZone(int cluster)
@@ -325,20 +440,7 @@ namespace VoxelEngine.Showcase
 
         private static void TranslateRange(Vector3[] vertices, int start, int count, Vector3 delta)
         {
-            for (int i = 0; i < count; i++)
-                vertices[start + i] += delta;
-        }
-
-        private static void ScaleAndTranslateRange(
-            Vector3[] vertices,
-            int start,
-            int count,
-            Vector3 sourceCentre,
-            Vector3 targetCentre,
-            float scale)
-        {
-            for (int i = 0; i < count; i++)
-                vertices[start + i] = targetCentre + (vertices[start + i] - sourceCentre) * scale;
+            for (int i = 0; i < count; i++) vertices[start + i] += delta;
         }
 
         private static Mesh FindChildMesh(Transform root, string name)
