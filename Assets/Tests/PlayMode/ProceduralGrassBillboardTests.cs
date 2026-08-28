@@ -1,8 +1,10 @@
-using System;
+using System.Collections.Generic;
 using System.Reflection;
 using NUnit.Framework;
+using Unity.Mathematics;
 using UnityEngine;
-using VoxelEngine.Rendering.Runtime.Vegetation;
+using VoxelEngine.Rendering.Api;
+using VoxelEngine.Showcase;
 using VoxelEngine.Vegetation.Api;
 
 namespace VoxelEngine.Tests.PlayMode
@@ -10,175 +12,264 @@ namespace VoxelEngine.Tests.PlayMode
     public sealed class ProceduralGrassBillboardTests
     {
         [Test, Timeout(30000)]
-        public void MeadowTuftsUseSolidRibbonTopologyWithoutRestylingFlowersOrWetlandPlants()
+        public void GalleryMeadowPacksDeterministicRegionalRibbonsAndPreservesFallbackKinds()
         {
-            Assert.That(ProceduralVegetationMaterials.StyleFor(VegetationKind.Grass).ShaderClass,
-                Is.EqualTo(VegetationShaderClass.Grass));
-            Assert.That(ProceduralVegetationMaterials.StyleFor(VegetationKind.Clover).ShaderClass,
-                Is.EqualTo(VegetationShaderClass.Grass));
-            Assert.That(ProceduralVegetationMaterials.StyleFor(VegetationKind.Weed).ShaderClass,
-                Is.EqualTo(VegetationShaderClass.Grass));
-            Assert.That(ProceduralVegetationMaterials.StyleFor(VegetationKind.Nettle).ShaderClass,
-                Is.EqualTo(VegetationShaderClass.Grass));
-            Assert.That(ProceduralVegetationMaterials.StyleFor(VegetationKind.DeadGrass).ShaderClass,
-                Is.EqualTo(VegetationShaderClass.Grass));
-
-            Assert.That(ProceduralVegetationMaterials.StyleFor(VegetationKind.Flower).ShaderClass,
-                Is.EqualTo(VegetationShaderClass.Foliage), "Flowers must stay on their existing foliage renderer.");
-            Assert.That(ProceduralVegetationMaterials.StyleFor(VegetationKind.WaterGrass).ShaderClass,
-                Is.EqualTo(VegetationShaderClass.Foliage), "Aquatic grass is outside the marked meadow fix.");
-            Assert.That(ProceduralVegetationMaterials.StyleFor(VegetationKind.Reed).ShaderClass,
-                Is.EqualTo(VegetationShaderClass.Foliage), "Wetland reeds are outside the marked meadow fix.");
-
-            Shader shader = Shader.Find(ProceduralVegetationMaterials.GrassShaderName);
-            Assert.That(shader, Is.Not.Null, "The dedicated production grass shader must import in PlayMode.");
-
-            Mesh grassMesh = GetProductionGrassMesh();
-            Assert.That(grassMesh, Is.Not.Null);
-            Assert.That(grassMesh.name, Does.Contain("Packed Meadow Grass Ribbons"));
-            Assert.That(grassMesh.vertexCount, Is.EqualTo(110),
-                "Eleven independently packed blades with five two-vertex rows should stay construction-time geometry.");
-            Assert.That(grassMesh.triangles.Length / 3, Is.EqualTo(88),
-                "Each blade must remain four solid ribbon segments; no transparent billboard sections are allowed.");
-            Assert.That(grassMesh.uv4.Length, Is.EqualTo(grassMesh.vertexCount),
-                "Every ribbon vertex carries stable per-blade phase data for GPU deformation.");
-        }
-
-        [Test, Timeout(30000)]
-        public void GrassRibbonsStayReadableAcrossOrbitAndRecoverAfterInteractorLeaves()
-        {
-            Shader shader = Shader.Find(ProceduralVegetationMaterials.GrassShaderName);
-            Assert.That(shader, Is.Not.Null, "Production grass shader must be available in PlayMode.");
-            Assert.That(shader.isSupported, Is.True, "Production grass shader must compile for the active test graphics API.");
-
-            var cameraObject = new GameObject("Grass ribbon regression camera");
-            var grassObject = new GameObject("Grass ribbon regression tuft");
-            var camera = cameraObject.AddComponent<Camera>();
-            var filter = grassObject.AddComponent<MeshFilter>();
-            var renderer = grassObject.AddComponent<MeshRenderer>();
-            Mesh mesh = GetProductionGrassMesh();
-            Material material = ProceduralVegetationMaterials.MaterialFor(VegetationKind.Grass);
-            var block = new MaterialPropertyBlock();
-            var target = new RenderTexture(192, 192, 24, RenderTextureFormat.ARGB32);
-            var front = new Texture2D(192, 192, TextureFormat.RGBA32, false);
-            var side = new Texture2D(192, 192, TextureFormat.RGBA32, false);
-            var pushed = new Texture2D(192, 192, TextureFormat.RGBA32, false);
-            var recovered = new Texture2D(192, 192, TextureFormat.RGBA32, false);
-            RenderTexture previousActive = RenderTexture.active;
+            var host = new GameObject("Worldbuilding gallery meadow regression");
+            var player = new GameObject("Worldbuilding gallery meadow regression player");
+            WorldbuildingGalleryMeadowRenderer renderer = host.AddComponent<WorldbuildingGalleryMeadowRenderer>();
+            var fallback = new CapturingVegetationRenderer();
+            List<VegetationInstance> semantic = BuildRegionalSemanticBatch();
 
             try
             {
-                Assert.That(material, Is.Not.Null);
-                filter.sharedMesh = mesh;
-                renderer.sharedMaterial = material;
-                ProceduralVegetationMaterials.Configure(block, VegetationKind.Grass);
-                block.SetFloat("_WindStrength", 0f);
-                renderer.SetPropertyBlock(block);
+                renderer.Publish(semantic, fallback, player.transform);
+                Mesh first = GetPackedMesh(renderer);
 
-                material.SetFloat("_UseValidationAnimationTime", 1f);
-                material.SetFloat("_ValidationAnimationTime", 0f);
-                ProceduralVegetationMaterials.SetGrassInteractors(null);
-                ProceduralVegetationMaterials.ApplyLighting();
+                Assert.That(first, Is.Not.Null);
+                Assert.That(renderer.BladeCount, Is.GreaterThan(0),
+                    "The production gallery batch must construct visible meadow blades.");
+                Assert.That(first.vertexCount, Is.EqualTo(renderer.BladeCount * 10),
+                    "Four ribbon segments require five two-vertex rows per packed blade.");
+                Assert.That(first.GetIndexCount(0) / 3, Is.EqualTo((uint)(renderer.BladeCount * 8)),
+                    "Every packed blade must remain eight opaque ribbon triangles.");
+
+                Assert.That(fallback.Instances.Count, Is.EqualTo(3));
+                Assert.That(fallback.Instances[0].Kind, Is.EqualTo(VegetationKind.Flower));
+                Assert.That(fallback.Instances[1].Kind, Is.EqualTo(VegetationKind.Reed));
+                Assert.That(fallback.Instances[2].Kind, Is.EqualTo(VegetationKind.DeadGrass));
+
+                var roots = new List<Vector2>();
+                var shape = new List<Vector2>();
+                var phases = new List<Vector2>();
+                first.GetUVs(0, roots);
+                first.GetUVs(2, shape);
+                first.GetUVs(3, phases);
+                Color[] firstColors = first.colors;
+                Vector3[] firstVertices = first.vertices;
+
+                Assert.That(roots.Count, Is.EqualTo(first.vertexCount));
+                Assert.That(shape.Count, Is.EqualTo(first.vertexCount));
+                Assert.That(phases.Count, Is.EqualTo(first.vertexCount));
+                Assert.That(RangeX(roots), Is.GreaterThan(2f),
+                    "Packed roots must retain world/regional placement rather than repeat one local tuft.");
+                Assert.That(RangeY(roots), Is.GreaterThan(2f),
+                    "Packed roots must span coherent world-space regions in both horizontal axes.");
+                Assert.That(RangeTip(shape), Is.EqualTo(1f).Within(0.0001f),
+                    "The packed shape channel must preserve rigid roots and fully weighted tips.");
+                Assert.That(GreenRange(firstColors), Is.GreaterThan(0.05f),
+                    "Regional colour and ground-shade fields must produce multiple green tonal regions.");
+                Assert.That(PhaseRange(phases), Is.GreaterThan(0.5f),
+                    "Per-blade phase must vary so local wind does not animate every blade uniformly.");
+
+                renderer.Publish(semantic, fallback, player.transform);
+                Mesh second = GetPackedMesh(renderer);
+                Assert.That(second.vertexCount, Is.EqualTo(firstVertices.Length));
+                Assert.That(second.colors.Length, Is.EqualTo(firstColors.Length));
+                Vector3[] secondVertices = second.vertices;
+                Color[] secondColors = second.colors;
+                for (int i = 0; i < firstVertices.Length; i++)
+                {
+                    Assert.That(secondVertices[i], Is.EqualTo(firstVertices[i]),
+                        $"Construction must be deterministic at vertex {i}.");
+                    Assert.That(secondColors[i], Is.EqualTo(firstColors[i]),
+                        $"Regional colour must be deterministic at vertex {i}.");
+                }
+
+                Shader shader = Shader.Find(WorldbuildingGalleryMeadowRenderer.ShaderName);
+                Assert.That(shader, Is.Not.Null, "The gallery meadow shader must import in PlayMode.");
+                Assert.That(shader.isSupported, Is.True, "The gallery meadow shader must compile for the active graphics API.");
+                using var material = new Material(shader);
+                Assert.That(material.HasProperty("_GrassPlayerPositionWS"), Is.True);
+                Assert.That(material.HasProperty("_GrassCameraRightWS"), Is.True);
+                Assert.That(material.HasProperty("_GrassPushRadius"), Is.True);
+                Assert.That(material.HasProperty("_GrassTime"), Is.True);
+            }
+            finally
+            {
+                Object.DestroyImmediate(player);
+                Object.DestroyImmediate(host);
+            }
+        }
+
+        [Test, Timeout(30000)]
+        public void GalleryMeadowShaderPushesLocallyAndRecoversAtFixedTime()
+        {
+            var host = new GameObject("Worldbuilding gallery meadow push regression");
+            WorldbuildingGalleryMeadowRenderer renderer = host.AddComponent<WorldbuildingGalleryMeadowRenderer>();
+            var filter = host.AddComponent<MeshFilter>();
+            var meshRenderer = host.AddComponent<MeshRenderer>();
+            var cameraObject = new GameObject("Worldbuilding gallery meadow push camera");
+            var camera = cameraObject.AddComponent<Camera>();
+            var target = new RenderTexture(192, 192, 24, RenderTextureFormat.ARGB32);
+            var baseline = new Texture2D(192, 192, TextureFormat.RGBA32, false);
+            var pushed = new Texture2D(192, 192, TextureFormat.RGBA32, false);
+            var recovered = new Texture2D(192, 192, TextureFormat.RGBA32, false);
+            RenderTexture previousActive = RenderTexture.active;
+            Material material = null;
+
+            try
+            {
+                VegetationInstance tuft = FindVisibleTuft(renderer);
+                Mesh mesh = GetPackedMesh(renderer);
+                renderer.enabled = false;
+                filter.sharedMesh = mesh;
+
+                Shader shader = Shader.Find(WorldbuildingGalleryMeadowRenderer.ShaderName);
+                Assert.That(shader, Is.Not.Null);
+                Assert.That(shader.isSupported, Is.True);
+                material = new Material(shader);
+                meshRenderer.sharedMaterial = material;
+
+                var roots = new List<Vector2>();
+                var packedRoot = new List<Vector2>();
+                mesh.GetUVs(0, roots);
+                mesh.GetUVs(1, packedRoot);
+                Assert.That(roots.Count, Is.GreaterThan(0));
+                Vector3 root = new(roots[0].x, packedRoot[0].x, roots[0].y);
 
                 target.Create();
                 camera.targetTexture = target;
                 camera.clearFlags = CameraClearFlags.SolidColor;
                 camera.backgroundColor = Color.black;
                 camera.orthographic = true;
-                camera.orthographicSize = 0.72f;
+                camera.orthographicSize = 0.75f;
                 camera.nearClipPlane = 0.01f;
                 camera.farClipPlane = 10f;
+                camera.transform.position = root + new Vector3(0f, 0.30f, -3f);
+                camera.transform.LookAt(root + Vector3.up * 0.30f, Vector3.up);
 
-                SetView(camera.transform, new Vector3(0f, 0.48f, -3f));
-                Render(camera, target, front);
-                GrassPixelStats frontStats = AnalyzeGrass(front);
-                AssertReadableGrass(frontStats, "front");
+                material.SetFloat("_GrassTime", 0f);
+                material.SetFloat("_GrassPushRadius", 1.05f);
+                material.SetVector("_GrassCameraRightWS", new Vector4(1f, 0f, 0f, 0f));
+                material.SetVector("_GrassPlayerPositionWS", new Vector4(100000f, 0f, 100000f, 1f));
+                Render(camera, target, baseline);
+                PixelStats baselineStats = AnalyzeGrass(baseline);
+                Assert.That(baselineStats.PixelCount, Is.GreaterThan(80),
+                    "The real packed meadow shader must produce a readable opaque tuft.");
 
-                SetView(camera.transform, new Vector3(3f, 0.48f, 0f));
-                Render(camera, target, side);
-                GrassPixelStats sideStats = AnalyzeGrass(side);
-                AssertReadableGrass(sideStats, "side");
-                Assert.That(sideStats.PixelCount, Is.InRange(
-                        Mathf.RoundToInt(frontStats.PixelCount * 0.50f),
-                        Mathf.RoundToInt(frontStats.PixelCount * 1.80f)),
-                    $"Camera-right ribbons should remain readable through a 90-degree orbit; " +
-                    $"front={frontStats.PixelCount}, side={sideStats.PixelCount}.");
-
-                SetView(camera.transform, new Vector3(0f, 0.48f, -3f));
-                ProceduralVegetationMaterials.SetGrassInteractors(new[]
-                {
-                    new Vector4(-0.22f, 0f, 0f, 0.78f),
-                });
-                ProceduralVegetationMaterials.ApplyLighting();
+                material.SetVector("_GrassPlayerPositionWS",
+                    new Vector4(root.x - 0.60f, root.y, root.z, 1f));
                 Render(camera, target, pushed);
-                GrassPixelStats pushedStats = AnalyzeGrass(pushed);
+                PixelStats pushedStats = AnalyzeGrass(pushed);
+                Assert.That(pushedStats.PixelCount, Is.GreaterThan(50));
+                Assert.That(pushedStats.CentroidX - baselineStats.CentroidX, Is.GreaterThan(0.5f),
+                    $"A nearby player should displace the tuft away locally; baseline={baselineStats.CentroidX:F2}, pushed={pushedStats.CentroidX:F2}.");
 
-                ProceduralVegetationMaterials.SetGrassInteractors(null);
-                ProceduralVegetationMaterials.ApplyLighting();
+                material.SetVector("_GrassPlayerPositionWS", new Vector4(100000f, 0f, 100000f, 1f));
                 Render(camera, target, recovered);
-                GrassPixelStats recoveredStats = AnalyzeGrass(recovered);
+                PixelStats recoveredStats = AnalyzeGrass(recovered);
+                Assert.That(Mathf.Abs(recoveredStats.CentroidX - baselineStats.CentroidX), Is.LessThan(0.1f),
+                    "At fixed shader time, moving the player away must recover the baseline silhouette.");
+                Assert.That(PixelDifference(baseline, recovered), Is.LessThanOrEqualTo(4),
+                    "Stateless recovery should return to the same pixels when time and camera are fixed.");
 
-                Assert.That(pushedStats.CentroidX - frontStats.CentroidX, Is.GreaterThan(2.0f),
-                    $"A nearby character should push the upper ribbons away locally; baseline x={frontStats.CentroidX:F2}, " +
-                    $"pushed x={pushedStats.CentroidX:F2}.");
-                Assert.That(Mathf.Abs(recoveredStats.CentroidX - frontStats.CentroidX), Is.LessThan(0.75f),
-                    $"Clearing the interactor must recover the original GPU-deformed silhouette; baseline x={frontStats.CentroidX:F2}, " +
-                    $"recovered x={recoveredStats.CentroidX:F2}.");
-                Assert.That(PixelDifference(front, recovered), Is.LessThan(64),
-                    "With deterministic validation time and no interactor, recovery should return almost exactly to baseline.");
+                Assert.That(tuft.Kind, Is.EqualTo(VegetationKind.Grass));
             }
             finally
             {
-                ProceduralVegetationMaterials.SetGrassInteractors(null);
-                ProceduralVegetationMaterials.ApplyLighting();
-                if (material != null)
-                {
-                    material.SetFloat("_UseValidationAnimationTime", 0f);
-                    material.SetFloat("_ValidationAnimationTime", 0f);
-                }
                 RenderTexture.active = previousActive;
                 camera.targetTexture = null;
                 target.Release();
-                UnityEngine.Object.DestroyImmediate(target);
-                UnityEngine.Object.DestroyImmediate(front);
-                UnityEngine.Object.DestroyImmediate(side);
-                UnityEngine.Object.DestroyImmediate(pushed);
-                UnityEngine.Object.DestroyImmediate(recovered);
-                UnityEngine.Object.DestroyImmediate(grassObject);
-                UnityEngine.Object.DestroyImmediate(cameraObject);
+                Object.DestroyImmediate(target);
+                Object.DestroyImmediate(baseline);
+                Object.DestroyImmediate(pushed);
+                Object.DestroyImmediate(recovered);
+                if (material != null) Object.DestroyImmediate(material);
+                Object.DestroyImmediate(cameraObject);
+                Object.DestroyImmediate(host);
             }
         }
 
-        private static Mesh GetProductionGrassMesh()
+        private static List<VegetationInstance> BuildRegionalSemanticBatch()
         {
-            Assembly assembly = typeof(ProceduralVegetationBatchRenderer).Assembly;
-            Type meshLibrary = assembly.GetType(
-                "VoxelEngine.Rendering.Runtime.Vegetation.ProceduralVegetationMeshLibrary",
-                throwOnError: true);
-            MethodInfo meshFor = meshLibrary.GetMethod(
-                "MeshFor", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
-            Assert.That(meshFor, Is.Not.Null);
-            return (Mesh)meshFor.Invoke(null, new object[]
+            var values = new List<VegetationInstance>();
+            uint seed = 1;
+            for (int z = -4; z <= 4; z++)
+            for (int x = -4; x <= 4; x++)
             {
-                VegetationShaderClass.Grass,
-                VegetationGrowthForm.Tuft,
-            });
+                values.Add(Instance(VegetationKind.Grass, x * 2f, z * 2f, seed++));
+            }
+
+            values.Add(Instance(VegetationKind.Clover, -3f, 1f, seed++));
+            values.Add(Instance(VegetationKind.Weed, 3f, 1f, seed++));
+            values.Add(Instance(VegetationKind.Nettle, 0f, -3f, seed++));
+            values.Add(Instance(VegetationKind.Flower, 20f, 0f, seed++));
+            values.Add(Instance(VegetationKind.Reed, 22f, 0f, seed++));
+            values.Add(Instance(VegetationKind.DeadGrass, 24f, 0f, seed));
+            return values;
         }
 
-        private static void AssertReadableGrass(GrassPixelStats stats, string view)
+        private static VegetationInstance FindVisibleTuft(WorldbuildingGalleryMeadowRenderer renderer)
         {
-            Assert.That(stats.PixelCount, Is.GreaterThan(220),
-                $"The {view} view produced only {stats.PixelCount} readable grass pixels.");
-            Assert.That(stats.Width, Is.GreaterThan(10),
-                $"The {view} grass collapsed to an edge-on strip; width={stats.Width}.");
-            Assert.That(stats.Height, Is.GreaterThan(20),
-                $"The {view} grass lost its layered blade height; height={stats.Height}.");
+            uint seed = 101;
+            for (int z = -3; z <= 3; z++)
+            for (int x = -3; x <= 3; x++)
+            {
+                VegetationInstance candidate = Instance(VegetationKind.Grass, x * 2f, z * 2f, seed++);
+                renderer.Rebuild(new[] { candidate });
+                if (renderer.BladeCount > 0) return candidate;
+            }
+
+            Assert.Fail("No visible deterministic tuft was found in the regression search grid.");
+            return default;
         }
 
-        private static void SetView(Transform cameraTransform, Vector3 position)
+        private static VegetationInstance Instance(VegetationKind kind, float x, float z, uint seed) =>
+            new()
+            {
+                PositionMetres = new float3(x, 0f, z),
+                SurfaceNormal = new float3(0f, 1f, 0f),
+                Kind = kind,
+                Seed = seed,
+                Scale = 1f,
+            };
+
+        private static Mesh GetPackedMesh(WorldbuildingGalleryMeadowRenderer renderer)
         {
-            cameraTransform.position = position;
-            cameraTransform.LookAt(new Vector3(0f, 0.34f, 0f), Vector3.up);
+            FieldInfo meshField = typeof(WorldbuildingGalleryMeadowRenderer).GetField(
+                "_mesh", BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.That(meshField, Is.Not.Null);
+            return (Mesh)meshField.GetValue(renderer);
+        }
+
+        private static float RangeX(List<Vector2> values)
+        {
+            float min = float.PositiveInfinity;
+            float max = float.NegativeInfinity;
+            for (int i = 0; i < values.Count; i++) { min = Mathf.Min(min, values[i].x); max = Mathf.Max(max, values[i].x); }
+            return max - min;
+        }
+
+        private static float RangeY(List<Vector2> values)
+        {
+            float min = float.PositiveInfinity;
+            float max = float.NegativeInfinity;
+            for (int i = 0; i < values.Count; i++) { min = Mathf.Min(min, values[i].y); max = Mathf.Max(max, values[i].y); }
+            return max - min;
+        }
+
+        private static float RangeTip(List<Vector2> values)
+        {
+            float min = float.PositiveInfinity;
+            float max = float.NegativeInfinity;
+            for (int i = 0; i < values.Count; i++) { min = Mathf.Min(min, values[i].y); max = Mathf.Max(max, values[i].y); }
+            return max - min;
+        }
+
+        private static float PhaseRange(List<Vector2> values)
+        {
+            float min = float.PositiveInfinity;
+            float max = float.NegativeInfinity;
+            for (int i = 0; i < values.Count; i++) { min = Mathf.Min(min, values[i].x); max = Mathf.Max(max, values[i].x); }
+            return max - min;
+        }
+
+        private static float GreenRange(Color[] values)
+        {
+            float min = float.PositiveInfinity;
+            float max = float.NegativeInfinity;
+            for (int i = 0; i < values.Length; i++) { min = Mathf.Min(min, values[i].g); max = Mathf.Max(max, values[i].g); }
+            return max - min;
         }
 
         private static void Render(Camera camera, RenderTexture target, Texture2D destination)
@@ -189,38 +280,20 @@ namespace VoxelEngine.Tests.PlayMode
             destination.Apply(false, false);
         }
 
-        private static GrassPixelStats AnalyzeGrass(Texture2D image)
+        private static PixelStats AnalyzeGrass(Texture2D image)
         {
             Color32[] pixels = image.GetPixels32();
-            int width = image.width;
-            int height = image.height;
-            int minX = width;
-            int minY = height;
-            int maxX = -1;
-            int maxY = -1;
             int count = 0;
             double weightedX = 0;
-
-            for (int y = 0; y < height; y++)
-            for (int x = 0; x < width; x++)
+            for (int y = 0; y < image.height; y++)
+            for (int x = 0; x < image.width; x++)
             {
-                if (!IsGrass(pixels[y * width + x])) continue;
+                Color32 pixel = pixels[y * image.width + x];
+                if (pixel.g <= 20 || pixel.g <= pixel.r + 3 || pixel.g <= pixel.b + 3) continue;
                 count++;
                 weightedX += x;
-                minX = Mathf.Min(minX, x);
-                minY = Mathf.Min(minY, y);
-                maxX = Mathf.Max(maxX, x);
-                maxY = Mathf.Max(maxY, y);
             }
-
-            if (count == 0)
-                return new GrassPixelStats(0, 0, 0, 0f);
-
-            return new GrassPixelStats(
-                count,
-                maxX - minX + 1,
-                maxY - minY + 1,
-                (float)(weightedX / count));
+            return new PixelStats(count, count == 0 ? 0f : (float)(weightedX / count));
         }
 
         private static int PixelDifference(Texture2D a, Texture2D b)
@@ -231,28 +304,38 @@ namespace VoxelEngine.Tests.PlayMode
             for (int i = 0; i < left.Length; i++)
             {
                 int delta = Mathf.Abs(left[i].r - right[i].r)
-                            + Mathf.Abs(left[i].g - right[i].g)
-                            + Mathf.Abs(left[i].b - right[i].b);
+                          + Mathf.Abs(left[i].g - right[i].g)
+                          + Mathf.Abs(left[i].b - right[i].b);
                 if (delta > 6) changed++;
             }
             return changed;
         }
 
-        private static bool IsGrass(Color32 pixel) =>
-            pixel.g > 20 && pixel.g > pixel.r + 3 && pixel.g > pixel.b + 3;
+        private sealed class CapturingVegetationRenderer : IVegetationBatchRenderer
+        {
+            public readonly List<VegetationInstance> Instances = new();
+            public int InstanceCount => Instances.Count;
+            public bool enabled { get; set; } = true;
 
-        private readonly struct GrassPixelStats
+            public void SetInstances(IReadOnlyList<VegetationInstance> instances)
+            {
+                Instances.Clear();
+                if (instances == null) return;
+                for (int i = 0; i < instances.Count; i++) Instances.Add(instances[i]);
+            }
+
+            public void Clear() => Instances.Clear();
+            public void DrawNow() { }
+        }
+
+        private readonly struct PixelStats
         {
             public readonly int PixelCount;
-            public readonly int Width;
-            public readonly int Height;
             public readonly float CentroidX;
 
-            public GrassPixelStats(int pixelCount, int width, int height, float centroidX)
+            public PixelStats(int pixelCount, float centroidX)
             {
                 PixelCount = pixelCount;
-                Width = width;
-                Height = height;
                 CentroidX = centroidX;
             }
         }
