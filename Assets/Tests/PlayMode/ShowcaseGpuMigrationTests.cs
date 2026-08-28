@@ -94,8 +94,9 @@ namespace VoxelEngine.Tests.PlayMode
 
                     Assert.AreEqual(0ul, last.FramePathBlockingCompletionViolations,
                         $"Production safety frame {frame} synchronously completed geometry work.");
-                    Assert.Greater(last.VisibleSolidChunks, 0,
-                        $"Production safety frame {frame} lost every visible voxel draw.");
+                    if (last.VisibleSolidChunks <= 0)
+                        Assert.Fail(DescribeVisibilityFailure(
+                            frame, in last, showcase.transform, far));
                     Assert.AreEqual(0, last.GpuResidentBackends,
                         $"Production safety frame {frame} allocated a legacy GPU-v1 backend.");
 
@@ -171,6 +172,96 @@ namespace VoxelEngine.Tests.PlayMode
               + $"dirty={last.SolidDirtyChunks} visible={last.VisibleSolidChunks} "
               + $"missing={last.MissingVisibleSolidChunks} jobs={last.RunningSolidJobs} "
               + $"farHole={far.HoleRadiusMetres:F2}m.");
+        }
+
+        private static string DescribeVisibilityFailure(
+            int frame,
+            in VoxelSurfaceMetrics metrics,
+            Transform pose,
+            VoxelFarTerrain far)
+        {
+            Vector3 position = pose.position;
+            return $"Production safety frame {frame} lost every visible voxel draw; "
+                 + $"camera=({position.x:F2},{position.y:F2},{position.z:F2}) "
+                 + $"farHole={far.HoleRadiusMetres:F2}m "
+                 + $"known={metrics.SolidKnownChunks} resident={metrics.SolidResidentChunks} "
+                 + $"dirty={metrics.SolidDirtyChunks} missing={metrics.MissingVisibleSolidChunks} "
+                 + $"jobs={metrics.RunningSolidJobs} uploads={metrics.SolidMeshesAwaitingUpload} "
+                 + $"candidates={metrics.VisibilityKnownCandidates}/{metrics.VisibilityInBandCandidates}/"
+                 + $"{metrics.VisibilityFrustumCandidates} "
+                 + $"step4={metrics.Step4VisibilityKnown}/{metrics.Step4VisibilityInBand}/"
+                 + $"{metrics.Step4VisibilityFrustum}/{metrics.Step4VisibilityReady}/"
+                 + $"{metrics.Step4VisibilityEmpty}; "
+                 + DescribePhysicalWorkerVisibility();
+        }
+
+        /// <summary>
+        /// Test-only minimal isolation for the first zero-draw frame. Production workers have
+        /// already populated their read-only Visible lists when this runs. If physicalTotal is
+        /// positive while aggregate VisibleSolidChunks is zero, cross-ring aggregation erased
+        /// valid geometry. If physicalTotal is also zero, the loss occurred earlier in the
+        /// worker/ring visibility funnel. Reflection avoids adding a runtime diagnostics API.
+        /// </summary>
+        private static string DescribePhysicalWorkerVisibility()
+        {
+            PropertyInfo activePassProperty = typeof(VoxelRenderBridge).GetProperty(
+                "ActivePass", BindingFlags.Static | BindingFlags.NonPublic);
+            object pass = activePassProperty?.GetValue(null);
+            if (pass == null) return "physicalVisibility=unavailable(pass-null)";
+
+            FieldInfo schedulerField = pass.GetType().GetField(
+                "_scheduler", BindingFlags.Instance | BindingFlags.NonPublic);
+            object scheduler = schedulerField?.GetValue(pass);
+            if (scheduler == null) return "physicalVisibility=unavailable(scheduler-null)";
+
+            FieldInfo ringsField = scheduler.GetType().GetField(
+                "_rings", BindingFlags.Instance | BindingFlags.NonPublic);
+            System.Array rings = ringsField?.GetValue(scheduler) as System.Array;
+            if (rings == null) return "physicalVisibility=unavailable(rings-null)";
+
+            int physicalTotal = 0;
+            var details = new System.Text.StringBuilder();
+            for (int r = 0; r < rings.Length; r++)
+            {
+                object ring = rings.GetValue(r);
+                if (ring == null) continue;
+                FieldInfo sourceStepField = ring.GetType().GetField(
+                    "SourceStep", BindingFlags.Instance | BindingFlags.Public);
+                FieldInfo workersField = ring.GetType().GetField(
+                    "Workers", BindingFlags.Instance | BindingFlags.Public);
+                int sourceStep = sourceStepField != null
+                    ? (int)sourceStepField.GetValue(ring) : -1;
+                CpuTransvoxelChunkCache[] workers =
+                    workersField?.GetValue(ring) as CpuTransvoxelChunkCache[];
+                if (workers == null) continue;
+
+                int known = 0;
+                int inBand = 0;
+                int frustum = 0;
+                int ready = 0;
+                int empty = 0;
+                int visible = 0;
+                for (int w = 0; w < workers.Length; w++)
+                {
+                    CpuTransvoxelChunkCache worker = workers[w];
+                    known += worker.LastVisibilityKnownCount;
+                    inBand += worker.LastVisibilityInBandCount;
+                    frustum += worker.LastVisibilityFrustumCount;
+                    ready += worker.LastVisibilityReadyCount;
+                    empty += worker.LastVisibilityEmptyCount;
+                    visible += worker.Visible.Count;
+                }
+
+                physicalTotal += visible;
+                if (details.Length > 0) details.Append(' ');
+                details.Append("s").Append(sourceStep)
+                    .Append("=").Append(known).Append('/')
+                    .Append(inBand).Append('/').Append(frustum).Append('/')
+                    .Append(ready).Append('/').Append(empty)
+                    .Append(" physical=").Append(visible);
+            }
+
+            return $"physicalTotal={physicalTotal} rings[{details}]";
         }
 
         private static bool NearCoverageIsIncomplete(in VoxelSurfaceMetrics metrics) =>
