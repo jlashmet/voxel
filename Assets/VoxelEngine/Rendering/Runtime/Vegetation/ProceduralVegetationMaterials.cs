@@ -54,6 +54,8 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
         public const string GrassShaderName = "VoxelEngine/ProceduralVegetationGrass";
         public const int MaxGrassInteractors = 64;
 
+        private const float CameraFallbackGrassRadius = 0.65f;
+
         private static readonly Vector4[] s_GrassInteractors = new Vector4[MaxGrassInteractors];
         private static int s_GrassInteractorCount;
         private static Material s_Foliage;
@@ -324,10 +326,21 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
             material.SetFloat("_GrassTime", Time.time);
             material.SetInt("_GrassInteractorCount", s_GrassInteractorCount);
             material.SetVectorArray("_GrassInteractorPositions", s_GrassInteractors);
-            material.SetVector("_GrassPlayerPositionWS", new Vector4(100000f, 100000f, 100000f, 1f));
-            material.SetFloat("_GrassPushRadius", 1.05f);
 
             Camera camera = Camera.main;
+            if (s_GrassInteractorCount == 0 && camera != null)
+            {
+                Vector3 cameraPosition = camera.transform.position;
+                material.SetVector("_GrassPlayerPositionWS",
+                    new Vector4(cameraPosition.x, cameraPosition.y, cameraPosition.z, 1f));
+                material.SetFloat("_GrassPushRadius", CameraFallbackGrassRadius);
+            }
+            else
+            {
+                material.SetVector("_GrassPlayerPositionWS", new Vector4(100000f, 100000f, 100000f, 1f));
+                material.SetFloat("_GrassPushRadius", 1.05f);
+            }
+
             Vector3 right = camera != null ? camera.transform.right : Vector3.right;
             right.y = 0f;
             if (right.sqrMagnitude < 0.0001f) right = Vector3.right;
