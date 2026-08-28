@@ -3,7 +3,14 @@
     "id": "20260826-135433-808-WorldbuildingGalleryShowcase",
     "capturedUtc": "2026-08-26T13:54:33.8111230Z",
     "note": "the grass still looks aweful.  you were supposed to have fixed it in issue 20260825-032832-253-VoxelShowcase.  \n\nThis project implements exactly what I want: https://github.com/DylearnDev/Dylearn-3D-Pixel-Art-Grass-Demo/tree/main\n\nREOPENED after human review on 2026-08-27: the previous closure did not visually match the supplied target. `reference-grass-target.jpg` is now the acceptance reference. The grass must look like that reference in normal gameplay: a dense, continuous stylized pixel-art meadow with irregular layered silhouettes, multiple green tonal regions/noise variation, and scattered accent blades/foliage rather than obvious repeated three-blade icons or dark billboard bars. The Dylearn project above is the implementation/art reference, not merely inspiration.\n\nPlayer interaction is required: grass near the player must visibly bend/displace away as the player moves through it and then recover after the player passes. The response must be local, smooth enough to read during movement, and must not move the entire field uniformly.",
-    "status": "open",
+    "status": "pending",
+    "lastModifiedUtc": "2026-08-28T21:27:22Z",
+    "lastModifiedBy": "agent-1",
+    "fix": {
+        "sourceBranch": "fixes/agent-1",
+        "headSha": "65bb33ecc6bdd2419687b3e7610d0c1ecc821d25",
+        "validationStatus": "pending"
+    },
     "unityVersion": "6000.5.6f1",
     "platform": "OSXEditor",
     "sceneName": "WorldbuildingGalleryShowcase",
