@@ -10,12 +10,14 @@ namespace Game.Structures.Runtime
     ///
     /// The site pass owns the broad gorge and its 42-voxel core channel. Around the waterfall
     /// receiver that left the north bank rising through the water footprint, so a wide grass shelf
-    /// could sit in front of the pool. This bounded pass extends only that receiving side, leaving
-    /// the south bank and the outer ten voxels of the gorge untouched.
+    /// could sit in front of the pool. This bounded pass repairs the outer edge of that existing
+    /// channel and extends only the receiving side, leaving the inner core, south bank, and outer
+    /// ten voxels of the gorge untouched.
     /// </summary>
     public static class CastleLowerRiverWaterRepair
     {
         private const int ExistingWaterHalfWidth = 42;
+        private const int RepairStartOffset = 35;
         private const int ReceivingWaterHalfWidth = 80;
         private const int ReceivingHalfSpanX = 120;
         private const int OuterWaterRise = 4;
@@ -35,18 +37,25 @@ namespace Game.Structures.Runtime
                  x++)
             {
                 int channelZ = CastleLayout.LowerRiverZAt(in plan, x);
-                for (int dz = ExistingWaterHalfWidth + 1;
-                     dz <= ReceivingWaterHalfWidth;
-                     dz++)
+                for (int dz = RepairStartOffset; dz <= ReceivingWaterHalfWidth; dz++)
                 {
                     int z = channelZ + dz;
-
-                    // The old channel reaches riverY-6 at dz=42. Continue that shallow bank
-                    // outward rather than restarting the cross-section and creating a trench seam.
-                    int bed = riverY - 6
+                    int bed;
+                    if (dz <= ExistingWaterHalfWidth)
+                    {
+                        bed = riverY - 10
+                            + (int)math.round(
+                                dz * 4f / ExistingWaterHalfWidth);
+                    }
+                    else
+                    {
+                        // The old channel reaches riverY-6 at dz=42. Continue that shallow bank
+                        // outward rather than restarting the cross-section and creating a trench seam.
+                        bed = riverY - 6
                             + (int)math.round(
                                 (dz - ExistingWaterHalfWidth) * OuterWaterRise
                                 / (float)addedWidth);
+                    }
 
                     // This footprint is outside the castle walls and is explicitly the waterfall
                     // receiving bank. Remove the old terrain column above the waterline, but keep
