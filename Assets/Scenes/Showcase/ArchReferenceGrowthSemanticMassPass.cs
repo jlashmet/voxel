@@ -207,7 +207,7 @@ namespace VoxelEngine.Showcase
             Vector2 offset;
             if (mass == 0) offset = second ? new Vector2(0.24f, 0.26f) : new Vector2(-0.22f, -0.12f);
             else if (mass == 1) offset = second ? new Vector2(0.22f, 0.28f) : new Vector2(-0.24f, -0.10f);
-            else offset = second ? new Vector2(0.32f, 0.10f) : new Vector2(-0.34f, -0.05f);
+            else offset = second ? new Vector2(0.20f, 0.03f) : new Vector2(-0.20f, -0.03f);
             return AttachToMasonry(mass, MassCenter(mass) + offset);
         }
 
