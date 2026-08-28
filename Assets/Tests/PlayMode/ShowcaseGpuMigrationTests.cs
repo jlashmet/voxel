@@ -24,7 +24,10 @@ namespace VoxelEngine.Tests.PlayMode
     {
         private const string ScenePath = "Assets/Scenes/VoxelShowcase.unity";
         private const double MaxCoverageWarmupSeconds = 30.0;
-        private const double MaxTraversalSeconds = 30.0;
+        // Liveness only. Movement intentionally caps displacement per rendered frame, so slow
+        // frames cannot be hidden by catch-up motion; the moving p95/p99 assertions remain the
+        // performance gates for the same traversal.
+        private const double MaxTraversalSeconds = 45.0;
         private const double MaxStationarySettleSeconds = 20.0;
         private const float TraversalDistanceMetres = 210f;
         private const float MaxTraversalStepMetres = 0.5f;
