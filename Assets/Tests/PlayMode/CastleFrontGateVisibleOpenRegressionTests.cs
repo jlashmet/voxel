@@ -1,0 +1,253 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.IO;
+using System.Reflection;
+using NUnit.Framework;
+using Unity.Mathematics;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEngine.TestTools;
+using VoxelEngine.Showcase;
+using VoxelEngine.Storage.Api;
+using VoxelEngine.Structures.Api;
+using VoxelEngine.Structures.Runtime;
+using Mat = Game.Materials.Api.GameMaterialIds;
+using Object = UnityEngine.Object;
+
+namespace VoxelEngine.Tests.PlayMode
+{
+    public sealed class CastleFrontGateVisibleOpenRegressionTests
+    {
+        private const int VerificationWidth = 1928;
+        private const int VerificationHeight = 836;
+        private const float VerificationRenderSettleSeconds = 12f;
+        private const float VerificationDetailSettleSeconds = 4f;
+        private const float MetresPerVoxel = 0.1f;
+
+        [UnityTest]
+        public IEnumerator NearbyInteractionAnimatesBothGateLeavesAndKeepsCentrePassageClear()
+        {
+            UnityEditor.SceneManagement.EditorSceneManager.LoadSceneInPlayMode(
+                "Assets/Scenes/VoxelShowcase.unity", new LoadSceneParameters(LoadSceneMode.Single));
+            yield return null;
+
+            var showcase = Object.FindFirstObjectByType<VoxelShowcase>();
+            Assert.NotNull(showcase, "VoxelShowcase scene driver was not created.");
+            var world = (ShowcaseWorld)typeof(VoxelShowcase)
+                .GetField("_world", BindingFlags.NonPublic | BindingFlags.Instance)
+                .GetValue(showcase);
+            var motor = (CharacterMotor)typeof(VoxelShowcase)
+                .GetField("_motor", BindingFlags.NonPublic | BindingFlags.Instance)
+                .GetValue(showcase);
+            Assert.NotNull(world, "VoxelShowcase did not create its production world.");
+            Assert.NotNull(motor, "VoxelShowcase did not create its production character motor.");
+
+            for (int frame = 0; frame < 900 && world.CastleVoxels == 0; frame++)
+                yield return null;
+            Assert.Greater(world.CastleVoxels, 0,
+                "The castle did not finish building within 900 frames.");
+
+            const int cx = ShowcaseWorld.RegionVoxelEdge / 2;
+            const int cz = ShowcaseWorld.RegionVoxelEdge / 2 + 120;
+            int ground = world.SurfaceHeight(cx, cz);
+            CastlePlan plan = StructuresComposition.PlanCastle(new int3(cx, ground, cz), world.Seed);
+            int3 min = CastleLayout.FrontGateMinimum(in plan);
+
+            Assert.AreEqual(Mat.Wood, Get(world, min.x + 6, min.y + 8, min.z),
+                "The captured interaction must begin from a visibly closed timber gate.");
+            Assert.AreEqual(Mat.DarkStone,
+                Get(world, plan.Centre.x, min.y + 8, min.z),
+                "The closed gate must retain its authored structural ironwork.");
+
+            // The runtime driver performs this snapshot every closed frame. Calling it explicitly
+            // keeps the temporal regression deterministic while still exercising the same
+            // production world operation and player-facing TryInteract path.
+            world.PrepareCastleFrontGateAnimation();
+            motor.Position = world.CastleFrontGatePosition;
+            Assert.That(showcase.TryInteract(), Is.True,
+                "The same nearby operation bound to E must accept the castle gate interaction.");
+            Assert.That(world.CastleFrontGateOpen, Is.True);
+
+            // LateUpdate restores pose zero in the E frame, preventing the old one-frame deletion.
+            world.StepCastleFrontGateAnimation(0f);
+            Assert.That(world.CastleFrontGateAnimating, Is.True);
+            Assert.That(world.CastleFrontGateAnimationProgress, Is.EqualTo(0f).Within(0.001f));
+            HashSet<int3> closedPose = CaptureGateMaterials(world, min);
+            Assert.That(closedPose.Count, Is.GreaterThan(500),
+                "Animation pose zero must restore the substantial authored gate, not an empty arch.");
+            Assert.AreEqual(Mat.Wood, Get(world, min.x + 6, min.y + 8, min.z),
+                "The E frame must still render the closed timber leaf before it starts swinging.");
+
+            world.StepCastleFrontGateAnimation(0.45f);
+            Assert.That(world.CastleFrontGateAnimationProgress, Is.InRange(0.49f, 0.51f));
+            HashSet<int3> middlePose = CaptureGateMaterials(world, min);
+            Assert.That(middlePose.SetEquals(closedPose), Is.False,
+                "Halfway through the transition the physical leaf cells must have moved.");
+
+            world.StepCastleFrontGateAnimation(0.45f);
+            Assert.That(world.CastleFrontGateAnimating, Is.False);
+            Assert.That(world.CastleFrontGateAnimationProgress, Is.EqualTo(1f).Within(0.001f));
+            HashSet<int3> openPose = CaptureGateMaterials(world, min);
+            Assert.That(openPose.SetEquals(closedPose), Is.False,
+                "The completed transition must not snap back to the closed gate.");
+            Assert.That(openPose.SetEquals(middlePose), Is.False,
+                "The animation must have a distinct completed pose rather than stopping halfway.");
+
+            int half = CastleLayout.FrontGateWidth / 2;
+            for (int d = 0; d < CastleLayout.FrontGateDepth; d++)
+            {
+                Assert.AreEqual(VoxelGrid.MaterialEmpty, Get(world, plan.Centre.x, min.y + 8, min.z + d),
+                    $"The completed doorway still blocks its centre at front depth {d}.");
+            }
+
+            int deepWoodLeft = 0;
+            int deepWoodRight = 0;
+            int deepIronLeft = 0;
+            int deepIronRight = 0;
+            int deepestZ = min.z + half + CastleLayout.FrontGateDepth + 4;
+            for (int z = min.z + CastleLayout.FrontGateDepth; z <= deepestZ; z++)
+            for (int y = min.y + 4; y < min.y + CastleLayout.FrontGateHeight; y++)
+            for (int x = min.x; x < min.x + CastleLayout.FrontGateWidth; x++)
+            {
+                byte material = Get(world, x, y, z);
+                bool left = x < plan.Centre.x;
+                if (material == Mat.Wood)
+                {
+                    if (left) deepWoodLeft++; else deepWoodRight++;
+                }
+                else if (material == Mat.DarkStone)
+                {
+                    if (left) deepIronLeft++; else deepIronRight++;
+                }
+            }
+
+            Assert.That(deepWoodLeft, Is.GreaterThan(100),
+                "The completed animation must leave a visible left timber leaf inside the gatehouse.");
+            Assert.That(deepWoodRight, Is.GreaterThan(100),
+                "The completed animation must leave a visible right timber leaf inside the gatehouse.");
+            Assert.That(deepIronLeft, Is.GreaterThan(10),
+                "The opened left leaf must retain its authored iron detail.");
+            Assert.That(deepIronRight, Is.GreaterThan(10),
+                "The opened right leaf must retain its authored iron detail.");
+
+            for (int z = min.z + CastleLayout.FrontGateDepth; z <= deepestZ; z++)
+            for (int x = plan.Centre.x - 2; x <= plan.Centre.x + 1; x++)
+                Assert.AreEqual(VoxelGrid.MaterialEmpty, Get(world, x, min.y + 8, z),
+                    $"Opened leaves intrude into the player lane at {x},{min.y + 8},{z}.");
+
+            Assert.That(showcase.TryInteract(), Is.False,
+                "The gate interaction must remain one-shot after the visible opened state completes.");
+
+            // Presentation extraction is view-dependent. Pin the exact captured camera before the
+            // settle so the required final evidence is the original pose, not a one-frame teleport.
+            Camera verificationCamera = PrepareVerificationCamera(showcase);
+            yield return new WaitForSecondsRealtime(VerificationRenderSettleSeconds);
+            CaptureVerificationImage(verificationCamera, "verification-final.png");
+
+            // The original camera is deliberately very close to the closed gate. Once the leaves
+            // swing inward that exact pose looks through the clear opening at inner masonry, so it
+            // cannot by itself prove that both physical leaves were retained. Add two full-size,
+            // diagonal inspection views from outside the gatehouse, one biased to each hinge.
+            PrepareGateDetailCamera(verificationCamera, min, -1f);
+            yield return new WaitForSecondsRealtime(VerificationDetailSettleSeconds);
+            CaptureVerificationImage(verificationCamera, "verification-detail-open-left.png");
+
+            PrepareGateDetailCamera(verificationCamera, min, 1f);
+            yield return new WaitForSecondsRealtime(VerificationDetailSettleSeconds);
+            CaptureVerificationImage(verificationCamera, "verification-detail-open-right.png");
+        }
+
+        private static HashSet<int3> CaptureGateMaterials(ShowcaseWorld world, int3 min)
+        {
+            int half = CastleLayout.FrontGateWidth / 2;
+            var result = new HashSet<int3>();
+            for (int z = min.z; z <= min.z + half + CastleLayout.FrontGateDepth + 4; z++)
+            for (int y = min.y; y < min.y + CastleLayout.FrontGateHeight; y++)
+            for (int x = min.x; x < min.x + CastleLayout.FrontGateWidth; x++)
+            {
+                byte material = Get(world, x, y, z);
+                if (material == Mat.Wood || material == Mat.DarkStone || material == Mat.Gold)
+                    result.Add(new int3(x, y, z));
+            }
+            return result;
+        }
+
+        private static Camera PrepareVerificationCamera(VoxelShowcase showcase)
+        {
+            typeof(VoxelShowcase).GetField("m_FlyMode", BindingFlags.NonPublic | BindingFlags.Instance)
+                .SetValue(showcase, true);
+            typeof(VoxelShowcase).GetField("_mouseLook", BindingFlags.NonPublic | BindingFlags.Instance)
+                .SetValue(showcase, false);
+
+            GameObject cameraObject = GameObject.Find("Showcase Camera");
+            Camera camera = cameraObject != null ? cameraObject.GetComponent<Camera>() : null;
+            Assert.NotNull(camera,
+                "Captured hierarchy path 'Showcase Camera' has no camera for verification capture.");
+
+            camera.transform.SetPositionAndRotation(
+                new Vector3(25.616580963134767f, 26.35015869140625f, 11.290130615234375f),
+                new Quaternion(0.10458954423666f, -0.007642569486051798f,
+                               -0.000803764967713505f, -0.9944857954978943f));
+            camera.fieldOfView = 70f;
+            camera.orthographic = false;
+            camera.nearClipPlane = 0.05f;
+            camera.farClipPlane = 16000f;
+            return camera;
+        }
+
+        private static void PrepareGateDetailCamera(Camera camera, int3 min, float horizontalSide)
+        {
+            Vector3 target = new(
+                (min.x + CastleLayout.FrontGateWidth * 0.5f) * MetresPerVoxel,
+                (min.y + CastleLayout.FrontGateHeight * 0.48f) * MetresPerVoxel,
+                (min.z + CastleLayout.FrontGateDepth * 0.5f) * MetresPerVoxel);
+            camera.transform.position = target + new Vector3(horizontalSide * 3.5f, 1.4f, -4.5f);
+            camera.transform.rotation = Quaternion.LookRotation(
+                target - camera.transform.position, Vector3.up);
+        }
+
+        private static void CaptureVerificationImage(Camera camera, string fileName)
+        {
+            RenderTexture originalTarget = camera.targetTexture;
+            RenderTexture previousActive = RenderTexture.active;
+            var target = new RenderTexture(
+                VerificationWidth, VerificationHeight, 24, RenderTextureFormat.ARGB32);
+            var texture = new Texture2D(
+                VerificationWidth, VerificationHeight, TextureFormat.RGB24, false);
+            try
+            {
+                camera.targetTexture = target;
+                camera.Render();
+                RenderTexture.active = target;
+                texture.ReadPixels(new Rect(0, 0, VerificationWidth, VerificationHeight), 0, 0);
+                texture.Apply(false, false);
+
+                byte[] png = texture.EncodeToPNG();
+                Assert.That(png.Length, Is.GreaterThan(100_000),
+                    $"Native verification render {fileName} was unexpectedly empty or trivial.");
+
+                string workspace = Environment.GetEnvironmentVariable("GITHUB_WORKSPACE");
+                if (string.IsNullOrEmpty(workspace))
+                    workspace = Directory.GetCurrentDirectory();
+                string output = Path.Combine(
+                    workspace, "Artifacts", "SingleTest", fileName);
+                Directory.CreateDirectory(Path.GetDirectoryName(output));
+                File.WriteAllBytes(output, png);
+                Debug.Log($"SCENEISSUE_VERIFICATION {output} {VerificationWidth}x{VerificationHeight}");
+            }
+            finally
+            {
+                camera.targetTexture = originalTarget;
+                RenderTexture.active = previousActive;
+                target.Release();
+                Object.DestroyImmediate(target);
+                Object.DestroyImmediate(texture);
+            }
+        }
+
+        private static byte Get(ShowcaseWorld world, int x, int y, int z) =>
+            world.SurfaceQuery.TryRead(new int3(x, y, z), out VoxelCell cell)
+                ? cell.BaseMaterialId : VoxelGrid.MaterialEmpty;
+    }
+}

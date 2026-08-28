@@ -104,9 +104,17 @@ namespace VoxelEngine.Showcase
         [SerializeField] private int m_MinBrushRadius = 2;
         [SerializeField] private int m_MaxBrushRadius = 40;
 
+        [Header("Networking")]
+        [SerializeField] private string m_NetworkAddress = "127.0.0.1";
+        [SerializeField] private int m_NetworkPort = 7979;
+
         private ShowcaseWorld _world;
         private GpuDebrisSystem _gpuDebris;
         private CharacterMotor _motor;
+        private ShowcaseMultiplayerSession _multiplayer;
+        private IShowcaseExplosionWorld _explosionWorld;
+        private IShowcaseExplosionNetwork _explosionNetwork;
+        private bool _multiplayerRequested;
         private bool _spawned;
         private bool _castleLightsPublished;
         private int _loggedCastleStage = -1;
@@ -122,6 +130,7 @@ namespace VoxelEngine.Showcase
         private float _yaw, _pitch;
         private double _lastEditMs;
         private string _lastEditLabel = "—";
+        private string _networkPortText = "7979";
 
         private sealed class TornadoShot
         {
@@ -147,6 +156,27 @@ namespace VoxelEngine.Showcase
         public int ActiveTornadoCount => _tornadoes.Count;
         public bool FlashlightEnabled => _flashlightEnabled;
 
+        /// <summary>
+        /// Opts this driver into the existing authoritative multiplayer session. The dedicated
+        /// Multiplayer scene calls this from its runtime bootstrap; ordinary showcase scenes never
+        /// allocate transport state or draw networking UI.
+        /// </summary>
+        public void EnableMultiplayer()
+        {
+            _multiplayerRequested = true;
+            EnsureMultiplayerSession();
+        }
+
+        private void EnsureMultiplayerSession()
+        {
+            if (!_multiplayerRequested || _multiplayer != null || _world == null || _motor == null)
+                return;
+
+            _multiplayer = new ShowcaseMultiplayerSession(_world, _motor);
+            _explosionNetwork = new ShowcaseSessionExplosionAdapter(_multiplayer);
+            _networkPortText = m_NetworkPort.ToString();
+        }
+
         // -- lifecycle -----------------------------------------------------------
 
         // Built in OnEnable rather than Awake so an editor domain reload rebuilds them; the
@@ -169,6 +199,7 @@ namespace VoxelEngine.Showcase
                 GameMaterialComposition.SimulationDefinitions(), tierBytes, m_Features, m_Startup);
             _gpuDebris = new GpuDebrisSystem();
             _motor = new CharacterMotor { WalkSpeed = m_WalkSpeed };
+            _explosionWorld = new ShowcaseWorldExplosionAdapter(_world);
 
             // Keep the production surface scheduler live from the first rendered frame. The
             // castle is published incrementally, and ready chunk geometry already remains visible
@@ -210,6 +241,7 @@ namespace VoxelEngine.Showcase
             _spawned = false;
 
             Spawn();
+            EnsureMultiplayerSession();
             SetCursorLocked(true);
             _hadFocus = Application.isFocused;
         }
@@ -225,6 +257,10 @@ namespace VoxelEngine.Showcase
             RenderingComposition.ClearWorld();
             RenderingComposition.SetSurfaceBuildEnabled(true);
 
+            _multiplayer?.Dispose();
+            _multiplayer = null;
+            _explosionNetwork = null;
+            _explosionWorld = null;
             _gpuDebris?.Dispose();
             _gpuDebris = null;
             for (int i = 0; i < _tornadoes.Count; i++)
@@ -583,6 +619,19 @@ namespace VoxelEngine.Showcase
             float strafe = (Input.GetKey(KeyCode.D) ? 1f : 0f) - (Input.GetKey(KeyCode.A) ? 1f : 0f);
             bool sprint = Input.GetKey(KeyCode.LeftShift);
 
+            if (_multiplayer?.IsActive == true)
+            {
+                m_FlyMode = false;
+                _multiplayer.Pump(
+                    Time.deltaTime,
+                    new float2(strafe, forward),
+                    sprint,
+                    Input.GetKey(KeyCode.Space),
+                    (float3)transform.forward);
+                transform.position = _motor.EyePosition;
+                return;
+            }
+
             if (AutoSurvey)
             {
                 StepAutoSurvey();
@@ -694,7 +743,8 @@ namespace VoxelEngine.Showcase
 
             if (Input.GetKeyDown(KeyCode.Escape)) SetCursorLocked(!_mouseLook);
 
-            if (Input.GetKeyDown(KeyCode.F))
+            bool networked = _multiplayer?.IsActive == true;
+            if (!networked && Input.GetKeyDown(KeyCode.F))
             {
                 m_FlyMode = !m_FlyMode;
                 if (!m_FlyMode)
@@ -704,9 +754,9 @@ namespace VoxelEngine.Showcase
                 }
             }
 
-            if (Input.GetKeyDown(KeyCode.R)) Spawn();
+            if (!networked && Input.GetKeyDown(KeyCode.R)) Spawn();
 
-            if (Input.GetKeyDown(KeyCode.E)) TryInteract();
+            if (!networked && Input.GetKeyDown(KeyCode.E)) TryInteract();
 
             float scroll = Input.GetAxisRaw("Mouse ScrollWheel");
             if (Mathf.Abs(scroll) > 0.01f)
@@ -715,8 +765,8 @@ namespace VoxelEngine.Showcase
         }
 
         /// <summary>Whether the player-facing E prompt should currently be visible.</summary>
-        public bool InteractionPromptVisible =>
-            _world != null && _motor != null
+        public bool InteractionPromptVisible => _multiplayer?.IsActive != true
+            && _world != null && _motor != null
             && (_world.CanOpenCastleFrontGate(_motor.Position)
                 || _world.CanOpenCastleTrapdoor(_motor.Position));
 
@@ -727,7 +777,7 @@ namespace VoxelEngine.Showcase
         /// </summary>
         public bool TryInteract()
         {
-            if (_world == null || _motor == null) return false;
+            if (_world == null || _motor == null || _multiplayer?.IsActive == true) return false;
 
             _lastEditMs = 0.0;
             if (_world.TryOpenCastleFrontGate(_motor.Position))
@@ -849,11 +899,22 @@ namespace VoxelEngine.Showcase
                     impactsThisFrame++;
 
                     var start = Time.realtimeSinceStartupAsDouble;
+                    bool networked = _multiplayer?.IsActive == true;
+                    bool requestSent = false;
                     int changed = 0;
                     if (!semanticTreeHit)
-                        changed = _world.Explode(hit, (ushort)shot.ImpactRadius,
-                                                 (float3)shot.Direction);
-                    if (semanticTreeHit || changed > 0)
+                    {
+                        ShowcaseExplosionRouteResult route = ShowcaseExplosionRouter.Apply(
+                            _explosionWorld,
+                            _explosionNetwork,
+                            hit,
+                            shot.ImpactRadius,
+                            (float3)shot.Direction);
+                        networked = route.Networked;
+                        requestSent = route.RequestSent;
+                        changed = route.ChangedVoxels;
+                    }
+                    if (!networked && (semanticTreeHit || changed > 0))
                     {
                         float3 impactMetres = (float3)hit * ShowcaseWorld.VoxelSize;
                         VegetationComposition.TreeDamage.ApplyBlast(
@@ -861,8 +922,19 @@ namespace VoxelEngine.Showcase
                             (float3)shot.Direction);
                     }
                     _lastEditMs = (Time.realtimeSinceStartupAsDouble - start) * 1000.0;
-                    _lastEditLabel = $"tornado impact r{shot.ImpactRadius}: {changed:N0} voxels, " +
-                                     $"{(_gpuDebris?.ActiveVoxels ?? 0):N0} falling";
+                    if (networked)
+                    {
+                        _lastEditLabel = semanticTreeHit
+                            ? "online tree impact: visual only"
+                            : requestSent
+                                ? $"network tornado request r{shot.ImpactRadius}"
+                                : "network tornado request waiting for sync";
+                    }
+                    else
+                    {
+                        _lastEditLabel = $"tornado impact r{shot.ImpactRadius}: {changed:N0} voxels, " +
+                                         $"{(_gpuDebris?.ActiveVoxels ?? 0):N0} falling";
+                    }
                     SpawnImpactBurst((Vector3)((float3)hit * ShowcaseWorld.VoxelSize));
                     DestroyTornado(shot);
                     _tornadoes.RemoveAt(i);
@@ -1091,6 +1163,8 @@ namespace VoxelEngine.Showcase
         {
             if (!Application.isPlaying || _world == null) return;
 
+            DrawNetworkPanel();
+
             // Keep only contextual gameplay guidance; the persistent diagnostics overlay is gone.
             if (InteractionPromptVisible)
             {
@@ -1106,5 +1180,59 @@ namespace VoxelEngine.Showcase
             }
         }
 
+        private void DrawNetworkPanel()
+        {
+            if (_multiplayer == null) return;
+
+            bool active = _multiplayer.IsActive;
+            float height = active ? 112f : 178f;
+            var panel = new Rect(16f, 16f, 326f, height);
+            GUI.Box(panel, "Multiplayer");
+            GUI.Label(new Rect(28f, 42f, 300f, 22f), _multiplayer.Status);
+
+            if (active)
+            {
+                string role = _multiplayer.IsHost ? "HOST" : "CLIENT";
+                GUI.Label(new Rect(28f, 64f, 190f, 22f),
+                          $"{role}  Player {_multiplayer.LocalPlayerId}");
+                if (GUI.Button(new Rect(226f, 66f, 102f, 28f), "Disconnect"))
+                {
+                    _multiplayer.Disconnect();
+                    SetCursorLocked(false);
+                }
+                return;
+            }
+
+            GUI.Label(new Rect(28f, 66f, 62f, 22f), "Address");
+            m_NetworkAddress = GUI.TextField(
+                new Rect(92f, 64f, 236f, 24f), m_NetworkAddress ?? "127.0.0.1");
+            GUI.Label(new Rect(28f, 96f, 62f, 22f), "Port");
+            _networkPortText = GUI.TextField(
+                new Rect(92f, 94f, 88f, 24f), _networkPortText ?? "7979");
+            GUI.Label(new Rect(188f, 96f, 140f, 22f),
+                      _mouseLook ? "Esc to use cursor" : "Cursor unlocked");
+
+            if (GUI.Button(new Rect(28f, 128f, 142f, 32f), "Host"))
+            {
+                int port = int.TryParse(_networkPortText, out int parsed) ? parsed : -1;
+                if (_multiplayer.StartHost(port))
+                {
+                    m_NetworkPort = port;
+                    m_FlyMode = false;
+                    SetCursorLocked(true);
+                }
+            }
+
+            if (GUI.Button(new Rect(186f, 128f, 142f, 32f), "Join"))
+            {
+                int port = int.TryParse(_networkPortText, out int parsed) ? parsed : -1;
+                if (_multiplayer.StartClient(m_NetworkAddress, port))
+                {
+                    m_NetworkPort = port;
+                    m_FlyMode = false;
+                    SetCursorLocked(true);
+                }
+            }
+        }
     }
 }
