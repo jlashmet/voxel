@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Reflection;
+using Game.Composition.Kentridge.Playable;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -13,7 +14,7 @@ namespace VoxelEngine.Tests.PlayMode
     /// Scene-level acceptance for the actual player launch path. Unlike the lower-level pub-exit
     /// collision test, this test loads the same scene a player launches, lets its real campaign
     /// runtime own the opening, waits for gameplay control to return, then drives the scene's real
-    /// character motor through the generated pub doorway and into the authored destination
+    /// Game-owned character host through the generated pub doorway and into the authored destination
     /// interaction that completes the travel objective and starts the next cutscene.
     /// </summary>
     public sealed class KentridgePlayableScenePlayTests
@@ -65,7 +66,9 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(ReadBoolProperty(driver, "OpeningCutsceneStarted"), Is.True,
                 "New Game did not begin after the generated pub became presentation-ready.");
 
-            CharacterMotor motor = ReadPrivateField<CharacterMotor>(driver, "_motor");
+            KentridgeCharacterHost motor = ReadPrivateField<KentridgeCharacterHost>(driver, "_motor");
+            Assert.That(ReadPrivateField<object>(driver, "_actors"), Is.SameAs(motor),
+                "The launch scene must use one Game-owned host for player movement and campaign actors.");
             Assert.That(ReadBoolProperty(driver, "OpeningCutsceneCameraActive"), Is.True,
                 "The recovered opening must use its fixed establishing camera instead of the first-person follow camera.");
 
@@ -111,6 +114,9 @@ namespace VoxelEngine.Tests.PlayMode
                 "Weldon must actually travel from the opening spawn to the pub conversation area.");
             Assert.That(leadMovingFrames, Is.GreaterThanOrEqualTo(5),
                 "Weldon's entrance collapsed to a teleport instead of visible movement across multiple frames.");
+
+            object madelineActor = FindNpcActor(driver, "madeline");
+            AssertProductionMadeline(madelineActor);
 
             object loganActor = FindNpcActor(driver, "logan");
             Vector3 loganStart = ReadActorRootPosition(loganActor);
@@ -200,8 +206,8 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(ReadBoolProperty(driver, "HasExitedPub"), Is.False,
                 "The scene must not report Kentridge town before the player crosses the public entrance.");
 
-            // This is the integration invariant: the production scene-owned CharacterMotor, not a
-            // teleport or semantic location mutation, must physically cross the generated doorway.
+            // This is the integration invariant: the production Game-owned host, not a teleport or
+            // semantic location mutation, must physically cross the generated doorway.
             Time.captureDeltaTime = WalkDeltaTime;
             yield return WalkMotorTo(
                 motor,
@@ -315,7 +321,7 @@ namespace VoxelEngine.Tests.PlayMode
         }
 
         private static IEnumerator WalkMotorTo(
-            CharacterMotor motor,
+            KentridgeCharacterHost motor,
             ShowcaseWorld world,
             Vector3 target,
             string waypointName)
@@ -340,7 +346,7 @@ namespace VoxelEngine.Tests.PlayMode
                 ", frames=" + frame + ".");
         }
 
-        private static void StepToward(CharacterMotor motor, ShowcaseWorld world, Vector3 target)
+        private static void StepToward(KentridgeCharacterHost motor, ShowcaseWorld world, Vector3 target)
         {
             Vector3 delta = target - motor.Position;
             delta.y = 0f;
@@ -413,7 +419,33 @@ namespace VoxelEngine.Tests.PlayMode
             return null;
         }
 
-        private static Vector3 ReadActorRootPosition(object actor)
+        private static void AssertProductionMadeline(object actor)
+        {
+            PropertyInfo productionProperty = actor.GetType().GetProperty(
+                "UsesProductionMadeline", BindingFlags.Instance | BindingFlags.Public);
+            Assert.That(productionProperty, Is.Not.Null,
+                "The shared NPC actor must report whether the authored Madeline identity uses the production character.");
+            Assert.That((bool)productionProperty.GetValue(actor), Is.True,
+                "The authored Madeline NPC must resolve to the production Humanoid prefab, not a placeholder.");
+
+            GameObject root = ReadActorRoot(actor);
+            Animator animator = root.GetComponentInChildren<Animator>(true);
+            Assert.That(animator, Is.Not.Null,
+                "Production Madeline must carry an Animator from her imported character prefab.");
+            Assert.That(animator.avatar, Is.Not.Null);
+            Assert.That(animator.avatar.isHuman, Is.True,
+                "Production Madeline's imported rig must remain Humanoid at runtime.");
+            Assert.That(animator.runtimeAnimatorController, Is.Not.Null,
+                "Production Madeline must retain the bound animation controller.");
+            Assert.That(animator.applyRootMotion, Is.False,
+                "Game-owned actor movement must remain authoritative over Madeline animation root motion.");
+            Assert.That(root.GetComponent<CharacterVisualFootGrounding>(), Is.Not.Null,
+                "Production Madeline must use reusable Game-owned visual foot grounding.");
+            Assert.That(HasDescendantNamed(root, "Madeline Visual"), Is.True,
+                "The production Madeline prefab must remain intact below the actor visual root.");
+        }
+
+        private static GameObject ReadActorRoot(object actor)
         {
             FieldInfo rootField = actor.GetType().GetField(
                 "_root",
@@ -421,7 +453,17 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(rootField, Is.Not.Null, "Cutscene NPC actor is missing its visual root.");
             var root = rootField.GetValue(actor) as GameObject;
             Assert.That(root, Is.Not.Null, "Cutscene NPC visual root must exist while the opening is running.");
-            return root.transform.position;
+            return root;
+        }
+
+        private static Vector3 ReadActorRootPosition(object actor) => ReadActorRoot(actor).transform.position;
+
+        private static bool HasDescendantNamed(GameObject root, string name)
+        {
+            Transform[] transforms = root.GetComponentsInChildren<Transform>(true);
+            for (int i = 0; i < transforms.Length; i++)
+                if (string.Equals(transforms[i].name, name, StringComparison.Ordinal)) return true;
+            return false;
         }
 
         private static float HorizontalDistance(Vector3 a, Vector3 b)
