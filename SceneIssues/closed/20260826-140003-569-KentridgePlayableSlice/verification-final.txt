@@ -1,0 +1,14 @@
+sourceSha=a2aa7961e35f6f07ddf780481aec41bf6e38f25f
+transportSha=9e98cd01495e4ba81b573abc0dc9d5c8015191bf
+requestId=agent-2-20260826-140003-final
+runId=33173587863
+jobId=98856449128
+artifactId=9686703772
+artifactSha256=b8b5efa0ec3f3d77d776a12e4aa88aefc6debce1a6c7e97ccd6d1eb63cb414f4
+test=VoxelEngine.Tests.PlayMode.KentridgeHouseInteriorPropPlayModeTests.ProductionPubFurnitureIsSupportedDecoratedAndClearOfBar
+testResult=passed (1 matching case; Unity exit 0)
+replay=45s saved-pose real player; build exit 0; player exit 0
+screenshots=4
+verificationFrame=1928x836
+surfaceFinal=visible 172; missing 0
+visualReview=Supported/open-back table chairs are readable; three separate customer-side bar stools retain clearance from the bar/service path; framed art is visible on both side walls; existing bar, bartender, back-bar shelves, windows, and circulation remain intact.

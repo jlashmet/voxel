@@ -181,51 +181,5 @@ namespace VoxelEngine.Tests.EditMode
             Assert.AreEqual(0u, indices[0]);
             Assert.AreEqual(1u, indices[1]);
         }
-
-        [Test]
-        public void MinimumFaceWithNoSolidHaloFallsBackFromGpu()
-        {
-            const int edge = 5;
-            const int padding = 1;
-            const int coreEdge = 3;
-            var bricks = new NativeArray<TransvoxelDensityBrick>(edge * edge * edge, Allocator.TempJob);
-            var mixed = new NativeArray<byte>(1, Allocator.TempJob);
-            try
-            {
-                int y = 2;
-                int z = 2;
-                int core = 1 + edge * (y + edge * z);
-                int halo = 0 + edge * (y + edge * z);
-                bricks[core] = new TransvoxelDensityBrick
-                {
-                    Kind = 1,
-                    UniformMaterial = 1,
-                    MixedOffset = 0,
-                };
-
-                Assert.True(ExactSnapshotClassificationJob.LowBoundaryTouchesNoSolidHalo(
-                    bricks, mixed, 1, y, z, edge, padding, coreEdge),
-                    "A solid minimum-face brick with an all-air predecessor needs the CPU negative shell.");
-
-                bricks[halo] = new TransvoxelDensityBrick
-                {
-                    Kind = 1,
-                    UniformMaterial = 1,
-                    MixedOffset = 0,
-                };
-                Assert.False(ExactSnapshotClassificationJob.LowBoundaryTouchesNoSolidHalo(
-                    bricks, mixed, 1, y, z, edge, padding, coreEdge),
-                    "A solid predecessor can publish the shared crossing, so GPU extraction remains eligible.");
-
-                Assert.False(ExactSnapshotClassificationJob.LowBoundaryTouchesNoSolidHalo(
-                    bricks, mixed, 2, y, z, edge, padding, coreEdge),
-                    "Interior bricks must never trigger the boundary fallback.");
-            }
-            finally
-            {
-                mixed.Dispose();
-                bricks.Dispose();
-            }
-        }
     }
 }

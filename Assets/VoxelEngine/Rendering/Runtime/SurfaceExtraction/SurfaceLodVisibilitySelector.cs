@@ -7,20 +7,30 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
     /// Chooses one non-overlapping logical LOD coverage set from drawable fallback chunks and
     /// chunks whose desired generation is complete.
     ///
-    /// A drawable coarse parent remains active while finer coverage is partial. Once every direct
-    /// child is complete, the parent is replaced atomically; known-empty children participate in
-    /// that proof even though they have no draw entry. A known-empty node never becomes a root by
-    /// itself, so logical air cannot suppress finer drawable geometry when there is no coarse
-    /// fallback to show.
+    /// Logical completion is allowed to replace a coarse node only when that expanded subtree has
+    /// an actual drawable representative. If every logically active descendant is proof-only
+    /// (for example current-known-empty metadata while finer geometry is still converging), the
+    /// coarsest drawable fallback remains in the production draw set instead of opening a hole.
     /// </summary>
     internal sealed class SurfaceLodVisibilitySelector
     {
         private readonly HashSet<SurfaceLodNodeKey> _drawable = new();
+        private readonly HashSet<SurfaceLodNodeKey> _drawableAncestors = new();
         private readonly HashSet<SurfaceLodNodeKey> _currentComplete = new();
         private readonly HashSet<SurfaceLodNodeKey> _active = new();
+        private readonly HashSet<SurfaceLodNodeKey> _drawActive = new();
 
         public int Count => _active.Count;
-        public bool IsActive(in SurfaceLodNodeKey key) => _active.Contains(key);
+        internal int DrawCount => _drawActive.Count;
+
+        /// <summary>
+        /// Production draw eligibility. The scheduler calls this only for entries that a worker
+        /// has already proven in-band, in-frustum and physically drawable.
+        /// </summary>
+        public bool IsActive(in SurfaceLodNodeKey key) => _drawActive.Contains(key);
+
+        /// <summary>Logical ownership before physical-fallback preservation.</summary>
+        internal bool IsLogicallyActive(in SurfaceLodNodeKey key) => _active.Contains(key);
 
         /// <summary>
         /// A direct child can satisfy the current camera's handoff only if the finer ring owns the
@@ -39,17 +49,35 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 throw new ArgumentNullException(nameof(currentCompleteNodes));
 
             _drawable.Clear();
+            _drawableAncestors.Clear();
             _currentComplete.Clear();
             _active.Clear();
+            _drawActive.Clear();
 
             for (int i = 0; i < drawableNodes.Count; i++)
-                _drawable.Add(drawableNodes[i]);
+            {
+                SurfaceLodNodeKey node = drawableNodes[i];
+                _drawable.Add(node);
+                SurfaceLodNodeKey cursor = node;
+                while (SurfaceLodHierarchy.TryGetParentSourceStep(
+                           cursor.SourceStep, out int parentStep))
+                {
+                    cursor = new SurfaceLodNodeKey(
+                        parentStep, SurfaceLodHierarchy.ParentCoordinate(cursor.Coordinate));
+                    _drawableAncestors.Add(cursor);
+                }
+            }
             for (int i = 0; i < currentCompleteNodes.Count; i++)
                 _currentComplete.Add(currentCompleteNodes[i]);
 
             foreach (SurfaceLodNodeKey node in _drawable)
             {
                 if (!HasDrawableAncestor(node)) Expand(node);
+            }
+
+            foreach (SurfaceLodNodeKey node in _drawable)
+            {
+                if (!HasDrawableAncestor(node)) SelectDrawableCoverage(node);
             }
         }
 
@@ -98,6 +126,48 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     SurfaceLodHierarchy.ChildCoordinate(node.Coordinate, childIndex));
                 Expand(child);
             }
+        }
+
+        /// <summary>
+        /// Mirrors the logical expansion into a physical draw set. A logical proof-only leaf does
+        /// not count as replacement geometry. If an expanded drawable node has no physical draw in
+        /// any descendant path, retain that node as the fallback for the subtree.
+        /// </summary>
+        private bool SelectDrawableCoverage(in SurfaceLodNodeKey node)
+        {
+            bool drawable = _drawable.Contains(node);
+            if (_active.Contains(node))
+            {
+                if (!drawable) return false;
+                _drawActive.Add(node);
+                return true;
+            }
+
+            if (!drawable && !_drawableAncestors.Contains(node)) return false;
+
+            if (!SurfaceLodHierarchy.TryGetChildSourceStep(
+                    node.SourceStep, out int childStep))
+            {
+                if (!drawable) return false;
+                _drawActive.Add(node);
+                return true;
+            }
+
+            bool hasDrawableReplacement = false;
+            for (int childIndex = 0;
+                 childIndex < SurfaceLodHierarchy.ChildrenPerParent;
+                 childIndex++)
+            {
+                var child = new SurfaceLodNodeKey(
+                    childStep,
+                    SurfaceLodHierarchy.ChildCoordinate(node.Coordinate, childIndex));
+                hasDrawableReplacement |= SelectDrawableCoverage(child);
+            }
+
+            if (hasDrawableReplacement || !drawable) return hasDrawableReplacement;
+
+            _drawActive.Add(node);
+            return true;
         }
     }
 }
