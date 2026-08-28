@@ -10,7 +10,6 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
         Surface,
         Vine,
         Woody,
-        Grass,
     }
 
     public readonly struct VegetationRenderStyle
@@ -49,7 +48,6 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
     public static class ProceduralVegetationMaterials
     {
         public const string FoliageShaderName = "VoxelEngine/ProceduralVegetationFoliage";
-        public const string GrassShaderName = "VoxelEngine/ProceduralVegetationGrass";
         public const string SurfaceShaderName = "VoxelEngine/ProceduralVegetationSurface";
         public const string VineShaderName = "VoxelEngine/ProceduralVine";
         public const int MaxGrassInteractors = 64;
@@ -57,21 +55,19 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
         private static readonly Vector4[] s_GrassInteractors = new Vector4[MaxGrassInteractors];
         private static int s_GrassInteractorCount;
         private static Material s_Foliage;
-        private static Material s_Grass;
         private static Material s_Surface;
         private static Material s_Vine;
         private static bool s_ReportedMissing;
 
         public static bool Ensure()
         {
-            if (s_Foliage != null && s_Grass != null && s_Surface != null && s_Vine != null)
+            if (s_Foliage != null && s_Surface != null && s_Vine != null)
                 return true;
 
             Shader foliage = Shader.Find(FoliageShaderName);
-            Shader grass = Shader.Find(GrassShaderName);
             Shader surface = Shader.Find(SurfaceShaderName);
             Shader vine = Shader.Find(VineShaderName);
-            if (foliage == null || grass == null || surface == null || vine == null)
+            if (foliage == null || surface == null || vine == null)
             {
                 // Once, not per call: see ProceduralTreeMaterials.Ensure for what per-call
                 // logging costs when a spawn path retries this every frame.
@@ -79,7 +75,6 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
                 {
                     s_ReportedMissing = true;
                     if (foliage == null) Debug.LogError($"Vegetation shader was not found: {FoliageShaderName}");
-                    if (grass == null) Debug.LogError($"Vegetation shader was not found: {GrassShaderName}");
                     if (surface == null) Debug.LogError($"Vegetation shader was not found: {SurfaceShaderName}");
                     if (vine == null) Debug.LogError($"Vegetation shader was not found: {VineShaderName}");
                 }
@@ -89,7 +84,6 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
             s_ReportedMissing = false;
 
             s_Foliage = Create(foliage, "Procedural Vegetation Foliage (Shared Runtime)");
-            s_Grass = Create(grass, "Procedural Meadow Grass (Shared Runtime)");
             s_Surface = Create(surface, "Procedural Vegetation Surface (Shared Runtime)");
             s_Vine = Create(vine, "Procedural Vine (Shared Runtime)");
             return true;
@@ -104,7 +98,6 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
             if (!Ensure()) return null;
             switch (style.ShaderClass)
             {
-                case VegetationShaderClass.Grass: return s_Grass;
                 case VegetationShaderClass.Surface: return s_Surface;
                 case VegetationShaderClass.Vine: return s_Vine;
                 default: return s_Foliage;
@@ -126,7 +119,7 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
         }
 
         /// <summary>
-        /// Publishes nearby character positions to the shared grass shaders. W stores each
+        /// Publishes nearby character positions to the shared foliage shader. W stores each
         /// character's influence radius so callers can use capsule radius or another authored value.
         /// Extra entries are deliberately truncated to the fixed shader-array budget.
         /// </summary>
@@ -144,13 +137,10 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
         {
             if (!Ensure()) return;
             ApplyLighting(s_Foliage);
-            ApplyLighting(s_Grass);
             ApplyLighting(s_Surface);
             ApplyLighting(s_Vine);
             s_Foliage.SetInt("_GrassInteractorCount", s_GrassInteractorCount);
             s_Foliage.SetVectorArray("_GrassInteractorPositions", s_GrassInteractors);
-            s_Grass.SetInt("_GrassInteractorCount", s_GrassInteractorCount);
-            s_Grass.SetVectorArray("_GrassInteractorPositions", s_GrassInteractors);
         }
 
         public static VegetationRenderStyle StyleFor(VegetationKind kind)
@@ -178,17 +168,8 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
 
         private static VegetationShaderClass Classify(VegetationKind kind, VegetationGrowthForm growthForm)
         {
-            // The marked gallery meadow is ecology-selected and can contain several ordinary
-            // ground tufts. Keep that visual family together while leaving flowers, wetland plants,
-            // magical tufts and every non-meadow growth form on their existing render paths.
             switch (kind)
             {
-                case VegetationKind.Grass:
-                case VegetationKind.Clover:
-                case VegetationKind.Weed:
-                case VegetationKind.Nettle:
-                case VegetationKind.DeadGrass:
-                    return VegetationShaderClass.Grass;
                 case VegetationKind.Moss:
                 case VegetationKind.FallenLeaves:
                 case VegetationKind.PineNeedles:
@@ -220,6 +201,9 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
 
         private static float ShapeFor(VegetationKind kind, VegetationGrowthForm growthForm)
         {
+            // Grass gets a dedicated presentation discriminator. Several other tuft-like species
+            // intentionally share shape 0, so specializing shape 0 would silently restyle clover,
+            // weeds, nettles, reeds, and related foliage along with the captured grass defect.
             if (kind == VegetationKind.Grass) return 5f;
             if (kind == VegetationKind.Flower || kind == VegetationKind.ManaBloom) return 2f;
             if (growthForm == VegetationGrowthForm.Fungus) return 3f;
@@ -233,6 +217,8 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
             if ((traits & VegetationTraits.Dead) != 0) return new Color(0.34f, 0.27f, 0.14f, 1f);
             switch (kind)
             {
+                // The grass sprite needs to read as a lit pixel-art accent over the already-green
+                // terrain rather than as the near-black vertical bars seen in the captured replay.
                 case VegetationKind.Grass: return new Color(0.31f, 0.62f, 0.18f, 1f);
                 case VegetationKind.Flower: return new Color(0.84f, 0.28f, 0.46f, 1f);
                 case VegetationKind.Mushroom: return new Color(0.58f, 0.34f, 0.20f, 1f);
