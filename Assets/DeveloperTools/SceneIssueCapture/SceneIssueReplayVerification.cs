@@ -1,7 +1,6 @@
 #if DEVELOPMENT_BUILD
 using System;
 using System.Collections;
-using System.Globalization;
 using System.IO;
 using System.Text;
 using UnityEngine;
@@ -11,18 +10,19 @@ namespace MountingForce.DeveloperTools
 {
     /// <summary>
     /// Development-player proof for command-line SceneIssue replay. This does not move the camera;
-    /// it verifies that SceneIssueCapture reached the recorded pose and, when the capture runner
-    /// explicitly requests it, releases that same replay after a bounded real-time delay.
+    /// it verifies that SceneIssueCapture has frozen the active camera at the recorded pose and,
+    /// when the screenshot runner is active, emits a clean camera-only verification frame.
     /// </summary>
     internal static class SceneIssueReplayVerification
     {
         private const string ReplayArgument = "-voxel-scene-issue";
-        private const string ReleaseAfterArgument = "-voxel-scene-issue-release-after";
+        private const string ScreenshotDirectoryArgument = "-voxel-screenshot-dir";
+        private const string CleanVerificationFileName = "verification-clean.png";
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Install()
         {
-            string path = ReplayPath();
+            string path = CommandLineValue(ReplayArgument);
             if (string.IsNullOrEmpty(path))
                 return;
 
@@ -34,35 +34,13 @@ namespace MountingForce.DeveloperTools
             host.AddComponent<Verifier>().IssuePath = path;
         }
 
-        private static string ReplayPath()
+        private static string CommandLineValue(string argument)
         {
             string[] args = Environment.GetCommandLineArgs();
             for (int i = 0; i + 1 < args.Length; i++)
-                if (string.Equals(args[i], ReplayArgument, StringComparison.Ordinal))
+                if (string.Equals(args[i], argument, StringComparison.Ordinal))
                     return args[i + 1];
             return string.Empty;
-        }
-
-        private static float ReleaseAfterSeconds()
-        {
-            string[] args = Environment.GetCommandLineArgs();
-            for (int i = 0; i + 1 < args.Length; i++)
-            {
-                if (!string.Equals(args[i], ReleaseAfterArgument, StringComparison.Ordinal))
-                    continue;
-
-                if (float.TryParse(
-                        args[i + 1],
-                        NumberStyles.Float,
-                        CultureInfo.InvariantCulture,
-                        out float seconds) && seconds > 0f)
-                    return seconds;
-
-                Debug.LogWarning($"Scene issue replay ignored invalid {ReleaseAfterArgument} value '{args[i + 1]}'.");
-                return 0f;
-            }
-
-            return 0f;
         }
 
         private sealed class Verifier : MonoBehaviour
@@ -109,34 +87,75 @@ namespace MountingForce.DeveloperTools
                     Debug.Log(
                         $"Replaying issue with {frames.Length} screenshot(s). Verified standalone frozen pose.");
 
-                    float releaseAfter = ReleaseAfterSeconds();
-                    if (releaseAfter > 0f)
+                    string screenshotDirectory = CommandLineValue(ScreenshotDirectoryArgument);
+                    if (!string.IsNullOrEmpty(screenshotDirectory))
                     {
-                        float remaining = releaseAfter - Time.realtimeSinceStartup;
-                        if (remaining > 0f)
-                            yield return new WaitForSecondsRealtime(remaining);
-
-                        SceneIssueCapture capture = UnityEngine.Object.FindFirstObjectByType<SceneIssueCapture>();
-                        if (capture == null)
-                        {
-                            Debug.LogWarning("Scene issue replay could not find SceneIssueCapture to release.");
-                            yield break;
-                        }
-
-                        // Reuse the capture tool's existing Release camera transition so replay mode and
-                        // frozen pose state are cleared exactly as in interactive replay. Then disable this
-                        // development-only component so its normal F8 capture overlay cannot contaminate
-                        // the clean verification frame after replay has served its purpose.
-                        capture.SendMessage("ReleaseReplayCamera", SendMessageOptions.DontRequireReceiver);
-                        capture.enabled = false;
-                        Debug.Log(
-                            $"Scene issue replay released and capture overlay disabled after {releaseAfter:0.###}s.");
+                        yield return new WaitForSecondsRealtime(2f);
+                        yield return CaptureCleanVerification(camera, frames[0], screenshotDirectory);
                     }
-
                     yield break;
                 }
 
                 Debug.LogWarning("Scene issue replay did not reach the recorded frozen camera pose.");
+            }
+
+            private static IEnumerator CaptureCleanVerification(
+                Camera camera,
+                SceneIssueFrameCapture frame,
+                string screenshotDirectory)
+            {
+                int width = Mathf.Max(1, frame.screenWidth);
+                int height = Mathf.Max(1, frame.screenHeight);
+                string outputPath = Path.Combine(screenshotDirectory, CleanVerificationFileName);
+                Directory.CreateDirectory(screenshotDirectory);
+
+                RenderTexture previousTarget = camera.targetTexture;
+                RenderTexture previousActive = RenderTexture.active;
+                var target = new RenderTexture(width, height, 24, RenderTextureFormat.ARGB32)
+                {
+                    name = "Scene Issue Clean Verification",
+                    hideFlags = HideFlags.DontSave
+                };
+                var pixels = new Texture2D(width, height, TextureFormat.RGB24, false)
+                {
+                    name = "Scene Issue Clean Verification Readback",
+                    hideFlags = HideFlags.DontSave
+                };
+
+                Canvas[] canvases = UnityEngine.Object.FindObjectsByType<Canvas>(
+                    FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+                bool[] canvasStates = new bool[canvases.Length];
+
+                try
+                {
+                    for (int i = 0; i < canvases.Length; i++)
+                    {
+                        canvasStates[i] = canvases[i] != null && canvases[i].enabled;
+                        if (canvases[i] != null)
+                            canvases[i].enabled = false;
+                    }
+
+                    camera.targetTexture = target;
+                    RenderTexture.active = target;
+                    camera.Render();
+                    pixels.ReadPixels(new Rect(0f, 0f, width, height), 0, 0, false);
+                    pixels.Apply(false, false);
+                    File.WriteAllBytes(outputPath, pixels.EncodeToPNG());
+                    Debug.Log(
+                        $"Scene issue clean verification captured: {outputPath} ({width}x{height}).");
+                }
+                finally
+                {
+                    camera.targetTexture = previousTarget;
+                    RenderTexture.active = previousActive;
+                    for (int i = 0; i < canvases.Length; i++)
+                        if (canvases[i] != null)
+                            canvases[i].enabled = canvasStates[i];
+                    UnityEngine.Object.Destroy(target);
+                    UnityEngine.Object.Destroy(pixels);
+                }
+
+                yield return null;
             }
         }
 

@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using MountingForce.WorldGen.Content.Kentridge;
 using Unity.Collections;
 using Unity.Mathematics;
+using VoxelEngine.Terrain.Api;
 
+using VoxelEngine.Storage.Api;
 using VoxelEngine.Structures.Api;
 
 namespace MountingForce.WorldGen.Voxel
@@ -12,7 +14,7 @@ namespace MountingForce.WorldGen.Voxel
     /// Sparse street-visible furnishing for Kentridge.
     ///
     /// Unlike the market-square dressing, these props are aligned to the semantic street network
-    /// and sit at the authored macro elevation at their own column. The placement rhythm is
+    /// and sit at the authored public-space surface at their own column. The placement rhythm is
     /// deliberate: lamps mark the climb and major side streets, benches create civic/residential
     /// pauses, and planters strengthen the commercial frontage without blocking doors or roads.
     /// </summary>
@@ -27,6 +29,20 @@ namespace MountingForce.WorldGen.Voxel
 
         private const int DefinitionCount = 3;
         private const int ExpectedPlacementCount = 30;
+
+        // The captured east-market lamp is outside the carriageway but inside the north shoulder of
+        // the working-yard district terrace. Keep this one authored district surface in sync with
+        // KentridgeDistrictTerraceCatalogue rather than pretending the macro profile is the final
+        // ground at that sidewalk column. The focused regression evaluates the real terrace program
+        // at the captured coordinate so drift here fails behaviorally instead of becoming a float.
+        private const int WorkingYardXDm = 1490;
+        private const int WorkingYardZDm = 570;
+        private const int WorkingYardWidthDm = 260;
+        private const int WorkingYardDepthDm = 250;
+        private const int WorkingYardAnchorXDm = 1530;
+        private const int WorkingYardAnchorZDm = 700;
+        private const int WorkingYardShoulderDm = 54;
+        private const int DistrictShoulderStepCount = 6;
 
         private readonly struct StreetPropPlacement
         {
@@ -119,8 +135,7 @@ namespace MountingForce.WorldGen.Voxel
                 for (int i = 0; i < kindPlacements.Count; i++)
                 {
                     StreetPropPlacement placement = kindPlacements[i];
-                    int surfaceY = KentridgeVerticalProfile.SurfaceYAtDm(
-                        placement.XDm, placement.ZDm, seed, scale);
+                    int surfaceY = SurfaceYForPlacement(placement, seed, scale);
                     catalogue.ExplicitPlacements[placementOffset + i] = new ExplicitPlacement
                     {
                         Position = new int3(
@@ -163,6 +178,103 @@ namespace MountingForce.WorldGen.Voxel
             }
 
             return catalogue;
+        }
+
+        private static int SurfaceYForPlacement(StreetPropPlacement placement, uint seed, int scale)
+        {
+            if (TryWorkingYardSurfaceYAtDm(placement.XDm, placement.ZDm, seed, scale,
+                                           out int districtSurfaceY))
+                return districtSurfaceY;
+
+            return KentridgeVerticalProfile.SurfaceYAtDm(
+                placement.XDm, placement.ZDm, seed, scale);
+        }
+
+        private static bool TryWorkingYardSurfaceYAtDm(
+            int xDm, int zDm, uint seed, int scale, out int surfaceY)
+        {
+            int minX = WorkingYardXDm - WorkingYardShoulderDm;
+            int maxX = WorkingYardXDm + WorkingYardWidthDm + WorkingYardShoulderDm;
+            int minZ = WorkingYardZDm - WorkingYardShoulderDm;
+            int maxZ = WorkingYardZDm + WorkingYardDepthDm + WorkingYardShoulderDm;
+            if (xDm < minX || xDm >= maxX || zDm < minZ || zDm >= maxZ)
+            {
+                surfaceY = 0;
+                return false;
+            }
+
+            int coreY = KentridgeVerticalProfile.SurfaceYAtDm(
+                WorkingYardAnchorXDm, WorkingYardAnchorZDm, seed, scale);
+            int shoulder = WorkingYardShoulderDm * scale;
+
+            if (zDm < WorkingYardZDm)
+            {
+                int edgeY = TerrainQuery.HeightAt(
+                    (WorkingYardXDm + WorkingYardWidthDm / 2) * scale,
+                    (WorkingYardZDm - WorkingYardShoulderDm) * scale,
+                    seed);
+                surfaceY = ShoulderSurfaceY(
+                    (zDm - minZ) * scale, shoulder, edgeY, coreY,
+                    outerAtNegativeAxis: true);
+                return true;
+            }
+
+            if (zDm >= WorkingYardZDm + WorkingYardDepthDm)
+            {
+                int edgeY = TerrainQuery.HeightAt(
+                    (WorkingYardXDm + WorkingYardWidthDm / 2) * scale,
+                    (WorkingYardZDm + WorkingYardDepthDm + WorkingYardShoulderDm) * scale,
+                    seed);
+                surfaceY = ShoulderSurfaceY(
+                    (zDm - (WorkingYardZDm + WorkingYardDepthDm)) * scale,
+                    shoulder, edgeY, coreY, outerAtNegativeAxis: false);
+                return true;
+            }
+
+            if (xDm < WorkingYardXDm)
+            {
+                int edgeY = TerrainQuery.HeightAt(
+                    (WorkingYardXDm - WorkingYardShoulderDm) * scale,
+                    (WorkingYardZDm + WorkingYardDepthDm / 2) * scale,
+                    seed);
+                surfaceY = ShoulderSurfaceY(
+                    (xDm - minX) * scale, shoulder, edgeY, coreY,
+                    outerAtNegativeAxis: true);
+                return true;
+            }
+
+            if (xDm >= WorkingYardXDm + WorkingYardWidthDm)
+            {
+                int edgeY = TerrainQuery.HeightAt(
+                    (WorkingYardXDm + WorkingYardWidthDm + WorkingYardShoulderDm) * scale,
+                    (WorkingYardZDm + WorkingYardDepthDm / 2) * scale,
+                    seed);
+                surfaceY = ShoulderSurfaceY(
+                    (xDm - (WorkingYardXDm + WorkingYardWidthDm)) * scale,
+                    shoulder, edgeY, coreY, outerAtNegativeAxis: false);
+                return true;
+            }
+
+            surfaceY = coreY;
+            return true;
+        }
+
+        private static int ShoulderSurfaceY(
+            int offset, int axisLength, int edgeY, int coreY, bool outerAtNegativeAxis)
+        {
+            for (int step = 0; step < DistrictShoulderStepCount; step++)
+            {
+                int start = axisLength * step / DistrictShoulderStepCount;
+                int end = axisLength * (step + 1) / DistrictShoulderStepCount;
+                int sliceStart = outerAtNegativeAxis ? start : axisLength - end;
+                int sliceEnd = outerAtNegativeAxis ? end : axisLength - start;
+                if (offset < sliceStart || offset >= sliceEnd) continue;
+
+                return edgeY
+                    + (coreY - edgeY) * (step + 1) / DistrictShoulderStepCount;
+            }
+
+            return coreY;
         }
 
         private static List<StreetPropPlacement> BuildPlacements()
@@ -249,8 +361,15 @@ namespace MountingForce.WorldGen.Voxel
             byte slate = settings.Materials.Resolve(MaterialRole.Slate);
             var b = new ProgramBuilder();
 
-            b.Cylinder(4 * s, 0, 4 * s, 3 * s, 4 * s, 1, stone);
-            b.Box(3 * s, 3 * s, 3 * s, 3 * s, 29 * s, 3 * s, dark);
+            // The terrace's Smooth reconstruction can retract below its top occupied voxel. Keep
+            // the visible Planar foot top unchanged, but embed its bottom by one voxel so the two
+            // reconstructed surfaces overlap instead of exposing a seam at an occupancy boundary.
+            b.Cylinder(4 * s, -1, 4 * s, 3 * s, 4 * s + 1, 1, stone, SurfaceStyles.Planar);
+            // Dark stone is Smooth in the Showcase palette. The 3x3 pole is a deliberately thin
+            // architectural support, so keep its occupancy/material but reconstruct it exactly;
+            // otherwise the smoothed support can collapse while the larger lantern head remains.
+            b.Box(3 * s, 3 * s, 3 * s, 3 * s, 29 * s, 3 * s,
+                  dark, SurfaceStyles.Planar);
             b.Box(1 * s, 31 * s, 1 * s, 7 * s, 7 * s, 7 * s, warm);
             b.Prism(0, 38 * s, 0, 9 * s, 5 * s, 9 * s,
                     PrismProfile.Gable, slate);
@@ -291,14 +410,15 @@ namespace MountingForce.WorldGen.Voxel
         {
             private readonly List<int> _code = new();
 
-            public void Box(int x, int y, int z, int sx, int sy, int sz, byte material) =>
+            public void Box(int x, int y, int z, int sx, int sy, int sz, byte material,
+                            ushort surfaceStyle = 0) =>
                 Op(ShapeOp.EmitBox, x, y, z, sx, sy, sz,
-                   material, 0, 0, (int)PrimitiveMode.Fill);
+                   material, surfaceStyle, 0, (int)PrimitiveMode.Fill);
 
             public void Cylinder(int x, int y, int z, int radius, int height,
-                                 byte axis, byte material) =>
+                                 byte axis, byte material, ushort surfaceStyle = 0) =>
                 Op(ShapeOp.EmitCylinder, x, y, z, radius, height, axis,
-                   material, 0, 0, (int)PrimitiveMode.Fill);
+                   material, surfaceStyle, 0, (int)PrimitiveMode.Fill);
 
             public void Prism(int x, int y, int z, int sx, int sy, int sz,
                               PrismProfile profile, byte material) =>

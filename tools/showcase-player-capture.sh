@@ -42,9 +42,8 @@ SURVEY_HEIGHT=""
 SURVEY_SPIN=""
 STATIONARY_SAMPLE=""
 SCENE_ISSUE=""
-SCENE_ISSUE_RELEASE_AFTER=""
-SCREEN_WIDTH=1600
-SCREEN_HEIGHT=900
+PLAYER_WIDTH=1600
+PLAYER_HEIGHT=900
 KENTRIDGE_EVIDENCE=0
 IF_CONFIGURED=0
 
@@ -80,7 +79,7 @@ if [[ -n "$SCENE_ISSUE" ]]; then
   esac
   if [[ "$SCENE_ISSUE" != /* ]]; then SCENE_ISSUE="$PWD/$SCENE_ISSUE"; fi
   [[ -f "$SCENE_ISSUE" ]] || { echo "ERROR: scene issue does not exist: $SCENE_ISSUE" >&2; exit 2; }
-  ISSUE_SCENE="$(python3 - "$SCENE_ISSUE" <<'PY'
+  ISSUE_METADATA="$(python3 - "$SCENE_ISSUE" <<'PY'
 import json
 import sys
 
@@ -89,43 +88,21 @@ with open(sys.argv[1], encoding='utf-8') as handle:
 scene = value.get('scenePath') or ''
 if not isinstance(scene, str) or not scene.startswith('Assets/Scenes/') or not scene.endswith('.unity'):
     raise SystemExit('ERROR: scene issue has no valid scenePath')
-print(scene)
+frames = value.get('captures') or []
+frame = frames[0] if frames else value
+width = frame.get('screenWidth') or value.get('screenWidth') or 0
+height = frame.get('screenHeight') or value.get('screenHeight') or 0
+if not isinstance(width, int) or not isinstance(height, int) or width <= 0 or height <= 0:
+    raise SystemExit('ERROR: scene issue has no valid captured screen dimensions')
+print(f'{scene}\t{width}\t{height}')
 PY
 )"
-  read -r ISSUE_SCREEN_WIDTH ISSUE_SCREEN_HEIGHT < <(python3 - "$SCENE_ISSUE" <<'PY'
-import json
-import sys
-
-with open(sys.argv[1], encoding='utf-8') as handle:
-    value = json.load(handle)
-width = value.get('screenWidth') or 0
-height = value.get('screenHeight') or 0
-try:
-    width = int(width)
-    height = int(height)
-except (TypeError, ValueError):
-    raise SystemExit('ERROR: scene issue has invalid screen dimensions')
-print(width, height)
-PY
-)
-  if (( ISSUE_SCREEN_WIDTH > SCREEN_WIDTH )); then SCREEN_WIDTH="$ISSUE_SCREEN_WIDTH"; fi
-  if (( ISSUE_SCREEN_HEIGHT > SCREEN_HEIGHT )); then SCREEN_HEIGHT="$ISSUE_SCREEN_HEIGHT"; fi
+  IFS=$'\t' read -r ISSUE_SCENE PLAYER_WIDTH PLAYER_HEIGHT <<< "$ISSUE_METADATA"
   if [[ -n "$SCENE" && "$SCENE" != "$ISSUE_SCENE" ]]; then
     echo "ERROR: --scene does not match scene issue scenePath '$ISSUE_SCENE'." >&2
     exit 2
   fi
   SCENE="$ISSUE_SCENE"
-
-  # Scene-issue requests are authoritative for which scene is replayed, so the test-filter profile
-  # below is intentionally skipped. Kentridge still needs its unattended opening to complete before
-  # the final evidence frame: auto-advance dialogue, keep the run long enough for preload + story,
-  # then release the captured camera late so the production player camera can show the real handoff.
-  if [[ "$SCENE" == "Assets/Scenes/KentridgePlayableSlice.unity" ]]; then
-    : "${AUTO_DIALOGUE:=1.5}"
-    if [[ -z "$RUN_SECONDS" || "${RUN_SECONDS%.*}" -lt 100 ]]; then RUN_SECONDS=100; fi
-    SCENE_ISSUE_RELEASE_AFTER=85
-    KENTRIDGE_EVIDENCE=1
-  fi
 fi
 
 if [[ -n "$TEST_FILTER" && -z "$SCENE_ISSUE" ]]; then
@@ -252,7 +229,6 @@ wait_for_unity_quiet
 
 BUILD_ARGS=(-batchmode -nographics -quit)
 if [[ -n "$STATIONARY_SAMPLE" ]]; then BUILD_ARGS+=(-voxelFrameTimingStats); fi
-if [[ -n "$SCENE_ISSUE" ]]; then BUILD_ARGS+=(-voxelDevelopment); fi
 
 echo "Building real player for $SCENE"
 UNITY_MAX_RSS_MB="${UNITY_MAX_RSS_MB:-12288}" \
@@ -280,15 +256,12 @@ BIN="$(find "$APP_BIN_DIR" -maxdepth 1 -type f -perm -111 -print -quit)"
 
 PLAYER_ARGS=(
   -logFile "$PLAYER_LOG"
-  -screen-width "$SCREEN_WIDTH" -screen-height "$SCREEN_HEIGHT" -screen-fullscreen 0
+  -screen-width "$PLAYER_WIDTH" -screen-height "$PLAYER_HEIGHT" -screen-fullscreen 0
   -voxel-uncapped
 )
 
 if [[ -n "$SCENE_ISSUE" ]]; then
   PLAYER_ARGS+=( -voxel-scene-issue "$SCENE_ISSUE" )
-  if [[ -n "$SCENE_ISSUE_RELEASE_AFTER" ]]; then
-    PLAYER_ARGS+=( -voxel-scene-issue-release-after "$SCENE_ISSUE_RELEASE_AFTER" )
-  fi
 fi
 
 if [[ -n "$STATIONARY_SAMPLE" ]]; then
@@ -324,7 +297,10 @@ else
   if [[ -n "$SURVEY_SPIN" ]]; then
     PLAYER_ARGS+=( -voxel-survey-spin "$SURVEY_SPIN" )
   fi
-  echo "Running real player for ${RUN_SECONDS}s; screenshots every 10s at ${SCREEN_WIDTH}x${SCREEN_HEIGHT}"
+  echo "Running real player for ${RUN_SECONDS}s; screenshots every 10s"
+  if [[ -n "$SCENE_ISSUE" ]]; then
+    echo "Scene-issue replay resolution: ${PLAYER_WIDTH}x${PLAYER_HEIGHT}"
+  fi
   if [[ -n "$CONVERGING_BUILDS" ]]; then
     echo "Real-player converging build ceiling override: $CONVERGING_BUILDS (converged remains 0)"
   fi
@@ -403,13 +379,27 @@ if (( shots < 2 )); then
 fi
 
 if [[ -n "$SCENE_ISSUE" ]]; then
+  if ! grep -q 'SCENEISSUE camera pinned' "$PLAYER_LOG" 2>/dev/null; then
+    echo "ERROR: scene-issue player never confirmed the recorded camera was pinned." >&2
+    tail -80 "$PLAYER_LOG" >&2 || true
+    exit 1
+  fi
+
   FINAL_SHOT="$(find "$SHOTS_DIR" -type f -name '*.png' -size +1k | sort | tail -1)"
   [[ -n "$FINAL_SHOT" ]] || {
     echo "ERROR: scene-issue replay produced no final verification frame." >&2
     exit 1
   }
+
+  SHOT_WIDTH="$(sips -g pixelWidth "$FINAL_SHOT" 2>/dev/null | awk '/pixelWidth:/ {print $2}')"
+  SHOT_HEIGHT="$(sips -g pixelHeight "$FINAL_SHOT" 2>/dev/null | awk '/pixelHeight:/ {print $2}')"
+  if [[ -z "$SHOT_WIDTH" || -z "$SHOT_HEIGHT" ]] || (( SHOT_WIDTH < PLAYER_WIDTH || SHOT_HEIGHT < PLAYER_HEIGHT )); then
+    echo "ERROR: scene-issue verification frame ${SHOT_WIDTH:-?}x${SHOT_HEIGHT:-?} is smaller than captured ${PLAYER_WIDTH}x${PLAYER_HEIGHT}." >&2
+    exit 1
+  fi
+
   cp "$FINAL_SHOT" "$OUTPUT_ROOT/verification-final.png"
-  echo "scene-issue final verification: $OUTPUT_ROOT/verification-final.png"
+  echo "scene-issue final verification: $OUTPUT_ROOT/verification-final.png (${SHOT_WIDTH}x${SHOT_HEIGHT})"
 fi
 
 # Artifact quota exhaustion can make otherwise successful Kentridge capture opaque to a remote
@@ -436,8 +426,8 @@ if (( KENTRIDGE_EVIDENCE )); then
 
   # Preserve the original presented frames for strict artifact proof, but leave small copies in
   # Screenshots so the generic workflow preview step cannot flood the job log by re-encoding every
-  # full-resolution frame. The artifact upload is recursive, so FullResolutionScreenshots remains
-  # part of the same strict visual artifact whenever GitHub storage is available.
+  # 1600x900 frame. The artifact upload is recursive, so FullResolutionScreenshots remains part of
+  # the same strict visual artifact whenever GitHub storage is available.
   FULL_RES_DIR="$OUTPUT_ROOT/FullResolutionScreenshots"
   rm -rf "$FULL_RES_DIR"
   mkdir -p "$FULL_RES_DIR"
