@@ -1,21 +1,18 @@
 # Plan — 20260826-135433-808 WorldbuildingGalleryShowcase
 
 ## Evidence
-- One marked region: `screenshot-001.png`, normalized center `(0.4802, 0.6678)`, radius `0.0690` (about pixel `(926, 558)` at the captured 1928×836 pose). Human review describes the meadow there as repeated three-blade icons/dark billboard bars instead of the dense layered target in `reference-grass-target.jpg`.
-- The production path batches semantic vegetation through `ProceduralVegetationBatchRenderer`. Ordinary tuft foliage used the generic seven rectangular-card mesh, which explains the repeated stamped silhouettes.
-- The SceneIssue includes `grass-renderer-reference.shader`; its packed root/lateral/height/phase vertex contract, coherent three-wave wind, camera-right reconstruction, local player push, and stateless recovery are the acceptance implementation to migrate.
+- One marked region only: `screenshot-001.png`, center `(0.4802, 0.6678)`, radius `0.0690` (~pixel `(926,558)` at 1928×836). Human review requires the supplied `reference-grass-target.jpg`: a dense continuous pixel-art meadow, irregular layered silhouette, multiple green/noise regions, accent foliage, and no repeated three-blade icons/dark bars.
+- Runtime ownership traces semantic `VegetationKind.Grass` through `ProceduralVegetationBatchRenderer`; the old generic tuft source is seven rectangular cards, matching the repeated stamped silhouette in the capture. The supplied `grass-renderer-reference.shader` defines the accepted packed root/lateral/height/phase contract, coherent wave constants, camera-right reconstruction, local push, and stateless recovery.
 
-## Competing hypotheses
-1. **Wrong grass geometry/presentation — confirmed.** Generic foliage cards cannot reproduce the supplied tapered ribbon meadow. Give the meadow grass family a dedicated packed ribbon mesh and production grass shader.
-2. **Interactor publishing is missing — rejected.** Production already publishes a bounded grass-interactor array; the migrated dedicated shader was not consuming it. Apply the reference push math to the strongest local interactor while leaving the existing publisher intact.
-3. **Whole vegetation renderer/layout is wrong — rejected for this capture.** The defect is isolated to the marked meadow presentation. Keep flowers, aquatic grass, reeds, surfaces, vines, woody vegetation, instance placement, and batching unchanged.
+## Competing hypotheses / discriminator
+1. **Generic card geometry is causal — confirmed.** Grass shared the same reusable card cluster as other tuft foliage. Falsifier: if semantic Grass bypassed that mesh while the captured silhouette remained; the production route proves it did not.
+2. **Missing grass deformation/presentation contract is causal — confirmed.** The old path did not consume the supplied packed channels or reference wind/push equations. Standard characters already publish live transforms through `GrassInteractorRegistry`; when no registered character exists, lightweight camera-player showcases use the main camera as the local fallback.
+3. **Vegetation placement/all foliage is wrong — rejected for this mark.** Flowers, reeds, dead grass, shrubs, vines, etc. are outside the marked defect and remain on their existing renderer; the regression asserts that separation.
 
-## Fix + regression
-- Port `grass-renderer-reference.shader` into `Assets/VoxelEngine/Rendering/Runtime/Shaders/ProceduralVegetationGrass.shader` and keep all per-frame blade deformation on the GPU.
-- Pack 11 tapered, segmented ribbon blades per grass tuft with deterministic root/height/width/phase and regional vertex colors; route only `Grass`, `Clover`, `Weed`, `Nettle`, and `DeadGrass` through that meadow path.
-- PlayMode regression uses the imported production mesh/material/shader: assert packed topology and unaffected non-meadow kinds, render front + 90° orbit views, apply a nearby production interactor, and verify local displacement plus return to the deterministic baseline after the interactor leaves.
-- Replay the saved WorldbuildingGallery camera pose at native 1928×836 for final visual evidence after exact-SHA CI.
+## Fix + behavioral regression
+- Engine-wide semantic Grass now builds deterministic tapered ribbons into 32 m spatial chunks when `SetInstances` changes. Coverage, colour, and ground shade use independent world-space FBM fields; UV0–UV3 match the supplied shader exactly. Per-frame wind, camera-facing reconstruction, local interactor push, and recovery stay GPU-only in `VoxelEngine/ProceduralVegetationGrass`.
+- `ProceduralGrassBillboardTests.SemanticGrassUsesPackedSpatialChunksAndLeavesOtherVegetationOnExistingPath` exercises the real renderer, deterministic packed topology/fields, unaffected non-grass routing, and no per-frame mesh mutation.
+- `ProceduralGrassBillboardTests.GrassShaderStaysReadableAcrossOrbitPushesLocallyAndRecoversAtFixedTime` renders the production shader through a 90° orbit and verifies local displacement plus fixed-time recovery.
 
 ## Blast radius / cost
-- Shared batching remains one `Graphics.DrawMeshInstanced` path with the same instance/draw count and no per-frame CPU grass vertex rewrites.
-- Meadow tuft geometry rises from the old generic 28 vertices / 14 triangles to 110 vertices / 88 triangles per instance (about 3.9× vertices, 6.3× triangles). This cost is limited to the five meadow kinds above; flowers, wetland plants, and other foliage keep existing meshes/shaders.
+- Only `VegetationKind.Grass` changes presentation. Old grass used 28 verts/14 tris per semantic instance; new density is 5–15 ribbons = 50–150 verts/40–120 tris (~1.8–5.4× verts, ~2.9–8.6× tris; ~100/80 at 10 blades). Draw submission becomes one draw per occupied 32 m grass chunk; non-grass instancing is unchanged. Meshes rebuild only on `SetInstances`, never per frame. This is a known rendering-budget tradeoff against the existing 6/7/9 ms PC/console/mobile voxel-render targets and requires exact-SHA CI plus original-pose replay before promotion.
