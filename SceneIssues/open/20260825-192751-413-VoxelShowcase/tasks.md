@@ -4,7 +4,7 @@ This file is the persistent execution checklist for the performance fix. Add new
 
 ## Production migration
 
-- [ ] **Restore production GPU cutover for supported near rings.** The compute mesher, GPU brick mirror, transition path, shared geometry arena, and async count/write stages already exist, but `CpuTransvoxelChunkCache.GpuCutoverDisabled = true` currently prevents production dispatch. Restore cutover only with explicit fallback for unsupported/device-unavailable cases.
+- [x] **Restore production GPU cutover for supported near rings.** `CpuTransvoxelChunkCache.GpuCutoverDisabled` is again an explicit `VOXEL_DISABLE_GPU_CUTOVER=1` diagnostic override rather than a hard production disable. Step 1/2 keep the existing async GPU count/write path and CPU fallback for unsupported/device-unavailable cases.
 - [ ] **Move GPU eligibility/classification off the CPU for GPU-candidate chunks.** `ExactSnapshotClassificationJob` currently scans the exact snapshot before GPU routing. Fold supported/unsupported classification into the existing GPU sample/count pass and return only bounded flags with the already-permitted counter readback; do not make CPU classification a prerequisite for GPU meshing.
 - [ ] **Broaden GPU eligibility to reconstruction modes the shader already implements.** `VoxelBrickMesher.compute` already contains planar/sharp handling, while the CPU classifier currently marks `!continuous` (including planar/sharp) GPU-unsupported. Validate CPU/GPU parity and route those represented cases to GPU. Keep CPU fallback for semantics the shader does not yet reproduce exactly (for example cubic/faceted-only, decoration/profile behavior, or boundary ownership cases until implemented and proven).
 - [ ] **Remove the per-chunk CPU brick-cache staging walk from the GPU critical path.** `GpuSurfaceExtractionContext.TryPin` currently loops the dense brick neighbourhood on CPU, publishes/pins mixed bricks, fills `_brickCacheStaging`, then uploads it. Rework this boundary so Storage changes publish compact brick deltas/version data once and GPU extraction consumes resident mirror/indirection data without rebuilding the full cache on CPU per chunk.
@@ -13,10 +13,10 @@ This file is the persistent execution checklist for the performance fix. Add new
 
 ## Correctness / regressions
 
-- [ ] **Add a behavioral regression proving the GPU path is actually used.** During VoxelShowcase traversal, assert eligible near-ring chunks are staged/written by `GpuSurfaceExtractionContext` and are not silently falling back to CPU meshing.
+- [x] **Add a behavioral regression proving the GPU path is actually used.** `ShowcaseGpuMigrationTests.MovingShowcaseActuallyCompletesGpuSurfaceBuilds` moves through VoxelShowcase and requires `GpuCutoverAvailable`, at least one resident GPU backend, and at least one newly completed GPU surface build while preserving visible geometry/no blocking completion.
 - [ ] **Preserve CPU fallback correctness.** Unsupported styles/features, missing compute support, mirror-slot exhaustion, count/write disagreement, and allocation refusal must leave the prior valid representation standing rather than opening a hole.
 - [ ] **Keep CPU/GPU parity coverage for density, material, normals, ownership, planar/sharp reconstruction, and transition seams.** Extend the existing oracle suite for every newly migrated semantic before enabling it in production.
-- [ ] **Keep the existing moving traversal regression unchanged.** It must maintain visible solids every frame, zero blocking completions, streaming progress, near/far gap <= 5 cm, p95 < 18 ms, and p99 < 25 ms.
+- [x] **Keep the existing moving traversal regression unchanged.** `ContinuousPlayerTraversalNeverStuttersOrOpensNearFarGap` remains unchanged: visible solids every frame, zero blocking completions, streaming progress, near/far gap <= 5 cm, p95 < 18 ms, p99 < 25 ms.
 
 ## Performance / acceptance
 
