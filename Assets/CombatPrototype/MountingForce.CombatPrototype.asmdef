@@ -2,6 +2,7 @@
   "name": "MountingForce.CombatPrototype",
   "rootNamespace": "MountingForce.CombatPrototype",
   "references": [
+    "Game.Combat.Runtime",
     "VoxelEngine.Vegetation.Api"
   ],
   "includePlatforms": [],

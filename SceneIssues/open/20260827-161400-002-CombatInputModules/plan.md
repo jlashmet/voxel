@@ -1,27 +1,24 @@
 # Plan — Complete Combat/Input production migration
 
-## Evidence / current state
-- `Game.Combat.Api/Runtime` and `Game.Input.Api/Runtime` now exist and the Kentridge slice proves the basic production boundary.
-- `Assets/CombatPrototype` still owns the richer authoritative ruleset: board/state, attacks, reactions, chain execution/planning, round coordination, tactical AI, environmental combat behavior, and direct lab mutation paths.
-- The prior closure was analysis-only; its own design documented remaining staged migration. That closure did not satisfy the original implementation intent.
+## Evidence / discriminator
+- Architecture issue: `captures` is empty, so there are 0 marked regions/poses; validation is behavioral + built-player `CombatPrototype` scene.
+- Kentridge already uses `Game.Combat` through `KentridgeForestBanditEncounter`; the missing scope is the richer lab authority.
+- Audit found six engine-independent authority files under `Assets/CombatPrototype`: `CombatCore`, `ChainCombatBoard`, `ChainExecutionPlan`, reaction reservation, round readiness, and enemy tactical AI. They import only `System*` and each other, yet currently compile into `MountingForce.CombatPrototype`.
+- Hypothesis “the existing Game runtime is sufficient” is falsified by those board/rule/state owners. Hypothesis “move the whole prototype” is falsified by the remaining Unity presentation, debug, and environment-adapter code. Selected: move only reusable deterministic authority intact into `Game.Combat.Runtime` and make the lab consume it.
 
-## Competing hypotheses
-1. **Move prototype files wholesale** — rejected; it would preserve UI/input/rules coupling under new folders.
-2. **Current Game modules are already sufficient** — rejected; they cover only lifecycle and simple grid movement.
-3. **Migrate authoritative behavior incrementally behind the existing Game APIs with parity tests** — selected.
+## Class audit / selected fix
+**Production authority → `Game.Combat.Runtime`:** `CombatCore.cs`, `ChainCombatBoard.cs`, `ChainExecutionPlan.cs`, `ChainReactionReservationCoordinator.cs`, `ChainRoundReadinessCoordinator.cs`, `ChainEnemyTacticalAI.cs` (with existing Unity GUIDs preserved).
 
-## Selected implementation
-Inventory every class under `Assets/CombatPrototype` and classify it as authoritative reusable combat, presentation/demo tooling, or adapter. Migrate authoritative behavior into `Game.Combat.Runtime` without making Game depend on the prototype assembly. Keep device handling in `Game.Input`. Convert the lab/showcase into a consumer/adapter of production combat rather than a second combat authority. Preserve deterministic integer/grid authority and normal-world actor integration.
+**Demo/presentation only:** activation/event/enemy-intent overlays, demo guide, scripted `ChainCombatDemoScenario`, `ChainCombatLabController`, motion playback, setup panel, `ChainExecutionPlanner` UI, `ChainPlanApprovalCoordinator` MonoBehaviour, legacy `CombatPrototypeController`, editor launcher.
 
-## Closure acceptance
-This issue MUST NOT close until the full migration is complete. Required before pending/closed:
-- all reusable authoritative prototype combat mechanics are production-owned or explicitly proven demo-only;
-- no production scene/composition requires prototype-owned combat authority;
-- no duplicate mutable combat authority remains between prototype and Game;
-- movement, attacks/damage/knockback, reactions/chain ordering, round coordination, environment interactions, and combat-owned AI have parity/determinism regressions as applicable;
-- Combat/Input assembly dependency rules remain clean and Combat simulation stays engine/device independent;
-- Kentridge production combat still works through Game modules;
-- focused exact-SHA CI and the required built-application scene validation are green.
+**Owning-system adapter:** `ChainCombatVegetationBridge` remains in the lab and translates semantic tree impacts/fells through `VoxelEngine.Vegetation.Api`; combat does not acquire a vegetation/world dependency.
 
-## Remaining gate
-Implementation, parity conversion of the lab, dependency audit, regressions, exact-SHA CI, built-app validation, then normal SceneIssue pending/closed bookkeeping.
+Retarget `MountingForce.CombatPrototype.asmdef` one-way to `Game.Combat.Runtime`. No production combat assembly may reference the prototype, UnityEngine, or InputSystem/device APIs.
+
+## Regression / blast radius / cost
+- Add `CombatAuthorityMigrationTests.MigratedAuthorityPreservesCascadeAndHasNoPrototypeOrDeviceDependency`: asserts assembly ownership/dependency direction and runs the real migrated uppercut → airborne reaction → P2 reservation/claim plus deterministic enemy-intent planning.
+- Existing `KentridgeCombatEncounterTests` covers production Kentridge composition through `Game.Combat`.
+- No combat algorithm is rewritten; source blobs and script GUIDs move intact. Runtime CPU/memory cost is unchanged; blast radius is assembly ownership/compile dependency only.
+
+## Remaining gates
+Push source/test commit, run one exact-SHA targeted CI request + built-player Combat Lab replay, then pending/closed bookkeeping, refresh/merge current master, and non-force publish exact feature head.
