@@ -22,6 +22,8 @@ namespace VoxelEngine.Tests.PlayMode
         private const int VerificationWidth = 1928;
         private const int VerificationHeight = 836;
         private const float VerificationRenderSettleSeconds = 12f;
+        private const float VerificationDetailSettleSeconds = 4f;
+        private const float MetresPerVoxel = 0.1f;
 
         [UnityTest]
         public IEnumerator NearbyInteractionAnimatesBothGateLeavesAndKeepsCentrePassageClear()
@@ -137,13 +139,23 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(showcase.TryInteract(), Is.False,
                 "The gate interaction must remain one-shot after the visible opened state completes.");
 
-            // Presentation extraction is view-dependent. The prior attempt waited in real time but
-            // teleported only for the final Render(), so the saved gate view never received a
-            // convergence window. Pin the exact issue camera first (using the same fly-mode escape
-            // as CastleScreenshotTests), hold it through the bounded real-time settle, then capture.
+            // Presentation extraction is view-dependent. Pin the exact captured camera before the
+            // settle so the required final evidence is the original pose, not a one-frame teleport.
             Camera verificationCamera = PrepareVerificationCamera(showcase);
             yield return new WaitForSecondsRealtime(VerificationRenderSettleSeconds);
-            CaptureVerificationImage(verificationCamera);
+            CaptureVerificationImage(verificationCamera, "verification-final.png");
+
+            // The original camera is deliberately very close to the closed gate. Once the leaves
+            // swing inward that exact pose looks through the clear opening at inner masonry, so it
+            // cannot by itself prove that both physical leaves were retained. Add two full-size,
+            // diagonal inspection views from outside the gatehouse, one biased to each hinge.
+            PrepareGateDetailCamera(verificationCamera, min, -1f);
+            yield return new WaitForSecondsRealtime(VerificationDetailSettleSeconds);
+            CaptureVerificationImage(verificationCamera, "verification-detail-open-left.png");
+
+            PrepareGateDetailCamera(verificationCamera, min, 1f);
+            yield return new WaitForSecondsRealtime(VerificationDetailSettleSeconds);
+            CaptureVerificationImage(verificationCamera, "verification-detail-open-right.png");
         }
 
         private static HashSet<int3> CaptureGateMaterials(ShowcaseWorld world, int3 min)
@@ -184,7 +196,18 @@ namespace VoxelEngine.Tests.PlayMode
             return camera;
         }
 
-        private static void CaptureVerificationImage(Camera camera)
+        private static void PrepareGateDetailCamera(Camera camera, int3 min, float horizontalSide)
+        {
+            Vector3 target = new(
+                (min.x + CastleLayout.FrontGateWidth * 0.5f) * MetresPerVoxel,
+                (min.y + CastleLayout.FrontGateHeight * 0.48f) * MetresPerVoxel,
+                (min.z + CastleLayout.FrontGateDepth * 0.5f) * MetresPerVoxel);
+            camera.transform.position = target + new Vector3(horizontalSide * 3.5f, 1.4f, -4.5f);
+            camera.transform.rotation = Quaternion.LookRotation(
+                target - camera.transform.position, Vector3.up);
+        }
+
+        private static void CaptureVerificationImage(Camera camera, string fileName)
         {
             RenderTexture originalTarget = camera.targetTexture;
             RenderTexture previousActive = RenderTexture.active;
@@ -202,13 +225,13 @@ namespace VoxelEngine.Tests.PlayMode
 
                 byte[] png = texture.EncodeToPNG();
                 Assert.That(png.Length, Is.GreaterThan(100_000),
-                    "Native verification render was unexpectedly empty or trivial.");
+                    $"Native verification render {fileName} was unexpectedly empty or trivial.");
 
                 string workspace = Environment.GetEnvironmentVariable("GITHUB_WORKSPACE");
                 if (string.IsNullOrEmpty(workspace))
                     workspace = Directory.GetCurrentDirectory();
                 string output = Path.Combine(
-                    workspace, "Artifacts", "SingleTest", "verification-final.png");
+                    workspace, "Artifacts", "SingleTest", fileName);
                 Directory.CreateDirectory(Path.GetDirectoryName(output));
                 File.WriteAllBytes(output, png);
                 Debug.Log($"SCENEISSUE_VERIFICATION {output} {VerificationWidth}x{VerificationHeight}");
