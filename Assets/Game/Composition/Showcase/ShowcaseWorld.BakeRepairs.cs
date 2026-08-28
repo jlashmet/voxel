@@ -10,7 +10,7 @@ namespace VoxelEngine.Showcase
         // Bounded compatibility work for startup images created before the lower-river receiving
         // bank correction. This remains far below the cost of procedural castle generation and is
         // paid once when the baked world is installed, never per frame.
-        private const int BakedCastleSemanticRepairWriteBudget = 1_000_000;
+        private const int BakedCastleSemanticRepairWriteBudget = 1_500_000;
 
         private void ApplyBakedCastleSemanticRepairs()
         {
