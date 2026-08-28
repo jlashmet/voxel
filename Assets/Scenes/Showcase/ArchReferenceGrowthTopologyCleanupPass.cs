@@ -6,18 +6,18 @@ using UnityEngine.SceneManagement;
 namespace VoxelEngine.Showcase
 {
     /// <summary>
-    /// Exact-topology finalizer for the ArchLookdev hero ivy. BuildIvyMesh has a fixed layout:
-    /// two paths (12 left clusters, 4 right clusters), 17 vertices per leaf, and four vertices per
-    /// authored stem quad. One near-zero right-side leaf stem is intentionally omitted by AddStem,
-    /// so the production mesh contains 2,484 vertices and 77 stem quads. Earlier color-indexed
-    /// presentation passes can target the wrong ranges after colors change; this pass therefore
-    /// rebuilds every real leaf polygon by exact index and collapses every real stem quad.
+    /// Exact-topology finalizer for the ArchLookdev reference growth. Earlier passes establish the
+    /// bounded hero meshes, but some discover ivy ranges from mutable colors. This pass treats the
+    /// authored topology as authoritative: it rebuilds every real leaf, collapses every real stem,
+    /// and finishes the existing flower heads into layered bouquets without adding topology, draws,
+    /// GameObjects, or steady-state work.
     /// </summary>
     [DisallowMultipleComponent]
     [DefaultExecutionOrder(1700)]
     public sealed class ArchReferenceGrowthTopologyCleanupPass : MonoBehaviour
     {
         private const string ArchSceneName = "ArchLookdev";
+        private const string HeroRootName = "Arch Reference Hero Growth";
         private const int IvyLeavesPerCluster = 8;
         private const int IvyLeafVertexCount = 17;
         private const int StemVertexCount = 4;
@@ -26,42 +26,59 @@ namespace VoxelEngine.Showcase
         private const int TotalClusterCount = LeftClusterCount + RightClusterCount;
         private const int OmittedLeafStemCluster = 13;
         private const int OmittedLeafStemLeaf = 2;
+        private const int FlowerHeads = 30;
+        private const int FlowerPetalsPerHead = 5;
+        private const int FlowerPetalVertexCount = 7;
+        private const int FlowerHeadVertexCount = FlowerPetalsPerHead * FlowerPetalVertexCount;
+        private const int FlowerCentreVertexCount = 9;
 
         public const int ExpectedIvyVertexCount = 2484;
         public const int ExpectedStemQuadCount = 77;
 
         private static readonly Vector2[] IvyOutline =
         {
-            new( 0.00f, -0.70f),
-            new(-0.22f, -0.48f),
-            new(-0.48f, -0.36f),
-            new(-0.70f, -0.14f),
-            new(-0.56f,  0.04f),
-            new(-0.66f,  0.27f),
-            new(-0.39f,  0.30f),
-            new(-0.20f,  0.47f),
-            new( 0.00f,  0.80f),
-            new( 0.20f,  0.47f),
-            new( 0.39f,  0.30f),
-            new( 0.66f,  0.27f),
-            new( 0.56f,  0.04f),
-            new( 0.70f, -0.14f),
-            new( 0.48f, -0.36f),
-            new( 0.22f, -0.48f),
+            new( 0.00f, -0.72f),
+            new(-0.22f, -0.49f),
+            new(-0.49f, -0.36f),
+            new(-0.72f, -0.13f),
+            new(-0.57f,  0.05f),
+            new(-0.67f,  0.28f),
+            new(-0.39f,  0.31f),
+            new(-0.20f,  0.49f),
+            new( 0.00f,  0.84f),
+            new( 0.20f,  0.49f),
+            new( 0.39f,  0.31f),
+            new( 0.67f,  0.28f),
+            new( 0.57f,  0.05f),
+            new( 0.72f, -0.13f),
+            new( 0.49f, -0.36f),
+            new( 0.22f, -0.49f),
         };
 
         private static readonly Color[] LeafPalette =
         {
-            new(0.22f, 0.43f, 0.055f, 1f),
-            new(0.30f, 0.50f, 0.070f, 1f),
-            new(0.39f, 0.57f, 0.095f, 1f),
-            new(0.47f, 0.62f, 0.125f, 1f),
-            new(0.33f, 0.52f, 0.120f, 1f),
-            new(0.25f, 0.47f, 0.090f, 1f),
+            new(0.20f, 0.40f, 0.055f, 1f),
+            new(0.28f, 0.48f, 0.070f, 1f),
+            new(0.37f, 0.56f, 0.090f, 1f),
+            new(0.49f, 0.64f, 0.125f, 1f),
+            new(0.32f, 0.52f, 0.115f, 1f),
+            new(0.24f, 0.46f, 0.095f, 1f),
+            new(0.43f, 0.59f, 0.105f, 1f),
+        };
+
+        private static readonly Color[] BlossomPalette =
+        {
+            new(0.98f, 0.76f, 0.82f, 1f),
+            new(0.96f, 0.84f, 0.90f, 1f),
+            new(0.89f, 0.79f, 0.95f, 1f),
+            new(1.00f, 0.88f, 0.78f, 1f),
+            new(0.99f, 0.92f, 0.91f, 1f),
+            new(0.92f, 0.72f, 0.86f, 1f),
         };
 
         private Coroutine _applyRoutine;
-        private Mesh _cleanedMesh;
+        private Mesh _cleanedIvy;
+        private Mesh _finishedPetals;
 
         public bool TopologyCleanupApplied { get; private set; }
 
@@ -93,7 +110,8 @@ namespace VoxelEngine.Showcase
         {
             if (_applyRoutine != null) StopCoroutine(_applyRoutine);
             _applyRoutine = null;
-            _cleanedMesh = null;
+            _cleanedIvy = null;
+            _finishedPetals = null;
             TopologyCleanupApplied = false;
         }
 
@@ -117,18 +135,28 @@ namespace VoxelEngine.Showcase
                 ArchReferenceGrowth growth = GetComponent<ArchReferenceGrowth>();
                 ArchReferenceGrowthAaaPass aaa = GetComponent<ArchReferenceGrowthAaaPass>();
                 Mesh ivy = growth?.HeroIvyMesh;
-                if (growth == null || aaa == null || !aaa.AaaCompositionApplied || ivy == null) continue;
+                Mesh petals = growth?.HeroFlowerPetalMesh;
+                if (growth == null || aaa == null || !aaa.AaaCompositionApplied || ivy == null || petals == null)
+                    continue;
 
-                if (_cleanedMesh == ivy)
+                if (_cleanedIvy == ivy && _finishedPetals == petals)
                 {
                     TopologyCleanupApplied = true;
                     _applyRoutine = null;
                     yield break;
                 }
 
-                if (!TryBuildTopology(ivy.vertexCount, out int[,] leafStarts, out int[] stemStarts)) continue;
+                Transform heroRoot = FindDetachedHeroRoot();
+                Mesh centres = FindChildMesh(heroRoot, "Flower Centres");
+                if (heroRoot == null || centres == null ||
+                    !TryBuildTopology(ivy.vertexCount, out int[,] leafStarts, out int[] stemStarts))
+                    continue;
+
                 RebuildExactIvy(ivy, leafStarts, stemStarts);
-                _cleanedMesh = ivy;
+                FinishFlowers(petals, centres);
+                TuneFinalMaterials(heroRoot);
+                _cleanedIvy = ivy;
+                _finishedPetals = petals;
                 TopologyCleanupApplied = true;
                 _applyRoutine = null;
                 yield break;
@@ -150,29 +178,43 @@ namespace VoxelEngine.Showcase
                 Vector2 support = ArchReferenceGrowthAaaPass.Support(cluster);
                 bool crown = cluster >= 9 && cluster <= 14;
                 bool sparseRight = cluster == 15;
+                var offsets = new Vector2[IvyLeavesPerCluster];
+                Vector2 mean = Vector2.zero;
+
                 for (int leaf = 0; leaf < IvyLeavesPerCluster; leaf++)
                 {
                     uint seed = (uint)(0xB741 + cluster * 1009 + leaf * 191);
-                    float golden = (leaf * 137.50776f + cluster * 29f + SignedRandom(seed) * 13f) * Mathf.Deg2Rad;
-                    float normalized = (leaf + 0.65f) / IvyLeavesPerCluster;
-                    float ring = Mathf.Lerp(0.10f, sparseRight ? 0.22f : crown ? 0.34f : 0.36f, Mathf.Sqrt(normalized));
-                    float xStretch = sparseRight ? 0.78f : crown ? 1.18f : 0.92f;
-                    float yStretch = sparseRight ? 0.92f : crown ? 0.68f : 1.05f;
+                    float angle = (leaf * 137.50776f + cluster * 31f + SignedRandom(seed) * 17f) * Mathf.Deg2Rad;
+                    float normalized = (leaf + 0.55f) / IvyLeavesPerCluster;
+                    float ring = Mathf.Lerp(
+                        sparseRight ? 0.08f : 0.16f,
+                        sparseRight ? 0.26f : crown ? 0.49f : 0.52f,
+                        Mathf.Sqrt(normalized));
+                    float xStretch = sparseRight ? 0.75f : crown ? 1.16f : 1.02f;
+                    float yStretch = sparseRight ? 0.88f : crown ? 0.72f : 1.04f;
                     Vector2 offset = new(
-                        Mathf.Cos(golden) * ring * xStretch,
-                        Mathf.Sin(golden) * ring * yStretch);
+                        Mathf.Cos(angle) * ring * xStretch,
+                        Mathf.Sin(angle) * ring * yStretch);
                     if (!sparseRight && leaf == 0 &&
                         (cluster == 1 || cluster == 4 || cluster == 7 || cluster == 9 || cluster == 12))
                     {
-                        offset.x *= 0.45f;
-                        offset.y -= crown ? 0.20f : 0.27f;
+                        offset.x *= 0.42f;
+                        offset.y -= crown ? 0.24f : 0.34f;
                     }
+                    offsets[leaf] = offset;
+                    mean += offset;
+                }
+                mean /= IvyLeavesPerCluster;
 
+                for (int leaf = 0; leaf < IvyLeavesPerCluster; leaf++)
+                {
+                    uint seed = (uint)(0xB741 + cluster * 1009 + leaf * 191);
+                    Vector2 offset = offsets[leaf] - mean;
                     float scale = sparseRight
-                        ? Mathf.Lerp(0.125f, 0.155f, Random01(seed ^ 0x9E3779B9u))
-                        : Mathf.Lerp(0.145f, crown ? 0.195f : 0.205f, Random01(seed ^ 0x9E3779B9u));
-                    float z = -0.195f - Random01(seed ^ 0xC2B2AE35u) * 0.095f;
-                    float rotation = SignedRandom(seed ^ 0x85EBCA6Bu) * 31f + (crown ? -12f : 3f);
+                        ? Mathf.Lerp(0.145f, 0.175f, Random01(seed ^ 0x9E3779B9u))
+                        : Mathf.Lerp(0.180f, crown ? 0.235f : 0.250f, Random01(seed ^ 0x9E3779B9u));
+                    float z = -0.165f - Random01(seed ^ 0xC2B2AE35u) * 0.225f;
+                    float rotation = SignedRandom(seed ^ 0x85EBCA6Bu) * 46f + (crown ? -10f : 2f);
                     RewriteLeaf(
                         vertices, normals, colors, leafStarts[cluster, leaf],
                         new Vector3(support.x + offset.x, support.y + offset.y, z),
@@ -216,14 +258,18 @@ namespace VoxelEngine.Showcase
             float angle = rotationDegrees * Mathf.Deg2Rad;
             float ca = Mathf.Cos(angle);
             float sa = Mathf.Sin(angle);
-            float aspect = Mathf.Lerp(0.90f, 1.08f, Random01(seed ^ 0x7FEB352Du));
+            float aspect = Mathf.Lerp(0.84f, 1.14f, Random01(seed ^ 0x7FEB352Du));
+            float tiltX = SignedRandom(seed ^ 0x35A6F11Du) * 0.20f;
+            float tiltY = SignedRandom(seed ^ 0xAC4C1B51u) * 0.16f;
             Color leaf = LeafPalette[(int)(seed % (uint)LeafPalette.Length)];
-            if (crown) leaf = Color.Lerp(leaf, new Color(0.49f, 0.63f, 0.13f, 1f), 0.12f);
-            Color edge = Color.Lerp(leaf, new Color(0.69f, 0.76f, 0.22f, 1f), 0.28f);
+            if (crown) leaf = Color.Lerp(leaf, new Color(0.52f, 0.66f, 0.14f, 1f), 0.14f);
+            Color edge = Color.Lerp(leaf, new Color(0.72f, 0.79f, 0.24f, 1f), 0.30f);
 
-            vertices[start] = centre + new Vector3(0f, 0f, -0.012f);
-            if (normals != null && normals.Length == vertices.Length) normals[start] = Vector3.back;
-            colors[start] = Color.Lerp(leaf, Color.black, 0.04f);
+            vertices[start] = centre + new Vector3(0f, 0f, -0.018f);
+            if (normals != null && normals.Length == vertices.Length)
+                normals[start] = new Vector3(-tiltX, -tiltY, -1f).normalized;
+            colors[start] = Color.Lerp(leaf, Color.black, 0.035f);
+
             for (int i = 0; i < IvyOutline.Length; i++)
             {
                 Vector2 p = IvyOutline[i];
@@ -231,11 +277,149 @@ namespace VoxelEngine.Showcase
                 float py = p.y * scale;
                 float x = px * ca - py * sa;
                 float y = px * sa + py * ca;
-                float bowl = 0.006f + Mathf.Abs(p.y) * 0.011f;
-                vertices[start + 1 + i] = centre + new Vector3(x, y, bowl);
+                float bowl = 0.010f + Mathf.Abs(p.y) * 0.020f;
+                float depth = bowl + x * tiltX + y * tiltY;
+                vertices[start + 1 + i] = centre + new Vector3(x, y, depth);
                 if (normals != null && normals.Length == vertices.Length)
-                    normals[start + 1 + i] = new Vector3(x * 0.60f, y * 0.60f, -1f).normalized;
-                colors[start + 1 + i] = Color.Lerp(leaf, edge, 0.30f + Mathf.Abs(p.y) * 0.45f);
+                    normals[start + 1 + i] =
+                        new Vector3(-tiltX + x * 0.55f, -tiltY + y * 0.55f, -1f).normalized;
+                colors[start + 1 + i] =
+                    Color.Lerp(leaf, edge, 0.28f + Mathf.Abs(p.y) * 0.48f);
+            }
+        }
+
+        private static void FinishFlowers(Mesh petals, Mesh centres)
+        {
+            Vector3[] petalVertices = petals.vertices;
+            Vector3[] petalNormals = petals.normals;
+            Color[] petalColors = petals.colors;
+            Vector3[] centreVertices = centres.vertices;
+            Vector3[] centreNormals = centres.normals;
+            Color[] centreColors = centres.colors;
+            if (petalVertices == null || petalVertices.Length != FlowerHeads * FlowerHeadVertexCount ||
+                centreVertices == null || centreVertices.Length != FlowerHeads * FlowerCentreVertexCount)
+                return;
+
+            for (int head = 0; head < FlowerHeads; head++)
+            {
+                int bouquet = head / 5;
+                int ordinal = head % 5;
+                Vector2 anchor = ArchReferenceGrowthAaaPass.BouquetAnchor(bouquet);
+                uint seed = (uint)(0xD31 + head * 977 + bouquet * 131);
+                float angle = (ordinal * 137.50776f + bouquet * 17f + SignedRandom(seed) * 8f) * Mathf.Deg2Rad;
+                float ring = ordinal == 0 ? 0.015f : Mathf.Lerp(0.075f, 0.165f, (ordinal - 1) / 3f);
+                float xStretch = bouquet >= 4 ? 1.18f : 0.92f;
+                float yStretch = bouquet >= 4 ? 0.76f : 1.02f;
+                Vector3 target = new(
+                    anchor.x + Mathf.Cos(angle) * ring * xStretch,
+                    anchor.y + Mathf.Sin(angle) * ring * yStretch,
+                    -0.315f - Random01(seed ^ 0xA341316Cu) * 0.105f);
+                float targetRadius = Mathf.Lerp(0.195f, 0.255f, Random01(seed ^ 0xC8013EA4u));
+                Color blossom = BlossomPalette[(head + bouquet * 2) % BlossomPalette.Length];
+                MoveAndScaleFlowerHead(
+                    petalVertices, petalNormals, petalColors, head, target, targetRadius, blossom);
+                MoveAndScaleFlowerCentre(
+                    centreVertices, centreNormals, centreColors, head, target, targetRadius * 0.075f);
+            }
+
+            petals.vertices = petalVertices;
+            if (petalNormals != null && petalNormals.Length == petalVertices.Length) petals.normals = petalNormals;
+            if (petalColors != null && petalColors.Length == petalVertices.Length) petals.colors = petalColors;
+            petals.RecalculateBounds();
+            centres.vertices = centreVertices;
+            if (centreNormals != null && centreNormals.Length == centreVertices.Length) centres.normals = centreNormals;
+            if (centreColors != null && centreColors.Length == centreVertices.Length) centres.colors = centreColors;
+            centres.RecalculateBounds();
+        }
+
+        private static void MoveAndScaleFlowerHead(
+            Vector3[] vertices,
+            Vector3[] normals,
+            Color[] colors,
+            int head,
+            Vector3 target,
+            float targetRadius,
+            Color blossom)
+        {
+            int start = head * FlowerHeadVertexCount;
+            Vector3 oldCentre = MeasureFlowerHeadCentre(vertices, head);
+            float oldRadius = 0f;
+            for (int i = 0; i < FlowerHeadVertexCount; i++)
+                oldRadius = Mathf.Max(oldRadius, Vector2.Distance(oldCentre, vertices[start + i]));
+            float scale = oldRadius > 0.0001f ? targetRadius / oldRadius : 1f;
+
+            for (int i = 0; i < FlowerHeadVertexCount; i++)
+            {
+                Vector3 offset = vertices[start + i] - oldCentre;
+                vertices[start + i] = target + new Vector3(offset.x * scale, offset.y * scale, offset.z * 0.9f);
+                if (normals != null && normals.Length == vertices.Length)
+                {
+                    Vector3 p = vertices[start + i] - target;
+                    normals[start + i] = new Vector3(p.x * 0.42f, p.y * 0.42f, -1f).normalized;
+                }
+                if (colors != null && colors.Length == vertices.Length)
+                {
+                    int local = i % FlowerPetalVertexCount;
+                    colors[start + i] = Color.Lerp(blossom, Color.white, local == 0 ? 0.03f : 0.14f + 0.04f * (local % 3));
+                }
+            }
+        }
+
+        private static Vector3 MeasureFlowerHeadCentre(Vector3[] vertices, int head)
+        {
+            Vector3 sum = Vector3.zero;
+            int start = head * FlowerHeadVertexCount;
+            for (int petal = 0; petal < FlowerPetalsPerHead; petal++)
+                sum += vertices[start + petal * FlowerPetalVertexCount];
+            return sum / FlowerPetalsPerHead;
+        }
+
+        private static void MoveAndScaleFlowerCentre(
+            Vector3[] vertices,
+            Vector3[] normals,
+            Color[] colors,
+            int head,
+            Vector3 target,
+            float radius)
+        {
+            int start = head * FlowerCentreVertexCount;
+            Vector3 centre = target + new Vector3(0f, 0f, -0.030f);
+            Color core = new(0.82f, 0.57f, 0.14f, 1f);
+            vertices[start] = centre;
+            if (normals != null && normals.Length == vertices.Length) normals[start] = Vector3.back;
+            if (colors != null && colors.Length == vertices.Length) colors[start] = core;
+            for (int i = 0; i < 8; i++)
+            {
+                float angle = i * Mathf.PI * 2f / 8f;
+                vertices[start + 1 + i] = centre +
+                    new Vector3(Mathf.Cos(angle) * radius, Mathf.Sin(angle) * radius, 0.007f);
+                if (normals != null && normals.Length == vertices.Length) normals[start + 1 + i] = Vector3.back;
+                if (colors != null && colors.Length == vertices.Length)
+                    colors[start + 1 + i] = new Color(0.96f, 0.79f, 0.28f, 1f);
+            }
+        }
+
+        private static void TuneFinalMaterials(Transform heroRoot)
+        {
+            foreach (MeshRenderer renderer in heroRoot.GetComponentsInChildren<MeshRenderer>(true))
+            {
+                Material material = renderer?.sharedMaterial;
+                if (material == null) continue;
+                switch (renderer.gameObject.name)
+                {
+                    case "Lobed Ivy":
+                        material.SetColor("_BaseColor", new Color(0.78f, 0.90f, 0.56f, 1f));
+                        material.SetColor("_TipColor", new Color(0.96f, 0.98f, 0.78f, 1f));
+                        break;
+                    case "Flower Petals":
+                        material.SetColor("_BaseColor", new Color(0.98f, 0.90f, 0.94f, 1f));
+                        material.SetColor("_TipColor", new Color(1.00f, 0.98f, 0.97f, 1f));
+                        break;
+                    case "Flower Centres":
+                        material.SetColor("_BaseColor", new Color(0.88f, 0.67f, 0.22f, 1f));
+                        material.SetColor("_TipColor", new Color(0.98f, 0.84f, 0.36f, 1f));
+                        break;
+                }
             }
         }
 
@@ -287,9 +471,27 @@ namespace VoxelEngine.Showcase
 
         private static bool HasAuthoredLeafStem(int globalCluster, int leaf)
         {
-            // AddStem suppresses segments shorter than 0.01 m. The deterministic right-path
-            // cluster 1 / leaf 2 centre lands inside that threshold, so no quad is authored there.
             return globalCluster != OmittedLeafStemCluster || leaf != OmittedLeafStemLeaf;
+        }
+
+        private static Mesh FindChildMesh(Transform root, string name)
+        {
+            if (root == null) return null;
+            foreach (MeshFilter filter in root.GetComponentsInChildren<MeshFilter>(true))
+                if (filter != null && filter.gameObject.name == name) return filter.sharedMesh;
+            return null;
+        }
+
+        private static Transform FindDetachedHeroRoot()
+        {
+            foreach (Transform candidate in Resources.FindObjectsOfTypeAll<Transform>())
+            {
+                if (candidate == null || candidate.name != HeroRootName) continue;
+                GameObject value = candidate.gameObject;
+                if (!value.activeInHierarchy || !value.scene.IsValid() || !value.scene.isLoaded) continue;
+                return candidate;
+            }
+            return null;
         }
 
         private static float Random01(uint seed)
