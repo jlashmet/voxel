@@ -29,17 +29,11 @@ namespace MountingForce.WorldGen.Voxel
 
     /// <summary>
     /// Gameplay-facing access facts derived from the same stable plot role and placement transform
-    /// used by Kentridge voxel emission. The two approach points intentionally straddle the public
-    /// entrance rather than representing a portal: Kentridge interiors and streets occupy one
-    /// continuous generated voxel world.
+    /// used by Kentridge voxel emission. The approach vector comes from semantic public access rather
+    /// than reconstructing one of four cardinal directions from the structure's quarter-turn.
     /// </summary>
     public static class KentridgeGameplaySiteAccessResolver
     {
-        /// <summary>
-        /// Guaranteed clear approach distance on both sides of a generated public entrance.
-        /// Generation and gameplay both consume this value so the realized air corridor cannot be
-        /// shorter than the point gameplay is asked to reach.
-        /// </summary>
         public const int ApproachDistanceDecimetres = 18;
 
         public static bool TryResolve(
@@ -76,7 +70,7 @@ namespace MountingForce.WorldGen.Voxel
                 return false;
             }
 
-            Int2 inward = Inward(plot.Frontage);
+            Int2 inward = new Int2(plot.AccessDirection.X, plot.AccessDirection.Z);
             int distance = ApproachDistanceDecimetres * unitsPerDecimetre;
             RealizedWorldPoint interior = Offset(entrance, inward, distance);
             RealizedWorldPoint exterior = Offset(entrance, inward, -distance);
@@ -96,17 +90,6 @@ namespace MountingForce.WorldGen.Voxel
                     point.Y,
                     point.Z + direction.Y * distance),
                 origin.UnitsPerDecimetre);
-        }
-
-        private static Int2 Inward(FrontageDirection frontage)
-        {
-            switch (frontage)
-            {
-                case FrontageDirection.West: return new Int2(-1, 0);
-                case FrontageDirection.North: return new Int2(0, -1);
-                case FrontageDirection.East: return new Int2(1, 0);
-                default: return new Int2(0, 1);
-            }
         }
     }
 }
