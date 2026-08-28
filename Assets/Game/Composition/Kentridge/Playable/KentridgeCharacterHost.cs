@@ -4,6 +4,7 @@ using Game.Composition.Campaign;
 using Game.Composition.Kentridge.Api;
 using Game.Composition.WorldBuilderWorldGen;
 using Game.Cutscenes.Api;
+using Game.WorldBuilder.Api;
 using MountingForce.WorldGen;
 using UnityEngine;
 using VoxelEngine.Characters.Runtime;
