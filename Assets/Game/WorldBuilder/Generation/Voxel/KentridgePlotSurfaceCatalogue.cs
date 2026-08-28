@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using MountingForce.WorldGen.Content.Kentridge;
 using Unity.Collections;
 using Unity.Mathematics;
+using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
 
 using VoxelEngine.Structures.Api;
 
@@ -12,9 +13,9 @@ namespace MountingForce.WorldGen.Voxel
     /// Prepares deterministic, level building pads before Kentridge structures are rasterised.
     ///
     /// Plot altitude comes from <see cref="KentridgeVerticalProfile.PlotSurfaceY"/>, sampled at the
-    /// public frontage so the building envelope meets its authored street elevation. The grading
-    /// footprint stays inside the real building envelope; parcel-edge terrain remains owned by the
-    /// deterministic terrain field and the separate shallow foundation skirt supports the structure.
+    /// public frontage so the yard meets its authored street elevation. The flat core hugs the real
+    /// building envelope. Twelve voxel-scale terraces rise away from it, preserving the same 1.2 m
+    /// parcel feather while removing the conspicuous 40 cm contour shelves seen in close captures.
     /// </summary>
     public static class KentridgePlotSurfaceCatalogue
     {
@@ -190,25 +191,33 @@ namespace MountingForce.WorldGen.Voxel
             }
         }
 
+        private static PadRect Expand(PadRect source, int amount, Int3 footprint)
+        {
+            int x0 = math.max(0, source.X - amount);
+            int z0 = math.max(0, source.Z - amount);
+            int x1 = math.min(footprint.X, source.X + source.Width + amount);
+            int z1 = math.min(footprint.Z, source.Z + source.Depth + amount);
+            return new PadRect(x0, z0, math.max(1, x1 - x0), math.max(1, z1 - z0));
+        }
+
         private static int[] PadProgram(SettlementPlan plan, StructureArchetype archetype,
                                         VoxelWorldGenSettings settings)
         {
             int s = settings.VoxelsPerDecimetre;
+            Int3 footprint = SettlementFootprints.For(plan, archetype);
             PadRect core = PadFor(archetype);
             byte dirt = settings.Materials.Resolve(MaterialRole.RoadSurface);
             byte groundCover = settings.Materials.Resolve(MaterialRole.Moss);
 
             var b = new ProgramBuilder();
 
-            // Preserve the established bounded instruction budget for compatibility, but grade only
-            // the building-envelope core. Repeating the same core from high to low leaves the final
-            // authored surface at the frontage target while never claiming the parcel edge. The
-            // old implementation expanded each higher pass outward by up to 1.2 m, manufacturing a
-            // moss-capped perimeter berm even when the surrounding natural terrain was lower.
+            // Work from the outside inward. Every inner terrace carves the previous, higher fill
+            // back down, leaving a shallow voxel-scale ramp rather than four visible shelves.
             for (int terrace = TerraceCount; terrace >= 0; terrace--)
             {
+                int expandDm = terrace * TerraceStepDm;
                 int riseDm = terrace * TerraceStepDm;
-                PadRect rect = core;
+                PadRect rect = Expand(core, expandDm, footprint);
                 int subsoilHeight = (FillDepthDm + riseDm) * s;
                 int topY = subsoilHeight + SurfaceThicknessDm * s;
 

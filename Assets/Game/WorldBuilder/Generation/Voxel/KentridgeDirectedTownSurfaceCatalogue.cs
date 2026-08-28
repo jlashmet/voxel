@@ -93,10 +93,10 @@ namespace MountingForce.WorldGen.Voxel
 
     /// <summary>
     /// Bounded terrain-following rasterizer for generic settlement routes. It samples each integer
-    /// polyline at no more than half its width, so adjacent square patches overlap and form continuous
-    /// diagonal/curved circulation without arbitrary-angle shape transforms or an unbounded pathfinder.
-    /// A short backend-only connector begins at each physically realized public entrance, ensuring
-    /// semantic routes remain walkably attached even when architecture shifts a doorway along a facade.
+    /// polyline at no more than half its width. Each sample uses a round vertical stamp so diagonal
+    /// and curved route edges do not expose axis-aligned square corners. A short backend-only
+    /// connector begins at each physically realized public entrance, ensuring semantic routes remain
+    /// walkably attached even when architecture shifts a doorway along a facade.
     /// </summary>
     internal static class KentridgeOrganicCirculationCatalogue
     {
@@ -323,20 +323,22 @@ namespace MountingForce.WorldGen.Voxel
         {
             int s = settings.VoxelsPerDecimetre;
             int width = widthDm * s;
+            int radius = width / 2;
             int fill = SurfaceThicknessDm * s;
             int clear = ClearAboveDm * s;
             byte roadSurface = settings.Materials.Resolve(MaterialRole.RoadSurface);
             var code = new List<int>(30);
-            EmitBox(code, 0, fill, 0, width, clear, width, 0, PrimitiveMode.Carve);
-            EmitBox(code, 0, 0, 0, width, fill, width, roadSurface, PrimitiveMode.Fill);
+            EmitCylinder(code, radius, fill, radius, radius, clear, 1, 0, PrimitiveMode.Carve);
+            EmitCylinder(code, radius, 0, radius, radius, fill, 1, roadSurface, PrimitiveMode.Fill);
             Emit(code, ShapeOp.End);
             return code.ToArray();
         }
 
-        private static void EmitBox(
-            List<int> code, int x, int y, int z, int sx, int sy, int sz,
+        private static void EmitCylinder(
+            List<int> code, int cx, int y, int cz, int radius, int height, int axis,
             byte material, PrimitiveMode mode) =>
-            Emit(code, ShapeOp.EmitBox, x, y, z, sx, sy, sz, material, 0, 0, (int)mode);
+            Emit(code, ShapeOp.EmitCylinder,
+                 cx, y, cz, radius, height, axis, material, 0, 0, (int)mode);
 
         private static void Emit(List<int> code, ShapeOp op, params int[] operands)
         {
