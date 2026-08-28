@@ -16,14 +16,14 @@
 `MountingForce.CombatPrototype` references `Game.Combat.Runtime` one-way. Production combat may not reference prototype, UnityEngine, or InputSystem/device APIs.
 
 ## Runtime evidence
-- Runs `33218244708`/`33218424949` reached no Unity code because the reopened issue had blank replay metadata. The exact request tree did contain the new lab scene. Bound the assigned issue to `Assets/Scenes/CombatPrototype.unity` at 1600×900 without inventing captures.
-- Run `33218532934` passed request resolution and reached Unity. Compilation failed because existing `MountingForce.CombatPrototype.Tests.PlayMode` referenced only the lab assembly; Unity asmdef references are non-transitive, so legacy parity tests could not see moved types. Player build failed on the same compiler errors.
-- Add a direct `Game.Combat.Runtime` reference to that existing test assembly. No test logic or production algorithm changes.
+- Runs `33218244708`/`33218424949` never reached Unity because reopened replay metadata was blank; bind the assigned issue to committed `Assets/Scenes/CombatPrototype.unity` at 1600×900 without inventing captures.
+- Run `33218532934` then exposed non-transitive asmdef compilation in the unchanged prototype parity tests; add their direct `Game.Combat.Runtime` test dependency only.
+- Run `33218670471` passed the focused authority/cascade regression and the real built-player Combat Lab: build/player exit 0, two real frames, final 1600×900.
 
-## Regression / blast radius / cost
-- `CombatAuthorityMigrationTests.MigratedAuthorityPreservesCascadeAndHasNoPrototypeOrDeviceDependency` asserts assembly/dependency ownership and executes uppercut → airborne → P2 reservation/claim plus deterministic enemy planning.
-- Existing CombatPrototype parity suite remains compiled against the same types; `KentridgeCombatEncounterTests` covers production Kentridge composition.
-- Combat algorithms are unchanged; moves preserve blobs/GUIDs. CPU/memory behavior is unchanged; blast radius is assembly ownership, test dependency wiring, and committing/binding the previously editor-only lab scene.
+## Regression / parity / blast radius
+- Focused `CombatAuthorityMigrationTests.MigratedAuthorityPreservesCascadeAndHasNoPrototypeOrDeviceDependency` proves production assembly ownership, no prototype/Unity/InputSystem dependency, uppercut → reaction reservation/claim, identical plan replay from identical state/commands, and deterministic enemy intent selection.
+- Existing retargeted parity tests cover movement/occupancy, damage/force/knockback, reaction ownership, multi-player execution/readiness, and production vegetation handoff. `CombatInputModuleBoundaryTests` covers semantic input isolation; `KentridgeCombatEncounterTests` covers in-world production composition and persistent actors.
+- Combat algorithms are unchanged; moved blobs/GUIDs are preserved. CPU/memory behavior is unchanged; blast radius is assembly ownership, test dependency wiring, and committing/binding the previously editor-only lab scene.
 
 ## Remaining gates
-Push corrected source SHA, run exact-SHA focused CI + built-player replay, then pending/closed bookkeeping, merge current master, and non-force publish exact feature head.
+Run the strengthened exact-SHA focused regression + built-player replay, store durable verification evidence, then pending/closed bookkeeping, merge current master, and non-force publish exact feature head.

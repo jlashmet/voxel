@@ -60,11 +60,108 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(board.PendingReaction.ClaimedByUnitId, Is.EqualTo(weldon.Id),
                 "Reservation/claim ownership must still be enforced by the migrated production authority.");
 
-            var planningBoard = new ChainCombatBoard();
-            var tacticalAi = new ChainEnemyTacticalAI(planningBoard);
-            Assert.That(tacticalAi.PlannedRound, Is.EqualTo(planningBoard.Round));
-            Assert.That(tacticalAi.Intents.Count, Is.EqualTo(3),
-                "The migrated tactical planner must still deterministically commit one intent for each initial enemy.");
+            AssertDeterministicPlanReplay();
+            AssertDeterministicEnemyPlanning();
+        }
+
+        private static void AssertDeterministicPlanReplay()
+        {
+            var seed = new ChainCombatBoard();
+            ChainUnitState stephen = Find(seed, ChainRecruitKind.Stephen, CombatTeam.Friendly);
+            ChainUnitState weldon = Find(seed, ChainRecruitKind.Weldon, CombatTeam.Friendly);
+            ChainUnitState ogre = Find(seed, ChainRecruitKind.Ogre, CombatTeam.Enemy);
+
+            var plan = new ChainExecutionPlan();
+            plan.Add(ChainPlannedAction.Uppercut(stephen.CommandGroup, stephen.Id, ogre.Id));
+            plan.Add(ChainPlannedAction.React(
+                weldon.CommandGroup,
+                weldon.Id,
+                ChainReactionAbility.Crosswind,
+                ChainReactionKind.Airborne,
+                0,
+                new GridPos(10, 4)));
+
+            ChainExecutionPreview first = ChainExecutionPlanSimulator.Simulate(new ChainCombatBoard(), plan.Actions);
+            ChainExecutionPreview second = ChainExecutionPlanSimulator.Simulate(new ChainCombatBoard(), plan.Actions);
+
+            Assert.That(first.HasFailure, Is.False, first.FailureMessage);
+            Assert.That(second.HasFailure, Is.False, second.FailureMessage);
+            Assert.That(first.ExecutedActionCount, Is.EqualTo(second.ExecutedActionCount));
+            AssertBoardsEquivalent(first.FinalBoard, second.FinalBoard);
+        }
+
+        private static void AssertDeterministicEnemyPlanning()
+        {
+            var firstBoard = new ChainCombatBoard();
+            var secondBoard = new ChainCombatBoard();
+            var first = new ChainEnemyTacticalAI(firstBoard);
+            var second = new ChainEnemyTacticalAI(secondBoard);
+
+            Assert.That(first.PlannedRound, Is.EqualTo(firstBoard.Round));
+            Assert.That(second.PlannedRound, Is.EqualTo(secondBoard.Round));
+            Assert.That(first.Intents.Count, Is.EqualTo(3));
+            Assert.That(second.Intents.Count, Is.EqualTo(first.Intents.Count));
+
+            for (int i = 0; i < first.Intents.Count; i++)
+            {
+                ChainEnemyIntent a = first.Intents[i];
+                ChainEnemyIntent b = second.Intents[i];
+                Assert.That(a.EnemyId, Is.EqualTo(b.EnemyId));
+                Assert.That(a.Kind, Is.EqualTo(b.Kind));
+                Assert.That(a.TargetUnitId, Is.EqualTo(b.TargetUnitId));
+                Assert.That(a.Direction, Is.EqualTo(b.Direction));
+                Assert.That(a.Description, Is.EqualTo(b.Description));
+            }
+        }
+
+        private static void AssertBoardsEquivalent(ChainCombatBoard a, ChainCombatBoard b)
+        {
+            Assert.That(a.Round, Is.EqualTo(b.Round));
+            Assert.That(a.CurrentCascadeSteps, Is.EqualTo(b.CurrentCascadeSteps));
+            Assert.That(a.CurrentCascadePlayers, Is.EqualTo(b.CurrentCascadePlayers));
+            Assert.That(a.CurrentHandoffs, Is.EqualTo(b.CurrentHandoffs));
+            Assert.That(a.Units.Count, Is.EqualTo(b.Units.Count));
+
+            for (int i = 0; i < a.Units.Count; i++)
+            {
+                ChainUnitState left = a.Units[i];
+                ChainUnitState right = b.Units[i];
+                Assert.That(left.Id, Is.EqualTo(right.Id));
+                Assert.That(left.Kind, Is.EqualTo(right.Kind));
+                Assert.That(left.Team, Is.EqualTo(right.Team));
+                Assert.That(left.CommandGroup, Is.EqualTo(right.CommandGroup));
+                Assert.That(left.Position, Is.EqualTo(right.Position));
+                Assert.That(left.Hp, Is.EqualTo(right.Hp));
+                Assert.That(left.IsAlive, Is.EqualTo(right.IsAlive));
+                Assert.That(left.Airborne, Is.EqualTo(right.Airborne));
+                Assert.That(left.ActionSpent, Is.EqualTo(right.ActionSpent));
+                Assert.That(left.ReactionSpent, Is.EqualTo(right.ReactionSpent));
+            }
+
+            Assert.That(a.Trees.Count, Is.EqualTo(b.Trees.Count));
+            for (int i = 0; i < a.Trees.Count; i++)
+            {
+                ChainTreeState left = a.Trees[i];
+                ChainTreeState right = b.Trees[i];
+                Assert.That(left.Id, Is.EqualTo(right.Id));
+                Assert.That(left.Position, Is.EqualTo(right.Position));
+                Assert.That(left.Standing, Is.EqualTo(right.Standing));
+                Assert.That(left.FallDirection, Is.EqualTo(right.FallDirection));
+            }
+
+            if (a.PendingReaction == null || b.PendingReaction == null)
+            {
+                Assert.That(a.PendingReaction, Is.EqualTo(b.PendingReaction));
+                return;
+            }
+
+            Assert.That(a.PendingReaction.Kind, Is.EqualTo(b.PendingReaction.Kind));
+            Assert.That(a.PendingReaction.PrimaryUnitId, Is.EqualTo(b.PendingReaction.PrimaryUnitId));
+            Assert.That(a.PendingReaction.SecondaryUnitId, Is.EqualTo(b.PendingReaction.SecondaryUnitId));
+            Assert.That(a.PendingReaction.TreeId, Is.EqualTo(b.PendingReaction.TreeId));
+            Assert.That(a.PendingReaction.IsClaimed, Is.EqualTo(b.PendingReaction.IsClaimed));
+            Assert.That(a.PendingReaction.ClaimedByUnitId, Is.EqualTo(b.PendingReaction.ClaimedByUnitId));
+            Assert.That(a.PendingReaction.ClaimedByCommandGroup, Is.EqualTo(b.PendingReaction.ClaimedByCommandGroup));
         }
 
         private static ChainUnitState Find(ChainCombatBoard board, ChainRecruitKind kind, CombatTeam team)
