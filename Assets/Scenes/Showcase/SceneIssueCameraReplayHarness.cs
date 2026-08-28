@@ -1,42 +1,26 @@
 using System;
+using System.IO;
 using UnityEngine;
 
 namespace VoxelEngine.Showcase
 {
     /// <summary>
-    /// Pins a standalone showcase player to a captured SceneIssue camera pose when a temporary
-    /// Resources/SceneIssueCameraPose.json fixture is present. Normal players are unaffected.
-    ///
-    /// The resource is intentionally not checked in with a particular issue. Visual-verification
-    /// CI branches create it from the capture being reviewed, so the same production player path
-    /// can replay any saved camera without adding issue-specific scene code.
+    /// Pins a standalone showcase player to a captured SceneIssue camera pose. A temporary
+    /// Resources/SceneIssueCameraPose.json fixture remains supported for older verification jobs;
+    /// current jobs can instead pass the canonical issue.json via -voxel-scene-issue so a normal
+    /// non-development player can replay the saved view without debug UI or a development watermark.
     /// </summary>
     public static class SceneIssueCameraReplayHarness
     {
         private const string ResourceName = "SceneIssueCameraPose";
+        private const string ReplayArgument = "-voxel-scene-issue";
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Install()
         {
-            TextAsset asset = Resources.Load<TextAsset>(ResourceName);
-            if (asset == null) return;
-
-            PoseFixture fixture;
-            try
-            {
-                fixture = JsonUtility.FromJson<PoseFixture>(asset.text);
-            }
-            catch (Exception error)
-            {
-                Debug.LogError($"SCENEISSUE camera fixture could not be parsed: {error.Message}");
-                return;
-            }
-
+            PoseFixture fixture = LoadFixture();
             if (fixture == null || string.IsNullOrEmpty(fixture.hierarchyPath))
-            {
-                Debug.LogError("SCENEISSUE camera fixture is missing hierarchyPath.");
                 return;
-            }
 
             var root = new GameObject("Scene Issue Camera Replay Harness")
             {
@@ -48,6 +32,94 @@ namespace VoxelEngine.Showcase
             Debug.Log($"SCENEISSUE camera replay armed for {fixture.hierarchyPath}");
         }
 
+        private static PoseFixture LoadFixture()
+        {
+            TextAsset asset = Resources.Load<TextAsset>(ResourceName);
+            if (asset != null)
+            {
+                try
+                {
+                    PoseFixture fixture = JsonUtility.FromJson<PoseFixture>(asset.text);
+                    if (fixture != null && !string.IsNullOrEmpty(fixture.hierarchyPath))
+                        return fixture;
+                }
+                catch (Exception error)
+                {
+                    Debug.LogError($"SCENEISSUE camera fixture could not be parsed: {error.Message}");
+                    return null;
+                }
+            }
+
+            string issuePath = Argument(ReplayArgument);
+            if (string.IsNullOrEmpty(issuePath))
+                return null;
+
+            try
+            {
+                IssueRecord record = JsonUtility.FromJson<IssueRecord>(File.ReadAllText(issuePath));
+                CameraSnapshot camera = record?.captures != null && record.captures.Length > 0
+                    ? record.captures[0]?.camera
+                    : record?.camera;
+                if (camera == null || string.IsNullOrEmpty(camera.hierarchyPath))
+                {
+                    Debug.LogError("SCENEISSUE issue.json has no replayable camera snapshot.");
+                    return null;
+                }
+
+                return new PoseFixture
+                {
+                    hierarchyPath = camera.hierarchyPath,
+                    position = camera.position,
+                    rotation = camera.rotation,
+                    fieldOfView = camera.fieldOfView,
+                    orthographic = camera.orthographic,
+                    orthographicSize = camera.orthographicSize,
+                    nearClipPlane = camera.nearClipPlane,
+                    farClipPlane = camera.farClipPlane
+                };
+            }
+            catch (Exception error)
+            {
+                Debug.LogError($"SCENEISSUE issue.json could not be parsed: {error.Message}");
+                return null;
+            }
+        }
+
+        private static string Argument(string name)
+        {
+            string[] args = Environment.GetCommandLineArgs();
+            for (int i = 0; i + 1 < args.Length; i++)
+                if (string.Equals(args[i], name, StringComparison.Ordinal))
+                    return args[i + 1];
+            return null;
+        }
+
+        [Serializable]
+        private sealed class IssueRecord
+        {
+            public IssueFrame[] captures;
+            public CameraSnapshot camera;
+        }
+
+        [Serializable]
+        private sealed class IssueFrame
+        {
+            public CameraSnapshot camera;
+        }
+
+        [Serializable]
+        private sealed class CameraSnapshot
+        {
+            public string hierarchyPath;
+            public Vector3 position;
+            public Quaternion rotation;
+            public float fieldOfView = 70f;
+            public bool orthographic;
+            public float orthographicSize = 5f;
+            public float nearClipPlane = 0.05f;
+            public float farClipPlane = 1000f;
+        }
+
         [Serializable]
         private sealed class PoseFixture
         {
@@ -55,6 +127,10 @@ namespace VoxelEngine.Showcase
             public Vector3 position;
             public Quaternion rotation;
             public float fieldOfView = 70f;
+            public bool orthographic;
+            public float orthographicSize = 5f;
+            public float nearClipPlane = 0.05f;
+            public float farClipPlane = 1000f;
         }
 
         [DefaultExecutionOrder(10000)]
@@ -74,6 +150,13 @@ namespace VoxelEngine.Showcase
                 transform.SetPositionAndRotation(Fixture.position, Fixture.rotation);
                 if (Fixture.fieldOfView > 0f)
                     _camera.fieldOfView = Fixture.fieldOfView;
+                _camera.orthographic = Fixture.orthographic;
+                if (Fixture.orthographicSize > 0f)
+                    _camera.orthographicSize = Fixture.orthographicSize;
+                if (Fixture.nearClipPlane > 0f)
+                    _camera.nearClipPlane = Fixture.nearClipPlane;
+                if (Fixture.farClipPlane > Fixture.nearClipPlane)
+                    _camera.farClipPlane = Fixture.farClipPlane;
 
                 if (_reported) return;
                 _reported = true;
