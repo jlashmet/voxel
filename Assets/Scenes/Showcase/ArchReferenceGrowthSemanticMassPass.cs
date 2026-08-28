@@ -24,6 +24,8 @@ namespace VoxelEngine.Showcase
         private const int PetalVertexCount = 7;
         private const int HeadVertexCount = PetalsPerHead * PetalVertexCount;
         private const int CentreVertexCount = 9;
+        private const float OpeningSpringlineY = 6.40f;
+        private const float MasonryAttachmentOffset = 0.34f;
 
         private static readonly Vector2[] LowerOffsets =
         {
@@ -194,7 +196,7 @@ namespace VoxelEngine.Showcase
             int mass = cluster / 5;
             int local = cluster % 5;
             Vector2 offset = mass == 0 ? LowerOffsets[local] : mass == 1 ? HaunchOffsets[local] : CrownOffsets[local];
-            return MassCenter(mass) + offset;
+            return AttachToMasonry(mass, MassCenter(mass) + offset);
         }
 
         public static Vector2 BouquetTarget(int bouquet)
@@ -206,7 +208,15 @@ namespace VoxelEngine.Showcase
             if (mass == 0) offset = second ? new Vector2(0.24f, 0.26f) : new Vector2(-0.22f, -0.12f);
             else if (mass == 1) offset = second ? new Vector2(0.22f, 0.28f) : new Vector2(-0.24f, -0.10f);
             else offset = second ? new Vector2(0.32f, 0.10f) : new Vector2(-0.34f, -0.05f);
-            return MassCenter(mass) + offset;
+            return AttachToMasonry(mass, MassCenter(mass) + offset);
+        }
+
+        private static Vector2 AttachToMasonry(int mass, Vector2 target)
+        {
+            if (mass < 2) return target + Vector2.left * MasonryAttachmentOffset;
+            Vector2 fromOpening = target - new Vector2(0f, OpeningSpringlineY);
+            if (fromOpening.sqrMagnitude < 0.0001f) return target + Vector2.up * MasonryAttachmentOffset;
+            return target + fromOpening.normalized * MasonryAttachmentOffset;
         }
 
         private static Vector3 ClusterCentre(Vector3[] vertices, int[,] starts, int cluster)
