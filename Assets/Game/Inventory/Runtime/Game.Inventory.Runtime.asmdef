@@ -1,10 +1,8 @@
 {
-  "name": "Game.Composition.Kentridge.Api",
-  "rootNamespace": "Game.Composition.Kentridge.Api",
+  "name": "Game.Inventory.Runtime",
+  "rootNamespace": "Game.Inventory.Runtime",
   "references": [
-    "Game.Composition.Campaign",
-    "Game.Composition.WorldBuilderWorldGen",
-    "Game.Quests.Api"
+    "Game.Inventory.Api"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
