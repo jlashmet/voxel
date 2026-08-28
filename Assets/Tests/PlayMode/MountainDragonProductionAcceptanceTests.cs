@@ -7,9 +7,9 @@ using VoxelEngine.Showcase;
 using VoxelEngine.Structures.Api;
 using VoxelEngine.Structures.Runtime;
 
-namespace VoxelEngine.Tests.EditMode
+namespace VoxelEngine.Tests.PlayMode
 {
-    public sealed class MountainDragonWorldBuilderTests
+    public sealed class MountainDragonProductionAcceptanceTests
     {
         private const uint Seed = 0x5EED1234;
         private const byte MountainMaterial = 1;
@@ -17,10 +17,10 @@ namespace VoxelEngine.Tests.EditMode
         private const byte DragonMaterial = 6;
 
         [Test]
-        public void ProductionWorldBuilderMountainHasWalkableSwitchbacksAndGroundedPlaceholder()
+        public void MountainPathDragonAndProximityFlowUseProductionWorldBuilder()
         {
             MountainLandmarkSpec spec = ShowcaseMountainDragonLayout.CreateLandmark(Seed);
-            FeatureCatalogue catalogue = WorldBuilderMountainLandmarkCatalogue.Build(
+            FeatureCatalogue mountainCatalogue = WorldBuilderMountainLandmarkCatalogue.Build(
                 in spec,
                 MountainMaterial,
                 PathMaterial,
@@ -28,22 +28,25 @@ namespace VoxelEngine.Tests.EditMode
                 Allocator.Temp);
             try
             {
-                int mountainId = FindDefinition(catalogue, WorldBuilderMountainLandmarkCatalogue.LandformDefinitionName);
-                int dragonId = FindDefinition(catalogue, WorldBuilderMountainLandmarkCatalogue.PlaceholderDefinitionName);
+                int mountainId = FindDefinition(
+                    mountainCatalogue,
+                    WorldBuilderMountainLandmarkCatalogue.LandformDefinitionName);
+                int dragonId = FindDefinition(
+                    mountainCatalogue,
+                    WorldBuilderMountainLandmarkCatalogue.PlaceholderDefinitionName);
                 Assert.That(mountainId, Is.GreaterThanOrEqualTo(0));
                 Assert.That(dragonId, Is.GreaterThanOrEqualTo(0));
 
-                FeatureDefinition mountain = catalogue.Definitions[mountainId];
+                FeatureDefinition mountain = mountainCatalogue.Definitions[mountainId];
                 Assert.That(mountain.Kind, Is.EqualTo(FeatureKind.Landform));
                 Assert.That(mountain.Footprint.x, Is.GreaterThanOrEqualTo(1000),
                     "The authored landmark must remain substantial, not collapse into a hill-sized prop.");
                 Assert.That(mountain.Footprint.x, Is.LessThanOrEqualTo(FeatureBudget.MaxFootprintVoxels));
 
-                List<Primitive> mountainPrimitives = Evaluate(catalogue, mountainId, Seed);
+                List<Primitive> mountainPrimitives = Evaluate(mountainCatalogue, mountainId, Seed);
                 Primitive frustum = mountainPrimitives.Find(p => p.Shape == PrimitiveShape.Frustum);
                 Assert.That(frustum.Shape, Is.EqualTo(PrimitiveShape.Frustum));
-                Assert.That(frustum.B.y, Is.EqualTo(spec.Origin.y + spec.MountainHeight),
-                    "The mountain mass must reach the authored summit elevation.");
+                Assert.That(frustum.B.y, Is.EqualTo(spec.Origin.y + spec.MountainHeight));
 
                 List<Primitive> ramps = mountainPrimitives.FindAll(p => p.Shape == PrimitiveShape.Ramp);
                 ramps.Sort((a, b) => a.A.y.CompareTo(b.A.y));
@@ -59,7 +62,7 @@ namespace VoxelEngine.Tests.EditMode
                             : ramp.B.y - ramp.A.y + 1;
                     int rise = ramp.B.y - ramp.A.y + 1;
                     Assert.That(rise * 4, Is.LessThanOrEqualTo(run),
-                        "Every authored ascent segment must stay shallow enough for normal walking.");
+                        "Every ascent segment must remain shallow enough for normal movement.");
 
                     if (i == 0) continue;
                     Primitive previous = ramps[i - 1];
@@ -70,57 +73,46 @@ namespace VoxelEngine.Tests.EditMode
                 }
 
                 Assert.That(HasSummitConnection(mountainPrimitives, in spec), Is.True,
-                    "The final ascent must join the usable flat summit rather than stop below it.");
+                    "The final ascent must join the usable summit rather than stop below it.");
 
-                List<Primitive> dragonPrimitives = Evaluate(catalogue, dragonId, Seed);
+                List<Primitive> dragonPrimitives = Evaluate(mountainCatalogue, dragonId, Seed);
                 Assert.That(dragonPrimitives.Count, Is.EqualTo(1));
                 Primitive cube = dragonPrimitives[0];
                 Assert.That(cube.Shape, Is.EqualTo(PrimitiveShape.Box));
                 int3 cubeSize = cube.B - cube.A + 1;
-                Assert.That(math.all(cubeSize == new int3(spec.PlaceholderSize)), Is.True,
-                    "The placeholder must remain a clearly visible large cube.");
+                Assert.That(math.all(cubeSize == new int3(
+                    spec.PlaceholderSize, spec.PlaceholderSize, spec.PlaceholderSize)), Is.True);
                 Assert.That(cube.A.y, Is.EqualTo(spec.Origin.y + spec.MountainHeight + 1),
                     "The placeholder must sit directly on top of the authored summit.");
             }
             finally
             {
-                catalogue.Dispose();
+                mountainCatalogue.Dispose();
             }
-        }
 
-        [Test]
-        public void ShowcaseCatalogueIncludesWorldBuilderMountainAndDragonDefinitions()
-        {
-            FeatureCatalogue catalogue = ShowcaseCatalogue.Build(Seed, Allocator.Temp);
+            FeatureCatalogue productionCatalogue = ShowcaseCatalogue.Build(Seed, Allocator.Temp);
             try
             {
                 Assert.That(
-                    FindDefinition(catalogue, WorldBuilderMountainLandmarkCatalogue.LandformDefinitionName),
+                    FindDefinition(productionCatalogue, WorldBuilderMountainLandmarkCatalogue.LandformDefinitionName),
                     Is.GreaterThanOrEqualTo(0));
                 Assert.That(
-                    FindDefinition(catalogue, WorldBuilderMountainLandmarkCatalogue.PlaceholderDefinitionName),
+                    FindDefinition(productionCatalogue, WorldBuilderMountainLandmarkCatalogue.PlaceholderDefinitionName),
                     Is.GreaterThanOrEqualTo(0));
             }
             finally
             {
-                catalogue.Dispose();
+                productionCatalogue.Dispose();
             }
-        }
 
-        [Test]
-        public void ApproachingSummitDispatchesOneShotStoryCutsceneWithDragonGreeting()
-        {
             var encounter = new MountainDragonEncounterRuntime(Seed);
             MountainLandmarkSpec landmark = encounter.Landmark;
-
             Assert.That(encounter.Update(landmark.Origin.x - 200, landmark.Origin.z - 200, 16), Is.EqualTo(0));
             Assert.That(encounter.ActiveDialogue, Is.Null);
-
             Assert.That(
                 encounter.Update(landmark.SummitApproachWorldX, landmark.SummitApproachWorldZ, 16),
                 Is.EqualTo(1));
             Assert.That(encounter.HasTriggered, Is.True);
-            Assert.That(encounter.ActiveDialogue, Is.EqualTo(MountainDragonEncounterRuntime.Greeting));
             Assert.That(encounter.ActiveDialogue, Is.EqualTo("Hello, I'm Mr. Dragon."));
 
             encounter.Update(landmark.Origin.x - 200, landmark.Origin.z - 200, 6000);
@@ -128,7 +120,7 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(
                 encounter.Update(landmark.SummitApproachWorldX, landmark.SummitApproachWorldZ, 16),
                 Is.EqualTo(0),
-                "The one-shot proximity source must not restart an already completed cutscene.");
+                "The one-shot proximity source must not restart the completed cutscene.");
         }
 
         private static List<Primitive> Evaluate(FeatureCatalogue catalogue, int definitionId, uint seed)
@@ -136,12 +128,8 @@ namespace VoxelEngine.Tests.EditMode
             FeatureDefinition definition = catalogue.Definitions[definitionId];
             ExplicitPlacement placement = PlacementFor(catalogue, definitionId);
             ParameterSet parameters = FeatureGeneration.ResolveParameters(
-                in catalogue,
-                in definition,
-                in placement,
-                definitionId,
-                placement.Position,
-                seed);
+                in catalogue, in definition, in placement,
+                definitionId, placement.Position, seed);
 
             using var primitives = new NativeList<Primitive>(64, Allocator.Temp);
             using var anchors = new NativeList<ResolvedAnchor>(8, Allocator.Temp);
