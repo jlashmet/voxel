@@ -10,14 +10,15 @@
 2. **Rejected — existing modules, missing scene wiring only.** Direct path probes on refreshed master return absent for both production modules.
 
 ## Fix / behavioral regression
-- Add device-neutral `Game.Input.Api` plus Unity-owned `Game.Input.Runtime`; contexts are exclusive, and Combat samples then suppresses the legacy Unity frame so exploration cannot consume the same intent.
+- Add device-neutral `Game.Input.Api` plus Unity-owned `Game.Input.Runtime`; Combat samples then suppresses the legacy Unity frame so exploration cannot consume the same intent.
 - Add `Game.Combat.Api` lifecycle contracts and deterministic `Game.Combat.Runtime` command validation; simulation never reads Unity input.
-- Compose three persistent bandit actors at a semantic PineForest anchor derived from the authored Kentridge→Hightown theme corridor, not captured coordinates. Proximity begins one in-place Combat session with the same bandit identities and pushes Combat input ownership.
-- Regression loads the real slice, requires exactly three PineForest bandits, moves the existing lead bandit into player proximity, and asserts active production Combat + Combat context + same scene + same actor identity + three enemy participants.
+- Compose three persistent bandits at a semantic PineForest anchor derived from the authored Kentridge→Hightown corridor. Proximity begins one in-place Combat session with the same actors and Combat input ownership.
+- Regression loads the real slice and proves exactly three PineForest bandits, proximity activation, Combat context, same scene, same actor object, and three enemy participants.
+- Exact request `fa782d338872cf053bb3aab78f9e47abd70e4b8d` failed before tests/replay only because Unity 6000.5 makes test-only `GetInstanceID()` a CS0619 error. Replace the identity assertion with direct reference identity; production code had no compiler diagnostic.
 
 ## Blast radius / cost
 - New Combat/Input modules plus one Kentridge composition component and one PlayMode regression; no other scene/capture changes.
-- Before encounter start: three planar squared-distance checks/frame and ground probes only while the player is within 96 m. Active Combat input/command dispatch is O(1); no steady-state collection allocation.
+- Before encounter: three planar squared-distance checks/frame and ground probes only within 96 m. Active Combat input/command dispatch is O(1); no steady-state collection allocation.
 
 ## Verification
-- Fresh exact-SHA PlayMode CI must compile/pass the regression and saved-pose replay. Visually compare replay with the 1928×836 original: clean Kentridge forest, three readable bandits ahead of the player, no debug/editor/replay overlays.
+- Fresh exact-SHA PlayMode CI must compile/pass the regression and saved-pose replay. Compare replay with the 1928×836 original: clean Kentridge forest, three readable bandits, no debug/editor/replay overlays.

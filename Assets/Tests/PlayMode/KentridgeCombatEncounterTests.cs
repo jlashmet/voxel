@@ -35,7 +35,6 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(encounter.ActiveInputContext, Is.EqualTo(InputContextId.Exploration));
 
             GameObject leadBandit = encounter.Bandits[0];
-            int leadBanditInstance = leadBandit.GetInstanceID();
             Vector3 player = encounter.transform.position;
             leadBandit.transform.position = new Vector3(
                 player.x + encounter.TriggerRadiusMetres * 0.45f,
@@ -48,7 +47,7 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(encounter.CombatActive, Is.True, "Approaching a forest bandit must begin combat automatically.");
             Assert.That(encounter.ActiveInputContext, Is.EqualTo(InputContextId.Combat), "Combat lifecycle must exclusively own the player input context while active.");
             Assert.That(SceneManager.GetActiveScene().handle, Is.EqualTo(loadedScene.handle), "Combat must remain in the normal Kentridge world rather than swapping scenes.");
-            Assert.That(encounter.Bandits[0].GetInstanceID(), Is.EqualTo(leadBanditInstance), "The same normal-world bandit actor must remain present after combat begins.");
+            Assert.That(encounter.Bandits[0], Is.SameAs(leadBandit), "The same normal-world bandit actor must remain present after combat begins.");
             Assert.That(encounter.CombatService.ActiveParticipants.Count, Is.EqualTo(4));
 
             int enemies = 0;
