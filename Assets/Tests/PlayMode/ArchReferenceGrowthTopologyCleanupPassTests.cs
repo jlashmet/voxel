@@ -55,6 +55,8 @@ namespace VoxelEngine.Tests.PlayMode
                 Assert.That(cleanup.TopologyCleanupApplied, Is.True);
                 Assert.That(MaximumStemSpan(ivy, stemStarts), Is.LessThan(0.001f),
                     "Every authored deterministic stem quad must be degenerate; the player frame must contain no legacy diagonal vine.");
+                Assert.That(MaximumTriangleEdge(ivy), Is.LessThan(0.30f),
+                    "No ivy triangle may span the arch opening; this catches leaf corruption from stale color-derived starts.");
 
                 Vector3[] clusters = MeasureClusterCentres(ivy, leafStarts);
                 for (int cluster = 0; cluster < IvyClusterCount; cluster++)
@@ -95,6 +97,7 @@ namespace VoxelEngine.Tests.PlayMode
                     rebuiltIvy.vertexCount, out int[,] rebuiltLeaves, out int[] rebuiltStems), Is.True);
                 Assert.That(rebuiltStems.Length, Is.EqualTo(ArchReferenceGrowthTopologyCleanupPass.ExpectedStemQuadCount));
                 Assert.That(MaximumStemSpan(rebuiltIvy, rebuiltStems), Is.LessThan(0.001f));
+                Assert.That(MaximumTriangleEdge(rebuiltIvy), Is.LessThan(0.30f));
                 Vector3[] rebuiltClusters = MeasureClusterCentres(rebuiltIvy, rebuiltLeaves);
                 Assert.That(Vector3.Distance(rebuiltClusters[13], expectedCrown), Is.LessThan(0.015f));
                 Assert.That(growth.HeroLeafCount, Is.EqualTo(128));
@@ -118,6 +121,23 @@ namespace VoxelEngine.Tests.PlayMode
                 for (int a = 0; a < 4; a++)
                 for (int b = a + 1; b < 4; b++)
                     max = Mathf.Max(max, Vector3.Distance(vertices[start + a], vertices[start + b]));
+            }
+            return max;
+        }
+
+        private static float MaximumTriangleEdge(Mesh mesh)
+        {
+            Vector3[] vertices = mesh.vertices;
+            int[] triangles = mesh.triangles;
+            float max = 0f;
+            for (int i = 0; i + 2 < triangles.Length; i += 3)
+            {
+                Vector3 a = vertices[triangles[i]];
+                Vector3 b = vertices[triangles[i + 1]];
+                Vector3 c = vertices[triangles[i + 2]];
+                max = Mathf.Max(max, Vector3.Distance(a, b));
+                max = Mathf.Max(max, Vector3.Distance(b, c));
+                max = Mathf.Max(max, Vector3.Distance(c, a));
             }
             return max;
         }
