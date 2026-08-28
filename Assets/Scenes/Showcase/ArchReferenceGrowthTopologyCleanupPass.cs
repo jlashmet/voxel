@@ -8,8 +8,9 @@ namespace VoxelEngine.Showcase
     /// <summary>
     /// Exact-topology cleanup for the ArchLookdev hero ivy. BuildIvyMesh has a fixed layout:
     /// two paths (12 left clusters, 4 right clusters), 17 vertices per leaf, and four vertices per
-    /// stem quad. Earlier color-based cleanup could miss mutated stem colors, leaving a long
-    /// diagonal in the saved player frame. This pass collapses every known stem quad directly.
+    /// authored stem quad. One near-zero right-side leaf stem is intentionally omitted by AddStem,
+    /// so the production mesh contains 2,484 vertices and 77 stem quads. Earlier color-based cleanup
+    /// could miss mutated stem colors, leaving a long diagonal in the saved player frame.
     /// </summary>
     [DisallowMultipleComponent]
     [DefaultExecutionOrder(1700)]
@@ -22,6 +23,11 @@ namespace VoxelEngine.Showcase
         private const int LeftClusterCount = 12;
         private const int RightClusterCount = 4;
         private const int TotalClusterCount = LeftClusterCount + RightClusterCount;
+        private const int OmittedLeafStemCluster = 13;
+        private const int OmittedLeafStemLeaf = 2;
+
+        public const int ExpectedIvyVertexCount = 2484;
+        public const int ExpectedStemQuadCount = 77;
 
         private Coroutine _applyRoutine;
         private Mesh _cleanedMesh;
@@ -123,12 +129,13 @@ namespace VoxelEngine.Showcase
         public static bool TryBuildTopology(int vertexCount, out int[,] leafStarts, out int[] stemStarts)
         {
             leafStarts = new int[TotalClusterCount, IvyLeavesPerCluster];
-            var stems = new List<int>(78);
+            var stems = new List<int>(ExpectedStemQuadCount);
             int cursor = 0;
             int globalCluster = 0;
-            if (!AppendPath(LeftClusterCount, ref globalCluster, ref cursor, leafStarts, stems) ||
+            if (vertexCount != ExpectedIvyVertexCount ||
+                !AppendPath(LeftClusterCount, ref globalCluster, ref cursor, leafStarts, stems) ||
                 !AppendPath(RightClusterCount, ref globalCluster, ref cursor, leafStarts, stems) ||
-                globalCluster != TotalClusterCount || cursor != vertexCount || stems.Count != 78)
+                globalCluster != TotalClusterCount || cursor != vertexCount || stems.Count != ExpectedStemQuadCount)
             {
                 stemStarts = System.Array.Empty<int>();
                 return false;
@@ -155,7 +162,7 @@ namespace VoxelEngine.Showcase
                 {
                     leafStarts[globalCluster, leaf] = cursor;
                     cursor += IvyLeafVertexCount;
-                    if ((leaf & 1) == 0)
+                    if ((leaf & 1) == 0 && HasAuthoredLeafStem(globalCluster, leaf))
                     {
                         stemStarts.Add(cursor);
                         cursor += StemVertexCount;
@@ -163,6 +170,13 @@ namespace VoxelEngine.Showcase
                 }
             }
             return true;
+        }
+
+        private static bool HasAuthoredLeafStem(int globalCluster, int leaf)
+        {
+            // AddStem suppresses segments shorter than 0.01 m. The deterministic right-path
+            // cluster 1 / leaf 2 centre lands inside that threshold, so no quad is authored there.
+            return globalCluster != OmittedLeafStemCluster || leaf != OmittedLeafStemLeaf;
         }
     }
 }
