@@ -113,6 +113,33 @@ namespace Game.Quests.Runtime
             return events;
         }
 
+        public IReadOnlyList<QuestEvent> Complete(QuestRef quest)
+        {
+            RuntimeQuest runtime = RequireQuest(quest);
+            if (runtime.Status != QuestStatus.Active)
+                throw new InvalidOperationException(
+                    "Cannot complete quest '" + quest + "' because it is not active.");
+
+            var events = new List<QuestEvent>();
+            if (runtime.ActiveStepIndex >= 0)
+            {
+                int active = runtime.ActiveStepIndex;
+                runtime.StepStates[active] = QuestStepStatus.Completed;
+                events.Add(QuestEvent.StepCompleted(
+                    runtime.Definition.Ref,
+                    runtime.Definition.Steps[active].Ref));
+            }
+
+            for (var i = 0; i < runtime.StepStates.Length; i++)
+                if (runtime.StepStates[i] == QuestStepStatus.Locked)
+                    runtime.StepStates[i] = QuestStepStatus.Skipped;
+
+            runtime.ActiveStepIndex = -1;
+            runtime.Status = QuestStatus.Completed;
+            events.Add(QuestEvent.Completed(runtime.Definition.Ref));
+            return events;
+        }
+
         public bool IsActive(QuestRef quest) => RequireQuest(quest).Status == QuestStatus.Active;
         public bool IsCompleted(QuestRef quest) => RequireQuest(quest).Status == QuestStatus.Completed;
 
@@ -146,6 +173,12 @@ namespace Game.Quests.Runtime
             {
                 return observation.Kind == QuestObservationKind.NpcInteracted
                     && string.Equals(interaction.NpcId, observation.SubjectId, StringComparison.Ordinal);
+            }
+
+            if (completion is InteractionQuestCompletionSpec worldInteraction)
+            {
+                return observation.Kind == QuestObservationKind.Interacted
+                    && string.Equals(worldInteraction.SubjectId, observation.SubjectId, StringComparison.Ordinal);
             }
 
             throw new InvalidOperationException(
