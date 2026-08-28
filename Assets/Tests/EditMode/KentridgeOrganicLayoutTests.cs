@@ -55,7 +55,7 @@ namespace VoxelEngine.Tests.EditMode
 
             Assert.AreEqual(16, routeAccesses);
             Assert.GreaterOrEqual(diagonalAccesses, 4,
-                "Organic entrances should not collapse back to four cardinal approach vectors.");
+                "Organic public approaches should not collapse back to four cardinal vectors.");
 
             var connectedTerminals = new System.Collections.Generic.List<Int2>
             {
@@ -85,7 +85,7 @@ namespace VoxelEngine.Tests.EditMode
 
             AssertNoPlotOverlap(plan);
             AssertSeedChangesLayout(plan);
-            AssertGameplayUsesSemanticAccessDirection(plan);
+            AssertGameplayUsesSemanticPublicApproach(plan);
             AssertVoxelRealizationUsesOrganicRoutes();
         }
 
@@ -139,7 +139,7 @@ namespace VoxelEngine.Tests.EditMode
                 "Seed should materially vary organic site placement without changing role identity.");
         }
 
-        private static void AssertGameplayUsesSemanticAccessDirection(SettlementPlan plan)
+        private static void AssertGameplayUsesSemanticPublicApproach(SettlementPlan plan)
         {
             for (int i = 0; i < plan.Plots.Count; i++)
             {
@@ -148,11 +148,13 @@ namespace VoxelEngine.Tests.EditMode
                 KentridgeGameplaySiteAccess access;
                 Assert.IsTrue(KentridgeGameplaySiteAccessResolver.TryResolve(
                     plan, plot.RoleId, 1, out access));
-                Assert.AreEqual(plot.AccessDirection.X, access.Inward.X);
-                Assert.AreEqual(plot.AccessDirection.Z, access.Inward.Y);
+                Assert.AreEqual(plot.AccessDirection.X, access.PublicApproachInward.X);
+                Assert.AreEqual(plot.AccessDirection.Z, access.PublicApproachInward.Y);
+                Assert.IsTrue(access.Inward.X == 0 || access.Inward.Y == 0,
+                    "The interior approach must remain normal to the current quarter-turn doorway.");
                 return;
             }
-            Assert.Fail("Expected at least one diagonal semantic access direction.");
+            Assert.Fail("Expected at least one diagonal semantic public approach.");
         }
 
         private static void AssertVoxelRealizationUsesOrganicRoutes()
