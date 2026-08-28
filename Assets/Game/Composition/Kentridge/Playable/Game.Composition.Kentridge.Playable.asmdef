@@ -2,11 +2,16 @@
   "name": "Game.Composition.Kentridge.Playable",
   "rootNamespace": "Game.Composition.Kentridge.Playable",
   "references": [
+    "Game.Composition.Kentridge.Api",
     "Game.Combat.Api",
     "Game.Combat.Runtime",
+    "Game.Cutscenes.Api",
     "Game.Input.Api",
     "Game.Input.Runtime",
-    "MountingForce.WorldGen.Core"
+    "MountingForce.WorldGen.Core",
+    "MountingForce.WorldGen.Runtime",
+    "VoxelEngine.Characters.Runtime",
+    "VoxelEngine.Core"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
