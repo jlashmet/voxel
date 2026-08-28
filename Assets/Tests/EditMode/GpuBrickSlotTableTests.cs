@@ -85,6 +85,25 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void OlderEmptyDeltaCannotReleaseNewerMixedSlot()
+        {
+            var table = new GpuBrickSlotTable(4);
+            int3 coordinate = new int3(1, 0, 0);
+            table.TryAdmit(Mixed(1, generation: 9), out int mixedSlot);
+
+            Assert.AreEqual(GpuBrickAdmission.Stale,
+                table.TryAdmit(VoxelBrickDelta.EmptyAt(coordinate, 8), out _),
+                "A stale empty delta must be rejected before no-payload cleanup; otherwise an old "
+              + "change can release the slot backing a newer GPU-visible mixed brick.");
+            Assert.IsTrue(table.TryGetSlot(coordinate, out int residentSlot));
+            Assert.AreEqual(mixedSlot, residentSlot);
+            Assert.IsTrue(table.TryGetGeneration(coordinate, out ulong generation));
+            Assert.AreEqual(9UL, generation);
+            Assert.AreEqual(1, table.ResidentCount);
+            Assert.AreEqual(1UL, table.StaleCount);
+        }
+
+        [Test]
         public void AFullTableEvictsTheColdestUnpinnedBrick()
         {
             var table = new GpuBrickSlotTable(2);
