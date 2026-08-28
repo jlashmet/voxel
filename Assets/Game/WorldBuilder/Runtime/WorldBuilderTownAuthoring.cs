@@ -1,5 +1,6 @@
 using System;
 using Game.WorldBuilder.Api;
+using MountingForce.WorldGen.Content.Hightown;
 using MountingForce.WorldGen.Content.Kentridge;
 
 namespace Game.WorldBuilder.Runtime
@@ -22,6 +23,12 @@ namespace Game.WorldBuilder.Runtime
                         WorldBuilderTownIds.Kentridge,
                         seed,
                         KentridgeDefinition.Build(seed));
+
+                case WorldBuilderTownIds.Hightown:
+                    return new AuthoredTownPlan(
+                        WorldBuilderTownIds.Hightown,
+                        seed,
+                        HightownDefinition.Build(seed));
 
                 default:
                     throw new ArgumentOutOfRangeException(
