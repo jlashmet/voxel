@@ -89,13 +89,53 @@ namespace VoxelEngine.Tests.PlayMode
         }
 
         [Test]
-        public void OrdinaryMeadowTuftsDoNotUseLegacyThreeBladeSpriteShape()
+        public void OrdinaryMeadowNettleUsesPackedGrassRendererWhileAquaticTuftsStayGeneric()
+        {
+            var host = new GameObject("GrassLookdev Meadow Nettle Routing");
+            ProceduralVegetationBatchRenderer renderer = host.AddComponent<ProceduralVegetationBatchRenderer>();
+
+            try
+            {
+                var nettle = new VegetationInstance
+                {
+                    PositionMetres = float3.zero,
+                    SurfaceNormal = new float3(0f, 1f, 0f),
+                    Kind = VegetationKind.Nettle,
+                    Seed = 7101,
+                    Scale = 1f,
+                };
+                renderer.SetInstances(new List<VegetationInstance> { nettle });
+                int nettleBladeCount = GetIntProperty(GetGrassBatch(renderer), "BladeCount");
+                Assert.That(nettleBladeCount, Is.InRange(5, 15),
+                    "Ordinary meadow Nettle must use the packed grass presentation instead of the generic seven-card Tuft mesh.");
+
+                var aquatic = nettle;
+                aquatic.Kind = VegetationKind.WaterGrass;
+                aquatic.Seed = 7102;
+                renderer.SetInstances(new List<VegetationInstance> { aquatic });
+                Assert.That(GetIntProperty(GetGrassBatch(renderer), "BladeCount"), Is.Zero,
+                    "Aquatic WaterGrass shares Tuft growth semantics but must remain on its authored generic vegetation path.");
+
+                var semanticGrass = nettle;
+                semanticGrass.Kind = VegetationKind.Grass;
+                semanticGrass.Seed = 7103;
+                renderer.SetInstances(new List<VegetationInstance> { semanticGrass });
+                Assert.That(GetIntProperty(GetGrassBatch(renderer), "BladeCount"), Is.InRange(5, 15),
+                    "Semantic Grass must remain on the packed renderer alongside the narrowly selected meadow Nettle accent.");
+            }
+            finally
+            {
+                Object.DestroyImmediate(host);
+            }
+        }
+
+        [Test]
+        public void GenericAccentTuftsDoNotUseLegacyThreeBladeSpriteShape()
         {
             VegetationKind[] accents =
             {
                 VegetationKind.Clover,
                 VegetationKind.Weed,
-                VegetationKind.Nettle,
                 VegetationKind.Reed,
                 VegetationKind.Cattail,
                 VegetationKind.DeadGrass,
@@ -113,7 +153,7 @@ namespace VoxelEngine.Tests.PlayMode
             VegetationRenderStyle grass = ProceduralVegetationMaterials.StyleFor(VegetationKind.Grass);
             Assert.That(grass.ShaderClass, Is.EqualTo(VegetationShaderClass.Grass));
             Assert.That(grass.Shape, Is.EqualTo(5f),
-                "Semantic Grass must stay on the dedicated packed renderer while accent tufts leave the legacy billboard shape.");
+                "Semantic Grass must stay on the dedicated packed renderer while generic accent tufts leave the legacy billboard shape.");
         }
 
         private static List<VegetationInstance> FindFormerCoverageHoles(MethodInfo legacyCoverage, int count)
