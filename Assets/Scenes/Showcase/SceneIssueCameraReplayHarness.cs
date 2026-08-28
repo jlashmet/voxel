@@ -75,7 +75,8 @@ namespace VoxelEngine.Showcase
                     orthographic = camera.orthographic,
                     orthographicSize = camera.orthographicSize,
                     nearClipPlane = camera.nearClipPlane,
-                    farClipPlane = camera.farClipPlane
+                    farClipPlane = camera.farClipPlane,
+                    replayAction = record.replayAction
                 };
             }
             catch (Exception error)
@@ -99,6 +100,7 @@ namespace VoxelEngine.Showcase
         {
             public IssueFrame[] captures;
             public CameraSnapshot camera;
+            public string replayAction;
         }
 
         [Serializable]
@@ -131,6 +133,7 @@ namespace VoxelEngine.Showcase
             public float orthographicSize = 5f;
             public float nearClipPlane = 0.05f;
             public float farClipPlane = 1000f;
+            public string replayAction;
         }
 
         [DefaultExecutionOrder(10000)]
@@ -139,12 +142,16 @@ namespace VoxelEngine.Showcase
             internal PoseFixture Fixture;
             private Camera _camera;
             private bool _reported;
+            private bool _actionComplete;
 
             private void LateUpdate()
             {
                 if (_camera == null)
                     _camera = FindCamera(Fixture.hierarchyPath);
                 if (_camera == null) return;
+
+                if (!_actionComplete)
+                    TryReplayAction();
 
                 Transform transform = _camera.transform;
                 transform.SetPositionAndRotation(Fixture.position, Fixture.rotation);
@@ -161,6 +168,39 @@ namespace VoxelEngine.Showcase
                 if (_reported) return;
                 _reported = true;
                 Debug.Log($"SCENEISSUE camera pinned at {Fixture.position} fov={_camera.fieldOfView:0.###}");
+            }
+
+            private void TryReplayAction()
+            {
+                if (string.IsNullOrEmpty(Fixture.replayAction))
+                {
+                    _actionComplete = true;
+                    return;
+                }
+
+                if (!string.Equals(Fixture.replayAction, "interact", StringComparison.OrdinalIgnoreCase))
+                {
+                    Debug.LogError($"SCENEISSUE unsupported replayAction '{Fixture.replayAction}'.");
+                    _actionComplete = true;
+                    return;
+                }
+
+                VoxelShowcase showcase = _camera.GetComponent<VoxelShowcase>();
+                if (showcase == null)
+                    showcase = UnityEngine.Object.FindFirstObjectByType<VoxelShowcase>();
+                if (showcase == null)
+                    return;
+
+                // The camera replay pins only presentation. Synchronize the production character
+                // motor to the captured position before invoking the same operation bound to E;
+                // otherwise replay would leave proximity at the spawn and could only prove the
+                // pre-interaction closed state.
+                showcase.TeleportTo(Fixture.position);
+                if (!showcase.TryInteract())
+                    return;
+
+                _actionComplete = true;
+                Debug.Log("SCENEISSUE replayAction interact accepted by VoxelShowcase.TryInteract.");
             }
 
             private static Camera FindCamera(string hierarchyPath)
