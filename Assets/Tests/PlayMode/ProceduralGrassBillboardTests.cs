@@ -35,13 +35,13 @@ namespace VoxelEngine.Tests.PlayMode
 
             Mesh grassMesh = GetProductionGrassMesh();
             Assert.That(grassMesh, Is.Not.Null);
-            Assert.That(grassMesh.name, Does.Contain("Solid Meadow Grass Ribbons"));
+            Assert.That(grassMesh.name, Does.Contain("Packed Meadow Grass Ribbons"));
             Assert.That(grassMesh.vertexCount, Is.EqualTo(110),
-                "Eleven independently packed blades with five vertex rows each should stay construction-time geometry.");
+                "Eleven independently packed blades with five two-vertex rows should stay construction-time geometry.");
             Assert.That(grassMesh.triangles.Length / 3, Is.EqualTo(88),
                 "Each blade must remain four solid ribbon segments; no transparent billboard sections are allowed.");
-            Assert.That(grassMesh.uv2.Length, Is.EqualTo(grassMesh.vertexCount),
-                "Every ribbon vertex carries stable per-blade phase/variation data for GPU deformation.");
+            Assert.That(grassMesh.uv4.Length, Is.EqualTo(grassMesh.vertexCount),
+                "Every ribbon vertex carries stable per-blade phase data for GPU deformation.");
         }
 
         [Test, Timeout(30000)]
@@ -101,7 +101,7 @@ namespace VoxelEngine.Tests.PlayMode
                 Assert.That(sideStats.PixelCount, Is.InRange(
                         Mathf.RoundToInt(frontStats.PixelCount * 0.50f),
                         Mathf.RoundToInt(frontStats.PixelCount * 1.80f)),
-                    $"World-fixed radial ribbons should remain readable through a 90-degree orbit; " +
+                    $"Camera-right ribbons should remain readable through a 90-degree orbit; " +
                     $"front={frontStats.PixelCount}, side={sideStats.PixelCount}.");
 
                 SetView(camera.transform, new Vector3(0f, 0.48f, -3f));
