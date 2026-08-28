@@ -6,9 +6,9 @@ using MountingForce.WorldGen;
 namespace Game.Composition.WorldBuilderWorldGen
 {
     /// <summary>
-    /// Traversal facts backed by the semantic settlement street graph. This implementation supports
-    /// the current WorldGen contract of orthogonal street polylines and explicit per-site access
-    /// points. It never treats straight-line site distance as reachability.
+    /// Traversal facts backed by the settlement's semantic public-circulation graph. Legacy authored
+    /// streets and generic inferred routes are both represented by their centreline polylines and
+    /// explicit per-site access points. Straight-line site distance is never treated as reachability.
     /// </summary>
     public sealed class SettlementStreetTraversalFacts : ISettlementTraversalFacts
     {
@@ -25,9 +25,9 @@ namespace Game.Composition.WorldBuilderWorldGen
             if (projections == null) throw new ArgumentNullException(nameof(projections));
 
             List<Segment> segments = BuildSegments(plan);
-            AddStreetIntersections(segments);
+            AddNetworkIntersections(segments);
             AddProjectedSiteEndpoints(plan, projections, segments);
-            MaterializeStreetEdges(segments);
+            MaterializeNetworkEdges(segments);
         }
 
         public bool IsReachable(
@@ -104,7 +104,8 @@ namespace Game.Composition.WorldBuilderWorldGen
                 switch (site.Access.Kind)
                 {
                     case SiteAccessKind.Street:
-                        validAccess = AddStreetAccessPoint(
+                    case SiteAccessKind.Route:
+                        validAccess = AddPathAccessPoint(
                             site.Access.TargetId,
                             networkPoint,
                             segments);
@@ -136,8 +137,8 @@ namespace Game.Composition.WorldBuilderWorldGen
             }
         }
 
-        private bool AddStreetAccessPoint(
-            string streetId,
+        private static bool AddPathAccessPoint(
+            string pathId,
             PointKey point,
             List<Segment> segments)
         {
@@ -145,7 +146,7 @@ namespace Game.Composition.WorldBuilderWorldGen
             for (var i = 0; i < segments.Count; i++)
             {
                 Segment segment = segments[i];
-                if (!string.Equals(segment.StreetId, streetId, StringComparison.Ordinal))
+                if (!string.Equals(segment.PathId, pathId, StringComparison.Ordinal))
                     continue;
                 if (!segment.Contains(point))
                     continue;
@@ -190,19 +191,39 @@ namespace Game.Composition.WorldBuilderWorldGen
                         street.Id,
                         new PointKey(street.Points[pointIndex - 1].X, street.Points[pointIndex - 1].Y),
                         new PointKey(street.Points[pointIndex].X, street.Points[pointIndex].Y));
+                    // Preserve the legacy street contract: authored streets are orthogonal.
                     if (!segment.IsOrthogonal || segment.A.Equals(segment.B))
                         continue;
+                    AddSegment(segments, segment);
+                }
+            }
 
-                    segment.Points.Add(segment.A);
-                    segment.Points.Add(segment.B);
-                    segments.Add(segment);
+            for (var routeIndex = 0; routeIndex < plan.Routes.Count; routeIndex++)
+            {
+                PlannedRoute route = plan.Routes[routeIndex];
+                for (var pointIndex = 1; pointIndex < route.Points.Count; pointIndex++)
+                {
+                    var segment = new Segment(
+                        route.Id,
+                        new PointKey(route.Points[pointIndex - 1].X, route.Points[pointIndex - 1].Y),
+                        new PointKey(route.Points[pointIndex].X, route.Points[pointIndex].Y));
+                    if (segment.A.Equals(segment.B))
+                        continue;
+                    AddSegment(segments, segment);
                 }
             }
 
             return segments;
         }
 
-        private static void AddStreetIntersections(List<Segment> segments)
+        private static void AddSegment(List<Segment> segments, Segment segment)
+        {
+            segment.Points.Add(segment.A);
+            segment.Points.Add(segment.B);
+            segments.Add(segment);
+        }
+
+        private static void AddNetworkIntersections(List<Segment> segments)
         {
             for (var i = 0; i < segments.Count; i++)
             {
@@ -213,34 +234,49 @@ namespace Game.Composition.WorldBuilderWorldGen
 
         private static void AddIntersections(Segment a, Segment b)
         {
-            if (a.IsHorizontal && b.IsVertical)
+            long arx = (long)a.B.X - a.A.X;
+            long arz = (long)a.B.Z - a.A.Z;
+            long brx = (long)b.B.X - b.A.X;
+            long brz = (long)b.B.Z - b.A.Z;
+            long qpx = (long)b.A.X - a.A.X;
+            long qpz = (long)b.A.Z - a.A.Z;
+            long denominator = Cross(arx, arz, brx, brz);
+
+            if (denominator == 0)
             {
-                AddCrossIntersection(a, b);
-                return;
-            }
-            if (a.IsVertical && b.IsHorizontal)
-            {
-                AddCrossIntersection(b, a);
+                if (Cross(qpx, qpz, arx, arz) == 0)
+                    AddOverlappingEndpoints(a, b);
                 return;
             }
 
-            if (a.IsHorizontal && b.IsHorizontal && a.A.Z == b.A.Z)
-            {
-                AddOverlappingEndpoints(a, b);
+            long tNumerator = Cross(qpx, qpz, brx, brz);
+            long uNumerator = Cross(qpx, qpz, arx, arz);
+            if (!IsUnitInterval(tNumerator, denominator)
+                || !IsUnitInterval(uNumerator, denominator))
                 return;
-            }
-            if (a.IsVertical && b.IsVertical && a.A.X == b.A.X)
-                AddOverlappingEndpoints(a, b);
+
+            long xNumerator = (long)a.A.X * denominator + arx * tNumerator;
+            long zNumerator = (long)a.A.Z * denominator + arz * tNumerator;
+            if (xNumerator % denominator != 0 || zNumerator % denominator != 0)
+                return;
+
+            long x = xNumerator / denominator;
+            long z = zNumerator / denominator;
+            if (x < int.MinValue || x > int.MaxValue || z < int.MinValue || z > int.MaxValue)
+                return;
+
+            var point = new PointKey((int)x, (int)z);
+            a.Points.Add(point);
+            b.Points.Add(point);
         }
 
-        private static void AddCrossIntersection(Segment horizontal, Segment vertical)
-        {
-            var point = new PointKey(vertical.A.X, horizontal.A.Z);
-            if (!horizontal.Contains(point) || !vertical.Contains(point))
-                return;
+        private static long Cross(long ax, long az, long bx, long bz) => ax * bz - az * bx;
 
-            horizontal.Points.Add(point);
-            vertical.Points.Add(point);
+        private static bool IsUnitInterval(long numerator, long denominator)
+        {
+            return denominator > 0
+                ? numerator >= 0 && numerator <= denominator
+                : numerator <= 0 && numerator >= denominator;
         }
 
         private static void AddOverlappingEndpoints(Segment a, Segment b)
@@ -267,16 +303,13 @@ namespace Game.Composition.WorldBuilderWorldGen
             }
         }
 
-        private void MaterializeStreetEdges(List<Segment> segments)
+        private void MaterializeNetworkEdges(List<Segment> segments)
         {
             for (var i = 0; i < segments.Count; i++)
             {
                 Segment segment = segments[i];
                 var ordered = new List<PointKey>(segment.Points);
-                if (segment.IsHorizontal)
-                    ordered.Sort(CompareXThenZ);
-                else
-                    ordered.Sort(CompareZThenX);
+                ordered.Sort((left, right) => CompareAlongSegment(segment, left, right));
 
                 for (var p = 0; p < ordered.Count; p++)
                     EnsureNode(ordered[p]);
@@ -292,6 +325,24 @@ namespace Game.Composition.WorldBuilderWorldGen
                     AddEdge(to, from, distance);
                 }
             }
+        }
+
+        private static int CompareAlongSegment(Segment segment, PointKey a, PointKey b)
+        {
+            long aDistance = SquaredDistance(segment.A, a);
+            long bDistance = SquaredDistance(segment.A, b);
+            int distanceOrder = aDistance.CompareTo(bDistance);
+            if (distanceOrder != 0)
+                return distanceOrder;
+            int x = a.X.CompareTo(b.X);
+            return x != 0 ? x : a.Z.CompareTo(b.Z);
+        }
+
+        private static long SquaredDistance(PointKey a, PointKey b)
+        {
+            long dx = (long)a.X - b.X;
+            long dz = (long)a.Z - b.Z;
+            return dx * dx + dz * dz;
         }
 
         private double ShortestNetworkDistanceDm(PointKey start, PointKey target)
@@ -355,18 +406,6 @@ namespace Game.Composition.WorldBuilderWorldGen
             _graph[from].Add(new Edge(to, distanceDm));
         }
 
-        private static int CompareXThenZ(PointKey a, PointKey b)
-        {
-            int x = a.X.CompareTo(b.X);
-            return x != 0 ? x : a.Z.CompareTo(b.Z);
-        }
-
-        private static int CompareZThenX(PointKey a, PointKey b)
-        {
-            int z = a.Z.CompareTo(b.Z);
-            return z != 0 ? z : a.X.CompareTo(b.X);
-        }
-
         private static double DistanceDm(int ax, int az, int bx, int bz)
         {
             double dx = ax - bx;
@@ -400,7 +439,7 @@ namespace Game.Composition.WorldBuilderWorldGen
 
         private sealed class Segment
         {
-            public string StreetId { get; }
+            public string PathId { get; }
             public PointKey A { get; }
             public PointKey B { get; }
             public HashSet<PointKey> Points { get; } = new HashSet<PointKey>();
@@ -409,24 +448,26 @@ namespace Game.Composition.WorldBuilderWorldGen
             public bool IsVertical => A.X == B.X;
             public bool IsOrthogonal => IsHorizontal || IsVertical;
 
-            public Segment(string streetId, PointKey a, PointKey b)
+            public Segment(string pathId, PointKey a, PointKey b)
             {
-                StreetId = streetId;
+                PathId = pathId;
                 A = a;
                 B = b;
             }
 
             public bool Contains(PointKey point)
             {
-                if (IsHorizontal)
-                    return point.Z == A.Z
-                        && point.X >= Math.Min(A.X, B.X)
-                        && point.X <= Math.Max(A.X, B.X);
-                if (IsVertical)
-                    return point.X == A.X
-                        && point.Z >= Math.Min(A.Z, B.Z)
-                        && point.Z <= Math.Max(A.Z, B.Z);
-                return false;
+                long dx = (long)B.X - A.X;
+                long dz = (long)B.Z - A.Z;
+                long px = (long)point.X - A.X;
+                long pz = (long)point.Z - A.Z;
+                if (Cross(dx, dz, px, pz) != 0)
+                    return false;
+
+                return point.X >= Math.Min(A.X, B.X)
+                    && point.X <= Math.Max(A.X, B.X)
+                    && point.Z >= Math.Min(A.Z, B.Z)
+                    && point.Z <= Math.Max(A.Z, B.Z);
             }
         }
 

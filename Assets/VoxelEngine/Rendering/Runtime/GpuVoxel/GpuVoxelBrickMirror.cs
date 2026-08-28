@@ -65,20 +65,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private readonly ComputeBuffer _boundarySamples;
         private readonly ComputeBuffer _occupancy;
         private readonly ComputeBuffer _metadata;
-
-        // SetData on Metal is not just a memcpy: each call can synchronize the resource with the
-        // driver. A chunk can publish hundreds of mixed bricks, so issuing three payload writes plus
-        // metadata per brick turns one admission into hundreds of tiny synchronous GPU uploads.
-        // Own a bounded CPU mirror of the slots instead. Publish copies into it immediately (so the
-        // caller may release its pinned source), and the first GPU consumer coalesces adjacent dirty
-        // slots into bulk writes. Production sizes this mirror to exactly BrickCacheCount slots.
-        private readonly NativeArray<uint> _materialStaging;
-        private readonly NativeArray<uint> _surfaceStaging;
-        private readonly NativeArray<uint> _boundaryStaging;
-        private readonly NativeArray<BrickMetadata> _metadataStaging;
-        private readonly bool[] _dirtySlots;
-        private int _dirtyMin = int.MaxValue;
-        private int _dirtyMax = -1;
+        private readonly BrickMetadata[] _metadataStaging;
         private bool _disposed;
 
         public int SlotCapacity { get; }
@@ -92,11 +79,11 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         public ulong RejectedStale => _slots.StaleCount;
         public ulong Evictions => _slots.EvictionCount;
 
-        public ComputeBuffer Materials => FlushAndGet(_materials);
-        public ComputeBuffer SurfaceSemantics => FlushAndGet(_surfaceSemantics);
-        public ComputeBuffer BoundarySamples => FlushAndGet(_boundarySamples);
-        public ComputeBuffer Occupancy => FlushAndGet(_occupancy);
-        public ComputeBuffer Metadata => FlushAndGet(_metadata);
+        public ComputeBuffer Materials => _materials;
+        public ComputeBuffer SurfaceSemantics => _surfaceSemantics;
+        public ComputeBuffer BoundarySamples => _boundarySamples;
+        public ComputeBuffer Occupancy => _occupancy;
+        public ComputeBuffer Metadata => _metadata;
 
         public GpuVoxelBrickMirror(int slotCapacity)
         {
@@ -122,19 +109,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 sizeof(uint), ComputeBufferType.Structured);
             _metadata = new ComputeBuffer(slotCapacity, BrickMetadata.Stride,
                                           ComputeBufferType.Structured);
-
-            _materialStaging = new NativeArray<uint>(
-                slotCapacity * GpuBrickBufferLayout.MaterialWordsPerBrick,
-                Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
-            _surfaceStaging = new NativeArray<uint>(
-                slotCapacity * GpuBrickBufferLayout.SurfaceWordsPerBrick,
-                Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
-            _boundaryStaging = new NativeArray<uint>(
-                slotCapacity * GpuBrickBufferLayout.BoundaryWordsPerBrick,
-                Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
-            _metadataStaging = new NativeArray<BrickMetadata>(
-                slotCapacity, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
-            _dirtySlots = new bool[slotCapacity];
+            _metadataStaging = new BrickMetadata[1];
         }
 
         public bool TryGetSlot(int3 coordinate, out int slot) => _slots.TryGetSlot(coordinate, out slot);
@@ -145,11 +120,11 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         /// <summary>
         /// Publishes one brick.
         ///
-        /// <paramref name="payload"/> is only read for a mixed brick. Its three channels are copied
-        /// into mirror-owned staging at the destination slot immediately, so the caller's pinned
-        /// block can be released as soon as publication returns. The GPU transfer is deliberately
-        /// deferred until a consumer requests one of the mirror buffers, where adjacent dirty slots
-        /// are uploaded in bulk rather than as hundreds of tiny driver calls.
+        /// <paramref name="payload"/> is only read for a mixed brick, and is copied straight from
+        /// the pinned block's arrays without a staging pass: the authoritative channels are already
+        /// laid out the way the mirror wants them, so the payload is reinterpreted as 32-bit words
+        /// in place. Copying 2 KB per brick through an intermediate buffer would double the cost of
+        /// the one operation this whole type exists to make cheap.
         /// </summary>
         public GpuBrickPublish Publish(in VoxelBrickDelta delta, in PinnedVoxelReadBlock payload)
         {
@@ -198,15 +173,15 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 return GpuBrickPublish.PayloadMissing;
             }
 
-            StageChannel(_materialStaging, voxels, elementOffset,
-                         GpuBrickBufferLayout.VoxelsPerBrick,
-                         GpuBrickBufferLayout.MaterialWordOffset(slot));
-            StageChannel(_surfaceStaging, surfaceSemantics, elementOffset,
-                         GpuBrickBufferLayout.VoxelsPerBrick,
-                         GpuBrickBufferLayout.SurfaceWordOffset(slot));
-            StageChannel(_boundaryStaging, boundarySamples, elementOffset,
-                         GpuBrickBufferLayout.VoxelsPerBrick,
-                         GpuBrickBufferLayout.BoundaryWordOffset(slot));
+            UploadChannel(_materials, voxels, elementOffset,
+                          GpuBrickBufferLayout.VoxelsPerBrick,
+                          GpuBrickBufferLayout.MaterialWordOffset(slot));
+            UploadChannel(_surfaceSemantics, surfaceSemantics, elementOffset,
+                          GpuBrickBufferLayout.VoxelsPerBrick,
+                          GpuBrickBufferLayout.SurfaceWordOffset(slot));
+            UploadChannel(_boundarySamples, boundarySamples, elementOffset,
+                          GpuBrickBufferLayout.VoxelsPerBrick,
+                          GpuBrickBufferLayout.BoundaryWordOffset(slot));
 
             WriteMetadata(delta, slot);
 
@@ -216,16 +191,18 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         }
 
         /// <summary>
-        /// Copies one brick's worth of a channel into the CPU staging mirror, reinterpreting the
-        /// source as 32-bit words. Blocks start on a block boundary, so every offset is word-aligned.
+        /// Copies one brick's worth of a channel, reinterpreting the source as 32-bit words.
+        ///
+        /// Blocks are 512 elements and start on a block boundary, so every offset divides evenly
+        /// into words and no realignment is ever needed.
         /// </summary>
-        private static void StageChannel<T>(NativeArray<uint> destination, NativeArray<T> source,
-                                            int elementOffset, int elementCount, int wordOffset)
+        private static void UploadChannel<T>(ComputeBuffer destination, NativeArray<T> source,
+                                             int elementOffset, int elementCount, int wordOffset)
             where T : struct
         {
             NativeArray<T> block = source.GetSubArray(elementOffset, elementCount);
             NativeArray<uint> words = block.Reinterpret<uint>(UnsafeElementSize<T>());
-            NativeArray<uint>.Copy(words, 0, destination, wordOffset, words.Length);
+            destination.SetData(words, 0, wordOffset, words.Length);
         }
 
         private static int UnsafeElementSize<T>() where T : struct =>
@@ -236,72 +213,14 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (slot < 0 && !_slots.TryGetSlot(delta.Coordinate, out slot)) slot = -1;
             if (slot < 0) return;   // nothing addressable to describe yet
 
-            _metadataStaging[slot] = new BrickMetadata
+            _metadataStaging[0] = new BrickMetadata
             {
                 Slot = slot,
                 Content = (uint)delta.Content,
                 UniformMaterial = delta.UniformMaterial,
                 Flags = delta.HasSolid ? 1u : 0u,
             };
-            MarkDirty(slot);
-        }
-
-        private void MarkDirty(int slot)
-        {
-            _dirtySlots[slot] = true;
-            if (slot < _dirtyMin) _dirtyMin = slot;
-            if (slot > _dirtyMax) _dirtyMax = slot;
-        }
-
-        private ComputeBuffer FlushAndGet(ComputeBuffer buffer)
-        {
-            ThrowIfDisposed();
-            FlushPendingUploads();
-            return buffer;
-        }
-
-        /// <summary>
-        /// Flushes adjacent dirty slots as contiguous buffer ranges. Fresh admissions use ascending
-        /// slots, so the common chunk publication collapses from four GPU writes per mixed brick to
-        /// four writes for the whole run. Fragmented eviction still remains correct and bounded by
-        /// the number of dirty ranges rather than the number of bricks.
-        /// </summary>
-        private void FlushPendingUploads()
-        {
-            if (_dirtyMax < _dirtyMin) return;
-
-            int slot = _dirtyMin;
-            while (slot <= _dirtyMax)
-            {
-                while (slot <= _dirtyMax && !_dirtySlots[slot]) slot++;
-                if (slot > _dirtyMax) break;
-
-                int first = slot;
-                while (slot <= _dirtyMax && _dirtySlots[slot])
-                {
-                    _dirtySlots[slot] = false;
-                    slot++;
-                }
-
-                int slotCount = slot - first;
-                int materialOffset = GpuBrickBufferLayout.MaterialWordOffset(first);
-                int surfaceOffset = GpuBrickBufferLayout.SurfaceWordOffset(first);
-                int boundaryOffset = GpuBrickBufferLayout.BoundaryWordOffset(first);
-
-                _materials.SetData(
-                    _materialStaging, materialOffset, materialOffset,
-                    slotCount * GpuBrickBufferLayout.MaterialWordsPerBrick);
-                _surfaceSemantics.SetData(
-                    _surfaceStaging, surfaceOffset, surfaceOffset,
-                    slotCount * GpuBrickBufferLayout.SurfaceWordsPerBrick);
-                _boundarySamples.SetData(
-                    _boundaryStaging, boundaryOffset, boundaryOffset,
-                    slotCount * GpuBrickBufferLayout.BoundaryWordsPerBrick);
-                _metadata.SetData(_metadataStaging, first, first, slotCount);
-            }
-
-            _dirtyMin = int.MaxValue;
-            _dirtyMax = -1;
+            _metadata.SetData(_metadataStaging, 0, slot, 1);
         }
 
         private void ThrowIfDisposed()
@@ -318,10 +237,6 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _boundarySamples?.Release();
             _occupancy?.Release();
             _metadata?.Release();
-            if (_materialStaging.IsCreated) _materialStaging.Dispose();
-            if (_surfaceStaging.IsCreated) _surfaceStaging.Dispose();
-            if (_boundaryStaging.IsCreated) _boundaryStaging.Dispose();
-            if (_metadataStaging.IsCreated) _metadataStaging.Dispose();
             _slots.Clear();
         }
     }

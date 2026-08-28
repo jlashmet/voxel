@@ -120,7 +120,8 @@ if [[ -n "$TEST_FILTER" && -z "$SCENE_ISSUE" ]]; then
       SCENE="Assets/Scenes/TerrainLookdev.unity"
       : "${RUN_SECONDS:=30}"
       ;;
-    VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests|VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests.*)
+    VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests|VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests.*|\
+    VoxelEngine.Tests.PlayMode.WorldBuilderProductionScenePlayTests|VoxelEngine.Tests.PlayMode.WorldBuilderProductionScenePlayTests.*)
       # Kentridge is an integration scene, so its visual proof must come from the same standalone
       # player path as the showcase benchmarks rather than a PlayMode RenderTexture. Keep the
       # authored opening camera stationary long enough to survive real-player startup/worldgen and
