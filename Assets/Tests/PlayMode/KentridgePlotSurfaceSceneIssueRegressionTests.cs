@@ -5,7 +5,7 @@ using Unity.Collections;
 using VoxelEngine.Structures.Api;
 using VoxelEngine.Terrain.Api;
 
-namespace VoxelEngine.Tests.EditMode
+namespace VoxelEngine.Tests.PlayMode
 {
     public sealed class KentridgePlotSurfaceSceneIssueRegressionTests
     {
