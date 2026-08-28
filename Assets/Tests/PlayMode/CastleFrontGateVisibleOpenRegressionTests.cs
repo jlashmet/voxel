@@ -21,6 +21,7 @@ namespace VoxelEngine.Tests.PlayMode
     {
         private const int VerificationWidth = 1928;
         private const int VerificationHeight = 836;
+        private const float VerificationRenderSettleSeconds = 12f;
 
         [UnityTest]
         public IEnumerator NearbyInteractionAnimatesBothGateLeavesAndKeepsCentrePassageClear()
@@ -136,10 +137,12 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(showcase.TryInteract(), Is.False,
                 "The gate interaction must remain one-shot after the visible opened state completes.");
 
-            // Give the production render scheduler time to rebuild the changed gate chunks, then
-            // render the exact captured camera pose into a native-size verification artifact.
-            for (int frame = 0; frame < 20; frame++)
-                yield return null;
+            // CastleVoxels proves authored storage is complete, not that the presentation scheduler
+            // has extracted and materialized the nearby meshes. The exact-pose real-player replay
+            // from the prior green run was still fallback gray at 14.6 s but fully materialized by
+            // 24.6 s. Wait in real time so uncapped PlayMode cannot compress a frame-count settle
+            // into milliseconds, then capture the exact saved hierarchy camera at native size.
+            yield return new WaitForSecondsRealtime(VerificationRenderSettleSeconds);
             CaptureVerificationImage();
         }
 
@@ -160,12 +163,17 @@ namespace VoxelEngine.Tests.PlayMode
 
         private static void CaptureVerificationImage()
         {
-            Camera camera = Camera.main != null ? Camera.main : Object.FindFirstObjectByType<Camera>();
-            Assert.NotNull(camera, "VoxelShowcase has no camera for verification capture.");
+            GameObject cameraObject = GameObject.Find("Showcase Camera");
+            Camera camera = cameraObject != null ? cameraObject.GetComponent<Camera>() : null;
+            Assert.NotNull(camera,
+                "Captured hierarchy path 'Showcase Camera' has no camera for verification capture.");
 
             Vector3 originalPosition = camera.transform.position;
             Quaternion originalRotation = camera.transform.rotation;
             float originalFieldOfView = camera.fieldOfView;
+            float originalNearClip = camera.nearClipPlane;
+            float originalFarClip = camera.farClipPlane;
+            bool originalOrthographic = camera.orthographic;
             RenderTexture originalTarget = camera.targetTexture;
             RenderTexture previousActive = RenderTexture.active;
 
@@ -180,6 +188,9 @@ namespace VoxelEngine.Tests.PlayMode
                     new Quaternion(0.10458954423666f, -0.007642569486051798f,
                                    -0.000803764967713505f, -0.9944857954978943f));
                 camera.fieldOfView = 70f;
+                camera.orthographic = false;
+                camera.nearClipPlane = 0.05f;
+                camera.farClipPlane = 16000f;
                 camera.targetTexture = target;
                 camera.Render();
                 RenderTexture.active = target;
@@ -203,6 +214,9 @@ namespace VoxelEngine.Tests.PlayMode
             {
                 camera.targetTexture = originalTarget;
                 camera.fieldOfView = originalFieldOfView;
+                camera.nearClipPlane = originalNearClip;
+                camera.farClipPlane = originalFarClip;
+                camera.orthographic = originalOrthographic;
                 camera.transform.SetPositionAndRotation(originalPosition, originalRotation);
                 RenderTexture.active = previousActive;
                 target.Release();
