@@ -1,0 +1,9 @@
+# Experiment 009 — shared presentation publish order
+
+**Hypothesis.** The saved-pose mismatch survives exact material IDs and explicit 0.1 m voxel scale because far terrain is an ordinary opaque draw, while the renderer-owned material tables and texture arrays are not published until the continuous-surface pass at `BeforeRenderingTransparents`.
+
+**Action / source.** On refreshed feature head `10813313d50a4b087210d6914c4762205a190c39`, inspected the captured replay artifact from the prior green targeted run: the near/far mismatch is still present. Traced `_MaterialSampling`, `_MaterialSurface`, `_AlbedoTextures`, and `_VoxelSize` to `VoxelRenderPass.RecordRenderGraph`, where they are bound immediately before near-surface draws. `VoxelRenderFeature` schedules that pass from serialized event 450 (`BeforeRenderingTransparents`); `VoxelFarTerrain` uses `Graphics.DrawMesh` with shader queue `Geometry`. Added a behavioral scheduling regression and clamped that existing pass to no later than `BeforeRenderingOpaques`.
+
+**Result.** Static ownership/order is now unambiguous: the canonical presentation producer runs before the opaque far consumer without introducing a second binding path. No extra pass, texture allocation, vector-array upload, or mesh work is added. Final runtime result remains to be proven by the original saved-pose replay on the exact candidate SHA.
+
+**Verdict.** This is the fourth production attempt, but the required post-three-failure isolation preceded it: the minimal reproduction is the producer/consumer render-event ordering exercised by `SharedPresentationPublisherRunsBeforeOpaqueFarTerrain`. If the original replay remains mismatched, this hypothesis is falsified and texture-array minification becomes the next discriminator rather than another UV/material change.

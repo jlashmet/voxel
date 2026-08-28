@@ -1,0 +1,161 @@
+{
+    "formatVersion": 3,
+    "id": "20260828-172924-078-VoxelShowcase",
+    "capturedUtc": "2026-08-28T17:29:24.0816210Z",
+    "note": "this whole grass patch is incorrect.  there is supposed to be water here.",
+    "status": "open",
+    "resolvedUtc": "",
+    "resolutionSummary": "",
+    "regressionTest": "",
+    "fixCommit": "",
+    "unityVersion": "6000.5.6f1",
+    "platform": "OSXEditor",
+    "sceneName": "VoxelShowcase",
+    "scenePath": "Assets/Scenes/VoxelShowcase.unity",
+    "sceneBuildIndex": 2,
+    "captures": [
+        {
+            "screenshot": "screenshot-001.png",
+            "capturedUtc": "2026-08-28T17:29:24.0825400Z",
+            "frameCount": 3595,
+            "timeSinceLevelLoad": 21.993976593017579,
+            "screenWidth": 1440,
+            "screenHeight": 801,
+            "poseAnchor": {
+                "hierarchyPath": "Showcase Camera",
+                "position": {
+                    "x": 59.45004653930664,
+                    "y": 20.350112915039064,
+                    "z": -1.5462596416473389
+                },
+                "rotation": {
+                    "x": 0.09022175520658493,
+                    "y": 0.053255680948495868,
+                    "z": -0.004831465892493725,
+                    "w": 0.994485080242157
+                },
+                "localScale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                }
+            },
+            "camera": {
+                "hierarchyPath": "Showcase Camera",
+                "position": {
+                    "x": 59.45004653930664,
+                    "y": 20.350112915039064,
+                    "z": -1.5462596416473389
+                },
+                "rotation": {
+                    "x": 0.09022175520658493,
+                    "y": 0.053255680948495868,
+                    "z": -0.004831465892493725,
+                    "w": 0.994485080242157
+                },
+                "fieldOfView": 70.0,
+                "orthographic": false,
+                "orthographicSize": 5.0,
+                "nearClipPlane": 0.05000000074505806,
+                "farClipPlane": 16000.0
+            },
+            "circles": [
+                {
+                    "centerX": 0.6073446273803711,
+                    "centerY": 0.0810321643948555,
+                    "radius": 0.07541035860776901
+                },
+                {
+                    "centerX": 0.450564980506897,
+                    "centerY": 0.2105313241481781,
+                    "radius": 0.09336521476507187
+                },
+                {
+                    "centerX": 0.2881355881690979,
+                    "centerY": 0.34764808416366579,
+                    "radius": 0.1311810314655304
+                },
+                {
+                    "centerX": 0.10310734808444977,
+                    "centerY": 0.4238240420818329,
+                    "radius": 0.10582704097032547
+                },
+                {
+                    "centerX": 0.13418078422546388,
+                    "centerY": 0.5812543630599976,
+                    "radius": 0.07004692405462265
+                }
+            ]
+        }
+    ],
+    "screenshot": "screenshot-001.png",
+    "frameCount": 3595,
+    "timeSinceLevelLoad": 21.993976593017579,
+    "screenWidth": 1440,
+    "screenHeight": 801,
+    "poseAnchor": {
+        "hierarchyPath": "Showcase Camera",
+        "position": {
+            "x": 59.45004653930664,
+            "y": 20.350112915039064,
+            "z": -1.5462596416473389
+        },
+        "rotation": {
+            "x": 0.09022175520658493,
+            "y": 0.053255680948495868,
+            "z": -0.004831465892493725,
+            "w": 0.994485080242157
+        },
+        "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+        }
+    },
+    "camera": {
+        "hierarchyPath": "Showcase Camera",
+        "position": {
+            "x": 59.45004653930664,
+            "y": 20.350112915039064,
+            "z": -1.5462596416473389
+        },
+        "rotation": {
+            "x": 0.09022175520658493,
+            "y": 0.053255680948495868,
+            "z": -0.004831465892493725,
+            "w": 0.994485080242157
+        },
+        "fieldOfView": 70.0,
+        "orthographic": false,
+        "orthographicSize": 5.0,
+        "nearClipPlane": 0.05000000074505806,
+        "farClipPlane": 16000.0
+    },
+    "circles": [
+        {
+            "centerX": 0.6073446273803711,
+            "centerY": 0.0810321643948555,
+            "radius": 0.07541035860776901
+        },
+        {
+            "centerX": 0.450564980506897,
+            "centerY": 0.2105313241481781,
+            "radius": 0.09336521476507187
+        },
+        {
+            "centerX": 0.2881355881690979,
+            "centerY": 0.34764808416366579,
+            "radius": 0.1311810314655304
+        },
+        {
+            "centerX": 0.10310734808444977,
+            "centerY": 0.4238240420818329,
+            "radius": 0.10582704097032547
+        },
+        {
+            "centerX": 0.13418078422546388,
+            "centerY": 0.5812543630599976,
+            "radius": 0.07004692405462265
+        }
+    ]
+}

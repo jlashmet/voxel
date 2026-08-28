@@ -128,7 +128,7 @@ namespace Game.Materials.Runtime
                     WeatherCoatings, placementSurfaceStyle: SurfaceStyles.MaterialDefault,
                     placementCoating: Coatings.Moss),
                 Textured(GameMaterialIds.Moss, 0.32f, 0.40f, 0.24f, GrassTexture, true, 0.16f,
-                    roughness: 0.48f)),
+                    uvScale: 1f / 7f, roughness: 0.48f)),
 
             Row(GameMaterialIds.LitWindow, true,
                 Sim(GameMaterialIds.LitWindow, 18, DestructionClass.Powder, SurfaceStyles.Sharp, 1u << Coatings.Wet),
@@ -221,10 +221,12 @@ namespace Game.Materials.Runtime
             float luminancePivot = 0.68f,
             float chromaStrength = 0f,
             float macroVariation = 0f,
+            float uvScale = 1f / 36f,
             float roughness = 0.76f) =>
             new(materialIndex, new float4(r, g, b, 1f), layer, layer,
                 triplanar ? MaterialTextureProjection.Triplanar : MaterialTextureProjection.Face,
                 textureBlend: detailStrength > 0f ? 1f : 0.28f,
+                uvScale: uvScale,
                 normalStrength: normalStrength,
                 roughness: roughness,
                 luminanceOnly: detailStrength > 0f,
