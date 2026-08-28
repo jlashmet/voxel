@@ -24,9 +24,9 @@ namespace MountingForce.WorldGen.Voxel
         private const int MixedShoulderWidthDm = 54;
         private const int UrbanShoulderWidthDm = 72;
         private const int ShoulderStepCount = 6;
-        private const int UpperWestProfileStepDm = 5;
+        private const int ProfiledWestStepDm = 5;
         private const int StandardTerrainMaxPrimitives = 40;
-        private const int UpperShoulderMaxPrimitives = 96;
+        private const int ProfiledWestMaxPrimitives = 96;
         private const int RetainingTierStride = 3;
         private const int RetainingFaceThicknessDm = 3;
         private const int RetainingEndInsetDm = 12;
@@ -188,8 +188,8 @@ namespace MountingForce.WorldGen.Voxel
                     ProgramLength = program.Length,
                     MaterialOffset = 0,
                     MaterialCount = 0,
-                    MaxPrimitives = build.Seed.Id == "upper-shoulder"
-                        ? UpperShoulderMaxPrimitives
+                    MaxPrimitives = HasProfiledWestEdge(build.Seed.Id)
+                        ? ProfiledWestMaxPrimitives
                         : StandardTerrainMaxPrimitives,
                 };
 
@@ -249,6 +249,9 @@ namespace MountingForce.WorldGen.Voxel
             return catalogue;
         }
 
+        private static bool HasProfiledWestEdge(string id) =>
+            id == "upper-shoulder" || id == "civic-summit";
+
         private static ExplicitPlacement Placement(int3 position)
         {
             return new ExplicitPlacement
@@ -307,16 +310,16 @@ namespace MountingForce.WorldGen.Voxel
                 seed);
 
             int[] westProfile = null;
-            if (terrace.Id == "upper-shoulder")
+            if (HasProfiledWestEdge(terrace.Id))
             {
-                int count = (terrace.DepthDm + UpperWestProfileStepDm - 1)
-                          / UpperWestProfileStepDm;
+                int count = (terrace.DepthDm + ProfiledWestStepDm - 1)
+                          / ProfiledWestStepDm;
                 westProfile = new int[count];
                 int westXDm = terrace.XDm - shoulderDm;
                 for (int i = 0; i < count; i++)
                 {
-                    int startDm = i * UpperWestProfileStepDm;
-                    int depthDm = Math.Min(UpperWestProfileStepDm,
+                    int startDm = i * ProfiledWestStepDm;
+                    int depthDm = Math.Min(ProfiledWestStepDm,
                                            terrace.DepthDm - startDm);
                     int sampleZDm = terrace.ZDm + startDm + depthDm / 2;
                     westProfile[i] = TerrainQuery.HeightAt(
@@ -444,7 +447,7 @@ namespace MountingForce.WorldGen.Voxel
 
             if (build.WestEdgeProfileY != null && build.WestEdgeProfileY.Length > 0)
             {
-                int stripDepth = UpperWestProfileStepDm * s;
+                int stripDepth = ProfiledWestStepDm * s;
                 for (int i = 0; i < build.WestEdgeProfileY.Length; i++)
                 {
                     int z = coreInset + i * stripDepth;
