@@ -52,7 +52,10 @@ namespace MountingForce.WorldGen.Voxel
             }
 
             Add(stageList, KentridgeVerticalPlacementAdapter.BuildPlotDressing(seed, settings, Allocator.Temp));
-            Add(stageList, KentridgeVerticalPlacementAdapter.BuildTownDressing(seed, settings, Allocator.Temp));
+            if (organicKentridge)
+                Add(stageList, KentridgeTownDressingCatalogue.Build(seed, settings, Allocator.Temp));
+            else
+                Add(stageList, KentridgeVerticalPlacementAdapter.BuildTownDressing(seed, settings, Allocator.Temp));
 
             // These anonymous massing/access passes encode the retired cross-street/block skeleton.
             // Organic Kentridge deliberately omits them until they can consume inferred route topology.
