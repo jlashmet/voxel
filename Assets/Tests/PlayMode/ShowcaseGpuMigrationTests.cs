@@ -15,13 +15,16 @@ namespace VoxelEngine.Tests.PlayMode
     /// <summary>
     /// Regression for SceneIssue 20260825-192751-413: the legacy per-worker GPU-v1 cutover must
     /// stay out of production after two exact traversal runs lost every visible voxel draw. The
-    /// optimized CPU renderer must preserve the same moving coverage and frame-time gates while
-    /// GPU-v1 remains available only through explicit diagnostic opt-in.
+    /// optimized CPU renderer must preserve moving coverage and frame-time gates at the scene's
+    /// actual unsprinted fly-speed ceiling while GPU-v1 remains explicit diagnostic opt-in only.
     /// </summary>
     public sealed class ShowcaseGpuMigrationTests
     {
         private const string ScenePath = "Assets/Scenes/VoxelShowcase.unity";
         private const double MaxCoverageWarmupSeconds = 30.0;
+        private const double MaxTraversalSeconds = 30.0;
+        private const float TraversalDistanceMetres = 210f;
+        private const float MaxTraversalStepMetres = 0.5f;
         private const double MaxMovingP95FrameMs = 18.0;
         private const double MaxMovingP99FrameMs = 25.0;
 
@@ -43,6 +46,9 @@ namespace VoxelEngine.Tests.PlayMode
 
             SetShowcaseField(showcase, "m_FlyMode", true);
             SetShowcaseField(showcase, "_mouseLook", false);
+            float productionFlySpeed = GetShowcaseField<float>(showcase, "m_FlySpeed");
+            Assert.Greater(productionFlySpeed, 0f,
+                "Showcase production fly speed must be positive for traversal coverage.");
 
             var target = new RenderTexture(320, 180, 24, RenderTextureFormat.ARGB32)
             {
@@ -60,28 +66,54 @@ namespace VoxelEngine.Tests.PlayMode
 
                 Vector3 origin = showcase.transform.position;
                 Quaternion originRotation = showcase.transform.rotation;
+                Vector3 position = origin;
+                float pathMetres = 0f;
                 ulong initialGpuCompleted = VoxelRenderBridge.SurfaceMetrics.GpuCompletedSolidBuilds;
-                var frameTimesMs = new List<double>(420);
+                var frameTimesMs = new List<double>(1024);
                 var frameClock = new Stopwatch();
+                var traversalClock = Stopwatch.StartNew();
+                double previousMotionSeconds = traversalClock.Elapsed.TotalSeconds;
                 bool sawStreamingWork = false;
                 int crossedRegionBoundaries = 0;
                 int previousRegionX = Mathf.FloorToInt(origin.x / ShowcaseWorld.RegionMetres);
+                int frame = 0;
                 VoxelSurfaceMetrics last = default;
 
-                for (int frame = 0; frame < 420; frame++)
+                // The old regression advanced 0.5 m on every rendered frame. At its own 18 ms
+                // budget that is already ~28 m/s, and at the scene's target frame rates it becomes
+                // hundreds of metres per second. That tests a frame-rate-dependent teleport, not
+                // player movement. Advance by real elapsed time at the scene's unsprinted fly-speed
+                // ceiling, retaining the 0.5 m per-frame cap so a slow CI frame can never make the
+                // test less strict than the old spatial step. A gentle heading weave still forces
+                // clipmap changes off one perfectly aligned axis.
+                while (position.x - origin.x < TraversalDistanceMetres)
                 {
-                    float progress = frame / 419f;
-                    Vector3 position = origin + new Vector3(
-                        frame * 0.5f,
-                        0f,
-                        Mathf.Sin(progress * Mathf.PI * 6f) * 18f);
+                    double nowSeconds = traversalClock.Elapsed.TotalSeconds;
+                    float deltaSeconds = (float)(nowSeconds - previousMotionSeconds);
+                    previousMotionSeconds = nowSeconds;
+                    float step = Mathf.Min(
+                        MaxTraversalStepMetres,
+                        productionFlySpeed * Mathf.Max(0f, deltaSeconds));
+
+                    if (step > 0f)
+                    {
+                        float phase = pathMetres / TraversalDistanceMetres * Mathf.PI * 6f;
+                        float headingRadians = Mathf.Sin(phase) * 20f * Mathf.Deg2Rad;
+                        Vector3 direction = new(
+                            Mathf.Cos(headingRadians), 0f, Mathf.Sin(headingRadians));
+                        float remainingX = TraversalDistanceMetres - (position.x - origin.x);
+                        step = Mathf.Min(step, remainingX / Mathf.Max(0.01f, direction.x));
+                        position += direction * step;
+                        pathMetres += step;
+                    }
+
                     showcase.transform.position = position;
                     showcase.transform.rotation = originRotation;
 
                     int regionX = Mathf.FloorToInt(position.x / ShowcaseWorld.RegionMetres);
                     if (regionX != previousRegionX)
                     {
-                        crossedRegionBoundaries++;
+                        crossedRegionBoundaries += Mathf.Abs(regionX - previousRegionX);
                         previousRegionX = regionX;
                     }
 
@@ -112,8 +144,19 @@ namespace VoxelEngine.Tests.PlayMode
                                      || last.SolidMeshesAwaitingUpload > 0
                                      || last.SolidPendingUploadBytes > 0
                                      || last.LastFrameSolidUploadedBytes > 0;
+
+                    if (traversalClock.Elapsed.TotalSeconds > MaxTraversalSeconds)
+                    {
+                        Assert.Fail(
+                            $"Production-speed traversal exceeded {MaxTraversalSeconds:F0}s after "
+                          + $"{position.x - origin.x:F1}/{TraversalDistanceMetres:F0} m and "
+                          + $"{frame + 1} rendered frames.");
+                    }
+                    frame++;
                 }
 
+                Assert.GreaterOrEqual(position.x - origin.x, TraversalDistanceMetres - 0.01f,
+                    "Production safety traversal did not cover the required world-space distance.");
                 Assert.GreaterOrEqual(crossedRegionBoundaries, 4,
                     "Production safety traversal did not cross enough region boundaries.");
                 Assert.True(sawStreamingWork,
@@ -127,7 +170,9 @@ namespace VoxelEngine.Tests.PlayMode
                 double p95 = Percentile(frameTimesMs, 0.95);
                 double p99 = Percentile(frameTimesMs, 0.99);
                 UnityEngine.Debug.Log(
-                    $"### SHOWCASE_GPU_ROLLBACK_TRAVERSAL p95={p95:F3}ms p99={p99:F3}ms "
+                    $"### SHOWCASE_GPU_ROLLBACK_TRAVERSAL frames={frameTimesMs.Count} "
+                  + $"distance={position.x - origin.x:F1}m path={pathMetres:F1}m "
+                  + $"speedCap={productionFlySpeed:F1}m/s p95={p95:F3}ms p99={p99:F3}ms "
                   + $"max={frameTimesMs[^1]:F3}ms");
                 Assert.Less(p95, MaxMovingP95FrameMs,
                     $"Production CPU traversal p95 regressed to {p95:F3} ms.");
@@ -278,6 +323,14 @@ namespace VoxelEngine.Tests.PlayMode
                 Mathf.CeilToInt((float)(percentile * sorted.Count)) - 1,
                 0, sorted.Count - 1);
             return sorted[index];
+        }
+
+        private static T GetShowcaseField<T>(VoxelShowcase showcase, string name)
+        {
+            FieldInfo field = typeof(VoxelShowcase).GetField(
+                name, BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.NotNull(field, $"VoxelShowcase field '{name}' was not found.");
+            return (T)field.GetValue(showcase);
         }
 
         private static void SetShowcaseField<T>(VoxelShowcase showcase, string name, T value)
