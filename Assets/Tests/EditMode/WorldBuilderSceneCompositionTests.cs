@@ -1,8 +1,10 @@
 using System;
 using System.IO;
+using Game.Composition.WorldBuilderWorldGen;
 using Game.WorldBuilder.Api;
 using Game.WorldBuilder.Runtime;
 using MountingForce.WorldGen;
+using MountingForce.WorldGen.Content.Kentridge;
 using NUnit.Framework;
 using VoxelEngine.Showcase;
 
@@ -115,6 +117,25 @@ namespace VoxelEngine.Tests.EditMode
                 "Distinct WorldBuilder recipes must not collapse both towns onto one canonical composition.");
             Assert.That(kentridgePlan.Plots.Count, Is.GreaterThan(0));
             Assert.That(hightownPlan.Plots.Count, Is.GreaterThan(0));
+
+            Assert.That(kentridgePlan.Streets.Count, Is.Zero,
+                "The modern Kentridge recipe must remain organic rather than restoring legacy streets to satisfy traversal.");
+            Assert.That(kentridgePlan.Routes.Count, Is.GreaterThan(0));
+
+            var projections = new KentridgeArchitectureSiteProjectionProvider(kentridgePlan);
+            var traversal = new SettlementStreetTraversalFacts(kentridgePlan, projections);
+            int pubRole = (int)KentridgeRole.Pub;
+            for (var i = 0; i < kentridgePlan.Sites.Count; i++)
+            {
+                PlannedSite site = kentridgePlan.Sites[i];
+                Assert.That(
+                    traversal.IsReachable(pubRole, site.RoleId, TraversalProfile.NormalParty),
+                    Is.True,
+                    $"WorldBuilder traversal must connect Kentridge pub to role {site.RoleId} through inferred routes/plaza.");
+                Assert.That(
+                    traversal.TraversalDistanceMetres(pubRole, site.RoleId, TraversalProfile.NormalParty),
+                    Is.LessThan(int.MaxValue));
+            }
         }
 
         private static void AssertSceneSourceContainsNoGenerationBackends(string sceneDirectory)
