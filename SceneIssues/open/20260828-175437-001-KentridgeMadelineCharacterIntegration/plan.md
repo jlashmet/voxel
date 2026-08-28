@@ -19,7 +19,8 @@ Acceptance: scene code chooses scenario/spawn/input only; a Game-owned character
 
 ## Evidence / blast radius / cost
 - `experiment-001-final-ci-failure.md`: first request failed before tests because extracted assembly dependencies were incomplete; capture-based replay was invalid for this capture-less Architecture issue.
-- `experiment-002-assembly-dependency-closure.md`: second request proved the configured test selects the exact Kentridge player, then exposed the remaining exact owner assemblies (`Game.WorldBuilder.Api` for `NpcRef`; `Game.Composition.Showcase` for `ShowcaseWorld`). Those edges are now fixed.
+- `experiment-002-assembly-dependency-closure.md`: second request proved the configured test selects the exact Kentridge player and exposed the assembly owners required by `NpcRef`/`ShowcaseWorld`.
+- `experiment-003-source-namespace-closure.md`: third request reproduced identical PlayMode/player-build compile failures and discriminated the namespace/assembly split: `ShowcaseWorld` is in `Game.Composition.Showcase`, while `CharacterMotor` is in the separate `VoxelEngine.Showcase` assembly despite sharing `VoxelEngine.Showcase` namespace; `NpcRef` also required the `Game.WorldBuilder.Api` namespace import. Both exact edges are now retained.
 
 Blast radius: Kentridge playable character composition, generic visual grounding, and existing Kentridge production acceptance only. Other placeholder identities are unchanged. Cost remains the existing host tick plus one production Madeline prefab; grounding replaces the prior per-character Kentridge grounding behavior rather than adding a new world/streaming scan.
 
