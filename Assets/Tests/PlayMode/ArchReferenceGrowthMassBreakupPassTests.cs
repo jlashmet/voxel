@@ -35,9 +35,7 @@ namespace VoxelEngine.Tests.PlayMode
                 ArchReferenceGrowthLushPass lush = host.AddComponent<ArchReferenceGrowthLushPass>();
                 ArchReferenceGrowthEnglishIvyPass english = host.AddComponent<ArchReferenceGrowthEnglishIvyPass>();
 
-                for (int frame = 0; frame < 28 && !english.EnglishApplied; frame++)
-                    yield return null;
-
+                for (int frame = 0; frame < 28 && !english.EnglishApplied; frame++) yield return null;
                 Assert.That(detail.RefinementApplied, Is.True);
                 Assert.That(lush.LushApplied, Is.True);
                 Assert.That(english.EnglishApplied, Is.True);
@@ -46,96 +44,74 @@ namespace VoxelEngine.Tests.PlayMode
                 Mesh petals = growth.HeroFlowerPetalMesh;
                 Assert.That(ivy, Is.Not.Null);
                 Assert.That(petals, Is.Not.Null);
-                Assert.That(TryFindIvyLeafStarts(ivy, out _, out int preLeafCount), Is.True,
-                    "The discriminator must positively recover authored leaf runs instead of assuming stem spacing.");
-                Assert.That(preLeafCount, Is.EqualTo(128));
+                Assert.That(TryFindIvyLeafStarts(ivy, out _, out int beforeLeaves), Is.True);
+                Assert.That(beforeLeaves, Is.EqualTo(128));
                 int vertexBudget = growth.HeroVertexCount;
 
-                ArchReferenceGrowthMassBreakupPass finalPass =
-                    host.AddComponent<ArchReferenceGrowthMassBreakupPass>();
-                for (int frame = 0; frame < 28 && !finalPass.CompositionApplied; frame++)
-                    yield return null;
+                ArchReferenceGrowthMassBreakupPass finalPass = host.AddComponent<ArchReferenceGrowthMassBreakupPass>();
+                for (int frame = 0; frame < 28 && !finalPass.CompositionApplied; frame++) yield return null;
 
                 Assert.That(finalPass.CompositionApplied, Is.True);
                 Assert.That(growth.HeroIvyMesh, Is.SameAs(ivy));
                 Assert.That(growth.HeroFlowerPetalMesh, Is.SameAs(petals));
-                Assert.That(TryFindIvyLeafStarts(ivy, out _, out int finalLeafCount), Is.True);
-                Assert.That(finalLeafCount, Is.EqualTo(128));
+                Assert.That(TryFindIvyLeafStarts(ivy, out _, out int afterLeaves), Is.True);
+                Assert.That(afterLeaves, Is.EqualTo(128));
 
                 Vector2 lowerMass = IvyZoneCentre(ivy, 0, 2);
                 Vector2 upperMass = IvyZoneCentre(ivy, 3, 6);
                 Vector2 crownMass = IvyZoneCentre(ivy, 7, 11);
-                float lowerGap = IvyZoneVerticalGap(ivy, 0, 2, 3, 6);
-                float upperGap = IvyZoneVerticalGap(ivy, 3, 6, 7, 11);
-                float maxLeftClusterX = MaximumLeftClusterCentreX(ivy);
+                AssertEnvelope(lowerMass, -1.90f, -1.52f, 1.00f, 1.52f, "lower-pier foliage");
+                AssertEnvelope(upperMass, -1.90f, -1.50f, 3.90f, 4.52f, "upper-pier foliage");
+                AssertEnvelope(crownMass, -1.52f, -1.08f, 6.62f, 7.22f, "left-crown foliage");
+                Assert.That(MaximumLeftClusterCentreX(ivy), Is.LessThan(-0.84f),
+                    "No left foliage cluster may drift into the central arch opening.");
+                Assert.That(IvyZoneVerticalGap(ivy, 0, 2, 3, 6), Is.GreaterThan(0.75f));
+                Assert.That(IvyZoneVerticalGap(ivy, 3, 6, 7, 11), Is.GreaterThan(0.75f));
+
                 Vector2 lowerBouquet = FlowerZoneCentre(petals, 0);
                 Vector2 upperBouquet = FlowerZoneCentre(petals, 1);
                 Vector2 crownBouquet = FlowerZoneCentre(petals, 2);
-                float flowerRadius = AverageFlowerHeadRadius(petals);
-                float petalRoundness = AveragePetalRoundness(petals);
-                float flowerDepth = AverageFlowerHeadDepth(petals);
-
-                AssertMasonryMass(lowerMass, -1.90f, -1.52f, 1.00f, 1.52f, "lower-pier");
-                AssertMasonryMass(upperMass, -1.90f, -1.50f, 3.90f, 4.52f, "upper-pier");
-                AssertMasonryMass(crownMass, -1.52f, -1.08f, 6.62f, 7.22f, "left-crown");
-                Assert.That(maxLeftClusterX, Is.LessThan(-0.84f),
-                    "No left foliage cluster may drift into the central arch opening.");
-                Assert.That(lowerGap, Is.GreaterThan(0.75f),
-                    "Lower and upper pier foliage need real negative space, not a diagonal bridge.");
-                Assert.That(upperGap, Is.GreaterThan(0.75f),
-                    "Upper pier and crown foliage need real negative space, not a diagonal bridge.");
-
-                AssertMasonryMass(lowerBouquet, -1.82f, -1.35f, 1.66f, 2.18f, "lower bouquet");
-                AssertMasonryMass(upperBouquet, -1.82f, -1.32f, 4.45f, 4.98f, "upper bouquet");
-                AssertMasonryMass(crownBouquet, -1.52f, -1.00f, 6.65f, 7.20f, "crown bouquet");
-                Assert.That(flowerRadius, Is.GreaterThan(0.085f).And.LessThan(0.125f),
-                    "Rounded heads need readable but subordinate screen presence at the saved pose.");
-                Assert.That(petalRoundness, Is.GreaterThan(0.72f),
-                    "Each seven-vertex petal must be a broad oval lobe, not a pointed star ray.");
-                Assert.That(flowerDepth, Is.GreaterThan(0.025f),
-                    "Rosette bouquets must retain layered depth instead of flattening into cards.");
+                AssertEnvelope(lowerBouquet, -1.82f, -1.35f, 1.66f, 2.18f, "lower bouquet");
+                AssertEnvelope(upperBouquet, -1.82f, -1.32f, 4.45f, 4.98f, "upper bouquet");
+                AssertEnvelope(crownBouquet, -1.52f, -1.00f, 6.65f, 7.20f, "crown bouquet");
+                Assert.That(AverageFlowerHeadRadius(petals), Is.GreaterThan(0.085f).And.LessThan(0.125f));
+                Assert.That(AveragePetalRoundness(petals), Is.GreaterThan(0.72f));
+                Assert.That(AverageFlowerHeadDepth(petals), Is.GreaterThan(0.025f));
                 Assert.That(growth.HeroDrawCallCount, Is.EqualTo(3));
-                Assert.That(growth.HeroVertexCount, Is.EqualTo(vertexBudget));
-                Assert.That(growth.HeroVertexCount, Is.LessThanOrEqualTo(4096));
+                Assert.That(growth.HeroVertexCount, Is.EqualTo(vertexBudget).And.LessThanOrEqualTo(4096));
 
-                Vector2 finalLowerMass = lowerMass;
-                Vector2 finalUpperMass = upperMass;
-                Vector2 finalCrownMass = crownMass;
-                Vector2 finalLowerBouquet = lowerBouquet;
-                Vector2 finalUpperBouquet = upperBouquet;
-                Vector2 finalCrownBouquet = crownBouquet;
-                float finalFlowerRadius = flowerRadius;
-                float finalPetalRoundness = petalRoundness;
                 Mesh firstIvy = ivy;
+                Vector2 expectedLowerMass = lowerMass;
+                Vector2 expectedUpperMass = upperMass;
+                Vector2 expectedCrownMass = crownMass;
+                Vector2 expectedLowerBouquet = lowerBouquet;
+                Vector2 expectedUpperBouquet = upperBouquet;
+                Vector2 expectedCrownBouquet = crownBouquet;
+                float expectedRadius = AverageFlowerHeadRadius(petals);
+                float expectedRoundness = AveragePetalRoundness(petals);
 
                 growth.enabled = false;
                 yield return null;
                 growth.enabled = true;
-
                 for (int frame = 0; frame < 36; frame++)
                 {
                     Mesh rebuilt = growth.HeroIvyMesh;
                     if (rebuilt != null && rebuilt != firstIvy && finalPass.CompositionApplied &&
                         TryFindIvyLeafStarts(rebuilt, out _, out int rebuiltCount) && rebuiltCount == 128 &&
-                        MaximumLeftClusterCentreX(rebuilt) < -0.84f)
-                        break;
+                        MaximumLeftClusterCentreX(rebuilt) < -0.84f) break;
                     yield return null;
                 }
 
-                Assert.That(growth.HeroIvyMesh, Is.Not.Null);
-                Assert.That(growth.HeroIvyMesh, Is.Not.SameAs(firstIvy));
-                Assert.That(finalPass.CompositionApplied, Is.True,
-                    "Final composition must reapply through the production growth rebuild lifecycle.");
-                Assert.That(TryFindIvyLeafStarts(growth.HeroIvyMesh, out _, out int rebuiltLeafCount), Is.True);
-                Assert.That(rebuiltLeafCount, Is.EqualTo(128));
-                Assert.That(IvyZoneCentre(growth.HeroIvyMesh, 0, 2), Is.EqualTo(finalLowerMass).Using(Vector2Comparer(0.01f)));
-                Assert.That(IvyZoneCentre(growth.HeroIvyMesh, 3, 6), Is.EqualTo(finalUpperMass).Using(Vector2Comparer(0.01f)));
-                Assert.That(IvyZoneCentre(growth.HeroIvyMesh, 7, 11), Is.EqualTo(finalCrownMass).Using(Vector2Comparer(0.01f)));
-                Assert.That(FlowerZoneCentre(growth.HeroFlowerPetalMesh, 0), Is.EqualTo(finalLowerBouquet).Using(Vector2Comparer(0.01f)));
-                Assert.That(FlowerZoneCentre(growth.HeroFlowerPetalMesh, 1), Is.EqualTo(finalUpperBouquet).Using(Vector2Comparer(0.01f)));
-                Assert.That(FlowerZoneCentre(growth.HeroFlowerPetalMesh, 2), Is.EqualTo(finalCrownBouquet).Using(Vector2Comparer(0.01f)));
-                Assert.That(AverageFlowerHeadRadius(growth.HeroFlowerPetalMesh), Is.EqualTo(finalFlowerRadius).Within(0.01f));
-                Assert.That(AveragePetalRoundness(growth.HeroFlowerPetalMesh), Is.EqualTo(finalPetalRoundness).Within(0.01f));
+                Assert.That(growth.HeroIvyMesh, Is.Not.Null.And.Not.SameAs(firstIvy));
+                Assert.That(finalPass.CompositionApplied, Is.True);
+                AssertVectorNear(IvyZoneCentre(growth.HeroIvyMesh, 0, 2), expectedLowerMass, 0.01f);
+                AssertVectorNear(IvyZoneCentre(growth.HeroIvyMesh, 3, 6), expectedUpperMass, 0.01f);
+                AssertVectorNear(IvyZoneCentre(growth.HeroIvyMesh, 7, 11), expectedCrownMass, 0.01f);
+                AssertVectorNear(FlowerZoneCentre(growth.HeroFlowerPetalMesh, 0), expectedLowerBouquet, 0.01f);
+                AssertVectorNear(FlowerZoneCentre(growth.HeroFlowerPetalMesh, 1), expectedUpperBouquet, 0.01f);
+                AssertVectorNear(FlowerZoneCentre(growth.HeroFlowerPetalMesh, 2), expectedCrownBouquet, 0.01f);
+                Assert.That(AverageFlowerHeadRadius(growth.HeroFlowerPetalMesh), Is.EqualTo(expectedRadius).Within(0.01f));
+                Assert.That(AveragePetalRoundness(growth.HeroFlowerPetalMesh), Is.EqualTo(expectedRoundness).Within(0.01f));
                 Assert.That(AverageFlowerHeadDepth(growth.HeroFlowerPetalMesh), Is.GreaterThan(0.025f));
                 Assert.That(growth.HeroDrawCallCount, Is.EqualTo(3));
                 Assert.That(growth.HeroVertexCount, Is.EqualTo(vertexBudget));
@@ -149,26 +125,15 @@ namespace VoxelEngine.Tests.PlayMode
             }
         }
 
-        private static NUnit.Framework.Constraints.IEqualityComparer Vector2Comparer(float tolerance)
+        private static void AssertVectorNear(Vector2 actual, Vector2 expected, float tolerance)
         {
-            return new Vector2EqualityComparer(tolerance);
+            Assert.That(Vector2.Distance(actual, expected), Is.LessThanOrEqualTo(tolerance));
         }
 
-        private sealed class Vector2EqualityComparer : NUnit.Framework.Constraints.IEqualityComparer
+        private static void AssertEnvelope(Vector2 value, float minX, float maxX, float minY, float maxY, string label)
         {
-            private readonly float _tolerance;
-            public Vector2EqualityComparer(float tolerance) => _tolerance = tolerance;
-            public bool AreEqual(object x, object y)
-            {
-                return x is Vector2 a && y is Vector2 b && Vector2.Distance(a, b) <= _tolerance;
-            }
-        }
-
-        private static void AssertMasonryMass(
-            Vector2 centre, float minX, float maxX, float minY, float maxY, string label)
-        {
-            Assert.That(centre.x, Is.InRange(minX, maxX), $"{label} centre must remain on the masonry-side x envelope.");
-            Assert.That(centre.y, Is.InRange(minY, maxY), $"{label} centre must remain in its authored vertical support zone.");
+            Assert.That(value.x, Is.InRange(minX, maxX), $"{label} must stay on the masonry-side x envelope.");
+            Assert.That(value.y, Is.InRange(minY, maxY), $"{label} must stay in its authored vertical support zone.");
         }
 
         private static bool TryFindIvyLeafStarts(Mesh mesh, out int[,] starts, out int found)
@@ -179,29 +144,18 @@ namespace VoxelEngine.Tests.PlayMode
             Color[] colors = mesh.colors;
             int vertexCount = mesh.vertexCount;
             if (colors == null || colors.Length != vertexCount) return false;
-
             int cursor = 0;
             int expected = TotalIvyClusterCount * IvyLeavesPerCluster;
             while (cursor < vertexCount && found < expected)
             {
                 while (cursor < vertexCount && IsStemColor(colors[cursor])) cursor++;
                 if (cursor + IvyLeafVertexCount > vertexCount) break;
-
                 bool leafRun = true;
                 for (int i = 0; i < IvyLeafVertexCount; i++)
                 {
-                    if (IsStemColor(colors[cursor + i]))
-                    {
-                        leafRun = false;
-                        break;
-                    }
+                    if (IsStemColor(colors[cursor + i])) { leafRun = false; break; }
                 }
-                if (!leafRun)
-                {
-                    cursor++;
-                    continue;
-                }
-
+                if (!leafRun) { cursor++; continue; }
                 starts[found / IvyLeavesPerCluster, found % IvyLeavesPerCluster] = cursor;
                 found++;
                 cursor += IvyLeafVertexCount;
@@ -242,8 +196,7 @@ namespace VoxelEngine.Tests.PlayMode
             return maximum;
         }
 
-        private static float IvyZoneVerticalGap(
-            Mesh mesh, int lowerFirst, int lowerLast, int upperFirst, int upperLast)
+        private static float IvyZoneVerticalGap(Mesh mesh, int lowerFirst, int lowerLast, int upperFirst, int upperLast)
         {
             if (!TryFindIvyLeafStarts(mesh, out int[,] starts, out _)) return float.NegativeInfinity;
             Vector3[] vertices = mesh.vertices;
@@ -252,30 +205,24 @@ namespace VoxelEngine.Tests.PlayMode
             return upperMin - lowerMax;
         }
 
-        private static void MeasureIvyZoneY(
-            Vector3[] vertices, int[,] starts, int first, int last, out float minimum, out float maximum)
+        private static void MeasureIvyZoneY(Vector3[] vertices, int[,] starts, int first, int last, out float minimum, out float maximum)
         {
             minimum = float.PositiveInfinity;
             maximum = float.NegativeInfinity;
             for (int cluster = first; cluster <= last; cluster++)
+            for (int leaf = 0; leaf < IvyLeavesPerCluster; leaf++)
+            for (int vertex = 0; vertex < IvyLeafVertexCount; vertex++)
             {
-                for (int leaf = 0; leaf < IvyLeavesPerCluster; leaf++)
-                {
-                    int start = starts[cluster, leaf];
-                    for (int vertex = 0; vertex < IvyLeafVertexCount; vertex++)
-                    {
-                        minimum = Mathf.Min(minimum, vertices[start + vertex].y);
-                        maximum = Mathf.Max(maximum, vertices[start + vertex].y);
-                    }
-                }
+                float y = vertices[starts[cluster, leaf] + vertex].y;
+                minimum = Mathf.Min(minimum, y);
+                maximum = Mathf.Max(maximum, y);
             }
         }
 
         private static Vector3 MeasureIvyClusterCentre(Vector3[] vertices, int[,] starts, int cluster)
         {
             Vector3 centre = Vector3.zero;
-            for (int leaf = 0; leaf < IvyLeavesPerCluster; leaf++)
-                centre += vertices[starts[cluster, leaf]];
+            for (int leaf = 0; leaf < IvyLeavesPerCluster; leaf++) centre += vertices[starts[cluster, leaf]];
             return centre / IvyLeavesPerCluster;
         }
 
@@ -307,10 +254,7 @@ namespace VoxelEngine.Tests.PlayMode
         {
             Vector3 centre = Vector3.zero;
             for (int localHead = 0; localHead < FlowerHeadsPerCluster; localHead++)
-            {
-                int head = cluster * FlowerHeadsPerCluster + localHead;
-                centre += MeasureHeadCentre(vertices, head * headVertexCount);
-            }
+                centre += MeasureHeadCentre(vertices, (cluster * FlowerHeadsPerCluster + localHead) * headVertexCount);
             return centre / FlowerHeadsPerCluster;
         }
 
@@ -353,27 +297,20 @@ namespace VoxelEngine.Tests.PlayMode
             float sum = 0f;
             int count = 0;
             for (int head = 0; head < headCount; head++)
+            for (int petal = 0; petal < FlowerPetalsPerHead; petal++)
             {
-                int headStart = head * headVertexCount;
-                for (int petal = 0; petal < FlowerPetalsPerHead; petal++)
+                int start = head * headVertexCount + petal * FlowerPetalVertexCount;
+                Vector3 centre = vertices[start];
+                float minimum = float.PositiveInfinity;
+                float maximum = 0f;
+                for (int rim = 1; rim < FlowerPetalVertexCount; rim++)
                 {
-                    int start = headStart + petal * FlowerPetalVertexCount;
-                    Vector3 centre = vertices[start];
-                    float minimum = float.PositiveInfinity;
-                    float maximum = 0f;
-                    for (int rim = 1; rim < FlowerPetalVertexCount; rim++)
-                    {
-                        Vector3 delta = vertices[start + rim] - centre;
-                        float distance = new Vector2(delta.x, delta.y).magnitude;
-                        minimum = Mathf.Min(minimum, distance);
-                        maximum = Mathf.Max(maximum, distance);
-                    }
-                    if (maximum > 0.0001f)
-                    {
-                        sum += minimum / maximum;
-                        count++;
-                    }
+                    Vector3 delta = vertices[start + rim] - centre;
+                    float distance = new Vector2(delta.x, delta.y).magnitude;
+                    minimum = Mathf.Min(minimum, distance);
+                    maximum = Mathf.Max(maximum, distance);
                 }
+                if (maximum > 0.0001f) { sum += minimum / maximum; count++; }
             }
             return count == 0 ? 0f : sum / count;
         }
