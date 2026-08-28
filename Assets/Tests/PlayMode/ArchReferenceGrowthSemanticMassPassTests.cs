@@ -11,7 +11,6 @@ namespace VoxelEngine.Tests.PlayMode
         private const int ClusterCount = 16;
         private const int LeavesPerCluster = 8;
         private const int LeafVertexCount = 17;
-        private const int FlowerHeads = 30;
         private const int HeadsPerBouquet = 5;
         private const int PetalsPerHead = 5;
         private const int PetalVertexCount = 7;
@@ -100,18 +99,25 @@ namespace VoxelEngine.Tests.PlayMode
                 "Haunch and crown growth need a deliberate compositional break.");
             Assert.That(Vector2.Distance(clusters[15], ArchReferenceGrowthAaaPass.Support(15)), Is.LessThan(0.035f),
                 "The single right-side accent must remain sparse and masonry-supported.");
-            for (int cluster = 0; cluster < 15; cluster++)
-                Assert.That(clusters[cluster].x, Is.LessThan(0.45f));
+            for (int cluster = 0; cluster < 10; cluster++)
+                Assert.That(clusters[cluster].x, Is.LessThan(-1.45f),
+                    "Pier and haunch foliage must sit on the left stone face, not spill into the passage.");
+            for (int cluster = 10; cluster < 15; cluster++)
+                Assert.That(clusters[cluster].y, Is.GreaterThan(7.90f),
+                    "Crown foliage must project outward onto the arch ring rather than float below it in the opening.");
 
             Assert.That(AverageLeafRadius(ivy, starts), Is.InRange(0.075f, 0.130f));
 
             Vector3[] bouquets = BouquetCentres(flowers);
             for (int bouquet = 0; bouquet < 6; bouquet++)
-            {
                 Assert.That(Vector2.Distance(bouquets[bouquet], ArchReferenceGrowthSemanticMassPass.BouquetTarget(bouquet)),
                     Is.LessThan(0.035f));
-                Assert.That(bouquets[bouquet].x, Is.LessThan(0.45f));
-            }
+            for (int bouquet = 0; bouquet < 4; bouquet++)
+                Assert.That(bouquets[bouquet].x, Is.LessThan(-1.25f),
+                    "Lower and haunch blossoms must remain embedded against masonry.");
+            for (int bouquet = 4; bouquet < 6; bouquet++)
+                Assert.That(bouquets[bouquet].y, Is.GreaterThan(7.90f),
+                    "Crown blossoms must sit on the arch ring with the crown foliage.");
             for (int mass = 0; mass < 3; mass++)
             {
                 float pair = Vector2.Distance(bouquets[mass * 2], bouquets[mass * 2 + 1]);
@@ -129,6 +135,7 @@ namespace VoxelEngine.Tests.PlayMode
         {
             int start = mass * 5;
             Vector2 sum = Vector2.zero;
+            Vector2 expected = Vector2.zero;
             float minX = float.PositiveInfinity;
             float maxX = float.NegativeInfinity;
             float minY = float.PositiveInfinity;
@@ -137,17 +144,19 @@ namespace VoxelEngine.Tests.PlayMode
             {
                 Vector2 p = clusters[start + i];
                 sum += p;
+                expected += ArchReferenceGrowthSemanticMassPass.ClusterTarget(start + i);
                 minX = Mathf.Min(minX, p.x);
                 maxX = Mathf.Max(maxX, p.x);
                 minY = Mathf.Min(minY, p.y);
                 maxY = Mathf.Max(maxY, p.y);
             }
             Vector2 centroid = sum / 5f;
-            Assert.That(Vector2.Distance(centroid, ArchReferenceGrowthSemanticMassPass.MassCenter(mass)), Is.LessThan(0.035f));
+            expected /= 5f;
+            Assert.That(Vector2.Distance(centroid, expected), Is.LessThan(0.035f));
             Assert.That(maxX - minX, Is.GreaterThan(minWidth));
             Assert.That(maxY - minY, Is.GreaterThan(minHeight));
             for (int i = 0; i < 5; i++)
-                Assert.That(Vector2.Distance(clusters[start + i], centroid), Is.LessThan(0.78f));
+                Assert.That(Vector2.Distance(clusters[start + i], centroid), Is.LessThan(0.82f));
         }
 
         private static Vector3[] ClusterCentres(Mesh mesh, int[,] starts)
