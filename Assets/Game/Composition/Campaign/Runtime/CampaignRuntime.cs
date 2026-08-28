@@ -4,6 +4,7 @@ using Game.Composition.Campaign;
 using Game.Cutscenes.Api;
 using Game.Cutscenes.Runtime;
 using Game.Quests.Api;
+using Game.Quests.Runtime;
 using Game.Story.Api;
 using Game.Story.Runtime;
 using Game.WorldBuilder.Api;
@@ -29,15 +30,7 @@ namespace Game.Composition.Campaign.Runtime
         private readonly HashSet<ObjectiveRef> _activeObjectives = new HashSet<ObjectiveRef>();
         private readonly HashSet<ObjectiveRef> _completedObjectives = new HashSet<ObjectiveRef>();
         private readonly HashSet<CutsceneRef> _completedCutscenes = new HashSet<CutsceneRef>();
-
-        // Quests are tracked the way objectives are, by reference, because a CampaignBlueprint does
-        // not carry QuestDefinitions yet. Story can therefore start a quest and ask whether one is
-        // active or complete, which is the whole seam it needs; the richer step/completion machine
-        // in Game.Quests.Runtime stays unwired until blueprints can supply the definitions it takes
-        // in its constructor. Handing it an empty definition list here would make every StartQuest
-        // throw on an unknown quest.
-        private readonly HashSet<QuestRef> _activeQuests = new HashSet<QuestRef>();
-        private readonly HashSet<QuestRef> _completedQuests = new HashSet<QuestRef>();
+        private readonly QuestRuntime _quests;
 
         private CutsceneRunner _activeRunner;
         private CutsceneRef _activeCutscene;
@@ -58,12 +51,14 @@ namespace Game.Composition.Campaign.Runtime
             CampaignBlueprint blueprint,
             IReadOnlyList<CutsceneStageRealization> stages,
             IWorldBoundCutsceneActorProvider actorProvider,
-            ICutscenePresentation presentation)
+            ICutscenePresentation presentation,
+            IReadOnlyList<QuestDefinition> questDefinitions = null)
         {
             _blueprint = blueprint ?? throw new ArgumentNullException(nameof(blueprint));
             if (stages == null) throw new ArgumentNullException(nameof(stages));
             _actorProvider = actorProvider ?? throw new ArgumentNullException(nameof(actorProvider));
             _presentation = presentation ?? throw new ArgumentNullException(nameof(presentation));
+            _quests = new QuestRuntime(questDefinitions ?? Array.Empty<QuestDefinition>());
 
             for (var i = 0; i < blueprint.Cutscenes.Count; i++)
             {
@@ -113,12 +108,22 @@ namespace Game.Composition.Campaign.Runtime
 
         public int InteractWithNpc(NpcRef npc)
         {
+            // Story gets first refusal so the same physical interaction can start a quest and then
+            // immediately be observed by the authoritative quest state machine.
             int matched = Dispatch(StoryEvent.NpcInteracted(npc));
+            ObserveQuest(QuestObservation.NpcInteracted(npc.ToString()));
 
             // Objective-active conditions for this interaction observe the pre-completion state.
             // Completion occurs only after every matching story rule has been evaluated/applied.
             CompleteInteractionObjectives(npc);
             return matched;
+        }
+
+        public IReadOnlyList<QuestEvent> ObserveQuest(QuestObservation observation)
+        {
+            IReadOnlyList<QuestEvent> events = _quests.Observe(observation);
+            DispatchQuestCompletions(events);
+            return events;
         }
 
         public void Tick(int elapsedMilliseconds)
@@ -135,8 +140,6 @@ namespace Game.Composition.Campaign.Runtime
             _activeCutscene = default(CutsceneRef);
             _completedCutscenes.Add(completed);
 
-            // Clear the active slot before dispatch so a completion rule may immediately start the
-            // next authored cutscene without violating the one-active-cutscene invariant.
             Dispatch(StoryEvent.CutsceneCompleted(completed));
         }
 
@@ -149,25 +152,16 @@ namespace Game.Composition.Campaign.Runtime
         public bool IsCutsceneCompleted(CutsceneRef cutscene) =>
             _completedCutscenes.Contains(cutscene);
 
-        public bool IsQuestActive(QuestRef quest) => _activeQuests.Contains(quest);
+        public bool IsQuestActive(QuestRef quest) => _quests.IsActive(quest);
 
-        public bool IsQuestCompleted(QuestRef quest) => _completedQuests.Contains(quest);
+        public bool IsQuestCompleted(QuestRef quest) => _quests.IsCompleted(quest);
 
-        /// <summary>
-        /// Records a quest completion and lets story rules react to it.
-        ///
-        /// Gameplay owns when a quest is finished — unlike an objective, nothing in the blueprint
-        /// describes how a quest completes — so this is the entry point that turns that decision
-        /// into the <see cref="StoryEvent.QuestCompleted"/> the rules can trigger on.
-        /// </summary>
+        public QuestSnapshot GetQuestSnapshot(QuestRef quest) => _quests.GetSnapshot(quest);
+
         public int CompleteQuest(QuestRef quest)
         {
-            if (!_activeQuests.Remove(quest))
-                throw new InvalidOperationException(
-                    "Cannot complete quest '" + quest + "' because it is not active.");
-
-            _completedQuests.Add(quest);
-            return Dispatch(StoryEvent.QuestCompleted(quest));
+            IReadOnlyList<QuestEvent> events = _quests.Complete(quest);
+            return DispatchQuestCompletions(events);
         }
 
         void IStoryEffectSink.StartObjective(ObjectiveRef objective) => StartObjective(objective);
@@ -195,13 +189,17 @@ namespace Game.Composition.Campaign.Runtime
 
         private void StartQuest(QuestRef quest)
         {
-            if (_completedQuests.Contains(quest))
-                throw new InvalidOperationException(
-                    "Story attempted to restart completed quest '" + quest + "'.");
+            if (_quests.IsCompleted(quest)) return;
+            _quests.Start(quest);
+        }
 
-            // Deliberately no known-quest check: objectives are validated against the blueprint's
-            // Objectives list, and there is no equivalent list for quests to validate against.
-            _activeQuests.Add(quest);
+        private int DispatchQuestCompletions(IReadOnlyList<QuestEvent> events)
+        {
+            int matched = 0;
+            for (var i = 0; i < events.Count; i++)
+                if (events[i].Kind == QuestEventKind.QuestCompleted)
+                    matched += Dispatch(StoryEvent.QuestCompleted(events[i].Quest));
+            return matched;
         }
 
         private void PlayCutscene(CutsceneRef cutscene)
