@@ -33,8 +33,10 @@ namespace VoxelEngine.Showcase
 
         public void Publish(
             IReadOnlyList<VegetationInstance> vegetation,
-            IVegetationBatchRenderer fallbackRenderer)
+            IVegetationBatchRenderer fallbackRenderer,
+            Transform player)
         {
+            _player = player;
             var fallback = new List<VegetationInstance>(vegetation?.Count ?? 0);
             var meadow = new List<VegetationInstance>(vegetation?.Count ?? 0);
 
@@ -89,14 +91,6 @@ namespace VoxelEngine.Showcase
             cameraRight.y = 0f;
             if (cameraRight.sqrMagnitude < 0.0001f) cameraRight = Vector3.right;
             cameraRight.Normalize();
-
-            if (_player == null)
-            {
-#pragma warning disable CS0618
-                CharacterController controller = FindObjectOfType<CharacterController>();
-#pragma warning restore CS0618
-                if (controller != null) _player = controller.transform;
-            }
 
             Vector3 player = _player != null
                 ? _player.position
