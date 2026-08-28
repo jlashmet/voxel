@@ -33,6 +33,29 @@ namespace VoxelEngine.Showcase
             }
         }
 
+        /// <summary>
+        /// Compatibility adapter for serialized showcase scenes. The serialized enum remains so
+        /// existing scene YAML does not churn, but its value is immediately translated into a
+        /// WorldBuilder semantic recipe; concrete backend selection happens only after that.
+        /// </summary>
+        public static WorldEnvironmentSpec SemanticSpec(
+            uint seed,
+            ShowcaseFeatureContent serializedContent)
+        {
+            return serializedContent switch
+            {
+                ShowcaseFeatureContent.Full =>
+                    WorldEnvironmentRecipes.SettlementWithFortification(seed),
+                ShowcaseFeatureContent.CastleOnly =>
+                    WorldEnvironmentRecipes.FortifiedLandmark(seed),
+                ShowcaseFeatureContent.HouseOnly =>
+                    WorldEnvironmentRecipes.DetailedStructure(seed),
+                _ => throw new ArgumentOutOfRangeException(
+                    nameof(serializedContent), serializedContent,
+                    "Unknown serialized showcase composition preset."),
+            };
+        }
+
         public static Plan Resolve(in WorldEnvironmentSpec spec)
         {
             bool settlement = spec.Includes(WorldEnvironmentFeature.Settlement);
@@ -70,10 +93,12 @@ namespace VoxelEngine.Showcase
             }
             else
             {
-                // Terrain-only uses the focused house pipeline's no-castle world topology. The
-                // caller may leave authored feature placement empty; importantly, the semantic
-                // resolver never silently opts a fortification into a terrain-only request.
-                content = ShowcaseFeatureContent.HouseOnly;
+                // Terrain-only currently has no dedicated showcase content mode. Do not silently
+                // pretend HouseOnly means terrain-only: a caller that needs this composition must
+                // add a real reusable backend first.
+                throw new NotSupportedException(
+                    "The current showcase backend has no terrain-only content mode. " +
+                    "Add that reusable backend before requesting this semantic combination.");
             }
 
             return new Plan(
