@@ -9,18 +9,21 @@ namespace VoxelEngine.Tests.EditMode
     public sealed class GpuLod2CutoverPolicyTests
     {
         [Test]
-        public void ProductionSurfaceExtractionUsesGpuMesherForSupportedNearRings()
+        public void LegacyGpuV1CutoverDefaultsOffButRemainsExplicitlyTestable()
         {
-            Assert.False(CpuTransvoxelChunkCache.GpuCutoverDisabled,
-                "Production must enable the GPU surface backend for supported near rings. "
-              + "VOXEL_DISABLE_GPU_CUTOVER=1 remains an explicit diagnostic fallback only.");
+            Assert.True(GpuSurfaceProductionPolicy.ShouldDisableLegacyGpuCutover(null, null),
+                "Production must not enable the legacy per-worker GPU-v1 cutover by default.");
+            Assert.True(GpuSurfaceProductionPolicy.ShouldDisableLegacyGpuCutover("1", "1"),
+                "The emergency VOXEL_DISABLE_GPU_CUTOVER override must win over experiment opt-in.");
+            Assert.False(GpuSurfaceProductionPolicy.ShouldDisableLegacyGpuCutover(null, "1"),
+                "A fresh diagnostic process may explicitly opt into GPU-v1 for A/B experiments.");
         }
 
         [Test]
         public void SceneIssue20260823014011920GpuCutoverTargetsOnlyNearExactRings()
         {
             Assert.True(CpuTransvoxelChunkCache.SupportsGpuSurfaceStep(1),
-                "Full-resolution surface extraction must be GPU-capable.");
+                "Full-resolution surface extraction must remain GPU-capable for experiments.");
             Assert.True(CpuTransvoxelChunkCache.SupportsGpuSurfaceStep(2),
                 "LOD2 must remain GPU-capable, including its transition-face path.");
             Assert.False(CpuTransvoxelChunkCache.SupportsGpuSurfaceStep(4),
