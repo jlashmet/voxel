@@ -1,21 +1,21 @@
 # Plan — 20260826-135832-898 ArchLookdev foliage
 
 ## Evidence / acceptance
-- No circles: acceptance is global in the saved 1928×836 `Hero Arch` pose. Ivy must read as asymmetric masonry-supported left/crown masses with overlapping English-ivy leaves and a few drapes; blossoms must read as rich clustered bouquets; right masonry stays sparse.
-- Preserve 128 leaves, 30 flower heads, 3 combined draws, <=4,096 vertices, and the two semantic ground ferns.
-- Green geometry is not visual proof. Run `33142488637` passed experiment 014, but its inspected real-player `verification-final.png` still shows one continuous diagonal foliage band and repeated tiny five-petal flower icons, so it is rejected.
+- No circles: acceptance is global in saved 1928×836 `Hero Arch` pose. Ivy must read as asymmetric masonry-supported left/crown masses with overlapping English-ivy leaves/drapes; blossoms as layered bouquets; right masonry stays sparse.
+- Preserve 128 leaves, 30 flower heads, 3 combined draws, <=4,096 vertices, two semantic ground ferns.
+- Green geometry is not visual proof. Experiment 014 run `33142488637` was green but visually rejected (continuous band/tiny star flowers). Experiment 015 run `33144764363` also visually misses: distinct stems are gone, but foliage still bridges into repeated bands and flowers remain five-point icons.
 
 ## Proven causes / discriminator
-1. **Missing render data / camera placement — rejected or fixed earlier.** Authored meshes render at the saved pose and world-space lifecycle anchoring survives rebuilds.
-2. **Removing visible stems is sufficient — rejected by experiment 014.** The stem-free mesh still reads as a garland because adjacent leaf-cluster centres continue sampling the entire path at nearly uniform intervals.
-3. **Ten small flower clusters are sufficient — rejected visually.** Even with depth and tighter three-head clusters, the saved pose reads them as repeated icons rather than bouquets.
-4. **Experiment 015 — current.** Contract the existing left clusters into lower-pier, upper-pier, and crown zones around their generated zone centroids, creating measurable negative-space breaks without absolute capture coordinates. Gather the same 30 flower heads into three bouquet zones and increase head screen presence while retaining topology/depth.
+1. Missing render data / camera placement — rejected/fixed earlier; authored meshes render and world-space anchoring survives rebuilds.
+2. Stem removal alone — rejected by experiment 014; leaf placement can still imply a garland.
+3. Experiment 015 mass test parser — rejected as evidence: exact failure was `Infinity` because it assumed stem spacing instead of positively locating leaves.
+4. Experiment 016 — current: find all 128 leaf cards by non-stem color runs, tighten the same 12 left clusters into three semantic masonry zones, and reconstruct each existing seven-vertex petal as a broad overlapping oval lobe so the same 30 heads form three rounded rosette bouquets.
 
 ## Behavioral regression
-`ArchReferenceGrowthMassBreakupPassTests.FinalPassBreaksDiagonalBandIntoMassesAndGathersReadableBouquetsAcrossRebuild` requires materially lower within-zone ivy/flower-cluster spread, >0.20-unit negative-space breaks between the three left foliage zones, >20% larger blossom heads with retained depth, unchanged mesh identities/3 draws/<=4,096 vertices, and deterministic production rebuild reapplication.
+`ArchReferenceGrowthMassBreakupPassTests.FinalPassBreaksDiagonalBandIntoMassesAndGathersReadableBouquetsAcrossRebuild` must recover exactly 128 leaves with finite metrics; materially compact/separate the three left zones; gather flower clusters; require readable bounded head radius, oval-petal roundness and depth; preserve mesh identity, 3 draws, <=4,096 vertices; and deterministically reapply after production rebuild.
 
 ## Blast radius / cost
-ArchLookdev presentation only; shared vegetation/world truth unchanged. Same meshes, topology, draw count, and vertex budget. One additional one-shot mesh translation/scale pass; no per-frame geometry work or per-leaf/flower GameObjects.
+ArchLookdev presentation only. Same meshes/topology/draws/vertex budget; one-shot vertex rewrite only, no per-leaf/flower GameObjects or per-frame geometry work.
 
 ## Remaining gates
-Run the focused regression on the new exact feature SHA through the existing `ci-test/fixes/agent-4` transport with the original 45-second replay. Accept only if the test is green and direct saved-pose inspection shows distinct masses/negative space and readable bouquets; then record verification, promote open→pending, close with `fixed`/`resolvedUtc`, merge current master, and non-force push the exact feature head to master.
+Run the focused regression on the exact feature SHA through the existing `ci-test/fixes/agent-4` transport with 45-second replay. Accept only if green and direct saved-pose inspection shows separated organic masses plus rounded layered bouquets. Then record verification, open→pending metadata, pending→closed `fixed`/`resolvedUtc`, merge current master, and non-force push exact feature head to master.
