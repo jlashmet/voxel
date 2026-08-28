@@ -3,9 +3,9 @@ using System;
 namespace MountingForce.WorldGen.Voxel
 {
     /// <summary>
-    /// Exact walkable access line for one generated Kentridge building. All points use the same
-    /// backend units as the realized entrance, so gameplay can move through the physical doorway
-    /// without reconstructing placement offsets or hard-coding town coordinates.
+    /// Exact walkable access line for one generated Kentridge building. InteriorInward follows the
+    /// quarter-turn door normal required by the current architecture grammar; PublicApproachInward
+    /// follows the independently inferred route and may be diagonal.
     /// </summary>
     public readonly struct KentridgeGameplaySiteAccess
     {
@@ -13,24 +13,27 @@ namespace MountingForce.WorldGen.Voxel
         public RealizedWorldPoint InteriorApproach { get; }
         public RealizedWorldPoint ExteriorApproach { get; }
         public Int2 Inward { get; }
+        public Int2 PublicApproachInward { get; }
 
         public KentridgeGameplaySiteAccess(
             RealizedWorldPoint entrance,
             RealizedWorldPoint interiorApproach,
             RealizedWorldPoint exteriorApproach,
-            Int2 inward)
+            Int2 inward,
+            Int2 publicApproachInward)
         {
             Entrance = entrance;
             InteriorApproach = interiorApproach;
             ExteriorApproach = exteriorApproach;
             Inward = inward;
+            PublicApproachInward = publicApproachInward;
         }
     }
 
     /// <summary>
-    /// Gameplay-facing access facts derived from the same stable plot role and placement transform
-    /// used by Kentridge voxel emission. The approach vector comes from semantic public access rather
-    /// than reconstructing one of four cardinal directions from the structure's quarter-turn.
+    /// Gameplay-facing access facts derived from stable plot role, physical entrance realization and
+    /// semantic public circulation. The interior point remains normal to the actual doorway while the
+    /// exterior point can approach diagonally from an organic route.
     /// </summary>
     public static class KentridgeGameplaySiteAccessResolver
     {
@@ -70,11 +73,13 @@ namespace MountingForce.WorldGen.Voxel
                 return false;
             }
 
-            Int2 inward = new Int2(plot.AccessDirection.X, plot.AccessDirection.Z);
+            Int2 doorInward = DoorInward(plot.Frontage);
+            Int2 publicInward = new Int2(plot.AccessDirection.X, plot.AccessDirection.Z);
             int distance = ApproachDistanceDecimetres * unitsPerDecimetre;
-            RealizedWorldPoint interior = Offset(entrance, inward, distance);
-            RealizedWorldPoint exterior = Offset(entrance, inward, -distance);
-            access = new KentridgeGameplaySiteAccess(entrance, interior, exterior, inward);
+            RealizedWorldPoint interior = Offset(entrance, doorInward, distance);
+            RealizedWorldPoint exterior = Offset(entrance, publicInward, -distance);
+            access = new KentridgeGameplaySiteAccess(
+                entrance, interior, exterior, doorInward, publicInward);
             return true;
         }
 
@@ -90,6 +95,17 @@ namespace MountingForce.WorldGen.Voxel
                     point.Y,
                     point.Z + direction.Y * distance),
                 origin.UnitsPerDecimetre);
+        }
+
+        private static Int2 DoorInward(FrontageDirection frontage)
+        {
+            switch (frontage)
+            {
+                case FrontageDirection.West: return new Int2(-1, 0);
+                case FrontageDirection.North: return new Int2(0, -1);
+                case FrontageDirection.East: return new Int2(1, 0);
+                default: return new Int2(0, 1);
+            }
         }
     }
 }
