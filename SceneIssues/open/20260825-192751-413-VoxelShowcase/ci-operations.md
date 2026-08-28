@@ -2,16 +2,15 @@
 
 Targeted CI uses only `ci-test/fixes/agent-2`; request commits stay off the feature branch.
 
-- Focused exact-pose request `3a06a96fccd5c928caebbaa54bdf03f43ccf26fd`, run `33029340707`: green, 1/1 PlayMode pass with visible coverage and no blocking completion violation.
-- Eight-worker profiler request `fdbf89dcb53cce24096ff0060e1893480d8f31bf`, run `33038210036`: traversal p95/p99 `18.72/25.64 ms`; scheduler/admission/worker preparation ~`9.16/6.39/5.21 ms`, upload ~`0.16 ms`.
-- CPU-production traversal request `6da72281f0f741c0b254681b337fe1f807c47b29`, source `1ddb80f57d06e95e53a7f9d1317d12a33ce4dd36`, run `33030560453`: coverage stayed intact for all 420 moving frames; performance missed p95/p99 (`18.71/29.40 ms`). Replay later settled ~265-352 FPS.
-- Legacy GPU-v1 request `71e826fb73f3f6902f1da0d718a2e8e9ed849ef4`, source `2d4c0a090f37cefc6d60db1ccd1ca68c04190815`, run `33125988697`: traversal lost every visible solid at frame 8.
-- GPU-v1 semantic-fallback request `ed69bef4d823b57cf5cd2647b8b47d8488302951`, source `0c4a5b160a8b283cb657913c0cc6f94d7ba1b840`, run `33131454442`, artifact `9670588467`: red at frame 8 again; replay had severe convergence stalls/incomplete terrain. GPU-v1 remains explicit-experiment only.
-- CPU rollback request `cf80e186140feed125f9232c041f16d0243cbf8c`, source `77aed7c99be17ae8e7628be59a625f95895f56a3`, run `33132712687`, artifact `9671088844`: frame-count warmup expired before wall-clock convergence; replay later reached 517 visible chunks. Warmup changed to 30 s wall clock.
-- Corrected-warmup run `33136824454`, source `2ef87d6e9542c4d6cb769b9bddf0f3c085a9576b`: warmup passed; moving frame 5 lost all solids. LOD publication proof was tightened.
-- Run `33138524485`, source `eabca84f20c61a75479cfb8a1f0a06c920a6da71`, artifact `9673095523`: tightened handoff delayed loss to moving frame 16; 45 s replay later converged around 300-400 FPS.
-- Priority-discovery request `edb2cab953b88d110bac688979a00c3d8fad6664`, exact source `9d689afe6663cbdff4a96ca7f3f28ee7039d5d18`, run `33140352114`, job `98749601790`: bounded camera-priority discovery still lost every visible solid at moving frame 15; replay later converged around 310-480 FPS. Priority ordering is rejected.
-- Frustum-handoff request `92f5b53a89700330ca4e7906b8af61b67a774d37`, exact source `6ffe0e20d1244ece5a1a74268e8d36887353e32a`, run `33141268338`, job `98752428996`, artifact `9674120924`: requested PlayMode test lost every visible solid at moving frame 5. The 45 s replay later reached 517 visible chunks and ~350-420 FPS. Requiring in-frustum proof is rejected.
-- Source differential after the frustum run: coverage-safe scheduler blob `37ea37a65b85e4bb32b9ca2d7312b39c112cc125` accumulated worker-visible physical entries directly. Commit `704088289020b927f0459c46f91bcadf83063d2b` introduced `SurfaceLodVisibilitySelector` as a destructive second pass. Worker visibility already enforces band + frustum and retains stale ready geometry while newer generations build. The next correction therefore preserves the logical no-overlap model only when it has an actual physical drawable replacement; proof-only expansion retains coarse drawable fallback.
+- Exact-pose run `33029340707`: green, visible coverage and zero blocking completion violations.
+- CPU-production source `1ddb80f57d06e95e53a7f9d1317d12a33ce4dd36`, run `33030560453`: all 420 moving frames retained coverage; p95/p99 missed at `18.71/29.40 ms`.
+- Profiler run `33038210036`: scheduler/admission/worker prep ~`9.16/6.39/5.21 ms`, upload ~`0.16 ms`.
+- GPU-v1 runs `33125988697` and `33131454442`: total visible-solid collapse at frame 8; second replay also showed severe convergence stalls. GPU-v1 rejected for production.
+- CPU rollback run `33132712687`: frame-count warmup expired before convergence; replay later reached 517 visible chunks. Warmup changed to 30 s wall-clock.
+- Corrected warmup run `33136824454`: moving frame 5 zero.
+- Handoff run `33138524485`: moving frame 16 zero; replay later converged ~300-400 FPS.
+- Priority-discovery run `33140352114`: moving frame 15 zero; replay later converged ~310-480 FPS. Priority ordering rejected.
+- Frustum-handoff run `33141268338`, artifact `9674120924`: moving frame 5 zero; replay later reached 517 visible chunks and ~350-420 FPS. Frustum-only proof rejected.
+- Physical-fallback request `06ea24bc32994d230facac57883aa919c51dcb25`, exact source `06e37c5526d0a6f9e16496f9f102073c5fbd36a6`, run `33142076200`, artifact `9674586172`: moving frame 5 still lost every visible solid. Replay started with flat/missing terrain and converged to the castle by ~26 s. Physical-fallback selector correction is insufficient.
 
-A new final request is permitted only after this physical-fallback correction is committed, current master is merged, and the feature SHA is frozen. It must be a single direct-child transport changing only `.github/test-request.json`; once queued/running it is authoritative and must not be replaced.
+Because more than three genuine production attempts are red, the next source state is test-only minimal isolation. The unchanged final traversal will report the active production scheduler's per-ring worker visibility funnel only if aggregate visibility reaches zero. If physical worker `Visible` remains positive, aggregation/selector is proven destructive; if physical worker visibility is zero, the fault is earlier in ring/worker lifecycle. No production code changes until that discriminator is captured.
