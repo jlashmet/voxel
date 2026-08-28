@@ -1,0 +1,23 @@
+{
+    "formatVersion": 3,
+    "id": "20260827-161400-002-CombatInputModules",
+    "capturedUtc": "2026-08-27T16:14:00.0020000Z",
+    "note": "The combat prototype contains useful deterministic combat logic but remains packaged under Assets/CombatPrototype and mixes simulation, orchestration, AI, presentation, direct mouse/UI input, demo content and world integration. Promote combat into production Game.Combat Api/Runtime boundaries and introduce Game.Input as a separate device-facing module that exposes device-neutral intent. Normal world/character/enemy objects remain authoritative participants; combat stays deterministic and independently testable.",
+    "status": "open",
+    "resolvedUtc": "",
+    "resolutionSummary": "",
+    "regressionTest": "",
+    "fixCommit": "",
+    "unityVersion": "",
+    "platform": "",
+    "sceneName": "",
+    "scenePath": "",
+    "sceneBuildIndex": -1,
+    "captures": [],
+    "screenshot": "",
+    "frameCount": 0,
+    "timeSinceLevelLoad": 0.0,
+    "screenWidth": 0,
+    "screenHeight": 0,
+    "circles": []
+}
