@@ -1,23 +1,23 @@
 # Plan — 20260826-135832-898 ArchLookdev foliage
 
 ## Evidence / acceptance
-- One 1928×836 `Hero Arch` pose, no circles. Match `References/arch_reference.png`: lush asymmetric masonry-grown English ivy with overlapping dimensional leaves and delicate integrated warm-white/blush blossoms; right masonry sparse.
-- Preserve 128 leaves, 30 heads, 3 draws, <=4,096 vertices, two ground ferns. Saved-player inspection is the final gate.
-- Exact replay `33154793211` falsified mass grouping alone: foliage floated inside the opening. Run `33155444806` proved the masonry attachment visually, but its frame remained sparse/pale/flat and its regression caught crown bouquets at 0.819 m (>0.70 m).
+- One 1928×836 `Hero Arch` pose, no normalized circles. Match `References/arch_reference.png`: asymmetric masonry-grown ivy, overlapping dimensional leaves, integrated warm-white/blush blossoms, sparse right masonry.
+- Preserve 128 leaves, 30 heads, 3 foliage draws, <=4,096 vertices, and two ground ferns.
+- Replay `33154793211` falsified mass grouping alone: foliage floated in the opening. Run `33155444806` proved masonry attachment but exposed pale/flat coverage and crown bouquets at 0.819 m (>0.70 m).
 
 ## Hypotheses / discriminator
-1. Camera/lifecycle/count — rejected.
-2. Architectural frame/attachment — confirmed: lower/haunch growth is on left stone; crown is on the ring.
-3. Topology/stems/slivers — fixed and bounded.
-4. Current: **renderer-facing coverage/relief/material contrast** plus the measured crown bouquet spacing. Keep semantic anchors fixed and change only existing leaf/head presentation.
+1. Camera/lifecycle/count — rejected by captured replay and stable topology.
+2. Architectural attachment — confirmed: lower/haunch growth belongs on left stone; crown growth on the ring.
+3. Missing geometry — rejected; required topology exists.
+4. Renderer-facing coverage/relief/material response plus crown spacing — confirmed by the prior player frame and focused regression.
 
 ## Selected fix / regression
-`ArchReferenceGrowthSemanticMassPass` tightens the two crown bouquet offsets to +/-0.20 m before the existing radial masonry projection. `ArchReferenceGrowthFinalPresentationPass` then preserves every semantic cluster centre while expanding the existing non-right leaves 22-28%, amplifying their existing Z relief/normals, enlarging existing heads 14%, and restoring green/blush material multipliers.
+`ArchReferenceGrowthSemanticMassPass` tightens the crown bouquet offsets before the existing masonry projection. `ArchReferenceGrowthFinalPresentationPass` preserves semantic centres while increasing overlap/Z relief of existing leaves, slightly enlarging existing flower heads, and restoring saturated green/blush non-emissive material response.
 
-`ArchReferenceGrowthFinalPresentationPassTests.FinalPresentationKeepsMasonryAttachmentAndBuildsLayeredBotanicalReadAcrossRebuild` proves masonry anchors, integrated crown bouquets, bounded leaf radius/depth/triangle size, green/blush material contrast, collapsed-stem topology, unchanged 128/30/3-draw/<=4,096 budget, and rebuild stability.
+`ArchReferenceGrowthFinalPresentationPassTests.FinalPresentationPreservesMasonryMassesWhileImprovingCoverageAndMaterialResponse` exercises the production rebuild and proves masonry anchors, crown integration, increased coverage/depth, material contrast, unchanged 128/30 topology, unchanged renderer count, and rebuild stability.
 
 ## Blast radius / cost
-ArchLookdev only. One bounded construction-time rewrite of existing hero buffers/materials; no new hero topology, renderers, draws, per-leaf objects, or steady-state work.
+ArchLookdev only. One bounded construction-time rewrite of existing hero mesh/material buffers; no new leaves, flower heads, renderers, draws, per-leaf objects, or steady-state work.
 
-## Remaining gates
-One final exact-SHA targeted CI request on existing `ci-test/fixes/agent-4`, then direct saved-player frame inspection. Only if both pass: commit accepted verification; open→pending with complete metadata; pending→closed with `fixed`/`resolvedUtc`; merge latest master; non-force push exact feature head to master.
+## Verification
+Tested source: `c4314743b035df3d9ae7fb48f072b8bcfbd39cff`. Exact request `be282c9874fc1f8975b03258a32449da63eb26ce` directly parents it and changes only `.github/test-request.json`. Run `33157360491` passed the focused PlayMode regression and standalone saved-pose replay. Direct inspection of `RealPlayer/verification-final.png` confirms green masonry-attached left/crown growth, integrated distributed blossoms, sparse right masonry, and an unobscured arch opening. Ready for pending/close bookkeeping.
