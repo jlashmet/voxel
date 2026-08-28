@@ -35,6 +35,7 @@ namespace Game.Kentridge.PlayableSlice
                 seed);
             SettlementPlan settlement = RequireSettlement(town, WorldBuilderTownIds.Kentridge);
             KentridgePlayableWorldBuilderBridge.Remember(settlement, town);
+            KentridgeTopDownWorldLayoutPresentation.Ensure(seed);
             return settlement;
         }
 
