@@ -109,13 +109,21 @@ namespace MountingForce.WorldGen.Voxel
         }
 
         /// <summary>
-        /// Surface target for a plot is sampled at its public frontage, not its centre. This makes
-        /// the prepared yard meet the street at the same authored height and leaves the existing
-        /// frontage pass free to paint the connector without hiding a surprise vertical step.
+        /// Surface target for a plot is sampled at its public frontage. Organic plans intentionally
+        /// follow deterministic local terrain because the retired fixed district shelves no longer
+        /// provide macro support beneath algorithmically placed sites; legacy plans retain the authored
+        /// processional profile. The plaza well shares the plaza centre sample exactly.
         /// </summary>
         public static int PlotSurfaceY(SettlementPlan plan, BuildingPlot plot, uint seed, int scale)
         {
             Int2 frontage = FrontagePointDm(plan, plot);
+            if (plan != null && plan.Routes.Count > 0)
+            {
+                Int2 sample = plot.Archetype == StructureArchetype.Well
+                    ? plan.Plaza.CentreDm
+                    : frontage;
+                return TerrainQuery.HeightAt(sample.X * scale, sample.Y * scale, seed);
+            }
             return SurfaceYAtDm(frontage.X, frontage.Y, seed, scale);
         }
 
