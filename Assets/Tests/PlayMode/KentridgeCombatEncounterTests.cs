@@ -34,6 +34,12 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(encounter.CombatActive, Is.False, "Combat must not begin before the player enters a bandit's proximity radius.");
             Assert.That(encounter.ActiveInputContext, Is.EqualTo(InputContextId.Exploration));
 
+            // Start runs after all scene Awakes. Give the one-shot presentation repair one frame,
+            // then prove runtime gear uses the same player-compatible shader as the rigged actor.
+            yield return null;
+            for (int i = 0; i < encounter.Bandits.Count; i++)
+                AssertBanditGearUsesCharacterShader(encounter.Bandits[i]);
+
             GameObject leadBandit = encounter.Bandits[0];
             Vector3 player = encounter.transform.position;
             leadBandit.transform.position = new Vector3(
@@ -54,6 +60,48 @@ namespace VoxelEngine.Tests.PlayMode
             for (int i = 0; i < encounter.CombatService.ActiveParticipants.Count; i++)
                 if (encounter.CombatService.ActiveParticipants[i].Team == CombatTeam.Enemy) enemies++;
             Assert.That(enemies, Is.EqualTo(3));
+        }
+
+        private static void AssertBanditGearUsesCharacterShader(GameObject bandit)
+        {
+            Renderer[] renderers = bandit.GetComponentsInChildren<Renderer>(true);
+            string characterShader = null;
+            for (int i = 0; i < renderers.Length; i++)
+            {
+                Renderer renderer = renderers[i];
+                if (IsGear(renderer.gameObject.name)) continue;
+                if (renderer.sharedMaterial == null || renderer.sharedMaterial.shader == null) continue;
+                characterShader = renderer.sharedMaterial.shader.name;
+                break;
+            }
+
+            Assert.That(characterShader, Is.Not.Null.And.Not.Empty,
+                bandit.name + " has no shipped character material to drive its runtime gear.");
+
+            int gearCount = 0;
+            for (int i = 0; i < renderers.Length; i++)
+            {
+                Renderer renderer = renderers[i];
+                if (!IsGear(renderer.gameObject.name)) continue;
+                gearCount++;
+                Assert.That(renderer.sharedMaterial, Is.Not.Null, renderer.gameObject.name + " has no material.");
+                Assert.That(renderer.sharedMaterial.shader, Is.Not.Null, renderer.gameObject.name + " has no shader.");
+                Assert.That(renderer.sharedMaterial.shader.name, Is.EqualTo(characterShader),
+                    renderer.gameObject.name + " must reuse the rigged character's player-compatible shader rather than the built-in primitive material.");
+            }
+
+            Assert.That(gearCount, Is.GreaterThanOrEqualTo(6), bandit.name + " lost its authored outlaw gear.");
+        }
+
+        private static bool IsGear(string name)
+        {
+            return name == "Emergency Body" ||
+                   name == "Hood" ||
+                   name == "Belt" ||
+                   name == "Shoulder Strap" ||
+                   name == "Pouch" ||
+                   name == "Sword" ||
+                   name == "Guard";
         }
     }
 }
