@@ -241,6 +241,13 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
             if (growthForm == VegetationGrowthForm.Fungus) return 3f;
             if (growthForm == VegetationGrowthForm.Shrub) return 4f;
             if (growthForm == VegetationGrowthForm.Frond) return 1f;
+            if (growthForm == VegetationGrowthForm.Tuft || growthForm == VegetationGrowthForm.Aquatic)
+            {
+                // Shape 0 is the legacy camera-facing three-blade grass sprite. Semantic Grass now
+                // has its own packed renderer, so ordinary meadow accents must stay on their actual
+                // multi-card tuft/aquatic geometry instead of repeating that obsolete icon.
+                return 0.75f;
+            }
             return 0f;
         }
 
