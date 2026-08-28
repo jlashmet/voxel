@@ -1,19 +1,19 @@
 # Plan — Kentridge Kid-in-the-Well Quest + Inventory
 
-## Observed / marked regions
-`captures` is empty, so there are **0 marked regions** to inspect; acceptance is behavioral/architectural. Kentridge has a generated market well but no playable quest/reward/inventory flow.
+## Observed / acceptance
+`captures` is empty, so there are **0 marked regions**; acceptance is behavioral/architectural. Kentridge already generates a market well, but the live campaign lacked a playable well-quest/reward/inventory flow.
 
-## Runtime evidence / competing hypotheses
-- **Quest runtime already wired:** falsified. `CampaignRuntime` explicitly keeps `_activeQuests/_completedQuests` because `QuestRuntime` is unwired; production NPC interaction never sends a `QuestObservation`.
-- **Quest framework missing:** falsified. `Game.Quests.Runtime.QuestRuntime` already owns deterministic start/observe/step/completion state and only needs authored definitions + production observations.
-- **Well needs bespoke scene geometry:** falsified. `KentridgeTownPlanner` already emits `KentridgeRole.Well` in the market plaza through the standard `SettlementPlan`.
-- **Legacy behavior unknown:** falsified by `mounting-force/Code/TakeBoyHome.m`: Madeline and the boy walk to `kentridge-well`; the boy falls/disappears with falling/thud beats; Madeline returns to the player.
+## Evidence / discriminators
+- **Quest framework missing:** falsified. `QuestRuntime` already owns deterministic start/observe/step/completion; `CampaignRuntime` had parallel quest hash sets instead of composing it.
+- **Well needs scene geometry:** falsified. `KentridgeTownPlanner` emits `KentridgeRole.Well` through the standard `SettlementPlan`.
+- **Legacy behavior unknown:** falsified by `mounting-force/Code/TakeBoyHome.m`: Madeline/boy go to `kentridge-well`; the boy falls/disappears with falling/thud beats; Madeline returns.
+- **First final candidate valid:** falsified by exact run `33207614927`. The scene assembly rejected the new bootstrap session-locator members, and the built-player harness rejected this zero-capture issue because no screen dimensions were supplied.
 
 ## Selected fix
-Wire `CampaignRuntime` to the existing `QuestRuntime`, route semantic NPC/world interactions into it, and author a two-step Kentridge quest: rescue/interact at the generated well, then return to Madeline. Start it through the existing Story quest seam. Add a reusable definition-backed inventory runtime; Kentridge grants one `Well Rescue Token` idempotently on completion. A small Kentridge presentation host resolves the generated well, supplies the interaction prompt/dialogue beats, and opens a read-only square-tile inventory with `I`.
+Use the existing `QuestRuntime` as Campaign quest authority and route semantic NPC/world observations into it. Author the two-step generated-well -> Madeline quest. Keep reusable item ownership in `InventoryRuntime`; Kentridge session/reward runtime owns the idempotent `Well Rescue Token` grant. Presentation only resolves the generated well, observes interaction, and renders inventory snapshots. It binds the already-created live slice session rather than exposing a bootstrap-global locator. Inventory takes the existing `Ui` input-context lease and bridges the slice's legacy direct input reader while open. Root 1600x900 dimensions make the architecture-only capture runnable by the standard player harness.
 
-## Regression / repro
-Focused PlayMode regression will run the authored definition through the real quest runtime, advance well -> Madeline, assert completion, deliver the reward twice through the idempotent inventory boundary, and assert one visible inventory snapshot item. Final targeted CI also replays `KentridgePlayableSlice` for 30 seconds so the built-player scene startup/runtime path is captured.
+## Regression / remaining gate
+Focused PlayMode regression drives the authored definition through `QuestRuntime`, verifies well -> Madeline completion, runs the production reward synchronizer twice and asserts one item, then checks `I`-viewer tile/context behavior. Remaining gate: fresh exact-SHA PlayMode CI plus 30-second built Kentridge replay with no startup/runtime exceptions.
 
 ## Blast radius / cost
-Shared changes are limited to quest composition/event routing and the new inventory module. No per-voxel storage, generation, rendering, mesh, or streaming work is added. Gameplay cost is one small quest observation scan on interactions plus one tiny inventory dictionary; UI draws only while inventory is open. No equipment, persistence, crafting, journal, sorting, vendors, or second quest framework.
+Shared changes remain quest event routing plus a tiny definition-backed inventory dictionary. No voxel storage, generation, renderer, mesh, streaming, equipment, persistence, crafting, journal, vendor, or second quest framework. Runtime cost is interaction-time quest scans, one idempotent reward lookup, and inventory IMGUI only while the viewer exists.

@@ -1,4 +1,6 @@
 using Game.Composition.Kentridge.Api;
+using Game.Composition.Kentridge.Runtime;
+using Game.Input.Api;
 using Game.Inventory.Api;
 using Game.Inventory.Runtime;
 using Game.Kentridge.PlayableSlice;
@@ -37,9 +39,10 @@ namespace VoxelEngine.Tests.PlayMode
             {
                 new ItemDefinition(reward, "Well Rescue Token", "W")
             });
-            Assert.That(inventory.TryAddUnique(reward), Is.True);
-            Assert.That(inventory.TryAddUnique(reward), Is.False,
-                "Replaying completion/reward delivery must not duplicate the quest item.");
+            var rewardRuntime = new KentridgeWellQuestRewardRuntime(inventory);
+            Assert.That(rewardRuntime.Synchronize(quests.IsCompleted(KentridgeWellQuestDefinition.Ref)), Is.True);
+            Assert.That(rewardRuntime.Synchronize(quests.IsCompleted(KentridgeWellQuestDefinition.Ref)), Is.False,
+                "Replaying completion/reward synchronization must not duplicate the quest item.");
             Assert.That(inventory.Count(reward), Is.EqualTo(1));
             Assert.That(inventory.Snapshot().Count, Is.EqualTo(1));
             Assert.That(inventory.Snapshot()[0].Definition.Ref, Is.EqualTo(reward));
@@ -50,12 +53,15 @@ namespace VoxelEngine.Tests.PlayMode
                 var presentation = host.AddComponent<KentridgeWellQuestInventoryPresentation>();
                 presentation.SetInventory(inventory);
                 Assert.That(presentation.InventoryOpen, Is.False);
+                Assert.That(presentation.ActiveInputContext, Is.EqualTo(InputContextId.Exploration));
                 presentation.ToggleInventory();
                 Assert.That(presentation.InventoryOpen, Is.True);
+                Assert.That(presentation.ActiveInputContext, Is.EqualTo(InputContextId.Ui));
                 Assert.That(presentation.VisibleTileCount, Is.EqualTo(1));
                 Assert.That(KentridgeWellQuestInventoryPresentation.ItemTileSizePixels, Is.EqualTo(64f));
                 presentation.ToggleInventory();
                 Assert.That(presentation.InventoryOpen, Is.False);
+                Assert.That(presentation.ActiveInputContext, Is.EqualTo(InputContextId.Exploration));
             }
             finally
             {

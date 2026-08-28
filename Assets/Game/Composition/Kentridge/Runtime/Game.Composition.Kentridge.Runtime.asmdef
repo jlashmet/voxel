@@ -9,7 +9,9 @@
     "Game.Composition.WorldBuilderWorldGen.Runtime",
     "Game.Cutscenes.Api",
     "Game.WorldBuilder.Api",
-    "Game.Quests.Api"
+    "Game.Quests.Api",
+    "Game.Inventory.Api",
+    "Game.Inventory.Runtime"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

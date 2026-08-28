@@ -5,36 +5,78 @@ using Game.Composition.Kentridge.Api;
 using Game.Composition.WorldBuilderWorldGen;
 using Game.Composition.WorldBuilderWorldGen.Runtime;
 using Game.Cutscenes.Api;
+using Game.Inventory.Api;
+using Game.Inventory.Runtime;
+using Game.Quests.Api;
 using Game.WorldBuilder.Api;
 
 namespace Game.Composition.Kentridge.Runtime
 {
+    public sealed class KentridgeWellQuestRewardRuntime
+    {
+        private static readonly ItemRef RewardRef =
+            new ItemRef(KentridgeWellQuestDefinition.RewardItemId);
+
+        public IInventoryRuntime Inventory { get; }
+
+        public KentridgeWellQuestRewardRuntime(IInventoryRuntime inventory)
+        {
+            Inventory = inventory ?? throw new ArgumentNullException(nameof(inventory));
+        }
+
+        public bool Synchronize(bool questCompleted)
+        {
+            return questCompleted && Inventory.TryAddUnique(RewardRef);
+        }
+    }
+
     public sealed class KentridgeCampaignSession
     {
+        private readonly KentridgeWellQuestRewardRuntime _wellQuestRewards;
+
         public CampaignBlueprint Blueprint { get; }
         public KentridgeCampaignGenerationPlan Generation { get; }
         public KentridgeCampaignWorldRealization World { get; }
         public CampaignRuntime Runtime { get; }
+        public IInventoryRuntime Inventory => _wellQuestRewards.Inventory;
 
         internal KentridgeCampaignSession(
             CampaignBlueprint blueprint,
             KentridgeCampaignGenerationPlan generation,
             KentridgeCampaignWorldRealization world,
-            CampaignRuntime runtime)
+            CampaignRuntime runtime,
+            KentridgeWellQuestRewardRuntime wellQuestRewards)
         {
             Blueprint = blueprint ?? throw new ArgumentNullException(nameof(blueprint));
             Generation = generation ?? throw new ArgumentNullException(nameof(generation));
             World = world ?? throw new ArgumentNullException(nameof(world));
             Runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
+            _wellQuestRewards = wellQuestRewards ?? throw new ArgumentNullException(nameof(wellQuestRewards));
         }
 
-        public int StartNewGame() => Runtime.StartNewGame();
+        public int StartNewGame()
+        {
+            int matched = Runtime.StartNewGame();
+            SynchronizeRewards();
+            return matched;
+        }
+
+        public IReadOnlyList<QuestEvent> ObserveQuest(QuestObservation observation)
+        {
+            IReadOnlyList<QuestEvent> events = Runtime.ObserveQuest(observation);
+            SynchronizeRewards();
+            return events;
+        }
+
+        public bool SynchronizeRewards()
+        {
+            return _wellQuestRewards.Synchronize(
+                Runtime.IsQuestCompleted(KentridgeWellQuestDefinition.Ref));
+        }
     }
 
     public static class KentridgeCampaignSessionBootstrap
     {
-        public static KentridgeCampaignSession ActiveSession { get; private set; }
-
         public static KentridgeCampaignGenerationPlan Plan(
             CampaignBlueprint blueprint,
             AuthoredTownPlan town)
@@ -88,19 +130,19 @@ namespace Game.Composition.Kentridge.Runtime
                 presentation,
                 KentridgeWellQuestDefinition.CreateDefinitions());
 
-            var session = new KentridgeCampaignSession(
+            ItemRef reward = new ItemRef(KentridgeWellQuestDefinition.RewardItemId);
+            var inventory = new InventoryRuntime(new[]
+            {
+                new ItemDefinition(reward, "Well Rescue Token", "W")
+            });
+            var rewards = new KentridgeWellQuestRewardRuntime(inventory);
+
+            return new KentridgeCampaignSession(
                 blueprint,
                 generation,
                 world,
-                runtime);
-            ActiveSession = session;
-            return session;
-        }
-
-        public static void ClearActiveSession(KentridgeCampaignSession session)
-        {
-            if (ReferenceEquals(ActiveSession, session))
-                ActiveSession = null;
+                runtime,
+                rewards);
         }
 
         private static void ValidatePlayerBindings(

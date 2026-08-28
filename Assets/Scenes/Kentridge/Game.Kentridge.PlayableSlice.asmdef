@@ -22,6 +22,8 @@
         "Game.Inventory.Api",
         "Game.Inventory.Runtime",
         "Game.Quests.Api",
+        "Game.Input.Api",
+        "Game.Input.Runtime",
         "MountingForce.WorldGen.Core",
         "MountingForce.WorldGen.Architecture",
         "MountingForce.WorldGen.Voxel",

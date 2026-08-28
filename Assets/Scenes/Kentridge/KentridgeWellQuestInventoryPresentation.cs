@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using Game.Composition.Kentridge.Api;
 using Game.Composition.Kentridge.Runtime;
+using Game.Input.Api;
+using Game.Input.Runtime;
 using Game.Inventory.Api;
-using Game.Inventory.Runtime;
 using Game.Quests.Api;
 using MountingForce.WorldGen;
 using MountingForce.WorldGen.Content.Kentridge;
@@ -13,18 +15,24 @@ using UnityEngine.SceneManagement;
 namespace Game.Kentridge.PlayableSlice
 {
     /// <summary>
-    /// Thin player-facing presentation for the recovered well quest. Quest state stays in
-    /// CampaignRuntime/QuestRuntime and item state stays in IInventoryRuntime; this component owns
-    /// only generated-well proximity, input prompts, and the read-only inventory drawing.
+    /// Thin player-facing presentation for the recovered well quest. Quest/reward/item state stays
+    /// in the Kentridge campaign session; this component owns generated-well proximity, prompts and
+    /// the read-only square-tile inventory drawing only.
     /// </summary>
     public sealed class KentridgeWellQuestInventoryPresentation : MonoBehaviour
     {
         public const float ItemTileSizePixels = 64f;
-        private const uint DefaultKentridgeSeed = 0x4B454E54u;
         private const float WellInteractionRangeMetres = 3.2f;
 
+        private static readonly FieldInfo SessionField = typeof(KentridgePlayableSlice).GetField(
+            "_session", BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly FieldInfo SettlementField = typeof(KentridgePlayableSlice).GetField(
+            "_kentridgePlan", BindingFlags.Instance | BindingFlags.NonPublic);
+
+        private readonly IInputContextService _inputContexts = new InputContextService();
         private KentridgeCampaignSession _session;
         private IInventoryRuntime _inventory;
+        private IInputContextLease _uiLease;
         private Vector3 _wellWorldPosition;
         private bool _inventoryOpen;
         private string _statusMessage = string.Empty;
@@ -32,6 +40,7 @@ namespace Game.Kentridge.PlayableSlice
         public bool InventoryOpen => _inventoryOpen;
         public int VisibleTileCount => _inventory?.Snapshot().Count ?? 0;
         public int RewardCount => _inventory?.Count(RewardRef) ?? 0;
+        public InputContextId ActiveInputContext => _inputContexts.ActiveContext;
         public bool QuestCompleted =>
             _session != null && _session.Runtime.IsQuestCompleted(KentridgeWellQuestDefinition.Ref);
         public Vector3 WellWorldPosition => _wellWorldPosition;
@@ -55,8 +64,7 @@ namespace Game.Kentridge.PlayableSlice
 
         private void OnDestroy()
         {
-            if (_session != null)
-                KentridgeCampaignSessionBootstrap.ClearActiveSession(_session);
+            CloseInventory();
         }
 
         private void Update()
@@ -69,8 +77,18 @@ namespace Game.Kentridge.PlayableSlice
             if (_inventoryOpen && Input.GetKeyDown(KeyCode.Escape))
                 CloseInventory();
 
-            SyncReward();
-            if (_inventoryOpen || _session == null || _session.Runtime.HasActiveCutscene) return;
+            if (_session != null && _session.SynchronizeRewards())
+                _statusMessage = "Madeline: Thank you. Keep this Well Rescue Token.";
+
+            if (_inventoryOpen)
+            {
+                // Kentridge still has a legacy direct UnityEngine.Input exploration reader. The
+                // canonical Ui lease is authoritative for new readers; clearing axes bridges that
+                // legacy reader until the slice is fully migrated to Game.Input.Runtime.
+                Input.ResetInputAxes();
+                return;
+            }
+            if (_session == null || _session.Runtime.HasActiveCutscene) return;
 
             if (Input.GetKeyDown(KeyCode.E) && IsPlayerNearWell())
                 TryInteractWithWell();
@@ -81,8 +99,25 @@ namespace Game.Kentridge.PlayableSlice
             _inventory = inventory ?? throw new ArgumentNullException(nameof(inventory));
         }
 
-        public void ToggleInventory() => _inventoryOpen = !_inventoryOpen;
-        public void CloseInventory() => _inventoryOpen = false;
+        public void ToggleInventory()
+        {
+            if (_inventoryOpen) CloseInventory();
+            else OpenInventory();
+        }
+
+        public void OpenInventory()
+        {
+            if (_inventoryOpen) return;
+            _uiLease = _inputContexts.Push(InputContextId.Ui);
+            _inventoryOpen = true;
+        }
+
+        public void CloseInventory()
+        {
+            _inventoryOpen = false;
+            _uiLease?.Dispose();
+            _uiLease = null;
+        }
 
         public bool TryInteractWithWell()
         {
@@ -93,18 +128,22 @@ namespace Game.Kentridge.PlayableSlice
             if (!HasActiveTarget(snapshot, KentridgeWellQuestDefinition.WellTargetId))
                 return false;
 
-            IReadOnlyList<QuestEvent> events = _session.Runtime.ObserveQuest(
+            IReadOnlyList<QuestEvent> events = _session.ObserveQuest(
                 QuestObservation.Interacted(KentridgeWellQuestDefinition.WellTargetId));
             if (events.Count == 0) return false;
 
             _statusMessage = "You lower a rope into the old well. The boy climbs out safely. Return to Madeline.";
-            SyncReward();
             return true;
         }
 
         public static Vector3 ResolveWellWorldPosition(uint seed)
         {
-            SettlementPlan settlement = KentridgeDefinition.Build(seed);
+            return ResolveWellWorldPosition(KentridgeDefinition.Build(seed));
+        }
+
+        public static Vector3 ResolveWellWorldPosition(SettlementPlan settlement)
+        {
+            if (settlement == null) throw new ArgumentNullException(nameof(settlement));
             for (var i = 0; i < settlement.Plots.Count; i++)
             {
                 BuildingPlot plot = settlement.Plots[i];
@@ -120,24 +159,18 @@ namespace Game.Kentridge.PlayableSlice
 
         private void BindLiveSessionIfReady()
         {
-            KentridgeCampaignSession live = KentridgeCampaignSessionBootstrap.ActiveSession;
-            if (live == null || ReferenceEquals(live, _session)) return;
+            if (_session != null || SessionField == null || SettlementField == null) return;
+            KentridgePlayableSlice slice = FindFirstObjectByType<KentridgePlayableSlice>();
+            if (slice == null) return;
+
+            var live = SessionField.GetValue(slice) as KentridgeCampaignSession;
+            var settlement = SettlementField.GetValue(slice) as SettlementPlan;
+            if (live == null || settlement == null) return;
 
             _session = live;
-            _wellWorldPosition = ResolveWellWorldPosition(DefaultKentridgeSeed);
-            SetInventory(new InventoryRuntime(new[]
-            {
-                new ItemDefinition(RewardRef, "Well Rescue Token", "W")
-            }));
-            SyncReward();
-        }
-
-        private void SyncReward()
-        {
-            if (_session == null || _inventory == null) return;
-            if (!_session.Runtime.IsQuestCompleted(KentridgeWellQuestDefinition.Ref)) return;
-            if (_inventory.TryAddUnique(RewardRef))
-                _statusMessage = "Madeline: Thank you. Keep this Well Rescue Token.";
+            _inventory = live.Inventory;
+            _wellWorldPosition = ResolveWellWorldPosition(settlement);
+            _session.SynchronizeRewards();
         }
 
         private bool IsPlayerNearWell()
