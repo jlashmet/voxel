@@ -8,8 +8,8 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
 {
     /// <summary>
     /// Construction-time presentation batch for semantic grass. Grass instances are packed into
-    /// spatial meshes so regional coverage/colour remains coherent in world space while wind,
-    /// camera-facing reconstruction, and character push stay entirely on the GPU each frame.
+    /// spatial meshes so regional colour remains coherent in world space while per-instance density,
+    /// wind, camera-facing reconstruction, and character push remain deterministic presentation.
     /// </summary>
     internal sealed class ProceduralGrassBatch : IDisposable
     {
@@ -173,10 +173,10 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
                 instance.PositionMetres.y,
                 instance.PositionMetres.z) + normal * 0.015f;
 
-            float coverage = CoverageField(anchor.x, anchor.z);
-            if (coverage < 0.20f) return;
-            float dense = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.20f, 0.78f, coverage));
-            int bladesHere = Mathf.RoundToInt(Mathf.Lerp(5f, 15f, dense));
+            // VegetationPlacement is authoritative about whether grass exists. Once a semantic
+            // Grass instance reaches presentation, always render it; the seed may vary only the
+            // local blade field inside that placement.
+            int bladesHere = BladeCountForSeed(instance.Seed);
 
             for (int blade = 0; blade < bladesHere; blade++)
             {
@@ -256,6 +256,11 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
             }
         }
 
+        internal static int BladeCountForSeed(uint seed) =>
+            Mathf.RoundToInt(Mathf.Lerp(5f, 15f, Random01(Hash(seed, 0xD1B54A35u))));
+
+        // Retained as a regression oracle for the old renderer-owned macro coverage decision. It is
+        // intentionally not consulted by production geometry generation.
         internal static float CoverageField(float x, float z) =>
             Fbm(x * 0.042f + 13.7f, z * 0.042f - 21.4f);
 
