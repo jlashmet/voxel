@@ -1,0 +1,20 @@
+{
+  "name": "Game.Composition.Kentridge.Playable",
+  "rootNamespace": "Game.Composition.Kentridge.Playable",
+  "references": [
+    "Game.Combat.Api",
+    "Game.Combat.Runtime",
+    "Game.Input.Api",
+    "Game.Input.Runtime",
+    "MountingForce.WorldGen.Core"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

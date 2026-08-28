@@ -1,0 +1,17 @@
+{
+  "name": "Game.Combat.Runtime",
+  "rootNamespace": "Game.Combat.Runtime",
+  "references": [
+    "Game.Combat.Api",
+    "Game.Input.Api"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}
