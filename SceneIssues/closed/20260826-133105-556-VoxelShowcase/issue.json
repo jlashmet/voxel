@@ -1,0 +1,66 @@
+{
+    "formatVersion": 3,
+    "id": "20260826-133105-556-VoxelShowcase",
+    "capturedUtc": "2026-08-26T13:31:05.5565890Z",
+    "note": "when i press e to open the castle gate it just disappears.  it should have an animation where it opens and it shouldn't disappear",
+    "status": "fixed",
+    "resolvedUtc": "2026-08-28T02:52:24Z",
+    "resolutionSummary": "The castle front-gate interaction no longer bulk-clears the authored gate. It snapshots the closed timber, iron, and trim voxels, restores the closed pose on the interaction frame, then animates two material-preserving leaves inward over 0.9 seconds in nine bounded poses while keeping the centre passage clear. The production E path remains one-shot. Exact-SHA targeted CI run 33133498765 passed the focused PlayMode regression and standalone saved-pose replay; the final player frame visibly retains both opened gate leaves.",
+    "regressionTest": "VoxelEngine.Tests.PlayMode.CastleFrontGateVisibleOpenRegressionTests.NearbyInteractionAnimatesBothGateLeavesAndKeepsCentrePassageClear",
+    "fixCommit": "9222d8b9d2c7f50e285a224ac76669498b8a1276",
+    "replayAction": "interact",
+    "unityVersion": "6000.5.6f1",
+    "platform": "OSXEditor",
+    "sceneName": "VoxelShowcase",
+    "scenePath": "Assets/Scenes/VoxelShowcase.unity",
+    "sceneBuildIndex": 2,
+    "captures": [
+        {
+            "screenshot": "screenshot-001.png",
+            "capturedUtc": "2026-08-26T13:31:05.5566540Z",
+            "frameCount": 169513,
+            "timeSinceLevelLoad": 509.56048583984377,
+            "screenWidth": 1928,
+            "screenHeight": 836,
+            "poseAnchor": {
+                "hierarchyPath": "Showcase Camera",
+                "position": { "x": 25.616580963134767, "y": 26.35015869140625, "z": 11.290130615234375 },
+                "rotation": { "x": 0.10458954423666, "y": -0.007642569486051798, "z": -0.000803764967713505, "w": -0.9944857954978943 },
+                "localScale": { "x": 1.0, "y": 1.0, "z": 1.0 }
+            },
+            "camera": {
+                "hierarchyPath": "Showcase Camera",
+                "position": { "x": 25.616580963134767, "y": 26.35015869140625, "z": 11.290130615234375 },
+                "rotation": { "x": 0.10458954423666, "y": -0.007642569486051798, "z": -0.000803764967713505, "w": -0.9944857954978943 },
+                "fieldOfView": 70.0,
+                "orthographic": false,
+                "orthographicSize": 5.0,
+                "nearClipPlane": 0.05000000074505806,
+                "farClipPlane": 16000.0
+            },
+            "circles": []
+        }
+    ],
+    "screenshot": "screenshot-001.png",
+    "frameCount": 169513,
+    "timeSinceLevelLoad": 509.56048583984377,
+    "screenWidth": 1928,
+    "screenHeight": 836,
+    "poseAnchor": {
+        "hierarchyPath": "Showcase Camera",
+        "position": { "x": 25.616580963134767, "y": 26.35015869140625, "z": 11.290130615234375 },
+        "rotation": { "x": 0.10458954423666, "y": -0.007642569486051798, "z": -0.000803764967713505, "w": -0.9944857954978943 },
+        "localScale": { "x": 1.0, "y": 1.0, "z": 1.0 }
+    },
+    "camera": {
+        "hierarchyPath": "Showcase Camera",
+        "position": { "x": 25.616580963134767, "y": 26.35015869140625, "z": 11.290130615234375 },
+        "rotation": { "x": 0.10458954423666, "y": -0.007642569486051798, "z": -0.000803764967713505, "w": -0.9944857954978943 },
+        "fieldOfView": 70.0,
+        "orthographic": false,
+        "orthographicSize": 5.0,
+        "nearClipPlane": 0.05000000074505806,
+        "farClipPlane": 16000.0
+    },
+    "circles": []
+}
