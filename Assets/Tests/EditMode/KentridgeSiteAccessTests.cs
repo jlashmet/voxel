@@ -11,10 +11,11 @@ namespace VoxelEngine.Tests.EditMode
         public void EveryStableSiteDeclaresAnExplicitExistingAccessTarget()
         {
             SettlementPlan plan = KentridgeDefinition.Build(123u);
-            var streetIds = new HashSet<string>();
-            for (var i = 0; i < plan.Streets.Count; i++)
-                streetIds.Add(plan.Streets[i].Id);
+            var routeIds = new HashSet<string>();
+            for (var i = 0; i < plan.Routes.Count; i++)
+                routeIds.Add(plan.Routes[i].Id);
 
+            Assert.That(plan.Streets.Count, Is.EqualTo(0));
             Assert.That(plan.Sites.Count, Is.EqualTo(17));
             for (var i = 0; i < plan.Sites.Count; i++)
             {
@@ -22,10 +23,11 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.That(site.Access.IsSpecified, Is.True,
                     "Stable site role " + site.RoleId + " must expose its movement-network access.");
 
-                if (site.Access.Kind == SiteAccessKind.Street)
+                if (site.Access.Kind == SiteAccessKind.Route)
                 {
-                    Assert.That(streetIds.Contains(site.Access.TargetId), Is.True,
-                        "Site role " + site.RoleId + " references missing street '" + site.Access.TargetId + "'.");
+                    Assert.That(routeIds.Contains(site.Access.TargetId), Is.True,
+                        "Site role " + site.RoleId + " references missing inferred route '"
+                        + site.Access.TargetId + "'.");
                 }
                 else
                 {
@@ -36,15 +38,15 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void PubAndWellKeepAuthoredNetworkConnections()
+        public void PubUsesInferredRouteAndWellKeepsMarketOpenSpaceConnection()
         {
             SettlementPlan plan = KentridgeDefinition.Build(456u);
             PlannedSite pub = FindSite(plan, KentridgeRole.Pub);
             PlannedSite well = FindSite(plan, KentridgeRole.Well);
 
-            Assert.That(pub.Access.Kind, Is.EqualTo(SiteAccessKind.Street));
-            Assert.That(pub.Access.TargetId, Is.EqualTo(KentridgeTownPlanner.MainSpineId));
-            Assert.That(pub.Access.NetworkPointDm.X, Is.EqualTo(KentridgeTownPlanner.MainSpineXDm));
+            Assert.That(pub.Access.Kind, Is.EqualTo(SiteAccessKind.Route));
+            Assert.That(pub.Access.TargetId, Is.EqualTo("organic-access-" + (int)KentridgeRole.Pub));
+            Assert.That(pub.AccessDirection.X == 0 && pub.AccessDirection.Z == 0, Is.False);
 
             Assert.That(well.Access.Kind, Is.EqualTo(SiteAccessKind.Plaza));
             Assert.That(well.Access.TargetId, Is.EqualTo(KentridgeTownPlanner.MarketSquareId));
