@@ -99,11 +99,19 @@ namespace VoxelEngine.Tests.PlayMode
 
         private static Transform FindHeroRoot()
         {
-            Transform[] transforms = Object.FindObjectsByType<Transform>(
-                FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+            // The production listener deliberately detaches a DontSave root from the movable camera.
+            // Unity's scene-scoped FindObjectsByType stops returning that object after detachment even
+            // though the standalone player renders it. Resources is observation-only here: filter to
+            // the exact active object in a valid loaded scene, without repairing product state.
+            Transform[] transforms = Resources.FindObjectsOfTypeAll<Transform>();
             foreach (Transform candidate in transforms)
-                if (candidate != null && candidate.name == "Arch Reference Hero Growth")
-                    return candidate;
+            {
+                if (candidate == null || candidate.name != "Arch Reference Hero Growth") continue;
+                GameObject candidateObject = candidate.gameObject;
+                if (!candidateObject.activeInHierarchy) continue;
+                if (!candidateObject.scene.IsValid() || !candidateObject.scene.isLoaded) continue;
+                return candidate;
+            }
             return null;
         }
     }
