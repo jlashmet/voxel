@@ -1,6 +1,8 @@
 using System;
 using System.IO;
 using Game.WorldBuilder.Api;
+using Game.WorldBuilder.Runtime;
+using MountingForce.WorldGen;
 using NUnit.Framework;
 using VoxelEngine.Showcase;
 
@@ -59,6 +61,14 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(galleryPlan.BuildGalleryDistrict, Is.True);
             Assert.That(galleryPlan.Seed, Is.EqualTo(seed + 2u));
 
+            WorldEnvironmentSpec serializedFull = WorldBuilderEnvironmentComposition.SemanticSpec(
+                seed + 3u,
+                ShowcaseFeatureContent.Full);
+            WorldBuilderEnvironmentComposition.Plan serializedFullPlan =
+                WorldBuilderEnvironmentComposition.Resolve(in serializedFull);
+            Assert.That(serializedFullPlan.ShowcaseContent, Is.EqualTo(ShowcaseFeatureContent.Full));
+            Assert.That(serializedFullPlan.Seed, Is.EqualTo(seed + 3u));
+
             Assert.Throws<NotSupportedException>(() =>
             {
                 WorldEnvironmentSpec unsupported = new WorldEnvironmentSpec(
@@ -77,6 +87,34 @@ namespace VoxelEngine.Tests.EditMode
                 "Kentridge runtime composition must live under reusable Game composition ownership.");
 
             AssertSceneSourceContainsNoGenerationBackends("Assets/Scenes");
+        }
+
+        [Test]
+        public void KentridgeAndHightownAreBothAuthoredThroughWorldBuilderAndStayDistinct()
+        {
+            const uint seed = 0x4B454E54u;
+
+            AuthoredTownPlan kentridge = WorldBuilderTownAuthoring.Author(
+                WorldBuilderTownIds.Kentridge,
+                seed);
+            AuthoredTownPlan hightown = WorldBuilderTownAuthoring.Author(
+                WorldBuilderTownIds.Hightown,
+                seed);
+
+            Assert.That(kentridge.SettlementId, Is.EqualTo(WorldBuilderTownIds.Kentridge));
+            Assert.That(hightown.SettlementId, Is.EqualTo(WorldBuilderTownIds.Hightown));
+            Assert.That(kentridge.Seed, Is.EqualTo(seed));
+            Assert.That(hightown.Seed, Is.EqualTo(seed));
+
+            Assert.That(kentridge.BackendPlan, Is.TypeOf<SettlementPlan>());
+            Assert.That(hightown.BackendPlan, Is.TypeOf<SettlementPlan>());
+            var kentridgePlan = (SettlementPlan)kentridge.BackendPlan;
+            var hightownPlan = (SettlementPlan)hightown.BackendPlan;
+
+            Assert.That(kentridgePlan.CentreDm.Equals(hightownPlan.CentreDm), Is.False,
+                "Distinct WorldBuilder recipes must not collapse both towns onto one canonical composition.");
+            Assert.That(kentridgePlan.Plots.Count, Is.GreaterThan(0));
+            Assert.That(hightownPlan.Plots.Count, Is.GreaterThan(0));
         }
 
         private static void AssertSceneSourceContainsNoGenerationBackends(string sceneDirectory)
