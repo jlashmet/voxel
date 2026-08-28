@@ -95,6 +95,8 @@ namespace MountingForce.WorldGen.Voxel
     /// Bounded terrain-following rasterizer for generic settlement routes. It samples each integer
     /// polyline at no more than half its width, so adjacent square patches overlap and form continuous
     /// diagonal/curved circulation without arbitrary-angle shape transforms or an unbounded pathfinder.
+    /// A short backend-only connector begins at each physically realized public entrance, ensuring
+    /// semantic routes remain walkably attached even when architecture shifts a doorway along a facade.
     /// </summary>
     internal static class KentridgeOrganicCirculationCatalogue
     {
@@ -121,7 +123,7 @@ namespace MountingForce.WorldGen.Voxel
         {
             if (plan == null) throw new ArgumentNullException(nameof(plan));
             int scale = settings.VoxelsPerDecimetre;
-            List<RouteStamp> stamps = Rasterize(plan.Routes);
+            List<RouteStamp> stamps = Rasterize(plan);
 
             var groups = new List<RouteStamp>[WidthsDm.Length];
             int definitions = 0;
@@ -238,33 +240,76 @@ namespace MountingForce.WorldGen.Voxel
             return catalogue;
         }
 
-        private static List<RouteStamp> Rasterize(IReadOnlyList<PlannedRoute> routes)
+        private static List<RouteStamp> Rasterize(SettlementPlan plan)
         {
-            var result = new List<RouteStamp>(512);
-            for (int r = 0; r < routes.Count; r++)
+            var result = new List<RouteStamp>(768);
+            for (int r = 0; r < plan.Routes.Count; r++)
             {
-                PlannedRoute route = routes[r];
+                PlannedRoute route = plan.Routes[r];
+                bool entranceAnchored = TryRasterizeEntranceConnector(plan, route, result);
+                if (!entranceAnchored)
+                    result.Add(new RouteStamp(route.WidthDm, route.Points[0]));
+
                 for (int p = 0; p + 1 < route.Points.Count; p++)
-                {
-                    Int2 a = route.Points[p];
-                    Int2 b = route.Points[p + 1];
-                    int dx = b.X - a.X;
-                    int dz = b.Y - a.Y;
-                    int extent = Math.Max(Math.Abs(dx), Math.Abs(dz));
-                    int spacing = Math.Max(8, route.WidthDm / 2);
-                    int steps = Math.Max(1, (extent + spacing - 1) / spacing);
-                    int start = p == 0 ? 0 : 1;
-                    for (int s = start; s <= steps; s++)
-                    {
-                        result.Add(new RouteStamp(
-                            route.WidthDm,
-                            new Int2(
-                                a.X + dx * s / steps,
-                                a.Y + dz * s / steps)));
-                    }
-                }
+                    RasterizeSegment(result, route.WidthDm, route.Points[p], route.Points[p + 1], false);
             }
             return result;
+        }
+
+        private static bool TryRasterizeEntranceConnector(
+            SettlementPlan plan, PlannedRoute route, List<RouteStamp> result)
+        {
+            for (int i = 0; i < plan.Plots.Count; i++)
+            {
+                BuildingPlot plot = plan.Plots[i];
+                if (plot.Access.Kind != SiteAccessKind.Route
+                    || !string.Equals(plot.Access.TargetId, route.Id, StringComparison.Ordinal))
+                    continue;
+
+                KentridgeGameplaySiteAccess access;
+                if (!KentridgeGameplaySiteAccessResolver.TryResolve(
+                    plan, plot.RoleId, 1, out access))
+                    return false;
+
+                Int3 entrance = access.Entrance.Position;
+                RasterizeSegment(
+                    result,
+                    route.WidthDm,
+                    new Int2(entrance.X, entrance.Z),
+                    route.Points[0],
+                    true);
+                return true;
+            }
+            return false;
+        }
+
+        private static void RasterizeSegment(
+            List<RouteStamp> result,
+            int widthDm,
+            Int2 a,
+            Int2 b,
+            bool includeStart)
+        {
+            int dx = b.X - a.X;
+            int dz = b.Y - a.Y;
+            int extent = Math.Max(Math.Abs(dx), Math.Abs(dz));
+            if (extent == 0)
+            {
+                if (includeStart) result.Add(new RouteStamp(widthDm, a));
+                return;
+            }
+
+            int spacing = Math.Max(8, widthDm / 2);
+            int steps = Math.Max(1, (extent + spacing - 1) / spacing);
+            int start = includeStart ? 0 : 1;
+            for (int s = start; s <= steps; s++)
+            {
+                result.Add(new RouteStamp(
+                    widthDm,
+                    new Int2(
+                        a.X + dx * s / steps,
+                        a.Y + dz * s / steps)));
+            }
         }
 
         private static int WidthIndex(int widthDm)
