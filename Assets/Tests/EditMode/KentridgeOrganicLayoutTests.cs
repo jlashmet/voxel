@@ -5,6 +5,7 @@ using MountingForce.WorldGen.Voxel;
 using NUnit.Framework;
 using Unity.Collections;
 using VoxelEngine.Structures.Api;
+using VoxelEngine.Terrain.Api;
 
 namespace VoxelEngine.Tests.EditMode
 {
@@ -86,7 +87,7 @@ namespace VoxelEngine.Tests.EditMode
             AssertNoPlotOverlap(plan);
             AssertSeedChangesLayout(plan);
             AssertGameplayUsesSemanticPublicApproach(plan);
-            AssertVoxelRealizationUsesOrganicRoutes();
+            AssertVoxelRealizationUsesOrganicRoutes(plan);
         }
 
         private static PlannedRoute FindRoute(SettlementPlan plan, string id)
@@ -157,10 +158,12 @@ namespace VoxelEngine.Tests.EditMode
             Assert.Fail("Expected at least one diagonal semantic public approach.");
         }
 
-        private static void AssertVoxelRealizationUsesOrganicRoutes()
+        private static void AssertVoxelRealizationUsesOrganicRoutes(SettlementPlan plan)
         {
             VoxelWorldGenSettings settings = BuildSettings();
             FeatureCatalogue routes = KentridgeDirectedTownSurfaceCatalogue.Build(
+                Seed, settings, Allocator.Temp);
+            FeatureCatalogue piazza = KentridgeMarketPiazzaCatalogue.Build(
                 Seed, settings, Allocator.Temp);
             FeatureCatalogue combined = KentridgeCombinedVoxelCatalogue.Build(
                 Seed, settings, Allocator.Temp);
@@ -173,6 +176,36 @@ namespace VoxelEngine.Tests.EditMode
                     "Organic route rasterization must remain within a small bounded catalogue cost.");
                 for (int i = 0; i < routes.Definitions.Length; i++)
                     StringAssert.StartsWith("kentridge-organic-route-", routes.Definitions[i].Name.ToString());
+
+                for (int p = 0; p < plan.Plots.Count; p++)
+                {
+                    BuildingPlot plot = plan.Plots[p];
+                    if (plot.Archetype == StructureArchetype.Well) continue;
+
+                    Int2 frontage = KentridgeVerticalProfile.FrontagePointDm(plan, plot);
+                    Assert.AreEqual(
+                        TerrainQuery.HeightAt(frontage.X, frontage.Y, Seed),
+                        KentridgeVerticalProfile.PlotSurfaceY(plan, plot, Seed, 1),
+                        "Organic plots must sit on local terrain after fixed district shelves are removed.");
+
+                    KentridgeGameplaySiteAccess access;
+                    Assert.IsTrue(KentridgeGameplaySiteAccessResolver.TryResolve(
+                        plan, plot.RoleId, 1, out access));
+                    Assert.IsTrue(RouteCatalogueCovers(routes, access.Entrance.Position),
+                        "Organic circulation does not reach realized entrance for "
+                        + (KentridgeRole)plot.RoleId + ".");
+                }
+
+                int plazaSurface = piazza.ExplicitPlacements[0].Position.y
+                                 + KentridgeMarketPiazzaCatalogue.SurfaceThicknessDm;
+                Assert.AreEqual(
+                    TerrainQuery.HeightAt(plan.Plaza.CentreDm.X, plan.Plaza.CentreDm.Y, Seed),
+                    plazaSurface,
+                    "Organic market square should share the local terrain datum rather than float on the retired macro profile.");
+                BuildingPlot well = FindPlot(plan, (int)KentridgeRole.Well);
+                Assert.AreEqual(plazaSurface,
+                    KentridgeVerticalProfile.PlotSurfaceY(plan, well, Seed, 1),
+                    "The market well and piazza must use the same organic surface sample.");
 
                 int structures = 0;
                 int organicDefinitions = 0;
@@ -191,8 +224,28 @@ namespace VoxelEngine.Tests.EditMode
             finally
             {
                 routes.Dispose();
+                piazza.Dispose();
                 combined.Dispose();
             }
+        }
+
+        private static bool RouteCatalogueCovers(FeatureCatalogue routes, Int3 point)
+        {
+            for (int ruleIndex = 0; ruleIndex < routes.Rules.Length; ruleIndex++)
+            {
+                PlacementRule rule = routes.Rules[ruleIndex];
+                FeatureDefinition definition = routes.Definitions[rule.DefinitionId];
+                for (int i = 0; i < rule.ExplicitCount; i++)
+                {
+                    ExplicitPlacement placement = routes.ExplicitPlacements[rule.ExplicitOffset + i];
+                    if (point.X >= placement.Position.x
+                        && point.X < placement.Position.x + definition.Footprint.x
+                        && point.Z >= placement.Position.z
+                        && point.Z < placement.Position.z + definition.Footprint.z)
+                        return true;
+                }
+            }
+            return false;
         }
 
         private static BuildingPlot FindPlot(SettlementPlan plan, int roleId)
