@@ -1,33 +1,26 @@
 # Plan: Organic Kentridge Layout
 
-## Observed behavior
+## Evidence and observations
 
-Kentridge currently authors four fixed street centerlines and a plaza, then places named plots with road-facing helpers. `SettlementPlan`, site access, traversal facts, and several Kentridge voxel passes consequently treat the authored street network as the source of town topology. The desired model is the inverse: Kentridge authors town character and spatial intent—district affinity, landmarks, open spaces, density, terrain suitability and placement preferences—while circulation is inferred from the realized settlement. Gameplay may still require `ReachableFrom`; Kentridge content must not author `Connect(A, B)` edges.
-
-## Acceptance criteria
-
-- Kentridge has no fixed road axes and no named-site placement relative to road centerlines.
-- Kentridge authors no explicit pairwise circulation/connectivity edges.
-- Stable `KentridgeRole` identities and campaign bindings remain unchanged.
-- Public entrances/access and structure orientation are represented independently of `PlannedStreet`.
-- Same seed/input yields identical planning output; different seeds provide bounded meaningful variation.
-- Named sites do not overlap and satisfy terrain/clearance requirements.
-- Circulation is inferred from entrances, open spaces, terrain and settlement geometry.
-- Campaign reachability is validated against realized traversal facts.
-- Voxel realization can produce natural ground, alleys, paths, stairs/ramps and plazas without requiring roads.
-- Architecture, shape-program and rasterizer determinism remain intact.
+- The capture folder contains only `issue.json`, `plan.md`, and `tasks.md`; there is no screenshot, markup/circle data, frame state, or runtime capture to inspect. There are therefore no marked visual regions to invent conclusions from.
+- The recorded defect is semantic: Kentridge's authored road axes and street-facing placement made roads the macro-layout truth. The resumed candidate instead preserves all 17 stable gameplay roles while emitting zero `PlannedStreet` entries and inferring public routes from realized entrances and the market plaza.
+- `KentridgeOrganicLayoutTests` is the behavioral regression. It verifies stable role identity, no authored streets, non-cardinal inferred circulation, connected public-network terminals, no plot overlap, meaningful seed variation, semantic public approaches, local production-terrain grounding, realized entrance-to-route voxel coverage, preservation of all 17 structure programs, and bounded organic route catalogue size.
+- Production voxel realization consumes inferred routes through `KentridgeDirectedTownSurfaceCatalogue`; organic plots and the market plaza sample local `TerrainQuery` height instead of the retired fixed district shelves.
 
 ## Competing hypotheses
 
-1. Replace streets throughout the model in one rewrite. This reaches the desired shape quickly but couples failures across placement, access, orientation, traversal and voxel realization.
-2. First make site access/orientation street-independent, preserving current physical output; then replace Kentridge topology and finally infer circulation.
+1. **Authored road topology is the root cause. Supported.** Removing only road rendering would leave site placement/access semantics road-led; the candidate removes streets from the Kentridge semantic plan and derives route access from placed structures.
+2. **This is only a voxel-surface styling defect. Rejected.** The regression exercises semantic access and gameplay entrance resolution before checking voxel realization, so a cosmetic reskin cannot satisfy it.
+3. **Terrain grounding alone fixes the synthetic layout. Rejected.** Local terrain grounding prevents floating/shelved organic sites, but seed-varying district placement and inferred non-cardinal circulation are independently required and covered.
 
-**Selected approach:** hypothesis 2 because it preserves a working vertical slice at each migration gate.
+## Repro and validation
 
-## Next discriminator
+- Semantic repro: build the Kentridge plan for the regression seed and inspect `Streets`, `Routes`, plot access, and role identity.
+- Behavioral regression: `VoxelEngine.Tests.EditMode.KentridgeOrganicLayoutTests` exercises the production planner, gameplay site-access resolver, terrain query, directed circulation catalogue, market piazza catalogue, and combined Kentridge catalogue in one fixture.
+- Final gate: refresh `fixes/agent-3` from current `origin/master`, then run exactly that fixture through the isolated `ci-test/fixes/agent-3` transport. Promote metadata only after terminal green for the exact feature SHA.
 
-Introduce street-independent entrance/access facts and adapt the existing Kentridge plan to produce the same plot positions, orientations, architecture output and campaign site facts. If downstream code still needs street identity for those responsibilities, redesign that boundary before changing Kentridge placement.
+## Blast radius and cost
 
-## Remaining gates
-
-After the compatibility gate: add bounded deterministic spatial intent and placement; rewrite Kentridge without roads; infer and rasterize circulation; migrate generic traversal facts; then remove only proven-dead road-specific Kentridge code. Validate multi-seed determinism, no-overlap/clearance, entrance accessibility, `ReachableFrom`, generation-order parity, bounded cost, targeted CI, and rendered SceneIssue verification before pending promotion.
+- Generic `PlannedStreet`/legacy street support remains available for other settlements; Kentridge switches through additive route/access semantics and Kentridge-specific catalogue selection.
+- Architecture remains quarter-turn deterministic while public approach can be diagonal, limiting migration impact to settlement access/circulation boundaries.
+- Planner work is bounded to 256 placement candidates per named site. Route inference is linear in the 16 routed named sites with a bounded nearest-terminal scan; voxel route sampling is explicitly asserted below 2,048 placements in the regression.
