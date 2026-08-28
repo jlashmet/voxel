@@ -14,7 +14,7 @@ namespace VoxelEngine.Tests.PlayMode
         private const uint Seed = 0x5EED1234;
         private const byte MountainMaterial = 1;
         private const byte PathMaterial = 13;
-        private const byte DragonMaterial = 6;
+        private const byte DragonMaterial = 9;
 
         [Test]
         public void MountainPathDragonAndProximityFlowUseProductionWorldBuilder()
@@ -79,6 +79,8 @@ namespace VoxelEngine.Tests.PlayMode
                 Assert.That(dragonPrimitives.Count, Is.EqualTo(1));
                 Primitive cube = dragonPrimitives[0];
                 Assert.That(cube.Shape, Is.EqualTo(PrimitiveShape.Box));
+                Assert.That(cube.Material, Is.EqualTo(DragonMaterial),
+                    "The placeholder dragon must use the authored red showcase material.");
                 int3 cubeSize = cube.B - cube.A + 1;
                 Assert.That(math.all(cubeSize == new int3(
                     spec.PlaceholderSize, spec.PlaceholderSize, spec.PlaceholderSize)), Is.True);
@@ -96,9 +98,14 @@ namespace VoxelEngine.Tests.PlayMode
                 Assert.That(
                     FindDefinition(productionCatalogue, WorldBuilderMountainLandmarkCatalogue.LandformDefinitionName),
                     Is.GreaterThanOrEqualTo(0));
-                Assert.That(
-                    FindDefinition(productionCatalogue, WorldBuilderMountainLandmarkCatalogue.PlaceholderDefinitionName),
-                    Is.GreaterThanOrEqualTo(0));
+                int productionDragonId = FindDefinition(
+                    productionCatalogue,
+                    WorldBuilderMountainLandmarkCatalogue.PlaceholderDefinitionName);
+                Assert.That(productionDragonId, Is.GreaterThanOrEqualTo(0));
+                List<Primitive> productionDragon = Evaluate(productionCatalogue, productionDragonId, Seed);
+                Assert.That(productionDragon.Count, Is.EqualTo(1));
+                Assert.That(productionDragon[0].Material, Is.EqualTo(DragonMaterial),
+                    "Production Showcase composition must preserve the red placeholder binding.");
             }
             finally
             {

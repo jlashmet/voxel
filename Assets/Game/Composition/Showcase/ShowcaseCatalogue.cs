@@ -49,7 +49,9 @@ namespace VoxelEngine.Showcase
                         in mountainSpec,
                         mountainMaterial: materialRoles.WorldgenFoundation,
                         pathMaterial: materialRoles.WorldgenRoadSurface,
-                        placeholderMaterial: materialRoles.WorldgenDarkMasonry,
+                        // The current placeholder is intentionally a bright red cube. Reuse the
+                        // game's authored red presentation role until real dragon art replaces it.
+                        placeholderMaterial: materialRoles.WorldgenCloth,
                         allocator: Allocator.Temp);
                     try
                     {

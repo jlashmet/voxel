@@ -33,17 +33,16 @@ namespace VoxelEngine.Showcase
             Landmark = ShowcaseMountainDragonLayout.CreateLandmark(seed);
 
             var game = Campaign.Create("showcase-mountain-dragon");
-            SiteRef summit = game.World.RequireSite(
+            RegionHandle mountainRegion = game.World.Region("showcase-mountain-region");
+            SiteHandle summit = mountainRegion.Site(
                 "mountain-dragon-summit",
-                site => site.Archetype(SiteArchetype.Ruin));
+                SiteArchetype.Ruin);
 
             var definition = new CutsceneDefinition(
                 "mountain-dragon-greeting",
                 CutsceneStageSetupDefinition.Empty,
                 new[] { CutsceneStep.Dialogue(GreetingCue) });
-            CutsceneRef greeting = game.Story.Cutscene(
-                definition,
-                scene => scene.At(summit));
+            CutsceneHandle greeting = summit.Cutscene(definition);
 
             game.Story.Rule("approach-mountain-dragon", rule => rule
                 .When(StoryTrigger.EnterSiteProximity(summit))
