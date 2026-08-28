@@ -12,9 +12,6 @@ namespace MountingForce.WorldGen.Voxel
         private const int MarketUpperTransitionBandDm = 2;
         private const int MarketUpperWestInsetDm = 220;
         private const int MarketUpperEastInsetDm = 90;
-        private const int CivicSouthWestProfileStepDm = 12;
-        private const int CivicSouthWestRepairWidthDm = 96;
-        private const byte AxisZ = 2;
 
         private static void ResolveBounds(Patch patch, uint seed, int scale,
                                           out int3 position, out int3 footprint)
@@ -51,8 +48,8 @@ namespace MountingForce.WorldGen.Voxel
             maxY = Math.Max(maxY, y);
         }
 
-        private static int[] Program(Patch patch, int3 position, int3 footprint,
-                                     uint seed, VoxelWorldGenSettings settings)
+        private static int[] Program(Patch patch, int3 footprint,
+                                     VoxelWorldGenSettings settings)
         {
             int s = settings.VoxelsPerDecimetre;
             byte stone = settings.Materials.Resolve(MaterialRole.FoundationStone);
@@ -78,9 +75,6 @@ namespace MountingForce.WorldGen.Voxel
                 if (patch.Id == "market-main")
                     PaintMarketToUpperTransition(
                         b, patch, footprint, s, moss, dirt);
-                else if (patch.Id == "civic-summit")
-                    RepairCivicSouthWestShoulder(
-                        b, patch, position, footprint, seed, s, dirt);
             }
             else
             {
@@ -130,53 +124,6 @@ namespace MountingForce.WorldGen.Voxel
             }
         }
 
-        private static void RepairCivicSouthWestShoulder(
-            ProgramBuilder b, Patch patch, int3 position, int3 footprint,
-            uint seed, int scale, byte dirt)
-        {
-            int shoulder = patch.ShoulderDm * scale;
-            int stripWidthDm = CivicSouthWestProfileStepDm;
-            int repairWidthDm = Math.Min(
-                CivicSouthWestRepairWidthDm, patch.ShoulderDm + patch.WidthDm);
-            int stripCount = (repairWidthDm + stripWidthDm - 1) / stripWidthDm;
-            int southZ = (patch.ShoulderDm + patch.DepthDm) * scale;
-            int outerSouthDm = patch.ZDm + patch.DepthDm + patch.ShoulderDm;
-            int westDm = patch.XDm - patch.ShoulderDm;
-            int coreY = KentridgeVerticalProfile.SurfaceYAtDm(
-                patch.AnchorXDm, patch.AnchorZDm, seed, scale) - position.y;
-
-            // The upper marked circle ray footprint reaches east of the 7.2 m west shoulder into
-            // the civic south edge (roughly world X 91.0..93.8 m at local natural height). The
-            // district terrace builds that entire 61.4 m south edge from one centreline terrain
-            // sample, flattening the marked corner into a rectangular shelf. Re-realize only the
-            // 9.6 m observed corner envelope as 1.2 m ramps with locally sampled outer elevations.
-            for (int strip = 0; strip < stripCount; strip++)
-            {
-                int startDm = strip * stripWidthDm;
-                int widthDm = Math.Min(stripWidthDm, repairWidthDm - startDm);
-                if (widthDm <= 0)
-                    break;
-
-                int sampleXDm = westDm + startDm + widthDm / 2;
-                int edgeY = TerrainQuery.HeightAt(
-                    sampleXDm * scale, outerSouthDm * scale, seed) - position.y;
-                int lowY = Math.Min(edgeY, coreY);
-                int rise = Math.Abs(coreY - edgeY);
-                int x = startDm * scale;
-                int width = widthDm * scale;
-
-                b.Carve(x, lowY, southZ,
-                        width, Math.Max(1, footprint.y - lowY), shoulder);
-                if (rise <= 0)
-                    continue;
-
-                bool highAtNegativeAxis = coreY > edgeY;
-                byte rampAxis = (byte)(AxisZ
-                    | (highAtNegativeAxis ? ShapeOps.ReverseRampBit : 0));
-                b.Ramp(x, lowY, southZ, width, rise, shoulder, rampAxis, dirt);
-            }
-        }
-
         private sealed class ProgramBuilder
         {
             private readonly List<int> _code = new();
@@ -184,33 +131,16 @@ namespace MountingForce.WorldGen.Voxel
             public void Box(int x, int y, int z, int sx, int sy, int sz,
                             byte material, PrimitiveMode mode)
             {
-                if (sx <= 0 || sy <= 0 || sz <= 0) return;
-                Op(ShapeOp.EmitBox, x, y, z, sx, sy, sz,
-                   material, 0, 0, (int)mode);
-            }
-
-            public void Carve(int x, int y, int z, int sx, int sy, int sz) =>
-                Box(x, y, z, sx, sy, sz, 0, PrimitiveMode.Carve);
-
-            public void Ramp(int x, int y, int z, int sx, int sy, int sz,
-                             byte axis, byte material)
-            {
-                if (sx <= 0 || sy <= 0 || sz <= 0) return;
-                Op(ShapeOp.EmitRamp, x, y, z, sx, sy, sz,
-                   axis, material, 0, 0, (int)PrimitiveMode.Fill);
+                _code.Add((int)ShapeOp.EmitBox); _code.Add(0);
+                _code.Add(x); _code.Add(y); _code.Add(z);
+                _code.Add(sx); _code.Add(sy); _code.Add(sz);
+                _code.Add(material); _code.Add(0); _code.Add(0); _code.Add((int)mode);
             }
 
             public int[] Finish()
             {
-                Op(ShapeOp.End);
+                _code.Add((int)ShapeOp.End); _code.Add(0);
                 return _code.ToArray();
-            }
-
-            private void Op(ShapeOp op, params int[] operands)
-            {
-                _code.Add((int)op);
-                _code.Add(0);
-                _code.AddRange(operands);
             }
         }
     }

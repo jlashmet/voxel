@@ -11,7 +11,7 @@ namespace MountingForce.WorldGen.Voxel
     /// <summary>
     /// Turns Kentridge's macro height profile into neighbourhood-scale urban shelves.
     /// District character controls transition depth: green edges stay compact while dense urban
-    /// shelves receive broad sloped contour transitions that meet the authored core continuously.
+    /// shelves receive broad stepped contour bands that can read as real intermediate terraces.
     /// Urban shoulders also compile a sparse crisp masonry retaining skin on their strongest downhill
     /// edges so the vertical city reads as built hillside infrastructure rather than brown plinths.
     /// </summary>
@@ -24,9 +24,6 @@ namespace MountingForce.WorldGen.Voxel
         private const int MixedShoulderWidthDm = 54;
         private const int UrbanShoulderWidthDm = 72;
         private const int ShoulderStepCount = 6;
-        private const int UpperWestProfileStepDm = 5;
-        private const int StandardTerrainMaxPrimitives = 40;
-        private const int UpperShoulderMaxPrimitives = 96;
         private const int RetainingTierStride = 3;
         private const int RetainingFaceThicknessDm = 3;
         private const int RetainingEndInsetDm = 12;
@@ -85,11 +82,10 @@ namespace MountingForce.WorldGen.Voxel
             public readonly int SouthEdgeY;
             public readonly int WestEdgeY;
             public readonly int EastEdgeY;
-            public readonly int[] WestEdgeProfileY;
 
             public TerraceBuild(TerraceSeed seed, int3 position, int3 footprint,
                                 int coreSurfaceY, int northEdgeY, int southEdgeY,
-                                int westEdgeY, int eastEdgeY, int[] westEdgeProfileY)
+                                int westEdgeY, int eastEdgeY)
             {
                 Seed = seed;
                 Position = position;
@@ -99,7 +95,6 @@ namespace MountingForce.WorldGen.Voxel
                 SouthEdgeY = southEdgeY;
                 WestEdgeY = westEdgeY;
                 EastEdgeY = eastEdgeY;
-                WestEdgeProfileY = westEdgeProfileY;
             }
         }
 
@@ -188,9 +183,7 @@ namespace MountingForce.WorldGen.Voxel
                     ProgramLength = program.Length,
                     MaterialOffset = 0,
                     MaterialCount = 0,
-                    MaxPrimitives = build.Seed.Id == "upper-shoulder"
-                        ? UpperShoulderMaxPrimitives
-                        : StandardTerrainMaxPrimitives,
+                    MaxPrimitives = 40,
                 };
 
                 catalogue.ExplicitPlacements[i] = Placement(build.Position);
@@ -306,44 +299,12 @@ namespace MountingForce.WorldGen.Voxel
                 centreZDm * scale,
                 seed);
 
-            int[] westProfile = null;
-            if (terrace.Id == "upper-shoulder")
-            {
-                int count = (terrace.DepthDm + UpperWestProfileStepDm - 1)
-                          / UpperWestProfileStepDm;
-                westProfile = new int[count];
-                int westXDm = terrace.XDm - shoulderDm;
-                for (int i = 0; i < count; i++)
-                {
-                    int startDm = i * UpperWestProfileStepDm;
-                    int depthDm = Math.Min(UpperWestProfileStepDm,
-                                           terrace.DepthDm - startDm);
-                    int sampleZDm = terrace.ZDm + startDm + depthDm / 2;
-                    westProfile[i] = TerrainQuery.HeightAt(
-                        westXDm * scale, sampleZDm * scale, seed);
-                }
-            }
-
             int lowestRelevant = Math.Min(targetSurface,
                 Math.Min(Math.Min(northEdge, southEdge), Math.Min(westEdge, eastEdge)));
             int highestRelevant = Math.Max(targetSurface,
                 Math.Max(Math.Max(northEdge, southEdge), Math.Max(westEdge, eastEdge)));
-            if (westProfile != null)
-            {
-                for (int i = 0; i < westProfile.Length; i++)
-                {
-                    lowestRelevant = Math.Min(lowestRelevant, westProfile[i]);
-                    highestRelevant = Math.Max(highestRelevant, westProfile[i]);
-                }
-            }
-
             int originY = Math.Min(lowestRelevant, naturalMin) - BuriedFootingDm * scale;
             int topY = Math.Max(highestRelevant, naturalMax) + ClearAboveDm * scale;
-            if (westProfile != null)
-            {
-                for (int i = 0; i < westProfile.Length; i++)
-                    westProfile[i] -= originY;
-            }
 
             return new TerraceBuild(
                 terrace,
@@ -359,8 +320,7 @@ namespace MountingForce.WorldGen.Voxel
                 northEdge - originY,
                 southEdge - originY,
                 westEdge - originY,
-                eastEdge - originY,
-                westProfile);
+                eastEdge - originY);
         }
 
         private static void TerrainRange(TerraceSeed terrace, uint seed, int scale,
@@ -441,33 +401,12 @@ namespace MountingForce.WorldGen.Voxel
                 AxisZ,
                 outerAtNegativeAxis: false,
                 clearTop, earth);
-
-            if (build.WestEdgeProfileY != null && build.WestEdgeProfileY.Length > 0)
-            {
-                int stripDepth = UpperWestProfileStepDm * s;
-                for (int i = 0; i < build.WestEdgeProfileY.Length; i++)
-                {
-                    int z = coreInset + i * stripDepth;
-                    int depthForStrip = Math.Min(stripDepth,
-                        coreInset + coreDepth - z);
-                    AddShoulder(b,
-                        0, z, shoulder, depthForStrip,
-                        build.WestEdgeProfileY[i], build.CoreSurfaceY,
-                        AxisX,
-                        outerAtNegativeAxis: true,
-                        clearTop, earth);
-                }
-            }
-            else
-            {
-                AddShoulder(b,
-                    0, coreInset, shoulder, coreDepth,
-                    build.WestEdgeY, build.CoreSurfaceY,
-                    AxisX,
-                    outerAtNegativeAxis: true,
-                    clearTop, earth);
-            }
-
+            AddShoulder(b,
+                0, coreInset, shoulder, coreDepth,
+                build.WestEdgeY, build.CoreSurfaceY,
+                AxisX,
+                outerAtNegativeAxis: true,
+                clearTop, earth);
             AddShoulder(b,
                 coreInset + coreWidth, coreInset, shoulder, coreDepth,
                 build.EastEdgeY, build.CoreSurfaceY,
@@ -574,13 +513,32 @@ namespace MountingForce.WorldGen.Voxel
 
             if (rise <= 0) return;
 
-            // A single authoritative wedge preserves the exact authored edge/core elevations while
-            // removing the six metre-scale plateaus that were visible at Dirt/grass boundaries.
-            // ReverseRampBit means the high end lies at the negative side of the selected axis.
-            bool highAtNegativeAxis = (coreY > edgeY) != outerAtNegativeAxis;
-            byte rampAxis = (byte)(axis
-                | (highAtNegativeAxis ? ShapeOps.ReverseRampBit : 0));
-            b.Ramp(x, lowY, z, width, rise, depth, rampAxis, material);
+            int axisLength = axis == AxisX ? width : depth;
+            for (int step = 0; step < ShoulderStepCount; step++)
+            {
+                int start = axisLength * step / ShoulderStepCount;
+                int end = axisLength * (step + 1) / ShoulderStepCount;
+                int slice = Math.Max(1, end - start);
+                int targetY = edgeY
+                    + (coreY - edgeY) * (step + 1) / ShoulderStepCount;
+                int fillHeight = targetY - lowY;
+                if (fillHeight <= 0) continue;
+
+                if (axis == AxisX)
+                {
+                    int px = outerAtNegativeAxis
+                        ? x + start
+                        : x + axisLength - end;
+                    b.Box(px, lowY, z, slice, fillHeight, depth, material);
+                }
+                else
+                {
+                    int pz = outerAtNegativeAxis
+                        ? z + start
+                        : z + axisLength - end;
+                    b.Box(x, lowY, pz, width, fillHeight, slice, material);
+                }
+            }
         }
 
         private static void AddRetainingTiers(
@@ -649,14 +607,6 @@ namespace MountingForce.WorldGen.Voxel
 
             public void Carve(int x, int y, int z, int sx, int sy, int sz) =>
                 Box(x, y, z, sx, sy, sz, 0, PrimitiveMode.Carve);
-
-            public void Ramp(int x, int y, int z, int sx, int sy, int sz,
-                             byte axis, byte material)
-            {
-                if (sx <= 0 || sy <= 0 || sz <= 0) return;
-                Op(ShapeOp.EmitRamp, x, y, z, sx, sy, sz,
-                   axis, material, 0, 0, (int)PrimitiveMode.Fill);
-            }
 
             public int[] Finish()
             {
