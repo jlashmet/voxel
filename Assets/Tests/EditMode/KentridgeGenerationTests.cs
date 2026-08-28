@@ -19,7 +19,10 @@ namespace VoxelEngine.Tests.EditMode
         {
             SettlementPlan plan = KentridgeDefinition.Build(Seed);
             Assert.AreEqual(17, plan.Plots.Count);
-            Assert.AreEqual(4, plan.Streets.Count);
+            Assert.AreEqual(0, plan.Streets.Count,
+                "Organic Kentridge must not expose the retired authored cross-street grid.");
+            Assert.AreEqual(16, plan.Routes.Count,
+                "Every named building should contribute an inferred public route; the well remains in the plaza.");
             Assert.AreEqual("market-square", plan.Plaza.Id);
 
             FeatureCatalogue catalogue = KentridgeCombinedVoxelCatalogue.Build(
@@ -70,7 +73,7 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.AreEqual(17, structures,
                     "Every stable Kentridge building role should compile once.");
                 Assert.Greater(instances, structures,
-                    "District terraces, roads, foundation skirts, paths, and dressing should accompany buildings.");
+                    "Organic routes, foundation skirts, paths, and dressing should accompany buildings.");
                 Assert.Greater(primitiveCount, 100,
                     "Kentridge emitted implausibly little geometry.");
             }
@@ -166,52 +169,6 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void EverySemanticPlotIsSupportedByASharedDistrictShelf()
-        {
-            SettlementPlan plan = KentridgeDefinition.Build(Seed);
-            FeatureCatalogue terraces = KentridgeDistrictTerraceCatalogue.Build(
-                Seed, BuildSettings(), Allocator.Temp);
-
-            try
-            {
-                for (int p = 0; p < plan.Plots.Count; p++)
-                {
-                    BuildingPlot plot = plan.Plots[p];
-                    Int3 footprint = KentridgeDefinition.FootprintDm(plot.Archetype);
-                    int plotMinX = plot.PositionDm.X;
-                    int plotMaxX = plot.PositionDm.X + footprint.X;
-                    int plotMinZ = plot.PositionDm.Y;
-                    int plotMaxZ = plot.PositionDm.Y + footprint.Z;
-                    bool covered = false;
-
-                    for (int i = 0; i < terraces.Definitions.Length; i++)
-                    {
-                        ExplicitPlacement placement = terraces.ExplicitPlacements[i];
-                        FeatureDefinition definition = terraces.Definitions[i];
-                        int terraceMinX = placement.Position.x;
-                        int terraceMaxX = terraceMinX + definition.Footprint.x;
-                        int terraceMinZ = placement.Position.z;
-                        int terraceMaxZ = terraceMinZ + definition.Footprint.z;
-
-                        if (plotMinX >= terraceMinX && plotMaxX <= terraceMaxX
-                            && plotMinZ >= terraceMinZ && plotMaxZ <= terraceMaxZ)
-                        {
-                            covered = true;
-                            break;
-                        }
-                    }
-
-                    Assert.IsTrue(covered,
-                        $"Kentridge role {plot.RoleId} is not fully supported by a district shelf.");
-                }
-            }
-            finally
-            {
-                terraces.Dispose();
-            }
-        }
-
-        [Test]
         public void ParcelSupportsAreShallowFoundationSkirtsNotTerrainColumns()
         {
             FeatureCatalogue supports = KentridgeTerraceSupportCatalogue.Build(
@@ -227,7 +184,7 @@ namespace VoxelEngine.Tests.EditMode
                 {
                     FeatureDefinition definition = supports.Definitions[i];
                     Assert.AreEqual(24, definition.Footprint.y,
-                        "Parcel support must stay shallow now that district terraces own the hillside mass.");
+                        "Parcel support must stay shallow now that local plot grading owns the generated sites.");
                     StringAssert.StartsWith("kentridge-foundation-skirt-", definition.Name.ToString());
                 }
             }
@@ -274,7 +231,7 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.AreEqual(3, dressing.Definitions.Length,
                     "Street furnishing should reuse lamp, bench, and planter definitions.");
                 Assert.AreEqual(30, dressing.ExplicitPlacements.Length,
-                    "The streetscape pass should remain sparse and deliberately authored.");
+                    "The legacy streetscape component should remain bounded while organic production bypasses it.");
 
                 int explicitCount = 0;
                 for (int i = 0; i < dressing.Rules.Length; i++)
@@ -287,7 +244,7 @@ namespace VoxelEngine.Tests.EditMode
 
                 Assert.AreEqual(30, explicitCount);
                 Assert.AreEqual(24, dressing.Rules[0].ExplicitCount,
-                    "Most street furniture should be lamps that reveal the vertical road rhythm.");
+                    "Most legacy street furniture remains lamps.");
                 Assert.AreEqual(3, dressing.Rules[1].ExplicitCount);
                 Assert.AreEqual(3, dressing.Rules[2].ExplicitCount);
             }
@@ -383,6 +340,7 @@ namespace VoxelEngine.Tests.EditMode
             SettlementPlan b = KentridgeDefinition.Build(Seed);
 
             Assert.AreEqual(a.Plots.Count, b.Plots.Count);
+            Assert.AreEqual(a.Routes.Count, b.Routes.Count);
             for (int i = 0; i < a.Plots.Count; i++)
             {
                 BuildingPlot left = a.Plots[i];
@@ -393,6 +351,9 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.AreEqual(left.Frontage, right.Frontage);
                 Assert.AreEqual(left.PositionDm.X, right.PositionDm.X);
                 Assert.AreEqual(left.PositionDm.Y, right.PositionDm.Y);
+                Assert.AreEqual(left.Access.TargetId, right.Access.TargetId);
+                Assert.AreEqual(left.AccessDirection.X, right.AccessDirection.X);
+                Assert.AreEqual(left.AccessDirection.Z, right.AccessDirection.Z);
             }
         }
 

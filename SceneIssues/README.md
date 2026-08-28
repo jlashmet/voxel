@@ -50,7 +50,12 @@ substantial new attempt and final CI. Do not self-select another issue or modify
    may supplement it but cannot be the sole rendering, geometry, or performance regression.
 6. Implement the smallest proven fix. For shared systems, identify affected consumers, test likely
    negative regressions, and quantify cost against an existing budget.
-7. Replay every original pose and marked region after the fix.
+7. Validate every production change with the repository scene harness that builds the actual
+   application/player and launches the exact scene affected by the issue. The run must demonstrate
+   that the built application reaches a usable rendered scene without startup/runtime exceptions.
+   EditMode tests, editor-only PlayMode tests, unit tests, and synthetic repros are supplemental
+   regression evidence only; none is sufficient scene validation by itself.
+8. Replay every original pose and marked region in the built application after the fix.
 
 Visual fixes must meet the repository's AAA art and layout bar, not merely add the named primitive
 types. Inspect construction detail, proportions, material readability, physical support, useful
@@ -72,22 +77,22 @@ remaining gates. Replace stale detail with a one-line conclusion rather than gro
 
 Record each product experiment as `experiment-NNN-<slug>.md`, limited to a screenful: hypothesis,
 action and source SHA, result, verdict, and next step. Put polling, queue, and runner notes in one
-`ci-operations.md`. Store durable evidence beside the issue as `verification-<slug>.png|txt`.
-
-`verification-final.png` must be a clean, native-resolution replay of the original pose with at
-least the original capture's pixel dimensions and visual detail. Hide replay, dialogue, debug, and
-editor overlays unless an overlay is itself the evidence. Do not use a thumbnail, palette-reduced
-image, or a collage that makes each view harder to inspect than the original. Every claimed visual
-acceptance criterion must be clearly judgeable in the evidence; add separate full-resolution
-`verification-detail-*.png` views when the original pose cannot show necessary art or layout detail.
-Compare the final evidence directly with every original capture before promotion.
+`ci-operations.md`. Store durable text evidence beside the issue as `verification-<slug>.txt`.
 
 ## Targeted CI
 
 Commit and push production/test work to `fixes/agent-N`. Build the request commit directly on the
 exact feature SHA, changing `.github/test-request.json` on the CI branch only, then force-update
-`ci-test/fixes/agent-N` once. Use the smallest exact EditMode or PlayMode filter; replay requests may
-name the assigned `SceneIssues/open|pending|closed/<id>/issue.json` and 20–60 `replay_seconds`.
+`ci-test/fixes/agent-N` once. Use the smallest exact EditMode or PlayMode filter for focused
+regression coverage; replay requests may name the assigned
+`SceneIssues/open|pending|closed/<id>/issue.json` and 20–60 `replay_seconds`.
+
+Focused EditMode/PlayMode CI is necessary regression coverage but is not the final SceneIssue
+validation gate. Every fix must also run the repository's built-application scene harness against
+the exact feature SHA. That harness must build the real application/player, launch the exact scene
+named by the issue, and produce durable evidence that the scene reaches a usable rendered state
+without startup/runtime exceptions. An EditMode-only or other editor-only green run cannot promote
+an issue to pending or closed.
 
 Monitor `ci/single-test` for the exact request SHA. Never create another branch, PR, no-op commit,
 custom workflow, or permission probe to trigger it. Leave queued/running requests alone. If no
@@ -104,16 +109,17 @@ A feature branch is ready for pending promotion only when it has:
 
 - the pushed production/test commit named by `issue.json.fixCommit`;
 - a focused behavioral regression with green exact-SHA targeted CI;
-- every original pose replayed successfully;
-- inspection-quality `verification-final.png` evidence, plus any necessary detail views, committed
-  in the capture;
+- a green exact-SHA built-application harness run that launches the exact affected scene and proves
+  it reaches a usable rendered state without startup/runtime exceptions;
+- every original pose replayed successfully in that built application;
 - `status: pending`, `resolutionSummary`, `regressionTest`, and `fixCommit` completed;
 - the entire capture moved from `open/` to `pending/` in a separate bookkeeping commit; and
 - no unrelated capture, CI request file, or workflow in the feature-only diff.
 
-Do not set `resolvedUtc` before targeted CI passes. Once the exact request is green, move only the
-assigned capture from `pending/` to `closed/`, set `status: fixed` and `resolvedUtc`, and commit the
-final bookkeeping on the same feature branch. Do not create a review branch or pull request.
+Do not set `resolvedUtc` before targeted CI and built-application scene validation pass. Once both
+exact-SHA gates are green, move only the assigned capture from `pending/` to `closed/`, set
+`status: fixed` and `resolvedUtc`, and commit the final bookkeeping on the same feature branch. Do
+not create a review branch or pull request.
 
 Fetch current `origin/master`, merge it into the feature branch, and stop for any conflict outside
 the assigned work. Push the updated feature branch, verify its exact head, then push that head to

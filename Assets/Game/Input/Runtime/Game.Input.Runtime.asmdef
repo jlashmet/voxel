@@ -1,0 +1,16 @@
+{
+  "name": "Game.Input.Runtime",
+  "rootNamespace": "Game.Input.Runtime",
+  "references": [
+    "Game.Input.Api"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

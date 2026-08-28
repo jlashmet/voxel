@@ -9,23 +9,27 @@ namespace VoxelEngine.Tests.EditMode
     public sealed class GpuLod2CutoverPolicyTests
     {
         [Test]
-        public void ProductionSurfaceExtractionUsesCpuMesherForEveryRing()
+        public void LegacyGpuV1CutoverDefaultsOffButRemainsExplicitlyTestable()
         {
-            Assert.True(CpuTransvoxelChunkCache.GpuCutoverDisabled,
-                "The production scheduler must not instantiate the GPU extraction backend.");
+            Assert.True(GpuSurfaceProductionPolicy.ShouldDisableLegacyGpuCutover(null, null),
+                "Production must not enable the legacy per-worker GPU-v1 cutover by default.");
+            Assert.True(GpuSurfaceProductionPolicy.ShouldDisableLegacyGpuCutover("1", "1"),
+                "The emergency VOXEL_DISABLE_GPU_CUTOVER override must win over experiment opt-in.");
+            Assert.False(GpuSurfaceProductionPolicy.ShouldDisableLegacyGpuCutover(null, "1"),
+                "A fresh diagnostic process may explicitly opt into GPU-v1 for A/B experiments.");
         }
 
         [Test]
         public void SceneIssue20260823014011920GpuCutoverTargetsOnlyNearExactRings()
         {
             Assert.True(CpuTransvoxelChunkCache.SupportsGpuSurfaceStep(1),
-                "The dormant GPU oracle still supports full-resolution extraction.");
+                "Full-resolution surface extraction must remain GPU-capable for experiments.");
             Assert.True(CpuTransvoxelChunkCache.SupportsGpuSurfaceStep(2),
-                "The dormant GPU oracle still supports the LOD2 implementation.");
+                "LOD2 must remain GPU-capable, including its transition-face path.");
             Assert.False(CpuTransvoxelChunkCache.SupportsGpuSurfaceStep(4),
-                "The step-4 feature-preserving exact/fallback ring must stay on the CPU path.");
+                "The step-4 feature-preserving exact/fallback ring stays on CPU until GPU parity exists.");
             Assert.False(CpuTransvoxelChunkCache.SupportsGpuSurfaceStep(8),
-                "Block HLOD must remain the step-8 backend.");
+                "Block HLOD remains the step-8 backend.");
         }
 
         [Test]

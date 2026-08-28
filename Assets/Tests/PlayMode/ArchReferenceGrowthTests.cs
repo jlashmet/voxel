@@ -1,5 +1,4 @@
 using System.Collections;
-using System.Linq;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
@@ -10,64 +9,110 @@ namespace VoxelEngine.Tests.PlayMode
 {
     public sealed class ArchReferenceGrowthTests
     {
-        [UnityTest]
-        public IEnumerator AuthoredGrowthCoversLeftPierCrownAndRightCounterweight()
+        [UnityTest, Timeout(30000)]
+        public IEnumerator HeroGrowthUsesAuthoredLeavesAndFlowerClustersWithinBudget()
         {
-            var root = new GameObject("Arch reference growth contract");
+            var host = new GameObject("Arch reference growth regression");
             try
             {
-                ArchReferenceGrowth growth = root.AddComponent<ArchReferenceGrowth>();
+                // Reproduce the real ownership condition from the captured Hero Arch pose: the
+                // lookdev/growth host is the movable camera, while hero foliage coordinates are
+                // authored in the arch's world-space metre frame. Install the production lifecycle
+                // anchor before growth, then prove no test-only manual repair is needed.
+                host.transform.SetPositionAndRotation(
+                    new Vector3(-0.85728186f, 8.398123f, -9.309617f),
+                    new Quaternion(0.09724782f, -0.01389580f, 0.00135791f, 0.9951624f));
+                Camera camera = host.AddComponent<Camera>();
+                ArchReferenceGrowthWorldSpace.EnsureInstalled(camera);
+                ArchReferenceGrowth growth = host.AddComponent<ArchReferenceGrowth>();
                 yield return null;
 
-                Assert.That(growth.Instances, Has.Count.EqualTo(60));
-                Assert.That(growth.InstanceCount, Is.EqualTo(growth.Instances.Count),
-                    "Every authored plant must be submitted through the production batch renderer.");
+                Transform heroRoot = FindHeroRoot();
+                Assert.That(heroRoot, Is.Not.Null,
+                    "The authored hero root must exist after ArchReferenceGrowth enables.");
+                Assert.That(host.transform.Find("Arch Reference Hero Growth"), Is.Null,
+                    "Production lifecycle anchoring must detach the hero root without a manual test repair.");
+                Assert.That(heroRoot.parent, Is.Null,
+                    "Hero foliage must be detached from the movable Hero Arch Camera before rendering.");
+                Assert.That(heroRoot.position.sqrMagnitude, Is.LessThan(0.000001f),
+                    "Authored ivy/flower coordinates are world-space arch coordinates and require a world-identity root.");
+                Assert.That(Quaternion.Angle(heroRoot.rotation, Quaternion.identity), Is.LessThan(0.01f));
+                Assert.That((heroRoot.localScale - Vector3.one).sqrMagnitude, Is.LessThan(0.000001f));
 
-                int leftPierIvy = growth.Instances.Count(instance =>
-                    instance.Kind == VegetationKind.Ivy
-                    && instance.PositionMetres.x < -1.1f
-                    && instance.PositionMetres.y < 6.1f);
-                int leftPierFlowers = growth.Instances.Count(instance =>
-                    instance.Kind == VegetationKind.Flower
-                    && instance.PositionMetres.x < -1.1f
-                    && instance.PositionMetres.y > 2f
-                    && instance.PositionMetres.y < 6.1f);
-                int crownIvy = growth.Instances.Count(instance =>
-                    instance.Kind == VegetationKind.Ivy
-                    && instance.PositionMetres.x < 0.6f
-                    && instance.PositionMetres.y >= 6.1f);
-                int crownFlowers = growth.Instances.Count(instance =>
-                    instance.Kind == VegetationKind.Flower
-                    && instance.PositionMetres.x < 0.6f
-                    && instance.PositionMetres.y >= 6.1f);
-                int rightIvy = growth.Instances.Count(instance =>
-                    instance.Kind == VegetationKind.Ivy
-                    && instance.PositionMetres.x > 1f
-                    && instance.PositionMetres.y > 1f);
+                Assert.That(growth.HeroLeafCount, Is.EqualTo(128),
+                    "The reference hero should be built from individual lobed ivy leaves, not generic vine stamps.");
+                Assert.That(growth.HeroFlowerHeadCount, Is.EqualTo(30),
+                    "Reference flowers should remain clustered multi-head blossoms rather than isolated semantic cards.");
+                Assert.That(growth.SemanticInstanceCount, Is.EqualTo(2),
+                    "Only the two small ground ferns should remain on the shared semantic vegetation renderer.");
+                Assert.That(growth.Instances, Has.Count.EqualTo(2));
+                Assert.That(growth.Instances[0].Kind, Is.EqualTo(VegetationKind.Fern));
+                Assert.That(growth.Instances[1].Kind, Is.EqualTo(VegetationKind.Fern));
 
-                Assert.That(leftPierIvy, Is.EqualTo(21));
-                Assert.That(leftPierFlowers, Is.EqualTo(5));
-                Assert.That(crownIvy, Is.EqualTo(15));
-                Assert.That(crownFlowers, Is.EqualTo(4));
-                Assert.That(rightIvy, Is.EqualTo(8));
+                Assert.That(growth.HeroDrawCallCount, Is.EqualTo(3),
+                    "Hero presentation is budgeted as ivy, petals, and flower centres only.");
+                Assert.That(growth.HeroVertexCount, Is.GreaterThan(1500));
+                Assert.That(growth.HeroVertexCount, Is.LessThanOrEqualTo(4096),
+                    "The close-up art-directed mesh must stay inside its one-time 4k-vertex budget.");
 
-                Assert.That(growth.Instances.Where(instance =>
-                        instance.Kind == VegetationKind.Flower
-                        && instance.SurfaceNormal.z < -0.9f)
-                    .All(instance => instance.Scale >= 0.48f), Is.True,
-                    "Wall flower heads must remain large enough to survive the saved hero-camera distance.");
+                Mesh ivy = growth.HeroIvyMesh;
+                Mesh petals = growth.HeroFlowerPetalMesh;
+                Assert.That(ivy, Is.Not.Null);
+                Assert.That(petals, Is.Not.Null);
+                Assert.That(ivy.bounds.size.x, Is.GreaterThan(3.5f),
+                    "Ivy must keep the sparse right-hand counterweight as well as the dense left mass.");
+                Assert.That(ivy.bounds.size.y, Is.GreaterThan(7.0f),
+                    "Ivy must climb from the lower pier across the crown.");
+                Assert.That(petals.bounds.max.y, Is.GreaterThan(7.8f),
+                    "Flowers must reach the upper crown where the reference is most lush.");
+
+                MeshRenderer[] renderers = heroRoot.GetComponentsInChildren<MeshRenderer>();
+                Assert.That(renderers, Has.Length.EqualTo(3),
+                    "The hero mesh must not introduce per-leaf or per-flower GameObjects/draws.");
 
                 growth.enabled = false;
                 Assert.That(growth.InstanceCount, Is.Zero,
-                    "Disabling the authoring component must release its renderer submission.");
+                    "Disabling the authoring component must release semantic and hero growth.");
+                yield return null;
+
                 growth.enabled = true;
-                Assert.That(growth.InstanceCount, Is.EqualTo(60),
-                    "Re-enabling after a scene lifecycle transition must restore all authored growth.");
+                yield return null;
+                Transform restoredHeroRoot = FindHeroRoot();
+                Assert.That(restoredHeroRoot, Is.Not.Null);
+                Assert.That(host.transform.Find("Arch Reference Hero Growth"), Is.Null,
+                    "Re-enabled growth must be re-anchored automatically by the lifecycle listener.");
+                Assert.That(restoredHeroRoot.parent, Is.Null);
+                Assert.That(restoredHeroRoot.position.sqrMagnitude, Is.LessThan(0.000001f));
+                Assert.That(growth.HeroLeafCount, Is.EqualTo(128));
+                Assert.That(growth.HeroFlowerHeadCount, Is.EqualTo(30));
+                Assert.That(growth.SemanticInstanceCount, Is.EqualTo(2),
+                    "Re-enabling after a scene lifecycle transition must restore the bounded presentation.");
+
+                growth.enabled = false;
+                yield return null;
             }
             finally
             {
-                Object.DestroyImmediate(root);
+                Object.DestroyImmediate(host);
             }
+        }
+
+        private static Transform FindHeroRoot()
+        {
+            // The production listener deliberately detaches a DontSave root from the movable camera.
+            // Unity's scene-scoped FindObjectsByType stops returning that object after detachment even
+            // though the standalone player renders it. Resources is observation-only here: filter to
+            // the exact active object in a valid loaded scene, without repairing product state.
+            Transform[] transforms = Resources.FindObjectsOfTypeAll<Transform>();
+            foreach (Transform candidate in transforms)
+            {
+                if (candidate == null || candidate.name != "Arch Reference Hero Growth") continue;
+                GameObject candidateObject = candidate.gameObject;
+                if (!candidateObject.activeInHierarchy) continue;
+                if (!candidateObject.scene.IsValid() || !candidateObject.scene.isLoaded) continue;
+                return candidate;
+            }
+            return null;
         }
     }
 }
