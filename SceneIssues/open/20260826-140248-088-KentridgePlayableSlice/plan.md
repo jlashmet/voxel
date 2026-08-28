@@ -1,23 +1,23 @@
 # Plan
 
 ## Evidence / target
-- The capture has no marked circles; the whole-frame note is the acceptance target: implement `design/combat-input-modules`, then place three forest bandits that start combat when the Kentridge player approaches.
-- Refreshed production has neither `Assets/Game/Combat` nor `Assets/Game/Input`; combat still lives under `Assets/CombatPrototype`. The playable scene is a single in-place world rooted on `Kentridge Player Camera`.
-- The design’s first vertical slice requires production Combat/Input module boundaries, a command validation boundary, normal actors remaining in the same world, automatic encounter lifecycle, and Combat input ownership.
+- No marked circles; whole-frame acceptance is the note: implement the `design/combat-input-modules` migration seam, then put three forest bandits in Kentridge that enter combat on player proximity.
+- Refreshed master has no `Assets/Game/Combat` or `Assets/Game/Input`; combat remains under `Assets/CombatPrototype`, so the production migration never landed.
+- The live Kentridge controller is one continuous world and still reads WASD/mouse directly. Its authored `RegionThemeMap` places PineForest from 142 m to 362 m Z; the captured player pose at 155.2 m is inside that band.
 
 ## Competing hypotheses / discriminator
-1. **Supported — migration never landed.** Direct path probes for `Assets/Game/Combat` and `Assets/Game/Input` return absent while the prototype remains; Kentridge therefore has no production `ICombatService` to wire.
-2. **Rejected — modules exist but Kentridge omitted composition.** Refreshed master contains no production Combat/Input modules, so scene-only wiring cannot satisfy the design.
+1. **Supported — missing production migration.** Combat/Input modules are absent, while the prototype remains; Kentridge therefore has no production lifecycle/input boundary to compose.
+2. **Rejected — existing modules, missing scene wiring only.** Direct path probes on refreshed master return absent for both production modules.
 
 ## Fix / behavioral regression
-- Add device-neutral `Game.Input.Api` plus Unity-owned `Game.Input.Runtime` context/snapshot implementation.
-- Add `Game.Combat.Api` lifecycle contracts and a deterministic `Game.Combat.Runtime` command dispatcher; simulation never reads Unity input.
-- Add a Kentridge playable composition component: spawn three persistent bandit world actors on terrain ahead of the player, detect proximity, begin one in-place combat session containing the same player/bandit identities, push Combat input context, and drive player movement intents through validated Combat commands.
-- Regression: load `KentridgePlayableSlice`, require exactly three bandits, move the real player camera inside one bandit’s trigger radius, and assert one active production Combat session + Combat input context with no scene change or bandit replacement.
+- Add device-neutral `Game.Input.Api` plus Unity-owned `Game.Input.Runtime`; contexts are exclusive, and Combat samples then suppresses the legacy Unity frame so exploration cannot consume the same intent.
+- Add `Game.Combat.Api` lifecycle contracts and deterministic `Game.Combat.Runtime` command validation; simulation never reads Unity input.
+- Compose three persistent bandit actors at a semantic PineForest anchor derived from the authored Kentridge→Hightown theme corridor, not captured coordinates. Proximity begins one in-place Combat session with the same bandit identities and pushes Combat input ownership.
+- Regression loads the real slice, requires exactly three PineForest bandits, moves the existing lead bandit into player proximity, and asserts active production Combat + Combat context + same scene + same actor identity + three enemy participants.
 
 ## Blast radius / cost
-- New Combat/Input modules plus one component on `KentridgePlayableSlice`; no other scene/capture changes.
-- Proximity check is three squared-distance comparisons/frame until encounter start; combat input sampling/command dispatch is O(1) per frame. No per-frame allocations are required after spawn.
+- New Combat/Input modules plus one Kentridge composition component and one PlayMode regression; no other scene/capture changes.
+- Before encounter start: three planar squared-distance checks/frame and ground probes only while the player is within 96 m. Active Combat input/command dispatch is O(1); no steady-state collection allocation.
 
 ## Verification
-- Exact-SHA PlayMode CI must pass the regression and saved-pose replay. Visually compare replay with the original whole frame: clean Kentridge world, three readable forest bandits present, no debug/editor overlays.
+- Fresh exact-SHA PlayMode CI must compile/pass the regression and saved-pose replay. Visually compare replay with the 1928×836 original: clean Kentridge forest, three readable bandits ahead of the player, no debug/editor/replay overlays.
