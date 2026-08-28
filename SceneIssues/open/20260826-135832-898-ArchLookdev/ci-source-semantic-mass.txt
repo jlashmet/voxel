@@ -1,0 +1,2 @@
+Exact semantic-mass candidate source before targeted CI: 81b3bb56a8cc2fda5e2a759f13254b05ff813d73
+Focused regression: VoxelEngine.Tests.PlayMode.ArchReferenceGrowthSemanticMassPassTests.SemanticMassPassBuildsThreeMasonryMassesAcrossRebuild
