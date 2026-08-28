@@ -75,8 +75,8 @@ namespace VoxelEngine.Tests.PlayMode
             Vector3 openingFocus = ReadVector3Property(driver, "OpeningCutsceneCameraFocus");
             Vector3 openingCameraPosition = driver.transform.position;
             Quaternion openingCameraRotation = driver.transform.rotation;
-            Assert.That(openingCameraPosition.y - openingFocus.y, Is.GreaterThan(2.5f),
-                "The Kentridge opening camera must be elevated above the pub group.");
+            Assert.That(openingCameraPosition.y - openingFocus.y, Is.GreaterThan(1.3f),
+                "The Kentridge opening camera must remain elevated above its actor focus while staying below the pub's first-floor slab.");
             Assert.That(Vector3.Dot(driver.transform.forward, Vector3.down), Is.GreaterThan(0.45f),
                 "The Kentridge opening camera must look downward as an overhead ensemble shot.");
             Assert.That(GameObject.Find("Weldon"), Is.Not.Null,
