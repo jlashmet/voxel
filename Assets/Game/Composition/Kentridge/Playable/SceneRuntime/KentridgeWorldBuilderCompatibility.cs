@@ -8,16 +8,17 @@ using Game.WorldBuilder.Runtime;
 using MountingForce.WorldGen;
 using MountingForce.WorldGen.Architecture;
 using MountingForce.WorldGen.Voxel;
+using LegacyHightownDefinition = MountingForce.WorldGen.Content.Hightown.HightownDefinition;
 using LegacyKentridgeDefinition = MountingForce.WorldGen.Content.Kentridge.KentridgeDefinition;
 using RuntimeSessionBootstrap = Game.Composition.Kentridge.Runtime.KentridgeCampaignSessionBootstrap;
 
 namespace Game.Kentridge.PlayableSlice
 {
     /// <summary>
-    /// Scene-local compatibility surface for the legacy Kentridge names still used by the playable
-    /// slice. Town construction enters through WorldBuilder exactly once; the returned backend plan
-    /// is retained only so existing voxel, access, corridor and survey adapters all consume that
-    /// exact authored settlement rather than independently rebuilding Kentridge from the seed.
+    /// Compatibility surface for the legacy Kentridge names still used by the playable slice.
+    /// Town construction enters through WorldBuilder exactly once; the returned backend plan is
+    /// retained only so existing voxel, access, corridor and survey adapters all consume that
+    /// exact authored settlement rather than independently rebuilding it from the seed.
     /// </summary>
     internal static class KentridgeDefinition
     {
@@ -32,11 +33,40 @@ namespace Game.Kentridge.PlayableSlice
             AuthoredTownPlan town = WorldBuilderTownAuthoring.Author(
                 WorldBuilderTownIds.Kentridge,
                 seed);
+            SettlementPlan settlement = RequireSettlement(town, WorldBuilderTownIds.Kentridge);
+            KentridgePlayableWorldBuilderBridge.Remember(settlement, town);
+            return settlement;
+        }
+
+        private static SettlementPlan RequireSettlement(AuthoredTownPlan town, string id)
+        {
             if (!(town.BackendPlan is SettlementPlan settlement))
                 throw new InvalidOperationException(
-                    "WorldBuilder Kentridge authoring did not produce the expected settlement realization.");
+                    $"WorldBuilder {id} authoring did not produce the expected settlement realization.");
+            return settlement;
+        }
+    }
 
-            KentridgePlayableWorldBuilderBridge.Remember(settlement, town);
+    /// <summary>
+    /// Hightown uses the same compatibility shape as Kentridge so the playable scene cannot bypass
+    /// WorldBuilder simply because its second settlement has no campaign roles yet.
+    /// </summary>
+    internal static class HightownDefinition
+    {
+        public const string Id = WorldBuilderTownIds.Hightown;
+        public static readonly Int2 TownCentreDm = LegacyHightownDefinition.TownCentreDm;
+        public static ArchitectureTheme Theme => LegacyHightownDefinition.Theme;
+        public static Int3 FootprintDm(StructureArchetype archetype) =>
+            LegacyHightownDefinition.FootprintDm(archetype);
+
+        public static SettlementPlan Build(uint seed)
+        {
+            AuthoredTownPlan town = WorldBuilderTownAuthoring.Author(
+                WorldBuilderTownIds.Hightown,
+                seed);
+            if (!(town.BackendPlan is SettlementPlan settlement))
+                throw new InvalidOperationException(
+                    "WorldBuilder Hightown authoring did not produce the expected settlement realization.");
             return settlement;
         }
     }
@@ -44,7 +74,8 @@ namespace Game.Kentridge.PlayableSlice
     /// <summary>
     /// Keeps the large playable-slice integration source on its existing call shape while routing
     /// campaign planning/session realization through the canonical public Game composition APIs.
-    /// These methods are scene-local; no legacy backend type is reintroduced on a public game API.
+    /// These methods are compatibility adapters; no legacy backend type is reintroduced on a public
+    /// game API.
     /// </summary>
     internal static class KentridgeCampaignSessionBootstrap
     {
