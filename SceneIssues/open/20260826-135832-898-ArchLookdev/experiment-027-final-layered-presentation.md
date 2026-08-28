@@ -1,0 +1,9 @@
+# Experiment 027 — final layered presentation
+
+**Runtime evidence.** Exact attachment request `d2d888908822c4cf5416efa75ae8e0cdbe53b08f`, run `33155444806`, completed the saved-player capture but failed the focused regression because the two crown bouquet centres were 0.819 m apart versus the authored <=0.70 m integration bound. Direct inspection of that run's `RealPlayer/verification-final.png` separately confirmed the architectural correction: lower/haunch growth sits on the left masonry and crown growth sits on the ring. The remaining visual defect is presentation language: foliage is too sparse/pale and reads as flat cutout cards; blossoms are weak.
+
+**Discriminator.** Do not move the proven masonry anchors again. Tighten the crown bouquet pair in `ArchReferenceGrowthSemanticMassPass` before radial projection, then change only existing leaf/head vertex relief/coverage and the three existing material multipliers. If the saved frame remains pale/flat after this, the hypothesis is falsified without changing counts/topology.
+
+**Selected correction.** Crown bouquet offsets become +/-0.20 m before masonry projection. `ArchReferenceGrowthFinalPresentationPass` preserves every semantic cluster centre, expands non-right leaves 22-28% around their own centres, amplifies existing Z relief/normals, enlarges existing flower heads 14%, and restores saturated green/blush material response.
+
+**Regression / cost.** `ArchReferenceGrowthFinalPresentationPassTests.FinalPresentationKeepsMasonryAttachmentAndBuildsLayeredBotanicalReadAcrossRebuild` proves semantic anchors, crown integration, bounded leaf radius/depth and triangle size, non-white green/blush material contrast, exact collapsed-stem topology, 128 leaves / 30 heads / 3 draws / <=4096 vertices, and rebuild stability. ArchLookdev only; one bounded construction-time rewrite, no new hero vertices/renderers/draws/per-leaf objects or steady-state work.
