@@ -4,6 +4,7 @@ using MountingForce.WorldGen.Voxel;
 using NUnit.Framework;
 using Unity.Collections;
 using VoxelEngine.Structures.Runtime;
+using VoxelEngine.Terrain.Api;
 
 using VoxelEngine.Structures.Api;
 
@@ -14,7 +15,7 @@ namespace VoxelEngine.Tests.EditMode
         private const uint Seed = 0x4B454E54u;
 
         [Test]
-        public void HardPiazzaUsesExistingSemanticMarketSquareWithoutChangingStreetTopology()
+        public void HardPiazzaUsesExistingSemanticMarketSquareWithoutChangingOrganicTopology()
         {
             SettlementPlan settlement = KentridgeDefinition.Build(Seed);
             PlannedPlaza plaza = settlement.Plaza;
@@ -22,7 +23,8 @@ namespace VoxelEngine.Tests.EditMode
             Assert.AreEqual(KentridgeDefinition.TownCentreDm.Y, plaza.CentreDm.Y);
             Assert.AreEqual(220, plaza.SizeDm.X);
             Assert.AreEqual(140, plaza.SizeDm.Y);
-            Assert.AreEqual(4, settlement.Streets.Count);
+            Assert.AreEqual(0, settlement.Streets.Count);
+            Assert.AreEqual(16, settlement.Routes.Count);
 
             FeatureCatalogue catalogue = KentridgeMarketPiazzaCatalogue.Build(
                 Seed, BuildSettings(), Allocator.Temp);
@@ -47,14 +49,13 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.AreEqual(plaza.CentreDm.Y - plaza.SizeDm.Y / 2,
                     placement.Position.z);
 
-                int surfaceY = KentridgeVerticalProfile.SurfaceYAtDm(
+                int surfaceY = TerrainQuery.HeightAt(
                     plaza.CentreDm.X,
                     plaza.CentreDm.Y,
-                    Seed,
-                    1);
+                    Seed);
                 Assert.AreEqual(surfaceY,
                     placement.Position.y + definition.Footprint.y,
-                    "The hard piazza must stay flush with the existing graded Market Square.");
+                    "Organic hard piazza must stay on the same local terrain datum as its well and dressing.");
             }
             finally
             {
@@ -63,7 +64,7 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void HardAndGradedPiazzaOwnTheSameInclusiveAuthoredBoundary()
+        public void HardAndLegacyGradedPiazzaOwnTheSameInclusiveAuthoredBoundary()
         {
             SettlementPlan settlement = KentridgeDefinition.Build(Seed);
             PlannedPlaza plaza = settlement.Plaza;
@@ -89,7 +90,7 @@ namespace VoxelEngine.Tests.EditMode
                 }
 
                 Assert.GreaterOrEqual(gradedIndex, 0,
-                    "Expected the vertical town surface catalogue to contain Market Square.");
+                    "Expected the compatibility vertical town surface catalogue to contain Market Square.");
 
                 FeatureDefinition hardDefinition = hard.Definitions[0];
                 ExplicitPlacement hardPlacement = hard.ExplicitPlacements[0];
@@ -109,10 +110,10 @@ namespace VoxelEngine.Tests.EditMode
                     "Hard piazza must own its authored +Z endpoint; the saved scene seam is on this row.");
                 Assert.AreEqual(expectedMaxX,
                     gradedPlacement.Position.x + gradedDefinition.Footprint.x - 1,
-                    "Graded piazza must own the same authored +X endpoint.");
+                    "Compatibility graded piazza must own the same authored +X endpoint.");
                 Assert.AreEqual(expectedMaxZ,
                     gradedPlacement.Position.z + gradedDefinition.Footprint.z - 1,
-                    "Graded piazza must own the same authored +Z endpoint as the hard surface.");
+                    "Compatibility graded piazza must own the same authored +Z endpoint as the hard surface.");
             }
             finally
             {
