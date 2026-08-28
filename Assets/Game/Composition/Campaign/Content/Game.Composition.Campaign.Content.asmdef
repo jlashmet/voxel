@@ -5,7 +5,8 @@
     "Game.WorldBuilder.Api",
     "Game.Cutscenes.Api",
     "Game.Cutscenes.Content",
-    "Game.Quests.Api"
+    "Game.Quests.Api",
+    "Game.Composition.Kentridge.Api"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

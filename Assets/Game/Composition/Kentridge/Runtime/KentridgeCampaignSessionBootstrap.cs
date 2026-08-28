@@ -9,11 +9,6 @@ using Game.WorldBuilder.Api;
 
 namespace Game.Composition.Kentridge.Runtime
 {
-    /// <summary>
-    /// Fully realized campaign session after generated-world placement and authoritative gameplay
-    /// actors/secrets have been connected. The bootstrap does not own authored content, character
-    /// runtime, voxel runtime, or secret interaction implementation.
-    /// </summary>
     public sealed class KentridgeCampaignSession
     {
         public CampaignBlueprint Blueprint { get; }
@@ -36,14 +31,10 @@ namespace Game.Composition.Kentridge.Runtime
         public int StartNewGame() => Runtime.StartNewGame();
     }
 
-    /// <summary>
-    /// Concrete application-level Kentridge bootstrap. Plan is called before voxel emission so the
-    /// backend can include Generation.HiddenSpaces. CreateSession is called after the backend has
-    /// exact site/hidden-space realization facts. Town authoring enters through WorldBuilder and the
-    /// legacy backend representation stays behind the integration boundary.
-    /// </summary>
     public static class KentridgeCampaignSessionBootstrap
     {
+        public static KentridgeCampaignSession ActiveSession { get; private set; }
+
         public static KentridgeCampaignGenerationPlan Plan(
             CampaignBlueprint blueprint,
             AuthoredTownPlan town)
@@ -76,7 +67,6 @@ namespace Game.Composition.Kentridge.Runtime
                     generation,
                     realizationFacts);
 
-            // Finish every non-mutating integration preflight before touching gameplay-owned state.
             if (world.Secrets.Count > 0 && secretHost == null)
                 throw new ArgumentNullException(
                     nameof(secretHost),
@@ -84,8 +74,6 @@ namespace Game.Composition.Kentridge.Runtime
             ValidatePlayerBindings(blueprint, actors);
             ValidateNpcPlacements(blueprint, world.Npcs);
 
-            // Both external hosts receive their campaign state as batches. Each implementation owns
-            // atomic application within its subsystem; Composition never creates half of an NPC set.
             if (world.Secrets.Count > 0)
                 secretHost.PrepareSecrets(world.Secrets);
 
@@ -97,13 +85,22 @@ namespace Game.Composition.Kentridge.Runtime
                 blueprint,
                 world.CutsceneStages,
                 actors,
-                presentation);
+                presentation,
+                KentridgeWellQuestDefinition.CreateDefinitions());
 
-            return new KentridgeCampaignSession(
+            var session = new KentridgeCampaignSession(
                 blueprint,
                 generation,
                 world,
                 runtime);
+            ActiveSession = session;
+            return session;
+        }
+
+        public static void ClearActiveSession(KentridgeCampaignSession session)
+        {
+            if (ReferenceEquals(ActiveSession, session))
+                ActiveSession = null;
         }
 
         private static void ValidatePlayerBindings(

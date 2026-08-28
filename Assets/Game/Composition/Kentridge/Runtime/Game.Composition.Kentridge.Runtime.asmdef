@@ -8,7 +8,8 @@
     "Game.Composition.WorldBuilderWorldGen",
     "Game.Composition.WorldBuilderWorldGen.Runtime",
     "Game.Cutscenes.Api",
-    "Game.WorldBuilder.Api"
+    "Game.WorldBuilder.Api",
+    "Game.Quests.Api"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
