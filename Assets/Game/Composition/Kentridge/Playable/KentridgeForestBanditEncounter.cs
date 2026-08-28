@@ -21,6 +21,8 @@ namespace Game.Composition.Kentridge.Playable
     public sealed class KentridgeForestBanditEncounter : MonoBehaviour
     {
         private const string KentridgeSceneName = "KentridgePlayableSlice";
+        private const string PlayerCameraName = "Kentridge Player Camera";
+        private const string MaleCharacterResource = "Characters/placeholder_male";
         private const float DecimetresToMetres = 0.1f;
         private const int ForestEntryInsetDm = 240;
         private static readonly LocalPlayerId LocalPlayer = new LocalPlayerId(0);
@@ -49,15 +51,34 @@ namespace Game.Composition.Kentridge.Playable
             _inputContexts == null ? InputContextId.Exploration : _inputContexts.ActiveContext;
         public ICombatService CombatService => _combat;
 
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-        private static void InstallIntoPlayableSlice()
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+        private static void RegisterSceneInstaller()
         {
-            if (SceneManager.GetActiveScene().name != KentridgeSceneName) return;
+            // RuntimeInitialize can be invoked more than once when editor domain reload is disabled.
+            // Remove first so every loaded Kentridge scene gets exactly one installation callback.
+            SceneManager.sceneLoaded -= InstallIntoPlayableSlice;
+            SceneManager.sceneLoaded += InstallIntoPlayableSlice;
+        }
 
-            GameObject playerCamera = GameObject.Find("Kentridge Player Camera");
-            if (playerCamera == null) return;
-            if (playerCamera.GetComponent<KentridgeForestBanditEncounter>() == null)
-                playerCamera.AddComponent<KentridgeForestBanditEncounter>();
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+        private static void InstallInitialScene()
+        {
+            InstallIntoPlayableSlice(SceneManager.GetActiveScene(), LoadSceneMode.Single);
+        }
+
+        private static void InstallIntoPlayableSlice(Scene scene, LoadSceneMode mode)
+        {
+            if (!scene.IsValid() || scene.name != KentridgeSceneName) return;
+
+            GameObject[] roots = scene.GetRootGameObjects();
+            for (int i = 0; i < roots.Length; i++)
+            {
+                GameObject root = roots[i];
+                if (!string.Equals(root.name, PlayerCameraName, StringComparison.Ordinal)) continue;
+                if (root.GetComponent<KentridgeForestBanditEncounter>() == null)
+                    root.AddComponent<KentridgeForestBanditEncounter>();
+                return;
+            }
         }
 
         private void Awake()
@@ -208,9 +229,29 @@ namespace Game.Composition.Kentridge.Playable
 
         private static GameObject CreateBandit(int index, Vector3 groundPosition)
         {
-            var root = new GameObject("Forest Bandit " + (index + 1));
-            root.transform.position = groundPosition;
-            var rootCollider = root.AddComponent<CapsuleCollider>();
+            GameObject prefab = Resources.Load<GameObject>(MaleCharacterResource);
+            GameObject root;
+            if (prefab != null)
+            {
+                root = Instantiate(prefab);
+                root.name = "Forest Bandit " + (index + 1);
+                root.transform.position = groundPosition;
+                root.transform.rotation = Quaternion.identity;
+                root.SetActive(true);
+            }
+            else
+            {
+                // Missing Resources are a build-integrity fault, but retain a readable emergency
+                // body so the world does not silently lose encounter actors in a damaged build.
+                root = new GameObject("Forest Bandit " + (index + 1));
+                root.transform.position = groundPosition;
+                AddPrimitive(root.transform, PrimitiveType.Capsule, "Emergency Body",
+                    new Vector3(0f, 0.95f, 0f), new Vector3(0.68f, 0.82f, 0.54f),
+                    new Color(0.20f, 0.15f, 0.12f));
+            }
+
+            CapsuleCollider rootCollider = root.GetComponent<CapsuleCollider>();
+            if (rootCollider == null) rootCollider = root.AddComponent<CapsuleCollider>();
             rootCollider.center = new Vector3(0f, 0.95f, 0f);
             rootCollider.radius = 0.42f;
             rootCollider.height = 1.9f;
@@ -220,16 +261,25 @@ namespace Game.Composition.Kentridge.Playable
                 : index == 1
                     ? new Color(0.13f, 0.20f, 0.12f)
                     : new Color(0.16f, 0.15f, 0.18f);
+            Color leather = new Color(0.11f, 0.07f, 0.04f);
 
-            AddPrimitive(root.transform, PrimitiveType.Capsule, "Body", new Vector3(0f, 0.92f, 0f), new Vector3(0.68f, 0.72f, 0.54f), coat);
-            AddPrimitive(root.transform, PrimitiveType.Sphere, "Head", new Vector3(0f, 1.72f, 0f), new Vector3(0.43f, 0.43f, 0.43f), new Color(0.62f, 0.43f, 0.30f));
-            AddPrimitive(root.transform, PrimitiveType.Sphere, "Hood", new Vector3(0f, 1.79f, 0.02f), new Vector3(0.51f, 0.44f, 0.49f), coat * 0.7f);
-            AddPrimitive(root.transform, PrimitiveType.Cube, "Belt", new Vector3(0f, 0.86f, 0f), new Vector3(0.72f, 0.10f, 0.57f), new Color(0.11f, 0.07f, 0.04f));
-            AddPrimitive(root.transform, PrimitiveType.Cube, "LeftArm", new Vector3(-0.46f, 1.10f, 0f), new Vector3(0.18f, 0.72f, 0.20f), coat);
-            AddPrimitive(root.transform, PrimitiveType.Cube, "RightArm", new Vector3(0.46f, 1.10f, 0f), new Vector3(0.18f, 0.72f, 0.20f), coat);
-
-            GameObject blade = AddPrimitive(root.transform, PrimitiveType.Cube, "Sword", new Vector3(0.60f, 0.87f, 0.12f), new Vector3(0.08f, 0.82f, 0.10f), new Color(0.55f, 0.58f, 0.60f));
-            blade.transform.localRotation = Quaternion.Euler(0f, 0f, -18f);
+            // Distinct layered gear keeps the rigged production character readable as a forest
+            // outlaw at the saved-pose distance without replacing its authored body/animation.
+            AddPrimitive(root.transform, PrimitiveType.Sphere, "Hood",
+                new Vector3(0f, 1.70f, 0.01f), new Vector3(0.50f, 0.42f, 0.48f), coat * 0.72f);
+            AddPrimitive(root.transform, PrimitiveType.Cube, "Belt",
+                new Vector3(0f, 0.91f, 0f), new Vector3(0.70f, 0.09f, 0.30f), leather);
+            AddPrimitive(root.transform, PrimitiveType.Cube, "Shoulder Strap",
+                new Vector3(-0.12f, 1.18f, 0.15f), new Vector3(0.10f, 0.78f, 0.07f), leather)
+                .transform.localRotation = Quaternion.Euler(0f, 0f, -22f);
+            AddPrimitive(root.transform, PrimitiveType.Cube, "Pouch",
+                new Vector3(-0.31f, 0.79f, 0.12f), new Vector3(0.20f, 0.24f, 0.12f), leather);
+            GameObject sword = AddPrimitive(root.transform, PrimitiveType.Cube, "Sword",
+                new Vector3(0.48f, 0.82f, 0.11f), new Vector3(0.07f, 0.86f, 0.09f),
+                new Color(0.55f, 0.58f, 0.60f));
+            sword.transform.localRotation = Quaternion.Euler(0f, 0f, -16f);
+            AddPrimitive(sword.transform, PrimitiveType.Cube, "Guard",
+                new Vector3(0f, 0.36f, 0f), new Vector3(0.30f, 0.06f, 0.12f), leather);
             return root;
         }
 
