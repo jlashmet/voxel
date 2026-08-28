@@ -30,7 +30,8 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
         internal int VertexCount { get; private set; }
         internal int TriangleCount { get; private set; }
 
-        internal static bool IsGrass(VegetationKind kind) => kind == VegetationKind.Grass;
+        internal static bool IsGrass(VegetationKind kind) =>
+            kind == VegetationKind.Grass || kind == VegetationKind.Nettle;
 
         internal void Add(in VegetationInstance instance)
         {
