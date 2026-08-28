@@ -8,10 +8,10 @@ using VoxelEngine.Vegetation.Api;
 namespace VoxelEngine.Showcase
 {
     /// <summary>
-    /// One-shot bridge for the Worldbuilding Gallery. It runs after GalleryLifePopulation has
-    /// generated/published its semantic instances, then replaces only meadow tufts with the packed
-    /// meadow presentation. The reflection is construction-time only and deliberately guarded by
-    /// WorldbuildingGalleryShowcase so no other GalleryLifePopulation consumer is changed.
+    /// One-shot bridge for the Worldbuilding Gallery. The scene creates GalleryLifePopulation on
+    /// its world-object host during OnEnable, so this bridge anchors on the authored showcase
+    /// component, then resolves that already-populated runtime host after scene initialization.
+    /// No other scene or GalleryLifePopulation consumer is changed.
     /// </summary>
     public static class WorldbuildingGalleryMeadowBootstrap
     {
@@ -21,14 +21,13 @@ namespace VoxelEngine.Showcase
         private static void Install()
         {
 #pragma warning disable CS0618
-            GalleryLifePopulation[] populations = Object.FindObjectsOfType<GalleryLifePopulation>();
+            WorldbuildingGalleryShowcase[] showcases = Object.FindObjectsOfType<WorldbuildingGalleryShowcase>();
 #pragma warning restore CS0618
-            for (int i = 0; i < populations.Length; i++)
+            for (int i = 0; i < showcases.Length; i++)
             {
-                GalleryLifePopulation population = populations[i];
-                if (population.GetComponent<WorldbuildingGalleryShowcase>() == null) continue;
-                if (population.GetComponent<Bridge>() == null)
-                    population.gameObject.AddComponent<Bridge>();
+                WorldbuildingGalleryShowcase showcase = showcases[i];
+                if (showcase.GetComponent<Bridge>() == null)
+                    showcase.gameObject.AddComponent<Bridge>();
             }
         }
 
@@ -36,12 +35,19 @@ namespace VoxelEngine.Showcase
         {
             private IEnumerator Start()
             {
-                // WorldbuildingGalleryShowcase populates life during Start. Waiting one frame makes
-                // this ordering explicit and keeps the semantic generation path unchanged.
+                // OnEnable builds the blocking gallery world and populates semantic vegetation.
+                // Waiting one frame makes that ownership explicit and keeps mesh construction out
+                // of the per-frame path.
                 yield return null;
 
-                GalleryLifePopulation population = GetComponent<GalleryLifePopulation>();
-                if (population == null || population.VegetationCount == 0) yield break;
+                WorldbuildingGalleryShowcase showcase = GetComponent<WorldbuildingGalleryShowcase>();
+                FieldInfo lifeField = typeof(WorldbuildingGalleryShowcase).GetField("_life", PrivateInstance);
+                GalleryLifePopulation population = lifeField?.GetValue(showcase) as GalleryLifePopulation;
+                if (population == null || population.VegetationCount == 0)
+                {
+                    Debug.LogError("Worldbuilding Gallery meadow could not resolve populated gallery life.");
+                    yield break;
+                }
 
                 FieldInfo vegetationField = typeof(GalleryLifePopulation).GetField("_vegetation", PrivateInstance);
                 FieldInfo rendererField = typeof(GalleryLifePopulation).GetField("_vegetationRenderer", PrivateInstance);
@@ -54,9 +60,9 @@ namespace VoxelEngine.Showcase
                 }
 
                 WorldbuildingGalleryMeadowRenderer meadow =
-                    GetComponent<WorldbuildingGalleryMeadowRenderer>() ??
-                    gameObject.AddComponent<WorldbuildingGalleryMeadowRenderer>();
-                meadow.Publish(vegetation, fallback);
+                    population.GetComponent<WorldbuildingGalleryMeadowRenderer>() ??
+                    population.gameObject.AddComponent<WorldbuildingGalleryMeadowRenderer>();
+                meadow.Publish(vegetation, fallback, showcase.transform);
                 Debug.Log($"Worldbuilding Gallery meadow: {meadow.BladeCount} packed blades, "
                         + $"{meadow.VertexCount} vertices, {meadow.TriangleCount} triangles; "
                         + "construction-only mesh with GPU wind/player deformation.");
