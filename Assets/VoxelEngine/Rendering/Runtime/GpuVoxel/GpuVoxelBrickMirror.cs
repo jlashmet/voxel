@@ -6,56 +6,33 @@ using VoxelEngine.Storage.Api;
 
 namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 {
-    /// <summary>Outcome of publishing one brick into the mirror.</summary>
     public enum GpuBrickPublish
     {
-        /// <summary>Payload uploaded into a slot.</summary>
         Uploaded = 0,
-
-        /// <summary>Already resident at this generation. Nothing was sent.</summary>
         AlreadyResident = 1,
-
-        /// <summary>Empty or uniform: recorded in metadata, no payload exists to send.</summary>
         MetadataOnly = 2,
-
-        /// <summary>Every slot is pinned. The caller should retry once coverage releases one.</summary>
         NoSlot = 3,
-
-        /// <summary>Older than what the slot holds; publishing would move backwards.</summary>
         Stale = 4,
-
-        /// <summary>The delta claims a payload the supplied read block does not carry.</summary>
         PayloadMissing = 5,
     }
 
     /// <summary>
-    /// The GPU's copy of authoritative voxel bricks.
-    ///
-    /// This is the foundation the compute mesher stands on: instead of the CPU extracting geometry
-    /// and uploading vertices, the CPU uploads *voxels* and the GPU extracts. The distinction is the
-    /// whole point of the migration — voxel payload is bounded by what actually changed, whereas
-    /// generated geometry is bounded by surface area and has to be regenerated wholesale whenever a
-    /// chunk is touched.
-    ///
-    /// Only mixed bricks occupy a slot. Empty and uniform bricks are recorded in the metadata buffer
-    /// and cost nothing else, matching how storage already treats them.
-    ///
-    /// Nothing here reads back. Uploads go one way, and the geometry the mesher derives stays
-    /// GPU-resident, per the plan's no-readback invariant.
+    /// Persistent GPU copy of authoritative voxel bricks plus a GPU-readable world-coordinate
+    /// directory. Payload is updated from Storage deltas; chunk extraction never owns publication.
     /// </summary>
     public sealed class GpuVoxelBrickMirror : IDisposable
     {
-        /// <summary>
-        /// Per-brick metadata as the GPU sees it. Four words, so the lookup a ray or mesher does
-        /// first is a single aligned fetch.
-        /// </summary>
+        public const uint PersistentLookupMagic = 0x47505542u; // 'GPUB'
+        public const int DirectoryWordsPerEntry = 5;
+        private const uint DirectoryOccupied = 1u;
+        private const uint DirectoryTombstone = 2u;
+
         public struct BrickMetadata
         {
-            public int Slot;             // -1 when the brick carries no payload
-            public uint Content;         // VoxelBrickContent
+            public int Slot;
+            public uint Content;
             public uint UniformMaterial;
-            public uint Flags;           // bit 0: has any solid voxel
-
+            public uint Flags;
             public const int Stride = sizeof(int) + sizeof(uint) * 3;
         }
 
@@ -66,22 +43,21 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private readonly ComputeBuffer _occupancy;
         private readonly ComputeBuffer _metadata;
 
-        // SetData on Metal is not just a memcpy: each call can synchronize the resource with the
-        // driver. A chunk can publish hundreds of mixed bricks, so issuing three payload writes plus
-        // metadata per brick turns one admission into hundreds of tiny synchronous GPU uploads.
-        // Own a bounded CPU mirror of the slots instead. Publish copies into it immediately (so the
-        // caller may release its pinned source), and the first GPU consumer coalesces adjacent dirty
-        // slots into bulk writes. Production sizes this mirror to exactly BrickCacheCount slots.
         private NativeArray<uint> _materialStaging;
         private NativeArray<uint> _surfaceStaging;
         private NativeArray<uint> _boundaryStaging;
         private NativeArray<BrickMetadata> _metadataStaging;
+        private NativeArray<uint> _directoryStaging;
         private readonly bool[] _dirtySlots;
         private int _dirtyMin = int.MaxValue;
         private int _dirtyMax = -1;
+        private bool _directoryDirty;
         private bool _disposed;
 
         public int SlotCapacity { get; }
+        public int DirectoryCapacity { get; }
+        public int DirectoryMask => DirectoryCapacity - 1;
+        public int DirectoryWordOffset { get; }
         public int ResidentBricks => _slots.ResidentCount;
         public long CommittedBytes { get; }
 
@@ -91,6 +67,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         public ulong RefusedNoSlot => _slots.RefusedCount;
         public ulong RejectedStale => _slots.StaleCount;
         public ulong Evictions => _slots.EvictionCount;
+        public ulong DirectoryRefusals { get; private set; }
 
         public ComputeBuffer Materials => FlushAndGet(_materials);
         public ComputeBuffer SurfaceSemantics => FlushAndGet(_surfaceSemantics);
@@ -103,13 +80,14 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (slotCapacity <= 0) throw new ArgumentOutOfRangeException(nameof(slotCapacity));
 
             SlotCapacity = slotCapacity;
-            CommittedBytes = GpuBrickBufferLayout.CommittedBytes(slotCapacity);
+            DirectoryCapacity = NextPowerOfTwo(Math.Max(1024, slotCapacity * 4));
+            DirectoryWordOffset = slotCapacity * GpuBrickBufferLayout.MaterialWordsPerBrick;
+            long directoryBytes = (long)DirectoryCapacity * DirectoryWordsPerEntry * sizeof(uint);
+            CommittedBytes = GpuBrickBufferLayout.CommittedBytes(slotCapacity) + directoryBytes;
             _slots = new GpuBrickSlotTable(slotCapacity);
 
-            // Allocated once and never resized. A mirror that grew on demand would reallocate
-            // hundreds of megabytes mid-frame at exactly the moment the world is busiest.
             _materials = new ComputeBuffer(
-                slotCapacity * GpuBrickBufferLayout.MaterialWordsPerBrick,
+                DirectoryWordOffset + DirectoryCapacity * DirectoryWordsPerEntry,
                 sizeof(uint), ComputeBufferType.Structured);
             _surfaceSemantics = new ComputeBuffer(
                 slotCapacity * GpuBrickBufferLayout.SurfaceWordsPerBrick,
@@ -124,8 +102,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                                           ComputeBufferType.Structured);
 
             _materialStaging = new NativeArray<uint>(
-                slotCapacity * GpuBrickBufferLayout.MaterialWordsPerBrick,
-                Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+                DirectoryWordOffset, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
             _surfaceStaging = new NativeArray<uint>(
                 slotCapacity * GpuBrickBufferLayout.SurfaceWordsPerBrick,
                 Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
@@ -134,6 +111,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
             _metadataStaging = new NativeArray<BrickMetadata>(
                 slotCapacity, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+            _directoryStaging = new NativeArray<uint>(
+                DirectoryCapacity * DirectoryWordsPerEntry,
+                Allocator.Persistent, NativeArrayOptions.ClearMemory);
             _dirtySlots = new bool[slotCapacity];
         }
 
@@ -142,30 +122,16 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         public bool Unpin(int3 coordinate) => _slots.Unpin(coordinate);
         public void Touch(int3 coordinate) => _slots.Touch(coordinate);
 
-        /// <summary>
-        /// Publishes one brick.
-        ///
-        /// <paramref name="payload"/> is only read for a mixed brick. Its three channels are copied
-        /// into mirror-owned staging at the destination slot immediately, so the caller's pinned
-        /// block can be released as soon as publication returns. The GPU transfer is deliberately
-        /// deferred until a consumer requests one of the mirror buffers, where adjacent dirty slots
-        /// are uploaded in bulk rather than as hundreds of tiny driver calls.
-        /// </summary>
         public GpuBrickPublish Publish(in VoxelBrickDelta delta, in PinnedVoxelReadBlock payload)
         {
             bool hasPayload = payload.Kind == VoxelReadBlockKind.Mixed
                            && payload.MixedVoxels.IsCreated
                            && payload.MixedSurfaceSemantics.IsCreated
                            && payload.MixedBoundarySamples.IsCreated;
-            return Publish(delta,
-                           payload.MixedVoxels, payload.MixedSurfaceSemantics,
+            return Publish(delta, payload.MixedVoxels, payload.MixedSurfaceSemantics,
                            payload.MixedBoundarySamples, payload.MixedOffset, hasPayload);
         }
 
-        /// <summary>
-        /// Publishes from raw channel arrays rather than a pinned block, for callers that hold
-        /// storage directly. The pinned overload delegates here; the two must not diverge.
-        /// </summary>
         public GpuBrickPublish Publish(in VoxelBrickDelta delta,
                                        NativeArray<byte> voxels,
                                        NativeArray<ushort> surfaceSemantics,
@@ -183,18 +149,20 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 case GpuBrickAdmission.Full:
                     return GpuBrickPublish.NoSlot;
                 case GpuBrickAdmission.NoPayload:
-                    WriteMetadata(delta, slot: -1);
+                    if (!PublishLookup(delta, -1)) return GpuBrickPublish.NoSlot;
                     return GpuBrickPublish.MetadataOnly;
                 case GpuBrickAdmission.Resident:
+                    if (!_slots.TryGetSlot(delta.Coordinate, out slot)
+                        || !PublishLookup(delta, slot))
+                        return GpuBrickPublish.NoSlot;
                     SkippedAlreadyResident++;
                     return GpuBrickPublish.AlreadyResident;
             }
 
             if (!hasPayload)
             {
-                // The slot was admitted on the delta's word; without the payload it would hold
-                // whatever the previous tenant left. Release it rather than publish a lie.
                 _slots.Release(delta.Coordinate);
+                RemoveLookup(delta.Coordinate);
                 return GpuBrickPublish.PayloadMissing;
             }
 
@@ -207,18 +175,93 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             StageChannel(_boundaryStaging, boundarySamples, elementOffset,
                          GpuBrickBufferLayout.VoxelsPerBrick,
                          GpuBrickBufferLayout.BoundaryWordOffset(slot));
-
             WriteMetadata(delta, slot);
+
+            if (!PublishLookup(delta, slot))
+            {
+                _slots.Release(delta.Coordinate);
+                return GpuBrickPublish.NoSlot;
+            }
 
             UploadedBricks++;
             UploadedBytes += (ulong)GpuBrickBufferLayout.BytesPerMixedBrick;
             return GpuBrickPublish.Uploaded;
         }
 
-        /// <summary>
-        /// Copies one brick's worth of a channel into the CPU staging mirror, reinterpreting the
-        /// source as 32-bit words. Blocks start on a block boundary, so every offset is word-aligned.
-        /// </summary>
+        /// <summary>Removes a world coordinate from GPU lookup and releases its mixed payload slot.</summary>
+        public void Remove(int3 coordinate)
+        {
+            ThrowIfDisposed();
+            _slots.Release(coordinate);
+            RemoveLookup(coordinate);
+        }
+
+        private bool PublishLookup(in VoxelBrickDelta delta, int slot)
+        {
+            int index = FindDirectoryIndex(delta.Coordinate, forInsert: true);
+            if (index < 0)
+            {
+                DirectoryRefusals++;
+                return false;
+            }
+
+            int word = index * DirectoryWordsPerEntry;
+            _directoryStaging[word + 0] = unchecked((uint)delta.Coordinate.x);
+            _directoryStaging[word + 1] = unchecked((uint)delta.Coordinate.y);
+            _directoryStaging[word + 2] = unchecked((uint)delta.Coordinate.z);
+            _directoryStaging[word + 3] = GpuSurfaceExtractor.PackBrickCacheEntry(
+                delta.Content, delta.UniformMaterial, slot);
+            _directoryStaging[word + 4] = DirectoryOccupied;
+            _directoryDirty = true;
+            return true;
+        }
+
+        private void RemoveLookup(int3 coordinate)
+        {
+            int index = FindDirectoryIndex(coordinate, forInsert: false);
+            if (index < 0) return;
+            _directoryStaging[index * DirectoryWordsPerEntry + 4] = DirectoryTombstone;
+            _directoryDirty = true;
+        }
+
+        private int FindDirectoryIndex(int3 coordinate, bool forInsert)
+        {
+            int firstTombstone = -1;
+            int index = (int)(HashCoordinate(coordinate) & (uint)DirectoryMask);
+            for (int probe = 0; probe < DirectoryCapacity; probe++)
+            {
+                int candidate = (index + probe) & DirectoryMask;
+                int word = candidate * DirectoryWordsPerEntry;
+                uint state = _directoryStaging[word + 4];
+                if (state == 0u)
+                    return forInsert ? (firstTombstone >= 0 ? firstTombstone : candidate) : -1;
+                if (state == DirectoryTombstone)
+                {
+                    if (forInsert && firstTombstone < 0) firstTombstone = candidate;
+                    continue;
+                }
+                if (unchecked((int)_directoryStaging[word + 0]) == coordinate.x
+                    && unchecked((int)_directoryStaging[word + 1]) == coordinate.y
+                    && unchecked((int)_directoryStaging[word + 2]) == coordinate.z)
+                    return candidate;
+            }
+            return forInsert ? firstTombstone : -1;
+        }
+
+        public static uint HashCoordinate(int3 coordinate)
+        {
+            unchecked
+            {
+                uint h = (uint)coordinate.x * 0x8da6b343u;
+                h ^= (uint)coordinate.y * 0xd8163841u;
+                h ^= (uint)coordinate.z * 0xcb1ab31fu;
+                h ^= h >> 16;
+                h *= 0x7feb352du;
+                h ^= h >> 15;
+                return h;
+            }
+        }
+
         private static void StageChannel<T>(NativeArray<uint> destination, NativeArray<T> source,
                                             int elementOffset, int elementCount, int wordOffset)
             where T : struct
@@ -233,9 +276,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         private void WriteMetadata(in VoxelBrickDelta delta, int slot)
         {
-            if (slot < 0 && !_slots.TryGetSlot(delta.Coordinate, out slot)) slot = -1;
-            if (slot < 0) return;   // nothing addressable to describe yet
-
+            if (slot < 0) return;
             _metadataStaging[slot] = new BrickMetadata
             {
                 Slot = slot,
@@ -260,48 +301,51 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             return buffer;
         }
 
-        /// <summary>
-        /// Flushes adjacent dirty slots as contiguous buffer ranges. Fresh admissions use ascending
-        /// slots, so the common chunk publication collapses from four GPU writes per mixed brick to
-        /// four writes for the whole run. Fragmented eviction still remains correct and bounded by
-        /// the number of dirty ranges rather than the number of bricks.
-        /// </summary>
         private void FlushPendingUploads()
         {
-            if (_dirtyMax < _dirtyMin) return;
-
-            int slot = _dirtyMin;
-            while (slot <= _dirtyMax)
+            if (_dirtyMax >= _dirtyMin)
             {
-                while (slot <= _dirtyMax && !_dirtySlots[slot]) slot++;
-                if (slot > _dirtyMax) break;
-
-                int first = slot;
-                while (slot <= _dirtyMax && _dirtySlots[slot])
+                int slot = _dirtyMin;
+                while (slot <= _dirtyMax)
                 {
-                    _dirtySlots[slot] = false;
-                    slot++;
+                    while (slot <= _dirtyMax && !_dirtySlots[slot]) slot++;
+                    if (slot > _dirtyMax) break;
+                    int first = slot;
+                    while (slot <= _dirtyMax && _dirtySlots[slot])
+                    {
+                        _dirtySlots[slot] = false;
+                        slot++;
+                    }
+
+                    int slotCount = slot - first;
+                    int materialOffset = GpuBrickBufferLayout.MaterialWordOffset(first);
+                    int surfaceOffset = GpuBrickBufferLayout.SurfaceWordOffset(first);
+                    int boundaryOffset = GpuBrickBufferLayout.BoundaryWordOffset(first);
+                    _materials.SetData(_materialStaging, materialOffset, materialOffset,
+                        slotCount * GpuBrickBufferLayout.MaterialWordsPerBrick);
+                    _surfaceSemantics.SetData(_surfaceStaging, surfaceOffset, surfaceOffset,
+                        slotCount * GpuBrickBufferLayout.SurfaceWordsPerBrick);
+                    _boundarySamples.SetData(_boundaryStaging, boundaryOffset, boundaryOffset,
+                        slotCount * GpuBrickBufferLayout.BoundaryWordsPerBrick);
+                    _metadata.SetData(_metadataStaging, first, first, slotCount);
                 }
-
-                int slotCount = slot - first;
-                int materialOffset = GpuBrickBufferLayout.MaterialWordOffset(first);
-                int surfaceOffset = GpuBrickBufferLayout.SurfaceWordOffset(first);
-                int boundaryOffset = GpuBrickBufferLayout.BoundaryWordOffset(first);
-
-                _materials.SetData(
-                    _materialStaging, materialOffset, materialOffset,
-                    slotCount * GpuBrickBufferLayout.MaterialWordsPerBrick);
-                _surfaceSemantics.SetData(
-                    _surfaceStaging, surfaceOffset, surfaceOffset,
-                    slotCount * GpuBrickBufferLayout.SurfaceWordsPerBrick);
-                _boundarySamples.SetData(
-                    _boundaryStaging, boundaryOffset, boundaryOffset,
-                    slotCount * GpuBrickBufferLayout.BoundaryWordsPerBrick);
-                _metadata.SetData(_metadataStaging, first, first, slotCount);
+                _dirtyMin = int.MaxValue;
+                _dirtyMax = -1;
             }
 
-            _dirtyMin = int.MaxValue;
-            _dirtyMax = -1;
+            if (_directoryDirty)
+            {
+                _materials.SetData(_directoryStaging, 0, DirectoryWordOffset,
+                                   _directoryStaging.Length);
+                _directoryDirty = false;
+            }
+        }
+
+        private static int NextPowerOfTwo(int value)
+        {
+            int result = 1;
+            while (result < value && result < (1 << 30)) result <<= 1;
+            return result;
         }
 
         private void ThrowIfDisposed()
@@ -322,6 +366,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (_surfaceStaging.IsCreated) _surfaceStaging.Dispose();
             if (_boundaryStaging.IsCreated) _boundaryStaging.Dispose();
             if (_metadataStaging.IsCreated) _metadataStaging.Dispose();
+            if (_directoryStaging.IsCreated) _directoryStaging.Dispose();
             _slots.Clear();
         }
     }
