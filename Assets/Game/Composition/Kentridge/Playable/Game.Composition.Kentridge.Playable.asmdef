@@ -4,17 +4,18 @@
   "references": [
     "Game.Composition.Campaign",
     "Game.Composition.Kentridge.Api",
+    "Game.Composition.Showcase",
     "Game.Composition.WorldBuilderWorldGen",
     "Game.Combat.Api",
     "Game.Combat.Runtime",
     "Game.Cutscenes.Api",
     "Game.Input.Api",
     "Game.Input.Runtime",
+    "Game.WorldBuilder.Api",
     "MountingForce.WorldGen.Core",
     "MountingForce.WorldGen.Runtime",
     "VoxelEngine.Characters.Runtime",
-    "VoxelEngine.Core",
-    "VoxelEngine.Showcase"
+    "VoxelEngine.Core"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
