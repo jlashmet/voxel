@@ -6,12 +6,8 @@ namespace VoxelEngine.Showcase
 {
     /// <summary>
     /// One-shot close-up art refinement for ArchLookdev's authored ivy and blossoms.
-    ///
-    /// ArchReferenceGrowth owns placement, counts, materials, draw batching and teardown. This pass
-    /// deliberately owns only the high-frequency geometry cues exposed by the captured Hero Arch
-    /// camera: leaf overlap/depth/scale hierarchy and irregular blossom bracts. It mutates each newly
-    /// built combined mesh in place, so the scene keeps three hero draws, no per-leaf objects and no
-    /// steady-state Update work.
+    /// ArchReferenceGrowth still owns placement, batching and teardown; this pass only mutates
+    /// each newly built combined mesh in place to add close-up depth/scale hierarchy.
     /// </summary>
     [DisallowMultipleComponent]
     [DefaultExecutionOrder(1000)]
@@ -31,8 +27,9 @@ namespace VoxelEngine.Showcase
         private const int FlowerCentreVertexCount = 9;
 
         private Coroutine _applyRoutine;
-        private int _refinedIvyInstanceId;
-        private int _refinedPetalInstanceId;
+        private Mesh _refinedIvyMesh;
+        private Mesh _refinedPetalMesh;
+        private Vector3[] _pendingHeadDeltas;
 
         public bool RefinementApplied { get; private set; }
 
@@ -44,10 +41,7 @@ namespace VoxelEngine.Showcase
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-        private static void AttachStartupScene()
-        {
-            AttachToArchLookdev();
-        }
+        private static void AttachStartupScene() => AttachToArchLookdev();
 
         private static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
         {
@@ -63,10 +57,7 @@ namespace VoxelEngine.Showcase
             lookdev.gameObject.AddComponent<ArchReferenceGrowthDetailPass>();
         }
 
-        private void OnEnable()
-        {
-            ScheduleApply();
-        }
+        private void OnEnable() => ScheduleApply();
 
         private void OnDisable()
         {
@@ -92,11 +83,10 @@ namespace VoxelEngine.Showcase
         private IEnumerator ApplyWhenGrowthIsReady()
         {
             RefinementApplied = false;
-            for (int attempt = 0; attempt < 4; attempt++)
+            for (int attempt = 0; attempt < 6; attempt++)
             {
-                // Growth and the world-space anchor may both react to the same child-change event.
-                // Wait one frame so this pass observes the final detached production meshes rather
-                // than depending on component callback order.
+                // Growth and the world-space anchor react to the same child transition. Defer one
+                // frame so this pass observes the detached production root without callback ordering.
                 yield return null;
 
                 ArchReferenceGrowth growth = GetComponent<ArchReferenceGrowth>();
@@ -105,57 +95,61 @@ namespace VoxelEngine.Showcase
                 if (ivy == null || petals == null)
                     continue;
 
-                int ivyId = ivy.GetInstanceID();
-                int petalId = petals.GetInstanceID();
-                if (_refinedIvyInstanceId != ivyId)
-                    RefineIvy(ivy);
-
-                Vector3[] headDeltas = null;
-                if (_refinedPetalInstanceId != petalId)
-                    headDeltas = RefineFlowerPetals(petals);
-
-                Transform heroRoot = FindDetachedHeroRoot();
-                if (heroRoot != null)
+                if (_refinedIvyMesh != ivy)
                 {
-                    Mesh centreMesh = null;
-                    MeshRenderer[] renderers = heroRoot.GetComponentsInChildren<MeshRenderer>(true);
-                    foreach (MeshRenderer renderer in renderers)
-                    {
-                        if (renderer == null) continue;
-                        Material material = renderer.sharedMaterial;
-                        switch (renderer.gameObject.name)
-                        {
-                            case "Lobed Ivy":
-                                TuneMaterial(
-                                    material,
-                                    new Color(0.22f, 0.46f, 0.10f, 1f),
-                                    new Color(0.70f, 0.82f, 0.28f, 1f));
-                                break;
-                            case "Flower Petals":
-                                TuneMaterial(
-                                    material,
-                                    new Color(0.88f, 0.45f, 0.54f, 1f),
-                                    new Color(1.00f, 0.86f, 0.86f, 1f));
-                                break;
-                            case "Flower Centres":
-                                TuneMaterial(
-                                    material,
-                                    new Color(0.72f, 0.31f, 0.07f, 1f),
-                                    new Color(0.96f, 0.66f, 0.18f, 1f));
-                                centreMesh = renderer.GetComponent<MeshFilter>()?.sharedMesh;
-                                break;
-                        }
-                    }
-
-                    if (headDeltas != null && centreMesh != null)
-                        RefineFlowerCentres(centreMesh, headDeltas);
+                    RefineIvy(ivy);
+                    _refinedIvyMesh = ivy;
                 }
 
-                _refinedIvyInstanceId = ivyId;
-                _refinedPetalInstanceId = petalId;
-                RefinementApplied = true;
-                _applyRoutine = null;
-                yield break;
+                if (_refinedPetalMesh != petals && _pendingHeadDeltas == null)
+                    _pendingHeadDeltas = RefineFlowerPetals(petals);
+
+                Transform heroRoot = FindDetachedHeroRoot();
+                if (heroRoot == null)
+                    continue;
+
+                Mesh centreMesh = null;
+                MeshRenderer[] renderers = heroRoot.GetComponentsInChildren<MeshRenderer>(true);
+                foreach (MeshRenderer renderer in renderers)
+                {
+                    if (renderer == null) continue;
+                    Material material = renderer.sharedMaterial;
+                    switch (renderer.gameObject.name)
+                    {
+                        case "Lobed Ivy":
+                            TuneMaterial(material,
+                                new Color(0.22f, 0.46f, 0.10f, 1f),
+                                new Color(0.70f, 0.82f, 0.28f, 1f));
+                            break;
+                        case "Flower Petals":
+                            TuneMaterial(material,
+                                new Color(0.88f, 0.45f, 0.54f, 1f),
+                                new Color(1.00f, 0.86f, 0.86f, 1f));
+                            break;
+                        case "Flower Centres":
+                            TuneMaterial(material,
+                                new Color(0.72f, 0.31f, 0.07f, 1f),
+                                new Color(0.96f, 0.66f, 0.18f, 1f));
+                            centreMesh = renderer.GetComponent<MeshFilter>()?.sharedMesh;
+                            break;
+                    }
+                }
+
+                if (_pendingHeadDeltas != null)
+                {
+                    if (centreMesh == null)
+                        continue;
+                    RefineFlowerCentres(centreMesh, _pendingHeadDeltas);
+                    _pendingHeadDeltas = null;
+                    _refinedPetalMesh = petals;
+                }
+
+                if (_refinedIvyMesh == ivy && _refinedPetalMesh == petals)
+                {
+                    RefinementApplied = true;
+                    _applyRoutine = null;
+                    yield break;
+                }
             }
 
             _applyRoutine = null;
@@ -166,8 +160,7 @@ namespace VoxelEngine.Showcase
             Vector3[] vertices = mesh.vertices;
             Vector3[] normals = mesh.normals;
             Color[] colors = mesh.colors;
-            if (vertices == null || normals == null || colors == null ||
-                vertices.Length != normals.Length || vertices.Length != colors.Length)
+            if (vertices.Length != normals.Length || vertices.Length != colors.Length)
                 return;
 
             int cursor = 0;
@@ -175,10 +168,7 @@ namespace VoxelEngine.Showcase
             cursor = RefineIvyPath(vertices, normals, colors, cursor, LeftIvyClusterCount, ref leafIndex);
             cursor = RefineIvyPath(vertices, normals, colors, cursor, RightIvyClusterCount, ref leafIndex);
             if (cursor != vertices.Length)
-            {
-                Debug.LogWarning(
-                    $"Arch ivy detail pass expected {cursor} topology vertices but mesh has {vertices.Length}; leaving bounds recalculation only.");
-            }
+                Debug.LogWarning($"Arch ivy detail topology ended at {cursor} of {vertices.Length} vertices.");
 
             mesh.vertices = vertices;
             mesh.normals = normals;
@@ -203,7 +193,6 @@ namespace VoxelEngine.Showcase
                 {
                     if (cursor + IvyLeafVertexCount > vertices.Length)
                         return vertices.Length;
-
                     RefineLeaf(vertices, normals, colors, cursor, leafIndex++);
                     cursor += IvyLeafVertexCount;
                     if ((leaf & 1) == 0)
@@ -221,7 +210,7 @@ namespace VoxelEngine.Showcase
             int leafIndex)
         {
             Vector3 centre = vertices[start];
-            Vector3[] offsets = new Vector3[IvyLeafVertexCount - 1];
+            var offsets = new Vector3[IvyLeafVertexCount - 1];
             for (int i = 0; i < offsets.Length; i++)
                 offsets[i] = vertices[start + 1 + i] - centre;
 
@@ -246,12 +235,10 @@ namespace VoxelEngine.Showcase
                 Vector3 smoothed = (previous * 0.18f + current * 0.64f + next * 0.18f) * scale;
                 smoothed.z = 0.006f * scale;
                 vertices[start + 1 + i] = centre + smoothed;
-
-                Vector3 normal = new Vector3(
+                normals[start + 1 + i] = new Vector3(
                     -smoothed.x * 0.42f,
                     -smoothed.y * 0.42f,
                     -1f).normalized;
-                normals[start + 1 + i] = normal;
                 colors[start + 1 + i] = Color.Lerp(
                     leafColor,
                     new Color(0.16f, 0.34f, 0.07f, 1f),
@@ -273,7 +260,7 @@ namespace VoxelEngine.Showcase
             for (int cluster = 0; cluster < FlowerClusterCount; cluster++)
             {
                 Vector3 clusterCentre = Vector3.zero;
-                Vector3[] oldHeadCentres = new Vector3[FlowerHeadsPerCluster];
+                var oldHeadCentres = new Vector3[FlowerHeadsPerCluster];
                 for (int head = 0; head < FlowerHeadsPerCluster; head++)
                 {
                     int headIndex = cluster * FlowerHeadsPerCluster + head;
