@@ -1,29 +1,22 @@
 # Plan: WorldBuilder-only scene composition
 
-## Evidence / acceptance
+## Evidence / hypotheses
 
-- This architecture capture has no screenshots, frames, poses, or annotations, so there are no visual marked regions to replay; the captured evidence surface is production scene/bootstrap ownership.
-- Audited build/showcase/lookdev paths found direct backend composition in `KentridgePlayableSlice`, `VoxelShowcase`, `WorldbuildingGalleryShowcase`, `ArchLookdev`, and `TerrainLookdev`, plus scene-owned helper generation under Showcase/Kentridge.
-- The initial GUID-preserving source relocation proved useful but insufficient by itself: after the move, Kentridge still called Hightown's backend planner directly and Showcase still accepted concrete content modes. That falsifies the "location-only" hypothesis.
+- Architecture capture has no screenshots, frames, poses, or annotations; there are no visual marked regions to replay. Evidence is production scene/bootstrap ownership plus runtime CI.
+- Audit found scene-owned backend composition in Kentridge/Showcase/lookdev paths. Pure GUID-preserving source relocation did **not** remove direct generator selection, rejecting the hypothesis that location/naming alone was the defect.
+- Selected boundary: scenes may own camera/lighting/UI/input/metrics, but generated environment intent enters through WorldBuilder semantic recipes/town authoring; reusable composition owns concrete storage/catalogue/generator choices.
 
-## Competing hypotheses
+## Fix / discriminator
 
-1. **Scene bootstraps still own world realization despite reusable generators. Supported.** Direct storage creation, catalogue combination, vegetation/life realization, and procedural environment authoring establish the boundary leak.
-2. **The defect is only source location/naming. Rejected by post-move inspection.** The same direct generator calls remained after pure renames.
-3. **All large scene scripts are violations. Rejected.** Camera/lighting/UI/input/animation/metrics are presentation; the discriminator is creation/mutation of generated world content or selection of backend generation algorithms.
+- Added `WorldEnvironmentSpec` recipes and shared Showcase resolution while preserving distinct small/fortified/gallery compositions.
+- Routed both Kentridge and Hightown through `WorldBuilderTownAuthoring`; preserved opaque backend plans and serialized scene GUID/assembly compatibility.
+- Behavioral EditMode coverage executes both production town recipes, checks distinct results, semantic Showcase recipes, and supplements with a scene-source backend guard.
+- Final request on source `406a30415537634d9b122287a516e952e5ef1fda`, run `33201049016`: real macOS player **built/launched successfully**, but focused production Kentridge acceptance failed: `first-destination` not reachable from `starting-pub` under `NormalParty`.
+- Discriminator confirmed stale traversal facts: current Kentridge intentionally has zero legacy `Streets` and inferred `Routes`, while `SettlementStreetTraversalFacts` read only streets and rejected `SiteAccessKind.Route`.
+- Product fix through `5c87db87921c4a8b25dbaaf0b9866cecb98ce375`: shared traversal now graphs both streets and arbitrary inferred route segments, splits exact integer intersections/endpoints, and binds access by declared path id. Regression keeps Kentridge at zero streets and requires pub-to-every-site reachability through production traversal.
 
-## Fix / regression
+## Blast radius / cost / remaining gate
 
-- Add `WorldEnvironmentSpec`/recipes to `Game.WorldBuilder.Api`; concrete Showcase modes are resolved only after semantic WorldBuilder intent is established.
-- Route both Kentridge and Hightown town authoring through `WorldBuilderTownAuthoring`, preserving distinct deterministic plans rather than collapsing to one canonical world.
-- Preserve serialized scene compatibility by keeping original script GUIDs/assembly identities while moving environment-producing runtime/editor source under reusable Game composition ownership.
-- EditMode behavioral regressions execute production WorldBuilder authoring for both towns, assert distinct realized plans, and exercise semantic Showcase recipe resolution. Source scanning is supplemental only.
-- Built-app validation uses the existing production acceptance `VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests.LaunchScene_NewGameCutscene_ReleasesControl_AndPlayerWalksOutIntoKentridge`; that filter is already mapped by the single-test workflow to build and launch the real `KentridgePlayableSlice` player. No synthetic scene-issue pose is invented because this capture has none.
-- The first CI request exposed a test-only namespace collision before runtime (`CS0101`); the redundant test was removed rather than weakening production validation.
-
-## Blast radius / cost
-
-- Existing seeds, feature subsets, scene YAML GUIDs, assembly names, storage budgets, catalogue outputs, and presentation settings remain compatible.
-- WorldBuilder mapping is O(requested semantic features); it delegates to existing bounded generators and adds no per-frame generation loop.
-- Hightown gains the same opaque WorldBuilder authoring boundary as Kentridge; backend `SettlementPlan` remains internal/friend-visible for existing realization adapters.
-- Feature changes remain limited to the assigned capture plus shared WorldBuilder/composition/test ownership; no other capture or CI request file is modified on `fixes/agent-3`.
+- Legacy orthogonal street handling remains supported; route support is additive and deterministic. No per-frame work changes.
+- Graph construction is bounded by settlement path segments: pairwise exact-intersection preprocessing plus existing shortest-path lookup; Kentridge has 16 short three-point routes.
+- No other capture or feature-branch CI request file is changed. The consumed final CI transport is left untouched; corrected exact-SHA focused/built-player green remains the only promotion gate.
