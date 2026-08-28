@@ -61,17 +61,17 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
         private static Material s_Vine;
         private static Material s_Grass;
         private static bool s_ReportedMissing;
+        private static bool s_ReportedMissingGrass;
 
         public static bool Ensure()
         {
-            if (s_Foliage != null && s_Surface != null && s_Vine != null && s_Grass != null)
+            if (s_Foliage != null && s_Surface != null && s_Vine != null)
                 return true;
 
             Shader foliage = Shader.Find(FoliageShaderName);
             Shader surface = Shader.Find(SurfaceShaderName);
             Shader vine = Shader.Find(VineShaderName);
-            Shader grass = Shader.Find(GrassShaderName);
-            if (foliage == null || surface == null || vine == null || grass == null)
+            if (foliage == null || surface == null || vine == null)
             {
                 // Once, not per call: see ProceduralTreeMaterials.Ensure for what per-call
                 // logging costs when a spawn path retries this every frame.
@@ -81,16 +81,33 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
                     if (foliage == null) Debug.LogError($"Vegetation shader was not found: {FoliageShaderName}");
                     if (surface == null) Debug.LogError($"Vegetation shader was not found: {SurfaceShaderName}");
                     if (vine == null) Debug.LogError($"Vegetation shader was not found: {VineShaderName}");
-                    if (grass == null) Debug.LogError($"Vegetation shader was not found: {GrassShaderName}");
                 }
                 return false;
             }
 
             s_ReportedMissing = false;
-
             s_Foliage = Create(foliage, "Procedural Vegetation Foliage (Shared Runtime)");
             s_Surface = Create(surface, "Procedural Vegetation Surface (Shared Runtime)");
             s_Vine = Create(vine, "Procedural Vine (Shared Runtime)");
+            return true;
+        }
+
+        private static bool EnsureGrass()
+        {
+            if (s_Grass != null) return true;
+
+            Shader grass = Shader.Find(GrassShaderName);
+            if (grass == null)
+            {
+                if (!s_ReportedMissingGrass)
+                {
+                    s_ReportedMissingGrass = true;
+                    Debug.LogError($"Vegetation shader was not found: {GrassShaderName}");
+                }
+                return false;
+            }
+
+            s_ReportedMissingGrass = false;
             s_Grass = Create(grass, "Procedural Grass (Shared Runtime)");
             s_Grass.enableInstancing = false;
             return true;
@@ -101,13 +118,14 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
             VegetationRenderStyle style = StyleFor(kind);
             if (style.ShaderClass == VegetationShaderClass.Woody)
                 return ProceduralTreeMaterials.Bark;
+            if (style.ShaderClass == VegetationShaderClass.Grass)
+                return EnsureGrass() ? s_Grass : null;
 
             if (!Ensure()) return null;
             switch (style.ShaderClass)
             {
                 case VegetationShaderClass.Surface: return s_Surface;
                 case VegetationShaderClass.Vine: return s_Vine;
-                case VegetationShaderClass.Grass: return s_Grass;
                 default: return s_Foliage;
             }
         }
@@ -152,7 +170,7 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
             // packed renderer. Other foliage shaders ignore these values.
             s_Foliage.SetInt("_GrassInteractorCount", s_GrassInteractorCount);
             s_Foliage.SetVectorArray("_GrassInteractorPositions", s_GrassInteractors);
-            ApplyGrassState(s_Grass);
+            if (EnsureGrass()) ApplyGrassState(s_Grass);
         }
 
         public static VegetationRenderStyle StyleFor(VegetationKind kind)
