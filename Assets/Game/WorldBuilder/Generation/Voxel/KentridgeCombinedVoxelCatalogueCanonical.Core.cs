@@ -13,35 +13,50 @@ namespace MountingForce.WorldGen.Voxel
         {
             SettlementPlan settlement = SettlementVoxelPlan.Resolve(seed, in settings);
             bool isKentridge = settlement.Theme.Id == Content.Kentridge.KentridgeDefinition.Id;
-            var stageList = new List<FeatureCatalogue>(isKentridge ? 25 : 9);
+            bool organicKentridge = isKentridge && settlement.Routes.Count > 0;
+            var stageList = new List<FeatureCatalogue>(organicKentridge ? 8 : (isKentridge ? 25 : 9));
 
             Add(stageList, KentridgeGroundCoverCatalogue.Build(seed, settings, Allocator.Temp));
-            if (isKentridge)
+
+            if (isKentridge && !organicKentridge)
             {
                 Add(stageList, KentridgeDistrictTerraceCatalogue.Build(seed, settings, Allocator.Temp));
                 Add(stageList, KentridgeTerraceSurfaceCorrectionCatalogue.Build(seed, settings, Allocator.Temp));
             }
+
+            // This stage now selects inferred organic-route rasterization when Routes are present.
             Add(stageList, KentridgeDirectedTownSurfaceCatalogue.Build(seed, settings, Allocator.Temp));
-            if (isKentridge)
+
+            if (isKentridge && !organicKentridge)
             {
                 Add(stageList, KentridgeProcessionalClimbCatalogue.Build(seed, settings, Allocator.Temp));
                 Add(stageList, KentridgeUrbanCirculationCatalogue.Build(seed, settings, Allocator.Temp));
                 Add(stageList, KentridgeVerticalConnectorCatalogue.Build(seed, settings, Allocator.Temp));
             }
+
+            // Plot-driven stages remain valid for both layouts because they derive from SettlementPlan.Plots.
             Add(stageList, KentridgeTerraceSupportCatalogue.Build(seed, settings, Allocator.Temp));
             Add(stageList, KentridgeVerticalPlacementAdapter.BuildPlotSurfaces(seed, settings, Allocator.Temp));
-            if (isKentridge)
+
+            if (isKentridge && !organicKentridge)
                 Add(stageList, KentridgeUrbanSidewalkCatalogue.Build(seed, settings, Allocator.Temp));
-            Add(stageList, KentridgeFrontagePathCatalogue.Build(seed, settings, Allocator.Temp));
+            if (!organicKentridge)
+                Add(stageList, KentridgeFrontagePathCatalogue.Build(seed, settings, Allocator.Temp));
+
             Add(stageList, KentridgeMarketPiazzaCatalogue.Build(seed, settings, Allocator.Temp));
-            if (isKentridge)
+
+            if (isKentridge && !organicKentridge)
             {
                 Add(stageList, KentridgeCivicForecourtCatalogue.Build(seed, settings, Allocator.Temp));
                 Add(stageList, KentridgeStreetDressingCatalogue.Build(seed, settings, Allocator.Temp));
             }
+
             Add(stageList, KentridgeVerticalPlacementAdapter.BuildPlotDressing(seed, settings, Allocator.Temp));
             Add(stageList, KentridgeVerticalPlacementAdapter.BuildTownDressing(seed, settings, Allocator.Temp));
-            if (isKentridge)
+
+            // These anonymous massing/access passes encode the retired cross-street/block skeleton.
+            // Organic Kentridge deliberately omits them until they can consume inferred route topology.
+            if (isKentridge && !organicKentridge)
             {
                 AddReserved(stageList, KentridgeUrbanCourtCatalogue.Build(seed, settings, Allocator.Temp), settlement, settings);
                 AddReserved(stageList, KentridgeVerticalFrontageCatalogue.Build(seed, settings, Allocator.Temp), settlement, settings);
@@ -51,11 +66,10 @@ namespace MountingForce.WorldGen.Voxel
                 AddReserved(stageList, KentridgeUrbanAccessCatalogue.Build(seed, settings, Allocator.Temp), settlement, settings);
                 AddReserved(stageList, KentridgeHillsideArchitectureCatalogue.Build(seed, settings, Allocator.Temp), settlement, settings);
             }
+
             Add(stageList, KentridgeSharedStructureVoxelCatalogue.Build(seed, settings, Allocator.Temp));
 
-            // Undercrofts are authored around Kentridge's named pub and warehouse rather than a
-            // settlement plan, so they remain part of the Kentridge-only stage sequence.
-            if (isKentridge)
+            if (isKentridge && !organicKentridge)
                 Add(stageList, KentridgeAnchorUndercroftCatalogue.Build(seed, settings, Allocator.Temp));
 
             FeatureCatalogue[] stages = stageList.ToArray();
