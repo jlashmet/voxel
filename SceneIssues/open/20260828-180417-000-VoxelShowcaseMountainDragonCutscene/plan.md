@@ -18,10 +18,11 @@ Discriminator: compare bake provenance to the mountain landing, inspect authored
 - Prior rejected player captures were inspected directly and show no readable mountain route.
 - Shared presentation is now corrected: `MountainDragonShowcaseDriver` only supplies player coordinates/time and binds `CutsceneDialogueOverlay`; proximity/story/cutscene logic and `OnGUI` presentation live in reusable modules.
 - Startup provenance now binds content signature + payload SHA-256, and focused acceptance samples the realized bake at mountain core, path base/turns, summit support/path, and dragon.
+- CI request `33235920288` never reached Unity because `replay_seconds=110` violated the workflow contract (20-60 seconds). The corrected 60-second request `33236501834` reached Unity and exposed a feature compile error: the mountain encounter and presentation regression used obsolete named argument `displayMilliseconds`; shared `TimedCutsceneDialogueRuntime` uses `displayDurationMilliseconds`. Both feature callsites are corrected without changing the shared API.
 
 ## Selected fix / gates
 - Refresh and track the current generated startup bake + manifest; never accept a stale or mismatched payload.
 - Use a generic issue-owned waypoint replay that steers existing AutoWalk heading through `CharacterMotor.Step`; it records named approach/base/switchback/summit/dialogue captures and exits nonzero on traversal timeout.
 - Keep the route fixture tied to authored WorldBuilder centerlines in the focused regression.
 - Blast radius: shared WorldBuilder primitive/catalogue, startup bake contract, shared cutscene presentation, and opt-in showcase evidence harness only. Cold bake evidence is 199 regions / 11.2 MiB; runtime encounter cost is one reusable 2-D proximity update per frame plus dialogue presentation only while active.
-- Final gates: current bake, exact built-player route/captures + human review, one final targeted CI request, metadata promotion/closure, latest-master merge, non-force master push.
+- Final gates: current bake, exact built-player route/captures + human review, green exact-SHA targeted CI on the assigned transport, metadata promotion/closure, latest-master merge, non-force master push.
