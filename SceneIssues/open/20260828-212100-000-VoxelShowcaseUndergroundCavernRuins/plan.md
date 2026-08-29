@@ -1,21 +1,21 @@
 # Plan
 
 ## Observed behavior and acceptance
-`VoxelShowcase` must deliver the full production sequence: natural walkable mouth, long gentle direction-changing descent, huge irregular cavern with multiple geological formations, reachable aged masonry ruin, exactly two grounded readable statues, localized supported torch/lantern lighting, and deep darkness. Closure requires focused regression, exact built-player traversal through normal gameplay movement/collision/streaming, direct AAA visual review of presented frames, and bounded cost/blast radius.
+`VoxelShowcase` must deliver a natural walkable mouth, prolonged organic descent, huge irregular cavern with varied geology, reachable aged ruin, exactly two grounded readable statues, sparse supported torch/lantern lighting, and deep darkness. Closure requires focused regression, exact built-player traversal through normal movement/collision/streaming, direct AAA visual review, and bounded cost.
 
-`SceneIssues/feature-readme.md` is absent; `AGENTS.md`, `SceneIssues/README.md`, the assignment contract, and `quality-review.md` remain authoritative.
+`SceneIssues/feature-readme.md` is absent; `AGENTS.md`, `SceneIssues/README.md`, the assignment contract, and `quality-review.md` are authoritative.
 
-## Evidence and discriminated hypotheses
-Historical request `867d1e63` / run `33254822417` was structurally green but failed visual review: clipped descent evidence, cylindrical destination, box-first ruin, and primitive statues. The selected finish added reusable lobes, layered masonry, articulated statues, silhouette formations, and moving-player traversal evidence.
+## Latest evidence and hypotheses
+Final request `77001787` / run `33272245282` is functionally green: focused PlayMode passed and the built player completed waypoint 38/38 with zero harness assertions. Metrics were 30,351,634 writes, 3,589,665 visual-finish writes, 20 preloaded regions, 8 lights, and 2 statues.
 
-Final request `2c0f86dc` / run `33269217520` attempt 1 exposed a product failure: the focused PlayMode test stalled at waypoint 34/38 at `(-50.81,-71.20,-37.80)` targeting `(-49.00,-71.20,-37.80)`. The built player likewise reached waypoint 30 but never completed the route during the 95-second capture. Attempt 2 was cancelled before steps and is only infrastructure evidence.
+Direct review of all eight 1600x900 frames still fails the visual gate. Most of the descent reads as a long rectangular, beam-lined masonry corridor; the cavern scale/geology never reads clearly; the final frame is dominated by a flat tan wall/opening and does not clearly present the aged ruin with both statues.
 
-The motor/grade hypothesis is falsified: waypoint 34 is on the same terminal floor grade and the earlier protected route already covered this primary span. Geometry inspection supports the finish-overwrite hypothesis: the rear irregular lobe shell overlaps the final primary approach near x=-490, while the post-finish `UndergroundCavernCirculationProtection.Reassert` derives its start only from ruin bounds and begins well inside the cavern, leaving that approach unrepaired.
+The camera/cadence-only hypothesis is rejected: the same rectangular envelope persists across ~50 seconds of moving-player evidence, and the production cave core explicitly carves rectangular cross-sections. Sparse mouth/dogleg cylinders cannot naturalize the majority of the route. A second source defect compounds the destination evidence: the semantic final waypoint is the ruin centre, so the player finishes looking through/into the structure instead of approaching its facade.
 
 ## Selected fix
-Keep cave core, route semantics, motor, renderer/light transport, eight-light cap, 55M write budget, and visual authoring unchanged. Make circulation protection reusable across the whole destination by deriving its start from cavern bounds plus a small width-derived rear overlap, then carve continuously through the ruin approach. Pass both cavern and ruin bounds from `ShowcaseWorld`; add a focused bounds/route regression so the contract cannot regress to ruin-only protection.
+Keep the generic cave core unchanged for blast-radius safety. Extend the reusable `UndergroundCavernTraversalEnhancement` profile with bounded full-route naturalization: deterministic overlapping irregular void nodes along the primary descent, with configurable spacing, lateral jitter, radius, and ceiling variation while preserving the existing walkable core and grade. Expose/verify a production naturalization-node metric and keep the total feature under the existing 55M-write budget.
 
-Blast radius is limited to the opt-in cavern circulation helper and its sole production caller. Cost is one bounded destination corridor carve, replacing the shorter existing post-finish carve; quantify the delta in final exact-SHA metrics.
+Change the reusable production route output to stop at a derived ruin-front approach point rather than the ruin centre, preserving normal gameplay traversal while making the destination composition readable. Do not change motor limits, light cap, renderer semantics, or existing device budgets.
 
 ## Remaining gates
-Implement/regress the approach repair, issue one fresh exact-SHA request on the assigned CI ref, require focused PlayMode and mapped real-player traversal/capture green, inspect every useful frame for the full reveal and AAA bar, record final cost evidence, then move only this assignment through pending/closed and promote the exact validated head non-force.
+Implement/regress both fixes, request one fresh exact-SHA CI on `ci-test/fixes/agent-3`, require focused PlayMode plus built-player traversal/capture green, inspect every useful frame for the full reveal/AAA bar, record final cost evidence, then move only this assignment through pending/closed and non-force promote the exact validated head.
