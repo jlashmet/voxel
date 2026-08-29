@@ -2,14 +2,16 @@
 
 - [ ] Inspect the reopened issue, prior implementation, and every available visual/runtime evidence artifact for the mountain/dragon flow, including prior mountain-target CI artifacts.
 - [x] Reproduce/discriminate stale startup bake versus runtime realization/render failure using production paths: checked-in `ShowcaseWorld.bytes` predates the mountain landing (Aug 25 vs Aug 28).
+- [x] Confirm current authored geometry is already player-scale and substantial: 100 m diameter, 28 m rise, 3 m path width, 36 m runs, shallow supported switchbacks.
+- [x] Confirm `GenerateForBakeBlocking` authors current source directly; default `ShowcaseStartupSource.Bake` on the editor baker is not the stale-image root cause.
 - [x] Add discovered required work here before implementation.
-- [ ] Fix `ShowcaseWorldBaker.BakeShowcaseWorld` so offline showcase baking always uses `ShowcaseStartupSource.Generate`, matching the gallery baker instead of defaulting to `Bake` and risking stale-image reuse.
-- [ ] Add a regression that fails if the showcase baker can select the baked startup source and proves the generated/captured startup image contains mountain/path/dragon occupancy through production WorldBuilder realization.
+- [ ] Add a durable bake-content/freshness invariant so a checked-in startup image that predates required authored landmarks fails validation instead of silently shipping without them.
 - [ ] Recover/regenerate or safely refresh the checked-in VoxelShowcase startup bake from current authored WorldBuilder content without creating another CI transport.
-- [ ] Prove startup-bake provenance/content with a focused regression so a stale shipped bake cannot silently omit newly authored landmarks again.
-- [ ] Implement the smallest reusable WorldBuilder/shared-layer or evidence-navigation fix needed; keep VoxelShowcase composition-only.
-- [ ] Add/update focused behavioral regression(s) through the production WorldBuilder path for mountain/path, grounded summit dragon, and normal proximity-triggered dialogue.
-- [ ] Check blast radius across WorldBuilder/terrain/story consumers and quantify runtime/world-build cost against existing budgets.
+- [ ] Prove the checked-in startup bake contains production-realized mountain, switchback path, summit support, and dragon occupancy rather than relying only on primitive/catalogue assertions.
+- [ ] Move mountain dialogue presentation out of `MountainDragonShowcaseDriver.OnGUI` into a reusable shared cutscene presentation component; keep the showcase driver composition-only.
+- [ ] Add/update focused behavioral regression(s) through the production WorldBuilder path for mountain/path, grounded summit dragon, normal proximity-triggered dialogue, and shared presentation routing.
+- [ ] Add only the smallest reusable evidence/navigation support needed for exact built-player normal-movement traversal and durable captures; no teleport/debug-trigger shortcut.
+- [ ] Check blast radius across WorldBuilder/terrain/story/cutscene consumers and quantify one-time world-build/bake cost plus steady-state trigger/presentation cost against existing budgets.
 - [ ] Validate the checked-in startup bake contains the accepted mountain.
 - [ ] Run exact-SHA built-application VoxelShowcase validation with no startup/runtime exceptions.
 - [ ] Traverse the complete route through normal player movement without jumps/teleportation/impassable intersections.
