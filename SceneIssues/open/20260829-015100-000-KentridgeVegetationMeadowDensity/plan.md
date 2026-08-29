@@ -1,25 +1,23 @@
 # Plan — Kentridge vegetation meadow density
 
 ## Scope
-Implement only `20260829-015100-000-KentridgeVegetationMeadowDensity` on `fixes/agent-5`. Never edit `.github/test-request.json` on the feature branch or alter scene serialization for this feature.
+Implement only `20260829-015100-000-KentridgeVegetationMeadowDensity` on `fixes/agent-5`. Do not edit scene serialization or `.github/test-request.json` on the feature branch.
 
-## Evidence / selected fix
-- Kentridge already routes semantic vegetation through the reusable point-cloud placement and packed procedural-grass renderer.
-- Renderer capacity is not the density bottleneck: each semantic grass seed expands deterministically to 5–15 blades and packed meshes split into bounded chunks.
-- The feature adds reusable regional ecology policy for vegetation allowlists, density/variation, ambient-animal allowlists, and explicit building/path/cultivated/water/steep/invalid exclusions; Kentridge uses grass-only meadow policy.
-- Kentridge diagnostics now measure semantic instances, renderer-equivalent blades, connected primary-meadow blades, mesh chunks, and post-policy excluded-surface leakage.
-- Shared grass wind already uses `_GrassTime` updated from `Time.time`; do not add a Kentridge-only shader or second animation system.
-- Final CI run `33236269717` consumed its one infrastructure retry. The retry passed the focused PlayMode acceptance and ran the built player for 60 seconds with zero assertions. Runtime reported 11,478 grass instances, 114,580 rendered blades, 5,777 primary-meadow instances, 57,589 primary-meadow blades, 8 grass mesh chunks, and zero excluded-surface grass.
-- Its only remaining blocker was visual replay: `issue.json has no replayable camera snapshot`, leaving screenshots in the opening interior/cutscene.
-- A known-good Kentridge capture proves `poseAnchor` may be null while the player camera uses `FirstPerson-AIO/FirstPersonCharacter/Capsule/PlayerCamera`. This ticket had the same player-camera capture intent but an empty `camera.hierarchyPath`.
-- Selected replay fix: restore that hierarchy path in this assignment’s capture metadata only. Production runtime cost: zero; blast radius: this SceneIssue replay.
+## Confirmed current architecture / evidence
+- `KentridgeDefinition` exposes additive per-region ecology policy: allowed vegetation, density, deterministic seed, meadow radius, route clearance, slope controls, exclusion classes, and ambient-animal allowlist.
+- `KentridgeRegionLife` realizes policy through production surface sampling; no scene-local grass GameObjects or hand-authored scatter coordinates.
+- Packed procedural grass expands each semantic grass instance deterministically to 5–15 blades; renderer chunks at 36,000 blades.
+- Shared wind is already time-varying through `_GrassTime` / `Time.time`; preserve it unless built-player evidence disproves visible motion.
+- Runtime diagnostic from the prior built player measured 11,478 semantic grass instances / 114,580 blades total; the connected primary meadow alone measured 5,777 instances / 57,589 blades, 8 grass mesh chunks total, and zero excluded-surface leakage.
+- Prior final CI passed targeted PlayMode and ran the built player without assertions, but visual replay photographed the opening interior because this ticket’s capture omitted the known Kentridge player-camera hierarchy. The capture metadata is now repaired to `FirstPerson-AIO/FirstPersonCharacter/Capsule/PlayerCamera` without changing gameplay/scene code.
 
-## Validation
-1. Keep `tasks.md` current and assignment-only.
-2. Refresh/merge current `origin/master` before final CI; stop on any conflict outside assigned work.
-3. Use only `ci-test/fixes/agent-5` for the exact-SHA targeted request, with the request commit built directly on the final feature SHA.
-4. Require focused regression + real-player harness green on that exact SHA.
-5. Inspect real-player screenshots: they must show a dense player-height meadow, not the opening interior/cutscene, and time-separated stationary frames must visibly demonstrate wind motion.
-6. Preserve runtime proof of >=3,000 connected meadow blades, zero excluded-surface grass, no startup/runtime exceptions, and acceptable cost.
-7. Store concise durable verification evidence beside this feature; only then move `open -> pending`, complete metadata, and satisfy every task/acceptance checkbox.
-8. After all green gates, move `pending -> closed`, set `status=fixed`/`resolvedUtc`, merge latest master if it advanced, and non-force publish the exact feature head to `origin/master`.
+## Remaining discriminator / gates
+1. Merge current `origin/master` before final CI; master-side changes are disjoint from this feature.
+2. Run the exact focused PlayMode acceptance plus built-player replay from the merged feature SHA using only `ci-test/fixes/agent-5`.
+3. Inspect the corrected built-player meadow view. Require dense procedural grass at player height, `>=3000` primary-meadow blades, zero invalid-surface leakage, and visible time-separated wind motion from a stationary camera.
+4. Record any CPU/GPU/memory/build-time metrics exposed by the canonical harness; if no such budget metric exists, document that limitation plus the measured instance/blade/chunk topology and lack of new per-frame CPU work/material churn/GameObjects.
+5. Store concise durable verification evidence, complete every task/acceptance checkbox, then promote open → pending only after visual gates.
+6. Require green exact-SHA CI, complete pending metadata, close with `status=fixed`/`resolvedUtc`, merge any newly advanced master, and non-force publish the exact feature head to master.
+
+## Blast radius / cost
+WorldBuilder API changes are additive; non-Kentridge callers keep existing behavior. Runtime changes are confined to Kentridge realization plus one shared deterministic blade-count helper used by the existing renderer. No new shader fork, scene serialization, per-blade GameObjects, per-frame CPU blade animation, or per-frame material allocation is introduced. Camera replay repair is assignment-local metadata with zero production runtime cost.
