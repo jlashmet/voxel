@@ -27,7 +27,7 @@
 - [x] Confirm the source-backed route identity/topology and intended ridge semantics: Orc Village is the verified straight branch south of South Fighting Area I, while `southern-ridge` is explicitly a modern barrier across the Logan route and separates South Fighting Area I from Logan Approach. The Orc collision is an unintended west-edge graze, not a second pass.
 - [x] Add a focused regression proving the Orc Village hard route has an explicit `GoAround` solution targeting `southern-ridge`, stays outside the ridge travel margin, and remains physically walkable.
 - [x] Implement the narrowest authored route solution: skirt the west shoulder with the existing deterministic `GoAround` semantic; do not shrink the ridge, invent a second pass, weaken blocked-route rejection, or change generic obstacle rules.
-- [x] Re-run the final exact-SHA production acceptance after the repair; later runs `33259572439` and `33260139560` were green for the focused acceptance.
+- [x] Re-run the final exact-SHA production acceptance after the repair; later runs `33259572439`, `33260139560`, and `33260866388` were green for the focused acceptance.
 - [x] Blast-radius/cost intent: keep the repair in Kentridge macro physical intent + focused regression only; no planner/catalogue/water changes and no additional eager scene objects.
 
 ## Repair discovered by final CI run 33258816868
@@ -47,7 +47,14 @@
 - [x] Accelerate only the `kentridge-macro-world` validation-profile opening timeline (not source content/state) so sufficient real time remains for convergence; restore the original `Time.timeScale` before CharacterMotor evidence and on teardown.
 - [x] Keep named-region voxel prewarm, restore multi-second remote dwell, and capture each target only after `RenderingComposition.HasCompletePublishedNearSurfaceCoverage()` reports complete near coverage.
 - [x] Preserve representative real CharacterMotor macro-road traversal at normal time scale and do not alter gameplay/story/worldgen/planner semantics.
-- [ ] Run a new exact-SHA final request and visually inspect every named settlement/geography/survey screenshot plus player/test logs before acceptance/closure.
+- [x] Run exact source `0afbb5ca234b87f2606bc5bd5469d5cdac376cd2` as request `8e1e496099b64167e6210d562112467ff4da12dc` / run `33260866388`; focused + built player are green, but visual artifact `9717246958` is rejected as incomplete.
+
+## Evidence lifecycle defect discovered by green run 33260866388
+- [x] Visually compare the same Moordell camera across runs and prove the no-prewarm artifact `9716890862` contains a grounded stone/roof blockout while prewarmed artifact `9717246958` contains only terrain/road; record `experiment-006-evidence-prewarm-lifecycle.md`.
+- [x] Confirm `33260866388` reaches only Moordell/Rossdam/Fairy Village/Orc Village before 60s; Rossdam lake, southern ridge/pass, and macro-network overview are absent.
+- [ ] Remove only the validation driver's remote `GenerateRegionBlocking` prewarm path; do not alter production streaming/worldgen semantics.
+- [ ] Reorder evidence targets to reuse resident geography (`Rossdam -> lake`, `Orc -> ridge`) while retaining coverage-gated normal streaming and >=2.4s close-settlement dwell.
+- [ ] Re-run one fresh exact-SHA request and require all seven target frames plus road traversal to exist and be visually acceptable before closure.
 
 ## Behavioral regression
 - [x] Add one final targeted PlayMode acceptance test that nests the full macro realization regression plus production water/slope/composition assertions: `VoxelEngine.Tests.PlayMode.KentridgeMacroWorldPhysicalProductionAcceptanceTests.PhysicalMacroWorldHasWalkableRoutesAndADeepStreamedWaterBody`.
@@ -89,7 +96,7 @@
 - [ ] Acceptance (10): exact built-player visual/runtime evidence covers settlements, roads, geography, constrained route, and CharacterMotor traversal.
 - [ ] Acceptance (11): blast radius and world-build/route/CPU/GPU/memory/streaming cost are measured against budgets.
 - [ ] Every checkbox above is complete before `open -> pending`.
-- [ ] Final exact-SHA focused CI and built-player evidence are green. Runs `33230924543` and `33231300309` were product-red compile diagnostics; `33232755172` exposed Rossdam/Bandit; `33255557296` exposed Orc/ridge; `33258816868` exposed stale agent-6 `StorySpecs.cs`; `33259572439` and `33260139560` are functionally green but not closure-quality visual evidence. No closure-quality exact-SHA gate exists yet.
+- [ ] Final exact-SHA focused CI and built-player evidence are green. Runs `33230924543` and `33231300309` were product-red compile diagnostics; `33232755172` exposed Rossdam/Bandit; `33255557296` exposed Orc/ridge; `33258816868` exposed stale agent-6 `StorySpecs.cs`; `33259572439`, `33260139560`, and `33260866388` are functionally green but not closure-quality visual evidence. No closure-quality exact-SHA gate exists yet.
 - [ ] Complete pending metadata and move only this feature `open -> pending`.
 - [ ] Move only this feature `pending -> closed`, set `status=fixed` and `resolvedUtc`.
 - [ ] Merge current `origin/master` into `fixes/agent-6`, push exact feature head, then non-force push that head to `origin/master`; retry if master advances.
