@@ -29,6 +29,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private static readonly Queue<int3> s_RecoveryRegions = new();
         private static readonly HashSet<int3> s_QueuedRecoveryRegions = new();
         private static readonly HashSet<int3> s_ReadyRegions = new();
+        private static readonly Dictionary<int3, ulong> s_RegionLastSolidChangeVersion = new();
         private static readonly List<VoxelChangeRecord> s_Changes = new(ChangeRecordsPerFrame);
 
         private static GpuVoxelBrickMirror s_Mirror;
@@ -36,9 +37,11 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private static IVoxelChangeSource s_ChangeSource;
         private static ulong s_ChangeCursor;
         private static ulong s_MirroredVersion;
+        private static ulong s_KnownRegionHistoryFromVersion;
         private static int s_ReferenceCount;
         private static int s_ActiveExtractions;
         private static int s_LastPrepareFrame = -1;
+        private static ulong s_LastPrepareWorldVersion;
         private static bool s_LastPrepareResult;
 
         private static int s_ResidentScanCursor;
@@ -70,56 +73,70 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         }
 
         /// <summary>
-        /// Advances the shared mirror to the requested authoritative generation without rewriting
-        /// any GPU slot while an earlier count/write can still read it. A generation transition
-        /// therefore temporarily routes new chunks to CPU until old GPU work drains and the mirror
-        /// catches up; stale mirror data is never admitted as if current.
+        /// Advances the shared mirror to the current authoritative generation without rewriting any
+        /// GPU slot while an earlier count/write can still read it. The caller's snapshot may be an
+        /// older global generation because unrelated streamed regions can advance Storage between
+        /// snapshot and admission; <see cref="Covers(int3,int,ulong)"/> separately proves that none
+        /// of this chunk's covered regions changed after that snapshot.
         /// </summary>
         internal static bool PrepareFromBridge(ulong requiredGeneration)
         {
             if (s_Mirror == null || !SystemInfo.supportsComputeShaders) return false;
             if (!VoxelRenderBridge.TryGetWorld(out VoxelWorldView world)) return false;
-            if (world.Storage == null || world.Storage.Version != requiredGeneration) return false;
+            if (world.Storage == null) return false;
+
+            ulong currentGeneration = world.Storage.Version;
+            if (requiredGeneration > currentGeneration) return false;
 
             if (!ReferenceEquals(s_Storage, world.Storage)
                 || !ReferenceEquals(s_ChangeSource, VoxelRenderBridge.Changes))
             {
                 AttachWorld(world.Storage, VoxelRenderBridge.Changes);
+                currentGeneration = world.Storage.Version;
+                if (requiredGeneration > currentGeneration) return false;
             }
 
             int frame = Time.frameCount;
-            if (s_LastPrepareFrame == frame)
-                return s_LastPrepareResult && s_MirroredVersion == requiredGeneration;
+            if (s_LastPrepareFrame == frame && s_LastPrepareWorldVersion == currentGeneration)
+                return s_LastPrepareResult && s_MirroredVersion == currentGeneration;
             s_LastPrepareFrame = frame;
+            s_LastPrepareWorldVersion = currentGeneration;
             s_LastPrepareResult = false;
 
-            // Never mutate the shared mirror underneath an older count/write dispatch. New chunks
-            // use the CPU fallback until that immutable generation drains.
-            if (s_ActiveExtractions != 0) return false;
-
-            // Journal replay and resident recovery are independent bounded queues. Streaming can
-            // append more than ChangeRecordsPerFrame while initial recovery is still outstanding;
-            // returning immediately after a partial journal slice would then starve recovery
-            // forever. Advance both queues every frame, but do not admit GPU extraction until the
-            // journal is exact and every recovered region represents the requested generation.
-            bool changesSynchronized = s_MirroredVersion == requiredGeneration
-                                    || SynchronizeChanges(requiredGeneration);
+            // Journal replay and resident recovery are independent bounded queues. Advance both in
+            // the same frame when mutation is legal, but never rewrite a shared slot underneath an
+            // active extraction. Once the mirror already matches the current generation, multiple
+            // chunks may safely extract concurrently from that immutable image.
+            bool changesSynchronized = s_MirroredVersion == currentGeneration;
+            if (!changesSynchronized)
+            {
+                if (s_ActiveExtractions != 0) return false;
+                changesSynchronized = SynchronizeChanges(currentGeneration);
+            }
 
             if (!RecoveryComplete)
             {
+                if (s_ActiveExtractions != 0) return false;
                 ScanResidentRegions();
                 ProcessRecovery();
             }
 
             if (!changesSynchronized || !RecoveryComplete) return false;
 
-            s_LastPrepareResult = s_MirroredVersion == requiredGeneration;
+            s_LastPrepareResult = s_MirroredVersion == currentGeneration;
             return s_LastPrepareResult;
         }
 
-        internal static bool Covers(int3 brickCacheOrigin, int brickCacheEdge)
+        /// <summary>
+        /// True when every region sampled by the chunk is resident in the current mirror and no
+        /// solid-affecting change in those regions occurred after the caller's snapshot generation.
+        /// Global changes elsewhere in the world do not invalidate otherwise identical chunk data.
+        /// </summary>
+        internal static bool Covers(int3 brickCacheOrigin, int brickCacheEdge,
+                                    ulong requiredGeneration)
         {
             if (s_Storage == null || !RecoveryComplete || brickCacheEdge <= 0) return false;
+            if (requiredGeneration < s_KnownRegionHistoryFromVersion) return false;
 
             int shift = VoxelReadGrid.BlocksPerRegionEdgeLog2;
             int3 first = brickCacheOrigin >> shift;
@@ -127,7 +144,13 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             for (int z = first.z; z <= last.z; z++)
             for (int y = first.y; y <= last.y; y++)
             for (int x = first.x; x <= last.x; x++)
-                if (!s_ReadyRegions.Contains(new int3(x, y, z))) return false;
+            {
+                int3 region = new int3(x, y, z);
+                if (!s_ReadyRegions.Contains(region)) return false;
+                if (s_RegionLastSolidChangeVersion.TryGetValue(region, out ulong changedAt)
+                    && changedAt > requiredGeneration)
+                    return false;
+            }
             return true;
         }
 
@@ -152,19 +175,22 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             s_ChangeSource = changes;
             s_ChangeCursor = changes?.CurrentVersion ?? storage.Version;
             s_MirroredVersion = storage.Version;
+            s_KnownRegionHistoryFromVersion = storage.Version;
             BeginResidentRecovery(clearMirror: false);
         }
 
-        private static bool SynchronizeChanges(ulong requiredGeneration)
+        private static bool SynchronizeChanges(ulong targetGeneration)
         {
             if (s_Storage == null) return false;
 
             if (s_ChangeSource == null)
             {
-                // Without a journal there is no exact incremental replay. Rebuild from the current
-                // authoritative state rather than guessing which old mirror entries are stale.
+                // Without a journal there is no exact incremental replay. Rebuild from current
+                // authoritative state and reject snapshots older than that new known-history floor.
                 BeginResidentRecovery(clearMirror: true);
-                s_MirroredVersion = requiredGeneration;
+                s_RegionLastSolidChangeVersion.Clear();
+                s_KnownRegionHistoryFromVersion = targetGeneration;
+                s_MirroredVersion = targetGeneration;
                 return true;
             }
 
@@ -173,18 +199,20 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                                                   ChangeRecordsPerFrame, out bool hasMore);
             if (!valid)
             {
-                // Retention was overrun. Exact replay is impossible, so invalidate the complete
-                // directory and recover bounded current Storage state.
+                // Retention was overrun. Exact history before the current state is unknowable, so
+                // rebuild and raise the history floor rather than admitting an old chunk snapshot.
                 BeginResidentRecovery(clearMirror: true);
-                s_MirroredVersion = requiredGeneration;
+                s_RegionLastSolidChangeVersion.Clear();
+                s_KnownRegionHistoryFromVersion = targetGeneration;
+                s_MirroredVersion = targetGeneration;
                 return true;
             }
 
             for (int i = 0; i < s_Changes.Count; i++)
                 ApplyChange(s_Changes[i]);
 
-            if (hasMore || s_ChangeCursor < requiredGeneration) return false;
-            s_MirroredVersion = requiredGeneration;
+            if (hasMore || s_ChangeCursor < targetGeneration) return false;
+            s_MirroredVersion = targetGeneration;
             return true;
         }
 
@@ -195,6 +223,10 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (solid == VoxelChangeKind.None) return;
 
             int3 region = change.Region;
+            if (!s_RegionLastSolidChangeVersion.TryGetValue(region, out ulong previous)
+                || change.Version > previous)
+                s_RegionLastSolidChangeVersion[region] = change.Version;
+
             bool wasReady = s_ReadyRegions.Remove(region);
             if (!s_Storage.IsRegionResident(region))
             {
@@ -355,12 +387,15 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             s_ChangeSource = null;
             s_ChangeCursor = 0;
             s_MirroredVersion = 0;
+            s_KnownRegionHistoryFromVersion = 0;
             s_ActiveExtractions = 0;
             s_LastPrepareFrame = -1;
+            s_LastPrepareWorldVersion = 0;
             s_LastPrepareResult = false;
             s_RecoveryRegions.Clear();
             s_QueuedRecoveryRegions.Clear();
             s_ReadyRegions.Clear();
+            s_RegionLastSolidChangeVersion.Clear();
             s_Changes.Clear();
             s_HasRecoveryRegion = false;
             s_RecoveryBlockIndex = 0;
