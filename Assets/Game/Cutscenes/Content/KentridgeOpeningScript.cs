@@ -4,21 +4,28 @@ using Game.Cutscenes.Api;
 
 namespace Game.Cutscenes.Content.Kentridge
 {
+    /// <summary>
+    /// Dialogue content for the recovered Kentridge opening. Text is copied verbatim from the
+    /// pinned Mounting Force payload when that payload exists. Missing legacy payloads resolve to an
+    /// empty string so this port preserves their identity/gates without inventing replacement prose.
+    /// </summary>
     public static class KentridgeOpeningScript
     {
         public const int OriginalOpeningLineCount = 31;
-        public const int LoganToChurchLineCount = 3;
-        public const int AwonOpeningBeatCount = 1;
-        public const int SeeMedrareLineCount = 2;
-        public const int MedrareFirstSpellLineCount = 23;
-        public const int MedrareToChurchLineCount = 1;
+        public const int AwonOpeningLineCount = 22;
+        public const int AwonOpeningBeatCount = AwonOpeningLineCount;
 
         private const string OpeningCuePrefix = "kentridge.pub.opening.line-";
-        private const string LoganToChurchCuePrefix = "kentridge.logan.to-church.line-";
         private const string AwonOpeningCuePrefix = "kentridge.awon.opening.line-";
-        private const string SeeMedrareCuePrefix = "kentridge.see-medrare.line-";
-        private const string MedrareFirstSpellCuePrefix = "kentridge.medrare.first-spell.line-";
-        private const string MedrareToChurchCuePrefix = "kentridge.medrare.to-church.line-";
+
+        public static readonly CutsceneCueId SeeMedrareSourceDialogue =
+            new CutsceneCueId("mounting-force.dialogue.kentridge-see-medrare");
+        public static readonly CutsceneCueId MedrareJoinSourceDialogue5000 =
+            new CutsceneCueId("mounting-force.dialogue.5000");
+        public static readonly CutsceneCueId MedrareFirstSpellSourceDialogue =
+            new CutsceneCueId("mounting-force.dialogue.medrare-first-spell");
+        public static readonly CutsceneCueId MedrareToChurchSourceDialogue =
+            new CutsceneCueId("mounting-force.dialogue.medrare-to-church");
 
         private static readonly string[] OriginalOpeningLines =
         {
@@ -55,92 +62,55 @@ namespace Game.Cutscenes.Content.Kentridge
             "Alright friends.  Lets head out!"
         };
 
-        // Retained for compatibility with earlier campaign content; this is not used by the source-faithful
-        // Awon -> Medrare opening chain ported by this feature.
-        private static readonly string[] LoganToChurchLines =
-        {
-            "Let's take it easy.  I'll meet you outside the church.",
-            "It is just south of the citadel.",
-            "Hurry up though, we need to talk to your father."
-        };
-
-        // The referenced kentridge-awon-house-back-room.txt payload is absent from the retained and
-        // upstream inventory snapshots. Repository integration policy requires this literal placeholder.
         private static readonly string[] AwonOpeningLines =
         {
-            "Dialogue coming soon."
-        };
-
-        private static readonly string[] SeeMedrareLines =
-        {
-            "Hi, Michael. Awon told me about you. Come back to my house when you have a moment, I need to ask of you a favor.",
-            "And don't forget to bring Michael."
-        };
-
-        private static readonly string[] MedrareFirstSpellLines =
-        {
-            "Hello, Michael",
-            "Sorry for not introducing myself further, but I just moved in and things have been very hectic",
-            "It took a lot of research, and some effort, but I think I figured out where the building you came from is located",
-            "However, I think that there's something more pressing than that right now",
-            "When Michael told me what happened earlier today, I spoke with him about it",
-            "Apparently, after he led the... zombies... out of town and William eliminated them",
-            "Michael muttered a few words in Escher's language and the bodies simply vanished",
-            "Obviously, he can't tell me what he said, but I think that something is going to happen soon",
-            "He mentioned something about a man in a robe. I fear that it may be Escher, but at the same time, why would Escher be in Kentridge?",
-            "Actually, one more thing before I continue",
-            "Michael, I've heard... well, exactly nothing about your backstory, even from Michael",
-            "But I'm assuming you're not from *around here*",
-            "More specifically, I'm assuming you're from a different physical plane",
-            "Something separated our two planes",
-            "Something brought you here",
-            "And that something is breaking. This world should have magic flowing through it",
-            "Seriously! Where's all the fire, and the electricity, and the health recovery?!",
-            "Speaking of which... do me a favor and brace yourself. I need to try something",
-            "medrare attacks you",
-            "medrare hits you",
-            "What on Earth....",
-            "Where's the damage?",
-            "Slowly, the room fades away"
-        };
-
-        private static readonly string[] MedrareToChurchLines =
-        {
-            "Michael! William's at the church, and he needs us! Get over there!"
+            "Weldon my boy!",
+            "Hey dad.",
+            "How are you all?  Good to see you Steven.  Hey madeline.",
+            "Greetings sir.  A pleasure to see you again.",
+            "Hi!  Tee hee.",
+            "I don't believe I've met this young fellow.  Pleased to meet you.  I'm Weldon's father, Awon.",
+            "The pleasure is all mine sir.  ",
+            "We're going with Logan to meet with Lord Radcliffe later to ask about the lack of food lately.",
+            "Ohhhh Madeline, you are a brave young bunch.  Be very careful though, Radcliffe can be a dangerous man.",
+            "We understand and agree sir, but this matter is too important to ignore.  If things do go awry, I'm confident in our ability to defend ourselves.",
+            "Well certainly you and Steven can hold your own, but what about Weldon?",
+            "Weldon, when you see them rush gallantly into battle, you remember to stay back and cast your spells like a ninny you hear?",
+            "Yes dad...",
+            "And try not to cause too much harm, or everyone will come after you and you'll have to run around in circles, again like a complete ninny.",
+            "Dad cut it out! I know how to handle myself.",
+            "Ok ok. Haha.  Well anyway, the reason I asked you to stop by is I found an old family heirloom in the back room.",
+            "Its behind a bunch of boxes that are too heavy for my old bones to move, but if you can clear them out, I think you'll find it useful.",
+            "And even better, you don't even have to equip it!  Because any items you find will add to your skills, no equipping or unequipping is needed.",
+            "If you click on your picture in the top left corner, you can see which items are equipped to each of your party members.",
+            "What do I do after clicking the picture?",
+            "Really Weldon? You are a wizard.  Figure it out already.",
+            "Ok thanks dad, thats helpful.  We will check it out."
         };
 
         private static readonly Dictionary<string, string> AdditionalLines = new Dictionary<string, string>
         {
-            { "destination-conversation.dialogue", "You made it. Tell me what you found on the road." }
+            { "destination-conversation.dialogue", "You made it. Tell me what you found on the road." },
+            { SeeMedrareSourceDialogue.Value, string.Empty },
+            { MedrareJoinSourceDialogue5000.Value, string.Empty },
+            { MedrareFirstSpellSourceDialogue.Value, string.Empty },
+            { MedrareToChurchSourceDialogue.Value, string.Empty }
         };
 
         public static CutsceneCueId CueForOriginalLine(int oneBasedLineNumber) =>
             CueForLine(OpeningCuePrefix, oneBasedLineNumber, OriginalOpeningLineCount);
 
-        public static CutsceneCueId CueForLoganToChurchLine(int oneBasedLineNumber) =>
-            CueForLine(LoganToChurchCuePrefix, oneBasedLineNumber, LoganToChurchLineCount);
+        public static CutsceneCueId CueForAwonOpeningLine(int oneBasedLineNumber) =>
+            CueForLine(AwonOpeningCuePrefix, oneBasedLineNumber, AwonOpeningLineCount);
 
         public static CutsceneCueId CueForAwonOpeningBeat(int oneBasedLineNumber) =>
-            CueForLine(AwonOpeningCuePrefix, oneBasedLineNumber, AwonOpeningBeatCount);
-
-        public static CutsceneCueId CueForSeeMedrareLine(int oneBasedLineNumber) =>
-            CueForLine(SeeMedrareCuePrefix, oneBasedLineNumber, SeeMedrareLineCount);
-
-        public static CutsceneCueId CueForMedrareFirstSpellLine(int oneBasedLineNumber) =>
-            CueForLine(MedrareFirstSpellCuePrefix, oneBasedLineNumber, MedrareFirstSpellLineCount);
-
-        public static CutsceneCueId CueForMedrareToChurchLine(int oneBasedLineNumber) =>
-            CueForLine(MedrareToChurchCuePrefix, oneBasedLineNumber, MedrareToChurchLineCount);
+            CueForAwonOpeningLine(oneBasedLineNumber);
 
         public static string LineFor(CutsceneCueId cue)
         {
             string id = cue.Value ?? string.Empty;
             if (TryLine(id, OpeningCuePrefix, OriginalOpeningLines, out string line)) return line;
-            if (TryLine(id, LoganToChurchCuePrefix, LoganToChurchLines, out line)) return line;
             if (TryLine(id, AwonOpeningCuePrefix, AwonOpeningLines, out line)) return line;
-            if (TryLine(id, SeeMedrareCuePrefix, SeeMedrareLines, out line)) return line;
-            if (TryLine(id, MedrareFirstSpellCuePrefix, MedrareFirstSpellLines, out line)) return line;
-            if (TryLine(id, MedrareToChurchCuePrefix, MedrareToChurchLines, out line)) return line;
             return AdditionalLines.TryGetValue(id, out line) ? line : "[" + id + "]";
         }
 
