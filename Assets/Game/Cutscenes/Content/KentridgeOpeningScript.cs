@@ -8,12 +8,17 @@ namespace Game.Cutscenes.Content.Kentridge
     {
         public const int OriginalOpeningLineCount = 31;
         public const int LoganToChurchLineCount = 3;
-        public const int AwonOpeningBeatCount = 5;
+        public const int AwonOpeningBeatCount = 1;
+        public const int SeeMedrareLineCount = 2;
         public const int MedrareFirstSpellLineCount = 23;
+        public const int MedrareToChurchLineCount = 1;
+
         private const string OpeningCuePrefix = "kentridge.pub.opening.line-";
         private const string LoganToChurchCuePrefix = "kentridge.logan.to-church.line-";
-        private const string AwonOpeningCuePrefix = "kentridge.awon.opening.beat-";
+        private const string AwonOpeningCuePrefix = "kentridge.awon.opening.line-";
+        private const string SeeMedrareCuePrefix = "kentridge.see-medrare.line-";
         private const string MedrareFirstSpellCuePrefix = "kentridge.medrare.first-spell.line-";
+        private const string MedrareToChurchCuePrefix = "kentridge.medrare.to-church.line-";
 
         private static readonly string[] OriginalOpeningLines =
         {
@@ -50,8 +55,8 @@ namespace Game.Cutscenes.Content.Kentridge
             "Alright friends.  Lets head out!"
         };
 
-        // Retained source dialogue immediately following the pub opening. It sends Logan toward the
-        // church while Weldon handles the promised visit to his father.
+        // Retained for compatibility with earlier campaign content; this is not used by the source-faithful
+        // Awon -> Medrare opening chain ported by this feature.
         private static readonly string[] LoganToChurchLines =
         {
             "Let's take it easy.  I'll meet you outside the church.",
@@ -59,42 +64,49 @@ namespace Game.Cutscenes.Content.Kentridge
             "Hurry up though, we need to talk to your father."
         };
 
-        // The retained legacy snapshot references Awon's text payload but does not contain it. These
-        // are deliberately descriptive beats from the scene-issue contract, not invented dialogue.
-        private static readonly string[] AwonOpeningBeats =
+        // The referenced kentridge-awon-house-back-room.txt payload is absent from the retained and
+        // upstream inventory snapshots. Repository integration policy requires this literal placeholder.
+        private static readonly string[] AwonOpeningLines =
         {
-            "Knighting lesson.",
-            "Beginner sword demonstration.",
-            "Medium sword demonstration.",
-            "Advanced sword demonstration.",
-            "Awon joins the party."
+            "Dialogue coming soon."
+        };
+
+        private static readonly string[] SeeMedrareLines =
+        {
+            "Hi, Michael. Awon told me about you. Come back to my house when you have a moment, I need to ask of you a favor.",
+            "And don't forget to bring Michael."
         };
 
         private static readonly string[] MedrareFirstSpellLines =
         {
-            "Haugh!  What are you doing here?",
-            "I was walking around and decided to stop by.",
-            "Okay.",
-            "What are you doing?",
-            "I'm practicing my magic.",
-            "Oh ... right ...  it just kind of looks like you're staring at the wall.",
-            "It's all about concentration.",
-            "Can I see?",
-            "Well, sure.  It's fire magic.",
-            "My favorite kind!",
-            "All right.  Let's show her how it's done Logan.",
-            "Sure.",
-            "Medrare, can you hang that lantern on the hook there?",
-            "Of course!",
-            "All right.",
-            "Great.  Stand back.",
-            "Weldon, what are you doing?",
-            "Just a quick fire spell.",
-            "We're inside a wood house though.",
-            "Ahh.  Don't worry.",
-            "Weldon makes quick movements with his hands and fire shoots out at the lantern.",
-            "The lantern falls and shatters onto the floor.",
-            "Fire spreads across the floor."
+            "Hello, Michael",
+            "Sorry for not introducing myself further, but I just moved in and things have been very hectic",
+            "It took a lot of research, and some effort, but I think I figured out where the building you came from is located",
+            "However, I think that there's something more pressing than that right now",
+            "When Michael told me what happened earlier today, I spoke with him about it",
+            "Apparently, after he led the... zombies... out of town and William eliminated them",
+            "Michael muttered a few words in Escher's language and the bodies simply vanished",
+            "Obviously, he can't tell me what he said, but I think that something is going to happen soon",
+            "He mentioned something about a man in a robe. I fear that it may be Escher, but at the same time, why would Escher be in Kentridge?",
+            "Actually, one more thing before I continue",
+            "Michael, I've heard... well, exactly nothing about your backstory, even from Michael",
+            "But I'm assuming you're not from *around here*",
+            "More specifically, I'm assuming you're from a different physical plane",
+            "Something separated our two planes",
+            "Something brought you here",
+            "And that something is breaking. This world should have magic flowing through it",
+            "Seriously! Where's all the fire, and the electricity, and the health recovery?!",
+            "Speaking of which... do me a favor and brace yourself. I need to try something",
+            "medrare attacks you",
+            "medrare hits you",
+            "What on Earth....",
+            "Where's the damage?",
+            "Slowly, the room fades away"
+        };
+
+        private static readonly string[] MedrareToChurchLines =
+        {
+            "Michael! William's at the church, and he needs us! Get over there!"
         };
 
         private static readonly Dictionary<string, string> AdditionalLines = new Dictionary<string, string>
@@ -108,19 +120,27 @@ namespace Game.Cutscenes.Content.Kentridge
         public static CutsceneCueId CueForLoganToChurchLine(int oneBasedLineNumber) =>
             CueForLine(LoganToChurchCuePrefix, oneBasedLineNumber, LoganToChurchLineCount);
 
-        public static CutsceneCueId CueForAwonOpeningBeat(int oneBasedBeatNumber) =>
-            CueForLine(AwonOpeningCuePrefix, oneBasedBeatNumber, AwonOpeningBeatCount);
+        public static CutsceneCueId CueForAwonOpeningBeat(int oneBasedLineNumber) =>
+            CueForLine(AwonOpeningCuePrefix, oneBasedLineNumber, AwonOpeningBeatCount);
+
+        public static CutsceneCueId CueForSeeMedrareLine(int oneBasedLineNumber) =>
+            CueForLine(SeeMedrareCuePrefix, oneBasedLineNumber, SeeMedrareLineCount);
 
         public static CutsceneCueId CueForMedrareFirstSpellLine(int oneBasedLineNumber) =>
             CueForLine(MedrareFirstSpellCuePrefix, oneBasedLineNumber, MedrareFirstSpellLineCount);
+
+        public static CutsceneCueId CueForMedrareToChurchLine(int oneBasedLineNumber) =>
+            CueForLine(MedrareToChurchCuePrefix, oneBasedLineNumber, MedrareToChurchLineCount);
 
         public static string LineFor(CutsceneCueId cue)
         {
             string id = cue.Value ?? string.Empty;
             if (TryLine(id, OpeningCuePrefix, OriginalOpeningLines, out string line)) return line;
             if (TryLine(id, LoganToChurchCuePrefix, LoganToChurchLines, out line)) return line;
-            if (TryLine(id, AwonOpeningCuePrefix, AwonOpeningBeats, out line)) return line;
+            if (TryLine(id, AwonOpeningCuePrefix, AwonOpeningLines, out line)) return line;
+            if (TryLine(id, SeeMedrareCuePrefix, SeeMedrareLines, out line)) return line;
             if (TryLine(id, MedrareFirstSpellCuePrefix, MedrareFirstSpellLines, out line)) return line;
+            if (TryLine(id, MedrareToChurchCuePrefix, MedrareToChurchLines, out line)) return line;
             return AdditionalLines.TryGetValue(id, out line) ? line : "[" + id + "]";
         }
 
