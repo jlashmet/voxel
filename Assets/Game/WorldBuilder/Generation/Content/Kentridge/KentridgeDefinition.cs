@@ -48,7 +48,8 @@ namespace MountingForce.WorldGen.Content.Kentridge
             vegetationDensity: 0.96f,
             vegetationSampleSpacingMetres: 0.4f,
             maxVegetationSlopeDegrees: 30f,
-            routeClearanceMetres: 5.5f);
+            routeClearanceMetres: 5.5f,
+            deterministicSeedSalt: 0x4D454144u);
 
         public static ArchitectureTheme Theme => new ArchitectureTheme(
             id: Id,
