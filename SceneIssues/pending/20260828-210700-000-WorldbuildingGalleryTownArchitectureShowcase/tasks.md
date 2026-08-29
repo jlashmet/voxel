@@ -44,6 +44,6 @@
 - [x] Run/verify exact-SHA built-application `WorldbuildingGalleryShowcase` detailed issue check reaches a usable rendered scene without startup/runtime exceptions and reports `TOWNARCH_AUDIT result=PASS` with 18 frames.
 - [x] Capture and directly inspect wide/elevated, player-height facade, and close-detail built-scene evidence for all six districts against their original screenshot sets; the final triplets show useful 10–30 cm construction detail in every town style and the southeast Rossdam gatehouse/arrow-slit framing is usable.
 - [x] Complete pending metadata (`status=pending`, `resolutionSummary`, `regressionTest`, `fixCommit`) on the exact validated feature head.
-- [ ] Move only this assignment `open -> pending` in a bookkeeping commit.
-- [ ] After all workflow gates and green exact-SHA CI, set `status=fixed` and `resolvedUtc` and move only this assignment `pending -> closed`.
-- [ ] Merge current `origin/master` into `fixes/agent-9`, verify/push the exact feature head, and push that exact head to `origin/master` non-force; if master advances, fetch, merge, and retry.
+- [x] Move only this assignment `open -> pending` in a bookkeeping commit.
+- [x] After all workflow gates and green exact-SHA CI, set `status=fixed` and `resolvedUtc` and move only this assignment `pending -> closed`.
+- [x] Merge current `origin/master` into `fixes/agent-9`, verify/push the exact feature head, and push that exact head to `origin/master` non-force; if master advances, fetch, merge, and retry.
