@@ -33,13 +33,21 @@
 - [x] Remove only validation-driver remote `GenerateRegionBlocking` prewarm; production streaming/worldgen unchanged.
 - [x] Reorder targets Rossdam->lake and Orc->ridge to reuse resident geography.
 - [x] `33261299347` / artifact `9717362552`: exact focused + built player green; no-prewarm restores visible Moordell building and captures Rossdam lake, but Rossdam/Fairy/Orc ground-level center-facing views are terrain-occluded and ridge/overview still exceed 60s; recorded `experiment-007-evidence-camera-occlusion.md`.
+- [x] `33261744161` / artifact `9717484869`: exact focused + built player green with bounded production metrics and normal-time CharacterMotor motion, but the fixed replay finishes only macro-road/Moordell/Rossdam/Rossdam Lake/Fairy Village; Orc/ridge/network are absent and generic settlement focus still emphasizes circulation centers. Recorded `experiment-008-visual-evidence-scheduling-and-focus.md`.
 
 ## Geometry-derived evidence-camera/timing work discovered by 33261299347
 - [x] Derive generic-settlement evidence from generated geometry: elevated survey poses use the generated settlement center/four ±190 dm plots and choose the highest of four diagonal terrain viewpoints rather than fixed ground-level offsets.
 - [x] Derive Rossdam-lake evidence from the resolved geography: retain the constrained route point and raise the camera to 72 m so the substantial ~104x54 m water body and detour can share the frame.
 - [x] Preserve explicit elevated southern ridge/pass and physical-network survey poses with published-near-coverage gating.
 - [x] Increase only validation-profile opening acceleration to 12x and trim evidence overhead while preserving normal gameplay/story semantics and CharacterMotor movement at `Time.timeScale=1`.
-- [ ] Run one fresh exact-SHA request; require all seven target PNGs plus macro-road PNG, coverage-ready markers, visible four-town blockouts, readable lake/ridge/network, normal-time traversal, and clean runtime before closure.
+
+## Validation-driver work discovered by 33261744161
+- [ ] Focus each generic-settlement capture on representative actual generated building geometry instead of only the empty circulation/resident center.
+- [ ] Keep published-near-surface coverage as the renderer-readiness gate and replace redundant 2.4-second per-target dwell with only a minimal camera-settle floor.
+- [ ] Compress validation-only movement timing/distance where safe while retaining real production `CharacterMotor` motion, collision/streaming, and `Time.timeScale=1` evidence.
+- [ ] Reuse the southern-ridge resident/streaming location for the final macro-network overview where possible so the validation harness does not pay an unnecessary remote convergence cycle.
+- [ ] Self-review the evidence-driver-only diff and confirm planner, catalogue, streamer, story, gameplay timing, and macro physical semantics are unchanged.
+- [ ] Run one fresh exact-SHA request on the existing `ci-test/fixes/agent-6`; require all seven target PNGs plus macro-road PNG, coverage-ready markers, visible four-town blockouts, readable lake/ridge/network, normal-time traversal, and clean runtime before closure.
 
 ## Behavioral regression
 - [x] Final targeted PlayMode acceptance exists: `VoxelEngine.Tests.PlayMode.KentridgeMacroWorldPhysicalProductionAcceptanceTests.PhysicalMacroWorldHasWalkableRoutesAndADeepStreamedWaterBody`.
