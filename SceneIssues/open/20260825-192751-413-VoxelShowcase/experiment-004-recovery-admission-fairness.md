@@ -25,5 +25,12 @@ The mirror still never mutates beneath an active extraction. Recovery remains ex
 ## Cost / blast radius
 This changes only admission ordering for the solid GPU mirror. Covered GPU work can deliberately yield while demanded recovery drains, trading some bounded compute occupancy for guaranteed forward progress. There are no new allocations, scans, buffers, shader changes, Storage writes, worldgen/content changes, water changes, or collision changes. The existing 210 m traversal p95/p99 and stationary p95 gates are retained to detect an unacceptable throughput cost.
 
-## Acceptance
-The hypothesis is accepted only if the focused liveness regression and the existing 210 m end-to-end GPU traversal pass on the same exact feature SHA, and the exact built application no longer exhibits the persistent missing-geometry plateau while retaining the performance gates. Otherwise this experiment is rejected and the issue remains open.
+## Result — insufficient as the sole fix
+Exact request `32deb42f84b421f0c7a88adb8530eb3f3c49dfba` / run `33240075886` exercised the fairness change. It improved the production traversal from the earlier three-completion plateau to eight completed GPU solid builds, so starvation was a real contributing defect. It did **not** restore coverage: at traversal frame 146 the exact test lost every visible voxel draw with `known=5966`, `resident=47`, `dirty=2068`, `missing=718`, `jobs=12`, `gpuBackends=12`, `gpuCompleted=8`, `gpuFallback=0`, and `gpuWaitSlices=1898`.
+
+The exact built-player replay independently plateaued at `23 visible / 747 missing` from roughly 20 s through the 45 s capture while frame rate remained about `205–244 FPS`, solid admission remained around `1.6–1.9 ms`, and the shared geometry arena reported `leaseFail=0`. All four timed replay captures and `verification-final.png` show the same unresolved near/mid-field holes and disconnected geometry after the plateau begins.
+
+The focused liveness regression did not provide a valid product verdict in this run because its direct `Camera.Render()` hit a render-pass validation mismatch (`640x480` versus `64x64`). That harness defect is isolated by giving the test its own render target in the next experiment.
+
+## Conclusion
+**Partially confirmed but insufficient.** Recovery admission fairness is required and remains in place because it measurably increases forward progress, but the exact scene proves another admission-liveness condition remains. The next discriminator is the mismatch between CPU exact-snapshot optional-halo semantics and GPU mirror coverage requirements; see experiment 005. The issue remains open.
