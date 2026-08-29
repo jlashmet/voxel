@@ -13,5 +13,7 @@
   "sceneName": "KentridgePlayableSlice",
   "scenePath": "Assets/Scenes/KentridgePlayableSlice.unity",
   "sceneBuildIndex": 0,
+  "evidenceLandmarkApproach": true,
+  "evidenceLandmarkRole": 14,
   "captures": []
 }
