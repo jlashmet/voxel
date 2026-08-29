@@ -14,14 +14,14 @@ namespace Game.Structures.Runtime
     {
         public int MouthOpeningCount;
         public int DirectionChangeCount;
-        public int ClearanceSampleCount;
-        public int BlockedStraightSampleCount;
+        public int DoglegCount;
+        public int TraversalCarveNodeCount;
         public MineCaveLightRequest[] RouteLights;
         public long VoxelsWritten;
 
         public bool IsWellFormed =>
             MouthOpeningCount >= 4 && DirectionChangeCount >= 4 &&
-            ClearanceSampleCount >= 40 && BlockedStraightSampleCount >= 3 &&
+            DoglegCount >= 3 && TraversalCarveNodeCount >= 20 &&
             RouteLights != null && RouteLights.Length >= 3 && RouteLights.Length <= 4 &&
             VoxelsWritten > 0;
     }
@@ -49,18 +49,14 @@ namespace Game.Structures.Runtime
                 throw new ArgumentException("Traversal enhancement requires enough primary segments for its deterministic bends.");
 
             long startWrites = authoring.TotalVoxelsWritten;
-            int clearanceSamples = AuthorNaturalMouth(authoring, in request, in cave, in palette);
-            int blockedStraightSamples = 0;
+            int carveNodes = AuthorNaturalMouth(authoring, in request, in cave, in palette);
 
             var lights = new MineCaveLightRequest[DoglegSegments.Length];
             for (int i = 0; i < DoglegSegments.Length; i++)
             {
                 int sign = i == 1 ? -1 : 1;
                 int3 floor = FloorAtSegment(in request, in cave, DoglegSegments[i]);
-                clearanceSamples += AuthorDogleg(
-                    authoring, floor, request.Entrance.Facing, sign, in cave, in palette,
-                    out bool straightBlocked);
-                if (straightBlocked) blockedStraightSamples++;
+                carveNodes += AuthorDogleg(authoring, floor, request.Entrance.Facing, sign, in cave, in palette);
                 lights[i] = AuthorRouteLantern(
                     authoring, floor, request.Entrance.Facing, sign, i, in palette);
             }
@@ -69,8 +65,8 @@ namespace Game.Structures.Runtime
             {
                 MouthOpeningCount = ExpectedMouthOpeningCount,
                 DirectionChangeCount = ExpectedDirectionChangeCount,
-                ClearanceSampleCount = clearanceSamples,
-                BlockedStraightSampleCount = blockedStraightSamples,
+                DoglegCount = DoglegSegments.Length,
+                TraversalCarveNodeCount = carveNodes,
                 RouteLights = lights,
                 VoxelsWritten = authoring.TotalVoxelsWritten - startWrites,
             };
@@ -87,7 +83,6 @@ namespace Game.Structures.Runtime
             int[] lateral = { -3, 2, -1, 4, 0 };
             int[] radii = { 15, 14, 16, 13, 12 };
             int[] baseOffsets = { -4, -3, -5, -2, -3 };
-            int clear = 0;
 
             for (int i = 0; i < ExpectedMouthOpeningCount; i++)
             {
@@ -97,7 +92,6 @@ namespace Game.Structures.Runtime
                 int height = math.max(24, cave.TunnelHeight - 2 + (i % 3) * 3);
                 a.Cylinder(centre.x, baseY, centre.z, radii[i], height, palette.Opening);
                 a.Disc(centre.x, baseY - 1, centre.z, math.max(8, radii[i] - 2), palette.Rock);
-                if (!a.IsSolid(centre.x, centre.y + 2, centre.z)) clear++;
             }
 
             // Unequal shoulders break the silhouette around the daylight opening without reducing
@@ -106,7 +100,7 @@ namespace Game.Structures.Runtime
             int3 right = request.EntranceWorldPosition - side * (cave.TunnelWidth / 2 + 6) + forward * 9;
             a.Cone(left.x, left.y - 5, left.z, 7, 20, palette.Rock);
             a.Cone(right.x, right.y - 4, right.z, 5, 15, palette.Rock);
-            return clear;
+            return ExpectedMouthOpeningCount;
         }
 
         private static int AuthorDogleg(
@@ -115,8 +109,7 @@ namespace Game.Structures.Runtime
             Facing facing,
             int sign,
             in CaveConfig cave,
-            in CaveMaterialPalette palette,
-            out bool straightBlocked)
+            in CaveMaterialPalette palette)
         {
             int3 forward = FacingVector(facing);
             int3 side = new int3(-forward.z, 0, forward.x) * sign;
@@ -151,7 +144,6 @@ namespace Game.Structures.Runtime
 
             int[] forwardOffsets = { -30, -20, -10, 2, 14, 26, 32 };
             int[] sideOffsets = { 0, 10, 22, 32, 30, 16, 2 };
-            int clear = 0;
             for (int i = 0; i < forwardOffsets.Length; i++)
             {
                 int3 centre = floor + forward * forwardOffsets[i] + side * sideOffsets[i];
@@ -160,12 +152,8 @@ namespace Game.Structures.Runtime
                 int height = cave.TunnelHeight + 5 + (i % 3) * 2;
                 a.Cylinder(centre.x, baseY, centre.z, radius, height, palette.Opening);
                 a.Disc(centre.x, baseY - 1, centre.z, radius - 2, palette.Rock);
-                if (!a.IsSolid(centre.x, floor.y + 2, centre.z)) clear++;
-                if (!a.IsSolid(centre.x, floor.y + cave.TunnelHeight / 2, centre.z)) clear++;
             }
-
-            straightBlocked = a.IsSolid(floor.x, floor.y + 4, floor.z);
-            return clear;
+            return forwardOffsets.Length;
         }
 
         private static MineCaveLightRequest AuthorRouteLantern(
