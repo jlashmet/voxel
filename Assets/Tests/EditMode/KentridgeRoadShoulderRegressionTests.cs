@@ -179,6 +179,127 @@ namespace VoxelEngine.Tests.EditMode
                 "Production Kentridge vegetation must consume the exact shared road suppression scalar.");
         }
 
+        [Test]
+        public void GenericResolverIsDeterministicAndHonorsGradeAndCutFillLimits()
+        {
+            var profile = new WorldRoadProfile(
+                "regression-road",
+                "road-surface",
+                carriagewayWidthDm: 20,
+                transitionWidthDm: 12,
+                maximumGradePermille: 220,
+                maximumCutFillDm: 12,
+                edgeVariationDm: 0,
+                vegetationSuppressionPermille: 1000,
+                traversalCostPermille: 1000,
+                crossingPolicy: WorldRoadCrossingPolicy.AllowPass);
+            var intent = new WorldRoadIntent(
+                "regression:a-b",
+                "a",
+                "b",
+                Seed,
+                profile,
+                "generic resolver regression",
+                new[]
+                {
+                    new WorldRoadPlanPoint(0, 0),
+                    new WorldRoadPlanPoint(160, 0),
+                });
+            var terrain = new ResolverFixtureTerrain(
+                (x, z) => x / 8 + Math.Abs(z) / 20,
+                (x, z) => x == 80 && z == 0 ? WorldRoadTerrainFlags.Blocked : WorldRoadTerrainFlags.None);
+
+            ResolvedWorldRoad first = WorldRoadResolver.Resolve(intent, terrain, 40, 3);
+            ResolvedWorldRoad second = WorldRoadResolver.Resolve(intent, terrain, 40, 3);
+            Assert.AreEqual(WorldRoadResolutionStatus.Resolved, first.Status, first.FailureReason);
+            Assert.AreEqual(first.Status, second.Status);
+            Assert.AreEqual(first.Points.Count, second.Points.Count);
+            Assert.Greater(first.Points.Count, 2,
+                "Blocked direct cell should force a deterministic detour rather than a synthetic straight line.");
+
+            for (int i = 0; i < first.Points.Count; i++)
+            {
+                Assert.AreEqual(first.Points[i], second.Points[i],
+                    "Fixed road intent/seed/terrain must resolve stable geometry.");
+                int terrainHeight = terrain.HeightAtDm(first.Points[i].Xdm, first.Points[i].Zdm);
+                Assert.LessOrEqual(Math.Abs(first.Points[i].Ydm - terrainHeight), profile.MaximumCutFillDm,
+                    "Resolved road exceeded its authored cut/fill envelope.");
+                if (i == 0) continue;
+                int dx = first.Points[i].Xdm - first.Points[i - 1].Xdm;
+                int dz = first.Points[i].Zdm - first.Points[i - 1].Zdm;
+                int run = Math.Max(1, IntegerSqrt((long)dx * dx + (long)dz * dz));
+                int rise = Math.Abs(first.Points[i].Ydm - first.Points[i - 1].Ydm);
+                Assert.LessOrEqual((long)rise * 1000L, (long)profile.MaximumGradePermille * run,
+                    "Resolved road exceeded its authored maximum grade.");
+            }
+        }
+
+        [Test]
+        public void GenericResolverRejectsWaterBarrierUnlessCrossingPolicyAllowsIt()
+        {
+            var terrain = new ResolverFixtureTerrain(
+                (x, z) => 0,
+                (x, z) => x == 80 ? WorldRoadTerrainFlags.Water : WorldRoadTerrainFlags.None);
+            WorldRoadIntent dryOnly = BarrierIntent(WorldRoadCrossingPolicy.AllowPass);
+            WorldRoadIntent crossing = BarrierIntent(
+                WorldRoadCrossingPolicy.AllowPass | WorldRoadCrossingPolicy.AllowWaterCrossing);
+
+            ResolvedWorldRoad rejected = WorldRoadResolver.Resolve(dryOnly, terrain, 40, 2);
+            ResolvedWorldRoad accepted = WorldRoadResolver.Resolve(crossing, terrain, 40, 2);
+
+            Assert.AreEqual(WorldRoadResolutionStatus.Blocked, rejected.Status,
+                "A full water barrier must not be silently crossed without authored crossing policy.");
+            Assert.AreEqual(WorldRoadResolutionStatus.Resolved, accepted.Status, accepted.FailureReason);
+        }
+
+        [Test]
+        public void KentridgeAuthorsReusablePlacementClearanceOnGenericNetworkRoutes()
+        {
+            VoxelWorldGenSettings settings = BuildSettings();
+            SettlementPlan plan = KentridgeDefinition.Build(Seed);
+            WorldRoadNetwork network = KentridgeWorldRoadNetwork.Build(plan, Seed, settings);
+            Assert.Greater(network.Routes.Count, 0);
+
+            WorldRoadNetworkRoute route = network.Routes[0];
+            Assert.Greater(route.ClearanceWidthDm, 0,
+                "Kentridge must author placement clearance on the generic route contract.");
+            Assert.Greater(route.ClearanceRadiusDm, route.GradeRadiusDm,
+                "Placement keep-clearance must extend beyond the physical grading shoulder.");
+
+            ResolvedWorldRoadPoint point = route.Road.Points[0];
+            Assert.IsTrue(network.TrySampleClearance(point.Xdm, point.Zdm, out WorldRoadNetworkSample sample));
+            Assert.AreSame(route, sample.Route,
+                "Kentridge placement consumers must query the generic aggregate, not duplicate a settlement-local distance field.");
+            Assert.AreEqual(31, sample.ClearanceCoverage31);
+        }
+
+        private static WorldRoadIntent BarrierIntent(WorldRoadCrossingPolicy policy)
+        {
+            var profile = new WorldRoadProfile(
+                "barrier-road-" + (int)policy,
+                "road-surface",
+                carriagewayWidthDm: 20,
+                transitionWidthDm: 10,
+                maximumGradePermille: 200,
+                maximumCutFillDm: 8,
+                edgeVariationDm: 0,
+                vegetationSuppressionPermille: 1000,
+                traversalCostPermille: 1000,
+                crossingPolicy: policy);
+            return new WorldRoadIntent(
+                "barrier:a-b:" + (int)policy,
+                "a",
+                "b",
+                Seed,
+                profile,
+                "barrier regression",
+                new[]
+                {
+                    new WorldRoadPlanPoint(0, 0),
+                    new WorldRoadPlanPoint(160, 0),
+                });
+        }
+
         private static int CountSuppressed(byte suppression31, int population)
         {
             int count = 0;
@@ -270,6 +391,20 @@ namespace VoxelEngine.Tests.EditMode
             return -((-numerator + denominator / 2) / denominator);
         }
 
+        private static int IntegerSqrt(long value)
+        {
+            if (value <= 0) return 0;
+            long low = 1;
+            long high = Math.Min(value, 3037000499L);
+            while (low <= high)
+            {
+                long middle = low + ((high - low) >> 1);
+                if (middle <= value / middle) low = middle + 1;
+                else high = middle - 1;
+            }
+            return high > int.MaxValue ? int.MaxValue : (int)high;
+        }
+
         private static VoxelWorldGenSettings BuildSettings()
         {
             var materials = new VoxelMaterialMap(
@@ -278,6 +413,23 @@ namespace VoxelEngine.Tests.EditMode
                 roofTile: 8, slate: 7, cloth: 9,
                 moss: 14, water: 11, roadSurface: 13);
             return new VoxelWorldGenSettings(1, materials);
+        }
+
+        private sealed class ResolverFixtureTerrain : IWorldRoadTerrain
+        {
+            private readonly Func<int, int, int> _height;
+            private readonly Func<int, int, WorldRoadTerrainFlags> _flags;
+
+            public ResolverFixtureTerrain(
+                Func<int, int, int> height,
+                Func<int, int, WorldRoadTerrainFlags> flags)
+            {
+                _height = height;
+                _flags = flags;
+            }
+
+            public int HeightAtDm(int xdm, int zdm) => _height(xdm, zdm);
+            public WorldRoadTerrainFlags FlagsAtDm(int xdm, int zdm) => _flags(xdm, zdm);
         }
 
         private sealed class AlwaysSolidSurfaceQuery : IVoxelSurfaceQuery
