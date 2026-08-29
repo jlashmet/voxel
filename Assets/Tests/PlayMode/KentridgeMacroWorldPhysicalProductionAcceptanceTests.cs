@@ -41,6 +41,7 @@ namespace VoxelEngine.Tests.PlayMode
                 Is.True);
             Assert.That(lake.Spec.Kind, Is.EqualTo(TopDownWorldRegionKind.WaterBody));
             AssertBanditSpurUsesDryAuthoredShoreline(physical, lake);
+            AssertOrcVillageSkirtsSouthernRidge(intent, physical);
 
             FeatureCatalogue waterCatalogue = default;
             try
@@ -103,6 +104,59 @@ namespace VoxelEngine.Tests.PlayMode
                     lake.Contains(bandit.Tiles[i], -corridorMargin),
                     Is.False,
                     "The authored Bandit Hideout shoreline route may not put the travel corridor in Rossdam Lake.");
+            }
+        }
+
+        private static void AssertOrcVillageSkirtsSouthernRidge(
+            TopDownWorldPhysicalIntentSpec intent,
+            TopDownWorldPhysicalPlan physical)
+        {
+            TopDownWorldRouteRegionConstraintSpec orcConstraint = null;
+            for (var i = 0; i < intent.RouteConstraints.Count; i++)
+            {
+                TopDownWorldRouteRegionConstraintSpec candidate = intent.RouteConstraints[i];
+                if (!string.Equals(
+                        candidate.FromId,
+                        MountingForceTopDownWorldDefinition.SouthFightingArea,
+                        StringComparison.Ordinal)
+                    || !string.Equals(
+                        candidate.ToId,
+                        MountingForceTopDownWorldDefinition.OrcVillage,
+                        StringComparison.Ordinal)
+                    || !string.Equals(
+                        candidate.RegionId,
+                        KentridgeTopDownWorldPhysicalIntent.SouthernRidge,
+                        StringComparison.Ordinal))
+                    continue;
+                Assert.That(orcConstraint, Is.Null, "The Orc ridge shoulder needs exactly one semantic solution.");
+                orcConstraint = candidate;
+            }
+
+            Assert.That(orcConstraint, Is.Not.Null,
+                "The verified Orc Village branch grazes the modern Logan ridge and must explicitly say how it remains walkable.");
+            Assert.That(orcConstraint.SolutionKind, Is.EqualTo(TopDownWorldRouteRegionSolutionKind.GoAround),
+                "The Orc branch should skirt the Logan ridge shoulder rather than invent a second mountain pass.");
+
+            Assert.That(
+                physical.TryGetRegion(
+                    KentridgeTopDownWorldPhysicalIntent.SouthernRidge,
+                    out TopDownWorldRegionPlan ridge),
+                Is.True);
+            Assert.That(
+                physical.TryGetRoute(
+                    MountingForceTopDownWorldDefinition.SouthFightingArea,
+                    MountingForceTopDownWorldDefinition.OrcVillage,
+                    out TopDownWorldPhysicalRoutePlan orc),
+                Is.True);
+            Assert.That(orc.GeographyConstrained, Is.True);
+
+            int corridorMargin = orc.Route.CorridorWidthDm / 2;
+            for (var i = 0; i < orc.Tiles.Count; i++)
+            {
+                Assert.That(
+                    ridge.Contains(orc.Tiles[i], -corridorMargin),
+                    Is.False,
+                    "The authored Orc Village shoulder route may not put its travel corridor inside Southern Ridge.");
             }
         }
 
