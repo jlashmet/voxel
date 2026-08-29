@@ -45,25 +45,45 @@ namespace VoxelEngine.Tests.PlayMode
             AssertMaterial(bake, mountainCore, MountainMaterial,
                 "The baked image must contain substantial mountain mass above ordinary terrain.");
 
+            // Ramp rasterization is integer-exact. The first few cells at the mathematical low
+            // endpoint have zero allowed height, so sample just inside the first guaranteed walking
+            // surface rather than treating that intentionally-empty wedge tip as the path entrance.
             int3 pathBase = spec.Origin + new int3(
-                spec.PathMinLocalX + 2,
+                spec.PathMinLocalX + 12,
                 0,
                 spec.FirstRampLocalZ + spec.PathWidth / 2);
             AssertMaterial(bake, pathBase, PathMaterial,
                 "The baked image must contain the readable path entrance at ground level.");
 
-            int firstTurnY = spec.PathRise;
-            int firstTurnX = spec.PathMinLocalX + spec.PathRun - spec.PathWidth;
-            int firstRampZ = spec.RampLocalZ(0);
-            int secondRampZ = spec.RampLocalZ(firstTurnY);
-            int firstTurnZMin = math.min(firstRampZ, secondRampZ);
-            int firstTurnZSize = math.abs(secondRampZ - firstRampZ) + spec.PathWidth;
-            int3 representativeTurn = spec.Origin + new int3(
-                firstTurnX + spec.PathWidth / 2,
-                firstTurnY,
-                firstTurnZMin + firstTurnZSize / 2);
-            AssertMaterial(bake, representativeTurn, PathMaterial,
-                "A representative switchback landing must be present in the baked image.");
+            for (int level = 0; level < spec.SwitchbackCount; level++)
+            {
+                int startY = level * spec.PathRise;
+                int endY = startY + spec.PathRise;
+                int rampZ = spec.RampLocalZ(startY) + spec.PathWidth / 2;
+                bool reverse = (level & 1) != 0;
+                int highX = reverse
+                    ? spec.PathMinLocalX + spec.PathWidth / 2
+                    : spec.PathMinLocalX + spec.PathRun - spec.PathWidth / 2;
+                int3 highSurface = spec.Origin + new int3(highX, endY, rampZ);
+                AssertMaterial(bake, highSurface, PathMaterial,
+                    "Every authored switchback ramp must survive into the startup bake. Level "
+                    + level + ".");
+
+                if (level + 1 >= spec.SwitchbackCount) continue;
+                int nextRampZ = spec.RampLocalZ(endY);
+                int turnZMin = math.min(spec.RampLocalZ(startY), nextRampZ);
+                int turnZSize = math.abs(nextRampZ - spec.RampLocalZ(startY)) + spec.PathWidth;
+                int turnX = reverse
+                    ? spec.PathMinLocalX
+                    : spec.PathMinLocalX + spec.PathRun - spec.PathWidth;
+                int3 turnLanding = spec.Origin + new int3(
+                    turnX + spec.PathWidth / 2,
+                    endY,
+                    turnZMin + turnZSize / 2);
+                AssertMaterial(bake, turnLanding, PathMaterial,
+                    "Every change of direction must have a baked flat walking landing. Level "
+                    + level + ".");
+            }
 
             int summitY = spec.Origin.y + spec.MountainHeight;
             int3 summitSupport = new int3(
@@ -86,6 +106,23 @@ namespace VoxelEngine.Tests.PlayMode
                 spec.Origin.z + spec.CentreLocal);
             AssertMaterial(bake, dragonCentre, DragonMaterial,
                 "The baked image must contain the summit dragon placeholder, not only source intent.");
+
+            var encounter = new MountainDragonEncounterRuntime(Seed);
+            Assert.That(
+                encounter.Update(spec.Origin.x - 200, spec.Origin.z - 200, 16),
+                Is.EqualTo(0));
+            Assert.That(encounter.ActiveDialogue, Is.Null);
+            Assert.That(
+                encounter.Update(spec.SummitApproachWorldX, spec.SummitApproachWorldZ, 16),
+                Is.EqualTo(1),
+                "Normal summit proximity must dispatch the production cutscene exactly once.");
+            Assert.That(encounter.ActiveDialogue, Is.EqualTo("Hello, I'm Mr. Dragon."));
+            encounter.Update(spec.Origin.x - 200, spec.Origin.z - 200, 6000);
+            Assert.That(encounter.ActiveDialogue, Is.Null);
+            Assert.That(
+                encounter.Update(spec.SummitApproachWorldX, spec.SummitApproachWorldZ, 16),
+                Is.EqualTo(0),
+                "The completed greeting must remain a one-shot proximity cutscene.");
 
             ExportPreparedBakeEvidence(bakeAsset.bytes, manifestAsset.text, in spec);
         }
