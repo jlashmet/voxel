@@ -36,6 +36,20 @@ namespace MountingForce.WorldGen.Content.Kentridge
         public const int AnonymousFabricEnvelopeDm = 72;
         public static readonly Int2 TownCentreDm = new Int2(1170, 520);
 
+        /// <summary>
+        /// Top-level ecology authoring for the first Kentridge countryside pass. The runtime
+        /// realizes these semantic ids through the shared vegetation/life systems rather than
+        /// scattering scene-local objects.
+        /// </summary>
+        public static readonly RegionEcologyPolicy CountrysideEcology = new RegionEcologyPolicy(
+            vegetationKinds: new[] { "Grass" },
+            treeKinds: System.Array.Empty<string>(),
+            ambientAnimalKinds: System.Array.Empty<string>(),
+            vegetationDensity: 0.96f,
+            vegetationSampleSpacingMetres: 0.4f,
+            maxVegetationSlopeDegrees: 30f,
+            routeClearanceMetres: 5.5f);
+
         public static ArchitectureTheme Theme => new ArchitectureTheme(
             id: Id,
             foundation: MaterialRole.FoundationStone,
