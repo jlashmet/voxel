@@ -91,9 +91,6 @@ namespace VoxelEngine.Tests.PlayMode
                 VoxelEngineBootstrap.CreateStructureAuthoring(storage, 64);
             var farField = new FarFieldStructureStore();
 
-            // (16,16) is the centre of the first 3.2 m coarse sample in region zero. A y=100
-            // surface is safely below the showcase analytic field, so it exercises the authored
-            // lowered-terrain contract rather than positive structure silhouettes.
             var sample = new int3(16, 100, 16);
             authoring.Set(sample.x, sample.y, sample.z, GameMaterialIds.Grass);
             farField.CaptureRegion(int3.zero, storage.Reads, ShowcaseSeed);
@@ -104,9 +101,6 @@ namespace VoxelEngine.Tests.PlayMode
                 farField.AuthoredTerrainMaterialAt(sample.x, sample.z));
             int grassVersion = farField.Version;
 
-            // The baked compatibility repair can change material without changing the resulting
-            // coarse height. Equal-height recapture must therefore refresh semantic material and
-            // invalidate cached far meshes.
             authoring.Set(sample.x, sample.y, sample.z, GameMaterialIds.Water);
             farField.CaptureRegion(int3.zero, storage.Reads, ShowcaseSeed);
 
@@ -154,9 +148,6 @@ namespace VoxelEngine.Tests.PlayMode
                 innerRadiusMetres: 220f,
                 outerRadiusMetres: 4000f);
 
-            // The first LateUpdate synchronously publishes ring zero, builds the emergency outer
-            // fallback, and schedules only the first async outer ring. That is the exact startup
-            // state which produced the viewport-scale triangle in the issue replay.
             yield return null;
 
             int fallbackRing = far.RingCount - 1;
@@ -166,14 +157,87 @@ namespace VoxelEngine.Tests.PlayMode
             Vector2 cameraXZ = new(camera.transform.position.x, camera.transform.position.z);
             Assert.IsFalse(
                 MeshCoversPointXZ(fallback, cameraXZ),
-                "flat startup fallback must never cover the synchronously sampled critical footprint");
+                "startup fallback must never cover the synchronously sampled critical footprint");
 
             Vector2 horizonProbe = cameraXZ + new Vector2(1000f, 0f);
             Assert.IsTrue(
                 MeshCoversPointXZ(fallback, horizonProbe),
-                "startup fallback must retain cheap horizon coverage outside ring zero");
-            Assert.AreEqual(24, fallback.triangles.Length,
-                "startup horizon annulus should remain the bounded eight-triangle proxy");
+                "startup fallback must retain bounded horizon coverage outside ring zero");
+            Assert.That(fallback.vertexCount, Is.GreaterThan(8).And.LessThan(3000),
+                "semantic fallback must add enough samples to follow terrain without approaching full outer-ring density");
+            Assert.That(fallback.triangles.Length, Is.LessThan(12000),
+                "semantic fallback topology must remain a bounded startup cost");
+
+            Object.Destroy(far.gameObject);
+            Object.Destroy(cameraObject);
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator StartupFallbackPreservesAuthoredWaterHeightAndMaterial()
+        {
+            using IVoxelStorageRuntime storage = VoxelEngineBootstrap.CreateStorage(
+                expectedResidentRegions: 2,
+                mixedBrickCapacity: 4096,
+                changeJournalCapacity: 32);
+            IStructureAuthoringSession authoring =
+                VoxelEngineBootstrap.CreateStructureAuthoring(storage, 512);
+            var farField = new FarFieldStructureStore();
+
+            // This 51.2 m region sits immediately outside the issue camera's synchronous ring-zero
+            // north edge. Fill every far-field coarse sample with lowered water so at least one
+            // production fallback vertex must consume authored semantics rather than analytic grass.
+            const int regionX = 1;
+            const int regionZ = 6;
+            const int waterY = 100;
+            int originX = regionX * 512;
+            int originZ = regionZ * 512;
+            for (int z = 16; z < 512; z += 32)
+            for (int x = 16; x < 512; x += 32)
+                authoring.Set(originX + x, waterY, originZ + z, GameMaterialIds.Water);
+            farField.CaptureRegion(new int3(regionX, 0, regionZ), storage.Reads, ShowcaseSeed);
+
+            var cameraObject = new GameObject("Agent7SemanticFallbackCamera");
+            cameraObject.tag = "MainCamera";
+            Camera camera = cameraObject.AddComponent<Camera>();
+            camera.transform.position = new Vector3(59.4500465f, 20.3501129f, -1.54625964f);
+
+            VoxelFarTerrain far = VoxelFarTerrain.Create(
+                parent: null,
+                seed: ShowcaseSeed,
+                innerRadiusMetres: 220f,
+                outerRadiusMetres: 4000f);
+            far.Structures = farField;
+            far.MaterialRoles = TestMaterialRoles();
+
+            yield return null;
+
+            Mesh fallback = RuntimeRingMesh(far, far.RingCount - 1);
+            Vector3[] vertices = fallback.vertices;
+            Color[] colours = fallback.colors;
+            Vector4 waterAlbedo = RenderingComposition.GetMaterialAlbedo(GameMaterialIds.Water);
+            bool foundAuthoredWaterVertex = false;
+            for (int i = 0; i < vertices.Length; i++)
+            {
+                Vector3 vertex = vertices[i];
+                if (vertex.x < 51.2f || vertex.x > 102.4f
+                    || vertex.z < 307.2f || vertex.z > 358.4f)
+                    continue;
+
+                foundAuthoredWaterVertex = true;
+                Assert.That(vertex.y, Is.EqualTo(waterY * 0.1f).Within(0.01f),
+                    "startup fallback must use authored lowered water height at issue-scale horizon samples");
+                Assert.That(colours[i].r, Is.EqualTo(waterAlbedo.x).Within(0.01f));
+                Assert.That(colours[i].g, Is.EqualTo(waterAlbedo.y).Within(0.01f));
+                Assert.That(colours[i].b, Is.EqualTo(waterAlbedo.z).Within(0.01f),
+                    "startup fallback must preserve authored water albedo instead of generic terrain grass");
+                break;
+            }
+
+            Assert.IsTrue(foundAuthoredWaterVertex,
+                "bounded fallback sampling must include the first unresolved band containing the authored water probe");
+            Assert.That(fallback.vertexCount, Is.LessThan(3000),
+                "water-aware fallback must remain well below full unresolved clipmap density");
 
             Object.Destroy(far.gameObject);
             Object.Destroy(cameraObject);
@@ -201,10 +265,6 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.IsFalse(MeshCoversPointXZ(fallback, originalCameraXZ),
                 "initial startup camera must begin inside the fallback exclusion");
 
-            // Remove worker throughput from this discriminator. The already-scheduled ring-one job
-            // is completed so its NativeArray is safe, but publication is deliberately skipped.
-            // The next LateUpdate can therefore only pass by responding to camera movement itself,
-            // not because an unrelated ring happened to finish on this machine.
             CompleteAndForgetScheduledHeightJob(far, expectedRing: 1);
             camera.transform.position += new Vector3(900f, 0f, 0f);
             Vector2 relocatedCameraXZ = new(camera.transform.position.x, camera.transform.position.z);
@@ -244,10 +304,6 @@ namespace VoxelEngine.Tests.PlayMode
                 innerRadiusMetres: 220f,
                 outerRadiusMetres: 4000f);
 
-            // Ring zero is synchronous. The same first LateUpdate schedules ring one. Complete
-            // that real job explicitly so this regression measures handoff behavior rather than
-            // worker throughput on the CI host. The bounded wait below is only for Unity player-
-            // loop coroutine ordering: the worker job is already complete before it starts.
             yield return null;
             CompleteScheduledHeightJob(far, expectedRing: 1);
             const int publicationFrameBudget = 3;
@@ -268,9 +324,6 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.IsNotNull(fallback,
                 "startup fallback must still cover unresolved rings when ring one publishes");
 
-            // For the production 220 m / 96-sample clipmap, ring one owns approximately
-            // 294-614 m while the current fallback begins at approximately 301 m. A 350 m probe
-            // is therefore a robust point in the duplicate-ownership band seen in the player.
             Vector2 probe = new(camera.transform.position.x + 350f, camera.transform.position.z);
             Assert.IsTrue(MeshCoversPointXZ(firstOuter, probe),
                 "minimal repro probe must lie inside the published ring-one annulus");
