@@ -21,6 +21,14 @@
 - [x] Discovered from CI run `33232755172`: preserve the substantial Rossdam lake and verified topology, but explicitly author `fighting-area-1 -> bandit-hideout` as a modern dry-shore `GoAround` solution because the new lake footprint genuinely intersects that hard corridor; add a regression that its full travel corridor stays outside water.
 - [x] Refresh on current master `9b452aedd9b5d1b1720bf0e9184d0381f159d352` while preserving landed Kentridge meadow/ecology changes; merge commit `477f9159821ee466ad54d133c1aaf1dcb71433dd`.
 
+## Repair discovered by exact-SHA red gate (run 33255557296)
+- [x] Classify the gate as a product failure: production planning aborts because hard route `south-fighting-area-1->orc-village` intersects `southern-ridge` without an authored semantic solution.
+- [ ] Confirm the source-backed route identity/topology and the intended `southern-ridge` semantics before changing production intent.
+- [ ] Add a focused regression proving the Orc Village hard route has an explicit ridge crossing/pass and remains physically walkable.
+- [ ] Implement the narrowest authored route solution; do not weaken blocked-route rejection or generic obstacle rules.
+- [ ] Re-run the final exact-SHA production acceptance after the repair.
+- [x] Blast-radius/cost intent: keep the repair in Kentridge macro physical intent + focused regression only; no planner/catalogue/water changes and no additional eager scene objects.
+
 ## Behavioral regression
 - [x] Add one final targeted PlayMode acceptance test that nests the full macro realization regression plus production water/slope/composition assertions: `VoxelEngine.Tests.PlayMode.KentridgeMacroWorldPhysicalProductionAcceptanceTests.PhysicalMacroWorldHasWalkableRoutesAndADeepStreamedWaterBody`.
 - [ ] Green exact-SHA execution verifies fixed-seed macro-to-physical output is deterministic.
@@ -60,7 +68,7 @@
 - [ ] Acceptance (10): exact built-player visual/runtime evidence covers settlements, roads, geography, constrained route, and CharacterMotor traversal.
 - [ ] Acceptance (11): blast radius and world-build/route/CPU/GPU/memory/streaming cost are measured against budgets.
 - [ ] Every checkbox above is complete before `open -> pending`.
-- [ ] Final exact-SHA focused CI and built-player evidence are green. Runs `33230924543` and `33231300309` were product-red compile diagnostics; run `33232755172` was product-red on the Rossdam/Bandit semantic-route conflict and its built-player artifact was diagnostic only. No green exact-SHA gate exists yet.
+- [ ] Final exact-SHA focused CI and built-player evidence are green. Runs `33230924543` and `33231300309` were product-red compile diagnostics; run `33232755172` was product-red on the Rossdam/Bandit semantic-route conflict; run `33255557296` was product-red on the Orc Village/southern-ridge semantic-route conflict. No green exact-SHA gate exists yet.
 - [ ] Complete pending metadata and move only this feature `open -> pending`.
 - [ ] Move only this feature `pending -> closed`, set `status=fixed` and `resolvedUtc`.
 - [ ] Merge current `origin/master` into `fixes/agent-6`, push exact feature head, then non-force push that head to `origin/master`; retry if master advances.
