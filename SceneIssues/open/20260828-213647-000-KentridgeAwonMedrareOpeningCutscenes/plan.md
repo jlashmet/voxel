@@ -2,6 +2,8 @@
 
 ## Authoritative evidence
 - No captures/annotations exist; the acceptance contract is `issue.json` plus the original Mounting Force source.
+- `AGENTS.md` delegates coordinator SceneIssues to canonical `SceneIssues/README.md`; the user-requested `SceneIssues/feature-readme.md` is absent on this branch, so `SceneIssues/README.md` is the available repository workflow authority.
+- The canonical coordinator workflow requires current `origin/master` to be merged into the feature branch before further substantive implementation and again before final propagation if master advances. The current master-side and feature-side changes have no overlapping paths, so the pre-work merge should be conflict-free.
 - Pin legacy evidence to `jlashmet/mounting-force` commit `9491acd9efc3ad7413a13fd28f1686ed473b5672` (`agent/original-world-content-inventory`). Tree SHA `456d9596...` is not a commit and is not provenance by itself.
 - The retained `References/MountingForce/contracts/kentridge-opening-cutscene-contract.yaml` remains authoritative for the existing 31-line pub opening.
 - `Art/kentridge-awon-house.tmx` references missing `kentridge-awon-house-back-room.txt`; repository integration-gap policy therefore requires the explicit `Dialogue coming soon.` placeholder rather than invented Awon dialogue.
@@ -15,12 +17,13 @@
 4. **Later Medrare content belongs here** — keep rejected unless the corrected pinned state-chain audit proves it is immediately connected to this opening feature.
 
 ## Implementation / regression
+- Merge current master into the feature branch before continuing implementation; if master advances later, merge it again before final propagation.
 - First establish a corrected source inventory from the pinned legacy commit: map event gates/flags, exact dialogue arrays, and actual choreography source path(s).
 - Update Kentridge opening content and campaign progression only after that inventory is proven. Preserve the existing pub opening and Awon placeholder semantics.
 - Bind staging semantically through existing Kentridge/Game cutscene APIs; do not hard-code legacy map coordinates in runtime code.
 - Update behavioral regressions to assert exact dialogue identity/order, source-backed progression/gating, key staging semantics, one-shot/re-entry, and persisted completed-state behavior.
 - Inspect all changed/shared paths for blast radius and steady-state cost. No per-frame discovery, hierarchy scans, polling, or unrelated scene work.
-- Before CI, re-read every acceptance criterion, finish every task, and move only this assignment `open -> pending` with required metadata.
+- Before CI, re-read every acceptance criterion, finish every implementation/validation task, and move only this assignment `open -> pending` with required metadata.
 - Submit exactly one final targeted exact-SHA CI request via `ci-test/fixes/agent-1`; require focused regression plus built-player Kentridge scene validation. Do not edit `.github/test-request.json` on the feature branch.
 
 ## Blast radius / cost
