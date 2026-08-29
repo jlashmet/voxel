@@ -7,11 +7,13 @@ namespace Game.Cutscenes.Content.Kentridge
     public static class KentridgeOpeningScript
     {
         public const int OriginalOpeningLineCount = 31;
+        public const int LoganToChurchLineCount = 3;
+        public const int AwonOpeningBeatCount = 5;
         public const int MedrareFirstSpellLineCount = 23;
-        public const int MedrareToChurchLineCount = 3;
         private const string OpeningCuePrefix = "kentridge.pub.opening.line-";
+        private const string LoganToChurchCuePrefix = "kentridge.logan.to-church.line-";
+        private const string AwonOpeningCuePrefix = "kentridge.awon.opening.beat-";
         private const string MedrareFirstSpellCuePrefix = "kentridge.medrare.first-spell.line-";
-        private const string MedrareToChurchCuePrefix = "kentridge.medrare.to-church.line-";
 
         private static readonly string[] OriginalOpeningLines =
         {
@@ -48,6 +50,26 @@ namespace Game.Cutscenes.Content.Kentridge
             "Alright friends.  Lets head out!"
         };
 
+        // Retained source dialogue immediately following the pub opening. It sends Logan toward the
+        // church while Weldon handles the promised visit to his father.
+        private static readonly string[] LoganToChurchLines =
+        {
+            "Let's take it easy.  I'll meet you outside the church.",
+            "It is just south of the citadel.",
+            "Hurry up though, we need to talk to your father."
+        };
+
+        // The retained legacy snapshot references Awon's text payload but does not contain it. These
+        // are deliberately descriptive beats from the scene-issue contract, not invented dialogue.
+        private static readonly string[] AwonOpeningBeats =
+        {
+            "Knighting lesson.",
+            "Beginner sword demonstration.",
+            "Medium sword demonstration.",
+            "Advanced sword demonstration.",
+            "Awon joins the party."
+        };
+
         private static readonly string[] MedrareFirstSpellLines =
         {
             "Haugh!  What are you doing here?",
@@ -75,13 +97,6 @@ namespace Game.Cutscenes.Content.Kentridge
             "Fire spreads across the floor."
         };
 
-        private static readonly string[] MedrareToChurchLines =
-        {
-            "Let's take it easy.  I'll meet you outside the church.",
-            "It is just south of the citadel.",
-            "Hurry up though, we need to talk to your father."
-        };
-
         private static readonly Dictionary<string, string> AdditionalLines = new Dictionary<string, string>
         {
             { "destination-conversation.dialogue", "You made it. Tell me what you found on the road." }
@@ -90,18 +105,22 @@ namespace Game.Cutscenes.Content.Kentridge
         public static CutsceneCueId CueForOriginalLine(int oneBasedLineNumber) =>
             CueForLine(OpeningCuePrefix, oneBasedLineNumber, OriginalOpeningLineCount);
 
+        public static CutsceneCueId CueForLoganToChurchLine(int oneBasedLineNumber) =>
+            CueForLine(LoganToChurchCuePrefix, oneBasedLineNumber, LoganToChurchLineCount);
+
+        public static CutsceneCueId CueForAwonOpeningBeat(int oneBasedBeatNumber) =>
+            CueForLine(AwonOpeningCuePrefix, oneBasedBeatNumber, AwonOpeningBeatCount);
+
         public static CutsceneCueId CueForMedrareFirstSpellLine(int oneBasedLineNumber) =>
             CueForLine(MedrareFirstSpellCuePrefix, oneBasedLineNumber, MedrareFirstSpellLineCount);
-
-        public static CutsceneCueId CueForMedrareToChurchLine(int oneBasedLineNumber) =>
-            CueForLine(MedrareToChurchCuePrefix, oneBasedLineNumber, MedrareToChurchLineCount);
 
         public static string LineFor(CutsceneCueId cue)
         {
             string id = cue.Value ?? string.Empty;
             if (TryLine(id, OpeningCuePrefix, OriginalOpeningLines, out string line)) return line;
+            if (TryLine(id, LoganToChurchCuePrefix, LoganToChurchLines, out line)) return line;
+            if (TryLine(id, AwonOpeningCuePrefix, AwonOpeningBeats, out line)) return line;
             if (TryLine(id, MedrareFirstSpellCuePrefix, MedrareFirstSpellLines, out line)) return line;
-            if (TryLine(id, MedrareToChurchCuePrefix, MedrareToChurchLines, out line)) return line;
             return AdditionalLines.TryGetValue(id, out line) ? line : "[" + id + "]";
         }
 
