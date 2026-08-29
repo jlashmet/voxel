@@ -1,25 +1,20 @@
 # Plan — SceneIssue 20260825-192751-413 VoxelShowcase
 
 ## Observed defect / acceptance
-- One capture marks the top-left performance telemetry at the recorded `Showcase Camera` pose `(77.953941,24.550051,-3.345814)`, FOV 70. The issue reports sub-100 FPS while moving, slow scene fill, and transient/missing geometry.
-- Final acceptance is the exact `VoxelShowcase` built player: visible near/mid geometry must survive traversal and settle without holes, with no startup/runtime exception. Focused traversal must keep the implemented GPU path live with zero eligible CPU fallback or blocking completion and meet the existing frame-time gates.
+- The single capture marks the top-left performance telemetry at `Showcase Camera` `(77.953941,24.550051,-3.345814)`, FOV 70. The report is sub-100 FPS while moving, slow fill, and transient/missing geometry.
+- Final acceptance is the exact built `VoxelShowcase`: visible near/mid geometry survives traversal and settles without holes or runtime exceptions; supported step-1/2 work stays on GPU with zero eligible CPU fallback/blocking completion and existing frame-time gates unchanged.
 
-## Runtime evidence / competing hypotheses
-- Global resident-world mirror recovery was causal for the original ~0.65–0.77 s/frame stall; demand-scoped recovery removed it.
-- Whole-region recovery was also causal; exact demanded 8³ blocks restored early GPU completions.
-- Optional nonresident halo mismatch was causal but insufficient; accepting halo-only nonresident blocks changed permanent freeze into slow convergence.
-- Recovery starvation was real: allowing every pending worker to discover demand made the focused liveness regression pass, but exact run `33254303476` then over-batched the union and the 210 m traversal failed with zero GPU completions. That strategy is rejected.
-- Current hypotheses: (1) a single 18³ step-2 footprint is still slow because the old 64-block slice spends most of its budget on cheap empty/uniform descriptors; (2) mixed payload publication/count-write latency is actually dominant.
+## Proven results / competing hypotheses
+- Demand-scoped exact-block mirror recovery removed the original ~0.65–0.77 s global-mirror stall. Optional nonresident halo acceptance and recovery fairness restored forward GPU progress; all-worker demand coalescing over-batched recovery and was rejected.
+- Bounded recovery (512 cheap descriptors, unchanged 64 mixed publications/slice) made focused 96 m liveness pass. Exact run `33267842712` still failed the 210 m traversal at frame 459: `visible=0`, `missing=638`, `gpuCompleted=64`, `gpuFallback=7`.
+- The same built player starts near 230–280 FPS then collapses to ~5–7 FPS with ~329 missing chunks and ~189–197 ms solid admission. Arena occupancy stayed below half and `leaseFail=0`, falsifying arena exhaustion.
+- Current hypotheses: (1) transient async counter-readback failures are being misrouted into the full CPU Transvoxel chain; (2) fallbacks are instead `Ready + empty` or deterministic count/write mismatch.
 
-## Selected discriminator / fix
-- Keep one-footprint-at-a-time demand discovery and the fairness rule that a queued recovery backlog drains before covered work reacquires extraction.
-- Split recovery into bounded work: at most 512 descriptor classifications and at most 64 mixed payload publications per preparation slice. The expensive mixed ceiling is unchanged; journal replay remains 128 records/slice; mirror mutation remains forbidden during active extraction.
-- Empty/uniform blocks use borrowed region views and compact directory metadata; only mixed blocks pin/copy the 512-voxel payload. No wider world scan, CPU fallback, blocking GPU wait, larger arena, shader-layout change, or per-frame collection allocation.
+## Current discriminator / fix
+- Commit `ad6c8972513c5ae272ee6189b74095d41c807180` retries failed four-word count/write readbacks at most twice on the same staged request, stable mirror extraction window, and same unpublished write lease. It exposes retry counters and leaves deterministic/device fallback behavior intact.
+- Recovery budgets, arena sizing, shaders, Storage, world truth, CPU topology algorithms, water/HLOD/visibility, and performance thresholds are unchanged. No per-frame collection allocation was added.
 
 ## Regression / remaining gates
-- `GpuSurfaceMirrorRecoveryLivenessTests.DemandRecoveryCannotBeStarvedByCoveredGpuWork`: exact scene, 96 m traversal, direct mirror liveness, optional-halo coverage, sustained GPU completions.
+- `GpuSurfaceMirrorRecoveryLivenessTests.DemandRecoveryCannotBeStarvedByCoveredGpuWork`: exact scene, 96 m demand/recovery liveness.
 - `ShowcaseGpuMigrationTests.MovingShowcaseCompletesGpuSurfaceBuildsAndPreservesCoverage`: exact scene, 210 m traversal, >=8 GPU completions, zero eligible fallback/blocking completion, moving p95 <18 ms / p99 <25 ms, settled missing=0, stationary p95 <8 ms.
-- Current feature includes `origin/master` through `bc059307`. Remaining gates: one fresh exact-head targeted CI request plus exact built-player replay/artifact inspection at the assigned scene/pose; only then pending/closed metadata and final master merge/push.
-
-## Blast radius / cost
-Solid step-1/step-2 GPU mirror recovery only. Water, HLOD, visibility, Storage writes, collision, world content, and arena sizing are unchanged. Worst-case mixed payload work stays capped at 64/slice; cheap descriptor work rises to 512 exact demanded coordinates/slice, one quarter of the historical 2048-block global sweep.
+- Feature includes `origin/master` through `bc059307`. Next: one exact-head targeted CI + built-player replay. If fallback persists with zero readback retries, reject hypothesis (1) and fix empty/deterministic GPU completion semantics rather than raising budgets. Only green gates permit pending/closed metadata and master push.
