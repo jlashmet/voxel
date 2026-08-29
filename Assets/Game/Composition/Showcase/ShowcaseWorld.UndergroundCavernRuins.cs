@@ -38,6 +38,11 @@ namespace VoxelEngine.Showcase
         public int UndergroundCavernDirectionChangeCount { get; private set; }
         public int UndergroundCavernMouthOpeningCount { get; private set; }
         public int UndergroundCavernPreloadedRegionCount { get; private set; }
+        public int UndergroundCavernIrregularLobeCount { get; private set; }
+        public int UndergroundCavernArchitectureDetailCount { get; private set; }
+        public int UndergroundCavernStatueDetailCount { get; private set; }
+        public int UndergroundCavernAdditionalFormationCount { get; private set; }
+        public long UndergroundCavernVisualFinishVoxelsWritten { get; private set; }
         public long UndergroundCavernVoxelsWritten { get; private set; }
         public float3 UndergroundCavernCentreMetres { get; private set; }
         public float3 UndergroundCavernEntranceMetres { get; private set; }
@@ -95,12 +100,25 @@ namespace VoxelEngine.Showcase
                     in caveConfig,
                     in cavePalette,
                     in traversalProfile);
+
+            UndergroundCavernVisualFinishResult visualFinish =
+                UndergroundCavernVisualFinish.Author(
+                    authoring,
+                    in result,
+                    result.Destination.ExitFacing,
+                    in cavePalette,
+                    caveRequest.TerrainSeed);
+            UndergroundCavernCirculationProtection.Reassert(
+                authoring,
+                in result.RuinBounds,
+                result.Destination.ExitFacing);
+
             MineCaveLightRequest[] allLights =
                 CombineUndergroundCavernLights(traversal.RouteLights, result.LocalLights);
-            if (authoring.BudgetExceeded || !traversal.IsWellFormed ||
+            if (authoring.BudgetExceeded || !traversal.IsWellFormed || !visualFinish.IsWellFormed ||
                 allLights.Length > UndergroundCavernMaximumLocalLights)
                 throw new InvalidOperationException(
-                    "Underground cavern traversal enhancement exceeded its budget or local-light cap.");
+                    "Underground cavern traversal/visual finish exceeded its budget, semantic contract, or local-light cap.");
 
             _undergroundCavernRuinsAuthored = true;
             UndergroundCavernTraversalDistance = result.Destination.TraversalDistance;
@@ -111,7 +129,12 @@ namespace VoxelEngine.Showcase
             UndergroundCavernRouteLightCount = traversal.RouteLights.Length;
             UndergroundCavernDirectionChangeCount = traversal.DirectionChangeCount;
             UndergroundCavernMouthOpeningCount = traversal.MouthOpeningCount;
-            UndergroundCavernVoxelsWritten = result.VoxelsWritten + traversal.VoxelsWritten;
+            UndergroundCavernIrregularLobeCount = visualFinish.IrregularLobeCount;
+            UndergroundCavernArchitectureDetailCount = visualFinish.ArchitecturalDetailCount;
+            UndergroundCavernStatueDetailCount = visualFinish.StatueDetailCount;
+            UndergroundCavernAdditionalFormationCount = visualFinish.AdditionalFormationCount;
+            UndergroundCavernVisualFinishVoxelsWritten = visualFinish.VoxelsWritten;
+            UndergroundCavernVoxelsWritten = authoring.TotalVoxelsWritten;
             UndergroundCavernCentreMetres =
                 ((float3)(result.CavernBounds.Min + result.CavernBounds.MaxExclusive) * 0.5f) * VoxelSize;
             UndergroundCavernEntranceMetres = (float3)caveRequest.EntranceWorldPosition * VoxelSize;
@@ -227,8 +250,8 @@ namespace VoxelEngine.Showcase
             UndergroundCavernLocalLight[] lights = UndergroundCavernRuntimeSupport.BuildLocalLights(
                 requests,
                 VoxelSize,
-                radiusMetres: 6.5f,
-                colourAndIntensity: new float4(1.00f, 0.25f, 0.045f, 1.35f));
+                radiusMetres: 5.2f,
+                colourAndIntensity: new float4(1.00f, 0.20f, 0.035f, 2.15f));
             var positions = new Vector4[lights.Length];
             var colours = new Vector4[lights.Length];
             for (int i = 0; i < lights.Length; i++)
