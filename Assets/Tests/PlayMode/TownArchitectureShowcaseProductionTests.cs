@@ -153,6 +153,34 @@ namespace VoxelEngine.Tests.PlayMode
 
             Assert.AreEqual(new int2(-1100, -686), ShowcaseWorld.WorldbuildingGalleryTownLandmarkOriginXZ(3),
                 "Rossdam fortified audit landmark drifted away from the authored gatehouse origin.");
+
+            // Built-player evidence must remain deliberately framed at gameplay/close inspection distances.
+            // Rossdam angles around the commerce building and Fairy Village raises the close camera/target
+            // to the elevated treehouse facade rather than inspecting the blank lower trunk.
+            int2 rossdamPlayerTarget = ShowcaseWorld.WorldbuildingGalleryTownAuditTargetXZ(3, 1);
+            int2 rossdamPlayerSpawn = ShowcaseWorld.WorldbuildingGalleryTownAuditSpawnXZ(3, 1);
+            int2 rossdamCloseTarget = ShowcaseWorld.WorldbuildingGalleryTownAuditTargetXZ(3, 2);
+            int2 rossdamCloseSpawn = ShowcaseWorld.WorldbuildingGalleryTownAuditSpawnXZ(3, 2);
+            Assert.AreEqual(new int2(-1100, -697), rossdamPlayerTarget);
+            Assert.AreEqual(new int2(-1130, -734), rossdamPlayerSpawn);
+            Assert.AreEqual(new int2(-1120, -697), rossdamCloseTarget);
+            Assert.AreEqual(new int2(-1120, -712), rossdamCloseSpawn);
+            Assert.That(math.distance(rossdamPlayerSpawn, rossdamPlayerTarget), Is.InRange(20f, 50f));
+            Assert.That(math.distance(rossdamCloseSpawn, rossdamCloseTarget), Is.InRange(5f, 20f));
+
+            int2 fairyPlayerTarget = ShowcaseWorld.WorldbuildingGalleryTownAuditTargetXZ(4, 1);
+            int2 fairyPlayerSpawn = ShowcaseWorld.WorldbuildingGalleryTownAuditSpawnXZ(4, 1);
+            int2 fairyCloseTarget = ShowcaseWorld.WorldbuildingGalleryTownAuditTargetXZ(4, 2);
+            int2 fairyCloseSpawn = ShowcaseWorld.WorldbuildingGalleryTownAuditSpawnXZ(4, 2);
+            Assert.AreEqual(new int2(-969, -743), fairyPlayerTarget);
+            Assert.AreEqual(new int2(-969, -780), fairyPlayerSpawn);
+            Assert.AreEqual(new int2(-976, -743), fairyCloseTarget);
+            Assert.AreEqual(new int2(-976, -758), fairyCloseSpawn);
+            Assert.That(math.distance(fairyPlayerSpawn, fairyPlayerTarget), Is.InRange(20f, 50f));
+            Assert.That(math.distance(fairyCloseSpawn, fairyCloseTarget), Is.InRange(5f, 20f));
+            Assert.AreEqual(34, ShowcaseWorld.WorldbuildingGalleryTownAuditEyeHeightVoxels(4, 2));
+            Assert.AreEqual(36, ShowcaseWorld.WorldbuildingGalleryTownAuditLookHeightVoxels(4, 1));
+            Assert.AreEqual(35, ShowcaseWorld.WorldbuildingGalleryTownAuditLookHeightVoxels(4, 2));
         }
 
         private sealed class RecordingStructureAuthoringSession : IStructureAuthoringSession
