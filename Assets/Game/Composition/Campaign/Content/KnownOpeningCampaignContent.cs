@@ -21,16 +21,9 @@ namespace Game.Composition.Campaign.Content
         public NpcHandle Medrare { get; }
 
         internal KnownOpeningCampaignRoles(
-            SiteHandle startingPub,
-            SiteHandle firstDestination,
-            SiteHandle awonSite,
-            SiteHandle medrareSite,
-            NpcHandle madeline,
-            NpcHandle steven,
-            NpcHandle logan,
-            NpcHandle destinationNpc,
-            NpcHandle awon,
-            NpcHandle medrare)
+            SiteHandle startingPub, SiteHandle firstDestination, SiteHandle awonSite, SiteHandle medrareSite,
+            NpcHandle madeline, NpcHandle steven, NpcHandle logan, NpcHandle destinationNpc,
+            NpcHandle awon, NpcHandle medrare)
         {
             StartingPub = startingPub ?? throw new ArgumentNullException(nameof(startingPub));
             FirstDestination = firstDestination ?? throw new ArgumentNullException(nameof(firstDestination));
@@ -61,9 +54,9 @@ namespace Game.Composition.Campaign.Content
         public NpcRef Medrare => Roles.Medrare.Ref;
         public ObjectiveRef TravelObjective { get; }
         public CutsceneRef IntroCutscene { get; }
+        public CutsceneRef LoganToChurchCutscene { get; }
         public CutsceneRef AwonOpeningCutscene { get; }
         public CutsceneRef MedrareFirstSpellCutscene { get; }
-        public CutsceneRef MedrareToChurchCutscene { get; }
         public CutsceneRef DestinationCutscene { get; }
         public QuestRef WellQuest => KentridgeWellQuestDefinition.Ref;
 
@@ -72,18 +65,18 @@ namespace Game.Composition.Campaign.Content
             KnownOpeningCampaignRoles roles,
             ObjectiveRef travelObjective,
             CutsceneRef introCutscene,
+            CutsceneRef loganToChurchCutscene,
             CutsceneRef awonOpeningCutscene,
             CutsceneRef medrareFirstSpellCutscene,
-            CutsceneRef medrareToChurchCutscene,
             CutsceneRef destinationCutscene)
         {
             Blueprint = blueprint ?? throw new ArgumentNullException(nameof(blueprint));
             Roles = roles;
             TravelObjective = travelObjective;
             IntroCutscene = introCutscene;
+            LoganToChurchCutscene = loganToChurchCutscene;
             AwonOpeningCutscene = awonOpeningCutscene;
             MedrareFirstSpellCutscene = medrareFirstSpellCutscene;
-            MedrareToChurchCutscene = medrareToChurchCutscene;
             DestinationCutscene = destinationCutscene;
         }
 
@@ -143,6 +136,9 @@ namespace Game.Composition.Campaign.Content
                     .Bind(KentridgeOpeningCutscene.Madeline, madeline)
                     .Bind(KentridgeOpeningCutscene.Steven, steven)
                     .Bind(KentridgeOpeningCutscene.Logan, logan));
+            CutsceneHandle loganToChurch = startingPub.Cutscene(
+                KentridgeOpeningProgressionCutscenes.LoganToChurchDefinition,
+                scene => scene.Bind(KentridgeOpeningProgressionCutscenes.Logan, logan));
             CutsceneHandle awonOpening = awonSite.Cutscene(KentridgeOpeningProgressionCutscenes.AwonDefinition);
             CutsceneHandle medrareFirstSpell = medrareSite.Cutscene(
                 KentridgeOpeningProgressionCutscenes.MedrareFirstSpellDefinition,
@@ -150,9 +146,6 @@ namespace Game.Composition.Campaign.Content
                     .Bind(KentridgeOpeningProgressionCutscenes.Weldon, PlayerSlot.First)
                     .Bind(KentridgeOpeningProgressionCutscenes.Logan, logan)
                     .Bind(KentridgeOpeningProgressionCutscenes.Medrare, medrare));
-            CutsceneHandle medrareToChurch = medrareSite.Cutscene(
-                KentridgeOpeningProgressionCutscenes.MedrareToChurchDefinition,
-                scene => scene.Bind(KentridgeOpeningProgressionCutscenes.Logan, logan));
 
             game.Story.Rule("start-intro", rule => rule
                 .When(StoryTrigger.NewGame())
@@ -160,12 +153,16 @@ namespace Game.Composition.Campaign.Content
             game.Story.Rule("start-well-quest", rule => rule
                 .When(StoryTrigger.NewGame())
                 .Then(StoryEffect.StartQuest(KentridgeWellQuestDefinition.Ref)));
-            game.Story.Rule("start-travel-after-intro", rule => rule
+            game.Story.Rule("logan-continuation-after-intro", rule => rule
                 .When(StoryTrigger.CutsceneCompleted(introCutscene))
+                .If(StoryCondition.CutsceneNotCompleted(loganToChurch))
+                .Then(StoryEffect.PlayCutscene(loganToChurch)));
+            game.Story.Rule("start-travel-after-logan", rule => rule
+                .When(StoryTrigger.CutsceneCompleted(loganToChurch))
                 .Then(StoryEffect.StartObjective(travelObjective)));
-            game.Story.Rule("awon-opening-on-interaction", rule => rule
-                .When(StoryTrigger.InteractWith(awon))
-                .If(StoryCondition.CutsceneCompleted(introCutscene))
+            game.Story.Rule("awon-opening-on-entry", rule => rule
+                .When(StoryTrigger.EnterSite(awonSite))
+                .If(StoryCondition.CutsceneCompleted(loganToChurch))
                 .If(StoryCondition.CutsceneNotCompleted(awonOpening))
                 .Then(StoryEffect.PlayCutscene(awonOpening)));
             game.Story.Rule("medrare-first-spell-on-entry", rule => rule
@@ -173,10 +170,6 @@ namespace Game.Composition.Campaign.Content
                 .If(StoryCondition.CutsceneCompleted(awonOpening))
                 .If(StoryCondition.CutsceneNotCompleted(medrareFirstSpell))
                 .Then(StoryEffect.PlayCutscene(medrareFirstSpell)));
-            game.Story.Rule("medrare-to-church-after-first-spell", rule => rule
-                .When(StoryTrigger.CutsceneCompleted(medrareFirstSpell))
-                .If(StoryCondition.CutsceneNotCompleted(medrareToChurch))
-                .Then(StoryEffect.PlayCutscene(medrareToChurch)));
             game.Story.Rule("destination-conversation-trigger", rule => rule
                 .When(StoryTrigger.InteractWith(destinationNpc))
                 .If(StoryCondition.ObjectiveActive(travelObjective))
@@ -185,7 +178,7 @@ namespace Game.Composition.Campaign.Content
 
             return new KnownOpeningCampaignContent(
                 game.Build(), roles, travelObjective, introCutscene,
-                awonOpening, medrareFirstSpell, medrareToChurch, destinationCutscene);
+                loganToChurch, awonOpening, medrareFirstSpell, destinationCutscene);
         }
     }
 }
