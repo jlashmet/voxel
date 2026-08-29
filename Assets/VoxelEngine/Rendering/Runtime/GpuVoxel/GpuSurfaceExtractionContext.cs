@@ -295,8 +295,19 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             ChunksStaged++;
             if (counts.IsEmpty)
             {
-                Release();
+                // The count itself completed successfully, so this is not a GPU failure. Keep the
+                // staged extraction alive and let the normal write/publication path install a
+                // zero-index ready entry. CpuTransvoxelChunkCache historically grouped this case
+                // with lost readbacks and arena exhaustion, routing valid empty results through
+                // the 64^3 CPU mesher and producing the moving-showcase fallback spikes.
+                //
+                // The cache currently treats IsEmpty as "do not allocate", so expose a one-element
+                // sizing token only to that caller while retaining the authoritative zero counts in
+                // _stagedCounts. SurfaceGeometryArena aligns this to its existing minimum lease;
+                // the write verification below still compares against the true zero counts and the
+                // published indirect args contain indexCount=0.
                 ChunksEmpty++;
+                counts = new GpuExtractionCounts(1, 1);
             }
             return poll;
         }
