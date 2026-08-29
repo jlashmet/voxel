@@ -40,7 +40,7 @@
 ## Final exact-SHA validation / visual gate
 - [x] Corrected request `b598b19c88503ce9d59011f196dc404934bbef36` / run `33246401704` completed green but failed mandatory animation inspection; treat it as product-failure evidence only, not closure evidence.
 - [x] Human inspection + pixel comparison: grass/ground crop has exactly zero changed pixels at 39.3→49.3 and 49.3→59.3 seconds while sky changes.
-- [ ] Refresh current `origin/master` before final engine-clock CI and confirm no unrelated/workflow/request-file feature diff.
+- [x] Refresh current `origin/master` before final engine-clock CI: master `521ba9c1fc5531f299f09595316dff03af01df57` remains the feature merge base (`behind_by=0`); feature-only diff contains only assigned ecology/Kentridge/render/test/issue files and no workflow or `.github/test-request.json` change.
 - [ ] Submit final exact-SHA request on the same assigned `ci-test/fixes/agent-5` mailbox only after confirming no queued/running request; do not create another transport.
 - [ ] Leave queued/running CI untouched; inspect logs/artifact after completion. Retry only once for infrastructure failure.
 - [ ] Built player reaches usable `KentridgePlayableSlice` without startup/runtime exceptions.
