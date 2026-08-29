@@ -1,19 +1,35 @@
-// Applies compact CPU-side Storage deltas to the persistent GPU brick-coordinate directory.
-// Chunk admission never writes this table. The CPU sends only changed final entries in one
-// contiguous buffer; compute scatters those entries to their stable hash slots on the GPU.
+// Applies compact CPU-side Storage deltas to the persistent GPU brick mirror.
+// Chunk admission never writes these tables. The CPU sends only changed final entries in
+// contiguous staging buffers; compute scatters those entries to stable GPU slots/hash entries.
 
 #pragma kernel CSApplyDirectoryDeltas
+#pragma kernel CSApplyPayloadDeltas
 #pragma kernel CSClearDirectory
 
 RWStructuredBuffer<uint> _BrickMaterials;
+RWStructuredBuffer<uint> _BrickSurfaceSemantics;
+RWStructuredBuffer<uint> _BrickBoundarySamples;
+RWStructuredBuffer<uint4> _BrickMetadata;
 StructuredBuffer<uint> _DirectoryDeltas;
+StructuredBuffer<uint> _PayloadDeltas;
 
 int _DirectoryWordOffset;
 int _DirectoryCapacity;
 int _DirectoryDeltaCount;
+int _PayloadDeltaCount;
 
 #define DIRECTORY_WORDS_PER_ENTRY 5
 #define DIRECTORY_DELTA_WORDS 6
+#define MATERIAL_WORDS_PER_BRICK 128
+#define SURFACE_WORDS_PER_BRICK 256
+#define BOUNDARY_WORDS_PER_BRICK 128
+#define PAYLOAD_DATA_WORDS_PER_BRICK 512
+#define PAYLOAD_COPY_THREADS_PER_BRICK 513
+#define PAYLOAD_DELTA_WORDS 517
+#define PAYLOAD_MATERIAL_OFFSET 1
+#define PAYLOAD_SURFACE_OFFSET 129
+#define PAYLOAD_BOUNDARY_OFFSET 385
+#define PAYLOAD_METADATA_OFFSET 513
 
 [numthreads(64, 1, 1)]
 void CSApplyDirectoryDeltas(uint3 id : SV_DispatchThreadID)
@@ -32,6 +48,53 @@ void CSApplyDirectoryDeltas(uint3 id : SV_DispatchThreadID)
     _BrickMaterials[destination + 2u] = _DirectoryDeltas[source + 3u];
     _BrickMaterials[destination + 3u] = _DirectoryDeltas[source + 4u];
     _BrickMaterials[destination + 4u] = _DirectoryDeltas[source + 5u];
+}
+
+// Payload slots are deliberately compacted before upload. Recovery can reuse arbitrary free
+// slots, so uploading each contiguous live-slot run turns one bounded 64-brick recovery slice
+// into hundreds of Metal SetData calls. One compact upload plus this scatter keeps driver work
+// bounded by the recovery batch rather than by slot fragmentation.
+[numthreads(64, 1, 1)]
+void CSApplyPayloadDeltas(uint3 id : SV_DispatchThreadID)
+{
+    uint linear = id.x;
+    uint totalThreads = (uint)_PayloadDeltaCount * PAYLOAD_COPY_THREADS_PER_BRICK;
+    if (linear >= totalThreads) return;
+
+    uint deltaIndex = linear / PAYLOAD_COPY_THREADS_PER_BRICK;
+    uint local = linear - deltaIndex * PAYLOAD_COPY_THREADS_PER_BRICK;
+    uint source = deltaIndex * PAYLOAD_DELTA_WORDS;
+    uint slot = _PayloadDeltas[source + 0u];
+
+    if (local < MATERIAL_WORDS_PER_BRICK)
+    {
+        _BrickMaterials[slot * MATERIAL_WORDS_PER_BRICK + local] =
+            _PayloadDeltas[source + PAYLOAD_MATERIAL_OFFSET + local];
+        return;
+    }
+
+    local -= MATERIAL_WORDS_PER_BRICK;
+    if (local < SURFACE_WORDS_PER_BRICK)
+    {
+        _BrickSurfaceSemantics[slot * SURFACE_WORDS_PER_BRICK + local] =
+            _PayloadDeltas[source + PAYLOAD_SURFACE_OFFSET + local];
+        return;
+    }
+
+    local -= SURFACE_WORDS_PER_BRICK;
+    if (local < BOUNDARY_WORDS_PER_BRICK)
+    {
+        _BrickBoundarySamples[slot * BOUNDARY_WORDS_PER_BRICK + local] =
+            _PayloadDeltas[source + PAYLOAD_BOUNDARY_OFFSET + local];
+        return;
+    }
+
+    // One thread owns the 16-byte metadata record, avoiding component-level write races.
+    _BrickMetadata[slot] = uint4(
+        _PayloadDeltas[source + PAYLOAD_METADATA_OFFSET + 0u],
+        _PayloadDeltas[source + PAYLOAD_METADATA_OFFSET + 1u],
+        _PayloadDeltas[source + PAYLOAD_METADATA_OFFSET + 2u],
+        _PayloadDeltas[source + PAYLOAD_METADATA_OFFSET + 3u]);
 }
 
 [numthreads(64, 1, 1)]
