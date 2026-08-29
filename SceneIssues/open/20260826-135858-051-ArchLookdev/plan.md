@@ -21,5 +21,5 @@
 - Primitive count remains twelve surface-detail capsules per hero entrance; only their narrow radius-1-dm voxel footprint grows. No new ordinary per-frame production work is added; evidence driving is SceneIssue-metadata gated.
 
 ## Remaining gates
-- The first green badge is diagnostic only because its screenshots failed acceptance.
-- Commit the evidence-switch fix, refresh master if needed, then run one fresh exact-SHA final request. Require green focused regression, green built player, `ARCH_EVIDENCE` activation/arrival, and a durable Kentridge frame visibly showing the segmented arch in building context before pending/closed bookkeeping.
+- `1782404c…` failed before Unity because its request mistakenly set `replay_seconds: 80`; the workflow permits 20–60. No product runtime evidence was generated.
+- Current `master` is already merged. Issue one corrected request on the assigned CI ref with a valid replay window. Require green focused regression, green built player, `ARCH_EVIDENCE` activation/arrival, and a durable Kentridge frame visibly showing the segmented arch in building context before pending/closed bookkeeping.
