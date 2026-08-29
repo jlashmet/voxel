@@ -1,21 +1,25 @@
 # Tasks — Kentridge Awon + Medrare Opening Cutscenes
 
 - [x] Read `AGENTS.md`, canonical `SceneIssues/README.md`, and target issue; confirm no capture frames/annotations exist.
+- [x] Confirm `SceneIssues/feature-readme.md` is absent on both the feature branch and current `master`; use the canonical `SceneIssues/README.md` workflow authority.
 - [x] Resume `fixes/agent-1` without resetting prior work and preserve the dedicated final-CI transport rule.
-- [x] Inspect the pinned Mounting Force commit `9491acd9efc3ad7413a13fd28f1686ed473b5672` and imported `References/MountingForce` contracts.
+- [x] Inspect the pinned Mounting Force commit `9491acd9efc3ad7413a13fd28f1686ed473b5672`; prefer pinned source over conflicting retained summaries/contracts.
 - [x] Verify the existing Kentridge pub opening/Logan prompt remains the source-backed entry beat.
-- [x] Recover `Art/kentridge-awon-house.tmx` and `kentridge-awon-house-back-room.txt`: gate is `kentridge >= 2`, scene counter `< 2`, player trigger `[1,1]`; preserve exact Awon dialogue and completion/music/door cues represented by the source.
-- [x] Recover `Code/KentridgeMedrareJoin.m`: require event `240 >= 1`, player `[1,4]`, preserve blocked-step fallback, Medrare/player/Kentridge movement and two dialogue calls, and set event `5000 = 2` as the one-shot completion state.
-- [x] Recover `Art/medrare-house-lower.tmx`: `medrare-first-spell` is play-once, requires completed Awon back-room scene, grants `Flame` to `RPGPlayer`; `medrare-to-church` is play-once and requires first-spell completion.
-- [x] Confirm the pinned source does not contain the referenced `medrare-first-spell.txt`, `medrare-to-church.txt`, or `kentridge-see-medrare.txt` payloads; do not invent replacement dialogue. Treat absent payload text as UNKNOWN while retaining verified map/class gates/actions.
+- [x] Recover `Art/kentridge-awon-house.tmx` and `kentridge-awon-house-back-room.txt`: Awon is talk-triggered, play-once, and the exact 23-line dialogue payload exists at the pinned commit.
+- [x] Recover Kentridge Medrare arrival wiring: `Art/kentridge.tmx` gates `kentridge-medrare-join` on completed Awon, joins Medrare, is play-once + require-step; `Code/KentridgeMedrareJoin.m` zooms to `0.5`, waits `1.5s`, approaches the player over `2s`, then invokes dialogue id `5000`.
+- [x] Confirm `kentridge-medrare-join.txt` is absent at the pinned commit; its dialogue is UNKNOWN and must not be invented.
+- [x] Recover `Art/medrare-house-lower.tmx`: `medrare-first-spell` is play-once + require-step after completed Awon and grants `Flame` to `RPGPlayer`; `medrare-to-church` is play-once after first-spell completion.
+- [x] Confirm the pinned source does not contain the referenced `medrare-first-spell.txt` or `medrare-to-church.txt` payloads; do not invent replacement dialogue. Treat absent payload text as UNKNOWN while retaining verified gates/actions.
+- [x] Identify later `medrare-join` after `meet-king` as a distinct later beat outside this opening feature.
 - [x] Reject the resumed branch's Michael/William/zombie dialogue and its claim that the Awon payload is missing; those assumptions conflict with the pinned source.
 - [ ] Replace the incorrect Awon/Medrare progression content with pinned-source dialogue/actions only.
 - [ ] Preserve source one-shot/re-entry gates in campaign progression; do not replay completed Awon/Medrare beats.
+- [ ] Implement the source-backed one-time `Flame` grant without inventing missing Medrare dialogue.
 - [ ] Remove or narrow shared runtime changes that only support the rejected Michael/William progression.
-- [ ] Add/update behavioral regressions for exact Awon dialogue identity/order, verified Medrare gates/action ordering, Flame grant, church gate, and replay suppression.
+- [ ] Add/update behavioral regressions for exact Awon dialogue identity/order, verified Medrare gate/choreography ordering, Flame grant, church gate, Logan preservation, and replay suppression.
 - [ ] Verify no unapproved assets/packages/generated expansion and no unrelated assignment changes.
 - [ ] Review blast radius and steady-state/runtime cost; verify unrelated campaign/story consumers remain valid.
-- [ ] Re-read every acceptance criterion and validate the implementation against corrected pinned-source evidence, explicitly recording any acceptance wording that cannot be reproduced from the pinned commit.
+- [ ] Re-read every acceptance criterion and validate the implementation against corrected pinned-source evidence, explicitly recording any acceptance wording that cannot be reproduced because a pinned payload is absent.
 - [ ] Run required repository/workflow gates and move only this assignment `open -> pending` with required metadata.
 - [ ] Create exactly one final targeted-CI request on `ci-test/fixes/agent-1` for the exact feature SHA; never edit `.github/test-request.json` on the feature branch.
 - [ ] Inspect exact-SHA CI logs/artifacts and confirm requested focused regressions plus built-application Kentridge validation are green.
