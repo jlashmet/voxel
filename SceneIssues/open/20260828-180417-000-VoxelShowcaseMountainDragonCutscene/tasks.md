@@ -20,9 +20,9 @@
 - [x] Submit exact request `6c96334421b3...` for merged feature `d1895b3b5591...`; leave it queued/running without replacement.
 - [x] Inspect run `33279296569`: cold import ~60.5 s, bake killed at 241 s / peak ~11.9 GB before the focused test; built-player fallback rejected stale payload because source-matched manifest is absent. Far-field suppression is falsified as sufficient.
 - [x] Trace the next hot path to shared `PrimitiveRasteriser`: box carve visits and reads already-empty voxels before discovering `default` is unchanged.
-- [ ] Add an output-equivalent fast path for `Carve` + `Box` that skips only blocks explicitly encoded `VoxelReadBlockKind.Empty`; never skip mixed blocks because empty-side boundary samples are authoritative.
-- [ ] Add behavioral regression covering implicit-empty box-carve no-op and mixed/boundary safety; include it in the exact final acceptance filter.
-- [ ] Re-check blast radius/cost: all non-box carve/fill/paint paths, primitive counts/order, footprint, runtime semantics, and serialized output must remain unchanged.
+- [x] Add an output-equivalent fast path for `Carve` + `Box` that skips only blocks explicitly encoded `VoxelReadBlockKind.Empty`; never skip mixed blocks because empty-side boundary samples are authoritative.
+- [x] Add real-storage behavioral regression covering canonical-empty boxed-carve no-op plus Mixed empty-side boundary clearing, and include it in the exact final acceptance filter.
+- [x] Re-check blast radius/cost: post-failure diff changes only the rasterizer, two Mountain Dragon tests, and this assignment's plan/tasks; the production change is 24 added lines, leaves non-box carve/fill/paint logic and primitive order/footprint unchanged, and adds no per-voxel work to non-box paths.
 
 ## Exact-SHA bake / built-player gate
 - [ ] Submit one new final exact-SHA request from the post-fast-path feature head using only `ci-test/fixes/agent-4`; do not create another transport or replace queued/running work.
