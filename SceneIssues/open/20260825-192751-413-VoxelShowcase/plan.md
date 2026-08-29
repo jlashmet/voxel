@@ -1,8 +1,8 @@
 # Plan — SceneIssue 20260825-192751-413 VoxelShowcase
 
 ## Observed defect / acceptance
-- The single capture marks top-left performance telemetry at `Showcase Camera` `(77.953941,24.550051,-3.345814)`, FOV 70. Note: sub-100 FPS while moving, slow fill, transient/missing geometry.
-- Pass requires sustained step-1/2 GPU completion, zero eligible CPU fallback/blocking waits, no visible holes, moving p95 <18 ms/p99 <25 ms, stationary p95 <8 ms, and inspected exact-pose built-player evidence.
+- Capture `screenshot-001.png` marks the performance telemetry at `Showcase Camera` `(77.953941,24.550051,-3.345814)`, FOV 70: sub-100 FPS while moving, slow fill, and transient/missing geometry.
+- Pass requires sustained step-1/2 GPU completion, zero eligible CPU fallback/blocking waits, no visible holes, moving p95 <18 ms/p99 <25 ms, stationary p95 <8 ms, plus exact built-player pose inspection.
 
 ## Runtime evidence / hypotheses
 - H1 (**confirmed**): demand-scoped mirror recovery, exact footprints, optional empty halo, and obsolete-demand cancellation removed global recovery starvation while preserving Storage versions.
