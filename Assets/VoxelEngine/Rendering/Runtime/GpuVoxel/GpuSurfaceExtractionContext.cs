@@ -26,6 +26,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
     public sealed class GpuSurfaceExtractionContext : IDisposable
     {
         public const string ShaderResourcePath = "VoxelBrickMesher";
+        private const int MaxCounterReadbackRetries = 2;
 
         private readonly GpuVoxelBrickMirror _mirror;
         private readonly GpuTransvoxelTables _tables;
@@ -46,8 +47,14 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private bool _hasStaged;
         private bool _stageAdmissionPending;
         private ulong _stageStorageGeneration;
+        private ComputeBuffer _writeVertices;
+        private ComputeBuffer _writeIndices;
+        private int _writeVertexStart;
         private int _writeVertexCapacity;
+        private int _writeIndexStart;
         private int _writeIndexCapacity;
+        private int _countReadbackRetries;
+        private int _writeReadbackRetries;
 
         public GpuVoxelBrickMirror Mirror => _mirror;
         public GpuTransvoxelTables Tables => _tables;
@@ -59,6 +66,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         public ulong ChunksRefusedNoSlot { get; private set; }
         public ulong ChunksEmpty { get; private set; }
         public ulong ChunksOverflowed { get; private set; }
+        public ulong CountReadbackRetryCount { get; private set; }
+        public ulong WriteReadbackRetryCount { get; private set; }
         public long MirrorCommittedBytes => _mirror.CommittedBytes;
 
         private GpuSurfaceExtractionContext(ComputeShader shader, int cellsPerAxis, int padding,
@@ -172,6 +181,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             // recovery converge without ever publishing newer mirror data as an older render build.
             _staged = request;
             _stageAdmissionPending = true;
+            _countReadbackRetries = 0;
             TryAdmitPendingStage();
 
             // Mirror recovery is deliberately bounded. Not-ready this frame is backpressure, not
@@ -264,10 +274,23 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (poll == GpuSurfaceExtractor.GpuCounterPoll.Pending) return poll;
             if (poll == GpuSurfaceExtractor.GpuCounterPoll.Failed)
             {
+                // A failed async counter transfer is not evidence that this supported chunk needs
+                // the CPU mesher. The count dispatch already owns a stable shared-mirror extraction
+                // window, so retry the four-word bookkeeping transfer by redispatching the same
+                // count against the same immutable request. Only repeated failure escapes to the
+                // caller's existing device/error fallback.
+                if (_countReadbackRetries < MaxCounterReadbackRetries)
+                {
+                    _countReadbackRetries++;
+                    CountReadbackRetryCount++;
+                    _extractor.BeginCount(_mirror, _tables, _staged);
+                    return GpuSurfaceExtractor.GpuCounterPoll.Pending;
+                }
                 Release();
                 return poll;
             }
 
+            _countReadbackRetries = 0;
             _stagedCounts = counts;
             ChunksStaged++;
             if (counts.IsEmpty)
@@ -283,8 +306,13 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                                     int indexStart, int indexCapacity)
         {
             ThrowIfDisposed();
+            _writeVertices = vertices;
+            _writeIndices = indices;
+            _writeVertexStart = vertexStart;
             _writeVertexCapacity = vertexCapacity;
+            _writeIndexStart = indexStart;
             _writeIndexCapacity = indexCapacity;
+            _writeReadbackRetries = 0;
             _extractor.BeginWriteRange(_mirror, _tables, _staged, vertices, indices,
                                        vertexStart, vertexCapacity, indexStart, indexCapacity);
         }
@@ -297,8 +325,27 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
             GpuSurfaceExtractor.GpuCounterPoll poll = _extractor.TryCompleteWriteRange(
                 _writeVertexCapacity, _writeIndexCapacity, out GpuExtractionResult result);
-            if (poll != GpuSurfaceExtractor.GpuCounterPoll.Ready) return poll;
+            if (poll == GpuSurfaceExtractor.GpuCounterPoll.Pending) return poll;
+            if (poll == GpuSurfaceExtractor.GpuCounterPoll.Failed)
+            {
+                // Re-running a failed verification transfer is safe: the write targets the same
+                // invisible staging lease, so a second dispatch only overwrites that unpublished
+                // range. Do not route a transient async readback failure into CPU topology work.
+                if (_writeReadbackRetries < MaxCounterReadbackRetries
+                    && _writeVertices != null && _writeIndices != null)
+                {
+                    _writeReadbackRetries++;
+                    WriteReadbackRetryCount++;
+                    _extractor.BeginWriteRange(
+                        _mirror, _tables, _staged, _writeVertices, _writeIndices,
+                        _writeVertexStart, _writeVertexCapacity,
+                        _writeIndexStart, _writeIndexCapacity);
+                    return GpuSurfaceExtractor.GpuCounterPoll.Pending;
+                }
+                return poll;
+            }
 
+            _writeReadbackRetries = 0;
             if (result.Overflowed
                 || result.VertexCount != _stagedCounts.VertexCount
                 || result.IndexCount != _stagedCounts.IndexCount)
@@ -345,6 +392,14 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _stageAdmissionPending = false;
             _stageStorageGeneration = 0;
             _hasStaged = false;
+            _countReadbackRetries = 0;
+            _writeReadbackRetries = 0;
+            _writeVertices = null;
+            _writeIndices = null;
+            _writeVertexStart = 0;
+            _writeVertexCapacity = 0;
+            _writeIndexStart = 0;
+            _writeIndexCapacity = 0;
             _extractor.CancelPendingCounters();
             if (_sharedExtractionActive)
             {
