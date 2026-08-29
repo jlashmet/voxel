@@ -57,6 +57,12 @@ namespace VoxelEngine.Showcase
             try
             {
                 IssueRecord record = JsonUtility.FromJson<IssueRecord>(File.ReadAllText(issuePath));
+                if (record?.captures != null && record.captures.Length == 0 && record.camera == null)
+                {
+                    Debug.Log("SCENEISSUE capture-less issue has no recorded camera; using scene-authored validation views.");
+                    return null;
+                }
+
                 CameraSnapshot camera = record?.captures != null && record.captures.Length > 0
                     ? record.captures[0]?.camera
                     : record?.camera;
