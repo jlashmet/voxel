@@ -376,7 +376,9 @@ namespace Game.Kentridge.PlayableSlice
                 }
             }
 
-            if (!_openingCutsceneCameraActive)
+            if (_openingCutsceneCameraActive)
+                ApplyOpeningCameraPose();
+            else
                 transform.position = _motor.EyePosition;
 
             float budget = hasActiveCutscene
