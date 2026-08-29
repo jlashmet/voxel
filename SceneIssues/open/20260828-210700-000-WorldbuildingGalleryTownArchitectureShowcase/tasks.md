@@ -12,6 +12,7 @@
 - [ ] Ensure at least one representative building in every district visibly carries multiple authored 1–3 voxel (10–30 cm) construction details.
 - [ ] Expand Rossdam fortification realization with reusable layered parapet/coping, crenellation, arrow-slit reveal, tower-wall transition, buttress, stair/access, and gate framing/hardware primitives suitable for later castle reuse.
 - [ ] Keep `WorldbuildingGalleryShowcase` composition limited to style/placement/fixed seed/material mapping/viewpoints/overlays and route district geometry through the public WorldBuilder town-architecture authoring surface.
+- [ ] Expose bounded district footprint/bounds through the shared WorldBuilder town-architecture runtime/API and remove Showcase composition's dependency on `WorldBuilderTownArchitectureVoxelAuthoring` implementation details.
 - [ ] Wire six clearly separated/labeled Kentridge, Hightown, Moordell, Rossdam, Fairy Village, and Orc Village districts into the production `WorldbuildingGalleryShowcase` composition path with palette displays, characteristic ground/street treatment, all four required roles, and town-specific exterior cues.
 - [ ] Keep generated-gallery and baked-startup behavior in parity: the bake source must contain the six districts and stale-bake/version behavior must not omit this feature.
 - [ ] Extend gallery tour/evidence framing with deterministic wide/elevated, player-height facade (2–5 m), and close-detail (0.5–2 m) views for every district.
