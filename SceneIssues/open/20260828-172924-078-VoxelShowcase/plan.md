@@ -15,6 +15,6 @@ Discriminator: project every marked region into the deterministic showcase castl
 ## Selected fix / blast radius / cost
 Add a reusable castle lower-river receiving-bank repair, invoked after site authoring and after baked-showcase restore. It repairs only `x = waterfallStreamX ±120` and north-side offsets `dz=35..80`, preserves cascade voxels, leaves the south bank and outer 10-voxel dry shore unchanged, and republishes baked resident state. Startup repair has a 1,000,000-write guard; the bounded footprint is 241×46 columns and runs once, not per frame.
 
-Regression `CastleLowerRiverWaterRepairTests.ShowcaseMarkedReceivingBankBecomesWaterAndStopsBeforeOuterShore` covers all five offsets plus dry-shore/cascade negatives and bounded writes.
+Editor regression `CastleLowerRiverWaterRepairTests.ShowcaseMarkedReceivingBankBecomesWaterAndStopsBeforeOuterShore` and PlayMode regression `VoxelEngine.Tests.PlayMode.CastleLowerRiverWaterRepairPlayModeTests.ShowcaseMarkedReceivingBankBecomesWaterAndStopsBeforeOuterShore` cover all five offsets plus dry-shore/cascade negatives and bounded writes. The PlayMode test is the targeted-CI test so the same request can run the assigned built-application scene replay.
 
-**Current source:** `fixes/agent-7` head containing repair, bake compatibility path, regression, and this evidence. **Remaining gates:** exact-SHA targeted regression CI; exact-SHA built-application VoxelShowcase replay of the assigned capture; then pending/fixed metadata, final master merge, and non-force promotion.
+**Remaining gates:** exact-SHA targeted PlayMode CI plus VoxelShowcase replay of this capture; then pending/fixed metadata, final master merge, and non-force promotion.
