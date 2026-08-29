@@ -36,7 +36,15 @@
 - [x] Falsify the initial baseline-blocker hypothesis by auditing the final feature diff: agent-6 carried stale `Assets/Game/WorldBuilder/Api/StorySpecs.cs` blob `0c399134ff696ef65e74f7cf7df27be03d778280`, while current master has `3b34ab066a11c8af3f003a0559db3a4ea5357bba` with exactly the missing APIs.
 - [x] Restore `StorySpecs.cs` byte-for-byte from current master at `eb6b77cc13bf5b1850a81df9a73a6250f7d2ba5b`; do not otherwise edit the opening-story assignment.
 - [x] Verify `StorySpecs.cs` disappears from the `master...fixes/agent-6` diff and `.github/test-request.json` is absent from the feature diff.
-- [ ] Issue the next exact-SHA final request on the existing `ci-test/fixes/agent-6` transport and inspect its test + built-player artifact.
+- [x] Issue the next exact-SHA request on the existing `ci-test/fixes/agent-6` transport and inspect its test + built-player artifact: source `dcd8f38c5db59fb71d277ad04776d02a9bd8b574`, request `f726b2f4bbf8e3e116bef1792573b043c307bcd1`, run `33259572439` green.
+
+## Evidence completeness discovered by green run 33259572439
+- [x] Confirm the focused production acceptance is green and reports `regions=6 settlements=6 buildings=16 hardRoutes=20 routeTiles=833 constrainedRoutes=5 solveSteps=1108`, `maxRoadRiseVoxels=2`, and `waterDepthVoxels=46`.
+- [x] Confirm the built `KentridgePlayableSlice` harness is green for 60s, reports zero assertion failures, and logs real CharacterMotor traversal both locally and on the generated Moordell macro road.
+- [x] Inspect durable screenshots and identify the remaining evidence gap: the 60-second replay captures the macro-road and Moordell, but the opening sequence consumes ~44s and the current evidence schedule does not capture Rossdam, Fairy Village, Orc Village, Rossdam Lake, southern ridge/pass, or the macro-network overview before timeout.
+- [ ] Adjust only the `kentridge-macro-world` validation-profile evidence schedule/ordering so all required named settlement/geography/survey captures complete within the fixed 60-second replay; do not alter gameplay/story/worldgen/planner semantics.
+- [ ] Preserve representative real CharacterMotor road traversal and enough remote streaming dwell for readable captures after the schedule change.
+- [ ] Run a new exact-SHA final request and inspect every named screenshot plus player/test logs before acceptance/closure.
 
 ## Behavioral regression
 - [x] Add one final targeted PlayMode acceptance test that nests the full macro realization regression plus production water/slope/composition assertions: `VoxelEngine.Tests.PlayMode.KentridgeMacroWorldPhysicalProductionAcceptanceTests.PhysicalMacroWorldHasWalkableRoutesAndADeepStreamedWaterBody`.
@@ -78,7 +86,7 @@
 - [ ] Acceptance (10): exact built-player visual/runtime evidence covers settlements, roads, geography, constrained route, and CharacterMotor traversal.
 - [ ] Acceptance (11): blast radius and world-build/route/CPU/GPU/memory/streaming cost are measured against budgets.
 - [ ] Every checkbox above is complete before `open -> pending`.
-- [ ] Final exact-SHA focused CI and built-player evidence are green. Runs `33230924543` and `33231300309` were product-red compile diagnostics; run `33232755172` was product-red on the Rossdam/Bandit semantic-route conflict; run `33255557296` was product-red on the Orc Village/southern-ridge semantic-route conflict; run `33258816868` was product-red on the stale agent-6 `StorySpecs.cs` merge overlay before the Kentridge test executed. No green exact-SHA gate exists yet.
+- [ ] Final exact-SHA focused CI and built-player evidence are green. Runs `33230924543` and `33231300309` were product-red compile diagnostics; run `33232755172` was product-red on the Rossdam/Bandit semantic-route conflict; run `33255557296` was product-red on the Orc Village/southern-ridge semantic-route conflict; run `33258816868` was product-red on the stale agent-6 `StorySpecs.cs` merge overlay before the Kentridge test executed; run `33259572439` is green but its durable visual evidence is incomplete for all required macro targets. No closure-quality exact-SHA gate exists yet.
 - [ ] Complete pending metadata and move only this feature `open -> pending`.
 - [ ] Move only this feature `pending -> closed`, set `status=fixed` and `resolvedUtc`.
 - [ ] Merge current `origin/master` into `fixes/agent-6`, push exact feature head, then non-force push that head to `origin/master`; retry if master advances.
