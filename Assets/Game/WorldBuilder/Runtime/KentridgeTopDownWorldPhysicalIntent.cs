@@ -76,10 +76,10 @@ namespace Game.WorldBuilder.Runtime
                     TopDownWorldRegionRelationKind.Separates,
                     KentridgeTopDownWorldLayout.SouthFightingArea,
                     KentridgeTopDownWorldLayout.LoganApproach,
-                    halfExtentXDm: 270,
+                    halfExtentXDm: 420,
                     halfExtentZDm: 270,
                     elevationDeltaDm: 110,
-                    variationDm: 12,
+                    variationDm: 8,
                     source: "first macro geography pass: substantial ridge barrier across the Logan route"),
                 new TopDownWorldRegionSpec(
                     SouthernPass,
