@@ -5,7 +5,7 @@
 - [x] Trace authoritative legacy sequence and pin source evidence to commit `9491acd9efc3ad7413a13fd28f1686ed473b5672`; correct prior tree-SHA/nonexistent-path provenance.
 - [x] Confirm Awon's referenced text payload is missing and repository policy requires `Dialogue coming soon.` rather than invented dialogue.
 - [x] Prove source order/state chain: `pub -> Awon -> kentridge-see-medrare -> MedrareFirstSpell -> medrare-to-church`; prove later `kentridge-medrare-join` is out of scope.
-- [x] Recover exact source text for `kentridge-see-medrare` (1 line), `medrare-first-spell` (17 lines), and `medrare-to-church` (3 lines).
+- [x] Recover exact source text for `kentridge-see-medrare` (2 lines), `medrare-first-spell` (23 lines), and `medrare-to-church` (1 line).
 - [x] Recover bespoke `MedrareFirstSpell.m` choreography (zoom, delays, approach, attack/hit sound, fade sequence) and map each meaningful cue to current reusable cutscene APIs.
 - [ ] Correct Kentridge opening content to include `kentridge-see-medrare`, exact first-spell dialogue/choreography, and `medrare-to-church`; preserve Awon placeholder/state semantics.
 - [ ] Correct campaign progression rules to gate each source event on the immediately preceding completion flag and keep every event one-shot/re-entry safe.
