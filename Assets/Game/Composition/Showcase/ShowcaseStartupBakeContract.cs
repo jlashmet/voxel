@@ -22,7 +22,10 @@ namespace VoxelEngine.Showcase
             "Assets/Resources/VoxelShowcase/ShowcaseWorld.manifest.txt";
 
         private const int ManifestVersion = 1;
-        private const uint LandmarkContractRevision = 1;
+        // Revision 2 is the asymmetric multi-mass mountain realization. Dimensions are unchanged
+        // from revision 1, so the explicit algorithm revision is what prevents a pre-naturalized
+        // single-frustum bake from satisfying current provenance.
+        private const uint LandmarkContractRevision = 2;
         private const uint FnvOffsetBasis = 2166136261u;
         private const uint FnvPrime = 16777619u;
 
