@@ -146,6 +146,16 @@ namespace VoxelEngine.Structures.Runtime
                 int bz0 = math.max(z0, blockVoxelMin.z);
                 int bz1 = math.min(z1, blockVoxelMin.z + VoxelReadGrid.BlockEdgeMask);
 
+                // Mountain headroom and other axis-aligned voids often overlap large volumes that
+                // are already canonical empty storage. A box has no authored boundary halo, so an
+                // explicitly Empty block cannot possibly change under Carve. Do not use occupancy
+                // alone here: a Mixed block may contain authored empty-side boundary samples that
+                // default-cell carving is required to clear.
+                if (primitive.Mode == PrimitiveMode.Carve
+                    && primitive.Shape == PrimitiveShape.Box
+                    && read.IsImplicitlyEmptyBlock(worldBlock))
+                    continue;
+
                 VoxelBlockMutation mutation = default;
                 bool mutationOpen = false;
                 bool payloadChanged = false;
@@ -431,6 +441,20 @@ namespace VoxelEngine.Structures.Runtime
                 _view = default;
                 _regionCoord = default;
                 _hasView = false;
+            }
+
+            public bool IsImplicitlyEmptyBlock(int3 worldBlock)
+            {
+                int3 regionCoord = worldBlock >> VoxelReadGrid.BlocksPerRegionEdgeLog2;
+                if (!_hasView || math.any(regionCoord != _regionCoord))
+                {
+                    _regionCoord = regionCoord;
+                    _hasView = _source != null && _source.TryAcquireRegion(regionCoord, out _view);
+                }
+
+                if (!_hasView) return true;
+                return _view.TryGetWorldBlock(worldBlock, out VoxelReadBlock block)
+                    && block.Kind == VoxelReadBlockKind.Empty;
             }
 
             public VoxelCell ReadCell(int3 worldVoxel)
