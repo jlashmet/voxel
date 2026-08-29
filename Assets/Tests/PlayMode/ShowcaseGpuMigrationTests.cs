@@ -86,6 +86,7 @@ namespace VoxelEngine.Tests.PlayMode
                 ulong initialCompleted = initial.CompletedSolidBuilds;
                 ulong initialGpuFallback = initial.GpuFallbackSolidBuilds;
                 ulong initialGpuWaits = initial.GpuReadbackWaitSlices;
+                ulong initialSnapshotlessStages = initial.GpuSnapshotlessSolidStages;
                 var frameTimesMs = new List<double>(1024);
                 var frameClock = new Stopwatch();
                 var traversalClock = Stopwatch.StartNew();
@@ -183,6 +184,8 @@ namespace VoxelEngine.Tests.PlayMode
                 ulong completedDelta = last.CompletedSolidBuilds - initialCompleted;
                 ulong gpuFallbackDelta = last.GpuFallbackSolidBuilds - initialGpuFallback;
                 ulong gpuWaitDelta = last.GpuReadbackWaitSlices - initialGpuWaits;
+                ulong snapshotlessStageDelta =
+                    last.GpuSnapshotlessSolidStages - initialSnapshotlessStages;
                 ulong gpuEligibleAttempts = gpuCompletedDelta + gpuFallbackDelta;
                 double gpuEligibleAdoption = gpuEligibleAttempts > 0
                     ? (double)gpuCompletedDelta / gpuEligibleAttempts : 0.0;
@@ -192,16 +195,29 @@ namespace VoxelEngine.Tests.PlayMode
                 Assert.GreaterOrEqual(gpuCompletedDelta, (ulong)MinimumGpuBuildsDuringTraversal,
                     $"Production GPU path completed only {gpuCompletedDelta} chunks during the "
                   + $"210 m traversal; this is not sustained cutover adoption.");
+                Assert.GreaterOrEqual(snapshotlessStageDelta, gpuCompletedDelta,
+                    "Every completed GPU build must have entered compute before CPU exact "
+                  + "metadata/classification and mixed-payload snapshot pinning.");
                 Assert.AreEqual(0ul, gpuFallbackDelta,
                     $"{gpuFallbackDelta} GPU-eligible solid builds fell back to CPU during the "
                   + $"210 m traversal. Implemented GPU paths require 100% adoption; "
-                  + $"completed={gpuCompletedDelta}, eligibleAttempts={gpuEligibleAttempts}.");
+                  + $"completed={gpuCompletedDelta}, eligibleAttempts={gpuEligibleAttempts}, "
+                  + $"context={last.GpuContextFailureSolidBuilds}, "
+                  + $"arena={last.GpuArenaFullSolidBuilds}, "
+                  + $"count={last.GpuCountFailureSolidBuilds}, "
+                  + $"write={last.GpuWriteFailureSolidBuilds}, "
+                  + $"unsupported={last.GpuUnsupportedSolidBuilds}.");
 
                 frameTimesMs.Sort();
                 double movingP95 = Percentile(frameTimesMs, 0.95);
                 double movingP99 = Percentile(frameTimesMs, 0.99);
                 Assert.Less(movingP95, MaxMovingP95FrameMs,
-                    $"Production GPU traversal p95 regressed to {movingP95:F3} ms.");
+                    $"Production GPU traversal p95 regressed to {movingP95:F3} ms; "
+                  + $"gpuCompleted={gpuCompletedDelta}, gpuFallback={gpuFallbackDelta}, "
+                  + $"countRetries={last.GpuCountFailureSolidBuilds}, "
+                  + $"writeRetries={last.GpuWriteFailureSolidBuilds}, "
+                  + $"arenaWaits={last.GpuArenaFullSolidBuilds}, "
+                  + $"gpuWaitSlices={gpuWaitDelta}.");
                 Assert.Less(movingP99, MaxMovingP99FrameMs,
                     $"Production GPU traversal p99 regressed to {movingP99:F3} ms.");
 

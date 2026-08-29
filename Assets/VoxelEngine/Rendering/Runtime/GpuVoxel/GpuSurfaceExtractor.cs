@@ -43,14 +43,16 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
     {
         public readonly int VertexCount;
         public readonly int IndexCount;
+        public readonly bool Unsupported;
 
-        public GpuExtractionCounts(int vertexCount, int indexCount)
+        public GpuExtractionCounts(int vertexCount, int indexCount, bool unsupported = false)
         {
             VertexCount = vertexCount;
             IndexCount = indexCount;
+            Unsupported = unsupported;
         }
 
-        public bool IsEmpty => VertexCount == 0 || IndexCount == 0;
+        public bool IsEmpty => !Unsupported && (VertexCount == 0 || IndexCount == 0);
     }
 
     /// <summary>What one chunk's extraction produced.</summary>
@@ -461,7 +463,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             DispatchCount(mirror, tables, request);
             CounterReadbacks++;
             _counters.GetData(_counterStaging);
-            return new GpuExtractionCounts((int)_counterStaging[2], (int)_counterStaging[3]);
+            return new GpuExtractionCounts((int)_counterStaging[2], (int)_counterStaging[3],
+                                           _counterStaging[0] != 0u);
         }
 
         /// <summary>
@@ -763,7 +766,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             counts = default;
             GpuCounterPoll poll = PollCounters();
             if (poll != GpuCounterPoll.Ready) return poll;
-            counts = new GpuExtractionCounts((int)_counterStaging[2], (int)_counterStaging[3]);
+            counts = new GpuExtractionCounts((int)_counterStaging[2], (int)_counterStaging[3],
+                                             _counterStaging[0] != 0u);
             return GpuCounterPoll.Ready;
         }
 

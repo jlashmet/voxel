@@ -150,7 +150,19 @@ void ClassifyRawBrick(int brickIndex)
 {
     if (_Counters[0] != 0u) return;
 
-    uint entry = _BrickCache[brickIndex];
+    uint entry = 0u;
+    if (_BrickCache[0] == PERSISTENT_LOOKUP_MAGIC)
+    {
+        int x = brickIndex % _BrickCacheEdge;
+        int yz = brickIndex / _BrickCacheEdge;
+        int y = yz % _BrickCacheEdge;
+        int z = yz / _BrickCacheEdge;
+        if (!TryPersistentBrickEntry(_BrickCacheOrigin + int3(x, y, z), entry)) return;
+    }
+    else
+    {
+        entry = _BrickCache[brickIndex];
+    }
     uint kind = entry & 0x3u;
     if (kind == 0u) return;
 

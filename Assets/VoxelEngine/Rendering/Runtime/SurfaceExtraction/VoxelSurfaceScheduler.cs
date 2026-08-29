@@ -5,6 +5,7 @@ using Unity.Jobs;
 using Unity.Mathematics;
 using Unity.Profiling;
 using UnityEngine;
+using VoxelEngine.Rendering.Runtime.GpuVoxel;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Tiering.Api;
 
@@ -32,6 +33,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public readonly int GpuResidentBackends;
         public readonly ulong GpuCompletedSolidBuilds;
         public readonly ulong GpuFallbackSolidBuilds;
+        public readonly ulong GpuUnsupportedSolidBuilds;
+        public readonly ulong GpuContextFailureSolidBuilds;
+        public readonly ulong GpuArenaFullSolidBuilds;
+        public readonly ulong GpuCountFailureSolidBuilds;
+        public readonly ulong GpuWriteFailureSolidBuilds;
+        public readonly ulong GpuSnapshotlessSolidStages;
         public readonly ulong GpuReadbackWaitSlices;
         public readonly VoxelTimingSummary GpuBuildLatencyTiming;
         public readonly ulong CompletedWaterBuilds;
@@ -141,6 +148,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             GpuResidentBackends = solids.GpuBackendResident ? 1 : 0;
             GpuCompletedSolidBuilds = solids.GpuCompletedBuildCount;
             GpuFallbackSolidBuilds = solids.GpuFallbackBuildCount;
+            GpuUnsupportedSolidBuilds = solids.GpuUnsupportedBuildCount;
+            GpuContextFailureSolidBuilds = solids.GpuContextFailureBuildCount;
+            GpuArenaFullSolidBuilds = solids.GpuArenaFullBuildCount;
+            GpuCountFailureSolidBuilds = solids.GpuCountFailureBuildCount;
+            GpuWriteFailureSolidBuilds = solids.GpuWriteFailureBuildCount;
+            GpuSnapshotlessSolidStages = solids.GpuSnapshotlessStageCount;
             GpuReadbackWaitSlices = solids.GpuReadbackWaitSlices;
             GpuBuildLatencyTiming = solids.GpuBuildLatencyTiming;
             CompletedWaterBuilds = water.CompletedBuildCount;
@@ -277,7 +290,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             ulong coatingInvalidations = 0, profileInvalidations = 0;
             long pendingUploadBytes = 0;
             ulong completed = 0, stale = 0, uploadedBytes = water.UploadedGeometryBytes;
-            ulong gpuCompleted = 0, gpuFallback = 0;
+            ulong gpuCompleted = 0, gpuFallback = 0, gpuUnsupported = 0;
+            ulong gpuContextFailure = 0, gpuArenaFull = 0;
+            ulong gpuCountFailure = 0, gpuWriteFailure = 0;
+            ulong gpuSnapshotlessStages = 0;
             bool gpuAvailable = false;
             int gpuResidentBackends = 0;
             ulong gpuWaitSlices = 0;
@@ -333,6 +349,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 if (worker.GpuBackendResident) gpuResidentBackends++;
                 gpuCompleted += worker.GpuCompletedBuildCount;
                 gpuFallback += worker.GpuFallbackBuildCount;
+                gpuUnsupported += worker.GpuUnsupportedBuildCount;
+                gpuContextFailure += worker.GpuContextFailureBuildCount;
+                gpuArenaFull += worker.GpuArenaFullBuildCount;
+                gpuCountFailure += worker.GpuCountFailureBuildCount;
+                gpuWriteFailure += worker.GpuWriteFailureBuildCount;
+                gpuSnapshotlessStages += worker.GpuSnapshotlessStageCount;
                 gpuWaitSlices += worker.GpuReadbackWaitSlices;
                 gpuBuildLatency = VoxelTimingSummary.WorstOf(gpuBuildLatency, worker.GpuBuildLatencyTiming);
                 uploadedBytes += worker.UploadedGeometryBytes;
@@ -400,6 +422,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             GpuResidentBackends = gpuResidentBackends;
             GpuCompletedSolidBuilds = gpuCompleted;
             GpuFallbackSolidBuilds = gpuFallback;
+            GpuUnsupportedSolidBuilds = gpuUnsupported;
+            GpuContextFailureSolidBuilds = gpuContextFailure;
+            GpuArenaFullSolidBuilds = gpuArenaFull;
+            GpuCountFailureSolidBuilds = gpuCountFailure;
+            GpuWriteFailureSolidBuilds = gpuWriteFailure;
+            GpuSnapshotlessSolidStages = gpuSnapshotlessStages;
             GpuReadbackWaitSlices = gpuWaitSlices;
             GpuBuildLatencyTiming = gpuBuildLatency;
             UploadedGeometryBytes = uploadedBytes;
@@ -1276,7 +1304,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
             CollectVisibility(camera, voxelSize, frame);
 
+            double budgetScale = CurrentBudgetScale;
             double workersStart = Time.realtimeSinceStartupAsDouble;
+            GpuSurfaceMirrorCoordinator.PrepareFrame(
+                storage, journal, frame,
+                Math.Max(0.0, SolidBuildBudgetMs * budgetScale * 0.5),
+                GpuSurfaceMirrorCoordinator.DefaultUploadBudgetBytes);
             float ringCap = Math.Max(0f, MaxVoxelRingRadiusMetres);
             for (int r = 0; r < _rings.Length; r++)
             {
@@ -1302,7 +1335,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 }
             }
 
-            double budgetScale = CurrentBudgetScale;
             double solidDeadline = workersStart
                                  + Math.Max(0.0, SolidBuildBudgetMs * budgetScale) * 0.001;
             int admittedWorkers = 0;

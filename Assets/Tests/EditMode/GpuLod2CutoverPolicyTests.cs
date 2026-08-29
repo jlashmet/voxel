@@ -2,6 +2,7 @@ using System.IO;
 using NUnit.Framework;
 using Unity.Mathematics;
 using UnityEngine;
+using VoxelEngine.Rendering.Runtime.GpuVoxel;
 using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 
 namespace VoxelEngine.Tests.EditMode
@@ -52,6 +53,17 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("UnsupportedGpuSurface", mesher,
                 "Unsupported/decorated semantics must be rejected before GPU geometry publication.");
             StringAssert.Contains("SampleField(p, _SourceStep, material, surface, boundary)", mesher);
+        }
+
+        [Test]
+        public void UnsupportedGpuClassificationCannotBeMistakenForAnEmptyChunk()
+        {
+            var counts = new GpuExtractionCounts(0, 0, unsupported: true);
+
+            Assert.True(counts.Unsupported);
+            Assert.False(counts.IsEmpty,
+                "An unsupported decorated/faceted chunk must take the CPU fidelity path; "
+              + "publishing it as empty would create a visible hole.");
         }
 
         [Test]

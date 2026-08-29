@@ -351,6 +351,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             public bool HasOwnedSolid;
             public bool RequiresContinuousTopology;
             public bool GpuEligible;
+            public bool GpuCpuSnapshotRequired;
             public int GpuTransitionFaceMask;
             public float VoxelSize;
             public bool UsedFeaturePreservingFallback;
@@ -983,6 +984,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public bool GpuBackendResident => _gpuExtraction != null;
         public ulong GpuCompletedBuildCount { get; private set; }
         public ulong GpuFallbackBuildCount { get; private set; }
+        public ulong GpuUnsupportedBuildCount { get; private set; }
+        public ulong GpuContextFailureBuildCount { get; private set; }
+        public ulong GpuArenaFullBuildCount { get; private set; }
+        public ulong GpuCountFailureBuildCount { get; private set; }
+        public ulong GpuWriteFailureBuildCount { get; private set; }
+        public ulong GpuSnapshotlessStageCount { get; private set; }
         /// <summary>
         /// Worker slices that did nothing but observe an unfinished GPU readback.
         ///
@@ -1307,6 +1314,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             // generation marks the build for discard, but the frame path never completes an
             // unfinished job: it waits for IsCompleted, then drains leases under the deadline.
             if (_build.Active && !_build.SnapshotTaken
+                && !_gpuStagePending
                 && _desiredVersions.TryGetValue(_build.Coordinate, out ulong slicedDesired)
                 && slicedDesired > _build.SourceVersion)
                 _discardBuildAfterPinRelease = true;
@@ -1411,15 +1419,58 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                         break;
                     }
 
+                    if (poll == GpuSurfaceExtractor.GpuCounterPoll.Ready
+                        && counts.Unsupported)
+                    {
+                        _gpuExtraction.Release();
+                        _gpuStagePending = false;
+                        GpuUnsupportedBuildCount++;
+                        _build.GpuEligible = false;
+                        _build.GpuCpuSnapshotRequired = true;
+                        _build.SnapshotTaken = false;
+                        _build.Phase = 0;
+                        continue;
+                    }
+
+                    if (poll == GpuSurfaceExtractor.GpuCounterPoll.Ready && counts.IsEmpty)
+                    {
+                        _gpuExtraction.Release();
+                        _gpuStagePending = false;
+                        _build.SnapshotTaken = true;
+                        _vertices.Clear();
+                        _indices.Clear();
+                        _build.Phase = 11;
+                        continue;
+                    }
+
                     SurfaceGeometryArena arena = GetGeometryArena();
-                    if (poll == GpuSurfaceExtractor.GpuCounterPoll.Ready && !counts.IsEmpty
-                        && arena.TryAcquire(counts.VertexCount, counts.IndexCount,
-                                            out SurfaceGeometryLease lease))
+                    if (poll == GpuSurfaceExtractor.GpuCounterPoll.Failed)
+                    {
+                        // Async counter collection can fail transiently on Metal under several
+                        // concurrent compute workers. The staged mirror footprint is still
+                        // immutable, so retry compute instead of rebuilding a CPU snapshot.
+                        GpuCountFailureBuildCount++;
+                        _gpuExtraction.RetryCount();
+                        GpuReadbackWaitSlices++;
+                        break;
+                    }
+
+                    if (!arena.TryAcquire(counts.VertexCount, counts.IndexCount,
+                                          out SurfaceGeometryLease lease))
+                    {
+                        // The previously published lease stays visible. Let ordinary arena
+                        // retirement create capacity and retry reservation on a later slice.
+                        GpuArenaFullBuildCount++;
+                        break;
+                    }
+
+                    if (poll == GpuSurfaceExtractor.GpuCounterPoll.Ready && !counts.IsEmpty)
                     {
                         // The staging lease is invisible to the draw path until its args record is
                         // written in phase 10, so the previously published geometry stays live.
                         _gpuStageLease = lease;
                         _gpuStageCounts = counts;
+                        _build.SnapshotTaken = true;
                         _gpuExtraction.BeginWriteRange(
                             arena.Vertices, arena.Indices,
                             lease.VertexStart, lease.VertexCapacity,
@@ -1427,15 +1478,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                         _build.Phase = 10;
                         continue;
                     }
-
-                    // Empty counts, a lost readback, or a full arena: this chunk still has to be
-                    // meshed, so hand it to the CPU chain rather than publishing nothing.
-                    _gpuExtraction.Release();
-                    _gpuStagePending = false;
-                    GpuFallbackBuildCount++;
-                    ScheduleContinuousDensityExtraction(voxelSize);
-                    _build.Phase = 1;
-                    continue;
                 }
 
                 if (_build.Phase == 10)
@@ -1449,10 +1491,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     }
 
                     SurfaceGeometryArena arena = GetGeometryArena();
-                    _gpuExtraction.Release();
-                    _gpuStagePending = false;
                     if (poll == GpuSurfaceExtractor.GpuCounterPoll.Ready)
                     {
+                        _gpuExtraction.Release();
+                        _gpuStagePending = false;
                         arena.UploadArgs((uint)gpuIndexCount, in _gpuStageLease);
                         _gpuBuild = new GpuSurfaceArenaBuild(
                             GpuSurfaceArenaBuildStatus.Ready, in _gpuStageLease,
@@ -1465,9 +1507,17 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
                     arena.Release(in _gpuStageLease);
                     _gpuStageLease = default;
-                    GpuFallbackBuildCount++;
-                    ScheduleContinuousDensityExtraction(voxelSize);
-                    _build.Phase = 1;
+                    GpuWriteFailureBuildCount++;
+                    _gpuExtraction.RetryCount();
+                    _build.Phase = 9;
+                    GpuReadbackWaitSlices++;
+                    break;
+                }
+
+                if (_build.Phase == 11)
+                {
+                    if (!StepReleasePinnedSnapshotBlocks(deadline)) break;
+                    FinishBuild(frame);
                     continue;
                 }
 
@@ -2390,6 +2440,44 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                                         chunkOriginVoxel.z >> VoxelReadGrid.BlockEdgeLog2);
             int3 cacheOrigin = chunkBrickOrigin - BrickCachePadding;
 
+            // The production GPU path classifies this exact world footprint from the persistent
+            // mirror. Do not build or pin a duplicate CPU voxel snapshot merely to decide whether
+            // compute can handle it. If compute reports unsupported semantics, phase 9 sets
+            // GpuCpuSnapshotRequired and this same build returns here for the proven CPU path.
+            if (!_build.GpuCpuSnapshotRequired
+                && SupportsGpuSurfaceStep(SourceStep)
+                && _gpuCutoverConfigured && !_gpuExtractionUnavailable
+                && _buildProfileBlocks.Length == 0)
+            {
+                GpuSurfaceExtractionContext gpu = EnsureGpuExtraction();
+                if (gpu != null)
+                {
+                    gpu.SetCatalogues(
+                        _buildSurfaceCatalogue, _buildCoatingCatalogue, _buildPalette);
+                    var request = new GpuChunkExtraction(
+                        chunkOriginVoxel, cacheOrigin, SourceStep, voxelSize,
+                        transitionFaceMask: _build.GpuTransitionFaceMask);
+                    _build.GpuEligible = true;
+                    GpuStageOutcome stage = gpu.TryBeginStage(
+                        _densityBricks,
+                        default, default, default,
+                        request, _build.SourceVersion);
+                    if (stage == GpuStageOutcome.Staged)
+                    {
+                        GpuSnapshotlessStageCount++;
+                        _gpuStagePending = true;
+                        AccumulateSnapshotSlice(sliceStart, completed: true);
+                        return true;
+                    }
+                }
+
+                // Device/context creation failure remains a real eligible fallback. Build the CPU
+                // snapshot once rather than retrying allocation for every worker slice.
+                _build.GpuCpuSnapshotRequired = true;
+                GpuContextFailureBuildCount++;
+                GpuFallbackBuildCount++;
+            }
+
             if (!_exactMetadataReady)
             {
                 if (!_exactMetadataJobScheduled)
@@ -2582,7 +2670,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             if (!_build.HasOwnedSolid && _buildProfileBlocks.Length == 0)
                 return true;
 
-            if (_build.GpuEligible)
+            if (_build.GpuEligible && !_build.GpuCpuSnapshotRequired)
             {
                 GpuSurfaceExtractionContext gpu = EnsureGpuExtraction();
                 if (gpu != null)
@@ -2606,6 +2694,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                         return true;
                     }
                 }
+                GpuContextFailureBuildCount++;
                 GpuFallbackBuildCount++;
             }
 

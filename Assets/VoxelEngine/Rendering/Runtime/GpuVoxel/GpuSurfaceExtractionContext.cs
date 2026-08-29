@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
@@ -40,12 +41,18 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private ulong _uploadedCoatingHash;
         private bool _disposed;
         private bool _sharedExtractionActive;
+        // Blocking parity/oracle tests can still stage an explicit dense snapshot without a
+        // VoxelRenderBridge world. Production uses only the persistent shared-world path below.
+        private readonly List<int3> _legacyPinnedBricks = new();
 
         private GpuChunkExtraction _staged;
         private GpuExtractionCounts _stagedCounts;
         private bool _hasStaged;
         private bool _stageAdmissionPending;
         private ulong _stageStorageGeneration;
+        private bool _coverageRequested;
+        private uint _coverageEpoch;
+        private int _lastCoveragePollFrame = -1;
         private int _writeVertexCapacity;
         private int _writeIndexCapacity;
 
@@ -58,6 +65,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         public ulong ChunksWritten { get; private set; }
         public ulong ChunksRefusedNoSlot { get; private set; }
         public ulong ChunksEmpty { get; private set; }
+        public ulong ChunksUnsupported { get; private set; }
         public ulong ChunksOverflowed { get; private set; }
         public long MirrorCommittedBytes => _mirror.CommittedBytes;
 
@@ -133,12 +141,18 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                                           ulong generation)
         {
             Release();
-            if (!TryCaptureStorageGeneration(out ulong storageGeneration)
-                || !BeginPersistentStage(request, storageGeneration))
+            if (!TryPinLegacySnapshot(bricks, mixedVoxels, mixedSurfaceSemantics,
+                                      mixedBoundarySamples, request, generation))
                 return GpuStageOutcome.NoSlot;
 
             _stagedCounts = _extractor.Count(_mirror, _tables, request);
             ChunksStaged++;
+            if (_stagedCounts.Unsupported)
+            {
+                Release();
+                ChunksUnsupported++;
+                return GpuStageOutcome.NoSlot;
+            }
             if (_stagedCounts.IsEmpty)
             {
                 Release();
@@ -146,6 +160,72 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 return GpuStageOutcome.Empty;
             }
             return GpuStageOutcome.Staged;
+        }
+
+        private bool TryPinLegacySnapshot(
+            NativeArray<TransvoxelDensityBrick> bricks,
+            NativeArray<byte> mixedVoxels,
+            NativeArray<ushort> mixedSurfaceSemantics,
+            NativeArray<byte> mixedBoundarySamples,
+            in GpuChunkExtraction request,
+            ulong generation)
+        {
+            ThrowIfDisposed();
+            int expected = _brickCacheEdge * _brickCacheEdge * _brickCacheEdge;
+            if (bricks.Length < expected)
+                throw new ArgumentException(
+                    $"Brick snapshot holds {bricks.Length} entries; the GPU cache spans {expected}.",
+                    nameof(bricks));
+
+            _extractor.ClearBrickCache();
+            for (int z = 0; z < _brickCacheEdge; z++)
+            for (int y = 0; y < _brickCacheEdge; y++)
+            for (int x = 0; x < _brickCacheEdge; x++)
+            {
+                int3 local = new(x, y, z);
+                TransvoxelDensityBrick brick =
+                    bricks[x + _brickCacheEdge * (y + _brickCacheEdge * z)];
+                int3 coordinate = request.BrickCacheOrigin + local;
+                if (brick.Kind != 2)
+                {
+                    VoxelBrickContent content = brick.Kind == 1
+                        ? VoxelBrickContent.Uniform : VoxelBrickContent.Empty;
+                    _extractor.SetBrickCacheEntry(local,
+                        GpuSurfaceExtractor.PackBrickCacheEntry(
+                            content, brick.UniformMaterial, -1));
+                    continue;
+                }
+
+                GpuBrickPublish published = _mirror.Publish(
+                    VoxelBrickDelta.MixedAt(coordinate, generation, brick.MixedOffset),
+                    mixedVoxels, mixedSurfaceSemantics, mixedBoundarySamples,
+                    brick.MixedOffset, hasPayload: true);
+                if (published is GpuBrickPublish.NoSlot or GpuBrickPublish.PayloadMissing
+                    || !_mirror.TryGetSlot(coordinate, out int slot)
+                    || !_mirror.Pin(coordinate))
+                {
+                    ReleaseLegacyPins();
+                    ChunksRefusedNoSlot++;
+                    return false;
+                }
+
+                _legacyPinnedBricks.Add(coordinate);
+                _extractor.SetBrickCacheEntry(local,
+                    GpuSurfaceExtractor.PackBrickCacheEntry(
+                        VoxelBrickContent.Mixed, 0, slot));
+            }
+
+            _mirror.FlushPendingUploads();
+            _staged = request;
+            _hasStaged = true;
+            return true;
+        }
+
+        private void ReleaseLegacyPins()
+        {
+            for (int i = 0; i < _legacyPinnedBricks.Count; i++)
+                _mirror.Unpin(_legacyPinnedBricks[i]);
+            _legacyPinnedBricks.Clear();
         }
 
         internal GpuStageOutcome TryBeginStage(NativeArray<TransvoxelDensityBrick> bricks,
@@ -170,6 +250,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             // than silently sampling newer world data under an older renderer generation.
             _staged = request;
             _stageAdmissionPending = true;
+            _coverageRequested = false;
+            _lastCoveragePollFrame = -1;
             TryAdmitPendingStage();
 
             // Mirror recovery is deliberately bounded. Not-ready this frame is backpressure, not
@@ -201,27 +283,38 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         {
             ThrowIfDisposed();
 
-            if (!GpuSurfaceMirrorCoordinator.PrepareFromBridge(generation)
-                || !GpuSurfaceMirrorCoordinator.Covers(
-                    request.BrickCacheOrigin, _brickCacheEdge, generation))
+            if (!GpuSurfaceMirrorCoordinator.PrepareFromBridge(generation))
             {
                 ChunksRefusedNoSlot++;
                 return false;
             }
+            uint epoch = GpuSurfaceMirrorCoordinator.CoverageEpoch;
+            if (!_coverageRequested || _coverageEpoch != epoch)
+            {
+                GpuSurfaceMirrorCoordinator.RequestCoverage(
+                    request.BrickCacheOrigin, _brickCacheEdge);
+                _coverageRequested = true;
+                _coverageEpoch = epoch;
+            }
+            if (_lastCoveragePollFrame == Time.frameCount) return false;
+            _lastCoveragePollFrame = Time.frameCount;
+            if (!GpuSurfaceMirrorCoordinator.Covers(
+                    request.BrickCacheOrigin, _brickCacheEdge, generation))
+                return false;
 
             ConfigurePersistentLookupHeader();
             _staged = request;
             _hasStaged = true;
-            GpuSurfaceMirrorCoordinator.BeginExtraction();
+            GpuSurfaceMirrorCoordinator.BeginExtraction(
+                request.BrickCacheOrigin, _brickCacheEdge);
             _sharedExtractionActive = true;
             return true;
         }
 
         private void ConfigurePersistentLookupHeader()
         {
-            // Low two bits stay zero so the legacy raw-brick classifier treats the three header
-            // words as empty entries. CPU exact-snapshot classification still guards unsupported
-            // semantics; density/material reads use the persistent directory on GPU.
+            // Density sampling and raw semantic classification both resolve this footprint through
+            // the persistent world-coordinate directory.
             _extractor.ClearBrickCache();
             uint magic = GpuVoxelBrickMirror.PersistentLookupMagic & ~3u;
             _extractor.SetBrickCacheEntry(new int3(0, 0, 0), magic);
@@ -249,20 +342,37 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
             GpuSurfaceExtractor.GpuCounterPoll poll = _extractor.TryCompleteCount(out counts);
             if (poll == GpuSurfaceExtractor.GpuCounterPoll.Pending) return poll;
-            if (poll == GpuSurfaceExtractor.GpuCounterPoll.Failed)
-            {
-                Release();
-                return poll;
-            }
+            // A failed asynchronous bookkeeping readback does not invalidate the immutable
+            // staged mirror footprint. The worker can re-dispatch count through RetryCount.
+            if (poll == GpuSurfaceExtractor.GpuCounterPoll.Failed) return poll;
 
             _stagedCounts = counts;
             ChunksStaged++;
+            if (counts.Unsupported)
+            {
+                Release();
+                ChunksUnsupported++;
+                return poll;
+            }
             if (counts.IsEmpty)
             {
                 Release();
                 ChunksEmpty++;
             }
             return poll;
+        }
+
+        /// <summary>
+        /// Re-dispatches count for the same immutable staged footprint after a transient Metal
+        /// counter-readback or count/write agreement failure. Region readers remain registered, so
+        /// journal recovery cannot mutate the sampled mirror between attempts.
+        /// </summary>
+        internal void RetryCount()
+        {
+            ThrowIfDisposed();
+            if (!_hasStaged) throw new InvalidOperationException("No GPU chunk is staged.");
+            _extractor.CancelPendingCounters();
+            _extractor.BeginCount(_mirror, _tables, _staged);
         }
 
         public void BeginWriteRange(ComputeBuffer vertices, ComputeBuffer indices,
@@ -328,15 +438,21 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         public void Release()
         {
-            if (!_hasStaged && !_sharedExtractionActive && !_stageAdmissionPending) return;
+            if (!_hasStaged && !_sharedExtractionActive && !_stageAdmissionPending
+                && _legacyPinnedBricks.Count == 0)
+                return;
             _stageAdmissionPending = false;
             _stageStorageGeneration = 0;
+            _coverageRequested = false;
+            _lastCoveragePollFrame = -1;
             _hasStaged = false;
             _extractor.CancelPendingCounters();
+            ReleaseLegacyPins();
             if (_sharedExtractionActive)
             {
                 _sharedExtractionActive = false;
-                GpuSurfaceMirrorCoordinator.EndExtraction();
+                GpuSurfaceMirrorCoordinator.EndExtraction(
+                    _staged.BrickCacheOrigin, _brickCacheEdge);
             }
         }
 

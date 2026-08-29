@@ -253,6 +253,65 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             return GpuBrickPublish.Uploaded;
         }
 
+        /// <summary>
+        /// Publishes one block directly from Storage's borrowed region view. Initial mirror recovery
+        /// uses this boundary so it performs one region lookup and no per-block COW pin/unpin cycle.
+        /// The caller must validate the view's generation after the bounded recovery slice before
+        /// marking its region ready.
+        /// </summary>
+        public GpuBrickPublish Publish(in VoxelBrickDelta delta, in RegionReadView region,
+                                       int3 localBlock)
+        {
+            ThrowIfDisposed();
+
+            GpuBrickAdmission admission = _slots.TryAdmit(in delta, out int slot);
+            switch (admission)
+            {
+                case GpuBrickAdmission.Stale:
+                    return GpuBrickPublish.Stale;
+                case GpuBrickAdmission.Full:
+                    return GpuBrickPublish.NoSlot;
+                case GpuBrickAdmission.NoPayload:
+                    if (delta.Content == VoxelBrickContent.Empty)
+                    {
+                        RemoveLookup(delta.Coordinate);
+                        return GpuBrickPublish.MetadataOnly;
+                    }
+                    if (!PublishLookup(delta, -1)) return GpuBrickPublish.NoSlot;
+                    return GpuBrickPublish.MetadataOnly;
+                case GpuBrickAdmission.Resident:
+                    if (!_slots.TryGetSlot(delta.Coordinate, out slot)
+                        || !PublishLookup(delta, slot))
+                        return GpuBrickPublish.NoSlot;
+                    SkippedAlreadyResident++;
+                    return GpuBrickPublish.AlreadyResident;
+            }
+
+            NativeArray<byte> materialBytes = _materialStaging.Reinterpret<byte>(sizeof(uint));
+            NativeArray<ushort> surfaceWords =
+                _surfaceStaging.Reinterpret<ushort>(sizeof(uint));
+            NativeArray<byte> boundaryBytes = _boundaryStaging.Reinterpret<byte>(sizeof(uint));
+            int destinationOffset = slot * GpuBrickBufferLayout.VoxelsPerBrick;
+            if (!region.TryCopyMixedBlock(localBlock, materialBytes, surfaceWords,
+                                          boundaryBytes, destinationOffset))
+            {
+                _slots.Release(delta.Coordinate);
+                RemoveLookup(delta.Coordinate);
+                return GpuBrickPublish.PayloadMissing;
+            }
+
+            WriteMetadata(delta, slot);
+            if (!PublishLookup(delta, slot))
+            {
+                _slots.Release(delta.Coordinate);
+                return GpuBrickPublish.NoSlot;
+            }
+
+            UploadedBricks++;
+            UploadedBytes += (ulong)GpuBrickBufferLayout.BytesPerMixedBrick;
+            return GpuBrickPublish.Uploaded;
+        }
+
         public void Remove(int3 coordinate)
         {
             ThrowIfDisposed();
@@ -372,7 +431,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             return buffer;
         }
 
-        private void FlushPendingUploads()
+        internal void FlushPendingUploads()
         {
             FlushPayloadSlots();
             FlushDirectoryDeltas();
