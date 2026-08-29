@@ -36,8 +36,8 @@
 - [ ] Record final post-fix runtime blade/chunk/leakage/FPS evidence and compare with baseline; explicitly document any unavailable CPU-ms/GPU-ms/memory/build-time dimensions rather than inventing values.
 
 ## Final exact-SHA validation / visual gate
-- [ ] Refresh and merge current `origin/master` into `fixes/agent-5` before final CI; stop on conflicts outside assigned work.
-- [ ] Confirm feature-only diff has no unrelated capture/workflow and no `.github/test-request.json` change.
+- [x] Refresh current `origin/master` before final CI; current master `521ba9c1fc5531f299f09595316dff03af01df57` is the feature merge base (`behind_by=0`), so no merge commit is required.
+- [x] Confirm feature-only diff has no unrelated capture/workflow and no `.github/test-request.json` change.
 - [ ] Create exactly one fresh final request on `ci-test/fixes/agent-5`, based directly on exact feature SHA, targeting `ProceduralGrassWindTests.Draw_PublishesAdvancingWindClockWithoutRebuildingPackedGrass` plus this issue's 60-second replay.
 - [ ] Leave queued/running CI untouched; inspect logs/artifact after completion. Retry only once if the failure is infrastructure, per workflow rules.
 - [ ] Built player reaches usable `KentridgePlayableSlice` without startup/runtime exceptions.
