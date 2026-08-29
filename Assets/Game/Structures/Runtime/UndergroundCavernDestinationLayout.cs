@@ -11,9 +11,6 @@ namespace Game.Structures.Runtime
     /// </summary>
     public static class UndergroundCavernDestinationLayout
     {
-        private const int StatueFrontClearance = 8;
-        private const int StatueSideInset = 12;
-
         public static int3 ResolveRuinApproach(
             in DecorationBounds cavern,
             in DecorationBounds ruin,
@@ -39,31 +36,6 @@ namespace Game.Structures.Runtime
                 approach = cavernCentre;
             approach.y = ruin.Min.y;
             return approach;
-        }
-
-        public static int3 ResolveFlankingStatueCentre(
-            in DecorationBounds ruin,
-            Facing facing,
-            int sideSign)
-        {
-            if (!ruin.IsWellFormed)
-                throw new ArgumentException("Statue placement requires valid ruin bounds.");
-            if (sideSign != -1 && sideSign != 1)
-                throw new ArgumentOutOfRangeException(nameof(sideSign), "Statue side sign must be -1 or +1.");
-
-            int3 forward = FacingVector(facing);
-            int3 side = new int3(-forward.z, 0, forward.x);
-            int3 centre = CentreOf(in ruin);
-            bool alongX = math.abs(forward.x) == 1;
-            int forwardSize = alongX ? ruin.Size.x : ruin.Size.z;
-            int sideSize = alongX ? ruin.Size.z : ruin.Size.x;
-            int sideOffset = math.max(16, sideSize / 2 - StatueSideInset);
-
-            int3 statue = centre
-                - forward * (forwardSize / 2 + StatueFrontClearance)
-                + side * sideOffset * sideSign;
-            statue.y = ruin.Min.y;
-            return statue;
         }
 
         public static bool IsRuinAtFarEnd(
