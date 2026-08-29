@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.IO;
 using System.Reflection;
+using Unity.Mathematics;
 using UnityEngine;
 
 namespace VoxelEngine.Showcase
@@ -80,6 +81,10 @@ namespace VoxelEngine.Showcase
         {
             internal string ScreenshotDirectory;
             private bool _started;
+            private bool _pinCamera;
+            private Transform _cameraTransform;
+            private Vector3 _pinnedPosition;
+            private Quaternion _pinnedRotation;
 
             private void Update()
             {
@@ -92,15 +97,19 @@ namespace VoxelEngine.Showcase
                 StartCoroutine(Capture(showcase));
             }
 
+            private void LateUpdate()
+            {
+                if (!_pinCamera || _cameraTransform == null) return;
+                _cameraTransform.SetPositionAndRotation(_pinnedPosition, _pinnedRotation);
+            }
+
             private IEnumerator Capture(WorldbuildingGalleryShowcase showcase)
             {
                 FieldInfo worldField = typeof(WorldbuildingGalleryShowcase).GetField(
                     "_world", BindingFlags.Instance | BindingFlags.NonPublic);
-                MethodInfo jumpMethod = typeof(WorldbuildingGalleryShowcase).GetMethod(
-                    "JumpToTourStop", BindingFlags.Instance | BindingFlags.NonPublic);
-                if (worldField == null || jumpMethod == null)
+                if (worldField == null)
                 {
-                    Debug.LogError("TOWNARCH_AUDIT result=FAIL reason=gallery-tour-contract-unavailable");
+                    Debug.LogError("TOWNARCH_AUDIT result=FAIL reason=gallery-world-contract-unavailable");
                     yield break;
                 }
 
@@ -130,14 +139,26 @@ namespace VoxelEngine.Showcase
                 int firstTownStop = totalStops - TownAuditViewCount;
                 string auditDirectory = Path.Combine(ScreenshotDirectory, "TownArchitectureAudit");
                 Directory.CreateDirectory(auditDirectory);
+                _cameraTransform = showcase.transform;
 
-                // Give the baked/generated world one presented frame before the first teleport.
+                // Give the baked/generated world one presented frame before the first evidence pose.
                 yield return null;
                 yield return new WaitForEndOfFrame();
 
                 for (int stop = firstTownStop; stop < totalStops; stop++)
                 {
-                    jumpMethod.Invoke(showcase, new object[] { stop });
+                    float3 authoredPosition = world.WorldbuildingGalleryTourSpawnPosition(stop);
+                    float3 authoredTarget = world.WorldbuildingGalleryTourLookTarget(stop);
+                    world.GenerateRegionBlocking(ShowcaseWorld.RegionAt(authoredPosition));
+
+                    _pinnedPosition = new Vector3(authoredPosition.x, authoredPosition.y, authoredPosition.z);
+                    Vector3 target = new Vector3(authoredTarget.x, authoredTarget.y, authoredTarget.z);
+                    Vector3 direction = target - _pinnedPosition;
+                    _pinnedRotation = direction.sqrMagnitude > 1e-6f
+                        ? Quaternion.LookRotation(direction.normalized, Vector3.up)
+                        : _cameraTransform.rotation;
+                    _pinCamera = true;
+
                     yield return null;
                     yield return new WaitForSecondsRealtime(0.85f);
                     yield return new WaitForEndOfFrame();
@@ -147,13 +168,14 @@ namespace VoxelEngine.Showcase
                     string path = Path.Combine(auditDirectory, fileName);
                     ScreenCapture.CaptureScreenshot(path);
                     Debug.Log($"TOWNARCH_AUDIT frame={stop - firstTownStop + 1}/{TownAuditViewCount} " +
-                              $"stop={stop + 1}/{totalStops} name={stopName}");
+                              $"stop={stop + 1}/{totalStops} name={stopName} position={_pinnedPosition}");
 
                     // CaptureScreenshot writes asynchronously; allow the frame to leave the render
                     // pipeline before moving the production camera to the next deterministic view.
                     yield return new WaitForSecondsRealtime(0.35f);
                 }
 
+                _pinCamera = false;
                 yield return new WaitForSecondsRealtime(1f);
                 int captured = Directory.Exists(auditDirectory)
                     ? Directory.GetFiles(auditDirectory, "*.png").Length
