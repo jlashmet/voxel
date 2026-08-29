@@ -14,52 +14,73 @@ namespace VoxelEngine.Tests.PlayMode
     public sealed class KentridgeOpeningProgressionTests
     {
         [Test]
-        public void OpeningProgressionKeepsPubIntroThenAuthorsLoganAwonAndMedrareBeats()
+        public void MedrareBeatsUseRecoveredDialogueAndNarrationVerbatim()
         {
-            KnownOpeningCampaignContent content = BuildContent();
+            CutsceneDefinition firstSpell = KentridgeOpeningProgressionCutscenes.MedrareFirstSpellDefinition;
+            CutsceneDefinition toChurch = KentridgeOpeningProgressionCutscenes.MedrareToChurchDefinition;
 
-            Assert.That(KentridgeOpeningProgressionCutscenes.LoganDefinition.Steps[0].Type, Is.EqualTo(CutsceneStepType.Camera));
-            Assert.That(
-                KentridgeOpeningScript.LineFor(KentridgeOpeningProgressionCutscenes.LoganIntroduction),
-                Is.EqualTo("You can call me Logan."));
-            Assert.That(
-                KentridgeOpeningScript.LineFor(KentridgeOpeningProgressionCutscenes.AwonTournament),
-                Does.Contain("tournament for adventurers"));
-            Assert.That(
-                KentridgeOpeningScript.LineFor(KentridgeOpeningProgressionCutscenes.MedrareRumor),
-                Does.Contain("Logan").And.Contain("Kentridge"));
+            Assert.That(firstSpell.Steps.Count, Is.EqualTo(KentridgeOpeningScript.MedrareFirstSpellLineCount));
+            Assert.That(KentridgeOpeningScript.LineFor(firstSpell.Steps[0].Cue),
+                Is.EqualTo("Haugh!  What are you doing here?"));
+            Assert.That(KentridgeOpeningScript.LineFor(firstSpell.Steps[19].Cue),
+                Is.EqualTo("Ahh.  Don't worry."));
+            Assert.That(firstSpell.Steps[20].Actor.Value, Is.Null.Or.Empty);
+            Assert.That(KentridgeOpeningScript.LineFor(firstSpell.Steps[20].Cue),
+                Is.EqualTo("Weldon makes quick movements with his hands and fire shoots out at the lantern."));
+            Assert.That(KentridgeOpeningScript.LineFor(firstSpell.Steps[22].Cue),
+                Is.EqualTo("Fire spreads across the floor."));
 
-            Assert.That(content.LoganOpeningCutscene.Equals(default(CutsceneRef)), Is.False);
-            Assert.That(content.AwonOpeningCutscene.Equals(default(CutsceneRef)), Is.False);
-            Assert.That(content.MedrareOpeningCutscene.Equals(default(CutsceneRef)), Is.False);
+            Assert.That(toChurch.Steps.Count, Is.EqualTo(KentridgeOpeningScript.MedrareToChurchLineCount));
+            Assert.That(KentridgeOpeningScript.LineFor(toChurch.Steps[0].Cue),
+                Is.EqualTo("Let's take it easy.  I'll meet you outside the church."));
+            Assert.That(KentridgeOpeningScript.LineFor(toChurch.Steps[2].Cue),
+                Is.EqualTo("Hurry up though, we need to talk to your father."));
         }
 
         [Test]
-        public void EnteringAwonAndMedrareDispatchesOnlyTheirOpeningCutscenes()
+        public void AwonAndMedrareCannotRunOutOfOrderAndRemainOneShot()
         {
             KnownOpeningCampaignContent content = BuildContent();
-            var state = new OpenStoryState();
+            var state = new MutableStoryState();
             var sink = new RecordingEffectSink();
 
-            int awonMatches = StoryRuleEngine.Dispatch(
-                content.Blueprint.StoryRules,
-                StoryEvent.SiteEntered(content.AwonSite),
-                state,
-                sink);
+            Assert.That(Dispatch(content, StoryEvent.NpcInteracted(content.Awon), state, sink), Is.EqualTo(0),
+                "Awon must not run before the recovered pub opening completes.");
+            Assert.That(Dispatch(content, StoryEvent.SiteEntered(content.MedrareSite), state, sink), Is.EqualTo(0),
+                "Medrare must not run before Awon completes.");
 
-            Assert.That(awonMatches, Is.EqualTo(1));
+            state.Complete(content.IntroCutscene);
+            Assert.That(Dispatch(content, StoryEvent.SiteEntered(content.MedrareSite), state, sink), Is.EqualTo(0),
+                "Finishing the pub alone must not unlock Medrare.");
+
+            Assert.That(Dispatch(content, StoryEvent.NpcInteracted(content.Awon), state, sink), Is.EqualTo(1));
             CollectionAssert.AreEqual(new[] { content.AwonOpeningCutscene }, sink.Played);
+            state.Complete(content.AwonOpeningCutscene);
 
             sink.Played.Clear();
-            int medrareMatches = StoryRuleEngine.Dispatch(
-                content.Blueprint.StoryRules,
-                StoryEvent.SiteEntered(content.MedrareSite),
-                state,
-                sink);
+            Assert.That(Dispatch(content, StoryEvent.NpcInteracted(content.Awon), state, sink), Is.EqualTo(0),
+                "Awon's source trigger is one-shot.");
+            Assert.That(Dispatch(content, StoryEvent.SiteEntered(content.MedrareSite), state, sink), Is.EqualTo(1));
+            CollectionAssert.AreEqual(new[] { content.MedrareFirstSpellCutscene }, sink.Played);
+            state.Complete(content.MedrareFirstSpellCutscene);
 
-            Assert.That(medrareMatches, Is.EqualTo(1));
-            CollectionAssert.AreEqual(new[] { content.MedrareOpeningCutscene }, sink.Played);
+            sink.Played.Clear();
+            Assert.That(Dispatch(content, StoryEvent.CutsceneCompleted(content.MedrareFirstSpellCutscene), state, sink), Is.EqualTo(1));
+            CollectionAssert.AreEqual(new[] { content.MedrareToChurchCutscene }, sink.Played);
+            state.Complete(content.MedrareToChurchCutscene);
+
+            sink.Played.Clear();
+            Assert.That(Dispatch(content, StoryEvent.SiteEntered(content.MedrareSite), state, sink), Is.EqualTo(0));
+            Assert.That(Dispatch(content, StoryEvent.CutsceneCompleted(content.MedrareFirstSpellCutscene), state, sink), Is.EqualTo(0));
+            Assert.That(sink.Played, Is.Empty, "Revisits must not replay completed opening beats.");
         }
+
+        private static int Dispatch(
+            KnownOpeningCampaignContent content,
+            StoryEvent storyEvent,
+            MutableStoryState state,
+            RecordingEffectSink sink) =>
+            StoryRuleEngine.Dispatch(content.Blueprint.StoryRules, storyEvent, state, sink);
 
         private static KnownOpeningCampaignContent BuildContent()
         {
@@ -70,12 +91,14 @@ namespace VoxelEngine.Tests.PlayMode
             return KnownOpeningCampaignContent.Build(destination);
         }
 
-        private sealed class OpenStoryState : IStoryStateView
+        private sealed class MutableStoryState : IStoryStateView
         {
+            private readonly HashSet<CutsceneRef> _completed = new HashSet<CutsceneRef>();
+            public void Complete(CutsceneRef cutscene) => _completed.Add(cutscene);
             public bool IsObjectiveActive(ObjectiveRef objective) => false;
             public bool IsQuestActive(QuestRef quest) => false;
             public bool IsQuestCompleted(QuestRef quest) => false;
-            public bool IsCutsceneCompleted(CutsceneRef cutscene) => false;
+            public bool IsCutsceneCompleted(CutsceneRef cutscene) => _completed.Contains(cutscene);
         }
 
         private sealed class RecordingEffectSink : IStoryEffectSink
