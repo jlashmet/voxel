@@ -66,8 +66,8 @@ namespace Game.Kentridge.PlayableSlice
             BuildWildlife(world, themes, roadXMetres, fromZMetres, toZMetres, halfWidthMetres, ecology);
 
             Debug.Log($"Kentridge region life: {_trees.Count} trees, {_undergrowth.Count} ground cover, "
-                    + $"{_clusters.Count} wildlife clusters; meadow grass total={GrassCount}, "
-                    + $"primary-contiguous-meadow={PrimaryMeadowGrassCount}.");
+                    + $"{_clusters.Count} wildlife clusters; grass instances total={GrassCount}, "
+                    + $"primary-contiguous-meadow-instances={PrimaryMeadowGrassCount}.");
         }
 
         private void BuildTrees(
@@ -82,6 +82,7 @@ namespace Game.Kentridge.PlayableSlice
                 return;
             }
 
+            uint ecologySeed = ecology.DeriveSeed(world.Seed);
             for (float z = fromZ; z <= toZ && _trees.Count < MaxTrees; z += TreeSampleStepMetres)
             for (float x = roadX - halfWidth;
                  x <= roadX + halfWidth && _trees.Count < MaxTrees;
@@ -89,7 +90,7 @@ namespace Game.Kentridge.PlayableSlice
             {
                 int zDm = Mathf.RoundToInt(z * 10f);
                 RegionThemeProfile profile = themes.ProfileAt(zDm);
-                uint seed = Hash(world.Seed, (uint)Mathf.RoundToInt(x * 10f), (uint)zDm);
+                uint seed = Hash(ecologySeed, (uint)Mathf.RoundToInt(x * 10f), (uint)zDm);
                 float sampleAreaHectares = TreeSampleStepMetres * TreeSampleStepMetres / 10000f;
                 float expected = profile.TreesPerHectare * sampleAreaHectares;
                 if (Random01(seed) > expected) continue;
@@ -165,7 +166,8 @@ namespace Game.Kentridge.PlayableSlice
                 });
             }
 
-            VegetationPlacementSettings settings = VegetationPlacementSettings.Default(world.Seed);
+            VegetationPlacementSettings settings = VegetationPlacementSettings.Default(
+                ecology.DeriveSeed(world.Seed));
             settings.Density = ecology.VegetationDensity;
             settings.MaxGroundSlopeDegrees = ecology.MaxVegetationSlopeDegrees;
             settings.RestrictKinds = true;
@@ -205,6 +207,7 @@ namespace Game.Kentridge.PlayableSlice
                 return;
             }
 
+            uint ecologySeed = ecology.DeriveSeed(world.Seed);
             int maxHabitatSamples = MaxClusters * 3;
             for (float z = fromZ; z <= toZ && _habitats.Count < maxHabitatSamples;
                  z += HabitatSampleStepMetres)
@@ -214,7 +217,7 @@ namespace Game.Kentridge.PlayableSlice
             {
                 int zDm = Mathf.RoundToInt(z * 10f);
                 RegionThemeProfile profile = themes.ProfileAt(zDm);
-                uint seed = Hash(world.Seed, (uint)Mathf.RoundToInt(x * 10f), (uint)zDm ^ 0x99u);
+                uint seed = Hash(ecologySeed, (uint)Mathf.RoundToInt(x * 10f), (uint)zDm ^ 0x99u);
                 if (Random01(seed) * 1000f > profile.WildlifePerMille) continue;
                 if (!TryGround(world, new float3(x, 0f, z), out float3 grounded, out _)) continue;
 
@@ -232,7 +235,7 @@ namespace Game.Kentridge.PlayableSlice
                 });
             }
 
-            AmbientLifePopulationSettings settings = AmbientLifePopulationSettings.Default(world.Seed);
+            AmbientLifePopulationSettings settings = AmbientLifePopulationSettings.Default(ecologySeed);
             AmbientLifePopulation.Generate(_habitats, in settings, _clusters);
             for (int i = _clusters.Count - 1; i >= 0; i--)
                 if (!ecology.AllowsAmbientAnimal(_clusters[i].Kind.ToString())) _clusters.RemoveAt(i);
