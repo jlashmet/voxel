@@ -35,7 +35,7 @@ namespace VoxelEngine.Showcase
         }
 
         /// <summary>Canonical representative residence origin shared by bake probing and evidence framing.</summary>
-        public int2 WorldbuildingGalleryTownResidenceOriginXZ(int districtIndex)
+        public static int2 WorldbuildingGalleryTownResidenceOriginXZ(int districtIndex)
         {
             int i = NormalizeTownDistrictIndex(districtIndex);
             int seedShift = (int)(s_GalleryTownSeeds[i] % 5u) - 2;
@@ -43,7 +43,7 @@ namespace VoxelEngine.Showcase
         }
 
         /// <summary>Canonical landmark origin for a town district, including Rossdam's fortified gatehouse.</summary>
-        public int2 WorldbuildingGalleryTownLandmarkOriginXZ(int districtIndex)
+        public static int2 WorldbuildingGalleryTownLandmarkOriginXZ(int districtIndex)
         {
             int i = NormalizeTownDistrictIndex(districtIndex);
             int seedShift = (int)(s_GalleryTownSeeds[i] % 5u) - 2;
