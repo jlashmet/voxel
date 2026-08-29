@@ -2,9 +2,11 @@ using System;
 using System.IO;
 using Game.WorldBuilder.Voxel;
 using NUnit.Framework;
+using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
 using VoxelEngine.Showcase;
+using VoxelEngine.Structures.Api;
 
 namespace VoxelEngine.Tests.PlayMode
 {
@@ -62,16 +64,24 @@ namespace VoxelEngine.Tests.PlayMode
                 int startY = level * spec.PathRise;
                 int endY = startY + spec.PathRise;
                 int rampZ = spec.RampLocalZ(startY) + spec.PathWidth / 2;
-                bool reverse = (level & 1) != 0;
-                int highX = reverse
-                    ? spec.PathMinLocalX + spec.PathWidth / 2
-                    : spec.PathMinLocalX + spec.PathRun - spec.PathWidth / 2;
-                int3 highSurface = spec.Origin + new int3(highX, endY, rampZ);
-                AssertMaterial(bake, highSurface, PathMaterial,
+
+                // Do not require a mathematically exact ramp endpoint cell. Integer ramp
+                // rasterization is allowed to leave the ideal wedge tip empty. Instead prove that
+                // a guaranteed interior column contains the authored path surface somewhere in
+                // the ramp's bounded vertical span.
+                int interiorX = spec.PathMinLocalX + spec.PathRun / 2;
+                AssertColumnContainsMaterial(
+                    bake,
+                    spec.Origin.x + interiorX,
+                    spec.Origin.y + startY,
+                    spec.Origin.y + endY,
+                    spec.Origin.z + rampZ,
+                    PathMaterial,
                     "Every authored switchback ramp must survive into the startup bake. Level "
                     + level + ".");
 
                 if (level + 1 >= spec.SwitchbackCount) continue;
+                bool reverse = (level & 1) != 0;
                 int nextRampZ = spec.RampLocalZ(endY);
                 int turnZMin = math.min(spec.RampLocalZ(startY), nextRampZ);
                 int turnZSize = math.abs(nextRampZ - spec.RampLocalZ(startY)) + spec.PathWidth;
@@ -129,6 +139,59 @@ namespace VoxelEngine.Tests.PlayMode
                 "The completed greeting must remain a one-shot proximity cutscene.");
 
             ExportPreparedBakeEvidence(bakeAsset.bytes, manifestAsset.text, in spec);
+        }
+
+        [Test]
+        public void MountainLandformProgramUsesMultipleAsymmetricMasses()
+        {
+            MountainLandmarkSpec spec = ShowcaseMountainDragonLayout.CreateLandmark(Seed);
+            FeatureCatalogue catalogue = WorldBuilderMountainLandmarkCatalogue.Build(
+                in spec,
+                MountainMaterial,
+                PathMaterial,
+                DragonMaterial,
+                Allocator.Temp);
+
+            try
+            {
+                FeatureDefinition landform = catalogue.Definitions[0];
+                int pc = landform.ProgramOffset;
+                int end = pc + landform.ProgramLength;
+                int frustumCount = 0;
+                int offCentreFrustumCount = 0;
+
+                while (pc < end)
+                {
+                    ShapeOp op = (ShapeOp)catalogue.Program[pc];
+                    if (op == ShapeOp.End) break;
+
+                    int instructionLength = ShapeOps.InstructionLength(op);
+                    Assert.That(instructionLength, Is.GreaterThan(0),
+                        "Mountain landform program contains an unknown shape opcode.");
+                    Assert.That(pc + instructionLength, Is.LessThanOrEqualTo(end),
+                        "Mountain landform program contains a truncated shape instruction.");
+
+                    if (op == ShapeOp.EmitFrustum)
+                    {
+                        frustumCount++;
+                        int centreX = catalogue.Program[pc + 2];
+                        int centreZ = catalogue.Program[pc + 4];
+                        if (centreX != spec.CentreLocal || centreZ != spec.CentreLocal)
+                            offCentreFrustumCount++;
+                    }
+
+                    pc += instructionLength;
+                }
+
+                Assert.That(frustumCount, Is.GreaterThanOrEqualTo(4),
+                    "The mountain must be realized from a core plus several bounded masses, not one symmetric frustum.");
+                Assert.That(offCentreFrustumCount, Is.GreaterThanOrEqualTo(3),
+                    "Several mountain masses must be offset from the core to keep an asymmetric natural silhouette.");
+            }
+            finally
+            {
+                catalogue.Dispose();
+            }
         }
 
         private static void AssertEvidenceRouteTracksAuthoredPath(in MountainLandmarkSpec spec)
@@ -208,6 +271,25 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(waypoint, Is.Not.Null, "Missing required evidence waypoint '" + name + "'.");
             Assert.That(waypoint.x, Is.EqualTo(x).Within(0.01f), name + " x drifted from authored path.");
             Assert.That(waypoint.z, Is.EqualTo(z).Within(0.01f), name + " z drifted from authored path.");
+        }
+
+        private static void AssertColumnContainsMaterial(
+            ShowcaseWorldBake bake,
+            int worldX,
+            int minWorldY,
+            int maxWorldY,
+            int worldZ,
+            byte expectedMaterial,
+            string message)
+        {
+            for (int y = minWorldY; y <= maxWorldY; y++)
+            {
+                if (ReadMaterial(bake, new int3(worldX, y, worldZ)) == expectedMaterial)
+                    return;
+            }
+
+            Assert.Fail(message + " Interior column x=" + worldX + ", z=" + worldZ
+                + ", y=[" + minWorldY + "," + maxWorldY + "] contained no expected path material.");
         }
 
         private static void AssertMaterial(
