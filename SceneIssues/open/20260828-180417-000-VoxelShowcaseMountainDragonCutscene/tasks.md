@@ -16,6 +16,9 @@
 - [x] Record the final-CI request contract discovered from run `33235920288`: SceneIssue `replay_seconds` must be 20-60; the 110-second request failed during request resolution before Unity or product tests started.
 - [x] Fix feature callsites that still used obsolete `TimedCutsceneDialogueRuntime(displayMilliseconds: ...)`; the shared runtime constructor names this argument `displayDurationMilliseconds`, and run `33236501834` exposed the compile break before bake/player validation.
 - [x] Add `Game.Cutscenes.Api` to the `VoxelEngine.Showcase` SceneRuntime assembly references; run `33236605080` exposed CS0012 at `MountainDragonShowcaseDriver.overlay.Bind(_encounter)` because the shared presentation method exposes `IActiveCutsceneDialogue` from that API assembly.
+- [ ] Correct the startup-bake semantic regression to sample a guaranteed interior ramp surface rather than the exact integer high endpoint; run `33236729056` generated the path and the real player reached path/turn waypoints, while the test sampled air at `int3(-435, 264, -325)`.
+- [ ] Make the issue-owned standalone replay complete within the workflow's mandatory 60-second ceiling using normal CharacterMotor sprint movement only (no teleport/jump/debug trigger); current AutoWalk is fixed at 5.5 m/s and run `33236729056` reached only 4/15 route waypoints.
+- [ ] Redesign the production WorldBuilder mountain silhouette/material so the fresh built-player result reads as a natural substantial mountain rather than the current regular single-frustum/large planar masonry-like slab, while preserving the walkable switchbacks and supported summit.
 - [ ] Validate the checked-in startup bake contains the accepted mountain.
 - [ ] Run exact-SHA built-application VoxelShowcase validation with no startup/runtime exceptions.
 - [ ] Traverse the complete route through normal player movement without jumps/teleportation/impassable intersections.
