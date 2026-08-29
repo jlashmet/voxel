@@ -21,7 +21,6 @@ namespace Game.Kentridge.PlayableSlice
     public sealed class KentridgeRegionLife : MonoBehaviour
     {
         private const float TreeSampleStepMetres = 6f;
-        private const float UndergrowthSampleStepMetres = 1.4f;
         private const float HabitatSampleStepMetres = 20f;
         private const int MaxTrees = 900;
         private const int MaxUndergrowth = 12000;
@@ -30,6 +29,9 @@ namespace Game.Kentridge.PlayableSlice
         private readonly List<TreeInstance> _trees = new();
         private readonly List<VegetationSurfaceSample> _samples = new();
         private readonly List<VegetationInstance> _undergrowth = new();
+        private readonly List<RegionEcologyGridCell> _eligibleMeadowCells = new();
+        private readonly List<RegionEcologyGridCell> _grassMeadowCells = new();
+        private readonly Dictionary<long, RegionEcologyGridCell> _meadowCellByPosition = new();
         private readonly List<AmbientLifeHabitatSample> _habitats = new();
         private readonly List<AmbientLifeCluster> _clusters = new();
 
@@ -65,7 +67,7 @@ namespace Game.Kentridge.PlayableSlice
 
             Debug.Log($"Kentridge region life: {_trees.Count} trees, {_undergrowth.Count} ground cover, "
                     + $"{_clusters.Count} wildlife clusters; meadow grass total={GrassCount}, "
-                    + $"primary-contiguous-side={PrimaryMeadowGrassCount}.");
+                    + $"primary-contiguous-meadow={PrimaryMeadowGrassCount}.");
         }
 
         private void BuildTrees(
@@ -123,15 +125,21 @@ namespace Game.Kentridge.PlayableSlice
             RegionEcologyPolicy ecology)
         {
             _samples.Clear();
+            _eligibleMeadowCells.Clear();
+            _grassMeadowCells.Clear();
+            _meadowCellByPosition.Clear();
+
             float coverHalfWidth = Mathf.Min(halfWidth, 45f);
             float sampleStep = ecology.VegetationSampleSpacingMetres;
             float routeClearance = ecology.RouteClearanceMetres;
+            int xCellCount = Mathf.FloorToInt((coverHalfWidth * 2f) / sampleStep) + 1;
+            int zCellCount = Mathf.FloorToInt(Mathf.Max(0f, toZ - fromZ) / sampleStep) + 1;
 
-            for (float z = fromZ; z <= toZ && _samples.Count < MaxUndergrowth; z += sampleStep)
-            for (float x = roadX - coverHalfWidth;
-                 x <= roadX + coverHalfWidth && _samples.Count < MaxUndergrowth;
-                 x += sampleStep)
+            for (int zCell = 0; zCell < zCellCount && _samples.Count < MaxUndergrowth; zCell++)
+            for (int xCell = 0; xCell < xCellCount && _samples.Count < MaxUndergrowth; xCell++)
             {
+                float z = fromZ + zCell * sampleStep;
+                float x = roadX - coverHalfWidth + xCell * sampleStep;
                 int zDm = Mathf.RoundToInt(z * 10f);
                 RegionThemeProfile profile = themes.ProfileAt(zDm);
                 if (profile.Kind == RegionThemeKind.Riverbank) continue;
@@ -140,6 +148,12 @@ namespace Game.Kentridge.PlayableSlice
                 if (!TryGround(world, new float3(x, 0f, z), out float3 grounded, out float3 normal))
                     continue;
 
+                float slopeDegrees = math.degrees(math.acos(math.clamp(normal.y, -1f, 1f)));
+                if (slopeDegrees > ecology.MaxVegetationSlopeDegrees) continue;
+
+                var cell = new RegionEcologyGridCell(xCell, zCell);
+                _eligibleMeadowCells.Add(cell);
+                _meadowCellByPosition[PositionKey(grounded)] = cell;
                 _samples.Add(new VegetationSurfaceSample
                 {
                     PositionMetres = grounded,
@@ -164,17 +178,18 @@ namespace Game.Kentridge.PlayableSlice
             _vegetationRenderer.SetInstances(_undergrowth);
 
             GrassCount = 0;
-            int leftGrass = 0;
-            int rightGrass = 0;
             for (int i = 0; i < _undergrowth.Count; i++)
             {
                 VegetationInstance instance = _undergrowth[i];
                 if (instance.Kind != VegetationKind.Grass) continue;
                 GrassCount++;
-                if (instance.PositionMetres.x < roadX - routeClearance) leftGrass++;
-                else if (instance.PositionMetres.x > roadX + routeClearance) rightGrass++;
+                if (_meadowCellByPosition.TryGetValue(PositionKey(instance.PositionMetres), out RegionEcologyGridCell cell))
+                    _grassMeadowCells.Add(cell);
             }
-            PrimaryMeadowGrassCount = Math.Max(leftGrass, rightGrass);
+
+            PrimaryMeadowGrassCount = RegionEcologyConnectivity.LargestConnectedOccupiedCount(
+                _eligibleMeadowCells,
+                _grassMeadowCells);
         }
 
         private void BuildWildlife(
@@ -236,6 +251,13 @@ namespace Game.Kentridge.PlayableSlice
                 if (bit >= 0 && bit < 64) mask |= 1UL << bit;
             }
             return mask;
+        }
+
+        private static long PositionKey(float3 position)
+        {
+            int x = Mathf.RoundToInt(position.x * 1000f);
+            int z = Mathf.RoundToInt(position.z * 1000f);
+            return ((long)x << 32) ^ (uint)z;
         }
 
         private static TreeSpecies SpeciesFor(TreeSpeciesSlot slot)

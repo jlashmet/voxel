@@ -72,4 +72,94 @@ namespace MountingForce.WorldGen
             return value >= 1f ? 1f : value;
         }
     }
+
+    /// <summary>
+    /// Stable integer coordinate for one authored ecology sampling cell. Connectivity is defined
+    /// on these eligible cells rather than on stochastic vegetation survivors, so a random missed
+    /// blade cannot incorrectly split one physical meadow into multiple meadows.
+    /// </summary>
+    public readonly struct RegionEcologyGridCell : IEquatable<RegionEcologyGridCell>
+    {
+        public RegionEcologyGridCell(int x, int z)
+        {
+            X = x;
+            Z = z;
+        }
+
+        public int X { get; }
+        public int Z { get; }
+
+        public bool Equals(RegionEcologyGridCell other) => X == other.X && Z == other.Z;
+        public override bool Equals(object obj) => obj is RegionEcologyGridCell other && Equals(other);
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                return (X * 397) ^ Z;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Pure connectivity accounting shared by region realizers and regressions. The returned count
+    /// is the number of occupied cells in the eligible 4-neighbour component that contains the most
+    /// occupied cells.
+    /// </summary>
+    public static class RegionEcologyConnectivity
+    {
+        private static readonly RegionEcologyGridCell[] Neighbours =
+        {
+            new RegionEcologyGridCell(-1, 0),
+            new RegionEcologyGridCell(1, 0),
+            new RegionEcologyGridCell(0, -1),
+            new RegionEcologyGridCell(0, 1),
+        };
+
+        public static int LargestConnectedOccupiedCount(
+            IReadOnlyCollection<RegionEcologyGridCell> eligibleCells,
+            IReadOnlyCollection<RegionEcologyGridCell> occupiedCells)
+        {
+            if (eligibleCells == null || occupiedCells == null
+                || eligibleCells.Count == 0 || occupiedCells.Count == 0)
+                return 0;
+
+            var remaining = new HashSet<RegionEcologyGridCell>(eligibleCells);
+            var occupied = new HashSet<RegionEcologyGridCell>(occupiedCells);
+            var queue = new Queue<RegionEcologyGridCell>();
+            int largest = 0;
+
+            while (remaining.Count > 0)
+            {
+                RegionEcologyGridCell start = default;
+                foreach (RegionEcologyGridCell cell in remaining)
+                {
+                    start = cell;
+                    break;
+                }
+
+                remaining.Remove(start);
+                queue.Enqueue(start);
+                int componentOccupied = 0;
+
+                while (queue.Count > 0)
+                {
+                    RegionEcologyGridCell cell = queue.Dequeue();
+                    if (occupied.Contains(cell)) componentOccupied++;
+
+                    for (int i = 0; i < Neighbours.Length; i++)
+                    {
+                        RegionEcologyGridCell delta = Neighbours[i];
+                        var neighbour = new RegionEcologyGridCell(cell.X + delta.X, cell.Z + delta.Z);
+                        if (!remaining.Remove(neighbour)) continue;
+                        queue.Enqueue(neighbour);
+                    }
+                }
+
+                if (componentOccupied > largest) largest = componentOccupied;
+            }
+
+            return largest;
+        }
+    }
 }
