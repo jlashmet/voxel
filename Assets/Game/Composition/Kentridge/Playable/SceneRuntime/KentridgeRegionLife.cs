@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using MountingForce.WorldGen;
+using MountingForce.WorldGen.Content.Kentridge;
 using Unity.Mathematics;
 using UnityEngine;
 using VoxelEngine.AmbientLife.Api;
@@ -51,6 +52,7 @@ namespace Game.Kentridge.PlayableSlice
             RegionEcologyPolicy ecology = null)
         {
             if (world == null || themes == null) return;
+            ecology ??= KentridgeDefinition.CountrysideEcology;
 
             _vegetationRenderer ??=
                 VegetationLifeRenderingComposition.EnsureVegetationBatchRenderer(gameObject);
@@ -72,7 +74,7 @@ namespace Game.Kentridge.PlayableSlice
             RegionEcologyPolicy ecology)
         {
             _trees.Clear();
-            if (ecology != null && ecology.TreeKinds.Count == 0)
+            if (ecology.TreeKinds.Count == 0)
             {
                 VegetationComposition.ReplaceTreeWorld(_trees);
                 return;
@@ -102,7 +104,7 @@ namespace Game.Kentridge.PlayableSlice
                     in profile, (int)(Random01(seed ^ 0x9Eu) * 1000f));
                 if (slot == TreeSpeciesSlot.None) continue;
                 TreeSpecies species = SpeciesFor(slot);
-                if (ecology != null && !ecology.AllowsTree(species.ToString())) continue;
+                if (!ecology.AllowsTree(species.ToString())) continue;
 
                 _trees.Add(new TreeInstance
                 {
@@ -122,8 +124,8 @@ namespace Game.Kentridge.PlayableSlice
         {
             _samples.Clear();
             float coverHalfWidth = Mathf.Min(halfWidth, 45f);
-            float sampleStep = ecology?.VegetationSampleSpacingMetres ?? UndergrowthSampleStepMetres;
-            float routeClearance = ecology?.RouteClearanceMetres ?? 0f;
+            float sampleStep = ecology.VegetationSampleSpacingMetres;
+            float routeClearance = ecology.RouteClearanceMetres;
 
             for (float z = fromZ; z <= toZ && _samples.Count < MaxUndergrowth; z += sampleStep)
             for (float x = roadX - coverHalfWidth;
@@ -134,12 +136,6 @@ namespace Game.Kentridge.PlayableSlice
                 RegionThemeProfile profile = themes.ProfileAt(zDm);
                 if (profile.Kind == RegionThemeKind.Riverbank) continue;
                 if (routeClearance > 0f && Mathf.Abs(x - roadX) < routeClearance) continue;
-
-                if (ecology == null)
-                {
-                    uint seed = Hash(world.Seed, (uint)Mathf.RoundToInt(x * 10f), (uint)zDm ^ 0x1234u);
-                    if (Random01(seed) * 1000f > profile.UndergrowthPerMille) continue;
-                }
 
                 if (!TryGround(world, new float3(x, 0f, z), out float3 grounded, out float3 normal))
                     continue;
@@ -156,13 +152,10 @@ namespace Game.Kentridge.PlayableSlice
             }
 
             VegetationPlacementSettings settings = VegetationPlacementSettings.Default(world.Seed);
-            if (ecology != null)
-            {
-                settings.Density = ecology.VegetationDensity;
-                settings.MaxGroundSlopeDegrees = ecology.MaxVegetationSlopeDegrees;
-                settings.RestrictKinds = true;
-                settings.AllowedKindsMask = BuildVegetationMask(ecology);
-            }
+            settings.Density = ecology.VegetationDensity;
+            settings.MaxGroundSlopeDegrees = ecology.MaxVegetationSlopeDegrees;
+            settings.RestrictKinds = true;
+            settings.AllowedKindsMask = BuildVegetationMask(ecology);
 
             _undergrowth.Clear();
             VegetationPlacement.Generate(_samples, in settings, _undergrowth);
@@ -191,7 +184,7 @@ namespace Game.Kentridge.PlayableSlice
         {
             _habitats.Clear();
             _clusters.Clear();
-            if (ecology != null && ecology.AmbientAnimalKinds.Count == 0)
+            if (ecology.AmbientAnimalKinds.Count == 0)
             {
                 _lifeRenderer.SetClusters(_clusters);
                 return;
@@ -226,11 +219,8 @@ namespace Game.Kentridge.PlayableSlice
 
             AmbientLifePopulationSettings settings = AmbientLifePopulationSettings.Default(world.Seed);
             AmbientLifePopulation.Generate(_habitats, in settings, _clusters);
-            if (ecology != null)
-            {
-                for (int i = _clusters.Count - 1; i >= 0; i--)
-                    if (!ecology.AllowsAmbientAnimal(_clusters[i].Kind.ToString())) _clusters.RemoveAt(i);
-            }
+            for (int i = _clusters.Count - 1; i >= 0; i--)
+                if (!ecology.AllowsAmbientAnimal(_clusters[i].Kind.ToString())) _clusters.RemoveAt(i);
             if (_clusters.Count > MaxClusters)
                 _clusters.RemoveRange(MaxClusters, _clusters.Count - MaxClusters);
             _lifeRenderer.SetClusters(_clusters);
