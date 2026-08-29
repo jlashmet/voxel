@@ -28,12 +28,13 @@ namespace Game.Structures.Runtime
 
             int3 front = ruinCentre - forward * (forwardSize / 2);
             // Keep enough setback to read the full facade/statue pair in ordinary gameplay while
-            // ensuring the final waypoint does not retreat behind the destination cavern centre.
+            // ensuring the final waypoint remains just inside the destination half rather than
+            // retreating behind the cavern centre.
             int viewingClearance = math.max(48, sideSize * 2 / 3);
             int3 approach = front - forward * viewingClearance;
             int forwardFromCavernCentre = math.dot(approach - cavernCentre, forward);
-            if (forwardFromCavernCentre < 0)
-                approach = cavernCentre;
+            if (forwardFromCavernCentre < 1)
+                approach = cavernCentre + forward;
             approach.y = ruin.Min.y;
             return approach;
         }
