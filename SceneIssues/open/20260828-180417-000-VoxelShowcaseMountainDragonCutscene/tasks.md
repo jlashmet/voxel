@@ -3,31 +3,32 @@
 ## Source / regression gate
 - [x] Supersede midpoint-only turn proof with a realized landing-column contract: three separated interior columns per turn retain path floor/headroom, with occupied support under the centre column.
 - [x] Make built-player waypoint arrival verify authored vertical elevation using production `CharacterMotor.Position` feet and `Grounded`, not X/Z alone.
-- [x] Implement the traversal fix for the reproduced obstruction: scenic/support mass first, reusable `Carve` corridor second, authored walking floor restored last.
-- [x] Add a reusable path occupancy/headroom contract using the production motor envelope (0.6 m footprint, 1.8 m body, 0.3 m max step); accepted vertical clearance is 2.4 m / 24 voxels.
-- [x] Carve/clear the reusable mountain traversal corridor above authored ramps/landings using shared `PrimitiveMode.Carve`; no scene-local voxel write or new shared primitive is required.
-- [x] Emit traversal clearance after every scenic/support fill so later fills cannot repopulate the production motor headroom envelope; preserve the authored walking floor by re-emitting it last.
-- [x] Expand the load-bearing mountain feature footprint vertically so every headroom primitive is inside generation bounds (1200 x 306 x 1200 voxels, within the shared 1200-per-axis budget).
-- [x] Add semantic occupied-below + clear-above regression across all switchback ramps, every turn landing, final ascent, and summit approach.
-- [x] Add regression/evidence that grounded vertical waypoint predicates reject flat X/Z false arrival and airborne passage.
-- [x] Add grounded route expectations derived from authored `PathRise`: +4.6 m per switchback tier, +27.6 m at the sixth high point, +28.0 m at summit within 0.75 m.
-- [x] Check static blast radius/cost: 76 one-time landform primitives, below the feature envelope of 80 and shared budget of 512; no new update loop/polling/physics work.
-- [x] Merge the current `origin/master` bookkeeping head into `fixes/agent-4` before the implementation pass without touching another assignment.
+- [x] Implement the traversal obstruction fix: scenic/support mass first, reusable `Carve` corridor second, authored walking floor restored last.
+- [x] Require 24 voxels / 2.4 m vertical headroom above the 1.8 m production motor body.
+- [x] Add semantic occupied-below + clear-above regression across ramps, turns, final ascent, and summit approach.
+- [x] Add grounded route expectations: +4.6 m per tier, +27.6 m sixth high point, +28.0 m summit within 0.75 m.
+- [x] Merge current `origin/master` before the implementation pass without touching another assignment.
+
+## Bake-cost discriminator
+- [x] Inspect both final-CI attempts and separate cold import from actual bake work: retry imported in ~63 s, then spent ~177 s in bake before the 240 s Unity guard killed it.
+- [x] Compare with the earlier exact Mountain Dragon candidate `3059c8c119a7...`: the same CI bake completed in 3:57, only 3 s under the guard.
+- [x] Falsify the expanded-footprint-region hypothesis: the +24 Y voxels do not add a vertical 512-voxel region layer at the observed mountain base; X/Z footprint is unchanged.
+- [x] Isolate the post-3:57 production delta: natural supports already existed in the successful candidate; `83c50f94...` subsequently added full-width headroom carve prisms, while `54f2088a...` only bounded them in the existing region layers.
+- [ ] Reduce headroom raster volume without weakening the 24-voxel vertical clearance, normal-movement route, full visible path width, or shared WorldBuilder semantics.
+- [ ] Add a focused regression that proves the traversable clearance lane is wider than the 0.6 m motor with lateral margin and bounds total carve volume/cost below the full-width implementation.
+- [ ] Re-check primitive count, feature footprint, shared consumers, and one-time bake cost after the optimization.
 
 ## Exact-SHA bake / built-player gate
-- [x] Use the one authorized final `ci-test/fixes/agent-4` request only once, against the exact source candidate; never replace it or create another CI transport. Request SHA: `ee738bc8511160139eb3d7ea39fbde81d8d21877`, parent/source SHA: `7b5393736485e4411083bf06fd3257e42702b4bb`.
-- [x] Classify the first final-CI failure and use the single permitted infrastructure retry only on the same workflow job/request SHA. Both attempts failed in the four-minute VoxelShowcase pre-test bake before the requested test ran.
-- [ ] Infrastructure unblock required before validation can continue: the source-matched startup bake/manifest must complete within the CI gate (or be restored from a valid source-matched cache) without a third retry, replacement request, extra transport, or CI-ref update under the current assignment constraints.
-- [ ] Have the VoxelShowcase CI pre-test bake generate a source-matched `Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes` plus `ShowcaseWorld.manifest.txt` for this exact source candidate.
-- [ ] Prove the generated startup bake semantically contains mountain mass, every switchback/landing, supported walking columns, 24-voxel headroom, summit support, and dragon occupancy.
-- [ ] Verify the exact focused filter is green, including asymmetric-landform, natural-support, headroom, grounded-Y predicate, encounter, and startup-bake acceptance regressions.
-- [ ] Traverse the complete evidence route by normal production `AutoWalk -> CharacterMotor.Step` movement with grounded vertical waypoint proof; no jump, teleport, assisted flight, or X/Z-only credit.
-- [ ] Save durable built-player captures for normal approach, path base, representative middle/upper switchbacks, supported summit dragon, and exact dialogue.
-- [ ] Human-review the exact built-player captures for grounded mountain scale, readable continuous ascent, supported/non-clipped path, supported summit dragon, and `Hello, I'm Mr. Dragon.`
-- [ ] Retrieve the accepted generated bake + provenance manifest from the green exact-SHA artifact and commit those generated outputs to `fixes/agent-4` without changing production source.
-- [ ] Record measured bake/runtime evidence and confirm no unexpected primitive/build-cost or shared-system blast-radius regression.
+- [x] Use the one authorized final `ci-test/fixes/agent-4` request only once. Request SHA `ee738bc8511160139eb3d7ea39fbde81d8d21877`, source parent `7b5393736485e4411083bf06fd3257e42702b4bb`.
+- [x] Use the single permitted retry only on that same workflow job/request SHA; do not create another transport or update the CI ref again.
+- [ ] Obtain an authorized exact-SHA validation path for any new source candidate; the already-used CI ref cannot be advanced again under the current workflow rule.
+- [ ] Generate and validate source-matched `ShowcaseWorld.bytes` + manifest.
+- [ ] Run the exact focused acceptance filter green.
+- [ ] Traverse the complete route via production `AutoWalk -> CharacterMotor.Step` with grounded Y proof.
+- [ ] Save and human-review approach/base/middle/upper/summit/dialogue captures, including `Hello, I'm Mr. Dragon.`
+- [ ] Commit the accepted generated startup payload/manifest and record measured bake/runtime evidence.
 
 ## Closure gate
-- [ ] After the green exact-SHA workflow gate, complete pending evidence/resolution metadata on `fixes/agent-4` and move only this assignment `open -> pending`.
-- [ ] Move only `SceneIssues/pending/20260828-180417-000-VoxelShowcaseMountainDragonCutscene` to `SceneIssues/closed/20260828-180417-000-VoxelShowcaseMountainDragonCutscene`, set `status=fixed` and `resolvedUtc`, and leave every acceptance criterion evidenced.
-- [ ] Merge latest `origin/master` into `fixes/agent-4` after closure metadata, then push that exact branch head to `origin/master` non-force; if master advanced, fetch, merge, and retry.
+- [ ] After all green gates, complete pending metadata and move only this assignment `open -> pending`.
+- [ ] Move only this assignment `pending -> closed`, set `status=fixed` and `resolvedUtc`.
+- [ ] Merge latest `origin/master`, push the exact feature head to `origin/master` non-force, fetch/merge/retry if master advanced.
