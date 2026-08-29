@@ -240,7 +240,7 @@ namespace VoxelEngine.Showcase
             palette = new CaveMaterialPalette
             {
                 Opening = GameMaterialIds.Empty,
-                Rock = GameMaterialIds.Stone,
+                Rock = GameMaterialIds.DarkStone,
                 Accent = GameMaterialIds.Crystal,
                 Decoration = GameMaterialIds.Moss,
                 Water = GameMaterialIds.Water,
