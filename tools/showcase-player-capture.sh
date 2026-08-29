@@ -46,6 +46,7 @@ ISSUE_CAPTURE_COUNT=0
 PLAYER_WIDTH=1600
 PLAYER_HEIGHT=900
 KENTRIDGE_EVIDENCE=0
+CAVERN_TRAVERSAL_EVIDENCE=0
 IF_CONFIGURED=0
 
 while (( $# > 0 )); do
@@ -154,6 +155,15 @@ if [[ -n "$TEST_FILTER" && -z "$SCENE_ISSUE" ]]; then
       : "${SURVEY_HEIGHT:=55}"
       : "${SURVEY_SPIN:=0}"
       KENTRIDGE_EVIDENCE=1
+      ;;
+    VoxelEngine.Tests.PlayMode.UndergroundCavernRuinProductionAcceptanceTests|\
+    VoxelEngine.Tests.PlayMode.UndergroundCavernRuinProductionAcceptanceTests.*)
+      # This feature's visual gate is the exact built VoxelShowcase traversed through normal
+      # production movement/collision/streaming. The evidence harness only steers AutoWalk toward
+      # semantic route waypoints; it does not teleport the descent or substitute a camera replay.
+      SCENE="Assets/Scenes/VoxelShowcase.unity"
+      : "${RUN_SECONDS:=95}"
+      CAVERN_TRAVERSAL_EVIDENCE=1
       ;;
     VoxelEngine.Tests.PlayMode.StationaryRenderBenchmarkTests.SmallVoxelShowcaseMovingBuild12)
       SCENE="Assets/Scenes/SmallVoxelShowcase.unity"
@@ -283,6 +293,9 @@ PLAYER_ARGS=(
 if [[ -n "$SCENE_ISSUE" ]]; then
   PLAYER_ARGS+=( -voxel-scene-issue "$SCENE_ISSUE" )
 fi
+if (( CAVERN_TRAVERSAL_EVIDENCE )); then
+  PLAYER_ARGS+=( -voxel-underground-cavern-traversal )
+fi
 
 if [[ -n "$STATIONARY_SAMPLE" ]]; then
   PLAYER_ARGS+=(
@@ -390,8 +403,23 @@ if [[ "$TEST_FILTER" == "VoxelEngine.Tests.PlayMode.ShowcaseTraversalPerformance
     --autowalk-after "$AUTOWALK_AFTER"
 fi
 
+if (( CAVERN_TRAVERSAL_EVIDENCE )); then
+  if ! grep -q 'SCENEISSUE cavern player traversal complete at ruin' "$PLAYER_LOG" 2>/dev/null; then
+    echo "ERROR: built player did not complete the cavern route through production movement/collision." >&2
+    grep 'SCENEISSUE cavern' "$PLAYER_LOG" >&2 || true
+    tail -80 "$PLAYER_LOG" >&2 || true
+    exit 1
+  fi
+  echo "=== CAVERN PRODUCTION TRAVERSAL ==="
+  grep 'SCENEISSUE cavern' "$PLAYER_LOG" || true
+fi
+
 shots="$(find "$SHOTS_DIR" -name '*.png' -size +1k | wc -l | tr -d ' ')"
 echo "real-player screenshots captured: $shots"
+if (( CAVERN_TRAVERSAL_EVIDENCE && shots < 6 )); then
+  echo "ERROR: cavern traversal evidence requires at least 6 presented frames, found $shots." >&2
+  exit 1
+fi
 if (( shots < 2 )); then
   echo "ERROR: expected at least 2 real-player screenshots, found $shots." >&2
   echo "A runner without a logged-in window server can launch the player but render no screenshots." >&2
