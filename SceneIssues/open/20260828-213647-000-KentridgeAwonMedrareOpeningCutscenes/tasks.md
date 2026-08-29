@@ -1,29 +1,31 @@
 # Tasks — Kentridge Awon + Medrare Opening Cutscenes
 
 - [x] Read `AGENTS.md`, canonical `SceneIssues/README.md`, and target issue; confirm no capture frames/annotations exist.
-- [x] Confirm `SceneIssues/feature-readme.md` is absent on both the feature branch and current `master`; use the canonical `SceneIssues/README.md` workflow authority.
-- [x] Resume `fixes/agent-1` without resetting prior work and preserve the dedicated final-CI transport rule.
-- [x] Inspect the pinned Mounting Force commit `9491acd9efc3ad7413a13fd28f1686ed473b5672`; prefer pinned source over conflicting retained summaries/contracts.
-- [x] Verify the existing Kentridge pub opening/Logan prompt remains the source-backed entry beat.
-- [x] Verify `Art/kentridge-awon-house.tmx` references actor `awn_cheer`, `Code/KentridgeAwon.m`, and `Art/kentridge-awon-house-back-room.txt`; the referenced `.m` and `.txt` payload files are absent from the pinned tree, so exact Awon dialogue/choreography must not be invented from the references alone.
-- [x] Verify `Art/kentridge.tmx` contains distinct `kentridge-see-medrare` and `kentridge-medrare-join` trigger objects; `kentridge-medrare-join` is require-step and references `Code/KentridgeMedrareJoin.m`.
-- [x] Recover the exact pinned `Code/KentridgeMedrareJoin.m` sequence: speech mode -> block until `move: 0` -> pause `0.5` -> center/follow Medrare -> pause `1.0` -> `SceneCore join medrare`; it contains no dialogue text.
-- [x] Verify `Art/medrare-house-lower.tmx` contains `medrare-house-lower-first-spell` with `SPELL_ENABLE 1` and `medrare-house-lower-to-church` referencing `Code/MedrareToChurch.m`; spell id `1` is Flame, while the referenced `MedrareToChurch.m` file is absent from the pinned tree.
-- [x] Reject resumed-branch dialogue/choreography claims that are not backed by the pinned tree; missing payloads remain UNKNOWN rather than reconstructed.
-- [ ] Inspect any recoverable Medrare SVG/outline assets and repository history needed to discriminate whether additional reveal/church choreography can be proven without guessing.
-- [ ] Replace the incorrect Awon/Medrare progression content with only pinned-source or otherwise directly verified dialogue/actions, retaining distinct `kentridge-see-medrare` and `kentridge-medrare-join` events.
-- [ ] Author and wire the source-backed Medrare join definition into normal campaign progression between sighting and first-spell progression.
-- [ ] Preserve source one-shot/re-entry gates in campaign progression; do not replay completed Awon/Medrare beats.
-- [ ] Implement source-backed Medrare party-join and one-time `Flame` grant state without inventing missing dialogue.
-- [ ] Fix the discovered story-runtime trigger/compiler mismatch (`SiteEntered` vs `SiteProximityEntered`) using the smallest generic seam needed by the recovered map triggers.
-- [ ] Provide an explicit campaign progress snapshot/restore seam (or equivalent persisted continuation) proving Medrare membership, Flame ownership, and completed opening beats survive continuation.
-- [ ] Remove or narrow shared runtime/presentation changes that only support rejected hidden choreography or player-runtime cue infrastructure.
-- [ ] Rewrite broken/stale progression regressions so they compile and prove exact recovered ordering, distinct sighting/join triggers, gameplay effects, replay suppression, continuation, Logan preservation, and control/camera restoration where source-backed.
+- [x] Confirm `SceneIssues/feature-readme.md` is absent on feature/master; use canonical `SceneIssues/README.md`.
+- [x] Resume `fixes/agent-1` without resetting prior work; preserve the dedicated final-CI transport rule.
+- [x] Inspect pinned Mounting Force commit `9491acd9efc3ad7413a13fd28f1686ed473b5672` directly.
+- [x] Verify existing Kentridge pub/Logan opening remains the source-backed entry beat.
+- [x] Verify `Art/kentridge-awon-house.tmx`: talk to Awon, play once, text `kentridge-awon-house-back-room.txt`; recover the root-level exact 22-line payload.
+- [x] Verify distinct `kentridge-see-medrare` and `kentridge-medrare-join` objects in `Art/kentridge.tmx`, both gated directly by Awon; sighting is play-once spatial, join is play-once + require-step + `sceneJoinParty=Medrare`.
+- [x] Recover exact `Code/KentridgeMedrareJoin.m`: set scene started, zoom `0.5`, wait `1.5s`, Medrare approaches player over `2s`, invoke dialogue id `5000`.
+- [x] Confirm `kentridge-see-medrare.txt` and `kentridge-medrare-join.txt` are absent at pinned commit; do not invent their dialogue.
+- [x] Verify `Art/medrare-house-lower.tmx`: `medrare-first-spell` is play-once + require-step after Awon and grants `Flame` to `RPGPlayer`; `medrare-to-church` is play-once after first-spell.
+- [x] Confirm first-spell/church payloads are absent; retain verified gates/actions only.
+- [x] Identify later `medrare-join` after `meet-king` as out of scope.
+- [x] Reject resumed Michael/William/zombie content and concurrent incorrect claims that the recoverable Awon/root payload or join choreography were absent.
+- [ ] Replace incorrect progression content with only directly verified Awon/Medrare dialogue/actions, retaining distinct sighting and join events.
+- [ ] Author/wire the source-backed Medrare join into campaign progression without inventing a source dependency between sighting and join.
+- [ ] Preserve source one-shot/re-entry gates; completed beats must not replay.
+- [ ] Implement durable Medrare party membership and one-time `Flame` ownership through a generic campaign/story state seam.
+- [ ] Fix branch compile mismatch `SiteEntered` vs `SiteProximityEntered`.
+- [ ] Add capture/restore campaign progression state proving completed beats, Medrare membership, and Flame ownership survive continuation.
+- [ ] Remove/narrow shared runtime/presentation changes used only by rejected invented content.
+- [ ] Rewrite stale regressions so they compile and prove exact 22-line Awon identity/order/speakers, Logan preservation, distinct sighting/join gates, join choreography, party join, Flame grant, church gate, replay suppression, and continuation restore.
 - [ ] Verify no unapproved assets/packages/generated expansion and no unrelated assignment changes.
-- [ ] Review blast radius and steady-state/runtime cost; verify unrelated campaign/story consumers remain valid.
-- [ ] Re-read every acceptance criterion and validate the implementation against corrected source evidence, explicitly recording any requested wording/choreography that cannot be reproduced because its referenced source payload is absent.
+- [ ] Review blast radius and steady-state/runtime cost; verify unrelated campaign/story/cutscene consumers remain valid.
+- [ ] Re-read every acceptance criterion and record any dialogue/choreography that remains UNKNOWN because the pinned payload is absent.
 - [ ] Run required repository/workflow gates and move only this assignment `open -> pending` with required metadata.
-- [ ] Create exactly one final targeted-CI request on `ci-test/fixes/agent-1` for the exact feature SHA; never edit `.github/test-request.json` on the feature branch.
-- [ ] Inspect exact-SHA CI logs/artifacts and confirm requested focused regressions plus built-application Kentridge validation are green.
-- [ ] Complete pending metadata after green CI; move only this assignment `pending -> closed`, set `status=fixed` and `resolvedUtc`, and finish every remaining checkbox.
-- [ ] Re-fetch latest `origin/master`, merge it into `fixes/agent-1` if needed, then non-force push that exact feature head to `origin/master`; fetch/merge/retry if master advances during propagation.
+- [ ] Create exactly one final targeted-CI request on `ci-test/fixes/agent-1` for the exact feature SHA; never edit `.github/test-request.json` on feature.
+- [ ] Inspect exact-SHA CI logs/artifacts and confirm focused regressions plus built-application Kentridge validation are green.
+- [ ] Complete pending metadata after green CI; move only this assignment `pending -> closed`, set `status=fixed` and `resolvedUtc`, finish every checkbox.
+- [ ] Re-fetch latest `origin/master`, merge into `fixes/agent-1` if needed, then non-force push exact feature head to `origin/master`; fetch/merge/retry if master advances.
