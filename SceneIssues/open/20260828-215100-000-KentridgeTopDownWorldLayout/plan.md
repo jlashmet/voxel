@@ -1,18 +1,20 @@
 # Plan — Kentridge top-down world layout
 
 ## Evidence / discriminator
-- Architecture issue with `captures: []`: **0 marked regions/camera poses** exist. Final visual/runtime evidence therefore comes from the exact built `KentridgePlayableSlice` replay plus its always-visible top-down inspection overlay.
-- Existing WorldBuilder already authors Kentridge, Hightown and one local Kentridge↔Hightown corridor. Hypothesis “missing local Kentridge geometry” is falsified. Hypothesis “semantic graph alone is sufficient” is also falsified by acceptance requiring generated reservations/corridors and built-player inspection.
-- Imported `world-procgen-clusters.yaml` (validated Warp/Portal graph), `world-inferred-geography.yaml`, map/TMX references, and original `mounting-force` story/runtime evidence establish the hard traversal spine and soft compass hints. Selected fix: reusable macro graph + deterministic hard-route planner + shared physical WorldBuilder backend; hard topology wins when soft orientation conflicts.
-- CI run `33221251860` proved the first semantic regression green, then stopped before player build because this capture-less architecture issue lacked replay dimensions. Added 1600×900 metadata; no runtime failure was observed in that diagnostic run.
+- This architecture feature has `captures: []`: **0 recorded poses/marked regions**. Acceptance therefore requires explicit built-player top-down and normal traversal evidence.
+- Existing WorldBuilder already produced local Kentridge/Hightown geometry; “missing local town generation” is falsified. Imported transition/progression evidence instead showed the missing owner was a reusable macro topology + physical route layer. Hard topology must outrank inferred compass hints.
+- Source `8b6ea69c` passed focused PlayMode + real-player build/run in CI `33223023746`: one requested test passed; player build/run exited 0; streaming converged (`missingVisible=0`) and reached ~60–67 fps by the end.
+- Artifact inspection falsified “green player run is enough visual proof”: both saved frames were still the `Loading Kentridge…` cover because complete near-surface coverage arrived at ~28 s, after the last 23.1 s screenshot in a 30 s run. Thus acceptance (9)/(10) remains open despite green workflow status.
 
-## Fix
-- `Game.WorldBuilder.Api/Runtime`: named regions/settlements/landmarks, reserved envelopes, typed verified-vs-inferred provenance, corridor widths, deterministic placement, hard-route reachability validation, and a one-shot build selection so unrelated Kentridge consumers do not inherit world-scale cost.
-- `MountingForceTopDownWorldDefinition`: 21 major outdoor/story destinations and 20 source-backed hard routes, including Stanley’s house, Radcliffe Mansion and Bandit Hideout. Five coarse route cells place Hightown exactly on its existing generated +400 m anchor; compatible sign/dialogue hints shape Moordell/Rossdam/Fairy/Orc placement.
-- `TopDownWorldVoxelCatalogue`: production terrain-grounded route tiles plus small neutral destination markers. Kentridge playable composition selects the semantic layout; shared voxel generation consumes it. Existing detailed town/corridor passes override these lower-precedence surfaces.
+## Selected fix
+- Keep the implemented reusable WorldBuilder macro graph/planner and shared voxel backend: 21 source-backed nodes, 20 hard routes, typed verified/inferred provenance, reserved envelopes, corridor widths, deterministic placement/reachability, and neutral terrain-grounded route/marker output.
+- Preserve one-shot selection so unrelated Kentridge catalogue consumers do not inherit macro-world cost.
+- Add reusable **capture-less Kentridge SceneIssue** harness behavior only: run long enough to pass loading, auto-advance unattended dialogue, then drive the existing real `CharacterMotor` scripted walk. Do not alter recorded-pose SceneIssues. The production top-down overlay remains visible, so one run can prove macro layout plus eye-level route traversal.
 
-## Regression / failure case
-`KentridgeTopDownWorldLayoutTests.SourceBackedWorldLayoutIsDeterministicPhysicallyRealizedAndRejectsSeveredHardRoute` checks deterministic non-overlap, provenance, verified reachability, exact Hightown anchor alignment, continuous Kentridge exit tiles, successful production `FeatureCatalogue` realization, and rejects a deliberately severed Logan Castle hard route.
+## Regression / remaining gates
+`KentridgeTopDownWorldLayoutTests.SourceBackedWorldLayoutIsDeterministicPhysicallyRealizedAndRejectsSeveredHardRoute` proves deterministic non-overlap/provenance/reachability, exact Hightown anchor alignment, continuous Kentridge route tiles, production `FeatureCatalogue` realization, and severed-hard-route rejection.
+
+Remaining: add/validate the capture-less harness profile; run final exact-SHA CI with post-load screenshots; inspect artifacts; store durable verification; complete every `tasks.md` checkbox; pending/closed bookkeeping; merge current master and publish non-force.
 
 ## Blast radius / cost
-Planner: O(21 nodes + 20 routes). Physical plan: 803 route-tile placements + 21 neutral markers / 41 definitions, selected only by Kentridge playable startup; no extra chunks are eagerly generated and existing device/brick/LOD budgets are unchanged. Other Kentridge catalogue callers retain prior behavior/cost.
+Planner cost is O(21 nodes + 20 routes). Physical plan is 803 route tiles + 21 neutral markers / 41 definitions, selected only for playable Kentridge startup; no eager extra chunks or device-budget changes. Harness change affects only capture-less Kentridge SceneIssue validation, not game runtime or captured-pose replay semantics.
