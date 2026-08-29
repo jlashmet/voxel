@@ -380,7 +380,7 @@ namespace MountingForce.WorldGen.Voxel
                 int x, int y, int z, int sx, int sy, int sz, int radius, byte material) =>
                 Op(ShapeOp.EmitRoundedBox,
                    x, y, z, sx, sy, sz, radius,
-                   material, SurfaceStyles.MaterialDefault, Coatings.None,
+                   material, 0, 0,
                    (int)PrimitiveMode.PaintSurface);
 
             public void Carve(int x, int y, int z, int sx, int sy, int sz) =>
