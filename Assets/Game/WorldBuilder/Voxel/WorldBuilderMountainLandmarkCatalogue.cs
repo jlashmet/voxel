@@ -94,6 +94,10 @@ namespace Game.WorldBuilder.Voxel
         public const string LandformDefinitionName = "worldbuilder-mountain-landmark";
         public const string PlaceholderDefinitionName = "worldbuilder-mountain-placeholder";
 
+        private const int SupportSegmentSpan = 64;
+        private const int MinimumSupportTopRadius = 40;
+        private const int MaximumSupportFlare = 112;
+
         public static FeatureCatalogue Build(
             in MountainLandmarkSpec spec,
             byte mountainMaterial,
@@ -203,7 +207,7 @@ namespace Game.WorldBuilder.Voxel
             byte mountainMaterial,
             byte pathMaterial)
         {
-            var program = new List<int>(320);
+            var program = new List<int>(800);
             int c = spec.CentreLocal;
 
             EmitFrustum(
@@ -231,12 +235,16 @@ namespace Game.WorldBuilder.Voxel
                 lastRampZ = z;
                 bool reverse = (level & 1) != 0;
 
-                EmitBox(
+                // The ramp itself owns the rising walking wedge. Only support its base elevation:
+                // tapered overlapping masses blend into terrain/mountain and cannot create the
+                // full-height rectangular retaining walls produced by the old ground-to-ramp box.
+                AddNaturalSupportMasses(
                     program,
-                    pathMinX, 0, z,
-                    spec.PathRun, startY + 1, spec.PathWidth,
-                    mountainMaterial,
-                    PrimitiveMode.FillIfEmpty);
+                    pathMinX, z,
+                    spec.PathRun, spec.PathWidth,
+                    startY,
+                    spec.PathWidth,
+                    mountainMaterial);
 
                 int axis = reverse ? ShapeOps.ReverseRampBit : 0;
                 EmitRamp(
@@ -256,12 +264,13 @@ namespace Game.WorldBuilder.Voxel
                 int nextZ = spec.RampLocalZ(endY);
                 int zMin = Math.Min(z, nextZ);
                 int zSize = Math.Abs(nextZ - z) + spec.PathWidth;
-                EmitBox(
+                AddNaturalSupportMasses(
                     program,
-                    lastHighX, 0, zMin,
-                    spec.PathWidth, endY + 1, zSize,
-                    mountainMaterial,
-                    PrimitiveMode.FillIfEmpty);
+                    lastHighX, zMin,
+                    spec.PathWidth, zSize,
+                    endY,
+                    spec.PathWidth,
+                    mountainMaterial);
                 EmitBox(
                     program,
                     lastHighX, endY, zMin,
@@ -275,12 +284,13 @@ namespace Game.WorldBuilder.Voxel
             int finalZMin = Math.Min(lastRampZ, summitZ);
             int finalZSize = Math.Abs(summitZ - lastRampZ) + spec.PathWidth;
 
-            EmitBox(
+            AddNaturalSupportMasses(
                 program,
-                lastHighX, 0, finalZMin,
-                spec.PathWidth, endY + 1, finalZSize,
-                mountainMaterial,
-                PrimitiveMode.FillIfEmpty);
+                lastHighX, finalZMin,
+                spec.PathWidth, finalZSize,
+                endY,
+                spec.PathWidth,
+                mountainMaterial);
             // The final ascent changes from the alternating X ramps to a Z ramp. Keep the same
             // explicit flat path landing used by the earlier turns so integer ramp rasterization
             // cannot leave the direction change connected only by a narrow edge.
@@ -302,12 +312,13 @@ namespace Game.WorldBuilder.Voxel
             int topMinX = Math.Min(lastHighX, approachX);
             int topSizeX = Math.Abs(approachX - lastHighX) + spec.PathWidth;
             int topZ = spec.SummitApproachLocalZ - spec.PathWidth / 2;
-            EmitBox(
+            AddNaturalSupportMasses(
                 program,
-                topMinX, 0, topZ,
-                topSizeX, spec.MountainHeight + 1, spec.PathWidth,
-                mountainMaterial,
-                PrimitiveMode.FillIfEmpty);
+                topMinX, topZ,
+                topSizeX, spec.PathWidth,
+                spec.MountainHeight,
+                spec.PathWidth,
+                mountainMaterial);
             EmitBox(
                 program,
                 topMinX, spec.MountainHeight, topZ,
@@ -359,6 +370,50 @@ namespace Game.WorldBuilder.Voxel
                 1,
                 mountainMaterial,
                 PrimitiveMode.FillIfEmpty);
+        }
+
+        private static void AddNaturalSupportMasses(
+            List<int> program,
+            int minX,
+            int minZ,
+            int sizeX,
+            int sizeZ,
+            int supportTopY,
+            int pathWidth,
+            byte mountainMaterial)
+        {
+            if (supportTopY <= 0) return;
+
+            bool alongX = sizeX >= sizeZ;
+            int longMin = alongX ? minX : minZ;
+            int longSize = alongX ? sizeX : sizeZ;
+            int shortMin = alongX ? minZ : minX;
+            int shortSize = alongX ? sizeZ : sizeX;
+            int shortCentre = shortMin + shortSize / 2;
+            int segmentCount = math.max(1, (longSize + SupportSegmentSpan - 1) / SupportSegmentSpan);
+            int topRadius = math.max(MinimumSupportTopRadius, pathWidth + 18);
+            int flare = math.min(MaximumSupportFlare, math.max(16, supportTopY * 2 / 5));
+            int baseRadius = topRadius + flare;
+
+            for (int segment = 0; segment < segmentCount; segment++)
+            {
+                int segmentStart = segment * longSize / segmentCount;
+                int segmentEndExclusive = (segment + 1) * longSize / segmentCount;
+                int longCentre = longMin + (segmentStart + segmentEndExclusive - 1) / 2;
+                int lateralJitter = ((segment * 37 + supportTopY * 11) % 9) - 4;
+
+                int centreX = alongX ? longCentre : shortCentre + lateralJitter;
+                int centreZ = alongX ? shortCentre + lateralJitter : longCentre;
+                EmitFrustum(
+                    program,
+                    centreX, 0, centreZ,
+                    supportTopY + 1,
+                    baseRadius,
+                    topRadius,
+                    1,
+                    mountainMaterial,
+                    PrimitiveMode.FillIfEmpty);
+            }
         }
 
         private static int[] BuildPlaceholderProgram(int size, byte material)
