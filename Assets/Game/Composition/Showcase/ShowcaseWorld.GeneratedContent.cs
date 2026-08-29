@@ -26,7 +26,11 @@ namespace VoxelEngine.Showcase
             if (_startupSource == ShowcaseStartupSource.Generate)
             {
                 GenerateCastleOriginForBakeBlocking();
-                if (_hasCastlePlan) EnsureCastleWorldObjectSceneLoaded();
+                if (_hasCastlePlan)
+                {
+                    EnsureCastleWorldObjectSceneLoaded();
+                    GenerateUndergroundCavernRuinsBlocking();
+                }
                 return;
             }
 
@@ -36,6 +40,7 @@ namespace VoxelEngine.Showcase
             if (_hasCastlePlan && _generated.Contains(int3.zero))
             {
                 EnsureCastleWorldObjectSceneLoaded();
+                GenerateUndergroundCavernRuinsBlocking();
                 return;
             }
 
@@ -49,6 +54,11 @@ namespace VoxelEngine.Showcase
             LoadBake(LoadBakeResource(
                 ShowcaseWorldBakeCodec.ResourcePath, "Voxel Showcase", "Bake Showcase World"));
             EnsureCastleWorldObjectSceneLoaded();
+
+            // The checked-in startup image predates this feature. Authoring the bounded deep feature
+            // after restore keeps existing players correct immediately; the offline baker invokes the
+            // same method so the next refreshed image can absorb this one-time startup cost.
+            GenerateUndergroundCavernRuinsBlocking();
         }
 
         /// <summary>
