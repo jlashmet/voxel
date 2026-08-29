@@ -16,12 +16,14 @@ namespace Game.Structures.Runtime
         public int DirectionChangeCount;
         public int DoglegCount;
         public int TraversalCarveNodeCount;
+        public int3[] TraversalWaypoints;
         public MineCaveLightRequest[] RouteLights;
         public long VoxelsWritten;
 
         public bool IsWellFormed =>
             MouthOpeningCount >= 4 && DirectionChangeCount >= 4 &&
             DoglegCount >= 3 && TraversalCarveNodeCount >= 20 &&
+            TraversalWaypoints != null && TraversalWaypoints.Length >= 20 &&
             RouteLights != null && RouteLights.Length >= 3 && RouteLights.Length <= 4 &&
             VoxelsWritten > 0;
     }
@@ -35,6 +37,8 @@ namespace Game.Structures.Runtime
         private const int DoglegSideOffset = 32;
         private const int DoglegRadius = 16;
         private static readonly int[] DoglegSegments = { 17, 31, 43 };
+        private static readonly int[] DoglegForwardOffsets = { -30, -20, -10, 2, 14, 26, 32 };
+        private static readonly int[] DoglegSideOffsets = { 0, 10, 22, 32, 30, 16, 2 };
 
         public static UndergroundCavernTraversalEnhancementResult Author(
             IStructureAuthoringSession authoring,
@@ -67,9 +71,43 @@ namespace Game.Structures.Runtime
                 DirectionChangeCount = ExpectedDirectionChangeCount,
                 DoglegCount = DoglegSegments.Length,
                 TraversalCarveNodeCount = carveNodes,
+                TraversalWaypoints = BuildTraversalWaypoints(in request, in cave),
                 RouteLights = lights,
                 VoxelsWritten = authoring.TotalVoxelsWritten - startWrites,
             };
+        }
+
+        /// <summary>
+        /// Returns the centreline points of the deliberately forced walkable route. Consumers can
+        /// use these semantic waypoints for gameplay navigation/validation without reconstructing
+        /// private dog-leg geometry or reducing the route to a straight entrance-to-terminal ray.
+        /// </summary>
+        public static int3[] BuildTraversalWaypoints(
+            in CaveGenerationRequest request,
+            in CaveConfig cave)
+        {
+            if (!request.IsWellFormed || !cave.IsWellFormed)
+                throw new ArgumentException("Traversal waypoints require a valid cave request and configuration.");
+
+            int3 forward = FacingVector(request.Entrance.Facing);
+            var points = new int3[2 + DoglegSegments.Length * DoglegForwardOffsets.Length + 1];
+            int output = 0;
+            points[output++] = request.EntranceWorldPosition;
+            points[output++] = request.EntranceWorldPosition + forward * request.Entrance.ClearanceLength;
+
+            for (int dogleg = 0; dogleg < DoglegSegments.Length; dogleg++)
+            {
+                int sign = dogleg == 1 ? -1 : 1;
+                int3 floor = FloorAtSegment(in request, in cave, DoglegSegments[dogleg]);
+                int3 side = new int3(-forward.z, 0, forward.x) * sign;
+                for (int i = 0; i < DoglegForwardOffsets.Length; i++)
+                    points[output++] = floor
+                                       + forward * DoglegForwardOffsets[i]
+                                       + side * DoglegSideOffsets[i];
+            }
+
+            points[output] = FloorAtSegment(in request, in cave, cave.MainSegmentCount - 1);
+            return points;
         }
 
         private static int AuthorNaturalMouth(
@@ -142,18 +180,18 @@ namespace Game.Structures.Runtime
             }
             a.FillBulk(hostMin, hostSize, palette.Rock);
 
-            int[] forwardOffsets = { -30, -20, -10, 2, 14, 26, 32 };
-            int[] sideOffsets = { 0, 10, 22, 32, 30, 16, 2 };
-            for (int i = 0; i < forwardOffsets.Length; i++)
+            for (int i = 0; i < DoglegForwardOffsets.Length; i++)
             {
-                int3 centre = floor + forward * forwardOffsets[i] + side * sideOffsets[i];
+                int3 centre = floor
+                              + forward * DoglegForwardOffsets[i]
+                              + side * DoglegSideOffsets[i];
                 int baseY = floor.y - (i == 2 || i == 5 ? 1 : 0);
                 int radius = DoglegRadius + ((i & 1) == 0 ? 1 : 0);
                 int height = cave.TunnelHeight + 5 + (i % 3) * 2;
                 a.Cylinder(centre.x, baseY, centre.z, radius, height, palette.Opening);
                 a.Disc(centre.x, baseY - 1, centre.z, radius - 2, palette.Rock);
             }
-            return forwardOffsets.Length;
+            return DoglegForwardOffsets.Length;
         }
 
         private static MineCaveLightRequest AuthorRouteLantern(
