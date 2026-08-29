@@ -1,9 +1,9 @@
 # Tasks
 
 ## Investigation
-- [ ] Trace current production owners for macro/top-down connectivity, WorldBuilder composition, Kentridge roads/streets, voxel density/surface generation, terrain material/coating, vegetation/ecology, and streaming/LOD.
-- [ ] Inspect road behavior/history at `336cb6e63e19bc6039f3f89bb4d2056e2d0efb60` and slope-material safety at `8cd28a5ea7133a4012a17112375f70384bee79ec`.
-- [ ] Record the discriminator result in `plan.md` and add any discovered required work here.
+- [x] Trace current production owners for macro/top-down connectivity, WorldBuilder composition, Kentridge roads/streets, voxel density/surface generation, terrain material/coating, vegetation/ecology, and streaming/LOD.
+- [x] Inspect road behavior/history at `336cb6e63e19bc6039f3f89bb4d2056e2d0efb60` and slope-material safety at `8cd28a5ea7133a4012a17112375f70384bee79ec`.
+- [x] Record the discriminator result in `plan.md` and add discovered required work here.
 
 ## Implementation
 - [ ] Make road/trail intent first-class on stable semantic world endpoints with reusable profile data and provenance/seed behavior.
@@ -13,6 +13,8 @@
 - [ ] Implement/reuse continuous primary+secondary terrain coverage for natural Dirt↔local-terrain shoulders while preserving exposed-top/slope material correctness.
 - [ ] Keep semantic/resolved roads available to navigation/map/travel/NPC/encounter consumers.
 - [ ] Migrate equivalent Kentridge road generation to the shared primitive; do not duplicate the macro-world physical-realization ticket’s road graph/solver.
+- [ ] Convert diagonal `PlannedRoute` legs into deterministic shared voxel-road geometry without restoring Kentridge-only axis assumptions.
+- [ ] Keep regional ecology policy authoritative; apply road influence only as a local suppression/recovery modifier using existing route exclusion ownership.
 - [ ] Preserve deterministic chunk/LOD/streaming behavior and avoid per-segment GameObject/primitive explosion.
 
 ## Regressions
