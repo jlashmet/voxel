@@ -1,30 +1,29 @@
 # Plan — SceneIssue 20260825-192751-413 VoxelShowcase
 
 ## Evidence / marked region
-- The saved capture has one red circle over the top-left FPS/telemetry region (center `0.0281,0.0259`, radius `0.0369`) at the player-driven captured pose; report: `when moving around i get 3 fps`. Repro/acceptance therefore uses sustained production movement, not a stationary/editor-only proxy.
-- Failed exact-SHA product CI on `2af9088aca0b04b9b8cbf051546daaa3576b734a` measured moving p95 `91.445 ms` vs the unchanged `<18 ms` gate. Worker/admission spikes correlated (`46.408 -> 46.409 ms`, `98.201 -> 98.203 ms`), while GPU arena geometry upload was only ~`0.345 ms`; water separately spiked ~`48.707 ms`.
-- Targeted CI on `85c3b6a3c0d2f1ecc7a977efde0c33c7af82caa0` and `0b881e5f3228164dd4c4fd4f29d93f21debc374a` used Apple M4 Max Metal with production GPU backends, yet the 210 m traversal recorded `0` GPU completions while streaming grew roughly `199 -> 236` regions; built-player replay passed. Diagnostic `6344d47a77b1e002b01795d456b8448b41f349d8` added per-region generation validation but retained global recovery admission and also recorded `0` GPU completions, isolating recovery admission as the remaining blocker.
+- One capture/circle marks top-left FPS telemetry (center `0.0281,0.0259`, radius `0.0369`); acceptance uses sustained production movement.
+- `2af9088...` moving p95 was `91.445 ms`; worker/admission spikes tracked the frame while arena upload was ~`0.345 ms`; water separately reached ~`48.707 ms`.
+- Apple M4 Max Metal runs `85c3b6a...`, `0b881e5...`, `6344d47...`, and exact `5338252...` all recorded `0` GPU completions while real streaming/rendering continued. The `5338252...` built player still converged to 516 visible / 0 missing, later ~160–380+ FPS, with intact final castle/terrain, proving CPU fallback masks the GPU admission failure.
 
 ## Competing hypotheses / conclusion
-- Watchdog/Metal/harness-only failure: rejected; failures ran on Metal with resident GPU backends and successful built-player replay.
-- Geometry upload/readback: rejected as the remaining admission blocker; geometry remains GPU-resident and measured arena upload is sub-ms after batched mirror work.
-- Water: historically contributing but insufficient; it cannot explain zero solid GPU completions.
-- Recovery scheduling alone: rejected as sufficient. Advancing the bounded 128-record journal slice and 2048-block recovery slice in the same frame did not change the zero-completion result.
-- Global admission barriers: supported by code plus runtime streaming. Per-region generation validation alone still failed because GPU admission required `RecoveryComplete` for every resident region. Unrelated streamed-region recovery can therefore suppress locally unchanged, fully mirrored chunks indefinitely.
+- Watchdog/Metal/harness failure rejected: Metal backend exists and built-player replay succeeds.
+- Geometry upload/readback rejected as the zero-completion cause: no GPU build reaches completion; arena reports no lease failures and CPU publication continues.
+- Water can spike but cannot explain zero GPU completions.
+- Recovery scheduling/global gating alone rejected: bounded interleaving and local-ready admission still yielded zero.
+- Version-domain mismatch supported: `GpuSurfaceMirrorCoordinator` compares against Storage/change-journal versions, but the caller supplied renderer-local `_build.SourceVersion`. Once those counters diverge, `PrepareFromBridge` rejects before dispatch. Mirror-not-ready was also converted immediately into CPU fallback instead of GPU backpressure.
 
 ## Fix
-- Keep the world-scoped persistent GPU brick mirror and compact directory, bounded journal/recovery progress, and stale no-payload protection.
-- Synchronize the mirror to current authoritative generation, but validate chunk staleness per covered region: reject snapshots before the known journal-history floor or when any covered region changed afterward.
-- Treat resident recovery as bounded background work, not a global gate. Admit only when the requested footprint is in `s_ReadyRegions`; preserve no-mutation-while-active.
-- Any build classified as supported by an implemented GPU path must complete on that GPU path in normal production operation. CPU fallback is permitted only for geometry/rings the GPU backend does not implement or an explicit emergency/diagnostic disable; GPU-eligible fallback is a product failure.
+- Keep the world-scoped persistent mirror/directory, bounded journal/recovery, per-region history safety, and no mutation during active extraction.
+- Capture authoritative `world.Storage.Version` at the immutable snapshot's GPU handoff; retain that generation for covered-region validation.
+- If the requested mirror footprint is not ready, keep the eligible GPU stage pending and retry bounded admission on later worker slices while the old mesh remains visible; do not silently route supported work to CPU.
+- GPU-eligible fallback remains a product failure. CPU is allowed only for genuinely unsupported geometry/rings or explicit emergency disable.
 
 ## Regression / acceptance
-- EditMode: `GpuBrickSlotTableTests` covers stale mixed->empty release and slot-version behavior; `GpuLod2CutoverPolicyTests` covers production GPU admission policy.
-- PlayMode behavioral gate: `ShowcaseGpuMigrationTests.MovingShowcaseCompletesGpuSurfaceBuildsAndPreservesCoverage` traverses 210 m while streaming, requires >=8 real GPU completions and **zero `GpuFallbackSolidBuilds` for GPU-eligible work (100% adoption of implemented GPU paths)**, preserves visible coverage/no-hole and zero blocking frame-path completions, and keeps stationary p95 `<8 ms`, moving p95 `<18 ms`, moving p99 `<25 ms`.
-- Implemented GPU reconstruction semantics (including smooth, planar, rounded, sharp and cubic where otherwise GPU-eligible) must not silently route through CPU fallback.
+- EditMode: `GpuBrickSlotTableTests`, `GpuLod2CutoverPolicyTests`.
+- PlayMode `ShowcaseGpuMigrationTests.MovingShowcaseCompletesGpuSurfaceBuildsAndPreservesCoverage`: 210 m streaming traversal, >=8 real GPU completions, **zero GPU-eligible fallbacks**, no holes/blocking completion, stationary p95 `<8 ms`, moving p95 `<18 ms`, p99 `<25 ms`.
+- Implemented smooth/planar/rounded/sharp/cubic reconstruction must not silently use CPU when otherwise GPU-eligible.
 
 ## Blast radius / cost
-- Runtime change stays inside shared solid-GPU admission/mirror bookkeeping; water, HLOD, visibility, Storage writes, collision, worldgen and scene content are unchanged. Per-frame caps remain 128 change records, 2048 recovered blocks and 64 resident scan slots.
-- Per-region safety adds one `int3 -> ulong` entry only for regions with observed solid-affecting changes since the history floor; retention overrun/no-journal rebuild clears it and rejects older snapshots.
-- One shared mirror uses at least 96 MiB payload budget (or `16x` requested worker budget) plus ~4% directory overhead, replacing roughly eight duplicated worker mirrors (~98 MiB aggregate).
-- Do not weaken timing/correctness/adoption gates. Final closure requires green exact-SHA targeted CI + captured-pose production verification.
+- Change is confined to solid GPU admission/mirror bookkeeping; water, HLOD, visibility, Storage writes, collision, worldgen, content unchanged. Caps remain 128 changes, 2048 recovery blocks, 64 resident scan slots/frame.
+- Pending admission retains one worker snapshot/pins longer but adds no new mirror allocation or per-frame scan; shared mirror remains >=96 MiB (or `16x` worker budget) + ~4% directory, replacing ~8 duplicated mirrors (~98 MiB aggregate).
+- Final closure requires green exact-SHA targeted CI plus built-player captured-pose verification; no timing/correctness/adoption gate weakening.
