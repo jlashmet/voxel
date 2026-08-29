@@ -14,9 +14,10 @@ namespace MountingForce.WorldGen.Voxel
     ///
     /// Organic Kentridge generated houses use the exact foundation rectangle resolved by the same
     /// architecture form that the shared-house compiler consumes. Their support volume remains a
-    /// rectangular Dirt grade, while the visible Moss cap is rounded at the corners so a house pad
-    /// meeting organic circulation cannot stamp a metre-scale right-angle grass tongue into the road.
-    /// Legacy layouts and bespoke/non-generated pads retain their established rectangular surface.
+    /// rectangular Dirt grade, while the visible Moss cap uses a plan-view stadium footprint so a
+    /// house pad meeting organic circulation cannot stamp a metre-scale right-angle grass tongue
+    /// into the road. Legacy layouts and bespoke/non-generated pads retain their established
+    /// rectangular surface.
     /// </summary>
     public static class KentridgePlotSurfaceCatalogue
     {
@@ -26,7 +27,6 @@ namespace MountingForce.WorldGen.Voxel
         private const int ClearAboveDm = 56;
         private const int FootprintHeightDm = FillDepthDm + SurfaceThicknessDm + ClearAboveDm;
         private const int SharedHouseFrontInsetDm = 10;
-        private const int OrganicCapCornerRadiusDm = 12;
 
         private readonly struct PadRect
         {
@@ -140,7 +140,9 @@ namespace MountingForce.WorldGen.Voxel
                     ProgramLength = entry.Program.Length,
                     MaterialOffset = 0,
                     MaterialCount = 0,
-                    MaxPrimitives = 3,
+                    // Generated pads use carve + support + three bounded surface-paint primitives.
+                    // Bespoke/non-generated organic pads emit fewer and remain within this ceiling.
+                    MaxPrimitives = 5,
                 };
 
                 catalogue.ExplicitPlacements[id] = ResolvePlacement(plan, plot, seed, scale);
@@ -345,22 +347,66 @@ namespace MountingForce.WorldGen.Voxel
 
             // Keep the exact historical support elevation and rectangular foundation grade. Only
             // material ownership at the visible surface changes: the full top voxel is Dirt first,
-            // then a rounded material-only pass restores Moss away from each rectangular corner.
-            // PaintSurface creates no occupancy, so structural support and clearance are unchanged.
+            // then three material-only primitives paint a plan-view stadium/capsule. A vertical
+            // cylinder is round in XZ but square in Y, so the plan radius is not constrained by the
+            // one-voxel surface thickness. The largest contained integer radius pushes each tangent
+            // near the middle of the short side instead of leaving a metre-scale straight segment
+            // beside an organic road.
             b.Box(core.X * s, 0, core.Z * s,
                   core.Width * s, topY, core.Depth * s, dirt);
-
-            int surfaceY = topY - 1;
-            int radius = Math.Min(
-                OrganicCapCornerRadiusDm * s,
-                (Math.Min(core.Width * s, core.Depth * s) - 1) / 2);
-            int paintMinY = Math.Max(0, surfaceY - radius);
-            int paintHeight = (surfaceY - paintMinY) + radius + 1;
-            b.RoundedSurface(
-                core.X * s, paintMinY, core.Z * s,
-                core.Width * s, paintHeight, core.Depth * s,
-                radius, groundCover);
+            PaintOrganicSurfaceCap(
+                b,
+                core.X * s,
+                topY - 1,
+                core.Z * s,
+                core.Width * s,
+                core.Depth * s,
+                groundCover);
             return b.Finish();
+        }
+
+        private static void PaintOrganicSurfaceCap(
+            ProgramBuilder b,
+            int x,
+            int surfaceY,
+            int z,
+            int width,
+            int depth,
+            byte material)
+        {
+            if (width <= 2 || depth <= 2)
+                throw new InvalidOperationException(
+                    "Organic Kentridge generated-house pad is too small for a rounded surface cap.");
+
+            if (width >= depth)
+            {
+                int radius = Math.Max(1, (depth - 1) / 2);
+                int centreZ = z + radius;
+                int firstCentreX = x + radius;
+                int lastCentreX = x + width - 1 - radius;
+                int bridgeWidth = lastCentreX - firstCentreX + 1;
+
+                b.Box(firstCentreX, surfaceY, z,
+                      bridgeWidth, 1, depth, material, PrimitiveMode.PaintSurface);
+                b.Cylinder(firstCentreX, surfaceY, centreZ,
+                           radius, 1, material, PrimitiveMode.PaintSurface);
+                b.Cylinder(lastCentreX, surfaceY, centreZ,
+                           radius, 1, material, PrimitiveMode.PaintSurface);
+                return;
+            }
+
+            int verticalRadius = Math.Max(1, (width - 1) / 2);
+            int centreX = x + verticalRadius;
+            int firstCentreZ = z + verticalRadius;
+            int lastCentreZ = z + depth - 1 - verticalRadius;
+            int bridgeDepth = lastCentreZ - firstCentreZ + 1;
+
+            b.Box(x, surfaceY, firstCentreZ,
+                  width, 1, bridgeDepth, material, PrimitiveMode.PaintSurface);
+            b.Cylinder(centreX, surfaceY, firstCentreZ,
+                       verticalRadius, 1, material, PrimitiveMode.PaintSurface);
+            b.Cylinder(centreX, surfaceY, lastCentreZ,
+                       verticalRadius, 1, material, PrimitiveMode.PaintSurface);
         }
 
         private static void CopyProgram(ref FeatureCatalogue catalogue, int offset, int[] program)
@@ -376,12 +422,12 @@ namespace MountingForce.WorldGen.Voxel
                             PrimitiveMode mode = PrimitiveMode.Fill) =>
                 Op(ShapeOp.EmitBox, x, y, z, sx, sy, sz, material, 0, 0, (int)mode);
 
-            public void RoundedSurface(
-                int x, int y, int z, int sx, int sy, int sz, int radius, byte material) =>
-                Op(ShapeOp.EmitRoundedBox,
-                   x, y, z, sx, sy, sz, radius,
-                   material, 0, 0,
-                   (int)PrimitiveMode.PaintSurface);
+            public void Cylinder(
+                int cx, int y, int cz, int radius, int height, byte material,
+                PrimitiveMode mode) =>
+                Op(ShapeOp.EmitCylinder,
+                   cx, y, cz, radius, height, 1,
+                   material, 0, 0, (int)mode);
 
             public void Carve(int x, int y, int z, int sx, int sy, int sz) =>
                 Box(x, y, z, sx, sy, sz, 0, PrimitiveMode.Carve);
