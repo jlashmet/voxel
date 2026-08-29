@@ -155,25 +155,26 @@ namespace VoxelEngine.Tests.PlayMode
                 "Rossdam fortified audit landmark drifted away from the authored gatehouse origin.");
 
             // Built-player evidence must remain deliberately framed at gameplay/close inspection distances.
-            // Rossdam cameras sit north of the complete southern-building row so the whole FOV is in the
-            // road corridor, not merely the centre ray. The close ray also clears the left buttress edge.
+            // Rossdam cannot use the narrow gap between its north/south building rows; both near cameras
+            // therefore live in open southeast exterior space, clear of commerce, gate foundation and buttress.
             int2 rossdamPlayerTarget = ShowcaseWorld.WorldbuildingGalleryTownAuditTargetXZ(3, 1);
             int2 rossdamPlayerSpawn = ShowcaseWorld.WorldbuildingGalleryTownAuditSpawnXZ(3, 1);
             int2 rossdamCloseTarget = ShowcaseWorld.WorldbuildingGalleryTownAuditTargetXZ(3, 2);
             int2 rossdamCloseSpawn = ShowcaseWorld.WorldbuildingGalleryTownAuditSpawnXZ(3, 2);
             Assert.AreEqual(new int2(-1100, -697), rossdamPlayerTarget);
-            Assert.AreEqual(new int2(-1142, -707), rossdamPlayerSpawn);
-            Assert.AreEqual(new int2(-1121, -697), rossdamCloseTarget);
-            Assert.AreEqual(new int2(-1138, -705), rossdamCloseSpawn);
+            Assert.AreEqual(new int2(-1056, -720), rossdamPlayerSpawn);
+            Assert.AreEqual(new int2(-1081, -697), rossdamCloseTarget);
+            Assert.AreEqual(new int2(-1064, -705), rossdamCloseSpawn);
             Assert.That(math.distance(rossdamPlayerSpawn, rossdamPlayerTarget), Is.InRange(20f, 50f));
             Assert.That(math.distance(rossdamCloseSpawn, rossdamCloseTarget), Is.InRange(5f, 20f));
-            Assert.Greater(rossdamPlayerSpawn.y, -714, "Rossdam player camera must be north of the southern building row.");
-            Assert.Greater(rossdamCloseSpawn.y, -714, "Rossdam close camera must be north of the southern building row.");
-            float buttressFrontCrossing =
-                (-700f - rossdamCloseSpawn.y) / (rossdamCloseTarget.y - rossdamCloseSpawn.y);
-            float rossdamCloseSightlineX = math.lerp(rossdamCloseSpawn.x, rossdamCloseTarget.x, buttressFrontCrossing);
-            Assert.Greater(rossdamCloseSightlineX, -1128f,
-                "Rossdam close audit sightline must clear the east edge of the left gatehouse buttress.");
+            Assert.Greater(rossdamPlayerSpawn.x, -1076,
+                "Rossdam player camera must remain east of the commerce foundation.");
+            Assert.Greater(rossdamPlayerSpawn.x, -1066,
+                "Rossdam player camera must remain east of the gatehouse foundation.");
+            Assert.Greater(rossdamCloseSpawn.x, -1067,
+                "Rossdam close camera must remain east of the right gatehouse buttress.");
+            Assert.Less(rossdamPlayerSpawn.y, -710,
+                "Rossdam player camera must remain south of the gatehouse foundation.");
             Assert.AreEqual(26, ShowcaseWorld.WorldbuildingGalleryTownAuditLookHeightVoxels(3, 1));
             Assert.AreEqual(19, ShowcaseWorld.WorldbuildingGalleryTownAuditLookHeightVoxels(3, 2));
 
