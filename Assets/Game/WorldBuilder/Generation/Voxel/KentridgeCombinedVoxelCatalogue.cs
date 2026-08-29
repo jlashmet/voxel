@@ -85,7 +85,8 @@ namespace MountingForce.WorldGen.Voxel
                     root,
                     selection.CellSizeDm,
                     settings,
-                    allocator);
+                    allocator,
+                    includeWaterBodies: false);
                 waterBodies = TopDownWorldWaterBodyVoxelCatalogue.Build(
                     physical,
                     seed,
