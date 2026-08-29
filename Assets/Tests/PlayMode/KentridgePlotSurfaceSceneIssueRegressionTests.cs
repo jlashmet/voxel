@@ -16,8 +16,15 @@ namespace VoxelEngine.Tests.PlayMode
         private const uint VoxelShowcaseSeed = 1592594996u;
         private const byte RoadMaterial = 13;
 
+        // Corrected saved-camera ray envelope from experiment 015, in authored decimetres.
+        // The upper immutable circle contains the conspicuous rectangular grass tongue.
+        private const int UpperMarkedMinX = 910;
+        private const int UpperMarkedMaxX = 938;
+        private const int UpperMarkedMinZ = 286;
+        private const int UpperMarkedMaxZ = 304;
+
         [Test]
-        public void SceneIssue20260826132234356AuthoredShowcaseRoadStampsHaveRadialEdges()
+        public void SceneIssue20260826132234356OrganicRoadWinsAfterPlotGrading()
         {
             SettlementPlan plan = KentridgeDefinition.Build(VoxelShowcaseSeed);
             Assert.Greater(plan.Routes.Count, 0,
@@ -26,12 +33,15 @@ namespace VoxelEngine.Tests.PlayMode
             VoxelWorldGenSettings settings = BuildSettings(plan);
             FeatureCatalogue roads = KentridgeDirectedTownSurfaceCatalogue.Build(
                 VoxelShowcaseSeed, settings, Allocator.Persistent);
+            FeatureCatalogue combined = KentridgeCombinedVoxelCatalogue.Build(
+                VoxelShowcaseSeed, settings, Allocator.Persistent);
             var primitives = new NativeList<Primitive>(4, Allocator.Persistent);
             var anchors = new NativeList<ResolvedAnchor>(1, Allocator.Persistent);
 
             try
             {
                 int organicDefinitions = 0;
+                bool markedEnvelopeCovered = false;
                 for (int definitionId = 0; definitionId < roads.Definitions.Length; definitionId++)
                 {
                     FeatureDefinition definition = roads.Definitions[definitionId];
@@ -49,20 +59,20 @@ namespace VoxelEngine.Tests.PlayMode
                     Assert.AreEqual(ShapeOp.EmitCylinder, (ShapeOp)roads.Program[firstOp],
                         "Road clearance still uses an axis-aligned square stamp.");
                     Assert.AreEqual(ShapeOp.EmitCylinder, (ShapeOp)roads.Program[secondOp],
-                        "Road surface still uses an axis-aligned square stamp, which creates the captured right-angle dirt/grass bites.");
+                        "Road surface still uses an axis-aligned square stamp, which creates right-angle Dirt/grass bites once the road owns the final corridor.");
 
-                    ExplicitPlacement placement = roads.ExplicitPlacements[rule.ExplicitOffset];
+                    ExplicitPlacement firstPlacement = roads.ExplicitPlacements[rule.ExplicitOffset];
                     ParameterSet parameters = FeatureGeneration.ResolveParameters(
-                        in roads, in definition, in placement,
-                        definitionId, placement.Position, VoxelShowcaseSeed);
+                        in roads, in definition, in firstPlacement,
+                        definitionId, firstPlacement.Position, VoxelShowcaseSeed);
                     ulong instanceSeed = FeatureGeneration.InstanceSeed(
-                        VoxelShowcaseSeed, definitionId, placement.Position);
+                        VoxelShowcaseSeed, definitionId, firstPlacement.Position);
 
                     primitives.Clear();
                     anchors.Clear();
                     EvaluationResult evaluation = ShapeProgram.Evaluate(
                         in roads, definitionId, in parameters,
-                        placement.Position, placement.Orientation,
+                        firstPlacement.Position, firstPlacement.Orientation,
                         VoxelShowcaseSeed, instanceSeed, primitives, anchors);
                     Assert.AreEqual(EvaluationResult.Ok, evaluation);
                     Assert.AreEqual(2, primitives.Length,
@@ -82,20 +92,70 @@ namespace VoxelEngine.Tests.PlayMode
                     Assert.IsTrue(CylinderEmitter.Contains(in road, centre),
                         "The rounded stamp must still own the route centre.");
                     Assert.IsFalse(CylinderEmitter.Contains(in road, squareCorner),
-                        "The old square corner is still part of the road footprint; that corner is the captured jagged dirt/grass artifact.");
+                        "The old square corner is still part of the road footprint.");
+
+                    int radius = definition.Footprint.x / 2;
+                    for (int p = 0; p < rule.ExplicitCount; p++)
+                    {
+                        ExplicitPlacement placement = roads.ExplicitPlacements[rule.ExplicitOffset + p];
+                        int centreX = placement.Position.x + radius;
+                        int centreZ = placement.Position.z + radius;
+                        if (CircleIntersectsMarkedEnvelope(centreX, centreZ, radius))
+                            markedEnvelopeCovered = true;
+                    }
                 }
 
                 Assert.Greater(organicDefinitions, 0,
                     "The regression did not inspect the production organic circulation definitions used by VoxelShowcase.");
+                Assert.IsTrue(markedEnvelopeCovered,
+                    "No production organic route stamp reaches the corrected upper marked envelope; the ownership hypothesis must be re-localized instead of changing composition order.");
+
+                int lastPlot = -1;
+                int firstRoad = int.MaxValue;
+                int lastRoad = -1;
+                int piazza = -1;
+                for (int i = 0; i < combined.Definitions.Length; i++)
+                {
+                    string name = combined.Definitions[i].Name.ToString();
+                    if (name.StartsWith("kentridge-plot-", StringComparison.Ordinal))
+                        lastPlot = i;
+                    else if (name.StartsWith("kentridge-organic-route-", StringComparison.Ordinal))
+                    {
+                        firstRoad = Math.Min(firstRoad, i);
+                        lastRoad = i;
+                    }
+                    else if (string.Equals(name, "kentridge-market-piazza-hard-surface", StringComparison.Ordinal))
+                        piazza = i;
+                }
+
+                Assert.GreaterOrEqual(lastPlot, 0, "Combined production catalogue contains no plot grading stage.");
+                Assert.AreNotEqual(int.MaxValue, firstRoad, "Combined production catalogue contains no organic road stage.");
+                Assert.Greater(firstRoad, lastPlot,
+                    "Plot grading still runs after organic circulation and repaints the public road with rectangular Moss at the captured parcel edge.");
+                Assert.Greater(piazza, lastRoad,
+                    "Moving organic roads after plot grading must not let them overwrite the later authored market piazza.");
+
                 TestContext.WriteLine(
-                    $"SCENEISSUE_ROUNDED_ROADS seed={VoxelShowcaseSeed} routes={plan.Routes.Count} definitions={organicDefinitions}");
+                    $"SCENEISSUE_ROAD_OWNERSHIP seed={VoxelShowcaseSeed} routes={plan.Routes.Count} " +
+                    $"definitions={organicDefinitions} lastPlot={lastPlot} firstRoad={firstRoad} piazza={piazza} " +
+                    $"markedEnvelope=({UpperMarkedMinX}..{UpperMarkedMaxX},{UpperMarkedMinZ}..{UpperMarkedMaxZ})");
             }
             finally
             {
                 anchors.Dispose();
                 primitives.Dispose();
+                combined.Dispose();
                 roads.Dispose();
             }
+        }
+
+        private static bool CircleIntersectsMarkedEnvelope(int centreX, int centreZ, int radius)
+        {
+            int nearestX = math.clamp(centreX, UpperMarkedMinX, UpperMarkedMaxX);
+            int nearestZ = math.clamp(centreZ, UpperMarkedMinZ, UpperMarkedMaxZ);
+            int dx = centreX - nearestX;
+            int dz = centreZ - nearestZ;
+            return dx * dx + dz * dz <= radius * radius;
         }
 
         private static Primitive FindRoadSurface(NativeList<Primitive> primitives)
