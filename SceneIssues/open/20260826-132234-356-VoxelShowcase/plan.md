@@ -1,21 +1,20 @@
 # Plan
 
 ## Captured evidence
-The note is the Dirt/grass join being visibly jagged. I inspected both circles separately at the saved 1928x836 pose. The lower transition is a route-edge staircase; the upper circle contains the larger axis-aligned grass tongue around the corrected ray envelope `X≈91.0..93.8m, Z≈28.6..30.4m`.
+The note is the Dirt/grass join being visibly jagged. I inspected both circles separately at the saved 1928x836 pose. The lower transition is a repeated route-edge staircase; the upper circle contains a larger axis-aligned grass tongue around the corrected ray envelope `X≈91.0..93.8m, Z≈28.6..30.4m`.
 
-Exact replay `33215984995` after the plot-only change rebuilt `ShowcaseWorld.bytes`, passed the focused PlayMode test, built `VoxelShowcase`, and ran 45 s, but direct inspection of `verification-final.png` still showed the upper right-angle tongue. It is therefore not promotable despite green CI.
+Fresh built-player replay `33215984995` rebuilt `ShowcaseWorld.bytes`, passed focused PlayMode coverage, launched `VoxelShowcase` for 45 s without runtime failure, yet `RealPlayer/verification-final.png` still showed the upper right-angle tongue. Green infrastructure therefore did not satisfy the visual gate.
 
 ## Competing hypotheses / discrimination
-1. **Organic-route square stamps.** Production `KentridgeOrganicCirculationCatalogue` emits overlapping axis-aligned box stamps along diagonal routes. This directly predicts the repeated horizontal/vertical staircase visible on both road edges. Earlier rounded-route replay `33214166946` improved the lower transition but left the upper mark.
-2. **Plot feather over the route/natural edge.** Exact seed `1592594996` places MayorHouse/WideHouse at `(910,250)` dm; the upper ray crosses its west parcel edge where the old 12-step Moss feather expanded beyond the real building pad. The route-only experiment left this later precedence-40 owner intact. Conversely, the plot-only replay left the precedence-20 square route geometry intact.
-3. **Stale bake/streaming.** Falsified by fresh WorldBuilder cache misses and successful saved-camera real-player replays; the marked geometry is stable.
-
-The single-owner experiments were therefore incomplete: the two rectangular owners stack at the captured transition, so removing only one leaves a hard edge.
+1. **Square organic-route stamps.** Proven owner of the repeated lower staircase. Replacing live route boxes with equal-width vertical cylinders improved that transition without changing route centers, widths, samples, precedence, placement count, or two-primitive budget.
+2. **Parcel-sized plot grading.** Proven contributor to the upper rectangle. Replacing the 12-step outward feather with the real archetype pad removed grading from the MayorHouse parcel west edge, but the built replay still retained a rectangle.
+3. **Plot/route precedence overlap.** Current leader. Exact seed `1592594996` places MayorHouse/WideHouse at `(910,250)` dm; the marked envelope intersects both its bounded pad and an organic Dirt route. In the real combined catalogue the pad remains precedence 40 while the route is 20, so Moss wins the shared columns despite corrected shapes. Falsifier: no route/pad overlap inside the saved mark, or a replay still showing the tongue after route precedence wins.
+4. **Stale bake/streaming.** Falsified by fresh cache misses and stable saved-camera real-player replays.
 
 ## Fix / regression
-Keep plot grading inside each archetype's real `PadFor` envelope and leave parcel edges natural. Keep organic route centers, widths, height samples, precedence, placement count, and two-primitive budget, but replace square carve/fill stamps with vertical cylinders of the same half-width.
+Keep standalone/legacy plot precedence unchanged. In organic Kentridge composition only, lower plot grading to precedence 10: above generic ground cover (5), below authored public Dirt routes (20). Preserve the bounded plot pad and round route stamps.
 
-`SceneIssue20260826132234356CapturedDirtGrassEdgesAvoidRectangularOwners` builds both production catalogues at the exact showcase seed, proves the MayorHouse marked parcel edge is outside grading, and proves every live organic route definition emits only the bounded round carve/fill pair.
+Existing regression proves pad geometry and round route programs. New exact-seed regression proves the saved upper envelope intersects both real owners and that the combined production catalogue enforces `route > plot > ground` there.
 
 ## Blast radius / cost
-Route change is organic Kentridge only; legacy/district roads are untouched and primitive count is unchanged. Plot grading affects non-well Kentridge plots but reduces each program from 39 primitives to 3 and reduces spatial ownership. No per-frame work is added. Final gate is exact-SHA PlayMode + built-player replay with both original circles clean.
+Precedence adaptation affects only organic Kentridge combined generation; legacy Kentridge and standalone plot catalogues are unchanged. No geometry, occupancy budget, placements, route samples, or per-frame work are added. Cost is one build-time loop over the small plot-definition array. Remaining gates: focused exact-SHA PlayMode, built-player `VoxelShowcase`, and saved-pose inspection with both original circles clean.
