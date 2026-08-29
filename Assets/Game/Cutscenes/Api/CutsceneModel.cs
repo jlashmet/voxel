@@ -161,6 +161,10 @@ namespace Game.Cutscenes.Api
         Dialogue,
         Camera,
         Sound,
+        ActorCue,
+        Transition,
+        AcquireControlLock,
+        ReleaseControlLock,
         Parallel
     }
 
@@ -265,6 +269,18 @@ namespace Game.Cutscenes.Api
         public static CutsceneStep Sound(CutsceneCueId cue) =>
             new CutsceneStep(CutsceneStepType.Sound, default, default, default, cue, 0);
 
+        public static CutsceneStep ActorCue(CutsceneActorId actor, CutsceneCueId cue) =>
+            new CutsceneStep(CutsceneStepType.ActorCue, actor, default, default, cue, 0);
+
+        public static CutsceneStep Transition(CutsceneCueId cue) =>
+            new CutsceneStep(CutsceneStepType.Transition, default, default, default, cue, 0);
+
+        public static CutsceneStep AcquireControlLock() =>
+            new CutsceneStep(CutsceneStepType.AcquireControlLock, default, default, default, default, 0);
+
+        public static CutsceneStep ReleaseControlLock() =>
+            new CutsceneStep(CutsceneStepType.ReleaseControlLock, default, default, default, default, 0);
+
         public static CutsceneStep Parallel(params CutsceneStep[] children)
         {
             if (children == null) throw new ArgumentNullException(nameof(children));
@@ -364,7 +380,7 @@ namespace Game.Cutscenes.Api
             for (var i = 0; i < result.Count; i++)
             {
                 if (!required.Contains(result[i].Point))
-                    throw new ArgumentException("Stage requirement is not referenced by choreography: " + result[i].Point, nameof(declared));
+                    throw new ArgumentException("Stage requirement is not referenced by choreography: " + requirement.Point, nameof(declared));
             }
             for (var i = 0; i < requiredPoints.Length; i++)
             {
@@ -396,6 +412,7 @@ namespace Game.Cutscenes.Api
                     AddPoint(step.StagePoint, points, pointSet);
                     break;
                 case CutsceneStepType.Dialogue:
+                case CutsceneStepType.ActorCue:
                     if (!string.IsNullOrWhiteSpace(step.Actor.Value))
                         AddActor(step.Actor, actors, actorSet);
                     break;
