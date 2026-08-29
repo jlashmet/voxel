@@ -1,17 +1,24 @@
 # Plan
 
 ## Captured evidence
-One capture, two marked regions, exact saved camera pose. The lower marked transition is the organic Dirt route edge; the upper mark is a hard rectangular grass tongue near MayorHouse. Exact replay uses seed `1592594996` and the corrected upper world envelope `X≈91.0..93.8m, Z≈28.6..30.4m`.
+One capture, two marked Dirt/grass contacts, exact saved camera pose at 1928×836. The lower marked transition is on organic circulation; the upper mark contains a hard 90-degree grass tongue. Correct camera-ray reconstruction from the issue fixture places the upper marked envelope at approximately `X=91.0..93.8m, Z=28.6..30.4m`.
+
+The latest exact built-player replay is workflow `33226248513` for feature source `ecec9b71119ff2dfbe250c5d8b6d7d994193e11b`. It freshly baked `ShowcaseWorld.bytes`, built `VoxelShowcase`, replayed the saved camera, and reached stable residency, but direct inspection shows the upper rectangle still present. Pixels inside both original marks are unchanged from the previously rejected replay `33225240544`, so that source is not acceptable despite green CI.
 
 ## Competing hypotheses / evidence
-1. **Square route stamps** — supported for the lower mark. Round equal-width cylinder stamps improved it without changing route centers, widths, samples, precedence, placements, or two-primitive budget.
-2. **Parcel/outward plot grading** — contributor to the upper mark. Removing the 12-step feather helped ownership but the first bounded archetype pad still left the rectangle in built-player replay.
-3. **Plot/route precedence** — falsified. Workflow `33225240544` proved zero live organic-route placements cross the WideHouse pad inside the corrected upper envelope; lowering plot precedence produced no visible improvement.
-4. **Generated-foundation mismatch** — current supported owner. MayorHouse resolves to a `98×86` dm generated foundation at local `(17,10)`, while the current WideHouse pad is `(6,4,116,100)`. Marked point `(92.0m,29.5m)` lies inside the pad but outside the real foundation.
-5. **Stale bake/streaming** — falsified by repeated forced bakes, stable saved-pose captures, and full residency.
+1. **Square organic-route stamps** — supported for the lower mark. Replacing equal-width square carve/fill stamps with equal-width cylinders changed the lower contact without moving route centres, widths, samples, placements, precedence, or the two-primitive budget. Keep this bounded fix.
+2. **Route ownership of the upper mark** — falsified. An exact-seed production regression found no live organic-route placement crossing the corrected upper envelope, and route-only replay left the upper rectangle.
+3. **Plot/route precedence** — falsified. Numeric `FeatureDefinition.Precedence` is validated/hashed but `FeatureCatalogueBuilder.Finalise` does not sort by it; runtime generation walks combined rule order. Lowering plot precedence produced no visible change.
+4. **Generated foundation pad shrink alone** — falsified as sufficient. The green replay after shrinking the old WideHouse pad to the generated `98×86dm` foundation is byte-identical inside the marks to the rejected prior replay.
+5. **The generated pad's visible Moss corner** — supported. MayorHouse is placed at `(910,250)dm` with orientation `2` inside the `132×132dm` WideHouse envelope. After the production `ShapeProgram` half-turn, the generated pad spans `X=927..1024dm, Z=286..371dm`. Its southwest top corner is therefore exactly `(92.7m,28.6m)`, on the corrected upper marked envelope. The prior regression incorrectly tested the unrotated local program and could pass while the built scene remained unchanged.
+6. **Stale bake / streaming** — falsified by repeated WorldBuilder-aware forced bakes and stable real-player residency.
 
-## Fix / regression
-Keep round organic routes. Revert the precedence experiment. In organic Kentridge only, generated-house grading becomes role-specific and uses the resolved `StructureForm` foundation rectangle; bespoke and legacy/non-Kentridge pads keep existing behavior. Exact-seed regression proves MayorHouse grading equals its generated foundation and the formerly graded marked sample stays natural.
+## Fix / behavioral regression
+Keep the round organic-route stamps. For organic Kentridge **generated houses only**, preserve the exact rectangular Dirt support, elevation, clearance, placement, and three-primitive budget, but change the visible Moss ownership from a rectangular Fill to a rounded `PaintSurface` cap with a `12dm` corner radius. The support is filled through the same top voxel first, so cap exclusion exposes Dirt rather than changing occupancy.
+
+The exact-seed PlayMode regression evaluates MayorHouse through the real `ShapeProgram` and production orientation. It asserts the world-space support remains `927..1024 × 286..371dm` at surface `Y=221dm`, while the rounded Moss cap excludes the captured corner and near-corner cells, retains interior/tangent cells, and leaves the round organic-route behavior intact.
 
 ## Blast radius / cost
-No new placements or primitives per plot; fill volume decreases. Organic Kentridge grows from archetype-shared pad definitions to one small definition per non-well plot (16 for this seed), adding only bounded bake-time catalogue metadata/program bytes. No per-frame work. Remaining gates: exact regression, forced bake, real `VoxelShowcase` player, saved-pose visual inspection.
+Only organic Kentridge generated-house surface material ownership changes. Bespoke/non-generated pads and legacy layouts retain the existing rectangular surface. No placement, route, structure, support occupancy, elevation, or clearance changes. Each generated pad remains exactly three primitives; there is no per-frame work because VoxelShowcase consumes the prebaked world. The rounded `PaintSurface` adds bounded bake-time surface reads over the already-bounded foundation footprint while reducing unconditional Moss writes at corners.
+
+Remaining gates: compile/run the exact regression in the final targeted request, force a fresh showcase bake, build the real `VoxelShowcase` player, replay the immutable saved pose, and directly verify that **both original circles** no longer contain metre-scale rectangular/stair-step Dirt/grass contacts. Do not promote on green CI alone.
