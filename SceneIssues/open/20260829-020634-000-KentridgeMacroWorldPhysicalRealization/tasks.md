@@ -36,13 +36,14 @@
 ## Frustum-ready evidence work discovered by 33263409994
 - [x] Inspect existing rendering/streaming APIs. `RenderingComposition.HasCompletePublishedNearSurfaceCoverage()` is explicitly the current surface pass's `MissingVisibleSolidChunks == 0`; there is no arbitrary-position/frustum coverage query exposed through Composition.
 - [x] Reject validation sample-point teleports/prewarm: querying another footprint requires moving the resident/camera and would recreate the presentation regression from experiment 006. Selected approach is bounded resident-sized evidence views plus multiple consecutive complete current-camera surface passes before capture.
-- [ ] Tighten generic-settlement framing from the production physical-plan blockout centers/extents so all four generated buildings are large/readable in the image.
-- [ ] Derive Rossdam lake framing from the physical lake extent and constrained route so substantial water + shoreline + route are visible without the translucent surface dominating the frame.
-- [ ] Keep southern ridge/pass evidence close enough to visibly prove the constrained route response.
-- [ ] Replace the too-wide macro overview with a bounded connected-route cluster that can be fully streamed and visually inspected without large terrain holes.
-- [ ] Gate the macro-road screenshot on stable published current-camera coverage after the real CharacterMotor traversal instead of capturing immediately at the movement endpoint.
-- [ ] Preserve validation-only timing, real `CharacterMotor` motion at `Time.timeScale=1`, collision/streaming, and all production planner/catalogue/streamer/story/gameplay semantics.
-- [ ] Self-review the final evidence-only diff and re-check blast radius/cost before the exact-SHA gate.
+- [x] Tighten generic-settlement framing from production blockout bounds: compute the four-building physical envelope, target its centre, keep diagonal camera offsets bounded to 28-36 m from that envelope, and reduce survey height to 22 m.
+- [x] Derive Rossdam lake framing from the physical lake extent and the closest constrained-route point; place the validation camera just outside that route point at 24 m instead of using an unrelated route midpoint at 72 m.
+- [x] Tighten southern ridge/pass evidence to a 19 m x 17 m offset at 32 m height around the actual route tile inside the ridge.
+- [x] Replace the too-wide Kentridge-facing macro overview with a bounded 22 m x 19 m / 40 m-high survey of the source-backed South Fighting Area branch where Logan and Orc routes diverge.
+- [x] Gate the macro-road screenshot on four consecutive complete published current-camera surface passes after the real CharacterMotor traversal instead of capturing immediately at the movement endpoint.
+- [x] Gate every remote target on four consecutive complete current-camera passes after its minimum settle time; reset stability on each target transition.
+- [x] Preserve validation-only timing, real `CharacterMotor` motion at `Time.timeScale=1`, collision/streaming, and all production planner/catalogue/streamer/story/gameplay semantics.
+- [x] Self-review implementation commit `a0fc52f67e1a8e495de0012ca4715b7250f9c3a5`: only `KentridgeMacroWorldEvidenceDriver.cs` changed. Full branch diff remains limited to agent-6 Kentridge/WorldBuilder/tests/assignment files; `.github/test-request.json` is absent. Four-frame stability adds only bounded validation latency after convergence and closer cameras reduce view/streaming footprint.
 
 ## Behavioral regression
 - [x] Final targeted PlayMode acceptance exists: `VoxelEngine.Tests.PlayMode.KentridgeMacroWorldPhysicalProductionAcceptanceTests.PhysicalMacroWorldHasWalkableRoutesAndADeepStreamedWaterBody`.
