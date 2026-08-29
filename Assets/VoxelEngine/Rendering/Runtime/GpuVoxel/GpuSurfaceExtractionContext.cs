@@ -296,16 +296,10 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (counts.IsEmpty)
             {
                 // The count itself completed successfully, so this is not a GPU failure. Keep the
-                // staged extraction alive and let the normal write/publication path install a
-                // zero-index ready entry. CpuTransvoxelChunkCache historically grouped this case
-                // with lost readbacks and arena exhaustion, routing valid empty results through
-                // the 64^3 CPU mesher and producing the moving-showcase fallback spikes.
-                //
-                // The cache currently treats IsEmpty as "do not allocate", so expose a one-element
-                // sizing token only to that caller while retaining the authoritative zero counts in
-                // _stagedCounts. SurfaceGeometryArena aligns this to its existing minimum lease;
-                // the write verification below still compares against the true zero counts and the
-                // published indirect args contain indexCount=0.
+                // staged extraction alive and let the normal publication path install a zero-index
+                // ready entry. CpuTransvoxelChunkCache still needs a non-zero arena sizing token,
+                // but the authoritative zero remains in _stagedCounts. BeginWriteRange recognizes
+                // that zero and deliberately skips the redundant write/verification dispatch.
                 ChunksEmpty++;
                 counts = new GpuExtractionCounts(1, 1);
             }
@@ -324,6 +318,14 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _writeIndexStart = indexStart;
             _writeIndexCapacity = indexCapacity;
             _writeReadbackRetries = 0;
+
+            // A completed zero count is already the authoritative payload. Dispatching the write
+            // kernel just to prove that it writes zero vertices/indices adds a second async
+            // readback failure surface and can incorrectly route valid empty chunks to the CPU.
+            // Keep the caller's tiny staging lease only as its existing publication token; phase
+            // 10 will receive Ready/0 immediately and publish zero indirect args.
+            if (_stagedCounts.IsEmpty) return;
+
             _extractor.BeginWriteRange(_mirror, _tables, _staged, vertices, indices,
                                        vertexStart, vertexCapacity, indexStart, indexCapacity);
         }
@@ -333,6 +335,11 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             ThrowIfDisposed();
             indexCount = 0;
             if (!_hasStaged) return GpuSurfaceExtractor.GpuCounterPoll.Failed;
+            if (_stagedCounts.IsEmpty)
+            {
+                ChunksWritten++;
+                return GpuSurfaceExtractor.GpuCounterPoll.Ready;
+            }
 
             GpuSurfaceExtractor.GpuCounterPoll poll = _extractor.TryCompleteWriteRange(
                 _writeVertexCapacity, _writeIndexCapacity, out GpuExtractionResult result);
