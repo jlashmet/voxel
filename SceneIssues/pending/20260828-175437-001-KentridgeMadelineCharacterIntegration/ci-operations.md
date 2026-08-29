@@ -12,3 +12,8 @@
 - Result: product/test-contract failure during the production PlayMode acceptance. Unity reached runtime and captured opening camera vertical separation `1.72000122 m`; the inherited test required `>2.5 m` above `OpeningCutsceneCameraFocus`.
 - Discriminator: pre-extraction `a3acc64d5e78f63a16a2d8892a4c9faf6d339740` contains the same opening-camera production formula. Focus is `floor + 0.9 m`, while camera height is explicitly capped below the generated pub's first-floor slab, so the old threshold was impossible for the authored interior shot and was not caused by `KentridgeCharacterHost`.
 - Corrective action: leave production camera/host behavior unchanged; correct the behavioral assertion to the architecture-derived `>1.3 m` vertical separation while retaining its downward-facing and fixed-camera invariants.
+- Fifth final request: source `9e3e290265a470e7e546631e9bcb28a5e1185640`, request `0bfbad0a0ed2060f48eda1ca91338ff4fc22c6b0`, workflow run `33220289826`.
+- Result: product failure. The opening establishing driver moved `5.5184145 m` while the authored fixed-camera state was active; the standalone Kentridge player stage passed in the same run.
+- Corrective action: preserve the pre-existing `<= 0.01 m` fixed-shot regression and make scene flow reapply the stored opening camera pose every active-camera frame.
+- Final request: source `fb962fe2f055e1b31537e737a9c4493667fc5362`, request `8db4b026b27d96e96ff587e2cafe6e5450201d9d`, workflow run `33222884817`.
+- Result: success. Requested PlayMode behavioral regression passed, the configured real-player harness built and launched `Assets/Scenes/KentridgePlayableSlice.unity`, real-player capture passed, and the workflow published final success.
