@@ -1,0 +1,9 @@
+# CI operations — Kentridge meadow density
+
+- Historical runs `33244533044`, `33246401704`, and `33246992214` were workflow-green but failed mandatory built-player grass-motion inspection. Run `33247434464` was a product compile failure and supplied no gate evidence. Run `33247764440` was mechanically green but still failed direct player inspection because the meadow was generated behind the required camera.
+- Experiment 005 fixed the proven coverage defect without increasing the 12,000 semantic-instance budget: Kentridge sample spacing changed from 0.4 m to 0.8 m and a production-camera visibility regression was added.
+- One fresh final request was created only on the assigned CI ref after source changed: request SHA `d71730e46c2e12bc81e8c6e58cb87c07525904e3`, parent/source `ec92c3002a6b75ca86de7819f4175c5390a1ca2b`, workflow `33249542767`.
+- Workflow `33249542767` completed successfully: requested PlayMode regression, exact built-player Kentridge replay, screenshot previews, artifact upload, and final `ci/single-test=success` all passed. The queued/running request was never replaced.
+- Final diagnostics: 11,322 semantic grass instances / 113,490 blades; primary connected meadow 5,740 instances / 57,752 blades; 16 packed chunks; zero excluded-surface leakage; 3,664 production grass root clusters in the real opening camera frustum; 116.02 m furthest-forward coverage.
+- Direct artifact inspection passes the mandatory visual gate. Stationary t=39.8s, 49.8s, and 59.8s player-height frames plainly show dense procedural meadow coverage and changing blade silhouettes. Grass-band pixel change is 42.89% then 44.08% between successive frames with sky/dialogue excluded.
+- Durable final evidence is stored in `verification-final.txt`. No additional CI transport/request is required or permitted for bookkeeping-only commits.
