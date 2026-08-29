@@ -1,5 +1,5 @@
 {
-  "timeoutSeconds": 90.0,
+  "timeoutSeconds": 55.0,
   "arrivalRadius": 1.25,
   "holdSeconds": 0.5,
   "quitOnComplete": true,
