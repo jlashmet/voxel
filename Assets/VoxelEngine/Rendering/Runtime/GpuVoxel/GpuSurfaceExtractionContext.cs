@@ -386,9 +386,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             {
                 // A failed async counter transfer is not evidence that this supported chunk needs
                 // the CPU mesher. The count dispatch already owns a stable shared-mirror extraction
-                // window, so retry the four-word bookkeeping transfer by redispatching the same
-                // count against the same immutable request. Only repeated failure escapes to the
-                // caller's existing device/error fallback.
+                // window, so retry the four-word bookkeeping transfer against the same immutable
+                // request. After the local retry allowance the worker records the failure and calls
+                // RetryCount; keep this stage alive so that handoff cannot become a visible hole.
                 if (_countReadbackRetries < MaxCounterReadbackRetries)
                 {
                     _countReadbackRetries++;
@@ -396,7 +396,6 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                     _extractor.BeginCount(_mirror, _tables, _staged);
                     return GpuSurfaceExtractor.GpuCounterPoll.Pending;
                 }
-                Release();
                 return poll;
             }
 
