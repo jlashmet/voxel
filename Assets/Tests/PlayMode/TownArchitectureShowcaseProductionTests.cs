@@ -39,6 +39,7 @@ namespace VoxelEngine.Tests.PlayMode
             foreach (string styleId in styleIds)
             {
                 TownArchitectureProgram program = WorldBuilderTownArchitecture.Resolve(styleId);
+                Assert.AreEqual(styleId, program.StyleId);
                 Assert.AreEqual(WorldBuilderTownArchitecture.CanonicalSeed(styleId), program.Seed);
                 Assert.AreEqual(1, program.DetailUnitBlocks);
                 Assert.GreaterOrEqual(program.ReferenceScreenshots.Count, 5);
@@ -53,7 +54,15 @@ namespace VoxelEngine.Tests.PlayMode
                     WorldBuilderTownArchitecture.Resolve(styleId).DeterministicSignature);
             }
 
+            Assert.AreEqual(6, forms.Count);
+            Assert.AreEqual(6, materials.Count);
+            Assert.AreEqual(6, seeds.Count);
+
             TownArchitectureProgram rossdam = WorldBuilderTownArchitecture.Resolve(WorldBuilderTownArchitectureIds.Rossdam);
+            Assert.AreEqual(TownArchitectureSilhouette.RoyalFortified, rossdam.Silhouette);
+            Assert.AreEqual(TownArchitectureRoofForm.FortifiedParapet, rossdam.RoofForm);
+            Assert.AreEqual(TownArchitectureOpeningStyle.FortifiedReveal, rossdam.OpeningStyle);
+
             string[] fortificationDetails =
             {
                 "arrow-slit-reveal", "layered-coping", "crenellation", "tower-wall-transition",
@@ -62,6 +71,8 @@ namespace VoxelEngine.Tests.PlayMode
             foreach (string detail in fortificationDetails)
                 Assert.IsTrue(rossdam.IncludesDetail(detail), "Rossdam missing " + detail);
 
+            Assert.AreEqual(82, TownArchitectureDistrictBounds.HalfWidthVoxels);
+            Assert.AreEqual(66, TownArchitectureDistrictBounds.HalfDepthVoxels);
             Assert.AreEqual(164, TownArchitectureDistrictBounds.WidthVoxels);
             Assert.AreEqual(132, TownArchitectureDistrictBounds.DepthVoxels);
             Assert.AreEqual(78, TownArchitectureDistrictBounds.EstimatedMaxHeightVoxels);
