@@ -1,5 +1,14 @@
 # Tasks — Kentridge Awon + Medrare Opening Cutscenes
 
+## Quality-review rework — 2026-08-29
+
+- [ ] Recover the authoritative Medrare dialogue payload required by acceptance criterion (2), or document definitive source absence and obtain an explicit human acceptance change; do not invent replacement dialogue and do not treat unknown text as accepted fidelity.
+- [ ] Port every applicable recovered Medrare line verbatim and extend focused regressions so the expected source text is actually asserted through the production story path.
+- [ ] Make the exact-SHA built-player acceptance execute and verify the applicable Logan -> Awon -> Medrare flow, with durable evidence of sequence/gating/dialogue rather than only generic timed scene screenshots.
+- [ ] Re-run exact-SHA targeted CI and the exact-SHA built-application gate after the rework; inspect the resulting evidence before returning the ticket to pending/closed.
+
+## Prior work (previous closure rejected; retain as historical evidence)
+
 - [x] Read `AGENTS.md`, canonical `SceneIssues/README.md`, and target issue; confirm no capture frames/annotations exist.
 - [x] Confirm `SceneIssues/feature-readme.md` is absent on feature/master; use canonical `SceneIssues/README.md`.
 - [x] Resume `fixes/agent-1` without discarding prior work and preserve the dedicated final-CI transport rule.
@@ -21,4 +30,4 @@
 - [x] Set pending metadata and move only this assignment `open -> pending` in bookkeeping commit `7dbf1a231f01d8cbfff0ec65011ed7c0f50cb469`.
 - [x] Move only this assignment `pending -> closed`, set `status=fixed` and `resolvedUtc`, and finish closure metadata.
 
-Post-close workflow: re-fetch current `origin/master`, merge it into `fixes/agent-1` if needed, then non-force push that exact feature head to `origin/master`; if master advances, fetch/merge/retry.
+The prior close/promotion steps above are retained only as history. The ticket is open again and must not return to pending until every quality-review rework checkbox and original acceptance criterion is green.
