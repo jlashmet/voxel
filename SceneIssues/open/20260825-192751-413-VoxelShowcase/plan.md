@@ -6,16 +6,18 @@
 
 ## Runtime evidence / competing hypotheses
 - Demand-scoped mirror recovery removed the original ~0.65–0.77 s global-mirror stall. Recovery fairness plus bounded 512-descriptor/64-mixed publication slices restored forward GPU progress.
-- Exact candidate `b650932f7b35323948d75b92bc65a1a34c6ec194` ran both focused tests and the built player. Liveness passed; built-player harness reached 45 s with zero harness assertions. The migration traversal failed only because 3 of 92 GPU-eligible attempts fell back (`gpuCompleted=89`, expected fallback 0).
-- Built-player replay is severely incomplete at 15.4 s but visually coherent by 25.4/35.5 s, so this candidate no longer shows a permanent renderer/world-data failure.
-- Arena exhaustion is disfavored by prior `leaseFail=0` evidence. The remaining discriminator is late completion: transient readback/device failure versus a valid zero-geometry count being sent through a redundant write/readback verification path.
+- Exact run `33275543571` on feature `4722b74771ab2a265157d800bdf9500f7ffcb9fe` proves the empty-stage completion fix worked narrowly: recovery liveness passed and migration reached `gpu=154/0`, eliminating eligible CPU fallback. The migration still failed to settle: `visible=43`, `missing=579`, `dirty=1927`, `jobs=12` after 20 s.
+- All four exact built-player captures were inspected. t15.4 is almost empty; t25.4/t35.4 recover the castle/town; final remains incomplete. FPS starts around 245–264, then late individual solid-worker `Prepare` / solid admission spikes reach ~190–195 ms and the player falls to roughly 5–18 FPS.
+- Arena exhaustion is falsified by `leaseFail=0`, unused capacity and negligible relief. Internal worker sections remain small during the large whole-`Prepare` spikes, pointing at the uninstrumented GPU mirror/admission/dispatch path.
+- Source discriminator: mixed-brick recovery stages up to 64 arbitrary mirror slots. LIFO slot reuse can fragment those indices; the previous payload flush issued four synchronous `ComputeBuffer.SetData` calls per contiguous dirty-slot run. A maximally fragmented recovery slice therefore permits 256 driver uploads inside one worker `Prepare`.
 
 ## Current fix
-- Feature is synchronized with `origin/master` through merge `81557283b3c8a73983a6a00b2a597115aca10882`.
-- Candidate `cdd6674797f12be190a6254d20dd30ffbf2ba283` keeps the authoritative zero count staged, uses only the existing tiny caller sizing token, skips the redundant write dispatch/readback for zero geometry, and returns `Ready/0` to the existing publication path. Non-empty writes, retry limits, arena sizing, shaders, Storage, topology, recovery budgets, and performance thresholds are unchanged.
-- Cost/blast radius: only GPU-eligible empty completions change. They remove one compute dispatch/readback each; non-empty GPU and all CPU/HLOD/water paths are unchanged.
+- Empty GPU results still skip redundant write/readback verification; that proven zero-fallback behavior is retained.
+- `GpuVoxelBrickMirror` now compacts dirty payload slots into fixed 64-brick transfer batches. `VoxelBrickDirectoryUpdater.compute` scatters one contiguous transfer into the unchanged material/surface/boundary/metadata slot buffers before directory deltas and extraction consume them.
+- Recovery/admission budgets, slot mapping, Storage generations, live payload layout, extraction shaders, geometry arena, CPU topology, HLOD, water and performance thresholds are unchanged.
+- Cost/blast radius: fixed payload staging is 64 × 517 uints = 132,352 bytes GPU plus the same CPU staging. A full batch is one ~132 KB upload + one ~32.8k-thread scatter dispatch, replacing up to 256 fragmented `SetData` calls.
 
 ## Regression / remaining gates
 - `GpuSurfaceMirrorRecoveryLivenessTests.DemandRecoveryCannotBeStarvedByCoveredGpuWork`: exact 96 m recovery liveness.
 - `ShowcaseGpuMigrationTests.MovingShowcaseCompletesGpuSurfaceBuildsAndPreservesCoverage`: exact 210 m traversal, sustained GPU completions, zero eligible fallback/blocking completion, unchanged moving/stationary frame budgets and settled coverage.
-- Next: final exact-head targeted CI + built-player replay. Only green exact-SHA gates permit pending/closed metadata and master push.
+- Next: synchronize current `origin/master`, then one exact-head targeted CI + 45 s built-player replay. Only green exact-SHA gates permit pending/closed metadata and master push.
