@@ -30,6 +30,10 @@ namespace VoxelEngine.Tests.PlayMode
                 "The production path must author a multi-lobed natural mouth, not only the rectangular core entrance.");
             Assert.That(world.UndergroundCavernDirectionChangeCount, Is.GreaterThanOrEqualTo(4),
                 "The production descent must force multiple lateral direction changes.");
+            Assert.That(world.UndergroundCavernNaturalizationNodeCount, Is.GreaterThanOrEqualTo(150),
+                "The prolonged production descent must be naturalized along its full non-dogleg span, not only at sparse bends.");
+            Assert.That(world.UndergroundCavernNaturalizationVoxelsWritten, Is.InRange(1L, 15_000_000L),
+                "Full-route naturalization must remain a bounded presentation pass inside the existing feature budget.");
             Assert.That(world.UndergroundCavernStatueCount, Is.EqualTo(2));
             Assert.That(world.UndergroundCavernStalactiteCount, Is.GreaterThanOrEqualTo(2));
             Assert.That(world.UndergroundCavernGeologicalCategoryCount, Is.GreaterThanOrEqualTo(3));
@@ -57,10 +61,29 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(delta.y, Is.LessThan(-70f),
                 "The cavern must remain substantially below the natural surface entrance.");
 
+            float ruinDistance = HorizontalDistance(
+                (Vector3)world.UndergroundCavernCentreMetres,
+                (Vector3)world.UndergroundCavernRuinCentreMetres);
+            float approachDistance = HorizontalDistance(
+                (Vector3)world.UndergroundCavernRuinApproachMetres,
+                (Vector3)world.UndergroundCavernRuinCentreMetres);
+            Assert.That(ruinDistance, Is.GreaterThanOrEqualTo(10f),
+                "The ruin must sit toward the far end of the large cavern rather than beside its centre.");
+            Assert.That(approachDistance, Is.GreaterThanOrEqualTo(6f),
+                "The final gameplay waypoint must stop outside the ruin with enough setback to read the facade and statues.");
+            Assert.That(approachDistance, Is.LessThan(ruinDistance),
+                "The facade-viewing approach should advance into the cavern without entering the ruin centre.");
+
+            float3[] route = world.UndergroundCavernTraversalWaypointsMetres;
+            Assert.That(math.distance(route[route.Length - 1], world.UndergroundCavernRuinApproachMetres),
+                Is.LessThan(0.01f),
+                "The production traversal must terminate at the shared ruin-approach point rather than inside the structure.");
+
             int motorSteps = WalkProductionRoute(world);
 
             TestContext.WriteLine(
-                $"cavern writes={world.UndergroundCavernVoxelsWritten}; visualFinishWrites={world.UndergroundCavernVisualFinishVoxelsWritten}; " +
+                $"cavern writes={world.UndergroundCavernVoxelsWritten}; naturalizationWrites={world.UndergroundCavernNaturalizationVoxelsWritten}; " +
+                $"naturalizationNodes={world.UndergroundCavernNaturalizationNodeCount}; visualFinishWrites={world.UndergroundCavernVisualFinishVoxelsWritten}; " +
                 $"preloadRegions={world.UndergroundCavernPreloadedRegionCount}; traversal={world.UndergroundCavernTraversalDistance}; " +
                 $"routeWaypoints={world.UndergroundCavernTraversalWaypointsMetres.Length}; motorSteps={motorSteps}; " +
                 $"routeLights={world.UndergroundCavernRouteLightCount}; totalLights={world.UndergroundCavernLocalLightCount}; " +
@@ -68,7 +91,8 @@ namespace VoxelEngine.Tests.PlayMode
                 $"cavernLobes={world.UndergroundCavernIrregularLobeCount}; architectureDetails={world.UndergroundCavernArchitectureDetailCount}; " +
                 $"statueDetails={world.UndergroundCavernStatueDetailCount}; largeFormations={world.UndergroundCavernAdditionalFormationCount}; " +
                 $"statues={world.UndergroundCavernStatueCount}; stalactites={world.UndergroundCavernStalactiteCount}; " +
-                $"geologyCategories={world.UndergroundCavernGeologicalCategoryCount}; depthDeltaMetres={delta.y:F1}");
+                $"geologyCategories={world.UndergroundCavernGeologicalCategoryCount}; depthDeltaMetres={delta.y:F1}; " +
+                $"ruinDistanceMetres={ruinDistance:F1}; approachDistanceMetres={approachDistance:F1}");
 
             int lights = world.UndergroundCavernLocalLightCount;
             long writes = world.UndergroundCavernVoxelsWritten;
