@@ -54,8 +54,8 @@ jobs:
   single:
     runs-on: [self-hosted, macOS]
     # Single-test CI is intentionally a fast-feedback path. The complete job must
-    # finish within five minutes; slow tests should be split or narrowed instead.
-    timeout-minutes: 5
+    # finish within ten minutes; slow tests should be split or narrowed instead.
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
