@@ -5,6 +5,7 @@
 - [x] Inspect road behavior/history at `336cb6e63e19bc6039f3f89bb4d2056e2d0efb60` and slope-material safety at `8cd28a5ea7133a4012a17112375f70384bee79ec`.
 - [x] Record the discriminator result in `plan.md` and add discovered required work here.
 - [x] Re-inspect resumed implementation and discriminate semantic API completion from physical lowering completion: current lowering still uses overlapping square stamps and a hard Dirt/Moss boundary, so it does not yet satisfy the shared continuous-influence contract.
+- [x] Diagnose pre-merge targeted CI compile failure: `SettlementPlan` and `VegetationCandidate` are both `MountingForce.WorldGen` types; repair the regression harness import without changing product behavior.
 
 ## Implementation
 - [ ] Make road/trail intent first-class on stable semantic world endpoints with reusable profile data and provenance/seed behavior.
@@ -25,6 +26,7 @@
 - [ ] Preserve deterministic chunk/LOD/streaming behavior and avoid per-segment GameObject/primitive explosion.
 
 ## Regressions
+- [ ] Validate the repaired `KentridgeRoadShoulderRegressionTests` import on the final exact-SHA targeted run; the earlier request failed before product behavior executed.
 - [ ] Top-level semantic connection yields one traceable semantic road and deterministic resolved route.
 - [ ] Fixed input/seed yields stable route geometry.
 - [ ] Non-flat routing respects maximum grade and cut/fill limits.
