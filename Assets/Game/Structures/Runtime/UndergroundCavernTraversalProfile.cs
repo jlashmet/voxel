@@ -25,18 +25,19 @@ namespace Game.Structures.Runtime
         public int NaturalizationHeightVariation;
         public int NaturalizationLateralJitter;
 
+        public int ResolvedNaturalizationSpacing => NaturalizationSpacing == 0 ? 14 : NaturalizationSpacing;
+        public int ResolvedNaturalizationRadius => NaturalizationRadius == 0 ? math.max(17, BendRadius + 2) : NaturalizationRadius;
+        public int ResolvedNaturalizationRadiusVariation => NaturalizationRadiusVariation == 0 ? 3 : NaturalizationRadiusVariation;
+        public int ResolvedNaturalizationHeightVariation => NaturalizationHeightVariation == 0 ? 10 : NaturalizationHeightVariation;
+        public int ResolvedNaturalizationLateralJitter => NaturalizationLateralJitter == 0 ? 5 : NaturalizationLateralJitter;
+
         public bool IsWellFormed =>
             BendPositionsPermille != null && BendPositionsPermille.Length >= 2 &&
             RouteLightPositionsPermille != null && RouteLightPositionsPermille.Length >= 2 &&
             BendForwardOffsets != null && BendSideOffsets != null &&
             BendForwardOffsets.Length >= 5 && BendForwardOffsets.Length == BendSideOffsets.Length &&
             BendSideReach >= 8 && BendRadius >= 6 &&
-            NaturalizationSpacing >= 8 && NaturalizationSpacing <= 32 &&
-            NaturalizationRadius >= 10 && NaturalizationRadius <= 32 &&
-            NaturalizationRadiusVariation >= 0 && NaturalizationRadiusVariation <= 10 &&
-            NaturalizationHeightVariation >= 0 && NaturalizationHeightVariation <= 24 &&
-            NaturalizationLateralJitter >= 0 && NaturalizationLateralJitter <= 12 &&
-            NaturalizationRadius - NaturalizationRadiusVariation >= 8 &&
+            NaturalizationSettingsAreWellFormed() &&
             StrictlyIncreasingPermille(BendPositionsPermille) &&
             StrictlyIncreasingPermille(RouteLightPositionsPermille);
 
@@ -61,6 +62,21 @@ namespace Game.Structures.Runtime
 
         public int[] ResolveRouteLightSegments(in CaveConfig cave) =>
             ResolveSegments(RouteLightPositionsPermille, in cave);
+
+        private bool NaturalizationSettingsAreWellFormed()
+        {
+            bool legacyDefaults = NaturalizationSpacing == 0 && NaturalizationRadius == 0 &&
+                                  NaturalizationRadiusVariation == 0 && NaturalizationHeightVariation == 0 &&
+                                  NaturalizationLateralJitter == 0;
+            if (legacyDefaults) return true;
+
+            return NaturalizationSpacing >= 8 && NaturalizationSpacing <= 32 &&
+                   NaturalizationRadius >= 10 && NaturalizationRadius <= 32 &&
+                   NaturalizationRadiusVariation >= 0 && NaturalizationRadiusVariation <= 10 &&
+                   NaturalizationHeightVariation >= 0 && NaturalizationHeightVariation <= 24 &&
+                   NaturalizationLateralJitter >= 0 && NaturalizationLateralJitter <= 12 &&
+                   NaturalizationRadius - NaturalizationRadiusVariation >= 8;
+        }
 
         private static int[] ResolveSegments(int[] positionsPermille, in CaveConfig cave)
         {
