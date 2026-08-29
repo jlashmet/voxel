@@ -205,7 +205,7 @@ namespace Game.Kentridge.PlayableSlice
                     settlement.CentreDm.X + viewOffsetDm.X,
                     settlement.CentreDm.Y + viewOffsetDm.Y),
                 settlement.CentreDm,
-                cameraHeightMetres: 1.2f,
+                cameraHeightMetres: 0f,
                 elevated: false);
         }
 
@@ -232,15 +232,16 @@ namespace Game.Kentridge.PlayableSlice
 
         private void ApplyCamera(EvidenceTarget target)
         {
-            transform.position = _motor.EyePosition;
+            if (_slice == null || _motor == null) return;
+            _slice.transform.position = _motor.EyePosition;
             int focusGround = TerrainSampler.HeightAt(target.FocusDm.X, target.FocusDm.Y, 0x4B454E54u);
             Vector3 focus = new Vector3(
                 target.FocusDm.X * DmToMetres,
                 focusGround * DmToMetres + (target.Elevated ? 8f : 5f),
                 target.FocusDm.Y * DmToMetres);
-            Vector3 direction = focus - transform.position;
+            Vector3 direction = focus - _slice.transform.position;
             if (direction.sqrMagnitude > 0.01f)
-                transform.rotation = Quaternion.LookRotation(direction.normalized, Vector3.up);
+                _slice.transform.rotation = Quaternion.LookRotation(direction.normalized, Vector3.up);
         }
 
         private void CaptureTarget(EvidenceTarget target)
