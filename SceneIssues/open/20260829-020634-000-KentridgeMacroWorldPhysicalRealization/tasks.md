@@ -4,99 +4,83 @@
 - [x] Inspect the assigned feature and confirm `captures: []` / zero marked regions.
 - [x] Audit the existing top-down macro graph, deterministic planner, one-shot build selection, and current neutral-marker/Manhattan-road voxel realization.
 - [x] Add reusable WorldBuilder macro-region intent covering water body, mountain/ridge barrier, valley/pass, plains/meadow, forest/woodland, and generic region kinds.
-- [x] Add deterministic region extents/elevation intent plus semantic relationships/constraints usable by placement and routing (`between`, `adjacent`, `contains`, `separates`, pass/crossing/through/around intent or equivalent).
-- [x] Add deterministic terrain-aware hard-route solving that respects settlement envelopes, water/barriers, slope limits, and explicit semantic crossings/passes; reject an impossible blocked hard route without a solution.
-- [x] Realize every macro settlement physically; preserve richer existing Kentridge/Hightown generation and add reusable grounded >=4-building blockouts, internal circulation, and road arrival/exit for currently unrealized settlements.
-- [x] Emit continuous walkable road/trail surfaces for every verified hard route all the way into settlement envelopes rather than ending at neutral markers.
-- [x] Author the first Kentridge macro geography pass through shared definitions: substantial lake, substantial mountain/ridge, differentiated countryside regions, and hard routes affected by geography.
-- [x] Keep ecology species/density separate while exposing/querying regional kinds/exclusions for later ecology composition, matching the feature's explicit ecology non-goal.
-- [x] Keep generation/streaming deterministic and compatible with voxel streaming/LOD; remote macro content remains bounded feature definitions/explicit placements rather than eager GameObjects.
-- [x] Discovered: replace the prototype water-only surface repaint with a bounded streamed basin that carves physical depth and fills it with the engine's existing non-solid water material.
-- [x] Discovered: add a strict production-road rise assertion (<= 6 voxels per 30 dm route step) on the exact Kentridge macro plan rather than relying only on the generic planner ceiling.
-- [x] Discovered: trace the exact playable composition and prove `KentridgeDefinition.Build` selects the semantic macro layout before `KentridgeCombinedVoxelCatalogue` consumes it one-shot.
-- [x] Discovered: assert the production combined catalogue contains macro roads, all four remote settlement blockouts, ridge geography, and the carved-water pass after composition.
-- [x] Discovered: make built-player evidence pre-stream and traverse a real Moordell macro-road segment with the production `AutoWalk`/CharacterMotor path before remote survey captures.
-- [x] Discovered from CI run `33230924543`: fix the evidence driver's missing `Game.WorldBuilder.Api` import for `TopDownWorldLayout`; corrected at `339ca94f593653e84a02fe2d19712971bfd99e20`.
-- [x] Discovered from CI run `33231300309`: fix the production acceptance test's missing `Game.WorldBuilder.Api` import for `TopDownWorldLayout`; corrected at `e40fb7220af56e096020e105959202eac2b2d70d`.
-- [x] Discovered from CI run `33232755172`: preserve the substantial Rossdam lake and verified topology, but explicitly author `fighting-area-1 -> bandit-hideout` as a modern dry-shore `GoAround` solution because the new lake footprint genuinely intersects that hard corridor; add a regression that its full travel corridor stays outside water.
-- [x] Refresh on current master `9b452aedd9b5d1b1720bf0e9184d0381f159d352` while preserving landed Kentridge meadow/ecology changes; merge commit `477f9159821ee466ad54d133c1aaf1dcb71433dd`.
-- [x] Refresh again on current master `ff781ed26b1d9182fa8cd76e2d2da08abfa3765c` before final CI, preserving unrelated opening-cutscene/campaign and CI-bridge state; two-parent merge commit `379439a571b3e941ee9fc818c402fc49331ebf28`.
+- [x] Add deterministic region extents/elevation intent plus semantic relationships/constraints usable by placement/routing (`between`, `adjacent`, `contains`, `separates`, pass/crossing/through/around or equivalent).
+- [x] Add deterministic terrain-aware hard-route solving that respects settlement envelopes, water/barriers, slope limits, explicit crossings/passes, and rejects an impossible blocked hard route without a solution.
+- [x] Realize every macro settlement physically; preserve richer existing Kentridge/Hightown generation and add reusable grounded >=4-building blockouts, internal circulation, and road arrival/exit for unrealized settlements.
+- [x] Emit continuous walkable road/trail surfaces for every verified hard route all the way into settlement envelopes.
+- [x] Author the first Kentridge macro geography pass through shared definitions: substantial lake, substantial mountain/ridge, differentiated countryside, and routes affected by geography.
+- [x] Keep ecology species/density separate while exposing/querying regional kinds/exclusions.
+- [x] Keep generation/streaming deterministic and compatible with voxel streaming/LOD; no eager remote GameObject world.
+- [x] Discovered: replace the prototype water-only repaint with a bounded streamed carved basin using the existing non-solid water material.
+- [x] Discovered: assert strict production road rise <=6 voxels per 30 dm step.
+- [x] Discovered: prove `KentridgeDefinition.Build` selects the semantic macro layout before `KentridgeCombinedVoxelCatalogue` consumes it one-shot.
+- [x] Discovered: assert the production combined catalogue contains macro roads, all four remote settlement blockouts, ridge geography, and carved water.
+- [x] Discovered: built-player evidence traverses a real Moordell macro-road segment with production CharacterMotor/streaming.
+- [x] Preserve current-master opening-story/ecology state; stale `StorySpecs.cs` overlay was removed byte-for-byte from current master.
 
-## Repair discovered by exact-SHA red gate (run 33255557296)
-- [x] Classify the gate as a product failure: production planning aborts because hard route `south-fighting-area-1->orc-village` intersects `southern-ridge` without an authored semantic solution.
-- [x] Confirm the source-backed route identity/topology and intended ridge semantics: Orc Village is the verified straight branch south of South Fighting Area I, while `southern-ridge` is explicitly a modern barrier across the Logan route and separates South Fighting Area I from Logan Approach. The Orc collision is an unintended west-edge graze, not a second pass.
-- [x] Add a focused regression proving the Orc Village hard route has an explicit `GoAround` solution targeting `southern-ridge`, stays outside the ridge travel margin, and remains physically walkable.
-- [x] Implement the narrowest authored route solution: skirt the west shoulder with the existing deterministic `GoAround` semantic; do not shrink the ridge, invent a second pass, weaken blocked-route rejection, or change generic obstacle rules.
-- [x] Re-run the final exact-SHA production acceptance after the repair; later runs `33259572439`, `33260139560`, and `33260866388` were green for the focused acceptance.
-- [x] Blast-radius/cost intent: keep the repair in Kentridge macro physical intent + focused regression only; no planner/catalogue/water changes and no additional eager scene objects.
+## Product failures repaired by exact-SHA CI
+- [x] `33230924543`: evidence driver missing `Game.WorldBuilder.Api`; fixed at `339ca94f593653e84a02fe2d19712971bfd99e20`.
+- [x] `33231300309`: acceptance test missing same import; fixed at `e40fb7220af56e096020e105959202eac2b2d70d`.
+- [x] `33232755172`: Bandit route intersected Rossdam lake without semantic solution; authored dry-shore `GoAround` + corridor regression.
+- [x] `33255557296`: Orc route grazed southern ridge; authored ridge-shoulder `GoAround` + travel-margin regression.
+- [x] `33258816868`: stale agent-6 `StorySpecs.cs` removed landed opening-story APIs; restored current-master bytes at `eb6b77cc13bf5b1850a81df9a73a6250f7d2ba5b` and verified the file disappeared from the feature diff.
 
-## Repair discovered by final CI run 33258816868
-- [x] Publish final request for exact source `afc684712447cf000996c310aa41e8e967fb5dc0`; request commit `aeb3b612327d7edfeb5a59c28c996d7e7ef15c3e` ran as `33258816868`.
-- [x] Classify the run as a product compile failure before the Kentridge test executes: `CutsceneCompletedConditionSpec`, `JoinPartyMemberEffectSpec`, `GrantSpellEffectSpec`, and matching factories are missing from the feature checkout.
-- [x] Falsify the initial baseline-blocker hypothesis by auditing the final feature diff: agent-6 carried stale `Assets/Game/WorldBuilder/Api/StorySpecs.cs` blob `0c399134ff696ef65e74f7cf7df27be03d778280`, while current master has `3b34ab066a11c8af3f003a0559db3a4ea5357bba` with exactly the missing APIs.
-- [x] Restore `StorySpecs.cs` byte-for-byte from current master at `eb6b77cc13bf5b1850a81df9a73a6250f7d2ba5b`; do not otherwise edit the opening-story assignment.
-- [x] Verify `StorySpecs.cs` disappears from the `master...fixes/agent-6` diff and `.github/test-request.json` is absent from the feature diff.
-- [x] Issue the next exact-SHA request on the existing `ci-test/fixes/agent-6` transport and inspect its test + built-player artifact: source `dcd8f38c5db59fb71d277ad04776d02a9bd8b574`, request `f726b2f4bbf8e3e116bef1792573b043c307bcd1`, run `33259572439` green.
+## Evidence defects and experiments
+- [x] `33259572439` / artifact `9716890862`: focused + built player green; opening left time only for macro-road/Moordell. Same artifact provides a valid no-prewarm Moordell building reference.
+- [x] `33260139560` / artifact `9717050641`: all named files emitted but remote screenshots were premature (`coverage=False`); recorded `experiment-005-remote-evidence-convergence.md`.
+- [x] Add validation-only opening acceleration, normal-time restoration before movement/teardown, >=2.4s dwell, and published-near-coverage screenshot gating.
+- [x] `33260866388` / artifact `9717246958`: coverage-gated but validation remote prewarm caused settlement feature presentation to disappear and timed out before lake/ridge/overview; recorded `experiment-006-evidence-prewarm-lifecycle.md`.
+- [x] Remove only validation-driver remote `GenerateRegionBlocking` prewarm; production streaming/worldgen unchanged.
+- [x] Reorder targets Rossdam->lake and Orc->ridge to reuse resident geography.
+- [x] `33261299347` / artifact `9717362552`: exact focused + built player green; no-prewarm restores visible Moordell building and captures Rossdam lake, but Rossdam/Fairy/Orc ground-level center-facing views are terrain-occluded and ridge/overview still exceed 60s; recorded `experiment-007-evidence-camera-occlusion.md`.
 
-## Evidence completeness discovered by green runs 33259572439 / 33260139560
-- [x] Confirm the focused production acceptance is green and reports `regions=6 settlements=6 buildings=16 hardRoutes=20 routeTiles=833 constrainedRoutes=5 solveSteps=1108`, `maxRoadRiseVoxels=2`, and `waterDepthVoxels=46`.
-- [x] Confirm the built `KentridgePlayableSlice` harness is green for 60s, reports zero assertion failures, and logs real CharacterMotor traversal both locally and on the generated Moordell macro road.
-- [x] Fix the first evidence-window gap so run `33260139560` emits all required named files within 60 seconds via validation-profile-only prewarm and compressed scheduling.
-- [x] Inspect all named frames from `33260139560` and reject them as closure evidence: Moordell/Rossdam/Fairy Village/Orc Village do not visibly show their settlement blockouts, Rossdam Lake is not readable as water, ridge/overview views are dominated by far terrain, and renderer logs show the remote screenshots were requested while `coverage=False` with transient missing-visible geometry.
-- [x] Discriminate timing vs missing content in `experiment-005-remote-evidence-convergence.md`: the earlier 2.4s Moordell frame visibly shows its grounded stone/roof blockout, proving the world content exists and the 0.95s captures are premature.
-- [x] Accelerate only the `kentridge-macro-world` validation-profile opening timeline (not source content/state) so sufficient real time remains for convergence; restore the original `Time.timeScale` before CharacterMotor evidence and on teardown.
-- [x] Keep named-region voxel prewarm, restore multi-second remote dwell, and capture each target only after `RenderingComposition.HasCompletePublishedNearSurfaceCoverage()` reports complete near coverage.
-- [x] Preserve representative real CharacterMotor macro-road traversal at normal time scale and do not alter gameplay/story/worldgen/planner semantics.
-- [x] Run exact source `0afbb5ca234b87f2606bc5bd5469d5cdac376cd2` as request `8e1e496099b64167e6210d562112467ff4da12dc` / run `33260866388`; focused + built player are green, but visual artifact `9717246958` is rejected as incomplete.
-
-## Evidence lifecycle defect discovered by green run 33260866388
-- [x] Visually compare the same Moordell camera across runs and prove the no-prewarm artifact `9716890862` contains a grounded stone/roof blockout while prewarmed artifact `9717246958` contains only terrain/road; record `experiment-006-evidence-prewarm-lifecycle.md`.
-- [x] Confirm `33260866388` reaches only Moordell/Rossdam/Fairy Village/Orc Village before 60s; Rossdam lake, southern ridge/pass, and macro-network overview are absent.
-- [ ] Remove only the validation driver's remote `GenerateRegionBlocking` prewarm path; do not alter production streaming/worldgen semantics.
-- [ ] Reorder evidence targets to reuse resident geography (`Rossdam -> lake`, `Orc -> ridge`) while retaining coverage-gated normal streaming and >=2.4s close-settlement dwell.
-- [ ] Re-run one fresh exact-SHA request and require all seven target frames plus road traversal to exist and be visually acceptable before closure.
+## Remaining evidence-camera/timing work discovered by 33261299347
+- [ ] Derive generic-settlement evidence from generated building geometry instead of fixed ground-level offsets: use an elevated close/survey pose that visibly resolves the four ±190 dm blockout plots, with focus on real building/settlement geometry.
+- [ ] Derive Rossdam-lake evidence from the resolved region extent so the substantial water body is readable while the geography-constrained road remains in frame.
+- [ ] Preserve a readable southern ridge/pass pose and physical-network survey pose; both must capture with published near coverage.
+- [ ] Increase only validation-profile opening acceleration and/or trim nonessential validation dwell/traversal overhead enough to fit all seven targets under the fixed 60s replay; normal gameplay/story state stays unchanged and CharacterMotor evidence remains at `Time.timeScale=1`.
+- [ ] Run one fresh exact-SHA request; require all seven target PNGs plus macro-road PNG, coverage-ready log markers, and visual acceptance before closure.
 
 ## Behavioral regression
-- [x] Add one final targeted PlayMode acceptance test that nests the full macro realization regression plus production water/slope/composition assertions: `VoxelEngine.Tests.PlayMode.KentridgeMacroWorldPhysicalProductionAcceptanceTests.PhysicalMacroWorldHasWalkableRoutesAndADeepStreamedWaterBody`.
-- [ ] Green exact-SHA execution verifies fixed-seed macro-to-physical output is deterministic.
-- [ ] Green exact-SHA execution verifies every `Settlement` node has a physical settlement plan and >=4 non-overlapping grounded blockout buildings when no richer generator owns it.
-- [ ] Green exact-SHA execution verifies every settlement is reachable from Kentridge over contiguous generated hard-route surfaces.
-- [ ] Green exact-SHA execution verifies road plans satisfy strict production slope/obstacle constraints and connect settlement arrival/exit zones.
-- [ ] Green exact-SHA execution verifies lake/ridge region constraints alter production hard routes using explicit semantic solutions, including the modern Bandit dry-shore route and Orc ridge-shoulder route-around.
-- [ ] Green exact-SHA execution verifies an impossible blocked hard route is rejected unless an explicit crossing/pass/route-around solution is authored.
-- [ ] Green exact-SHA execution verifies existing Kentridge/Hightown richer output is preserved rather than replaced by generic blockouts.
-- [ ] Green exact-SHA execution verifies the selected macro graph survives the real combined production catalogue, including the carved water pass.
+- [x] Final targeted PlayMode acceptance exists: `VoxelEngine.Tests.PlayMode.KentridgeMacroWorldPhysicalProductionAcceptanceTests.PhysicalMacroWorldHasWalkableRoutesAndADeepStreamedWaterBody`.
+- [ ] Final exact-SHA execution verifies fixed-seed macro-to-physical output is deterministic.
+- [ ] Final exact-SHA execution verifies every settlement has a physical settlement plan and >=4 non-overlapping grounded blockout buildings when no richer generator owns it.
+- [ ] Final exact-SHA execution verifies every settlement is reachable from Kentridge over contiguous generated hard-route surfaces.
+- [ ] Final exact-SHA execution verifies strict production slope/obstacle constraints and settlement road arrival/exit connectivity.
+- [ ] Final exact-SHA execution verifies lake/ridge constraints alter hard routes via explicit semantic solutions, including Bandit dry-shore and Orc ridge-shoulder route-arounds.
+- [ ] Final exact-SHA execution verifies impossible blocked route rejection without explicit crossing/pass/around solution.
+- [ ] Final exact-SHA execution verifies richer Kentridge/Hightown output is preserved.
+- [ ] Final exact-SHA execution verifies the selected macro graph survives the real combined production catalogue, including carved water.
 
 ## Visual / runtime evidence
 - [ ] Exact built `KentridgePlayableSlice` reaches a usable rendered state with no startup/runtime exceptions.
-- [ ] Durable player-height evidence shows continuous roads leaving/entering settlements.
-- [ ] Durable closer evidence shows Moordell, Rossdam, Fairy Village, and Orc Village as physical blockout settlements.
+- [ ] Durable player-height evidence shows a continuous generated road and real CharacterMotor traversal with collision/streaming active.
+- [ ] Durable close/survey evidence visibly shows Moordell, Rossdam, Fairy Village, and Orc Village physical blockouts.
 - [ ] Durable elevated/survey evidence shows the physical road network corresponds to the semantic macro graph.
 - [ ] Durable evidence shows a substantial generated lake and mountain/ridge plus a route responding to one constraint.
-- [ ] Normal CharacterMotor traversal succeeds on representative generated road segments with collision/streaming active.
-- [ ] Inspect the generated Rossdam basin in built-player evidence for readable shoreline/depth and no collision/rendering anomaly from the non-solid water material.
+- [ ] Inspect Rossdam basin for readable shoreline/depth and no collision/rendering anomaly from non-solid water.
 
 ## Blast radius / cost
-- [ ] Quantify macro plan counts, route-solving work, feature/placement/primitive cost, carved-water cost, and one-shot build cost from the exact green run.
-- [ ] Inspect built-player CPU/GPU/memory/streaming/far-field evidence against existing device budgets; do not weaken budgets.
-- [x] Static blast-radius review: macro realization is opt-in through the existing one-shot `TopDownWorldLayoutSelection`; ordinary Kentridge catalogue callers retain prior cost, and no second graph/static destination hierarchy was introduced.
-- [x] Pre-CI scope audit after stale-overlay repair: only agent-6 Kentridge/WorldBuilder/tests/assignment files differ from current master; no other SceneIssue and no `.github/test-request.json` change is present on `fixes/agent-6`.
-- [ ] Re-check final branch diff after CI/promotion and verify no unrelated assignment/capture or `.github/test-request.json` change exists on `fixes/agent-6`.
+- [ ] Quantify macro plan counts, route-solving work, feature/placement/primitive cost, carved-water cost, and one-shot build cost from the final exact green run.
+- [ ] Inspect built-player CPU/GPU/frame/memory/streaming/far-field telemetry against existing device budgets; do not weaken budgets and distinguish startup/teleport validation spikes from steady-state gameplay.
+- [x] Static blast-radius review: macro realization is opt-in through existing one-shot `TopDownWorldLayoutSelection`; ordinary callers retain prior cost, no second graph/static destination hierarchy.
+- [x] Scope audit: only agent-6 Kentridge/WorldBuilder/tests/assignment files differ from current master; no other SceneIssue and no `.github/test-request.json` on `fixes/agent-6`.
+- [ ] Re-check final branch diff after final CI/metadata and before promotion.
 
 ## Acceptance audit / closure
-- [ ] Acceptance (1): existing source-backed macro graph remains authoritative and is consumed through reusable WorldBuilder/shared APIs.
-- [ ] Acceptance (2): every settlement has physical presence with required blockout quality or richer existing generation.
-- [ ] Acceptance (3): every settlement is physically reachable from Kentridge through contiguous generated hard-route travel surfaces.
-- [ ] Acceptance (4): roads are terrain-aware and require semantic solutions for blocked geography.
-- [ ] Acceptance (5): reusable geographic-region authoring/query capability covers required region kinds, extents/elevation, relationships, deterministic variation, terrain output, and constraints.
-- [ ] Acceptance (6): built macro world contains substantial lake + ridge and at least one geography-constrained hard route.
-- [ ] Acceptance (7): regional terrain reads as differentiated countryside rather than flat debug space.
-- [ ] Acceptance (8): no scene-local second graph/direct voxel-writing/static destination hierarchy is introduced.
-- [ ] Acceptance (9): focused production-path regressions cover deterministic realization, reachability, roads, settlements, constraints, and blocked-route failure.
-- [ ] Acceptance (10): exact built-player visual/runtime evidence covers settlements, roads, geography, constrained route, and CharacterMotor traversal.
-- [ ] Acceptance (11): blast radius and world-build/route/CPU/GPU/memory/streaming cost are measured against budgets.
+- [ ] Acceptance (1): source-backed macro graph remains authoritative through reusable WorldBuilder/shared APIs.
+- [ ] Acceptance (2): every settlement has physical presence with required blockout quality or richer generation.
+- [ ] Acceptance (3): every settlement is physically reachable from Kentridge over contiguous generated hard-route surfaces.
+- [ ] Acceptance (4): roads are terrain-aware and blocked geography requires semantic solutions.
+- [ ] Acceptance (5): reusable geographic-region authoring/query covers required kinds, extent/elevation, relationships, deterministic variation, terrain output, and constraints.
+- [ ] Acceptance (6): built world visibly contains substantial lake + ridge and a geography-constrained hard route.
+- [ ] Acceptance (7): regional terrain visibly reads as differentiated countryside rather than a flat debug plane.
+- [ ] Acceptance (8): no scene-local second graph/direct voxel-writing/static destination hierarchy.
+- [ ] Acceptance (9): focused production-path regressions cover determinism, reachability, roads, settlements, constraints, and blocked-route failure.
+- [ ] Acceptance (10): exact built-player evidence covers settlements, roads, geography, constrained route, and CharacterMotor traversal.
+- [ ] Acceptance (11): blast radius and world-build/route/CPU/GPU/memory/streaming cost measured against budgets.
 - [ ] Every checkbox above is complete before `open -> pending`.
-- [ ] Final exact-SHA focused CI and built-player evidence are green. Runs `33230924543` and `33231300309` were product-red compile diagnostics; `33232755172` exposed Rossdam/Bandit; `33255557296` exposed Orc/ridge; `33258816868` exposed stale agent-6 `StorySpecs.cs`; `33259572439`, `33260139560`, and `33260866388` are functionally green but not closure-quality visual evidence. No closure-quality exact-SHA gate exists yet.
+- [ ] Final exact-SHA focused CI and built-player evidence are closure-quality green.
 - [ ] Complete pending metadata and move only this feature `open -> pending`.
 - [ ] Move only this feature `pending -> closed`, set `status=fixed` and `resolvedUtc`.
-- [ ] Merge current `origin/master` into `fixes/agent-6`, push exact feature head, then non-force push that head to `origin/master`; retry if master advances.
+- [ ] Merge current `origin/master` into `fixes/agent-6`, verify exact head, and non-force push that head to `origin/master`; retry if master advances.
