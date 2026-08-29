@@ -6,21 +6,22 @@
 
 ## Competing hypotheses / discriminator
 1. A stale startup bake can suppress otherwise-correct current WorldBuilder content.
-2. Current authored geometry/evidence can still fail acceptance through integer ramp rasterization, traversal timing, an artificial silhouette, or visually unacceptable path support.
+2. Current authored geometry/evidence can still fail through buried/obstructed walking surfaces or through a replay harness that certifies X/Z proximity without proving vertical ascent.
 
-Discriminator: validate the exact serialized bake semantically, traverse it through `CharacterMotor`, and review rendered captures rather than catalogue counts.
+Discriminator: inspect semantic bake occupancy across each path footprint, require motor feet to enter the authored vertical band at every high/landing waypoint, and review built-player frames for clipping/obstruction.
 
 ## Material results
-- Stale-bake hypothesis is confirmed: checked-in `ShowcaseWorld.bytes` predates the mountain and the manifest payload is absent. Provenance now rejects pre-naturalized output via contract revision 3 plus payload SHA-256.
-- Prior run `33236729056` proved the old result was not acceptable: the mountain read as a smooth manufactured wedge and full-height support boxes read as dam-like retaining walls. It also exposed the brittle exact ramp-tip assertion and replay-duration problem.
-- The reusable realization now uses a core plus asymmetric shoulder masses and tapered overlapping support under ramps/turns/summit connectors; exact one-voxel walking surfaces remain unchanged. A dedicated regression rejects tall mountain-material support boxes.
-- Evidence replay remains production `CharacterMotor` movement with an opt-in replay-only sprint; route timeout is 55 seconds. The exact final CI filter is a wrapper that runs asymmetric-silhouette, natural-support/cost, semantic bake/path/dragon/route/dialogue assertions before built-player replay.
-- `fixes/agent-4` already contains current master `9b452aedd9b5d1b1720bf0e9184d0381f159d352`; no feature/master path conflicts were found.
+- Stale-bake hypothesis is confirmed and guarded by bake contract revision 3 + payload SHA-256. The checked-in Aug-25 payload remains stale and the manifest payload is absent.
+- Final request `fc0ae51e9d98a9f7cd61087ae8e88419daf322a4`, run `33254450374`, generated the revision-3 bake successfully but is diagnostic red. The wrapper failed an exact turn-landing midpoint probe at voxel `(-435,264,-291)` (actual air); that assertion is too brittle to prove the whole landing.
+- Built-player evidence is independently red: approach/base were reached, then `switchback-0-high` and `switchback-1-low` were credited while player Y stayed near 23.85 m. The replay checks X/Z only, so it falsely certified ascent. The player then stalled around `(-45.18,23.85,-26.63)` targeting `switchback-1-high`; rendered evidence shows the camera/player embedded against gray mountain/support geometry.
+- Authored slope is only 46 voxels over 360, within the production motor's 3-voxel step-up capability. The next discriminator is therefore ramp/terrain occupancy and path headroom, not simply reducing slope.
+- Naturalized landform remains core + asymmetric shoulders + tapered support; expected primitive count is ~63 versus the shared 512 budget. `fixes/agent-4` already contains master `9b452aedd9b5d1b1720bf0e9184d0381f159d352`.
 
 ## Selected fix / remaining gates
-- Run the one final targeted CI request directly from the final source SHA. The workflow must generate/restore the revision-3 bake, pass the wrapper regression, and complete the exact VoxelShowcase built-player route/captures.
-- Promote the exact generated `ShowcaseWorld.bytes` and manifest from that successful artifact back to the feature branch, verifying their payload hash matches what passed CI; this is generated-output promotion only, with no source change.
-- Human-review all approach/base/switchback/summit/dialogue captures. Only after all automated and visual gates pass: complete pending metadata, promote open→pending→closed, merge latest master, and non-force update master.
+- Replace exact landing midpoint proof with a footprint/column scan that proves an accessible path surface exists across every turn.
+- Make the generic issue replay optionally require expected motor-foot Y/vertical tolerance at waypoints, and populate the Mountain Dragon route from authored elevations; no X/Z-only success for ascent waypoints.
+- Identify and fix why the first ramp does not lift the motor—leading candidates are terrain/headroom burying the low ramp or support/landform occupancy blocking its usable surface. Add semantic occupancy checks above/below ramp samples to discriminate before changing geometry.
+- The single allowed final CI transport has already been consumed and failed. Do not modify `ci-test/fixes/agent-4` again without explicit user authorization. Issue stays open until a newly authorized exact-SHA regression + built-player run is green and all captures pass human review.
 
 ## Blast radius / cost
-Changes stay bounded to reusable mountain realization, startup-bake proof, and opt-in SceneIssue replay. Expected landform program is ~63 primitives versus the shared 512-per-instance budget; added frustums affect one-time world build/bake only. Normal player speed, runtime movement semantics, and steady-state world truth are unchanged.
+Keep changes bounded to reusable mountain path realization, semantic acceptance, and opt-in evidence replay. Do not change normal player speed/collision or shared primitive budgets; any added path-clearance geometry must remain within the existing 512-per-instance limit and one-time bake/world-build cost envelope.
