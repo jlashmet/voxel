@@ -28,18 +28,18 @@
 ## Evidence defects and experiments
 - [x] `33259572439` / artifact `9716890862`: focused + built player green; opening left time only for macro-road/Moordell. Same artifact provides a valid no-prewarm Moordell building reference.
 - [x] `33260139560` / artifact `9717050641`: all named files emitted but remote screenshots were premature (`coverage=False`); recorded `experiment-005-remote-evidence-convergence.md`.
-- [x] Add validation-only opening acceleration, normal-time restoration before movement/teardown, >=2.4s dwell, and published-near-coverage screenshot gating.
+- [x] Add validation-only opening acceleration, normal-time restoration before movement/teardown, and published-near-coverage screenshot gating.
 - [x] `33260866388` / artifact `9717246958`: coverage-gated but validation remote prewarm caused settlement feature presentation to disappear and timed out before lake/ridge/overview; recorded `experiment-006-evidence-prewarm-lifecycle.md`.
 - [x] Remove only validation-driver remote `GenerateRegionBlocking` prewarm; production streaming/worldgen unchanged.
 - [x] Reorder targets Rossdam->lake and Orc->ridge to reuse resident geography.
 - [x] `33261299347` / artifact `9717362552`: exact focused + built player green; no-prewarm restores visible Moordell building and captures Rossdam lake, but Rossdam/Fairy/Orc ground-level center-facing views are terrain-occluded and ridge/overview still exceed 60s; recorded `experiment-007-evidence-camera-occlusion.md`.
 
-## Remaining evidence-camera/timing work discovered by 33261299347
-- [ ] Derive generic-settlement evidence from generated building geometry instead of fixed ground-level offsets: use an elevated close/survey pose that visibly resolves the four ±190 dm blockout plots, with focus on real building/settlement geometry.
-- [ ] Derive Rossdam-lake evidence from the resolved region extent so the substantial water body is readable while the geography-constrained road remains in frame.
-- [ ] Preserve a readable southern ridge/pass pose and physical-network survey pose; both must capture with published near coverage.
-- [ ] Increase only validation-profile opening acceleration and/or trim nonessential validation dwell/traversal overhead enough to fit all seven targets under the fixed 60s replay; normal gameplay/story state stays unchanged and CharacterMotor evidence remains at `Time.timeScale=1`.
-- [ ] Run one fresh exact-SHA request; require all seven target PNGs plus macro-road PNG, coverage-ready log markers, and visual acceptance before closure.
+## Geometry-derived evidence-camera/timing work discovered by 33261299347
+- [x] Derive generic-settlement evidence from generated geometry: elevated survey poses use the generated settlement center/four ±190 dm plots and choose the highest of four diagonal terrain viewpoints rather than fixed ground-level offsets.
+- [x] Derive Rossdam-lake evidence from the resolved geography: retain the constrained route point and raise the camera to 72 m so the substantial ~104x54 m water body and detour can share the frame.
+- [x] Preserve explicit elevated southern ridge/pass and physical-network survey poses with published-near-coverage gating.
+- [x] Increase only validation-profile opening acceleration to 12x and trim evidence overhead while preserving normal gameplay/story semantics and CharacterMotor movement at `Time.timeScale=1`.
+- [ ] Run one fresh exact-SHA request; require all seven target PNGs plus macro-road PNG, coverage-ready markers, visible four-town blockouts, readable lake/ridge/network, normal-time traversal, and clean runtime before closure.
 
 ## Behavioral regression
 - [x] Final targeted PlayMode acceptance exists: `VoxelEngine.Tests.PlayMode.KentridgeMacroWorldPhysicalProductionAcceptanceTests.PhysicalMacroWorldHasWalkableRoutesAndADeepStreamedWaterBody`.
