@@ -227,20 +227,21 @@ namespace Game.WorldBuilder.Api
         private static void ClosestPoint(ResolvedWorldRoadPoint a, ResolvedWorldRoadPoint b, int x, int z,
             out long distanceSquared, out int height)
         {
-            long dx = b.Xdm - a.Xdm, dz = b.Zdm - a.Zdm;
+            long dx = (long)b.Xdm - a.Xdm, dz = (long)b.Zdm - a.Zdm;
             long lengthSquared = dx * dx + dz * dz;
             if (lengthSquared <= 0)
             {
-                long px = x - a.Xdm, pz = z - a.Zdm;
+                long px = (long)x - a.Xdm, pz = (long)z - a.Zdm;
                 distanceSquared = px * px + pz * pz; height = a.Ydm; return;
             }
-            long dot = (x - a.Xdm) * dx + (z - a.Zdm) * dz;
-            dot = Math.Max(0, Math.Min(lengthSquared, dot));
-            double t = (double)dot / lengthSquared;
-            double qx = a.Xdm + dx * t, qz = a.Zdm + dz * t;
-            double ex = x - qx, ez = z - qz;
-            distanceSquared = (long)Math.Round(ex * ex + ez * ez);
-            height = a.Ydm + (int)Math.Round((b.Ydm - a.Ydm) * t);
+
+            long dot = ((long)x - a.Xdm) * dx + ((long)z - a.Zdm) * dz;
+            dot = Math.Max(0L, Math.Min(lengthSquared, dot));
+            long qx = (long)a.Xdm + DivideRounded(dx * dot, lengthSquared);
+            long qz = (long)a.Zdm + DivideRounded(dz * dot, lengthSquared);
+            long ex = (long)x - qx, ez = (long)z - qz;
+            distanceSquared = ex * ex + ez * ez;
+            height = a.Ydm + (int)DivideRounded(((long)b.Ydm - a.Ydm) * dot, lengthSquared);
         }
 
         private static int DeterministicEdgeOffset(uint seed, int x, int z, int amplitude)
@@ -255,7 +256,36 @@ namespace Game.WorldBuilder.Api
             }
         }
 
-        private static int IntegerSqrt(long value) => value <= 0 ? 0 : (int)Math.Round(Math.Sqrt(value));
+        private static long DivideRounded(long numerator, long denominator)
+        {
+            if (denominator <= 0) throw new ArgumentOutOfRangeException(nameof(denominator));
+            if (numerator >= 0) return (numerator + denominator / 2) / denominator;
+            return -((-numerator + denominator / 2) / denominator);
+        }
+
+        private static int IntegerSqrt(long value)
+        {
+            if (value <= 0) return 0;
+            long low = 1;
+            long high = Math.Min(value, 3037000499L);
+            while (low <= high)
+            {
+                long middle = low + ((high - low) >> 1);
+                if (middle <= value / middle) low = middle + 1;
+                else high = middle - 1;
+            }
+
+            long root = high;
+            long lowerError = value - root * root;
+            long next = root + 1;
+            if (next <= 3037000499L)
+            {
+                long upperError = next * next - value;
+                if (upperError <= lowerError) root = next;
+            }
+            return root > int.MaxValue ? int.MaxValue : (int)root;
+        }
+
         private static int Clamp(int value, int min, int max) => value < min ? min : value > max ? max : value;
     }
 
@@ -301,12 +331,21 @@ namespace Game.WorldBuilder.Api
         private static bool TryRouteLeg(WorldRoadPlanPoint from, WorldRoadPlanPoint to, WorldRoadProfile profile,
             IWorldRoadTerrain terrain, int spacing, int margin, out List<WorldRoadPlanPoint> result)
         {
+            result = null;
+            if (!Allowed(terrain.FlagsAtDm(from.Xdm, from.Zdm), profile.CrossingPolicy) ||
+                !Allowed(terrain.FlagsAtDm(to.Xdm, to.Zdm), profile.CrossingPolicy))
+                return false;
+
             int fx = FloorDiv(from.Xdm, spacing), fz = FloorDiv(from.Zdm, spacing);
             int tx = FloorDiv(to.Xdm, spacing), tz = FloorDiv(to.Zdm, spacing);
             int minX = Math.Min(fx, tx) - margin, maxX = Math.Max(fx, tx) + margin;
             int minZ = Math.Min(fz, tz) - margin, maxZ = Math.Max(fz, tz) + margin;
             int width = maxX - minX + 1, count = width * (maxZ - minZ + 1);
             int start = Index(fx, fz, minX, minZ, width), goal = Index(tx, tz, minX, minZ, width);
+            if (!Allowed(terrain.FlagsAtDm(fx * spacing, fz * spacing), profile.CrossingPolicy) ||
+                !Allowed(terrain.FlagsAtDm(tx * spacing, tz * spacing), profile.CrossingPolicy))
+                return false;
+
             var open = new bool[count]; var closed = new bool[count];
             var cost = new long[count]; var previous = new int[count];
             for (var i = 0; i < count; i++) { cost[i] = long.MaxValue; previous[i] = -1; }
@@ -319,7 +358,7 @@ namespace Game.WorldBuilder.Api
                 {
                     if (!open[i]) continue;
                     Cell(i, minX, minZ, width, out int cx, out int cz);
-                    long score = cost[i] + (Math.Abs(cx - tx) + Math.Abs(cz - tz)) * 1000L;
+                    long score = cost[i] + Heuristic(cx, cz, tx, tz, spacing, profile.TraversalCostPermille);
                     if (score < best || score == best && (current < 0 || i < current)) { best = score; current = i; }
                 }
                 if (current < 0 || current == goal) break;
@@ -334,18 +373,25 @@ namespace Game.WorldBuilder.Api
                     if (closed[next]) continue;
                     int nextXdm = nx * spacing, nextZdm = nz * spacing;
                     if (!Allowed(terrain.FlagsAtDm(nextXdm, nextZdm), profile.CrossingPolicy)) continue;
-                    int rise = Math.Abs(terrain.HeightAtDm(nextXdm, nextZdm) - currentHeight);
-                    int planar = n < 4 ? spacing : spacing * 1414 / 1000;
-                    long tentative = cost[current] + planar * 1000L + rise * 250L;
+                    int nextHeight = terrain.HeightAtDm(nextXdm, nextZdm);
+                    int planar = n < 4 ? spacing : DiagonalDistance(spacing);
+                    int rise = Math.Abs(nextHeight - currentHeight);
+                    int maximumGradedRise = Math.Max(1, planar * profile.MaximumGradePermille / 1000);
+                    int maximumRecoverableRise = maximumGradedRise + profile.MaximumCutFillDm * 2;
+                    if (rise > maximumRecoverableRise) continue;
+
+                    long edgeCost = planar * 1000L + rise * 250L;
+                    long tentative = cost[current] + ScaleTraversalCost(edgeCost, profile.TraversalCostPermille);
                     if (tentative >= cost[next]) continue;
                     cost[next] = tentative; previous[next] = current; open[next] = true;
                 }
             }
-            if (cost[goal] == long.MaxValue) { result = null; return false; }
+            if (cost[goal] == long.MaxValue) return false;
 
             var cells = new List<int>();
             for (int cursor = goal; cursor >= 0; cursor = previous[cursor])
             { cells.Add(cursor); if (cursor == start) break; }
+            if (cells.Count == 0 || cells[cells.Count - 1] != start) return false;
             cells.Reverse();
             result = new List<WorldRoadPlanPoint>(cells.Count + 2) { from };
             for (var i = 1; i + 1 < cells.Count; i++)
@@ -408,13 +454,60 @@ namespace Game.WorldBuilder.Api
             return true;
         }
 
+        private static long Heuristic(int x, int z, int goalX, int goalZ, int spacing, int traversalCostPermille)
+        {
+            int dx = Math.Abs(x - goalX), dz = Math.Abs(z - goalZ);
+            int diagonalCells = Math.Min(dx, dz);
+            int straightCells = Math.Max(dx, dz) - diagonalCells;
+            long planarDm = (long)diagonalCells * DiagonalDistance(spacing) + (long)straightCells * spacing;
+            return ScaleTraversalCost(planarDm * 1000L, traversalCostPermille);
+        }
+
+        private static long ScaleTraversalCost(long cost, int traversalCostPermille)
+            => (cost * traversalCostPermille + 999L) / 1000L;
+
+        private static int DiagonalDistance(int spacing)
+            => IntegerSqrt((long)spacing * spacing * 2L);
+
         private static int Distance(ResolvedWorldRoadPoint a, ResolvedWorldRoadPoint b)
-        { long dx = b.Xdm - a.Xdm, dz = b.Zdm - a.Zdm; return (int)Math.Max(1, Math.Round(Math.Sqrt((double)dx * dx + (double)dz * dz))); }
+        {
+            long dx = (long)b.Xdm - a.Xdm, dz = (long)b.Zdm - a.Zdm;
+            return Math.Max(1, IntegerSqrt(dx * dx + dz * dz));
+        }
+
+        private static int IntegerSqrt(long value)
+        {
+            if (value <= 0) return 0;
+            long low = 1;
+            long high = Math.Min(value, 3037000499L);
+            while (low <= high)
+            {
+                long middle = low + ((high - low) >> 1);
+                if (middle <= value / middle) low = middle + 1;
+                else high = middle - 1;
+            }
+
+            long root = high;
+            long lowerError = value - root * root;
+            long next = root + 1;
+            if (next <= 3037000499L)
+            {
+                long upperError = next * next - value;
+                if (upperError <= lowerError) root = next;
+            }
+            return root > int.MaxValue ? int.MaxValue : (int)root;
+        }
+
         private static void RemoveCollinear(List<WorldRoadPlanPoint> points)
         {
             for (var i = points.Count - 2; i > 0; i--)
-            { long ax = points[i].Xdm - points[i - 1].Xdm, az = points[i].Zdm - points[i - 1].Zdm; long bx = points[i + 1].Xdm - points[i].Xdm, bz = points[i + 1].Zdm - points[i].Zdm; if (ax * bz == az * bx) points.RemoveAt(i); }
+            {
+                long ax = (long)points[i].Xdm - points[i - 1].Xdm, az = (long)points[i].Zdm - points[i - 1].Zdm;
+                long bx = (long)points[i + 1].Xdm - points[i].Xdm, bz = (long)points[i + 1].Zdm - points[i].Zdm;
+                if (ax * bz == az * bx) points.RemoveAt(i);
+            }
         }
+
         private static int Index(int x, int z, int minX, int minZ, int width) => (x - minX) + (z - minZ) * width;
         private static void Cell(int index, int minX, int minZ, int width, out int x, out int z) { x = minX + index % width; z = minZ + index / width; }
         private static int FloorDiv(int value, int divisor) { int q = value / divisor, r = value % divisor; return r != 0 && value < 0 ? q - 1 : q; }
