@@ -53,12 +53,12 @@ namespace VoxelEngine.Tests.PlayMode
 
                 Primitive foundation = FindFoundation(primitives);
                 foundation.Bounds(out int3 foundationMin, out int3 foundationMax);
-                Assert.AreEqual(CapturedMayorHouseSurfaceY, foundationMax.y,
-                    "The generated foundation must terminate at the authored plot surface instead of protruding above it.");
+                Assert.AreEqual(CapturedMayorHouseSurfaceY - 1, foundationMax.y,
+                    "The generated foundation's last occupied voxel must remain below the authored plot surface.");
 
                 int3 sample = new int3(
                     foundationMin.x + (foundationMax.x - foundationMin.x) / 2,
-                    CapturedMayorHouseSurfaceY + 1,
+                    CapturedMayorHouseSurfaceY,
                     foundationMin.z + (foundationMax.z - foundationMin.z) / 2);
                 int3 region = new int3(
                     sample.x / VoxelGrid.RegionVoxelEdge,
@@ -72,9 +72,9 @@ namespace VoxelEngine.Tests.PlayMode
                 Assert.Greater(report.VoxelsWritten, 0,
                     "The regression must rasterize the production MayorHouse into authoritative storage.");
 
-                VoxelCell above = VoxelAccess.GetCell(ref table, in pool, sample);
-                Assert.AreNotEqual(FoundationMaterial, above.BaseMaterialId,
-                    "A Foundation voxel still owns the captured ground band one voxel above the intended surface.");
+                VoxelCell surface = VoxelAccess.GetCell(ref table, in pool, sample);
+                Assert.AreNotEqual(FoundationMaterial, surface.BaseMaterialId,
+                    "A Foundation voxel still owns the captured ground-surface band.");
 
                 int3 belowPoint = new int3(sample.x, CapturedMayorHouseSurfaceY - 1, sample.z);
                 VoxelCell below = VoxelAccess.GetCell(ref table, in pool, belowPoint);
