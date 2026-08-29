@@ -22,10 +22,11 @@ namespace VoxelEngine.Showcase
             "Assets/Resources/VoxelShowcase/ShowcaseWorld.manifest.txt";
 
         private const int ManifestVersion = 1;
-        // Revision 2 is the asymmetric multi-mass mountain realization. Dimensions are unchanged
-        // from revision 1, so the explicit algorithm revision is what prevents a pre-naturalized
-        // single-frustum bake from satisfying current provenance.
-        private const uint LandmarkContractRevision = 2;
+        // Revision 3 is the accepted naturalized realization: asymmetric mountain masses plus
+        // tapered path/landing support. Dimensions are unchanged from revision 1, so this explicit
+        // algorithm revision rejects both the original single-frustum bake and the transitional
+        // asymmetric bake that still used tall rectangular retaining-wall supports.
+        private const uint LandmarkContractRevision = 3;
         private const uint FnvOffsetBasis = 2166136261u;
         private const uint FnvPrime = 16777619u;
 
