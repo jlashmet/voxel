@@ -21,6 +21,8 @@ namespace MountingForce.WorldGen.Voxel
         private const int MaxAltitudeVoxels = 4096;
         private const int BuildingFoundationDm = 8;
         private const int BuildingRoofDm = 24;
+        private const int BuildingFoundationInsetDm = 6;
+        private const int BuildingTerrainSamplesPerAxis = 5;
         private const int StreetSpanDm = 500;
 
         private sealed class DefinitionBuild
@@ -54,7 +56,8 @@ namespace MountingForce.WorldGen.Voxel
             Int2 rootCentreDm,
             int cellSizeDm,
             VoxelWorldGenSettings settings,
-            Allocator allocator)
+            Allocator allocator,
+            bool includeWaterBodies = true)
         {
             TopDownWorldPhysicalPlan plan = Plan(layout, intent, rootCentreDm, cellSizeDm, settings);
             int scale = settings.VoxelsPerDecimetre;
@@ -72,6 +75,9 @@ namespace MountingForce.WorldGen.Voxel
             for (var i = 0; i < plan.Regions.Count; i++)
             {
                 TopDownWorldRegionPlan region = plan.Regions[i];
+                if (!includeWaterBodies && region.Spec.Kind == TopDownWorldRegionKind.WaterBody)
+                    continue;
+
                 int width = region.HalfExtentXDm * 2 * scale;
                 int depth = region.HalfExtentZDm * 2 * scale;
                 int ground = TerrainSampler.HeightAt(
@@ -152,24 +158,35 @@ namespace MountingForce.WorldGen.Voxel
                     int width = building.HalfExtentXDm * 2 * scale;
                     int depth = building.HalfExtentZDm * 2 * scale;
                     int height = building.HeightDm * scale;
+                    SampleBuildingTerrainRelief(
+                        building,
+                        scale,
+                        layout.Seed,
+                        out int minimumGround,
+                        out int maximumGround);
+                    int terrainRelief = maximumGround - minimumGround;
                     var structure = new DefinitionBuild
                     {
                         Name = "macro-town-building-" + settlement.Node.Id + "-" + b,
                         Kind = FeatureKind.Structure,
-                        Width = width + 12 * scale,
-                        Height = (building.HeightDm + BuildingRoofDm) * scale,
-                        Depth = depth + 12 * scale,
+                        Width = width + BuildingFoundationInsetDm * 2 * scale,
+                        Height = terrainRelief + (building.HeightDm + BuildingRoofDm) * scale,
+                        Depth = depth + BuildingFoundationInsetDm * 2 * scale,
                         Precedence = 10,
-                        Program = BuildingProgram(width, depth, height, scale, foundation, timber, roof)
+                        Program = BuildingProgram(
+                            width,
+                            depth,
+                            height,
+                            terrainRelief,
+                            scale,
+                            foundation,
+                            timber,
+                            roof)
                     };
-                    int ground = TerrainSampler.HeightAt(
-                        building.CentreDm.X * scale,
-                        building.CentreDm.Y * scale,
-                        layout.Seed);
                     structure.Placements.Add(new int3(
-                        (building.CentreDm.X - building.HalfExtentXDm - 6) * scale,
-                        ground,
-                        (building.CentreDm.Y - building.HalfExtentZDm - 6) * scale));
+                        (building.CentreDm.X - building.HalfExtentXDm - BuildingFoundationInsetDm) * scale,
+                        minimumGround,
+                        (building.CentreDm.Y - building.HalfExtentZDm - BuildingFoundationInsetDm) * scale));
                     ValidateFootprint(structure);
                     definitions.Add(structure);
                 }
@@ -347,26 +364,29 @@ namespace MountingForce.WorldGen.Voxel
             int width,
             int depth,
             int height,
+            int terrainRelief,
             int scale,
             byte foundation,
             byte timber,
             byte roof)
         {
-            int inset = 6 * scale;
-            int foundationHeight = BuildingFoundationDm * scale;
+            int inset = BuildingFoundationInsetDm * scale;
+            int normalFoundationHeight = BuildingFoundationDm * scale;
+            int foundationTop = terrainRelief + normalFoundationHeight;
+            int roofBase = terrainRelief + height;
             int roofHeight = BuildingRoofDm * scale;
             return new[]
             {
                 (int)ShapeOp.EmitBox, 0,
                 0, 0, 0,
-                width + inset * 2, foundationHeight, depth + inset * 2,
+                width + inset * 2, foundationTop, depth + inset * 2,
                 foundation, 0, 0, (int)PrimitiveMode.Fill,
                 (int)ShapeOp.EmitBox, 0,
-                inset, foundationHeight, inset,
-                width, Math.Max(scale, height - foundationHeight), depth,
+                inset, foundationTop, inset,
+                width, Math.Max(scale, height - normalFoundationHeight), depth,
                 timber, 0, 0, (int)PrimitiveMode.Fill,
                 (int)ShapeOp.EmitPrism, 0,
-                0, height, 0,
+                0, roofBase, 0,
                 width + inset * 2, roofHeight, depth + inset * 2,
                 (int)PrismProfile.Gable,
                 roof, 0, 0, (int)PrimitiveMode.Fill,
@@ -413,6 +433,33 @@ namespace MountingForce.WorldGen.Voxel
                 0, 0, 0, (int)PrimitiveMode.Carve,
                 (int)ShapeOp.End, 0
             };
+        }
+
+        private static void SampleBuildingTerrainRelief(
+            TopDownWorldBuildingBlockoutPlan building,
+            int scale,
+            uint seed,
+            out int minimumGround,
+            out int maximumGround)
+        {
+            int leftDm = building.CentreDm.X - building.HalfExtentXDm - BuildingFoundationInsetDm;
+            int rightDm = building.CentreDm.X + building.HalfExtentXDm + BuildingFoundationInsetDm;
+            int backDm = building.CentreDm.Y - building.HalfExtentZDm - BuildingFoundationInsetDm;
+            int frontDm = building.CentreDm.Y + building.HalfExtentZDm + BuildingFoundationInsetDm;
+            minimumGround = int.MaxValue;
+            maximumGround = int.MinValue;
+
+            for (var x = 0; x < BuildingTerrainSamplesPerAxis; x++)
+            {
+                int xDm = leftDm + (rightDm - leftDm) * x / (BuildingTerrainSamplesPerAxis - 1);
+                for (var z = 0; z < BuildingTerrainSamplesPerAxis; z++)
+                {
+                    int zDm = backDm + (frontDm - backDm) * z / (BuildingTerrainSamplesPerAxis - 1);
+                    int ground = TerrainSampler.HeightAt(xDm * scale, zDm * scale, seed);
+                    minimumGround = Math.Min(minimumGround, ground);
+                    maximumGround = Math.Max(maximumGround, ground);
+                }
+            }
         }
 
         private static void ValidateFootprint(DefinitionBuild build)
