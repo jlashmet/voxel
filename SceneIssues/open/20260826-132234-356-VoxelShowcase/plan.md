@@ -1,24 +1,35 @@
 # Plan
 
 ## Captured evidence
-One capture, two marked Dirt/grass contacts, exact saved camera pose at 1928×836. The lower mark is on organic circulation. Correct camera-ray reconstruction places the upper marked envelope at approximately `X=91.0..93.8m, Z=28.6..30.4m` beside MayorHouse.
+One capture, two marked Dirt/grass contacts, exact saved camera pose at 1928×836. Direct inspection of the latest real-player artifact from workflow `33233041050` still shows both failures: the upper contact is stair-stepped and the lower/right contact contains a metre-scale axis-aligned Dirt/grass corner.
 
-Exact built-player replay `33231174953` for feature source `ed9334667bee230900a1012770ee9749b31d7e0f` freshly baked `ShowcaseWorld.bytes`, passed the focused PlayMode test, built `VoxelShowcase`, replayed the saved camera, and reached stable residency. The workflow was later cancelled by aggregate timeout, so it is not a green gate. Direct artifact inspection shows the lower mark improved but the upper mark still has a metre-scale axis-aligned grass edge.
+Correct camera reconstruction places useful authored-surface probes near `(X≈922,Z≈295)` and `(X≈957,Z≈306)` voxels around `Y≈220` for seed `0x5EED1234`. These are probes, not assumed owners.
+
+## Minimal reproduction after repeated failed fixes
+Experiment 021 compares retained forced-bake/player artifacts from source variants that materially changed organic route stamps and generated plot caps. Square routes (`636f6120…`), cylinder routes (`57006268…`), precedence/plot changes (`36eb66c5…`), the 1.2m rounded cap (`ed933466…`), and the stadium cap (`29786792…`) are byte-identical on rendered ground in both original circles. The stadium-vs-rounded diff changes only sky/background pixels.
+
+This corrects earlier visual interpretations that the lower circle improved or that changing MayorHouse cap ownership moved the upper contact. Those claims are falsified by full-resolution pixel comparison.
 
 ## Competing hypotheses / evidence
-1. **Square organic-route stamps** — supported for the lower mark. Replacing square carve/fill stamps with equal-width cylinders changed that contact without moving routes or increasing its two-primitive budget. Keep this fix.
-2. **Route ownership of the upper mark** — falsified by exact-seed placement regression and route-only replay.
-3. **Plot/route numeric precedence** — falsified: finalisation does not sort by precedence; generation follows combined rule order.
-4. **Generated pad shrink alone** — falsified by byte-identical marked pixels after matching the shared-house foundation rectangle.
-5. **Fixed 1.2m rounded Moss cap** — partially supported then falsified as sufficient. The built replay shows the former southwest corner at `(92.7m,28.6m)` is now Dirt, proving material ownership changed, but the 1.2m tangent reaches `Z≈29.8m`, inside the original upper mark, where the boundary becomes straight again.
-6. **Stale bake / streaming** — falsified by repeated forced bakes and stable real-player residency.
+1. **Square organic-route stamps own the lower mark** — falsified. Source `636f6120…` demonstrably emits square route boxes, current source emits cylinders, but exact built-player ground/circle pixels are identical.
+2. **Organic-route placement owns the upper mark** — falsified by exact-seed overlap checks and the artifact comparison above.
+3. **Generated-house plot cap owns the upper mark** — falsified as the rendered owner. Rectangular, 1.2m rounded, and stadium cap variants produce identical ground pixels in the mark.
+4. **Plot/route numeric precedence** — falsified; generation follows combined rule order rather than numeric precedence sorting.
+5. **Stale bake / streaming** — falsified. Replays force fresh `ShowcaseWorld.bytes` bakes and reach stable residency for all 199 generated regions.
+6. **Base terrain high/low material contour** — falsified. Canonical `GameTerrainMaterials` maps both low and high terrain surfaces to Grass, so generic terrain cannot create this Dirt/grass seam.
+7. **Wrong regression seam / later combined writer** — supported. `VoxelShowcase` consumes `KentridgeCombinedVoxelCatalogueCanonical`; plot surfaces enter through `KentridgeVerticalPlacementAdapter.BuildPlotSurfaces(...)` and later catalogues can overwrite the same columns. Existing tests only inspect isolated analytic primitives.
 
-## Fix / behavioral regression
-Keep the round route stamps. For organic Kentridge generated houses only, keep the exact rectangular Dirt support, elevation, clearance, placement, and foundation alignment. Replace the small rounded-box Moss paint with a plan-view stadium cap: one thin `PaintSurface` bridge plus two vertical circular `PaintSurface` end-caps using the largest contained integer radius. This moves MayorHouse's side tangent outside the captured envelope without changing occupancy.
+## Next behavioral regression
+Before another production geometry edit, add a combined-world ownership regression for the exact showcase seed. It must evaluate/rasterize the ordered production Kentridge catalogue at the captured probe columns and assert the **final stored voxel/material ownership**, identifying which late primitive actually wins at each Dirt/grass contact. The test should fail on the current visual behavior for a reason tied to the marked regions, not merely assert one catalogue's local bounds.
 
-The exact-seed regression evaluates MayorHouse through production `ShapeProgram` orientation. It asserts unchanged support `927..1024 × 286..371dm` at `Y=221dm`, five bounded primitives, Dirt ownership at the captured old straight-edge probe `(927,221,300)`, Moss at `(938,221,304)`, and round organic-route stamps.
+Only after that final owner is proven should production geometry/material code change.
 
-## Blast radius / cost
-Only organic Kentridge generated-house visible Moss ownership changes. Bespoke/legacy pads, support occupancy, structures, routes, elevation, and clearance are unchanged. Generated pads rise from three to five bounded bake primitives; paint is one voxel deep and remains prebaked, with no per-frame cost.
+## Blast radius / cost guardrails
+Do not broaden terrain or renderer behavior. Target only the proven Kentridge writer(s) responsible for the two captured contacts. Preserve settlement placement, building structural support, walkable circulation, and bounded bake cost; no per-frame work should be introduced because `VoxelShowcase` consumes the prebaked world.
 
-Remaining gates: final targeted exact-SHA PlayMode CI, forced fresh showcase bake, real-player build, immutable camera replay, and direct verification that both original circles contain no metre-scale rectangular/stair-step Dirt/grass contacts.
+## Remaining gates
+1. Combined-world behavioral regression proves both captured owners and fails before the fix.
+2. Implement the smallest owner-level fix and check blast radius/cost.
+3. Run the final targeted exact-SHA PlayMode request on the persistent `ci-test/fixes/agent-8` transport only.
+4. Require a non-cancelled green workflow, forced fresh showcase bake, real-player build, immutable camera replay, and direct full-resolution verification that **both original circles** contain no metre-scale rectangular/stair-step Dirt/grass contacts.
+5. Only then complete pending metadata, close the issue, merge current `origin/master`, and non-force promote the exact feature head.
