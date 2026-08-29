@@ -13,5 +13,7 @@
   "sceneName": "KentridgePlayableSlice",
   "scenePath": "Assets/Scenes/KentridgePlayableSlice.unity",
   "sceneBuildIndex": 0,
+  "screenWidth": 1600,
+  "screenHeight": 900,
   "captures": []
 }
