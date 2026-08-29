@@ -47,7 +47,10 @@ namespace VoxelEngine.Showcase
                     "The baked showcase world must be loaded before runtime world generation starts.");
 
             LoadBake(LoadBakeResource(
-                ShowcaseWorldBakeCodec.ResourcePath, "Voxel Showcase", "Bake Showcase World"));
+                ShowcaseWorldBakeCodec.ResourcePath,
+                "Voxel Showcase",
+                "Bake Showcase World",
+                ShowcaseStartupBakeContract.ManifestResourcePath));
             EnsureCastleWorldObjectSceneLoaded();
         }
 
@@ -60,7 +63,10 @@ namespace VoxelEngine.Showcase
         /// unrelated null or a decode error far from its cause.
         /// </summary>
         private static ShowcaseWorldBake LoadBakeResource(
-            string resourcePath, string sceneLabel, string bakeCommand)
+            string resourcePath,
+            string sceneLabel,
+            string bakeCommand,
+            string provenanceManifestResourcePath = null)
         {
             TextAsset asset = Resources.Load<TextAsset>(resourcePath);
             if (asset == null)
@@ -71,6 +77,15 @@ namespace VoxelEngine.Showcase
 
             try
             {
+                if (!string.IsNullOrEmpty(provenanceManifestResourcePath))
+                {
+                    TextAsset manifest = Resources.Load<TextAsset>(provenanceManifestResourcePath);
+                    if (manifest == null)
+                        throw new InvalidDataException(
+                            $"The {sceneLabel} startup bake provenance manifest is missing.");
+                    ShowcaseStartupBakeContract.Validate(asset.bytes, manifest.text);
+                }
+
                 return ShowcaseWorldBakeCodec.Deserialize(asset.bytes);
             }
             catch (Exception ex) when (ex is InvalidDataException
