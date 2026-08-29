@@ -14,7 +14,9 @@
 - [ ] Change `mountain-dragon-evidence-route.json` timeout to fit strictly inside the 60-second workflow ceiling and prove all waypoints complete in time.
 - [ ] Replace the brittle exact mathematical ramp-high sample with a guaranteed interior realized-ramp column/surface assertion.
 - [ ] Add a structural regression requiring multiple asymmetric mountain masses so realization cannot silently collapse to one symmetric frustum.
-- [ ] Bump the startup-bake landmark contract revision for the asymmetric realization so pre-naturalization manifests are rejected even though dimensions did not change.
+- [ ] Replace full-height rectangular ramp/turn/summit support boxes with bounded landform-shaped support that remains continuous below every normal walking surface and does not read as dam-like vertical walls.
+- [ ] Add a regression that rejects tall ground-to-path rectangular support walls in the reusable mountain program.
+- [ ] Bump the startup-bake landmark contract revision for the final naturalized realization so pre-naturalization manifests are rejected even though dimensions did not change.
 - [ ] Generate and track `Assets/Resources/VoxelShowcase/ShowcaseWorld.manifest.txt` (payload, not only `.meta`) for the exact checked-in bake.
 - [ ] Regenerate/commit `Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes` from the current accepted WorldBuilder source without creating any extra CI transport.
 - [ ] Prove the checked-in startup bake semantically contains mountain mass, every switchback/landing, summit support, and dragon occupancy.
