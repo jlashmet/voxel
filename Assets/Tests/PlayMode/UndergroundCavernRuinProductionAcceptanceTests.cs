@@ -33,10 +33,12 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(world.UndergroundCavernStatueCount, Is.EqualTo(2));
             Assert.That(world.UndergroundCavernStalactiteCount, Is.GreaterThanOrEqualTo(2));
             Assert.That(world.UndergroundCavernGeologicalCategoryCount, Is.GreaterThanOrEqualTo(3));
-            Assert.That(world.UndergroundCavernRouteLightCount, Is.EqualTo(3),
-                "Sparse real local lights must guide the descent rather than relying on emissive voxels alone.");
-            Assert.That(world.UndergroundCavernLocalLightCount, Is.InRange(4, 8),
-                "Route and destination lights must remain bounded so most of the cave stays dark.");
+            Assert.That(world.UndergroundCavernRouteLightCount, Is.EqualTo(6),
+                "Supported local lights must recur along the prolonged descent rather than appearing only at doglegs.");
+            Assert.That(world.UndergroundCavernLocalLightCount, Is.InRange(7, 8),
+                "Six route lights plus one or two destination lights must remain inside the existing eight-light ceiling.");
+            Assert.That(world.UndergroundCavernPreloadedRegionCount, Is.InRange(1, 128),
+                "The deep route/cavern preload must remain a bounded region workload.");
             Assert.That(world.UndergroundCavernVoxelsWritten, Is.InRange(1L, 55_000_000L),
                 "The feature must stay inside the existing production authoring budget.");
 
@@ -48,12 +50,13 @@ namespace VoxelEngine.Tests.PlayMode
             int motorSteps = WalkProductionRoute(world);
 
             TestContext.WriteLine(
-                $"cavern writes={world.UndergroundCavernVoxelsWritten}; traversal={world.UndergroundCavernTraversalDistance}; " +
-                $"routeWaypoints={world.UndergroundCavernTraversalWaypointsMetres.Length}; motorSteps={motorSteps}; " +
-                $"routeLights={world.UndergroundCavernRouteLightCount}; totalLights={world.UndergroundCavernLocalLightCount}; " +
-                $"mouthLobes={world.UndergroundCavernMouthOpeningCount}; directionChanges={world.UndergroundCavernDirectionChangeCount}; " +
-                $"statues={world.UndergroundCavernStatueCount}; stalactites={world.UndergroundCavernStalactiteCount}; " +
-                $"geologyCategories={world.UndergroundCavernGeologicalCategoryCount}; depthDeltaMetres={delta.y:F1}");
+                $"cavern writes={world.UndergroundCavernVoxelsWritten}; preloadRegions={world.UndergroundCavernPreloadedRegionCount}; " +
+                $"traversal={world.UndergroundCavernTraversalDistance}; routeWaypoints={world.UndergroundCavernTraversalWaypointsMetres.Length}; " +
+                $"motorSteps={motorSteps}; routeLights={world.UndergroundCavernRouteLightCount}; " +
+                $"totalLights={world.UndergroundCavernLocalLightCount}; mouthLobes={world.UndergroundCavernMouthOpeningCount}; " +
+                $"directionChanges={world.UndergroundCavernDirectionChangeCount}; statues={world.UndergroundCavernStatueCount}; " +
+                $"stalactites={world.UndergroundCavernStalactiteCount}; geologyCategories={world.UndergroundCavernGeologicalCategoryCount}; " +
+                $"depthDeltaMetres={delta.y:F1}");
 
             int lights = world.UndergroundCavernLocalLightCount;
             long writes = world.UndergroundCavernVoxelsWritten;
