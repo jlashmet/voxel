@@ -2,7 +2,7 @@
 
 - [x] Read `AGENTS.md` and target issue; confirm no capture frames/annotations exist.
 - [x] Inspect current `fixes/agent-1` / `origin/master` divergence; confirm incoming master work is unrelated and has no overlapping paths with this feature.
-- [ ] Merge current `origin/master` into `fixes/agent-1` before further substantive implementation and before the final CI request, as required by the canonical coordinator workflow.
+- [x] Merge current `origin/master` into `fixes/agent-1` before further substantive implementation and before the final CI request, as required by the canonical coordinator workflow.
 - [ ] Reconcile all legacy provenance against pinned commit `9491acd9efc3ad7413a13fd28f1686ed473b5672`; prior resumed-branch notes contain incorrect dialogue counts and at least one nonexistent choreography path.
 - [x] Confirm Awon's referenced text payload is missing and repository policy requires `Dialogue coming soon.` rather than invented dialogue.
 - [ ] Re-prove the exact source order/state chain from pinned map/source files and document only source-backed opening events; keep later Medrare join out of scope unless the pinned state chain proves otherwise.
