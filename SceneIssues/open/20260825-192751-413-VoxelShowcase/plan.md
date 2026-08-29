@@ -16,5 +16,6 @@
 - CPU world truth, collision, replication, HLOD/water, stale-build rejection, arena budgets, and performance thresholds are unchanged.
 
 ## Remaining gates
-- Compile/static review, then liveness, arena/no-readback, zero-allocation, and production traversal regressions on the integrated head.
+- Integrated head compiles. Local policy 5/5, mirror slot/catalogue 21/21, and arena/no-geometry-readback 4/4 passed. The liveness harness entered PlayMode but exceeded the mandated 6 GB local ceiling before its first assertion, so it has no product verdict.
+- Run liveness and production traversal on exact-SHA targeted CI; retain performance/coverage thresholds unchanged.
 - Inspect exact built-player screenshots/logs. Keep the capture open until exact-SHA targeted CI and built-player gates are green.
