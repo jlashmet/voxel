@@ -131,19 +131,19 @@ namespace VoxelEngine.Showcase
             if (normalized < GalleryBaseTourStopCount)
             {
                 int2 target = s_GalleryBaseTourTargetXZ[normalized];
-                int approach = normalized == 3 ? 120 : 76;
-                int2 spawn = target + new int2(0, -approach);
-                int y = TerrainQuery.HeightAt(spawn.x, spawn.y, Seed) + 5;
-                return new float3(spawn.x, y, spawn.y) * VoxelSize;
+                int baseApproach = normalized == 3 ? 120 : 76;
+                int2 spawn = target + new int2(0, -baseApproach);
+                int baseY = TerrainQuery.HeightAt(spawn.x, spawn.y, Seed) + 5;
+                return new float3(spawn.x, baseY, spawn.y) * VoxelSize;
             }
 
             GetTownView(normalized, out int district, out int view);
             int2 targetXZ = TownViewTargetXZ(district, view);
-            int approach = view == 0 ? 130 : view == 1 ? 35 : 15;
-            int2 spawnXZ = targetXZ + new int2(0, -approach);
+            int townApproach = view == 0 ? 130 : view == 1 ? 35 : 15;
+            int2 spawnXZ = targetXZ + new int2(0, -townApproach);
             int eyeHeight = view == 0 ? 48 : 18;
-            int y = TerrainQuery.HeightAt(spawnXZ.x, spawnXZ.y, Seed) + eyeHeight;
-            return new float3(spawnXZ.x, y, spawnXZ.y) * VoxelSize;
+            int townY = TerrainQuery.HeightAt(spawnXZ.x, spawnXZ.y, Seed) + eyeHeight;
+            return new float3(spawnXZ.x, townY, spawnXZ.y) * VoxelSize;
         }
 
         public float3 WorldbuildingGalleryTourLookTarget(int index)
@@ -152,15 +152,15 @@ namespace VoxelEngine.Showcase
             if (normalized < GalleryBaseTourStopCount)
             {
                 int2 target = s_GalleryBaseTourTargetXZ[normalized];
-                int y = TerrainQuery.HeightAt(target.x, target.y, Seed) + s_GalleryBaseTourLookHeightVoxels[normalized];
-                return new float3(target.x, y, target.y) * VoxelSize;
+                int baseY = TerrainQuery.HeightAt(target.x, target.y, Seed) + s_GalleryBaseTourLookHeightVoxels[normalized];
+                return new float3(target.x, baseY, target.y) * VoxelSize;
             }
 
             GetTownView(normalized, out int district, out int view);
             int2 targetXZ = TownViewTargetXZ(district, view);
             int lookHeight = view == 0 ? 34 : view == 1 ? 13 : 10;
-            int y = TerrainQuery.HeightAt(targetXZ.x, targetXZ.y, Seed) + lookHeight;
-            return new float3(targetXZ.x, y, targetXZ.y) * VoxelSize;
+            int townY = TerrainQuery.HeightAt(targetXZ.x, targetXZ.y, Seed) + lookHeight;
+            return new float3(targetXZ.x, townY, targetXZ.y) * VoxelSize;
         }
 
         /// <summary>
