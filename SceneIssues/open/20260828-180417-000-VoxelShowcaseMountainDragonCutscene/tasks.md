@@ -15,7 +15,9 @@
 - [x] Merge the current `origin/master` bookkeeping head into `fixes/agent-4` before the implementation pass without touching another assignment.
 
 ## Exact-SHA bake / built-player gate
-- [ ] Use the one authorized final `ci-test/fixes/agent-4` request only once, against the exact source candidate; never replace it or create another CI transport.
+- [x] Use the one authorized final `ci-test/fixes/agent-4` request only once, against the exact source candidate; never replace it or create another CI transport. Request SHA: `ee738bc8511160139eb3d7ea39fbde81d8d21877`, parent/source SHA: `7b5393736485e4411083bf06fd3257e42702b4bb`.
+- [x] Classify the first final-CI failure and use the single permitted infrastructure retry only on the same workflow job/request SHA. Both attempts failed in the four-minute VoxelShowcase pre-test bake before the requested test ran.
+- [ ] Infrastructure unblock required before validation can continue: the source-matched startup bake/manifest must complete within the CI gate (or be restored from a valid source-matched cache) without a third retry, replacement request, extra transport, or CI-ref update under the current assignment constraints.
 - [ ] Have the VoxelShowcase CI pre-test bake generate a source-matched `Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes` plus `ShowcaseWorld.manifest.txt` for this exact source candidate.
 - [ ] Prove the generated startup bake semantically contains mountain mass, every switchback/landing, supported walking columns, 24-voxel headroom, summit support, and dragon occupancy.
 - [ ] Verify the exact focused filter is green, including asymmetric-landform, natural-support, headroom, grounded-Y predicate, encounter, and startup-bake acceptance regressions.
