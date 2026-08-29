@@ -1,31 +1,27 @@
 # Tasks
 
-- [x] Inspect the reopened issue, prior implementation, and every available visual/runtime evidence artifact for the mountain/dragon flow, including both prior mountain-target CI artifacts and rendered player captures.
-- [x] Reproduce/discriminate stale startup bake versus runtime realization/render failure using production paths: checked-in `ShowcaseWorld.bytes` predates the mountain landing (Aug 25 vs Aug 28).
-- [x] Confirm current authored geometry is already player-scale and substantial: 100 m diameter, 28 m rise, 3 m path width, 36 m runs, shallow supported switchbacks.
-- [x] Confirm `GenerateForBakeBlocking` authors current source directly; default `ShowcaseStartupSource.Bake` on the editor baker is not the stale-image root cause.
-- [x] Add discovered required work here before implementation.
-- [x] Add a durable bake-content/freshness invariant so a checked-in startup image that predates required authored landmarks fails validation instead of silently shipping without them.
-- [ ] Track `Assets/Resources/VoxelShowcase/ShowcaseWorld.bake-manifest.txt` itself (not only its `.meta`) and validate that its content signature/hash describes the exact checked-in `Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes` startup bake; the manifest payload is currently missing at HEAD.
-- [ ] Recover/regenerate or safely refresh the checked-in Resources VoxelShowcase startup bake from current authored WorldBuilder content without creating another CI transport.
-- [ ] Restore/update the issue-owned `mountain-dragon-evidence-route.json` referenced by `issue.json`; it is currently missing at HEAD.
-- [ ] Prove the checked-in startup bake contains production-realized mountain, switchback path, summit support, and dragon occupancy rather than relying only on primitive/catalogue assertions.
-- [x] Move mountain dialogue presentation out of `MountainDragonShowcaseDriver.OnGUI` into a reusable shared cutscene presentation component; keep the showcase driver composition-only.
-- [x] Add/update focused behavioral regression(s) through the production WorldBuilder path for mountain/path, grounded summit dragon, normal proximity-triggered dialogue, shared presentation routing, and evidence-route drift.
-- [x] Add only the smallest reusable evidence/navigation support needed for exact built-player normal-movement traversal and durable captures; no teleport/debug-trigger shortcut.
-- [x] Check blast radius across WorldBuilder/terrain/story/cutscene consumers and quantify one-time world-build/bake cost plus steady-state trigger/presentation cost against existing budgets.
-- [x] Record the final-CI request contract discovered from run `33235920288`: SceneIssue `replay_seconds` must be 20-60; the 110-second request failed during request resolution before Unity or product tests started.
-- [x] Fix feature callsites that still used obsolete `TimedCutsceneDialogueRuntime(displayMilliseconds: ...)`; the shared runtime constructor names this argument `displayDurationMilliseconds`, and run `33236501834` exposed the compile break before bake/player validation.
-- [x] Add `Game.Cutscenes.Api` to the `VoxelEngine.Showcase` SceneRuntime assembly references; run `33236605080` exposed CS0012 at `MountainDragonShowcaseDriver.overlay.Bind(_encounter)` because the shared presentation method exposes `IActiveCutsceneDialogue` from that API assembly.
-- [ ] Correct the startup-bake semantic regression to sample a guaranteed interior ramp surface rather than the exact integer high endpoint; run `33236729056` generated the path and the real player reached path/turn waypoints, while the test sampled air at `int3(-435, 264, -325)`.
-- [ ] Make the issue-owned standalone replay complete within the workflow's mandatory 60-second ceiling using normal CharacterMotor sprint movement only (no teleport/jump/debug trigger); current AutoWalk is fixed at 5.5 m/s and run `33236729056` reached only 4/15 route waypoints.
-- [ ] Redesign the production WorldBuilder mountain silhouette so the fresh built-player result reads as a natural substantial mountain rather than the current regular single-frustum/large planar masonry-like slab, while preserving the walkable switchbacks and supported summit.
-- [ ] Add/adjust a structural regression so mountain realization cannot silently collapse back to one symmetric frustum while path/connectivity assertions stay intact.
-- [ ] Validate the checked-in startup bake contains the accepted mountain.
-- [ ] Run exact-SHA built-application VoxelShowcase validation with no startup/runtime exceptions.
-- [ ] Traverse the complete route through normal player movement without jumps/teleportation/impassable intersections.
-- [ ] Save durable built-application visual captures for approach landmark, path base, representative switchbacks, supported summit dragon, and proximity-triggered `Hello, I'm Mr. Dragon.` dialogue.
-- [ ] Human-review the rendered captures and confirm AAA visual/spatial acceptance before pending promotion.
-- [ ] Run final focused targeted CI on `ci-test/fixes/agent-4` only, against the exact feature SHA, with a supported 60-second SceneIssue replay, and verify green `ci/single-test`.
-- [ ] Complete pending metadata (`status`, `resolutionSummary`, `regressionTest`, `fixCommit`) and move only this assignment from `open/` to `pending/`.
-- [ ] After all exact-SHA gates are green, set `status=fixed` and `resolvedUtc`, move only this assignment from `pending/` to `closed/`, merge current `origin/master`, and non-force push the exact feature head to `origin/master`.
+- [x] Inspect the reopened feature, prior implementation, available rendered/runtime evidence, and exact VoxelShowcase acceptance requirements.
+- [x] Maintain separate durable `plan.md` and `tasks.md`; record discovered work before changing production/test behavior.
+- [x] Discriminate stale startup bake vs runtime realization: the checked-in Aug-25 bake predates the Aug-28 mountain source.
+- [x] Confirm current authored scale/traversal intent: substantial footprint/rise, shallow supported switchbacks, usable summit, grounded placeholder.
+- [x] Add startup-bake provenance that binds current content signature to exact serialized payload SHA-256.
+- [x] Route proximity/cutscene presentation through reusable shared modules; keep VoxelShowcase composition-only.
+- [x] Add issue-owned evidence route and production `CharacterMotor` waypoint replay with no teleport/jump/debug proximity shortcut.
+- [x] Land replay-only production-motor sprint behavior; normal player walk speed remains unchanged outside evidence replay.
+- [x] Land an asymmetric multi-mass mountain realization while preserving path/support/summit composition.
+- [x] Fix prior CI-discovered compile/request defects: supported 20–60 second replay, dialogue constructor argument, and `Game.Cutscenes.Api` asmdef reference.
+- [x] Merge current `origin/master` into `fixes/agent-4` before the new substantial attempt; no overlapping feature/master paths were found.
+- [ ] Change `mountain-dragon-evidence-route.json` timeout to fit strictly inside the 60-second workflow ceiling and prove all waypoints complete in time.
+- [ ] Replace the brittle exact mathematical ramp-high sample with a guaranteed interior realized-ramp column/surface assertion.
+- [ ] Add a structural regression requiring multiple asymmetric mountain masses so realization cannot silently collapse to one symmetric frustum.
+- [ ] Generate and track `Assets/Resources/VoxelShowcase/ShowcaseWorld.manifest.txt` (payload, not only `.meta`) for the exact checked-in bake.
+- [ ] Regenerate/commit `Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes` from the current accepted WorldBuilder source without creating any extra CI transport.
+- [ ] Prove the checked-in startup bake semantically contains mountain mass, every switchback/landing, summit support, and dragon occupancy.
+- [ ] Check final one-time world-build/bake cost and shared-system blast radius against existing budgets; do not weaken budgets.
+- [ ] Run the one final targeted request on `ci-test/fixes/agent-4` only, based directly on the exact feature SHA and changing `.github/test-request.json` only on that CI ref.
+- [ ] Verify green exact-SHA focused behavioral regression and exact built-application VoxelShowcase harness with no startup/runtime exceptions.
+- [ ] Traverse the complete evidence route via normal `CharacterMotor` movement within the supported replay window.
+- [ ] Save durable built-player captures for normal approach, path base, representative switchbacks, supported summit dragon, and proximity dialogue.
+- [ ] Human-review every rendered capture and confirm a grounded natural substantial mountain, continuous readable supported ascent, no impassable intersections, supported dragon, and visible `Hello, I'm Mr. Dragon.` dialogue.
+- [ ] Complete pending metadata (`status`, `resolutionSummary`, `regressionTest`, `fixCommit`) and move only this assignment open→pending in separate bookkeeping.
+- [ ] After every exact-SHA gate is green, set `status=fixed` and `resolvedUtc`, move only this assignment pending→closed, merge latest `origin/master`, and non-force push the exact feature head to `origin/master` (retry merge if master advanced).
