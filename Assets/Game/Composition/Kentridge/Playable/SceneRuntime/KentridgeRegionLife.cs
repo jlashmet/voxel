@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using MountingForce.WorldGen;
 using Unity.Mathematics;
@@ -7,36 +8,20 @@ using VoxelEngine.Composition;
 using VoxelEngine.Rendering.Api;
 using VoxelEngine.Showcase;
 using VoxelEngine.Vegetation.Api;
-using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
 using TreeInstance = VoxelEngine.Vegetation.Api.TreeInstance;
 
 namespace Game.Kentridge.PlayableSlice
 {
     /// <summary>
-    /// Turns the slice's authored region themes into the trees, ground cover and wildlife that make
-    /// each stretch of country read as a different place.
-    ///
-    /// The themes are decided in worldgen — farmland around the towns, pine forest between them,
-    /// riverbank at the crossing — and this is the step that realizes them. Everything is placed by
-    /// asking the theme map what a spot is, so moving the forest is a worldbuilding edit rather
-    /// than a scattering edit, and the forest stays where the bridge crosses because both were
-    /// derived from the same crossing.
+    /// Realizes the WorldBuilder region/ecology policy through the shared vegetation and ambient
+    /// life systems. Placement stays derived from generated terrain; no scene-local scatter is used.
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class KentridgeRegionLife : MonoBehaviour
     {
-        /// <summary>
-        /// Metres between tree samples. Density is then applied per theme, so this only bounds the
-        /// finest spacing a dense wood can reach.
-        /// </summary>
         private const float TreeSampleStepMetres = 6f;
-
-        /// <summary>Ground cover is sampled finer, because it has to read as cover rather than props.</summary>
         private const float UndergrowthSampleStepMetres = 1.4f;
         private const float HabitatSampleStepMetres = 20f;
-
-        // Hard ceilings. These are presentation resources, but they still need to be bounded by
-        // construction rather than by an inner-loop break that starts adding again on the next row.
         private const int MaxTrees = 900;
         private const int MaxUndergrowth = 12000;
         private const int MaxClusters = 110;
@@ -53,19 +38,17 @@ namespace Game.Kentridge.PlayableSlice
         public int TreeCount => _trees.Count;
         public int UndergrowthCount => _undergrowth.Count;
         public int ClusterCount => _clusters.Count;
+        public int GrassCount { get; private set; }
+        public int PrimaryMeadowGrassCount { get; private set; }
 
-        /// <summary>
-        /// Fills the corridor between the two towns. <paramref name="halfWidthMetres"/> is how far
-        /// either side of the road the country is dressed: beyond it the player is off the route
-        /// and the far field carries the distance.
-        /// </summary>
         public void Populate(
             ShowcaseWorld world,
             RegionThemeMap themes,
             float roadXMetres,
             float fromZMetres,
             float toZMetres,
-            float halfWidthMetres)
+            float halfWidthMetres,
+            RegionEcologyPolicy ecology = null)
         {
             if (world == null || themes == null) return;
 
@@ -74,19 +57,26 @@ namespace Game.Kentridge.PlayableSlice
             _lifeRenderer ??=
                 VegetationLifeRenderingComposition.EnsureAmbientLifeBatchRenderer(gameObject);
 
-            BuildTrees(world, themes, roadXMetres, fromZMetres, toZMetres, halfWidthMetres);
-            BuildUndergrowth(world, themes, roadXMetres, fromZMetres, toZMetres, halfWidthMetres);
-            BuildWildlife(world, themes, roadXMetres, fromZMetres, toZMetres, halfWidthMetres);
+            BuildTrees(world, themes, roadXMetres, fromZMetres, toZMetres, halfWidthMetres, ecology);
+            BuildUndergrowth(world, themes, roadXMetres, fromZMetres, toZMetres, halfWidthMetres, ecology);
+            BuildWildlife(world, themes, roadXMetres, fromZMetres, toZMetres, halfWidthMetres, ecology);
 
-            Debug.Log($"Kentridge region life: {_trees.Count} trees, {_undergrowth.Count} "
-                    + $"ground cover, {_clusters.Count} wildlife clusters.");
+            Debug.Log($"Kentridge region life: {_trees.Count} trees, {_undergrowth.Count} ground cover, "
+                    + $"{_clusters.Count} wildlife clusters; meadow grass total={GrassCount}, "
+                    + $"primary-contiguous-side={PrimaryMeadowGrassCount}.");
         }
 
         private void BuildTrees(
             ShowcaseWorld world, RegionThemeMap themes,
-            float roadX, float fromZ, float toZ, float halfWidth)
+            float roadX, float fromZ, float toZ, float halfWidth,
+            RegionEcologyPolicy ecology)
         {
             _trees.Clear();
+            if (ecology != null && ecology.TreeKinds.Count == 0)
+            {
+                VegetationComposition.ReplaceTreeWorld(_trees);
+                return;
+            }
 
             for (float z = fromZ; z <= toZ && _trees.Count < MaxTrees; z += TreeSampleStepMetres)
             for (float x = roadX - halfWidth;
@@ -95,64 +85,62 @@ namespace Game.Kentridge.PlayableSlice
             {
                 int zDm = Mathf.RoundToInt(z * 10f);
                 RegionThemeProfile profile = themes.ProfileAt(zDm);
-
                 uint seed = Hash(world.Seed, (uint)Mathf.RoundToInt(x * 10f), (uint)zDm);
-
-                // Trees per hectare against the area one sample represents. This is what makes the
-                // pine forest dense and the farmland a scatter of copses from the same code.
-                float sampleAreaHectares =
-                    TreeSampleStepMetres * TreeSampleStepMetres / 10000f;
+                float sampleAreaHectares = TreeSampleStepMetres * TreeSampleStepMetres / 10000f;
                 float expected = profile.TreesPerHectare * sampleAreaHectares;
                 if (Random01(seed) > expected) continue;
-
-                // Keep the carriageway clear: a road you cannot walk down is not a road.
                 if (Mathf.Abs(x - roadX) < 5f) continue;
 
                 float3 jittered = new float3(
                     x + (Random01(seed ^ 0x51u) - 0.5f) * TreeSampleStepMetres,
                     0f,
                     z + (Random01(seed ^ 0x77u) - 0.5f) * TreeSampleStepMetres);
-
                 if (!TryGround(world, jittered, out float3 grounded, out float3 normal)) continue;
                 if (normal.y < 0.86f) continue;
 
                 TreeSpeciesSlot slot = RegionThemeCatalog.SpeciesFor(
                     in profile, (int)(Random01(seed ^ 0x9Eu) * 1000f));
                 if (slot == TreeSpeciesSlot.None) continue;
+                TreeSpecies species = SpeciesFor(slot);
+                if (ecology != null && !ecology.AllowsTree(species.ToString())) continue;
 
                 _trees.Add(new TreeInstance
                 {
                     PositionMetres = grounded,
-                    Species = SpeciesFor(slot),
+                    Species = species,
                     Seed = seed == 0u ? 1u : seed,
                     Scale = 0.85f + Random01(seed ^ 0xC3u) * 0.5f,
                 });
             }
-
             VegetationComposition.ReplaceTreeWorld(_trees);
         }
 
         private void BuildUndergrowth(
             ShowcaseWorld world, RegionThemeMap themes,
-            float roadX, float fromZ, float toZ, float halfWidth)
+            float roadX, float fromZ, float toZ, float halfWidth,
+            RegionEcologyPolicy ecology)
         {
             _samples.Clear();
-
-            // Ground cover is only worth sampling near the route: it is invisible past a few tens
-            // of metres and it is the densest thing here.
             float coverHalfWidth = Mathf.Min(halfWidth, 45f);
+            float sampleStep = ecology?.VegetationSampleSpacingMetres ?? UndergrowthSampleStepMetres;
+            float routeClearance = ecology?.RouteClearanceMetres ?? 0f;
 
-            for (float z = fromZ; z <= toZ && _samples.Count < MaxUndergrowth;
-                 z += UndergrowthSampleStepMetres)
+            for (float z = fromZ; z <= toZ && _samples.Count < MaxUndergrowth; z += sampleStep)
             for (float x = roadX - coverHalfWidth;
                  x <= roadX + coverHalfWidth && _samples.Count < MaxUndergrowth;
-                 x += UndergrowthSampleStepMetres)
+                 x += sampleStep)
             {
                 int zDm = Mathf.RoundToInt(z * 10f);
                 RegionThemeProfile profile = themes.ProfileAt(zDm);
-                uint seed = Hash(world.Seed, (uint)Mathf.RoundToInt(x * 10f), (uint)zDm ^ 0x1234u);
+                if (profile.Kind == RegionThemeKind.Riverbank) continue;
+                if (routeClearance > 0f && Mathf.Abs(x - roadX) < routeClearance) continue;
 
-                if (Random01(seed) * 1000f > profile.UndergrowthPerMille) continue;
+                if (ecology == null)
+                {
+                    uint seed = Hash(world.Seed, (uint)Mathf.RoundToInt(x * 10f), (uint)zDm ^ 0x1234u);
+                    if (Random01(seed) * 1000f > profile.UndergrowthPerMille) continue;
+                }
+
                 if (!TryGround(world, new float3(x, 0f, z), out float3 grounded, out float3 normal))
                     continue;
 
@@ -161,27 +149,55 @@ namespace Game.Kentridge.PlayableSlice
                     PositionMetres = grounded,
                     Normal = normal,
                     Surface = VegetationSurface.Ground,
-                    Moisture = profile.Kind == RegionThemeKind.Riverbank ? 0.9f : 0.5f,
+                    Moisture = 0.5f,
                     Shade = profile.Kind == RegionThemeKind.PineForest ? 0.8f : 0.3f,
                     ArcaneSaturation = 0f,
                 });
             }
 
             VegetationPlacementSettings settings = VegetationPlacementSettings.Default(world.Seed);
+            if (ecology != null)
+            {
+                settings.Density = ecology.VegetationDensity;
+                settings.MaxGroundSlopeDegrees = ecology.MaxVegetationSlopeDegrees;
+                settings.RestrictKinds = true;
+                settings.AllowedKindsMask = BuildVegetationMask(ecology);
+            }
+
             _undergrowth.Clear();
             VegetationPlacement.Generate(_samples, in settings, _undergrowth);
             if (_undergrowth.Count > MaxUndergrowth)
                 _undergrowth.RemoveRange(MaxUndergrowth, _undergrowth.Count - MaxUndergrowth);
             _vegetationRenderer.SetInstances(_undergrowth);
+
+            GrassCount = 0;
+            int leftGrass = 0;
+            int rightGrass = 0;
+            for (int i = 0; i < _undergrowth.Count; i++)
+            {
+                VegetationInstance instance = _undergrowth[i];
+                if (instance.Kind != VegetationKind.Grass) continue;
+                GrassCount++;
+                if (instance.PositionMetres.x < roadX - routeClearance) leftGrass++;
+                else if (instance.PositionMetres.x > roadX + routeClearance) rightGrass++;
+            }
+            PrimaryMeadowGrassCount = Math.Max(leftGrass, rightGrass);
         }
 
         private void BuildWildlife(
             ShowcaseWorld world, RegionThemeMap themes,
-            float roadX, float fromZ, float toZ, float halfWidth)
+            float roadX, float fromZ, float toZ, float halfWidth,
+            RegionEcologyPolicy ecology)
         {
             _habitats.Clear();
-            int maxHabitatSamples = MaxClusters * 3;
+            _clusters.Clear();
+            if (ecology != null && ecology.AmbientAnimalKinds.Count == 0)
+            {
+                _lifeRenderer.SetClusters(_clusters);
+                return;
+            }
 
+            int maxHabitatSamples = MaxClusters * 3;
             for (float z = fromZ; z <= toZ && _habitats.Count < maxHabitatSamples;
                  z += HabitatSampleStepMetres)
             for (float x = roadX - halfWidth;
@@ -191,10 +207,8 @@ namespace Game.Kentridge.PlayableSlice
                 int zDm = Mathf.RoundToInt(z * 10f);
                 RegionThemeProfile profile = themes.ProfileAt(zDm);
                 uint seed = Hash(world.Seed, (uint)Mathf.RoundToInt(x * 10f), (uint)zDm ^ 0x99u);
-
                 if (Random01(seed) * 1000f > profile.WildlifePerMille) continue;
-                if (!TryGround(world, new float3(x, 0f, z), out float3 grounded, out float3 normal))
-                    continue;
+                if (!TryGround(world, new float3(x, 0f, z), out float3 grounded, out _)) continue;
 
                 _habitats.Add(new AmbientLifeHabitatSample
                 {
@@ -210,13 +224,28 @@ namespace Game.Kentridge.PlayableSlice
                 });
             }
 
-            AmbientLifePopulationSettings settings =
-                AmbientLifePopulationSettings.Default(world.Seed);
-            _clusters.Clear();
+            AmbientLifePopulationSettings settings = AmbientLifePopulationSettings.Default(world.Seed);
             AmbientLifePopulation.Generate(_habitats, in settings, _clusters);
+            if (ecology != null)
+            {
+                for (int i = _clusters.Count - 1; i >= 0; i--)
+                    if (!ecology.AllowsAmbientAnimal(_clusters[i].Kind.ToString())) _clusters.RemoveAt(i);
+            }
             if (_clusters.Count > MaxClusters)
                 _clusters.RemoveRange(MaxClusters, _clusters.Count - MaxClusters);
             _lifeRenderer.SetClusters(_clusters);
+        }
+
+        private static ulong BuildVegetationMask(RegionEcologyPolicy ecology)
+        {
+            ulong mask = 0UL;
+            for (int i = 0; i < ecology.VegetationKinds.Count; i++)
+            {
+                if (!Enum.TryParse(ecology.VegetationKinds[i], false, out VegetationKind kind)) continue;
+                int bit = (int)kind;
+                if (bit >= 0 && bit < 64) mask |= 1UL << bit;
+            }
+            return mask;
         }
 
         private static TreeSpecies SpeciesFor(TreeSpeciesSlot slot)
@@ -237,16 +266,12 @@ namespace Game.Kentridge.PlayableSlice
         {
             grounded = default;
             normal = new float3(0f, 1f, 0f);
-
             int vx = (int)math.floor(position.x / ShowcaseWorld.VoxelSize);
             int vz = (int)math.floor(position.z / ShowcaseWorld.VoxelSize);
-
-            // Nothing grows on the road, the bridge, or a rooftop.
             if (world.HasBuiltContentAbove(vx, vz)) return false;
 
             int height = world.SurfaceHeight(vx, vz);
             grounded = new float3(position.x, height * ShowcaseWorld.VoxelSize, position.z);
-
             const int Step = 6;
             float dx = world.SurfaceHeight(vx + Step, vz) - world.SurfaceHeight(vx - Step, vz);
             float dz = world.SurfaceHeight(vx, vz + Step) - world.SurfaceHeight(vx, vz - Step);
