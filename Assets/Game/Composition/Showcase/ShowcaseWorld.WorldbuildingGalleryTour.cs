@@ -165,8 +165,9 @@ namespace VoxelEngine.Showcase
 
         /// <summary>
         /// Adds larger semantic-building examples and six reference-driven town districts beside the original
-        /// gallery collection. The same method is invoked by generated startup and bake creation, keeping the
-        /// production authoring path identical in both modes.
+        /// gallery collection. Generated startup and offline bake creation both reach the six towns through
+        /// <see cref="EnsureWorldbuildingGalleryTownArchitectureBlocking"/>, which is also the compatibility
+        /// path for a checked-in gallery bake that predates this feature.
         /// </summary>
         public void GenerateWorldbuildingGalleryTourExpansionBlocking()
         {
@@ -205,36 +206,28 @@ namespace VoxelEngine.Showcase
                 0x574247A2u,
                 requestedRooms: 8);
 
-            long townWritesStart = authoring.TotalVoxelsWritten;
-            var townTimer = System.Diagnostics.Stopwatch.StartNew();
-            for (int i = 0; i < s_GalleryTownStyleIds.Length; i++)
-            {
-                string styleId = s_GalleryTownStyleIds[i];
-                TownArchitectureProgram program = WorldBuilderTownArchitecture.Resolve(styleId, s_GalleryTownSeeds[i]);
-                TownArchitectureVoxelPalette palette = GalleryTownPalette(styleId);
-                WorldBuilderTownArchitectureVoxelAuthoring.Author(
-                    authoring,
-                    s_GalleryTownDistrictCentres[i],
-                    (x, z) => TerrainQuery.HeightAt(x, z, Seed),
-                    program,
-                    in palette);
-            }
-            townTimer.Stop();
+            if (authoring.BudgetExceeded)
+                throw new System.InvalidOperationException(
+                    $"Worldbuilding gallery guild expansion exceeded its {authoring.WriteBudget:N0}-write budget.");
 
-            long townWrites = authoring.TotalVoxelsWritten - townWritesStart;
-            UnityEngine.Debug.Log(
-                $"TOWNARCH_AUTHORING districts={s_GalleryTownStyleIds.Length} writes={townWrites} " +
-                $"elapsedMs={townTimer.Elapsed.TotalMilliseconds:0.###} totalWrites={authoring.TotalVoxelsWritten} " +
-                $"budget={authoring.WriteBudget} budgetExceeded={authoring.BudgetExceeded}");
+            EnsureWorldbuildingGalleryTownArchitectureBlocking();
         }
 
-        private static int2 TownViewTargetXZ(int district, int view)
+        private int2 TownViewTargetXZ(int district, int view)
         {
             int2 centre = s_GalleryTownDistrictCentres[district];
             if (view == 0) return centre;
 
-            int seedShift = (int)(s_GalleryTownSeeds[district] % 5u) - 2;
-            int2 residence = centre + new int2(-47 + seedShift, -12);
+            // Rossdam acceptance is explicitly about reusable fortified construction. The near
+            // evidence views therefore inspect the gatehouse/landmark rather than a generic royal
+            // residence: 3.5 m and 1.5 m south of this target preserve player/close review distances.
+            if (s_GalleryTownStyleIds[district] == WorldBuilderTownArchitectureIds.Rossdam)
+            {
+                int2 landmark = WorldbuildingGalleryTownLandmarkOriginXZ(district);
+                return view == 1 ? landmark + new int2(0, -13) : landmark + new int2(-8, -13);
+            }
+
+            int2 residence = WorldbuildingGalleryTownResidenceOriginXZ(district);
             // Front facade lies south of the residence centre. Close view biases toward the left framed opening.
             return view == 1 ? residence + new int2(0, -17) : residence + new int2(-8, -17);
         }
