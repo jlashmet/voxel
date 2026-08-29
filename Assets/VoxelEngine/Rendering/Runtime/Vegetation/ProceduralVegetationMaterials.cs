@@ -168,8 +168,9 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
             ApplyLighting(s_Surface);
             ApplyLighting(s_Vine);
 
-            // Keep the legacy foliage publication while semantic Grass migrates to its dedicated
-            // packed renderer. Other foliage shaders ignore these values.
+            // Keep the legacy foliage publication while semantic Grass uses its dedicated packed
+            // renderer. Wind time is engine-managed in the grass shader; only interaction/camera
+            // state needs CPU publication here.
             s_Foliage.SetInt("_GrassInteractorCount", s_GrassInteractorCount);
             s_Foliage.SetVectorArray("_GrassInteractorPositions", s_GrassInteractors);
             if (EnsureGrass()) ApplyGrassState(s_Grass);
@@ -330,10 +331,6 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
 
         private static void ApplyGrassState(Material material)
         {
-            // Grass is ambient presentation, so dialogue/cutscene gameplay pauses must not freeze it.
-            // The final built-player visual gate proved the shader still consumed this shared material
-            // value even when the packed draw also supplied a property-block clock.
-            material.SetFloat("_GrassTime", Time.unscaledTime);
             material.SetInt("_GrassInteractorCount", s_GrassInteractorCount);
             material.SetVectorArray("_GrassInteractorPositions", s_GrassInteractors);
 
