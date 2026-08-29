@@ -17,6 +17,7 @@
 - [x] Discovered: assert the production combined catalogue contains macro roads, all four remote settlement blockouts, ridge geography, and carved water.
 - [x] Discovered: built-player evidence traverses a real Moordell macro-road segment with production CharacterMotor/streaming.
 - [x] Preserve current-master opening-story/ecology state; stale `StorySpecs.cs` overlay was removed byte-for-byte from current master.
+- [x] Resumed workflow audit: `SceneIssues/feature-readme.md`, `docs/repo-map.md`, and `docs/CODE_STANDARDS.md` are absent from this revision; followed available `AGENTS.md` + `SceneIssues/README.md` and recorded the missing references rather than inventing rules.
 
 ## Product failures repaired by exact-SHA CI
 - [x] `33230924543`: evidence driver missing `Game.WorldBuilder.Api`; fixed at `339ca94f593653e84a02fe2d19712971bfd99e20`.
@@ -50,7 +51,7 @@
 ## Physical-visibility discriminator discovered by 33265086481
 - [x] Trace generic settlement blockouts from `TopDownWorldSettlementPlan.Buildings` through the physical catalogue into `KentridgeCombinedVoxelCatalogue`. Source trace confirms grounded foundations plus filled timber wall and roof/gable primitives are authored for each generic building and the physical structure pass is composed after macro roads.
 - [x] Check production composition/precedence for obvious terrain/road swallowing. The combined catalogue contains the authored generic building definitions and does not intentionally replace them with marker-only records; no production geometry rewrite is justified before final occupancy is sampled.
-- [x] Investigate the camera-centered residency hypothesis. Rejected: `KentridgePlayableSlice` uses a three-region load radius (about 153.6 m at 51.2 m/region), while every current camera-to-focus offset is under ~54 m. The photographed focus remains inside normal residency; do not change CharacterMotor placement, load radius, or streaming for this feature.
+- [x] Investigate the camera-centered residency hypothesis. Rejected: `KentridgePlayableSlice` uses a three-region load radius (about 153.6 m), while every current camera-to-focus offset is under ~54 m. The photographed focus remains inside normal residency; do not change CharacterMotor placement, load radius, or streaming for this feature.
 - [x] Inspect live validation read surfaces. The evidence gate proves published near-surface completeness but exposes no clean authoritative target-material voxel query through the playable-slice validation surface. Do not add reflection or broaden production APIs solely for evidence.
 - [x] Add a bounded production-storage acceptance target that first invokes the existing complete macro acceptance, then resolves a real generic settlement building through `KentridgeCombinedVoxelCatalogue`, rasterizes the real combined catalogue into current `RegionTable`/`BrickPool` storage, and asserts final above-ground timber and gable-roof material voxels.
 - [x] Execute the production-storage acceptance on exact merged candidate `ed72e82210a0135472e6d20b823f4be38f286d73`; run `33276625513` proves the sampled production building contains timber and roof material in final rasterized storage, so a total catalogue-generation failure is rejected.
@@ -58,17 +59,18 @@
 - [ ] Re-run exact-SHA focused + built-player validation and reject closure unless full-resolution settlement/lake/ridge evidence is readable.
 
 ## Production-composition defects discovered by 33276625513
-- [ ] Verify production feature-generation ordering/precedence so the remediation addresses the true composed-world path rather than masking it in evidence cameras.
-- [ ] Remove duplicate full-region rectangular WaterBody surface ownership from the production combined catalogue when the dedicated bounded carved-basin catalogue owns the same water body; preserve standalone reusable catalogue behavior and add a regression that production emits only the intended basin/shoreline realization.
-- [ ] Ground every generic settlement building against terrain relief across its footprint rather than a single centre-height sample, so foundations absorb slope and timber/roof remain exposed above the highest local terrain; keep deterministic placement and bounded planning cost.
-- [ ] Strengthen production-storage regression from one sampled building to every generic building in Moordell, Rossdam, Fairy Village, and Orc Village, asserting final above-ground wall/roof occupancy and deterministic bounded raster work.
-- [ ] Check all generic building footprints against WaterBody/separative-region exclusions; if the authored Rossdam physical intent itself conflicts with the settlement footprint, repair that semantic intent and add a focused regression instead of hiding the conflict in presentation.
+- [x] Verify production feature-generation composition: `SettlementCatalogueCombiner` only concatenates/rebases whole catalogues and performs no overlap/deduplication, so generic rectangular water and dedicated basin water both survive when both are supplied.
+- [x] Remove duplicate full-region rectangular WaterBody surface ownership from Kentridge production composition while preserving standalone reusable catalogue behavior. `TopDownWorldPhysicalVoxelCatalogue.Build(..., includeWaterBodies = true)` keeps compatibility; Kentridge passes `false` only when composing the dedicated basin catalogue. Regression source asserts standalone count=1, combined generic count=0, basin count=1.
+- [x] Ground every generic settlement building against bounded 5x5 terrain relief samples across its padded footprint. Feature origin uses sampled minimum; foundation spans relief + normal 8 dm cap; timber/roof are shifted by relief and remain above sampled maximum. X/Z plans, definition counts, and placement counts are unchanged.
+- [x] Strengthen production-storage regression from one sampled building to every generic building in Moordell, Rossdam, Fairy Village, and Orc Village. Each building asserts placement/program grounding and final high-terrain timber/roof probes with bounded per-building temporary storage.
+- [ ] Execute the new blocking-region footprint regression across every generic building. If Rossdam physical intent itself conflicts with a WaterBody/separative region, repair semantic intent rather than presentation.
 - [ ] Re-inspect settlement/lake/ridge/network evidence after physical composition is corrected; adjust validation-only framing only where confirmed stored production geometry is still not readable.
-- [ ] Do not issue another targeted CI request until the remediation is self-reviewed and locally/source-level discriminators are stable; then reuse only `ci-test/fixes/agent-6` for the new final exact-SHA request.
+- [x] Self-review remediation delta before CI: only the physical voxel catalogue, Kentridge composition call, focused storage acceptance, and this assignment's plan/tasks changed; no streaming radius, CharacterMotor, renderer budget, other SceneIssue, or feature-branch `.github/test-request.json` change. Current master remains `922565bedd104c1795a9d13c610d4d185b65754e` and is already in feature history.
+- [x] Do not issue another targeted CI request until remediation is self-reviewed and source-level discriminators are stable; reuse only `ci-test/fixes/agent-6` for the new final exact-SHA request.
 
 ## Behavioral regression
 - [x] Existing macro acceptance remains: `VoxelEngine.Tests.PlayMode.KentridgeMacroWorldPhysicalProductionAcceptanceTests.PhysicalMacroWorldHasWalkableRoutesAndADeepStreamedWaterBody`.
-- [x] Final combined target added: `VoxelEngine.Tests.PlayMode.KentridgeMacroWorldPhysicalStorageAcceptanceTests.PhysicalMacroWorldReachesProductionStorageWithSettlementShellAndRoof`; it invokes the existing acceptance before checking final storage.
+- [x] Final combined target remains: `VoxelEngine.Tests.PlayMode.KentridgeMacroWorldPhysicalStorageAcceptanceTests.PhysicalMacroWorldReachesProductionStorageWithSettlementShellAndRoof`; it invokes the existing acceptance before checking final storage and now covers all generic buildings plus water ownership.
 - [ ] Final exact-SHA execution verifies fixed-seed macro-to-physical output is deterministic.
 - [ ] Final exact-SHA execution verifies every settlement has a physical settlement plan and >=4 non-overlapping grounded blockout buildings when no richer generator owns it.
 - [ ] Final exact-SHA execution verifies every settlement is reachable from Kentridge over contiguous generated hard-route surfaces.
@@ -76,7 +78,7 @@
 - [ ] Final exact-SHA execution verifies lake/ridge constraints alter hard routes via explicit semantic solutions, including Bandit dry-shore and Orc ridge-shoulder route-arounds.
 - [ ] Final exact-SHA execution verifies impossible blocked route rejection without explicit crossing/pass/around solution.
 - [ ] Final exact-SHA execution verifies richer Kentridge/Hightown output is preserved.
-- [ ] Final exact-SHA execution verifies the selected macro graph survives the real combined production catalogue, including carved water and above-ground generic-building occupancy.
+- [ ] Final exact-SHA execution verifies the selected macro graph survives the real combined production catalogue, including single-owner carved water and above-ground occupancy for all 16 generic buildings.
 
 ## Visual / runtime evidence
 - [ ] Exact built `KentridgePlayableSlice` reaches a usable rendered state with no startup/runtime exceptions.
@@ -87,12 +89,13 @@
 - [ ] Inspect Rossdam basin for readable shoreline/depth and no collision/rendering anomaly from non-solid water.
 
 ## Blast radius / cost
-- [ ] Quantify macro plan counts, route-solving work, feature/placement/primitive cost, carved-water cost, and one-shot build cost from the final exact green run.
+- [ ] Quantify macro plan counts, route-solving work, feature/placement/primitive cost, carved-water cost, terrain-relief sampling cost, and one-shot build cost from the final exact green run.
 - [ ] Inspect built-player CPU/GPU/frame/memory/streaming/far-field telemetry against existing device budgets; do not weaken budgets and distinguish startup/validation movement spikes from steady-state gameplay.
 - [x] Static blast-radius review: macro realization is opt-in through existing one-shot `TopDownWorldLayoutSelection`; ordinary callers retain prior cost, no second graph/static destination hierarchy.
 - [x] Scope audit: only agent-6 Kentridge/WorldBuilder/tests/assignment files differ from current master; no other SceneIssue and no `.github/test-request.json` on `fixes/agent-6`.
 - [x] Streaming discriminator rejected without production changes: existing radius remains three 51.2 m regions; no eager remote build, streaming-radius increase, CharacterMotor semantic change, or extra CI transport.
-- [x] Storage regression is test-only, bounded to one generic building and one or at most two target regions, uses an 8192-slot temporary `BrickPool`, and disposes all native/catalogue memory synchronously.
+- [x] Remediation cost is bounded: 25 terrain height samples x 16 generic buildings = 400 deterministic catalogue-build queries; definition/placement counts and X/Z footprints do not increase, and added foundation height is only local sampled relief.
+- [x] Expanded storage regression is test-only and uses fresh 4-region/8192-brick temporary storage per building, at most two target regions per building, and synchronous disposal; it does not rasterize the full macro world into one persistent test store.
 - [ ] Re-check final branch diff after final CI/metadata and before promotion.
 
 ## Acceptance audit / closure
