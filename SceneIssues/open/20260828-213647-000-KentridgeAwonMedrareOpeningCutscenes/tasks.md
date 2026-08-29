@@ -14,11 +14,11 @@
 - [x] Add focused regression for Logan preservation, exact Awon dialogue/speakers, distinct Medrare gates, join choreography, party join, Flame grant, church gate, replay suppression, and continuation restore.
 - [x] Inspect failed diagnostic CI request `96cccdb9f9c95f4c48d476cbbb2b0b3505c22127`; classify as product failure: test used nonexistent `RequireSite`/`Story.Cutscene` APIs and capture-less SceneIssue replay was rejected before the Kentridge fallback.
 - [x] Fix regression authoring to use existing `RegionHandle.Site` + `SiteHandle.Cutscene` APIs.
-- [ ] Fix the generic real-player harness so a capture-less Kentridge SceneIssue uses the harness default 1600x900 resolution while recorded-pose issues still require valid captured dimensions.
+- [x] Fix the generic real-player harness so a capture-less Kentridge SceneIssue uses the harness default 1600x900 resolution while recorded-pose issues still require valid captured dimensions.
 - [x] Verify feature implementation has no unapproved assets/packages/generated expansion and no other SceneIssue changes.
 - [x] Review blast radius/cost: event dispatch + small HashSet/snapshot state only; no polling, update loops, hierarchy scans, or steady-state scene cost. Harness fix is validation-only startup parsing.
 - [x] Re-read acceptance criteria; unavailable pinned Medrare payload text remains explicitly unrecovered while all proven gates/actions are represented.
-- [ ] Refresh `origin/master` and ensure it is merged before the final exact-SHA request.
+- [x] Refresh `origin/master` and merge `9b452aedd9b5d1b1720bf0e9184d0381f159d352` conflict-free before the final exact-SHA request.
 - [ ] Create one fresh final post-fix targeted-CI request directly atop the exact feature SHA on `ci-test/fixes/agent-1`; do not edit `.github/test-request.json` on feature.
 - [ ] Confirm focused PlayMode regression and built-application `KentridgePlayableSlice` validation are both green from that exact request SHA; inspect logs/artifacts.
 - [ ] Set pending metadata (`status`, `resolutionSummary`, `regressionTest`, `fixCommit`) and move only this assignment `open -> pending` in a bookkeeping commit.
