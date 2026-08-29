@@ -1,3 +1,4 @@
+using Game.Materials.Api;
 using NUnit.Framework;
 using Unity.Mathematics;
 using UnityEngine;
@@ -24,6 +25,8 @@ namespace VoxelEngine.Tests.PlayMode
             world.GenerateUndergroundCavernRuinsBlocking();
 
             Assert.That(world.HasUndergroundCavernRuins, Is.True);
+            Assert.That(world.UndergroundCavernRockMaterialId, Is.EqualTo(GameMaterialIds.Stone),
+                "The production natural cave host must use the geological Stone material; architectural DarkStone makes the cavern read as masonry in the built player.");
             Assert.That(world.UndergroundCavernTraversalDistance, Is.GreaterThanOrEqualTo(2400),
                 "The destination must remain a prolonged traversal from the surface mouth.");
             Assert.That(world.UndergroundCavernMouthOpeningCount, Is.GreaterThanOrEqualTo(4),
@@ -91,7 +94,7 @@ namespace VoxelEngine.Tests.PlayMode
                 $"cavernLobes={world.UndergroundCavernIrregularLobeCount}; architectureDetails={world.UndergroundCavernArchitectureDetailCount}; " +
                 $"statueDetails={world.UndergroundCavernStatueDetailCount}; largeFormations={world.UndergroundCavernAdditionalFormationCount}; " +
                 $"statues={world.UndergroundCavernStatueCount}; stalactites={world.UndergroundCavernStalactiteCount}; " +
-                $"geologyCategories={world.UndergroundCavernGeologicalCategoryCount}; depthDeltaMetres={delta.y:F1}; " +
+                $"geologyCategories={world.UndergroundCavernGeologicalCategoryCount}; caveRockMaterial={world.UndergroundCavernRockMaterialId}; depthDeltaMetres={delta.y:F1}; " +
                 $"ruinDistanceMetres={ruinDistance:F1}; approachDistanceMetres={approachDistance:F1}");
 
             int lights = world.UndergroundCavernLocalLightCount;
