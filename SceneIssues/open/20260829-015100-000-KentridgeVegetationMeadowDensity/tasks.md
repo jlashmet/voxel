@@ -1,62 +1,69 @@
 # Tasks — Kentridge vegetation meadow density
 
 ## Investigation
-- [x] Fetch current master and resume `fixes/agent-5` from it.
-- [x] Read `AGENTS.md`, canonical SceneIssue workflow, and assigned issue; `captures: []` so there are zero marked poses.
-- [x] Reuse existing `plan.md`; maintain this separate `tasks.md`.
-- [x] Inspect current Kentridge runtime vegetation authoring, procedural grass renderer, tests, and budgets; authored builder path moved to `Assets/Game/Composition/Kentridge/Playable/SceneRuntime/KentridgeRegionLife.cs`.
-- [x] Record competing hypotheses/discriminator/results in `plan.md`; add discovered work here.
-- [x] Confirm `ProceduralGrassBatch` already supports >3,000 instances by 1,023-instance draw batching; density failure is upstream placement/policy, not renderer capacity.
-- [ ] Confirm the existing shared grass shader/material wind path and its built-player diagnostic/evidence mechanism before deciding whether production wind code needs modification.
+- [x] Fetch current repository state and resume `fixes/agent-5`.
+- [x] Read `AGENTS.md`, the canonical SceneIssue workflow, and the assigned issue; the requested `SceneIssues/feature-readme.md` is absent, so use `SceneIssues/README.md` as the repository workflow source.
+- [x] Maintain separate `plan.md` and `tasks.md` before implementation.
+- [x] Inspect Kentridge definition/runtime vegetation, point-cloud placement, procedural grass renderer, and existing tests.
+- [x] Reject renderer-capacity hypothesis: the current renderer packs blades into mesh chunks (`36000` blades/chunk); the stale 1,023-instance notes no longer describe production.
+- [x] Identify acceptance-proof gaps: semantic instance count is not rendered blade count; `excludedPlacements=0` is hard-coded; required exclusion classes are not all represented by reusable policy.
+- [ ] Confirm the shared grass material/shader and render-config wind path is time-varying before deciding whether production wind code needs modification.
+- [ ] Inspect Kentridge/world APIs for cultivated/water/building classification so runtime policy mapping uses existing authored semantics where available.
 
 ## Implementation
-- [ ] Add/generalize reusable per-area ecology policy: vegetation allowlist, density/coverage, deterministic variation, exclusions/clearance, ambient-animal policy hook.
-- [ ] Add a backward-compatible vegetation-placement allowed-kind mask so a top-level area policy can constrain generated kinds without Kentridge-only scatter logic.
-- [ ] Configure Kentridge meadow/countryside to allow only canonical procedural grass, no trees, and no ambient animals.
-- [ ] Produce one contiguous meadow with >=3,000 procedural blades through WorldBuilder/runtime realization, not scene-local scatter/GameObjects.
-- [ ] Compute the primary meadow as the largest 4-neighbor connected eligible sampling component and count generated grass within that component; do not treat an entire road side as contiguous.
-- [ ] Respect road/bridge route clearance, built structures/interiors, riverbank/water, cliffs/steep-invalid terrain and other exclusions.
-- [ ] Add runtime diagnostics that attribute grass count to the Kentridge meadow and make the acceptance count inspectable.
-- [ ] Fix shared grass wind only if production evidence proves it is broken; no Kentridge shader fork.
+- [x] Keep the existing additive per-region ecology policy with density multipliers, palette metadata, meadow limits, route clearance, and slope controls.
+- [ ] Add explicit reusable meadow exclusion classes/policy for building, path/route, cultivated, water/wet, steep/cliff, and other-invalid surfaces.
+- [ ] Route Kentridge meadow sampling through that reusable exclusion policy and measure rejection/leakage by class.
+- [ ] Extract the renderer's deterministic 5–15 blades-per-seed calculation into shared rendering API code used by `ProceduralGrassBatch`, diagnostics, and regressions.
+- [ ] Change Kentridge acceptance/diagnostics to report renderer-equivalent visible blade count `>= 3000` while retaining semantic grass-instance count for cost visibility.
+- [x] Keep one deterministic connected primary meadow authored from Kentridge regional configuration rather than scene-local grass objects.
+- [x] Keep denser edge/undergrowth synthesis driven by the regional ecology profile.
+- [ ] Preserve the existing shared grass wind path; modify production wind code only if exact built-player evidence proves it broken.
 
-## Regression / cost
-- [ ] Add focused production-path regression for policy filtering, default-mask compatibility, density, determinism, exclusions, empty trees/animals, connected-component meadow attribution, and meadow blade count.
-- [ ] Measure CPU/GPU/memory/world-build/build-time blast radius against existing vegetation/device budgets; do not weaken budgets.
-- [ ] Review final diff for scope; `.github/test-request.json` must not be on the feature branch and no `.unity` serialization changes are allowed.
+## Regression coverage
+- [x] Prove Kentridge definition exposes the regional profile, denser-than-baseline multipliers, palette, and meadow limits.
+- [ ] Prove the reusable policy rejects every required surface class individually: building, path, cultivated, water, steep/cliff, and other-invalid.
+- [ ] Prove production-path deterministic meadow placement reaches `>= 3000` renderer-equivalent blades in one connected field and places zero grass on excluded samples.
+- [x] Prove density multipliers affect deterministic candidate counts and richer undergrowth remains deterministic.
+- [ ] Prove the shared blade-count contract stays deterministic and bounded at 5–15 blades per semantic grass instance.
+- [ ] Anchor wind regression/diagnostic to nonzero bend plus the shared wind-enabled render path; built-player time-separated frames remain authoritative.
+- [ ] Preserve/verify current packed-chunk high-density renderer regressions; remove stale >1023 batching assumptions from feature evidence.
+
+## Blast radius / cost
+- [x] Keep the world-builder API additive and Kentridge runtime changes confined to the Kentridge playable composition seam.
+- [x] Confirm non-Kentridge regions retain existing behavior unless they opt into an ecology policy.
+- [ ] Record exact semantic grass count, deterministic rendered blade count, and renderer mesh-chunk count for the primary meadow.
+- [ ] Confirm no new per-frame allocations, material churn, grass GameObjects, scene serialization, or shader fork.
+- [ ] Review final diff for assignment-only scope and confirm `.github/test-request.json` is absent from `fixes/agent-5` changes.
 
 ## Workflow validation / artifacts
-- [ ] Run `python3 scripts/validate_module_scenes.py`.
-- [ ] Run `python3 scripts/validate_no_prefab_lighting.py`.
-- [ ] Refresh `validation-hashes.json` and `validation-report.md`; add `changed-files.txt`, `sample-transform-diffs.json`, and `validation-summary.md`.
-- [ ] Run `python3 scripts/test_tree_mutation_model_load.py` and required structural review if applicable.
-- [ ] Run snapshots for the targeted module list and inspect `layout-diff.json`.
-- [ ] Run `python3 scripts/run_scene_semantic_baseline.py --baseline current`.
-- [ ] Run editmode-behavior for the targeted module list.
-- [ ] Complete `BlastRadiusReport.md`, mark planning blast-radius review, and re-check the approved `$2` scope.
+- [ ] Run required canonical pre-merge validation scripts/checklists for the changed module set.
+- [ ] Refresh required validation hashes/reports and feature-local validation evidence.
+- [ ] Run focused EditMode behavioral regressions for Kentridge vegetation and procedural grass rendering.
+- [ ] Complete blast-radius/cost report before closure.
 
 ## Built-player visual gate
-- [ ] Run one final targeted CI request on exact feature SHA using only `ci-test/fixes/agent-5`.
-- [ ] Built Kentridge reaches a usable rendered scene without startup/runtime exceptions.
-- [ ] Capture dense gameplay approach view and close player-height procedural-blade view.
-- [ ] Record diagnostic proving >=3,000 blades belong to one meadow.
-- [ ] Capture >=2 time-separated frames from the same stationary view proving visible wind motion.
-- [ ] Store concise durable verification evidence beside the feature.
-- [ ] After green exact-SHA CI, run workflow-stability and strict lifecycle/hash gates and inspect cold/warm workflow artifacts.
+- [ ] Validate exact Kentridge scene in the built application without startup/runtime exceptions.
+- [ ] Capture dense gameplay approach view and close player-height meadow view.
+- [ ] Record durable diagnostic proving one connected meadow has `>= 3000` rendered blades and zero excluded-surface leakage.
+- [ ] Capture at least two time-separated frames from the same stationary view proving visible wind motion.
+- [ ] Store concise human-inspectable verification evidence beside the feature.
 
 ## Acceptance
-- [ ] (1) Reusable per-area vegetation allowlist/density plus ambient-animal hook.
-- [ ] (2) Kentridge uses top-level policy; only procedural grass; trees and animals empty.
-- [ ] (3) One Kentridge meadow has >=3,000 blades and visually reads full.
-- [ ] (4) Grass visibly animates in normal built gameplay while stationary.
-- [ ] (5) Invalid/excluded surfaces remain clear.
-- [ ] (6) No legacy sprite, scene-local scatter, grass GameObject flood, or shader fork.
-- [ ] (7) Focused production regressions cover required policy behavior.
-- [ ] (8) Exact built Kentridge harness is usable and exception-free.
-- [ ] (9) Durable human-inspectable density + animation evidence passes.
-- [ ] (10) Blast radius/cost measured before closure.
+- [ ] (1) World-builder callers can select a vegetation density/palette policy per area/region.
+- [ ] (2) One connected Kentridge meadow has `>= 3000` rendered grass blades and reads materially denser/region-specific.
+- [ ] (3) Roads, building footprints/interiors, water, cliffs, cultivated plots, and other invalid surfaces receive zero meadow placements.
+- [ ] (4) Placement is deterministic and existing shared grass motion/wind produces a subtly animated field.
+- [ ] (5) Durable nonvisual regression/diagnostic proves the rendered-blade threshold and zero excluded-surface placements.
+- [ ] (6) Blast radius/cost is measured and acceptable.
 
 ## Promotion / publish
-- [ ] Complete pending metadata and move only this feature open -> pending after all gates.
-- [ ] Move pending -> closed, set fixed/resolvedUtc.
-- [ ] Merge current master into feature, push feature, then push exact head to master non-force; retry if master advances.
-- [ ] Verify every checkbox complete, `master == fixes/agent-5`, and assignment exists only under closed.
+- [ ] Commit implementation and regressions on `fixes/agent-5`.
+- [ ] Move only this feature `open -> pending` with implementation/test notes after implementation validation.
+- [ ] Run every required workflow gate for the resulting exact feature SHA.
+- [ ] Use only `ci-test/fixes/agent-5` for the single final targeted-CI request; never edit `.github/test-request.json` on the feature branch.
+- [ ] Require green targeted CI for the exact feature SHA; if code changes afterward, repeat required gates/CI according to repository rules.
+- [ ] Complete pending metadata/FIX_EVIDENCE and every acceptance/checklist item.
+- [ ] Move `pending -> closed`, set `status=fixed` and `resolvedUtc`.
+- [ ] Merge current `origin/master` into `fixes/agent-5`; fetch/merge/retry if master advanced.
+- [ ] Push that exact feature head non-force to `origin/master` and verify `master == fixes/agent-5`.
