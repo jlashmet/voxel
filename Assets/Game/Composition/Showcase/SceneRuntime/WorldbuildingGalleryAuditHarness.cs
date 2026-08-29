@@ -186,6 +186,15 @@ namespace VoxelEngine.Showcase
                     yield break;
                 }
 
+                long allocatedBytes = UnityEngine.Profiling.Profiler.GetTotalAllocatedMemoryLong();
+                long reservedBytes = UnityEngine.Profiling.Profiler.GetTotalReservedMemoryLong();
+                long unusedReservedBytes = UnityEngine.Profiling.Profiler.GetTotalUnusedReservedMemoryLong();
+                Debug.Log(
+                    $"TOWNARCH_COST allocatedMB={allocatedBytes / (1024f * 1024f):0.##} " +
+                    $"reservedMB={reservedBytes / (1024f * 1024f):0.##} " +
+                    $"unusedReservedMB={unusedReservedBytes / (1024f * 1024f):0.##} " +
+                    $"residentRegions={world.RegionsGenerated} pendingRegions={world.PendingRegionLoads} " +
+                    $"{showcase.DescribeFarTerrain()}");
                 Debug.Log($"TOWNARCH_AUDIT result=PASS captured={captured} expected={TownAuditViewCount}");
             }
 
