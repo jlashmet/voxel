@@ -25,10 +25,11 @@ namespace VoxelEngine.Showcase
             {
                 int2 landmark = WorldbuildingGalleryTownLandmarkOriginXZ(district);
                 // Gatehouse south face is z=-11 from the landmark. The player view presents the
-                // complete gate; the close view centres the left-tower arrow-slit reveal.
+                // complete gate; the close view centres the right-tower arrow-slit reveal so the
+                // camera can remain outside both the tower and its eastern buttress.
                 return view == 1
                     ? landmark + new int2(0, -11)
-                    : landmark + new int2(-21, -11);
+                    : landmark + new int2(19, -11);
             }
 
             int2 residence = WorldbuildingGalleryTownResidenceOriginXZ(district);
@@ -57,13 +58,13 @@ namespace VoxelEngine.Showcase
             if (styleId == WorldBuilderTownArchitectureIds.Rossdam)
             {
                 int2 landmark = WorldbuildingGalleryTownLandmarkOriginXZ(district);
-                // Rossdam's residence and commerce occupy the southern row through about z=-714.
-                // Put both evidence cameras in the east-west road corridor north of that row so the
-                // full FOV, not merely its centre ray, is clear of adjacent façades. The player view
-                // remains 2-5 m from the gate and the close view remains 0.5-2 m from the slit.
+                // The southern and northern Rossdam foundations leave only a few voxel cells between
+                // rows, so a gameplay-distance camera cannot live in that corridor without clipping.
+                // Place both near views in open southeast exterior space: east of the commerce shell,
+                // east of the gate foundation, and (for close detail) east of the right buttress.
                 return view == 1
-                    ? landmark + new int2(-42, -21)
-                    : landmark + new int2(-38, -19);
+                    ? landmark + new int2(44, -34)
+                    : landmark + new int2(36, -19);
             }
 
             if (styleId == WorldBuilderTownArchitectureIds.FairyVillage)
