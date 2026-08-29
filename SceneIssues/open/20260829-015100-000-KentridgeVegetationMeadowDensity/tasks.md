@@ -9,6 +9,8 @@
 - [x] Identify acceptance-proof gaps: semantic instance count was not rendered blade count and required exclusion classes were not represented by reusable policy.
 - [x] Confirm the shared grass wind path is time-varying: `ProceduralVegetationGrass.shader` bends tips from `_GrassTime`, and `ProceduralVegetationMaterials.ApplyGrassState` republishes `Time.time` each draw.
 - [x] Inspect Kentridge/world classification evidence: route distance, `HasBuiltContentAbove`, riverbank theme, and terrain normals provide existing route/building/water/slope evidence; the current theme map does not separately identify cultivated plots, so do not misclassify all farmland meadow terrain as cultivated.
+- [x] Inspect failed final CI run `33234652795`: classify it as a product/branch compile failure, not infrastructure; no player build or screenshots were produced.
+- [x] Root-cause the compile failure: `Game.Kentridge.PlayableSlice.KentridgeDefinition` shadows the imported WorldGen definition and its compatibility facade did not forward `CountrysideEcology`.
 
 ## Implementation
 - [x] Keep the existing additive per-region ecology policy with allowed vegetation, density, deterministic seed salt, sample spacing, route clearance, and slope controls.
@@ -19,6 +21,7 @@
 - [x] Keep one deterministic connected primary meadow authored from Kentridge regional configuration rather than scene-local grass objects.
 - [x] Keep denser undergrowth synthesis driven by the regional ecology profile.
 - [x] Preserve the existing shared grass wind path; no second animation system or Kentridge shader fork is introduced because source tracing shows the production time binding is present.
+- [x] Forward the authored WorldGen `CountrysideEcology` policy through the playable WorldBuilder compatibility facade so the local `KentridgeDefinition` shadow remains an intentional adapter rather than a duplicated policy owner.
 
 ## Regression coverage
 - [x] Prove Kentridge definition exposes the grass-only dense regional policy and empty tree/ambient-animal allowlists.
@@ -35,12 +38,14 @@
 - [ ] Record exact runtime semantic grass count, deterministic rendered blade count, and renderer-equivalent mesh-chunk count for the primary meadow.
 - [x] Confirm by diff/source review that no new per-frame allocations, material churn, grass GameObjects, scene serialization, shader fork, or per-frame CPU blade animation was introduced; added collections are populated during `Populate`, while wind remains GPU vertex deformation.
 - [x] Review current feature diff for assignment-only scope and confirm `.github/test-request.json` is absent from `fixes/agent-5` changes.
+- [x] Confirm the compile-seam correction is a single compatibility-property forwarder with no runtime allocation or renderer cost.
 
 ## Workflow validation / artifacts
 - [ ] Run required canonical pre-merge validation scripts/checklists for the changed module set.
 - [ ] Refresh required validation hashes/reports and feature-local validation evidence.
 - [ ] Run focused EditMode behavioral regressions for Kentridge vegetation and procedural grass rendering.
 - [ ] Complete runtime blast-radius/cost report before closure.
+- [ ] Re-run the final focused PlayMode + exact built-player replay after the compatibility compile fix; the previous final request failed before tests/player build.
 
 ## Built-player visual gate
 - [ ] Validate exact Kentridge scene in the built application without startup/runtime exceptions.
