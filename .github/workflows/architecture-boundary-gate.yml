@@ -27,7 +27,7 @@ jobs:
   architecture-boundary:
     name: Architecture boundary gate
     runs-on: [self-hosted, macOS]
-    timeout-minutes: 5
+    timeout-minutes: 10
 
     steps:
       - name: Checkout
