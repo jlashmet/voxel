@@ -145,6 +145,14 @@ namespace VoxelEngine.Vegetation.Api
         public float ShadeBias;
         public float ArcaneBias;
 
+        /// <summary>
+        /// When true, only kinds whose bit is present in <see cref="AllowedKindsMask"/> may be
+        /// selected. Kept separate from the mask so default/zero-initialized settings remain
+        /// backward-compatible and unrestricted.
+        /// </summary>
+        public bool RestrictKinds;
+        public ulong AllowedKindsMask;
+
         public static VegetationPlacementSettings Default(uint worldSeed)
         {
             return new VegetationPlacementSettings
@@ -157,7 +165,16 @@ namespace VoxelEngine.Vegetation.Api
                 MoistureBias = 0.35f,
                 ShadeBias = 0.20f,
                 ArcaneBias = 0.35f,
+                RestrictKinds = false,
+                AllowedKindsMask = ulong.MaxValue,
             };
+        }
+
+        public bool Allows(VegetationKind kind)
+        {
+            if (!RestrictKinds) return true;
+            int bit = (int)kind;
+            return bit >= 0 && bit < 64 && (AllowedKindsMask & (1UL << bit)) != 0UL;
         }
     }
 
