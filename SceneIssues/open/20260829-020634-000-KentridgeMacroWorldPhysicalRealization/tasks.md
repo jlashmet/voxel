@@ -38,13 +38,16 @@
 - [x] Verify `StorySpecs.cs` disappears from the `master...fixes/agent-6` diff and `.github/test-request.json` is absent from the feature diff.
 - [x] Issue the next exact-SHA request on the existing `ci-test/fixes/agent-6` transport and inspect its test + built-player artifact: source `dcd8f38c5db59fb71d277ad04776d02a9bd8b574`, request `f726b2f4bbf8e3e116bef1792573b043c307bcd1`, run `33259572439` green.
 
-## Evidence completeness discovered by green run 33259572439
+## Evidence completeness discovered by green runs 33259572439 / 33260139560
 - [x] Confirm the focused production acceptance is green and reports `regions=6 settlements=6 buildings=16 hardRoutes=20 routeTiles=833 constrainedRoutes=5 solveSteps=1108`, `maxRoadRiseVoxels=2`, and `waterDepthVoxels=46`.
 - [x] Confirm the built `KentridgePlayableSlice` harness is green for 60s, reports zero assertion failures, and logs real CharacterMotor traversal both locally and on the generated Moordell macro road.
-- [x] Inspect durable screenshots and identify the remaining evidence gap: the 60-second replay captures the macro-road and Moordell, but the opening sequence consumes ~44s and the current evidence schedule does not capture Rossdam, Fairy Village, Orc Village, Rossdam Lake, southern ridge/pass, or the macro-network overview before timeout.
-- [ ] Adjust only the `kentridge-macro-world` validation-profile evidence schedule/ordering so all required named settlement/geography/survey captures complete within the fixed 60-second replay; do not alter gameplay/story/worldgen/planner semantics.
-- [ ] Preserve representative real CharacterMotor road traversal and enough remote streaming dwell for readable captures after the schedule change.
-- [ ] Run a new exact-SHA final request and inspect every named screenshot plus player/test logs before acceptance/closure.
+- [x] Fix the first evidence-window gap so run `33260139560` emits all required named files within 60 seconds via validation-profile-only prewarm and compressed scheduling.
+- [x] Inspect all named frames from `33260139560` and reject them as closure evidence: Moordell/Rossdam/Fairy Village/Orc Village do not visibly show their settlement blockouts, Rossdam Lake is not readable as water, ridge/overview views are dominated by far terrain, and renderer logs show the remote screenshots were requested while `coverage=False` with transient missing-visible geometry.
+- [x] Discriminate timing vs missing content in `experiment-005-remote-evidence-convergence.md`: the earlier 2.4s Moordell frame visibly shows its grounded stone/roof blockout, proving the world content exists and the 0.95s captures are premature.
+- [ ] Accelerate only the `kentridge-macro-world` validation-profile opening timeline (not source content/state) so sufficient real time remains for convergence; restore the original `Time.timeScale` before CharacterMotor evidence and on teardown.
+- [ ] Keep named-region voxel prewarm, restore multi-second remote dwell, and capture each target only after `RenderingComposition.HasCompletePublishedNearSurfaceCoverage()` reports complete near coverage.
+- [ ] Preserve representative real CharacterMotor macro-road traversal at normal time scale and do not alter gameplay/story/worldgen/planner semantics.
+- [ ] Run a new exact-SHA final request and visually inspect every named settlement/geography/survey screenshot plus player/test logs before acceptance/closure.
 
 ## Behavioral regression
 - [x] Add one final targeted PlayMode acceptance test that nests the full macro realization regression plus production water/slope/composition assertions: `VoxelEngine.Tests.PlayMode.KentridgeMacroWorldPhysicalProductionAcceptanceTests.PhysicalMacroWorldHasWalkableRoutesAndADeepStreamedWaterBody`.
@@ -86,7 +89,7 @@
 - [ ] Acceptance (10): exact built-player visual/runtime evidence covers settlements, roads, geography, constrained route, and CharacterMotor traversal.
 - [ ] Acceptance (11): blast radius and world-build/route/CPU/GPU/memory/streaming cost are measured against budgets.
 - [ ] Every checkbox above is complete before `open -> pending`.
-- [ ] Final exact-SHA focused CI and built-player evidence are green. Runs `33230924543` and `33231300309` were product-red compile diagnostics; run `33232755172` was product-red on the Rossdam/Bandit semantic-route conflict; run `33255557296` was product-red on the Orc Village/southern-ridge semantic-route conflict; run `33258816868` was product-red on the stale agent-6 `StorySpecs.cs` merge overlay before the Kentridge test executed; run `33259572439` is green but its durable visual evidence is incomplete for all required macro targets. No closure-quality exact-SHA gate exists yet.
+- [ ] Final exact-SHA focused CI and built-player evidence are green. Runs `33230924543` and `33231300309` were product-red compile diagnostics; `33232755172` exposed Rossdam/Bandit; `33255557296` exposed Orc/ridge; `33258816868` exposed stale agent-6 `StorySpecs.cs`; `33259572439` and `33260139560` are functionally green but not closure-quality visual evidence. No closure-quality exact-SHA gate exists yet.
 - [ ] Complete pending metadata and move only this feature `open -> pending`.
 - [ ] Move only this feature `pending -> closed`, set `status=fixed` and `resolvedUtc`.
 - [ ] Merge current `origin/master` into `fixes/agent-6`, push exact feature head, then non-force push that head to `origin/master`; retry if master advances.
