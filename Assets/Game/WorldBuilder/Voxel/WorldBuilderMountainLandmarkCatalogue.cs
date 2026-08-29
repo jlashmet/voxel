@@ -99,6 +99,11 @@ namespace Game.WorldBuilder.Voxel
         // visually present ramp into a blocked corridor.
         public const int PathHeadroomVoxels = 24;
 
+        // The walking surface may be wider for visual/readability reasons, but empty-space authoring
+        // only needs a centered traversal lane. At 10 cm voxels this is 1.6 m wide: a 0.6 m motor
+        // retains 0.5 m of lateral clearance on each side without rasterizing the full 3 m path.
+        public const int PathClearanceWidthVoxels = 16;
+
         private const int SupportSegmentSpan = 64;
         private const int MinimumSupportTopRadius = 40;
         private const int MaximumSupportFlare = 112;
@@ -317,6 +322,8 @@ namespace Game.WorldBuilder.Voxel
             in MountainLandmarkSpec spec)
         {
             int pathMinX = spec.PathMinLocalX;
+            int clearanceWidth = math.min(spec.PathWidth, PathClearanceWidthVoxels);
+            int clearanceInset = (spec.PathWidth - clearanceWidth) / 2;
             int lastRampZ = 0;
             int lastHighX = pathMinX;
             int endY = 0;
@@ -329,12 +336,13 @@ namespace Game.WorldBuilder.Voxel
                 lastRampZ = z;
                 bool reverse = (level & 1) != 0;
 
-                // Clear everything above the ramp's base through its highest point plus the full
-                // collision envelope. The ramp wedge is restored after all carving is complete.
+                // Clear the complete vertical collision envelope over a centered traversal lane.
+                // The full walking surface remains authored for visual width and route readability;
+                // the ramp wedge is restored after all carving is complete.
                 EmitBox(
                     program,
-                    pathMinX, startY + 1, z,
-                    spec.PathRun, spec.PathRise + PathHeadroomVoxels, spec.PathWidth,
+                    pathMinX, startY + 1, z + clearanceInset,
+                    spec.PathRun, spec.PathRise + PathHeadroomVoxels, clearanceWidth,
                     0,
                     PrimitiveMode.Carve);
 
@@ -349,8 +357,8 @@ namespace Game.WorldBuilder.Voxel
                 int zSize = Math.Abs(nextZ - z) + spec.PathWidth;
                 EmitBox(
                     program,
-                    lastHighX, endY + 1, zMin,
-                    spec.PathWidth, PathHeadroomVoxels, zSize,
+                    lastHighX + clearanceInset, endY + 1, zMin,
+                    clearanceWidth, PathHeadroomVoxels, zSize,
                     0,
                     PrimitiveMode.Carve);
             }
@@ -361,8 +369,8 @@ namespace Game.WorldBuilder.Voxel
             int finalZSize = Math.Abs(summitZ - lastRampZ) + spec.PathWidth;
             EmitBox(
                 program,
-                lastHighX, endY + 1, finalZMin,
-                spec.PathWidth, finalRise + PathHeadroomVoxels, finalZSize,
+                lastHighX + clearanceInset, endY + 1, finalZMin,
+                clearanceWidth, finalRise + PathHeadroomVoxels, finalZSize,
                 0,
                 PrimitiveMode.Carve);
 
@@ -372,8 +380,8 @@ namespace Game.WorldBuilder.Voxel
             int topZ = spec.SummitApproachLocalZ - spec.PathWidth / 2;
             EmitBox(
                 program,
-                topMinX, spec.MountainHeight + 1, topZ,
-                topSizeX, PathHeadroomVoxels, spec.PathWidth,
+                topMinX, spec.MountainHeight + 1, topZ + clearanceInset,
+                topSizeX, PathHeadroomVoxels, clearanceWidth,
                 0,
                 PrimitiveMode.Carve);
         }
