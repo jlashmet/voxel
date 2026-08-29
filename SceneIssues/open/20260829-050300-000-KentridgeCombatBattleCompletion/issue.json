@@ -1,0 +1,34 @@
+{
+  "id": "20260829-050300-000",
+  "type": "scene_issue",
+  "scene": "Kentridge",
+  "component": "Combat / battle flow / AI turns",
+  "status": "open",
+  "created_at": "2026-08-29T05:03:00Z",
+  "source": "manual user-authored issue",
+  "issues": [
+    {
+      "key": "kentridge-combat-battle-freeze-ai-vs-ai",
+      "title": "Kentridge combat can freeze before battle completion",
+      "description": "Combat in Kentridge can enter a frozen or stalled state where the battle no longer advances. This blocks battle completion and makes combat progression unreliable. Fix the underlying stall and add a full end-to-end regression that runs a battle with AI controlling both sides from battle start through a terminal result.",
+      "expected": "A Kentridge battle must progress autonomously with AI controlling every combatant on both teams, never stall waiting for player input or an unresolvable turn state, reach a deterministic terminal victory/defeat condition within a bounded number of turns/actions, and cleanly exit or settle the combat state. The automated test must fail on any hang, stalled turn/phase, repeated no-progress state, missing terminal outcome, unhandled error, or timeout.",
+      "status": "unresolved",
+      "signature": "kentridge-combat-full-battle-ai-vs-ai-completion",
+      "evidence": [
+        "User report: combat in Kentridge freezes and does not complete.",
+        "Current coverage does not prove that a complete battle can run to a terminal outcome with AI controlling both sides."
+      ],
+      "actions": [
+        "Reproduce the Kentridge combat freeze and identify the exact turn/state transition where forward progress stops.",
+        "Fix the battle-flow, AI, or combat-state-machine defect causing the stall rather than masking it with retries or a larger timeout.",
+        "Add a deterministic full-battle automated regression with a fixed RNG seed that starts a representative Kentridge battle with AI controlling both teams and runs without player input.",
+        "Assert forward progress through turns, phases, and actions, with a bounded watchdog so any no-progress loop or hang fails loudly instead of counting a still-running process as success.",
+        "Assert the battle reaches a valid terminal outcome in which one side wins and the other loses within a bounded action or turn count.",
+        "Assert combat teardown completes cleanly and the game exits or settles the combat state with no pending AI action, turn, animation, target-selection wait, or other unresolved combat work.",
+        "Capture high-signal diagnostics on failure, including RNG seed, turn/action number, active unit and team, combat phase/state, pending action/target, and terminal-condition inputs.",
+        "Run the full-battle regression repeatedly through the normal headless test path to prove it is stable and not dependent on timing or a lucky seed.",
+        "Validate the exact Kentridge battle in the built application after the automated regression is green; demonstrate that AI can control both sides through battle completion without a freeze."
+      ]
+    }
+  ]
+}
