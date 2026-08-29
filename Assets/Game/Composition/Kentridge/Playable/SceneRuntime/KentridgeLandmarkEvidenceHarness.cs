@@ -176,7 +176,11 @@ namespace Game.Kentridge.PlayableSlice
             string issuePath = null;
             for (int i = 0; i < args.Length - 1; i++)
             {
-                if (!string.Equals(args[i], "-voxelIssue", StringComparison.Ordinal)) continue;
+                bool canonicalSwitch = string.Equals(
+                    args[i], "-voxel-scene-issue", StringComparison.Ordinal);
+                bool legacySwitch = string.Equals(
+                    args[i], "-voxelIssue", StringComparison.Ordinal);
+                if (!canonicalSwitch && !legacySwitch) continue;
                 issuePath = args[i + 1];
                 break;
             }
