@@ -2,17 +2,17 @@
 
 - [x] Read `AGENTS.md` and target issue; confirm no capture frames/annotations exist.
 - [x] Inspect current `fixes/agent-1` / `origin/master` divergence; confirm incoming master work is unrelated and defer the required final master merge until after green exact-SHA CI.
-- [x] Trace authoritative legacy sequence and pin source evidence to commit `9491acd9efc3ad7413a13fd28f1686ed473b5672`; correct prior tree-SHA/nonexistent-path provenance.
+- [ ] Reconcile all legacy provenance against pinned commit `9491acd9efc3ad7413a13fd28f1686ed473b5672`; prior resumed-branch notes contain incorrect dialogue counts and at least one nonexistent choreography path.
 - [x] Confirm Awon's referenced text payload is missing and repository policy requires `Dialogue coming soon.` rather than invented dialogue.
-- [x] Prove source order/state chain: `pub -> Awon -> kentridge-see-medrare -> MedrareFirstSpell -> medrare-to-church`; prove later `kentridge-medrare-join` is out of scope.
-- [x] Recover exact source text for `kentridge-see-medrare` (2 lines), `medrare-first-spell` (23 lines), and `medrare-to-church` (1 line).
-- [x] Recover bespoke `MedrareFirstSpell.m` choreography (zoom, delays, approach, attack/hit sound, fade sequence) and map each meaningful cue to current reusable cutscene APIs.
-- [ ] Correct Kentridge opening content to include `kentridge-see-medrare`, exact first-spell dialogue/choreography, and `medrare-to-church`; preserve Awon placeholder/state semantics.
+- [ ] Re-prove the exact source order/state chain from pinned map/source files and document only source-backed opening events; keep later Medrare join out of scope unless the pinned state chain proves otherwise.
+- [ ] Recover and compare exact source text for all opening dialogue payloads. Known correction: `kentridge-see-medrare.txt` contains 4 entries (not 2), and `medrare-to-church.txt` contains 3 entries (not 1); verify first-spell count/text byte-for-byte before implementation.
+- [ ] Locate the actual pinned choreography source(s) for the first-spell sequence; do not rely on the stale/nonexistent `Code/MedrareFirstSpell.m` path. Map each proven cue to current reusable cutscene APIs.
+- [ ] Correct Kentridge opening content to include all source-backed see-Medrare, first-spell, and to-church dialogue/choreography; preserve Awon placeholder/state semantics.
 - [ ] Correct campaign progression rules to gate each source event on the immediately preceding completion flag and keep every event one-shot/re-entry safe.
 - [ ] Wire the playable slice through production story/site events without per-frame discovery or hard-coded legacy coordinates; add a generic shared primitive only if a proven source cue cannot be represented.
 - [ ] Update behavioral regressions for exact dialogue identity/order, sequence/gating, key choreography, one-shot/re-entry, and persisted completed-state boundaries.
 - [ ] Review blast radius and steady-state/runtime cost; verify unrelated campaign/story consumers remain valid.
-- [ ] Re-read every acceptance criterion and validate the implementation against the pinned source evidence.
+- [ ] Re-read every acceptance criterion and validate the implementation against the corrected pinned source evidence.
 - [ ] Move only this assignment `open -> pending` on `fixes/agent-1`, set required pending metadata, and capture the exact feature SHA for CI.
 - [ ] Run one final targeted CI request from that exact feature SHA on `ci-test/fixes/agent-1`, including focused PlayMode regression and built-player Kentridge replay/startup gate.
 - [ ] Inspect exact-SHA CI logs/artifacts and confirm every requested test plus built application scene validation is green.
