@@ -12,7 +12,7 @@
 - [x] Inspect failed final CI run `33234652795`: classify it as a product/branch compile failure, not infrastructure; no player build or screenshots were produced.
 - [x] Root-cause the compile failure: `Game.Kentridge.PlayableSlice.KentridgeDefinition` shadows the imported WorldGen definition and its compatibility facade did not forward `CountrysideEcology`.
 - [x] Inspect final CI run `33236269717` and its one permitted infrastructure retry: targeted PlayMode acceptance passes and the built player runs 60 seconds with zero assertions, but the visual replay gate rejects this ticket as having no replayable camera snapshot.
-- [x] Compare a known-good Kentridge SceneIssue capture: `poseAnchor` may be null, while the replayable player camera is identified by `FirstPerson-AIO/FirstPersonCharacter/Capsule/PlayerCamera`; this ticket has the matching camera snapshot filename/world pose but an empty `camera.hierarchyPath`.
+- [x] Compare a known-good Kentridge SceneIssue capture: `poseAnchor` may be null, while the replayable player camera is identified by `FirstPerson-AIO/FirstPersonCharacter/Capsule/PlayerCamera`; this ticket has the matching player-camera capture intent but an empty `camera.hierarchyPath`.
 
 ## Implementation
 - [x] Keep the existing additive per-region ecology policy with allowed vegetation, density, deterministic seed salt, sample spacing, route clearance, and slope controls.
@@ -24,7 +24,7 @@
 - [x] Keep denser undergrowth synthesis driven by the regional ecology profile.
 - [x] Preserve the existing shared grass wind path; no second animation system or Kentridge shader fork is introduced because source tracing shows the production time binding is present.
 - [x] Forward the authored WorldGen `CountrysideEcology` policy through the playable WorldBuilder compatibility facade so the local `KentridgeDefinition` shadow remains an intentional adapter rather than a duplicated policy owner.
-- [ ] Repair only this assignment's recorded camera replay metadata by restoring the known Kentridge player-camera hierarchy identity; do not alter scene serialization or gameplay code for this replay defect.
+- [x] Repair only this assignment's recorded camera replay metadata by restoring the known Kentridge player-camera hierarchy identity; no scene serialization or gameplay code changed for this replay defect.
 
 ## Regression coverage
 - [x] Prove Kentridge definition exposes the grass-only dense regional policy and empty tree/ambient-animal allowlists.
@@ -38,21 +38,22 @@
 ## Blast radius / cost
 - [x] Keep the world-builder API additive: new constructor input is optional and defaults to the safe exclusion mask.
 - [x] Keep Kentridge realization changes confined to the Kentridge playable composition seam; non-Kentridge callers retain existing behavior unless they opt into ecology authoring.
-- [ ] Record exact runtime semantic grass count, deterministic rendered blade count, and renderer-equivalent mesh-chunk count for the primary meadow.
+- [x] Record retry runtime counts: 11,478 semantic grass instances / 114,580 rendered blades total; primary connected meadow = 5,777 semantic instances / 57,589 rendered blades; renderer produced 8 grass mesh chunks; excluded-surface grass = 0.
 - [x] Confirm by diff/source review that no new per-frame allocations, material churn, grass GameObjects, scene serialization, shader fork, or per-frame CPU blade animation was introduced; added collections are populated during `Populate`, while wind remains GPU vertex deformation.
 - [x] Review current feature diff for assignment-only scope and confirm `.github/test-request.json` is absent from `fixes/agent-5` changes.
 - [x] Confirm the compile-seam correction is a single compatibility-property forwarder with no runtime allocation or renderer cost.
+- [x] Confirm the camera replay correction is assignment metadata only and adds zero production CPU/GPU/memory/build cost.
 
 ## Workflow validation / artifacts
-- [ ] Run required canonical pre-merge validation scripts/checklists for the changed module set.
+- [ ] Run required canonical pre-merge validation scripts/checklists for the final merged feature SHA.
 - [ ] Refresh required validation hashes/reports and feature-local validation evidence.
-- [ ] Run focused EditMode behavioral regressions for Kentridge vegetation and procedural grass rendering.
-- [ ] Complete runtime blast-radius/cost report before closure.
-- [ ] Re-run the final focused PlayMode + exact built-player replay after the compatibility compile fix; the previous final request failed before tests/player build.
+- [ ] Run focused EditMode/PlayMode behavioral regressions for Kentridge vegetation and procedural grass rendering on the final merged feature SHA.
+- [ ] Complete runtime blast-radius/cost report before closure, including corrected-replay player performance evidence against existing expectations.
+- [x] Retry evidence: focused PlayMode acceptance passed and built player launched/runs 60 seconds with zero assertions at source SHA `785db49394fabefe99a1dcb6628ed7fa8c169065`; this evidence is diagnostic because the visual replay gate failed.
 - [ ] After repairing camera replay metadata, validate that the exact built-player artifact actually photographs the meadow viewpoint rather than the opening interior/cutscene.
 
 ## Built-player visual gate
-- [ ] Validate exact Kentridge scene in the built application without startup/runtime exceptions.
+- [ ] Validate exact Kentridge scene in the built application without startup/runtime exceptions on the final exact SHA.
 - [ ] Capture dense gameplay approach view and close player-height meadow view.
 - [ ] Record durable diagnostic proving one connected meadow has `>= 3000` rendered blades and zero excluded-surface leakage.
 - [ ] Capture at least two time-separated frames from the same stationary view proving visible wind motion.
@@ -70,7 +71,7 @@
 - [x] Commit implementation and regressions on `fixes/agent-5`.
 - [ ] Move only this feature `open -> pending` after all mandatory built-player visual gates are satisfied; the ticket forbids moving to pending on source/tests alone.
 - [ ] Run every required workflow gate for the resulting exact feature SHA.
-- [ ] Use only `ci-test/fixes/agent-5` for the single final targeted-CI request; never edit `.github/test-request.json` on the feature branch.
+- [ ] Use only `ci-test/fixes/agent-5` for the final targeted-CI request; never edit `.github/test-request.json` on the feature branch or create another transport.
 - [ ] Require green targeted CI for the exact feature SHA; if code changes afterward, repeat required gates/CI according to repository rules.
 - [ ] Complete pending metadata/FIX_EVIDENCE and every acceptance/checklist item.
 - [ ] Move `pending -> closed`, set `status=fixed` and `resolvedUtc`.
