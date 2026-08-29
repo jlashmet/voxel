@@ -20,7 +20,8 @@
 - [x] Refresh/merge current `origin/master` into `fixes/agent-3` before the final CI gate and resolve only conflicts inside this assignment's files.
 - [x] Add capture/replay dimensions and an opt-in multi-stage built-player SceneIssue replay sequence for this feature; ordinary single-capture SceneIssues retain their existing behavior.
 - [ ] Use the built-player sequence to cover entrance, descent/dogleg, cavern reveal/formations, and ruin/statues/lighting rather than collecting repeated frames from one pinned camera pose.
-- [x] Diagnose the first corrected-source CI attempt (`808decb3`): product compile failure in `UndergroundCavernRuinAuthoring.cs` because `Coatings` lacked its `VoxelEngine.Storage.Api` import; fix the production source before any replacement request.
+- [x] Diagnose corrected-source CI request `808decb3`: product compile failure because `UndergroundCavernRuinAuthoring.cs` used `Coatings` without the `VoxelEngine.Storage.Api` namespace import.
+- [x] Diagnose replacement CI request `0056637e`: product compile failure because `Game.Structures.Runtime.asmdef` did not reference `VoxelEngine.Storage.Api`; add the explicit API assembly reference rather than duplicating the coating ID.
 - [ ] Run green exact-SHA focused targeted CI on `ci-test/fixes/agent-3` only after production/test work is final.
 - [ ] Run green exact-SHA built-application `VoxelShowcase` harness and verify usable rendered scene with no startup/runtime exceptions.
 - [ ] Validate every acceptance criterion from built-app evidence; record durable verification evidence beside the assignment.
