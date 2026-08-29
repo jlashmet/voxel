@@ -23,9 +23,9 @@
 
 ## Repair discovered by exact-SHA red gate (run 33255557296)
 - [x] Classify the gate as a product failure: production planning aborts because hard route `south-fighting-area-1->orc-village` intersects `southern-ridge` without an authored semantic solution.
-- [ ] Confirm the source-backed route identity/topology and the intended `southern-ridge` semantics before changing production intent.
-- [ ] Add a focused regression proving the Orc Village hard route has an explicit ridge crossing/pass and remains physically walkable.
-- [ ] Implement the narrowest authored route solution; do not weaken blocked-route rejection or generic obstacle rules.
+- [x] Confirm the source-backed route identity/topology and intended ridge semantics: Orc Village is the verified straight branch south of South Fighting Area I, while `southern-ridge` is explicitly a modern barrier across the Logan route and separates South Fighting Area I from Logan Approach. The Orc collision is an unintended west-edge graze, not a second pass.
+- [ ] Add a focused regression proving the Orc Village hard route has an explicit `GoAround` solution targeting `southern-ridge`, stays outside the ridge travel margin, and remains physically walkable.
+- [ ] Implement the narrowest authored route solution: skirt the west shoulder with the existing deterministic `GoAround` semantic; do not shrink the ridge, invent a second pass, weaken blocked-route rejection, or change generic obstacle rules.
 - [ ] Re-run the final exact-SHA production acceptance after the repair.
 - [x] Blast-radius/cost intent: keep the repair in Kentridge macro physical intent + focused regression only; no planner/catalogue/water changes and no additional eager scene objects.
 
@@ -35,8 +35,8 @@
 - [ ] Green exact-SHA execution verifies every `Settlement` node has a physical settlement plan and >=4 non-overlapping grounded blockout buildings when no richer generator owns it.
 - [ ] Green exact-SHA execution verifies every settlement is reachable from Kentridge over contiguous generated hard-route surfaces.
 - [ ] Green exact-SHA execution verifies road plans satisfy strict production slope/obstacle constraints and connect settlement arrival/exit zones.
-- [ ] Green exact-SHA execution verifies lake/ridge region constraints alter production hard routes using explicit semantic solutions, including the modern Bandit dry-shore route.
-- [ ] Green exact-SHA execution verifies an impossible blocked hard route is rejected unless an explicit crossing/pass solution is authored.
+- [ ] Green exact-SHA execution verifies lake/ridge region constraints alter production hard routes using explicit semantic solutions, including the modern Bandit dry-shore route and Orc ridge-shoulder route-around.
+- [ ] Green exact-SHA execution verifies an impossible blocked hard route is rejected unless an explicit crossing/pass/route-around solution is authored.
 - [ ] Green exact-SHA execution verifies existing Kentridge/Hightown richer output is preserved rather than replaced by generic blockouts.
 - [ ] Green exact-SHA execution verifies the selected macro graph survives the real combined production catalogue, including the carved water pass.
 
