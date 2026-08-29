@@ -1,4 +1,5 @@
 using Unity.Mathematics;
+using Game.WorldBuilder.Api;
 using VoxelEngine.Terrain.Api;
 
 namespace VoxelEngine.Showcase
