@@ -12,12 +12,42 @@ using Game.WorldBuilder.Api;
 namespace Game.Composition.Campaign.Runtime
 {
     /// <summary>
+    /// Minimal persistent campaign progression owned by this runtime. The snapshot intentionally
+    /// contains only one-shot cutscene completion and source-backed player progression effects; it is
+    /// deterministic and engine-independent so a save layer can serialize it without scene objects.
+    /// </summary>
+    public sealed class CampaignProgressSnapshot
+    {
+        private readonly CutsceneRef[] _completedCutscenes;
+        private readonly string[] _joinedPartyMembers;
+        private readonly string[] _grantedSpells;
+
+        public IReadOnlyList<CutsceneRef> CompletedCutscenes => _completedCutscenes;
+        public IReadOnlyList<string> JoinedPartyMembers => _joinedPartyMembers;
+        public IReadOnlyList<string> GrantedSpells => _grantedSpells;
+
+        public CampaignProgressSnapshot(
+            IEnumerable<CutsceneRef> completedCutscenes,
+            IEnumerable<string> joinedPartyMembers,
+            IEnumerable<string> grantedSpells)
+        {
+            if (completedCutscenes == null) throw new ArgumentNullException(nameof(completedCutscenes));
+            if (joinedPartyMembers == null) throw new ArgumentNullException(nameof(joinedPartyMembers));
+            if (grantedSpells == null) throw new ArgumentNullException(nameof(grantedSpells));
+
+            _completedCutscenes = new List<CutsceneRef>(completedCutscenes).ToArray();
+            _joinedPartyMembers = new List<string>(joinedPartyMembers).ToArray();
+            _grantedSpells = new List<string>(grantedSpells).ToArray();
+        }
+    }
+
+    /// <summary>
     /// Post-generation campaign host. WorldBuilder supplies immutable authored/runtime binding data;
     /// Story decides semantic transitions; Cutscenes executes choreography. This composition root owns
     /// the mutable session state that connects those systems without making either runtime depend on
     /// the other.
     /// </summary>
-    public sealed class CampaignRuntime : IStoryStateView, IStoryEffectSink
+    public sealed class CampaignRuntime : IStoryStateView, IStoryProgressEffectSink
     {
         private readonly CampaignBlueprint _blueprint;
         private readonly IWorldBoundCutsceneActorProvider _actorProvider;
@@ -30,6 +60,8 @@ namespace Game.Composition.Campaign.Runtime
         private readonly HashSet<ObjectiveRef> _activeObjectives = new HashSet<ObjectiveRef>();
         private readonly HashSet<ObjectiveRef> _completedObjectives = new HashSet<ObjectiveRef>();
         private readonly HashSet<CutsceneRef> _completedCutscenes = new HashSet<CutsceneRef>();
+        private readonly HashSet<string> _joinedPartyMembers = new HashSet<string>(StringComparer.Ordinal);
+        private readonly HashSet<string> _grantedSpells = new HashSet<string>(StringComparer.Ordinal);
         private readonly QuestRuntime _quests;
 
         private CutsceneRunner _activeRunner;
@@ -106,7 +138,7 @@ namespace Game.Composition.Campaign.Runtime
 
         public int StartNewGame() => Dispatch(StoryEvent.NewGame());
 
-        public int EnterSite(SiteRef site) => Dispatch(StoryEvent.SiteEntered(site));
+        public int EnterSite(SiteRef site) => Dispatch(StoryEvent.SiteProximityEntered(site));
 
         public int InteractWithNpc(NpcRef npc)
         {
@@ -158,6 +190,12 @@ namespace Game.Composition.Campaign.Runtime
 
         public bool IsQuestCompleted(QuestRef quest) => _quests.IsCompleted(quest);
 
+        public bool IsPartyMemberJoined(string memberId) =>
+            _joinedPartyMembers.Contains(RequireProgressId(memberId, nameof(memberId)));
+
+        public bool HasSpell(string spellId) =>
+            _grantedSpells.Contains(RequireProgressId(spellId, nameof(spellId)));
+
         public QuestSnapshot GetQuestSnapshot(QuestRef quest) => _quests.GetSnapshot(quest);
 
         public int CompleteQuest(QuestRef quest)
@@ -166,9 +204,64 @@ namespace Game.Composition.Campaign.Runtime
             return DispatchQuestCompletions(events);
         }
 
+        public CampaignProgressSnapshot CaptureProgress()
+        {
+            var completed = new List<CutsceneRef>(_completedCutscenes);
+            completed.Sort((left, right) => StringComparer.Ordinal.Compare(left.Id, right.Id));
+
+            var members = new List<string>(_joinedPartyMembers);
+            members.Sort(StringComparer.Ordinal);
+
+            var spells = new List<string>(_grantedSpells);
+            spells.Sort(StringComparer.Ordinal);
+
+            return new CampaignProgressSnapshot(completed, members, spells);
+        }
+
+        public void RestoreProgress(CampaignProgressSnapshot snapshot)
+        {
+            if (snapshot == null) throw new ArgumentNullException(nameof(snapshot));
+            if (_activeRunner != null)
+                throw new InvalidOperationException("Cannot restore campaign progress while a cutscene is active.");
+
+            var completed = new HashSet<CutsceneRef>();
+            for (var i = 0; i < snapshot.CompletedCutscenes.Count; i++)
+            {
+                CutsceneRef cutscene = snapshot.CompletedCutscenes[i];
+                if (!_cutscenes.ContainsKey(cutscene))
+                    throw new InvalidOperationException(
+                        "Campaign progress references unknown cutscene '" + cutscene + "'.");
+                completed.Add(cutscene);
+            }
+
+            var members = new HashSet<string>(StringComparer.Ordinal);
+            for (var i = 0; i < snapshot.JoinedPartyMembers.Count; i++)
+                members.Add(RequireProgressId(snapshot.JoinedPartyMembers[i], "joinedPartyMembers"));
+
+            var spells = new HashSet<string>(StringComparer.Ordinal);
+            for (var i = 0; i < snapshot.GrantedSpells.Count; i++)
+                spells.Add(RequireProgressId(snapshot.GrantedSpells[i], "grantedSpells"));
+
+            _completedCutscenes.Clear();
+            foreach (CutsceneRef cutscene in completed)
+                _completedCutscenes.Add(cutscene);
+
+            _joinedPartyMembers.Clear();
+            foreach (string member in members)
+                _joinedPartyMembers.Add(member);
+
+            _grantedSpells.Clear();
+            foreach (string spell in spells)
+                _grantedSpells.Add(spell);
+        }
+
         void IStoryEffectSink.StartObjective(ObjectiveRef objective) => StartObjective(objective);
         void IStoryEffectSink.StartQuest(QuestRef quest) => StartQuest(quest);
         void IStoryEffectSink.PlayCutscene(CutsceneRef cutscene) => PlayCutscene(cutscene);
+        void IStoryProgressEffectSink.JoinPartyMember(string memberId) =>
+            _joinedPartyMembers.Add(RequireProgressId(memberId, nameof(memberId)));
+        void IStoryProgressEffectSink.GrantSpell(string spellId) =>
+            _grantedSpells.Add(RequireProgressId(spellId, nameof(spellId)));
 
         private int Dispatch(StoryEvent storyEvent) =>
             StoryRuleEngine.Dispatch(
@@ -257,6 +350,13 @@ namespace Game.Composition.Campaign.Runtime
                 _activeObjectives.Remove(objective.Ref);
                 _completedObjectives.Add(objective.Ref);
             }
+        }
+
+        private static string RequireProgressId(string value, string paramName)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                throw new ArgumentException("Campaign progression ids must be non-empty.", paramName);
+            return value;
         }
     }
 }
