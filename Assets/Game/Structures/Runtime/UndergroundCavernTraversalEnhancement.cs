@@ -8,7 +8,7 @@ namespace Game.Structures.Runtime
     /// <summary>
     /// Reusable traversal presentation layered over an authoritative cave network. The cave
     /// network remains the semantic reachability source; this pass gives a long cardinal descent
-    /// a natural surface mouth, deterministic forced bends, and sparse supported route lights.
+    /// a natural surface mouth, configurable deterministic bends, and sparse supported route lights.
     /// </summary>
     public struct UndergroundCavernTraversalEnhancementResult
     {
@@ -22,24 +22,15 @@ namespace Game.Structures.Runtime
 
         public bool IsWellFormed =>
             MouthOpeningCount >= 4 && DirectionChangeCount >= 4 &&
-            DoglegCount >= 3 && TraversalCarveNodeCount >= 20 &&
-            TraversalWaypoints != null && TraversalWaypoints.Length >= 20 &&
-            RouteLights != null && RouteLights.Length == UndergroundCavernTraversalEnhancement.ExpectedRouteLightCount &&
+            DoglegCount >= 2 && TraversalCarveNodeCount >= MouthOpeningCount + DoglegCount * 5 &&
+            TraversalWaypoints != null && TraversalWaypoints.Length >= 12 &&
+            RouteLights != null && RouteLights.Length >= 2 &&
             VoxelsWritten > 0;
     }
 
     public static class UndergroundCavernTraversalEnhancement
     {
         public const int ExpectedMouthOpeningCount = 5;
-        public const int ExpectedDirectionChangeCount = 6;
-        public const int ExpectedRouteLightCount = 6;
-
-        private const int DoglegSideOffset = 32;
-        private const int DoglegRadius = 16;
-        private static readonly int[] DoglegSegments = { 17, 31, 43 };
-        private static readonly int[] RouteLightSegments = { 8, 17, 26, 35, 44, 52 };
-        private static readonly int[] DoglegForwardOffsets = { -30, -20, -10, 2, 14, 26, 32 };
-        private static readonly int[] DoglegSideOffsets = { 0, 10, 22, 32, 30, 16, 2 };
 
         public static UndergroundCavernTraversalEnhancementResult Author(
             IStructureAuthoringSession authoring,
@@ -47,27 +38,44 @@ namespace Game.Structures.Runtime
             in CaveConfig cave,
             in CaveMaterialPalette palette)
         {
+            UndergroundCavernTraversalProfile profile = UndergroundCavernTraversalProfile.LongDescent;
+            return Author(authoring, in request, in cave, in palette, in profile);
+        }
+
+        public static UndergroundCavernTraversalEnhancementResult Author(
+            IStructureAuthoringSession authoring,
+            in CaveGenerationRequest request,
+            in CaveConfig cave,
+            in CaveMaterialPalette palette,
+            in UndergroundCavernTraversalProfile profile)
+        {
             if (authoring == null) throw new ArgumentNullException(nameof(authoring));
-            if (!request.IsWellFormed || !cave.IsWellFormed)
-                throw new ArgumentException("Traversal enhancement requires a valid cave request and configuration.");
-            if (cave.MainSegmentCount <= RouteLightSegments[RouteLightSegments.Length - 1])
-                throw new ArgumentException("Traversal enhancement requires enough primary segments for its deterministic bends and route lights.");
+            if (!request.IsWellFormed || !cave.IsWellFormed || !profile.IsWellFormed)
+                throw new ArgumentException("Traversal enhancement requires a valid cave request, configuration, and traversal profile.");
+
+            int[] bendSegments = profile.ResolveBendSegments(in cave);
+            int[] lightSegments = profile.ResolveRouteLightSegments(in cave);
+            if (!ResolvedSegmentsAreStrictlyIncreasing(bendSegments) ||
+                !ResolvedSegmentsAreStrictlyIncreasing(lightSegments))
+                throw new ArgumentException(
+                    "Traversal profile positions collapse at this cave length; use fewer positions or more primary segments.",
+                    nameof(profile));
 
             long startWrites = authoring.TotalVoxelsWritten;
             int carveNodes = AuthorNaturalMouth(authoring, in request, in cave, in palette);
 
-            for (int i = 0; i < DoglegSegments.Length; i++)
-            {
-                int sign = i == 1 ? -1 : 1;
-                carveNodes += AuthorDogleg(
-                    authoring, in request, in cave, DoglegSegments[i], sign, in palette);
-            }
-
-            var lights = new MineCaveLightRequest[RouteLightSegments.Length];
-            for (int i = 0; i < RouteLightSegments.Length; i++)
+            for (int i = 0; i < bendSegments.Length; i++)
             {
                 int sign = (i & 1) == 0 ? 1 : -1;
-                int3 floor = FloorAtSegment(in request, in cave, RouteLightSegments[i]);
+                carveNodes += AuthorDogleg(
+                    authoring, in request, in cave, bendSegments[i], sign, in palette, in profile);
+            }
+
+            var lights = new MineCaveLightRequest[lightSegments.Length];
+            for (int i = 0; i < lightSegments.Length; i++)
+            {
+                int sign = (i & 1) == 0 ? 1 : -1;
+                int3 floor = FloorAtSegment(in request, in cave, lightSegments[i]);
                 lights[i] = AuthorRouteLantern(
                     authoring, floor, request.Entrance.Facing, sign, i, in cave, in palette);
             }
@@ -75,10 +83,10 @@ namespace Game.Structures.Runtime
             return new UndergroundCavernTraversalEnhancementResult
             {
                 MouthOpeningCount = ExpectedMouthOpeningCount,
-                DirectionChangeCount = ExpectedDirectionChangeCount,
-                DoglegCount = DoglegSegments.Length,
+                DirectionChangeCount = bendSegments.Length * 2,
+                DoglegCount = bendSegments.Length,
                 TraversalCarveNodeCount = carveNodes,
-                TraversalWaypoints = BuildTraversalWaypoints(in request, in cave),
+                TraversalWaypoints = BuildTraversalWaypoints(in request, in cave, in profile),
                 RouteLights = lights,
                 VoxelsWritten = authoring.TotalVoxelsWritten - startWrites,
             };
@@ -93,12 +101,25 @@ namespace Game.Structures.Runtime
             in CaveGenerationRequest request,
             in CaveConfig cave)
         {
-            if (!request.IsWellFormed || !cave.IsWellFormed)
-                throw new ArgumentException("Traversal waypoints require a valid cave request and configuration.");
+            UndergroundCavernTraversalProfile profile = UndergroundCavernTraversalProfile.LongDescent;
+            return BuildTraversalWaypoints(in request, in cave, in profile);
+        }
+
+        public static int3[] BuildTraversalWaypoints(
+            in CaveGenerationRequest request,
+            in CaveConfig cave,
+            in UndergroundCavernTraversalProfile profile)
+        {
+            if (!request.IsWellFormed || !cave.IsWellFormed || !profile.IsWellFormed)
+                throw new ArgumentException("Traversal waypoints require a valid cave request, configuration, and traversal profile.");
+
+            int[] bendSegments = profile.ResolveBendSegments(in cave);
+            if (!ResolvedSegmentsAreStrictlyIncreasing(bendSegments))
+                throw new ArgumentException("Traversal bend positions collapse at this cave length.", nameof(profile));
 
             int3 forward = FacingVector(request.Entrance.Facing);
-            int finalDoglegSegment = DoglegSegments[DoglegSegments.Length - 1];
-            int finalDoglegForwardOffset = DoglegForwardOffsets[DoglegForwardOffsets.Length - 1];
+            int finalDoglegSegment = bendSegments[bendSegments.Length - 1];
+            int finalDoglegForwardOffset = profile.BendForwardOffsets[profile.BendForwardOffsets.Length - 1];
             int segmentsBeyondDogleg =
                 (finalDoglegForwardOffset + cave.SegmentLength - 1) / cave.SegmentLength;
             int firstPrimarySegment = math.min(
@@ -106,21 +127,21 @@ namespace Game.Structures.Runtime
                 finalDoglegSegment + math.max(1, segmentsBeyondDogleg));
             int remainingPrimarySegments = math.max(0, cave.MainSegmentCount - firstPrimarySegment);
             var points = new int3[
-                2 + DoglegSegments.Length * DoglegForwardOffsets.Length + remainingPrimarySegments];
+                2 + bendSegments.Length * profile.BendForwardOffsets.Length + remainingPrimarySegments];
             int output = 0;
             points[output++] = request.EntranceWorldPosition;
             points[output++] = request.EntranceWorldPosition + forward * request.Entrance.ClearanceLength;
 
-            for (int dogleg = 0; dogleg < DoglegSegments.Length; dogleg++)
+            for (int dogleg = 0; dogleg < bendSegments.Length; dogleg++)
             {
-                int sign = dogleg == 1 ? -1 : 1;
-                for (int i = 0; i < DoglegForwardOffsets.Length; i++)
+                int sign = (dogleg & 1) == 0 ? 1 : -1;
+                for (int i = 0; i < profile.BendForwardOffsets.Length; i++)
                     points[output++] = DoglegNode(
                         in request,
                         in cave,
-                        DoglegSegments[dogleg],
-                        DoglegForwardOffsets[i],
-                        DoglegSideOffsets[i],
+                        bendSegments[dogleg],
+                        profile.BendForwardOffsets[i],
+                        profile.BendSideOffsets[i],
                         sign);
             }
 
@@ -174,7 +195,8 @@ namespace Game.Structures.Runtime
             in CaveConfig cave,
             int segmentIndex,
             int sign,
-            in CaveMaterialPalette palette)
+            in CaveMaterialPalette palette,
+            in UndergroundCavernTraversalProfile profile)
         {
             int3 floor = FloorAtSegment(in request, in cave, segmentIndex);
             int3 forward = FacingVector(request.Entrance.Facing);
@@ -184,14 +206,17 @@ namespace Game.Structures.Runtime
             // straight centreline for a short span, then the rounded carve chain below provides
             // the only broad walkable bypass. The host follows the full vertical span of the
             // descending nodes so the bypass reconnects to the same grade as the primary tunnel.
-            int hostForward = 34;
-            int hostSide = DoglegSideOffset + DoglegRadius + 8;
+            int maxForwardOffset = 0;
+            for (int i = 0; i < profile.BendForwardOffsets.Length; i++)
+                maxForwardOffset = math.max(maxForwardOffset, math.abs(profile.BendForwardOffsets[i]));
+            int hostForward = maxForwardOffset + 2;
+            int hostSide = profile.BendSideReach + profile.BendRadius + 8;
             int minNodeY = int.MaxValue;
             int maxNodeY = int.MinValue;
-            for (int i = 0; i < DoglegForwardOffsets.Length; i++)
+            for (int i = 0; i < profile.BendForwardOffsets.Length; i++)
             {
                 int y = FloorAlongPrimaryRoute(
-                    in request, in cave, segmentIndex, DoglegForwardOffsets[i]);
+                    in request, in cave, segmentIndex, profile.BendForwardOffsets[i]);
                 minNodeY = math.min(minNodeY, y);
                 maxNodeY = math.max(maxNodeY, y);
             }
@@ -199,42 +224,42 @@ namespace Game.Structures.Runtime
             int hostMinY = minNodeY - cave.FloorRoughness - 3;
             int hostMaxY = maxNodeY + cave.TunnelHeight + cave.CeilingRoughness + 8;
             int hostHeight = hostMaxY - hostMinY + 1;
-            int3 hostCentre = floor + side * (DoglegSideOffset / 2);
+            int3 hostCentre = floor + side * (profile.BendSideReach / 2);
             int3 hostMin;
             int3 hostSize;
             if (math.abs(forward.x) == 1)
             {
                 hostMin = new int3(hostCentre.x - hostForward, hostMinY,
-                    math.min(floor.z, floor.z + side.z * hostSide) - DoglegRadius - 5);
+                    math.min(floor.z, floor.z + side.z * hostSide) - profile.BendRadius - 5);
                 hostSize = new int3(hostForward * 2 + 1, hostHeight,
-                    hostSide + DoglegRadius * 2 + 11);
+                    hostSide + profile.BendRadius * 2 + 11);
             }
             else
             {
                 hostMin = new int3(
-                    math.min(floor.x, floor.x + side.x * hostSide) - DoglegRadius - 5,
+                    math.min(floor.x, floor.x + side.x * hostSide) - profile.BendRadius - 5,
                     hostMinY,
                     hostCentre.z - hostForward);
-                hostSize = new int3(hostSide + DoglegRadius * 2 + 11, hostHeight,
+                hostSize = new int3(hostSide + profile.BendRadius * 2 + 11, hostHeight,
                     hostForward * 2 + 1);
             }
             a.FillBulk(hostMin, hostSize, palette.Rock);
 
-            for (int i = 0; i < DoglegForwardOffsets.Length; i++)
+            for (int i = 0; i < profile.BendForwardOffsets.Length; i++)
             {
                 int3 centre = DoglegNode(
                     in request,
                     in cave,
                     segmentIndex,
-                    DoglegForwardOffsets[i],
-                    DoglegSideOffsets[i],
+                    profile.BendForwardOffsets[i],
+                    profile.BendSideOffsets[i],
                     sign);
-                int radius = DoglegRadius + ((i & 1) == 0 ? 1 : 0);
+                int radius = profile.BendRadius + ((i & 1) == 0 ? 1 : 0);
                 int height = cave.TunnelHeight + 5 + (i % 3) * 2;
                 a.Cylinder(centre.x, centre.y, centre.z, radius, height, palette.Opening);
                 a.Disc(centre.x, centre.y - 1, centre.z, radius - 2, palette.Rock);
             }
-            return DoglegForwardOffsets.Length;
+            return profile.BendForwardOffsets.Length;
         }
 
         private static int3 DoglegNode(
@@ -308,8 +333,8 @@ namespace Game.Structures.Runtime
             int3 basePosition = floor + forward * 4 + side * wallOffset;
 
             // A grounded metal stand and glowing lantern body accompany every real point-light
-            // request. The six route lights remain separated by long dark spans, while alternating
-            // wall sides make the fixtures readable as navigation cues instead of a runway line.
+            // request. Sparse profile positions retain long dark spans; alternating wall sides
+            // make fixtures readable as navigation cues instead of a runway line.
             a.Box(basePosition, new int3(2, 16, 2), GameMaterialIds.Gold);
             a.Box(basePosition + new int3(-2, 14, -2), new int3(5, 5, 5), GameMaterialIds.Gold);
             a.Box(basePosition + new int3(-1, 15, -1), new int3(3, 3, 3), palette.Accent);
@@ -335,6 +360,14 @@ namespace Game.Structures.Runtime
                        FloorAfterCompletedSegments(in request, in cave, completedSegments)
                            - request.EntranceWorldPosition.y,
                        0);
+        }
+
+        private static bool ResolvedSegmentsAreStrictlyIncreasing(int[] segments)
+        {
+            if (segments == null || segments.Length == 0) return false;
+            for (int i = 1; i < segments.Length; i++)
+                if (segments[i] <= segments[i - 1]) return false;
+            return true;
         }
 
         private static int3 FacingVector(Facing facing)
