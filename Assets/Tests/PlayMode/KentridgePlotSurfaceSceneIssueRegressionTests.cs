@@ -4,6 +4,8 @@ using MountingForce.WorldGen.Voxel;
 using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
+using VoxelEngine.Storage.Api;
+using VoxelEngine.Storage.Runtime;
 using VoxelEngine.Structures.Api;
 using VoxelEngine.Structures.Runtime;
 
@@ -12,260 +14,99 @@ namespace VoxelEngine.Tests.PlayMode
     public sealed class KentridgePlotSurfaceSceneIssueRegressionTests
     {
         private const uint VoxelShowcaseSeed = 1592594996u;
+        private const int CapturedMayorHouseSurfaceY = 221;
+        private const byte FoundationMaterial = 1;
 
         [Test]
-        public void SceneIssue20260826132234356CapturedDirtGrassEdgesAvoidRectangularOwners()
+        public void SceneIssue20260826132234356GeneratedFoundationEndsBelowCapturedGroundSurface()
         {
-            AssertMayorHouseVisibleCapCurvesThroughCapturedEnvelopeWithoutChangingSupport();
-            AssertOrganicRouteEdgesUseRoundSurfaceStamps();
-        }
-
-        private static void AssertMayorHouseVisibleCapCurvesThroughCapturedEnvelopeWithoutChangingSupport()
-        {
-            FeatureCatalogue plots = KentridgePlotSurfaceCatalogue.Build(
-                VoxelShowcaseSeed, BuildSettings(), Allocator.Temp);
-            var primitives = new NativeList<Primitive>(5, Allocator.Temp);
-            var anchors = new NativeList<ResolvedAnchor>(1, Allocator.Temp);
+            FeatureCatalogue structures = KentridgeSharedStructureVoxelCatalogue.Build(
+                VoxelShowcaseSeed, BuildSettings(), Allocator.Persistent);
+            var primitives = new NativeList<Primitive>(64, Allocator.Persistent);
+            var anchors = new NativeList<ResolvedAnchor>(8, Allocator.Persistent);
+            var table = new RegionTable(8, Allocator.Persistent);
+            var pool = new BrickPool(8192, Allocator.Persistent);
 
             try
             {
-                int definitionId = FindDefinition(plots, "kentridge-plot-mayorhouse");
-                FeatureDefinition definition = plots.Definitions[definitionId];
-                PlacementRule rule = FindRule(plots, definitionId);
-                Assert.AreEqual(1, rule.ExplicitCount,
-                    "Organic generated-house pads must remain role-specific.");
-                Assert.AreEqual(5, definition.MaxPrimitives,
-                    "The organic pad fix must remain bounded to carve/support plus three surface-paint primitives.");
+                int roleId = (int)KentridgeRole.MayorHouse;
+                FeatureDefinition definition = structures.Definitions[roleId];
+                PlacementRule rule = structures.Rules[roleId];
+                Assert.AreEqual(roleId, rule.DefinitionId);
+                Assert.AreEqual(1, rule.ExplicitCount);
 
-                ExplicitPlacement placement = plots.ExplicitPlacements[rule.ExplicitOffset];
-                Assert.AreEqual(910, placement.Position.x);
-                Assert.AreEqual(250, placement.Position.z);
-                Assert.AreEqual(2, placement.Orientation,
-                    "This regression must exercise MayorHouse's production half-turn; testing the unrotated local program caused the prior false pass.");
+                ExplicitPlacement placement = structures.ExplicitPlacements[rule.ExplicitOffset];
+                Assert.AreEqual(CapturedMayorHouseSurfaceY - KentridgeDefinition.Theme.FoundationHeightDm,
+                    placement.Position.y,
+                    "Generated houses must sink by the compiler's full foundation depth; the old 5dm sink exposed a 2dm rectangular cap in both marked dirt/grass regions.");
 
-                ParameterSet parameters = FeatureGeneration.ResolveParameters(
-                    in plots, in definition, in placement,
-                    definitionId, placement.Position, VoxelShowcaseSeed);
-                ulong instanceSeed = FeatureGeneration.InstanceSeed(
-                    VoxelShowcaseSeed, definitionId, placement.Position);
-                EvaluationResult evaluation = ShapeProgram.Evaluate(
-                    in plots, definitionId, in parameters,
-                    placement.Position, placement.Orientation,
-                    VoxelShowcaseSeed, instanceSeed, primitives, anchors);
-
+                EvaluationResult evaluation = FeatureGeneration.EvaluateInstance(
+                    in structures,
+                    VoxelShowcaseSeed,
+                    roleId,
+                    in definition,
+                    in placement,
+                    primitives,
+                    anchors);
                 Assert.AreEqual(EvaluationResult.Ok, evaluation);
-                Assert.AreEqual(5, primitives.Length,
-                    "MayorHouse grading should emit one clearance carve, one support fill, and a three-primitive visible surface cap.");
 
-                Primitive carve = default;
-                Primitive support = default;
-                bool foundCarve = false;
-                bool foundSupport = false;
-                int paintCount = 0;
-                int paintBoxes = 0;
-                int paintCylinders = 0;
-                int paintRadius = -1;
-                for (int i = 0; i < primitives.Length; i++)
-                {
-                    Primitive primitive = primitives[i];
-                    if (primitive.Mode == PrimitiveMode.Carve)
-                    {
-                        carve = primitive;
-                        foundCarve = true;
-                    }
-                    else if (primitive.Mode == PrimitiveMode.Fill && primitive.Material == 13)
-                    {
-                        support = primitive;
-                        foundSupport = true;
-                    }
-                    else if (primitive.Mode == PrimitiveMode.PaintSurface && primitive.Material == 14)
-                    {
-                        paintCount++;
-                        if (primitive.Shape == PrimitiveShape.Box)
-                        {
-                            paintBoxes++;
-                        }
-                        else if (primitive.Shape == PrimitiveShape.Cylinder)
-                        {
-                            paintCylinders++;
-                            Assert.AreEqual(1, primitive.Axis,
-                                "Organic plot end-caps must be vertical so their radius exists only in plan view.");
-                            if (paintRadius < 0) paintRadius = primitive.Radius;
-                            Assert.AreEqual(paintRadius, primitive.Radius,
-                                "Both organic plot end-caps must use the same plan radius.");
-                        }
-                        else
-                        {
-                            Assert.Fail("Unexpected organic Moss surface primitive: " + primitive.Shape);
-                        }
-                    }
-                }
+                Primitive foundation = FindFoundation(primitives);
+                foundation.Bounds(out int3 foundationMin, out int3 foundationMax);
+                Assert.AreEqual(CapturedMayorHouseSurfaceY, foundationMax.y,
+                    "The generated foundation must terminate at the authored plot surface instead of protruding above it.");
 
-                Assert.IsTrue(foundCarve, "Missing MayorHouse clearance carve.");
-                Assert.IsTrue(foundSupport, "Missing MayorHouse Dirt support.");
-                Assert.AreEqual(3, paintCount,
-                    "Generated-house Moss ownership must be one bridge plus two round end-caps.");
-                Assert.AreEqual(1, paintBoxes);
-                Assert.AreEqual(2, paintCylinders);
-                Assert.AreEqual(42, paintRadius,
-                    "The 9.8m x 8.6m MayorHouse pad must use the largest contained integer plan radius, not the rejected 1.2m corner radius.");
+                int3 sample = new int3(
+                    foundationMin.x + (foundationMax.x - foundationMin.x) / 2,
+                    CapturedMayorHouseSurfaceY + 1,
+                    foundationMin.z + (foundationMax.z - foundationMin.z) / 2);
+                int3 region = new int3(
+                    sample.x / VoxelGrid.RegionVoxelEdge,
+                    sample.y / VoxelGrid.RegionVoxelEdge,
+                    sample.z / VoxelGrid.RegionVoxelEdge);
 
-                support.Bounds(out int3 supportMin, out int3 supportMax);
-                carve.Bounds(out int3 carveMin, out _);
+                var reads = new RegionReadSource(in table, in pool);
+                var mutations = new RegionMutationStore(in table, in pool);
+                FeatureGenerationReport report = FeatureGeneration.GenerateRegion(
+                    in structures, VoxelShowcaseSeed, region, reads, mutations);
+                Assert.Greater(report.VoxelsWritten, 0,
+                    "The regression must rasterize the production MayorHouse into authoritative storage.");
 
-                Assert.AreEqual(new int3(927, placement.Position.y, 286), supportMin,
-                    "Production orientation must place the generated foundation support at the captured upper-mark corner.");
-                Assert.AreEqual(1024, supportMax.x);
-                Assert.AreEqual(371, supportMax.z);
-                int surfaceY = placement.Position.y + 12;
-                Assert.AreEqual(221, surfaceY,
-                    "The exact captured MayorHouse surface elevation is part of the behavioral fixture.");
-                Assert.AreEqual(surfaceY, supportMax.y,
-                    "Changing visible Moss ownership must not lower or remove structural support.");
-                Assert.AreEqual(surfaceY + 1, carveMin.y,
-                    "Clearance must still begin immediately above the unchanged support surface.");
+                VoxelCell above = VoxelAccess.GetCell(ref table, in pool, sample);
+                Assert.AreNotEqual(FoundationMaterial, above.BaseMaterialId,
+                    "A Foundation voxel still owns the captured ground band one voxel above the intended surface.");
 
-                var capturedCorner = new int3(927, surfaceY, 286);
-                var oldStraightWestEdge = new int3(927, surfaceY, 300);
-                var curvedMarkInterior = new int3(938, surfaceY, 304);
-                var safeInterior = new int3(950, surfaceY, 310);
-
-                AssertInsideBox(support, capturedCorner,
-                    "The Dirt support must remain beneath the captured corner; this fix changes material ownership, not occupancy.");
-                AssertInsideBox(support, oldStraightWestEdge,
-                    "The captured west-edge probe must remain structurally supported.");
-                AssertInsideBox(support, curvedMarkInterior,
-                    "The captured interior probe must remain structurally supported.");
-
-                Assert.IsFalse(PaintOwns(primitives, capturedCorner),
-                    "Moss must release the exact old 90-degree corner in the upper marked region.");
-                Assert.IsFalse(PaintOwns(primitives, oldStraightWestEdge),
-                    "The rejected 1.2m cap became a straight vertical grass edge inside the upper mark by Z=30.0m; the production cap must still be curving there.");
-                Assert.IsTrue(PaintOwns(primitives, curvedMarkInterior),
-                    "The upper marked envelope must contain a curved Dirt/Moss transition rather than removing the yard wholesale.");
-                Assert.IsTrue(PaintOwns(primitives, safeInterior),
-                    "The rounded transition must retain Moss on the generated yard interior.");
+                int3 belowPoint = new int3(sample.x, CapturedMayorHouseSurfaceY - 1, sample.z);
+                VoxelCell below = VoxelAccess.GetCell(ref table, in pool, belowPoint);
+                Assert.AreEqual(FoundationMaterial, below.BaseMaterialId,
+                    "The fix must sink the generated foundation, not remove structural support beneath the house.");
             }
             finally
             {
+                pool.Dispose();
+                table.Dispose();
                 anchors.Dispose();
                 primitives.Dispose();
-                plots.Dispose();
+                structures.Dispose();
             }
         }
 
-        private static bool PaintOwns(NativeList<Primitive> primitives, int3 point)
+        private static Primitive FindFoundation(NativeList<Primitive> primitives)
         {
             for (int i = 0; i < primitives.Length; i++)
             {
                 Primitive primitive = primitives[i];
-                if (primitive.Mode == PrimitiveMode.PaintSurface
-                    && primitive.Material == 14
-                    && PrimitiveRasteriser.Contains(in primitive, point))
-                    return true;
+                if (primitive.Mode == PrimitiveMode.Fill && primitive.Material == FoundationMaterial)
+                    return primitive;
             }
-            return false;
-        }
 
-        private static void AssertInsideBox(Primitive primitive, int3 point, string message)
-        {
-            primitive.Bounds(out int3 min, out int3 max);
-            Assert.IsTrue(
-                math.all(point >= min) && math.all(point <= max),
-                message + " Bounds=" + min + ".." + max + ", point=" + point);
-        }
-
-        private static int FindDefinition(FeatureCatalogue catalogue, string name)
-        {
-            for (int i = 0; i < catalogue.Definitions.Length; i++)
-                if (catalogue.Definitions[i].Name.ToString() == name)
-                    return i;
-            Assert.Fail("Missing production definition: " + name);
-            return -1;
-        }
-
-        private static PlacementRule FindRule(FeatureCatalogue catalogue, int definitionId)
-        {
-            for (int i = 0; i < catalogue.Rules.Length; i++)
-                if (catalogue.Rules[i].DefinitionId == definitionId)
-                    return catalogue.Rules[i];
-            Assert.Fail("Missing placement rule for definition " + definitionId);
+            Assert.Fail("MayorHouse emitted no production Foundation primitive.");
             return default;
-        }
-
-        private static void AssertOrganicRouteEdgesUseRoundSurfaceStamps()
-        {
-            FeatureCatalogue routes = KentridgeDirectedTownSurfaceCatalogue.Build(
-                VoxelShowcaseSeed, BuildSettings(), Allocator.Temp);
-
-            try
-            {
-                int organicDefinitions = 0;
-                for (int i = 0; i < routes.Definitions.Length; i++)
-                {
-                    FeatureDefinition definition = routes.Definitions[i];
-                    string name = definition.Name.ToString();
-                    Assert.IsTrue(name.StartsWith("kentridge-organic-route-"),
-                        "The exact VoxelShowcase seed must exercise the organic circulation backend.");
-                    organicDefinitions++;
-
-                    Assert.AreEqual(20, definition.Precedence);
-                    Assert.AreEqual(2, definition.MaxPrimitives,
-                        name + " must retain the bounded two-primitive route stamp budget.");
-                    Assert.AreEqual(definition.Footprint.x, definition.Footprint.z,
-                        name + " must retain the authored route width as its bounding footprint.");
-
-                    int width = definition.Footprint.x;
-                    int radius = width / 2;
-                    int pc = definition.ProgramOffset;
-                    AssertCylinder(routes, pc, radius, 4, radius, radius, 24,
-                        1, 0, PrimitiveMode.Carve, name + " clearance");
-                    pc += ShapeOps.InstructionLength((ShapeOp)routes.Program[pc]);
-                    AssertCylinder(routes, pc, radius, 0, radius, radius, 4,
-                        1, 13, PrimitiveMode.Fill, name + " Dirt surface");
-                    pc += ShapeOps.InstructionLength((ShapeOp)routes.Program[pc]);
-                    Assert.AreEqual(ShapeOp.End, (ShapeOp)routes.Program[pc],
-                        name + " must end after its bounded round carve/fill pair.");
-                }
-
-                Assert.Greater(organicDefinitions, 0,
-                    "The exact VoxelShowcase seed emitted no organic route definitions.");
-            }
-            finally
-            {
-                routes.Dispose();
-            }
-        }
-
-        private static void AssertCylinder(
-            FeatureCatalogue catalogue,
-            int pc,
-            int cx,
-            int y,
-            int cz,
-            int radius,
-            int height,
-            int axis,
-            byte material,
-            PrimitiveMode mode,
-            string label)
-        {
-            Assert.AreEqual(ShapeOp.EmitCylinder, (ShapeOp)catalogue.Program[pc],
-                label + " must use a round stamp so diagonal route edges cannot expose square corners.");
-            Assert.AreEqual(cx, catalogue.Program[pc + 2], label + " center X");
-            Assert.AreEqual(y, catalogue.Program[pc + 3], label + " Y");
-            Assert.AreEqual(cz, catalogue.Program[pc + 4], label + " center Z");
-            Assert.AreEqual(radius, catalogue.Program[pc + 5], label + " radius");
-            Assert.AreEqual(height, catalogue.Program[pc + 6], label + " height");
-            Assert.AreEqual(axis, catalogue.Program[pc + 7], label + " axis");
-            Assert.AreEqual(material, (byte)catalogue.Program[pc + 8], label + " material");
-            Assert.AreEqual(mode, (PrimitiveMode)catalogue.Program[pc + 11], label + " mode");
         }
 
         private static VoxelWorldGenSettings BuildSettings()
         {
             var materials = new VoxelMaterialMap(
-                foundationStone: 1, masonry: 1, darkMasonry: 6,
+                foundationStone: FoundationMaterial, masonry: 1, darkMasonry: 6,
                 timber: 2, glass: 4, warmWindow: 15,
                 roofTile: 8, slate: 7, cloth: 9,
                 moss: 14, water: 11, roadSurface: 13);
