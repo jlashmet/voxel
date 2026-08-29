@@ -5,10 +5,9 @@ using Game.WorldBuilder.Api;
 namespace Game.WorldBuilder.Runtime
 {
     /// <summary>
-    /// Deterministic graph-constraint planner for macro world layouts. Traversal edges are also
-    /// placement constraints: each destination is positioned relative to a source already reached
-    /// from the root. A disconnected or contradictory graph is rejected instead of silently
-    /// inventing a route.
+    /// Deterministic graph-constraint planner for macro world layouts. Hard traversal edges also
+    /// carry soft placement deltas: topology is mandatory, while the chosen coordinates may evolve
+    /// as later world-building work gains better geography evidence.
     /// </summary>
     public static class TopDownWorldLayoutPlanner
     {
@@ -76,7 +75,9 @@ namespace Game.WorldBuilder.Runtime
                 routes.Sort((a, b) =>
                 {
                     int to = string.CompareOrdinal(a.ToId, b.ToId);
-                    return to != 0 ? to : string.CompareOrdinal(a.Evidence, b.Evidence);
+                    return to != 0
+                        ? to
+                        : string.CompareOrdinal(a.TopologyEvidence.Source, b.TopologyEvidence.Source);
                 });
             }
 
@@ -115,12 +116,7 @@ namespace Game.WorldBuilder.Runtime
 
             if (positions.Count != nodes.Count)
             {
-                var missing = new List<string>();
-                foreach (string id in nodes.Keys)
-                    if (!positions.ContainsKey(id)) missing.Add(id);
-                missing.Sort(StringComparer.Ordinal);
-                error = "World-layout graph is disconnected from root '" + spec.RootId +
-                        "'; unreachable: " + string.Join(", ", missing) + ".";
+                error = UnreachableError(spec.RootId, nodes.Keys, positions.Keys);
                 return false;
             }
 
@@ -142,16 +138,84 @@ namespace Game.WorldBuilder.Runtime
             layout = new TopDownWorldLayout(spec.RootId, seed, placements, spec.Routes);
             return true;
         }
+
+        private static string UnreachableError(
+            string rootId,
+            IEnumerable<string> all,
+            IEnumerable<string> reached)
+        {
+            var reachedSet = new HashSet<string>(reached, StringComparer.Ordinal);
+            var missing = new List<string>();
+            foreach (string id in all)
+                if (!reachedSet.Contains(id)) missing.Add(id);
+            missing.Sort(StringComparer.Ordinal);
+            return "World-layout graph is disconnected from root '" + rootId +
+                   "'; unreachable: " + string.Join(", ", missing) + ".";
+        }
+    }
+
+    /// <summary>
+    /// Validates actual route availability independently from placement. This is deliberately a
+    /// separate pass: a graph can look coherent in top-down space while a hard route is disabled or
+    /// physically blocked. Callers may supply runtime/pathfinding availability without rewriting the
+    /// authored hard topology.
+    /// </summary>
+    public static class TopDownWorldTraversalValidator
+    {
+        public static bool TryValidate(
+            TopDownWorldLayout layout,
+            Func<TopDownWorldRouteSpec, bool> isTraversable,
+            out string error)
+        {
+            error = string.Empty;
+            if (layout == null)
+            {
+                error = "World layout is null.";
+                return false;
+            }
+            if (isTraversable == null)
+                throw new ArgumentNullException(nameof(isTraversable));
+
+            var reachable = new HashSet<string>(StringComparer.Ordinal) { layout.RootId };
+            bool changed;
+            do
+            {
+                changed = false;
+                for (var i = 0; i < layout.Routes.Count; i++)
+                {
+                    TopDownWorldRouteSpec route = layout.Routes[i];
+                    if (!reachable.Contains(route.FromId) || !isTraversable(route))
+                        continue;
+                    if (reachable.Add(route.ToId))
+                        changed = true;
+                }
+            } while (changed);
+
+            if (reachable.Count == layout.Nodes.Count)
+                return true;
+
+            var missing = new List<string>();
+            for (var i = 0; i < layout.Nodes.Count; i++)
+            {
+                string id = layout.Nodes[i].Node.Id;
+                if (!reachable.Contains(id)) missing.Add(id);
+            }
+            missing.Sort(StringComparer.Ordinal);
+            error = "Hard world route is blocked; unreachable from '" + layout.RootId + "': " +
+                    string.Join(", ", missing) + ".";
+            return false;
+        }
     }
 
     /// <summary>
     /// Source-backed macro topology for the outdoor Mounting Force world reached from Kentridge.
-    /// Connectivity comes from verified legacy warp pairs imported under References/MountingForce.
-    /// Grid deltas are coarse composition hints only: they preserve branch/order relationships and
-    /// intentionally do not reproduce TMX tile coordinates.
+    /// Hard connectivity comes from verified legacy warp pairs. Grid deltas are intentionally soft:
+    /// they reconcile current generated Kentridge/Hightown anchors with legacy sign/dialogue guidance
+    /// without pretending the old TMX tile coordinates are modern-world coordinates.
     /// </summary>
     public static class KentridgeTopDownWorldLayout
     {
+        public const int CellSizeDm = 800; // 80 m; five cells preserves the existing 400 m Hightown anchor.
         public const string Kentridge = "kentridge";
         public const string Overworld = "overworld";
         public const string Mountains = "mountains";
@@ -160,6 +224,8 @@ namespace Game.WorldBuilder.Runtime
         public const string FightingArea1 = "fighting-area-1";
         public const string FightingArea2 = "fighting-area-2";
         public const string Hightown = "hightown";
+        public const string BanditHideout = "bandit-hideout";
+        public const string RadcliffeMansion = "radcliffeMansion";
         public const string MoordellCorridor = "overworld-moordell";
         public const string Moordell = "moordell";
         public const string RossdamApproach = "overworld-to-rossdam";
@@ -171,8 +237,12 @@ namespace Game.WorldBuilder.Runtime
         public const string LoganApproach = "overworld-logan-castle";
         public const string LoganCastle = "logan-castle";
 
-        private const string WarpEvidence =
-            "References/MountingForce/guidance/world-procgen-clusters.yaml verified warp pair";
+        private const string HardWarpEvidence =
+            "References/MountingForce/guidance/world-procgen-clusters.yaml verified Warp/Portal pair";
+        private const string SoftGeographyEvidence =
+            "References/MountingForce/guidance/world-inferred-geography.yaml inferred compass/sign/dialogue guidance";
+        private const string ExistingAnchorEvidence =
+            "existing generated Kentridge/Hightown centres; soft placement anchor, topology remains legacy-authoritative";
 
         public static TopDownWorldLayoutSpec BuildSpec()
         {
@@ -186,6 +256,8 @@ namespace Game.WorldBuilder.Runtime
                 Node(FightingArea1, "Northern Route I", TopDownWorldNodeKind.Route),
                 Node(FightingArea2, "Northern Route II", TopDownWorldNodeKind.Route),
                 Node(Hightown, "Hightown", TopDownWorldNodeKind.Settlement),
+                Node(BanditHideout, "Bandit Hideout", TopDownWorldNodeKind.Landmark),
+                Node(RadcliffeMansion, "Radcliffe Mansion", TopDownWorldNodeKind.Landmark),
                 Node(MoordellCorridor, "Moordell Corridor", TopDownWorldNodeKind.Route),
                 Node(Moordell, "Moordell", TopDownWorldNodeKind.Settlement),
                 Node(RossdamApproach, "Rossdam Approach", TopDownWorldNodeKind.Route),
@@ -200,23 +272,25 @@ namespace Game.WorldBuilder.Runtime
 
             var routes = new[]
             {
-                Route(Kentridge, Overworld, 0, -1),
-                Route(Kentridge, Mountains, 2, -1),
-                Route(Overworld, Forest, -2, -1),
-                Route(Overworld, Graveyard, 0, -1),
-                Route(Forest, FightingArea1, 0, -1),
-                Route(FightingArea1, FightingArea2, 0, -1),
-                Route(FightingArea2, Hightown, 0, -1),
-                Route(Graveyard, MoordellCorridor, 0, -1),
-                Route(MoordellCorridor, Moordell, -1, -1),
-                Route(MoordellCorridor, RossdamApproach, 1, -1),
-                Route(RossdamApproach, RossdamRegion, 0, -1),
-                Route(RossdamRegion, Rossdam, 0, -1),
-                Route(Mountains, SouthFightingArea, 0, -1),
-                Route(SouthFightingArea, FairyVillage, 1, -1),
-                Route(SouthFightingArea, OrcVillage, 0, -1),
-                Route(SouthFightingArea, LoganApproach, 2, -1),
-                Route(LoganApproach, LoganCastle, 0, -1)
+                Route(Kentridge, Overworld, 0, 1, ExistingAnchorEvidence),
+                Route(Kentridge, Mountains, -2, 1, SoftGeographyEvidence),
+                Route(Kentridge, RadcliffeMansion, 1, 0, SoftGeographyEvidence),
+                Route(Overworld, Forest, 0, 1, ExistingAnchorEvidence),
+                Route(Overworld, Graveyard, 1, 1, SoftGeographyEvidence + "; Kentridge dialogue calls graveyard north"),
+                Route(Forest, FightingArea1, 0, 1, ExistingAnchorEvidence),
+                Route(FightingArea1, FightingArea2, 0, 1, ExistingAnchorEvidence),
+                Route(FightingArea1, BanditHideout, -1, 0, SoftGeographyEvidence),
+                Route(FightingArea2, Hightown, 0, 1, ExistingAnchorEvidence),
+                Route(Graveyard, MoordellCorridor, 0, 1, SoftGeographyEvidence + "; signs place Moordell/Rossdam north of Kentridge"),
+                Route(MoordellCorridor, Moordell, 0, 2, SoftGeographyEvidence),
+                Route(MoordellCorridor, RossdamApproach, 1, 0, SoftGeographyEvidence),
+                Route(RossdamApproach, RossdamRegion, 0, 1, SoftGeographyEvidence),
+                Route(RossdamRegion, Rossdam, 0, 1, SoftGeographyEvidence),
+                Route(Mountains, SouthFightingArea, 0, 1, SoftGeographyEvidence),
+                Route(SouthFightingArea, FairyVillage, -1, 1, SoftGeographyEvidence),
+                Route(SouthFightingArea, OrcVillage, 0, 1, SoftGeographyEvidence + "; Fairy dialogue places Orc Village east of Fairy Village"),
+                Route(SouthFightingArea, LoganApproach, -1, 0, SoftGeographyEvidence),
+                Route(LoganApproach, LoganCastle, -1, 0, SoftGeographyEvidence)
             };
 
             return new TopDownWorldLayoutSpec(Kentridge, nodes, routes);
@@ -227,19 +301,43 @@ namespace Game.WorldBuilder.Runtime
             TopDownWorldLayoutSpec spec = BuildSpec();
             if (!TopDownWorldLayoutPlanner.TryPlan(spec, seed, out TopDownWorldLayout layout, out string error))
                 throw new InvalidOperationException("Source-backed Kentridge world layout is invalid: " + error);
+            if (!TopDownWorldTraversalValidator.TryValidate(layout, _ => true, out error))
+                throw new InvalidOperationException("Source-backed Kentridge traversal is invalid: " + error);
             return layout;
         }
 
         private static TopDownWorldNodeSpec Node(
             string id,
             string displayName,
-            TopDownWorldNodeKind kind) => new TopDownWorldNodeSpec(id, displayName, kind);
+            TopDownWorldNodeKind kind)
+        {
+            int halfExtentDm;
+            switch (kind)
+            {
+                case TopDownWorldNodeKind.Settlement: halfExtentDm = 320; break;
+                case TopDownWorldNodeKind.Region: halfExtentDm = 220; break;
+                case TopDownWorldNodeKind.Landmark: halfExtentDm = 180; break;
+                default: halfExtentDm = 100; break;
+            }
+            return new TopDownWorldNodeSpec(id, displayName, kind, halfExtentDm);
+        }
 
-        private static TopDownWorldRouteSpec Route(string from, string to, int x, int y) =>
+        private static TopDownWorldRouteSpec Route(
+            string from,
+            string to,
+            int x,
+            int y,
+            string softPlacementEvidence) =>
             new TopDownWorldRouteSpec(
                 from,
                 to,
                 new TopDownWorldGridPoint(x, y),
-                WarpEvidence + $" ({from}->{to})");
+                corridorWidthDm: 40,
+                topologyEvidence: new TopDownWorldEvidence(
+                    HardWarpEvidence + $" ({from}<->{to})",
+                    TopDownWorldEvidenceStrength.VerifiedHardConstraint),
+                placementEvidence: new TopDownWorldEvidence(
+                    softPlacementEvidence,
+                    TopDownWorldEvidenceStrength.InferredSoftGuidance));
     }
 }

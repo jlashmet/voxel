@@ -11,6 +11,26 @@ namespace Game.WorldBuilder.Api
         Landmark
     }
 
+    public enum TopDownWorldEvidenceStrength
+    {
+        VerifiedHardConstraint,
+        InferredSoftGuidance
+    }
+
+    public sealed class TopDownWorldEvidence
+    {
+        public string Source { get; }
+        public TopDownWorldEvidenceStrength Strength { get; }
+
+        public TopDownWorldEvidence(string source, TopDownWorldEvidenceStrength strength)
+        {
+            if (string.IsNullOrWhiteSpace(source))
+                throw new ArgumentException("World-layout evidence requires a source.", nameof(source));
+            Source = source;
+            Strength = strength;
+        }
+    }
+
     public readonly struct TopDownWorldGridPoint : IEquatable<TopDownWorldGridPoint>
     {
         public int X { get; }
@@ -37,17 +57,25 @@ namespace Game.WorldBuilder.Api
         public string Id { get; }
         public string DisplayName { get; }
         public TopDownWorldNodeKind Kind { get; }
+        public int EnvelopeHalfExtentDm { get; }
 
-        public TopDownWorldNodeSpec(string id, string displayName, TopDownWorldNodeKind kind)
+        public TopDownWorldNodeSpec(
+            string id,
+            string displayName,
+            TopDownWorldNodeKind kind,
+            int envelopeHalfExtentDm)
         {
             if (string.IsNullOrWhiteSpace(id))
                 throw new ArgumentException("A world-layout node requires an id.", nameof(id));
             if (string.IsNullOrWhiteSpace(displayName))
                 throw new ArgumentException("A world-layout node requires a display name.", nameof(displayName));
+            if (envelopeHalfExtentDm < 1)
+                throw new ArgumentOutOfRangeException(nameof(envelopeHalfExtentDm));
 
             Id = id;
             DisplayName = displayName;
             Kind = kind;
+            EnvelopeHalfExtentDm = envelopeHalfExtentDm;
         }
     }
 
@@ -56,13 +84,17 @@ namespace Game.WorldBuilder.Api
         public string FromId { get; }
         public string ToId { get; }
         public TopDownWorldGridPoint PlacementDelta { get; }
-        public string Evidence { get; }
+        public int CorridorWidthDm { get; }
+        public TopDownWorldEvidence TopologyEvidence { get; }
+        public TopDownWorldEvidence PlacementEvidence { get; }
 
         public TopDownWorldRouteSpec(
             string fromId,
             string toId,
             TopDownWorldGridPoint placementDelta,
-            string evidence)
+            int corridorWidthDm,
+            TopDownWorldEvidence topologyEvidence,
+            TopDownWorldEvidence placementEvidence)
         {
             if (string.IsNullOrWhiteSpace(fromId))
                 throw new ArgumentException("A world route requires a source node.", nameof(fromId));
@@ -70,14 +102,26 @@ namespace Game.WorldBuilder.Api
                 throw new ArgumentException("A world route requires a destination node.", nameof(toId));
             if (placementDelta.X == 0 && placementDelta.Y == 0)
                 throw new ArgumentException("A world route requires a non-zero placement delta.", nameof(placementDelta));
-            if (string.IsNullOrWhiteSpace(evidence))
-                throw new ArgumentException("A world route requires source evidence.", nameof(evidence));
+            if (corridorWidthDm < 10)
+                throw new ArgumentOutOfRangeException(nameof(corridorWidthDm));
+            if (topologyEvidence == null)
+                throw new ArgumentNullException(nameof(topologyEvidence));
+            if (placementEvidence == null)
+                throw new ArgumentNullException(nameof(placementEvidence));
+            if (topologyEvidence.Strength != TopDownWorldEvidenceStrength.VerifiedHardConstraint)
+                throw new ArgumentException("Route topology evidence must be a verified hard constraint.", nameof(topologyEvidence));
+            if (placementEvidence.Strength != TopDownWorldEvidenceStrength.InferredSoftGuidance)
+                throw new ArgumentException("Route placement evidence must remain soft guidance.", nameof(placementEvidence));
 
             FromId = fromId;
             ToId = toId;
             PlacementDelta = placementDelta;
-            Evidence = evidence;
+            CorridorWidthDm = corridorWidthDm;
+            TopologyEvidence = topologyEvidence;
+            PlacementEvidence = placementEvidence;
         }
+
+        public string Key => FromId + "->" + ToId;
     }
 
     public sealed class TopDownWorldLayoutSpec
