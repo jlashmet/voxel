@@ -24,7 +24,7 @@ namespace Game.Structures.Runtime
             MouthOpeningCount >= 4 && DirectionChangeCount >= 4 &&
             DoglegCount >= 3 && TraversalCarveNodeCount >= 20 &&
             TraversalWaypoints != null && TraversalWaypoints.Length >= 20 &&
-            RouteLights != null && RouteLights.Length >= 3 && RouteLights.Length <= 4 &&
+            RouteLights != null && RouteLights.Length == UndergroundCavernTraversalEnhancement.ExpectedRouteLightCount &&
             VoxelsWritten > 0;
     }
 
@@ -32,11 +32,12 @@ namespace Game.Structures.Runtime
     {
         public const int ExpectedMouthOpeningCount = 5;
         public const int ExpectedDirectionChangeCount = 6;
-        public const int ExpectedRouteLightCount = 3;
+        public const int ExpectedRouteLightCount = 6;
 
         private const int DoglegSideOffset = 32;
         private const int DoglegRadius = 16;
         private static readonly int[] DoglegSegments = { 17, 31, 43 };
+        private static readonly int[] RouteLightSegments = { 8, 17, 26, 35, 44, 52 };
         private static readonly int[] DoglegForwardOffsets = { -30, -20, -10, 2, 14, 26, 32 };
         private static readonly int[] DoglegSideOffsets = { 0, 10, 22, 32, 30, 16, 2 };
 
@@ -49,20 +50,26 @@ namespace Game.Structures.Runtime
             if (authoring == null) throw new ArgumentNullException(nameof(authoring));
             if (!request.IsWellFormed || !cave.IsWellFormed)
                 throw new ArgumentException("Traversal enhancement requires a valid cave request and configuration.");
-            if (cave.MainSegmentCount <= DoglegSegments[DoglegSegments.Length - 1])
-                throw new ArgumentException("Traversal enhancement requires enough primary segments for its deterministic bends.");
+            if (cave.MainSegmentCount <= RouteLightSegments[RouteLightSegments.Length - 1])
+                throw new ArgumentException("Traversal enhancement requires enough primary segments for its deterministic bends and route lights.");
 
             long startWrites = authoring.TotalVoxelsWritten;
             int carveNodes = AuthorNaturalMouth(authoring, in request, in cave, in palette);
 
-            var lights = new MineCaveLightRequest[DoglegSegments.Length];
             for (int i = 0; i < DoglegSegments.Length; i++)
             {
                 int sign = i == 1 ? -1 : 1;
                 int3 floor = FloorAtSegment(in request, in cave, DoglegSegments[i]);
                 carveNodes += AuthorDogleg(authoring, floor, request.Entrance.Facing, sign, in cave, in palette);
+            }
+
+            var lights = new MineCaveLightRequest[RouteLightSegments.Length];
+            for (int i = 0; i < RouteLightSegments.Length; i++)
+            {
+                int sign = (i & 1) == 0 ? 1 : -1;
+                int3 floor = FloorAtSegment(in request, in cave, RouteLightSegments[i]);
                 lights[i] = AuthorRouteLantern(
-                    authoring, floor, request.Entrance.Facing, sign, i, in palette);
+                    authoring, floor, request.Entrance.Facing, sign, i, in cave, in palette);
             }
 
             return new UndergroundCavernTraversalEnhancementResult
@@ -200,21 +207,24 @@ namespace Game.Structures.Runtime
             Facing facing,
             int sign,
             int ordinal,
+            in CaveConfig cave,
             in CaveMaterialPalette palette)
         {
             int3 forward = FacingVector(facing);
             int3 side = new int3(-forward.z, 0, forward.x) * sign;
-            int3 basePosition = floor + forward * 5 + side * (DoglegSideOffset - 5);
+            int wallOffset = math.max(5, cave.TunnelWidth / 2 - 3);
+            int3 basePosition = floor + forward * 4 + side * wallOffset;
 
-            // A real authored stand and glowing lantern body accompany every point-light request.
-            // The light is not simulated by an emissive voxel alone.
-            a.Box(basePosition, new int3(1, 10, 1), GameMaterialIds.Gold);
-            a.Box(basePosition + new int3(-2, 9, -2), new int3(5, 5, 5), GameMaterialIds.Gold);
-            a.Box(basePosition + new int3(-1, 10, -1), new int3(3, 3, 3), palette.Accent);
+            // A grounded metal stand and glowing lantern body accompany every real point-light
+            // request. The six route lights remain separated by long dark spans, while alternating
+            // wall sides make the fixtures readable as navigation cues instead of a runway line.
+            a.Box(basePosition, new int3(2, 16, 2), GameMaterialIds.Gold);
+            a.Box(basePosition + new int3(-2, 14, -2), new int3(5, 5, 5), GameMaterialIds.Gold);
+            a.Box(basePosition + new int3(-1, 15, -1), new int3(3, 3, 3), palette.Accent);
 
             return new MineCaveLightRequest
             {
-                PositionVoxels = (float3)(basePosition + new int3(0, 11, 0)),
+                PositionVoxels = (float3)(basePosition + new int3(0, 17, 0)),
                 Variant = (uint)(0xC4170000u + ordinal),
             };
         }
