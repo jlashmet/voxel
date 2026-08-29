@@ -156,6 +156,7 @@ namespace VoxelEngine.Structures.Runtime
                     case ShapeOp.EmitFrustum:
                     case ShapeOp.EmitAnnulus:
                     case ShapeOp.EmitArcWedge:
+                    case ShapeOp.EmitTerrainCorridor:
                     {
                         if (emitted >= definition.MaxPrimitives ||
                             emitted >= FeatureBudget.MaxPrimitivesPerInstance)
@@ -169,7 +170,7 @@ namespace VoxelEngine.Structures.Runtime
                         primitive = Orient(primitive, definition.Footprint, orientation);
                         primitive.A += origin;
                         primitive.B += origin;
-                        if (primitive.Shape >= PrimitiveShape.Ellipsoid)
+                        if (UsesPositionC(primitive.Shape))
                             primitive.C += origin;
 
                         primitives.Add(primitive);
@@ -444,6 +445,22 @@ namespace VoxelEngine.Structures.Runtime
                         (byte)o6, (byte)o7,
                         (PrimitiveMode)o10, order, (ushort)o8, (byte)o9);
 
+                case ShapeOp.EmitTerrainCorridor:
+                    return new Primitive
+                    {
+                        Shape = PrimitiveShape.TerrainCorridor,
+                        Mode = PrimitiveMode.TerrainCorridor,
+                        Material = (byte)o12,
+                        SurfaceStyle = SurfaceStyles.MaterialDefault,
+                        Order = order,
+                        A = new int3(o0, o1, o2) + offset,
+                        B = new int3(o3, o4, o5) + offset,
+                        InnerRadius = math.max(0, o6),
+                        Radius = math.max(o6, o7),
+                        C = new int3(math.max(0, o8), math.max(1, o9), math.max(0, o10)),
+                        D = new int3(math.max(0, o11), o13, o14),
+                    };
+
                 default:
                     return default;
             }
@@ -458,10 +475,18 @@ namespace VoxelEngine.Structures.Runtime
             int3 a = RotatePoint(p.A, footprint, orientation);
             int3 b = RotatePoint(p.B, footprint, orientation);
 
-            p.A = math.min(a, b);
-            p.B = math.max(a, b);
+            if (p.Shape == PrimitiveShape.TerrainCorridor)
+            {
+                p.A = a;
+                p.B = b;
+            }
+            else
+            {
+                p.A = math.min(a, b);
+                p.B = math.max(a, b);
+            }
 
-            if (p.Shape >= PrimitiveShape.Ellipsoid)
+            if (UsesPositionC(p.Shape))
                 p.C = RotatePoint(p.C, footprint, orientation);
 
             if ((orientation & 1) != 0)
@@ -510,6 +535,12 @@ namespace VoxelEngine.Structures.Runtime
 
             return p;
         }
+
+        private static bool UsesPositionC(PrimitiveShape shape) =>
+            shape == PrimitiveShape.Ellipsoid
+            || shape == PrimitiveShape.Frustum
+            || shape == PrimitiveShape.Annulus
+            || shape == PrimitiveShape.ArcWedge;
 
         private static int2 RotateRadialDirection(int2 direction, byte originalAxis,
                                                   byte rotatedAxis, byte orientation,
