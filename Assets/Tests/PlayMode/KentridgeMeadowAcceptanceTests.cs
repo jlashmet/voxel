@@ -1,17 +1,21 @@
 using System.Collections;
+using System.Collections.Generic;
 using System.Reflection;
 using Game.Kentridge.PlayableSlice;
 using NUnit.Framework;
+using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
+using VoxelEngine.Showcase;
+using VoxelEngine.Vegetation.Api;
 
 namespace VoxelEngine.Tests.PlayMode
 {
     /// <summary>
     /// Focused production-scene acceptance for the Kentridge meadow feature. The standalone-player
     /// replay is the visual authority; this test makes the same scene expose durable density,
-    /// exclusion, and cost diagnostics before the visual capture is trusted.
+    /// exclusion, grounding, and cost diagnostics before the visual capture is trusted.
     /// </summary>
     public sealed class KentridgeMeadowAcceptanceTests
     {
@@ -58,12 +62,35 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(life.RouteExclusionCount, Is.GreaterThan(0),
                 "The production meadow must actively clear the authored traversal route rather than merely missing it by chance.");
 
+            ShowcaseWorld world = ReadPrivateField<ShowcaseWorld>(driver, "_world");
+            Assert.That(world, Is.Not.Null,
+                "The production Kentridge world must be available to verify semantic grass grounding.");
+            List<VegetationInstance> instances = ReadPrivateField<List<VegetationInstance>>(life, "_undergrowth");
+            Assert.That(instances, Is.Not.Null.And.Not.Empty);
+
+            int checkedGrassRoots = 0;
+            for (int i = 0; i < instances.Count && checkedGrassRoots < 256; i++)
+            {
+                VegetationInstance instance = instances[i];
+                if (instance.Kind != VegetationKind.Grass) continue;
+
+                int vx = (int)math.floor(instance.PositionMetres.x / ShowcaseWorld.VoxelSize);
+                int vz = (int)math.floor(instance.PositionMetres.z / ShowcaseWorld.VoxelSize);
+                float exposedTopFace = (world.SurfaceHeight(vx, vz) + 1) * ShowcaseWorld.VoxelSize;
+                Assert.That(instance.PositionMetres.y, Is.EqualTo(exposedTopFace).Within(0.0001f),
+                    $"Grass root at ({instance.PositionMetres.x:F2},{instance.PositionMetres.z:F2}) must sit on the exposed top face, not inside the top occupied voxel.");
+                checkedGrassRoots++;
+            }
+            Assert.That(checkedGrassRoots, Is.GreaterThanOrEqualTo(64),
+                "Grounding regression must inspect a representative set of production meadow roots.");
+
             Debug.Log($"KENTRIDGE_MEADOW_ACCEPTANCE grassInstances={life.GrassCount} "
                     + $"grassBlades={life.GrassBladeCount} "
                     + $"primaryMeadowInstances={life.PrimaryMeadowGrassCount} "
                     + $"primaryMeadowBlades={life.PrimaryMeadowBladeCount} "
                     + $"meshChunks={life.GrassMeshChunkCount} "
                     + $"excludedLeakage={life.ExcludedSurfaceGrassCount} "
+                    + $"groundRootsChecked={checkedGrassRoots} "
                     + $"routeRejected={life.RouteExclusionCount} "
                     + $"builtRejected={life.BuiltContentExclusionCount} "
                     + $"waterRejected={life.WaterExclusionCount} "
