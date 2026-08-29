@@ -14,6 +14,19 @@ namespace Game.WorldBuilder.Api
         public const string OrcVillage = "orc-village";
     }
 
+    /// <summary>
+    /// Bounded semantic footprint reserved by the shared town-architecture authoring contract.
+    /// Backends may author less geometry, but must stay within these limits so callers can place districts safely.
+    /// </summary>
+    public static class TownArchitectureDistrictBounds
+    {
+        public const int HalfWidthVoxels = 82;
+        public const int HalfDepthVoxels = 66;
+        public const int EstimatedMaxHeightVoxels = 78;
+        public const int WidthVoxels = HalfWidthVoxels * 2;
+        public const int DepthVoxels = HalfDepthVoxels * 2;
+    }
+
     public enum TownArchitectureStructureRole : byte
     {
         Residential = 0,
