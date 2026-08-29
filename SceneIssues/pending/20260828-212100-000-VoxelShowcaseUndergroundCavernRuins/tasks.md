@@ -18,10 +18,11 @@
 - [x] Review blast radius for every shared-system change: generic cave engine unchanged; new traversal helper is opt-in and only `VoxelShowcase` consumes it; no new renderer/light system or broader preload scheme introduced.
 - [ ] Quantify world-build/runtime cost from exact CI metrics: voxel/chunk work, triangle impact, draw/light/shadow cost, memory, and supported-device budget impact without weakening budgets.
 - [x] Refresh/merge current `origin/master` into `fixes/agent-3` before the final CI gate and resolve only conflicts inside this assignment's files.
-- [ ] Add capture dimensions and an opt-in multi-stage built-player SceneIssue replay sequence for this feature; ordinary single-capture SceneIssues must retain their existing behavior.
+- [x] Add capture/replay dimensions and an opt-in multi-stage built-player SceneIssue replay sequence for this feature; ordinary single-capture SceneIssues retain their existing behavior.
 - [ ] Use the built-player sequence to cover entrance, descent/dogleg, cavern reveal/formations, and ruin/statues/lighting rather than collecting repeated frames from one pinned camera pose.
-- [ ] Run exact-SHA focused targeted CI on `ci-test/fixes/agent-3` only after production/test work is final.
-- [ ] Run exact-SHA built-application `VoxelShowcase` harness and verify usable rendered scene with no startup/runtime exceptions.
+- [x] Diagnose the first corrected-source CI attempt (`808decb3`): product compile failure in `UndergroundCavernRuinAuthoring.cs` because `Coatings` lacked its `VoxelEngine.Storage.Api` import; fix the production source before any replacement request.
+- [ ] Run green exact-SHA focused targeted CI on `ci-test/fixes/agent-3` only after production/test work is final.
+- [ ] Run green exact-SHA built-application `VoxelShowcase` harness and verify usable rendered scene with no startup/runtime exceptions.
 - [ ] Validate every acceptance criterion from built-app evidence; record durable verification evidence beside the assignment.
 - [x] Complete initial pending metadata and move only this assignment `open` -> `pending` before final validation.
 - [ ] After all required green exact-SHA gates, set `status=fixed`, `resolvedUtc`, move only this assignment `pending` -> `closed`, merge current master, and push exact feature head to master non-force.
