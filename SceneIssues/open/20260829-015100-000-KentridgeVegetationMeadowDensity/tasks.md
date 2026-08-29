@@ -14,12 +14,13 @@
 - [ ] Add a backward-compatible vegetation-placement allowed-kind mask so a top-level area policy can constrain generated kinds without Kentridge-only scatter logic.
 - [ ] Configure Kentridge meadow/countryside to allow only canonical procedural grass, no trees, and no ambient animals.
 - [ ] Produce one contiguous meadow with >=3,000 procedural blades through WorldBuilder/runtime realization, not scene-local scatter/GameObjects.
+- [ ] Compute the primary meadow as the largest 4-neighbor connected eligible sampling component and count generated grass within that component; do not treat an entire road side as contiguous.
 - [ ] Respect road/bridge route clearance, built structures/interiors, riverbank/water, cliffs/steep-invalid terrain and other exclusions.
 - [ ] Add runtime diagnostics that attribute grass count to the Kentridge meadow and make the acceptance count inspectable.
 - [ ] Fix shared grass wind only if production evidence proves it is broken; no Kentridge shader fork.
 
 ## Regression / cost
-- [ ] Add focused production-path regression for policy filtering, default-mask compatibility, density, determinism, exclusions, empty trees/animals, and meadow blade count.
+- [ ] Add focused production-path regression for policy filtering, default-mask compatibility, density, determinism, exclusions, empty trees/animals, connected-component meadow attribution, and meadow blade count.
 - [ ] Measure CPU/GPU/memory/world-build/build-time blast radius against existing vegetation/device budgets; do not weaken budgets.
 - [ ] Review final diff for scope; `.github/test-request.json` must not be on the feature branch and no `.unity` serialization changes are allowed.
 
