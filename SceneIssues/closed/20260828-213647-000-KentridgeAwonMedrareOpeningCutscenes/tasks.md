@@ -18,7 +18,7 @@
 - [x] Merge current `master` conflict-free before final CI.
 - [x] Create exactly one fresh final CI request on `ci-test/fixes/agent-1`, directly parented by feature SHA `38bfc6f67a746b505089320634d51ccbaed1d102`; feature `.github/test-request.json` remains untouched.
 - [x] Exact request `89289ab14a85070d8d887f88e60bd8024784300e`, run `33256802496`: all 3 focused PlayMode regressions green; built `KentridgePlayableSlice`; real player ran 45s with status 0; final 1600x900 verification and artifact `9716084090` uploaded.
-- [x] Set pending metadata and move only this assignment `open -> pending` in a bookkeeping commit.
-- [ ] Move only this assignment `pending -> closed`, set `status=fixed` and `resolvedUtc`, and finish closure metadata.
+- [x] Set pending metadata and move only this assignment `open -> pending` in bookkeeping commit `7dbf1a231f01d8cbfff0ec65011ed7c0f50cb469`.
+- [x] Move only this assignment `pending -> closed`, set `status=fixed` and `resolvedUtc`, and finish closure metadata.
 
 Post-close workflow: re-fetch current `origin/master`, merge it into `fixes/agent-1` if needed, then non-force push that exact feature head to `origin/master`; if master advances, fetch/merge/retry.
