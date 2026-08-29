@@ -92,11 +92,17 @@ if not isinstance(scene, str) or not scene.startswith('Assets/Scenes/') or not s
 frames = value.get('captures') or []
 if not isinstance(frames, list):
     raise SystemExit('ERROR: scene issue captures must be an array')
-frame = frames[0] if frames else value
-width = frame.get('screenWidth') or value.get('screenWidth') or 0
-height = frame.get('screenHeight') or value.get('screenHeight') or 0
-if not isinstance(width, int) or not isinstance(height, int) or width <= 0 or height <= 0:
-    raise SystemExit('ERROR: scene issue has no valid captured screen dimensions')
+if frames:
+    frame = frames[0]
+    width = frame.get('screenWidth') or value.get('screenWidth') or 0
+    height = frame.get('screenHeight') or value.get('screenHeight') or 0
+    if not isinstance(width, int) or not isinstance(height, int) or width <= 0 or height <= 0:
+        raise SystemExit('ERROR: scene issue has no valid captured screen dimensions')
+else:
+    # Capture-less architecture/feature issues have no pose resolution to preserve. Use the
+    # harness default while retaining strict recorded dimensions whenever a capture exists.
+    width = 1600
+    height = 900
 print(f'{scene}\t{width}\t{height}\t{len(frames)}')
 PY
 )"
