@@ -17,7 +17,7 @@
 - [x] Add focused behavioral regression through the authoritative `VoxelShowcase`/WorldBuilder production path, in addition to the existing detached authoring regression, for route execution, cavern/statues/geology/lights/determinism/write budget; existing reusable-authoring regression covers dark-stone/masonry writes.
 - [x] Review blast radius for every shared-system change: generic cave engine unchanged; new traversal helper is opt-in and only `VoxelShowcase` consumes it; no new renderer/light system or broader preload scheme introduced.
 - [ ] Quantify world-build/runtime cost from exact CI metrics: voxel/chunk work, triangle impact, draw/light/shadow cost, memory, and supported-device budget impact without weakening budgets.
-- [ ] Refresh/merge current `origin/master` into `fixes/agent-3` before the final CI gate and resolve only conflicts inside this assignment's files.
+- [x] Refresh/merge current `origin/master` into `fixes/agent-3` before the final CI gate and resolve only conflicts inside this assignment's files.
 - [ ] Run exact-SHA focused targeted CI on `ci-test/fixes/agent-3` only after production/test work is final.
 - [ ] Run exact-SHA built-application `VoxelShowcase` harness and verify usable rendered scene with no startup/runtime exceptions.
 - [ ] Validate every acceptance criterion from built-app evidence; record durable verification evidence beside the assignment.
