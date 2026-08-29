@@ -1,58 +1,56 @@
 # Tasks
 
 ## Investigation
-- [x] Trace current production owners for macro/top-down connectivity, WorldBuilder composition, Kentridge roads/streets, voxel density/surface generation, terrain material/coating, vegetation/ecology, and streaming/LOD.
-- [x] Inspect road behavior/history at `336cb6e63e19bc6039f3f89bb4d2056e2d0efb60` and slope-material safety at `8cd28a5ea7133a4012a17112375f70384bee79ec`.
-- [x] Record the discriminator result in `plan.md` and add discovered required work here.
-- [x] Re-inspect resumed implementation and discriminate semantic API completion from physical lowering completion: current lowering still uses overlapping square stamps and a hard Dirt/Moss boundary, so it does not yet satisfy the shared continuous-influence contract.
-- [x] Diagnose pre-merge targeted CI compile failure: `SettlementPlan` and `VegetationCandidate` are both `MountingForce.WorldGen` types; repair the regression harness import without changing product behavior.
+- [x] Trace production owners for macro connectivity, Kentridge routes/streets, voxel terrain/surface generation, ecology, and streaming/LOD.
+- [x] Inspect historical strip-road behavior at `336cb6e63e19bc6039f3f89bb4d2056e2d0efb60` and slope-material safety at `8cd28a5ea7133a4012a17112375f70384bee79ec`.
+- [x] Record the representation-gap discriminator and selected shared-road design in `plan.md`.
+- [x] Diagnose the pre-merge targeted CI compile failure and repair the missing `MountingForce.WorldGen` test import without changing product behavior.
+- [x] Audit terrain/crossing flag authority: current production `TerrainQuery`, `PlannedRoute`, and `TopDownWorldRouteSpec` expose no water/reserved/barrier field, so adapters must not fabricate flags; generic resolver policy remains ready for a future authoritative owner.
 
 ## Implementation
-- [ ] Make road/trail intent first-class on stable semantic world endpoints with reusable profile data and provenance/seed behavior.
-- [ ] Deterministically resolve logical connections to terrain-aware physical routes with grade/cut-fill constraints and explicit invalid-barrier handling.
-- [ ] Wire production terrain/crossing flags where the owning world data exposes water/reserved/barrier semantics; do not leave production resolution permanently hard-wired to `None` if those semantics are available.
-- [x] Provide one compact, chunk-safe road influence consumed by terrain deformation, surface/shoulder presentation, and vegetation falloff.
-- [ ] Produce genuinely graded/walkable voxel roads through normal WorldBuilder generation without scene-local voxel edits or non-destructible cover meshes.
-- [ ] Replace overlapping square road stamps with a bounded generic terrain-corridor lowering whose physical rasterization evaluates distance/elevation per voxel column from the resolved segment.
-- [ ] Implement/reuse continuous primary+secondary terrain coverage for natural Dirt↔local-terrain shoulders while preserving exposed-top/slope material correctness.
-- [ ] Ensure the physical surface path consumes the same 0..31 influence scalar used by road/ecology sampling; a separate monotonic-influence unit assertion is not sufficient proof.
-- [ ] Keep semantic/resolved roads available to navigation/map/travel/NPC/encounter consumers.
-- [ ] Migrate equivalent Kentridge road generation to the shared primitive; do not duplicate the macro-world physical-realization ticket’s road graph/solver.
-- [ ] Migrate modern Kentridge `SettlementPlan.Routes` (the production planner emits zero legacy `Streets`) while retaining a compatibility adapter for authored legacy streets.
-- [ ] Convert diagonal `PlannedRoute` legs into deterministic shared voxel-road geometry without restoring Kentridge-only axis assumptions.
-- [x] Replace vegetation's legacy `BlockedByStreet`-only exclusion with the shared road influence so both `Routes` and compatibility `Streets` suppress/recover vegetation from the exact physical corridor.
-- [x] Keep regional ecology policy authoritative; apply road influence only as a local suppression/recovery modifier using existing route exclusion ownership.
-- [ ] Replace `TopDownWorldVoxelCatalogue`'s Manhattan `PaintSurface` tile realization with the shared terrain-aware resolved route/influence so macro semantic connections and Kentridge circulation use one physical road spine.
-- [ ] Preserve deterministic chunk/LOD/streaming behavior and avoid per-segment GameObject/primitive explosion.
+- [x] Make road/trail intent first-class on stable semantic endpoints with reusable profile data, provenance, and deterministic seed.
+- [x] Deterministically resolve logical connections to terrain-aware physical routes with grade/cut-fill constraints and invalid-barrier/crossing policy.
+- [x] Provide one compact generic road network/influence with grading, shoulder, ecology, tangent, junction, and keep-clearance queries.
+- [x] Produce destructible graded voxel roads through normal WorldBuilder generation; no scene-local voxel edits or cover meshes.
+- [x] Replace overlapping square/strip road stamps with bounded one-primitive `EmitTerrainCorridor` pieces evaluated per voxel column.
+- [x] Preserve local terrain material through continuous road shoulder coverage and persist the same 0..31 RoadInfluence detail for presentation/LOD.
+- [x] Ensure semantic and physical surface paths consume the same 0..31 influence scalar.
+- [x] Keep semantic/resolved roads queryable for navigation/map/travel/NPC/encounter consumers through `WorldRoadNetwork` route IDs, endpoints, junctions, local frames, and influence queries.
+- [x] Migrate modern Kentridge `SettlementPlan.Routes` to the generic network/primitive while retaining legacy `Streets` compatibility.
+- [x] Preserve arbitrary/diagonal `PlannedRoute` legs without Kentridge-only axis assumptions.
+- [x] Make Kentridge vegetation consume the shared scalar suppression/recovery instead of hard street/clearance exclusion.
+- [x] Keep regional ecology authoritative; road influence only thins existing candidates locally.
+- [x] Author Kentridge keep-clearance on generic routes and expose it through the generic aggregate without Kentridge types in the reusable API.
+- [x] Replace top-down hard-route Manhattan surface realization with `TopDownWorldRoadNetwork` + the same shared terrain corridor lowering.
+- [x] Preserve bounded generation: one primitive per bounded piece, FeatureBudget-capped definitions/footprints, no per-segment GameObjects, no per-frame road-generation work.
 
-## Regressions
-- [ ] Validate the repaired `KentridgeRoadShoulderRegressionTests` import on the final exact-SHA targeted run; the earlier request failed before product behavior executed.
-- [ ] Top-level semantic connection yields one traceable semantic road and deterministic resolved route.
-- [ ] Fixed input/seed yields stable route geometry.
-- [ ] Non-flat routing respects maximum grade and cut/fill limits.
-- [ ] Impossible blocked routes reroute/reject or require explicit crossing/pass semantics.
-- [ ] Terrain and surface presentation consume the same influence.
-- [ ] Physical corridor rasterization proves continuous/monotonic shoulder detail without repeated square/band stamps and preserves local non-road material outside the core.
-- [ ] Shoulder coverage is continuous/monotonic and does not require discrete band stacks.
-- [ ] Replace the legacy `KentridgeRoadShoulderRegressionTests` assertion that requires ten Moss shoulder bands with a regression proving shared continuous influence/coverage and no repeated-band dependency.
-- [ ] Vegetation is suppressed in the core and recovers through the shoulder.
-- [ ] Segment/chunk/LOD boundaries preserve road geometry/material continuity.
-- [ ] Semantic/resolved road remains queryable by travel/navigation/map consumers.
-- [ ] Existing Kentridge connectivity remains valid after migration.
+## Regressions implemented
+- [x] Modern Kentridge semantic routes map to traceable generic physical road definitions.
+- [x] Fixed intent/seed/terrain yields deterministic resolved geometry.
+- [x] Non-flat deterministic routing respects maximum grade and cut/fill envelopes.
+- [x] Water/barrier fixture rejects a route without authored crossing policy and resolves when policy allows it.
+- [x] Physical corridor distance/height/coverage matches semantic influence on an intermediate shoulder sample.
+- [x] Shoulder coverage recovers continuously/monotonically without the legacy ten-band dependency.
+- [x] Physical catalogue asserts one `EmitTerrainCorridor`, zero legacy road `EmitBox` stamps, and bounded footprints/definitions.
+- [x] Vegetation suppresses in the core and progressively recovers through shared shoulder influence; production planner matches shared-network expectation.
+- [x] Kentridge authors positive generic placement keep-clearance beyond the grading radius and it is queryable from `WorldRoadNetwork`.
+- [x] Existing Kentridge named-landmark, diagonal-route, and connectivity coverage remains in `KentridgeOrganicLayoutTests`.
+- [ ] Validate the repaired/expanded `KentridgeRoadShoulderRegressionTests` class on final exact-SHA targeted CI.
+- [ ] Validate segment/chunk/LOD road geometry/material continuity in the built player.
 
 ## Validation / cost
-- [ ] Run focused exact-SHA targeted CI through `ci-test/fixes/agent-1` only.
-- [ ] Run exact-SHA built-application scene harness for `KentridgePlayableSlice`; verify no startup/runtime exceptions.
-- [ ] Capture durable elevated endpoint-to-endpoint road evidence.
-- [ ] Capture player-height traversal with collision/streaming active.
-- [ ] Capture both shoulders on uneven/sloped terrain showing natural Grass↔Dirt transition with no repeated bands/staircase/hard line.
-- [ ] Capture medium/far views proving no chunk/LOD seams.
-- [ ] Capture vegetation suppression/recovery and route/influence traceability evidence.
-- [ ] Measure route/world-build time, voxel/brick work, primitive/GameObject count, resident memory, CPU/GPU cost, and streaming/LOD impact against existing budgets.
-- [ ] Review final feature-only diff for unrelated capture/workflow/CI-request changes.
+- [ ] Refresh/merge current `origin/master` immediately before the final request.
+- [ ] Run one focused exact-SHA targeted CI request through `ci-test/fixes/agent-1` only; do not replace it while queued/running.
+- [ ] Run/inspect repository-supported built `VoxelShowcase` player evidence; verify no startup/runtime exceptions.
+- [ ] Capture/inspect endpoint-to-endpoint road continuity and player-height traversal with collision/streaming active.
+- [ ] Inspect both shoulders on uneven/sloped terrain for natural Grass↔Dirt recovery with no repeated bands, staircase, exposed wall, or hard line.
+- [ ] Inspect medium/far views for chunk/LOD seams and floating props.
+- [ ] Verify vegetation suppression/recovery and semantic route/influence traceability evidence.
+- [ ] Quantify bounded cost from generated route/definition/primitive counts plus CI bake/player residency/runtime evidence; confirm no storage/vertex-stride or per-frame cost increase.
+- [ ] Review final feature-only diff for unrelated assignment, workflow, or feature-branch `.github/test-request.json` changes.
 
 ## Promotion / closure
-- [ ] Complete `issue.json` pending metadata (`status`, `resolutionSummary`, `regressionTest`, `fixCommit`) after all promotion gates pass.
+- [ ] Complete `issue.json` pending metadata (`status`, `resolutionSummary`, `regressionTest`, `fixCommit`) only after promotion gates pass.
 - [ ] Move only this assignment `open` → `pending` in a separate bookkeeping commit.
 - [ ] After green exact-SHA targeted CI and built-app validation, set `status=fixed` and `resolvedUtc`, then move only this assignment `pending` → `closed`.
-- [ ] Merge current `origin/master` into `fixes/agent-1`, resolve only in-scope conflicts, push feature head, then fast-forward/non-force push that exact head to `origin/master`; if master advances, fetch/merge/retry.
+- [ ] Merge current `origin/master` into `fixes/agent-1`, resolve only in-scope conflicts, push feature head, then push that exact head to `origin/master` non-force; if master advances, fetch/merge/retry.
