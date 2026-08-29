@@ -1,35 +1,20 @@
 # Tasks
 
-- [x] Inspect the reopened feature, prior implementation, available rendered/runtime evidence, and exact VoxelShowcase acceptance requirements.
-- [x] Maintain separate durable `plan.md` and `tasks.md`; record discovered work before changing production/test behavior.
-- [x] Discriminate stale startup bake vs runtime realization: the checked-in Aug-25 bake predates the Aug-28 mountain source.
-- [x] Confirm current authored scale/traversal intent: substantial footprint/rise, shallow supported switchbacks, usable summit, grounded placeholder.
-- [x] Add startup-bake provenance that binds current content signature to exact serialized payload SHA-256.
-- [x] Route proximity/cutscene presentation through reusable shared modules; keep VoxelShowcase composition-only.
-- [x] Add issue-owned evidence route and production `CharacterMotor` waypoint replay with no teleport/jump/debug proximity shortcut.
-- [x] Land replay-only production-motor sprint behavior; normal player walk speed remains unchanged outside evidence replay.
-- [x] Land an asymmetric multi-mass mountain realization while preserving path/support/summit composition.
-- [x] Fix prior CI-discovered compile/request defects: supported 20–60 second replay, dialogue constructor argument, and `Game.Cutscenes.Api` asmdef reference.
-- [x] Merge current `origin/master` into `fixes/agent-4` before the new substantial attempt; no overlapping feature/master paths were found.
-- [x] Change `mountain-dragon-evidence-route.json` timeout to fit strictly inside the 60-second workflow ceiling.
-- [x] Replace the brittle exact mathematical ramp-high sample with a guaranteed interior realized-ramp column/surface assertion.
-- [x] Add a structural regression requiring multiple asymmetric mountain masses so realization cannot silently collapse to one symmetric frustum.
-- [x] Replace full-height rectangular ramp/turn/summit support boxes with bounded landform-shaped support that does not read as dam-like vertical walls.
-- [x] Add a regression that rejects tall ground-to-path rectangular support walls in the reusable mountain program.
-- [x] Bump the startup-bake landmark contract revision for the naturalized realization so pre-naturalization manifests are rejected even though dimensions did not change.
-- [x] Ensure the exact single Unity filter used by final targeted CI executes both natural-landform structural regressions in addition to semantic startup-bake assertions.
-- [x] Publish the one allowed final targeted request on `ci-test/fixes/agent-4` directly from feature SHA `3059c8c119a79840674ea8d7b53d6b581bf036ac`; run `33254450374` is diagnostic red and must not be replaced under the assignment constraint.
-- [ ] Replace the exact turn-landing midpoint material probe exposed by run `33254450374` with a robust realized landing-footprint/column assertion; one integer midpoint may legitimately rasterize to air.
-- [ ] Make built-player waypoint arrival verify the authored vertical elevation (using production motor feet/grounded state) so X/Z proximity cannot falsely certify a ground-level bypass as a successful ascent.
-- [ ] Fix the actual traversal defect demonstrated by run `33254450374`: the player remained near Y=23.85 m while the first high waypoint was falsely credited, then collided/clipped into elevated gray mountain/support geometry before `switchback-1-high`.
-- [ ] Add regression/evidence that every switchback transition reaches the expected vertical band through normal `CharacterMotor` movement, with no ground-level bypass or camera/player embedding in support geometry.
-- [ ] Generate and track `Assets/Resources/VoxelShowcase/ShowcaseWorld.manifest.txt` (payload, not only `.meta`) for the exact accepted checked-in bake.
-- [ ] Regenerate/commit `Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes` from the final accepted WorldBuilder source without creating any extra CI transport.
+- [ ] Replace the exact turn-landing midpoint material probe with a robust realized landing-footprint/column assertion.
+- [ ] Make built-player waypoint arrival verify authored vertical elevation using production `CharacterMotor.Position` feet and `Grounded`, not X/Z alone.
+- [ ] Fix the actual traversal defect that left the player near Y=23.85 m instead of climbing the first switchbacks.
+- [ ] Add a reusable path occupancy/headroom contract; if support geometry violates it, bound the generic mountain support realization rather than adding scene-local carving.
+- [ ] Add semantic occupied-below + clear-above path-footprint regression to distinguish supported walking surface from a trapped/buried corridor.
+- [ ] Add regression/evidence that every switchback transition reaches its expected vertical band through normal `CharacterMotor` movement.
+- [ ] Generate and track `Assets/Resources/VoxelShowcase/ShowcaseWorld.manifest.txt` for the accepted startup bake.
+- [ ] Regenerate and commit `Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes` for the accepted source contract.
 - [ ] Prove the checked-in startup bake semantically contains mountain mass, every switchback/landing, summit support, and dragon occupancy.
-- [ ] Check final one-time world-build/bake cost and shared-system blast radius against existing budgets; do not weaken budgets.
-- [ ] Verify green exact-SHA focused behavioral regression and exact built-application VoxelShowcase harness with no startup/runtime exceptions. A new CI transport requires explicit user authorization because the single allowed final request has already been consumed.
-- [ ] Traverse the complete evidence route via normal `CharacterMotor` movement within the supported replay window.
-- [ ] Save durable built-player captures for normal approach, path base, representative switchbacks, supported summit dragon, and proximity dialogue.
-- [ ] Human-review every rendered capture and confirm a grounded natural substantial mountain, continuous readable supported ascent, no impassable intersections, supported dragon, and visible `Hello, I'm Mr. Dragon.` dialogue.
-- [ ] Complete pending metadata (`status`, `resolutionSummary`, `regressionTest`, `fixCommit`) and move only this assignment open→pending in separate bookkeeping.
-- [ ] After every exact-SHA gate is green, set `status=fixed` and `resolvedUtc`, move only this assignment pending→closed, merge latest `origin/master`, and non-force push the exact feature head to `origin/master` (retry merge if master advanced).
+- [ ] Check final one-time world-build/bake cost, primitive count, and shared-system blast radius against the 512 primitive budget.
+- [ ] Move the source-complete candidate from open to pending and complete candidate metadata before CI.
+- [ ] Consume exactly one currently authorized final `ci-test/fixes/agent-4` request only after source/regressions/bake/pending gates are committed; never replace it or create an extra CI transport.
+- [ ] Verify green exact-SHA focused behavioral regression and built-app harness on that single final request.
+- [ ] Traverse the complete evidence route by normal production movement with grounded vertical waypoint proof.
+- [ ] Save durable captures for normal approach, path base, representative switchbacks, summit/dragon, and exact dialogue.
+- [ ] Human-review the exact built-player captures for grounded mountain scale, readable continuous ascent, supported summit dragon, and `Hello, I'm Mr. Dragon.`
+- [ ] Complete pending evidence/resolution metadata after green exact-SHA CI.
+- [ ] Set `status=fixed` and `resolvedUtc`, move pending to closed, merge latest `origin/master` into `fixes/agent-4`, and push that exact branch head to `origin/master` non-force (fetch/merge/retry if master advanced).
