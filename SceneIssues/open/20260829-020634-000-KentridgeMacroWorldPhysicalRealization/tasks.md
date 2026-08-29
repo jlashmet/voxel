@@ -31,7 +31,8 @@
 - [x] `33260866388` / artifact `9717246958`: validation remote prewarm harmed settlement presentation; recorded experiment 006 and removed validation-only prewarm.
 - [x] `33261299347` / artifact `9717362552`: exact focused + built player green but town views were terrain-occluded and ridge/overview exceeded 60s; recorded experiment 007.
 - [x] `33261744161` / artifact `9717484869`: exact focused + built player green but the sequence still omitted Orc/ridge/network; recorded experiment 008.
-- [x] `33263409994` / artifact `9717947090`: focused + built player green and all eight PNGs emitted, but full-resolution inspection rejects closure: Moordell clipped; Rossdam/Fairy/Orc blockouts unreadable; lake only a small sliver with a large translucent plane; overview/road contain large unstreamed holes. `coverage=True` is therefore not sufficient elevated-frustum proof. Recorded `experiment-009-frustum-coverage-and-readable-evidence.md`.
+- [x] `33263409994` / artifact `9717947090`: focused + built player green and all eight PNGs emitted, but full-resolution inspection rejects closure: Moordell clipped; Rossdam/Fairy/Orc blockouts unreadable; lake only a small sliver with a large translucent plane; overview/road contain large unstreamed holes. `coverage=True` is therefore not sufficient elevated-frustum proof. Recorded experiment 009.
+- [x] `33265086481` / artifact `9718439671`: exact focused PlayMode + built player green; every evidence target captured after four consecutive complete published current-camera passes. Full-resolution inspection still rejects closure: Moordell exposes only one recess, Rossdam has no readable town and is dominated by a flat blue/cut surface, Fairy/Orc show roads but no four-building blockouts, and lake/ridge views do not clearly prove a substantial basin/barrier. Recorded experiment 010.
 
 ## Frustum-ready evidence work discovered by 33263409994
 - [x] Inspect existing rendering/streaming APIs. `RenderingComposition.HasCompletePublishedNearSurfaceCoverage()` is explicitly the current surface pass's `MissingVisibleSolidChunks == 0`; there is no arbitrary-position/frustum coverage query exposed through Composition.
@@ -44,6 +45,14 @@
 - [x] Gate every remote target on four consecutive complete current-camera passes after its minimum settle time; reset stability on each target transition.
 - [x] Preserve validation-only timing, real `CharacterMotor` motion at `Time.timeScale=1`, collision/streaming, and all production planner/catalogue/streamer/story/gameplay semantics.
 - [x] Self-review implementation commit `a0fc52f67e1a8e495de0012ca4715b7250f9c3a5`: only `KentridgeMacroWorldEvidenceDriver.cs` changed. Full branch diff remains limited to agent-6 Kentridge/WorldBuilder/tests/assignment files; `.github/test-request.json` is absent. Four-frame stability adds only bounded validation latency after convergence and closer cameras reduce view/streaming footprint.
+
+## Physical-visibility discriminator discovered by 33265086481
+- [ ] Trace generic settlement blockouts from `TopDownWorldSettlementPlan.Buildings` through the production voxel catalogue and final combined catalogue; prove whether each planned building has visible above-ground shell/roof voxels at its sampled ground height.
+- [ ] Check whether terrain/road composition overwrites or swallows generic-building voxels, and whether the resident production player catalogue actually includes those features at Fairy/Orc/Rossdam/Moordell coordinates.
+- [ ] Correlate exact run `33265086481` camera/focus coordinates with building centres/extents and emitted voxels to discriminate generation defects from framing/streaming defects.
+- [ ] If generation can satisfy plan-level counts while producing an unreadable/invisible blockout, add a production-path behavioral regression for visible above-ground building shell material and fix the reusable physical catalogue.
+- [ ] If generation is correct, change only validation targeting/readiness from resolved production geometry; do not weaken world truth or streamer budgets.
+- [ ] Re-run exact-SHA focused + built-player validation after the proven minimal fix and reject closure unless full-resolution settlement/lake/ridge evidence is readable.
 
 ## Behavioral regression
 - [x] Final targeted PlayMode acceptance exists: `VoxelEngine.Tests.PlayMode.KentridgeMacroWorldPhysicalProductionAcceptanceTests.PhysicalMacroWorldHasWalkableRoutesAndADeepStreamedWaterBody`.
