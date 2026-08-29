@@ -59,8 +59,8 @@ namespace Game.Structures.Runtime
             for (int i = 0; i < DoglegSegments.Length; i++)
             {
                 int sign = i == 1 ? -1 : 1;
-                int3 floor = FloorAtSegment(in request, in cave, DoglegSegments[i]);
-                carveNodes += AuthorDogleg(authoring, floor, request.Entrance.Facing, sign, in cave, in palette);
+                carveNodes += AuthorDogleg(
+                    authoring, in request, in cave, DoglegSegments[i], sign, in palette);
             }
 
             var lights = new MineCaveLightRequest[RouteLightSegments.Length];
@@ -105,12 +105,14 @@ namespace Game.Structures.Runtime
             for (int dogleg = 0; dogleg < DoglegSegments.Length; dogleg++)
             {
                 int sign = dogleg == 1 ? -1 : 1;
-                int3 floor = FloorAtSegment(in request, in cave, DoglegSegments[dogleg]);
-                int3 side = new int3(-forward.z, 0, forward.x) * sign;
                 for (int i = 0; i < DoglegForwardOffsets.Length; i++)
-                    points[output++] = floor
-                                       + forward * DoglegForwardOffsets[i]
-                                       + side * DoglegSideOffsets[i];
+                    points[output++] = DoglegNode(
+                        in request,
+                        in cave,
+                        DoglegSegments[dogleg],
+                        DoglegForwardOffsets[i],
+                        DoglegSideOffsets[i],
+                        sign);
             }
 
             points[output] = FloorAtSegment(in request, in cave, cave.MainSegmentCount - 1);
@@ -150,28 +152,41 @@ namespace Game.Structures.Runtime
 
         private static int AuthorDogleg(
             IStructureAuthoringSession a,
-            int3 floor,
-            Facing facing,
-            int sign,
+            in CaveGenerationRequest request,
             in CaveConfig cave,
+            int segmentIndex,
+            int sign,
             in CaveMaterialPalette palette)
         {
-            int3 forward = FacingVector(facing);
+            int3 floor = FloorAtSegment(in request, in cave, segmentIndex);
+            int3 forward = FacingVector(request.Entrance.Facing);
             int3 side = new int3(-forward.z, 0, forward.x) * sign;
 
             // Re-establish a local host around the bend. This deliberately seals the original
             // straight centreline for a short span, then the rounded carve chain below provides
-            // the only broad walkable bypass. Sparse deep storage therefore behaves identically
-            // to an already-solid subterranean region.
+            // the only broad walkable bypass. The host follows the full vertical span of the
+            // descending nodes so the bypass reconnects to the same grade as the primary tunnel.
             int hostForward = 34;
             int hostSide = DoglegSideOffset + DoglegRadius + 8;
-            int hostHeight = cave.TunnelHeight + cave.CeilingRoughness + cave.FloorRoughness + 12;
+            int minNodeY = int.MaxValue;
+            int maxNodeY = int.MinValue;
+            for (int i = 0; i < DoglegForwardOffsets.Length; i++)
+            {
+                int y = FloorAlongPrimaryRoute(
+                    in request, in cave, segmentIndex, DoglegForwardOffsets[i]);
+                minNodeY = math.min(minNodeY, y);
+                maxNodeY = math.max(maxNodeY, y);
+            }
+
+            int hostMinY = minNodeY - cave.FloorRoughness - 3;
+            int hostMaxY = maxNodeY + cave.TunnelHeight + cave.CeilingRoughness + 8;
+            int hostHeight = hostMaxY - hostMinY + 1;
             int3 hostCentre = floor + side * (DoglegSideOffset / 2);
             int3 hostMin;
             int3 hostSize;
             if (math.abs(forward.x) == 1)
             {
-                hostMin = new int3(hostCentre.x - hostForward, floor.y - cave.FloorRoughness - 3,
+                hostMin = new int3(hostCentre.x - hostForward, hostMinY,
                     math.min(floor.z, floor.z + side.z * hostSide) - DoglegRadius - 5);
                 hostSize = new int3(hostForward * 2 + 1, hostHeight,
                     hostSide + DoglegRadius * 2 + 11);
@@ -180,7 +195,7 @@ namespace Game.Structures.Runtime
             {
                 hostMin = new int3(
                     math.min(floor.x, floor.x + side.x * hostSide) - DoglegRadius - 5,
-                    floor.y - cave.FloorRoughness - 3,
+                    hostMinY,
                     hostCentre.z - hostForward);
                 hostSize = new int3(hostSide + DoglegRadius * 2 + 11, hostHeight,
                     hostForward * 2 + 1);
@@ -189,16 +204,75 @@ namespace Game.Structures.Runtime
 
             for (int i = 0; i < DoglegForwardOffsets.Length; i++)
             {
-                int3 centre = floor
-                              + forward * DoglegForwardOffsets[i]
-                              + side * DoglegSideOffsets[i];
-                int baseY = floor.y - (i == 2 || i == 5 ? 1 : 0);
+                int3 centre = DoglegNode(
+                    in request,
+                    in cave,
+                    segmentIndex,
+                    DoglegForwardOffsets[i],
+                    DoglegSideOffsets[i],
+                    sign);
                 int radius = DoglegRadius + ((i & 1) == 0 ? 1 : 0);
                 int height = cave.TunnelHeight + 5 + (i % 3) * 2;
-                a.Cylinder(centre.x, baseY, centre.z, radius, height, palette.Opening);
-                a.Disc(centre.x, baseY - 1, centre.z, radius - 2, palette.Rock);
+                a.Cylinder(centre.x, centre.y, centre.z, radius, height, palette.Opening);
+                a.Disc(centre.x, centre.y - 1, centre.z, radius - 2, palette.Rock);
             }
             return DoglegForwardOffsets.Length;
+        }
+
+        private static int3 DoglegNode(
+            in CaveGenerationRequest request,
+            in CaveConfig cave,
+            int segmentIndex,
+            int forwardOffset,
+            int sideOffset,
+            int sign)
+        {
+            int3 floor = FloorAtSegment(in request, in cave, segmentIndex);
+            int3 forward = FacingVector(request.Entrance.Facing);
+            int3 side = new int3(-forward.z, 0, forward.x) * sign;
+            int y = FloorAlongPrimaryRoute(in request, in cave, segmentIndex, forwardOffset);
+            return new int3(
+                floor.x + forward.x * forwardOffset + side.x * sideOffset,
+                y,
+                floor.z + forward.z * forwardOffset + side.z * sideOffset);
+        }
+
+        /// <summary>
+        /// Samples the same piecewise-linear grade used by the generic cave core during the
+        /// configured surface-descent portion of the primary route. Dogleg nodes straddle a
+        /// segment endpoint, so keeping them at the endpoint Y creates a rock step at both joins.
+        /// Sharing this sample between geometry and semantic waypoints keeps normal motor
+        /// traversal on the authored floor rather than asking it to cross a hidden vertical gap.
+        /// </summary>
+        private static int FloorAlongPrimaryRoute(
+            in CaveGenerationRequest request,
+            in CaveConfig cave,
+            int segmentIndex,
+            int forwardOffset)
+        {
+            int distance = (segmentIndex + 1) * cave.SegmentLength + forwardOffset;
+            distance = math.clamp(distance, 0, cave.MainSegmentCount * cave.SegmentLength);
+            int completedSegments = distance / cave.SegmentLength;
+            int remainder = distance % cave.SegmentLength;
+            int startY = FloorAfterCompletedSegments(in request, in cave, completedSegments);
+            if (remainder == 0 || completedSegments >= cave.MainSegmentCount)
+                return startY;
+
+            int endY = FloorAfterCompletedSegments(in request, in cave, completedSegments + 1);
+            return startY + (endY - startY) * remainder / cave.SegmentLength;
+        }
+
+        private static int FloorAfterCompletedSegments(
+            in CaveGenerationRequest request,
+            in CaveConfig cave,
+            int completedSegments)
+        {
+            int descendedSegments = math.min(
+                math.clamp(completedSegments, 0, cave.MainSegmentCount),
+                cave.SurfaceDescentSegments);
+            return math.max(
+                request.EntranceWorldPosition.y - descendedSegments * cave.SurfaceDescentPerSegment,
+                request.Origin.y + cave.MinVerticalOffset);
         }
 
         private static MineCaveLightRequest AuthorRouteLantern(
@@ -235,14 +309,14 @@ namespace Game.Structures.Runtime
             int segmentIndex)
         {
             int completedSegments = math.clamp(segmentIndex + 1, 1, cave.MainSegmentCount);
-            int descendedSegments = math.min(completedSegments, cave.SurfaceDescentSegments);
-            int y = math.max(
-                request.EntranceWorldPosition.y - descendedSegments * cave.SurfaceDescentPerSegment,
-                request.Origin.y + cave.MinVerticalOffset);
             int3 forward = FacingVector(request.Entrance.Facing);
             return request.EntranceWorldPosition
                    + forward * (request.Entrance.ClearanceLength + completedSegments * cave.SegmentLength)
-                   + new int3(0, y - request.EntranceWorldPosition.y, 0);
+                   + new int3(
+                       0,
+                       FloorAfterCompletedSegments(in request, in cave, completedSegments)
+                           - request.EntranceWorldPosition.y,
+                       0);
         }
 
         private static int3 FacingVector(Facing facing)
