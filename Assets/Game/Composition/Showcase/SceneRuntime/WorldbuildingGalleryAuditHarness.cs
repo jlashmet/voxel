@@ -129,6 +129,12 @@ namespace VoxelEngine.Showcase
                     yield break;
                 }
 
+                if (!world.HasWorldbuildingGalleryTownArchitectureContent())
+                {
+                    Debug.LogError("TOWNARCH_AUDIT result=FAIL reason=town-content-missing");
+                    yield break;
+                }
+
                 int totalStops = world.WorldbuildingGalleryTourStopCount;
                 if (totalStops < TownAuditViewCount)
                 {
