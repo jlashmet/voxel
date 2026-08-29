@@ -1,9 +1,11 @@
 # Tasks
 
-- [ ] Inspect the reopened issue, prior implementation, and every available visual/runtime evidence artifact for the mountain/dragon flow.
-- [ ] Reproduce/discriminate stale startup bake versus runtime realization/render failure using production paths.
-- [ ] Add any newly discovered required work here before implementation.
-- [ ] Implement the smallest reusable WorldBuilder/shared-layer fix; keep VoxelShowcase composition-only.
+- [ ] Inspect the reopened issue, prior implementation, and every available visual/runtime evidence artifact for the mountain/dragon flow, including prior mountain-target CI artifacts.
+- [x] Reproduce/discriminate stale startup bake versus runtime realization/render failure using production paths: checked-in `ShowcaseWorld.bytes` predates the mountain landing (Aug 25 vs Aug 28).
+- [x] Add discovered required work here before implementation.
+- [ ] Recover/regenerate or safely refresh the checked-in VoxelShowcase startup bake from current authored WorldBuilder content without creating another CI transport.
+- [ ] Prove startup-bake provenance/content with a focused regression so a stale shipped bake cannot silently omit newly authored landmarks again.
+- [ ] Implement the smallest reusable WorldBuilder/shared-layer or evidence-navigation fix needed; keep VoxelShowcase composition-only.
 - [ ] Add/update focused behavioral regression(s) through the production WorldBuilder path for mountain/path, grounded summit dragon, and normal proximity-triggered dialogue.
 - [ ] Check blast radius across WorldBuilder/terrain/story consumers and quantify runtime/world-build cost against existing budgets.
 - [ ] Validate the checked-in startup bake contains the accepted mountain.
