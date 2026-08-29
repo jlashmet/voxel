@@ -15,10 +15,11 @@ namespace VoxelEngine.Tests.PlayMode
     /// <summary>
     /// Behavioral regression for SceneIssue 20260825-192751-413.
     ///
-    /// Supported step-1/step-2 chunks must now take the production GPU surface path, while
-    /// unsupported/decorated chunks continue through the CPU fallback. The old ready geometry must
-    /// remain visible during replacement, traversal must move at the scene's actual fly-speed cap,
-    /// and the final run reports both moving-frame latency and settled stationary headroom.
+    /// Supported step-1/step-2 chunks must take the production GPU surface path with no silent CPU
+    /// fallback once classified GPU-eligible. Geometry/rings the GPU backend does not implement may
+    /// continue through the CPU path. The old ready geometry must remain visible during replacement,
+    /// traversal must move at the scene's actual fly-speed cap, and the final run reports both
+    /// moving-frame latency and settled stationary headroom.
     /// </summary>
     public sealed class ShowcaseGpuMigrationTests
     {
@@ -32,7 +33,6 @@ namespace VoxelEngine.Tests.PlayMode
         private const float TraversalDistanceMetres = 210f;
         private const float MaxTraversalStepMetres = 0.5f;
         private const int MinimumGpuBuildsDuringTraversal = 8;
-        private const double MinimumGpuShareOfCompletedBuilds = 0.05;
         private const int StationaryBenchmarkFrames = 240;
         private const double MaxMovingP95FrameMs = 18.0;
         private const double MaxMovingP99FrameMs = 25.0;
@@ -183,15 +183,19 @@ namespace VoxelEngine.Tests.PlayMode
                 ulong completedDelta = last.CompletedSolidBuilds - initialCompleted;
                 ulong gpuFallbackDelta = last.GpuFallbackSolidBuilds - initialGpuFallback;
                 ulong gpuWaitDelta = last.GpuReadbackWaitSlices - initialGpuWaits;
-                double gpuShare = completedDelta > 0
+                ulong gpuEligibleAttempts = gpuCompletedDelta + gpuFallbackDelta;
+                double gpuEligibleAdoption = gpuEligibleAttempts > 0
+                    ? (double)gpuCompletedDelta / gpuEligibleAttempts : 0.0;
+                double overallGpuShare = completedDelta > 0
                     ? (double)gpuCompletedDelta / completedDelta : 0.0;
 
                 Assert.GreaterOrEqual(gpuCompletedDelta, (ulong)MinimumGpuBuildsDuringTraversal,
                     $"Production GPU path completed only {gpuCompletedDelta} chunks during the "
                   + $"210 m traversal; this is not sustained cutover adoption.");
-                Assert.GreaterOrEqual(gpuShare, MinimumGpuShareOfCompletedBuilds,
-                    $"Only {gpuShare:P1} of completed solid builds used GPU extraction "
-                  + $"({gpuCompletedDelta}/{completedDelta}).");
+                Assert.AreEqual(0ul, gpuFallbackDelta,
+                    $"{gpuFallbackDelta} GPU-eligible solid builds fell back to CPU during the "
+                  + $"210 m traversal. Implemented GPU paths require 100% adoption; "
+                  + $"completed={gpuCompletedDelta}, eligibleAttempts={gpuEligibleAttempts}.");
 
                 frameTimesMs.Sort();
                 double movingP95 = Percentile(frameTimesMs, 0.95);
@@ -214,11 +218,18 @@ namespace VoxelEngine.Tests.PlayMode
                     stationaryTimesMs.Add(frameClock.Elapsed.TotalMilliseconds);
 
                     VoxelSurfaceMetrics metrics = VoxelRenderBridge.SurfaceMetrics;
+                    last = metrics;
                     Assert.AreEqual(0ul, metrics.FramePathBlockingCompletionViolations,
                         $"Stationary benchmark frame {i} synchronously completed geometry work.");
                     Assert.Greater(metrics.VisibleSolidChunks, 0,
                         $"Stationary benchmark frame {i} lost visible voxel geometry.");
                 }
+
+                ulong gpuFallbackThroughStationary =
+                    last.GpuFallbackSolidBuilds - initialGpuFallback;
+                Assert.AreEqual(0ul, gpuFallbackThroughStationary,
+                    $"{gpuFallbackThroughStationary} GPU-eligible solid builds fell back to CPU "
+                  + "during traversal/settle. Implemented GPU paths require 100% adoption.");
 
                 stationaryTimesMs.Sort();
                 double stationaryP50 = Percentile(stationaryTimesMs, 0.50);
@@ -232,7 +243,8 @@ namespace VoxelEngine.Tests.PlayMode
                   + $"speedCap={productionFlySpeed:F1}m/s movingP95={movingP95:F3}ms "
                   + $"movingP99={movingP99:F3}ms movingMax={frameTimesMs[^1]:F3}ms "
                   + $"gpuCompleted={gpuCompletedDelta} totalCompleted={completedDelta} "
-                  + $"gpuShare={gpuShare:P1} gpuFallback={gpuFallbackDelta} "
+                  + $"gpuEligibleAdoption={gpuEligibleAdoption:P1} "
+                  + $"overallGpuShare={overallGpuShare:P1} gpuFallback={gpuFallbackThroughStationary} "
                   + $"gpuWaitSlices={gpuWaitDelta} gpuBackendsMax={maxGpuBackends} "
                   + $"stationaryP50={stationaryP50:F3}ms stationaryP95={stationaryP95:F3}ms "
                   + $"stationaryFpsP50={stationaryFpsP50:F0} stationaryFpsP95={stationaryFpsP95:F0}");
