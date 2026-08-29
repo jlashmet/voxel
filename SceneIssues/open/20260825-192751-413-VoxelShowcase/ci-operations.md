@@ -62,3 +62,9 @@
 - Product red. Recovery liveness passed in 52.35 s. Migration failed after 44.55 s because traversal frame 3 lost every visible voxel draw: `visible=0`, `missing=64`, `gpuCompleted=8`, `gpuFallback=0`, `gpuWaitSlices=248`.
 - Built player launched and ran to 51.4 s. All four screenshots were inspected: t15.4 is almost empty; the castle largely appears by t25.4; t35.4/t51.4 add distant structures but remain incomplete. Telemetry retains recurring ~191–198 ms solid-admission spikes and ends at 351 visible / 344 missing with `leaseFail=0`.
 - The corrected shader compiles, so the prior Metal syntax failure is closed. Compact payload scatter is falsified as the complete performance fix. The capture remains open.
+
+## 2026-08-29 — shared-mirror takeover request `0890971c…`
+- Exact feature parent `4754860892cf3ddd81a7d2fc8130d02fc58355f3`; run/job `33281099872` / `99176301088`; artifact `9723212603`.
+- Product red. Strengthened recovery liveness passed in 52.21 s. Migration failed only the unchanged moving-tail gate: p99 75.912 ms versus 25 ms; the preceding adoption, visibility, zero-fallback, and snapshotless-stage assertions passed.
+- The 45 s real-player harness passed and all four images were inspected. At 15.7 s geometry was nearly absent; the castle was substantially present by 25.7 s. Runtime ultimately reached `missingVisible=0`, no arena allocation failure, and roughly 200–500 FPS.
+- Exact telemetry separates the remaining tail from shared-mirror solid admission: one water admission slice was 29.256 ms while solid admission was 0.478 ms; later solid admission remained about 0.5–3 ms. Experiment 010 bounds discovery-only water classification by its existing deadline. The capture remains open.

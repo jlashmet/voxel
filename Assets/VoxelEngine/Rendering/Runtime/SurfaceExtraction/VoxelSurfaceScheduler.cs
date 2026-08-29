@@ -1508,8 +1508,13 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             double arenaReliefMs = ElapsedMs(arenaReliefStart);
 
             double waterStart = Time.realtimeSinceStartupAsDouble;
-            _waterDiscoveryAdmission.EnqueueAndStep(_water, storage, _discoveredSurfaceBricks);
-            _water.Prepare(storage, camera, voxelSize, WaterBuildBudgetMs);
+            double waterBuildDeadline = waterStart
+                                      + Math.Max(0.0, WaterBuildBudgetMs) * 0.001;
+            _waterDiscoveryAdmission.EnqueueAndStep(
+                _water, storage, _discoveredSurfaceBricks, waterBuildDeadline);
+            double remainingWaterBuildMs = Math.Max(
+                0.0, (waterBuildDeadline - Time.realtimeSinceStartupAsDouble) * 1000.0);
+            _water.Prepare(storage, camera, voxelSize, remainingWaterBuildMs);
             LastFrameWaterUploadedBytes = 0;
             double waterUploadDeadline = Time.realtimeSinceStartupAsDouble
                                        + Math.Max(0.0, WaterUploadBudgetMs) * 0.001;

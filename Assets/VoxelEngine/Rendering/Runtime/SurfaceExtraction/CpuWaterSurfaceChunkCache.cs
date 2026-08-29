@@ -303,38 +303,43 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
             RegionReadView cachedRegion = default;
             for (int i = 0; i < worldBricks.Count; i++)
+                InvalidateSurfaceBrick(storage, worldBricks[i], ref cachedRegion);
+        }
+
+        internal void InvalidateSurfaceBrick(IRegionReadSource storage, int3 worldBrick,
+                                             ref RegionReadView cachedRegion)
+        {
+            if (storage == null) return;
+
+            int3 chunk = WorldBrickChunk(worldBrick);
+            bool containsWater = TryLoadBrickMaterials(storage, worldBrick, ref cachedRegion)
+                              && LoadedBrickContainsWater();
+
+            if (containsWater)
             {
-                int3 worldBrick = worldBricks[i];
-                int3 chunk = WorldBrickChunk(worldBrick);
-                bool containsWater = TryLoadBrickMaterials(storage, worldBrick, ref cachedRegion)
-                                  && LoadedBrickContainsWater();
-
-                if (containsWater)
+                if (!_waterBricks.TryGetValue(chunk, out HashSet<int3> set))
                 {
-                    if (!_waterBricks.TryGetValue(chunk, out HashSet<int3> set))
-                    {
-                        set = new HashSet<int3>();
-                        _waterBricks.Add(chunk, set);
-                        TrackResidentChunk(chunk);
-                    }
-                    if (set.Add(worldBrick)) Invalidate(chunk);
+                    set = new HashSet<int3>();
+                    _waterBricks.Add(chunk, set);
+                    TrackResidentChunk(chunk);
                 }
-                else if (_waterBricks.TryGetValue(chunk, out HashSet<int3> existing)
-                         && existing.Remove(worldBrick))
-                {
-                    Invalidate(chunk);
-                }
-
-                int rx = worldBrick.x & (BricksPerAxis - 1);
-                int ry = worldBrick.y & (BricksPerAxis - 1);
-                int rz = worldBrick.z & (BricksPerAxis - 1);
-                if (rx == 0) MarkKnownDirty(chunk + new int3(-1, 0, 0));
-                if (rx == BricksPerAxis - 1) MarkKnownDirty(chunk + new int3(1, 0, 0));
-                if (ry == 0) MarkKnownDirty(chunk + new int3(0, -1, 0));
-                if (ry == BricksPerAxis - 1) MarkKnownDirty(chunk + new int3(0, 1, 0));
-                if (rz == 0) MarkKnownDirty(chunk + new int3(0, 0, -1));
-                if (rz == BricksPerAxis - 1) MarkKnownDirty(chunk + new int3(0, 0, 1));
+                if (set.Add(worldBrick)) Invalidate(chunk);
             }
+            else if (_waterBricks.TryGetValue(chunk, out HashSet<int3> existing)
+                     && existing.Remove(worldBrick))
+            {
+                Invalidate(chunk);
+            }
+
+            int rx = worldBrick.x & (BricksPerAxis - 1);
+            int ry = worldBrick.y & (BricksPerAxis - 1);
+            int rz = worldBrick.z & (BricksPerAxis - 1);
+            if (rx == 0) MarkKnownDirty(chunk + new int3(-1, 0, 0));
+            if (rx == BricksPerAxis - 1) MarkKnownDirty(chunk + new int3(1, 0, 0));
+            if (ry == 0) MarkKnownDirty(chunk + new int3(0, -1, 0));
+            if (ry == BricksPerAxis - 1) MarkKnownDirty(chunk + new int3(0, 1, 0));
+            if (rz == 0) MarkKnownDirty(chunk + new int3(0, 0, -1));
+            if (rz == BricksPerAxis - 1) MarkKnownDirty(chunk + new int3(0, 0, 1));
         }
 
         public void InvalidateDirtyRegions(HashSet<int3> dirtyRegions)
