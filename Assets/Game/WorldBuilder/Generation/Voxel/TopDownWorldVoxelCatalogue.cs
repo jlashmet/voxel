@@ -132,31 +132,15 @@ namespace MountingForce.WorldGen.Voxel
             VoxelWorldGenSettings settings,
             Allocator allocator)
         {
-            return Build(layout, rootCentreDm, cellSizeDm, settings, allocator, omittedNodeId: null);
-        }
-
-        /// <summary>
-        /// Builds the macro-world instrumentation while optionally suppressing one destination marker.
-        /// This is used when the caller already supplies detailed geometry for that destination: the
-        /// coarse macro marker must not repaint the detailed settlement's visible ground surface.
-        /// Routes and every other destination remain physically realized.
-        /// </summary>
-        public static FeatureCatalogue Build(
-            TopDownWorldLayout layout,
-            Int2 rootCentreDm,
-            int cellSizeDm,
-            VoxelWorldGenSettings settings,
-            Allocator allocator,
-            string omittedNodeId)
-        {
             TopDownWorldVoxelPlan plan = Plan(layout, rootCentreDm, cellSizeDm);
             int scale = settings.VoxelsPerDecimetre;
             int routeDefinitionCount = plan.Routes.Count;
-            int nodeDefinitionCount = 0;
+            int nodeDefinitionCount = plan.Nodes.Count;
+            int definitionCount = routeDefinitionCount + nodeDefinitionCount;
             int verticalBand = VerticalBandDm * scale;
             int programLength = 0;
             var routePrograms = new int[routeDefinitionCount][];
-            var nodePrograms = new int[plan.Nodes.Count][];
+            var nodePrograms = new int[nodeDefinitionCount][];
 
             byte road = settings.Materials.Resolve(MaterialRole.RoadSurface);
             byte marker = settings.Materials.Resolve(MaterialRole.FoundationStone);
@@ -166,18 +150,14 @@ namespace MountingForce.WorldGen.Voxel
                 routePrograms[i] = PaintProgram(width, verticalBand, width, road);
                 programLength += routePrograms[i].Length;
             }
-            for (var i = 0; i < plan.Nodes.Count; i++)
+            for (var i = 0; i < nodeDefinitionCount; i++)
             {
-                if (ShouldOmitNode(plan.Nodes[i], omittedNodeId)) continue;
-
                 int halfDm = Math.Min(plan.Nodes[i].Node.EnvelopeHalfExtentDm, MarkerMaxHalfExtentDm);
                 int size = halfDm * 2 * scale;
                 nodePrograms[i] = PaintProgram(size, verticalBand, size, marker);
                 programLength += nodePrograms[i].Length;
-                nodeDefinitionCount++;
             }
 
-            int definitionCount = routeDefinitionCount + nodeDefinitionCount;
             FeatureCatalogue catalogue = FeatureCatalogueBuilder.Allocate(
                 definitions: definitionCount,
                 rules: definitionCount,
@@ -186,7 +166,7 @@ namespace MountingForce.WorldGen.Voxel
                 slots: 0,
                 programLength: programLength,
                 materials: 0,
-                explicitPlacements: plan.RouteTileCount + nodeDefinitionCount,
+                explicitPlacements: plan.RouteTileCount + plan.Nodes.Count,
                 overrides: 0,
                 allocator);
 
@@ -231,16 +211,13 @@ namespace MountingForce.WorldGen.Voxel
                     programOffset += program.Length;
                 }
 
-                int emittedNodeIndex = 0;
                 for (var i = 0; i < plan.Nodes.Count; i++)
                 {
-                    int[] program = nodePrograms[i];
-                    if (program == null) continue;
-
-                    int definitionId = routeDefinitionCount + emittedNodeIndex++;
+                    int definitionId = routeDefinitionCount + i;
                     TopDownWorldVoxelNodePlan physicalNode = plan.Nodes[i];
                     int halfDm = Math.Min(physicalNode.Node.EnvelopeHalfExtentDm, MarkerMaxHalfExtentDm);
                     int size = halfDm * 2 * scale;
+                    int[] program = nodePrograms[i];
                     CopyProgram(ref catalogue, programOffset, program);
                     catalogue.Definitions[definitionId] = Definition(
                         "macro-node-" + i,
@@ -281,12 +258,6 @@ namespace MountingForce.WorldGen.Voxel
                 catalogue.Dispose();
                 throw;
             }
-        }
-
-        private static bool ShouldOmitNode(TopDownWorldVoxelNodePlan node, string omittedNodeId)
-        {
-            return !string.IsNullOrEmpty(omittedNodeId)
-                   && string.Equals(node.Node.Id, omittedNodeId, StringComparison.Ordinal);
         }
 
         private static IReadOnlyList<Int2> BuildRouteTiles(Int2 from, Int2 to)

@@ -24,7 +24,6 @@ namespace MountingForce.WorldGen.Voxel
             public int3 Door;
             public int3 Hearth;
             public bool HasHearth;
-            public int FoundationSinkDm;
         }
 
         public static FeatureCatalogue Build(
@@ -125,7 +124,7 @@ namespace MountingForce.WorldGen.Voxel
                 {
                     Position = new int3(
                         plot.PositionDm.X * scale,
-                        targetSurface - program.FoundationSinkDm * scale,
+                        targetSurface - FoundationSinkDm * scale,
                         plot.PositionDm.Y * scale),
                     Orientation = (byte)plot.Frontage,
                     OverrideOffset = 0,
@@ -180,7 +179,6 @@ namespace MountingForce.WorldGen.Voxel
                 Door = program.Door,
                 Hearth = program.Hearth,
                 HasHearth = true,
-                FoundationSinkDm = theme.FoundationHeightDm,
             };
         }
 
@@ -200,7 +198,6 @@ namespace MountingForce.WorldGen.Voxel
                 Code = program.Code,
                 Door = program.Door,
                 HasHearth = false,
-                FoundationSinkDm = FoundationSinkDm,
             };
         }
 

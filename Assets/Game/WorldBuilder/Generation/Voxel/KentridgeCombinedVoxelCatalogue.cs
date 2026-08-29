@@ -69,18 +69,12 @@ namespace MountingForce.WorldGen.Voxel
             FeatureCatalogue macro = default;
             try
             {
-                // The detailed Kentridge catalogue already owns the selected root settlement. The
-                // macro root marker is only coarse instrumentation; composing it here repaints a
-                // 120m terrain-grounded square across the authored town and can become visible in
-                // otherwise-unowned seams between roads and plot surfaces. Keep all macro routes and
-                // non-root destinations, but leave the root's visible surface to its detailed pass.
                 macro = TopDownWorldVoxelCatalogue.Build(
                     selection.Layout,
                     new Int2(selection.RootXdm, selection.RootZdm),
                     selection.CellSizeDm,
                     settings,
-                    allocator,
-                    selection.Layout.RootId);
+                    allocator);
                 return SettlementCatalogueCombiner.Combine(allocator, local, macro);
             }
             finally
