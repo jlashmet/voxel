@@ -57,12 +57,12 @@ void CSApplyDirectoryDeltas(uint3 id : SV_DispatchThreadID)
 [numthreads(64, 1, 1)]
 void CSApplyPayloadDeltas(uint3 id : SV_DispatchThreadID)
 {
-    uint linear = id.x;
+    uint linearIndex = id.x;
     uint totalThreads = (uint)_PayloadDeltaCount * PAYLOAD_COPY_THREADS_PER_BRICK;
-    if (linear >= totalThreads) return;
+    if (linearIndex >= totalThreads) return;
 
-    uint deltaIndex = linear / PAYLOAD_COPY_THREADS_PER_BRICK;
-    uint local = linear - deltaIndex * PAYLOAD_COPY_THREADS_PER_BRICK;
+    uint deltaIndex = linearIndex / PAYLOAD_COPY_THREADS_PER_BRICK;
+    uint local = linearIndex - deltaIndex * PAYLOAD_COPY_THREADS_PER_BRICK;
     uint source = deltaIndex * PAYLOAD_DELTA_WORDS;
     uint slot = _PayloadDeltas[source + 0u];
 
