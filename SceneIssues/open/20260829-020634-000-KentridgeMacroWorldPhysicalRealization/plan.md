@@ -1,29 +1,25 @@
 # Plan
 
 ## Observed gap / acceptance
-`captures` is empty, so the feature note is the full repro contract. Baseline production had an authoritative semantic macro graph but realized it as neutral markers plus simple road paint. Closure requires physical settlements, continuous terrain-aware hard routes, reusable geographic constraints, substantial lake/ridge geography, CharacterMotor traversal, exact built-player evidence, and measured cost.
+`captures` is empty, so the feature note is the repro contract. Baseline production had an authoritative semantic macro graph but realized it mainly as markers/simple road paint. Closure requires physical settlements, continuous terrain-aware hard routes, reusable geographic constraints, substantial lake/ridge geography, CharacterMotor traversal, exact built-player evidence, and measured cost.
 
-## Hypotheses / result
-1. **Scale up the legacy markers/roads.** Rejected: that path had no reusable water/barrier relationships, pass/crossing semantics, generic settlement realization, or blocked-route rejection.
-2. **Keep the source-backed graph authoritative and add a reusable physical-plan layer.** Selected. `TopDownWorldLayout` remains topology/provenance authority; shared region/route/settlement intent plans deterministic physical output before voxel emission.
-
-Production trace confirms `KentridgeDefinition.Build(seed)` selects the macro layout before `KentridgeCombinedVoxelCatalogue` consumes it one-shot, so the implementation is connected to the playable scene rather than a second graph.
+## Hypotheses / results
+1. **Scale up legacy markers/roads.** Rejected: no reusable water/barrier relationships, crossing/pass semantics, generic settlement realization, or blocked-route rejection.
+2. **Keep the source-backed graph authoritative and add a reusable physical-plan layer.** Selected. `TopDownWorldLayout` remains topology/provenance authority; region/route/settlement intent resolves deterministic physical output before voxel emission.
+3. **Run `33232755172` failed because Rossdam Lake was merely oversized.** Rejected as the repair. Mapping the hard graph showed the substantial modern lake genuinely grazes the verified Fighting Area I -> Bandit Hideout corridor. The correct contract-level response is an explicit dry `GoAround` shoreline solution, clearly labeled modern blockout rather than legacy geography.
 
 ## Implemented direction
 - Region vocabulary: water, ridge/mountain, valley/pass, meadow, woodland, generic countryside; deterministic extents/elevation, relationships, exclusions, crossing/pass semantics.
-- Terrain-aware hard-route solver respects settlement envelopes, slope/obstacles and explicit semantic solutions; impossible blocked routes are rejected.
+- Hard-route solver respects settlement envelopes, terrain slope, blockers and semantic solutions; impossible blocked routes are rejected.
 - Kentridge/Hightown keep richer generators; Moordell, Rossdam, Fairy Village and Orc Village receive >=4-building streamed blockouts plus streets/road arrivals.
-- Bounded WorldBuilder feature definitions/placements preserve streaming/LOD ownership; no remote GameObject hierarchy or direct scene voxel writing.
-- Rossdam uses a carved, water-filled streamed basin rather than surface repaint. Production roads have an additional <=6-voxel rise per 30 dm acceptance bound.
-- Built-player evidence pre-streams and traverses a generated Moordell macro-road segment with the normal CharacterMotor/AutoWalk path before settlement/geography survey captures.
+- Rossdam is a carved, water-filled streamed basin. Intended north/Rossdam routes and the Bandit shoreline spur use explicit dry route-around semantics; Logan uses an authored ridge pass.
+- Production road acceptance is <=6 voxels rise per 30 dm step. Evidence mode uses the real production motor/streamer and surveys all required macro destinations/geography.
+- Production trace confirms `KentridgeDefinition.Build(seed)` selects the macro graph before `KentridgeCombinedVoxelCatalogue` consumes it one-shot; no second graph/static destination hierarchy is introduced.
 
 ## Regression / CI state
-Final PlayMode target:
-`VoxelEngine.Tests.PlayMode.KentridgeMacroWorldPhysicalProductionAcceptanceTests.PhysicalMacroWorldHasWalkableRoutesAndADeepStreamedWaterBody`
+Final target: `VoxelEngine.Tests.PlayMode.KentridgeMacroWorldPhysicalProductionAcceptanceTests.PhysicalMacroWorldHasWalkableRoutesAndADeepStreamedWaterBody`.
 
-It nests deterministic realization/reachability/blocked-route coverage, then verifies strict road rise, carved water depth, and Select -> combined-production-catalogue survival. Static cost remains bounded by existing 1280-voxel feature footprints and one-shot selection; exact counts and player CPU/GPU/memory/streaming evidence remain runtime gates.
-
-Run `33230924543` found a missing `Game.WorldBuilder.Api` import in the evidence driver; fixed at `339ca94f…`. Run `33231300309` then found the same missing import in the production acceptance test; fixed at `e40fb722…`. Both were product-red compile diagnostics and produced no acceptable built-player evidence. Current master `f3ce207c…` was merged cleanly at `8a5b386e…`; its changes only touched other SceneIssues.
+Runs `33230924543` and `33231300309` were product-red namespace compile diagnostics. Run `33232755172` compiled, then exposed the Rossdam/Bandit semantic-route defect and the same exception in the built scene; its visuals are diagnostic only. Current master `9b452aedd9b5d1b1720bf0e9184d0381f159d352` was merged cleanly at `477f9159821ee466ad54d133c1aaf1dcb71433dd`, preserving the landed meadow/ecology work.
 
 ## Remaining gates
-Obtain green exact-SHA focused CI + 60s built `KentridgePlayableSlice` replay; inspect settlement/road/lake/ridge/CharacterMotor visuals and logs; record exact cost; complete every `tasks.md` checkbox; then open -> pending -> closed bookkeeping and final current-master merge/non-force master push.
+Freeze the repaired head; obtain green exact-SHA focused CI + 60s built `KentridgePlayableSlice`; inspect roads/settlements/lake/ridge/CharacterMotor evidence; measure route/world-build/CPU/GPU/memory/streaming cost; complete every `tasks.md` checkbox; then open -> pending -> closed bookkeeping and final current-master merge/non-force master push.
