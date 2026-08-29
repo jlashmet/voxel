@@ -15,20 +15,26 @@ namespace Game.Kentridge.PlayableSlice
     /// <summary>
     /// Built-player evidence automation for capture-less macro-world validations. It is dormant in
     /// normal gameplay. When an assigned SceneIssue selects the reusable kentridge-macro-world
-    /// validation profile, it first lets the production CharacterMotor walk normally, then moves
-    /// that same motor/camera to semantic physical-plan targets so ordinary streaming/rendering can
-    /// produce durable close and survey frames for remote macro content.
+    /// validation profile, it exercises the production CharacterMotor first in ordinary gameplay
+    /// and then on a generated macro-road segment before moving that same motor/camera through
+    /// semantic physical-plan targets. Normal world streaming/rendering remains authoritative.
     /// </summary>
     internal sealed class KentridgeMacroWorldEvidenceDriver : MonoBehaviour
     {
         private const string ValidationProfile = "kentridge-macro-world";
         private const float WalkEvidenceSeconds = 4f;
+        private const float RoadPrestreamSeconds = 4f;
+        private const float RoadWalkSeconds = 3f;
         private const float TargetSeconds = 4f;
         private const float CaptureAfterSeconds = 2.4f;
         private const float DmToMetres = 0.1f;
+        private const uint Seed = 0x4B454E54u;
 
         private static readonly FieldInfo s_MotorField = typeof(KentridgePlayableSlice).GetField(
             "_motor",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly FieldInfo s_YawField = typeof(KentridgePlayableSlice).GetField(
+            "_yaw",
             BindingFlags.Instance | BindingFlags.NonPublic);
 
         private KentridgePlayableSlice _slice;
@@ -38,6 +44,12 @@ namespace Game.Kentridge.PlayableSlice
         private float _gameplayStartedAt = -1f;
         private Vector3 _walkStartedAt;
         private bool _walkRecorded;
+        private Int2 _roadStartDm;
+        private Int2 _roadNextDm;
+        private bool _roadPrepared;
+        private bool _roadWalkStarted;
+        private Vector3 _roadWalkStartedAt;
+        private bool _roadWalkRecorded;
         private int _targetIndex = -1;
         private float _targetStartedAt;
         private bool _targetCaptured;
@@ -60,8 +72,9 @@ namespace Game.Kentridge.PlayableSlice
             {
                 _slice = FindFirstObjectByType<KentridgePlayableSlice>();
                 if (_slice == null) return;
-                if (s_MotorField == null)
-                    throw new InvalidOperationException("Macro evidence driver cannot resolve Kentridge CharacterMotor host.");
+                if (s_MotorField == null || s_YawField == null)
+                    throw new InvalidOperationException(
+                        "Macro evidence driver cannot resolve Kentridge CharacterMotor/yaw host state.");
                 _screenshotDirectory = ReadArgument("-voxel-screenshot-dir");
             }
 
@@ -75,7 +88,7 @@ namespace Game.Kentridge.PlayableSlice
                 _slice.AutoSurvey = false;
                 _slice.AutoRecede = false;
                 _slice.AutoWalk = true;
-                Debug.Log("MACROEVIDENCE phase=character-motor-walk start=" + Format(_walkStartedAt));
+                Debug.Log("MACROEVIDENCE phase=local-character-motor-walk start=" + Format(_walkStartedAt));
                 return;
             }
 
@@ -93,19 +106,54 @@ namespace Game.Kentridge.PlayableSlice
                 _walkRecorded = true;
                 Vector3 delta = _motor.Position - _walkStartedAt;
                 delta.y = 0f;
-                Debug.Log($"MACROEVIDENCE traversal=CharacterMotor metres={delta.magnitude:0.00} " +
+                Debug.Log($"MACROEVIDENCE traversal=CharacterMotor-local metres={delta.magnitude:0.00} " +
                           $"from={Format(_walkStartedAt)} to={Format(_motor.Position)}");
-                BuildTargets();
+                BuildTargetsAndRoadTraversal();
+            }
+
+            _slice.AutoSurvey = false;
+            _slice.AutoRecede = false;
+
+            float roadPrestreamEnd = WalkEvidenceSeconds + RoadPrestreamSeconds;
+            float roadWalkEnd = roadPrestreamEnd + RoadWalkSeconds;
+            if (elapsed < roadPrestreamEnd)
+            {
+                _slice.AutoWalk = false;
+                PinToRoadStart();
+                return;
+            }
+
+            if (elapsed < roadWalkEnd)
+            {
+                if (!_roadWalkStarted)
+                {
+                    _roadWalkStarted = true;
+                    _roadWalkStartedAt = _motor.Position;
+                    Debug.Log(
+                        "MACROEVIDENCE phase=macro-road-character-motor start=" + Format(_roadWalkStartedAt) +
+                        " startDm=" + _roadStartDm + " nextDm=" + _roadNextDm);
+                }
+
+                HoldRoadHeading();
+                _slice.AutoWalk = true;
+                return;
             }
 
             _slice.AutoWalk = false;
-            _slice.AutoSurvey = false;
-            _slice.AutoRecede = false;
+            if (!_roadWalkRecorded)
+            {
+                _roadWalkRecorded = true;
+                Vector3 delta = _motor.Position - _roadWalkStartedAt;
+                delta.y = 0f;
+                Debug.Log($"MACROEVIDENCE traversal=CharacterMotor-macro-road metres={delta.magnitude:0.00} " +
+                          $"from={Format(_roadWalkStartedAt)} to={Format(_motor.Position)}");
+                CaptureNamed("macro-road-character-motor");
+            }
 
             if (_targets == null || _targets.Length == 0) return;
             int requested = Mathf.Min(
                 _targets.Length - 1,
-                Mathf.FloorToInt((elapsed - WalkEvidenceSeconds) / TargetSeconds));
+                Mathf.FloorToInt((elapsed - roadWalkEnd) / TargetSeconds));
             if (requested != _targetIndex)
             {
                 _targetIndex = requested;
@@ -131,15 +179,27 @@ namespace Game.Kentridge.PlayableSlice
             ApplyCamera(_targets[_targetIndex]);
         }
 
-        private void BuildTargets()
+        private void BuildTargetsAndRoadTraversal()
         {
-            TopDownWorldLayout layout = MountingForceTopDownWorldDefinition.Build(0x4B454E54u);
+            TopDownWorldLayout layout = MountingForceTopDownWorldDefinition.Build(Seed);
             TopDownWorldPhysicalPlan physical = TopDownWorldPhysicalPlanner.Plan(
                 layout,
                 KentridgeTopDownWorldPhysicalIntent.Build(),
                 KentridgeDefinition.TownCentreDm,
                 MountingForceTopDownWorldDefinition.CellSizeDm,
                 voxelsPerDecimetre: 1);
+
+            TopDownWorldPhysicalRoutePlan moordellArrival = FindRoute(
+                physical,
+                MountingForceTopDownWorldDefinition.MoordellCorridor,
+                MountingForceTopDownWorldDefinition.Moordell);
+            if (moordellArrival.Tiles.Count < 2)
+                throw new InvalidOperationException("Moordell macro road has no traversable segment for evidence.");
+            int roadIndex = Math.Max(0, moordellArrival.Tiles.Count - 10);
+            roadIndex = Math.Min(roadIndex, moordellArrival.Tiles.Count - 2);
+            _roadStartDm = moordellArrival.Tiles[roadIndex];
+            _roadNextDm = moordellArrival.Tiles[roadIndex + 1];
+            _roadPrepared = true;
 
             var targets = new List<EvidenceTarget>(7)
             {
@@ -192,6 +252,31 @@ namespace Game.Kentridge.PlayableSlice
             _targets = targets.ToArray();
         }
 
+        private void PinToRoadStart()
+        {
+            if (!_roadPrepared) return;
+            int ground = TerrainSampler.HeightAt(_roadStartDm.X, _roadStartDm.Y, Seed);
+            _motor.Position = new Vector3(
+                _roadStartDm.X * DmToMetres,
+                ground * DmToMetres + 0.1f,
+                _roadStartDm.Y * DmToMetres);
+            _motor.Velocity = Vector3.zero;
+            HoldRoadHeading();
+            _slice.transform.position = _motor.EyePosition;
+        }
+
+        private void HoldRoadHeading()
+        {
+            Vector3 direction = new Vector3(
+                _roadNextDm.X - _roadStartDm.X,
+                0f,
+                _roadNextDm.Y - _roadStartDm.Y);
+            if (direction.sqrMagnitude < 0.01f) direction = Vector3.forward;
+            float yaw = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg;
+            s_YawField.SetValue(_slice, yaw);
+            _slice.transform.rotation = Quaternion.Euler(0f, yaw, 0f);
+        }
+
         private static EvidenceTarget CloseSettlement(
             TopDownWorldPhysicalPlan physical,
             string nodeId,
@@ -223,7 +308,7 @@ namespace Game.Kentridge.PlayableSlice
         {
             int x = target.CameraDm.X;
             int z = target.CameraDm.Y;
-            int ground = TerrainSampler.HeightAt(x, z, 0x4B454E54u);
+            int ground = TerrainSampler.HeightAt(x, z, Seed);
             float y = ground * DmToMetres + target.CameraHeightMetres;
             _motor.Position = new Vector3(x * DmToMetres, y, z * DmToMetres);
             _motor.Velocity = Vector3.zero;
@@ -234,7 +319,7 @@ namespace Game.Kentridge.PlayableSlice
         {
             if (_slice == null || _motor == null) return;
             _slice.transform.position = _motor.EyePosition;
-            int focusGround = TerrainSampler.HeightAt(target.FocusDm.X, target.FocusDm.Y, 0x4B454E54u);
+            int focusGround = TerrainSampler.HeightAt(target.FocusDm.X, target.FocusDm.Y, Seed);
             Vector3 focus = new Vector3(
                 target.FocusDm.X * DmToMetres,
                 focusGround * DmToMetres + (target.Elevated ? 8f : 5f),
@@ -244,11 +329,13 @@ namespace Game.Kentridge.PlayableSlice
                 _slice.transform.rotation = Quaternion.LookRotation(direction.normalized, Vector3.up);
         }
 
-        private void CaptureTarget(EvidenceTarget target)
+        private void CaptureTarget(EvidenceTarget target) => CaptureNamed("macro-" + target.Label);
+
+        private void CaptureNamed(string name)
         {
             if (string.IsNullOrWhiteSpace(_screenshotDirectory)) return;
             Directory.CreateDirectory(_screenshotDirectory);
-            string path = Path.Combine(_screenshotDirectory, "macro-" + target.Label + ".png");
+            string path = Path.Combine(_screenshotDirectory, name + ".png");
             ScreenCapture.CaptureScreenshot(path);
             Debug.Log("MACROEVIDENCE screenshot=" + path);
         }
