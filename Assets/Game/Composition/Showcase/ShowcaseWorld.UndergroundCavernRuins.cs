@@ -22,6 +22,7 @@ namespace VoxelEngine.Showcase
         private const int UndergroundCaveDescentSegments = 52;
         private const int UndergroundCaveDescentPerSegment = 18;
         private const ulong UndergroundCaveSeed = 0x564F584341564552ul; // VOXCAVER
+        private const int UndergroundCavernMaximumLocalLights = 8;
 
         private bool _undergroundCavernRuinsAuthored;
 
@@ -31,6 +32,9 @@ namespace VoxelEngine.Showcase
         public int UndergroundCavernStalactiteCount { get; private set; }
         public int UndergroundCavernGeologicalCategoryCount { get; private set; }
         public int UndergroundCavernLocalLightCount { get; private set; }
+        public int UndergroundCavernRouteLightCount { get; private set; }
+        public int UndergroundCavernDirectionChangeCount { get; private set; }
+        public int UndergroundCavernMouthOpeningCount { get; private set; }
         public long UndergroundCavernVoxelsWritten { get; private set; }
         public float3 UndergroundCavernCentreMetres { get; private set; }
         public float3 UndergroundCavernEntranceMetres { get; private set; }
@@ -62,22 +66,38 @@ namespace VoxelEngine.Showcase
                 in caveConfig,
                 in cavePalette,
                 in ruinConfig);
-            if (authoring.BudgetExceeded || !result.IsWellFormed)
+            if (!result.IsWellFormed)
                 throw new InvalidOperationException(
-                    "Underground cavern/ruin authoring exceeded its budget or produced incomplete semantic output.");
+                    "Underground cavern/ruin authoring produced incomplete semantic output.");
+
+            UndergroundCavernTraversalEnhancementResult traversal =
+                UndergroundCavernTraversalEnhancement.Author(
+                    authoring,
+                    in caveRequest,
+                    in caveConfig,
+                    in cavePalette);
+            MineCaveLightRequest[] allLights =
+                CombineUndergroundCavernLights(traversal.RouteLights, result.LocalLights);
+            if (authoring.BudgetExceeded || !traversal.IsWellFormed ||
+                allLights.Length > UndergroundCavernMaximumLocalLights)
+                throw new InvalidOperationException(
+                    "Underground cavern traversal enhancement exceeded its budget or local-light cap.");
 
             _undergroundCavernRuinsAuthored = true;
             UndergroundCavernTraversalDistance = result.Destination.TraversalDistance;
             UndergroundCavernStatueCount = result.StatueCount;
             UndergroundCavernStalactiteCount = result.StalactiteCount;
             UndergroundCavernGeologicalCategoryCount = result.GeologicalCategoryCount;
-            UndergroundCavernLocalLightCount = result.LocalLights.Length;
-            UndergroundCavernVoxelsWritten = result.VoxelsWritten;
+            UndergroundCavernLocalLightCount = allLights.Length;
+            UndergroundCavernRouteLightCount = traversal.RouteLights.Length;
+            UndergroundCavernDirectionChangeCount = traversal.DirectionChangeCount;
+            UndergroundCavernMouthOpeningCount = traversal.MouthOpeningCount;
+            UndergroundCavernVoxelsWritten = result.VoxelsWritten + traversal.VoxelsWritten;
             UndergroundCavernCentreMetres =
                 ((float3)(result.CavernBounds.Min + result.CavernBounds.MaxExclusive) * 0.5f) * VoxelSize;
             UndergroundCavernEntranceMetres = (float3)caveRequest.EntranceWorldPosition * VoxelSize;
 
-            AppendUndergroundCavernLights(result.LocalLights);
+            AppendUndergroundCavernLights(allLights);
 
             // Runtime bake restoration authors this feature after installing snapshots, so publish
             // every deep region now. During offline baking there are no live render consumers, but
@@ -209,6 +229,18 @@ namespace VoxelEngine.Showcase
             for (int z = first.z; z <= last.z; z++)
             for (int x = first.x; x <= last.x; x++)
                 regions.Add(new int3(x, y, z));
+        }
+
+        private static MineCaveLightRequest[] CombineUndergroundCavernLights(
+            MineCaveLightRequest[] route,
+            MineCaveLightRequest[] cavern)
+        {
+            int routeCount = route?.Length ?? 0;
+            int cavernCount = cavern?.Length ?? 0;
+            var combined = new MineCaveLightRequest[routeCount + cavernCount];
+            if (routeCount > 0) Array.Copy(route, 0, combined, 0, routeCount);
+            if (cavernCount > 0) Array.Copy(cavern, 0, combined, routeCount, cavernCount);
+            return combined;
         }
 
         private void AppendUndergroundCavernLights(MineCaveLightRequest[] lights)
