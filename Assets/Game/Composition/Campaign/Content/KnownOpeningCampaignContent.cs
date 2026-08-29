@@ -160,13 +160,13 @@ namespace Game.Composition.Campaign.Content
             game.Story.Rule("start-travel-after-logan", rule => rule
                 .When(StoryTrigger.CutsceneCompleted(loganToChurch))
                 .Then(StoryEffect.StartObjective(travelObjective)));
-            game.Story.Rule("awon-opening-on-entry", rule => rule
-                .When(StoryTrigger.EnterSite(awonSite))
+            game.Story.Rule("awon-opening-on-visit", rule => rule
+                .When(StoryTrigger.InteractWith(awon))
                 .If(StoryCondition.CutsceneCompleted(loganToChurch))
                 .If(StoryCondition.CutsceneNotCompleted(awonOpening))
                 .Then(StoryEffect.PlayCutscene(awonOpening)));
-            game.Story.Rule("medrare-first-spell-on-entry", rule => rule
-                .When(StoryTrigger.EnterSite(medrareSite))
+            game.Story.Rule("medrare-first-spell-on-visit", rule => rule
+                .When(StoryTrigger.InteractWith(medrare))
                 .If(StoryCondition.CutsceneCompleted(awonOpening))
                 .If(StoryCondition.CutsceneNotCompleted(medrareFirstSpell))
                 .Then(StoryEffect.PlayCutscene(medrareFirstSpell)));
