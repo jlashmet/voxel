@@ -107,17 +107,9 @@ namespace Game.Cutscenes.Runtime
                         RequireActor(step.Actor, actors, path, "speaker");
                     RequireCue(step.Cue, path);
                     return;
-                case CutsceneStepType.ActorCue:
-                    RequireActor(step.Actor, actors, path, "actor");
-                    RequireCue(step.Cue, path);
-                    return;
                 case CutsceneStepType.Camera:
                 case CutsceneStepType.Sound:
-                case CutsceneStepType.Transition:
                     RequireCue(step.Cue, path);
-                    return;
-                case CutsceneStepType.AcquireControlLock:
-                case CutsceneStepType.ReleaseControlLock:
                     return;
                 case CutsceneStepType.Parallel:
                     if (step.Children.Count == 0)
@@ -246,35 +238,11 @@ namespace Game.Cutscenes.Runtime
                     return _context.Presentation.SetCamera(step.Cue);
                 case CutsceneStepType.Sound:
                     return _context.Presentation.PlaySound(step.Cue);
-                case CutsceneStepType.ActorCue:
-                    return RequireActorCuePresentation().PlayActorCue(step.Actor, step.Cue);
-                case CutsceneStepType.Transition:
-                    return RequireTransitionPresentation().PlayTransition(step.Cue);
-                case CutsceneStepType.AcquireControlLock:
-                    return _context.ControlLock.Acquire();
-                case CutsceneStepType.ReleaseControlLock:
-                    return _context.ControlLock.Release();
                 case CutsceneStepType.Parallel:
                     return ExecuteParallel(step);
                 default:
                     throw new InvalidOperationException("Unsupported cutscene step " + step.Type + ".");
             }
-        }
-
-        private ICutsceneActorCuePresentation RequireActorCuePresentation()
-        {
-            var presentation = _context.Presentation as ICutsceneActorCuePresentation;
-            if (presentation != null) return presentation;
-            throw new InvalidOperationException(
-                "Cutscene contains an actor cue but the configured presentation does not support actor cues.");
-        }
-
-        private ICutsceneTransitionPresentation RequireTransitionPresentation()
-        {
-            var presentation = _context.Presentation as ICutsceneTransitionPresentation;
-            if (presentation != null) return presentation;
-            throw new InvalidOperationException(
-                "Cutscene contains a transition but the configured presentation does not support transitions.");
         }
 
         private ICutsceneOperation ExecuteParallel(CutsceneStep step)
@@ -315,15 +283,14 @@ namespace Game.Cutscenes.Runtime
             CutsceneDefinition definition,
             ICutsceneActorController actors,
             ICutscenePresentation presentation,
-            CutsceneStageBinding stage,
-            ICutsceneControlLockRuntime controlLock = null)
+            CutsceneStageBinding stage)
         {
             if (presentation == null) throw new ArgumentNullException(nameof(presentation));
             CutscenePreflight.Validate(definition, actors, stage);
             CutsceneStageSetup.Apply(definition, actors, stage);
 
             var runner = new CutsceneRunner();
-            runner.Start(definition, new CutsceneExecutionContext(actors, presentation, stage, controlLock));
+            runner.Start(definition, new CutsceneExecutionContext(actors, presentation, stage));
             return runner;
         }
     }

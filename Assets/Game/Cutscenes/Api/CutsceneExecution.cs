@@ -35,26 +35,6 @@ namespace Game.Cutscenes.Api
     }
 
     /// <summary>
-    /// Optional authoritative player-control seam for scenes that explicitly lock and release input.
-    /// Existing cutscene callers remain valid through the completed no-op default.
-    /// </summary>
-    public interface ICutsceneControlLockRuntime
-    {
-        ICutsceneOperation Acquire();
-        ICutsceneOperation Release();
-    }
-
-    public sealed class CompletedCutsceneControlLockRuntime : ICutsceneControlLockRuntime
-    {
-        public static readonly CompletedCutsceneControlLockRuntime Instance =
-            new CompletedCutsceneControlLockRuntime();
-
-        private CompletedCutsceneControlLockRuntime() { }
-        public ICutsceneOperation Acquire() => CompletedCutsceneOperation.Instance;
-        public ICutsceneOperation Release() => CompletedCutsceneOperation.Instance;
-    }
-
-    /// <summary>
     /// Client-local presentation seam. Camera, dialogue, and audio never own authoritative gameplay state.
     /// A default speaker id means the dialogue cue itself owns speaker assignment (legacy-content compatible).
     /// </summary>
@@ -70,18 +50,15 @@ namespace Game.Cutscenes.Api
         public ICutsceneActorController Actors { get; }
         public ICutscenePresentation Presentation { get; }
         public CutsceneStageBinding Stage { get; }
-        public ICutsceneControlLockRuntime ControlLock { get; }
 
         public CutsceneExecutionContext(
             ICutsceneActorController actors,
             ICutscenePresentation presentation,
-            CutsceneStageBinding stage,
-            ICutsceneControlLockRuntime controlLock = null)
+            CutsceneStageBinding stage)
         {
             Actors = actors ?? throw new ArgumentNullException(nameof(actors));
             Presentation = presentation ?? throw new ArgumentNullException(nameof(presentation));
             Stage = stage ?? throw new ArgumentNullException(nameof(stage));
-            ControlLock = controlLock ?? CompletedCutsceneControlLockRuntime.Instance;
         }
     }
 }
