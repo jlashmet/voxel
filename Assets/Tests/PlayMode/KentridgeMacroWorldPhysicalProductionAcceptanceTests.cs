@@ -1,4 +1,5 @@
 using System;
+using Game.WorldBuilder.Api;
 using Game.WorldBuilder.Runtime;
 using MountingForce.WorldGen;
 using MountingForce.WorldGen.Content.Kentridge;
@@ -38,7 +39,7 @@ namespace VoxelEngine.Tests.PlayMode
                     KentridgeTopDownWorldPhysicalIntent.RossdamLake,
                     out TopDownWorldRegionPlan lake),
                 Is.True);
-            Assert.That(lake.Spec.Kind, Is.EqualTo(Game.WorldBuilder.Api.TopDownWorldRegionKind.WaterBody));
+            Assert.That(lake.Spec.Kind, Is.EqualTo(TopDownWorldRegionKind.WaterBody));
 
             FeatureCatalogue waterCatalogue = default;
             try
