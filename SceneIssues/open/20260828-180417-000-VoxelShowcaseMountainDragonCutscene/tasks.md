@@ -17,6 +17,8 @@
 - [x] Reduce headroom raster volume without weakening 24-voxel vertical clearance, the normal-movement route, full visible path width, or shared WorldBuilder semantics: centered clear lane is 16 voxels / 1.6 m.
 - [x] Add focused production-program regression proving the clear lane leaves 0.5 m lateral margin per side around the 0.6 m motor and caps total carve volume at 2.8M voxels.
 - [x] Re-check static blast radius/cost: 13 carve primitives and 76 total primitives unchanged; footprint unchanged at 1200 x 306 x 1200; carve raster volume 5,097,000 -> 2,718,400 voxels (-46.7%); no steady-state runtime work added.
+- [x] Inspect exact-SHA run `33274279301`: the optimized source still hit the external 4-minute bake-process wall after ~62.3 s cold import, so carve voxel count is not the dominant remaining bake cost.
+- [ ] Remove non-serialized presentation work from the offline VoxelShowcase bake (far-field capture/change publication) while preserving the full radius-8 semantic world, runtime far-field rebuild on `LoadBake`, and normal runtime generation behavior; add focused static/regression coverage and re-check blast radius/cost.
 
 ## Exact-SHA bake / built-player gate
 - [x] Inspect completed prior request `ee738bc8511160139eb3d7ea39fbde81d8d21877` and its one retry; both validate superseded source `7b5393736485e4411083bf06fd3257e42702b4bb` and cannot satisfy the new source gate.
