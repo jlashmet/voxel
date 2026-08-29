@@ -155,18 +155,25 @@ namespace VoxelEngine.Tests.PlayMode
                 "Rossdam fortified audit landmark drifted away from the authored gatehouse origin.");
 
             // Built-player evidence must remain deliberately framed at gameplay/close inspection distances.
-            // Rossdam angles around the commerce building and Fairy Village raises the close camera/target
-            // to the elevated treehouse facade rather than inspecting the blank lower trunk.
+            // Rossdam clears the west edge of the commerce foundation before converging on the gatehouse;
+            // Fairy Village raises the close camera/target to the elevated treehouse facade.
             int2 rossdamPlayerTarget = ShowcaseWorld.WorldbuildingGalleryTownAuditTargetXZ(3, 1);
             int2 rossdamPlayerSpawn = ShowcaseWorld.WorldbuildingGalleryTownAuditSpawnXZ(3, 1);
             int2 rossdamCloseTarget = ShowcaseWorld.WorldbuildingGalleryTownAuditTargetXZ(3, 2);
             int2 rossdamCloseSpawn = ShowcaseWorld.WorldbuildingGalleryTownAuditSpawnXZ(3, 2);
             Assert.AreEqual(new int2(-1100, -697), rossdamPlayerTarget);
-            Assert.AreEqual(new int2(-1130, -734), rossdamPlayerSpawn);
-            Assert.AreEqual(new int2(-1120, -697), rossdamCloseTarget);
-            Assert.AreEqual(new int2(-1120, -712), rossdamCloseSpawn);
+            Assert.AreEqual(new int2(-1142, -723), rossdamPlayerSpawn);
+            Assert.AreEqual(new int2(-1121, -697), rossdamCloseTarget);
+            Assert.AreEqual(new int2(-1136, -708), rossdamCloseSpawn);
             Assert.That(math.distance(rossdamPlayerSpawn, rossdamPlayerTarget), Is.InRange(20f, 50f));
             Assert.That(math.distance(rossdamCloseSpawn, rossdamCloseTarget), Is.InRange(5f, 20f));
+            float commerceNorthCrossing =
+                (-714f - rossdamPlayerSpawn.y) / (rossdamPlayerTarget.y - rossdamPlayerSpawn.y);
+            float rossdamSightlineX = math.lerp(rossdamPlayerSpawn.x, rossdamPlayerTarget.x, commerceNorthCrossing);
+            Assert.Less(rossdamSightlineX, -1124f,
+                "Rossdam player audit sightline must clear the west edge of the commerce foundation.");
+            Assert.AreEqual(24, ShowcaseWorld.WorldbuildingGalleryTownAuditLookHeightVoxels(3, 1));
+            Assert.AreEqual(19, ShowcaseWorld.WorldbuildingGalleryTownAuditLookHeightVoxels(3, 2));
 
             int2 fairyPlayerTarget = ShowcaseWorld.WorldbuildingGalleryTownAuditTargetXZ(4, 1);
             int2 fairyPlayerSpawn = ShowcaseWorld.WorldbuildingGalleryTownAuditSpawnXZ(4, 1);
