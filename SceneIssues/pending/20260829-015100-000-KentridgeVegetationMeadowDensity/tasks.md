@@ -36,15 +36,16 @@
 - [x] Harness does not expose separate CPU-ms/GPU-ms; no missing metric is invented.
 - [x] Feature-only diff against current master contains only assigned Kentridge ecology/render/tests/SceneIssue files; no feature `.github/test-request.json`, unrelated capture, or workflow change.
 
-## Final exact-SHA gate
+## Final exact-SHA / promotion gate
 - [x] Final validated source: `ec92c3002a6b75ca86de7819f4175c5390a1ca2b`.
 - [x] Exactly one fresh final request after the source correction: `d71730e46c2e12bc81e8c6e58cb87c07525904e3` on `ci-test/fixes/agent-5`.
 - [x] Workflow `33249542767` completed successfully; `ci/single-test=success`; focused PlayMode regression, player build/replay, previews, and artifact upload all passed.
 - [x] Final artifact inspected directly; mandatory meadow-density and animation visual gates pass.
+- [x] Pending metadata set (`status=pending`, `resolutionSummary`, `regressionTest`, `fixCommit`).
+- [x] Only this assignment moved `open -> pending` in a separate bookkeeping commit.
+- [x] Every acceptance criterion and checkbox required for closure is complete and validated.
 
-## Metadata / promotion / publish
-- [x] Set pending metadata (`status=pending`, `resolutionSummary`, `regressionTest`, `fixCommit`) on the assigned issue.
-- [ ] Move only this assignment `open -> pending` in a separate bookkeeping commit.
-- [ ] Move only this assignment `pending -> closed`, set `status=fixed` and `resolvedUtc`, and complete this checklist.
-- [ ] Merge current `origin/master` into `fixes/agent-5` (stop for conflicts outside assigned work).
-- [ ] Push the exact final feature head to `origin/master` non-force; if master advances, fetch/merge/retry; verify `master == fixes/agent-5`.
+## Remaining workflow operations after closure
+- Set `status=fixed` and `resolvedUtc`, then move only this assignment `pending -> closed`.
+- Fetch current `origin/master`, merge it into `fixes/agent-5`, stopping for any conflict outside assigned work.
+- Non-force push that exact feature head to `origin/master`; if master advanced, fetch/merge/retry; verify `master == fixes/agent-5`.
