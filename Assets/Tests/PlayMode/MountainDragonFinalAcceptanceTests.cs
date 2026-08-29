@@ -18,6 +18,7 @@ namespace VoxelEngine.Tests.PlayMode
             var support = new MountainDragonNaturalSupportProgramTests();
             support.MountainPathSupportUsesTaperedMassesWithoutTallRetainingWallBoxes();
             support.OfflineBakeFarFieldSuppressionIsScopedAndRestored();
+            support.BoxCarveSkipsCanonicalEmptyBlocksButClearsMixedBoundaryPayload();
 
             var headroom = new MountainDragonPathHeadroomBakeTests();
             headroom.PreparedStartupBakeKeepsPlayerClearAirAboveEveryMountainPathTier();
