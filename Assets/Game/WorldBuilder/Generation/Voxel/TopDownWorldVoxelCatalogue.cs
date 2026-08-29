@@ -5,6 +5,7 @@ using MountingForce.WorldGen;
 using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Structures.Api;
+using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
 
 namespace MountingForce.WorldGen.Voxel
 {
@@ -67,8 +68,7 @@ namespace MountingForce.WorldGen.Voxel
         {
             for (var i = 0; i < _nodes.Length; i++)
             {
-                if (!string.Equals(_nodes[i].Node.Id, nodeId, StringComparison.Ordinal))
-                    continue;
+                if (!string.Equals(_nodes[i].Node.Id, nodeId, StringComparison.Ordinal)) continue;
                 centreDm = _nodes[i].CentreDm;
                 return true;
             }
@@ -78,15 +78,17 @@ namespace MountingForce.WorldGen.Voxel
     }
 
     /// <summary>
-    /// Voxel realization of a production top-down WorldBuilder layout. The semantic graph owns
-    /// destinations, envelopes and hard connections; this backend turns them into low-precedence
-    /// grounded destination pads plus overlapping surface-painted travel tiles. Later town/landmark
-    /// catalogues intentionally override these neutral layout markers.
+    /// Physical realization of a production WorldBuilder macro layout. Verified routes become
+    /// overlapping, terrain-grounded surface tiles and named destinations get neutral grounded
+    /// markers. The semantic envelope remains the reservation contract; the physical marker is
+    /// intentionally small instrumentation so it cannot become accidental final architecture.
+    /// Detailed settlement/corridor passes run at higher precedence and override these surfaces.
     /// </summary>
     public static class TopDownWorldVoxelCatalogue
     {
         public const int RouteTileStepDm = 30;
-        private const int VerticalSearchVoxels = 1024;
+        private const int VerticalBandDm = 80;
+        private const int MarkerMaxHalfExtentDm = 60;
         private const int MaxAltitudeVoxels = 4096;
 
         public static TopDownWorldVoxelPlan Plan(
@@ -109,14 +111,14 @@ namespace MountingForce.WorldGen.Voxel
                 physicalById.Add(placement.Node.Id, centre);
             }
 
-            var routes = new List<TopDownWorldVoxelRoutePlan>(layout.Routes.Count);
+            var routes = new List<TopDownWorldVoxelRoutePlan>();
             for (var i = 0; i < layout.Routes.Count; i++)
             {
                 TopDownWorldRouteSpec route = layout.Routes[i];
+                if (!route.IsHard) continue;
                 if (!physicalById.TryGetValue(route.FromId, out Int2 from)
                     || !physicalById.TryGetValue(route.ToId, out Int2 to))
                     throw new InvalidOperationException("Macro route references an unrealized node: " + route.Key);
-
                 routes.Add(new TopDownWorldVoxelRoutePlan(route, BuildRouteTiles(from, to)));
             }
 
@@ -132,9 +134,10 @@ namespace MountingForce.WorldGen.Voxel
         {
             TopDownWorldVoxelPlan plan = Plan(layout, rootCentreDm, cellSizeDm);
             int scale = settings.VoxelsPerDecimetre;
-            int routeDefinitionCount = layout.Routes.Count;
-            int nodeDefinitionCount = layout.Nodes.Count;
+            int routeDefinitionCount = plan.Routes.Count;
+            int nodeDefinitionCount = plan.Nodes.Count;
             int definitionCount = routeDefinitionCount + nodeDefinitionCount;
+            int verticalBand = VerticalBandDm * scale;
             int programLength = 0;
             var routePrograms = new int[routeDefinitionCount][];
             var nodePrograms = new int[nodeDefinitionCount][];
@@ -143,14 +146,15 @@ namespace MountingForce.WorldGen.Voxel
             byte marker = settings.Materials.Resolve(MaterialRole.FoundationStone);
             for (var i = 0; i < routeDefinitionCount; i++)
             {
-                int width = layout.Routes[i].CorridorWidthDm * scale;
-                routePrograms[i] = PaintProgram(width, width, road);
+                int width = plan.Routes[i].Route.CorridorWidthDm * scale;
+                routePrograms[i] = PaintProgram(width, verticalBand, width, road);
                 programLength += routePrograms[i].Length;
             }
             for (var i = 0; i < nodeDefinitionCount; i++)
             {
-                int size = layout.Nodes[i].Node.EnvelopeHalfExtentDm * 2 * scale;
-                nodePrograms[i] = PaintProgram(size, size, marker);
+                int halfDm = Math.Min(plan.Nodes[i].Node.EnvelopeHalfExtentDm, MarkerMaxHalfExtentDm);
+                int size = halfDm * 2 * scale;
+                nodePrograms[i] = PaintProgram(size, verticalBand, size, marker);
                 programLength += nodePrograms[i].Length;
             }
 
@@ -178,10 +182,10 @@ namespace MountingForce.WorldGen.Voxel
                     int width = route.CorridorWidthDm * scale;
                     int[] program = routePrograms[i];
                     CopyProgram(ref catalogue, programOffset, program);
-
                     catalogue.Definitions[i] = Definition(
                         "macro-route-" + i,
                         width,
+                        verticalBand,
                         width,
                         programOffset,
                         program.Length,
@@ -191,11 +195,12 @@ namespace MountingForce.WorldGen.Voxel
                     for (var p = 0; p < physicalRoute.Tiles.Count; p++)
                     {
                         Int2 centre = physicalRoute.Tiles[p];
+                        int ground = TerrainSampler.HeightAt(centre.X * scale, centre.Y * scale, layout.Seed);
                         catalogue.ExplicitPlacements[placementOffset++] = new ExplicitPlacement
                         {
                             Position = new int3(
                                 (centre.X - route.CorridorWidthDm / 2) * scale,
-                                0,
+                                ground - verticalBand / 2,
                                 (centre.Y - route.CorridorWidthDm / 2) * scale),
                             Orientation = 0,
                             OverrideOffset = 0,
@@ -210,32 +215,35 @@ namespace MountingForce.WorldGen.Voxel
                 {
                     int definitionId = routeDefinitionCount + i;
                     TopDownWorldVoxelNodePlan physicalNode = plan.Nodes[i];
-                    int half = physicalNode.Node.EnvelopeHalfExtentDm;
-                    int size = half * 2 * scale;
+                    int halfDm = Math.Min(physicalNode.Node.EnvelopeHalfExtentDm, MarkerMaxHalfExtentDm);
+                    int size = halfDm * 2 * scale;
                     int[] program = nodePrograms[i];
                     CopyProgram(ref catalogue, programOffset, program);
-
                     catalogue.Definitions[definitionId] = Definition(
                         "macro-node-" + i,
                         size,
+                        verticalBand,
                         size,
                         programOffset,
                         program.Length,
                         precedence: 5);
 
+                    int ground = TerrainSampler.HeightAt(
+                        physicalNode.CentreDm.X * scale,
+                        physicalNode.CentreDm.Y * scale,
+                        layout.Seed);
                     int firstPlacement = placementOffset;
                     catalogue.ExplicitPlacements[placementOffset++] = new ExplicitPlacement
                     {
                         Position = new int3(
-                            (physicalNode.CentreDm.X - half) * scale,
-                            0,
-                            (physicalNode.CentreDm.Y - half) * scale),
+                            (physicalNode.CentreDm.X - halfDm) * scale,
+                            ground - verticalBand / 2,
+                            (physicalNode.CentreDm.Y - halfDm) * scale),
                         Orientation = 0,
                         OverrideOffset = 0,
                         OverrideCount = 0,
                     };
-                    catalogue.Rules[definitionId] = ExplicitRule(
-                        definitionId, firstPlacement, 1);
+                    catalogue.Rules[definitionId] = ExplicitRule(definitionId, firstPlacement, 1);
                     programOffset += program.Length;
                 }
 
@@ -254,11 +262,9 @@ namespace MountingForce.WorldGen.Voxel
 
         private static IReadOnlyList<Int2> BuildRouteTiles(Int2 from, Int2 to)
         {
-            var tiles = new List<Int2>();
-            tiles.Add(from);
-
-            // Deterministic Manhattan realization keeps each surface primitive axis-aligned. The
-            // bend is backend geometry only; the semantic endpoints/connection remain authoritative.
+            var tiles = new List<Int2> { from };
+            // Deterministic Manhattan realization keeps every surface primitive axis aligned. The
+            // bend is backend geometry only; the source-backed endpoints remain authoritative.
             Int2 bend = new Int2(to.X, from.Y);
             AppendAxis(tiles, bend);
             AppendAxis(tiles, to);
@@ -285,6 +291,7 @@ namespace MountingForce.WorldGen.Voxel
         private static FeatureDefinition Definition(
             string name,
             int width,
+            int height,
             int depth,
             int programOffset,
             int programLength,
@@ -296,7 +303,7 @@ namespace MountingForce.WorldGen.Voxel
                 Kind = FeatureKind.Landform,
                 BasePlane = BasePlaneRule.FixedAltitude,
                 FixedAltitude = 0,
-                Footprint = new int3(width, VerticalSearchVoxels, depth),
+                Footprint = new int3(width, height, depth),
                 MaxSlope = 32,
                 Precedence = precedence,
                 ParameterOffset = 0,
@@ -333,14 +340,14 @@ namespace MountingForce.WorldGen.Voxel
             };
         }
 
-        private static int[] PaintProgram(int width, int depth, byte material)
+        private static int[] PaintProgram(int width, int height, int depth, byte material)
         {
             return new[]
             {
                 (int)ShapeOp.EmitBox,
                 0,
                 0, 0, 0,
-                width, VerticalSearchVoxels, depth,
+                width, height, depth,
                 material,
                 0, 0,
                 (int)PrimitiveMode.PaintSurface,

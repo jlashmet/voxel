@@ -35,6 +35,16 @@ namespace Game.Kentridge.PlayableSlice
                 seed);
             SettlementPlan settlement = RequireSettlement(town, WorldBuilderTownIds.Kentridge);
             KentridgePlayableWorldBuilderBridge.Remember(settlement, town);
+
+            // The playable slice selects semantic intent; the shared WorldBuilder/Voxel boundary
+            // consumes this once when it builds the Kentridge catalogue. No macro route or marker
+            // is authored directly in scene code, and unrelated Kentridge catalogues pay no cost.
+            TopDownWorldLayout macro = MountingForceTopDownWorldDefinition.Build(seed);
+            TopDownWorldLayoutSelection.Select(
+                macro,
+                TownCentreDm.X,
+                TownCentreDm.Y,
+                MountingForceTopDownWorldDefinition.CellSizeDm);
             KentridgeTopDownWorldLayoutPresentation.Ensure(seed);
             return settlement;
         }

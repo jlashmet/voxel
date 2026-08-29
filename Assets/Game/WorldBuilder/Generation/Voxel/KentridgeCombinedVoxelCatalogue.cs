@@ -1,8 +1,6 @@
 using System.Collections.Generic;
-using Game.WorldBuilder.Api;
 using Game.WorldBuilder.Runtime;
 using MountingForce.WorldGen.Architecture;
-using MountingForce.WorldGen.Content.Kentridge;
 using Unity.Collections;
 using VoxelEngine.Structures.Api;
 
@@ -17,10 +15,7 @@ namespace MountingForce.WorldGen.Voxel
         {
             FeatureCatalogue local = KentridgeCombinedVoxelCatalogueCanonical.Build(
                 seed, settings, allocator);
-            Int2 origin = settings.Settlement != null
-                ? settings.Settlement.CentreDm
-                : KentridgeDefinition.TownCentreDm;
-            return AddMacroWorld(local, seed, settings, origin, allocator);
+            return AddSelectedMacroWorld(local, seed, settings, allocator);
         }
 
         /// <summary>
@@ -39,17 +34,14 @@ namespace MountingForce.WorldGen.Voxel
                 settings,
                 hiddenSpaces,
                 allocator);
-            Int2 origin = settings.Settlement != null
-                ? settings.Settlement.CentreDm
-                : KentridgeDefinition.TownCentreDm;
-            return AddMacroWorld(local, seed, settings, origin, allocator);
+            return AddSelectedMacroWorld(local, seed, settings, allocator);
         }
 
         /// <summary>
         /// Emits the exact architecture-realized hidden spaces selected during campaign planning.
         /// The concrete SettlementPlan is required so geometry cannot accidentally be emitted against a
-        /// different seed/layout. The shared macro layout is composed at this backend boundary too, so
-        /// every full Kentridge world catalogue carries the same source-backed surrounding world.
+        /// different seed/layout. A macro world is composed only when the game/scene WorldBuilder path
+        /// explicitly selected one for this seed; ordinary Kentridge catalogues retain their old cost.
         /// </summary>
         public static FeatureCatalogue Build(
             SettlementPlan plan,
@@ -62,24 +54,25 @@ namespace MountingForce.WorldGen.Voxel
                 settings,
                 hiddenSpaces,
                 allocator);
-            return AddMacroWorld(local, plan.Seed, settings, plan.CentreDm, allocator);
+            return AddSelectedMacroWorld(local, plan.Seed, settings, allocator);
         }
 
-        private static FeatureCatalogue AddMacroWorld(
+        private static FeatureCatalogue AddSelectedMacroWorld(
             FeatureCatalogue local,
             uint seed,
             VoxelWorldGenSettings settings,
-            Int2 rootCentreDm,
             Allocator allocator)
         {
+            if (!TopDownWorldLayoutSelection.TryConsume(seed, out TopDownWorldBuildSelection selection))
+                return local;
+
             FeatureCatalogue macro = default;
             try
             {
-                TopDownWorldLayout layout = KentridgeTopDownWorldLayout.Build(seed);
                 macro = TopDownWorldVoxelCatalogue.Build(
-                    layout,
-                    rootCentreDm,
-                    KentridgeTopDownWorldLayout.CellSizeDm,
+                    selection.Layout,
+                    new Int2(selection.RootXdm, selection.RootZdm),
+                    selection.CellSizeDm,
                     settings,
                     allocator);
                 return SettlementCatalogueCombiner.Combine(allocator, local, macro);
