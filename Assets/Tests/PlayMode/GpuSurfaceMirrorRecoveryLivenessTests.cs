@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Diagnostics;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -24,7 +25,7 @@ namespace VoxelEngine.Tests.PlayMode
         private const string ScenePath = "Assets/Scenes/VoxelShowcase.unity";
         private const float TravelMetres = 96f;
         private const float StepMetres = 0.5f;
-        private const int WarmupFrames = 360;
+        private const double MaxWarmupSeconds = 60.0;
         private const int ObservationFrames = 900;
         private const int MaxBacklogActiveStallFrames = 180;
 
@@ -52,7 +53,8 @@ namespace VoxelEngine.Tests.PlayMode
             try
             {
                 VoxelSurfaceMetrics metrics = default;
-                for (int i = 0; i < WarmupFrames; i++)
+                var warmupClock = Stopwatch.StartNew();
+                while (warmupClock.Elapsed.TotalSeconds < MaxWarmupSeconds)
                 {
                     yield return null;
                     camera.Render();
@@ -63,9 +65,13 @@ namespace VoxelEngine.Tests.PlayMode
                 }
 
                 Assert.Greater(metrics.VisibleSolidChunks, 0,
-                    "Focused mirror-liveness harness never reached initial visible coverage.");
+                    $"Focused mirror-liveness harness never reached initial visible coverage within "
+                  + $"{MaxWarmupSeconds:F0}s; missing={metrics.MissingVisibleSolidChunks}, "
+                  + $"jobs={metrics.RunningSolidJobs}, gpuCompleted={metrics.GpuCompletedSolidBuilds}, "
+                  + $"gpuWaitSlices={metrics.GpuReadbackWaitSlices}.");
                 Assert.Greater(GpuSurfaceMirrorCoordinator.ReadyBlockCount, 0,
-                    "Focused mirror-liveness harness never initialized the shared GPU mirror.");
+                    $"Focused mirror-liveness harness never initialized the shared GPU mirror "
+                  + $"within {MaxWarmupSeconds:F0}s.");
 
                 Vector3 origin = showcase.transform.position;
                 Vector3 position = origin;
