@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using Game.WorldBuilder.Voxel;
 using NUnit.Framework;
@@ -19,6 +20,7 @@ namespace VoxelEngine.Tests.PlayMode
         private const int BricksPerRegionEdgeLog2 = 6;
         private const int VoxelsPerBrick = 512;
         private const int MixedCellBytes = 4;
+        private const string IssueId = "20260828-180417-000-VoxelShowcaseMountainDragonCutscene";
 
         [Test]
         public void PreparedStartupBakeContainsMountainPathAndSupportedDragonAndExportsEvidence()
@@ -107,6 +109,8 @@ namespace VoxelEngine.Tests.PlayMode
             AssertMaterial(bake, dragonCentre, DragonMaterial,
                 "The baked image must contain the summit dragon placeholder, not only source intent.");
 
+            AssertEvidenceRouteTracksAuthoredPath(in spec);
+
             var encounter = new MountainDragonEncounterRuntime(Seed);
             Assert.That(
                 encounter.Update(spec.Origin.x - 200, spec.Origin.z - 200, 16),
@@ -125,6 +129,85 @@ namespace VoxelEngine.Tests.PlayMode
                 "The completed greeting must remain a one-shot proximity cutscene.");
 
             ExportPreparedBakeEvidence(bakeAsset.bytes, manifestAsset.text, in spec);
+        }
+
+        private static void AssertEvidenceRouteTracksAuthoredPath(in MountainLandmarkSpec spec)
+        {
+            string projectRoot = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
+            string issueDirectory = null;
+            string[] states = { "open", "pending", "closed" };
+            for (int i = 0; i < states.Length; i++)
+            {
+                string candidate = Path.Combine(projectRoot, "SceneIssues", states[i], IssueId);
+                if (!Directory.Exists(candidate)) continue;
+                issueDirectory = candidate;
+                break;
+            }
+
+            Assert.That(issueDirectory, Is.Not.Null,
+                "Mountain SceneIssue assignment folder must exist in open, pending, or closed.");
+            string issuePath = Path.Combine(issueDirectory, "issue.json");
+            EvidenceIssue issue = JsonUtility.FromJson<EvidenceIssue>(File.ReadAllText(issuePath));
+            Assert.That(issue, Is.Not.Null);
+            Assert.That(issue.evidenceRoute, Is.Not.Empty,
+                "The built-player route must be referenced from durable issue metadata.");
+
+            string routePath = Path.Combine(issueDirectory, issue.evidenceRoute);
+            EvidenceRoute route = JsonUtility.FromJson<EvidenceRoute>(File.ReadAllText(routePath));
+            Assert.That(route?.waypoints, Is.Not.Null.And.Not.Empty);
+
+            float pathBaseX = (spec.Origin.x + spec.PathMinLocalX + spec.PathWidth / 2) * ShowcaseWorld.VoxelSize;
+            float pathBaseZ = (spec.Origin.z + spec.FirstRampLocalZ + spec.PathWidth / 2) * ShowcaseWorld.VoxelSize;
+            AssertWaypoint(route, "path-base", pathBaseX, pathBaseZ);
+
+            for (int level = 0; level < spec.SwitchbackCount; level++)
+            {
+                int startY = level * spec.PathRise;
+                bool reverse = (level & 1) != 0;
+                int highX = reverse
+                    ? spec.PathMinLocalX + spec.PathWidth / 2
+                    : spec.PathMinLocalX + spec.PathRun - spec.PathWidth / 2;
+                float highWorldX = (spec.Origin.x + highX) * ShowcaseWorld.VoxelSize;
+                float rampWorldZ = (spec.Origin.z + spec.RampLocalZ(startY) + spec.PathWidth / 2)
+                                   * ShowcaseWorld.VoxelSize;
+                AssertWaypoint(route, $"switchback-{level}-high", highWorldX, rampWorldZ);
+
+                if (level + 1 >= spec.SwitchbackCount) continue;
+                float nextWorldZ = (spec.Origin.z + spec.RampLocalZ(startY + spec.PathRise)
+                                    + spec.PathWidth / 2) * ShowcaseWorld.VoxelSize;
+                AssertWaypoint(route, $"switchback-{level + 1}-low", highWorldX, nextWorldZ);
+            }
+
+            int lastHighLocalX = spec.PathMinLocalX + spec.PathWidth / 2;
+            float summitRampX = (spec.Origin.x + lastHighLocalX) * ShowcaseWorld.VoxelSize;
+            float summitApproachZ = spec.SummitApproachWorldZ * ShowcaseWorld.VoxelSize;
+            AssertWaypoint(route, "summit-ramp-high", summitRampX, summitApproachZ);
+            AssertWaypoint(
+                route,
+                "summit-proximity",
+                spec.SummitApproachWorldX * ShowcaseWorld.VoxelSize,
+                summitApproachZ);
+
+            int captures = 0;
+            for (int i = 0; i < route.waypoints.Length; i++)
+                if (!string.IsNullOrEmpty(route.waypoints[i].capture)) captures++;
+            Assert.That(captures, Is.GreaterThanOrEqualTo(6),
+                "Evidence route must retain approach/base/switchback/summit/dialogue captures.");
+        }
+
+        private static void AssertWaypoint(EvidenceRoute route, string name, float x, float z)
+        {
+            EvidenceWaypoint waypoint = null;
+            for (int i = 0; i < route.waypoints.Length; i++)
+            {
+                if (!string.Equals(route.waypoints[i].name, name, StringComparison.Ordinal)) continue;
+                waypoint = route.waypoints[i];
+                break;
+            }
+
+            Assert.That(waypoint, Is.Not.Null, "Missing required evidence waypoint '" + name + "'.");
+            Assert.That(waypoint.x, Is.EqualTo(x).Within(0.01f), name + " x drifted from authored path.");
+            Assert.That(waypoint.z, Is.EqualTo(z).Within(0.01f), name + " z drifted from authored path.");
         }
 
         private static void AssertMaterial(
@@ -234,6 +317,27 @@ namespace VoxelEngine.Tests.PlayMode
                 + "pathWidth=" + spec.PathWidth + "\n"
                 + "switchbackCount=" + spec.SwitchbackCount + "\n"
                 + "placeholderSize=" + spec.PlaceholderSize + "\n");
+        }
+
+        [Serializable]
+        private sealed class EvidenceIssue
+        {
+            public string evidenceRoute;
+        }
+
+        [Serializable]
+        private sealed class EvidenceRoute
+        {
+            public EvidenceWaypoint[] waypoints;
+        }
+
+        [Serializable]
+        private sealed class EvidenceWaypoint
+        {
+            public string name;
+            public float x;
+            public float z;
+            public string capture;
         }
     }
 }
