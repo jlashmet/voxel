@@ -1,0 +1,83 @@
+{
+  "timeoutSeconds": 90.0,
+  "arrivalRadius": 1.25,
+  "holdSeconds": 0.5,
+  "quitOnComplete": true,
+  "waypoints": [
+    {
+      "name": "normal-approach",
+      "x": -95.0,
+      "z": -38.0,
+      "holdSeconds": 1.25,
+      "capture": "01-mountain-approach.png",
+      "lookAt": true,
+      "lookX": -60.0,
+      "lookZ": 20.0,
+      "lookPitchDegrees": -12.0
+    },
+    {
+      "name": "path-base",
+      "x": -76.5,
+      "z": -32.5,
+      "holdSeconds": 1.0,
+      "capture": "02-path-base.png",
+      "lookAt": true,
+      "lookX": -43.5,
+      "lookZ": -32.5,
+      "lookPitchDegrees": -8.0
+    },
+    { "name": "switchback-0-high", "x": -43.5, "z": -32.5 },
+    { "name": "switchback-1-low", "x": -43.5, "z": -25.6 },
+    { "name": "switchback-1-high", "x": -76.5, "z": -25.6 },
+    {
+      "name": "switchback-2-low",
+      "x": -76.5,
+      "z": -18.7,
+      "holdSeconds": 1.0,
+      "capture": "03-switchback-mid.png",
+      "lookAt": true,
+      "lookX": -43.5,
+      "lookZ": -18.7,
+      "lookPitchDegrees": -6.0
+    },
+    { "name": "switchback-2-high", "x": -43.5, "z": -18.7 },
+    { "name": "switchback-3-low", "x": -43.5, "z": -11.8 },
+    { "name": "switchback-3-high", "x": -76.5, "z": -11.8 },
+    { "name": "switchback-4-low", "x": -76.5, "z": -4.9 },
+    { "name": "switchback-4-high", "x": -43.5, "z": -4.9 },
+    {
+      "name": "switchback-5-low",
+      "x": -43.5,
+      "z": 2.0,
+      "holdSeconds": 1.0,
+      "capture": "04-switchback-upper.png",
+      "lookAt": true,
+      "lookX": -76.5,
+      "lookZ": 2.0,
+      "lookPitchDegrees": -5.0
+    },
+    { "name": "switchback-5-high", "x": -76.5, "z": 2.0 },
+    {
+      "name": "summit-ramp-high",
+      "x": -76.5,
+      "z": 10.5,
+      "holdSeconds": 1.0,
+      "capture": "05-summit-dragon-supported.png",
+      "lookAt": true,
+      "lookX": -60.0,
+      "lookZ": 20.0,
+      "lookPitchDegrees": -4.0
+    },
+    {
+      "name": "summit-proximity",
+      "x": -66.0,
+      "z": 10.5,
+      "holdSeconds": 1.0,
+      "capture": "06-dragon-dialogue.png",
+      "lookAt": true,
+      "lookX": -60.0,
+      "lookZ": 20.0,
+      "lookPitchDegrees": -3.0
+    }
+  ]
+}
