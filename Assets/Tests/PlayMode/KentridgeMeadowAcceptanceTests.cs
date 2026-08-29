@@ -7,6 +7,7 @@ using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
+using VoxelEngine.Rendering.Runtime.Vegetation;
 using VoxelEngine.Showcase;
 using VoxelEngine.Vegetation.Api;
 
@@ -84,6 +85,13 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(checkedGrassRoots, Is.GreaterThanOrEqualTo(64),
                 "Grounding regression must inspect a representative set of production meadow roots.");
 
+            // This is the workflow-mandated minimal render reproduction after three failed player
+            // wind attempts. It deliberately puts the same packed mesh and production shader high
+            // above the loaded world so terrain cannot occlude it, then requires framebuffer pixels
+            // to move as Unity's engine-managed shader clock advances. If this fails, do not make a
+            // fourth production change: the grass draw itself has not been isolated successfully.
+            yield return VerifyPackedGrassVisiblyDeformsAboveGround();
+
             Debug.Log($"KENTRIDGE_MEADOW_ACCEPTANCE grassInstances={life.GrassCount} "
                     + $"grassBlades={life.GrassBladeCount} "
                     + $"primaryMeadowInstances={life.PrimaryMeadowGrassCount} "
@@ -97,6 +105,131 @@ namespace VoxelEngine.Tests.PlayMode
                     + $"cultivatedRejected={life.CultivatedExclusionCount} "
                     + $"steepRejected={life.SteepOrCliffExclusionCount} "
                     + $"invalidRejected={life.OtherInvalidExclusionCount}");
+        }
+
+        private static IEnumerator VerifyPackedGrassVisiblyDeformsAboveGround()
+        {
+            var batch = new ProceduralGrassBatch();
+            Material material = null;
+            GameObject cameraObject = null;
+            RenderTexture target = null;
+            Texture2D readback = null;
+            RenderTexture previousActive = RenderTexture.active;
+
+            try
+            {
+                const float isolatedY = 5000f;
+                uint seed = 1000u;
+                for (int z = 0; z < 5; z++)
+                for (int x = -5; x <= 5; x++)
+                {
+                    batch.Add(new VegetationInstance
+                    {
+                        PositionMetres = new float3(x * 0.18f, isolatedY, 2.2f + z * 0.18f),
+                        SurfaceNormal = new float3(0f, 1f, 0f),
+                        Kind = VegetationKind.Grass,
+                        Seed = seed++,
+                        Scale = 1.25f,
+                    });
+                }
+                batch.Rebuild();
+                Assert.That(batch.BladeCount, Is.GreaterThan(250));
+
+                Shader shader = Shader.Find(ProceduralVegetationMaterials.GrassShaderName);
+                Assert.That(shader, Is.Not.Null);
+                material = new Material(shader);
+                Assert.That(material.HasProperty("_GrassTime"), Is.False,
+                    "Minimal repro must exercise the engine-managed grass clock, not obsolete custom CPU time state.");
+                material.SetVector("_GrassPlayerPositionWS", new Vector4(100000f, 100000f, 100000f, 1f));
+                material.SetFloat("_GrassPushRadius", 0f);
+                material.SetVector("_GrassCameraRightWS", new Vector4(1f, 0f, 0f, 0f));
+
+                cameraObject = new GameObject("Grass Wind Minimal Repro Camera");
+                Camera camera = cameraObject.AddComponent<Camera>();
+                camera.enabled = false;
+                camera.clearFlags = CameraClearFlags.SolidColor;
+                camera.backgroundColor = Color.black;
+                camera.nearClipPlane = 0.01f;
+                camera.farClipPlane = 12f;
+                camera.fieldOfView = 45f;
+                camera.transform.position = new Vector3(0f, isolatedY + 0.55f, -1.7f);
+                camera.transform.LookAt(new Vector3(0f, isolatedY + 0.25f, 2.55f));
+
+                target = new RenderTexture(256, 256, 24, RenderTextureFormat.ARGB32);
+                target.Create();
+                camera.targetTexture = target;
+                readback = new Texture2D(256, 256, TextureFormat.RGBA32, false);
+
+                Color32[] first = RenderPackedGrass(batch, material, camera, target, readback);
+                int firstVisible = CountVisibleGrassPixels(first);
+                Assert.That(firstVisible, Is.GreaterThan(500),
+                    "Minimal repro must first prove that packed grass contributes a readable above-ground framebuffer silhouette.");
+
+                yield return new WaitForSecondsRealtime(0.75f);
+
+                Color32[] second = RenderPackedGrass(batch, material, camera, target, readback);
+                int changed = CountChangedGrassPixels(first, second);
+                Assert.That(changed, Is.GreaterThan(100),
+                    "Production packed grass shader must visibly deform above ground as Unity's engine-managed shader clock advances.");
+                Debug.Log($"KENTRIDGE_GRASS_MINIMAL_REPRO visiblePixels={firstVisible} changedPixels={changed}");
+            }
+            finally
+            {
+                RenderTexture.active = previousActive;
+                batch.Dispose();
+                if (readback != null) Object.Destroy(readback);
+                if (target != null)
+                {
+                    target.Release();
+                    Object.Destroy(target);
+                }
+                if (material != null) Object.Destroy(material);
+                if (cameraObject != null) Object.Destroy(cameraObject);
+            }
+        }
+
+        private static Color32[] RenderPackedGrass(
+            ProceduralGrassBatch batch,
+            Material material,
+            Camera camera,
+            RenderTexture target,
+            Texture2D readback)
+        {
+            batch.Draw(material);
+            camera.Render();
+            RenderTexture.active = target;
+            readback.ReadPixels(new Rect(0f, 0f, target.width, target.height), 0, 0, false);
+            readback.Apply(false, false);
+            return readback.GetPixels32();
+        }
+
+        private static int CountVisibleGrassPixels(Color32[] pixels)
+        {
+            int visible = 0;
+            for (int i = 0; i < pixels.Length; i++)
+            {
+                Color32 pixel = pixels[i];
+                if (pixel.g > 24 && pixel.g > pixel.r + 4 && pixel.g > pixel.b + 4)
+                    visible++;
+            }
+            return visible;
+        }
+
+        private static int CountChangedGrassPixels(Color32[] first, Color32[] second)
+        {
+            Assert.That(second.Length, Is.EqualTo(first.Length));
+            int changed = 0;
+            for (int i = 0; i < first.Length; i++)
+            {
+                Color32 a = first[i];
+                Color32 b = second[i];
+                bool grassA = a.g > 24 && a.g > a.r + 4 && a.g > a.b + 4;
+                bool grassB = b.g > 24 && b.g > b.r + 4 && b.g > b.b + 4;
+                if (!(grassA || grassB)) continue;
+                int delta = Mathf.Abs(a.r - b.r) + Mathf.Abs(a.g - b.g) + Mathf.Abs(a.b - b.b);
+                if (delta >= 6) changed++;
+            }
+            return changed;
         }
 
         [UnityTearDown]
