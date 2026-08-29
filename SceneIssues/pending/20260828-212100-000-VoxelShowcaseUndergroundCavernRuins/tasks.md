@@ -1,7 +1,7 @@
 # Tasks
 
 - [x] Trace current `VoxelShowcase` composition through WorldBuilder/shared authoring and identify the production owners for terrain/carving, subterranean traversal, formations, ruin/statue assembly, and local/underground lighting.
-- [x] Map all 14 acceptance criteria to existing capabilities or explicit reusable gaps; add any discovered required work below.
+- [x] Map all 18 acceptance criteria to existing capabilities or explicit reusable gaps; add any discovered required work below.
 - [x] Add a reusable destination-cavern/ancient-ruin composer in `Game.Structures`; reuse the existing natural-cave voxel formation planner and mine-cave lantern presentation rather than duplicating geology or light semantics.
 - [x] Establish a bounded subterranean dark-stone host volume before carving so deep-cavern behavior does not depend on whether a sparse negative-y region begins solid or empty.
 - [x] Use shared cave traversal results/placement requirements to select the cavern destination by meaningful entrance-to-destination traversal distance rather than a showcase-only coordinate assumption.
@@ -16,6 +16,9 @@
 - [ ] Preserve and validate the reveal sequence: daylight mouth -> prolonged varied descent -> huge dark cavern -> ruin/statues destination.
 - [x] Add focused behavioral regression through the authoritative `VoxelShowcase`/WorldBuilder production path, in addition to the existing detached authoring regression, for route execution, cavern/statues/geology/lights/determinism/write budget; existing reusable-authoring regression covers dark-stone/masonry writes.
 - [x] Review blast radius for every shared-system change: generic cave engine unchanged; new traversal helper is opt-in and only `VoxelShowcase` consumes it; no new renderer/light system or broader preload scheme introduced.
+- [ ] Make bend placement, route shape, and route-light spacing/count configurable or derived through a reusable traversal profile; remove production dependence on fixed showcase dogleg/light segment indices or an exact cardinal-route count.
+- [ ] Move affected-region envelope/preload/publication and local cave-light registration onto reusable Game/engine contracts; the cavern must not append lighting through `CastlePresentationLights` or other castle-specific presentation state.
+- [ ] Add a focused portability regression that authors a second cave at a different origin/facing/length/seed/profile and proves connected traversal plus reusable local-light and affected-region semantics without copying showcase implementation.
 - [ ] Quantify world-build/runtime cost from exact CI metrics: voxel/chunk work, triangle impact, draw/light/shadow cost, memory, and supported-device budget impact without weakening budgets.
 - [x] Refresh/merge current `origin/master` into `fixes/agent-3` before the final CI gate and resolve only conflicts inside this assignment's files.
 - [x] Add capture/replay dimensions and an opt-in multi-stage built-player SceneIssue replay sequence for this feature; ordinary single-capture SceneIssues retain their existing behavior.
