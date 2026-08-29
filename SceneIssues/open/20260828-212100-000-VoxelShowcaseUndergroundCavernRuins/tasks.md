@@ -1,9 +1,11 @@
 # Tasks
 
-- [ ] Trace current `VoxelShowcase` composition through WorldBuilder/shared authoring and identify the production owners for terrain/carving, subterranean traversal, formations, ruin/statue assembly, and local/underground lighting.
-- [ ] Map all 14 acceptance criteria to existing capabilities or explicit reusable gaps; add any discovered required work below.
-- [ ] Extend the shared cave/structure authoring layer with a deterministic destination-cavern program; current `CaveNetworkAuthoringCore` only carves plain cylindrical/box chambers and has no reusable geology/ruin semantics.
-- [ ] Use cave traversal candidates/placement requirements to select the cavern destination by meaningful entrance-to-destination traversal distance rather than a showcase-only coordinate assumption.
+- [x] Trace current `VoxelShowcase` composition through WorldBuilder/shared authoring and identify the production owners for terrain/carving, subterranean traversal, formations, ruin/statue assembly, and local/underground lighting.
+- [x] Map all 14 acceptance criteria to existing capabilities or explicit reusable gaps; add any discovered required work below.
+- [ ] Add a reusable destination-cavern/ancient-ruin composer in `Game.Structures`; reuse the existing natural-cave voxel formation planner and mine-cave lantern presentation rather than duplicating geology or light semantics.
+- [ ] Establish a bounded subterranean dark-stone host volume before carving so deep-cavern behavior does not depend on whether a sparse negative-y region begins solid or empty.
+- [ ] Use shared cave traversal results/placement requirements to select the cavern destination by meaningful entrance-to-destination traversal distance rather than a showcase-only coordinate assumption.
+- [ ] Integrate cavern generation with both offline `VoxelShowcase` baking and runtime bake restoration/presentation metadata so the shipping baked startup path contains the feature and its local lights.
 - [ ] Implement a natural, normally walkable terrain cave mouth through WorldBuilder/shared systems.
 - [ ] Implement a substantial, gently descending, continuously traversable subterranean route with adequate clearance and organic variation.
 - [ ] Implement a much larger connected cavern with high irregular ceiling, broad navigable floor, recess/rock variation, and unblocked route.
