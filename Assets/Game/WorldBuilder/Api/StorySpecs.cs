@@ -21,10 +21,10 @@ namespace Game.WorldBuilder.Api
         internal InteractWithNpcTriggerSpec(NpcRef npc) => Npc = npc;
     }
 
-    public sealed class EnterSiteTriggerSpec : IStoryTriggerSpec
+    public sealed class EnterSiteProximityTriggerSpec : IStoryTriggerSpec
     {
         public SiteRef Site { get; }
-        internal EnterSiteTriggerSpec(SiteRef site) => Site = site;
+        internal EnterSiteProximityTriggerSpec(SiteRef site) => Site = site;
     }
 
     public sealed class CutsceneCompletedTriggerSpec : IStoryTriggerSpec
@@ -85,7 +85,8 @@ namespace Game.WorldBuilder.Api
     {
         public static IStoryTriggerSpec NewGame() => new NewGameTriggerSpec();
         public static InteractWithNpcTriggerSpec InteractWith(NpcRef npc) => new InteractWithNpcTriggerSpec(npc);
-        public static EnterSiteTriggerSpec EnterSite(SiteRef site) => new EnterSiteTriggerSpec(site);
+        public static EnterSiteProximityTriggerSpec EnterSiteProximity(SiteRef site) =>
+            new EnterSiteProximityTriggerSpec(site);
         public static CutsceneCompletedTriggerSpec CutsceneCompleted(CutsceneRef cutscene) =>
             new CutsceneCompletedTriggerSpec(cutscene);
         public static QuestCompletedTriggerSpec QuestCompleted(QuestRef quest) =>
@@ -162,11 +163,6 @@ namespace Game.WorldBuilder.Api
         }
     }
 
-    /// <summary>
-    /// A concrete use of an authored cutscene definition in the generated world. This owns only
-    /// physical/world binding: site and actor identities. Story sequencing is expressed separately
-    /// through StoryRuleSpec.
-    /// </summary>
     public sealed class CutsceneSpec
     {
         public CutsceneRef Ref { get; }
@@ -175,11 +171,7 @@ namespace Game.WorldBuilder.Api
         public IReadOnlyList<CutsceneActorBindingSpec> ActorBindings { get; }
         public IReadOnlyList<CutsceneStagePointId> StageRequirements => Definition.RequiredStagePoints;
 
-        internal CutsceneSpec(
-            CutsceneRef @ref,
-            CutsceneDefinition definition,
-            SiteRef site,
-            CutsceneActorBindingSpec[] actorBindings)
+        internal CutsceneSpec(CutsceneRef @ref, CutsceneDefinition definition, SiteRef site, CutsceneActorBindingSpec[] actorBindings)
         {
             Ref = @ref;
             Definition = definition ?? throw new ArgumentNullException(nameof(definition));
@@ -188,7 +180,6 @@ namespace Game.WorldBuilder.Api
         }
     }
 
-    /// <summary>Runtime story transition: WHEN Trigger, IF all Conditions, THEN Effects in authored order.</summary>
     public sealed class StoryRuleSpec
     {
         public StoryRuleRef Ref { get; }
@@ -196,11 +187,7 @@ namespace Game.WorldBuilder.Api
         public IReadOnlyList<IStoryConditionSpec> Conditions { get; }
         public IReadOnlyList<IStoryEffectSpec> Effects { get; }
 
-        internal StoryRuleSpec(
-            StoryRuleRef @ref,
-            IStoryTriggerSpec trigger,
-            IStoryConditionSpec[] conditions,
-            IStoryEffectSpec[] effects)
+        internal StoryRuleSpec(StoryRuleRef @ref, IStoryTriggerSpec trigger, IStoryConditionSpec[] conditions, IStoryEffectSpec[] effects)
         {
             Ref = @ref;
             Trigger = trigger ?? throw new ArgumentNullException(nameof(trigger));
@@ -209,10 +196,6 @@ namespace Game.WorldBuilder.Api
         }
     }
 
-    /// <summary>
-    /// Legacy single-objective source representation. CampaignRuntime compiles each instance into a
-    /// one-step QuestDefinition; new authoring should use QuestHandle while this bridge remains.
-    /// </summary>
     public sealed class ObjectiveSpec
     {
         public ObjectiveRef Ref { get; }
