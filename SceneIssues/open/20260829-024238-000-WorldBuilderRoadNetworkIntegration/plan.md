@@ -11,6 +11,11 @@
 ## Discriminator result
 **Representation gap selected.** Current Kentridge planning already emits semantic `PlannedRoute` data (including diagonal legs), while `KentridgeTownSurfaceCatalogue` still realizes legacy `Streets` through Kentridge-specific axis-aligned carve/fill/ramp programs and five fixed grassy shoulder bands per side. Historical commit `336cb6e63e19bc6039f3f89bb4d2056e2d0efb60` confirms the ten-strip shoulder representation. Commit `8cd28a5ea7133a4012a17112375f70384bee79ec` establishes the coarse-LOD invariant that exposed +Y cap material must remain preferred on layered terrain. The shared capability therefore needs semantic road/profile + deterministic resolved geometry + one analytic influence, with a generic diagonal-to-voxel realization path and no restoration of stale package paths.
 
+## Vegetation integration discriminator
+- Resumed implementation already computed `WorldRoadInfluenceSample.VegetationSuppression31` from the same continuous 0..31 coverage used by grading/material presentation, but `KentridgeVegetationPlanner.TryBuild` still called `TrySampleClearance` and removed every tree in the larger clearance envelope.
+- That binary-clearance hypothesis is rejected: it creates a hard ecology boundary outside the physical influence and cannot satisfy progressive shoulder recovery.
+- Production Kentridge vegetation now samples `WorldRoadNetwork.TrySample` and deterministically thins only existing ecology candidates using `VegetationSuppression31`. The road owns the stable thinning policy; Kentridge does not duplicate radii or distance math. For a stable candidate key, decreasing suppression can only restore vegetation, while zero influence leaves regional ecology untouched.
+
 ## Selected design constraints
 - Logical endpoint connectivity remains separate from resolved geometry.
 - Road profiles carry width/shoulder/material/grade/cut-fill/edge/ecology/traversal intent.
