@@ -9,6 +9,7 @@ using MountingForce.WorldGen;
 using MountingForce.WorldGen.Content.Kentridge;
 using MountingForce.WorldGen.Voxel;
 using UnityEngine;
+using VoxelEngine.Showcase;
 using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
 
 namespace Game.Kentridge.PlayableSlice
@@ -23,16 +24,19 @@ namespace Game.Kentridge.PlayableSlice
     internal sealed class KentridgeMacroWorldEvidenceDriver : MonoBehaviour
     {
         private const string ValidationProfile = "kentridge-macro-world";
-        private const float WalkEvidenceSeconds = 4f;
-        private const float RoadPrestreamSeconds = 4f;
-        private const float RoadWalkSeconds = 3f;
-        private const float TargetSeconds = 4f;
-        private const float CaptureAfterSeconds = 2.4f;
+        private const float WalkEvidenceSeconds = 1.25f;
+        private const float RoadPrestreamSeconds = 1f;
+        private const float RoadWalkSeconds = 1.25f;
+        private const float TargetSeconds = 1.55f;
+        private const float CaptureAfterSeconds = 0.95f;
         private const float DmToMetres = 0.1f;
         private const uint Seed = 0x4B454E54u;
 
         private static readonly FieldInfo s_MotorField = typeof(KentridgePlayableSlice).GetField(
             "_motor",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly FieldInfo s_WorldField = typeof(KentridgePlayableSlice).GetField(
+            "_world",
             BindingFlags.Instance | BindingFlags.NonPublic);
         private static readonly FieldInfo s_YawField = typeof(KentridgePlayableSlice).GetField(
             "_yaw",
@@ -40,6 +44,7 @@ namespace Game.Kentridge.PlayableSlice
 
         private KentridgePlayableSlice _slice;
         private KentridgeCharacterHost _motor;
+        private ShowcaseWorld _world;
         private EvidenceTarget[] _targets;
         private string _screenshotDirectory;
         private float _gameplayStartedAt = -1f;
@@ -48,6 +53,9 @@ namespace Game.Kentridge.PlayableSlice
         private Int2 _roadStartDm;
         private Int2 _roadNextDm;
         private bool _roadPrepared;
+        private int _roadPrewarmPoint;
+        private int _prewarmTargetIndex;
+        private bool _prewarmFocusRegion;
         private bool _roadWalkStarted;
         private Vector3 _roadWalkStartedAt;
         private bool _roadWalkRecorded;
@@ -73,14 +81,23 @@ namespace Game.Kentridge.PlayableSlice
             {
                 _slice = FindFirstObjectByType<KentridgePlayableSlice>();
                 if (_slice == null) return;
-                if (s_MotorField == null || s_YawField == null)
+                if (s_MotorField == null || s_WorldField == null || s_YawField == null)
                     throw new InvalidOperationException(
-                        "Macro evidence driver cannot resolve Kentridge CharacterMotor/yaw host state.");
+                        "Macro evidence driver cannot resolve Kentridge CharacterMotor/world/yaw host state.");
                 _screenshotDirectory = ReadArgument("-voxel-screenshot-dir");
             }
 
             _motor ??= s_MotorField.GetValue(_slice) as KentridgeCharacterHost;
-            if (_motor == null || !_slice.GameplayControlEnabled) return;
+            _world ??= s_WorldField.GetValue(_slice) as ShowcaseWorld;
+            if (_world != null && _targets == null)
+                BuildTargetsAndRoadTraversal();
+
+            if (_motor == null) return;
+            if (!_slice.GameplayControlEnabled)
+            {
+                PrewarmEvidenceRegions();
+                return;
+            }
 
             if (_gameplayStartedAt < 0f)
             {
@@ -109,7 +126,7 @@ namespace Game.Kentridge.PlayableSlice
                 delta.y = 0f;
                 Debug.Log($"MACROEVIDENCE traversal=CharacterMotor-local metres={delta.magnitude:0.00} " +
                           $"from={Format(_walkStartedAt)} to={Format(_motor.Position)}");
-                BuildTargetsAndRoadTraversal();
+                if (_targets == null) BuildTargetsAndRoadTraversal();
             }
 
             _slice.AutoSurvey = false;
@@ -251,6 +268,41 @@ namespace Game.Kentridge.PlayableSlice
                 cameraHeightMetres: 180f,
                 elevated: true));
             _targets = targets.ToArray();
+        }
+
+        private void PrewarmEvidenceRegions()
+        {
+            if (_world == null || _targets == null || _targets.Length == 0) return;
+
+            if (_roadPrewarmPoint < 2)
+            {
+                GenerateEvidenceRegion(_roadPrewarmPoint == 0 ? _roadStartDm : _roadNextDm);
+                _roadPrewarmPoint++;
+                return;
+            }
+
+            if (_prewarmTargetIndex >= _targets.Length) return;
+            EvidenceTarget target = _targets[_prewarmTargetIndex];
+            GenerateEvidenceRegion(_prewarmFocusRegion ? target.FocusDm : target.CameraDm);
+            if (_prewarmFocusRegion)
+            {
+                _prewarmFocusRegion = false;
+                _prewarmTargetIndex++;
+            }
+            else
+            {
+                _prewarmFocusRegion = true;
+            }
+        }
+
+        private void GenerateEvidenceRegion(Int2 pointDm)
+        {
+            int ground = TerrainSampler.HeightAt(pointDm.X, pointDm.Y, Seed);
+            Vector3 position = new Vector3(
+                pointDm.X * DmToMetres,
+                ground * DmToMetres,
+                pointDm.Y * DmToMetres);
+            _world.GenerateRegionBlocking(ShowcaseWorld.RegionAt(position));
         }
 
         private void PinToRoadStart()
