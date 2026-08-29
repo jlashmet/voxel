@@ -11,6 +11,8 @@
 - [x] Inspect Kentridge/world classification evidence: route distance, `HasBuiltContentAbove`, riverbank theme, and terrain normals provide existing route/building/water/slope evidence; the current theme map does not separately identify cultivated plots, so do not misclassify all farmland meadow terrain as cultivated.
 - [x] Inspect failed final CI run `33234652795`: classify it as a product/branch compile failure, not infrastructure; no player build or screenshots were produced.
 - [x] Root-cause the compile failure: `Game.Kentridge.PlayableSlice.KentridgeDefinition` shadows the imported WorldGen definition and its compatibility facade did not forward `CountrysideEcology`.
+- [x] Inspect final CI run `33236269717` and its one permitted infrastructure retry: targeted PlayMode acceptance passes and the built player runs 60 seconds with zero assertions, but the visual replay gate rejects this ticket as having no replayable camera snapshot.
+- [x] Compare a known-good Kentridge SceneIssue capture: `poseAnchor` may be null, while the replayable player camera is identified by `FirstPerson-AIO/FirstPersonCharacter/Capsule/PlayerCamera`; this ticket has the matching camera snapshot filename/world pose but an empty `camera.hierarchyPath`.
 
 ## Implementation
 - [x] Keep the existing additive per-region ecology policy with allowed vegetation, density, deterministic seed salt, sample spacing, route clearance, and slope controls.
@@ -22,6 +24,7 @@
 - [x] Keep denser undergrowth synthesis driven by the regional ecology profile.
 - [x] Preserve the existing shared grass wind path; no second animation system or Kentridge shader fork is introduced because source tracing shows the production time binding is present.
 - [x] Forward the authored WorldGen `CountrysideEcology` policy through the playable WorldBuilder compatibility facade so the local `KentridgeDefinition` shadow remains an intentional adapter rather than a duplicated policy owner.
+- [ ] Repair only this assignment's recorded camera replay metadata by restoring the known Kentridge player-camera hierarchy identity; do not alter scene serialization or gameplay code for this replay defect.
 
 ## Regression coverage
 - [x] Prove Kentridge definition exposes the grass-only dense regional policy and empty tree/ambient-animal allowlists.
@@ -46,6 +49,7 @@
 - [ ] Run focused EditMode behavioral regressions for Kentridge vegetation and procedural grass rendering.
 - [ ] Complete runtime blast-radius/cost report before closure.
 - [ ] Re-run the final focused PlayMode + exact built-player replay after the compatibility compile fix; the previous final request failed before tests/player build.
+- [ ] After repairing camera replay metadata, validate that the exact built-player artifact actually photographs the meadow viewpoint rather than the opening interior/cutscene.
 
 ## Built-player visual gate
 - [ ] Validate exact Kentridge scene in the built application without startup/runtime exceptions.
