@@ -30,6 +30,13 @@
 - [ ] Re-run the final exact-SHA production acceptance after the repair.
 - [x] Blast-radius/cost intent: keep the repair in Kentridge macro physical intent + focused regression only; no planner/catalogue/water changes and no additional eager scene objects.
 
+## External baseline blocker discovered by final CI run 33258816868
+- [x] Publish one fresh final request for exact source `afc684712447cf000996c310aa41e8e967fb5dc0`; request commit `aeb3b612327d7edfeb5a59c28c996d7e7ef15c3e` ran as `33258816868`.
+- [x] Classify the run as a product-red baseline compile blocker before the Kentridge test executes: landed opening-story/campaign code references missing `CutsceneCompletedConditionSpec`, `JoinPartyMemberEffectSpec`, `GrantSpellEffectSpec`, and matching factories.
+- [x] Prove agent-6 did not introduce the blocker: `Assets/Game/Story/Runtime/StoryRuleEngine.cs` has identical blob `12589df0f7f4c18842dd1a03ef37cbffeee9126d` on `master` and `fixes/agent-6`; affected files are outside this assignment's diff.
+- [x] Do not retry the same source as infrastructure and do not edit/revert another assignment's story/campaign files.
+- [ ] Re-fetch `origin/master`; once the owning baseline compile fix lands, merge it into `fixes/agent-6` without conflicts outside this assignment, then create the next exact-SHA final request.
+
 ## Behavioral regression
 - [x] Add one final targeted PlayMode acceptance test that nests the full macro realization regression plus production water/slope/composition assertions: `VoxelEngine.Tests.PlayMode.KentridgeMacroWorldPhysicalProductionAcceptanceTests.PhysicalMacroWorldHasWalkableRoutesAndADeepStreamedWaterBody`.
 - [ ] Green exact-SHA execution verifies fixed-seed macro-to-physical output is deterministic.
@@ -69,7 +76,7 @@
 - [ ] Acceptance (10): exact built-player visual/runtime evidence covers settlements, roads, geography, constrained route, and CharacterMotor traversal.
 - [ ] Acceptance (11): blast radius and world-build/route/CPU/GPU/memory/streaming cost are measured against budgets.
 - [ ] Every checkbox above is complete before `open -> pending`.
-- [ ] Final exact-SHA focused CI and built-player evidence are green. Runs `33230924543` and `33231300309` were product-red compile diagnostics; run `33232755172` was product-red on the Rossdam/Bandit semantic-route conflict; run `33255557296` was product-red on the Orc Village/southern-ridge semantic-route conflict. No green exact-SHA gate exists yet.
+- [ ] Final exact-SHA focused CI and built-player evidence are green. Runs `33230924543` and `33231300309` were product-red compile diagnostics; run `33232755172` was product-red on the Rossdam/Bandit semantic-route conflict; run `33255557296` was product-red on the Orc Village/southern-ridge semantic-route conflict; run `33258816868` was product-red on an unrelated current-master story/campaign compile blocker before the Kentridge test executed. No green exact-SHA gate exists yet.
 - [ ] Complete pending metadata and move only this feature `open -> pending`.
 - [ ] Move only this feature `pending -> closed`, set `status=fixed` and `resolvedUtc`.
 - [ ] Merge current `origin/master` into `fixes/agent-6`, push exact feature head, then non-force push that head to `origin/master`; retry if master advances.
