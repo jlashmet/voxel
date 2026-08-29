@@ -152,6 +152,9 @@ namespace Game.WorldBuilder.Api
             SourcePrefix = Require(sourcePrefix, nameof(sourcePrefix));
             if (detailUnitBlocks <= 0)
                 throw new ArgumentOutOfRangeException(nameof(detailUnitBlocks), "Detail unit must be at least one voxel.");
+            if (!FormMatchesSilhouette(silhouette, roofForm))
+                throw new ArgumentException(
+                    $"Roof/form intent {roofForm} does not match physical silhouette {silhouette}.", nameof(roofForm));
 
             Seed = seed;
             DetailUnitBlocks = detailUnitBlocks;
@@ -190,6 +193,29 @@ namespace Game.WorldBuilder.Api
                     return true;
             }
             return false;
+        }
+
+        private static bool FormMatchesSilhouette(
+            TownArchitectureSilhouette silhouette,
+            TownArchitectureRoofForm roofForm)
+        {
+            switch (silhouette)
+            {
+                case TownArchitectureSilhouette.PastoralTimberFrame:
+                    return roofForm == TownArchitectureRoofForm.SteepGable;
+                case TownArchitectureSilhouette.CivicVerticalStone:
+                    return roofForm == TownArchitectureRoofForm.TwinGable;
+                case TownArchitectureSilhouette.MoorlandLowStone:
+                    return roofForm == TownArchitectureRoofForm.GableWithLeanTo;
+                case TownArchitectureSilhouette.RoyalFortified:
+                    return roofForm == TownArchitectureRoofForm.FortifiedParapet;
+                case TownArchitectureSilhouette.OrganicCanopy:
+                    return roofForm == TownArchitectureRoofForm.OrganicCanopySpire;
+                case TownArchitectureSilhouette.TribalHeavyTimber:
+                    return roofForm == TownArchitectureRoofForm.StockadeJagged;
+                default:
+                    return false;
+            }
         }
 
         private static string Require(string value, string name)
