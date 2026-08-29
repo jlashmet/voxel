@@ -35,6 +35,7 @@ namespace VoxelEngine.Showcase
         public int UndergroundCavernRouteLightCount { get; private set; }
         public int UndergroundCavernDirectionChangeCount { get; private set; }
         public int UndergroundCavernMouthOpeningCount { get; private set; }
+        public int UndergroundCavernPreloadedRegionCount { get; private set; }
         public long UndergroundCavernVoxelsWritten { get; private set; }
         public float3 UndergroundCavernCentreMetres { get; private set; }
         public float3 UndergroundCavernEntranceMetres { get; private set; }
@@ -53,8 +54,12 @@ namespace VoxelEngine.Showcase
                 out CaveConfig caveConfig,
                 out CaveMaterialPalette cavePalette);
             UndergroundCavernRuinConfig ruinConfig = UndergroundCavernRuinConfig.DeepAncientRuin;
+            // Preserve the existing eight-light feature ceiling by spending six supported fixtures
+            // on the long route and at most two inside the destination cavern.
+            ruinConfig.LanternInstancesPerKind = 2;
 
-            PreloadUndergroundCavernRegions(in caveRequest, in caveConfig, in ruinConfig);
+            UndergroundCavernPreloadedRegionCount =
+                PreloadUndergroundCavernRegions(in caveRequest, in caveConfig, in ruinConfig);
 
             var authoring = StructuresComposition.CreateAuthoringSession(
                 ReadStorage,
@@ -164,7 +169,7 @@ namespace VoxelEngine.Showcase
             };
         }
 
-        private void PreloadUndergroundCavernRegions(
+        private int PreloadUndergroundCavernRegions(
             in CaveGenerationRequest request,
             in CaveConfig cave,
             in UndergroundCavernRuinConfig ruin)
@@ -172,6 +177,7 @@ namespace VoxelEngine.Showcase
             var regions = CollectUndergroundCavernRegions(in request, in cave, in ruin);
             foreach (int3 region in regions)
                 GenerateRegionBlocking(region);
+            return regions.Count;
         }
 
         private void PublishUndergroundCavernRegions(
