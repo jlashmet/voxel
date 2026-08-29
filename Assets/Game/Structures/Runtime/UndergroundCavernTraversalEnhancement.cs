@@ -97,7 +97,16 @@ namespace Game.Structures.Runtime
                 throw new ArgumentException("Traversal waypoints require a valid cave request and configuration.");
 
             int3 forward = FacingVector(request.Entrance.Facing);
-            var points = new int3[2 + DoglegSegments.Length * DoglegForwardOffsets.Length + 1];
+            int finalDoglegSegment = DoglegSegments[DoglegSegments.Length - 1];
+            int finalDoglegForwardOffset = DoglegForwardOffsets[DoglegForwardOffsets.Length - 1];
+            int segmentsBeyondDogleg =
+                (finalDoglegForwardOffset + cave.SegmentLength - 1) / cave.SegmentLength;
+            int firstPrimarySegment = math.min(
+                cave.MainSegmentCount,
+                finalDoglegSegment + math.max(1, segmentsBeyondDogleg));
+            int remainingPrimarySegments = math.max(0, cave.MainSegmentCount - firstPrimarySegment);
+            var points = new int3[
+                2 + DoglegSegments.Length * DoglegForwardOffsets.Length + remainingPrimarySegments];
             int output = 0;
             points[output++] = request.EntranceWorldPosition;
             points[output++] = request.EntranceWorldPosition + forward * request.Entrance.ClearanceLength;
@@ -115,7 +124,16 @@ namespace Game.Structures.Runtime
                         sign);
             }
 
-            points[output] = FloorAtSegment(in request, in cave, cave.MainSegmentCount - 1);
+            // The final dogleg ends partway into the following primary-route span. Continue with
+            // every primary segment endpoint ahead of that carve rather than jumping straight to
+            // the terminal segment through uncarved rock. Deriving the first endpoint from the
+            // configured segment length also avoids introducing a backwards waypoint when a
+            // dogleg reaches beyond the immediately following segment boundary.
+            for (int segmentIndex = firstPrimarySegment;
+                 segmentIndex < cave.MainSegmentCount;
+                 segmentIndex++)
+                points[output++] = FloorAtSegment(in request, in cave, segmentIndex);
+
             return points;
         }
 
