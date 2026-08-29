@@ -22,10 +22,7 @@ namespace Game.WorldBuilder.Api
         LandmarkInfrastructure = 3,
     }
 
-    /// <summary>
-    /// High-level massing contract used by shared realizers. It intentionally describes construction
-    /// language rather than captured-scene coordinates.
-    /// </summary>
+    /// <summary>High-level construction language. Backends must preserve these as distinct physical forms.</summary>
     public enum TownArchitectureSilhouette : byte
     {
         PastoralTimberFrame = 0,
@@ -34,6 +31,28 @@ namespace Game.WorldBuilder.Api
         RoyalFortified = 3,
         OrganicCanopy = 4,
         TribalHeavyTimber = 5,
+    }
+
+    /// <summary>Roof/form intent that must survive the production realization path.</summary>
+    public enum TownArchitectureRoofForm : byte
+    {
+        SteepGable = 0,
+        TwinGable = 1,
+        GableWithLeanTo = 2,
+        FortifiedParapet = 3,
+        OrganicCanopySpire = 4,
+        StockadeJagged = 5,
+    }
+
+    /// <summary>Reusable player-scale facade construction vocabulary.</summary>
+    public enum TownArchitectureOpeningStyle : byte
+    {
+        TimberFramed = 0,
+        OrderedStone = 1,
+        DeepWeatheredStone = 2,
+        FortifiedReveal = 3,
+        OrganicPointed = 4,
+        HeavySlit = 5,
     }
 
     /// <summary>Semantic material family selected by a town style before a renderer maps it to IDs.</summary>
@@ -75,42 +94,68 @@ namespace Game.WorldBuilder.Api
 
     /// <summary>
     /// Reusable semantic program for one town's architecture. Geometry backends consume this contract;
-    /// scenes only choose a style, seed/origin and a material-ID mapping.
+    /// scenes only choose placement/material mapping/evidence framing and may override the deterministic seed.
     /// </summary>
     public sealed class TownArchitectureProgram
     {
         private readonly TownArchitectureStructureRole[] _requiredRoles;
         private readonly string[] _referenceScreenshots;
+        private readonly string[] _detailVocabulary;
 
         public string StyleId { get; }
         public string DisplayName { get; }
         public string SourcePrefix { get; }
+        public uint Seed { get; }
+        public int DetailUnitBlocks { get; }
         public TownArchitectureSilhouette Silhouette { get; }
+        public TownArchitectureRoofForm RoofForm { get; }
+        public TownArchitectureOpeningStyle OpeningStyle { get; }
         public TownArchitectureMaterialFamily MaterialFamily { get; }
         public IReadOnlyList<TownArchitectureStructureRole> RequiredRoles => _requiredRoles;
         public IReadOnlyList<string> ReferenceScreenshots => _referenceScreenshots;
+        public IReadOnlyList<string> DetailVocabulary => _detailVocabulary;
+
+        public string FormSignature => Silhouette + "/" + RoofForm + "/" + OpeningStyle;
+        public string DetailSignature => string.Join("|", _detailVocabulary);
+        public string DeterministicSignature =>
+            StyleId + ":" + Seed.ToString("X8") + ":" + DetailUnitBlocks + ":" + FormSignature + ":" + DetailSignature;
 
         internal TownArchitectureProgram(
             string styleId,
             string displayName,
             string sourcePrefix,
+            uint seed,
+            int detailUnitBlocks,
             TownArchitectureSilhouette silhouette,
+            TownArchitectureRoofForm roofForm,
+            TownArchitectureOpeningStyle openingStyle,
             in TownArchitectureMaterialFamily materialFamily,
             TownArchitectureStructureRole[] requiredRoles,
-            string[] referenceScreenshots)
+            string[] referenceScreenshots,
+            string[] detailVocabulary)
         {
             StyleId = Require(styleId, nameof(styleId));
             DisplayName = Require(displayName, nameof(displayName));
             SourcePrefix = Require(sourcePrefix, nameof(sourcePrefix));
+            if (detailUnitBlocks <= 0)
+                throw new ArgumentOutOfRangeException(nameof(detailUnitBlocks), "Detail unit must be at least one voxel.");
+
+            Seed = seed;
+            DetailUnitBlocks = detailUnitBlocks;
             Silhouette = silhouette;
+            RoofForm = roofForm;
+            OpeningStyle = openingStyle;
             MaterialFamily = materialFamily;
             _requiredRoles = requiredRoles ?? throw new ArgumentNullException(nameof(requiredRoles));
             _referenceScreenshots = referenceScreenshots ?? throw new ArgumentNullException(nameof(referenceScreenshots));
+            _detailVocabulary = detailVocabulary ?? throw new ArgumentNullException(nameof(detailVocabulary));
 
             if (_requiredRoles.Length == 0)
                 throw new ArgumentException("A town architecture program requires structure roles.", nameof(requiredRoles));
             if (_referenceScreenshots.Length == 0)
                 throw new ArgumentException("A reference-driven town program requires screenshot evidence.", nameof(referenceScreenshots));
+            if (_detailVocabulary.Length == 0)
+                throw new ArgumentException("A town architecture program requires reusable construction detail.", nameof(detailVocabulary));
         }
 
         public bool IncludesRole(TownArchitectureStructureRole role)
@@ -118,6 +163,17 @@ namespace Game.WorldBuilder.Api
             for (int i = 0; i < _requiredRoles.Length; i++)
             {
                 if (_requiredRoles[i] == role)
+                    return true;
+            }
+            return false;
+        }
+
+        public bool IncludesDetail(string detailId)
+        {
+            if (string.IsNullOrWhiteSpace(detailId)) return false;
+            for (int i = 0; i < _detailVocabulary.Length; i++)
+            {
+                if (string.Equals(_detailVocabulary[i], detailId, StringComparison.Ordinal))
                     return true;
             }
             return false;
