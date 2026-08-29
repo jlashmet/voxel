@@ -56,7 +56,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private static int s_LastPrepareFrame = -1;
         private static ulong s_LastPrepareWorldVersion;
         private static bool s_LastPrepareResult;
+        private static bool s_RecoveryRequiresExclusiveAccess;
         private static ulong s_OptionalNonResidentHaloBlocksAccepted;
+        private static ulong s_ConcurrentDemandRecoverySlices;
 
         internal static GpuVoxelBrickMirror Acquire(long requestedBudgetBytes)
         {
@@ -81,10 +83,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         /// <summary>
         /// Advances the shared mirror to the current authoritative generation without rewriting any
-        /// GPU slot while an earlier count/write can still read it. The caller's snapshot may be an
-        /// older global generation because unrelated streamed regions can advance Storage between
-        /// snapshot and admission; <see cref="Covers(int3,int,int3,int3,ulong)"/> separately proves
-        /// that none of this chunk's covered resident regions changed after that snapshot.
+        /// GPU slot that an earlier count/write can still read. Journal replay and invalidation stay
+        /// exclusive; missing-demand recovery may stage only coordinates absent from the ready set
+        /// while older extractions finish.
         /// </summary>
         internal static bool PrepareFromBridge(ulong requiredGeneration)
         {
@@ -112,9 +113,11 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             s_LastPrepareWorldVersion = currentGeneration;
             s_LastPrepareResult = false;
 
-            // Journal replay is authoritative and must reach the current generation before demand
-            // recovery publishes from Storage. Both are bounded, and neither may mutate the shared
-            // mirror underneath an active extraction.
+            // Journal replay is authoritative and can remove or rewrite an already-ready slot, so
+            // it remains fully exclusive with count/write extraction. Demand recovery is different:
+            // Covers queues only coordinates absent from the ready set, and mixed ready slots are
+            // pinned until invalidation. That distinction lets missing-demand staging overlap older
+            // readbacks without mutating any slot they can observe.
             bool changesSynchronized = s_MirroredVersion == currentGeneration;
             if (!changesSynchronized)
             {
@@ -123,15 +126,18 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             }
             if (!changesSynchronized) return false;
 
-            // Covers queues only exact blocks an eligible GPU build is actually waiting for. A
-            // bounded recovery slice therefore cannot be monopolized by unrelated blocks from the
-            // same very large Storage region. Keep admission closed until the queued slice backlog
-            // is fully drained; otherwise an already-covered worker can immediately reacquire the
-            // shared extraction lease and starve the remaining demanded blocks indefinitely.
+            // Keep mutation-created recovery exclusive, but do not let asynchronous count/write
+            // readbacks head-of-line block additive demand discovered by Covers. ProcessRecovery
+            // only stages previously-unready slots/directory entries; GpuVoxelBrickMirror flushes
+            // them when a later extraction binds the shared buffers. If Storage advances mid-slice,
+            // the next Prepare must synchronize the journal (exclusively) before any new extraction
+            // is admitted.
             if (!RecoveryComplete)
             {
-                if (s_ActiveExtractions != 0) return false;
+                if (s_ActiveExtractions != 0 && s_RecoveryRequiresExclusiveAccess) return false;
+                if (s_ActiveExtractions != 0) s_ConcurrentDemandRecoverySlices++;
                 ProcessRecovery();
+                if (RecoveryComplete) s_RecoveryRequiresExclusiveAccess = false;
             }
 
             s_LastPrepareResult = s_MirroredVersion == currentGeneration && RecoveryComplete;
@@ -213,6 +219,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         internal static bool RecoveryComplete => s_QueuedRecoveryBlocks.Count == 0;
         internal static ulong OptionalNonResidentHaloBlocksAccepted =>
             s_OptionalNonResidentHaloBlocksAccepted;
+        internal static ulong ConcurrentDemandRecoverySlices => s_ConcurrentDemandRecoverySlices;
 
         private static void AttachWorld(IRegionReadSource storage, IVoxelChangeSource changes)
         {
@@ -303,7 +310,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 int3 block = s_BlockScratch[i];
                 UnmarkReadyBlock(block);
                 if (PublishPinnedBlock(block, change.Version)) MarkReadyBlock(block);
-                else QueueRecoveryBlock(block);
+                else QueueRecoveryBlock(block, requiresExclusiveAccess: true);
             }
             s_BlockScratch.Clear();
         }
@@ -315,12 +322,14 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             s_RecoveryBlocks.Clear();
             s_QueuedRecoveryBlocks.Clear();
             s_BlockScratch.Clear();
+            s_RecoveryRequiresExclusiveAccess = false;
             if (clearMirror) s_Mirror.Clear();
         }
 
-        private static void QueueRecoveryBlock(int3 block)
+        private static void QueueRecoveryBlock(int3 block, bool requiresExclusiveAccess = false)
         {
             UnmarkReadyBlock(block);
+            if (requiresExclusiveAccess) s_RecoveryRequiresExclusiveAccess = true;
             if (!s_QueuedRecoveryBlocks.Add(block)) return;
             s_RecoveryBlocks.Enqueue(block);
 
@@ -345,7 +354,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 int3 block = s_BlockScratch[i];
                 UnmarkReadyBlock(block);
                 s_Mirror.Remove(block);
-                if (requeue) QueueRecoveryBlock(block);
+                if (requeue) QueueRecoveryBlock(block, requiresExclusiveAccess: true);
             }
             s_BlockScratch.Clear();
 
@@ -367,7 +376,11 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             // Queue<T> cannot remove arbitrary entries. If every authoritative queued coordinate
             // was cancelled, discard all physical stale entries now; otherwise ProcessRecovery skips
             // cancelled entries without spending recovery budget on them.
-            if (s_QueuedRecoveryBlocks.Count == 0) s_RecoveryBlocks.Clear();
+            if (s_QueuedRecoveryBlocks.Count == 0)
+            {
+                s_RecoveryBlocks.Clear();
+                s_RecoveryRequiresExclusiveAccess = false;
+            }
         }
 
         private static void ProcessRecovery()
@@ -399,7 +412,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
                 if (s_Storage.Version != generation)
                 {
-                    QueueRecoveryBlock(worldBlock);
+                    QueueRecoveryBlock(worldBlock,
+                        requiresExclusiveAccess: s_RecoveryRequiresExclusiveAccess);
                     return;
                 }
 
@@ -408,7 +422,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                     if (!s_Storage.TryAcquireRegion(region, out view)) continue;
                     if (view.Version != generation)
                     {
-                        QueueRecoveryBlock(worldBlock);
+                        QueueRecoveryBlock(worldBlock,
+                            requiresExclusiveAccess: s_RecoveryRequiresExclusiveAccess);
                         return;
                     }
                     viewRegion = region;
@@ -430,7 +445,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                         // Keep the first unprocessed mixed coordinate at the tail and stop this
                         // slice. Cheap descriptors before it have already advanced readiness; the
                         // next frame resumes with the same proven 64-payload ceiling intact.
-                        QueueRecoveryBlock(worldBlock);
+                        QueueRecoveryBlock(worldBlock,
+                            requiresExclusiveAccess: s_RecoveryRequiresExclusiveAccess);
                         break;
                     }
                     remainingMixedPayloads--;
@@ -527,7 +543,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             s_LastPrepareFrame = -1;
             s_LastPrepareWorldVersion = 0;
             s_LastPrepareResult = false;
+            s_RecoveryRequiresExclusiveAccess = false;
             s_OptionalNonResidentHaloBlocksAccepted = 0;
+            s_ConcurrentDemandRecoverySlices = 0;
             s_RecoveryBlocks.Clear();
             s_QueuedRecoveryBlocks.Clear();
             s_ReadyBlocks.Clear();
