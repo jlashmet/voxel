@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Game.WorldBuilder.Api;
 using MountingForce.WorldGen.Content.Kentridge;
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
@@ -17,8 +18,9 @@ namespace MountingForce.WorldGen.Voxel
     ///
     /// Normal runtime generation samples the already-generated voxel column through Storage.Api,
     /// so trees sit on the same district terraces, plot grading, and natural terrain the player
-    /// sees. The analytic path exists for deterministic editor diagnostics without resident world
-    /// storage.
+    /// sees. Road exclusion is applied here from the exact resolved WorldRoadNetwork used by the
+    /// voxel surface backend; the regional ecology policy remains authoritative for density and
+    /// species selection while road clearance is only a local suppression modifier.
     /// </summary>
     public static class KentridgeVegetationPlanner
     {
@@ -29,11 +31,10 @@ namespace MountingForce.WorldGen.Voxel
                                     IVoxelSurfaceQuery surfaceQuery,
                                     out List<TreeInstance> instances)
         {
-            // Editor-preview overload: no VoxelWorldGenSettings here, so this path stays
-            // Kentridge-specific rather than inventing a settlement to preview.
             SettlementPlan plan = KentridgeDefinition.Build(seed);
             List<VegetationCandidate> candidates =
                 KentridgeVegetationLayoutPlanner.Build(plan);
+            WorldRoadNetwork roads = KentridgeWorldRoadNetwork.Build(plan, seed, settings);
             int scale = settings.VoxelsPerDecimetre;
             float voxelSize = DecimetreMetres / scale;
             instances = new List<TreeInstance>(candidates.Count);
@@ -41,6 +42,9 @@ namespace MountingForce.WorldGen.Voxel
             for (int i = 0; i < candidates.Count; i++)
             {
                 VegetationCandidate candidate = candidates[i];
+                if (roads.TrySampleClearance(candidate.X, candidate.Z, out _))
+                    continue;
+
                 int worldX = candidate.X * scale;
                 int worldZ = candidate.Z * scale;
                 int natural = TerrainQuery.HeightAt(worldX, worldZ, seed);
@@ -63,12 +67,12 @@ namespace MountingForce.WorldGen.Voxel
         /// <summary>
         /// Deterministic editor-preview realization. Urban candidates use the authored Kentridge
         /// macro profile; perimeter candidates stay on natural terrain so the vegetation belt does
-        /// not inherit the summit height merely because it lies north of town.
+        /// not inherit the summit height merely because it lies north of town. This diagnostic path
+        /// intentionally does not invent VoxelWorldGenSettings, so production road clearance is
+        /// validated through <see cref="TryBuild"/> and the shared road-network tests.
         /// </summary>
         public static List<TreeInstance> BuildAnalytic(uint seed, int voxelsPerDecimetre = 1)
         {
-            // Editor-preview overload: no VoxelWorldGenSettings here, so this path stays
-            // Kentridge-specific rather than inventing a settlement to preview.
             SettlementPlan plan = KentridgeDefinition.Build(seed);
             List<VegetationCandidate> candidates =
                 KentridgeVegetationLayoutPlanner.Build(plan);
