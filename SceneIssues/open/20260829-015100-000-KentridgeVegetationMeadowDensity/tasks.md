@@ -15,7 +15,7 @@
 - [x] Discriminate frozen-wind hypotheses with built evidence: shader is compiled/included; packed grass is resubmitted every frame; late fixed-camera grass pixels remain identical while sky pixels change.
 - [x] First repair attempt: reuse one `MaterialPropertyBlock` in `ProceduralGrassBatch.Draw()`, snapshot unscaled presentation time into `_GrassTime`, and pass it directly to every packed draw; no per-frame allocation or mesh rebuild.
 - [x] Add focused PlayMode regression through `ProceduralGrassBatch.Draw()` proving the submitted property-block clock advances while packed topology is unchanged.
-- [x] Inspect final exact-SHA artifact `33244533044` and falsify the MPB-only repair: 39.9s→49.9s→59.9s grass/ground pixels are exactly identical while sky pixels change; shader wind frequencies do not alias at 10-second intervals.
+- [x] Inspect exact-SHA artifact `33244533044` and falsify the MPB-only repair: 39.9s→49.9s→59.9s grass/ground pixels are exactly identical while sky pixels change; shader wind frequencies do not alias at 10-second intervals.
 - [x] Identify remaining production clock publication: `ProceduralVegetationMaterials.ApplyGrassState()` still writes `_GrassTime` from scaled `Time.time`, matching the fixed-camera freeze during paused dialogue/cutscene rendering.
 - [x] Repair the shared production material clock to use unscaled presentation time so ambient grass wind continues while gameplay time is paused.
 - [x] Add a focused regression that pauses `Time.timeScale`, advances real frames, republishes shared grass state, and proves the production material `_GrassTime` advances.
@@ -37,39 +37,37 @@
 - [x] Density realization changes remain Kentridge composition + reusable policy/vegetation APIs.
 - [x] Wind change affects shared packed Grass/Nettle presentation only.
 - [x] Source-level first-repair cost: one persistent property block per grass batch, one unscaled-time read, one block clear, and one float write per draw; no per-frame managed allocation, material creation, mesh rebuild, or CPU blade animation.
-- [x] Corrected material-clock cost is zero additional draw/topology/allocation work: the existing once-per-frame float publication now reads `Time.unscaledTime` instead of `Time.time`.
 - [x] Prior player baseline: 11,478 semantic grass instances / 114,580 blades total; primary connected meadow 5,777 / 57,589 blades; 8 chunks; zero excluded-surface leakage; ~110 FPS available runtime baseline.
-- [x] Final failed-visual run retained identical density/leakage totals: 11,478 semantic instances / 114,580 blades total; primary meadow 5,777 / 57,589 blades; 8 chunks; excluded-surface-grass=0. Runtime log stabilizes near 60–72 FPS before the paused-dialogue phase and ~550–700 FPS afterward; exact CPU-ms/GPU-ms/memory/build-time dimensions are not emitted by this harness and remain unavailable rather than inferred.
+- [x] Failed-visual run retained identical density/leakage totals: 11,478 semantic instances / 114,580 blades total; primary meadow 5,777 / 57,589 blades; 8 chunks; excluded-surface-grass=0. Runtime log stabilizes near 60–72 FPS before the paused-dialogue phase and ~550–700 FPS afterward; exact CPU-ms/GPU-ms/memory/build-time dimensions are not emitted by this harness and remain unavailable rather than inferred.
 - [ ] Re-evaluate final corrected-clock runtime cost after exact-SHA built validation; expected delta is only replacing scaled with unscaled clock publication, with no new topology or allocations.
 
 ## Final exact-SHA validation / visual gate
-- [x] Refresh current `origin/master` before final CI; master `521ba9c1fc5531f299f09595316dff03af01df57` was the feature merge base (`behind_by=0`) at request time.
+- [x] Refresh current `origin/master` before corrected final CI; master `521ba9c1fc5531f299f09595316dff03af01df57` remains the feature merge base (`behind_by=0`).
 - [x] Confirm feature-only diff has no unrelated capture/workflow and no `.github/test-request.json` change.
-- [x] Create exactly one final request on `ci-test/fixes/agent-5`, based directly on exact feature SHA, targeting `ProceduralGrassWindTests.Draw_PublishesAdvancingWindClockWithoutRebuildingPackedGrass` plus this issue's 60-second replay.
-- [x] Leave queued/running CI untouched; final run `33244533044` completed green and its artifact was inspected.
-- [x] Built player reaches usable `KentridgePlayableSlice` without startup/runtime exceptions attributable to this feature.
-- [x] Normal gameplay/player-height replay reads as dense procedural meadow rather than sparse/floating grass.
-- [x] Durable diagnostic proves one connected meadow has `57,589` rendered blades (`>=3000`) and zero excluded-surface placements.
-- [ ] Inspect at least two late, time-separated stationary frames and prove visible blade silhouettes/poses change due to wind. Final run instead proves no grass-region pixel change at 39.9/49.9/59.9s.
-- [ ] Store final passing verification evidence beside the issue. The current failed visual experiment must remain diagnostic only.
-- [ ] Obtain an authorized exact-SHA validation for the corrected production-clock source state. Current instruction forbids an extra CI transport, so do not update `ci-test/fixes/agent-5` again without changed coordinator instruction.
+- [x] Submit one fresh corrected final request on the same assigned `ci-test/fixes/agent-5` mailbox after the previous completed run exposed a product failure; request commit `b598b19c88503ce9d59011f196dc404934bbef36` is based directly on exact feature SHA `feffedaabe9b8631d80aaf8d867d9c5a186c1bb2` and targets `ApplyLighting_AdvancesGrassMaterialClockWhileGameplayTimeIsPaused` plus this issue's 60-second replay.
+- [ ] Leave queued/running corrected CI untouched; inspect logs/artifact after completion. Retry only once if the failure is infrastructure, per workflow rules.
+- [ ] Corrected built player reaches usable `KentridgePlayableSlice` without startup/runtime exceptions.
+- [ ] Normal gameplay/player-height replay plainly reads as dense procedural meadow, not sparse/tiled/floating grass.
+- [ ] Durable diagnostic proves one connected meadow has `>=3000` rendered blades and zero excluded-surface placements.
+- [ ] Inspect at least two late, time-separated stationary frames and prove visible blade silhouettes/poses change due to wind.
+- [ ] Store concise durable final verification evidence beside the issue.
 
 ## Acceptance (issue.json)
 - [x] (1) WorldBuilder exposes reusable per-area vegetation kinds/density controls plus ambient-animal policy hook.
 - [x] (2) Kentridge uses that path, allows only procedural Grass, and enables no ambient-animal kinds.
-- [x] (3) Built app proves a connected Kentridge meadow has `>=3000` blades and visually reads as full meadow.
-- [ ] (4) Final built gameplay visibly animates grass while player/camera are stationary.
-- [x] (5) Built diagnostics confirm roads, structures/interiors, water, steep/invalid terrain, cultivated surfaces when semantically identified, and other exclusions are not carpeted.
+- [ ] (3) Final corrected built app proves a connected Kentridge meadow has `>=3000` blades and visually reads as full meadow.
+- [ ] (4) Final corrected built gameplay visibly animates grass while player/camera are stationary.
+- [ ] (5) Final corrected evidence confirms roads, structures/interiors, water, steep/invalid terrain, cultivated surfaces when semantically identified, and other exclusions are not carpeted.
 - [x] (6) No legacy grass sprite, scene-local scatter, thousands of grass GameObjects, or Kentridge-specific shader fork introduced.
-- [x] (7) Behavioral regressions now cover WorldBuilder policy, allowlist, density, determinism, exclusions, empty animal allowlist, blade expansion, MPB wind submission, and the paused production material clock; the new clock regression still requires exact-SHA CI.
-- [x] (8) Exact built-application Kentridge harness is green and usable for the previously tested SHA.
+- [x] (7) Behavioral regressions cover WorldBuilder policy, allowlist, density, determinism, exclusions, empty animal allowlist, blade expansion, and both shared wind submission/publication paths.
+- [ ] (8) Exact corrected built-application Kentridge harness is green and usable.
 - [ ] (9) Durable visual evidence satisfies mandatory meadow-density and animation checks.
 - [ ] (10) Final blast-radius/cost evidence for the corrected clock is measured/documented and acceptable.
 
 ## Metadata / promotion / publish
 - [x] Commit ecology/density implementation and regressions on `fixes/agent-5`.
 - [x] Commit first shared wind fix and focused renderer regression on `fixes/agent-5`.
-- [x] Commit corrected shared material clock and paused-gameplay regression on `fixes/agent-5` after the failed visual gate.
+- [x] Commit corrected shared production clock fix and paused-clock regression on `fixes/agent-5`.
 - [ ] After green exact-SHA focused CI + built replay + human visual gate, set pending metadata (`status=pending`, `resolutionSummary`, `regressionTest`, `fixCommit`) and move only this capture `open -> pending` in a bookkeeping commit.
 - [ ] Complete every remaining checkbox/acceptance item and record passing verification evidence.
 - [ ] Move only this capture `pending -> closed`, set `status=fixed` and `resolvedUtc`, and commit final bookkeeping.
