@@ -20,17 +20,23 @@
 - Exact Kentridge road output is guarded by a stricter acceptance assertion of <=6 voxels rise per 30 dm route step, in addition to generic planner obstacle solving.
 
 ## Regression / cost gate
-Final single CI test:
+Targeted PlayMode acceptance:
 `VoxelEngine.Tests.PlayMode.KentridgeMacroWorldPhysicalProductionAcceptanceTests.PhysicalMacroWorldHasWalkableRoutesAndADeepStreamedWaterBody`
 
 It nests the complete deterministic macro-realization regression, then adds strict actual-road rise checks, physical water-program/depth checks, and Select -> combined-production-catalogue assertions for roads, remote settlements, ridge, and carved water. The test logs route count, tile count, settlement/building count, geography-constrained route count, route-solve steps, maximum road rise, and water depth for the cost record.
 
-Static cost shape before runtime evidence: one-shot macro selection only; roughly region definitions + 20 hard-route definitions + four generic street definitions + 16 generic building definitions, plus one water-basin definition/placement with two primitives. Every footprint remains under the existing 1280-voxel feature cap; no device budget is changed. Exact counts and built-player CPU/GPU/memory/streaming evidence remain CI gates.
+Static cost shape before runtime evidence: one-shot macro selection only; roughly region definitions + 20 hard-route definitions + four generic street definitions + 16 generic building definitions, plus one water-basin definition/placement with two primitives. Every footprint remains under the existing 1280-voxel feature cap; no device budget is changed. Exact counts and built-player CPU/GPU/memory/streaming evidence remain green-CI gates.
+
+## Exact-SHA CI result
+- Final-request transport commit `4424c2eaa328e573eea12a971a2c493b970a0f93` was parented directly to tested feature SHA `b0583ff734a7517f6be2992382e48f92609d4236` and changed only `.github/test-request.json`.
+- Workflow run `33230924543` completed red. Checkout/request/Unity resolution succeeded; `Run requested test` and real-player build both stopped at script compilation.
+- Product failure: `KentridgeMacroWorldEvidenceDriver.cs` referenced `TopDownWorldLayout` without importing namespace `Game.WorldBuilder.Api` (CS0246). The Unity log exposed no additional compiler error before abort.
+- The missing API import is corrected on feature commit `339ca94f593653e84a02fe2d19712971bfd99e20`; `tasks.md` records the failed gate. The feature remains open because there is no green exact-SHA CI or built-player evidence for the corrected head.
+- The assignment prohibits creating an extra CI transport/replacing the requested CI. No second request has been created and no pending/closed metadata has been written.
 
 ## Remaining workflow gates
-1. Freeze/refetch current master and final feature diff; no `.github/test-request.json` on feature.
-2. Create exactly one final PlayMode CI request on `ci-test/fixes/agent-6`, targeting the wrapper regression and this SceneIssue so the same run also builds/replays `KentridgePlayableSlice`.
-3. Inspect exact-SHA test logs plus built-player logs/screenshots: four remote settlements, roads, lake, ridge/pass, constrained route, overview, and CharacterMotor traversal; reject visual/collision anomalies.
-4. Record exact planning/build and CPU/GPU/memory/streaming/far-field cost against existing budgets. Complete every remaining `tasks.md` checkbox and acceptance criterion only with evidence.
-5. After green gates, complete pending metadata and promote only this feature open -> pending -> closed per workflow; set `status=fixed`/`resolvedUtc` only at closure.
-6. Refetch/merge current `origin/master` into `fixes/agent-6`, then non-force push that exact feature head to `origin/master`, retrying if master advances.
+1. Obtain a green exact-SHA focused regression + 60-second built `KentridgePlayableSlice` replay for a head containing the corrected import, without violating the assignment's CI-transport constraint.
+2. Inspect test logs plus built-player logs/screenshots: four remote settlements, roads, lake, ridge/pass, constrained route, overview, and CharacterMotor traversal; reject visual/collision anomalies.
+3. Record exact planning/build and CPU/GPU/memory/streaming/far-field cost against existing budgets. Complete every remaining `tasks.md` checkbox and acceptance criterion only with evidence.
+4. After green gates, complete pending metadata and promote only this feature open -> pending -> closed per workflow; set `status=fixed`/`resolvedUtc` only at closure.
+5. Refetch/merge current `origin/master` into `fixes/agent-6`, then non-force push that exact feature head to `origin/master`, retrying if master advances.
