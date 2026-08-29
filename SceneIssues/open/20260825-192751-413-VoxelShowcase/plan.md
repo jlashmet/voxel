@@ -15,14 +15,16 @@
 ## Fix
 - Keep the world-scoped persistent GPU brick mirror and compact directory, bounded journal/recovery progress, and stale no-payload protection.
 - Synchronize the mirror to current authoritative generation, but validate chunk staleness per covered region: reject snapshots before the known journal-history floor or when any covered region changed afterward.
-- Treat resident recovery as bounded background work, not a global gate. Admit only when the requested footprint is in `s_ReadyRegions`; unrelated recovery remains CPU fallback without blocking locally ready GPU chunks. Preserve no-mutation-while-active.
+- Treat resident recovery as bounded background work, not a global gate. Admit only when the requested footprint is in `s_ReadyRegions`; preserve no-mutation-while-active.
+- Any build classified as supported by an implemented GPU path must complete on that GPU path in normal production operation. CPU fallback is permitted only for geometry/rings the GPU backend does not implement or an explicit emergency/diagnostic disable; GPU-eligible fallback is a product failure.
 
 ## Regression / acceptance
 - EditMode: `GpuBrickSlotTableTests` covers stale mixed->empty release and slot-version behavior; `GpuLod2CutoverPolicyTests` covers production GPU admission policy.
-- PlayMode behavioral gate: `ShowcaseGpuMigrationTests.MovingShowcaseCompletesGpuSurfaceBuildsAndPreservesCoverage` traverses 210 m while streaming, requires >=8 GPU completions and >=5% GPU share, preserves visible coverage/no-hole and zero blocking frame-path completions, and keeps stationary p95 `<8 ms`, moving p95 `<18 ms`, moving p99 `<25 ms`.
+- PlayMode behavioral gate: `ShowcaseGpuMigrationTests.MovingShowcaseCompletesGpuSurfaceBuildsAndPreservesCoverage` traverses 210 m while streaming, requires >=8 real GPU completions and **zero `GpuFallbackSolidBuilds` for GPU-eligible work (100% adoption of implemented GPU paths)**, preserves visible coverage/no-hole and zero blocking frame-path completions, and keeps stationary p95 `<8 ms`, moving p95 `<18 ms`, moving p99 `<25 ms`.
+- Implemented GPU reconstruction semantics (including smooth, planar, rounded, sharp and cubic where otherwise GPU-eligible) must not silently route through CPU fallback.
 
 ## Blast radius / cost
 - Runtime change stays inside shared solid-GPU admission/mirror bookkeeping; water, HLOD, visibility, Storage writes, collision, worldgen and scene content are unchanged. Per-frame caps remain 128 change records, 2048 recovered blocks and 64 resident scan slots.
 - Per-region safety adds one `int3 -> ulong` entry only for regions with observed solid-affecting changes since the history floor; retention overrun/no-journal rebuild clears it and rejects older snapshots.
 - One shared mirror uses at least 96 MiB payload budget (or `16x` requested worker budget) plus ~4% directory overhead, replacing roughly eight duplicated worker mirrors (~98 MiB aggregate).
-- Do not weaken timing/correctness gates. Final closure requires green exact-SHA targeted CI + captured-pose production verification.
+- Do not weaken timing/correctness/adoption gates. Final closure requires green exact-SHA targeted CI + captured-pose production verification.
