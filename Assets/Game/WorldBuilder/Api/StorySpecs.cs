@@ -96,15 +96,16 @@ namespace Game.WorldBuilder.Api
     {
         public static IStoryConditionSpec ObjectiveActive(ObjectiveRef objective) => new ObjectiveActiveConditionSpec(objective);
         public static IStoryConditionSpec QuestActive(QuestRef quest) => new QuestActiveConditionSpec(quest);
-        public static CutsceneCompletedConditionSpec CutsceneCompleted(CutsceneRef cutscene) => new CutsceneCompletedConditionSpec(cutscene);
-        public static CutsceneNotCompletedConditionSpec CutsceneNotCompleted(CutsceneRef cutscene) => new CutsceneNotCompletedConditionSpec(cutscene);
+        public static CutsceneCompletedConditionSpec CutsceneCompleted(CutsceneRef cutscene) =>
+            new CutsceneCompletedConditionSpec(cutscene);
+        public static IStoryConditionSpec CutsceneNotCompleted(CutsceneRef cutscene) => new CutsceneNotCompletedConditionSpec(cutscene);
     }
 
     public static class StoryEffect
     {
         public static IStoryEffectSpec StartObjective(ObjectiveRef objective) => new StartObjectiveEffectSpec(objective);
         public static IStoryEffectSpec StartQuest(QuestRef quest) => new StartQuestEffectSpec(quest);
-        public static PlayCutsceneEffectSpec PlayCutscene(CutsceneRef cutscene) => new PlayCutsceneEffectSpec(cutscene);
+        public static IStoryEffectSpec PlayCutscene(CutsceneRef cutscene) => new PlayCutsceneEffectSpec(cutscene);
     }
 
     public static class ObjectiveCompletion
@@ -161,6 +162,11 @@ namespace Game.WorldBuilder.Api
         }
     }
 
+    /// <summary>
+    /// A concrete use of an authored cutscene definition in the generated world. This owns only
+    /// physical/world binding: site and actor identities. Story sequencing is expressed separately
+    /// through StoryRuleSpec.
+    /// </summary>
     public sealed class CutsceneSpec
     {
         public CutsceneRef Ref { get; }
@@ -182,6 +188,7 @@ namespace Game.WorldBuilder.Api
         }
     }
 
+    /// <summary>Runtime story transition: WHEN Trigger, IF all Conditions, THEN Effects in authored order.</summary>
     public sealed class StoryRuleSpec
     {
         public StoryRuleRef Ref { get; }
@@ -202,6 +209,10 @@ namespace Game.WorldBuilder.Api
         }
     }
 
+    /// <summary>
+    /// Legacy single-objective source representation. CampaignRuntime compiles each instance into a
+    /// one-step QuestDefinition; new authoring should use QuestHandle while this bridge remains.
+    /// </summary>
     public sealed class ObjectiveSpec
     {
         public ObjectiveRef Ref { get; }
