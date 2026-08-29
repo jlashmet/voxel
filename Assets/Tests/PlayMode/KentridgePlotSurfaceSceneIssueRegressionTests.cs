@@ -6,7 +6,6 @@ using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Structures.Api;
 using VoxelEngine.Structures.Runtime;
-using VoxelEngine.Structures.Runtime.Emitters;
 
 namespace VoxelEngine.Tests.PlayMode
 {
@@ -17,15 +16,15 @@ namespace VoxelEngine.Tests.PlayMode
         [Test]
         public void SceneIssue20260826132234356CapturedDirtGrassEdgesAvoidRectangularOwners()
         {
-            AssertMayorHouseVisibleCapRoundsCapturedCornerWithoutChangingSupport();
+            AssertMayorHouseVisibleCapCurvesThroughCapturedEnvelopeWithoutChangingSupport();
             AssertOrganicRouteEdgesUseRoundSurfaceStamps();
         }
 
-        private static void AssertMayorHouseVisibleCapRoundsCapturedCornerWithoutChangingSupport()
+        private static void AssertMayorHouseVisibleCapCurvesThroughCapturedEnvelopeWithoutChangingSupport()
         {
             FeatureCatalogue plots = KentridgePlotSurfaceCatalogue.Build(
                 VoxelShowcaseSeed, BuildSettings(), Allocator.Temp);
-            var primitives = new NativeList<Primitive>(3, Allocator.Temp);
+            var primitives = new NativeList<Primitive>(5, Allocator.Temp);
             var anchors = new NativeList<ResolvedAnchor>(1, Allocator.Temp);
 
             try
@@ -35,8 +34,8 @@ namespace VoxelEngine.Tests.PlayMode
                 PlacementRule rule = FindRule(plots, definitionId);
                 Assert.AreEqual(1, rule.ExplicitCount,
                     "Organic generated-house pads must remain role-specific.");
-                Assert.AreEqual(3, definition.MaxPrimitives,
-                    "The fix must stay within the existing carve/support/surface primitive budget.");
+                Assert.AreEqual(5, definition.MaxPrimitives,
+                    "The organic pad fix must remain bounded to carve/support plus three surface-paint primitives.");
 
                 ExplicitPlacement placement = plots.ExplicitPlacements[rule.ExplicitOffset];
                 Assert.AreEqual(910, placement.Position.x);
@@ -55,15 +54,17 @@ namespace VoxelEngine.Tests.PlayMode
                     VoxelShowcaseSeed, instanceSeed, primitives, anchors);
 
                 Assert.AreEqual(EvaluationResult.Ok, evaluation);
-                Assert.AreEqual(3, primitives.Length,
-                    "MayorHouse grading should still emit one clearance carve, one support fill, and one visible surface paint.");
+                Assert.AreEqual(5, primitives.Length,
+                    "MayorHouse grading should emit one clearance carve, one support fill, and a three-primitive visible surface cap.");
 
                 Primitive carve = default;
                 Primitive support = default;
-                Primitive cap = default;
                 bool foundCarve = false;
                 bool foundSupport = false;
-                bool foundCap = false;
+                int paintCount = 0;
+                int paintBoxes = 0;
+                int paintCylinders = 0;
+                int paintRadius = -1;
                 for (int i = 0; i < primitives.Length; i++)
                 {
                     Primitive primitive = primitives[i];
@@ -79,23 +80,37 @@ namespace VoxelEngine.Tests.PlayMode
                     }
                     else if (primitive.Mode == PrimitiveMode.PaintSurface && primitive.Material == 14)
                     {
-                        cap = primitive;
-                        foundCap = true;
+                        paintCount++;
+                        if (primitive.Shape == PrimitiveShape.Box)
+                        {
+                            paintBoxes++;
+                        }
+                        else if (primitive.Shape == PrimitiveShape.Cylinder)
+                        {
+                            paintCylinders++;
+                            Assert.AreEqual(1, primitive.Axis,
+                                "Organic plot end-caps must be vertical so their radius exists only in plan view.");
+                            if (paintRadius < 0) paintRadius = primitive.Radius;
+                            Assert.AreEqual(paintRadius, primitive.Radius,
+                                "Both organic plot end-caps must use the same plan radius.");
+                        }
+                        else
+                        {
+                            Assert.Fail("Unexpected organic Moss surface primitive: " + primitive.Shape);
+                        }
                     }
                 }
 
                 Assert.IsTrue(foundCarve, "Missing MayorHouse clearance carve.");
                 Assert.IsTrue(foundSupport, "Missing MayorHouse Dirt support.");
-                Assert.IsTrue(foundCap, "Missing MayorHouse rounded Moss surface cap.");
-                Assert.AreEqual(PrimitiveShape.Box, carve.Shape);
-                Assert.AreEqual(PrimitiveShape.Box, support.Shape);
-                Assert.AreEqual(PrimitiveShape.RoundedBox, cap.Shape,
-                    "The visible cap must not reintroduce an axis-aligned right-angle grass corner.");
-                Assert.AreEqual(12, cap.Radius,
-                    "The exact showcase scale should use a 1.2m plan-view corner radius.");
+                Assert.AreEqual(3, paintCount,
+                    "Generated-house Moss ownership must be one bridge plus two round end-caps.");
+                Assert.AreEqual(1, paintBoxes);
+                Assert.AreEqual(2, paintCylinders);
+                Assert.AreEqual(42, paintRadius,
+                    "The 9.8m x 8.6m MayorHouse pad must use the largest contained integer plan radius, not the rejected 1.2m corner radius.");
 
                 support.Bounds(out int3 supportMin, out int3 supportMax);
-                cap.Bounds(out int3 capMin, out int3 capMax);
                 carve.Bounds(out int3 carveMin, out _);
 
                 Assert.AreEqual(new int3(927, placement.Position.y, 286), supportMin,
@@ -106,30 +121,30 @@ namespace VoxelEngine.Tests.PlayMode
                 Assert.AreEqual(221, surfaceY,
                     "The exact captured MayorHouse surface elevation is part of the behavioral fixture.");
                 Assert.AreEqual(surfaceY, supportMax.y,
-                    "Rounding the visible cap must not lower or remove structural support.");
+                    "Changing visible Moss ownership must not lower or remove structural support.");
                 Assert.AreEqual(surfaceY + 1, carveMin.y,
                     "Clearance must still begin immediately above the unchanged support surface.");
-                Assert.AreEqual(supportMin.x, capMin.x);
-                Assert.AreEqual(supportMin.z, capMin.z);
-                Assert.AreEqual(supportMax.x, capMax.x);
-                Assert.AreEqual(supportMax.z, capMax.z);
 
                 var capturedCorner = new int3(927, surfaceY, 286);
-                var nearCorner = new int3(929, surfaceY, 288);
-                var roundedInterior = new int3(932, surfaceY, 291);
-                var southTangent = new int3(939, surfaceY, 286);
-                var westTangent = new int3(927, surfaceY, 298);
+                var oldStraightWestEdge = new int3(927, surfaceY, 300);
+                var curvedMarkInterior = new int3(938, surfaceY, 304);
+                var safeInterior = new int3(950, surfaceY, 310);
 
                 AssertInsideBox(support, capturedCorner,
                     "The Dirt support must remain beneath the captured corner; this fix changes material ownership, not occupancy.");
-                Assert.IsFalse(CurvedPrimitiveEmitter.Contains(in cap, capturedCorner),
-                    "The visible Moss cap must release the exact 90-degree corner seen in the upper marked region.");
-                Assert.IsFalse(CurvedPrimitiveEmitter.Contains(in cap, nearCorner),
-                    "The cap must remove a meaningful corner wedge rather than only one voxel.");
-                Assert.IsTrue(CurvedPrimitiveEmitter.Contains(in cap, roundedInterior),
-                    "The rounded transition must retain Moss immediately inside the new curve.");
-                Assert.IsTrue(CurvedPrimitiveEmitter.Contains(in cap, southTangent));
-                Assert.IsTrue(CurvedPrimitiveEmitter.Contains(in cap, westTangent));
+                AssertInsideBox(support, oldStraightWestEdge,
+                    "The captured west-edge probe must remain structurally supported.");
+                AssertInsideBox(support, curvedMarkInterior,
+                    "The captured interior probe must remain structurally supported.");
+
+                Assert.IsFalse(PaintOwns(primitives, capturedCorner),
+                    "Moss must release the exact old 90-degree corner in the upper marked region.");
+                Assert.IsFalse(PaintOwns(primitives, oldStraightWestEdge),
+                    "The rejected 1.2m cap became a straight vertical grass edge inside the upper mark by Z=30.0m; the production cap must still be curving there.");
+                Assert.IsTrue(PaintOwns(primitives, curvedMarkInterior),
+                    "The upper marked envelope must contain a curved Dirt/Moss transition rather than removing the yard wholesale.");
+                Assert.IsTrue(PaintOwns(primitives, safeInterior),
+                    "The rounded transition must retain Moss on the generated yard interior.");
             }
             finally
             {
@@ -137,6 +152,19 @@ namespace VoxelEngine.Tests.PlayMode
                 primitives.Dispose();
                 plots.Dispose();
             }
+        }
+
+        private static bool PaintOwns(NativeList<Primitive> primitives, int3 point)
+        {
+            for (int i = 0; i < primitives.Length; i++)
+            {
+                Primitive primitive = primitives[i];
+                if (primitive.Mode == PrimitiveMode.PaintSurface
+                    && primitive.Material == 14
+                    && PrimitiveRasteriser.Contains(in primitive, point))
+                    return true;
+            }
+            return false;
         }
 
         private static void AssertInsideBox(Primitive primitive, int3 point, string message)
