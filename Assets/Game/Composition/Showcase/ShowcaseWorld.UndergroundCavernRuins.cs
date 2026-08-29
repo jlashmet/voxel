@@ -42,9 +42,13 @@ namespace VoxelEngine.Showcase
         public int UndergroundCavernArchitectureDetailCount { get; private set; }
         public int UndergroundCavernStatueDetailCount { get; private set; }
         public int UndergroundCavernAdditionalFormationCount { get; private set; }
+        public int UndergroundCavernNaturalizationNodeCount { get; private set; }
+        public long UndergroundCavernNaturalizationVoxelsWritten { get; private set; }
         public long UndergroundCavernVisualFinishVoxelsWritten { get; private set; }
         public long UndergroundCavernVoxelsWritten { get; private set; }
         public float3 UndergroundCavernCentreMetres { get; private set; }
+        public float3 UndergroundCavernRuinCentreMetres { get; private set; }
+        public float3 UndergroundCavernRuinApproachMetres { get; private set; }
         public float3 UndergroundCavernEntranceMetres { get; private set; }
         public float3[] UndergroundCavernTraversalWaypointsMetres { get; private set; } = Array.Empty<float3>();
 
@@ -63,6 +67,9 @@ namespace VoxelEngine.Showcase
             UndergroundCavernRuinConfig ruinConfig = UndergroundCavernRuinConfig.DeepAncientRuin;
             UndergroundCavernTraversalProfile traversalProfile =
                 UndergroundCavernTraversalProfile.LongDescent;
+            // Put the temple against the far side of the large chamber instead of near its centre.
+            // This is a showcase parameter choice on the reusable ruin program, not bespoke geometry.
+            ruinConfig.RuinForwardOffset = 132;
             // Preserve the existing eight-light feature ceiling by spending the profile's sparse
             // route fixtures on the long descent and at most two inside the destination cavern.
             ruinConfig.LanternInstancesPerKind = 2;
@@ -89,12 +96,21 @@ namespace VoxelEngine.Showcase
                 in cavePalette,
                 in ruinConfig,
                 in traversalProfile);
-            if (!result.IsWellFormed)
+            if (!result.IsWellFormed ||
+                !UndergroundCavernDestinationLayout.IsRuinAtFarEnd(
+                    in result.CavernBounds, in result.RuinBounds, result.Destination.ExitFacing))
                 throw new InvalidOperationException(
-                    "Underground cavern/ruin authoring produced incomplete semantic output.");
+                    "Underground cavern/ruin authoring produced incomplete or poorly composed semantic output.");
 
             UndergroundCavernTraversalEnhancementResult traversal =
                 UndergroundCavernTraversalEnhancement.Author(
+                    authoring,
+                    in caveRequest,
+                    in caveConfig,
+                    in cavePalette,
+                    in traversalProfile);
+            UndergroundCavernRouteNaturalizationResult naturalization =
+                UndergroundCavernRouteNaturalization.Author(
                     authoring,
                     in caveRequest,
                     in caveConfig,
@@ -116,10 +132,19 @@ namespace VoxelEngine.Showcase
 
             MineCaveLightRequest[] allLights =
                 CombineUndergroundCavernLights(traversal.RouteLights, result.LocalLights);
-            if (authoring.BudgetExceeded || !traversal.IsWellFormed || !visualFinish.IsWellFormed ||
-                allLights.Length > UndergroundCavernMaximumLocalLights)
+            if (authoring.BudgetExceeded || !traversal.IsWellFormed || !naturalization.IsWellFormed ||
+                !visualFinish.IsWellFormed || allLights.Length > UndergroundCavernMaximumLocalLights)
                 throw new InvalidOperationException(
                     "Underground cavern traversal/visual finish exceeded its budget, semantic contract, or local-light cap.");
+
+            int3 ruinCentre = new int3(
+                (result.RuinBounds.Min.x + result.RuinBounds.MaxExclusive.x) / 2,
+                result.RuinBounds.Min.y,
+                (result.RuinBounds.Min.z + result.RuinBounds.MaxExclusive.z) / 2);
+            int3 ruinApproach = UndergroundCavernDestinationLayout.ResolveRuinApproach(
+                in result.CavernBounds,
+                in result.RuinBounds,
+                result.Destination.ExitFacing);
 
             _undergroundCavernRuinsAuthored = true;
             UndergroundCavernTraversalDistance = result.Destination.TraversalDistance;
@@ -134,13 +159,17 @@ namespace VoxelEngine.Showcase
             UndergroundCavernArchitectureDetailCount = visualFinish.ArchitecturalDetailCount;
             UndergroundCavernStatueDetailCount = visualFinish.StatueDetailCount;
             UndergroundCavernAdditionalFormationCount = visualFinish.AdditionalFormationCount;
+            UndergroundCavernNaturalizationNodeCount = naturalization.NodeCount;
+            UndergroundCavernNaturalizationVoxelsWritten = naturalization.VoxelsWritten;
             UndergroundCavernVisualFinishVoxelsWritten = visualFinish.VoxelsWritten;
             UndergroundCavernVoxelsWritten = authoring.TotalVoxelsWritten;
             UndergroundCavernCentreMetres =
                 ((float3)(result.CavernBounds.Min + result.CavernBounds.MaxExclusive) * 0.5f) * VoxelSize;
+            UndergroundCavernRuinCentreMetres = (float3)ruinCentre * VoxelSize;
+            UndergroundCavernRuinApproachMetres = (float3)ruinApproach * VoxelSize;
             UndergroundCavernEntranceMetres = (float3)caveRequest.EntranceWorldPosition * VoxelSize;
             UndergroundCavernTraversalWaypointsMetres =
-                BuildUndergroundCavernTraversalMetres(traversal.TraversalWaypoints, in result);
+                BuildUndergroundCavernTraversalMetres(traversal.TraversalWaypoints, in result, ruinApproach);
 
             RegisterUndergroundCavernLights(allLights);
 
@@ -214,7 +243,8 @@ namespace VoxelEngine.Showcase
 
         private static float3[] BuildUndergroundCavernTraversalMetres(
             int3[] authoredWaypoints,
-            in UndergroundCavernRuinResult result)
+            in UndergroundCavernRuinResult result,
+            int3 ruinApproach)
         {
             int authoredCount = authoredWaypoints?.Length ?? 0;
             var route = new float3[authoredCount + 2];
@@ -225,12 +255,8 @@ namespace VoxelEngine.Showcase
                 (result.CavernBounds.Min.x + result.CavernBounds.MaxExclusive.x) / 2,
                 result.CavernBounds.Min.y,
                 (result.CavernBounds.Min.z + result.CavernBounds.MaxExclusive.z) / 2);
-            int3 ruinFloor = new int3(
-                (result.RuinBounds.Min.x + result.RuinBounds.MaxExclusive.x) / 2,
-                result.RuinBounds.Min.y,
-                (result.RuinBounds.Min.z + result.RuinBounds.MaxExclusive.z) / 2);
             route[authoredCount] = (float3)cavernFloor * VoxelSize;
-            route[authoredCount + 1] = (float3)ruinFloor * VoxelSize;
+            route[authoredCount + 1] = (float3)ruinApproach * VoxelSize;
             return route;
         }
 
