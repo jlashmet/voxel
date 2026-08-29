@@ -330,7 +330,10 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
 
         private static void ApplyGrassState(Material material)
         {
-            material.SetFloat("_GrassTime", Time.time);
+            // Grass is ambient presentation, so dialogue/cutscene gameplay pauses must not freeze it.
+            // The final built-player visual gate proved the shader still consumed this shared material
+            // value even when the packed draw also supplied a property-block clock.
+            material.SetFloat("_GrassTime", Time.unscaledTime);
             material.SetInt("_GrassInteractorCount", s_GrassInteractorCount);
             material.SetVectorArray("_GrassInteractorPositions", s_GrassInteractors);
 
