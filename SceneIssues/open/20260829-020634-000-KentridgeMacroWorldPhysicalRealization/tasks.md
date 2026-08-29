@@ -20,12 +20,13 @@
 - [x] Discovered from CI run `33231300309`: fix the production acceptance test's missing `Game.WorldBuilder.Api` import for `TopDownWorldLayout`; corrected at `e40fb7220af56e096020e105959202eac2b2d70d`.
 - [x] Discovered from CI run `33232755172`: preserve the substantial Rossdam lake and verified topology, but explicitly author `fighting-area-1 -> bandit-hideout` as a modern dry-shore `GoAround` solution because the new lake footprint genuinely intersects that hard corridor; add a regression that its full travel corridor stays outside water.
 - [x] Refresh on current master `9b452aedd9b5d1b1720bf0e9184d0381f159d352` while preserving landed Kentridge meadow/ecology changes; merge commit `477f9159821ee466ad54d133c1aaf1dcb71433dd`.
+- [x] Refresh again on current master `ff781ed26b1d9182fa8cd76e2d2da08abfa3765c` before final CI, preserving unrelated opening-cutscene/campaign and CI-bridge state; two-parent merge commit `379439a571b3e941ee9fc818c402fc49331ebf28`.
 
 ## Repair discovered by exact-SHA red gate (run 33255557296)
 - [x] Classify the gate as a product failure: production planning aborts because hard route `south-fighting-area-1->orc-village` intersects `southern-ridge` without an authored semantic solution.
 - [x] Confirm the source-backed route identity/topology and intended ridge semantics: Orc Village is the verified straight branch south of South Fighting Area I, while `southern-ridge` is explicitly a modern barrier across the Logan route and separates South Fighting Area I from Logan Approach. The Orc collision is an unintended west-edge graze, not a second pass.
-- [ ] Add a focused regression proving the Orc Village hard route has an explicit `GoAround` solution targeting `southern-ridge`, stays outside the ridge travel margin, and remains physically walkable.
-- [ ] Implement the narrowest authored route solution: skirt the west shoulder with the existing deterministic `GoAround` semantic; do not shrink the ridge, invent a second pass, weaken blocked-route rejection, or change generic obstacle rules.
+- [x] Add a focused regression proving the Orc Village hard route has an explicit `GoAround` solution targeting `southern-ridge`, stays outside the ridge travel margin, and remains physically walkable.
+- [x] Implement the narrowest authored route solution: skirt the west shoulder with the existing deterministic `GoAround` semantic; do not shrink the ridge, invent a second pass, weaken blocked-route rejection, or change generic obstacle rules.
 - [ ] Re-run the final exact-SHA production acceptance after the repair.
 - [x] Blast-radius/cost intent: keep the repair in Kentridge macro physical intent + focused regression only; no planner/catalogue/water changes and no additional eager scene objects.
 
