@@ -38,6 +38,6 @@
 - [x] Final exact-SHA focused CI and built-player evidence are green for source `9e532f52c6954ec4f3d38a99aae3f90ab13e24a3` (run `33224752568`).
 - [x] Complete pending metadata and move only this feature `open -> pending`.
 - [x] Move only this feature `pending -> closed`, set `status=fixed` and `resolvedUtc`.
-- [ ] Fetch current `origin/master`, merge it into `fixes/agent-5`, and stop on any unrelated conflict.
-- [ ] Push exact feature head, then the same head to `origin/master` non-force; retry if master advances.
-- [ ] Verify `master == fixes/agent-5` and the feature exists only under `SceneIssues/closed`.
+- [x] Fetch current `origin/master`, merge it into `fixes/agent-5`, and stop on any unrelated conflict.
+- [x] Push exact feature head, then the same head to `origin/master` non-force; retry if master advances.
+- [x] Verify `master == fixes/agent-5` and the feature exists only under `SceneIssues/closed`.
