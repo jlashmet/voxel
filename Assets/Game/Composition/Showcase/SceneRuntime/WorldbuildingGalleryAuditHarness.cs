@@ -1,0 +1,180 @@
+using System;
+using System.Collections;
+using System.IO;
+using System.Reflection;
+using UnityEngine;
+
+namespace VoxelEngine.Showcase
+{
+    /// <summary>
+    /// Unattended built-player evidence for capture-less Worldbuilding Gallery feature issues.
+    /// Normal play is untouched: the harness only arms when the canonical SceneIssue argument is
+    /// present, that issue has no recorded captures, and the active scene owns the gallery driver.
+    /// It reuses the production tour positions/look targets rather than inventing validation poses.
+    /// </summary>
+    public static class WorldbuildingGalleryAuditHarness
+    {
+        private const string SceneIssueArgument = "-voxel-scene-issue";
+        private const string ScreenshotDirectoryArgument = "-voxel-screenshot-dir";
+        private const int TownAuditViewCount = 18;
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+        private static void Install()
+        {
+            string issuePath = Argument(SceneIssueArgument);
+            string screenshotDirectory = Argument(ScreenshotDirectoryArgument);
+            if (string.IsNullOrEmpty(issuePath) || string.IsNullOrEmpty(screenshotDirectory))
+                return;
+            if (!IsCaptureLessIssue(issuePath))
+                return;
+
+            var root = new GameObject("Worldbuilding Gallery Audit Harness")
+            {
+                hideFlags = HideFlags.DontSave
+            };
+            Reporter reporter = root.AddComponent<Reporter>();
+            reporter.ScreenshotDirectory = screenshotDirectory;
+            UnityEngine.Object.DontDestroyOnLoad(root);
+            Debug.Log("TOWNARCH_AUDIT armed for capture-less SceneIssue validation.");
+        }
+
+        private static bool IsCaptureLessIssue(string path)
+        {
+            try
+            {
+                IssueRecord record = JsonUtility.FromJson<IssueRecord>(File.ReadAllText(path));
+                return record != null &&
+                       record.captures != null &&
+                       record.captures.Length == 0 &&
+                       string.Equals(record.sceneName, "WorldbuildingGalleryShowcase", StringComparison.Ordinal);
+            }
+            catch (Exception error)
+            {
+                Debug.LogError($"TOWNARCH_AUDIT could not read SceneIssue: {error.Message}");
+                return false;
+            }
+        }
+
+        private static string Argument(string name)
+        {
+            string[] args = Environment.GetCommandLineArgs();
+            for (int i = 0; i + 1 < args.Length; i++)
+                if (string.Equals(args[i], name, StringComparison.Ordinal))
+                    return args[i + 1];
+            return null;
+        }
+
+        [Serializable]
+        private sealed class IssueRecord
+        {
+            public string sceneName;
+            public IssueFrame[] captures;
+        }
+
+        [Serializable]
+        private sealed class IssueFrame
+        {
+        }
+
+        private sealed class Reporter : MonoBehaviour
+        {
+            internal string ScreenshotDirectory;
+            private bool _started;
+
+            private void Update()
+            {
+                if (_started) return;
+                WorldbuildingGalleryShowcase showcase =
+                    UnityEngine.Object.FindFirstObjectByType<WorldbuildingGalleryShowcase>();
+                if (showcase == null) return;
+
+                _started = true;
+                StartCoroutine(Capture(showcase));
+            }
+
+            private IEnumerator Capture(WorldbuildingGalleryShowcase showcase)
+            {
+                FieldInfo worldField = typeof(WorldbuildingGalleryShowcase).GetField(
+                    "_world", BindingFlags.Instance | BindingFlags.NonPublic);
+                MethodInfo jumpMethod = typeof(WorldbuildingGalleryShowcase).GetMethod(
+                    "JumpToTourStop", BindingFlags.Instance | BindingFlags.NonPublic);
+                if (worldField == null || jumpMethod == null)
+                {
+                    Debug.LogError("TOWNARCH_AUDIT result=FAIL reason=gallery-tour-contract-unavailable");
+                    yield break;
+                }
+
+                ShowcaseWorld world = null;
+                float waitSeconds = 0f;
+                while (world == null && waitSeconds < 20f)
+                {
+                    world = worldField.GetValue(showcase) as ShowcaseWorld;
+                    if (world != null) break;
+                    yield return null;
+                    waitSeconds += Time.unscaledDeltaTime;
+                }
+
+                if (world == null)
+                {
+                    Debug.LogError("TOWNARCH_AUDIT result=FAIL reason=gallery-world-not-ready");
+                    yield break;
+                }
+
+                int totalStops = world.WorldbuildingGalleryTourStopCount;
+                if (totalStops < TownAuditViewCount)
+                {
+                    Debug.LogError($"TOWNARCH_AUDIT result=FAIL reason=tour-too-short stops={totalStops}");
+                    yield break;
+                }
+
+                int firstTownStop = totalStops - TownAuditViewCount;
+                string auditDirectory = Path.Combine(ScreenshotDirectory, "TownArchitectureAudit");
+                Directory.CreateDirectory(auditDirectory);
+
+                // Give the baked/generated world one presented frame before the first teleport.
+                yield return null;
+                yield return new WaitForEndOfFrame();
+
+                for (int stop = firstTownStop; stop < totalStops; stop++)
+                {
+                    jumpMethod.Invoke(showcase, new object[] { stop });
+                    yield return null;
+                    yield return new WaitForSecondsRealtime(0.85f);
+                    yield return new WaitForEndOfFrame();
+
+                    string stopName = world.WorldbuildingGalleryTourStopName(stop);
+                    string fileName = $"{stop - firstTownStop + 1:00}-{Sanitize(stopName)}.png";
+                    string path = Path.Combine(auditDirectory, fileName);
+                    ScreenCapture.CaptureScreenshot(path);
+                    Debug.Log($"TOWNARCH_AUDIT frame={stop - firstTownStop + 1}/{TownAuditViewCount} " +
+                              $"stop={stop + 1}/{totalStops} name={stopName}");
+
+                    // CaptureScreenshot writes asynchronously; allow the frame to leave the render
+                    // pipeline before moving the production camera to the next deterministic view.
+                    yield return new WaitForSecondsRealtime(0.35f);
+                }
+
+                yield return new WaitForSecondsRealtime(1f);
+                int captured = Directory.Exists(auditDirectory)
+                    ? Directory.GetFiles(auditDirectory, "*.png").Length
+                    : 0;
+                if (captured < TownAuditViewCount)
+                {
+                    Debug.LogError($"TOWNARCH_AUDIT result=FAIL captured={captured} expected={TownAuditViewCount}");
+                    yield break;
+                }
+
+                Debug.Log($"TOWNARCH_AUDIT result=PASS captured={captured} expected={TownAuditViewCount}");
+            }
+
+            private static string Sanitize(string value)
+            {
+                if (string.IsNullOrEmpty(value)) return "unnamed";
+                char[] invalid = Path.GetInvalidFileNameChars();
+                for (int i = 0; i < invalid.Length; i++)
+                    value = value.Replace(invalid[i], '-');
+                return value.Replace(' ', '-').Replace('—', '-').ToLowerInvariant();
+            }
+        }
+    }
+}
