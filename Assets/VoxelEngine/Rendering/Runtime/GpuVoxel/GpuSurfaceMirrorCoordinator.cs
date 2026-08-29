@@ -93,25 +93,25 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             s_LastPrepareFrame = frame;
             s_LastPrepareResult = false;
 
-            if (s_MirroredVersion != requiredGeneration)
-            {
-                // Existing dispatches are allowed to finish against their immutable generation.
-                // Do not mutate their payload/directory underneath them.
-                if (s_ActiveExtractions != 0) return false;
-                if (!SynchronizeChanges(requiredGeneration)) return false;
-            }
+            // Never mutate the shared mirror underneath an older count/write dispatch. New chunks
+            // use the CPU fallback until that immutable generation drains.
+            if (s_ActiveExtractions != 0) return false;
 
-            // Initial/full recovery is deliberately completed before GPU admission. Otherwise the
-            // first ready region could start an async extraction and permanently starve the rest of
-            // recovery behind the no-mutation-while-active rule. CPU fallback renders during this
-            // bounded warm-up, so correctness never depends on recovery speed.
+            // Journal replay and resident recovery are independent bounded queues. Streaming can
+            // append more than ChangeRecordsPerFrame while initial recovery is still outstanding;
+            // returning immediately after a partial journal slice would then starve recovery
+            // forever. Advance both queues every frame, but do not admit GPU extraction until the
+            // journal is exact and every recovered region represents the requested generation.
+            bool changesSynchronized = s_MirroredVersion == requiredGeneration
+                                    || SynchronizeChanges(requiredGeneration);
+
             if (!RecoveryComplete)
             {
-                if (s_ActiveExtractions != 0) return false;
                 ScanResidentRegions();
                 ProcessRecovery();
-                if (!RecoveryComplete) return false;
             }
+
+            if (!changesSynchronized || !RecoveryComplete) return false;
 
             s_LastPrepareResult = s_MirroredVersion == requiredGeneration;
             return s_LastPrepareResult;
