@@ -38,19 +38,19 @@ namespace Game.Kentridge.PlayableSlice
         private readonly HashSet<long> _grassChunkKeys = new();
         private readonly List<AmbientLifeHabitatSample> _habitats = new();
         private readonly List<AmbientLifeCluster> _clusters = new();
-        private ProceduralVegetationBatchRenderer _vegetationRenderer;
-        private ProceduralTreeRenderer _treeRenderer;
-        private ProceduralAmbientLifeRenderer _lifeRenderer;
+
+        private IVegetationBatchRenderer _vegetationRenderer;
+        private IAmbientLifeBatchRenderer _lifeRenderer;
 
         public int TreeCount => _trees.Count;
         public int UndergrowthCount => _undergrowth.Count;
+        public int ClusterCount => _clusters.Count;
         public int GrassCount { get; private set; }
         public int GrassBladeCount { get; private set; }
         public int PrimaryMeadowGrassCount { get; private set; }
         public int PrimaryMeadowBladeCount { get; private set; }
-        public int ExcludedSurfaceGrassCount { get; private set; }
         public int GrassMeshChunkCount => _grassChunkKeys.Count;
-        public int ClusterCount => _clusters.Count;
+        public int ExcludedSurfaceGrassCount { get; private set; }
         public int RouteExclusionCount { get; private set; }
         public int BuiltContentExclusionCount { get; private set; }
         public int WaterExclusionCount { get; private set; }
@@ -58,28 +58,36 @@ namespace Game.Kentridge.PlayableSlice
         public int SteepOrCliffExclusionCount { get; private set; }
         public int OtherInvalidExclusionCount { get; private set; }
 
-        public void Configure(
+        public void Populate(
             ShowcaseWorld world,
-            SettlementPlan settlement,
             RegionThemeMap themes,
-            RegionCorridorPlan corridor,
-            ProceduralTreeRenderer treeRenderer,
-            ProceduralVegetationBatchRenderer vegetationRenderer,
-            ProceduralAmbientLifeRenderer lifeRenderer)
+            float roadXMetres,
+            float fromZMetres,
+            float toZMetres,
+            float halfWidthMetres,
+            RegionEcologyPolicy ecology = null)
         {
-            _treeRenderer = treeRenderer;
-            _vegetationRenderer = vegetationRenderer;
-            _lifeRenderer = lifeRenderer;
+            if (world == null || themes == null) return;
+            ecology ??= KentridgeDefinition.CountrysideEcology;
 
-            RegionEcologyPolicy ecology = settlement.CountrysideEcology ?? RegionEcologyPolicy.Empty;
-            float roadX = corridor.StartDm.x * 0.1f;
-            float fromZ = math.min(corridor.StartDm.y, corridor.EndDm.y) * 0.1f;
-            float toZ = math.max(corridor.StartDm.y, corridor.EndDm.y) * 0.1f;
-            float halfWidth = math.max(20f, corridor.HalfWidthDm * 0.1f + 28f);
+            _vegetationRenderer ??=
+                VegetationLifeRenderingComposition.EnsureVegetationBatchRenderer(gameObject);
+            _lifeRenderer ??=
+                VegetationLifeRenderingComposition.EnsureAmbientLifeBatchRenderer(gameObject);
 
-            BuildTrees(world, themes, roadX, fromZ, toZ, halfWidth, ecology);
-            BuildUndergrowth(world, themes, roadX, fromZ, toZ, halfWidth, ecology);
-            BuildWildlife(world, themes, roadX, fromZ, toZ, halfWidth, ecology);
+            BuildTrees(world, themes, roadXMetres, fromZMetres, toZMetres, halfWidthMetres, ecology);
+            BuildUndergrowth(world, themes, roadXMetres, fromZMetres, toZMetres, halfWidthMetres, ecology);
+            BuildWildlife(world, themes, roadXMetres, fromZMetres, toZMetres, halfWidthMetres, ecology);
+
+            Debug.Log($"Kentridge region life: {_trees.Count} trees, {_undergrowth.Count} ground cover, "
+                    + $"{_clusters.Count} wildlife clusters; grass instances total={GrassCount}, "
+                    + $"rendered-blades-total={GrassBladeCount}, "
+                    + $"primary-contiguous-meadow-instances={PrimaryMeadowGrassCount}, "
+                    + $"primary-contiguous-meadow-blades={PrimaryMeadowBladeCount}, "
+                    + $"grass-mesh-chunks={GrassMeshChunkCount}, excluded-surface-grass={ExcludedSurfaceGrassCount}; "
+                    + $"excluded candidates route={RouteExclusionCount}, built={BuiltContentExclusionCount}, "
+                    + $"water={WaterExclusionCount}, cultivated={CultivatedExclusionCount}, "
+                    + $"steep={SteepOrCliffExclusionCount}, invalid={OtherInvalidExclusionCount}.");
         }
 
         private void BuildTrees(
@@ -90,34 +98,49 @@ namespace Game.Kentridge.PlayableSlice
             _trees.Clear();
             if (ecology.TreeKinds.Count == 0)
             {
-                _treeRenderer.SetTrees(_trees);
+                VegetationComposition.ReplaceTreeWorld(_trees);
                 return;
             }
 
             uint ecologySeed = ecology.DeriveSeed(world.Seed);
             for (float z = fromZ; z <= toZ && _trees.Count < MaxTrees; z += TreeSampleStepMetres)
-            for (float x = roadX - halfWidth; x <= roadX + halfWidth && _trees.Count < MaxTrees; x += TreeSampleStepMetres)
+            for (float x = roadX - halfWidth;
+                 x <= roadX + halfWidth && _trees.Count < MaxTrees;
+                 x += TreeSampleStepMetres)
             {
                 int zDm = Mathf.RoundToInt(z * 10f);
                 RegionThemeProfile profile = themes.ProfileAt(zDm);
                 uint seed = Hash(ecologySeed, (uint)Mathf.RoundToInt(x * 10f), (uint)zDm);
-                if (Random01(seed) * 1000f > profile.TreeDensityPerMille) continue;
-                if (!TryGround(world, new float3(x, 0f, z), out float3 grounded, out _, out bool builtContent)) continue;
-                if (builtContent && ecology.Excludes(RegionEcologyExclusion.BuiltContent)) continue;
+                float sampleAreaHectares = TreeSampleStepMetres * TreeSampleStepMetres / 10000f;
+                float expected = profile.TreesPerHectare * sampleAreaHectares;
+                if (Random01(seed) > expected) continue;
+                if (ecology.Excludes(RegionEcologyExclusion.Route)
+                    && Mathf.Abs(x - roadX) < ecology.RouteClearanceMetres) continue;
 
-                TreeSpeciesSlot authored = profile.TreeSpecies[(int)(seed % (uint)profile.TreeSpecies.Length)];
-                string authoredKind = authored.ToString();
-                if (!ecology.AllowsTree(authoredKind)) continue;
+                float3 jittered = new float3(
+                    x + (Random01(seed ^ 0x51u) - 0.5f) * TreeSampleStepMetres,
+                    0f,
+                    z + (Random01(seed ^ 0x77u) - 0.5f) * TreeSampleStepMetres);
+                if (!TryGround(world, jittered, out float3 grounded, out float3 normal, out bool builtContent))
+                    continue;
+                if (builtContent && ecology.Excludes(RegionEcologyExclusion.BuiltContent)) continue;
+                if (normal.y < 0.86f) continue;
+
+                TreeSpeciesSlot slot = RegionThemeCatalog.SpeciesFor(
+                    in profile, (int)(Random01(seed ^ 0x9Eu) * 1000f));
+                if (slot == TreeSpeciesSlot.None) continue;
+                TreeSpecies species = SpeciesFor(slot);
+                if (!ecology.AllowsTree(species.ToString())) continue;
 
                 _trees.Add(new TreeInstance
                 {
                     PositionMetres = grounded,
-                    Species = SpeciesFor(authored),
-                    Seed = seed,
-                    Scale = math.lerp(0.8f, 1.25f, Random01(seed ^ 0x9E3779B9u)),
+                    Species = species,
+                    Seed = seed == 0u ? 1u : seed,
+                    Scale = 0.85f + Random01(seed ^ 0xC3u) * 0.5f,
                 });
             }
-            _treeRenderer.SetTrees(_trees);
+            VegetationComposition.ReplaceTreeWorld(_trees);
         }
 
         private void BuildUndergrowth(
@@ -134,85 +157,86 @@ namespace Game.Kentridge.PlayableSlice
             _grassChunkKeys.Clear();
             ResetExclusionDiagnostics();
 
-            float meadowStep = math.max(0.25f, ecology.MeadowSampleSpacingMetres);
-            uint ecologySeed = ecology.DeriveSeed(world.Seed);
-            int maxCandidateSamples = MaxUndergrowth * 3;
+            float coverHalfWidth = Mathf.Min(halfWidth, 45f);
+            float sampleStep = ecology.VegetationSampleSpacingMetres;
+            float routeClearance = ecology.RouteClearanceMetres;
+            int xCellCount = Mathf.FloorToInt((coverHalfWidth * 2f) / sampleStep) + 1;
+            int zCellCount = Mathf.FloorToInt(Mathf.Max(0f, toZ - fromZ) / sampleStep) + 1;
 
-            for (float z = fromZ; z <= toZ && _samples.Count < maxCandidateSamples; z += meadowStep)
-            for (float x = roadX - halfWidth; x <= roadX + halfWidth && _samples.Count < maxCandidateSamples; x += meadowStep)
+            for (int zCell = 0; zCell < zCellCount && _samples.Count < MaxUndergrowth; zCell++)
+            for (int xCell = 0; xCell < xCellCount && _samples.Count < MaxUndergrowth; xCell++)
             {
-                int xIndex = Mathf.RoundToInt((x - (roadX - halfWidth)) / meadowStep);
-                int zIndex = Mathf.RoundToInt((z - fromZ) / meadowStep);
-                var cell = new RegionEcologyGridCell(xIndex, zIndex);
+                float z = fromZ + zCell * sampleStep;
+                float x = roadX - coverHalfWidth + xCell * sampleStep;
+                var candidate = new float3(x, 0f, z);
+                long candidateKey = PositionKey(candidate);
                 int zDm = Mathf.RoundToInt(z * 10f);
                 RegionThemeProfile profile = themes.ProfileAt(zDm);
-                uint seed = Hash(ecologySeed, (uint)Mathf.RoundToInt(x * 10f), (uint)zDm ^ 0x51u);
 
-                if (!TryGround(world, new float3(x, 0f, z), out float3 grounded, out float3 normal, out bool builtContent))
+                if (ecology.Excludes(RegionEcologyExclusion.Water)
+                    && profile.Kind == RegionThemeKind.Riverbank)
                 {
-                    OtherInvalidExclusionCount++;
+                    WaterExclusionCount++;
+                    _excludedMeadowPositions.Add(candidateKey);
                     continue;
                 }
 
-                float routeDistance = math.abs(x - roadX);
-                bool route = routeDistance <= ecology.RouteClearanceMetres;
-                bool water = profile.Kind == RegionThemeKind.Riverbank;
-                bool cultivated = profile.Kind == RegionThemeKind.TemperateFarmland;
-                float slopeDegrees = math.degrees(math.acos(math.clamp(normal.y, -1f, 1f)));
-                bool steep = slopeDegrees > ecology.MaxVegetationSlopeDegrees;
-
-                if (route && ecology.Excludes(RegionEcologyExclusion.RoutesAndPaths))
+                if (ecology.Excludes(RegionEcologyExclusion.Route)
+                    && routeClearance > 0f
+                    && Mathf.Abs(x - roadX) < routeClearance)
                 {
                     RouteExclusionCount++;
-                    _excludedMeadowPositions.Add(PositionKey(grounded));
+                    _excludedMeadowPositions.Add(candidateKey);
                     continue;
                 }
+
+                if (!TryGround(world, candidate, out float3 grounded, out float3 normal, out bool builtContent))
+                {
+                    if (ecology.Excludes(RegionEcologyExclusion.OtherInvalid))
+                    {
+                        OtherInvalidExclusionCount++;
+                        _excludedMeadowPositions.Add(candidateKey);
+                    }
+                    continue;
+                }
+
                 if (builtContent && ecology.Excludes(RegionEcologyExclusion.BuiltContent))
                 {
                     BuiltContentExclusionCount++;
-                    _excludedMeadowPositions.Add(PositionKey(grounded));
+                    _excludedMeadowPositions.Add(candidateKey);
                     continue;
                 }
-                if (water && ecology.Excludes(RegionEcologyExclusion.WaterOrWet))
-                {
-                    WaterExclusionCount++;
-                    _excludedMeadowPositions.Add(PositionKey(grounded));
-                    continue;
-                }
-                if (cultivated && ecology.Excludes(RegionEcologyExclusion.Cultivated))
-                {
-                    CultivatedExclusionCount++;
-                    _excludedMeadowPositions.Add(PositionKey(grounded));
-                    continue;
-                }
-                if (steep && ecology.Excludes(RegionEcologyExclusion.SteepOrCliff))
+
+                float slopeDegrees = math.degrees(math.acos(math.clamp(normal.y, -1f, 1f)));
+                if (ecology.Excludes(RegionEcologyExclusion.SteepOrCliff)
+                    && slopeDegrees > ecology.MaxVegetationSlopeDegrees)
                 {
                     SteepOrCliffExclusionCount++;
-                    _excludedMeadowPositions.Add(PositionKey(grounded));
+                    _excludedMeadowPositions.Add(candidateKey);
                     continue;
                 }
 
-                float regionDistance = math.abs(x - (roadX + ecology.MeadowOffsetMetres));
-                bool inPrimaryMeadow = regionDistance <= ecology.MeadowRadiusMetres;
-                float coverage = inPrimaryMeadow ? ecology.MeadowCoverage : ecology.BackgroundCoverage;
-                uint coverageSeed = Hash(seed, 0xD1B54A35u, 0x94D049BBu);
-                if (Random01(coverageSeed) > coverage) continue;
+                // Kentridge's current RegionThemeMap distinguishes broad farmland countryside from
+                // riverbank/forest, but it does not identify tilled/cultivated plots separately.
+                // Cultivated remains an authored reusable exclusion class; do not incorrectly treat
+                // the entire TemperateFarmland meadow biome as cultivated and erase the meadow.
 
+                var cell = new RegionEcologyGridCell(xCell, zCell);
                 _eligibleMeadowCells.Add(cell);
+                _meadowCellByPosition[PositionKey(grounded)] = cell;
                 _samples.Add(new VegetationSurfaceSample
                 {
                     PositionMetres = grounded,
-                    SurfaceNormal = normal,
-                    Moisture = profile.Kind == RegionThemeKind.Riverbank ? 0.9f : 0.45f,
-                    Shade = profile.Kind == RegionThemeKind.PineForest ? 0.7f : 0.25f,
-                    Fertility = inPrimaryMeadow ? 1f : 0.65f,
-                    SurfaceFlags = VegetationSurfaceFlags.None,
-                    Seed = seed,
+                    Normal = normal,
+                    Surface = VegetationSurface.Ground,
+                    Moisture = 0.5f,
+                    Shade = profile.Kind == RegionThemeKind.PineForest ? 0.8f : 0.3f,
+                    ArcaneSaturation = 0f,
                 });
-                _meadowCellByPosition[PositionKey(grounded)] = cell;
             }
 
-            VegetationPlacementSettings settings = VegetationPlacementSettings.Default(ecologySeed);
+            VegetationPlacementSettings settings = VegetationPlacementSettings.Default(
+                ecology.DeriveSeed(world.Seed));
             settings.Density = ecology.VegetationDensity;
             settings.MaxGroundSlopeDegrees = ecology.MaxVegetationSlopeDegrees;
             settings.RestrictKinds = true;
@@ -370,8 +394,8 @@ namespace Game.Kentridge.PlayableSlice
             builtContent = world.HasBuiltContentAbove(vx, vz);
 
             int height = world.SurfaceHeight(vx, vz);
-            // SurfaceHeight is the index of the topmost occupied voxel. Presentation roots belong
-            // on that voxel's exposed top face, which is one voxel edge above its integer index.
+            // SurfaceHeight is the topmost occupied voxel index; presentation roots belong on its
+            // exposed top face, one voxel edge above that integer cell.
             grounded = new float3(position.x, (height + 1) * ShowcaseWorld.VoxelSize, position.z);
             const int Step = 6;
             float dx = world.SurfaceHeight(vx + Step, vz) - world.SurfaceHeight(vx - Step, vz);
