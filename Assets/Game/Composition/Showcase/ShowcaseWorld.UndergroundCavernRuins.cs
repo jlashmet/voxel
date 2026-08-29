@@ -110,6 +110,7 @@ namespace VoxelEngine.Showcase
                     caveRequest.TerrainSeed);
             UndergroundCavernCirculationProtection.Reassert(
                 authoring,
+                in result.CavernBounds,
                 in result.RuinBounds,
                 result.Destination.ExitFacing);
 
