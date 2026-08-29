@@ -46,6 +46,7 @@
         "UnityEditor.TestRunner",
         "VoxelEngine.Showcase",
         "VoxelEngine.Composition",
+        "VoxelEngine.Composition.Api",
         "VoxelEngine.Terrain.Api",
         "VoxelEngine.Vegetation.Api",
         "VoxelEngine.Edits.Api",
