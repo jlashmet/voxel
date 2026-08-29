@@ -24,14 +24,16 @@ namespace Game.Kentridge.PlayableSlice
     internal sealed class KentridgeMacroWorldEvidenceDriver : MonoBehaviour
     {
         private const string ValidationProfile = "kentridge-macro-world";
-        private const float OpeningEvidenceTimeScale = 4f;
-        private const float WalkEvidenceSeconds = 1.25f;
-        private const float RoadPrestreamSeconds = 1.5f;
-        private const float RoadWalkSeconds = 1.5f;
-        private const float TargetMinimumDwellSeconds = 2.4f;
-        private const float TargetPostCaptureSeconds = 0.25f;
+        private const float OpeningEvidenceTimeScale = 12f;
+        private const float WalkEvidenceSeconds = 0.75f;
+        private const float RoadPrestreamSeconds = 0.75f;
+        private const float RoadWalkSeconds = 1f;
+        private const float TargetMinimumDwellSeconds = 1.25f;
+        private const float TargetPostCaptureSeconds = 0.10f;
         private const float DmToMetres = 0.1f;
         private const uint Seed = 0x4B454E54u;
+        private const int SettlementSurveyOffsetDm = 500;
+        private const float SettlementSurveyHeightMetres = 36f;
 
         private static readonly FieldInfo s_MotorField = typeof(KentridgePlayableSlice).GetField(
             "_motor",
@@ -219,7 +221,8 @@ namespace Game.Kentridge.PlayableSlice
             Debug.Log(
                 "MACROEVIDENCE target=" + target.Label +
                 $" cameraDm=({target.CameraDm.X},{target.CameraDm.Y})" +
-                $" focusDm=({target.FocusDm.X},{target.FocusDm.Y})");
+                $" focusDm=({target.FocusDm.X},{target.FocusDm.Y})" +
+                $" cameraHeightM={target.CameraHeightMetres:0.0}");
         }
 
         private void BuildTargetsAndRoadTraversal()
@@ -246,8 +249,8 @@ namespace Game.Kentridge.PlayableSlice
 
             var targets = new List<EvidenceTarget>(7)
             {
-                CloseSettlement(physical, MountingForceTopDownWorldDefinition.Moordell, new Int2(-320, -360)),
-                CloseSettlement(physical, MountingForceTopDownWorldDefinition.Rossdam, new Int2(340, -340))
+                SettlementSurvey(physical, MountingForceTopDownWorldDefinition.Moordell),
+                SettlementSurvey(physical, MountingForceTopDownWorldDefinition.Rossdam)
             };
 
             if (!physical.TryGetRegion(KentridgeTopDownWorldPhysicalIntent.RossdamLake, out TopDownWorldRegionPlan lake))
@@ -256,21 +259,16 @@ namespace Game.Kentridge.PlayableSlice
                 physical,
                 MountingForceTopDownWorldDefinition.MoordellCorridor,
                 MountingForceTopDownWorldDefinition.RossdamApproach);
+            Int2 lakeRoutePoint = rossdamRoute.Tiles[rossdamRoute.Tiles.Count / 2];
             targets.Add(new EvidenceTarget(
                 "rossdam-lake-detour",
-                rossdamRoute.Tiles[rossdamRoute.Tiles.Count / 2],
+                lakeRoutePoint,
                 lake.CentreDm,
-                cameraHeightMetres: 18f,
+                cameraHeightMetres: 72f,
                 elevated: true));
 
-            targets.Add(CloseSettlement(
-                physical,
-                MountingForceTopDownWorldDefinition.FairyVillage,
-                new Int2(-320, 320)));
-            targets.Add(CloseSettlement(
-                physical,
-                MountingForceTopDownWorldDefinition.OrcVillage,
-                new Int2(320, 320)));
+            targets.Add(SettlementSurvey(physical, MountingForceTopDownWorldDefinition.FairyVillage));
+            targets.Add(SettlementSurvey(physical, MountingForceTopDownWorldDefinition.OrcVillage));
 
             if (!physical.TryGetRegion(KentridgeTopDownWorldPhysicalIntent.SouthernRidge, out TopDownWorldRegionPlan ridge)
                 || !physical.TryGetRegion(KentridgeTopDownWorldPhysicalIntent.SouthernPass, out TopDownWorldRegionPlan pass))
@@ -288,18 +286,63 @@ namespace Game.Kentridge.PlayableSlice
             }
             targets.Add(new EvidenceTarget(
                 "southern-ridge-pass",
-                new Int2(ridgeRoad.X - 240, ridgeRoad.Y - 220),
+                new Int2(ridgeRoad.X - 320, ridgeRoad.Y - 300),
                 ridgeRoad,
-                cameraHeightMetres: 20f,
+                cameraHeightMetres: 55f,
                 elevated: true));
 
             targets.Add(new EvidenceTarget(
                 "macro-network-overview",
-                new Int2(KentridgeDefinition.TownCentreDm.X, KentridgeDefinition.TownCentreDm.Y + 1200),
-                new Int2(KentridgeDefinition.TownCentreDm.X, KentridgeDefinition.TownCentreDm.Y + 800),
-                cameraHeightMetres: 180f,
+                new Int2(KentridgeDefinition.TownCentreDm.X, KentridgeDefinition.TownCentreDm.Y + 900),
+                new Int2(KentridgeDefinition.TownCentreDm.X, KentridgeDefinition.TownCentreDm.Y + 250),
+                cameraHeightMetres: 105f,
                 elevated: true));
             _targets = targets.ToArray();
+        }
+
+        private static EvidenceTarget SettlementSurvey(
+            TopDownWorldPhysicalPlan physical,
+            string nodeId)
+        {
+            if (!physical.TryGetSettlement(nodeId, out TopDownWorldSettlementPlan settlement))
+                throw new InvalidOperationException("Macro evidence plan has no settlement '" + nodeId + "'.");
+            if (settlement.Buildings.Count < 4)
+                throw new InvalidOperationException(
+                    "Macro evidence settlement '" + nodeId + "' does not expose the expected four blockout plots.");
+
+            var offsets = new[]
+            {
+                new Int2(-SettlementSurveyOffsetDm, -SettlementSurveyOffsetDm),
+                new Int2(SettlementSurveyOffsetDm, -SettlementSurveyOffsetDm),
+                new Int2(-SettlementSurveyOffsetDm, SettlementSurveyOffsetDm),
+                new Int2(SettlementSurveyOffsetDm, SettlementSurveyOffsetDm)
+            };
+
+            int focusGround = TerrainSampler.HeightAt(settlement.CentreDm.X, settlement.CentreDm.Y, Seed);
+            Int2 bestCamera = new Int2(
+                settlement.CentreDm.X + offsets[0].X,
+                settlement.CentreDm.Y + offsets[0].Y);
+            int bestCameraGround = TerrainSampler.HeightAt(bestCamera.X, bestCamera.Y, Seed);
+            int bestAdvantage = bestCameraGround - focusGround;
+            for (var i = 1; i < offsets.Length; i++)
+            {
+                var candidate = new Int2(
+                    settlement.CentreDm.X + offsets[i].X,
+                    settlement.CentreDm.Y + offsets[i].Y);
+                int candidateGround = TerrainSampler.HeightAt(candidate.X, candidate.Y, Seed);
+                int advantage = candidateGround - focusGround;
+                if (advantage <= bestAdvantage) continue;
+                bestCamera = candidate;
+                bestCameraGround = candidateGround;
+                bestAdvantage = advantage;
+            }
+
+            return new EvidenceTarget(
+                nodeId,
+                bestCamera,
+                settlement.CentreDm,
+                cameraHeightMetres: SettlementSurveyHeightMetres,
+                elevated: true);
         }
 
         private void PinToRoadStart()
@@ -325,23 +368,6 @@ namespace Game.Kentridge.PlayableSlice
             float yaw = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg;
             s_YawField.SetValue(_slice, yaw);
             _slice.transform.rotation = Quaternion.Euler(0f, yaw, 0f);
-        }
-
-        private static EvidenceTarget CloseSettlement(
-            TopDownWorldPhysicalPlan physical,
-            string nodeId,
-            Int2 viewOffsetDm)
-        {
-            if (!physical.TryGetSettlement(nodeId, out TopDownWorldSettlementPlan settlement))
-                throw new InvalidOperationException("Macro evidence plan has no settlement '" + nodeId + "'.");
-            return new EvidenceTarget(
-                nodeId,
-                new Int2(
-                    settlement.CentreDm.X + viewOffsetDm.X,
-                    settlement.CentreDm.Y + viewOffsetDm.Y),
-                settlement.CentreDm,
-                cameraHeightMetres: 0f,
-                elevated: false);
         }
 
         private static TopDownWorldPhysicalRoutePlan FindRoute(
