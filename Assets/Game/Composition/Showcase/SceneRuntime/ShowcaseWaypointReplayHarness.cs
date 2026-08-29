@@ -27,8 +27,11 @@ namespace VoxelEngine.Showcase
             "_pitch", BindingFlags.Instance | BindingFlags.NonPublic);
         private static readonly FieldInfo MouseLookField = typeof(VoxelShowcase).GetField(
             "_mouseLook", BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly FieldInfo MotorField = typeof(VoxelShowcase).GetField(
+            "_motor", BindingFlags.Instance | BindingFlags.NonPublic);
 
         private VoxelShowcase _showcase;
+        private CharacterMotor _motor;
         private RouteSpec _route;
         private string _screenshotDirectory;
         private int _index;
@@ -38,6 +41,8 @@ namespace VoxelEngine.Showcase
         private bool _captured;
         private float _completeElapsed;
         private bool _complete;
+        private float _ordinaryWalkSpeed;
+        private bool _replaySprintApplied;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Install()
@@ -63,8 +68,12 @@ namespace VoxelEngine.Showcase
                     FindObjectsInactive.Include);
                 if (showcase == null)
                     throw new InvalidOperationException("Waypoint replay requires VoxelShowcase in the built scene.");
-                if (YawField == null || PitchField == null || MouseLookField == null)
-                    throw new MissingFieldException("Waypoint replay could not bind VoxelShowcase heading state.");
+                if (YawField == null || PitchField == null || MouseLookField == null || MotorField == null)
+                    throw new MissingFieldException("Waypoint replay could not bind VoxelShowcase movement state.");
+
+                CharacterMotor motor = MotorField.GetValue(showcase) as CharacterMotor;
+                if (motor == null)
+                    throw new InvalidOperationException("Waypoint replay requires the production CharacterMotor.");
 
                 string screenshotDirectory = Argument(ScreenshotDirectoryArgument);
                 if (string.IsNullOrEmpty(screenshotDirectory))
@@ -77,6 +86,8 @@ namespace VoxelEngine.Showcase
                 };
                 var replay = root.AddComponent<ShowcaseWaypointReplayHarness>();
                 replay._showcase = showcase;
+                replay._motor = motor;
+                replay._ordinaryWalkSpeed = motor.WalkSpeed;
                 replay._route = route;
                 replay._screenshotDirectory = screenshotDirectory;
                 UnityEngine.Object.DontDestroyOnLoad(root);
@@ -96,7 +107,7 @@ namespace VoxelEngine.Showcase
             _elapsed += Time.unscaledDeltaTime;
             if (!_complete && _elapsed >= _route.timeoutSeconds)
             {
-                _showcase.AutoWalk = false;
+                StopWalking();
                 Debug.LogError($"WAYPOINT_REPLAY timeout at waypoint {_index}/{_route.waypoints.Length} after {_elapsed:0.0}s");
                 Application.Quit(23);
                 enabled = false;
@@ -107,7 +118,7 @@ namespace VoxelEngine.Showcase
 
             if (_complete)
             {
-                _showcase.AutoWalk = false;
+                StopWalking();
                 _completeElapsed += Time.unscaledDeltaTime;
                 if (_route.quitOnComplete && _completeElapsed >= 1f)
                 {
@@ -130,13 +141,13 @@ namespace VoxelEngine.Showcase
                 _holding = true;
                 _holdElapsed = 0f;
                 _captured = false;
-                _showcase.AutoWalk = false;
+                StopWalking();
                 Debug.Log($"WAYPOINT_REPLAY reached {_index + 1}/{_route.waypoints.Length} '{waypoint.name}' at {player}");
             }
 
             if (_holding)
             {
-                _showcase.AutoWalk = false;
+                StopWalking();
                 ApplyLook(waypoint);
                 _holdElapsed += Time.unscaledDeltaTime;
                 float holdSeconds = waypoint.holdSeconds >= 0f
@@ -166,7 +177,7 @@ namespace VoxelEngine.Showcase
                 if (_index >= _route.waypoints.Length)
                 {
                     _complete = true;
-                    _showcase.AutoWalk = false;
+                    StopWalking();
                     Debug.Log($"WAYPOINT_REPLAY COMPLETE waypoints={_route.waypoints.Length} elapsed={_elapsed:0.0}s");
                 }
                 return;
@@ -180,7 +191,31 @@ namespace VoxelEngine.Showcase
                 _showcase,
                 desiredYaw - ExistingAutoWalkDegreesPerSecond * Time.deltaTime);
             PitchField.SetValue(_showcase, 0f);
+            ApplyReplaySprint();
             _showcase.AutoWalk = true;
+        }
+
+        private void ApplyReplaySprint()
+        {
+            if (_replaySprintApplied || _motor == null) return;
+            // Evidence replay needs to fit the SceneIssue workflow's 60-second ceiling. Use the
+            // production motor's own sprint multiplier, then restore ordinary walk speed whenever
+            // the route pauses or exits. Collision, step-up and gravity all remain CharacterMotor.Step.
+            _motor.WalkSpeed = _ordinaryWalkSpeed * _motor.SprintMultiplier;
+            _replaySprintApplied = true;
+        }
+
+        private void StopWalking()
+        {
+            if (_showcase != null) _showcase.AutoWalk = false;
+            if (!_replaySprintApplied || _motor == null) return;
+            _motor.WalkSpeed = _ordinaryWalkSpeed;
+            _replaySprintApplied = false;
+        }
+
+        private void OnDisable()
+        {
+            StopWalking();
         }
 
         private void ApplyLook(Waypoint waypoint)
