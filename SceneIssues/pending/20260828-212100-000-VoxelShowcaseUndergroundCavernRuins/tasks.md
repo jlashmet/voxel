@@ -22,6 +22,7 @@
 - [ ] Use the built-player sequence to cover entrance, descent/dogleg, cavern reveal/formations, and ruin/statues/lighting rather than collecting repeated frames from one pinned camera pose.
 - [x] Diagnose corrected-source CI request `808decb3`: product compile failure because `UndergroundCavernRuinAuthoring.cs` used `Coatings` without the `VoxelEngine.Storage.Api` namespace import.
 - [x] Diagnose replacement CI request `0056637e`: product compile failure because `Game.Structures.Runtime.asmdef` did not reference `VoxelEngine.Storage.Api`; add the explicit API assembly reference rather than duplicating the coating ID.
+- [x] Diagnose final request `9b7b1d0b`: product PlayMode failure from `BrickPool` exhaustion while the showcase synchronously generated a coarse 3x3x3 terrain-region neighbourhood at every cave step. Bound terrain preparation to the actual tunnel/chamber/cavern voxel envelope instead of increasing the 65,536-brick device budget or weakening acceptance limits.
 - [ ] Run green exact-SHA focused targeted CI on `ci-test/fixes/agent-3` only after production/test work is final.
 - [ ] Run green exact-SHA built-application `VoxelShowcase` harness and verify usable rendered scene with no startup/runtime exceptions.
 - [ ] Validate every acceptance criterion from built-app evidence; record durable verification evidence beside the assignment.
