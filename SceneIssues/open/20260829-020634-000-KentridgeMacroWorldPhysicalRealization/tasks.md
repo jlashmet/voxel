@@ -16,7 +16,8 @@
 - [x] Discovered: trace the exact playable composition and prove `KentridgeDefinition.Build` selects the semantic macro layout before `KentridgeCombinedVoxelCatalogue` consumes it one-shot.
 - [x] Discovered: assert the production combined catalogue contains macro roads, all four remote settlement blockouts, ridge geography, and the carved-water pass after composition.
 - [x] Discovered: make built-player evidence pre-stream and traverse a real Moordell macro-road segment with the production `AutoWalk`/CharacterMotor path before remote survey captures.
-- [x] Discovered from final CI run `33230924543`: fix the evidence driver's missing `Game.WorldBuilder.Api` import after Unity reported CS0246 for `TopDownWorldLayout`; corrected on feature commit `339ca94f593653e84a02fe2d19712971bfd99e20`.
+- [x] Discovered from CI run `33230924543`: fix the evidence driver's missing `Game.WorldBuilder.Api` import for `TopDownWorldLayout`; corrected at `339ca94f593653e84a02fe2d19712971bfd99e20`.
+- [x] Discovered from CI run `33231300309`: fix the production acceptance test's missing `Game.WorldBuilder.Api` import for `TopDownWorldLayout`; corrected at `e40fb7220af56e096020e105959202eac2b2d70d` and preserved through current-master merge `8a5b386edfd032ed41d61da27dec37d01f13d332`.
 
 ## Behavioral regression
 - [x] Add one final targeted PlayMode acceptance test that nests the full macro realization regression plus production water/slope/composition assertions: `VoxelEngine.Tests.PlayMode.KentridgeMacroWorldPhysicalProductionAcceptanceTests.PhysicalMacroWorldHasWalkableRoutesAndADeepStreamedWaterBody`.
@@ -57,7 +58,7 @@
 - [ ] Acceptance (10): exact built-player visual/runtime evidence covers settlements, roads, geography, constrained route, and CharacterMotor traversal.
 - [ ] Acceptance (11): blast radius and world-build/route/CPU/GPU/memory/streaming cost are measured against budgets.
 - [ ] Every checkbox above is complete before `open -> pending`.
-- [ ] Final exact-SHA focused CI and built-player evidence are green. Run `33230924543` is red because the tested SHA predates the corrected API import; no green exact-SHA gate exists yet.
+- [ ] Final exact-SHA focused CI and built-player evidence are green. Runs `33230924543` and `33231300309` were product-red compile diagnostics; no green exact-SHA gate exists yet.
 - [ ] Complete pending metadata and move only this feature `open -> pending`.
 - [ ] Move only this feature `pending -> closed`, set `status=fixed` and `resolvedUtc`.
 - [ ] Merge current `origin/master` into `fixes/agent-6`, push exact feature head, then non-force push that head to `origin/master`; retry if master advances.
