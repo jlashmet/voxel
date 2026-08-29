@@ -50,5 +50,17 @@
 - Artifact id: `9711149960`. All four timed screenshots (`t14.3`, `t24.3`, `t34.3`, `t44.3`) and `verification-final.png` were inspected. The first shows an almost empty near world with sparse isolated structures; from t24.3 onward the same large green near/mid-field holes, disconnected/floating structures, and sparse voxel geometry remain visually frozen through the final evidence.
 - This completed red request is not queued and will not be replaced. The assigned CI ref may be advanced once, only after experiment 005 metadata and the next feature head are final.
 
+## 2026-08-29 — exact optional-halo request `22f5ea96…`
+- CI ref: `ci-test/fixes/agent-2`
+- Request SHA: `22f5ea96a96354a788cb86f3564349a86377c991`
+- Exact feature parent: `7c6beeb95a5d8727716d6f922628dabf2acb8abd`
+- Run/job: `33241309873` / `99071018106`
+- Official result: `ci/single-test=failure`; workflow conclusion `cancelled` only after both requested PlayMode tests had already executed and failed, so this is a **product-failed iteration**, not runner infrastructure.
+- Focused liveness result: failed initial visible-coverage warmup after 30.45 s. Exact test output shows showcase castle generation completed at 27.4 s, leaving only a few seconds for surface startup. The 360-frame warmup was therefore measuring variable scene-generation frame count rather than post-startup GPU liveness. Commit `862a857eeecefc1ada848cc2cf1f532b58878500` replaces it with a 60 s wall-clock startup allowance and preserves the post-startup liveness thresholds.
+- Production traversal result: failed at frame 129 / camera `(70.91,24.55,-15.24)` with `known=5990`, `resident=44`, `dirty=2075`, `missing=724`, `jobs=12`, `gpuBackends=12`, `gpuCompleted=8`, `gpuFallback=1`, and `gpuWaitSlices=2055`.
+- Exact built-player capture succeeded and disproved a permanent optional-halo deadlock as the sole remaining cause. t15.7 was sparse; t25.7 had substantial castle recovery; t35.7 restored still more geometry. Late telemetry was around `348 drawn / 351 missing`, so the scene is converging but far too slowly for the 210 m moving gate and still does not settle by 45 s.
+- Artifact id: `9711598132`; all three timed screenshots plus runtime/test XML/logs were inspected.
+- Source discriminator: pending workers short-circuit `Covers` whenever `PrepareFromBridge` is blocked by an existing recovery queue. That lets only one worker discover demand before a drain, then an extraction begins and blocks the next recovery mutation. Commit `0d88e6460c4a8a0c18fc6c68d7fc39c5855f893b` keeps admission gated but allows all pending stages to register exact block demand for coalesced recovery. See `experiment-006-demand-coalescing.md`.
+
 ## Next final request
-Pending one fresh exact-head request after the optional-nonresident-halo fix and behavioral-regression metadata are complete. Reuse only `ci-test/fixes/agent-2`, parent the request commit directly on the final feature SHA, and do not modify `.github/test-request.json` on `fixes/agent-2`.
+Pending one fresh exact-head request after demand-coalescing metadata is complete and current `origin/master` is merged into `fixes/agent-2`. Reuse only `ci-test/fixes/agent-2`, parent the request commit directly on the final feature SHA, and do not modify `.github/test-request.json` on `fixes/agent-2`.
