@@ -171,12 +171,13 @@ namespace VoxelEngine.Tests.PlayMode
         public void CampaignRuntimeSnapshotRestoresOneShotProgressionEffects()
         {
             var game = Game.WorldBuilder.Api.Campaign.Create("opening-progress-snapshot");
-            SiteRef site = game.World.RequireSite("progress-site");
+            RegionHandle region = game.World.Region("snapshot-region");
+            SiteHandle site = region.Site("progress-site");
             var definition = new CutsceneDefinition(
                 "opening-progress-snapshot-scene",
                 CutsceneStageSetupDefinition.Empty,
                 Array.Empty<CutsceneStep>());
-            CutsceneRef cutscene = game.Story.Cutscene(definition, scene => scene.At(site));
+            CutsceneRef cutscene = site.Cutscene(definition).Ref;
 
             game.Story.Rule("play-once", rule => rule
                 .When(StoryTrigger.NewGame())
