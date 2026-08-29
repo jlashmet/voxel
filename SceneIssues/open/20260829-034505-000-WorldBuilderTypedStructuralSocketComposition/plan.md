@@ -1,27 +1,24 @@
 # Plan
 
 ## Observed behavior / acceptance
-- The canonical VoxelEngine structure catalogue already owns structural composition metadata: `FeatureDefinition.SlotOffset/SlotCount`, `SlotSpec`, `ShapeOp.CallSlot`, and `ShapeOps.RegisterSlot`.
-- Runtime evidence falsifies the previous inventory: `ShapeProgram.Run` handles `CallSlot` with an empty `break`, so structural child composition is a compiled production no-op.
-- `FeatureCatalogueComposer` rebases slot definition ids, but `FeatureCatalogueBuilder.ComputeHash` currently omits the slot pool even though slot data changes world geometry.
-- Fine prop placement remains a separate decoration concern; this feature must not replace it.
-- Required proving cases are bridge, castle, cliff/vertical chain, and meso facade/roof attachment, all through authoritative voxel geometry and built `WorldbuildingGalleryShowcase` evidence.
+- The canonical VoxelEngine structure catalogue already owns `FeatureDefinition.SlotOffset/SlotCount`, `SlotSpec`, `ShapeOp.CallSlot`, and a packed `Slots` pool. `ShapeProgram.Run` reaches `CallSlot` but does nothing, so production structural composition is an active no-op.
+- Legacy `SlotSpec` only names one child definition plus a local box/count/spacing. It cannot express typed compatibility, facing, support, required/optional semantics, or rejection diagnostics.
+- `FeatureCatalogueBuilder.ComputeHash` omits slots even though `FeatureCatalogue.Hash` is world identity; enabling composition without fixing this would permit deterministic-content desync.
+- `FeatureRegionBuild` enforces every primitive lies inside its own definition footprint. Therefore composed children must remain independent bounded `FeatureInstance`s; flattening bridge/castle children into the root program is invalid and would break streaming.
+- Existing per-definition caps remain unchanged (`512` primitives, `1280`-voxel footprint axis). Decoration remains a separate fine-prop concern.
 
-## Competing hypotheses / discriminator
-1. **Complete the predecessor**: the existing slot bytecode/catalogue path is intended to be canonical and can be extended with typed socket metadata, bounded deterministic selection, diagnostics, and child evaluation. This is supported by current API ownership, catalogue rebasing, and the explicit `CallSlot` opcode.
-2. **Supersede it with a new WorldBuilder solver**: this would only be justified if the predecessor cannot express independently bounded children or deterministic constraints without violating region-local generation. The current code has not established that; adding it now would create the competing mechanism the issue forbids.
+## Hypotheses / material results
+1. **Complete the predecessor** — supported. Existing catalogue ownership, rebasing, bytecode and region generation provide the correct canonical seam.
+2. **Add a separate WorldBuilder structural solver** — rejected unless a later blocker proves unavoidable; it would duplicate the existing mechanism and violate the feature contract.
+3. **Inline child primitives during `CallSlot`** — falsified by the region-build footprint backstop and multi-region requirement.
 
-Next discriminator: inspect `FeatureGeneration`, `FeatureRegionBuild`, slot validation/tests, and decoration placement to locate the correct composition boundary and ensure children can remain independent authoritative feature instances rather than being flattened into one giant footprint.
-
-## Selected direction
-- Extend the existing VoxelEngine structural slot contract with data-driven semantic compatibility, facing/clearance/capacity/support/required metadata and deterministic stable identity.
-- Implement one bounded production composition path rooted in existing `CallSlot`/slot metadata; route child evaluation/placement through normal feature primitives/voxel generation.
-- Include every generation-affecting slot field in catalogue/world identity hashing.
-- Produce inspectable deterministic attachment diagnostics/graph and fail closed for required, unsupported, incompatible, cyclic, or over-budget composition.
-- Add only the smallest WorldBuilder showcase/semantic adapter needed to request and display composed structures.
+## Selected fix
+- Generalize existing slot metadata into typed structural sockets with stable ids, semantic compatibility, cardinal facing, integer clearance, capacity, support/required flags, invalidation/decor handoff metadata, and bounded candidate selection.
+- Make `CallSlot` resolve deterministic child feature instances/attachment edges, not inline geometry. Recursively compose through one bounded planner owned by the existing Structures runtime, with cycle/depth/count/cost/extent failure and inspectable accepted/rejected graph/hash.
+- Region discovery must consider composed roots whose bounded descendants overlap the target region, then normal `FeatureRegionBuild` evaluates/rasterizes each child through authoritative voxel primitives.
+- Hash all generation-affecting slot/composition data into catalogue identity.
 
 ## Remaining gates
-- Update checklist from predecessor/decoration/runtime audit; implement and add focused behavioral regressions.
-- Prove all four cases, traversal, negative constraints, determinism, authoritative voxel output, blast radius and bounded cost.
-- Validate exact built scene and inspect all durable frames.
-- Submit exactly one final exact-SHA targeted CI request, then perform pending/closed metadata and master merge workflow.
+- Finish decoration/validation/test inventory; implement contract, graph expansion, region realization and regressions.
+- Build bridge/castle/cliff/detail showcase cases, traversal and negative proofs; measure cost/blast radius.
+- Validate exact built `WorldbuildingGalleryShowcase`, inspect all durable frames, then submit exactly one final exact-SHA CI request and complete pending/closed/master workflow.
