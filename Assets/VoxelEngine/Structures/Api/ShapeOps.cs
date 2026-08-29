@@ -89,6 +89,19 @@ namespace VoxelEngine.Structures.Api
 
         /// <summary>destRegister, valueA, valueB, operation</summary>
         Arithmetic = 19,
+
+        // -- terrain ------------------------------------------------------------
+
+        /// <summary>
+        /// ax, ay, az, bx, by, bz, coreRadius, outerRadius, maximumCutFill,
+        /// fillDepth, clearAbove, edgeVariation, material, seedLow31, reserved.
+        ///
+        /// Emits one bounded terrain-following corridor. A and B are already-resolved target
+        /// elevations; rasterisation blends the existing column surface toward that target using
+        /// one analytic 0..31 influence, writes the same scalar into surface detail, and preserves
+        /// local terrain outside the influenced footprint.
+        /// </summary>
+        EmitTerrainCorridor = 20,
     }
 
     /// <summary>Operations available to <see cref="ShapeOp.Arithmetic"/>. Integer only.</summary>
@@ -156,6 +169,7 @@ namespace VoxelEngine.Structures.Api
             4, // DrawRange
             5, // SetAnchor
             4, // Arithmetic
+            15, // EmitTerrainCorridor
         };
 
         public static int OperandCount(ShapeOp op)
@@ -172,6 +186,7 @@ namespace VoxelEngine.Structures.Api
         }
 
         public static bool IsEmit(ShapeOp op) =>
-            op >= ShapeOp.EmitBox && op <= ShapeOp.EmitArcWedge;
+            op >= ShapeOp.EmitBox && op <= ShapeOp.EmitArcWedge
+            || op == ShapeOp.EmitTerrainCorridor;
     }
 }
